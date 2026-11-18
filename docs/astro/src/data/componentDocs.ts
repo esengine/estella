@@ -255,4 +255,5 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   SoundEventSource: { category: 'gameplay', summary: 'An entity-owned sound event with reproducible variation and shared voice limits.', doc: 'assets/audio', anchor: 'sound-event-source', anchorZh: '音效事件源' },
   Replicated: { category: 'gameplay', summary: 'Marks an entity the server replicates to every client.', doc: 'scripting/networking', anchor: 'state-replication--multiplayer-entities', anchorZh: '状态复制多人实体同步' },
   NetGhost: { category: 'gameplay', summary: 'Tag: this entity is a client-side proxy of one the server owns.', doc: 'scripting/networking', anchor: 'state-replication--multiplayer-entities', anchorZh: '状态复制多人实体同步' },
+  Persistent: { category: 'gameplay', summary: 'Marks an entity a server keeps across restarts, under its `key` in the store (`esengine/persist`).', doc: 'scripting/networking', anchor: 'keeping-state-across-restarts--esenginepersist', anchorZh: '跨重启保存状态esenginepersist' },
 };

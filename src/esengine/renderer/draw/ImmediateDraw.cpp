@@ -649,7 +649,7 @@ void ImmediateDraw::triangles(const f32* positions, u32 vertexCount, const f32* 
     primitiveCount_ += used / 3;
 }
 
-u32 ImmediateDraw::createMesh(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount) {
+u32 ImmediateDraw::createShape(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount) {
     if (!initialized_ || !positions || !indices || vertexCount == 0 || indexCount < 3) return 0;
     const u32 used = indexCount - indexCount % 3;
     for (u32 i = 0; i < used; ++i) {

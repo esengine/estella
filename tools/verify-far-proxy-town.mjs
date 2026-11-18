@@ -37,7 +37,7 @@ const EXAMPLE = path.join(ROOT, 'examples/far-proxy-town');
 /** Copy the example and rewrite what its world and flyer say for one variant. */
 function variant(name, edit) {
     const dir = path.join(WORK, name);
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(dir, { recursive: true });
     const project = path.join(dir, 'project');
     cpSync(EXAMPLE, project, { recursive: true, filter: (p) => !/[\\/](node_modules|build|\.esengine)([\\/]|$)/.test(p) });

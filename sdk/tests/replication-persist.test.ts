@@ -30,7 +30,7 @@ beforeEach(() => {
     Spot = defineComponent('Spot', { x: 0, y: 0 }, { replicatedFields: ['x', 'y'] });
     dir = mkdtempSync(path.join(tmpdir(), 'estella-repl-persist-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 interface PlayerRecord { pawn: EntitySnapshot | null }
 

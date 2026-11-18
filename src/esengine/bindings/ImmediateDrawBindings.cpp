@@ -183,7 +183,7 @@ void draw_triangles(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr
 
 u32 draw_createTriangleMesh(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount) {
     if (!g_immediateDraw) return 0;
-    return g_immediateDraw->createMesh(
+    return g_immediateDraw->createShape(
         reinterpret_cast<const f32*>(positionsPtr), vertexCount,
         colorsPtr ? reinterpret_cast<const f32*>(colorsPtr) : nullptr,
         reinterpret_cast<const u32*>(indicesPtr), indexCount);

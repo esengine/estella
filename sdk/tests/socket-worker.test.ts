@@ -15,7 +15,8 @@ import path from 'node:path';
 import { App } from '../src/app/app';
 import { clearUserComponents, defineComponent, Name } from '../src/ecs/component';
 import { GameSocket } from '../src/net/GameSocket';
-import { replicationPlugin, Net, Replicated, startSocketWorker, type SocketWorker } from '../src/net/replication';
+import { replicationPlugin, Net, Replicated } from '../src/net/replication';
+import { startSocketWorker, type SocketWorker } from '../src/net/socketWorker';
 
 const STEP = 1 / 60;
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));

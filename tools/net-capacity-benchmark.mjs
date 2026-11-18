@@ -184,7 +184,7 @@ async function runServer() {
 
     let port;
     if (WORKER) {
-        const sockets = await repl.startSocketWorker({
+        const sockets = await sdk.startSocketWorker({
             port: 0, host: '127.0.0.1', wsPath: createRequire(path.join(ROOT, 'sdk', 'package.json')).resolve('ws'),
         });
         sockets.onConnection((transport) => accept(transport, (drop) => transport.onClose(drop)));

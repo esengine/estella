@@ -162,7 +162,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   接入的每个 `ws` socket 用 `server.attachConnection(webSocketTransport(socket))`
   (来自 `esengine/replication`)交给服务器:一个 tick 发给某个客户端的所有消息合成一次
   socket 写出,而不是每条消息写一次,人多时服务器的 tick 耗时大约减半。
-  玩家上百时，可以把 socket 整个移出模拟所在的线程:`startSocketWorker({ port })`(Node)在一个工作线程上监听，
+  玩家上百时，可以把 socket 整个移出模拟所在的线程:`startSocketWorker({ port })`(来自 `esengine/node`)在一个工作线程上监听，
   在那里写出每个客户端的帧，并把每个连接作为一个传输交给主线程，服务器只需 `server.attachConnection(transport)`
   和 `transport.onClose(() => server.detachConnection(link))`。用 `tools/net-capacity-benchmark.mjs --worker` 实测，
   主线程的 tick 耗时又降了约一半，800 人的服务器从每秒约 10 个 tick 提升到 18–20 个(目标 20)。

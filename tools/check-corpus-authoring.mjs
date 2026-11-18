@@ -136,6 +136,8 @@ const DISPOSITION = {
   Breakable: ['owed', 'no example scene breaks an object yet; a breakable crate in the physics-3d example is where the first one goes'],
   WindWake: ['owed', 'no example scene moves a body through grass yet; the wilds meadow, with its character walking through it, is where the first one goes'],
   WindBurst: ['owed', 'no example scene sets off a blast in a field of plants yet; the wilds meadow is where the first one goes'],
+  Persistent: ['owed', 'esengine/persist marks what a game server keeps across restarts, and no example runs a server that restarts yet; multiplayer-arena\'s server, keeping its players\' pawns, is where the first one goes'],
+  RememberState: ['owed', 'the corpus\'s streamed scenes cannot take it as they stand: third-person-3d and world-streaming-3d are fixtures whose verify-world-residency claims a cell comes back as authored (a blown Beacon returns at full health), and far-proxy-town\'s cells hold no game component a player changes; the first one goes on something taken or killed in a cell of a streamed game example'],
   Hitboxes: ['owed', 'no example scene authors a hitbox set yet; the first one goes in an example with melee combat'],
   WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],

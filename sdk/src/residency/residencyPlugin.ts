@@ -6,7 +6,8 @@
  *          the sources' composed world positions.
  */
 
-import { setAppHostPaused, type App, type Plugin } from '../app/app';
+import type { App, Plugin } from '../app/app';
+import { setAppHostPaused } from '../app/hostPause';
 import { bakesOf } from '../runtime/bakes';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, WorldStreamer } from './WorldStreamer';

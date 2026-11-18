@@ -35,6 +35,7 @@ import { installOptionalPlugins } from './runtime/optionalPlugins';
 installOptionalPlugins();
 export * from './runtime/webAppFactory';
 export { nodeAdapter } from './platform/node';
+export { startSocketWorker, type SocketWorker, type SocketWorkerOptions, type WorkerSocketTransport } from './net/socketWorker';
 
 /**
  * Load the engine wasm module from a directory holding the web build

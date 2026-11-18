@@ -39,6 +39,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
 const SDK_SRC = join(ROOT, 'sdk', 'src');
 const SDK_DIST = join(ROOT, 'sdk', 'dist', 'index.node.js');
+const SUBPATH_COMPONENT_ENTRIES = [join(ROOT, 'sdk', 'dist', 'persist', 'index.js')];
 const SNAPSHOT = join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 const CURATED = join(ROOT, 'docs', 'astro', 'src', 'data', 'componentDocs.ts');
 const DOC_PAGES = join(ROOT, 'docs', 'astro', 'src', 'content', 'docs');
@@ -177,6 +178,7 @@ async function snapshotFromSdk() {
   // The node entry registers every engine component at module load and needs no
   // wasm — loading the module IS the enumeration.
   const sdk = await import(pathToFileURL(SDK_DIST).href);
+  for (const entry of SUBPATH_COMPONENT_ENTRIES) await import(pathToFileURL(entry).href);
   const reg = sdk.getComponentRegistry();
   const components = [...reg.keys()].sort().map((n) => describe(n, reg.get(n)));
   return { generatedBy: 'tools/component-reference.mjs', abiLayoutHash: sdk.ABI_LAYOUT_HASH ?? null, components };

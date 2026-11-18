@@ -194,20 +194,17 @@ public:
      * @details The same arrays as triangles(). Returns the mesh's id, or 0 when there is nothing to keep or an index
      *          names a vertex the shape does not hold. Ids outlive frames; destroyMesh gives the GPU memory back.
      */
-    u32 createMesh(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount);
+    u32 createShape(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount);
 
     /** Gives a mesh's GPU memory back. A draw already collected this frame still draws; the id is not drawn again. */
     void destroyMesh(u32 id);
 
     /**
-     * @brief Draws a mesh from createMesh moved by the 2D affine @p xform and multiplied by @p tint, as triangles() would.
-     *
      * @details The transform is applied on the GPU: a copy costs one 28-byte instance record, and consecutive copies of
      *          one mesh in one state are one instanced draw. Anything else drawn between two copies keeps its place.
      */
     void drawMesh(u32 id, const glm::vec4& tint, const f32 xform[6]);
 
-    /** Meshes createMesh holds now. */
     u32 meshCount() const { return liveMeshes_; }
 
     // =========================================================================
@@ -303,7 +300,6 @@ private:
     u32 recordedIndices_ = 0;
     bool recording_ = false;
 
-    /** A shape createMesh put on the GPU: BatchVertex vertices and 32-bit indices, both retained across a device loss. */
     struct ResidentMesh {
         BufferHandle vbo = BufferHandle::Invalid;
         BufferHandle ebo = BufferHandle::Invalid;

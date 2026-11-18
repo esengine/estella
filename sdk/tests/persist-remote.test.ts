@@ -29,7 +29,7 @@ async function until(done: () => boolean, ms = 3000): Promise<boolean> {
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), 'estella-txn-')); });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 /** A StoreHub over a real socket, in front of `inner`; closed after each test. */
 const hubs: { wss: WebSocketServer; clients: RemoteStore[] }[] = [];

@@ -11,7 +11,7 @@
  *          entry only owns the embedded asset source + the runtime boot.
  */
 import type { App } from '../app/app';
-import { setAppHostPaused } from '../app/app';
+import { setAppHostPaused } from '../app/hostPause';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { RuntimeBuildConfig } from '../defaults';

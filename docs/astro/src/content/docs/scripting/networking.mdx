@@ -184,7 +184,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   everything one tick sends a client then leaves in one socket write rather than one
   per message, which roughly halves a crowded server's tick.
   For a server with hundreds of players, take the sockets off the simulation's
-  thread altogether: `startSocketWorker({ port })` (Node) listens on a worker
+  thread altogether: `startSocketWorker({ port })` (from `esengine/node`) listens on a worker
   thread, writes each client's frames there and hands every connection over as
   a transport, so `server.attachConnection(transport)` and
   `transport.onClose(() => server.detachConnection(link))` are all the server

@@ -55,21 +55,7 @@ import type { SideModuleHost } from '../sideModules/host';
 import { watchWebGPUDeviceLoss } from '../render/renderer';
 import { log } from '../util/logger';
 import { createAbort, type AbortHandle } from '../util/abort';
-
-const hostPauseOwners = new WeakMap<App, Set<object>>();
-
-/** Internal host pause ownership, independent of the game's setPaused intent. */
-export function setAppHostPaused(app: App, owner: object, paused: boolean): void {
-    if (paused) {
-        let owners = hostPauseOwners.get(app);
-        if (!owners) hostPauseOwners.set(app, owners = new Set());
-        owners.add(owner);
-    } else {
-        const owners = hostPauseOwners.get(app);
-        owners?.delete(owner);
-        if (!owners?.size) hostPauseOwners.delete(app);
-    }
-}
+import { isAppHostPaused } from './hostPause';
 
 // =============================================================================
 // Plugin Interface
@@ -956,7 +942,7 @@ export class App {
     }
 
     isPaused(): boolean {
-        return this.user_paused_ || !!hostPauseOwners.get(this)?.size;
+        return this.user_paused_ || isAppHostPaused(this);
     }
 
     stepFrame(): void {
