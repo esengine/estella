@@ -5,7 +5,7 @@ Symbols: 115 public · 167 beta · 2251 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"bf937027e22ea446"
+"a7d308843175abab"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5930,6 +5930,7 @@ BuiltinComponentDef<LightData>
 ```
 aimFollowedSun: boolean
 bakedTint: Color
+cascadeSplit: number
 color: Color
 cookie: number
 cookieSize: Vec2
@@ -5954,8 +5955,10 @@ outerAngle: number
 radius: number
 reflectionSaturation: number
 reflectionScale: number
+shadowBias: number
 shadowDistance: number
 shadowExtent: number
+shadowSlopeFloor: number
 shadowSoftness: number
 shadowStrength: number
 sourceAngle: number
@@ -8715,6 +8718,7 @@ ResourceDef<QualityController | null>
 ```
 defaults: Readonly<Record<QualityLevel, boolean>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -8728,9 +8732,11 @@ uniform: QualityEffectUniform | undefined
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
+materialSlot: 0 | 2 | 3 | 1 | undefined
 optionLabels: Readonly<Record<number, QualitySettingText>> | undefined
 options: readonly number[]
 preference: boolean
@@ -8780,6 +8786,7 @@ name: string
 ```
 defaults: Readonly<Record<QualityLevel, string>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -8804,6 +8811,7 @@ type: "enum"
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 integer: boolean | undefined
 key: string
@@ -8840,6 +8848,7 @@ bloomLevels: number
 cloudShadowSamples: number
 cloudSteps: number
 cloudUpperSteps: number
+contactShadowSteps: number
 depthPrepass: boolean
 detailScale: number
 dofSamples: number
@@ -8851,6 +8860,7 @@ fogVolumeSteps: number
 lensFlareResolution: number
 lightShaftSamples: number
 lighting: "direct" | "full"
+loopLights: number
 minRenderScale: number
 motionBlurSamples: number
 msaaSamples: 2 | 1 | 4 | 8
@@ -8865,10 +8875,14 @@ postProcess: boolean
 refractionSamples: number
 renderScale: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
+shadowBlockerSamples: 8 | 16
 shadowCascades: number
 shadowCellSize: 512 | 1024 | 128 | 256
 shadowDistance: number
+shadowFilterSamples: 8 | 16 | 32
+shadowSearchRadius: number
 shadowSoftSamples: number
+shadowTiles: number
 shelterMaskSize: number
 skipEffects: readonly string[]
 skyLightDepthSteps: number
@@ -8878,6 +8892,7 @@ stillSky: boolean
 subsurfaceSamples: number
 textureStreaming: boolean
 textureStreamingBudget: number
+tiledLights: number
 voxelGIResolution: number
 waterCaustics: boolean
 waterDisplacement: boolean

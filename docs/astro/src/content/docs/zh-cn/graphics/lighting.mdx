@@ -58,6 +58,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `sourceAngle` | `0.53` | 仅 Directional:光源的角直径,度(太阳是 0.53);`0` = 硬边。 |
 | `meshShadows` | `false` | 在 3D mesh 上投射阴影图(Directional、Spot、Point)。 |
 | `shadowExtent` | `0` | 仅 Directional:mesh 阴影图覆盖的半径,以投射阴影的网格为中心,不随相机移动;`0` 表示贴合视野。 |
+| `cascadeSplit` | `0.75` | 仅 Directional:级联沿视线在哪里切开。`0` 均匀切,`1` 每级比上一级远固定倍数,把最多的像素花在相机附近;中间值按比例混合两者。 |
+| `shadowBias` | `1.5` | mesh 阴影图:表面在比较前朝光源、离开自身各挪多少个阴影图像素。表面被自己的阴影弄出斑点(阴影痤疮)时调大;阴影和投影物脚下脱开时调小。 |
+| `shadowSlopeFloor` | `0.15` | mesh 阴影图:被光擦过的表面至少按多少朝向光源来算,它限制了陡峭表面额外加的偏移。调小能清掉光掠过的墙上的斑点;调大让这些墙上的阴影贴住投影物。 |
 | `followEnvironmentSun` | `false` | 仅 Directional:方向和强度取自环境里的太阳,天空光则不再带太阳。 |
 | `aimFollowedSun` | `false` | 配合 `followEnvironmentSun`:按这盏灯自己的 `Transform` 定向,而不是全景图里的太阳。 |
 | `hemisphere` | `false` | 仅 Ambient:上方来的光用 `color`,下方来的光用 `groundColor`,按表面朝向混合。 |

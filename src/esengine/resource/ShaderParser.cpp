@@ -1686,12 +1686,6 @@ const kSpiral32 = array<vec2f, 32>(
     vec2f(-0.9440344, 0.2488453),
     vec2f(0.5365950, -0.8345303)
 );
-// The widest disc a penumbra is averaged over, in texels of the map. It was 8, the widest the taps cover without gaps, which held a sun's
-// penumbra to sixteen texels: with a fine cascade (a millimetre or two a texel at a character) that is a hand's width less than the sun
-// throws, and the render lab measured an edge 60% as wide as Blender's. The spiral is turned point by point (diskTapSpun) so the wider
-// disc grains instead of banding. It bounds
-// the search too — a blocker outside it cannot widen an edge that cannot be drawn wider.
-const kShadowDisc = 24.0;
 // What of the sun a sky's clouds leave at a world point. See the GLSL twin.
 fn cloudShadow3D(worldPos : vec3f, t : i32) -> f32 {
 #ifndef ES_RECEIVE_SHADOW
@@ -1719,11 +1713,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
     return 1.0;
 #else
     if (lc.u_shadowParams.x < 0.5) { return 1.0; }
-    // How steeply the surface stands to the light: one texel covers a patch of it, and
-    // the steeper the patch the further apart its ends are. Clamped, because edge-on is
-    // a tangent that runs away.
     let NoL = clamp(dot(N, L), 0.0, 1.0);
-    let slope = sqrt(1.0 - NoL * NoL) / max(NoL, 0.15);
     // Nearest tile first: a light's tiles overlap, and the first one covering a
     // fragment is the one that spends the most texels on it.
     for (var k = 0; k < 16; k++) {
@@ -1743,6 +1733,9 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0
             || proj.z < 0.0 || proj.z > 1.0) { continue; }
         let rect = lc.u_shadowTile[t];
+        let biasTexels = floor(rect.w);
+        let bias = vec2f(biasTexels * (1.0 / 64.0), rect.w - biasTexels);
+        let slope = sqrt(1.0 - NoL * NoL) / max(NoL, bias.y);
         // One texel of this tile in WORLD units where this fragment stands: the matrix's
         // x scale is clip per world, w how far away this is (1 where the map has no eye),
         // and the rect over one atlas texel how many texels the square holds.
@@ -1753,10 +1746,11 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // as a slope of 1.2 asks, the rest of the clearance along the normal: all of it toward the light is eleven texels on a wall the
         // sun grazes, further than a ceiling is thick where a texel is coarse, and the wall's top came out lit.
         let lean = min(slope, 1.2);
-        let aside = worldPos + N * (texel * 1.5 * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));
+        let biasStep = texel * bias.x;
+        let aside = worldPos + N * (biasStep * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));
         let lcq = m * vec4f(aside, 1.0);
         let uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;
-        let here = shadowDepth(m, aside + L * (texel * 1.5 * (1.0 + lean)));
+        let here = shadowDepth(m, aside + L * (biasStep * (1.0 + lean)));
         let at0 = rect.xy + uvq * rect.z;
         let lo = rect.xy + lc.u_shadowParams.y * 0.5;
         let hi = rect.xy + rect.z - lc.u_shadowParams.y * 0.5;
@@ -1819,7 +1813,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // See the GLSL twin: the matrix is applied to the direction once, and each tap moves the clip position along it.
         let toLight = m * vec4f(L, 0.0);
         // The taps are round the moved point: the same step as it took, and what each tap's own distance is worth.
-        let stepBase = texel * 1.5 * (1.0 + lean);
+        let stepBase = biasStep * (1.0 + lean);
         let stepPer = texel * slope;
         var sum = 0.0;
         var hits = 0.0;
@@ -1833,18 +1827,31 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
             if (d < reach) { sum += d; hits += 1.0; }
         }
-        for (var i = 0; i < 16; i++) {
-            let p = kSpiral16[i];
-            let off = kShadowDisc * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
-            let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
-            let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
-            let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
-            let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
-            if (d < reach) { sum += d; hits += 1.0; }
+        let fewBlockers = tc.u_quality.y > 0.0 && tc.u_quality.y < 12.0;
+        let disc = select(24.0, max(tc.u_quality.w, 0.5), tc.u_quality.w > 0.0);
+        if (fewBlockers) {
+            for (var i = 0; i < 8; i++) {
+                let p = kSpiral8[i];
+                let off = disc * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
+                let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
+                let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
+                let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
+                let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
+                if (d < reach) { sum += d; hits += 1.0; }
+            }
+        } else {
+            for (var i = 0; i < 16; i++) {
+                let p = kSpiral16[i];
+                let off = disc * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
+                let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
+                let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
+                let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
+                let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
+                if (d < reach) { sum += d; hits += 1.0; }
+            }
         }
         if (hits < 0.5) { return 1.0; }
-        // See the GLSL twin: a blocker on every tap is the inside of a shadow.
-        if (hits > 20.5) { return 0.0; }
+        if (hits > select(20.5, 12.5, fewBlockers)) { return 0.0; }
         // How far the receiver stands beyond what blocks it, and how far from the light
         // that blocker is. A is the length of the map's depth row, and each kind of map
         // inverts its own with it: hyperbolic where it has an eye, linear where w is 1.
@@ -1859,13 +1866,10 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // A source subtending src/dbw at the blocker throws that much penumbra across the
         // span beyond it — which is why a shadow hardens as its caster nears what it
         // falls on, and why a sun's angle and a lamp's size are the same expression.
-        let radius = clamp(src * span / max(dbw * texel, 1e-4), 0.5, kShadowDisc);
-        let wide = shadowDepth(m, aside + L * (texel * (1.5 * (1.0 + lean) + radius * slope)));
-        // Thirty-two, where the hard edge needs four: the disc is as wide as the source
-        // makes it, and a penumbra averaged over too few taps bands instead of blurring.
+        let radius = clamp(src * span / max(dbw * texel, 1e-4), 0.5, disc);
+        let wide = shadowDepth(m, aside + L * (biasStep * (1.0 + lean) + texel * radius * slope));
         var soft = 0.0;
-        // See the GLSL twin: a narrow penumbra is as well averaged over fewer points.
-        if (radius < 1.5) {
+        if (radius < 1.5 || (tc.u_quality.z > 0.0 && tc.u_quality.z < 12.0)) {
             for (var i = 0; i < 8; i++) {
                 let p = kSpiral8[i];
                 let off = radius * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
@@ -1873,7 +1877,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             }
             return soft * (1.0 / 8.0);
         }
-        if (radius < 4.0) {
+        if (radius < 4.0 || (tc.u_quality.z > 0.0 && tc.u_quality.z < 24.0)) {
             for (var i = 0; i < 16; i++) {
                 let p = kSpiral16[i];
                 let off = radius * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
@@ -3179,7 +3183,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp uvec4 u_tileMask[192];\n"
             "    highp vec4 u_tileInfo;\n"
             "    highp vec4 u_ambientGround;\n"
-            "    highp mat4 u_tileView;\n"       // the view the tile masks were marked through
+            "    highp mat4 u_tileView;\n"
             "};\n"
             // One run of nine per INSTANCE, not one for the draw: a merged draw
             // holds objects standing in many places. The flag in w tells "no
@@ -3244,10 +3248,6 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    return 1.0;\n"
             "#endif\n"
             "}\n"
-            // The widest disc the tap count below can average over: past it the samples
-            // sit further apart than the texels they average, and a penumbra bands rather
-            // than blurs. It bounds the search too, which can find no wider an edge.
-            "const highp float kShadowDisc = 24.0;\n"
             // Set by a hair shader before it lights: how much of the light a layer of strands takes, per world unit along it.
             "highp float g_hairShadow = 0.0;\n"
             // See the WGSL twin: a shader sets it before it lights to take the shadow as one hard edge.
@@ -3363,7 +3363,6 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // it, and the steeper the patch the further apart its ends are. Clamped,
             // because edge-on is a tangent that runs away.
             "    highp float NoL = clamp(dot(N, L), 0.0, 1.0);\n"
-            "    highp float slope = sqrt(1.0 - NoL * NoL) / max(NoL, 0.15);\n"
             // Nearest tile first: a light's tiles overlap, and the first one covering
             // a fragment is the one that spends the most texels on it.
             "    for (int k = 0; k < 16; ++k) {\n"
@@ -3385,6 +3384,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // The tile's rect is data, so a tile need not be the same size as its
             // neighbour and this expression does not care which one it is reading.
             "        highp vec4 rect = u_shadowTile[t];\n"
+            "        highp float biasTexels = floor(rect.w);\n"
+            "        highp vec2 bias = vec2(biasTexels * (1.0 / 64.0), rect.w - biasTexels);\n"
+            "        highp float slope = sqrt(1.0 - NoL * NoL) / max(NoL, bias.y);\n"
             // One texel of this tile in WORLD units where this fragment stands: the
             // matrix's x scale is clip per world, w how far away this is (1 where the map
             // has no eye), and the rect over one atlas texel how many texels it holds.
@@ -3395,10 +3397,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // units is the same step whether a map's depth runs linearly with distance or
             // hyperbolically, which is what lets one expression serve a cascade and a cone.
             "        highp float lean = min(slope, 1.2);\n"
-            "        highp vec3 aside = worldPos + N * (texel * 1.5 * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));\n"
+            "        highp float biasStep = texel * bias.x;\n"
+            "        highp vec3 aside = worldPos + N * (biasStep * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));\n"
             "        highp vec4 lcq = m * vec4(aside, 1.0);\n"
             "        highp vec2 uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;\n"
-            "        highp float here = shadowDepth(m, aside + L * (texel * 1.5 * (1.0 + lean)));\n"
+            "        highp float here = shadowDepth(m, aside + L * (biasStep * (1.0 + lean)));\n"
             "        highp vec2 at0 = rect.xy + uvq * rect.z;\n"
             "        highp vec2 lo = rect.xy + u_shadowParams.y * 0.5;\n"
             "        highp vec2 hi = rect.xy + rect.z - u_shadowParams.y * 0.5;\n"
@@ -3460,13 +3463,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        // The depth a tap forgives to is that of the point a step toward the light, and the step is linear in how far the tap stands: so the\n"
             "        // matrix is applied to the direction once, and a tap moves the clip position along it instead of going through the matrix again.\n"
             "        highp vec4 toLight = m * vec4(L, 0.0);\n"
-            "        highp float stepBase = texel * 1.5 * (1.0 + lean);\n"
+            "        highp float stepBase = biasStep * (1.0 + lean);\n"
             "        highp float stepPer = texel * slope;\n"
             "        highp float sum = 0.0;\n"
             "        highp float hits = 0.0;\n"
-            // The search disc is wide (kShadowDisc texels) and its sixteen taps are sparse: a caster narrower than the gap between them can stand
-            // right over this fragment and be missed. The fragment's own texel and the four a step and a half round it are asked first, so a thin
-            // or small caster is found where it is, and what they find is part of the blocker average like any other tap.
             "        for (int i = 0; i < 5; ++i) {\n"
             "            highp vec2 p = kInner5[i];\n"
             "            highp vec2 off = vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
@@ -3476,19 +3476,31 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
             "            if (d < reach) { sum += d; hits += 1.0; }\n"
             "        }\n"
-            "        for (int i = 0; i < 16; ++i) {\n"
-            "            highp vec2 p = kSpiral16[i];\n"
-            "            highp vec2 off = kShadowDisc * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
-            "            highp vec2 at = clamp(at0 + off * u_shadowParams.y, lo, hi);\n"
-            "            highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
-            "            highp vec4 cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
-            "            highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
-            "            if (d < reach) { sum += d; hits += 1.0; }\n"
+            "        bool fewBlockers = u_quality.y > 0.0 && u_quality.y < 12.0;\n"
+            "        highp float disc = u_quality.w > 0.0 ? max(u_quality.w, 0.5) : 24.0;\n"
+            "        if (fewBlockers) {\n"
+            "            for (int i = 0; i < 8; ++i) {\n"
+            "                highp vec2 p = kSpiral8[i];\n"
+            "                highp vec2 off = disc * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
+            "                highp vec2 at = clamp(at0 + off * u_shadowParams.y, lo, hi);\n"
+            "                highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
+            "                highp vec4 cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
+            "                highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
+            "                if (d < reach) { sum += d; hits += 1.0; }\n"
+            "            }\n"
+            "        } else {\n"
+            "            for (int i = 0; i < 16; ++i) {\n"
+            "                highp vec2 p = kSpiral16[i];\n"
+            "                highp vec2 off = disc * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
+            "                highp vec2 at = clamp(at0 + off * u_shadowParams.y, lo, hi);\n"
+            "                highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
+            "                highp vec4 cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
+            "                highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
+            "                if (d < reach) { sum += d; hits += 1.0; }\n"
+            "            }\n"
             "        }\n"
             "        if (hits < 0.5) return 1.0;\n"
-            "        // A blocker on every tap of the disc an edge can reach across is the inside of a shadow, not an edge of one: nothing in the filter below would\n"
-            "        // find light there, and its thirty-two taps are spent on a result of zero.\n"
-            "        if (hits > 20.5) return 0.0;\n"
+            "        if (hits > (fewBlockers ? 12.5 : 20.5)) return 0.0;\n"
 
             // How far the receiver stands beyond what blocks it, and how far from the
             // light that blocker is. A is the length of the map's depth row, and each map
@@ -3505,15 +3517,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // the span beyond it — which is why a shadow hardens as its caster nears what
             // it falls on, and why a sun's angle and a lamp's size are one expression.
             "        highp float radius = clamp(src * span / max(dbw * texel, 1e-4),\n"
-            "                                   0.5, kShadowDisc);\n"
-            "        highp float wide = shadowDepth(m, aside + L * (texel * (1.5 * (1.0 + lean) + radius * slope)));\n"
-            // Thirty-two, where the hard edge needs four: the disc is as wide as the
-            // source makes it, and a penumbra averaged over too few taps bands rather
-            // than blurs.
+            "                                   0.5, disc);\n"
+            "        highp float wide = shadowDepth(m, aside + L * (biasStep * (1.0 + lean) + texel * radius * slope));\n"
             "        highp float soft = 0.0;\n"
-            "        // A penumbra of a texel or two is as well averaged over eight points as thirty-two: the taps are as dense in it either way, and the\n"
-            "        // spiral is turned point by point, so what is left over is grain, not bands.\n"
-            "        if (radius < 1.5) {\n"
+            "        if (radius < 1.5 || (u_quality.z > 0.0 && u_quality.z < 12.0)) {\n"
             "            for (int i = 0; i < 8; ++i) {\n"
             "                highp vec2 p = kSpiral8[i];\n"
             "                highp vec2 off = radius * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
@@ -3521,7 +3528,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            }\n"
             "            return soft * (1.0 / 8.0);\n"
             "        }\n"
-            "        if (radius < 4.0) {\n"
+            "        if (radius < 4.0 || (u_quality.z > 0.0 && u_quality.z < 24.0)) {\n"
             "            for (int i = 0; i < 16; ++i) {\n"
             "                highp vec2 p = kSpiral16[i];\n"
             "                highp vec2 off = radius * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"

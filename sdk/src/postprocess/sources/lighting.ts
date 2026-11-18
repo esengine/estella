@@ -526,6 +526,7 @@ void main() {
 #pragma param u_followSun float default(1) range(0,1)
 #pragma param u_sunAzimuth float default(40) range(0,360)
 #pragma param u_sunElevation float default(35) range(-90,90)
+${qualityUniformParam('contactShadowSteps')}
 #pragma lights
 
 #pragma fragment
@@ -536,7 +537,7 @@ uniform sampler2D u_texture;
 uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
-const int STEPS = 20;
+const int CONTACT_SHADOW_STEPS_MAX = ${qualityUniformMax('contactShadowSteps')};
 
 ${SSAO_GLSL}
 
@@ -575,8 +576,10 @@ void main() {
     // fixed pattern of it.
     float jitter = ign(gl_FragCoord.xy + 5.588238 * float(int(u_time.x * 60.0) & 63));
     float occluded = 0.0;
-    for (int i = 0; i < STEPS; ++i) {
-        float t = (float(i) + jitter + 0.5) / float(STEPS) * u_length;
+    float steps = clamp(floor(u_contactShadowSteps), 1.0, float(CONTACT_SHADOW_STEPS_MAX));
+    for (int i = 0; i < CONTACT_SHADOW_STEPS_MAX; ++i) {
+        if (float(i) >= steps) break;
+        float t = (float(i) + jitter + 0.5) / steps * u_length;
         vec3 Q = P + L * t;
         vec4 q = u_projection * vec4(Q, 1.0);
         if (q.w <= 1e-4) break;

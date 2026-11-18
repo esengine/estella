@@ -11,6 +11,7 @@ import { getDeviceIdentity } from './renderer';
 import { decidePower } from './power';
 import { NO_POWER_STATE } from '../device/types';
 import { setSkyStillWanted } from '../postprocess/skyStill';
+import { qualityEngineValues } from './qualitySettings/index';
 
 /** @experimental */
 export const Quality = defineResource<QualityController | null>(null, 'Quality');
@@ -48,6 +49,10 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         api?.renderer_setShadowDistance?.(enabled ? applied.shadowDistance : 0);
         // With no quality policy a soft 2D shadow is drawn with the sixteen samples it always was.
         api?.renderer_setShadow2DSoftSamples?.(enabled ? applied.shadowSoftSamples : 16);
+        const setValue = api?.renderer_setQualityValue;
+        let delivered = setValue !== undefined;
+        for (const [name, value] of qualityEngineValues(enabled ? applied : null)) delivered = setValue?.(name, value) === true && delivered;
+        quality.setLimitation('quality-values-unavailable', enabled && !delivered);
         api?.renderer_setDepthPrepass?.(enabled && applied.depthPrepass);
         setSkyStillWanted(enabled && applied.stillSky);
         api?.renderer_setLightingDirect?.(enabled && applied.lighting === 'direct');

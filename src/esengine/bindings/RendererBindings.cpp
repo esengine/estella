@@ -1359,6 +1359,10 @@ void renderer_setShadow2DSoftSamples(u32 samples) {
     if (g_renderFrame) g_renderFrame->setShadow2DSoftSamples(samples);
 }
 
+bool renderer_setQualityValue(const std::string& name, f32 value) {
+    return g_renderFrame && g_renderFrame->setQualityValue(name, value);
+}
+
 void renderer_setLightingDirect(bool on) {
     if (g_renderFrame) g_renderFrame->setLightingDirect(on);
 }

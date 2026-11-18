@@ -28,6 +28,7 @@
 #include "../rhi/PerDrawBlocks.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../rhi/Shader.hpp"
+#include "./QualityValues.hpp"
 
 // Third-party
 #include <glm/glm.hpp>
@@ -199,6 +200,9 @@ public:
     void setQualityConstants(const glm::vec4& values) { qualityConstants_ = values; }
     f32 viewExposure() const { return viewExposure_; }
 
+    QualityValues& qualityValues() { return qualityValues_; }
+    const QualityValues& qualityValues() const { return qualityValues_; }
+
     /**
      * @brief The engine-side material registry (handle -> resolved render state).
      * @details Written by the SDK material binding (defineMaterial) and read by the render
@@ -276,6 +280,7 @@ private:
     f32 lastElapsed_ = 0.0f;
     f32 viewExposure_ = 0.0f;
     glm::vec4 qualityConstants_{0.0f};
+    QualityValues qualityValues_;
     MaterialStore materials_;
     LightStore lights_;
     ProbeStore probes_;

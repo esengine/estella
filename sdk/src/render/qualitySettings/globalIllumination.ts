@@ -60,4 +60,19 @@ export const GLOBAL_ILLUMINATION_SETTINGS = [
             zh: '让 Dynamic GI 效果走省的那条路：四个像素里一个去问探针，探针每帧只打四分之一的射线，卡面分八帧更新，探针行数减到三分之二。在 Snapdragon 8 Elite 上约 4.5 ms，完整为 7.3 ms。两个面相交的边上光会串一两个像素，光照变化后要约两倍的时间才稳定。',
         },
     },
+    {
+        key: 'contactShadowSteps',
+        type: 'number',
+        defaults: { low: 8, medium: 12, high: 20 },
+        min: 4, max: 20, step: 1, integer: true,
+        group: 'globalIllumination',
+        preference: false,
+        requires: { postProcess: true },
+        uniform: { effects: ['contactShadows'], name: 'u_contactShadowSteps' },
+        label: { en: 'Contact shadow steps', zh: '接触阴影步数' },
+        description: {
+            en: 'How many steps the Contact Shadows effect marches toward the sun from each pixel, over the length the effect is given. Fewer steps are longer ones: a blocker thinner than a step can be stepped over, and the shadow\'s end bands.',
+            zh: '接触阴影效果从每个像素朝太阳走多少步，总长是效果自己设的长度。步数少每步就长：比一步还薄的遮挡物可能被跨过去，阴影末端会出条带。',
+        },
+    },
 ] as const satisfies readonly QualitySetting[];

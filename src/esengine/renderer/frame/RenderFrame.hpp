@@ -126,6 +126,7 @@ public:
     void setShadowDistance(f32 distance);
     /// How many samples across a light source a soft 2D shadow is drawn with: the quality level's say on the penumbra's smoothness and cost.
     void setShadow2DSoftSamples(u32 samples);
+    bool setQualityValue(const std::string& name, f32 value);
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
@@ -1050,6 +1051,9 @@ private:
         /// degrees — a cube's six are right angles and do not read the angle.
         f32 range = 0.0f;
         f32 outerAngle = 0.0f;
+        f32 split = 0.75f;
+        f32 bias = 1.5f;
+        f32 slopeFloor = 0.15f;
     };
     /// A collected light and the map it asked for, if any. Paired rather than flagged
     /// inside the GPU struct, because the cap sort reorders these and the answer has

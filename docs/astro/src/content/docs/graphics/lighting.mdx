@@ -60,6 +60,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `sourceAngle` | `0.53` | Directional only: the angular diameter of the source in degrees (the sun is 0.53); `0` = hard edge. |
 | `meshShadows` | `false` | Cast a shadow map over 3D meshes (Directional, Spot, Point). |
 | `shadowExtent` | `0` | Directional only: radius the mesh shadow map covers, centred on the meshes that cast shadows and not moving with the camera; `0` fits the view. |
+| `cascadeSplit` | `0.75` | Directional only: where the cascades are cut along the view. `0` cuts it evenly, `1` makes each cascade a fixed multiple farther than the last, which spends the most texels near the camera; in between mixes the two. |
+| `shadowBias` | `1.5` | Mesh shadow maps: how many texels of the map a surface is moved toward the light and off itself before it is tested. Raise it where a surface speckles with its own shadow (acne); lower it where a shadow lifts off the foot of what casts it. |
+| `shadowSlopeFloor` | `0.15` | Mesh shadow maps: the least light a surface grazed by it is treated as facing, which caps how much extra bias a steep surface gets. Lower clears acne on walls the light skims; higher keeps their shadows attached. |
 | `followEnvironmentSun` | `false` | Directional only: take direction and strength from the environment's sun, and light the sky without it. |
 | `aimFollowedSun` | `false` | With `followEnvironmentSun`: aim by this light's `Transform` instead of the panorama's sun. |
 | `hemisphere` | `false` | Ambient only: light from above in `color`, from below in `groundColor`, blended by which way a surface faces. |

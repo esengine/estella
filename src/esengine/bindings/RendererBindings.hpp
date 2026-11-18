@@ -27,6 +27,7 @@ void renderer_resize(u32 width, u32 height);
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit);
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
+bool renderer_setQualityValue(const std::string& name, f32 value);
 void renderer_setDepthPrepass(bool on);
 void renderer_setLightingDirect(bool on);
 /**

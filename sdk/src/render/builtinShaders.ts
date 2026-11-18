@@ -902,7 +902,8 @@ void main() {
     vec3 lit = vec3(0.0);
     float glossLevel = 0.0;
     vec3 glossTint = vec3(0.0);
-    for (int i = 0; i < 16; ++i) {
+    int lightCount = int(u_ambient.a);
+    for (int i = 0; i < lightCount; ++i) {
         vec3 l = vec3(0.0), g = vec3(0.0), x = vec3(0.0);
         shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,
                    u_lights[i].shadowMap, u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, l, g, x, true);
