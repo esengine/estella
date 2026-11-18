@@ -576,6 +576,29 @@ in between). Without `dial`, a transfer ends the client with `closeReason`
 address, ticket })` is the replication-level step `ZoneHost` uses, for a game
 with its own handoff.
 
+### Taking a zone down without dropping anyone
+
+For a rolling update, or to take a line away, drain the zone instead of
+stopping it:
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// keep calling zone.tick() until drain resolves
+```
+
+The zone is marked draining at once — `pick`, the default route and every
+transfer pass it by, and a login there is sent on — and every player it holds
+is transferred where the route says, with `reason: 'drain'` (by default
+another live zone of its kind, else `home`), a few at a time (`concurrency`).
+Anyone the route has nowhere for, or whose transfer keeps failing, is kicked at
+`deadlineMs` with their record written; then `stop()`. A new process can take
+the zone's id as soon as it is gone. With `tools/zones-benchmark.mjs --drain`
+(4 zones, 200 players, one zone updated halfway), the drain moved its 41–53
+players in about a second, kicked none, and no client had to log in again.
+
 ### Messages between zones
 
 Zones talk over a **bus**: publish to a topic, and every process subscribed to

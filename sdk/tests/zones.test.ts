@@ -352,3 +352,94 @@ describe('two zones', () => {
 
 /** Type-only: a server satisfies what ZoneHost asks of it. */
 export type _ServerShape = ReplicationServer;
+
+describe('draining a zone', () => {
+    /** Run both zones and the clients until `p` settles. */
+    async function whileRunning<T>(p: Promise<T>, run: (apps: App[], n: number) => Promise<void>, apps: App[]): Promise<T> {
+        let done = false;
+        let value!: T;
+        void p.then((v) => { done = true; value = v; });
+        for (let i = 0; i < 400 && !done; i++) { await run(apps, 1); await new Promise((r) => setTimeout(r, 2)); }
+        expect(done).toBe(true);
+        return value;
+    }
+
+    it('moves everyone to another zone of its kind, then leaves', async () => {
+        const { A, B, client, run } = await setupTwo();
+        const players = await Promise.all(['ana', 'bo', 'cy'].map((t) => client(t, A)));
+        const apps = players.map((p) => p.app);
+        await run(apps, 3);
+        A.records.set('ana', { gold: 50 });
+        const report = await whileRunning(A.zone.drain({ deadlineMs: 3000 }), run, apps);
+        expect(report).toEqual({ moved: 3, kicked: 0 });
+        await run(apps, 4);
+        for (const p of players) {
+            expect(p.client.state).toBe('ready');
+            expect(names(p.app)).toContain('town well');
+        }
+        expect(B.records.get('ana')).toEqual({ gold: 50 });
+        expect(await B.zone.directory.get('A')).toBeNull();
+        expect((await B.zone.leases.get('bo'))!.zoneId).toBe('B');
+    });
+
+    it('sends a login made while it drains on to another zone', async () => {
+        const { A, client, run } = await setupTwo();
+        const stay = await client('stay', A);
+        const draining = A.zone.drain({ deadlineMs: 3000 });
+        await run([stay.app], 1);
+        const late = await client('late', A);
+        await run([late.app], 3);
+        expect(names(late.app)).toContain('town well');
+        await whileRunning(draining, run, [stay.app, late.app]);
+    });
+
+    it('kicks at the deadline those it has nowhere to send, and still writes them down', async () => {
+        const store = new MemoryStore();
+        const only = await bootZone('A', store, 'forest tree');
+        const app = App.new();
+        app.addPlugin(replicationPlugin);
+        const [a, b] = MemoryTransport.pair();
+        only.server.attachConnection(a);
+        const ana = await app.getResource(Net).connect(b, { interpolationDelayTicks: 0, credentials: { token: 'ana' } });
+        for (let i = 0; i < 4; i++) { await only.tick(); await app.tick(STEP); await new Promise((r) => setTimeout(r, 0)); }
+        only.records.set('ana', { gold: 3 });
+        let done = false;
+        const report = only.zone.drain({ deadlineMs: 150, message: 'maintenance' });
+        void report.then(() => { done = true; });
+        for (let i = 0; i < 200 && !done; i++) { await only.tick(); await new Promise((r) => setTimeout(r, 2)); }
+        expect(await report).toEqual({ moved: 0, kicked: 1 });
+        expect(ana.state).toBe('closed');
+        expect(ana.closeReason).toBe('kicked');
+        expect((await store.get<{ data: Rec }>('player:ana'))!.value.data.gold).toBe(3);
+        expect(await only.zone.leases.get('ana')).toBeNull();
+    });
+
+    it('takes nobody new: no pick and no transfer lands on it', async () => {
+        // Someone stays in A while it drains (the route has nowhere for them),
+        // so it is still draining when the others look.
+        const { A, B, client, run } = await setupTwo({ route: async (ctx) => (ctx.reason === 'drain' ? null : ctx.defaultRoute()) });
+        const ana = await client('ana', A);
+        const bo = await client('bo', B);
+        await run([ana.app, bo.app], 3);
+        const draining = A.zone.drain({ deadlineMs: 500 });
+        await run([ana.app, bo.app], 1);
+        expect((await B.zone.directory.get('A'))!.draining).toBe(true);
+        expect((await B.zone.directory.pick('map'))!.id).toBe('B');
+        await expect(B.zone.transfer(bo.client.connectionId, 'A')).rejects.toThrow('shutting down');
+        expect(await whileRunning(draining, run, [ana.app, bo.app])).toEqual({ moved: 0, kicked: 1 });
+    });
+
+    it('asks the route where to send each player, with reason "drain"', async () => {
+        const reasons: string[] = [];
+        const { A, client, run } = await setupTwo({
+            route: async (ctx) => { reasons.push(ctx.reason); return ctx.reason === 'drain' ? { zone: 'B', arrival: { x: 77 } } : ctx.defaultRoute(); },
+        });
+        const ana = await client('ana', A);
+        await run([ana.app], 3);
+        await whileRunning(A.zone.drain({ deadlineMs: 3000 }), run, [ana.app]);
+        await run([ana.app], 4);
+        expect(reasons).toContain('drain');
+        const pawn = ana.app.world.getEntitiesWithComponents([Replicated]).find((e) => ana.client.ownsEntity(e))!;
+        expect((ana.app.world.tryGet(pawn, Spot) as { x: number }).x).toBe(77);
+    });
+});

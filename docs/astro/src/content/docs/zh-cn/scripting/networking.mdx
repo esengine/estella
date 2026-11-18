@@ -474,6 +474,24 @@ client.onStateChange((state) => {       // 每一次变化，发生时就通知
 `'transfer'`，`transferTarget` 说明该去哪。`server.transfer(id, { address, ticket })` 是 `ZoneHost` 用的
 复制层那一步，留给有自己交接方式的游戏。
 
+### 不掉线地关掉一个区
+
+滚动更新或者撤掉一条线时，让区平滑下线，而不是直接停掉：
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// 在 drain 完成之前继续调用 zone.tick()
+```
+
+区会立刻被标记为下线中——`pick`、默认路由和所有转区都会绕开它，在这里的登录会被送去别处——它持有的每个玩家都
+按路由的决定转走，路由会收到 `reason: 'drain'`(默认是同类型里另一个活着的区，否则回城)，每次转一小批
+(`concurrency`)。路由找不到去处、或者转区一直失败的玩家，到 `deadlineMs` 时会被踢掉，存档照常写入；最后执行
+`stop()`。区一消失，新进程就可以用同一个 id 接上。用 `tools/zones-benchmark.mjs --drain` 实测(4 个区、200 个
+玩家，中途更新一个区)：下线在约 1 秒内转走了它的 41–53 个玩家，没有踢掉任何人，也没有客户端需要重新登录。
+
 ### 区之间的消息
 
 区之间通过**总线**通信：往一个主题发布，所有订阅了它的进程都会收到。投递是至多一次，和 Redis 的频道一样——

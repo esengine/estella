@@ -19,4 +19,5 @@ export { TransferTickets, TicketRefused, type TransferTicket, type TransferTicke
 export {
     ZoneHost, defaultZoneRoute,
     type ZoneHostOptions, type ZoneRoute, type ZoneRouteContext, type ZoneRouteResult,
+    type ZoneDrainOptions, type ZoneDrainReport,
 } from './zoneHost';

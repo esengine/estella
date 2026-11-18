@@ -24,6 +24,8 @@ export interface ZoneInfo {
     players: number;
     /** Most players it takes; `pick` skips a full zone. */
     capacity?: number;
+    /** Shutting down (`ZoneHost.drain`): up, but taking nobody new. `pick` skips it. */
+    draining?: boolean;
     /** Epoch ms of its last heartbeat. */
     seenAt: number;
 }
@@ -96,7 +98,7 @@ export class ZoneDirectory {
     async pick(kind: string, maxAgeMs = this.ttlMs_): Promise<ZoneInfo | null> {
         let best: ZoneInfo | null = null;
         for (const z of await this.list(kind, maxAgeMs)) {
-            if (z.capacity !== undefined && z.players >= z.capacity) continue;
+            if (z.draining || (z.capacity !== undefined && z.players >= z.capacity)) continue;
             const room = (z.capacity ?? Infinity) - z.players;
             const bestRoom = best ? (best.capacity ?? Infinity) - best.players : -Infinity;
             if (!best || room > bestRoom || (room === bestRoom && z.players < best.players)) best = z;

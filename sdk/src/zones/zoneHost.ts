@@ -95,8 +95,31 @@ export interface ZoneRouteContext {
     directory: ZoneDirectory;
     /** How recently a zone must have heartbeat to count as up. */
     freshMs: number;
+    /**
+     * Why the player is being placed: a `login` here, or a `drain` — this zone
+     * is shutting down and must send everyone it holds somewhere else (a route
+     * that returns here or null for a drain leaves the player to be kicked at
+     * the deadline).
+     */
+    reason: 'login' | 'drain';
     /** The default answer, for a route that only overrides some cases. */
     defaultRoute(): Promise<ZoneRouteResult>;
+}
+
+export interface ZoneDrainOptions {
+    /** Players not moved by now are kicked (their records are written). Default 30 s. */
+    deadlineMs?: number;
+    /** Transfers under way at once. Default 16. */
+    concurrency?: number;
+    /** What a kicked player's client is told. Default "server shutting down". */
+    message?: string;
+}
+
+export interface ZoneDrainReport {
+    /** Players sent to another zone. */
+    moved: number;
+    /** Players with nowhere to go, or whose transfer kept failing, kicked at the deadline. */
+    kicked: number;
 }
 
 /** A zone id, a zone id with what the arrival there needs, or null for "stay here". */
@@ -110,15 +133,29 @@ export type ZoneRoute = (ctx: ZoneRouteContext) => ZoneRouteResult | Promise<Zon
  */
 export async function defaultZoneRoute(ctx: ZoneRouteContext): Promise<ZoneRouteResult> {
     const { last, here, home, directory, freshMs } = ctx;
-    if (!last) return home !== undefined && home !== here && await directory.get(home, freshMs) ? home : null;
+    /** Up, and taking players: heartbeating within `freshMs` and not draining. */
+    const open = async (id: string): Promise<boolean> => {
+        const z = await directory.get(id, freshMs);
+        return z !== null && !z.draining;
+    };
+    const homeElsewhere = async (): Promise<ZoneRouteResult> =>
+        home !== undefined && home !== here && await open(home) ? home : null;
+    if (ctx.reason === 'drain') {
+        // Somewhere else of the same kind, else home.
+        if (last?.kind !== undefined) {
+            const line = await directory.pick(last.kind, freshMs);
+            if (line && line.id !== here) return line.id;
+        }
+        return homeElsewhere();
+    }
+    if (!last) return homeElsewhere();
     if (last.zoneId === here) return null;
-    if (await directory.get(last.zoneId, freshMs)) return last.zoneId;
+    if (await open(last.zoneId)) return last.zoneId;
     if (last.kind !== undefined) {
         const line = await directory.pick(last.kind, freshMs);
         if (line) return line.id === here ? null : line.id;
     }
-    if (home !== undefined && home !== here && await directory.get(home, freshMs)) return home;
-    return null;
+    return homeElsewhere();
 }
 
 /** How long a message waits for a player on their way to this zone, and how many wait. */
@@ -147,6 +184,7 @@ export class ZoneHost<A = unknown> {
     private readonly arrivals_ = new Map<string, A>();
     private nextHeartbeat_ = 0;
     private nextRenew_ = 0;
+    private draining_ = false;
     private readonly playerHandlers_ = new Map<string, Set<(playerId: string, connectionId: number, data: unknown) => void>>();
     private readonly zoneHandlers_ = new Map<string, Set<(data: unknown, fromZone: string) => void>>();
     private offBus_: (() => void)[] = [];
@@ -366,24 +404,40 @@ export class ZoneHost<A = unknown> {
             this.held_.add(playerId);
             return { playerId };
         }
-        const ctx: ZoneRouteContext = {
-            playerId, last, here, home: this.options_.home, directory: this.directory, freshMs: fresh,
-            defaultRoute: () => defaultZoneRoute(ctx),
-        };
-        const routed = await (this.options_.route ?? defaultZoneRoute)(ctx);
-        const target = routed === null ? null : typeof routed === 'string' ? { zone: routed } : routed;
+        let target = await this.route_(playerId, last, 'login');
+        // Shutting down: nobody new stays. Where a login would land here, it is
+        // placed as the drain places those already here.
+        if (this.draining_ && (!target || target.zone === here)) {
+            target = await this.route_(playerId, last ?? { playerId, zoneId: here, kind, until: 0 }, 'drain');
+        }
         if (target && target.zone !== here) {
             const dest = await this.directory.get(target.zone, fresh);
-            // A destination that is not up keeps them here rather than turning them away.
-            if (dest) {
+            // A destination that is not up (or is shutting down too) keeps them here
+            // rather than turning them away — unless here is shutting down.
+            if (dest && !dest.draining) {
                 await this.leases.handOff(playerId, here, target.zone, this.options_.arrivalLeaseMs ?? 3000, dest.kind);
                 const ticket = await this.tickets.issue({ playerId, toZone: target.zone, fromZone: here, arrival: target.arrival });
                 throw new ReplicationRedirect(dest.address, ticket);
             }
         }
+        if (this.draining_) {
+            await this.leases.release(playerId, here).catch(() => false);
+            throw retryLater('this zone is shutting down; try again shortly');
+        }
         this.held_.add(playerId);
         return { playerId };
     };
+
+    /** Ask the route where a player goes, as a zone and arrival, or null for here. */
+    private async route_(playerId: string, last: PlayerLease | null, reason: 'login' | 'drain'): Promise<{ zone: string; arrival?: unknown } | null> {
+        const ctx: ZoneRouteContext = {
+            playerId, last, here: this.zoneId, home: this.options_.home, directory: this.directory,
+            freshMs: this.heartbeatMs_ * 3, reason,
+            defaultRoute: () => defaultZoneRoute(ctx),
+        };
+        const routed = await (this.options_.route ?? defaultZoneRoute)(ctx);
+        return routed === null ? null : typeof routed === 'string' ? { zone: routed } : routed;
+    }
 
     /** A lease write that lost a race is a login to retry, not a failure. */
     private async claim_(write: () => Promise<PlayerLease>): Promise<void> {
@@ -466,6 +520,7 @@ export class ZoneHost<A = unknown> {
         // running within seconds, not a whole directory time to live.
         const dest = await this.directory.get(toZone, this.heartbeatMs_ * 3);
         if (!dest) throw new Error(`[zones] zone "${toZone}" is not up`);
+        if (dest.draining) throw new Error(`[zones] zone "${toZone}" is shutting down`);
         this.leaving_.add(pid);
         try {
             await (this.options_.players?.release(pid) ?? Promise.resolve());
@@ -492,6 +547,60 @@ export class ZoneHost<A = unknown> {
         }
     }
 
+    /** Whether `drain` has begun. */
+    get draining(): boolean {
+        return this.draining_;
+    }
+
+    /**
+     * Shut this zone down without dropping anyone: for a rolling update, or to
+     * take a line away. The zone is marked draining at once — no route, `pick`
+     * or transfer sends anyone here, and a login here is sent on — and every
+     * player it holds is transferred where the route says (`reason: 'drain'`;
+     * by default another live zone of this kind, else `home`), a few at a time.
+     * Players nothing can be found for, or whose transfer keeps failing, are
+     * kicked at `deadlineMs`. Then `stop()`: records written, leases freed, the
+     * zone off the directory. Keep calling `tick()` until it resolves.
+     */
+    async drain(options: ZoneDrainOptions = {}): Promise<ZoneDrainReport> {
+        const server = this.requireServer_();
+        const deadline = this.now_() + (options.deadlineMs ?? 30_000);
+        const concurrency = Math.max(1, options.concurrency ?? 16);
+        this.draining_ = true;
+        await this.announce_().catch((err) => this.options_.onError?.(err, 'heartbeat'));
+        let moved = 0;
+        const trying = new Set<string>();
+        while (this.now_() < deadline) {
+            const waiting: { pid: string; id: number }[] = [];
+            for (const id of server.clientIds) {
+                const pid = server.playerIdOf(id);
+                if (pid !== undefined && !this.leaving_.has(pid) && !trying.has(pid)) waiting.push({ pid, id });
+            }
+            // Players away in their reconnect grace cannot be moved: stop() writes
+            // them down, and their client finds a zone through its entry.
+            if (waiting.length === 0 && trying.size === 0 && this.leaving_.size === 0) break;
+            for (const { pid, id } of waiting.slice(0, Math.max(0, concurrency - trying.size))) {
+                trying.add(pid);
+                void (async () => {
+                    const target = await this.route_(pid, await this.leases.last(pid), 'drain');
+                    if (!target || target.zone === this.zoneId) return;
+                    await this.transfer(id, target.zone, target.arrival as A | undefined);
+                    moved++;
+                })().catch(() => undefined).finally(() => {
+                    // A player not moved is tried again after a moment, until the deadline.
+                    setTimeout(() => trying.delete(pid), 250);
+                });
+            }
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        let kicked = 0;
+        for (const id of server.presentIds) {
+            if (server.kick(id, options.message ?? 'server shutting down')) kicked++;
+        }
+        await this.stop();
+        return { moved, kicked };
+    }
+
     /** For shutdown: records written, leases freed, and the zone taken off the directory. */
     async stop(): Promise<void> {
         for (const off of this.offBus_) off();
@@ -509,6 +618,7 @@ export class ZoneHost<A = unknown> {
             id: z.id, address: z.address, players,
             ...(z.kind !== undefined ? { kind: z.kind } : {}),
             ...(z.capacity !== undefined ? { capacity: z.capacity } : {}),
+            ...(this.draining_ ? { draining: true } : {}),
         });
     }
 
