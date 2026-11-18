@@ -1225,7 +1225,12 @@ export class World {
 
             if (this.builtin_.getWasmModule()) {
                 const ptrSetter = this.builtin_.resolvePtrSetter(component._cppName);
-                if (ptrSetter) return ptrSetter;
+                // The pointer setter writes the engine's heap and calls nothing, so the stamp the engine's readers of changes
+                // go by (composition recomposes only the Transforms stamped since its last pass) is said here, for every caller.
+                if (ptrSetter) {
+                    if (!feedsTransformComposition(component)) return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); };
+                    return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); this.builtin_.invalidateTransformComposition(); };
+                }
             }
 
             const name = component._cppName;
@@ -1866,9 +1871,15 @@ export class World {
         this.queries_.markStructuralChange();
     }
 
-    /** @internal Say composed world transforms are stale, for a producer that
-     *  wrote the bytes without going through the mutation seam. */
+    /** @internal Say composed world transforms are stale, for a producer that wrote the bytes without going through the
+     *  mutation seam: with no stamp to say which, the next composition composes everything. */
     invalidateTransformComposition(): void {
+        this.builtin_.invalidateUnstampedTransforms();
+    }
+
+    /** @internal Say composed world transforms are stale, for a producer that stamped every Transform it wrote
+     *  (stampEngineWrite): the next composition recomposes those and what is under them. */
+    invalidateStampedTransforms(): void {
         this.builtin_.invalidateTransformComposition();
     }
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { flushEngineStamps } from '../ecs/engineStamps';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { Entity } from '../types';
@@ -33,6 +34,8 @@ export class SpringBoneAPI {
 
     /** Advance every chain: step the springs toward the pose the animation gave, then turn the bones to match. */
     update(dt: number): void {
+        // The update composes world transforms from the write stamps, so what scripts wrote reaches the engine first.
+        flushEngineStamps(this.registry_);
         this.module_.springbone_update?.(this.registry_, dt);
     }
 

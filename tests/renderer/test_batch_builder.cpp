@@ -1248,13 +1248,14 @@ TEST_CASE("flat geometry: authored planar zero scales remain collapsed through r
         system.ensureComposed(registry);
         CHECK_FALSE(ecs::hasFlatGeometryArea(registry, child, transform));
         CHECK_FALSE(ecs::pointInTransformedBox(registry, child, transform, 0, 0, 20, 30, .5f, .5f));
-        registry.get<ecs::Transform>(parent).scale.x = 1;
+        // Written as every producer writes, stamped: composition recomposes what the stamps name.
+        registry.patch<ecs::Transform>(parent).scale.x = 1;
         ecs::invalidateTransformComposition();
         system.ensureComposed(registry);
         CHECK(ecs::hasFlatGeometryArea(registry, child, transform));
         CHECK(ecs::pointInTransformedBox(registry, child, transform, 0, 0, 20, 30, .5f, .5f));
-        registry.get<ecs::Transform>(parent).scale.x = 0;
-        transform.rotation = glm::angleAxis(.5f, glm::vec3(0, 1, 0));
+        registry.patch<ecs::Transform>(parent).scale.x = 0;
+        registry.patch<ecs::Transform>(child).rotation = glm::angleAxis(.5f, glm::vec3(0, 1, 0));
         ecs::invalidateTransformComposition();
         system.ensureComposed(registry);
         CHECK(ecs::hasFlatGeometryArea(registry, child, transform));
@@ -1279,7 +1280,7 @@ TEST_CASE("flat geometry: deep collapsed groups propagate and recover in one tra
     transform.rotation = glm::angleAxis(.4f, glm::vec3(0, 0, 1));
     system.ensureComposed(registry);
     CHECK_FALSE(ecs::hasFlatGeometryArea(registry, parent, transform));
-    registry.get<ecs::Transform>(root).scale.x = 1;
+    registry.patch<ecs::Transform>(root).scale.x = 1;
     ecs::invalidateTransformComposition();
     system.ensureComposed(registry);
     CHECK(ecs::hasFlatGeometryArea(registry, parent, transform));

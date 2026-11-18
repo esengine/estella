@@ -31,10 +31,18 @@ namespace esengine::ecs {
  *          field or of the hierarchy, on either side of the wasm boundary.
  * @note Modulo 2^32: aliasing needs 2^32 invalidations between two compositions.
  */
-inline u32& transformMutationEpoch() {
-    static u32 epoch = 1;
-    return epoch;
+inline u32* transformEpochWords() {
+    static u32 words[2] = {1, 0};
+    return words;
 }
+inline u32& transformMutationEpoch() { return transformEpochWords()[0]; }
+
+/**
+ * @brief How many times a producer has written a local transform WITHOUT stamping it
+ * @details The word after transformMutationEpoch, so a script reaches both through one address. Composition recomposes only
+ *          what was stamped; when this has moved, it cannot know what was written and composes everything.
+ */
+inline u32& transformUnstampedEpoch() { return transformEpochWords()[1]; }
 
 /**
  * @brief Say that composed world transforms are stale
@@ -43,6 +51,12 @@ inline u32& transformMutationEpoch() {
  *          them makes every composition immediately stale again.
  */
 inline void invalidateTransformComposition() { transformMutationEpoch()++; }
+
+/** @brief Say that local transforms were written with no stamp saying which: the next composition composes everything. */
+inline void invalidateUnstampedTransforms() {
+    transformMutationEpoch()++;
+    transformUnstampedEpoch()++;
+}
 
 class TransformSystem : public System {
 public:
@@ -99,7 +113,7 @@ public:
 
     /**
      * @brief Whether the pending set was dropped for being bigger than a rebuild
-     * @details Once more entities have changed than a composition writes, reading
+     * @details Once more entities have changed than there are Transforms, reading
      *          them all again is cheaper than replaying the list — so it is
      *          dropped and the consumer is told to rebuild instead of handed a
      *          set that costs more than the thing it saves.
@@ -168,8 +182,8 @@ private:
         if (tracking_ && !overflowed_) changedOut_ = &changed_;
         updateDirtyTransforms(registry);
         changedOut_ = nullptr;
-        // Past the point where replaying the list beats re-reading the world.
-        if (changed_.size() > visited_) {
+        // Past the point where replaying the list beats re-reading the world: more entries than there are Transforms to read.
+        if (changed_.size() > registry.countOf<Transform>()) {
             changed_.clear();
             overflowed_ = true;
         }
@@ -177,13 +191,20 @@ private:
         markComposed(registry);
     }
 
+    // What the last composition saw, to tell what has changed since: the registry, the tick it read up to (its own world-matrix
+    // stamps included), the Transform pool's version (a removal moves it) and whether it composed in full at all.
+    u64 seenRegistry_ = 0;
+    u32 seenTick_ = 0;
+    u32 seenTransformVersion_ = 0;
+    u32 seenRelationEpoch_ = 0;
+    u32 seenUnstampedEpoch_ = 0;
+    std::vector<u32> changedSlots_;
+
     /**
-     * @brief Composes in two walks: the entities in no tree, then the trees in cascade order
-     * @details An entity with neither a parent nor children (most of a 2D scene) is its own world transform: the first walk
-     *          over the Transform pool copies it and moves on. Every entity in a tree is in the ChildOf relation's cascade, a
-     *          flat array in which each parent comes before its children; the second walk goes through it front to back,
-     *          reading each parent's result from the slot it wrote a few entries earlier. It needs no stack and no marks,
-     *          and the relation cannot hold a cycle or a duplicate for it to guard against.
+     * @brief Composes the Transforms stamped or tagged dirty since the last composition, and the subtrees under them
+     * @details Every writer of a local transform stamps it (census-transform-writers holds them to it). Everything is composed
+     *          when the stamps cannot be relied on: first time, another registry, a Transform removed, a changed hierarchy,
+     *          and while the change audit runs, which exists to find a write that did not stamp.
      */
     void updateDirtyTransforms(Registry& registry) {
         dirty_to_clear_.clear();
@@ -193,25 +214,130 @@ private:
         have_children_ = rel.linkCount() != 0;
         have_collapsed_ = !registry.entitiesWith<FlatGeometryCollapsed>().empty();
 
-        // eachLive (no per-frame snapshot copy of the entity list): the callback
-        // writes Transform fields and derived collapse tags, while deferring
-        // TransformDirty removal; the Transform pool itself stays stable.
-        registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
-            if (have_children_ && (rel.hasTarget(entity) || rel.hasSources(entity))) return;
-            const bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
-            const bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
-            if (isStatic && !isDirty) return;
-            updateRootTransform(registry, entity, transform, isDirty);
-        });
-
-        if (have_children_) composeTrees(registry);
+        const bool full = seenRegistry_ != registry.identity() || seenTick_ == 0
+            || seenTransformVersion_ != registry.poolVersion<Transform>() || seenRelationEpoch_ != rel.epoch()
+            || seenUnstampedEpoch_ != transformUnstampedEpoch() || registry.changeAuditEnabled();
+        if (full) composeAll(registry);
+        else composeChanged(registry);
 
         for (Entity e : dirty_to_clear_) {
             if (registry.has<TransformDirty>(e)) {
                 registry.remove<TransformDirty>(e);
             }
         }
+        // After its own stamps: what this composition wrote is not a change the next one has to recompose.
+        seenRegistry_ = registry.identity();
+        seenTick_ = registry.beginChangeRead();
+        if (seenTick_ == 0) seenTick_ = registry.beginChangeRead();
+        seenTransformVersion_ = registry.poolVersion<Transform>();
+        seenRelationEpoch_ = rel.epoch();
+        seenUnstampedEpoch_ = transformUnstampedEpoch();
     }
+
+    bool inTree(const ExclusiveRelation& rel, Entity entity) const {
+        return have_children_ && (rel.hasTarget(entity) || rel.hasSources(entity));
+    }
+
+    /** @brief Everything: the entities in no tree from the Transform pool, then every tree in cascade order. */
+    void composeAll(Registry& registry) {
+        const auto& rel = registry.childOf();
+        // eachLive (no per-frame snapshot copy of the entity list): the callback
+        // writes Transform fields and derived collapse tags, while deferring
+        // TransformDirty removal; the Transform pool itself stays stable.
+        registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
+            if (inTree(rel, entity)) return;
+            const bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
+            const bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+            if (isStatic && !isDirty) return;
+            updateRootTransform(registry, entity, transform, isDirty);
+        });
+        if (!have_children_) return;
+        const auto& order = rel.cascade();
+        slots_.resize(order.size());
+        for (u32 i = 0, n = static_cast<u32>(order.size()); i < n; ++i) composeEntry(registry, order, i);
+    }
+
+    /** @brief Only what was written or tagged dirty since the last composition, and the subtrees under it. */
+    void composeChanged(Registry& registry) {
+        const auto& rel = registry.childOf();
+        const auto& order = have_children_ ? rel.cascade() : emptyCascade();
+        slots_.resize(order.size());
+        changedSlots_.clear();
+
+        // A static entity is recomposed only when tagged dirty, as the full walk does: a write to it is not one.
+        const auto changed = [&](Entity entity, bool tagged) {
+            if (!tagged && have_static_ && registry.has<TransformStatic>(entity)) return;
+            if (inTree(rel, entity)) {
+                changedSlots_.push_back(rel.cascadeSlot(entity));
+                return;
+            }
+            auto* transform = registry.tryGet<Transform>(entity);
+            if (!transform) {
+                if (tagged) dirty_to_clear_.push_back(entity);
+                return;
+            }
+            updateRootTransform(registry, entity, *transform, tagged);
+        };
+        registry.anyChangedSinceWhere<Transform>(seenTick_, [&](Entity entity) {
+            changed(entity, have_dirty_ && registry.has<TransformDirty>(entity));
+            return false;
+        });
+        if (have_dirty_) {
+            for (const Entity entity : registry.entitiesWith<TransformDirty>()) {
+                // Written and tagged was handled above, with its tag.
+                if (!registry.changedSince<Transform>(entity, seenTick_)) changed(entity, true);
+            }
+        }
+        if (changedSlots_.empty()) return;
+
+        // Ranges in cascade order: one inside a range already recomposed is part of it.
+        std::sort(changedSlots_.begin(), changedSlots_.end());
+        u32 covered = 0;
+        for (const u32 start : changedSlots_) {
+            if (start < covered) continue;
+            const u32 parent = order[start].parent;
+            if (parent != ExclusiveRelation::NONE) slots_[parent] = contextOf(registry, order, parent);
+            for (u32 i = start, end = order[start].end; i < end; ++i) composeEntry(registry, order, i);
+            covered = order[start].end;
+        }
+    }
+
+    static const std::vector<ExclusiveRelation::CascadeEntry>& emptyCascade() {
+        static const std::vector<ExclusiveRelation::CascadeEntry> none;
+        return none;
+    }
+
+    /**
+     * @brief What the entity at @p slot hands its children, worked out without recomposing it
+     * @details Down the chain from its tree's root, by the same rules composeEntry applies, reading what each one already
+     *          holds: the dirty flag a static descendant obeys, the collapse a flat child inherits, and the matrix — the nearest
+     *          Transform's cached one, which is current, since nothing on the chain changed.
+     */
+    Slot contextOf(Registry& registry, const std::vector<ExclusiveRelation::CascadeEntry>& order, u32 slot) {
+        static const glm::mat4 identity{1.0f};
+        chain_.clear();
+        for (u32 at = slot; at != ExclusiveRelation::NONE; at = order[at].parent) chain_.push_back(at);
+        Slot context{&identity, true, false};
+        for (usize k = chain_.size(); k-- > 0;) {
+            const Entity entity = order[chain_[k]].entity;
+            auto* transform = registry.tryGet<Transform>(entity);
+            const bool localDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+            const bool collapsedTag = have_collapsed_ && registry.has<FlatGeometryCollapsed>(entity);
+            if (k + 1 == chain_.size()) {
+                // The root of the tree.
+                if (!transform) context = {&identity, true, false};
+                else if (have_static_ && !localDirty && registry.has<TransformStatic>(entity)) context = {&transform->cachedMatrix_, false, collapsedTag};
+                else context = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
+                continue;
+            }
+            const bool dirty = context.dirty || localDirty;
+            const bool keepStatic = transform && have_static_ && !dirty && registry.has<TransformStatic>(entity);
+            // Its collapse tag is what composeEntry derived for it last time, from inputs that have not changed since.
+            context = {transform ? &transform->cachedMatrix_ : context.matrix, keepStatic ? false : dirty, collapsedTag};
+        }
+        return context;
+    }
+    std::vector<u32> chain_;
 
     /** @brief A root's world transform is its local one: copied, never composed from a matrix. */
     void updateRootTransform(Registry& registry, Entity entity, Transform& transform, bool localDirty) {
@@ -232,61 +358,58 @@ private:
         if (localDirty) dirty_to_clear_.push_back(entity);
     }
 
-    void composeTrees(Registry& registry) {
+    /** @brief Composes the entity at @p i of the cascade, whose parent's slot is already written. */
+    void composeEntry(Registry& registry, const std::vector<ExclusiveRelation::CascadeEntry>& order, u32 i) {
         static const glm::mat4 identity{1.0f};
-        const auto& order = registry.childOf().cascade();
-        slots_.resize(order.size());
-        for (usize i = 0, n = order.size(); i < n; ++i) {
-            const Entity entity = order[i].entity;
-            auto* transform = registry.tryGet<Transform>(entity);
-            const bool localDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+        const Entity entity = order[i].entity;
+        auto* transform = registry.tryGet<Transform>(entity);
+        const bool localDirty = have_dirty_ && registry.has<TransformDirty>(entity);
 
-            if (order[i].parent == ExclusiveRelation::NONE) {
-                // The root of a tree.
-                if (!transform) {
-                    // A parent with no Transform of its own (a folder of entities): its children compose against identity.
-                    if (localDirty) dirty_to_clear_.push_back(entity);
-                    setFlatCollapsed(registry, entity, false);
-                    slots_[i] = {&identity, true, false};
-                } else if (have_static_ && !localDirty && registry.has<TransformStatic>(entity)) {
-                    // A static root keeps the matrix it had; its children are recomposed only where they are dirty.
-                    slots_[i] = {&transform->cachedMatrix_, false, registry.has<FlatGeometryCollapsed>(entity)};
-                } else {
-                    updateRootTransform(registry, entity, *transform, localDirty);
-                    // A root's cachedMatrix_ is only read to transform its children, so only a root with children builds it.
-                    transform->cachedMatrix_ = math::compose(transform->worldPosition, transform->worldRotation, transform->worldScale);
-                    slots_[i] = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
-                }
-                continue;
+        if (order[i].parent == ExclusiveRelation::NONE) {
+            // The root of a tree.
+            if (!transform) {
+                // A parent with no Transform of its own (a folder of entities): its children compose against identity.
+                if (localDirty) dirty_to_clear_.push_back(entity);
+                setFlatCollapsed(registry, entity, false);
+                slots_[i] = {&identity, true, false};
+            } else if (have_static_ && !localDirty && registry.has<TransformStatic>(entity)) {
+                // A static root keeps the matrix it had; its children are recomposed only where they are dirty.
+                slots_[i] = {&transform->cachedMatrix_, false, registry.has<FlatGeometryCollapsed>(entity)};
+            } else {
+                updateRootTransform(registry, entity, *transform, localDirty);
+                // A root's cachedMatrix_ is only read to transform its children, so only a root with children builds it.
+                transform->cachedMatrix_ = math::compose(transform->worldPosition, transform->worldRotation, transform->worldScale);
+                slots_[i] = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
             }
-
-            const Slot& parent = slots_[order[i].parent];
-            const bool dirty = parent.dirty || localDirty;
-            const bool keepStatic = transform && have_static_ && !dirty && registry.has<TransformStatic>(entity);
-            bool flatCollapsed = parent.flatCollapsed;
-            if (transform && !keepStatic) {
-                flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
-                    || (parent.flatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
-                const auto matrix = *parent.matrix * math::compose(transform->position, transform->rotation, transform->scale);
-                if (changedOut_) ++visited_;
-                // Only a matrix that changed is decomposed again: the same matrix decomposes to the same world fields, and
-                // a still child of a model (most of a scene's meshes) was decomposed afresh by every view of every frame.
-                if (matrix != transform->cachedMatrix_) {
-                    if (changedOut_) changedOut_->push_back(entity);
-                    transform->cachedMatrix_ = matrix;
-                    transform->decomposed_ = false;
-                    // Where it stands in the world changed (its own move or a parent's): a reader of Transform changes sees it.
-                    registry.markChanged<Transform>(entity);
-                }
-            } else if (keepStatic) {
-                flatCollapsed = registry.has<FlatGeometryCollapsed>(entity);
-            }
-            setFlatCollapsed(registry, entity, flatCollapsed);
-            if (localDirty) dirty_to_clear_.push_back(entity);
-            // An entity with no Transform passes its parent's matrix through to its children. Transform storage is stable
-            // throughout composition, so a slot borrows the cached matrix rather than copying it.
-            slots_[i] = {transform ? &transform->cachedMatrix_ : parent.matrix, keepStatic ? false : dirty, flatCollapsed};
+            return;
         }
+
+        const Slot parent = slots_[order[i].parent];
+        const bool dirty = parent.dirty || localDirty;
+        const bool keepStatic = transform && have_static_ && !dirty && registry.has<TransformStatic>(entity);
+        bool flatCollapsed = parent.flatCollapsed;
+        if (transform && !keepStatic) {
+            flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
+                || (parent.flatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
+            const auto matrix = *parent.matrix * math::compose(transform->position, transform->rotation, transform->scale);
+            if (changedOut_) ++visited_;
+            // Only a matrix that changed is decomposed again: the same matrix decomposes to the same world fields, and
+            // a still child of a model (most of a scene's meshes) was decomposed afresh by every view of every frame.
+            if (matrix != transform->cachedMatrix_) {
+                if (changedOut_) changedOut_->push_back(entity);
+                transform->cachedMatrix_ = matrix;
+                transform->decomposed_ = false;
+                // Where it stands in the world changed (its own move or a parent's): a reader of Transform changes sees it.
+                registry.markChanged<Transform>(entity);
+            }
+        } else if (keepStatic) {
+            flatCollapsed = registry.has<FlatGeometryCollapsed>(entity);
+        }
+        setFlatCollapsed(registry, entity, flatCollapsed);
+        if (localDirty) dirty_to_clear_.push_back(entity);
+        // An entity with no Transform passes its parent's matrix through to its children. Transform storage is stable
+        // throughout composition, so a slot borrows the cached matrix rather than copying it.
+        slots_[i] = {transform ? &transform->cachedMatrix_ : parent.matrix, keepStatic ? false : dirty, flatCollapsed};
     }
 };
 
@@ -366,18 +489,8 @@ inline bool setParent(Registry& registry, Entity child, Entity newParent) {
  * @brief Applies a scene's authored entity order to the whole world
  * @param order Entities in the desired order (first draws first, i.e. behind)
  * @param count How many entries @p order holds
- *
- * @details Two things read "order" when deciding what covers what, and one
- *          authored order has to reach both: component STORAGE order, which is
- *          the painter order of everything the renderer collects by pool walk,
- *          and each parent's CHILD order, which is the order the UI tree lays out
- *          and draws in (see UIRenderOrderSystem). A scene file gets both for
- *          free by spawning in order; this re-establishes them on a world that is
- *          already populated, so an editor drag or a runtime "bring to front"
- *          means the same thing a reload would.
- *
- *          Entities left out of @p order keep their relative order, after the
- *          listed ones.
+ * @details One order reaches both readers of it: component storage (the renderer's painter order) and each parent's children
+ *          (UI layout and draw order), as a reload would. Entities left out keep their relative order, after the listed ones.
  */
 inline void applySceneEntityOrder(Registry& registry, const Entity* order, usize count) {
     if (!order || count == 0) return;

@@ -30,6 +30,8 @@ const GATE = process.argv.includes('--gate');
 
 /** The call that says the composition's inputs moved. */
 const SEAM_CALL = 'invalidateTransformComposition';
+/** What a writer says to stamp what it wrote: the Transform by type, a mutable access that stamps, or stamps by type id. */
+const STAMPS = /markChanged<(?:ecs::)?Transform>|patch<(?:ecs::)?Transform>|markChangedById|\.patch</;
 
 /**
  * Every C++ writer of a Transform's local inputs, and on what ground it is
@@ -225,6 +227,14 @@ for (const seam of SEAMS) {
     const text = missing.some((m) => seam.file.startsWith(m)) ? null : readFileSync(path.join(ROOT, seam.file), 'utf8');
     if (seam.role === 'announces' && text && !text.includes(`${SEAM_CALL}(`)) {
         errors.push(`${seam.file} — ${seam.fn}() writes Transform inputs and its file never calls ${SEAM_CALL}()`);
+    }
+    // Announcing is not enough on its own: composition recomposes only the Transforms stamped since its last pass, so a write
+    // that announces and does not stamp is one the next composition skips, and the entity stays where it was.
+    if (seam.role === 'announces') {
+        const body = bodies.get(`${seam.file}#${seam.fn}`) ?? '';
+        if (body && !STAMPS.test(body)) {
+            errors.push(`${seam.file} — ${seam.fn}() writes Transform inputs and never stamps them (markChanged<Transform> / patch<Transform>)`);
+        }
     }
     if (seam.role === 'private world') {
         const body = bodies.get(`${seam.file}#${seam.fn}`) ?? '';

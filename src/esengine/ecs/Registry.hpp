@@ -254,6 +254,13 @@ public:
         return false;
     }
 
+    /** @brief T's pool version: moves when a T is removed or the pool's storage moves (SparseSetBase::version). 0 with no pool. */
+    template<typename T>
+    u32 poolVersion() const {
+        const auto* pool = getPool<T>();
+        return pool ? pool->version() : 0;
+    }
+
     /** @brief How many entities have a T. */
     template<typename T>
     usize countOf() const {

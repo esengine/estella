@@ -97,9 +97,8 @@ function mutate(tick) {
             }
         }
     }
-    // The ptr setter writes the component heap and calls no C++, which is exactly
-    // why a producer has to say so. One notification per pass, as a system does.
-    world.invalidateTransformComposition();
+    // The setter stamps what it wrote and says composition is stale, as every write
+    // through the world does; composition recomposes the stamped entities.
 }
 
 const setTracking = module.transform_setChangeTracking;

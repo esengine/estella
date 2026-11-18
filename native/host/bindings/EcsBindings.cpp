@@ -102,7 +102,8 @@ esjs::Val js_setMeshSkinJoints(const esjs::Args& a) {
  * doubles the write it follows (bench/transform-invalidation).
  */
 esjs::Val js_transformEpochBuffer(const esjs::Args& a) {
-    return esn_arraybuffer(&ecs::transformMutationEpoch(), sizeof(u32));
+    // Both words: the epoch, and after it the count of writes that left no stamp (transformUnstampedEpoch).
+    return esn_arraybuffer(ecs::transformEpochWords(), 2 * sizeof(u32));
 }
 /** Whether composition also records which entities' output moved. Off by default;
  *  only a consumer maintaining an incremental structure pays for it. */

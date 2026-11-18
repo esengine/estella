@@ -186,6 +186,8 @@ public:
         Entity entity;
         /** Where its target sits in the same array; NONE for the root of a tree. */
         u32 parent;
+        /** One past its last descendant: its subtree is [this entry, end), contiguous, as preorder lays it out. */
+        u32 end;
     };
 
     /**
@@ -203,18 +205,39 @@ public:
             if (target_[i] != NONE || first_[i] == NONE) continue;
             // A root's own id is not stored at its slot; its first child names it.
             const u32 root = target_[Entity::fromRaw(first_[i]).index()];
-            cascade_.push_back({Entity::fromRaw(root), NONE});
+            cascade_.push_back({Entity::fromRaw(root), NONE, 0});
             pushSources(i, static_cast<u32>(cascade_.size() - 1));
             while (!pending_.empty()) {
                 const auto [raw, parent] = pending_.back();
                 pending_.pop_back();
-                cascade_.push_back({Entity::fromRaw(raw), parent});
+                cascade_.push_back({Entity::fromRaw(raw), parent, 0});
                 pushSources(Entity::fromRaw(raw).index(), static_cast<u32>(cascade_.size() - 1));
             }
+        }
+        // Each entry's subtree ends where its last descendant's does: walked back to front, a child has its end before its
+        // parent takes the larger of the two.
+        const u32 n = static_cast<u32>(cascade_.size());
+        cascade_slot_.assign(target_.size(), NONE);
+        for (u32 i = 0; i < n; ++i) {
+            cascade_[i].end = i + 1;
+            cascade_slot_[cascade_[i].entity.index()] = i;
+        }
+        for (u32 i = n; i-- > 0;) {
+            const u32 p = cascade_[i].parent;
+            if (p != NONE && cascade_[i].end > cascade_[p].end) cascade_[p].end = cascade_[i].end;
         }
         cascade_epoch_ = epoch_;
         return cascade_;
     }
+
+    /** @brief Where @p entity sits in cascade(), or NONE when it is in no tree. Current as of the last cascade() call. */
+    u32 cascadeSlot(Entity entity) const {
+        const u32 i = entity.index();
+        return i < cascade_slot_.size() ? cascade_slot_[i] : NONE;
+    }
+
+    /** @brief Whether cascade() would be rebuilt: the relation's shape changed since it was last built. */
+    bool cascadeStale() const { return cascade_epoch_ != epoch_; }
 
     /** @brief The arrays themselves, for a reader across the wasm boundary; valid until the next edit that grows them. */
     const u32* targets() const { return target_.data(); }
@@ -229,6 +252,7 @@ private:
     u32 links_ = 0;
     u32 epoch_ = 1;
     mutable std::vector<CascadeEntry> cascade_;
+    mutable std::vector<u32> cascade_slot_;
     mutable std::vector<std::pair<u32, u32>> pending_;
     mutable u32 cascade_epoch_ = 0;
 

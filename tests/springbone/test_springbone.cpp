@@ -199,7 +199,7 @@ struct Rig {
     }
 
     void moveRoot(const glm::vec3& p) {
-        registry.get<ecs::Transform>(root).position = p;
+        registry.patch<ecs::Transform>(root).position = p;
         ecs::invalidateTransformComposition();
     }
     void frame(f32 dt = 1.0f / 60.0f) { system.update(registry, &transforms, dt); }
@@ -234,7 +234,7 @@ TEST_CASE("an animated rotation is the new pose the chain springs toward") {
     rig.frame();
     const glm::quat pose = glm::angleAxis(0.5f, glm::vec3(0.0f, 0.0f, 1.0f));
     for (int i = 0; i < 300; ++i) {
-        rig.registry.get<ecs::Transform>(rig.b1).rotation = pose;   // the animation, every frame
+        rig.registry.patch<ecs::Transform>(rig.b1).rotation = pose;   // the animation, every frame
         ecs::invalidateTransformComposition();
         rig.frame();
     }
