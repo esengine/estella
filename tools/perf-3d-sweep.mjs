@@ -26,7 +26,7 @@ const DEFAULT_SCENES = ['third-person-3d', 'physics-3d', 'lighting-3d', 'world-s
 const ARGS = toolArgs({
   scenes: '', rounds: '1', slow: null, quality: ['low', 'medium', 'high', 'scene'], frames: '300', w: '844', h: '390', dpr: '2.5',
   memory: '3', warm: '3', 'profile-frames': '120', 'cpu-profile-ms': '3000', root: null, shots: null, out: null, settle: '300000',
-  project: '', 'box-gflops': '12740', 'phone-gflops': '96', 'phone-gpix': '4', overdraw: '2', 'quiet-cpu': '25', 'quiet-gpu': '10', 'quiet-wait': '900', 'quiet-for': '20', 'no-export': false, logs: false, help: false,
+  project: '', 'box-gflops': '12740', 'phone-gflops': '96', 'phone-gpix': '4', overdraw: '2', 'quiet-cpu': '25', 'quiet-gpu': '10', 'quiet-wait': '900', 'quiet-for': '20', 'worker-quiet': '5', 'no-export': false, logs: false, help: false,
 });
 if (ARGS.help) { console.log(USAGE); process.exit(0); }
 
@@ -46,6 +46,7 @@ const OUTROOT = path.resolve(ARGS.root ?? path.join(ROOT, 'output', 'perf3d'));
 const OUT = path.resolve(ARGS.out ?? path.join(OUTROOT, `sweep-x${SLOW}-${QUALITY}.json`));
 const SHOTS = ARGS.shots ? path.resolve(ARGS.shots) : path.join(OUTROOT, 'shots');
 const QUIET = { cpu: Number(ARGS['quiet-cpu']), gpu: Number(ARGS['quiet-gpu']) };
+const WORKER_QUIET_MS = Number(ARGS['worker-quiet']) * 1000;
 const QUIET_SAMPLES = Math.max(1, Math.round(Number(ARGS['quiet-for']) * 2));
 const QUIET_WAIT_MS = Number(ARGS['quiet-wait']) * 1000;
 const ESTIMATE = { boxGflops: Number(ARGS['box-gflops']), phoneGflops: Number(ARGS['phone-gflops']), phoneGpix: Number(ARGS['phone-gpix']), overdraw: Number(ARGS.overdraw) };
@@ -144,6 +145,20 @@ function pageHooks({ memoryGB }) {
     else done();
     return result;
   });
+  const workers = { last: 0, live: 0 };
+  window.__perfWorkers = workers;
+  const NativeWorker = window.Worker;
+  if (NativeWorker) {
+    window.Worker = class extends NativeWorker {
+      constructor(...args) {
+        super(...args);
+        workers.live++;
+        workers.last = performance.now();
+        this.addEventListener('message', () => { workers.last = performance.now(); });
+      }
+      terminate() { workers.live--; return super.terminate(); }
+    };
+  }
   const draws = { on: false, n: 0 };
   window.__perfDraws = draws;
   const trace = { on: false, events: [] };
@@ -333,9 +348,10 @@ async function settle(page) {
         pending: r['render.programs.pending'] ?? 0,
         draws: r['render.gpu.draws'] ?? r['batch.draws'] ?? 0,
         splash: !!document.getElementById('es-splash'),
+        workerQuietMs: Math.round(performance.now() - (window.__perfWorkers?.last ?? 0)),
       };
     }).catch(() => ({ up: false }));
-    const ok = last.up && last.bakes === 0 && last.waiting === 0 && last.pending === 0 && last.draws > 0 && !last.splash;
+    const ok = last.up && last.bakes === 0 && last.waiting === 0 && last.pending === 0 && last.draws > 0 && !last.splash && last.workerQuietMs > WORKER_QUIET_MS;
     calm = ok ? calm + 1 : 0;
     if (calm >= 4) return { ms: Date.now() - t0, ...last };
     await new Promise((r) => setTimeout(r, 500));
