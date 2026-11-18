@@ -358,12 +358,17 @@ export class ReplicationClient {
             ...(this.credentials_ !== undefined ? { credentials: this.credentials_ } : {}),
             ...(this.transferTicket_ !== undefined ? { transfer: this.transferTicket_ } : {}),
         };
+        // A socket that closes before the answer (nothing listening there, the
+        // server gone mid-hello) fails the hello now, not at the request timeout.
+        const offClose = isRedialable(transport) ? transport.on('close', () => channel.dispose('link closed during hello')) : null;
         let res: ReplHelloResponse;
         try {
             res = await channel.request<ReplHelloResponse>(ReplMsg.hello, hello);
         } catch (err) {
             if (!resuming) this.disconnect();
             throw err;
+        } finally {
+            offClose?.();
         }
         if (this.channel_ !== channel) return { ok: false, error: 'superseded', fatal: false };
         if (!res.ok) {

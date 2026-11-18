@@ -115,6 +115,21 @@ describe('reconnect over a real socket', () => {
         second.socket.close();
     });
 
+    it('fails a hello at once when nothing is listening, not at the request timeout', async () => {
+        const app = App.new();
+        app.addPlugin(replicationPlugin);
+        // A port that was just listening and is not any more.
+        const gone = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+        await new Promise<void>((r) => gone.on('listening', () => r()));
+        const deadUrl = `ws://127.0.0.1:${(gone.address() as { port: number }).port}`;
+        await new Promise<void>((r) => gone.close(() => r()));
+        const socket = new GameSocket({ url: deadUrl });
+        socket.connect();
+        const t0 = Date.now();
+        await expect(app.getResource(Net).connect(socket, { credentials: { token: 'x' } })).rejects.toThrow();
+        expect(Date.now() - t0).toBeLessThan(3000);
+    });
+
     it('keeps trying while the server is unreachable, and stops on disconnect', async () => {
         const ana = await player('ana');
         const refused: ReplicationClient = ana.client;
