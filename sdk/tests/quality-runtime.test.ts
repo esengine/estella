@@ -12,10 +12,10 @@ vi.mock('../src/platform', () => ({
     platformOnAppHide: () => () => {}, platformOnAppShow: () => () => {},
 }));
 vi.mock('../src/ecs/bridge/engineApi', () => ({
-    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile }),
+    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile, renderer_setParticleDepthGrid: depthGrid, renderer_setQualityConstants: materialConstants }),
 }));
 
-const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn() }));
+const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile, depthGrid, materialConstants } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn(), depthGrid: vi.fn(), materialConstants: vi.fn() }));
 
 describe('quality runtime device selection', () => {
     it('applies the tier shadow range and restores camera coverage when disabled', () => {
@@ -31,6 +31,23 @@ describe('quality runtime device selection', () => {
         controller!.setMode('off'); apply!();
         expect(distanceBudget).toHaveBeenLastCalledWith(0);
         expect(reflectionBudget).toHaveBeenLastCalledWith(0.5,1024,0);
+    });
+    it('sends the GPU particles\' depth grid and the material constants of the level, and the authored ones when the quality system is off', () => {
+        let apply: (() => void) | undefined;
+        let controller: import('../src/render/quality').QualityController;
+        const app = { wasmModule: null, insertResource: (_: unknown, value: typeof controller) => { controller = value; },
+            pipeline: { setQuality: (_: unknown, callback: () => void) => { apply = callback; } },
+            addPlugin: vi.fn(), onFrameEnd: () => () => {},
+        } as unknown as App;
+        installQuality(app, { mode: 'low', profiles: { low: { refractionSamples: 3 } } }, 4);
+        expect(depthGrid).toHaveBeenLastCalledWith(320);
+        expect(materialConstants).toHaveBeenLastCalledWith(3, 0, 0, 0);
+        controller!.setMode('medium'); apply!();
+        expect(depthGrid).toHaveBeenLastCalledWith(480);
+        expect(materialConstants).toHaveBeenLastCalledWith(6, 0, 0, 0);
+        controller!.setMode('off'); apply!();
+        expect(depthGrid).toHaveBeenLastCalledWith(640);
+        expect(materialConstants).toHaveBeenLastCalledWith(0, 0, 0, 0);
     });
     it('draws a soft 2D shadow with the samples of its level, and with the sixteen it always had when the quality system is off', () => {
         let apply: (() => void) | undefined;

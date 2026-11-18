@@ -42,6 +42,8 @@ export class ParticleCollisionBridge {
     stats: ParticleCollisionStats[] = [];
     error: string | null = null;
     budget: ParticleCollisionBudget = {queries:4096,events:1024};
+    readonly explicit = new Set<keyof ParticleCollisionBudget>();
+    level: ParticleCollisionBudget | null = null;
     private updating_ = false;
     constructor(private readonly engine_: NonNullable<EngineApi>, private readonly registry_: CppRegistry,
                 private readonly resolve_?: ParticleQueryResolver) {}
@@ -51,12 +53,17 @@ export class ParticleCollisionBridge {
         if (!heap || !Number.isSafeInteger(ptr) || ptr % 4 !== 0 || (count>0 && ptr===0) || ptr<0 || ptr + count*words*4 > heap.byteLength) return undefined;
         return heap.slice(ptr,ptr+count*words*4).buffer;
     }
+    effectiveBudget(): ParticleCollisionBudget {
+        const pick=(key: keyof ParticleCollisionBudget)=>this.level&&!this.explicit.has(key)?this.level[key]:this.budget[key];
+        return {queries:pick('queries'),events:pick('events')};
+    }
     update(dt: number): void {
         if (this.updating_) throw new Error('Particle.update cannot re-enter during collision queries');
         this.updating_=true;this.events=[];this.contacts=[];this.stats=[];this.error=null;
         const e=this.engine_;
         try {
-            e.particle_collisionSetBudget?.(this.budget.queries,this.budget.events,this.debug);
+            const budget=this.effectiveBudget();
+            e.particle_collisionSetBudget?.(budget.queries,budget.events,this.debug);
             e.particle_update?.(this.registry_,dt);
             const count=e.particle_collisionQueryCount?.() ?? 0;
             if (count>0 && e.particle_collisionResolve) {

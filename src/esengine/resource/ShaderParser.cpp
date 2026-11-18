@@ -1342,7 +1342,7 @@ const char* kFrameHeaderWGSL =
     "}\n";
 
 const char* kTimeHeaderWGSL =
-    "struct TimeConstants { u_time : vec4f, u_viewport : vec4f };\n"
+    "struct TimeConstants { u_time : vec4f, u_viewport : vec4f, u_quality : vec4f };\n"
     "@group(0) @binding(3) var<uniform> tc : TimeConstants;\n";
 
 // The batch texture contract for fragment-only 2D twins: u_textures[8]
@@ -3094,7 +3094,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // program links). u_time = (elapsed s, delta s, view exposure EV, 0); u_viewport = canvas
     // (w, h, 1/w, 1/h) in pixels; binding 3 (Shader::compile).
     static const char* kTimeHeader =
-        "layout(std140) uniform TimeConstants { highp vec4 u_time; highp vec4 u_viewport; };\n";
+        "layout(std140) uniform TimeConstants { highp vec4 u_time; highp vec4 u_viewport; highp vec4 u_quality; };\n";
     assembled << kTimeHeader;
     headerLines += countNewlines(kTimeHeader);
 

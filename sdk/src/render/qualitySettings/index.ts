@@ -115,6 +115,14 @@ export function qualityEffectScale(values: object, effectType: string): number {
     return scale;
 }
 
+export function qualityMaterialConstants(values: object): [number, number, number, number] {
+    const out: [number, number, number, number] = [0, 0, 0, 0];
+    for (const s of QUALITY_SETTINGS) {
+        if (s.type === 'number' && s.materialSlot !== undefined) out[s.materialSlot] = (values as Record<string, number>)[s.key]!;
+    }
+    return out;
+}
+
 export function qualityEffectUniforms(values: object, effectType: string): [string, number][] {
     const out: [string, number][] = [];
     for (const s of QUALITY_SETTINGS) {

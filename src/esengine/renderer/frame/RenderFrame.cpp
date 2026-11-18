@@ -1083,6 +1083,7 @@ void RenderFrame::end() {
     // After the graph, which is where the kernels run: a frame that dispatched none (its emitters fell back to the CPU, or
     // nothing moved) says so.
     ES_PROFILE_COUNTER("render.particles.gpuDispatches", gpu_particles_ ? gpu_particles_->lastDispatches() : 0u);
+    ES_PROFILE_COUNTER("render.particles.depthGridWidth", gpu_particles_ ? gpu_particles_->depthGridWidth() : 0u);
 #endif
     scene_resource_ = rg::kNoResource;
     shadow_resource_ = rg::kNoResource;

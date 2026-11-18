@@ -7056,6 +7056,8 @@ ResourceDef<ParticleAPI>
 ## ParticleAPI — class @experimental
 ```
 @internal collisionContacts: readonly ParticleCollisionEventPayload[]
+@internal setLevelCollisionBudget: (budget: ParticleCollisionBudget | null) => void
+collisionBudget: Readonly<ParticleCollisionBudget>
 collisionError: string | null
 collisionEvents: readonly ParticleCollisionEventPayload[]
 collisionStats: readonly ParticleCollisionStats[]
@@ -8808,6 +8810,7 @@ group: QualitySettingGroup
 integer: boolean | undefined
 key: string
 label: QualitySettingText
+materialSlot: 0 | 2 | 3 | 1 | undefined
 max: number
 min: number
 preference: boolean
@@ -8835,20 +8838,33 @@ voxelGIResolution: number | undefined
 ```
 antialiasing: "msaa" | "temporal"
 aoResolution: number
+bloomLevels: number
+cloudShadowSamples: number
+cloudSteps: number
+cloudUpperSteps: number
 depthPrepass: boolean
 detailScale: number
+dofSamples: number
 drawCallBudget: number
 dynamicGIReduced: boolean
+fogCloudSamples: number
 fogResolution: number
+fogVolumeSteps: number
 lensFlareResolution: number
+lightShaftSamples: number
 lighting: "direct" | "full"
 minRenderScale: number
+motionBlurSamples: number
 msaaSamples: 2 | 1 | 4 | 8
+particleCollisionEvents: number
+particleCollisionQueries: number
+particleDepthGrid: number
 particleLimit: number
 planarReflectionMaxSize: number
 planarReflectionScale: number
 planarReflectionUpdatesPerSecond: number
 postProcess: boolean
+refractionSamples: number
 renderScale: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
 shadowCascades: number
@@ -8857,8 +8873,11 @@ shadowDistance: number
 shadowSoftSamples: number
 shelterMaskSize: number
 skipEffects: readonly string[]
+skyLightDepthSteps: number
+skyScatterSteps: number
 ssgiResolution: number
 stillSky: boolean
+subsurfaceSamples: number
 textureStreaming: boolean
 textureStreamingBudget: number
 voxelGIResolution: number

@@ -39,9 +39,9 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 | Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
 | Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
 | Reflections | Planar reflection scale, max size and updates per second; the screen-space reflections effect |
-| Sky & Volumetrics | Still sky from a panorama, Fog volume resolution; the sky, fog, light shaft and weather effects |
-| Post-Processing | A master switch, Lens flare resolution; every other effect |
-| Effects & Particles | Particle limit, 2D rain shelter mask |
+| Sky & Volumetrics | Still sky from a panorama, Fog volume resolution, Fog light steps, Fog cloud samples, Cloud steps, Upper cloud steps, Cloud shadow samples, Sky scattering steps, Sky sunlight steps; the sky, fog, light shaft and weather effects |
+| Post-Processing | A master switch, Lens flare resolution, Depth of field samples, Light shaft samples, Motion blur samples, Subsurface scattering samples, Bloom levels; every other effect |
+| Effects & Particles | Particle limit, 2D rain shelter mask, Refraction blur samples, Particle collision queries and events, GPU particle depth grid |
 | Terrain & Foliage | Detail distance |
 | Water | Water waves (1 to 8), Water ripple cells, the Displacement, Mirror and Caustics switches; the underwater effect. Shown once the water module is in the build |
 | Textures & Memory | Texture streaming and its budget |
@@ -203,6 +203,45 @@ pixels each pass draws, which fall to a quarter for every halving.
 `third-person-3d` at Low runs no ambient occlusion, so nothing changes there. The box shares its GPU with other work, so a single
 frame's total moves by a millisecond or more between runs; the pass times are medians.
 
+
+## Steps and samples
+
+Some effects march a ray or gather a ring of taps, and how many they take is a setting of the group the effect belongs to. Each
+shader is compiled for High's count and stops at the level's: fewer steps are longer ones over the same distance, so a cloud is
+as deep, a light shaft as long and a blur as wide, and what is lost is smoothness — grain where a jittered march has too few
+steps to hide its pattern, a horizon a shade off where the sky's air is measured in fewer pieces.
+
+| Setting | What it counts | Group | Low | Medium | High |
+|---|---|---|---|---|---|
+| Fog light steps (`fogVolumeSteps`) | steps of the sun's light through height fog | Sky & Volumetrics | 8 | 16 | 24 |
+| Fog cloud samples (`fogCloudSamples`) | points up through the clouds each of those steps asks | Sky & Volumetrics | 2 | 3 | 4 |
+| Cloud steps (`cloudSteps`) | steps of a sky ray through the main cloud layer | Sky & Volumetrics | 12 | 14 | 16 |
+| Upper cloud steps (`cloudUpperSteps`) | steps through the upper cloud layer | Sky & Volumetrics | 3 | 4 | 6 |
+| Cloud shadow samples (`cloudShadowSamples`) | points along the sun's ray for the clouds' shadow on the ground | Sky & Volumetrics | 3 | 4 | 6 |
+| Sky scattering steps (`skyScatterSteps`) | steps the sky's colour is gathered in | Sky & Volumetrics | 8 | 12 | 16 |
+| Sky sunlight steps (`skyLightDepthSteps`) | steps from a point of the sky to the sun | Sky & Volumetrics | 3 | 3 | 4 |
+| Depth of field samples (`dofSamples`) | taps a blurred pixel gathers | Post-Processing | 16 | 32 | 64 |
+| Light shaft samples (`lightShaftSamples`) | points a pixel looks at toward the sun | Post-Processing | 16 | 24 | 40 |
+| Motion blur samples (`motionBlurSamples`) | points a moving pixel is smeared over | Post-Processing | 6 | 10 | 16 |
+| Subsurface scattering samples (`subsurfaceSamples`) | taps to each side, in each of the two passes | Post-Processing | 3 | 4 | 6 |
+| Refraction blur samples (`refractionSamples`) | taps of the scene behind a rough transmissive surface | Effects & Particles | 4 | 6 | 8 |
+
+High is what each shader had written in, so a High picture is the one it was. Low leaves depth of field, light shafts, motion
+blur and subsurface scattering out by default, so their Low counts matter to a project that ticks them back on.
+
+**Bloom levels** (`bloomLevels`, Post-Processing) is how many times bloom halves the bright light before building it back up: 5
+at High (down to a sixty-fourth of the picture), 4 at Medium and 3 at Low. A level fewer drops the smallest step down and its step
+up, and the glow reaches less far around a light; the steps it keeps cost the same, so what Low saves is four small passes.
+
+A material reads its count from the engine rather than from its own parameters: the frame's `u_quality` constants, whose first
+slot is the refraction count. A table entry claims a slot with `materialSlot`; zero, which is what the slot holds with the quality
+system off, means the most.
+
+**Particle collisions** with physics bodies are capped by the level too: **Particle collision queries** is the most rays they
+cast in a frame (1,024 at Low, 2,048 at Medium, 4,096 at High) and **Particle collision events** the most collisions reported
+to the game (256, 512, 1,024). A budget the game sets itself with `Particle.setCollisionBudget` wins over the level's, field by
+field, since a game that relies on its events has said how many it needs. **GPU particle depth grid** is how many texels across
+the copy of the scene's depth is that GPU-simulated particles collide with (320, 480, 640, WebGPU only).
 
 ## Device rules
 

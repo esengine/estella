@@ -242,10 +242,12 @@ export interface NativeEngineApi {
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
+    renderer_setParticleDepthGrid?(texels: number): void;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number, cascades: number, particleLimit: number): void;
+    renderer_setQualityConstants?(x: number, y: number, z: number, w: number): void;
     renderer_setRetainedTextCollected?(collected: boolean): void;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_setShadow2DSoftSamples?(samples: number): void;
@@ -609,10 +611,12 @@ export function createNativeEngineApi(
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
+    bind('renderer_setParticleDepthGrid', 'es_renderer_setParticleDepthGrid', false);
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
     bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
     bind('renderer_setProbeVolumeReflection', 'es_renderer_setProbeVolumeReflection', false);
     bind('renderer_setQualityBudgets', 'es_renderer_setQualityBudgets', false);
+    bind('renderer_setQualityConstants', 'es_renderer_setQualityConstants', false);
     bind('renderer_setRetainedTextCollected', 'es_renderer_setRetainedTextCollected', false);
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);

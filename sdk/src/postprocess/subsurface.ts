@@ -19,6 +19,7 @@
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
 import { SSAO_GLSL } from './sources/shared';
+import { qualityUniformMax, qualityUniformParam } from './qualityParams';
 
 export const subsurfacePasses = {
     createSubsurface(axis: 0 | 1): ShaderHandle {
@@ -31,6 +32,7 @@ export const subsurfacePasses = {
 #pragma param u_width float default(8) range(0.1,80)
 #pragma param u_strength float default(1) range(0,1)
 #pragma param u_color color default(1,0.45,0.25,1)
+${qualityUniformParam('subsurfaceSamples')}
 
 #pragma fragment
 precision highp float;
@@ -61,11 +63,12 @@ void main() {
     // Each colour's share of the widest: the brightest of the tint reaches all the way, the others less.
     vec3 k = max(u_color.rgb / max(max(u_color.r, u_color.g), u_color.b), vec3(0.12));
     vec2 texel = 1.0 / vec2(textureSize(u_texture, 0));
-    const int N = 6;
+    float n = clamp(floor(u_sssTaps), 1.0, float(${qualityUniformMax('subsurfaceSamples')}));
     vec3 sum = c.rgb;
     vec3 weight = vec3(1.0);
-    for (int i = 1; i <= N; ++i) {
-        float x = float(i) / float(N);
+    for (int i = 1; i <= ${qualityUniformMax('subsurfaceSamples')}; ++i) {
+        if (float(i) > n) break;
+        float x = float(i) / n;
         vec3 w = exp(-0.5 * (x * x) / (0.25 * k * k));
         for (int side = -1; side <= 1; side += 2) {
             vec2 uv = v_texCoord + ${dir} * (float(side) * x * reach) * texel;

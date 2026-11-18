@@ -196,6 +196,7 @@ public:
      *        exp2(0) = 1, an exact no-op.
      */
     void setViewExposure(f32 ev) { viewExposure_ = ev; }
+    void setQualityConstants(const glm::vec4& values) { qualityConstants_ = values; }
     f32 viewExposure() const { return viewExposure_; }
 
     /**
@@ -274,6 +275,7 @@ public:
 private:
     f32 lastElapsed_ = 0.0f;
     f32 viewExposure_ = 0.0f;
+    glm::vec4 qualityConstants_{0.0f};
     MaterialStore materials_;
     LightStore lights_;
     ProbeStore probes_;

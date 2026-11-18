@@ -8,12 +8,15 @@ import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { registerEffectSources } from '../effectSources';
 import { CLOUD_SHADOW_PARAMS } from '../cloudShadowParams';
+import { qualityUniformMax, qualityUniformParam } from '../qualityParams';
 import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { starfieldEffects } from './starfield';
 import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, RAY_START_GLSL, RAIN_STREAKS_GLSL } from './shared';
 import { HASH11_GLSL, HASH13_GLSL, HASH21_GLSL, IGN_GLSL, PHASE_HG_GLSL, VALUE_NOISE3_GLSL } from '../../render/shaderLib';
 
+const SKY_LEVEL_PARAMS = ['skyScatterSteps', 'skyLightDepthSteps', 'cloudSteps', 'cloudUpperSteps', 'cloudShadowSamples'].map(qualityUniformParam).join(String.fromCharCode(10));
+const FOG_LEVEL_PARAMS = ['fogVolumeSteps', 'fogCloudSamples'].map(qualityUniformParam).join(String.fromCharCode(10));
 // Functions more than one of this file's shaders is written with, once each in both languages.
 const SPHERE_HIT_GLSL = `vec2 sphereHit(vec3 o, vec3 d, float r) {
     float b = dot(o, d);
@@ -22,13 +25,16 @@ const SPHERE_HIT_GLSL = `vec2 sphereHit(vec3 o, vec3 d, float r) {
     float s = sqrt(disc);
     return vec2(-b - s, -b + s);
 }`;
-const LIGHT_DEPTH_GLSL = `vec3 lightDepth(vec3 p, vec3 d) {
+const LIGHT_DEPTH_GLSL = `const int LIGHT_DEPTH_STEPS_MAX = ${qualityUniformMax('skyLightDepthSteps')};
+vec3 lightDepth(vec3 p, vec3 d) {
     vec2 ground = sphereHit(p, d, R_E);
     if (ground.y > 0.0 && ground.x > 0.0) return vec3(0.0);
     float len = sphereHit(p, d, R_A).y;
-    float ds = len / 4.0;
+    float n = clamp(floor(u_lightDepthSteps), 1.0, float(LIGHT_DEPTH_STEPS_MAX));
+    float ds = len / n;
     vec2 od = vec2(0.0);
-    for (int j = 0; j < 4; ++j) {
+    for (int j = 0; j < LIGHT_DEPTH_STEPS_MAX; ++j) {
+        if (float(j) >= n) break;
         vec3 q = p + d * (ds * (float(j) + 0.5));
         od += exp(-(length(q) - R_E) / vec2(H_R, H_M)) * ds;
     }
@@ -40,10 +46,11 @@ const UP_FRAME_GLSL = `mat3 upFrame(vec3 up) {
     mat3 cross = mat3(0.0, v.z, -v.y, -v.z, 0.0, v.x, v.y, -v.x, 0.0);
     return mat3(1.0) + cross + cross * cross * k;
 }`;
-const SCATTER_GLSL = `vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
+const SCATTER_GLSL = `const int SCATTER_STEPS_MAX = ${qualityUniformMax('skyScatterSteps')};
+vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     vec3 o = vec3(0.0, R_E + alt, 0.0);
     float len = sphereHit(o, dir, R_A).y;
-    const int N = 16;
+    float N = clamp(floor(u_scatterSteps), 1.0, float(SCATTER_STEPS_MAX));
     float mu = dot(dir, sun);
     float g = 0.76;
     float phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
@@ -52,11 +59,9 @@ const SCATTER_GLSL = `vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, ou
     vec3 sumR = vec3(0.0);
     vec3 sumM = vec3(0.0);
     vec3 sumG = vec3(0.0);
-    for (int i = 0; i < N; ++i) {
-        // Steps that lengthen with the square of the way out: toward the horizon the ray is 900 km long and the air that colours it is in
-        // the first few, where even steps of 55 km put the first sample behind most of the blue and left the horizon olive. The air
-        // between the eye and a step is taken to the step's middle, not its far end, for the same reason.
-        float a = float(i) / float(N), b = float(i + 1) / float(N);
+    for (int i = 0; i < SCATTER_STEPS_MAX; ++i) {
+        if (float(i) >= N) break;
+        float a = float(i) / N, b = float(i + 1) / N;
         float ds = len * (b * b - a * a);
         vec3 p = o + dir * (len * (a * a + b * b) * 0.5);
         vec2 dens = exp(-(length(p) - R_E) / vec2(H_R, H_M)) * ds;
@@ -90,34 +95,39 @@ const CLOUD_DENSITY_GLSL = `float cloudDensity(vec3 p, float coverage, float bas
     float n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
     return smoothstep(1.0 - coverage, 1.0 - coverage + u_skySoftness, n) * shape;
 }`;
-const CLOUD_LIGHT_GLSL = `float cloudLight(vec3 world, float camY, vec3 sun, vec3 drift) {
+const CLOUD_LIGHT_GLSL = `const int FOG_CLOUD_SAMPLES_MAX = ${qualityUniformMax('fogCloudSamples')};
+float cloudLight(vec3 world, float camY, vec3 sun, vec3 drift) {
     if (u_cloudShade <= 0.001 || u_skyCover <= 0.01 || sun.y <= 0.02) return 1.0;
     float k = 1.0 / max(u_skyUnits, 1e-3);
     float h = u_skyAltitude + (world.y - camY) * k;
     float tt = (u_skyBase + u_skyThickness - h) / sun.y;
     if (tt <= 0.0) return 1.0;
     float tb = max(u_skyBase - h, 0.0) / sun.y;
-    const int N = 4;
-    float ds = (tt - tb) / float(N);
+    float N = clamp(floor(u_fogCloudSamples), 1.0, float(FOG_CLOUD_SAMPLES_MAX));
+    float ds = (tt - tb) / N;
     float tau = 0.0;
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < FOG_CLOUD_SAMPLES_MAX; ++i) {
+        if (float(i) >= N) break;
         float t = tb + (float(i) + 0.5) * ds;
         vec3 q = vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
         tau += cloudDensity(q, u_skyCover, u_skyBase, u_skyThickness) * u_skySigma * ds;
     }
     return 1.0 - u_cloudShade * (1.0 - exp(-tau));
 }`;
-const VOLUME_LIGHT_GLSL = `vec3 volumeLight(vec3 entry, vec3 dir, float len, bool sky, vec3 sun, vec4 lightColor, ivec2 tiles, vec3 sunTint) {
+const VOLUME_LIGHT_GLSL = `const int VOLUME_STEPS_MAX = ${qualityUniformMax('fogVolumeSteps')};
+vec3 volumeLight(vec3 entry, vec3 dir, float len, bool sky, vec3 sun, vec4 lightColor, ivec2 tiles, vec3 sunTint) {
     float range = min(len, u_volumeRange);
     float span = max(range - u_startDistance, 0.0);
-    float ds = span / float(VOLUME_STEPS);
+    float steps = clamp(floor(u_fogSteps), 1.0, float(VOLUME_STEPS_MAX));
+    float ds = span / steps;
     float jitter = ign(gl_FragCoord.xy);
     float transmit = 1.0;
     float lit = 0.0;
     // The clouds are as the sky draws them, fixed in the world and drifting; their light changes slowly along the ray, so every third step asks.
     vec3 drift = vec3(u_skyDriftX, 0.0, u_skyDriftZ);
     float shade = 1.0;
-    for (int i = 0; i < VOLUME_STEPS; ++i) {
+    for (int i = 0; i < VOLUME_STEPS_MAX; ++i) {
+        if (float(i) >= steps) break;
         float t = u_startDistance + (float(i) + jitter) * ds;
         vec3 p = entry + dir * t;
         if (i % 3 == 0) shade = cloudLight(p + u_renderOrigin.xyz, entry.y + u_renderOrigin.y, sun, drift);
@@ -149,7 +159,10 @@ const SHELTERED_AT_GLSL = `float shelteredAt(vec3 W) {
     return stored < here - u_shelterBias / (4.0 * u_shelterRange) ? 1.0 : 0.0;
 }`;
 /** The sky's clouds, as both of its passes draw them: the half-size pass that works them out, and the composite for the pixels it has no answer for. */
-const CLOUD_GLSL = `/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
+const CLOUD_GLSL = `const int CLOUD_STEPS_MAX = ${qualityUniformMax('cloudSteps')};
+const int CLOUD2_STEPS_MAX = ${qualityUniformMax('cloudUpperSteps')};
+const int CLOUD_SHADOW_SAMPLES_MAX = ${qualityUniformMax('cloudShadowSamples')};
+/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
 /// of the cloud plane, the second a softer, higher one folded in.
 ${CLOUD_FIELD_GLSL}
 
@@ -192,12 +205,13 @@ float cloudShadowAt(vec3 world, vec3 cam, vec3 sun, float coverage, float overca
     float tt = (u_cloudBase + u_cloudThickness - h) / sun.y;
     if (tt <= 0.0) return 1.0;
     float tb = max(u_cloudBase - h, 0.0) / sun.y;
-    const int N = 6;
-    float ds = (tt - tb) / float(N);
+    float N = clamp(floor(u_cloudShadowSamples), 1.0, float(CLOUD_SHADOW_SAMPLES_MAX));
+    float ds = (tt - tb) / N;
     float sigma = 1.3 * (1.0 + overcast * 1.5);
     float tau = 0.0;
     float jitter = ign(gl_FragCoord.xy);
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < CLOUD_SHADOW_SAMPLES_MAX; ++i) {
+        if (float(i) >= N) break;
         float t = tb + (float(i) + jitter) * ds;
         vec3 p = vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
         tau += cloudDensity(p, coverage, u_cloudBase, u_cloudThickness, 2) * sigma * ds;
@@ -220,8 +234,8 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
         float thick = u_cloudThickness;
         float tb = max(base - u_altitude, 0.0) / dir.y;
         float tt = min((base + thick - u_altitude) / dir.y, tb + thick * 6.0);
-        const int STEPS = 16;
-        float ds = (tt - tb) / float(STEPS);
+        float steps = clamp(floor(u_cloudSteps), 1.0, float(CLOUD_STEPS_MAX));
+        float ds = (tt - tb) / steps;
         float jitter = ign(gl_FragCoord.xy);
         float sigma = 1.3 * (1.0 + overcast * 1.5);
         vec3 drift = windDrift;
@@ -231,8 +245,8 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
         vec3 sunLight = sunTrans * 1.2 * u_cloudBrightness;
         float trans = 1.0;
         vec3 lit = vec3(0.0);
-        for (int i = 0; i < STEPS; ++i) {
-            if (trans < 0.02) break;
+        for (int i = 0; i < CLOUD_STEPS_MAX; ++i) {
+            if (float(i) >= steps || trans < 0.02) break;
             float t = tb + (float(i) + jitter) * ds;
             vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
             float d = cloudDensity(p, coverage, base, thick, 3);
@@ -260,8 +274,8 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
     if (u_cloud2Coverage > 0.01 && dir.y > 0.01) {
         float tb = max(u_cloud2Base - u_altitude, 0.0) / dir.y;
         float tt = max(u_cloud2Base + u_cloud2Thickness - u_altitude, 0.0) / dir.y;
-        const int STEPS = 6;
-        float ds = (tt - tb) / float(STEPS);
+        float steps = clamp(floor(u_cloud2Steps), 1.0, float(CLOUD2_STEPS_MAX));
+        float ds = (tt - tb) / steps;
         float jitter = ign(gl_FragCoord.yx);
         float sigma = 1.3 * (1.0 + overcast);
         vec3 drift = windDrift + vec3(u_cloud2DriftX - u_cloudDriftX, 0.0, u_cloud2DriftZ - u_cloudDriftZ);
@@ -270,7 +284,8 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
         float phase = cloudPhase(dot(dir, sun));
         float trans = 1.0;
         vec3 lit = vec3(0.0);
-        for (int i = 0; i < STEPS; ++i) {
+        for (int i = 0; i < CLOUD2_STEPS_MAX; ++i) {
+            if (float(i) >= steps) break;
             float t = tb + (float(i) + jitter) * ds;
             vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
             float d = cloud2Density(p);
@@ -386,6 +401,7 @@ function skyCloudsSource(): string {
 #pragma param u_cloud2DriftX float default(0) range(-100000000,100000000)
 #pragma param u_cloud2DriftZ float default(0) range(-100000000,100000000)
 #pragma param u_cloudEvolve float default(0) range(0,100000000)
+${SKY_LEVEL_PARAMS}
 #pragma lights
 #pragma highprecision
 
@@ -548,6 +564,7 @@ function skyCloudsBakeSource(): string {
 #pragma param u_cloudPanorama texture default(black)
 #pragma param u_bakeA vec4 default(0,1,0,0)
 #pragma param u_bakeB vec4 default(512,512,0,0)
+${SKY_LEVEL_PARAMS}
 #pragma lights
 #pragma highprecision
 
@@ -682,6 +699,7 @@ ${CLOUD_SHADOW_PARAMS.join(String.fromCharCode(10))}
 #pragma param u_cloud2DriftX float default(0) range(-100000000,100000000)
 #pragma param u_cloud2DriftZ float default(0) range(-100000000,100000000)
 #pragma param u_cloudEvolve float default(0) range(0,100000000)
+${SKY_LEVEL_PARAMS}
 #pragma lights
 
 #pragma fragment
@@ -955,6 +973,7 @@ void main() {
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
 #pragma param u_cloudMask2Tile float default(0) range(0,100)
+${FOG_LEVEL_PARAMS}
 #pragma lights
 
 #pragma fragment
@@ -973,7 +992,6 @@ const float FAR_RAY = 100000.0;
 /// (the projection is built with near = -far, so 2D content behind the camera plane still draws), so depth 0 is that far-behind plane, and a ray measured
 /// from it carries a camera-length of air that is not in front of the camera. Mid-depth is the plane the camera stands in.
 ${RAY_START_GLSL}
-const int VOLUME_STEPS = 24;
 
 ${IGN_GLSL}
 /// How much of a ray's light a particle scatters toward the viewer: forward, the way fog glows around the sun.
@@ -1128,6 +1146,7 @@ void main() {
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
 #pragma param u_cloudMask2Tile float default(0) range(0,100)
+${FOG_LEVEL_PARAMS}
 #pragma lights
 #pragma highprecision
 
@@ -1144,7 +1163,6 @@ const float FAR_RAY = 100000.0;
 /// (the projection is built with near = -far, so 2D content behind the camera plane still draws), so depth 0 is that far-behind plane, and a ray measured
 /// from it carries a camera-length of air that is not in front of the camera. Mid-depth is the plane the camera stands in.
 ${RAY_START_GLSL}
-const int VOLUME_STEPS = 24;
 
 ${IGN_GLSL}
 /// How much of a ray's light a particle scatters toward the viewer: forward, the way fog glows around the sun.

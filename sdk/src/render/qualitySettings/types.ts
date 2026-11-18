@@ -44,6 +44,7 @@ export interface QualityNumberSetting extends QualitySettingBase<number> {
     readonly integer?: boolean;
     readonly scalesEffects?: readonly string[];
     readonly uniform?: QualityEffectUniform;
+    readonly materialSlot?: 0 | 1 | 2 | 3;
 }
 
 export interface QualityBooleanSetting extends QualitySettingBase<boolean> {

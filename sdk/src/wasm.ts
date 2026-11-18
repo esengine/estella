@@ -763,6 +763,8 @@ export interface ESEngineModule {
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_getPendingShaders?(): number;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
+    renderer_setParticleDepthGrid?(texels: number): void;
+    renderer_setQualityConstants?(x: number, y: number, z: number, w: number): void;
     renderer_getPlanarReflectionStatus?(view: number, entity: number): string;
     renderer_setViewLighting?(mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean): void;
     renderer_setCullingMask?(mask: number): void;

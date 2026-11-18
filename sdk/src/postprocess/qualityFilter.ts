@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { QualityProfile } from '../render/quality';
 import { qualityEffectScale, qualityEffectUniforms } from '../render/qualitySettings/index';
-import { effectOfPass, effectPassNames } from './effects';
+import { effectOfPass, effectPassNames, getEffectDef } from './effects';
 
 /**
  * Whether a quality level lets a pass of the chain run.
@@ -30,7 +30,17 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
             return false;
         }
     }
-    return true;
+    return qualityPassInStep(profile, passName);
+}
+
+function qualityPassInStep(profile: Readonly<QualityProfile>, passName: string): boolean {
+    const effect = effectOfPass(passName);
+    if (effect === undefined) return true;
+    const name = passName.toLowerCase();
+    const step = getEffectDef(effect)?.multiPass?.find((pass) => pass.name.toLowerCase() === name)?.levelStep;
+    if (!step) return true;
+    const value = (profile as unknown as Record<string, unknown>)[step.key];
+    return typeof value !== 'number' || value >= step.atLeast;
 }
 
 export function qualityPassScale(profile: Readonly<QualityProfile> | null, pass: { name: string; scale: number; minScale?: number }): number {

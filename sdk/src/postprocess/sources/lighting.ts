@@ -12,6 +12,7 @@ import { subsurfacePasses } from '../subsurface';
 import { voxelGIFallback } from '../voxelGIFallback';
 import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, ENV_GLSL } from './shared';
 import { IGN_GLSL } from '../../render/shaderLib';
+import { qualityUniformMax, qualityUniformParam } from '../qualityParams';
 
 export const lightingEffects = {
     /**
@@ -617,6 +618,7 @@ void main() {
 #pragma param u_decay float default(0.96) range(0.8,1)
 #pragma param u_reach float default(0.6) range(0.1,1)
 #pragma param u_followSun float default(1) range(0,1)
+${qualityUniformParam('lightShaftSamples')}
 #pragma lights
 
 #pragma fragment
@@ -627,7 +629,7 @@ uniform sampler2D u_texture;
 uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
-const int SAMPLES = 40;
+const int SAMPLES_MAX = ${qualityUniformMax('lightShaftSamples')};
 
 ${IGN_GLSL}
 
@@ -668,19 +670,22 @@ void main() {
         dist = (reach2 / front) / 0.57735;
         toSun = (reach2 > 1e-4 ? normalize(vec2(across.x / aspect, across.y)) : vec2(0.0)) * 0.5 * u_reach;
     }
-    vec2 stepUv = toSun / float(SAMPLES);
+    float samples = clamp(floor(u_shaftSamples), 1.0, float(SAMPLES_MAX));
+    vec2 stepUv = toSun / samples;
     vec2 uv = v_texCoord + stepUv * ign(gl_FragCoord.xy);
     float light = 0.0;
     float weight = 1.0;
-    for (int i = 0; i < SAMPLES; ++i) {
+    float decay = pow(u_decay, float(SAMPLES_MAX) / samples);
+    for (int i = 0; i < SAMPLES_MAX; ++i) {
+        if (float(i) >= samples) break;
         uv += stepUv;
         ivec2 t = clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
         // Open sky is where the sun reaches; anything with a surface blocks it.
         float open = texelFetch(u_sceneDepth, t, 0).r >= 1.0 ? 1.0 : 0.0;
         light += open * weight;
-        weight *= u_decay;
+        weight *= decay;
     }
-    light /= float(SAMPLES);
+    light /= samples;
     // Strongest next to the sun, gone a screen away from it.
     float falloff = 1.0 - smoothstep(0.0, 1.2, dist);
     vec3 tint = u_sunColor.rgb;
@@ -956,7 +961,7 @@ void main() {
      */
     createDofGather(): ShaderHandle {
         const GLSL = `
-const int TAPS = 64;
+const int TAPS_MAX = ${qualityUniformMax('dofSamples')};
 const float TAU = 6.2831853;
 ${IGN_GLSL}
 /// A point of the unit disc pushed out to the n-gon that has the disc as its circumscribing circle.
@@ -973,6 +978,7 @@ vec2 shapeTap(vec2 p, float blades, float turn) {
 #pragma param u_blades float default(0) range(0,9)
 #pragma param u_bokehRotation float default(0) range(0,360)
 #pragma param u_highlight float default(0) range(0,8)
+${qualityUniformParam('dofSamples')}
 
 #pragma fragment
 precision highp float;
@@ -996,9 +1002,11 @@ void main() {
     float centre = 1.0 + u_highlight * smoothstep(1.0, 6.0, dot(src.rgb, vec3(0.2126, 0.7152, 0.0722)));
     vec3 sum = src.rgb * centre;
     float wsum = centre;
-    for (int i = 0; i < TAPS; ++i) {
+    float taps = clamp(floor(u_dofTaps), 1.0, float(TAPS_MAX));
+    for (int i = 0; i < TAPS_MAX; ++i) {
+        if (float(i) >= taps) break;
         float k = float(i) + jitter;
-        float r = sqrt((k + 0.5) / float(TAPS));
+        float r = sqrt((k + 0.5) / taps);
         float a = k * 2.39996323;
         vec2 disc = shapeTap(vec2(cos(a), sin(a)) * r, u_blades, turn);
         vec2 uv = v_texCoord + disc * coc * texel;
