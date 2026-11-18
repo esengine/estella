@@ -157,7 +157,19 @@ async function runZone() {
     const app = sdk.App.new();
     app.setFixedTimestep(STEP);
     app.addPlugin(repl.replicationPlugin);
-    const server = app.getResource(repl.Net).startServer({ authenticate: zone.authenticate, reconnectGraceMs: 1000 });
+    // Why hellos were turned away or sent elsewhere, by name: a healthy run has
+    // only redirects for logins, and none for transfers.
+    const refusals = {};
+    const authenticate = async (c, hello) => {
+        try {
+            return await zone.authenticate(c, hello);
+        } catch (err) {
+            const key = `${hello.transfer !== undefined ? 'transfer' : 'login'}:${err.name}:${String(err.message).slice(0, 40)}`;
+            refusals[key] = (refusals[key] ?? 0) + 1;
+            throw err;
+        }
+    };
+    const server = app.getResource(repl.Net).startServer({ authenticate, reconnectGraceMs: 1000 });
     zone.attach(server);
     await zone.start();
     wss.on('connection', (socket) => {
@@ -214,7 +226,7 @@ async function runZone() {
     };
     const timer = setInterval(() => { void loop(); }, 1000 / HZ);
     const report = setInterval(() => {
-        console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors }));
+        console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors, refusals }));
     }, 1000);
     console.log(`LISTEN ${address}`);
 
@@ -244,12 +256,22 @@ async function runBots() {
     const bots = [];
     let quiet = false;
 
-    const zoneOf = (app) => {
+    /** The zone a client sees, and the entity its landmark is: a client that left and came back holds a new one. */
+    const landmarkOf = (app) => {
         for (const e of app.world.getEntitiesWithComponents([repl.Replicated])) {
             const n = app.world.tryGet(e, sdk.Name)?.value ?? '';
-            if (n.startsWith('zone ')) return n.slice(5);
+            if (n.startsWith('zone ')) return { zone: n.slice(5), entity: e };
         }
         return null;
+    };
+    const zoneOf = (app) => landmarkOf(app)?.zone ?? null;
+
+    // Each bot's entries: the other zones, where it logs in again (each in turn)
+    // if its own dies, and is routed from there — the framework's recovery, not
+    // the bot's. A deployment would give one load-balanced address instead.
+    const entryFor = (zone) => {
+        const i = zoneList.indexOf(zone);
+        return [...zoneList.slice(i + 1), ...zoneList.slice(0, i)].map((z) => z.address);
     };
 
     async function login(bot, zone) {
@@ -257,34 +279,55 @@ async function runBots() {
         app.setFixedTimestep(STEP);
         app.addPlugin(repl.replicationPlugin);
         const socket = new sdk.GameSocket({ url: zone.address });
-        // The server closes a link it transfers (or kicks) with 4000: from then
-        // until the client is somewhere, a transfer is what is going on.
-        const watchClose = (sock) => sock.on('close', (code) => { if (code === 4000) bot.transferAt = performance.now(); });
-        watchClose(socket);
         socket.connect();
         const client = await app.getResource(repl.Net).connect(socket, {
             interpolationDelayTicks: 0, credentials: { token: bot.token },
             reconnect: { minDelayMs: 200, maxDelayMs: 1000 },
-            dial: (url) => {
-                const s = new sdk.GameSocket({ url });
-                watchClose(s);
-                if (A.verbose) {
-                    const port = url.split(':').pop();
-                    s.on('open', () => { if (bot.askedAt) bot.trace.push(`${(performance.now() - bot.askedAt).toFixed(0)}ms open :${port}`); });
-                    s.on('close', (code) => { if (bot.askedAt) bot.trace.push(`${(performance.now() - bot.askedAt).toFixed(0)}ms close :${port} ${code}`); });
-                }
-                return s;
-            },
+            entry: entryFor(zone), entryAfterMs: 1500,
+            dial: (url) => new sdk.GameSocket({ url }),
         });
         bot.app = app;
         bot.client = client;
         bot.socket = socket;
-        // A login is not a hop: the first zone seen after it is where the count starts.
-        bot.zone = null;
+        // What the client went through, heard as it happens: a transfer or a
+        // reroute can pass through several states between two loop turns, and
+        // a turn can be late by seconds on a busy machine.
+        bot.server = client.serverId; // a login is not a hop: counting starts here
+        bot.phase = new Set();
+        client.onStateChange((state) => {
+            const now = performance.now();
+            if (state !== 'ready') {
+                if (state === 'reconnecting' && !bot.phase.has('reconnecting')) bot.lostAt = now;
+                bot.phase.add(state);
+                return;
+            }
+            const moved = client.serverId !== bot.server;
+            const t = (now / 1000).toFixed(2);
+            if (moved && bot.phase.has('reconnecting')) {
+                // Its link was lost (a transfer's never is) and the client found
+                // its own way to another server: its zone died, an entry routed it.
+                bot.rerouted.push(now - bot.lostAt);
+                bot.events.push(`${t}s rerouted`);
+                bot.askedAt = 0;
+            } else if (moved) {
+                bot.hops++;
+                bot.events.push(`${t}s hop${bot.askedAt ? ` asked ${bot.portal}` : ' UNASKED'}`);
+                if (bot.askedAt) bot.latencies.push(now - bot.askedAt);
+                bot.askedAt = 0;
+            } else if (bot.phase.has('transferring')) {
+                // Sent to a zone that could not be reached, and back where it was.
+                bot.bounces++;
+                bot.bounceTimes.push(now - (bot.askedAt || now));
+                bot.events.push(`${t}s bounce`);
+                bot.askedAt = 0;
+            }
+            bot.server = client.serverId;
+            bot.phase.clear();
+        });
     }
 
     for (let i = 0; i < count; i++) {
-        const bot = { trace: [], traceState: '', token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], leftDuringAsk: false, relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
+        const bot = { events: [], rerouted: [], token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
         const zone = zoneList[(first + i) % zoneList.length];
         for (;;) {
             try { await login(bot, zone); break; } catch { bot.refused++; await delay(300); }
@@ -299,42 +342,16 @@ async function runBots() {
         for (const bot of bots) {
             const c = bot.client;
             if (!c) continue;
-            // A completed hop: the world it sees is another zone's. A transfer can
-            // run start to end between two of these checks, so the states it
-            // passes through are not what is watched.
-            const seen = c.state === 'ready' ? zoneOf(bot.app) : null;
-            if (bot.askedAt && c.state !== 'ready') bot.leftDuringAsk = true;
-            if (A.verbose && bot.askedAt && bot.traceState !== c.state) {
-                bot.trace.push(`${(now - bot.askedAt).toFixed(0)}ms ${c.state}`);
-                bot.traceState = c.state;
-            }
-            if (seen) {
-                if (bot.zone && seen !== bot.zone) {
-                    bot.hops++;
-                    if (bot.askedAt) bot.latencies.push(now - bot.askedAt);
-                    bot.askedAt = 0;
-                } else if (bot.askedAt && bot.leftDuringAsk && seen === bot.zone) {
-                    // Sent to a zone that could not be reached, and back where it was.
-                    bot.bounces++;
-                    bot.bounceTimes.push(now - bot.askedAt);
-                    if (A.verbose && now - bot.askedAt > 8000) console.log(`TRACE ${bot.token} to ${bot.portal}: ${bot.trace.join(', ')}`);
-                    bot.askedAt = 0;
-                }
-                if (!bot.askedAt) bot.leftDuringAsk = false;
-                bot.transferAt = 0;
-                bot.zone = seen;
-            }
             // A zone that does not come back, or a transfer into one that died:
             // log in somewhere else, as a game would.
             if (c.state === 'reconnecting' || c.state === 'closed') {
                 bot.reconnectingSince ||= now;
                 // While a transfer is under way the client finds its own way back;
                 // only a plain drop that does not heal is the bot's to handle.
-                const patience = bot.transferAt ? 15000 : 2000;
+                const patience = 15000;
                 if ((c.state === 'closed' || now - bot.reconnectingSince > patience) && !bot.relogging) {
                     bot.relogging = true;
                     bot.askedAt = 0;
-                    bot.transferAt = 0;
                     const lostAt = bot.reconnectingSince;
                     c.disconnect();
                     bot.socket.close();
@@ -360,8 +377,6 @@ async function runBots() {
                     bot.seq++;
                     bot.portal = others[Math.floor(Math.random() * others.length)].id;
                     bot.askedAt = now;
-                    bot.trace = [];
-                    bot.traceState = 'ready';
                     bot.nextPortal = now + interval * (0.5 + Math.random());
                 }
             }
@@ -369,7 +384,7 @@ async function runBots() {
             await bot.app.tick(STEP);
         }
         // A portal asked for and never answered (the transfer was refused): ask again later.
-        for (const bot of bots) if (bot.askedAt && !bot.leftDuringAsk && now - bot.askedAt > 5000) bot.askedAt = 0;
+        for (const bot of bots) if (bot.askedAt && bot.client?.state === 'ready' && now - bot.askedAt > 5000) bot.askedAt = 0;
     };
     const timer = setInterval(() => { void loop(); }, 1000 / HZ);
 
@@ -381,7 +396,7 @@ async function runBots() {
         for (const bot of bots) { bot.client?.disconnect(); bot.socket?.close(); }
         console.log('FINAL ' + JSON.stringify(bots.map((b) => ({
             token: b.token, hops: b.hops, bounces: b.bounces, bounceTimes: b.bounceTimes, latencies: b.latencies,
-            refused: b.refused, recovered: b.recovered, relogins: b.relogins,
+            refused: b.refused, recovered: b.recovered, relogins: b.relogins, rerouted: b.rerouted, events: b.events,
         }))));
         await delay(100);
         process.exit(0);
@@ -408,7 +423,6 @@ function child(role, extra) {
             buf = buf.slice(nl + 1);
             if (line.startsWith('STAT ')) proc.stats.push(JSON.parse(line.slice(5)));
             else if (line.startsWith('FINAL ')) proc.final = JSON.parse(line.slice(6));
-            else if (line.startsWith('TRACE ')) console.log(line);
             else proc.log += line + '\n';
         }
     });
@@ -497,7 +511,7 @@ async function runAll() {
     for (const bot of bots) {
         const doc = await store.get(`player:${bot.token}`);
         const stored = doc?.value?.data?.hops ?? 0;
-        if (CRASH && bot.relogins > 0) {
+        if (CRASH && (bot.relogins > 0 || bot.rerouted.length > 0)) {
             crashedPlayers.add(bot.token);
             if (stored < bot.hops) unsavedLost += bot.hops - stored;
             else sentIntoDeadZone += stored - bot.hops;
@@ -507,16 +521,23 @@ async function runAll() {
         // client is told), and the client came back: one hop stored, none made.
         if (stored === bot.hops + bot.bounces) continue;
         mismatches++;
-        if (examples.length < 5) examples.push(`${bot.token}: stored ${stored}, bot counted ${bot.hops} hops + ${bot.bounces} bounces`);
+        if (examples.length < 5) {
+            examples.push(`${bot.token}: stored ${stored}, bot counted ${bot.hops} hops + ${bot.bounces} bounces`
+                + ` (rerouted ${bot.rerouted.length}, bot re-logins ${bot.relogins})`
+                + (A.verbose ? '\n      ' + bot.events.join('\n      ') : ''));
+        }
     }
     const latencies = bots.flatMap((b) => b.latencies);
     const hops = bots.reduce((n, b) => n + b.hops, 0);
     const zoneErrors = {};
+    const refusals = {};
     for (const z of zoneProcs) {
         const last = z.stats[z.stats.length - 1];
         for (const [k, v] of Object.entries(last?.errors ?? {})) zoneErrors[k] = (zoneErrors[k] ?? 0) + v;
+        for (const [k, v] of Object.entries(last?.refusals ?? {})) refusals[k] = (refusals[k] ?? 0) + v;
     }
     const recovered = bots.flatMap((b) => b.recovered);
+    const rerouted = bots.flatMap((b) => b.rerouted);
     const bounceTimes = bots.flatMap((b) => b.bounceTimes);
     // Leases still live after every zone stopped; a crashed zone's run out on their own.
     let leftoverLeases = 0;
@@ -530,10 +551,13 @@ async function runAll() {
     console.log(`transfer time: p50 ${quantile(latencies, 0.5).toFixed(0)} ms, p95 ${quantile(latencies, 0.95).toFixed(0)} ms, max ${Math.max(0, ...latencies).toFixed(0)} ms`);
     console.log(`zone-side failures: ${JSON.stringify(zoneErrors)}; logins refused while held elsewhere: ${bots.reduce((n, b) => n + b.refused, 0)}`);
     console.log(`leases still held by a stopped zone: ${leftoverLeases}`);
+    if (Object.keys(refusals).length > 0) console.log(`hellos turned away or redirected: ${JSON.stringify(refusals)}`);
     if (CRASH) {
-        console.log(`crash: ${crashedPlayers.size} players had to log in again; ${unsavedLost} hops lost unsaved, `
+        console.log(`crash: ${crashedPlayers.size} players touched, ${bots.reduce((n, b) => n + b.relogins, 0)} needed the bot to log in again; ${unsavedLost} hops lost unsaved, `
             + `${sentIntoDeadZone} transfers saved into the zone as it died; back in another zone after `
             + `p50 ${quantile(recovered, 0.5).toFixed(0)} ms, max ${Math.max(0, ...recovered).toFixed(0)} ms (lease ttl ${LEASE_TTL} ms)`);
+        console.log(`in the dead zone and rerouted by themselves (entry): ${rerouted.length}, `
+            + `in another zone after p50 ${quantile(rerouted, 0.5).toFixed(0)} ms, p95 ${quantile(rerouted, 0.95).toFixed(0)} ms, max ${Math.max(0, ...rerouted).toFixed(0)} ms`);
         console.log(`sent to the dead zone and back by themselves: ${bounceTimes.length}, `
             + `back after p50 ${quantile(bounceTimes, 0.5).toFixed(0)} ms, p95 ${quantile(bounceTimes, 0.95).toFixed(0)} ms, max ${Math.max(0, ...bounceTimes).toFixed(0)} ms`);
         if (A.verbose) console.log(`  bounce times: ${bounceTimes.map((t) => t.toFixed(0)).sort((x, y) => x - y).join(' ')}`);
