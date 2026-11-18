@@ -313,6 +313,7 @@ const BLOCKS = [
       drawCallBudget: { ui: 'project.rendering.quality.drawCallBudget' },
       textureStreaming: { ui: 'project.rendering.quality.textureStreaming' },
       textureStreamingBudget: { ui: 'project.rendering.quality.textureStreamingBudget' },
+      probesPerPixel: { owed: 'whether a mesh without lightmap UVs reads its probe volume per pixel is set by the level\'s defaults (off on low) and in project.esproject, and qualityRuntime hands it to renderer_setProbesPerPixel; it wants a row beside dynamicGIReduced' },
       skipEffects: { ui: 'project.rendering.quality.effects' },
     },
   },
