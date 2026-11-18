@@ -27,7 +27,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
-    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason,
+    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
@@ -350,6 +350,7 @@ export class ReplicationServer {
     private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
     private readonly helloTimeoutMs_: number;
     private readonly maxConnections_: number;
+    private readonly messageHandlers_ = new Map<string, Set<(connectionId: number, data: unknown) => void>>();
     /** @internal Connections closed for breaking the limits, going silent, or never saying hello. */
     readonly closedFor = { abuse: 0, silence: 0, noHello: 0 };
     /** playerId -> the connection id that player holds. */
@@ -859,6 +860,16 @@ export class ReplicationServer {
             (conn.helloTimer as { unref?: () => void }).unref?.();
         }
 
+        channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
+            // Only from a connection that has said hello and been let in.
+            if (!conn.ready || typeof msg?.type !== 'string') return;
+            const handlers = this.messageHandlers_.get(msg.type);
+            if (!handlers) return;
+            for (const h of [...handlers]) {
+                try { h(conn.id, msg.data); } catch (err) { log.warn('repl', `message handler for "${msg.type}" threw`, err); }
+            }
+        });
+
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
             // Exactly-once starts here: a repeat or a rewind must not enter the
             // queue tickInputOf drains. Running one command twice moves the
@@ -1035,6 +1046,38 @@ export class ReplicationServer {
         for (const [id, until] of [...this.away_]) {
             if (until <= now) this.forgetPlayer_(id);
         }
+    }
+
+    /**
+     * Send a game message to one connected client (see `ReplicationClient.onMessage`).
+     * Returns whether the connection was there to send to.
+     */
+    message(connectionId: number, type: string, data?: unknown): boolean {
+        const conn = this.connections_.get(connectionId);
+        if (!conn || !conn.ready) return false;
+        return this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }));
+    }
+
+    /** Send a game message to every connected client, or those `filter` keeps. Returns how many. */
+    broadcastMessage(type: string, data?: unknown, filter?: (connectionId: number) => boolean): number {
+        let n = 0;
+        for (const conn of [...this.connections_.values()]) {
+            if (!conn.ready || (filter && !filter(conn.id))) continue;
+            if (this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }))) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Hear a game message clients send (`ReplicationClient.message`), with the
+     * connection it came from. Only connections that have said hello are heard,
+     * under the connection limits. Returns an unsubscribe.
+     */
+    onMessage(type: string, handler: (connectionId: number, data: unknown) => void): () => void {
+        let set = this.messageHandlers_.get(type);
+        if (!set) { set = new Set(); this.messageHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
     }
 
     /** The latest input command a connection sent (null before the first).

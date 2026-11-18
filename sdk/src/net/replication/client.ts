@@ -33,7 +33,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
-    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason,
+    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
@@ -246,6 +246,7 @@ export class ReplicationClient {
     private playerId_: string | undefined;
     private state_: ReplicationClientState = 'idle';
     private readonly stateListeners_ = new Set<(state: ReplicationClientState, client: ReplicationClient) => void>();
+    private readonly messageHandlers_ = new Map<string, Set<(data: unknown) => void>>();
     private closeReason_: ReplCloseReason | string | undefined;
     /** The next initial batch reconciles against ghosts already held. */
     private resyncing_ = false;
@@ -435,6 +436,14 @@ export class ReplicationClient {
             this.inbox_.push({ kind: 'state', frame: payload.slice(), ch: channel });
         });
         channel.on<ReplClosedMsg>(ReplMsg.closed, (msg) => this.closedByServer_(channel, msg));
+        channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
+            if (this.channel_ !== channel || typeof msg?.type !== 'string') return;
+            const handlers = this.messageHandlers_.get(msg.type);
+            if (!handlers) return;
+            for (const h of [...handlers]) {
+                try { h(msg.data); } catch (err) { log.warn('repl', `message handler for "${msg.type}" threw`, err); }
+            }
+        });
 
         const hello: ReplHelloRequest = {
             protocolVersion: REPLICATION_PROTOCOL_VERSION,
@@ -715,6 +724,28 @@ export class ReplicationClient {
      *  contract, since the server consumes one command per tick). The seq
      *  stamp makes stale deliveries harmless. With prediction the command also
      *  applies to the owned entities immediately. */
+    /**
+     * Send a game message to the server (`ReplicationServer.onMessage`). Returns
+     * false, and sends nothing, while not connected: a message is not queued
+     * across a reconnect.
+     */
+    message(type: string, data?: unknown): boolean {
+        if (!this.channel_ || this.state_ !== 'ready') return false;
+        this.channel_.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data });
+        return true;
+    }
+
+    /**
+     * Hear a game message from the server (`ReplicationServer.message`), as it
+     * arrives — not on the fixed step the state waits for. Returns an unsubscribe.
+     */
+    onMessage(type: string, handler: (data: unknown) => void): () => void {
+        let set = this.messageHandlers_.get(type);
+        if (!set) { set = new Set(); this.messageHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
+    }
+
     sendInput(actions: Record<string, unknown>): void {
         if (!this.channel_) return;
         const msg: ReplInputMsg = { seq: ++this.inputSeq_, actions };

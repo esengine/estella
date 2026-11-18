@@ -14,6 +14,7 @@ export {
     type ReplInputMsg,
     type ReplAckMsg,
     type ReplClosedMsg,
+    type ReplGameMsg,
     type ReplCloseReason,
 } from './protocol';
 export {

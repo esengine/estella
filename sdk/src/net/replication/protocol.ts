@@ -36,7 +36,19 @@ export const ReplMsg = {
     input: 'repl:input',
     ack: 'repl:ack',
     closed: 'repl:closed',
+    message: 'repl:msg',
 } as const;
+
+/**
+ * A game's own message between a client and its server, beside the state
+ * stream: chat, a notice, a request the state does not carry. `type` is the
+ * game's; `data` is any JSON. Delivered once, in order with the rest of the
+ * connection's control messages, at most once across a reconnect.
+ */
+export interface ReplGameMsg {
+    type: string;
+    data?: unknown;
+}
 
 /**
  * One component's replication schema, as exchanged for handshake comparison.
