@@ -23,6 +23,25 @@ describe('serverAddress', () => {
         expect(serverAddress({ path: '/sector', location: null, search: '?server=wss://x.example/sector' })).toBe('wss://x.example/sector');
     });
 
+    it('takes the address the build carries over the page\'s host, and ?server= over both', () => {
+        const built = 'wss://sector.example.com/sector';
+        expect(serverAddress({ path: '/sector', location: page('https:', 'me.github.io'), search: '', built })).toBe(built);
+        expect(serverAddress({ path: '/sector', location: null, search: '', built })).toBe(built);
+        expect(serverAddress({ path: '/sector', location: page('https:'), search: '?server=ws://127.0.0.1:8090/sector', built })).toBe('ws://127.0.0.1:8090/sector');
+        expect(serverAddress({ path: '/sector', location: page('https:'), search: '', built: 'https://not.a.socket/' })).toBe('wss://play.example.com/sector');
+    });
+
+    it('reads the address from the page the export wrote', () => {
+        const meta = document.createElement('meta');
+        meta.name = 'estella-server';
+        meta.content = 'wss://sector.example.com/sector';
+        document.head.appendChild(meta);
+        try {
+            expect(serverAddress({ path: '/sector', location: page('https:', 'me.github.io'), search: '' })).toBe('wss://sector.example.com/sector');
+        } finally { meta.remove(); }
+        expect(serverAddress({ path: '/sector', location: page('https:', 'me.github.io'), search: '' })).toBe('wss://me.github.io/sector');
+    });
+
     it('refuses a path that is not one', () => {
         for (const bad of ['sector', '/a b', '/a?b', '']) expect(() => serverAddress({ path: bad, location: null })).toThrow(/path/);
     });

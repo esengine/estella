@@ -325,6 +325,10 @@ import { serverAddress } from 'esengine/session';
 const url = serverAddress({ path: '/play' });
 ```
 
+页面放在别处时（GitHub Pages、CDN、桌面应用），要写明服务器地址：在 `server` 块里加
+`"url": "wss://sector.example.com/play"`，或者导出时用 `--server-url`。Web 和桌面导出会把它写进页面，并在页面的安全策略里放行这个来源，
+`serverAddress` 就会连它；服务器导出的 `compose.yaml` 和 `Caddyfile` 也会默认用这个域名。优先级是：`?server=`，然后是构建里的地址，最后是页面自己的域名。
+
 和熟人内测时，`TokenBook` 按每人一个 token 登录：名单放在数据目录里读取，不要写进游戏代码，token 用 `newToken()` 生成。
 
 ```ts

@@ -110,6 +110,8 @@ export async function projectExportOptions(
       : {}),
     ...(platform === 'web' && (plat?.web?.channel === 'poki' || plat?.web?.channel === 'crazygames' || plat?.web?.channel === 'youtube') ? { webChannel: plat.web.channel } : {}),
     ...(platform === 'web' && plat?.web?.connect?.length ? { webConnect: plat.web.connect } : {}),
+    // The page dials this server; a page served beside its server needs none (serverAddress uses its own host).
+    ...((platform === 'web' || platform === 'desktop') && manifest.server?.url ? { serverUrl: manifest.server.url } : {}),
     ...(platform === 'web' && plat?.web?.engineJs === true ? { webEngineJs: true } : {}),
     ...(platform === 'web' && plat?.web?.channel === 'crazygames' && plat.web.leaderboardEncryptionKey
       ? { leaderboardEncryptionKey: plat.web.leaderboardEncryptionKey } : {}),

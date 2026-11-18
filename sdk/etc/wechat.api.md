@@ -8123,6 +8123,7 @@ assetPathMap: Record<string, string> | undefined
 assets: Record<string, string>
 audioConfig: AudioProjectConfig | undefined
 canvas: HTMLCanvasElement
+catalog: CatalogData | undefined
 depthLayers: number | undefined
 firstScene: string
 manifest: AddressableManifest | null | undefined

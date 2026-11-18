@@ -365,6 +365,12 @@ import { serverAddress } from 'esengine/session';
 const url = serverAddress({ path: '/play' });
 ```
 
+A page served from somewhere else (GitHub Pages, a CDN, a desktop app) names its server: `"url":
+"wss://sector.example.com/play"` in the `server` block, or `--server-url` on the export. The web and
+desktop exports write it into the page and allow its origin in the page's policy, and
+`serverAddress` dials it; the server's `compose.yaml` and `Caddyfile` then answer at that host. The
+order is `?server=`, then the address in the build, then the page's own host.
+
 For a test with people you know, `TokenBook` signs players in by a token each: read the book from
 the data folder, never from the game's code, and make each token with `newToken()`.
 
