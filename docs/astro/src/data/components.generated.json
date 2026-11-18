@@ -5932,6 +5932,12 @@
           "type": "array",
           "default": "empty",
           "doc": "The terrain layers (.esterrainlayer, up to four) the ground is drawn with, in the order the paint weighs them, each read on the planes of the world's axes. Empty draws the four layer colours."
+        },
+        {
+          "key": "tintLayers",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Multiply the pictures of the layers by the four layer colours: for grey pictures of grain that take the colours of each planet. Off draws the layers in their own colours."
         }
       ],
       "animatable": [

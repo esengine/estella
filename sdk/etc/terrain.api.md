@@ -260,6 +260,7 @@ seaColor: Color
 seaLevel: number
 seaOpacity: number
 seed: number
+tintLayers: boolean
 world: string
 ```
 
