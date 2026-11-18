@@ -296,6 +296,7 @@ static prototype: SchemaError
 
 ## ServerAddressOptions — interface @experimental
 ```
+built: string | null | undefined
 location: { protocol: string; host: string; } | null | undefined
 param: string | undefined
 path: string
