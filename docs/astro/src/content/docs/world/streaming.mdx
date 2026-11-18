@@ -128,14 +128,21 @@ world.insert(settings, StreamedWorld, {
     farProxies: true,
     farDistance: 8000,   // a cell this close to a source and not resident shows its proxy
     proxyError: 1,       // how far, in world units, a simplified surface may move
-    proxyRatio: 0.1,     // the share of triangles to aim for; proxyError can keep more
+    proxyRatio: 0.01,    // the fewest triangles to aim for; proxyError keeps more wherever it must
 });
 ```
 
 The cook writes `world/<cell>.far.json` and its meshes beside the cell, and names them on the cell in the manifest
 (`WorldCell.proxy`, with `WorldManifest.farDistance`). Prefab instances are expanded, so a building placed as a prefab
 contributes its meshes. A surface is left out of the proxy when it is disabled or blended, skinned, a billboard, or when it or a
-parent moves on its own (a character controller, a body that is not static, an animator).
+parent moves on its own (a character controller, a body that is not static, an animator). A mesh your own system moves, with none
+of those, is baked where it stands.
+
+`proxyError` is what decides how far a cell simplifies: keep it below what a pixel covers at the distance the proxy starts (past
+the sources' load radius). Surfaces that differ only in their colour share one draw, the colour carried by the vertices, and a
+proxy carries no lightmap UV. In the `far-proxy-town` example (144 cells, 3.1 million triangles of static meshes), the proxies
+keep 2% of the triangles at `proxyError` 0.5, and along its flight a frame draws 122 thousand triangles in 354 draws where the
+town fully loaded draws 866 thousand in 620, with 0.3% of the pixels noticeably different.
 
 The streamer hands over in both directions without a gap. Walking towards a cell, its proxy stays until the cell is in the world;
 walking away, the cell stays until its proxy is. A proxy that fails to load does not hold its cell. `WorldStreamerStatus.proxyCells`

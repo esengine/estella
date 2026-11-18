@@ -8098,9 +8098,9 @@
         {
           "key": "proxyRatio",
           "type": "number",
-          "default": "0.1",
-          "doc": "Share of triangles a far proxy aims to keep.",
-          "range": "0.01–1"
+          "default": "0.01",
+          "doc": "The fewest triangles a far proxy aims for, as a share of what the cell holds; proxyError keeps more where it must.",
+          "range": "0.001–1"
         }
       ],
       "animatable": [

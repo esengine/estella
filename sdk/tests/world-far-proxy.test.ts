@@ -7,7 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import type { WorldCell, WorldManifest, ResidencySource } from '../src/residency/cells';
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
-import { farProxySettings, farProxySurfaces, farProxySceneName } from '../src/residency/farProxy';
+import { farProxySettings, farProxySurfaces, farProxySceneName, assembleFarProxies } from '../src/residency/farProxy';
+import { MeshChannel } from '../src/asset/meshFormat';
 import type { SceneData } from '../src/scene/scene';
 
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
@@ -191,6 +192,36 @@ describe('what a far proxy is made of', () => {
             ({ version: 4, name: 'w', entities: [entity(1, null, [{ type: 'StreamedWorld', data }])] }) as unknown as SceneData;
         expect(farProxySettings(declared({ cellSize: 100 }))).toBeNull();
         expect(farProxySettings(declared({ cellSize: 100, farProxies: true, farDistance: 500 })))
-            .toEqual({ farDistance: 500, ratio: 0.1, maxWorldError: 1 });
+            .toEqual({ farDistance: 500, ratio: 0.01, maxWorldError: 1 });
+    });
+
+    it('draws surfaces that differ only in tint as one, the tint carried by the vertices, and drops the lightmap UV', async () => {
+        const red = { r: 1, g: 0.2, b: 0.2, a: 1 }, blue = { r: 0.2, g: 0.2, b: 1, a: 1 };
+        const scene = {
+            version: 4, name: 'cell', entities: [
+                entity(1, null, [place(10), renderer({ color: red })]),
+                entity(2, null, [place(30), renderer({ color: blue })]),
+            ],
+        } as unknown as SceneData;
+        const cell: WorldCell = { name: 'w.cell_0_0', path: 'world/w.cell_0_0.json', x: 0, z: 0,
+            minX: 0, minZ: 0, maxX: 100, maxZ: 100, entityCount: 2, rootCount: 2 };
+        const cut = { manifest: { version: 1, scene: 'w', cellSize: 100, persistentRefs: [], cells: [cell] },
+            persistent: scene, documents: new Map([[cell.name, scene]]), errors: [], warnings: [] };
+        const [proxy] = await assembleFarProxies(cut, { farDistance: 500, ratio: 1, maxWorldError: 0 },
+            { loadPrefab: async () => null, readMesh: async () => null });
+        expect(proxy!.meshes).toHaveLength(1);
+        const drawn = proxy!.document.entities[0]!.components.find((c) => c.type === 'MeshRenderer')!.data as { color: unknown };
+        expect(drawn.color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+        const mesh = proxy!.meshes[0]!.mesh;
+        expect(mesh.channels.some((c) => c.semantic === MeshChannel.TexCoord1)).toBe(false);
+        const colour = mesh.channels.find((c) => c.semantic === MeshChannel.Color)!;
+        const reds = new Set<string>();
+        for (let v = 0; v < mesh.vertexCount; v++) {
+            const at = v * mesh.vertexStride + colour.offset;
+            reds.add(`${mesh.vertices[at]},${mesh.vertices[at + 2]}`);
+        }
+        // Both tints are in the one mesh: red-heavy vertices and blue-heavy ones.
+        expect([...reds].some((rb) => { const [r, b] = rb.split(',').map(Number); return r! > b! * 3; })).toBe(true);
+        expect([...reds].some((rb) => { const [r, b] = rb.split(',').map(Number); return b! > r! * 3; })).toBe(true);
     });
 });

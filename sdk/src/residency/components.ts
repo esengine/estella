@@ -41,7 +41,10 @@ export interface StreamedWorldData {
     farDistance: number;
     /** Largest distance, world units, a far proxy's surface may move from the original's. */
     proxyError: number;
-    /** Target share of triangles a far proxy keeps, in (0, 1]; `proxyError` can keep more. */
+    /**
+     * The fewest triangles a far proxy aims for, as a share of its cell's, in (0, 1]. A floor, not a goal: `proxyError` keeps more
+     * wherever removing them would move a surface further than it allows, so the default leaves the error to decide.
+     */
     proxyRatio: number;
 }
 
@@ -56,7 +59,7 @@ export interface StreamedWorldData {
  */
 export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<StreamedWorldData>(
     'StreamedWorld',
-    { cellSize: 1000, plane: StreamPlane.Ground, farProxies: false, farDistance: 8000, proxyError: 1, proxyRatio: 0.1 },
+    { cellSize: 1000, plane: StreamPlane.Ground, farProxies: false, farDistance: 8000, proxyError: 1, proxyRatio: 0.01 },
     {
         fields: {
             cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the plane.' },
@@ -64,7 +67,7 @@ export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<St
             farProxies: { tooltip: 'Bake each cell a merged, simplified stand-in of its static meshes, drawn while the cell is not loaded.' },
             farDistance: { min: 0, unit: 'wu', tooltip: 'How far from a source an unloaded cell still shows its far proxy.' },
             proxyError: { min: 0, unit: 'wu', tooltip: 'How far a far proxy surface may move from the original.' },
-            proxyRatio: { min: 0.01, max: 1, tooltip: 'Share of triangles a far proxy aims to keep.' },
+            proxyRatio: { min: 0.001, max: 1, tooltip: 'The fewest triangles a far proxy aims for, as a share of what the cell holds; proxyError keeps more where it must.' },
         },
     },
 );

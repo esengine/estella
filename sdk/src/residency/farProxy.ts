@@ -12,7 +12,7 @@
 
 import { expandScenePrefabs, type PrefabAssetResolver, type SceneData, type SceneEntityData } from '../scene/scene';
 import { composeTRS } from '../math/mat4';
-import type { MeshData } from '../asset/meshFormat';
+import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat';
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
 import { WORLD_DIR, type CutWorld } from './cutWorld';
@@ -77,7 +77,7 @@ export function farProxySettings(scene: SceneData): FarProxySettings | null {
         if (declaration.farProxies !== true) return null;
         return {
             farDistance: Math.max(0, finite(declaration.farDistance, 8000)),
-            ratio: Math.min(1, Math.max(0.01, finite(declaration.proxyRatio, 0.1))),
+            ratio: Math.min(1, Math.max(0.001, finite(declaration.proxyRatio, 0.01))),
             maxWorldError: Math.max(0, finite(declaration.proxyError, 1)),
         };
     }
@@ -246,6 +246,39 @@ export interface AssembledFarProxy {
     unread: number;
 }
 
+/** `mesh` without the channel `semantic`, its vertices repacked; the same mesh when it has no such channel. */
+function withoutChannel(mesh: MeshData, semantic: number): MeshData {
+    const sorted = [...mesh.channels].sort((a, b) => a.offset - b.offset);
+    if (!sorted.some((c) => c.semantic === semantic)) return mesh;
+    const sizes = sorted.map((c, i) => (sorted[i + 1]?.offset ?? mesh.vertexStride) - c.offset);
+    const kept = sorted.map((c, i) => ({ c, size: sizes[i]! })).filter(({ c }) => c.semantic !== semantic);
+    let stride = 0;
+    const placed = kept.map(({ c, size }) => { const at = stride; stride += size; return { from: c.offset, at, size, channel: { ...c, offset: at } }; });
+    const vertices = new Uint8Array(mesh.vertexCount * stride);
+    for (let v = 0; v < mesh.vertexCount; v++) {
+        const source = v * mesh.vertexStride, target = v * stride;
+        for (const p of placed) vertices.set(mesh.vertices.subarray(source + p.from, source + p.from + p.size), target + p.at);
+    }
+    return { ...mesh, channels: placed.map((p) => p.channel), vertexStride: stride, vertices };
+}
+
+/**
+ * `mesh` with `tint` multiplied into its vertex colours, or null when it cannot carry it: no four-byte colour channel, or a tint of
+ * plain white, which needs no carrying.
+ */
+function tintVertices(mesh: MeshData, tint: Colour): MeshData | null {
+    if (tint.r === 1 && tint.g === 1 && tint.b === 1 && tint.a === 1) return null;
+    const colour = mesh.channels.find((c) => c.semantic === MeshChannel.Color);
+    if (!colour || colour.type !== MeshChannelType.UNorm8 || colour.components !== 4) return null;
+    const vertices = mesh.vertices.slice();
+    const k = [tint.r, tint.g, tint.b, tint.a];
+    for (let v = 0; v < mesh.vertexCount; v++) {
+        const at = v * mesh.vertexStride + colour.offset;
+        for (let c = 0; c < 4; c++) vertices[at + c] = Math.max(0, Math.min(255, Math.round(vertices[at + c]! * k[c]!)));
+    }
+    return { ...mesh, vertices };
+}
+
 /** Interns a document's asset references to the integers a draw-state key compares. */
 function refTable(): (value: unknown) => number {
     const ids = new Map<string, number>();
@@ -294,11 +327,15 @@ export async function assembleFarProxies(
             if (!mesh || mesh.vertexCount === 0 || mesh.indices.length === 0) { unread++; continue; }
             const r = surface.renderer;
             renderers.set(surface.entity, r);
+            // A tint is the vertex colour times the renderer's colour, so it can be carried by the vertices instead: then surfaces
+            // that differ only in tint share one draw.
+            const tint = (r.color ?? { r: 1, g: 1, b: 1, a: 1 }) as Colour;
+            const tinted = tintVertices(mesh, tint);
             parts.push({
-                entity: surface.entity, mesh, world: surface.world,
+                entity: surface.entity, mesh: tinted ?? mesh, world: surface.world,
                 state: {
                     material: intern(r.material), texture: intern(r.texture), normalMap: intern(r.normalMap),
-                    color: (r.color ?? { r: 1, g: 1, b: 1, a: 1 }) as Colour,
+                    color: tinted ? { r: 1, g: 1, b: 1, a: 1 } : tint,
                     layer: typeof r.layer === 'number' ? r.layer : 0,
                     cullBackfaces: r.cullBackfaces === true, lit: r.lit === true, castShadows: r.castShadows !== false,
                     parallax: (r.parallax ?? { x: 1, y: 1 }) as { x: number; y: number }, group: '',
@@ -314,7 +351,9 @@ export async function assembleFarProxies(
             meshes: [], surfaces: parts.length, trianglesBefore: 0, trianglesAfter: 0, unread,
         };
         for (const [i, group] of groupFarProxy(parts, origin).entries()) {
-            const mesh = host.simplify ? await host.simplify(group.mesh, settings.ratio, settings.maxWorldError) : group.mesh;
+            // A second UV set is a lightmap's, which no shader reads; carried, it costs bytes and holds seams the simplifier keeps.
+            const merged = withoutChannel(group.mesh, MeshChannel.TexCoord1);
+            const mesh = host.simplify ? await host.simplify(merged, settings.ratio, settings.maxWorldError) : merged;
             const meshPath = farProxyMeshPath(cell.name, i);
             proxy.meshes.push({ path: meshPath, mesh });
             proxy.trianglesBefore += group.mesh.indices.length / 3;
@@ -324,7 +363,8 @@ export async function assembleFarProxies(
                 id: i + 1, name: 'Far proxy ' + i, parent: null, children: [], visible: true,
                 components: [
                     { type: 'Transform', data: { position: { x: origin[0], y: origin[1], z: origin[2] } } },
-                    { type: 'MeshRenderer', data: { ...renderers.get(group.sources[0]!)!, mesh: meshPath, enabled: true } },
+                    // The group's colour, not the first source's: a tint the vertices carry is not applied twice.
+                    { type: 'MeshRenderer', data: { ...renderers.get(group.sources[0]!)!, color: group.state.color, mesh: meshPath, enabled: true } },
                 ],
             });
         }
