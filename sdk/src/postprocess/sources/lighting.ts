@@ -1169,7 +1169,7 @@ void main() {
     // The pixel's own world scale, from one texel step at ITS depth — the same
     // measure the AO pass sizes its radius with.
     float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(dsize.x), 0.0), d) - P), 1e-6);
-    float tol = worldPerTexel * SLOPE;
+    float tol = worldPerTexel * SLOPE * max(1.0, float(dsize.x) / (2.0 * float(hsize.x)));
     float perDepth = worldPerDepth(cuv, d, P);
 
     vec2 stepUv = ${step} / vec2(hsize);
@@ -1232,12 +1232,12 @@ void main() {
     vec2 cuv = uvOfTexel(dc, dsize);
     vec3 P = worldFromDepth(cuv, d);
     float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(dsize.x), 0.0), d) - P), 1e-6);
-    float tol = worldPerTexel * SLOPE;
+    ivec2 hsize = textureSize(u_texture, 0);
+    float tol = worldPerTexel * SLOPE * max(1.0, float(dsize.x) / (2.0 * float(hsize.x)));
     float perDepth = worldPerDepth(cuv, d, P);
 
     // The four half-resolution texels this pixel falls between, in SCREEN texel
     // space so the bilinear weights mean the same on both backends.
-    ivec2 hsize = textureSize(u_texture, 0);
     vec2 hf = v_texCoord * vec2(hsize) - 0.5;
     ivec2 base = ivec2(floor(hf));
     vec2 frac = hf - vec2(base);
