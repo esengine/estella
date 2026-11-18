@@ -21,6 +21,7 @@ import {
     ByteWriter, ByteReader, encodeValue, decodeValue, FrameWriter, decodeStateFrame,
     type ReplHelloResponse, type FieldShape,
 } from '../src/net/replication';
+import { EncodedRows } from '../src/net/replication/codec';
 
 const STEP = 1 / 60;
 
@@ -392,6 +393,28 @@ describe('codec round trip', () => {
         expect(frame.entries[0].netId).toBe(9);
         expect(frame.entries[0].fieldMask).toBe(0b01);
         expect(frame.entries[0].values).toEqual([3.5]);
+    });
+
+    it('a frame of rows encoded once is the frame a FrameWriter writes, in any order and subset', () => {
+        const table = buildReplicationTable();
+        const te = table.byName.get('NetPos')!;
+        const rows = [
+            { netId: 4, mask: 0b11, data: { x: 1.5, y: -2, secret: 9 } },
+            { netId: 70000, mask: 0b01, data: { x: 8, y: 0, secret: 0 } },
+            { netId: 12, mask: 0b10, data: { x: 0, y: 3.25, secret: 0 } },
+        ];
+        const encoded = new EncodedRows(rows.length);
+        // Encoded on first use, in the order a connection first asked for them.
+        for (const i of [2, 0, 1]) {
+            expect(encoded.has(i)).toBe(false);
+            encoded.encode(i, rows[i].netId, te, rows[i].mask, rows[i].data);
+            expect(encoded.has(i)).toBe(true);
+        }
+        for (const pick of [[0, 1, 2], [1, 2, 0], [2], []]) {
+            const fw = new FrameWriter(0x1234567);
+            for (const i of pick) fw.entry(rows[i].netId, te, rows[i].mask, rows[i].data);
+            expect(encoded.frame(0x1234567, pick)).toEqual(fw.finish());
+        }
     });
 
     it('diffSchemas pinpoints drift', () => {

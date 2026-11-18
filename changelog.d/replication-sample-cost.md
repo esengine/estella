@@ -1,0 +1,7 @@
+---
+section: Changed
+commits:
+  - perf(net): a replication sample encodes each changed row once and copies it into every frame that carries it, the radius interest provider gathers each cell's neighbourhood once per sample, and routing stops sorting every connection's delta rows
+  - chore(tools): net-sample-microbench --wasm times the real engine's replication sample, --phases prints what each phase cost per tick, a thread-CPU column sits beside wall time, and ES_SDK_DIST points it at another build to compare two versions
+---
+**A replication server spends about half the time it did on each sample when players see each other.** A changed row's bytes are the same for everyone who sees it, so the server now encodes it once per sample and copies it into each connection's frame instead of encoding it again for every viewer. The default radius interest provider gathers the entities around a grid cell once per sample and shares that list among everyone standing in the cell, and routing no longer sorts each connection's delta rows (an entity's rows still arrive together and in order). Measured with `tools/net-sample-microbench.mjs --wasm --phases` on the real engine: with 800 players each seeing about 30 others, a sample went from about 19 ms to about 10 ms; with 300 players all in view of each other, from about 25 ms to about 14 ms. `tools/net-sample-microbench.mjs` gains `--wasm`, `--phases`, a thread-CPU column, and `ES_SDK_DIST` to time another build.

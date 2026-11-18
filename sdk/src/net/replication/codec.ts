@@ -213,6 +213,9 @@ export class ByteWriter {
         this.len_ += bytes.byteLength;
     }
 
+    /** @internal What has been written so far, without a copy. Valid until the next write. */
+    get bytes(): Uint8Array { return this.buf_; }
+
     /** Patch a previously written u16 (e.g. a count written before the loop). */
     patchU16(offset: number, v: number): void { this.view_.setUint16(offset, v, true); }
 
@@ -330,20 +333,79 @@ export class FrameWriter {
     get byteLength(): number { return this.w_.length; }
 
     entry(netId: number, table: ReplicationTableEntry, fieldMask: number, data: Record<string, unknown>, refs?: EntityRefMap): void {
-        this.w_.u32(netId);
-        this.w_.u16(table.id);
-        this.w_.u32(fieldMask);
-        for (let i = 0; i < table.fields.length; i++) {
-            if (fieldMask & (1 << i)) {
-                encodeValue(this.w_, table.shapes[i], data[table.fields[i]], refs);
-            }
-        }
+        writeEntry(this.w_, netId, table, fieldMask, data, refs);
         this.count_++;
     }
 
     finish(): Uint8Array {
         this.w_.patchU16(this.countOffset_, this.count_);
         return this.w_.finish();
+    }
+}
+
+function writeEntry(
+    w: ByteWriter, netId: number, table: ReplicationTableEntry, fieldMask: number,
+    data: Record<string, unknown>, refs?: EntityRefMap,
+): void {
+    w.u32(netId);
+    w.u16(table.id);
+    w.u32(fieldMask);
+    for (let i = 0; i < table.fields.length; i++) {
+        if (fieldMask & (1 << i)) encodeValue(w, table.shapes[i], data[table.fields[i]], refs);
+    }
+}
+
+/** magic, version, tick, entry count. */
+const FRAME_HEADER_BYTES = 11;
+
+/**
+ * One sample's rows, each encoded once however many frames carry it. A row's
+ * bytes do not depend on who receives them, so a server whose connections see
+ * overlapping crowds encodes a row once and copies it into each frame, where
+ * encoding per frame repeated the same work once per viewer.
+ *
+ * Rows are named by an index the caller chooses (its own row order) and
+ * encoded on first use, so a row nobody is owed costs nothing.
+ */
+export class EncodedRows {
+    private readonly w_ = new ByteWriter(4096);
+    private readonly start_: Int32Array;
+    private readonly end_: Int32Array;
+
+    constructor(count: number) {
+        this.start_ = new Int32Array(count).fill(-1);
+        this.end_ = new Int32Array(count);
+    }
+
+    has(row: number): boolean { return this.start_[row] >= 0; }
+
+    encode(row: number, netId: number, table: ReplicationTableEntry, fieldMask: number,
+        data: Record<string, unknown>, refs?: EntityRefMap): void {
+        this.start_[row] = this.w_.length;
+        writeEntry(this.w_, netId, table, fieldMask, data, refs);
+        this.end_[row] = this.w_.length;
+    }
+
+    /** A state frame of these rows, in this order: the bytes a {@link FrameWriter}
+     *  given the same entries would produce. Every row must be encoded. */
+    frame(tick: number, rows: readonly number[]): Uint8Array {
+        const start = this.start_;
+        const end = this.end_;
+        let total = FRAME_HEADER_BYTES;
+        for (let i = 0; i < rows.length; i++) total += end[rows[i]] - start[rows[i]];
+        const out = new Uint8Array(total);
+        const view = new DataView(out.buffer);
+        view.setUint32(0, FRAME_MAGIC, true);
+        view.setUint8(4, REPLICATION_PROTOCOL_VERSION);
+        view.setUint32(5, tick >>> 0, true);
+        view.setUint16(9, rows.length, true);
+        const src = this.w_.bytes;
+        let o = FRAME_HEADER_BYTES;
+        for (let i = 0; i < rows.length; i++) {
+            // Rows are tens of bytes: a loop beats a subarray view per row.
+            for (let k = start[rows[i]], e = end[rows[i]]; k < e; k++) out[o++] = src[k];
+        }
+        return out;
     }
 }
 

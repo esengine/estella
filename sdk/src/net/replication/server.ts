@@ -30,7 +30,7 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
+    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, EncodedRows, FrameWriter,
     type EntityRefMap, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
@@ -524,6 +524,9 @@ export class ReplicationServer {
     /** @internal Delta rows that reached a connection, summed over connections:
      *  what the wire carried, against what routing considered. */
     deltaRowsSent = 0;
+    /** @internal Delta rows encoded: once per row per sample on the shared path,
+     *  however many connections it reached ({@link deltaRowsSent} counts those). */
+    rowsEncoded = 0;
 
     constructor(world: World, options: ReplicationServerOptions = {}) {
         this.world_ = world;
@@ -1589,6 +1592,9 @@ export class ReplicationServer {
             }
             return p;
         };
+        // A row's bytes are the same for every viewer: encoded once, copied per frame.
+        const encoded = new EncodedRows(budgeted ? 0 : dirty.length);
+        const refs = this.refs_;
         for (const { conn, enters, leaveIds } of plans) {
             const mine = routed.get(conn.id)!;
             this.entersSent += enters.length;
@@ -1615,21 +1621,20 @@ export class ReplicationServer {
                 }
                 if (mine.dirty.length > 0) {
                     const encoding = this.mark_();
-                    const frame = new FrameWriter(tick);
                     for (const i of mine.dirty) {
+                        if (encoded.has(i)) continue;
                         const d = dirty[i]!;
-                        frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
+                        encoded.encode(i, d.netId, d.te, d.mask, d.data, refs);
+                        this.rowsEncoded++;
                     }
-                    this.deltaRowsSent += frame.entryCount;
-                    const payload = frame.entryCount > 0 ? frame.finish() : null;
+                    this.deltaRowsSent += mine.dirty.length;
+                    const payload = encoded.frame(tick, mine.dirty);
                     this.since_('frame encode', encoding);
-                    if (payload) {
-                        const sending = this.mark_();
-                        c.channel.sendBinary(REPLICATION_CHANNEL, payload);
-                        this.stats.stateFrames++;
-                        this.stats.stateBytes += payload.byteLength;
-                        this.since_('transport send', sending);
-                    }
+                    const sending = this.mark_();
+                    c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                    this.stats.stateFrames++;
+                    this.stats.stateBytes += payload.byteLength;
+                    this.since_('transport send', sending);
                 }
             });
         }
@@ -1702,12 +1707,12 @@ export class ReplicationServer {
                         for (const i of debt.dirty) mine.dirty.push(i);
                     }
                 }
-                // Back into the order the rows were discovered in: the frame a
-                // connection receives is the same one either way, and this costs
-                // only what is actually SENT.
+                // Removals back into discovery order. Delta rows are not sorted:
+                // each row is applied on its own, an entity's rows stay together
+                // and in order, and sorting every connection's rows cost three
+                // times what finding them did.
                 for (const mine of out.values()) {
-                    mine.removals.sort((a, b) => a - b);
-                    mine.dirty.sort((a, b) => a - b);
+                    if (mine.removals.length > 1) mine.removals.sort((a, b) => a - b);
                 }
                 return out;
             }
@@ -1721,8 +1726,7 @@ export class ReplicationServer {
                 for (const i of debt.removals) mine.removals.push(i);
                 for (const i of debt.dirty) mine.dirty.push(i);
             }
-            mine.removals.sort((a, b) => a - b);
-            mine.dirty.sort((a, b) => a - b);
+            if (mine.removals.length > 1) mine.removals.sort((a, b) => a - b);
         }
         return out;
     }

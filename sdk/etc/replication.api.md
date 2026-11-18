@@ -22,6 +22,7 @@ static prototype: ByteReader
 
 ## ByteWriter — class @experimental
 ```
+@internal bytes: Uint8Array<ArrayBufferLike>
 f32: (v: number) => void
 finish: () => Uint8Array
 length: number
@@ -479,6 +480,7 @@ static prototype: ReplicationRedirect
 @internal payloadsBuilt: number
 @internal profileSample: boolean
 @internal rowsDeferred: number
+@internal rowsEncoded: number
 @internal samplePhases: Map<string, number>
 @internal viewerLinks: number
 @internal visibilityRecomputes: number

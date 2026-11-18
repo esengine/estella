@@ -393,7 +393,8 @@ const store = new RemoteStore({
 
 ## 一个世界，多台服务器——`esengine/zones`
 
-一个服务器进程同时能带几百个玩家(用 `tools/net-capacity-benchmark.mjs` 测你自己的)。更大的世界拆成若干
+一个服务器进程同时能带几百个玩家(用 `tools/net-capacity-benchmark.mjs` 测你自己的；
+`tools/net-sample-microbench.mjs --wasm --phases` 只给复制采样分阶段计时，用来比较服务器的两个版本)。更大的世界拆成若干
 **区**——一张地图、一张地图的一条线、一个副本——每个区一个进程，玩家在区之间移动。`esengine/zones` 是每个
 这样的游戏都需要的那部分，建在所有区共享的一个 `PersistStore` 上(接数据库就能跨机器)：
 

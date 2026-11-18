@@ -475,7 +475,9 @@ store are the game's. Nothing here runs on the client.
 ## One world, several servers — `esengine/zones`
 
 One server process holds a few hundred players at a time
-(`tools/net-capacity-benchmark.mjs` measures yours). A larger world is split
+(`tools/net-capacity-benchmark.mjs` measures yours; `tools/net-sample-microbench.mjs
+--wasm --phases` times the replication sample alone, phase by phase, to compare
+two versions of the server). A larger world is split
 into **zones** — a map, a line of a map, an instance — each its own process,
 and players move between them. `esengine/zones` is the part of that every such
 game needs, over one `PersistStore` all zones share (a database adapter makes
