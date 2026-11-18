@@ -28,6 +28,12 @@ void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 p
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
 void renderer_setDepthPrepass(bool on);
+/** @brief Whether meshes read their probe volume per pixel (true, the default) or per object, holding no probe atlas. */
+void renderer_setProbesPerPixel(bool on);
+/** @brief What the frame's probe atlas takes on the GPU, in bytes (0 while nothing reads per pixel). */
+f64 renderer_getProbeAtlasBytes();
+/** @brief Draws that read a probe volume last frame: per pixel when `perPixel`, else per object. */
+u32 renderer_getProbeDraws(bool perPixel);
 void renderer_setLightingDirect(bool on);
 /**
  * Draws whose shader the browser is still compiling are left out, not waited for: a frame never stops for a compile, and what needs the shader

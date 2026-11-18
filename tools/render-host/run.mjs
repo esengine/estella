@@ -48,6 +48,7 @@
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces" or "neutral")
  *   ESTELLA_VERIFY_MSAA      multisample count the scene asks for (the app's default otherwise)
  *   ESTELLA_VERIFY_PREPASS   1: draw the opaque scene twice, depth alone first (what a quality level does)
+ *   ESTELLA_VERIFY_PROBES_PER_OBJECT  1: read probe volumes one value per object, holding no atlas (the low quality level)
  *   ESTELLA_VERIFY_TEXTURES  "runtime": images upload through the engine, as a shipped game's do
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
@@ -107,6 +108,7 @@ const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear'
 const OUTPUT_TRANSFORM = ['aces', 'neutral'].includes(process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM) ? process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM : '';
 const MSAA = process.env.ESTELLA_VERIFY_MSAA ?? '';
 const PREPASS = process.env.ESTELLA_VERIFY_PREPASS === '1';
+const PROBES_PER_OBJECT = process.env.ESTELLA_VERIFY_PROBES_PER_OBJECT === '1';
 const TEXTURES = process.env.ESTELLA_VERIFY_TEXTURES === 'runtime' ? 'runtime' : '';
 // A scene whose emitters roll dice has no constant to assert until the run is
 // seeded; the engine seeds itself from the clock when nobody says otherwise.
@@ -260,7 +262,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${MSAA ? `&msaa=${MSAA}` : ''}${PREPASS ? '&prepass=1' : ''}${TEXTURES ? `&textures=${TEXTURES}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}${process.env.ESTELLA_VERIFY_NO_COMPUTE === '1' ? '&noCompute=1' : ''}${process.env.ESTELLA_VERIFY_GL_TRACE ? '&gltrace=1' : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${MSAA ? `&msaa=${MSAA}` : ''}${PREPASS ? '&prepass=1' : ''}${PROBES_PER_OBJECT ? '&probesPerObject=1' : ''}${TEXTURES ? `&textures=${TEXTURES}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}${process.env.ESTELLA_VERIFY_NO_COMPUTE === '1' ? '&noCompute=1' : ''}${process.env.ESTELLA_VERIFY_GL_TRACE ? '&gltrace=1' : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

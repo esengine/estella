@@ -109,6 +109,12 @@ export interface QualityProfile {
     textureStreaming: boolean;
     /** The megabytes the streamed textures may take together; past it they are held a level softer. 0 is no cap. */
     textureStreamingBudget: number;
+    /**
+     * Whether a mesh without lightmap UVs reads its probe volume per pixel: the grid where each pixel stands, through a 3D atlas of bricks, ten
+     * texture reads a lookup. Off, it reads one value where the mesh stands (what a mesh with lightmap UVs always does) and no atlas is held on the
+     * GPU: a long mesh reaching from a lit yard into a dark shed is lit as one, and a weak GPU saves the reads and the memory.
+     */
+    probesPerPixel: boolean;
 }
 
 export interface DeviceQualityRule {
@@ -170,6 +176,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         waterWaves: 3, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
         shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', dynamicGIReduced: true, drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
+        probesPerPixel: false,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -179,6 +186,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         waterWaves: 5, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
         shelterMaskSize: 512, shadowSoftSamples: 12, lighting: 'direct', dynamicGIReduced: true, drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
+        probesPerPixel: true,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -190,6 +198,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         waterWaves: 8, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
         shelterMaskSize: 1024, shadowSoftSamples: 16, lighting: 'full', dynamicGIReduced: false, drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
+        probesPerPixel: true,
     },
 };
 
@@ -309,6 +318,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
         drawCallBudget: Math.round(finite(r.drawCallBudget, base.drawCallBudget, 1, 100000)),
         textureStreaming: typeof r.textureStreaming === 'boolean' ? r.textureStreaming : base.textureStreaming,
         textureStreamingBudget: Math.round(finite(r.textureStreamingBudget, base.textureStreamingBudget, 0, 65536)),
+        probesPerPixel: typeof r.probesPerPixel === 'boolean' ? r.probesPerPixel : base.probesPerPixel,
     };
 }
 

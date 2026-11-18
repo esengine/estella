@@ -761,6 +761,9 @@ export interface ESEngineModule {
     renderer_setShadow2DSoftSamples?(samples: number): void;
     /** Draw the opaque scene twice, depth alone first, so a pixel is shaded for the surface in front of it. */
     renderer_setDepthPrepass?(on: boolean): void;
+    renderer_setProbesPerPixel?(on: boolean): void;
+    renderer_getProbeAtlasBytes?(): number;
+    renderer_getProbeDraws?(perPixel: boolean): number;
     renderer_setLightingDirect?(on: boolean): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_getPendingShaders?(): number;

@@ -207,7 +207,7 @@ export const SHIPPED = {
   "A post-process pass can read an earlier pass of its own effect.":
     { notCertifiable: "Covered by the bloom-round gate, whose pyramid is built on it, on both backends; no golden project defines an effect of its own." },
   "A probe volume lights each pixel, not each object.":
-    { notCertifiable: "Covered by the probe-per-pixel, probe-per-pixel-sparse, probe-seam and probe-off-origin gates on both backends; no golden project ships a probe volume with a bake." },
+    { notCertifiable: "Covered by the probe-per-pixel, probe-per-object, probe-per-pixel-sparse, probe-seam and probe-off-origin gates on both backends; no golden project ships a probe volume with a bake." },
   "Instances in the open scene take a changed prefab at once.":
     { notCertifiable: "An editor behaviour, covered by the prefab-propagation editor check; a packaged game has no open scene being edited." },
   "A 2D rig's bones keep an id, take a new parent and rebind onto another":

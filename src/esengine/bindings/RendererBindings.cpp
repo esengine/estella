@@ -1363,6 +1363,24 @@ void renderer_setDepthPrepass(bool on) {
     if (g_renderFrame) g_renderFrame->setDepthPrepass(on);
 }
 
+void renderer_setProbesPerPixel(bool on) {
+    if (g_renderFrame) g_renderFrame->setProbesPerPixel(on);
+}
+
+f64 renderer_getProbeAtlasBytes() {
+    const auto* rc = ctx().tryGet<RenderContext>();
+    if (!rc) return 0.0;
+    const ProbeStore& probes = rc->probes();
+    return probes.atlasTexture() != 0 ? static_cast<f64>(probes.atlasBytes()) : 0.0;
+}
+
+u32 renderer_getProbeDraws(bool perPixel) {
+    const auto* rc = ctx().tryGet<RenderContext>();
+    if (!rc) return 0;
+    const ProbeStore& probes = rc->probes();
+    return perPixel ? probes.perPixelDraws() : probes.perObjectDraws();
+}
+
 void renderer_setAsyncShaderCompile(bool on) {
     if (auto* device = g_device) device->setSkipPendingPrograms(on);
 }

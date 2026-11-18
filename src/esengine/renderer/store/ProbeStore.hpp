@@ -63,7 +63,30 @@ public:
         return n;
     }
 
-    void clear() { volumes_.clear(); }
+    void clear() {
+        volumes_.clear();
+        per_pixel_draws_ = 0;
+        per_object_draws_ = 0;
+    }
+
+    /** @brief Counts a draw that read a volume this frame, per pixel or per object: what the stats say a frame paid. */
+    void noteDraw(bool perPixel) const { ++(perPixel ? per_pixel_draws_ : per_object_draws_); }
+    u32 perPixelDraws() const { return per_pixel_draws_; }
+    u32 perObjectDraws() const { return per_object_draws_; }
+
+    /** @brief Texture reads one per-pixel lookup costs: the indirection cell, then a filtered read per coefficient. */
+    static constexpr u32 kReadsPerLookup = 1 + 9;
+
+    /** @brief Drops the atlas's layout, so the next layoutAtlas places everything again and says it changed. For a frame
+     *         that stops reading the atlas (it was released) and may start again. */
+    void forgetAtlas() {
+        atlas_key_.clear();
+        placed_.clear();
+        shape_ = Shape{};
+        atlas_width_ = atlas_height_ = atlas_depth_ = 0;
+        atlas_texture_ = 0;
+        for (Volume& v : volumes_) v.indirection = glm::ivec3(-1);
+    }
 
     /** @brief Takes a volume, or ignores one no point can be inside. A grid whose
      *         coefficients do not match its resolution is not half-usable. */
@@ -492,6 +515,8 @@ private:
     u32 atlas_height_ = 0;
     u32 atlas_depth_ = 0;
     u32 atlas_texture_ = 0;
+    mutable u32 per_pixel_draws_ = 0;
+    mutable u32 per_object_draws_ = 0;
 };
 
 }  // namespace esengine

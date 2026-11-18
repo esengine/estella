@@ -193,6 +193,8 @@ export interface NativeEngineApi {
     renderer_getPreviewHeight?(): number;
     renderer_getPreviewSize?(): number;
     renderer_getPreviewWidth?(): number;
+    renderer_getProbeAtlasBytes?(): number;
+    renderer_getProbeDraws?(perPixel: boolean): number;
     renderer_getSkeletal?(): number;
     renderer_getSkeletalPreviewHeight?(preview: number): number;
     renderer_getSkeletalPreviewSize?(preview: number): number;
@@ -246,6 +248,7 @@ export interface NativeEngineApi {
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
+    renderer_setProbesPerPixel?(on: boolean): void;
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number, cascades: number, particleLimit: number): void;
     renderer_setRetainedTextCollected?(collected: boolean): void;
     renderer_setScreenOverlayEffect?(material: number): void;
@@ -561,6 +564,8 @@ export function createNativeEngineApi(
     bind('renderer_getPreviewHeight', 'es_renderer_getPreviewHeight', false);
     bind('renderer_getPreviewSize', 'es_renderer_getPreviewSize', false);
     bind('renderer_getPreviewWidth', 'es_renderer_getPreviewWidth', false);
+    bind('renderer_getProbeAtlasBytes', 'es_renderer_getProbeAtlasBytes', false);
+    bind('renderer_getProbeDraws', 'es_renderer_getProbeDraws', false);
     bind('renderer_getSkeletal', 'es_renderer_getSkeletal', false);
     bind('renderer_getSkeletalPreviewHeight', 'es_renderer_getSkeletalPreviewHeight', false);
     bind('renderer_getSkeletalPreviewSize', 'es_renderer_getSkeletalPreviewSize', false);
@@ -614,6 +619,7 @@ export function createNativeEngineApi(
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
     bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
     bind('renderer_setProbeVolumeReflection', 'es_renderer_setProbeVolumeReflection', false);
+    bind('renderer_setProbesPerPixel', 'es_renderer_setProbesPerPixel', false);
     bind('renderer_setQualityBudgets', 'es_renderer_setQualityBudgets', false);
     bind('renderer_setRetainedTextCollected', 'es_renderer_setRetainedTextCollected', false);
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);

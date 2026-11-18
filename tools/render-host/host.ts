@@ -49,6 +49,7 @@ const outputTransform = requestedTransform === 'aces' || requestedTransform === 
 const msaaSamples = Number(params.get('msaa')) || undefined;
 /** The opaque scene drawn twice, depth alone first: the quality levels turn it on, and this host has none. */
 const depthPrepass = params.get('prepass') === '1';
+const probesPerObject = params.get('probesPerObject') === '1';
 const seedParam = params.get('seed');
 const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 const depthLayers = Number(params.get('depthLayers')) || undefined;
@@ -193,6 +194,7 @@ async function boot(): Promise<void> {
     // The editor's engine asks for edge buffers before its assets load; so does this host.
     module.renderer_setMeshEdgeBuffers?.(true);
     if (depthPrepass) module.renderer_setDepthPrepass?.(true);
+    if (probesPerObject) module.renderer_setProbesPerPixel?.(false);
     if (runtimeTextures) {
         app.getResource(Assets).getTextureLoader().setPixelDecoder(async (path) => {
             const res = await fetch(path);

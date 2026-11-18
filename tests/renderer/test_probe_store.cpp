@@ -430,6 +430,33 @@ static void testSparseRead() {
     CHECK(gpuWorst < 8e-3f, "read through the atlas, it gives the same to half-float precision");
 }
 
+/** What the stats read: the draws a frame noted per pixel and per object, cleared with the frame; and an atlas forgotten
+ *  (the low quality level releases it) reads per object and is laid out again, as changed, when it is wanted back. */
+static void testDrawCountsAndForgottenAtlas() {
+    ProbeVolume v = scrambled({5, 5, 5}, false);
+    ProbeStore store;
+    store.add({0.0f, 0.0f, 0.0f}, {4.0f, 4.0f, 4.0f}, &v);
+    CHECK(store.layoutAtlas(256), "a first layout wants an upload");
+    store.setAtlasTexture(42);
+    store.noteDraw(true);
+    store.noteDraw(true);
+    store.noteDraw(false);
+    CHECK(store.perPixelDraws() == 2u && store.perObjectDraws() == 1u, "each draw is counted where it read");
+    CHECK(ProbeStore::kReadsPerLookup == 10u, "a per-pixel lookup is the indirection cell and nine coefficients");
+
+    store.forgetAtlas();
+    ProbeConstants out{};
+    CHECK(store.sample({2.0f, 2.0f, 2.0f}, out, true) && near(out.irradiance[0].w, 1.0f),
+          "with the atlas forgotten, a draw that could read per pixel reads per object");
+    CHECK(store.atlasBytes() == 0u && store.atlasTexture() == 0u, "and nothing is held for it");
+
+    store.clear();
+    CHECK(store.perPixelDraws() == 0u && store.perObjectDraws() == 0u, "a new frame starts its counts at zero");
+    store.add({0.0f, 0.0f, 0.0f}, {4.0f, 4.0f, 4.0f}, &v);
+    CHECK(store.layoutAtlas(256), "wanted back, the same grid is laid out again and wants an upload");
+    CHECK(store.atlasBytes() > 0u, "and the atlas has a size again");
+}
+
 /** A grid the atlas cannot hold keeps the per-object read rather than failing the frame. */
 static void testOversizeGridKeepsPerObject() {
     ProbeVolume wide = scrambled({200, 1, 1}, false);
@@ -496,6 +523,7 @@ int main() {
     testGridRun();
     testOversizeGridKeepsPerObject();
     testDenseGridCost();
+    testDrawCountsAndForgottenAtlas();
     testSparseBricksRefused();
     testSparseRead();
     testSampleByBox();

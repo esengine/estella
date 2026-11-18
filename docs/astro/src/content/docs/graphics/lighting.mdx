@@ -559,6 +559,22 @@ entity.insert(LightProbeVolume, { halfExtents: { x: 22, y: 7, z: 11 }, capture: 
 - Keep the box's centre clear: the capture is taken from there, and an object around that point (a mirror ball at the
   centre) is all it sees.
 
+### Large volumes: sparse bricks, and what a weak GPU reads
+
+A probe volume's grid is stored as **bricks** of 4 x 4 x 4 cells in a 3D atlas, and found through an indirection cell
+per brick, the shape Unreal's volumetric lightmap takes. With **`BakedLighting.probeLevels`** above 1 (Probe levels in
+the Lighting panel, 1 to 4) the bake keeps the volume's `spacing` only in bricks with geometry near them and samples the
+open air at 2, 4 or 8 times it: a large volume with a fine spacing along its floor and walls bakes with far fewer
+probes, and the cap on a volume's probes grows eight times a level. Where a fine brick meets a coarse one its face takes
+the coarse brick's light, so there is no seam where the spacing changes. A grid whose bricks would all be fine is
+written dense, as with one level.
+
+A mesh **without** lightmap UVs reads the grid where each pixel stands: ten texture reads a lookup (the indirection
+cell, then one filtered read per coefficient). A mesh with them, and every mesh at the **low** quality level
+(`probesPerPixel: false` in its profile), reads one value where it stands instead, and no atlas is held on the GPU:
+a long mesh reaching from a lit yard into a dark shed is then lit as one. `get_stats` and the frame stats report
+`probes`: the draws that read per pixel and per object, and the bytes the atlas takes.
+
 ### What a shiny surface reflects indoors
 
 A lightmap is the diffuse half. The other half is what a **mirror** shows, and without
