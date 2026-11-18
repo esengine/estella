@@ -597,13 +597,43 @@ export class SceneManagerState {
      */
     private disposeSceneOwnedState_(
         instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
-    ): void {
+        retire?: (doomed: Entity[]) => Promise<void>,
+    ): Promise<void> | void {
         const world = this.app_.world;
         const doomed = this.settleSurvivors_(instance, keepPersistent, wasSleeping);
-        for (const entity of doomed) {
-            if (world.valid(entity)) world.despawn(entity);
-        }
-        this.finishDispose_(instance);
+        const finish = (): void => {
+            for (const entity of doomed) {
+                if (world.valid(entity)) world.despawn(entity);
+            }
+            instance.entities.clear();
+            instance.savedEnabled.clear();
+
+            for (const id of instance.drawCallbacks.keys()) {
+                unregisterDrawCallback(id);
+            }
+            instance.drawCallbacks.clear();
+
+            for (const id of instance.systemIds) {
+                this.app_.removeSystem(id);
+            }
+            instance.systemIds.length = 0;
+
+            const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
+            for (const camera of instance.postProcessBindings.keys()) {
+                pp?.unbind(camera);
+            }
+            instance.postProcessBindings.clear();
+
+            this.releaseSceneAssets_(instance);
+        };
+        if (!retire) return finish();
+        return (async () => {
+            try {
+                await retire(doomed);
+            } finally {
+                finish();
+            }
+        })();
     }
 
     /**
@@ -622,30 +652,6 @@ export class SceneManagerState {
         }
         for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
         return doomed;
-    }
-
-    /** Everything a scene owns besides its entities: what is torn down once they are gone. */
-    private finishDispose_(instance: SceneInstance): void {
-        instance.entities.clear();
-        instance.savedEnabled.clear();
-
-        for (const id of instance.drawCallbacks.keys()) {
-            unregisterDrawCallback(id);
-        }
-        instance.drawCallbacks.clear();
-
-        for (const id of instance.systemIds) {
-            this.app_.removeSystem(id);
-        }
-        instance.systemIds.length = 0;
-
-        const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
-        for (const camera of instance.postProcessBindings.keys()) {
-            pp?.unbind(camera);
-        }
-        instance.postProcessBindings.clear();
-
-        this.releaseSceneAssets_(instance);
     }
 
     /**
@@ -789,13 +795,9 @@ export class SceneManagerState {
             return;
         }
         const leaving = (async () => {
-            const doomed = this.settleSurvivors_(instance, options?.keepPersistent ?? true, wasSleeping);
             try {
-                await retire(doomed);
+                await this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping, retire);
             } finally {
-                // Whatever retire left (it threw, or something survived it) goes now: the teardown below assumes no entity.
-                for (const entity of doomed) if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
-                this.finishDispose_(instance);
                 this.removeSceneSlot_(name, instance);
             }
         })();
