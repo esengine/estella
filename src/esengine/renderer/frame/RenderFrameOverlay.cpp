@@ -515,7 +515,6 @@ bool RenderFrame::keepSegments(ecs::Registry& registry) {
     // The one-list hold is left as it was: this pass draws from the segments.
     swapOverlayOut();
 
-    // The segments in the roots' order, each keeping what it holds by its root; a root that is gone takes its segment along.
     std::vector<OverlaySegment> next;
     next.reserve(screen_roots_->size());
     for (const u32 root : *screen_roots_) {
@@ -526,7 +525,14 @@ bool RenderFrame::keepSegments(ecs::Registry& registry) {
         segment.root = root;
         next.push_back(std::move(segment));
     }
-    for (auto& left : segments_) if (left.hold) left.hold->pool.shutdown();
+    std::vector<std::unique_ptr<OverlayHold>> spare;
+    for (auto& left : segments_) if (left.hold) spare.push_back(std::move(left.hold));
+    for (auto& segment : next) {
+        if (segment.hold || spare.empty()) continue;
+        segment.hold = std::move(spare.back());
+        spare.pop_back();
+    }
+    for (auto& hold : spare) hold->pool.shutdown();
     segments_ = std::move(next);
 
     std::unordered_map<u32, usize> index;
