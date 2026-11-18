@@ -13,7 +13,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { PNG } from 'pngjs';
 import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
-         type BakeStep, type CapturedPanorama, type ProbeGrid } from 'esengine';
+         type BakeStep, type CapturedPanorama, type ProbeGrid, encodeProbeFile, PROBE_FILE_VERSION,
+         type ProbeVolumeDocument } from 'esengine';
 import { encodeRgbaPng } from './png';
 import { adoptOrphan } from './assetMeta';
 import { META_EXT } from './contentPolicy';
@@ -75,15 +76,8 @@ export interface SceneProbeVolume {
     spacing: number;
 }
 
-/** A solved grid, as an `.esprobes` document. */
-export interface ProbeVolumeDocument {
-    version: number;
-    resolution: [number, number, number];
-    irradiance: number[];
-    /** Baked with sky occlusion: nine coefficients per probe of how much of the sky each sees, and the
-     *  irradiance holds the lights alone. Absent otherwise (the irradiance holds the sky as it was). */
-    skyVisibility?: number[];
-}
+/** A solved grid, as an `.esprobes` file holds it (lightmap/probeFile in the SDK). */
+export type { ProbeVolumeDocument };
 
 export interface SceneBakeInput {
     surfaces: SceneBakeSurface[];
@@ -106,8 +100,7 @@ export interface SceneReflectionProbe {
 }
 
 /**
- * Probes one volume may carry. A grid is written as text, and past this a volume
- * is megabytes of it. The answer is a coarser spacing or a smaller box, and only
+ * Probes one volume may carry: past this a volume's file is hundreds of kilobytes and its bake minutes. The answer is a coarser spacing or a smaller box, and only
  * the author can choose between them — so one that does not fit is REFUSED and
  * named, not quietly thinned.
  */
@@ -141,21 +134,12 @@ export interface SceneBakeResult {
     warnings: string[];
 }
 
-/** Six significant figures: a grid is hundreds of numbers, and the digits past
- *  these say nothing a bake of it would reproduce anyway. */
-const round6 = (v: number): number => Number(v.toPrecision(6));
-
 /**
- * An `.esprobes` document as its file. One line per member, because a grid is
- * hundreds of numbers and a diff of it is worth reading only if they stay put —
- * and ONE writer, so the two bake doors produce the same bytes.
+ * An `.esprobes` grid as its file's bytes: version 2, binary, half floats (see lightmap/probeFile in the SDK). ONE
+ * writer, so the two bake doors produce the same bytes and a rebake that solved the same grid rewrites nothing.
  */
-export function probeDocumentText(doc: ProbeVolumeDocument): string {
-    return `{\n  "version": ${doc.version},\n`
-        + `  "resolution": ${JSON.stringify(doc.resolution)},\n`
-        + `  "irradiance": ${JSON.stringify(doc.irradiance)}`
-        + (doc.skyVisibility ? `,\n  "skyVisibility": ${JSON.stringify(doc.skyVisibility)}` : '')
-        + `\n}\n`;
+export function probeDocumentBytes(doc: ProbeVolumeDocument): Uint8Array {
+    return encodeProbeFile(doc);
 }
 
 /** Stock geometry as the runtime draws it: the template carries its lightmap UV set, so the bake
@@ -459,10 +443,10 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         return packed;
     };
     const asDocument = (grid: ProbeGrid, sh: Float32Array, sky?: Float32Array): ProbeVolumeDocument => ({
-        version: 1,
+        version: PROBE_FILE_VERSION,
         resolution: [grid.resolution[0], grid.resolution[1], grid.resolution[2]],
-        irradiance: Array.from(sh, round6),
-        ...(sky ? { skyVisibility: Array.from(sky, round6) } : {}),
+        irradiance: sh,
+        ...(sky ? { skyVisibility: sky } : {}),
     });
 
     if (surfaces.length === 0) {

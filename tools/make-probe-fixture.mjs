@@ -10,6 +10,9 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib/repo.mjs';
+import { importSdkSource } from './lib/sdkSource.mjs';
+
+const { encodeProbeFile, PROBE_FILE_VERSION } = await importSdkSource('lightmap/probeFile.ts');
 
 const OUT = path.join(ROOT, 'fixtures', 'scenes');
 
@@ -43,14 +46,22 @@ const FIXTURES = {
     // Grey everywhere, red only where a surface faces +X. The fixture mesh's two
     // triangles face +Z and +X, so one draw shows both halves of the claim.
     'probe-facing.esprobes': { resolution: [1, 1, 1], irradiance: alongX(GREY, [0.5, 0, 0]) },
-    // Red at one end, blue at the other: what stands between them must be neither.
+    // Red at one end, blue at the other: what stands between them must be neither. Written in the current binary
+    // version, while the three above stay version 1 JSON, so the gates load both kinds of file a project may hold.
     'probe-ends.esprobes': {
         resolution: [2, 1, 1],
         irradiance: [...constant(RED), ...constant(BLUE)],
+        binary: true,
     },
 };
 
 for (const [name, data] of Object.entries(FIXTURES)) {
+    if (data.binary) {
+        writeFileSync(path.join(OUT, name), encodeProbeFile({ version: PROBE_FILE_VERSION, resolution: data.resolution,
+                                                              irradiance: data.irradiance }));
+        console.log(`wrote ${name}: ${data.resolution.join('x')} probes, version ${PROBE_FILE_VERSION}`);
+        continue;
+    }
     const doc = { version: 1, resolution: data.resolution, irradiance: data.irradiance };
     // One line per member: a grid is hundreds of numbers, and a diff of it is
     // worth reading only if the numbers stay where they were.

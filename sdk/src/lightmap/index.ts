@@ -7,6 +7,7 @@ export { skyRadiance, type SkySpec } from './sky';
 export type { BakeSurface } from './atlas';
 export type { BakeLight } from './solve';
 export { solveProbes, probeAt, type ProbeGrid } from './probes';
+export { encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, type ProbeVolumeDocument } from './probeFile';
 export { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
 export { bakeHoldsStill, type BakeMobility } from './mobility';

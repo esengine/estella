@@ -164,6 +164,15 @@ export {
     skyRadiance, type SkySpec,
 } from './lightmap';
 /**
+ * The `.esprobes` file a probe bake writes and a LightProbeVolume loads: version 2 binary half floats, and version 1's
+ * JSON still read. One writer and one reader, so every bake door and the runtime agree on the bytes.
+ *
+ * @experimental Pre-1.0: a sparse grid will be a new version of this file.
+ */
+export {
+    encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, type ProbeVolumeDocument,
+} from './lightmap';
+/**
  * What a scene declares about its baked light: the knobs, and the fingerprint of
  * what the last bake read. The engine never looks at it — a bake is a
  * creation-time act — but every door into one does.

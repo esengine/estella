@@ -4,18 +4,7 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
-
-/** The `.esprobes` document, as a bake wrote it. */
-interface ProbeVolumeAssetData {
-    version: number;
-    /** Probes along x, y and z. */
-    resolution: [number, number, number];
-    /** Nine RGB coefficients per probe, x fastest then y then z. */
-    irradiance: number[];
-    /** With sky occlusion: nine coefficients per probe of how much of the sky each sees; the irradiance
-     *  then holds the lights alone, and the frame's sky is added through these. */
-    skyVisibility?: number[];
-}
+import { decodeProbeFile } from '../../lightmap/probeFile';
 
 /** A baked probe grid, named by the handle a LightProbeVolume references. */
 export interface ProbeVolumeResult {
@@ -23,7 +12,7 @@ export interface ProbeVolumeResult {
 }
 
 /**
- * Loads `.esprobes` — irradiance solved at a grid of points.
+ * Loads `.esprobes` — irradiance solved at a grid of points (see lightmap/probeFile for the file).
  *
  * The same nine coefficients an `.esenv` carries, at every probe instead of once:
  * an environment is this field held constant. Where the grid stands is NOT here —
@@ -37,18 +26,12 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
     constructor(private readonly core_: () => EngineApi | null) {}
 
     async load(path: string, ctx: LoadContext): Promise<ProbeVolumeResult> {
-        const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
-        const data = JSON.parse(text) as ProbeVolumeAssetData;
+        // Version 2 is binary and version 1 JSON; decodeProbeFile tells them apart, checks the counts and refuses a
+        // version it does not know.
+        const bytes = new Uint8Array(await ctx.loadBinary(ctx.catalog.getBuildPath(path)));
+        const data = decodeProbeFile(bytes, path);
         const res = data.resolution;
-        if (!Array.isArray(res) || res.length !== 3 || res.some((n) => !Number.isInteger(n) || n < 1)) {
-            throw new Error(`${path}: a probe volume is three positive probe counts, got `
-                + `${JSON.stringify(data.resolution)}`);
-        }
         const want = res[0] * res[1] * res[2] * 27;
-        if (!Array.isArray(data.irradiance) || data.irradiance.length !== want) {
-            throw new Error(`${path}: ${res[0]}x${res[1]}x${res[2]} probes want ${want} `
-                + `coefficients, got ${data.irradiance?.length ?? 0}`);
-        }
         const m = marshallingCore(this.core_());
         if (!m?.probe_volume_create) {
             throw new Error('this engine build carries no probe_volume_create');
@@ -56,7 +39,7 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
 
         const handle = withScratch(m, (alloc) => {
             const shPtr = alloc(want * 4);
-            m.HEAPF32.set(Float32Array.from(data.irradiance), shPtr >> 2);
+            m.HEAPF32.set(data.irradiance as Float32Array, shPtr >> 2);
             return m.probe_volume_create!(res[0], res[1], res[2], shPtr);
         });
 
@@ -64,18 +47,14 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
             throw new Error(`the engine rejected the probe volume in ${path}`);
         }
         if (data.skyVisibility !== undefined) {
-            const visibility = data.skyVisibility;
+            const visibility = data.skyVisibility as Float32Array;
             const count = res[0] * res[1] * res[2] * 9;
-            if (!Array.isArray(visibility) || visibility.length !== count) {
-                throw new Error(`${path}: ${res[0]}x${res[1]}x${res[2]} probes want ${count} sky visibility `
-                    + `coefficients, got ${Array.isArray(visibility) ? visibility.length : 0}`);
-            }
             if (!m.probe_volume_setSkyVisibility) {
                 throw new Error(`${path} is baked with sky occlusion, which this engine build cannot read`);
             }
             withScratch(m, (alloc) => {
                 const ptr = alloc(count * 4);
-                m.HEAPF32.set(Float32Array.from(visibility), ptr >> 2);
+                m.HEAPF32.set(visibility, ptr >> 2);
                 m.probe_volume_setSkyVisibility!(handle, ptr);
             });
         }
