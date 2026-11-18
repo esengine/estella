@@ -1665,11 +1665,11 @@ void RenderFrame::collectProbes(ecs::Registry& registry) {
         probes.add(centre - half, centre + half, grid);
     }
 
-    // 2048 is the side WebGL2 guarantees; a grid past it keeps the per-object read rather than failing.
-    if (probes.layoutAtlas(2048) && probes.atlasWidth() > 0) {
+    // 256 is the 3D side WebGL2 guarantees; a grid past it keeps the per-object read rather than failing.
+    if (probes.layoutAtlas(256) && probes.atlasWidth() > 0) {
         probes.fillAtlas(probe_atlas_texels_);
-        probe_atlas_ = Texture::createRaw(device_, GfxContent::retained(), probes.atlasWidth(), probes.atlasHeight(),
-                                          probe_atlas_texels_.data(), TextureFormat::RGBA16F, false);
+        probe_atlas_ = Texture::createVolume(device_, GfxContent::retained(), probes.atlasWidth(), probes.atlasHeight(),
+                                             probes.atlasDepth(), probe_atlas_texels_.data(), TextureFormat::RGBA16F);
     }
     probes.setAtlasTexture(probes.atlasWidth() > 0 && probe_atlas_ ? probe_atlas_->getId() : 0);
 }

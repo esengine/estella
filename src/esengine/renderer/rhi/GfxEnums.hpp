@@ -423,6 +423,13 @@ struct TextureDesc {
     /// `texture_2d_array`. Its pixels are the layers back to back, each width * height texels. Colour, single-sample
     /// and sampled only: never an attachment, a storage target or compressed, and `flipY` does not apply.
     u32 layers = 1;
+    /// A 3D texture, `layers` deep, sampled through `sampler3D` / `texture_3d`: filtered across its depth as well as its
+    /// rows, which an array never is. Its pixels are its slices back to back, as an array's layers are, and it carries
+    /// every restriction an array does.
+    bool volume = false;
+
+    /// An array or a volume: pixels given slice by slice, fixed at creation, never an attachment.
+    bool layered() const { return layers > 1 || volume; }
 };
 
 /**

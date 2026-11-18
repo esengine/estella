@@ -437,6 +437,7 @@ bool GLDevice::recreateDevice() {
     buffer_names_.clear();
     texture_names_.clear();
     array_names_.clear();
+    volume_names_.clear();
     program_names_.clear();
     pending_programs_.clear();
     failed_programs_.clear();
@@ -1466,10 +1467,12 @@ void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 
 // =============================================================================
 
 u32 GLDevice::textureTarget(u32 name) const {
-    return !array_names_.empty() && array_names_.count(name) ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
+    if (!array_names_.empty() && array_names_.count(name)) return GL_TEXTURE_2D_ARRAY;
+    if (!volume_names_.empty() && volume_names_.count(name)) return GL_TEXTURE_3D;
+    return GL_TEXTURE_2D;
 }
 
-// A unit holds a 2D and an array binding side by side; the sampler type of the program decides which is read.
+// A unit holds a 2D, an array and a 3D binding side by side; the sampler type of the program decides which is read.
 void GLDevice::bindTexture(u32 slot, TextureHandle texture) {
     const u32 name = nameOf(texture_names_, static_cast<u32>(texture));
     if (slot >= kTextureSlots) {  // beyond the cache — bind directly
@@ -1528,6 +1531,21 @@ bool GLDevice::backendCreateTexture(u32 id, const TextureDesc& desc, const void*
     setName(texture_names_, id, name);
 
     auto gl = toGLPixelFormat(desc.format);
+    if (desc.volume) {
+        // As an array's: the slices go up in the rows given, and nothing is mipmapped.
+        volume_names_.insert(name);
+        bindTextureForEdit(name);
+        const TightRowScope rows(desc.format, desc.width);
+        glTexImage3D(GL_TEXTURE_3D, 0, static_cast<GLint>(gl.internalFormat),
+                     static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
+                     static_cast<GLsizei>(std::max(1u, desc.layers)), 0, gl.format, gl.type, pixels);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, toGLWrap(desc.wrapT));
+        return true;
+    }
     if (desc.layers > 1) {
         // WebGL2 refuses UNPACK_FLIP_Y for a 3D upload, so the layers go up in the rows given.
         array_names_.insert(name);
@@ -1616,6 +1634,7 @@ void GLDevice::backendDeleteTexture(u32 id) {
         evictSamplerBinding(name);
         glDeleteTextures(1, &name);
         array_names_.erase(name);
+        volume_names_.erase(name);
     }
     setName(texture_names_, id, 0);
 }
@@ -2018,7 +2037,7 @@ bool GLDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle dst)
     if (!isDeviceUsable()) return false;
     const TextureDesc* desc = textureDesc(dst);
     const u32 name = nameOf(texture_names_, static_cast<u32>(dst));
-    if (!desc || name == 0 || desc->samples > 1 || desc->layers > 1) return false;
+    if (!desc || name == 0 || desc->samples > 1 || desc->layered()) return false;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, nameOf(framebuffer_names_, static_cast<u32>(source)));
     bindTextureForEdit(name);
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, static_cast<GLsizei>(desc->width), static_cast<GLsizei>(desc->height));

@@ -42,7 +42,7 @@ void patchImage(std::vector<u8>& image, u32 imageWidth, u32 imageHeight, u32 bpp
 std::vector<u8> uploadOrderImage(const TextureDesc& desc, const void* pixels) {
     const u32 bpp = gfxBytesPerPixel(desc.format);
     std::vector<u8> image(static_cast<usize>(desc.width) * desc.height * bpp * std::max(1u, desc.layers), 0);
-    if (pixels && desc.layers > 1) {
+    if (pixels && desc.layered()) {
         std::memcpy(image.data(), pixels, image.size());
     } else if (pixels) {
         patchImage(image, desc.width, desc.height, bpp, 0, 0, desc.width, desc.height,
@@ -404,8 +404,8 @@ void GfxDevice::invalidatePipelineCache() {
 TextureHandle GfxDevice::createTexture(const TextureDesc& desc, GfxContent content, const void* pixels) {
     ++texture_shapes_;
     if (device_status_ == GfxDeviceStatus::Dead) return TextureHandle::Invalid;
-    if (desc.layers > 1 && (desc.samples > 1 || desc.storage || isDepthFormat(desc.format))) {
-        ES_LOG_ERROR("GfxDevice::createTexture: a texture array is sampled colour only");
+    if (desc.layered() && (desc.samples > 1 || desc.storage || (desc.volume && desc.mipmaps) || isDepthFormat(desc.format))) {
+        ES_LOG_ERROR("GfxDevice::createTexture: a texture array or volume is sampled colour only");
         return TextureHandle::Invalid;
     }
     const bool usable = isDeviceUsable();
@@ -553,8 +553,8 @@ void GfxDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u3
     const u32 id = static_cast<u32>(texture);
     auto* record = registry_.textures.find(id);
     if (!record || !pixels || record->compressed) return;
-    if (record->desc.layers > 1) {
-        ES_LOG_ERROR("GfxDevice::updateTexture: texture {} is an array, whose layers are fixed at creation", id);
+    if (record->desc.layered()) {
+        ES_LOG_ERROR("GfxDevice::updateTexture: texture {} is an array or volume, whose slices are fixed at creation", id);
         return;
     }
     const TextureDesc& desc = record->desc;
