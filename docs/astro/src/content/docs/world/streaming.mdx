@@ -283,4 +283,25 @@ at once. Mesh textures are held at the size their views need
 Navigation is baked a tile per square and follows residency (see
 [Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded; and
 the world origin is never rebased (`setRenderOriginStep` keeps *drawing* precise
-far from zero, see [Camera](/docs/graphics/camera/)).
+far from zero, see [Camera](/docs/graphics/camera/)): how far that reaches is measured below.
+
+### How far from the origin a world stays precise
+
+Positions, physics and navigation work in 32-bit floats, so how finely a position can be told apart grows with the distance from
+the origin. Measured in a package (`node tools/measure-world-precision.mjs`), at the default 3D scale of 100 units to a metre,
+with the probe at each distance along x and z:
+
+| From the origin | A child under a moving parent, largest error | A body pushed at 300 units/s (5 a frame), largest step error | A navmesh route round a wall |
+|---|---|---|---|
+| 0 | 0.00002 units | 0.0001 | 1216.06, the reference |
+| 1 km | 0.008 units (0.08 mm) | 0.008 | identical |
+| 10 km | 0.06 units (0.6 mm) | 0.06 | identical |
+| 50 km | 0.5 units (5 mm) | 0.5 | identical |
+| 100 km | 1 unit (1 cm) | 1: it moves 4 or 6 a frame, not 5 | identical |
+| 500 km | 4 units (4 cm) | 3: 2 to 8 a frame | its corners move by 2 units |
+
+Within about **10 km** of the origin nothing is off by more than a millimetre. Past about **50 km** what moves slowly moves in steps
+a player can see: a body moving less than the step a position can take there does not move smoothly at all (at 100 km a walk of a
+few centimetres a frame jitters by a third). Keep a world's playable area within about 50 km of the origin; the engine does not move
+the origin to follow a player who goes further.
+
