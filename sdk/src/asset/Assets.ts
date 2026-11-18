@@ -576,6 +576,19 @@ export class Assets {
      * Load the textures meshes draw no larger than @p edge on a side to begin with (0 loads them whole): texture streaming grows each
      * to what its views need. A texture something else also draws is put back at its size by the streamer.
      */
+    /**
+     * Say that a material or texture will be drawn on meshes made at run time, before loading it. A scene's MeshRenderers
+     * are found when the scene loads; plants a world grows, and anything else built in code, are not in any scene, so
+     * their textures were loaded at their files' size even where texture streaming starts mesh textures small. Noted
+     * here, a material's textures and a texture start small and are streamed from there like a scene's.
+     *
+     * @experimental
+     */
+    noteMeshSurface(surface: { material?: string; texture?: string }): void {
+        if (surface.material) this.meshMaterials_.add(this.resolveLoadPath_(surface.material));
+        if (surface.texture) this.meshTextures_.add(this.resolveLoadPath_(surface.texture));
+    }
+
     setTextureStreamingStart(edge: number | (() => number)): void {
         this.streamingStartEdge_ = edge;
     }

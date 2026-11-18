@@ -184,8 +184,10 @@ Moving, deformed, billboard, blended, lightmapped, skinned and morphing surfaces
 are reported in `refused`. Keep those surfaces under their existing ownership.
 A streamed world uses the same grouping for its cells: tick **Far proxies** on
 `StreamedWorld` and each cell ships a baked stand-in that the streamer shows while
-the cell is not resident (see [World streaming](/docs/world/streaming/)). Texture
-and emission baking, and a chain of coarser proxies further out, are not done.
+the cell is not resident (see [World streaming](/docs/world/streaming/)). The proxy
+does not yet bake its own texture or emission, and there is no chain of coarser proxies
+further out. (Texture streaming, which holds textures at the size their views need, is a
+separate thing that exists: see [Quality levels](/docs/performance/quality-levels/).)
 
 ## What this is not
 

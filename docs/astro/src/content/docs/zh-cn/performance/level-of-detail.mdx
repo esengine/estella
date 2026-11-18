@@ -60,7 +60,7 @@ const proxy = await bakeStaticProxy(sources, {
 `pruneDisconnected: true` 允许删除小的独立构件,默认关闭,启用后需要对照画面验收。
 
 会运动、变形、朝向相机、透明混合、带光照贴图、骨骼或形态目标的表面会列入 `refused`,由原有逻辑继续管理。
-流送世界的格子用的是同一套分组:在 `StreamedWorld` 上勾选 **Far proxies**,每个格子都会带一个烘好的替身,格子不常驻时由流送器显示(见[世界流送](/docs/zh-cn/world/streaming/))。纹理和发光烘焙、越远越粗的多级代理还没有做。
+流送世界的格子用的是同一套分组:在 `StreamedWorld` 上勾选 **Far proxies**,每个格子都会带一个烘好的替身,格子不常驻时由流送器显示(见[世界流送](/docs/zh-cn/world/streaming/))。替身目前还不烘焙自己的纹理和发光，也还没有越远越粗的多级替身。（按视图需要的尺寸保留纹理的纹理流送是另一回事，已经有了，见[画质等级](/docs/zh-cn/performance/quality-levels/)。）
 
 ## 这些尺寸是屏幕占比,不是距离
 

@@ -810,11 +810,52 @@ void emitImpostorCard(RenderCollectContext& collect, const RenderFrame::Impostor
  *          by the distance from the camera and not from the light. What stays is a record each (the entity's model times the
  *          placement, its tint, its normal matrix) and one draw a level.
  */
+/**
+ * @brief How close the nearest drawn placement of a MeshInstances came, as its size over its distance.
+ *
+ * @details What the texture streamer needs to know of a set of placements is the one that asks the most texture: the
+ *          largest of (how big it is) / (how far the nearest point of it is), over the placements a view drew, kept
+ *          apart for the two meshes since each holds its own texture density. Zero where none was drawn or no eye is known.
+ */
+struct PlacementReach {
+    f32 fine = 0.0f;
+    f32 coarse = 0.0f;
+};
+
+/** @brief A side no texture reaches: what a surface asks for when it cannot say how much it needs. */
+constexpr f32 kWholeTexture = 1.0e9f;
+
+/**
+ * @brief The texels across a texture needs where a surface of `uvDensity` is seen at `sizeOverDistance`: a texel about a pixel.
+ *
+ * @details One sum for a single mesh and for each set of placements, so the two can never disagree about what a view needs.
+ *          NDC y per world unit is the length of the view-projection's second row under both projections; half the view's
+ *          pixels span one unit of NDC.
+ */
+f32 textureSideFor(const RenderFrameContext& ctx, f32 sizeOverDistance, f32 uvDensity) {
+    if (!(sizeOverDistance > 0.0f) || !ctx.frame) return 0.0f;
+    // Drawn, but with no density to say how much of a texture it holds: it asks for the whole file. Asking for nothing left a
+    // texture that started small at its start size for as long as it was on screen.
+    if (!(uvDensity > 0.0f)) return kWholeTexture;
+    const glm::mat4& vp = ctx.view_projection;
+    const f32 ndcPerUnit = glm::length(glm::vec3(vp[0][1], vp[1][1], vp[2][1]));
+    return ndcPerUnit * 0.5f * ctx.frame->viewHeightPx() * sizeOverDistance / uvDensity;
+}
+
+/** @brief Ask for a side for every texture `mesh` draws with: its own, its normal map and its material's. */
+void wantTexturesOf(const RenderFrameContext& ctx, const ecs::MeshRenderer& mesh, const MaterialRecord* material, f32 side) {
+    if (!(side > 0.0f) || !ctx.frame) return;
+    if (mesh.texture.isValid()) ctx.frame->wantTextureSide(mesh.texture.id(), side);
+    if (mesh.normalMap.isValid()) ctx.frame->wantTextureSide(mesh.normalMap.id(), side);
+    if (material) for (const auto& b : material->textures) if (b.texture.isValid()) ctx.frame->wantTextureSide(b.texture.id(), side);
+}
+
 template <typename Emit>
 void emitPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect, const ecs::MeshInstances& set,
                     const ecs::MeshRenderer& mesh, const glm::vec3& position, const glm::quat& rotation,
                     const glm::vec3& scale, const Mesh& fine, const Mesh* coarse,
-                    const glm::vec3& localCentre, const glm::vec3& localHalf, u32& records, Emit&& emit) {
+                    const glm::vec3& localCentre, const glm::vec3& localHalf, u32& records, PlacementReach& reach,
+                    Emit&& emit) {
     static thread_local std::vector<u32> nearList, farList;
     nearList.clear();
     farList.clear();
@@ -823,6 +864,10 @@ void emitPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect
     const bool eyeKnown = ctx.has_view_eye;
     const u32 count = static_cast<u32>(set.transforms.size() / 16);
     u32 tooFar = 0, outside = 0;
+    // Only a scene view's pixels say how much texture is needed; a shadow map's texels are nobody's.
+    const bool measuring = eyeKnown && ctx.purpose == RenderPurpose::Scene;
+    const f32 entityGrow = std::max({std::abs(scale.x), std::abs(scale.y), std::abs(scale.z)});
+    reach = {};
     for (u32 i = 0; i < count; ++i) {
         const f32* r = set.transforms.data() + static_cast<usize>(i) * 16;
         const glm::vec3 at = glm::vec3(entityModel * glm::vec4(r[3], r[7], r[11], 1.0f));
@@ -839,7 +884,17 @@ void emitPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect
         }
         if (!collect.visible(centre, half, false)) { ++outside; continue; }
         if (ctx.purpose == RenderPurpose::ShadowDepth && !collect.castsIntoView(centre, radius)) { ++outside; continue; }
-        (coarse && eyeKnown && set.lodDistance > 0.0f && distance > set.lodDistance ? farList : nearList).push_back(i);
+        const bool far = coarse && eyeKnown && set.lodDistance > 0.0f && distance > set.lodDistance;
+        (far ? farList : nearList).push_back(i);
+        if (measuring) {
+            // The placement's own scale is the longest column of its 3x3, read as the record is written below.
+            const f32 placedGrow = std::sqrt(std::max({r[0] * r[0] + r[4] * r[4] + r[8] * r[8],
+                                                       r[1] * r[1] + r[5] * r[5] + r[9] * r[9],
+                                                       r[2] * r[2] + r[6] * r[6] + r[10] * r[10]}));
+            const f32 gap = std::max(glm::distance(centre, ctx.view_eye) - radius, 1e-3f);
+            f32& best = far ? reach.coarse : reach.fine;
+            best = std::max(best, entityGrow * placedGrow / gap);
+        }
     }
     ES_PROFILE_COUNTER("render.placements.seen", count);
     ES_PROFILE_COUNTER("render.placements.tooFar", tooFar);
@@ -1151,22 +1206,15 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
         // How big a texture this mesh needs here: a texel about a pixel at the nearest point of its sphere. The scene's own views
         // only — a shadow map's texels are not anyone's pixels — and only where the mesh says how much texture its surface holds.
-        if (ctx.purpose == RenderPurpose::Scene && ctx.frame && resident && resident->uvDensity > 0.0f && !placements) {
+        // Placements are measured one by one where they are walked (emitPlacements), and asked for below.
+        if (ctx.purpose == RenderPurpose::Scene && ctx.frame && resident && !placements) {
             glm::vec3 centre(0.0f);
             f32 radius = 0.0f;
             lod::boundingSphere(position, rotation, scale, resident->localMin, resident->localMax, centre, radius);
-            const glm::mat4& vp = ctx.view_projection;
-            // NDC y per world unit is the length of the view-projection's second row under both projections; half the view's
-            // pixels span one unit of NDC.
-            const f32 ndcPerUnit = glm::length(glm::vec3(vp[0][1], vp[1][1], vp[2][1]));
             const glm::vec4 eye = collect_ctx.camera.eye;
             const f32 distance = eye.w > 0.5f ? std::max(glm::length(glm::vec3(eye) - centre) - radius, 1e-3f) : 1.0f;
-            const f32 pixelsPerUnit = ndcPerUnit * 0.5f * ctx.frame->viewHeightPx() / distance;
             const f32 grow = std::max({std::abs(scale.x), std::abs(scale.y), std::abs(scale.z)});
-            const f32 side = pixelsPerUnit * grow / resident->uvDensity;
-            if (mesh.texture.isValid()) ctx.frame->wantTextureSide(mesh.texture.id(), side);
-            if (mesh.normalMap.isValid()) ctx.frame->wantTextureSide(mesh.normalMap.id(), side);
-            if (material) for (const auto& b : material->textures) if (b.texture.isValid()) ctx.frame->wantTextureSide(b.texture.id(), side);
+            wantTexturesOf(ctx, mesh, material, textureSideFor(ctx, grow / distance, resident->uvDensity));
         }
 
         u32 textureId = ctx.white_texture_id;
@@ -1489,8 +1537,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 };
                 if (placements) {
                     // The record written for the entity above is not drawn: the instances are, each with a record of its own.
+                    PlacementReach reach;
                     emitPlacements(ctx, collect_ctx, *placements, mesh, position, rotation, scale, *resident, placementCoarse,
-                                   placementCentre, placementHalf, instanceRecords, emit);
+                                   placementCentre, placementHalf, instanceRecords, reach, emit);
+                    // A forest is placements: its textures are asked for by the nearest tree drawn, or the streamer would
+                    // never hear of them and they would stay as large as their files however far the trees stand.
+                    const f32 fineSide = textureSideFor(ctx, reach.fine, resident->uvDensity);
+                    const f32 coarseSide = placementCoarse ? textureSideFor(ctx, reach.coarse, placementCoarse->uvDensity) : 0.0f;
+                    wantTexturesOf(ctx, mesh, material, std::max(fineSide, coarseSide));
                     continue;
                 }
                 key.vertexBuffer = resident->vertexBuffer;

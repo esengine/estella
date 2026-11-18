@@ -1077,6 +1077,7 @@ loadTileset: (ref: string) => Promise<TilesetResult>
 loadTimeline: (ref: string) => Promise<TimelineResult>
 meshRealizations: () => { handle: number; realized: boolean; }[]
 meshesAwaitingRematerialization: () => number[]
+noteMeshSurface: (surface: { material?: string; texture?: string; }) => void
 onInvalidate: (listener: InvalidateListener) => () => void
 onSourceChanged: (listener: (path: string) => void) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
