@@ -104,6 +104,18 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: 'the emscripten module surface; a native build embeds Dawn and QuickJS and has no such module',
     },
+    'esengine/persist': {
+        disposition: 'forbidden-native-script',
+        why: "a game server's store across restarts (its FileStore writes through node:fs/promises); a packaged game keeps its own saves with the core's save-game API",
+    },
+    'esengine/zones': {
+        disposition: 'forbidden-native-script',
+        why: 'a world split over several server processes — ZoneHost runs on a replication server and a PersistStore, which a packaged game is a client of, never one of',
+    },
+    'esengine/metrics': {
+        disposition: 'forbidden-native-script',
+        why: 'what a server process reports about itself in the Prometheus text format, read by a scraper over HTTP; a packaged game is not the process being scraped',
+    },
     'esengine/node': {
         disposition: 'forbidden-native-script',
         why: 'the Node entry, for servers and tools (examples/multiplayer-arena/server) — it reaches for node: builtins a packaged game has none of',
