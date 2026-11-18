@@ -19,16 +19,36 @@ export interface JobPool {
     /** How many jobs are out, and how many have been answered. */
     readonly inFlight: number;
     readonly done: number;
-    /** Sends `message` to the worker `affinity` names and answers with what it sends back; rejects with its error. */
-    run<T>(affinity: number, message: Record<string, unknown>, transfer?: Transferable[]): Promise<T>;
+    /**
+     * Sends `message` to the worker `affinity` names and answers with what it sends back; rejects with its error. A worker is given a few jobs at a
+     * time and the rest wait here, an `urgent` one ahead of those that are not: what the eye is waiting on (the ground under it) is not kept
+     * behind a long line of what it is not (the plants a kilometre off).
+     */
+    run<T>(affinity: number, message: Record<string, unknown>, transfer?: Transferable[], urgent?: boolean): Promise<T>;
     /** Stops the workers; jobs still out are rejected. */
     dispose(): void;
 }
 
-/** How many workers to start: the cores beside the main thread's, and the render's, at most four. */
+/**
+ * How many workers to start: the cores beside the main thread's and the render's, at most four, on a machine of eight cores or fewer (a phone,
+ * whose cores are not all alike and all heat it); on a larger one half its cores, at most eight, since four of twenty left the ground a
+ * fast ship flies over a long way behind her.
+ */
 export function defaultWorkerCount(): number {
     const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency ?? 2 : 2;
-    return Math.max(1, Math.min(4, cores - 2));
+    return cores <= 8 ? Math.max(1, Math.min(4, cores - 2)) : Math.min(8, Math.floor(cores / 2));
+}
+
+/**
+ * The worker a job goes to when a pool is shared by the ground under the eye and by everything else: the ground has the first half of the
+ * workers to itself and the rest have the other half, `key` choosing among them. A long job of the one kind then never stands in front of
+ * the other: sharing every worker, the pages of a planet's ground waited behind the laying out of its plants, a third of a second a page.
+ * A pool of one has one worker for both.
+ */
+export function workerLane(pool: Pick<JobPool, 'size'>, key: number, ground: boolean): number {
+    const half = pool.size >> 1, k = Math.abs(Math.trunc(key));
+    if (half === 0) return 0;
+    return ground ? k % half : half + k % (pool.size - half);
 }
 
 /** Starts a pool from the text of a worker script, or answers null where this realm has no Worker. */
@@ -36,17 +56,35 @@ export function createJobPool(script: string, size = defaultWorkerCount()): JobP
     if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL?.createObjectURL !== 'function') return null;
     const url = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
     const workers: Worker[] = [];
+    interface Waiting { id: number; message: Record<string, unknown>; transfer: Transferable[] }
+    // What waits for each worker, the urgent ahead of the rest, and how many jobs the worker has now. It has a few and not one: an answer is
+    // read here between frames, so a worker given one job at a time would stand idle for the rest of every frame.
+    const AT_ONCE = 3;
+    const lines: { urgent: Waiting[]; rest: Waiting[]; busy: number }[] = [];
+    const next = (i: number): void => {
+        const line = lines[i]!;
+        while (line.busy < AT_ONCE) {
+            const job = line.urgent.shift() ?? line.rest.shift();
+            if (!job) return;
+            line.busy++;
+            workers[i]!.postMessage({ ...job.message, id: job.id }, job.transfer);
+        }
+    };
     const pending = new Map<number, { resolve(v: unknown): void; reject(e: Error): void }>();
     let nextId = 1, inFlight = 0, done = 0, dead = false;
     const fail = (e: Error): void => {
         for (const p of pending.values()) p.reject(e);
         pending.clear();
         inFlight = 0;
+        for (const line of lines) { line.urgent.length = 0; line.rest.length = 0; line.busy = 0; }
     };
     try {
         for (let i = 0; i < Math.max(1, size); i++) {
             const w = new Worker(url);
+            lines.push({ urgent: [], rest: [], busy: 0 });
             w.onmessage = (e: MessageEvent<{ id: number; result?: unknown; error?: string }>) => {
+                lines[i]!.busy = Math.max(0, lines[i]!.busy - 1);
+                next(i);
                 const p = pending.get(e.data.id);
                 if (!p) return;
                 pending.delete(e.data.id);
@@ -63,13 +101,15 @@ export function createJobPool(script: string, size = defaultWorkerCount()): JobP
         size: workers.length,
         get inFlight() { return inFlight; },
         get done() { return done; },
-        run<T>(affinity: number, message: Record<string, unknown>, transfer: Transferable[] = []): Promise<T> {
+        run<T>(affinity: number, message: Record<string, unknown>, transfer: Transferable[] = [], urgent = false): Promise<T> {
             if (dead) return Promise.reject(new Error('the job workers have stopped'));
             const id = nextId++;
             return new Promise<T>((resolve, reject) => {
                 pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
                 inFlight++;
-                workers[((affinity % workers.length) + workers.length) % workers.length]!.postMessage({ ...message, id }, transfer);
+                const i = ((affinity % workers.length) + workers.length) % workers.length;
+                (urgent ? lines[i]!.urgent : lines[i]!.rest).push({ id, message, transfer });
+                next(i);
             });
         },
         dispose() {

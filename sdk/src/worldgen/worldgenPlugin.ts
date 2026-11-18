@@ -40,7 +40,7 @@ import { faceOf } from '../terrain/sphere';
 import { farRulesOf, makeFacePlan } from './facePlan';
 import { makePlanePlan } from './planePlan';
 import type { WaterQueryData } from '../water/waterQuery';
-import type { JobPool } from '../runtime/jobs';
+import { workerLane, type JobPool } from '../runtime/jobs';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { GroundPageRequest, PlacementsRequest, PlanSpec, PlaneSpec } from './planWorker';
 import type { PageImage } from '../terrain/pages';
@@ -749,7 +749,7 @@ export class WorldGenPlugin implements Plugin {
                 const worker = workerAt(x0 + origin.x, z0 + origin.z);
                 const first = firstSend(worker, key);
                 const request: GroundPageRequest = { id: 0, type: 'groundPage', key, x0, z0, size, paint: true, ...(first ? { spec: spec() } : {}) };
-                return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+                return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>, [], true).catch((e: unknown) => {
                     forgetSent(worker, key);
                     throw e;
                 });
@@ -788,8 +788,9 @@ export class WorldGenPlugin implements Plugin {
         // The squares of a face are spread over the workers by where they are, as a plane's are, so neighbours share a worker and the ground it has
         // read: a face on one worker laid a place out a square at a time while the others stood idle. A worker is sent the plan with the first square it
         // is asked of it.
+        // Among the workers that are not the ground's: the planet's pages have the others to themselves (workerLane).
         const workerAt = (x: number, z: number): number =>
-            Math.abs((Math.floor(x / 2048) * 73856093) ^ (Math.floor(z / 2048) * 19349663) ^ (unit.face.face * 83492791)) % pool.size;
+            workerLane(pool, (Math.floor(x / 2048) * 73856093) ^ (Math.floor(z / 2048) * 19349663) ^ (unit.face.face * 83492791), false);
         return (layer, far, x0, z0, x1, z1) => {
             const key = this.planKey(built, unit);
             const worker = workerAt(x0, z0);

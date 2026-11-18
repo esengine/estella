@@ -28,6 +28,7 @@ import { EditorView, editorViewpoint } from '../camera/EditorView';
 import { log } from '../util/logger';
 import { renderOrigin } from '../render/renderOrigin';
 import { bakesOf } from '../runtime/bakes';
+import { workerLane } from '../runtime/jobs';
 import type { Color, Entity } from '../types';
 import { PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from './pages';
 import { buildPatchMesh } from './patch';
@@ -381,7 +382,7 @@ export class PlanetPlugin implements Plugin {
                 if (covered.has(sphereNodeKey(up))) { drawn.delete(key); break; }
             }
         }
-        this.makePages(app, entity, built, eye);
+        this.makePages(app, entity, built, eye, chosen.length);
         this.pack(app, built);
 
         const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
@@ -490,30 +491,37 @@ export class PlanetPlugin implements Plugin {
         })();
     }
 
-    /** Makes the wanted pages, coarse and near first, for as long as the frame can spare. */
+    /** Whether a worker makes this planet's pages: its provider can be loaded in one, and so can whatever paints its ground. */
+    private pagesAway(app: App, entity: Entity, src: PlanetPageSource): boolean {
+        if (!planPool() || !src.provider.workerSource) return false;
+        const registry = app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null;
+        // A painter that only the main thread can run (a world with no plan a worker could make) keeps its pages here.
+        return !(registry?.paintOf(entity) && !registry.remotePaintOf(entity));
+    }
+
     /** One node's page: made by a worker when the planet's provider can be loaded in one, here when it cannot. */
     private pageOf(app: App, entity: Entity, src: PlanetPageSource, node: SphereNode): PageImage | Promise<PageImage> {
-        const pool = planPool();
+        if (!this.pagesAway(app, entity, src)) return makePlanetPage(src, node);
+        const pool = planPool()!;
         const provider = src.provider;
-        if (!pool || !provider.workerSource) return makePlanetPage(src, node);
-        const registry = app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null;
-        const remote = registry?.remotePaintOf(entity) ?? null;
-        // A painter that only the main thread can run (a world with no plan a worker could make) keeps its pages here.
-        if (registry?.paintOf(entity) && !remote) return makePlanetPage(src, node);
-        const worker = node.face % pool.size;
+        const remote = (app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null)?.remotePaintOf(entity) ?? null;
+        // A page can be made by any worker that makes the ground, so the pages under the eye (all on one face) are spread over them, and asked
+        // for as urgent: on the one worker its face named, in line behind the world's plants, the ground stayed at its coarsest.
+        const worker = workerLane(pool, (node.ix * 73856093) ^ (node.iz * 19349663) ^ (node.level * 83492791) ^ node.face, true);
         const keys = remote ? [...remote.keys] : null;
         const request: PageRequest = {
             id: 0, type: 'page', node, levels: src.levels, radius: src.radius, minHeight: src.minHeight, maxHeight: src.maxHeight,
-            provider: { source: provider.workerSource, seed: src.seed, version: src.version, world: src.world },
+            provider: { source: provider.workerSource!, seed: src.seed, version: src.version, world: src.world },
             paintKeys: keys, specs: keys ? keys.map((k, f) => (firstSend(worker, k) ? remote!.spec(f) as PageRequest['specs'][number] : null)) : [],
         };
-        return pool.run<PageImage>(node.face, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+        return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>, [], true).catch((e: unknown) => {
             if (keys) for (const k of keys) forgetSent(worker, k);
             throw e;
         });
     }
 
-    private makePages(app: App, entity: Entity, built: Built, eye: [number, number, number]): void {
+    /** Makes the wanted pages, coarse and near first, for as long as the frame can spare. */
+    private makePages(app: App, entity: Entity, built: Built, eye: [number, number, number], chosen: number): void {
         const bakes = bakesOf(app);
         if (built.wanted.size === 0) { bakes.mark(built, 'Building the planet', 1); return; }
         const src = built.source!;
@@ -532,12 +540,15 @@ export class PlanetPlugin implements Plugin {
             return true;
         };
         const epoch = built.epoch;
+        const away = this.pagesAway(app, entity, src);
         for (const node of order) {
             const key = sphereNodeKey(node);
             if (built.asked.has(key)) continue;
+            // Before the page is asked for, not after: asked first, a page was worked out and thrown away every frame the workers were full, which
+            // is every frame the ground is behind, and that kept them full.
+            if (away && built.asked.size >= PAGES_IN_FLIGHT) break;
             const image = this.pageOf(app, entity, src, node);
             if (image instanceof Promise) {
-                if (built.asked.size >= PAGES_IN_FLIGHT) break;
                 built.asked.add(key);
                 void image.then((img) => {
                     built.asked.delete(key);
@@ -554,7 +565,9 @@ export class PlanetPlugin implements Plugin {
             // The frame's one budget, shared with the bakes and the chunks of the world; at least one page a frame.
             if (!bakes.hasTime(built)) break;
         }
-        bakes.mark(built, 'Building the planet', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
+        // How much of what the eye wants is there. Pages made by a worker land between frames, so the ones made in this frame say nothing of it.
+        const wanting = [...built.wanted.keys()].filter((key) => !built.table.get(key)).length;
+        bakes.mark(built, 'Building the planet', away ? chosen / (chosen + wanting || 1) : made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
     }
 
     /** Puts a node entity on each node drawn (reusing the ones it had), and takes the rest away. */
