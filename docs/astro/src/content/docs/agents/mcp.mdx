@@ -145,6 +145,18 @@ groups the agent turns on with `enable_tools` when it needs them: `assets`, `pre
 makes the right tool harder to find; any tool can still be called by name without being listed. Add `--all-tools` for a client
 that cannot follow a change of the tool list. The table below names tools from every group.
 
+### Generating models with Tripo AI
+
+The `tripo` group generates a textured 3D model from a sentence or a picture with [Tripo AI](https://www.tripo3d.ai/) and imports
+it the way a dropped `.glb` is imported, so the answer names a prefab the agent can place, with Tripo's preview picture beside it.
+It needs a Tripo API key, which you add in **Settings > Tools and AI > AI Agents > Tripo API key** (keys are made at
+developers.tripo3d.ai). The key stays in this machine's keychain: it is never written into the project, and the editor window
+never reads it back. Every generation spends the account's credits; `tripo_balance` shows what is left.
+
+A generation takes one to three minutes. `tripo_generate` waits up to 150 seconds by default; if the model is not ready by then
+it answers with a task id, and `tripo_task` waits for that same task and imports it without spending again. Each generation is
+one undo step: Undo removes the files it wrote, but not the credits it spent.
+
 A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
 cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
 topics, named at the end of their descriptions with what each is for, and the agent reads the ones it needs with `tool_guide`
