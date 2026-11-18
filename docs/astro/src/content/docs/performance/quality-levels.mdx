@@ -34,7 +34,7 @@ to.
 | Shadows | 3D lighting (Full or Direct), Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
 | Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
-| Post-processing | A master switch, and a tick for each effect that runs at this level |
+| Post-processing | A master switch, Effect resolution, and a tick for each effect that runs at this level |
 
 Each level starts from the engine's own values for it, and **only what you change is saved** in `project.esproject`
 under `features.rendering.quality.profiles.<level>`. A default the engine improves later reaches a project that never
@@ -125,6 +125,59 @@ By default Low leaves out reflections, temporal anti-aliasing, depth of field, l
 reflections and depth of field; High leaves out nothing. These defaults follow the work each effect does per pixel; they
 are **not** measured on weak devices. The editor's `fx-cost` check measures each effect's cost on the machine it runs on,
 which is a way to find out what yours costs before choosing what a level skips.
+
+## Effect resolution
+
+Some effects already work at half the picture's size and are laid back over it, because what they work out is smooth: ambient
+occlusion (SSAO and GTAO), the light in height fog, screen-space GI, the voxel GI's gather on WebGL2 and lens flare.
+**Effect resolution** (`effectResolution`) multiplies that size: 1 draws them as authored, at half the picture
+on a side; 0.5 at a quarter and 0.25 at an eighth. Each effect stops at its own smallest size, below which its picture breaks
+up, and nothing else moves: tone mapping, FXAA, grading and every other pass over the whole picture always run at the full
+size, or the whole frame would go soft.
+
+| Level | Default | What it means |
+|---|---|---|
+| Low | 0.25 | ambient occlusion at a quarter; fog light, screen-space GI and lens flare at an eighth |
+| Medium | 0.5 | all of them at a quarter |
+| High | 1 | as authored, at half |
+
+```json
+"quality": { "profiles": { "medium": { "effectResolution": 0.25 } } }
+```
+
+A game's own settings screen can change it over the level, as it can the render scale: `quality.setPreferences({ effectResolution: 0.5 })`
+on the `Quality` resource, and `setPreferences(null)` gives the level's value back.
+
+Where each effect stops, and why there, was judged from screenshots of `third-person-3d`, `terrain-water` and `bistro` at
+a phone's size (390 × 844 at a pixel ratio of 2.5):
+
+| Effect | Smallest | What smaller looked like |
+|---|---|---|
+| Ambient occlusion (SSAO, GTAO) | a quarter | at an eighth the occlusion stains a flat face in blocks and bleeds onto the box that casts it |
+| Fog light, screen-space GI, lens flare | an eighth | at a sixteenth the bounced light on `bistro`'s doors shifts to a smooth wash |
+| Voxel GI gather (WebGL2) | a quarter | not measured; held where ambient occlusion is |
+| Sky clouds | stays at half | at a quarter the clouds' edges streak vertically; they do not take the setting |
+| Bloom | stays at half | its first step reads the whole picture with a fixed set of taps, and drawn at a quarter it cost more, not less (0.12 ms against 0.15 on `bistro` at Medium); it does not take the setting |
+
+The occlusion term is laid back over the picture by depth, and how far apart two depths may be and still be the same surface
+grows with how much smaller the term is drawn, so a quarter-size term does not band on ground seen at a grazing angle.
+
+Measured in a headless Chromium on the Windows box (RTX 3060, ANGLE on D3D11) at 975 × 2110, GPU time per pass from timer queries, each
+level as it was (effect resolution 1) against its new default. The box's milliseconds are not a phone's; what carries over is the
+pixels each pass draws, which fall to a quarter for every halving.
+
+| Scene, level | Passes made smaller | Pixels before → after | Those passes, ms | Whole frame, ms |
+|---|---|---|---|---|
+| `bistro`, Medium | screen-space GI, SSAO and its blurs, fog light | 513,785 → 128,061 each | 4.57 → 1.55 | 11.7 → 8.5 |
+| `bistro`, Low | screen-space GI, fog light | 288,715 → 17,927 each | 1.42 → 0.19 | 9.8 → 8.9 |
+| `terrain-water`, Medium | fog light, GTAO, lens flare | 513,785 → 128,061 each | 2.26 → 0.84 | 11.7 → 10.4 |
+| `terrain-water`, Low | fog light | 288,715 → 17,927 | 0.77 → 0.06 | 6.0 → 5.4 |
+| `third-person-3d`, Medium | SSAO and its blurs | 513,785 → 128,061 each | 0.43 → 0.17 | 1.02 → 0.76 |
+| any, High | none | unchanged | unchanged | unchanged |
+
+`third-person-3d` at Low runs no ambient occlusion, so nothing changes there. The box shares its GPU with other work, so a single
+frame's total moves by a millisecond or more between runs; the pass times are medians.
+
 
 ## Device rules
 

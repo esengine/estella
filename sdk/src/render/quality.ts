@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PowerPolicy } from './power';
+import {
+    qualitySettingDefaults, qualitySettingPreferences, resolveQualitySettings,
+    type QualitySettingPreferences, type QualitySettingValues,
+} from './qualitySettings';
 
 /** A bound on a hand-edited file, well past the effects that exist: one lower quietly left the effects past it running. */
 const MAX_SKIPPED_EFFECTS = 1024;
@@ -18,7 +22,7 @@ export interface DeviceQualityInfo {
 /** The size of the set a body of water's waves are taken from (water/waves.ts: WAVE_SET_SIZE). */
 export const MOST_WATER_WAVES = 8;
 
-export interface QualityProfile {
+export interface QualityProfile extends QualitySettingValues {
     renderScale: number;
     minRenderScale: number;
     msaaSamples: 1 | 2 | 4 | 8;
@@ -125,7 +129,7 @@ export interface DeviceQualityRule {
     maxCores?: number;
 }
 
-export interface QualityPreferences {
+export interface QualityPreferences extends QualitySettingPreferences {
     renderScale?: number;
     antialiasing?: 'off' | 'msaa' | 'temporal';
     ssao?: boolean;
@@ -169,6 +173,7 @@ export interface QualityConfig {
 const LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
 const PROFILES: Record<QualityLevel, QualityProfile> = {
     low: {
+        ...qualitySettingDefaults('low'),
         renderScale: 0.75, minRenderScale: 0.5, msaaSamples: 1, antialiasing: 'msaa',
         shadowAtlasSize: 1024, shadowCellSize: 256, shadowCascades: 2,
         planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false, stillSky: true,
@@ -179,6 +184,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         probesPerPixel: false,
     },
     medium: {
+        ...qualitySettingDefaults('medium'),
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
         shadowAtlasSize: 2048, shadowCellSize: 512, shadowCascades: 3,
         planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true, stillSky: true,
@@ -189,6 +195,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         probesPerPixel: true,
     },
     high: {
+        ...qualitySettingDefaults('high'),
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
         // A face is millimetres of relief: at 512 texels a cascade, a skin-hugging card (a brow, a hairline) falls inside one texel of the skin and the
         // shadow speckles it with dirt. 1024 is the cell that clears it for a character at arm's length.
@@ -283,6 +290,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
     const cell = [128, 256, 512, 1024].includes(r.shadowCellSize as number)
         ? r.shadowCellSize as number : base.shadowCellSize;
     return {
+        ...resolveQualitySettings(r, base),
         renderScale,
         minRenderScale: finite(r.minRenderScale, Math.min(base.minRenderScale, renderScale),
             0.25, renderScale),
@@ -475,6 +483,7 @@ export class QualityController {
             ...(p.antialiasing === 'msaa' ? { antialiasing: 'msaa', msaaSamples: base.msaaSamples > 1 ? base.msaaSamples : 4 } : {}),
             ...(p.antialiasing === 'temporal' ? { antialiasing: 'temporal' } : {}),
             ...(p.ssao !== undefined ? { ssao: p.ssao } : {}),
+            ...qualitySettingPreferences(p as Record<string, unknown>),
             skipEffects: [...base.skipEffects.filter(e => p.antialiasing !== 'temporal' || e !== 'taa'), ...(off ? ['fxaa', 'taa'] : []), ...(p.skipEffects ?? [])],
         });
     }

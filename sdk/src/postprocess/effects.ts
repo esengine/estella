@@ -94,6 +94,7 @@ export interface EffectSubPass {
      * effect ends on a pass that reads the small result and writes the big one.
      */
     scale?: number;
+    minScale?: number;
     /** Uniforms this pass always carries, whatever the volume says: constants of its design (the voxel atlas's size). */
     uniforms?: Record<string, number>;
     /**
@@ -577,7 +578,7 @@ registerEffect({
     // WebGL2 has no compute: the same cache built by fragment passes, at a fixed half-size gather.
     fallback: [
         { name: 'gi_voxels', factory: () => voxelGIFallback.createVoxels(), uniforms: { u_feedbackWidth: VOXEL_ATLAS.width, u_feedbackHeight: VOXEL_ATLAS.height } },
-        { name: 'gi_gather', factory: () => voxelGIFallback.createGather(), scale: 0.5 },
+        { name: 'gi_gather', factory: () => voxelGIFallback.createGather(), scale: 0.5, minScale: 0.25 },
         { name: 'gi_apply', factory: () => voxelGIFallback.createApply() },
     ],
     uniforms: [
@@ -662,7 +663,7 @@ registerEffect({
     // The sun's light through the haze (the shadow map, the clouds' shafts) is the dear part and smooth: it is walked at half size and
     // read back by how near each texel's ray is to the pixel's. The haze itself is analytic and stays full size.
     multiPass: [
-        { name: 'fog_volume', factory: () => postProcessEffects.createHeightFogVolume(), scale: 0.5 },
+        { name: 'fog_volume', factory: () => postProcessEffects.createHeightFogVolume(), scale: 0.5, minScale: 0.125 },
         { name: 'fog_composite', factory: () => postProcessEffects.createHeightFog() },
     ],
     uniforms: [
@@ -738,7 +739,7 @@ registerEffect({
     ],
     // What each surface receives, at half size and in a float; then the neighbours on the same surface averaged and added.
     multiPass: [
-        { name: 'ssgi_gather', factory: () => postProcessEffects.createSsgiGather(), scale: 0.5 },
+        { name: 'ssgi_gather', factory: () => postProcessEffects.createSsgiGather(), scale: 0.5, minScale: 0.125 },
         { name: 'ssgi_apply', factory: () => postProcessEffects.createSsgiApply() },
     ],
 });
@@ -915,9 +916,9 @@ registerEffect({
     // that applies it — the chain's last pass feeds the blit and is full size
     // regardless, so the composite is where the upsample has to happen.
     multiPass: [
-        { name: 'ssao_ao', factory: () => postProcessEffects.createSsaoAo(), scale: 0.5 },
-        { name: 'ssao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5 },
-        { name: 'ssao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5 },
+        { name: 'ssao_ao', factory: () => postProcessEffects.createSsaoAo(), scale: 0.5, minScale: 0.25 },
+        { name: 'ssao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5, minScale: 0.25 },
+        { name: 'ssao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5, minScale: 0.25 },
         { name: 'ssao_composite', factory: () => postProcessEffects.createSsaoComposite() },
     ],
 });
@@ -957,9 +958,9 @@ registerEffect({
         { name: 'u_thickness', label: 'Thickness', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
     ],
     multiPass: [
-        { name: 'gtao_ao', factory: () => gtaoPasses.createGtaoAo(), scale: 0.5 },
-        { name: 'gtao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5 },
-        { name: 'gtao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5 },
+        { name: 'gtao_ao', factory: () => gtaoPasses.createGtaoAo(), scale: 0.5, minScale: 0.25 },
+        { name: 'gtao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5, minScale: 0.25 },
+        { name: 'gtao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5, minScale: 0.25 },
         { name: 'gtao_composite', factory: () => postProcessEffects.createSsaoComposite() },
     ],
 });
@@ -1042,7 +1043,7 @@ registerEffect({
     // The flare is smooth (ghosts fade by the cube of their distance from the edge, the halo by the fourth power) and dear: ninety taps a pixel to
     // find what is bright. It is worked out at half size and laid over the full-size picture, which is a quarter of the pixels paying.
     multiPass: [
-        { name: 'lensflare_flare', factory: () => lensEffects.createLensFlare(), scale: 0.5 },
+        { name: 'lensflare_flare', factory: () => lensEffects.createLensFlare(), scale: 0.5, minScale: 0.125 },
         { name: 'lensflare_composite', factory: () => lensEffects.createLensFlareComposite() },
     ],
     uniforms: [
