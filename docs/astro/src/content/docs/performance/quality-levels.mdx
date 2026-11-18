@@ -35,9 +35,9 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 |---|---|
 | Resolution & Anti-Aliasing | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA |
 | View Distance & Draws | Depth pre-pass, Draw call budget |
-| Lights & Shading | 3D lighting (Full or Direct) |
-| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
-| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
+| Lights & Shading | 3D lighting (Full or Direct), Per-pixel lights, Tiled lights |
+| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only), Shadow maps, 3D soft-shadow search samples, filter samples and max radius |
+| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI, Contact shadow steps; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
 | Reflections | Planar reflection scale, max size and updates per second; the screen-space reflections effect |
 | Sky & Volumetrics | Still sky from a panorama, Fog volume resolution, Fog light steps, Fog cloud samples, Cloud steps, Upper cloud steps, Cloud shadow samples, Sky scattering steps, Sky sunlight steps; the sky, fog, light shaft and weather effects |
 | Post-Processing | A master switch, Lens flare resolution, Depth of field samples, Light shaft samples, Motion blur samples, Subsurface scattering samples, Bloom levels; every other effect |
@@ -73,6 +73,37 @@ shading to the end of a tile it is geometry paid for twice. It is off at Low and
 **3D lighting** is Full or Direct. Direct compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights of
 the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
 (see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
+
+**Per-pixel lights** is how many lights every lit pixel works out in turn, at most the sixteen the light block holds: the sun and the
+lights that cast a shadow are kept first, then the brightest. A point or spot light past them that casts no shadow goes to **Tiled
+lights** with Full lighting, which shades it only on the screen tiles its reach covers (up to that many, the dimmest dropped first);
+with Direct it is not drawn. **Shadow maps** is how many maps a frame draws: a cascade, a spot light and the sky's cloud shadow take
+one each and a point light six, lights that stand somewhere ask first and take all they need or none, and the sun then gives up its
+farthest cascades. The three **3D soft-shadow** rows act only where a soft shadow is drawn (a light with a source size, Full
+lighting): how many reads look for what blocks a pixel, how many a wide penumbra is averaged over, and the widest a penumbra can be,
+in texels of its map. **Contact shadow steps** is how many steps the Contact Shadows effect marches from each pixel. High is the
+engine's own numbers for every one of them.
+
+Measured on the `cyber-rooftop` example (a moon, a point light and two spot lights that cast shadows, seven point lights that do not) at a
+phone's viewport, 390 × 844 at a pixel ratio of 2.5, comparing pixels and the renderer's own counters:
+
+| Setting | What changed | Picture |
+|---|---|---|
+| Per-pixel lights 4 or 8, Full lighting | 11 lights in the loop become 4 or 8, the rest go to the tiles; (screen tile, loop light) pairs 1,770 → 627 at 4 | identical (largest difference 1 of 255) |
+| Per-pixel lights 8, Direct lighting (the old Medium value) | 3 of the 11 lights are not drawn | the rooftop floor visibly darker; why Low is 8 and Medium 12 |
+| Per-pixel lights 4, Direct lighting | 7 of the 11 lights are not drawn | most of the coloured light gone |
+| Shadow maps 6 | the point light takes all six; both spot lights and the moon cast nothing (3 casters refused) | 1.3% of pixels change; why Low is 8 |
+| Shadow maps 12 | the 9 maps the scene asks for all fit | identical |
+| 3D soft-shadow search samples 8 | 13 shadow-map reads a soft-shadowed pixel instead of 21; scene pass unchanged (6.35 → 6.32 ms) | 0.03% of pixels change |
+| 3D soft-shadow filter samples 8 (16) | at most 8 (16) reads a wide penumbra instead of 32; scene pass 6.35 → 5.65 ms (5.89) | 0.05% (0.02%) of pixels change, a grainier penumbra |
+| 3D soft-shadow max radius 12 | scene pass 6.36 → 6.01 ms | 0.34% of pixels change, the widest penumbrae narrower |
+| Everything at its Low value, Full lighting | scene pass 6.36 → 5.66 ms, whole frame on the GPU 13.6 → 12.2 ms | 4.1% of pixels change, mostly the three dimmest lights |
+
+The milliseconds are an RTX 3060 drawing the phone-sized frame, the setting switched in the same page and the two read
+alternately; on a phone the share saved is what carries over, not the number.
+
+The 3D soft-shadow rows and Tiled lights do nothing at Low and Medium as shipped, which light Direct; they act at those levels only in a
+project that sets them to Full.
 
 **Detail distance** is the share of its distances a placed plant keeps at the level: at 0.5, a tree that changes to its
 cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner.
