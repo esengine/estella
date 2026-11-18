@@ -31,6 +31,27 @@ describe('the project\'s server block', () => {
     expect(ignoredManifestKeys(raw)).toEqual([]);
   });
 
+  it('keeps a server address that is only an address, and refuses anything else', async () => {
+    const { serverUrlOf } = await import('../src/project/serverConfig');
+    expect(parseProjectServer({ entry: 'a.ts', path: '/s', url: ' wss://Sector.Example.com:8443/s ' })?.url).toBe('wss://sector.example.com:8443/s');
+    expect(parseProjectServer({ entry: 'a.ts', path: '/s', url: 'https://x.example/s' })?.url).toBeUndefined();
+    for (const bad of ['https://x.example/s', 'wss://u:p@x.example/s', 'wss://x.example/s?a=1', 'wss://x.example/s#a', 'wss://x.example/a b', 'nope', 'wss://x.example/"><script>']) {
+      expect(() => serverUrlOf(bad), bad).toThrow(/server url/);
+    }
+    expect(serverUrlOf('ws://127.0.0.1:8090/sector')).toBe('ws://127.0.0.1:8090/sector');
+  });
+
+  it('reaches the web and desktop exports, which have a page to write it in, and no other', async () => {
+    const { parseManifest } = await import('../src/project/format');
+    const { projectExportOptions } = await import('../src/export/projectExportOptions');
+    const parsed = parseManifest({ formatVersion: '1', name: 'g', server: { entry: 'a.ts', path: '/s', url: 'wss://sector.example.com/s' } });
+    expect((await projectExportOptions('/tmp/game', parsed, 'web')).serverUrl).toBe('wss://sector.example.com/s');
+    expect((await projectExportOptions('/tmp/game', parsed, 'desktop')).serverUrl).toBe('wss://sector.example.com/s');
+    expect((await projectExportOptions('/tmp/game', parsed, 'wechat')).serverUrl).toBeUndefined();
+    const plain = parseManifest({ formatVersion: '1', name: 'g', server: { entry: 'a.ts', path: '/s' } });
+    expect((await projectExportOptions('/tmp/game', plain, 'web')).serverUrl).toBeUndefined();
+  });
+
   it('fills the placeholders where they stand', () => {
     expect(serverArgs({ port: 81, args: ['--port', '{port}', '--at={host}:{port}', '{data}/save.json', '{wasm}'] }, { host: 'h', data: '/d', wasm: '/w' }))
       .toEqual(['--port', '81', '--at=h:81', '/d/save.json', '/w']);
@@ -62,6 +83,14 @@ describe('the files that deploy a server', () => {
     expect(files.Dockerfile).toContain('CMD ["node","server.mjs","--port","8090","--host","0.0.0.0","--data","/data/sector.json","--name","two words"]');
     expect(files.Dockerfile).toContain("fetch('http://127.0.0.1:8090/healthz')");
     expect(files.Dockerfile).not.toContain('COPY wasm');
+  });
+
+  it('answers at its own address when the page is elsewhere', () => {
+    const away = serverDeployFiles({ name: 'Space Frigate', server: { ...server, url: 'wss://sector.example.com/sector' }, web: true });
+    expect(away['deploy/Caddyfile']).toContain('{$SITE_ADDRESS:sector.example.com} {');
+    expect(away['compose.yaml']).toContain('SITE_ADDRESS: ${SITE_ADDRESS:-sector.example.com}');
+    expect(away['README.md']).toContain('GitHub Pages');
+    expect(files['deploy/Caddyfile']).toContain('{$SITE_ADDRESS:localhost} {');
   });
 
   it('carries the engine into the box only for a server that runs it', () => {

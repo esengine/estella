@@ -446,6 +446,8 @@ public:
      */
     void setPresentOver(bool over) { present_over_ = over; }
 
+    void setBackgroundSky(bool drawn) { background_sky_ = drawn; }
+
     /**
      * @brief Whether the present is a whole-multiple upscale of the chain.
      *
@@ -755,6 +757,7 @@ private:
     u32 output_vp_y_ = 0;
     bool present_required_ = false;
     bool present_over_ = false;
+    bool background_sky_ = false;
     bool compute_needs_depth_ = false;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;

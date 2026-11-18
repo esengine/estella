@@ -58,6 +58,19 @@ describe('custom sky', () => {
         expect(src.match(/skyRadiance\(/g)!.length).toBeGreaterThanOrEqual(6);
     });
 
+    it('lays a sky added over another under what the scene covered, read from the scene as drawn, in both languages', () => {
+        const sky = { type: 't', label: 'T', glsl: '', wgsl: '' };
+        const under = skyEffectSource(sky);
+        expect(under).not.toContain('u_sceneColor');
+        expect(under).not.toContain('u_backgroundSky');
+        const over = skyEffectSource({ ...sky, over: true });
+        for (const line of ['#pragma param u_sceneColor texture', '#pragma param u_backgroundSky float',
+                            'u_backgroundSky > 0.5 ? (depth >= 1.0 ? 1.0 : 1.0 - src.a) : 1.0 - texture(u_sceneColor, v_texCoord).a',
+                            'if (mc.u_backgroundSky > 0.5) { if (depth >= 1.0) { room = 1.0; } } else { room = 1.0 - textureSampleLevel(u_sceneColor, u_sceneColor_s, v.v_texCoord, 0.0).a; }']) {
+            expect(over).toContain(line);
+        }
+    });
+
     it('draws the cloud shadow map of the sun from the shadow the sky gives, and leaves the surfaces as the scene lit them', () => {
         const sky = { type: 't', label: 'T', glsl: '', wgsl: '' };
         const without = skyEffectSource(sky);

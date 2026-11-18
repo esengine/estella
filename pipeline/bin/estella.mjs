@@ -37,6 +37,9 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
                       server: the project's game server (its \`server\` block) as one file Node runs,
                       the web export in web/, and Docker, Caddy and systemd files to deploy both
   --no-web            server: leave out the web export
+  --server-url <url>  web, desktop, server: the game server's address the page dials
+                      (wss://host/path), over the project's server.url; without either a web
+                      page dials server.path on its own host
   --profile <name>    one of the project's export profiles (packaging.profiles): its
                       target, development or shipping, and the settings it overrides
                       A shipping Android build is signed with the project's release
@@ -1136,6 +1139,7 @@ if (opts.platform === 'server') {
   try {
     result = await mod.serverExportCommand({
       projectDir: opts.projectDir, outDir, sdkDistDir: path.join(REPO, 'sdk', 'dist'),
+      serverUrl: opts['server-url'],
       wasmDir: opts.wasm ? path.resolve(opts.wasm) : firstExisting([path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')]), minify: opts.minify === true, web: !opts['no-web'],
       nodePaths: [path.join(REPO, 'sdk', 'node_modules'), path.join(REPO, 'node_modules')],
     });
@@ -1146,7 +1150,7 @@ if (opts.platform === 'server') {
   if (!opts['no-web']) {
     const { spawnSync } = await import('node:child_process');
     const args = [fileURLToPath(import.meta.url), 'export', opts.projectDir, '--platform', 'web', '--out', path.join(outDir, 'web')];
-    for (const key of ['wasm', 'scene', 'title', 'scripts']) if (typeof opts[key] === 'string') args.push(`--${key}`, opts[key]);
+    for (const key of ['wasm', 'scene', 'title', 'scripts', 'server-url']) if (typeof opts[key] === 'string') args.push(`--${key}`, opts[key]);
     if (opts.minify) args.push('--minify');
     const web = spawnSync(process.execPath, args, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if (web.status !== 0) {
@@ -1276,6 +1280,7 @@ try {
     ...(opts['emulator-abi'] ? { androidEmulatorAbi: true } : {}),
     ...(opts.minify ? { minify: true } : {}),
     ...(opts['debug-channel'] ? { debugChannel: { url: opts['debug-channel'] } } : {}),
+    ...(opts['server-url'] ? { serverUrl: opts['server-url'] } : {}),
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
     ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),

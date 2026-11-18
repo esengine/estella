@@ -61,7 +61,8 @@ import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSys
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
-import { cspConnectSources } from './cspConnect';
+import { cspConnectSource, cspConnectSources } from './cspConnect';
+import { serverUrlOf } from '../project/serverConfig';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { createHash } from 'node:crypto';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript, type SplashLook } from './splash';
@@ -353,11 +354,14 @@ export const splashScriptCspHash = (): string => `sha256-${createHash('sha256').
 function indexHtml(
   title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
   debugChannel?: DebugChannelConfig, webChannel?: 'poki' | 'crazygames' | 'youtube', webConnect?: readonly string[],
+  serverUrl?: string,
 ): string {
+  const server = serverUrl ? serverUrlOf(serverUrl) : undefined;
   // The editor a development build dials is the one address beyond 'self' the
   // page may connect to; a build without a channel lists none.
   // Beside it, the origins the project says its game connects to (a server of its own).
-  const connect = [...(debugChannel ? [new URL(debugChannel.url).origin] : []), ...cspConnectSources(webConnect)]
+  const connect = [...new Set([...(debugChannel ? [new URL(debugChannel.url).origin] : []), ...cspConnectSources(webConnect),
+    ...(server ? [cspConnectSource(`${new URL(server).protocol}//${new URL(server).host}`)] : [])])]
     .map((origin) => ` ${origin}`).join('');
   // Every inline script on this page needs its hash listed, or the browser blocks it.
   const inlineScripts = [map.cspHash, ...(look.engineMark !== false ? [splashScriptCspHash()] : []), ...(orientation ? [orientationLockCspHash(orientation)] : [])]
@@ -380,7 +384,7 @@ function indexHtml(
       content="${channelPolicy}"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>${title}</title>
+    ${server ? `<meta name="estella-server" content="${server.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" />\n    ` : ''}<title>${title}</title>
     ${webChannel === 'poki' ? '<script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>' : webChannel === 'crazygames' ? '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>' : webChannel === 'youtube' ? '<script src="https://www.youtube.com/game_api/v1"></script>' : ''}
     <script type="importmap">${map.json}</script>
     <style>
@@ -506,6 +510,11 @@ export interface ExportGameOptions {
   webChannel?: 'poki' | 'crazygames' | 'youtube';
   /** Origins the web page's policy lets the game connect to (project: packaging.platforms.web.connect). */
   webConnect?: string[];
+  /**
+   * Web and desktop: the game server's address (project: server.url, or --server-url), written into the page as
+   * `<meta name="estella-server">` for `serverAddress` to read, its origin added to the page's connect policy.
+   */
+  serverUrl?: string;
   /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ false. */
   webEngineJs?: boolean;
   /**
@@ -1321,7 +1330,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
-      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined, opts.serverUrl),
     );
   }
   let modelBakes: PackagedGameConfig['modelBakes'];
