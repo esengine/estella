@@ -17,7 +17,11 @@
  *
  *          Run it on two checkouts (or before and after a change to the SDK) and compare the summaries.
  *
+ *          With `--profile`, the main thread is sampled through the run and what ran OUTSIDE the frame callback (a fetch
+ *          answering, a decode resuming) is told by function, inclusive: where the unbudgeted work is.
+ *
  *          node tools/measure-cell-hitch.mjs [--seconds 60] [--cpu 5] [--label after] [--json out.json] [--no-export]
+ *                                           [--profile [top]]
  */
 import { spawnSync } from 'node:child_process';
 import { cpSync, rmSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -34,6 +38,7 @@ const SECONDS = Number(arg('seconds', 60));
 const CPU = Number(arg('cpu', 5));
 const LABEL = arg('label', 'run');
 const JSON_OUT = arg('json', null);
+const PROFILE = process.argv.includes('--profile') ? (Number(arg('profile', 40)) || 40) : 0;
 const WORK = path.join(ROOT, 'output/cell-hitch', LABEL);
 const EXAMPLE = path.join(ROOT, 'examples/far-proxy-town');
 const out = path.join(WORK, 'web');
@@ -78,6 +83,11 @@ for (let i = 0; i < 400; i++) {
 }
 const cdp = await page.context().newCDPSession(page);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
+if (PROFILE) {
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
+    await cdp.send('Profiler.start');
+}
 
 const run = await page.evaluate(async ({ seconds, cells }) => {
     const c = window.__estellaCooked;
@@ -128,6 +138,7 @@ const run = await page.evaluate(async ({ seconds, cells }) => {
     return { frames, samples, loafs, delivery: s.delivery ?? {} };
 }, { seconds: SECONDS, cells });
 
+const profile = PROFILE ? (await cdp.send('Profiler.stop')).profile : null;
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 await page.close();
 server.close();
@@ -180,4 +191,41 @@ for (const l of worst) {
     for (const ph of ['fetch', 'prefab', 'assets', 'readying']) console.log(line(ph, cellsSeen.map((d) => d.phases?.[ph] ?? 0)));
 }
 for (const e of errors.slice(0, 5)) console.log('page error:', e);
+if (profile) {
+    const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+    const parent = new Map();
+    for (const n of profile.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+    const name = (n) => `${n.callFrame.functionName || '(anonymous)'} ${n.callFrame.url.split('/').pop()}:${n.callFrame.lineNumber + 1}`;
+    // A frame is whatever runs under the animation-frame callback; everything else ran between frames.
+    const FRAME = new Set(['runFrame_', 'mainLoop', 'tick']);
+    const inclusive = new Map();
+    const tasks = new Map();
+    let between = 0;
+    for (let i = 0; i < profile.samples.length; i++) {
+        const ms = (profile.timeDeltas[i + 1] ?? 0) / 1000;
+        let id = profile.samples[i];
+        const leaf = byId.get(id).callFrame.functionName;
+        if (leaf === '(idle)' || leaf === '(program)' || leaf === '(garbage collector)') continue;
+        const chain = [];
+        while (id !== undefined) { chain.push(byId.get(id)); id = parent.get(id); }
+        if (chain.some((n) => FRAME.has(n.callFrame.functionName))) continue;
+        // The harness's own reports (streaming, probe) are not the engine's work.
+        if (chain.some((n) => n.callFrame.functionName === 'streaming' || n.callFrame.functionName === 'probe')) continue;
+        between += ms;
+        const seen = new Set();
+        for (const n of chain) {
+            const k = name(n);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            inclusive.set(k, (inclusive.get(k) ?? 0) + ms);
+        }
+        // The outermost named function: which task it was.
+        const outer = [...chain].reverse().find((n) => n.callFrame.functionName && !n.callFrame.functionName.startsWith('('));
+        if (outer) tasks.set(name(outer), (tasks.get(name(outer)) ?? 0) + ms);
+    }
+    console.log(`between frames: ${between.toFixed(0)} ms of main thread`);
+    console.log('by function, inclusive:');
+    for (const [k, v] of [...inclusive].sort((a, b) => b[1] - a[1]).slice(0, PROFILE)) console.log(`  ${v.toFixed(0).padStart(7)} ms  ${k}`);
+    writeFileSync(path.join(WORK, 'run.cpuprofile'), JSON.stringify(profile));
+}
 if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ summary, ...run }, null, 1));
