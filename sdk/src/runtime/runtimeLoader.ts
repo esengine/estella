@@ -828,6 +828,9 @@ export interface RuntimeInitConfig {
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
+    // The App this bring-up is for. Quit while it awaits, it stops at the next step instead of
+    // loading a scene into, and handing a loop to, an App that was released under it.
+    const life = app.signal;
 
     flushPendingRegistrations(app);
 
@@ -842,6 +845,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // A module that disagrees with this engine or project throws here.
     if (config.aot) {
         const installed = await app.installCompiledSystems(config.aot.module, config.aot.manifest);
+        life.throwIfAborted();
         log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
     }
 
@@ -917,6 +921,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     if (firstScene) {
         mgr.setInitial(firstScene);
         await mgr.load(firstScene);
+        life.throwIfAborted();
     }
 
     if (world && app.hasResource(WorldStreaming)) {
@@ -937,6 +942,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
             return config;
         });
+        life.throwIfAborted();
     }
 
     if (aspectRatio !== undefined) {

@@ -154,6 +154,11 @@ export class AudioPlugin implements Plugin {
                     if (!playMode) {
                         eventSources.reset();
                         if (wasPlayMode) {
+                            // Stop ends what the session was sounding, as quitting the App does: a
+                            // looping clip or a score left on here played on in the edit world with
+                            // nothing in it able to reach it again.
+                            this.stopSources_(state);
+                            audioAPI.stopAll();
                             spatialListenerWarned = false;
                             wasPlayMode = false;
                         }

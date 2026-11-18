@@ -256,6 +256,7 @@ export async function cutPlayWorld(
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
+    const life = app.signal;
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
                                          config.compressedTexture);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
@@ -264,6 +265,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         sceneData, entryName,
         (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
     );
+    life.throwIfAborted();
     await initRuntime({
         app,
         module,
@@ -296,5 +298,8 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     // Per-phase / per-system frame timing for the editor profiler (enabled before
     // the loop starts so the runner instruments from frame zero).
     if (config.enableStats) app.enableStats();
+    // Stopped while it loaded: the App was released, and running it now would bring the game
+    // back with nothing left to stop it.
+    life.throwIfAborted();
     app.run();
 }

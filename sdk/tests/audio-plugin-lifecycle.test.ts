@@ -117,6 +117,24 @@ it('stopAllSources silences the latest source and resets its playOnAwake trigger
     plugin.stopAllSources(); expect(old.isPlaying).toBe(false);
     await app.tick(1/60); expect(backends[0].play).toHaveBeenCalledTimes(2);
 });
+it('leaving play mode ends the sources and the music the session started (issue #227)', async () => {
+    const { setEditorMode, setPlayMode } = await import('../src/ecs/env');
+    setEditorMode(true); setPlayMode(true);
+    try {
+        const app = build(new AudioPlugin()), audio = app.getResource(Audio);
+        await audio.preload('loop.wav'); await audio.preload('bgm.wav');
+        const entity = app.world.spawn(); app.world.insert(entity, AudioSource, { clip: 'loop.wav', playOnAwake: true, loop: true });
+        await app.tick(1 / 60);
+        audio.playBGM('bgm.wav'); await new Promise(done => setTimeout(done, 0));
+        const voices = vi.mocked(backends[0].play).mock.results.map(r => r.value as AudioHandle);
+        expect(voices.length).toBe(2); expect(voices.every(v => v.isPlaying)).toBe(true);
+        setPlayMode(false); await app.tick(1 / 60);
+        expect(voices.map(v => v.isPlaying)).toEqual([false, false]);
+        // Back in play, an awake source wakes again rather than staying silent.
+        setPlayMode(true); await app.tick(1 / 60);
+        expect(backends[0].play).toHaveBeenCalledTimes(3);
+    } finally { setEditorMode(false); setPlayMode(false); }
+});
 
 it('installs per-app event ownership and releases an emitter when its entity despawns', async () => {
     const plugin = new AudioPlugin(), app = build(plugin), owner = app.world.spawn(), release = vi.fn();

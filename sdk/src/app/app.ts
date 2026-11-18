@@ -54,6 +54,7 @@ import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainde
 import type { SideModuleHost } from '../sideModules/host';
 import { watchWebGPUDeviceLoss } from '../render/renderer';
 import { log } from '../util/logger';
+import { createAbort, type AbortHandle } from '../util/abort';
 
 const hostPauseOwners = new WeakMap<App, Set<object>>();
 
@@ -1523,13 +1524,31 @@ export class App {
 
     private quitting_ = false;
     private quitEpoch_ = 0;
+    private life_: AbortHandle = createAbort();
+
+    /**
+     * Aborted when this App quits. Work that outlives a call (a scene load, a
+     * runtime bring-up, a fetch) takes it at the start and stops where it finds
+     * it aborted, rather than carrying on into an App that has already been
+     * released: a runtime still loading when its game was stopped otherwise went
+     * on to start the loop, the sound and all, on an App nothing held any more.
+     * An App used again after quit gets a fresh signal.
+     */
+    get signal(): AbortSignal {
+        return this.life_.signal;
+    }
 
     quit(options?: { keepRenderer?: boolean }): void {
         if (this.quitting_) return;
         this.quitting_ = true;
         this.quitEpoch_++;
+        const life = this.life_;
+        this.life_ = createAbort();
         try { this.quit_(options); }
-        finally { this.quitting_ = false; }
+        finally {
+            this.quitting_ = false;
+            life.abort(Object.assign(new Error('The App quit'), { name: 'AbortError' }));
+        }
     }
 
     private quit_(options?: { keepRenderer?: boolean }): void {

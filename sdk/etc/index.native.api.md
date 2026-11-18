@@ -825,6 +825,7 @@ setRunInBackground: (on: boolean) => void
 setSideModules: (host: SideModuleHost, options?: { owned?: boolean; }) => void
 setTargetFrameRate: (fps: number) => void
 sideModules: SideModuleHost | null
+signal: AbortSignal
 spineInitPromise: Promise<unknown> | undefined
 stepFrame: () => void
 stepFrames: (frames?: number, dt?: number) => Promise<void>
