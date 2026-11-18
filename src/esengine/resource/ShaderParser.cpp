@@ -335,7 +335,9 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
     src +=
         "\n"
         "#ifdef SKINNED\n"
-        "struct SkinConstants { bones : array<mat4x4f, 64> };\n"
+        // As many bones as the renderer poses (SkinConstants.hpp). This said 64 while the block holds MESH_MAX_BONES,
+        // so a skin of more joints than 64 (a Tripo rig has 78) read past the array and drew as a white smear.
+        "struct SkinConstants { bones : array<mat4x4f, " + std::to_string(MESH_MAX_BONES) + "> };\n"
         "@group(0) @binding(5) var<uniform> skin : SkinConstants;\n"
         "#endif\n"
         "#ifdef MESH\n"
@@ -595,7 +597,8 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "layout(location = 6) in vec4 a_weights;\n"
         // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
         "layout(std140) uniform SkinConstants {\n"
-        "    mat4 u_bones[64];\n"
+        // MESH_MAX_BONES, the size of the block the renderer fills; see the WGSL twin.
+        "    mat4 u_bones[" + std::to_string(MESH_MAX_BONES) + "];\n"
         "};\n"
         "#endif\n"
         "#endif\n"
