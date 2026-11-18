@@ -12,4 +12,7 @@
 export { ZoneDirectory, type ZoneInfo, type ZoneDirectoryOptions } from './directory';
 export { PlayerLeases, LeaseHeld, type PlayerLease, type PlayerLeasesOptions } from './leases';
 export { TransferTickets, TicketRefused, type TransferTicket, type TransferTicketsOptions } from './tickets';
-export { ZoneHost, type ZoneHostOptions } from './zoneHost';
+export {
+    ZoneHost, defaultZoneRoute,
+    type ZoneHostOptions, type ZoneRoute, type ZoneRouteContext, type ZoneRouteResult,
+} from './zoneHost';

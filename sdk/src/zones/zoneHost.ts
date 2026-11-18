@@ -13,11 +13,11 @@
  *          after the record it will load is the one just written, and the
  *          lease means no zone but the destination writes that record again.
  */
-import type { ReplicationServer, ReplicationHelloInfo, ReplicationPlayer } from '../net/replication/server';
+import { ReplicationRedirect, type ReplicationServer, type ReplicationHelloInfo, type ReplicationPlayer } from '../net/replication/server';
 import type { PersistStore } from '../persist/store';
 import type { PlayerPersistence } from '../persist/players';
 import { ZoneDirectory } from './directory';
-import { LeaseHeld, PlayerLeases } from './leases';
+import { LeaseHeld, PlayerLeases, type PlayerLease } from './leases';
 import { TransferTickets } from './tickets';
 
 export interface ZoneHostOptions {
@@ -50,6 +50,55 @@ export interface ZoneHostOptions {
     /** A background step that failed (heartbeat, lease renewal, a departure's save). */
     onError?(error: unknown, during: 'heartbeat' | 'renew' | 'release'): void;
     now?: () => number;
+    /** Where a player goes when nothing else says: a new player, or one whose zone and its kind are all gone. */
+    home?: string;
+    /**
+     * Where a player who logs in here belongs. Called for every login that is
+     * not a transfer, with where they were last; return a zone id (or `{ zone,
+     * arrival }`) to send them there, or null to keep them here. Default
+     * {@link defaultZoneRoute}: back to their last zone if it is up, else the
+     * emptiest zone of its kind, else `home`, else here. Override it for what
+     * only the game knows — a dungeon instance that is gone, a party to keep
+     * together — and call `ctx.defaultRoute()` for the rest.
+     */
+    route?: ZoneRoute;
+}
+
+/** What a route is asked with. */
+export interface ZoneRouteContext {
+    playerId: string;
+    /** Where the player was last (the zone, its kind, and whether that lease is still live); null for a new player. */
+    last: PlayerLease | null;
+    /** The zone answering this login. */
+    here: string;
+    home: string | undefined;
+    directory: ZoneDirectory;
+    /** How recently a zone must have heartbeat to count as up. */
+    freshMs: number;
+    /** The default answer, for a route that only overrides some cases. */
+    defaultRoute(): Promise<ZoneRouteResult>;
+}
+
+/** A zone id, a zone id with what the arrival there needs, or null for "stay here". */
+export type ZoneRouteResult = string | { zone: string; arrival?: unknown } | null;
+export type ZoneRoute = (ctx: ZoneRouteContext) => ZoneRouteResult | Promise<ZoneRouteResult>;
+
+/**
+ * The route most games want: back where they were if that zone is up; if it is
+ * gone, the zone of the same kind with the most room; failing that `home`;
+ * failing that, here.
+ */
+export async function defaultZoneRoute(ctx: ZoneRouteContext): Promise<ZoneRouteResult> {
+    const { last, here, home, directory, freshMs } = ctx;
+    if (!last) return home !== undefined && home !== here && await directory.get(home, freshMs) ? home : null;
+    if (last.zoneId === here) return null;
+    if (await directory.get(last.zoneId, freshMs)) return last.zoneId;
+    if (last.kind !== undefined) {
+        const line = await directory.pick(last.kind, freshMs);
+        if (line) return line.id === here ? null : line.id;
+    }
+    if (home !== undefined && home !== here && await directory.get(home, freshMs)) return home;
+    return null;
 }
 
 /** A refusal the client should retry, named the way the replication server recognizes. */
@@ -103,28 +152,74 @@ export class ZoneHost<A = unknown> {
 
     /**
      * Hand to `startServer`. A hello with a transfer ticket is admitted as the
-     * player the ticket names (no other login); any other goes through the
-     * game's `authenticate`, and is turned away for now while another zone
-     * holds the player.
+     * player the ticket names. Any other is a login, and any zone takes one:
+     * the game's `authenticate` says who it is, and then
+     *
+     * - a player online in another zone that is up is sent there, which takes
+     *   them over from their older connection;
+     * - a player held by a zone that has stopped heartbeating is taken from it;
+     * - the route says where they belong, and they are sent there with a
+     *   ticket, or kept here.
      */
     readonly authenticate = async (credentials: unknown, hello: ReplicationHelloInfo): Promise<ReplicationPlayer> => {
-        let playerId: string;
+        const here = this.zoneId;
+        const kind = this.options_.zone.kind;
         if (hello.transfer !== undefined) {
-            const ticket = await this.tickets.redeem<A>(hello.transfer, this.zoneId);
-            playerId = ticket.playerId;
-            this.arrivals_.set(playerId, ticket.arrival);
-        } else {
-            playerId = (await this.options_.authenticate(credentials, hello)).playerId;
+            const ticket = await this.tickets.redeem<A>(hello.transfer, here);
+            this.arrivals_.set(ticket.playerId, ticket.arrival);
+            await this.claim_(() => this.leases.acquire(ticket.playerId, here, kind));
+            this.held_.add(ticket.playerId);
+            return { playerId: ticket.playerId };
         }
-        try {
-            await this.leases.acquire(playerId, this.zoneId);
-        } catch (err) {
-            if (err instanceof LeaseHeld) throw retryLater(`already in zone "${err.heldBy}"; try again shortly`);
-            throw err;
+
+        const playerId = (await this.options_.authenticate(credentials, hello)).playerId;
+        const fresh = this.heartbeatMs_ * 3;
+        const last = await this.leases.last(playerId);
+        // Sent from here and back again without arriving: theirs to take back now,
+        // and not to be routed straight back to where they could not get to.
+        const bounced = last !== null && last.arriving === true && last.from === here && last.until > this.now_();
+        if (last && last.zoneId !== here && last.until > this.now_()) {
+            const holder = bounced ? null : await this.directory.get(last.zoneId, fresh);
+            // Online there: that zone replaces their older connection with this one.
+            if (holder) throw new ReplicationRedirect(holder.address);
+            // Held by a zone that is gone, or bounced: take them.
+            await this.claim_(() => this.leases.takeOver(playerId, last.zoneId, here, kind));
+        } else {
+            await this.claim_(() => this.leases.acquire(playerId, here, kind));
+        }
+
+        if (bounced) {
+            this.held_.add(playerId);
+            return { playerId };
+        }
+        const ctx: ZoneRouteContext = {
+            playerId, last, here, home: this.options_.home, directory: this.directory, freshMs: fresh,
+            defaultRoute: () => defaultZoneRoute(ctx),
+        };
+        const routed = await (this.options_.route ?? defaultZoneRoute)(ctx);
+        const target = routed === null ? null : typeof routed === 'string' ? { zone: routed } : routed;
+        if (target && target.zone !== here) {
+            const dest = await this.directory.get(target.zone, fresh);
+            // A destination that is not up keeps them here rather than turning them away.
+            if (dest) {
+                await this.leases.handOff(playerId, here, target.zone, this.options_.arrivalLeaseMs ?? 3000, dest.kind);
+                const ticket = await this.tickets.issue({ playerId, toZone: target.zone, fromZone: here, arrival: target.arrival });
+                throw new ReplicationRedirect(dest.address, ticket);
+            }
         }
         this.held_.add(playerId);
         return { playerId };
     };
+
+    /** A lease write that lost a race is a login to retry, not a failure. */
+    private async claim_(write: () => Promise<PlayerLease>): Promise<void> {
+        try {
+            await write();
+        } catch (err) {
+            if (err instanceof LeaseHeld) throw retryLater(`already in zone "${err.heldBy}"; try again shortly`);
+            throw err;
+        }
+    }
 
     /**
      * What the ticket that brought this player here said about their arrival,
@@ -163,7 +258,7 @@ export class ZoneHost<A = unknown> {
             this.nextRenew_ = now + this.leases.ttlMs / 3;
             for (const pid of present) {
                 if (!this.held_.has(pid)) continue;
-                void this.leases.renew(pid, this.zoneId).catch((err) => {
+                void this.leases.renew(pid, this.zoneId, this.options_.zone.kind).catch((err) => {
                     // Lost to another zone: this one must stop acting for the player.
                     if (err instanceof LeaseHeld) {
                         const id = server.connectionIdOf(pid);
@@ -199,7 +294,7 @@ export class ZoneHost<A = unknown> {
         this.leaving_.add(pid);
         try {
             await (this.options_.players?.release(pid) ?? Promise.resolve());
-            await this.leases.handOff(pid, this.zoneId, toZone, this.options_.arrivalLeaseMs ?? 3000);
+            await this.leases.handOff(pid, this.zoneId, toZone, this.options_.arrivalLeaseMs ?? 3000, dest.kind);
             this.held_.delete(pid);
             const ticket = await this.tickets.issue<A | undefined>({ playerId: pid, toZone, fromZone: this.zoneId, arrival });
             // Back here if the destination cannot be reached: by then the short

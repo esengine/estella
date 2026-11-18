@@ -471,9 +471,29 @@ await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
 A transfer runs in an order that is its guarantee: the player's record is
 written, the lease is handed to the destination, a ticket is issued, and only
 then is the client told where to go — so the zone they arrive at loads the
-record just written, and no other zone writes it again. A login while another
-zone holds the player is refused with "try again shortly" (the client's
-`reconnect` keeps trying), so one player is never in two zones at once.
+record just written, and no other zone writes it again.
+
+**Any zone takes a login, and sends the player where they belong.** The game's
+`authenticate` says who it is; then a player online in another zone is sent
+there, which replaces their older connection with this one (so one player is
+never in two zones, and a second login wins, across zones too); a player held
+by a zone that has stopped heartbeating is taken from it without waiting out
+the lease; and the route says where they go:
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // new players, and anyone with nowhere else
+    route: async (ctx) => {             // optional: what only the game knows
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // back where they logged out, else a live line of
+    },                                  // the same kind, else home, else here
+});
+```
+
+A routed player is handed on like a transfer (lease, ticket) and their hello is
+answered with a redirect, which a client with `dial` follows by itself —
+`net.connect` resolves once it is in the zone it was sent to.
 
 A zone that dies is found out fast. Zones heartbeat every second
 (`heartbeatMs`), and a transfer goes only to a zone heard from within three
@@ -483,9 +503,15 @@ only `arrivalLeaseMs` (3 s) until the destination takes it up, and the client
 returns to the zone it left (the transfer names it as a fallback) and logs in
 again there once that runs out. Measured with `tools/zones-benchmark.mjs
 --crash` (4 zones, 200 players, one killed): every such player was back within
-3.7 s with nothing done by the game, and every record matched. A player whose
-own zone dies keeps redialing it; sending them to another zone is the game's
-call (the directory says which are up).
+3.7 s with nothing done by the game, and every record matched.
+
+A player whose own zone dies finds another by itself when the client has
+`entry` — an address (or a list, tried in turn) to log in again at after
+`entryAfterMs` (3 s) of failed redials, typically a load-balanced address in
+front of the zones. The zone it reaches takes the player from the dead one and
+routes them like any login. In the same crash run, every player of the killed
+zone was in another within 5.4 s (p50 3 s), and a player sent to the dead zone
+as it died was taken straight back by the zone it left (p50 130 ms).
 
 On the client, `dial` opens a transport to an address a server names:
 
@@ -493,6 +519,11 @@ On the client, `dial` opens a transport to an address a server names:
 const client = await net.connect(socket, {
     credentials: { token }, reconnect: true,
     dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // where to log in again if its zone is gone
+});
+client.onStateChange((state) => {       // every change, as it happens
+    if (state === 'reconnecting') showBanner('Reconnecting…');
+    if (state === 'ready') hideBanner(); // client.serverId says which server now
 });
 ```
 

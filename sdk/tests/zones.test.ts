@@ -19,7 +19,7 @@ import type { ReliableOrderedTransport } from '../src/net/NetChannel';
 import { replicationPlugin, Net, Replicated, type ReplicationServer } from '../src/net/replication';
 import { MemoryStore, PlayerPersistence, type PersistStore } from '../src/persist';
 import {
-    ZoneDirectory, PlayerLeases, LeaseHeld, TransferTickets, TicketRefused, ZoneHost,
+    ZoneDirectory, PlayerLeases, LeaseHeld, TransferTickets, TicketRefused, ZoneHost, type ZoneHostOptions,
 } from '../src/zones';
 import type { Entity } from '../src/types';
 
@@ -109,13 +109,15 @@ const tokens = (c: unknown) => {
 };
 
 /** One zone process: a server App, its ZoneHost and records, and the game's provisioning. */
-async function bootZone(id: string, store: PersistStore, landmark: string, arrivalLeaseMs?: number) {
+type ZoneExtra = Partial<Pick<ZoneHostOptions, 'arrivalLeaseMs' | 'home' | 'route' | 'heartbeatMs'>>;
+
+async function bootZone(id: string, store: PersistStore, landmark: string, extra: ZoneExtra = {}) {
     const app = App.new();
     app.addPlugin(replicationPlugin);
     const records = new PlayerPersistence<Rec>({ store, schema: 1, create: () => ({ gold: 10 }) });
     const zone = new ZoneHost<{ x: number }>({
         zone: { id, address: `mem://${id}`, kind: 'map' }, store, authenticate: tokens,
-        players: records as PlayerPersistence<unknown>, arrivalLeaseMs,
+        players: records as PlayerPersistence<unknown>, ...extra,
     });
     const server = app.getResource(Net).startServer({ authenticate: zone.authenticate, reconnectGraceMs: 0 });
     zone.attach(server);
@@ -147,10 +149,10 @@ async function bootZone(id: string, store: PersistStore, landmark: string, arriv
 
 type Zone = Awaited<ReturnType<typeof bootZone>>;
 
-async function setupTwo(arrivalLeaseMs?: number) {
+async function setupTwo(extra: ZoneExtra = {}) {
     const store = new MemoryStore();
-    const A = await bootZone('A', store, 'forest tree', arrivalLeaseMs);
-    const B = await bootZone('B', store, 'town well', arrivalLeaseMs);
+    const A = await bootZone('A', store, 'forest tree', extra);
+    const B = await bootZone('B', store, 'town well', extra);
     const zones: Record<string, Zone> = { 'mem://A': A, 'mem://B': B };
     /** A client's dial: an in-memory link to whichever zone the address names. */
     const dial = (address: string): ReliableOrderedTransport => {
@@ -205,17 +207,76 @@ describe('two zones', () => {
         expect((await B.zone.leases.get('ana'))!.zoneId).toBe('B');
     });
 
-    it('turns away a login to another zone while one holds the player, and lets it through after', async () => {
+    it('sends a login made elsewhere to the zone the player is online in, which replaces the old connection', async () => {
+        const { A, B, client, run } = await setupTwo();
+        const first = await client('ana', A);
+        await run([first.app], 3);
+        const second = await client('ana', B);
+        await run([first.app, second.app], 3);
+        expect(second.client.state).toBe('ready');
+        expect(names(second.app)).toEqual(['forest tree', 'pawn ana']);
+        expect(first.client.state).toBe('closed');
+        expect(first.client.closeReason).toBe('replaced');
+        expect(B.server.presentIds).toEqual([]);
+    });
+
+    it('sends a returning player back to the zone they logged out of', async () => {
         const { A, B, client, run } = await setupTwo();
         const ana = await client('ana', A);
         await run([ana.app], 3);
-        await expect(client('ana', B)).rejects.toThrow('already in zone "A"');
-        // She leaves A; once her record is written A lets the lease go.
+        A.records.set('ana', { gold: 12 });
         ana.client.disconnect();
         A.server.detachConnection(1);
         await run([], 4);
+        // She logs in at B, the address she happens to have.
+        const back = await client('ana', B);
+        await run([back.app], 4);
+        expect(names(back.app)).toEqual(['forest tree', 'pawn ana']);
+        expect(A.records.get('ana')).toEqual({ gold: 12 });
+    });
+
+    it('puts a new player in the home zone, or keeps them where they logged in without one', async () => {
+        const homed = await setupTwo({ home: 'B' });
+        const bo = await homed.client('bo', homed.A);
+        await homed.run([bo.app], 4);
+        expect(names(bo.app)).toEqual(['pawn bo', 'town well']);
+
+        const unhomed = await setupTwo();
+        const cy = await unhomed.client('cy', unhomed.A);
+        await unhomed.run([cy.app], 4);
+        expect(names(cy.app)).toEqual(['forest tree', 'pawn cy']);
+    });
+
+    it('takes a player whose zone died, without waiting out its lease, to a live zone of its kind', async () => {
+        const { A, B, client, run, store } = await setupTwo({ heartbeatMs: 50 });
+        const ana = await client('ana', A);
+        await run([ana.app], 3);
+        // A dies: no more heartbeats, and her lease there is still live for 30 s.
+        const before = (await store.get<{ seenAt: number }>('zone:A'))!.value;
+        await store.put('zone:A', { ...before, seenAt: Date.now() - 1000 });
+        expect((await B.zone.leases.get('ana'))!.zoneId).toBe('A');
+        const t0 = Date.now();
         const again = await client('ana', B);
+        for (let i = 0; i < 6; i++) await B.tick();
+        await again.app.tick(1 / 60);
+        expect(Date.now() - t0).toBeLessThan(1000);
         expect(again.client.state).toBe('ready');
+        expect((await B.zone.leases.get('ana'))!.zoneId).toBe('B');
+        // B is a live zone of A's kind, so she stays.
+        expect(B.pawns.has('ana')).toBe(true);
+    });
+
+    it('lets the game route: a custom route can send a player anywhere, with what the arrival needs', async () => {
+        const { A, B, client, run } = await setupTwo({
+            route: async (ctx) => (ctx.last === null ? { zone: 'B', arrival: { x: 9 } } : ctx.defaultRoute()),
+        });
+        const ana = await client('ana', A);
+        await run([ana.app], 4);
+        expect(names(ana.app)).toEqual(['pawn ana', 'town well']);
+        const pawn = ana.app.world.getEntitiesWithComponents([Replicated]).find((e) => ana.client.ownsEntity(e))!;
+        expect((ana.app.world.tryGet(pawn, Spot) as { x: number }).x).toBe(9);
+        expect(B.pawns.has('ana')).toBe(true);
+        expect(A.pawns.has('ana')).toBe(false);
     });
 
     it('refuses to send a player to a zone that is not up, and keeps them', async () => {
@@ -242,7 +303,7 @@ describe('two zones', () => {
     });
 
     it('a player sent to a zone that just died comes back by itself, record intact', async () => {
-        const { A, client, run, store } = await setupTwo(150);
+        const { A, client, run, store } = await setupTwo({ arrivalLeaseMs: 150 });
         const ana = await client('ana', A);
         await run([ana.app], 3);
         A.records.set('ana', { gold: 31 });

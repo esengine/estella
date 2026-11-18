@@ -75,13 +75,14 @@ export class ZoneDirectory {
         return doc.value;
     }
 
-    /** Every live zone, of one `kind` when given. */
-    async list(kind?: string): Promise<ZoneInfo[]> {
+    /** Every live zone, of one `kind` when given; `maxAgeMs` asks for a tighter bound than the time to live. */
+    async list(kind?: string, maxAgeMs = this.ttlMs_): Promise<ZoneInfo[]> {
         const out: ZoneInfo[] = [];
         const now = this.now_();
+        const age = Math.min(maxAgeMs, this.ttlMs_);
         for (const key of await this.store_.keys(this.prefix_)) {
             const doc = await this.store_.get<ZoneInfo>(key);
-            if (!doc || now - doc.value.seenAt > this.ttlMs_) continue;
+            if (!doc || now - doc.value.seenAt > age) continue;
             if (kind !== undefined && doc.value.kind !== kind) continue;
             out.push(doc.value);
         }
@@ -92,9 +93,9 @@ export class ZoneDirectory {
      * The live zone of `kind` with the most room — the line of a map a newcomer
      * is put on. Null when every one is full or none is up.
      */
-    async pick(kind: string): Promise<ZoneInfo | null> {
+    async pick(kind: string, maxAgeMs = this.ttlMs_): Promise<ZoneInfo | null> {
         let best: ZoneInfo | null = null;
-        for (const z of await this.list(kind)) {
+        for (const z of await this.list(kind, maxAgeMs)) {
             if (z.capacity !== undefined && z.players >= z.capacity) continue;
             const room = (z.capacity ?? Infinity) - z.players;
             const bestRoom = best ? (best.capacity ?? Infinity) - best.players : -Infinity;

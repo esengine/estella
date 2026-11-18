@@ -393,15 +393,36 @@ await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
 ```
 
 转区按固定顺序执行，顺序本身就是保证：先写玩家记录，再把租约移交给目标区，再发票据，最后才告诉客户端去哪
-——所以目标区加载到的一定是刚写的记录，也不会有别的区再写它。另一个区持有玩家时的登录会被以"稍后再试"拒绝
-(客户端的 `reconnect` 会继续重试)，所以一个玩家不会同时在两个区。
+——所以目标区加载到的一定是刚写的记录，也不会有别的区再写它。
+
+**任何一个区都可以接受登录，并把玩家送到他该去的地方。** 游戏的 `authenticate` 认出是谁之后：玩家正在另一个区
+在线，就把他送过去，由那个区用新连接替换旧连接(所以一个玩家不会同时在两个区，跨区登录也是后登录的顶掉先登录的)；
+持有玩家的区已经停止心跳，就直接把玩家接管过来，不用等租约过期；然后由路由决定他去哪：
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // 新玩家，以及无处可去的玩家
+    route: async (ctx) => {             // 可选：只有游戏知道的情况
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // 回到下线时的区，否则同类型里还活着的一条线，
+    },                                  // 否则回城，否则留在这里
+});
+```
+
+被路由走的玩家像转区一样交接(租约、票据)，他的 hello 会收到一个重定向，配了 `dial` 的客户端会自己跟过去——
+`net.connect` 要等到在目标区就绪才返回。
 
 区死掉会很快被发现。区每秒心跳一次(`heartbeatMs`)，转区只会去三次心跳内上报过的区，而不是目录的整个有效期。
 恰好在目标区死掉的那一刻被送过去的玩家会自己回来：移交出去的租约在目标区接手前只有 `arrivalLeaseMs`(3 秒)，
 客户端回到出发的区(转区时会把它作为退路告诉客户端)，等这段租约过期后在那里重新登录。用
 `tools/zones-benchmark.mjs --crash` 实测(4 个区、200 个玩家、杀掉一个区)：这样的玩家全部在 3.7 秒内自己回来，
-游戏不用做任何事，所有存档都对得上。玩家自己所在的区死掉时，客户端会一直重拨它；把他们送去别的区由游戏决定
-(目录会告诉你哪些区还在)。
+游戏不用做任何事，所有存档都对得上。
+
+玩家自己所在的区死掉时，配了 `entry` 的客户端会自己找到别的区：`entry` 是一个地址(或者一个地址列表，依次尝试)，
+重拨失败超过 `entryAfterMs`(3 秒)后就去那里重新登录，通常是挡在各个区前面的负载均衡地址。接到他的区会从死掉的区
+接管玩家，然后像普通登录一样路由。同一轮崩溃压测里，被杀掉的区里的玩家全部在 5.4 秒内(p50 3 秒)到了别的区，
+在目标区死掉那一刻被送过去的玩家，也被出发的区立刻收了回来(p50 130 ms)。
 
 客户端用 `dial` 打开服务器指定地址的连接：
 
@@ -409,6 +430,11 @@ await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
 const client = await net.connect(socket, {
     credentials: { token }, reconnect: true,
     dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // 自己的区没了时去哪里重新登录
+});
+client.onStateChange((state) => {       // 每一次变化，发生时就通知
+    if (state === 'reconnecting') showBanner('正在重连…');
+    if (state === 'ready') hideBanner(); // client.serverId 说明现在连着哪台服务器
 });
 ```
 

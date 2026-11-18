@@ -22,13 +22,13 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 interface Running { wss: WebSocketServer; address: string; sockets: WsSocket[]; app: App; zone: ZoneHost; timer: ReturnType<typeof setInterval> }
 let zones: Running[] = [];
 
-async function zoneServer(id: string, store: PersistStore, landmark: string, arrivalLeaseMs?: number): Promise<Running> {
+async function zoneServer(id: string, store: PersistStore, landmark: string, arrivalLeaseMs?: number, heartbeatMs?: number): Promise<Running> {
     const wss = new WebSocketServer({ port: 0, host: '127.0.0.1' });
     await new Promise<void>((r) => wss.on('listening', () => r()));
     const address = `ws://127.0.0.1:${(wss.address() as { port: number }).port}`;
     const app = App.new();
     app.addPlugin(replicationPlugin);
-    const zone = new ZoneHost({ zone: { id, address }, store, arrivalLeaseMs, authenticate: (c) => ({ playerId: (c as { token: string }).token }) });
+    const zone = new ZoneHost({ zone: { id, address }, store, arrivalLeaseMs, heartbeatMs, authenticate: (c) => ({ playerId: (c as { token: string }).token }) });
     const server = app.getResource(Net).startServer({ authenticate: zone.authenticate });
     zone.attach(server);
     await zone.start();
@@ -123,10 +123,45 @@ describe('zones over real sockets', () => {
         expect(await until(() => sees(app).includes('forest tree'), [app])).toBe(true);
         const t0 = Date.now();
         await A.zone.transfer(client.connectionId, 'C');
-        expect(await until(() => client.state !== 'ready', [app], 1000)).toBe(true);
-        expect(await until(() => client.state === 'ready' && sees(app).includes('forest tree'), [app], 3000)).toBe(true);
+        // Back at A, taken back from the lease it had handed to C, as fast as the
+        // failed dial to C allows.
+        let leaseHome = false;
+        const settled = async () => {
+            const lease = await A.zone.leases.get('ana');
+            leaseHome = lease?.zoneId === 'A' && !lease.arriving;
+        };
+        expect(await until(() => { void settled(); return leaseHome && client.state === 'ready' && sees(app).includes('forest tree'); }, [app], 3000)).toBe(true);
         expect(Date.now() - t0).toBeLessThan(2000);
         expect((await A.zone.leases.get('ana'))!.zoneId).toBe('A');
+        client.disconnect();
+    });
+
+    it('logs in again at the entry when its own zone dies, and is taken in there', async () => {
+        const store = new MemoryStore();
+        const A = await zoneServer('A', store, 'forest tree', undefined, 100);
+        const B = await zoneServer('B', store, 'town well', undefined, 100);
+        const app = App.new();
+        app.addPlugin(replicationPlugin);
+        const socket = new GameSocket({ url: A.address });
+        socket.connect();
+        const client = await app.getResource(Net).connect(socket, {
+            interpolationDelayTicks: 0, credentials: { token: 'ana' },
+            reconnect: { minDelayMs: 20, maxDelayMs: 100 },
+            dial: (url) => new GameSocket({ url }),
+            entry: B.address, entryAfterMs: 300,
+        });
+        expect(await until(() => sees(app).includes('forest tree'), [app])).toBe(true);
+
+        // A dies: no heartbeat, no listener, every link cut. Her lease there is
+        // still live; B must not wait it out.
+        clearInterval(A.timer);
+        for (const s of A.sockets) s.terminate();
+        await new Promise<void>((r) => A.wss.close(() => r()));
+        const t0 = Date.now();
+        expect(await until(() => client.state === 'ready' && sees(app).includes('town well'), [app], 4000)).toBe(true);
+        expect(Date.now() - t0).toBeLessThan(2500);
+        expect(sees(app)).toEqual(['town well']);
+        expect((await B.zone.leases.get('ana'))!.zoneId).toBe('B');
         client.disconnect();
     });
 });
