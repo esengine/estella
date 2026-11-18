@@ -69,6 +69,7 @@ describe('the loop counts a level sets in the GI and reflection shaders', () => 
     it('keeps the high level what was written into the shaders and engine before', () => {
         const high = defaultQualityProfile('high') as unknown as Record<string, unknown>;
         expect([high.ssrSteps, high.ssrRefine, high.ssaoSamples, high.gtaoSlices, high.gtaoSteps]).toEqual([48, 6, 12, 3, 6]);
+        expect(number('gtaoSlices').min).toBe(2);
         expect([high.ssgiRays, high.ssgiSteps, high.ssgiDenoiseKernel, high.aoBlurRadius, high.voxelGIBounceRays]).toEqual([8, 6, 5, 3, 2]);
         expect([high.dynamicGIProbeRows, high.dynamicGIFieldSize, high.dynamicGIFieldBuildMs, high.voxelGIGridSize, high.voxelGISunSamples]).toEqual([90, 128, 3, 128, 256]);
         expect([high.skyEnvironmentInterval, high.skyEnvironmentCloudSteps, high.environmentMapSize, high.probeCaptureSize]).toEqual([1, 16, 32, 32]);
@@ -110,7 +111,7 @@ describe('a level\'s GI and reflection counts reach the passes', () => {
         const get = (pass: string) => Object.fromEntries(qualityPassUniforms(low, pass));
         expect(get('ssr')).toMatchObject({ u_ssrSteps: 16, u_ssrRefine: 4 });
         expect(get('ssao_ao')).toMatchObject({ u_aoSamples: 6, u_aoBlurRadius: 2 });
-        expect(get('gtao_blur_y')).toMatchObject({ u_gtaoSlices: 1, u_gtaoSteps: 4, u_aoBlurRadius: 2 });
+        expect(get('gtao_blur_y')).toMatchObject({ u_gtaoSlices: 2, u_gtaoSteps: 4, u_aoBlurRadius: 2 });
         expect(get('ssgi_gather')).toMatchObject({ u_ssgiRays: 4, u_ssgiSteps: 4, u_ssgiKernel: 3 });
         expect(get('gi_voxels')).toMatchObject({ u_bounceRays: 1, u_gridSize: 64, u_sunSamples: 64 });
         expect(get('voxelGI')).toMatchObject({ u_gridSize: 64, u_sunSamples: 64 });
