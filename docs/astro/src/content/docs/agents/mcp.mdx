@@ -161,6 +161,14 @@ shows a placeholder with progress where each model will land. A generation still
 the next time the project opens. The import happens outside the agent's undo step, so Undo does not remove a generated model:
 delete it from the Content Browser.
 
+The rest of Tripo is in the same group. `tripo_process` works on a model that is already in the project and makes a new one
+beside it: retexture it, reduce it to a game's face count, unwrap its UVs, split it into parts and close them, check whether it
+can be rigged (free), rig it, put preset animations on the rig, or convert it to another format. A model Tripo made keeps the id of
+the task that made it in its `.meta`, so the next operation names that task instead of uploading the file; any other model is
+uploaded. `tripo_image` makes pictures from words or from other pictures, and the four sides of a thing, which `tripo_generate`
+takes as `images` for a model closer to what was meant than one picture gives. Every operation but the rig check spends credits,
+and each tool's description says how many.
+
 A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
 cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
 topics, named at the end of their descriptions with what each is for, and the agent reads the ones it needs with `tool_guide`
