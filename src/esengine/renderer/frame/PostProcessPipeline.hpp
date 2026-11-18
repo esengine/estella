@@ -349,6 +349,7 @@ public:
     rg::ResourceId declareCover(u32 size);
     /// The matrix the map was drawn through, for the effect to put a world point in it.
     void setCoverMatrix(const glm::mat4& viewProjection) { cover_matrix_ = viewProjection; }
+    u32 coverTargetId() const { return cover_serial_; }
 
     /**
      * @brief Whether this frame's scene target carries a second attachment for the surface's material.
@@ -793,6 +794,7 @@ private:
     rg::ResourceId shadow_resource_ = rg::kNoResource;
     /// The motion pass's target, kept across frames for its size, and whether this frame drew into it.
     Unique<Framebuffer> cover_fbo_;
+    u32 cover_serial_ = 0;
     rg::ResourceId cover_resource_ = rg::kNoResource;
     /// A sky's panorama, drawn on request from a copy of its pass and read back (requestSkyCapture).
     struct SkyCapture {

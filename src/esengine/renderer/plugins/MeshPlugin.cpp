@@ -595,15 +595,54 @@ void MeshPlugin::trackPose(Pose& pose, const RenderFrameContext& ctx, const glm:
     pose.origin = renderOrigin();
 }
 
+void MeshPlugin::addMover(Entity entity) {
+    const u32 index = entity.index();
+    if (index >= mover_at_.size()) mover_at_.resize(static_cast<usize>(index) + 1, 0);
+    movers_.push_back(entity);
+    mover_at_[index] = static_cast<u32>(movers_.size());
+}
+
+void MeshPlugin::clearMovers() {
+    for (const Entity e : movers_) mover_at_[e.index()] = 0;
+    movers_.clear();
+}
+
+bool MeshPlugin::dropStillMovers() {
+    constexpr u32 kStillLooks = 240;
+    bool dropped = false;
+    for (usize i = 0; i < movers_.size();) {
+        const Entity e = movers_[i];
+        const u32 index = e.index();
+        const u64 seen = index < cast_changed_at_.size() ? cast_changed_at_[index] : 0;
+        const bool same = static_cast<u32>(seen >> 32) == e.id();
+        if (same && cast_look_ - static_cast<u32>(seen) < kStillLooks) { ++i; continue; }
+        mover_at_[index] = 0;
+        movers_[i] = movers_.back();
+        movers_.pop_back();
+        if (i < movers_.size()) mover_at_[movers_[i].index()] = static_cast<u32>(i + 1);
+        dropped = true;
+    }
+    return dropped;
+}
+
+bool MeshPlugin::castHeldInputs(u64& key) const {
+    key = cast_held_key_;
+    return cast_held_vouched_;
+}
+
 bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u64& key) {
     const u32 now = registry.beginChangeRead();
-    // Why the casters changed, one bit a reason (render.mesh.castChanged): what a frame that could not keep its shadow map reads.
+    if (++cast_look_ == 0) cast_look_ = 1;
     u32 why = 0;
-    if (registry.identity() != cast_registry_) why |= 1u;
+    bool heldMoved = false;
+    if (registry.identity() != cast_registry_) {
+        why |= 1u;
+        clearMovers();
+        cast_changed_at_.clear();
+    }
     if (registry.activityEpoch() != cast_activity_) why |= 2u;
     if (why == 0) {
         const u32 since = cast_tick_;
-        // A write to anything a caster is described by, or one added or removed: these are rare enough to take whole.
         if (registry.anyChangedSince<ecs::MeshRenderer>(since)) why |= 4u;
         if (registry.anyChangedSince<ecs::MeshSkin>(since) || registry.anyChangedSince<ecs::MeshMorph>(since)) why |= 8u;
         if (registry.anyChangedSince<ecs::MeshInstances>(since) || registry.anyChangedSince<ecs::LODGroup>(since)
@@ -611,28 +650,39 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
             || registry.anyChangedSince<ecs::MeshLightmap>(since)) {
             why |= 16u;
         }
-        // Transforms move all the time, most of them not a caster's (a camera, a sprite). A removal is not visited, but takes a
-        // mesh's Transform only with its entity, whose MeshRenderer goes too. A skin is placed by its joints, which are anyone.
         if (why == 0 && registry.countOf<ecs::MeshSkin>() > 0) {
             if (registry.anyChangedSince<ecs::Transform>(since)) why |= 32u;
         } else if (why == 0) {
-            if (registry.anyChangedSinceWhere<ecs::Transform>(since, [&](Entity e) { return registry.has<ecs::MeshRenderer>(e); })) {
+            constexpr u32 kRecentLooks = 8;
+            registry.anyChangedSinceWhere<ecs::Transform>(since, [&](Entity e) {
+                if (!registry.has<ecs::MeshRenderer>(e)) return false;
                 why |= 64u;
-            }
+                const u32 index = e.index();
+                if (index >= cast_changed_at_.size()) cast_changed_at_.resize(static_cast<usize>(index) + 1, 0);
+                const u64 seen = cast_changed_at_[index];
+                const bool recent = static_cast<u32>(seen >> 32) == e.id() && cast_look_ - static_cast<u32>(seen) <= kRecentLooks;
+                cast_changed_at_[index] = (static_cast<u64>(e.id()) << 32) | cast_look_;
+                if (isMover(e)) return false;
+                heldMoved = true;
+                if (recent) addMover(e);
+                return false;
+            });
         }
     }
+    if ((why & 63u) || heldMoved) ++cast_held_serial_;
+    if (!movers_.empty() && cast_look_ % 60 == 0 && dropStillMovers()) ++cast_held_serial_;
     if (registry.countOf<ecs::LODGroup>() > 0) why |= 128u;
     ES_PROFILE_COUNTER("render.mesh.castChanged", why);
+    ES_PROFILE_COUNTER("render.mesh.castMovers", static_cast<u32>(movers_.size()));
     if (why & 127u) ++cast_serial_;
     cast_registry_ = registry.identity();
     cast_activity_ = registry.activityEpoch();
     cast_tick_ = now;
-    // A group casts the level the camera settled on in its last frames, which moves with no write at all.
+    cast_held_vouched_ = false;
     if (registry.countOf<ecs::LODGroup>() > 0) return false;
 
     u64 h = hash::kFnv64Offset;
     const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
-    mix(cast_serial_);
     mix(registry.identity());
     mix(ctx.materials ? ctx.materials->revision() : 0);
     mix(ctx.materials ? ctx.materials->builtVariantCount() : 0);
@@ -646,11 +696,12 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     u64 bits[3];
     std::memcpy(bits, &origin, sizeof(bits));
     mix(bits[0]); mix(bits[1]); mix(bits[2]);
-    // Distance-limited placements measure from the scene camera, in a shadow map too.
     u32 eye[3];
     std::memcpy(eye, &ctx.view_eye, sizeof(eye));
     mix(ctx.has_view_eye ? (static_cast<u64>(eye[0]) << 32 | eye[1]) ^ (static_cast<u64>(eye[2]) << 16) : 0u);
-    key = h;
+    key = hash::combine(h, cast_serial_);
+    cast_held_key_ = hash::combine(hash::combine(h, 0x48454c44ull), cast_held_serial_);
+    cast_held_vouched_ = true;
     return true;
 }
 
@@ -668,24 +719,68 @@ void MeshPlugin::deriveProxy(RenderCollectContext& collect, MeshProxy& proxy, En
     proxy.materialStore = ctx.materials ? ctx.materials->revision() : 0;
     proxy.material = mesh.material != 0 && ctx.materials ? ctx.materials->find(mesh.material) : nullptr;
     proxy.materialRevision = proxy.material ? proxy.material->revision : 0;
-    // A parallax shifts the mesh toward the camera's centre, which is the view's to say.
-    proxy.kept = present == 0 && proxy.resident != nullptr && mesh.parallax == glm::vec2(1.0f);
+    const ecs::MeshInstances* set = present == 2u ? collect.registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
+    proxy.kept = (present == 0 || set != nullptr) && proxy.resident != nullptr && mesh.parallax == glm::vec2(1.0f);
     if (!proxy.kept) return;
-    // What collect() derives for such a draw, the same way: anything else and a kept draw stands somewhere a fresh one would not.
     transform.ensureDecomposed();
     proxy.position = rebased(transform.worldPosition);
     proxy.rotation = transform.worldRotation;
     proxy.scale = transform.worldScale;
     proxy.bend = proxy.material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
     proxy.depthTested = mesh.opaque || (proxy.material && proxy.material->depthTest);
-    const glm::vec3 padding(proxy.bend);
-    orientedWorldAabb(proxy.position, proxy.rotation, proxy.scale, proxy.resident->localMin - padding,
-                      proxy.resident->localMax + padding, proxy.boxCentre, proxy.boxHalf);
     proxy.model = glm::translate(glm::mat4(1.0f), proxy.position) * glm::mat4_cast(proxy.rotation)
                 * glm::scale(glm::mat4(1.0f), proxy.scale);
     proxy.normalRows = glm::transpose(glm::inverse(glm::mat3(proxy.model)));
     proxy.facts = meshFactsFromEntity(ctx, collect.registry, entity, mesh, proxy.resident, warned_bones_);
     proxy.facts.normalTextureId = 0;
+    if (!set) {
+        const glm::vec3 padding(proxy.bend);
+        orientedWorldAabb(proxy.position, proxy.rotation, proxy.scale, proxy.resident->localMin - padding,
+                          proxy.resident->localMax + padding, proxy.boxCentre, proxy.boxHalf);
+        return;
+    }
+    proxy.placed = true;
+    proxy.coarse = placementCoarseMesh(ctx.resources, *proxy.resident, *set);
+    proxy.coarseRevision = proxy.coarse ? proxy.coarse->revision : 0;
+    glm::vec3 lo, hi;
+    meshLocalBounds(*proxy.resident, proxy.coarse, proxy.bend, lo, hi);
+    const f32 placementRadius = placement_bounds::radius(lo, hi, 0.0f);
+    const glm::vec3 localCentre = (lo + hi) * 0.5f;
+    const glm::vec3 localHalf = (hi - lo) * 0.5f;
+    const glm::vec3 reach(placementRadius * set->maxScale);
+    orientedWorldAabb(proxy.position, proxy.rotation, proxy.scale, set->originMin - reach, set->originMax + reach,
+                      proxy.boxCentre, proxy.boxHalf);
+    const glm::mat4& entityModel = proxy.model;
+    const glm::mat3 entityLinear(entityModel);
+    const u32 count = static_cast<u32>(set->transforms.size() / 16);
+    proxy.instances.resize(count);
+    proxy.records.assign(static_cast<usize>(count) * MESH_INSTANCE_STRIDE, 0);
+    for (u32 i = 0; i < count; ++i) {
+        const f32* r = set->transforms.data() + static_cast<usize>(i) * 16;
+        PlacedInstance& inst = proxy.instances[i];
+        inst.at = glm::vec3(entityModel * glm::vec4(r[3], r[7], r[11], 1.0f));
+        placement_bounds::transformedBox(entityLinear, r, inst.at, localCentre, localHalf, inst.centre, inst.half);
+        inst.radius = glm::length(inst.half);
+        inst.grow = std::sqrt(std::max({r[0] * r[0] + r[4] * r[4] + r[8] * r[8], r[1] * r[1] + r[5] * r[5] + r[9] * r[9],
+                                        r[2] * r[2] + r[6] * r[6] + r[10] * r[10]}));
+        u8* dst = proxy.records.data() + static_cast<usize>(i) * MESH_INSTANCE_STRIDE;
+        glm::mat4 placed(1.0f);
+        placed[0] = {r[0], r[4], r[8], 0.0f};
+        placed[1] = {r[1], r[5], r[9], 0.0f};
+        placed[2] = {r[2], r[6], r[10], 0.0f};
+        placed[3] = {r[3], r[7], r[11], 1.0f};
+        const glm::mat4 model = entityModel * placed;
+        for (u32 row = 0; row < 3; ++row) {
+            const glm::vec4 m{model[0][row], model[1][row], model[2][row], model[3][row]};
+            std::memcpy(dst + (MESH_INSTANCE_TEXEL_MODEL + row) * 16, &m, 16);
+        }
+        const glm::vec4 tint = mesh.color * glm::vec4(r[12], r[13], r[14], r[15]);
+        std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &tint, 16);
+        if (proxy.resident->hasNormals) {
+            const glm::mat3 nrm = glm::transpose(glm::inverse(glm::mat3(model)));
+            for (u32 row = 0; row < 3; ++row) std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &nrm[row][0], 12);
+        }
+    }
 }
 
 MeshPlugin::MeshProxy* MeshPlugin::retain(RenderCollectContext& collect, Entity entity, const ecs::MeshRenderer& mesh,
@@ -705,8 +800,13 @@ MeshPlugin::MeshProxy* MeshPlugin::retain(RenderCollectContext& collect, Entity 
     bool stale = proxy.entity != entity || proxy.epoch != proxy_epoch_
               || resident != proxy.resident || (resident && resident->revision != proxy.meshRevision)
               || registry.changedSince<ecs::Transform>(entity, proxy.builtAt)
-              || registry.changedSince<ecs::MeshRenderer>(entity, proxy.builtAt);
-    // The store moved: whether THIS draw's material is the record it was, at the revision it was, is one lookup.
+              || registry.changedSince<ecs::MeshRenderer>(entity, proxy.builtAt)
+              || (proxy.placed && registry.changedSince<ecs::MeshInstances>(entity, proxy.builtAt));
+    if (!stale && proxy.placed) {
+        const auto* set = registry.tryGet<ecs::MeshInstances>(entity);
+        const Mesh* coarse = set ? placementCoarseMesh(ctx.resources, *resident, *set) : nullptr;
+        stale = !set || coarse != proxy.coarse || (coarse && coarse->revision != proxy.coarseRevision);
+    }
     const u64 store = ctx.materials ? ctx.materials->revision() : 0;
     if (!stale && store != proxy.materialStore) {
         const MaterialRecord* material = mesh.material != 0 && ctx.materials ? ctx.materials->find(mesh.material) : nullptr;
@@ -742,7 +842,11 @@ MeshPlugin::MeshProxy* MeshPlugin::retain(RenderCollectContext& collect, Entity 
                 && fresh.facts.hasNormals == proxy.facts.hasNormals && fresh.facts.lit == proxy.facts.lit
                 && fresh.facts.skinned == proxy.facts.skinned && fresh.facts.lightmapped == proxy.facts.lightmapped
                 && fresh.facts.tangents == proxy.facts.tangents && fresh.facts.opaque == proxy.facts.opaque
-                && fresh.facts.materialId == proxy.facts.materialId;
+                && fresh.facts.materialId == proxy.facts.materialId
+                && fresh.placed == proxy.placed && fresh.coarse == proxy.coarse && fresh.records == proxy.records
+                && fresh.instances.size() == proxy.instances.size()
+                && (fresh.instances.empty()
+                    || std::memcmp(fresh.instances.data(), proxy.instances.data(), fresh.instances.size() * sizeof(PlacedInstance)) == 0);
             if (!same) {
                 ++proxies_stale_total_;
                 if (!warned_stale_) {
@@ -938,6 +1042,64 @@ void emitPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect
     write(nearList, fine);
     if (coarse) write(farList, *coarse);
 }
+
+template <typename Instance, typename Emit>
+void emitKeptPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect, const ecs::MeshInstances& set,
+                        const std::vector<Instance>& instances, const std::vector<u8>& cached, const glm::vec3& scale,
+                        const Mesh& fine, const Mesh* coarse, u32& records, PlacementReach& reach, Emit&& emit) {
+    static thread_local std::vector<u32> nearList, farList;
+    nearList.clear();
+    farList.clear();
+    const bool eyeKnown = ctx.has_view_eye;
+    const u32 count = static_cast<u32>(instances.size());
+    u32 tooFar = 0, outside = 0;
+    const bool measuring = eyeKnown && ctx.purpose == RenderPurpose::Scene;
+    const f32 entityGrow = std::max({std::abs(scale.x), std::abs(scale.y), std::abs(scale.z)});
+    reach = {};
+    for (u32 i = 0; i < count; ++i) {
+        const Instance& inst = instances[i];
+        f32 distance = 0.0f;
+        if (eyeKnown) {
+            distance = glm::distance(inst.at, ctx.view_eye);
+            const f32 centreDistance = glm::distance(inst.centre, ctx.view_eye);
+            if (set.drawDistance > 0.0f && centreDistance - inst.radius > set.drawDistance) { ++tooFar; continue; }
+            if (centreDistance + inst.radius < set.minDistance) continue;
+            if (ctx.purpose == RenderPurpose::ShadowDepth && set.shadowDistance > 0.0f && centreDistance - inst.radius > set.shadowDistance) continue;
+        }
+        if (!collect.visible(inst.centre, inst.half, false)) { ++outside; continue; }
+        if (ctx.purpose == RenderPurpose::ShadowDepth && !collect.castsIntoView(inst.centre, inst.radius)) { ++outside; continue; }
+        const bool far = coarse && eyeKnown && set.lodDistance > 0.0f && distance > set.lodDistance;
+        (far ? farList : nearList).push_back(i);
+        if (measuring) {
+            const f32 gap = std::max(glm::distance(inst.centre, ctx.view_eye) - inst.radius, 1e-3f);
+            f32& best = far ? reach.coarse : reach.fine;
+            best = std::max(best, entityGrow * inst.grow / gap);
+        }
+    }
+    ES_PROFILE_COUNTER("render.placements.seen", count);
+    ES_PROFILE_COUNTER("render.placements.tooFar", tooFar);
+    ES_PROFILE_COUNTER("render.placements.outside", outside);
+    ES_PROFILE_COUNTER("render.placements.coarse", farList.size());
+    ES_PROFILE_COUNTER("render.placements.eye", eyeKnown ? 1 : 0);
+    const u32 room = records < MESH_INSTANCE_MAX_RECORDS ? MESH_INSTANCE_MAX_RECORDS - records : 0;
+    if (nearList.size() > room) nearList.resize(room);
+    if (farList.size() > room - nearList.size()) farList.resize(room - nearList.size());
+    records += static_cast<u32>(nearList.size() + farList.size());
+
+    auto& buffers = collect.buffer_pool;
+    const auto write = [&](const std::vector<u32>& list, const Mesh& geo) {
+        if (list.empty()) return;
+        const u32 offset = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE * static_cast<u32>(list.size()));
+        auto* dst = buffers.vertexData(LayoutId::MeshInstance) + offset;
+        for (const u32 i : list) {
+            std::memcpy(dst, cached.data() + static_cast<usize>(i) * MESH_INSTANCE_STRIDE, MESH_INSTANCE_STRIDE);
+            dst += MESH_INSTANCE_STRIDE;
+        }
+        emit(geo, offset, static_cast<u32>(list.size()));
+    };
+    write(nearList, fine);
+    if (coarse) write(farList, *coarse);
+}
 }  // namespace
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -976,6 +1138,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     proxies_kept_ = proxies_built_ = 0;
     if (keeping) {
         if (renderOrigin() != proxy_origin_ || ctx.materials != proxy_materials_ || registry.identity() != proxy_registry_) {
+            if (registry.identity() != proxy_registry_) {
+                proxies_.clear();
+                proxy_slot_.clear();
+            }
             ++proxy_epoch_;
             proxy_origin_ = renderOrigin();
             proxy_materials_ = ctx.materials;
@@ -1008,7 +1174,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         mark = now;
     };
 
+    const bool split = collect_ctx.casters != CasterSplit::All;
+    const bool wantMovers = collect_ctx.casters == CasterSplit::Movers;
     for (auto entity : meshView) {
+        if (split && isMover(entity) != wantMovers) continue;
         ++walked;
         const auto& authored = meshView.get<ecs::MeshRenderer>(entity);
         const ecs::MeshRenderer* described = &authored;
@@ -1038,6 +1207,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // The motion pass draws what moved since the view's last frame, and only what is opaque. A kept draw that did not
             // is passed over here rather than after its cull, which is all the work the walk would have done to reach the same answer.
             if (motion) {
+                if (kept->placed) continue;
                 const Pose* pose = poseOf(ctx, entity, kept, false);
                 if (!mesh.opaque || !pose || pose->frame != ctx.motion_frame || pose->previous == pose->current) continue;
             }
@@ -1072,7 +1242,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // shader that writes colour, not the depth this pass is here to collect.
         if (depthPass && !resident) continue;
         // Many placements of one mesh, drawn as instances of it. What is placed does not move on its own, so the motion pass has nothing to say.
-        const ecs::MeshInstances* placements = resident && !kept ? registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
+        const ecs::MeshInstances* placements = resident && (!kept || kept->placed) ? registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
         if (placements && (placements->transforms.empty() || motion)) continue;
         // What light passes through (water) stands in no light's way. Rain's way is another matter: a see-through surface
         // set to cast no shadow (glass) still keeps rain off what is under it, so the rain's cover map takes it. What is
@@ -1125,10 +1295,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const f32 bend = kept ? kept->bend : material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
         const bool depthTested = kept ? kept->depthTested : mesh.opaque || (material && material->depthTest);
 
-        const Mesh* placementCoarse = placements ? placementCoarseMesh(ctx.resources, *resident, *placements) : nullptr;
+        const Mesh* placementCoarse = !placements ? nullptr : kept ? kept->coarse : placementCoarseMesh(ctx.resources, *resident, *placements);
         f32 placementRadius = 0.0f;
         glm::vec3 placementCentre(0.0f), placementHalf(0.0f);
-        if (placements) {
+        if (placements && !kept) {
             glm::vec3 lo, hi;
             meshLocalBounds(*resident, placementCoarse, bend, lo, hi);
             placementRadius = placement_bounds::radius(lo, hi, 0.0f);
@@ -1341,9 +1511,16 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // A skinned motion draw carries last frame's palette in the records right behind its own: three
                 // texels a bone from texel 8 on, which the shader reaches by index like any other texel.
                 const u32 paletteRecords = motion && skinned ? (3 * poseSize + MESH_INSTANCE_TEXELS - 1) / MESH_INSTANCE_TEXELS : 0;
-                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance,
-                                                       MESH_INSTANCE_STRIDE * (1 + paletteRecords));
-                auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
+                static thread_local std::vector<u8> unplaced;
+                u32 instOffset = 0;
+                u8* dst = nullptr;
+                if (placements) {
+                    unplaced.resize(static_cast<usize>(MESH_INSTANCE_STRIDE) * (1 + paletteRecords));
+                    dst = unplaced.data();
+                } else {
+                    instOffset = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE * (1 + paletteRecords));
+                    dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
+                }
                 // The record is one fixed shape, so every texel this variant
                 // does not write still has to say something. Zero is the answer
                 // each of them reads as absent.
@@ -1536,12 +1713,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                 };
                 if (placements) {
-                    // The record written for the entity above is not drawn: the instances are, each with a record of its own.
                     PlacementReach reach;
-                    emitPlacements(ctx, collect_ctx, *placements, mesh, position, rotation, scale, *resident, placementCoarse,
-                                   placementCentre, placementHalf, instanceRecords, reach, emit);
-                    // A forest is placements: its textures are asked for by the nearest tree drawn, or the streamer would
-                    // never hear of them and they would stay as large as their files however far the trees stand.
+                    if (kept) {
+                        emitKeptPlacements(ctx, collect_ctx, *placements, kept->instances, kept->records, scale, *resident,
+                                           placementCoarse, instanceRecords, reach, emit);
+                    } else {
+                        emitPlacements(ctx, collect_ctx, *placements, mesh, position, rotation, scale, *resident, placementCoarse,
+                                       placementCentre, placementHalf, instanceRecords, reach, emit);
+                    }
                     const f32 fineSide = textureSideFor(ctx, reach.fine, resident->uvDensity);
                     const f32 coarseSide = placementCoarse ? textureSideFor(ctx, reach.coarse, placementCoarse->uvDensity) : 0.0f;
                     wantTexturesOf(ctx, mesh, material, std::max(fineSide, coarseSide));

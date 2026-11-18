@@ -38,6 +38,8 @@ public:
     bool castsShadows() const override { return true; }
     bool drawsMotion() const override { return true; }
     bool castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u64& key) override;
+    bool castHeldInputs(u64& key) const override;
+    u32 castMoverCount() const override { return static_cast<u32>(movers_.size()); }
     void collect(RenderCollectContext& ctx) override;
     RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
                                 const Entity* entities, u32 count, bool shadowPasses) override;
@@ -94,11 +96,14 @@ private:
      *        material store changed (their revisions), a component that rules keeping out added or removed, or the render
      *        origin moved.
      *
-     * @details Only what draws through resident geometry with nothing that turns, picks or poses it per view or per frame
-     *          (a billboard, placements, a level-of-detail group, an impostor, bones, shapes, parallax) is kept; the rest is
-     *          derived afresh every walk, as before. What the frame decides (textures by id, the probe a box reads, the
-     *          reflection, the program asked for) is still asked every walk.
      */
+    struct PlacedInstance {
+        glm::vec3 at{0.0f};
+        glm::vec3 centre{0.0f};
+        glm::vec3 half{0.0f};
+        f32 radius = 0.0f;
+        f32 grow = 0.0f;
+    };
     struct MeshProxy {
         Entity entity = INVALID_ENTITY;
         /// The registry tick the proxy was derived at (Registry::beginChangeRead): a stamp after it is a write it has not seen.
@@ -132,6 +137,11 @@ private:
         Pose* pose = nullptr;
         u64 poseKey = 0;
         u32 poseGeneration = 0;
+        bool placed = false;
+        const Mesh* coarse = nullptr;
+        u64 coarseRevision = 0;
+        std::vector<PlacedInstance> instances;
+        std::vector<u8> records;
     };
     /// Moves whenever poses_ erases a node, so a pose a proxy points at is known to be still there.
     u32 pose_generation_ = 0;
@@ -163,6 +173,20 @@ private:
     u32 cast_tick_ = 0;
     u32 cast_activity_ = 0;
     u64 cast_serial_ = 0;
+    u64 cast_held_serial_ = 0;
+    u64 cast_held_key_ = 0;
+    bool cast_held_vouched_ = false;
+    u32 cast_look_ = 0;
+    std::vector<u64> cast_changed_at_;
+    std::vector<u32> mover_at_;
+    std::vector<Entity> movers_;
+    bool isMover(Entity entity) const {
+        const u32 index = entity.index();
+        return index < mover_at_.size() && mover_at_[index] != 0 && movers_[mover_at_[index] - 1] == entity;
+    }
+    void addMover(Entity entity);
+    bool dropStillMovers();
+    void clearMovers();
     /// Programs this plugin has built: a caster asked for one not built before is drawn by another program than last time.
     u32 programs_built_ = 0;
     bool warned_material_ = false;  ///< A material on resident geometry is said once.

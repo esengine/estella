@@ -492,6 +492,21 @@ public:
      */
     const ShadowPlanReport& shadowPlan() const { return shadow_plan_; }
 
+    struct CasterCacheStats {
+        u32 shadowHeldBuilds = 0;
+        u32 shadowMoverCollects = 0;
+        u32 shadowListsKept = 0;
+        u32 shadowHeldStale = 0;
+        u32 coverBuilds = 0;
+        u32 coverMoverCollects = 0;
+        u32 coverDraws = 0;
+        u32 coverKept = 0;
+    };
+    CasterCacheStats casterCacheStats() const {
+        return {shadow_held_builds_, shadow_mover_collects_, shadow_lists_kept_, shadow_held_stale_,
+                cover_builds_, cover_mover_collects_, cover_draws_total_, cover_kept_total_};
+    }
+
     /**
      * @brief Which lights the cap turned away last frame, and why.
      *
@@ -936,7 +951,10 @@ private:
     /// (shadow_drawn_key_): the squares, their views, the draws, their records and their materials. False when
     /// something in them can change without the number changing (a material that moves its vertices, records a
     /// compute pass wrote), and the atlas must be drawn whatever the number says.
-    bool collectShadowViews(ecs::Registry& registry, u64& key);
+    bool collectShadowViews(ecs::Registry& registry, u64 inputs, bool vouched, u64 heldInputs, bool heldVouched, u64& key);
+    void collectShadowLists(ecs::Registry& registry, CasterSplit split, TransientBufferPool& pool, std::vector<DrawList>& lists,
+                            u32& culled);
+    u32 shadowViewDraws(usize vi) const;
     /// The shadow pass's body: the lists collectShadowViews made, drawn. The graph has bound and cleared the atlas.
     void executeShadowPass();
 
@@ -1230,6 +1248,28 @@ private:
     void executeCoverPass();
     TransientBufferPool cover_pool_;
     DrawList cover_list_;
+    TransientBufferPool cover_mover_pool_{device_};
+    DrawList cover_mover_list_;
+    u64 cover_held_hash_ = 0;
+    bool cover_held_trusted_ = false;
+    u64 cover_held_inputs_ = 0;
+    bool cover_held_valid_ = false;
+    bool cover_held_uploaded_ = false;
+    bool cover_movers_uploaded_ = false;
+    u64 cover_lists_inputs_ = 0;
+    bool cover_lists_valid_ = false;
+    u64 cover_key_ = 0;
+    bool cover_trusted_ = false;
+    u64 cover_drawn_key_ = 0;
+    bool cover_drawn_valid_ = false;
+    u32 cover_drawn_target_ = 0;
+    u32 cover_builds_ = 0;
+    u32 cover_mover_collects_ = 0;
+    u32 cover_draws_total_ = 0;
+    u32 cover_kept_total_ = 0;
+    bool cover_wanted_ = false;
+    bool coverInputs(ecs::Registry& registry, u64& key, u64& heldKey, bool& heldVouched);
+    u32 coverCommandCount() const { return cover_list_.commandCount() + cover_mover_list_.commandCount(); }
     BufferHandle cover_frame_ubo_ = BufferHandle::Invalid;
     glm::mat4 cover_view_projection_{1.0f};
     /// The shift the scene was drawn with, so a pass that borrows the frame's constants can hand them back as they were.
@@ -1263,7 +1303,24 @@ private:
     u32 shadow_inputs_stale_ = 0;
     bool warned_shadow_inputs_ = false;
     /** @brief One number for what the shadow collect reads, or false when a caster cannot say. */
-    bool shadowInputs(ecs::Registry& registry, u64& key);
+    bool shadowInputs(ecs::Registry& registry, u64& key, u64& heldKey, bool& heldVouched);
+    TransientBufferPool shadow_mover_pool_{device_};
+    std::vector<DrawList> shadow_mover_lists_;
+    std::vector<u64> shadow_held_hash_;
+    std::vector<u8> shadow_held_trusted_;
+    u32 shadow_held_culled_ = 0;
+    u64 shadow_held_inputs_ = 0;
+    bool shadow_held_valid_ = false;
+    bool shadow_held_uploaded_ = false;
+    u64 shadow_lists_inputs_ = 0;
+    bool shadow_lists_valid_ = false;
+    u64 shadow_lists_key_ = 0;
+    bool shadow_lists_trusted_ = false;
+    u32 shadow_held_builds_ = 0;
+    u32 shadow_mover_collects_ = 0;
+    u32 shadow_lists_kept_ = 0;
+    u32 shadow_held_stale_ = 0;
+    bool warned_shadow_held_ = false;
     u32 shadow_casters_culled_ = 0;
     /// The maps and draws the atlas holds, from the frame that last drew it (render.shadow.heldTiles / heldDraws).
     u32 shadow_held_tiles_ = 0;

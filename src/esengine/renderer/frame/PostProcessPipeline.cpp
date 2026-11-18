@@ -581,6 +581,8 @@ rg::ResourceId PostProcessPipeline::declareCover(u32 size) {
             ES_LOG_ERROR("PostProcessPipeline: Failed to create the rain cover target");
             return rg::kNoResource;
         }
+        static u32 nextCoverSerial = 0;
+        cover_serial_ = ++nextCoverSerial;
     }
     cover_resource_ = graph_->importTarget(cover_fbo_->handle(), size, size, /*output=*/false,
                                            cover_fbo_->getColorAttachment());

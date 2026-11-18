@@ -104,14 +104,43 @@ void TransientBufferPool::uploadInstanceRows(Stream& s, u32& grows, u32& writes)
         desc.mipmaps = false;
         s.texture = device_.createTexture(desc, GfxContent::transient(), s.vertex_staging.data());
         s.texture_rows = s.texture == TextureHandle::Invalid ? 0 : want;
+        s.texture_mirror.assign(s.vertex_staging.begin(), s.vertex_staging.begin() + static_cast<std::ptrdiff_t>(static_cast<usize>(s.texture_rows) * rowBytes));
+        s.mirror_rows = s.texture_rows;
+        s.mirror_generation = device_.deviceGeneration();
         ++grows;
+        if (FrameProfiler::get().enabled()) FrameProfiler::get().add("render.upload.recordRows", rows);
         return;
     }
-    // No flip: this is a record store addressed by index, not an image, so row 0
-    // has to stay the row the writer wrote first.
-    device_.updateTexture(s.texture, 0, 0, MESH_INSTANCE_TEXTURE_WIDTH, rows,
-                          s.vertex_staging.data(), /*flipY=*/false);
+    if (s.mirror_generation != device_.deviceGeneration()) {
+        s.mirror_rows = 0;
+        s.mirror_generation = device_.deviceGeneration();
+    }
+    if (s.texture_mirror.size() < static_cast<usize>(s.texture_rows) * rowBytes) {
+        s.texture_mirror.resize(static_cast<usize>(s.texture_rows) * rowBytes);
+    }
+    const u8* staged = s.vertex_staging.data();
+    u8* held = s.texture_mirror.data();
+    const auto differs = [&](u32 row) {
+        return row >= s.mirror_rows || std::memcmp(staged + static_cast<usize>(row) * rowBytes, held + static_cast<usize>(row) * rowBytes, rowBytes) != 0;
+    };
+    u32 first = 0;
+    while (first < rows && !differs(first)) ++first;
+    if (first == rows) {
+        if (FrameProfiler::get().enabled()) FrameProfiler::get().add("render.upload.recordRowsKept", rows);
+        return;
+    }
+    u32 last = rows - 1;
+    while (last > first && !differs(last)) --last;
+    const u32 band = last - first + 1;
+    device_.updateTexture(s.texture, 0, static_cast<i32>(first), MESH_INSTANCE_TEXTURE_WIDTH, band,
+                          staged + static_cast<usize>(first) * rowBytes, /*flipY=*/false);
+    std::memcpy(held + static_cast<usize>(first) * rowBytes, staged + static_cast<usize>(first) * rowBytes, static_cast<usize>(band) * rowBytes);
+    s.mirror_rows = std::max(s.mirror_rows, last + 1);
     ++writes;
+    if (FrameProfiler::get().enabled()) {
+        FrameProfiler::get().add("render.upload.recordRows", band);
+        FrameProfiler::get().add("render.upload.recordRowsKept", rows - band);
+    }
 }
 
 u32 TransientBufferPool::allocVertices(LayoutId layout, u32 byteSize) {

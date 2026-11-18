@@ -243,6 +243,8 @@ struct RenderPrewarmResult {
     }
 };
 
+enum class CasterSplit : u8 { All, Held, Movers };
+
 struct RenderCollectContext {
     ecs::Registry& registry;
     const Frustum& frustum;
@@ -285,6 +287,7 @@ struct RenderCollectContext {
      */
     const OcclusionView* occlusion = nullptr;
     Entity excluded = INVALID_ENTITY;
+    CasterSplit casters = CasterSplit::All;
 
     /**
      * @brief A sun's shadow map only: the camera's frustum, which is what its shadows are worth drawing for, and the way the rays travel.
@@ -518,6 +521,8 @@ public:
      *         shadow collect; a plugin may keep what it needs between calls.
      */
     virtual bool castInputs(RenderFrameContext& /*ctx*/, ecs::Registry& /*registry*/, u64& /*key*/) { return false; }
+    virtual bool castHeldInputs(u64& /*key*/) const { return false; }
+    virtual u32 castMoverCount() const { return 0; }
     /// Whether the Motion collect asks this plugin: what it draws can move by itself, and the picture
     /// after it needs to know by how much.
     virtual bool drawsMotion() const { return false; }

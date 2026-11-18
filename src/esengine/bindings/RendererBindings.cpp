@@ -366,6 +366,7 @@ void meshInstances_set(ecs::Registry& registry, u32 entity, uintptr_t dataPtr, u
         return;
     }
     constexpr u32 kFloats = 16;
+    registry.markChanged<ecs::MeshInstances>(ent);
     if (dataPtr == 0 || count == 0) {
         set->transforms.clear();
         set->originMin = set->originMax = glm::vec3(0.0f);
