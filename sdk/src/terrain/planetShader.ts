@@ -45,6 +45,8 @@ const PLANET = `#pragma shader "Planet"
 #pragma param u_tint1 color default(0.45,0.36,0.24,1)
 #pragma param u_tint2 color default(0.93,0.95,0.98,1)
 #pragma param u_tint3 color default(0.4,0.38,0.36,1)
+// Whether the layers' pictures are multiplied by those colours (1) or drawn as they are (0).
+#pragma param u_tintLayers float default(0) range(0,1)
 // The ground's own wander in brightness, in metres a feature, and how strong it is.
 #pragma param u_macroScale float default(90) range(1,100000) ui(slider)
 #pragma param u_macroVariation float default(0.35) range(0,1) ui(slider)
@@ -268,7 +270,7 @@ void main() {
         axis *= step(0.04 * dot(axis, vec3(1.0)), axis);
         axis /= max(dot(axis, vec3(1.0)), 1e-4);
         TnSurface layers = tnLayers(paint, vec4(0.0), rel, dFdx(rel), dFdy(rel), N, axis, tnNearFar(length(rel - u_terrainEye.xyz)));
-        albedo = layers.albedo;
+        albedo = mix(layers.albedo, layers.albedo * albedo, u_tintLayers);
         N = normalize(N + layers.slope);
         open = layers.mask.r;
     }
@@ -354,7 +356,7 @@ ${PACK_NORMAL_WGSL}
         axis = axis * step(vec3f(0.04 * dot(axis, vec3f(1.0))), axis);
         axis = axis / max(dot(axis, vec3f(1.0)), 1e-4);
         let layers = tnLayers(paint, vec4f(0.0), rel, dpx, dpy, N0, axis, tnNearFar(length(rel - mc.u_terrainEye.xyz)));
-        albedo = layers.albedo;
+        albedo = mix(layers.albedo, layers.albedo * albedo, mc.u_tintLayers);
         N = normalize(N0 + layers.slope);
         open = layers.mask.r;
     }

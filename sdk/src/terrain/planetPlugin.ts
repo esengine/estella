@@ -78,6 +78,11 @@ export interface PlanetData {
     gravity: number;
     /** The terrain layers (`.esterrainlayer` files, up to four) the ground is drawn with, in the order the paint weighs them. Empty draws the four layer colours. */
     layers: string[];
+    /**
+     * Whether the layers are tinted by the four layer colours: grey pictures of grain, each in the colour this planet gives that layer, so a game with
+     * many worlds keeps one set of pictures. False draws the layers in their own colours.
+     */
+    tintLayers: boolean;
 }
 
 const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
@@ -90,7 +95,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
 export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Planet', {
     radius: 4000, provider: '', world: '', generatorVersion: 1, seed: 1, cellSize: 1.5, detail: 1.5,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
-    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, layers: [] as string[],
+    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, layers: [] as string[], tintLayers: false,
 }, {
     fields: {
         radius: { min: 1, category: 'Shape', tooltip: 'The planet\'s radius in metres. The planet stands at its entity, unrotated and unscaled.' },
@@ -112,6 +117,7 @@ export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Pla
         seaOpacity: { min: 0, max: 1, step: 0.01, category: 'Sea', tooltip: 'How much of the sea there is over what is under it.' },
         gravity: { min: 0, category: 'Physics', tooltip: 'How hard the planet pulls bodies toward its centre, in metres a second squared at the surface (9.81 is the Earth\'s). Needs 3D physics; the world\'s own gravity is taken off the bodies it pulls.' },
         layers: { category: 'Layers', tooltip: 'The terrain layers (.esterrainlayer, up to four) the ground is drawn with, in the order the paint weighs them, each read on the planes of the world\'s axes. Empty draws the four layer colours.' },
+        tintLayers: { category: 'Layers', tooltip: 'Multiply the pictures of the layers by the four layer colours: for grey pictures of grain that take the colours of each planet. Off draws the layers in their own colours.' },
         collision: { category: 'Collision', tooltip: 'Whether 3D bodies and characters collide with the ground: the finest tiles round each of them are built as collision geometry.' },
         collisionDistance: { min: 1, category: 'Collision', tooltip: 'How far round each moving body and character the ground is built for collision, in metres.' },
         collisionLayer: { min: 0, max: 15, step: 1, category: 'Collision', advanced: true, tooltip: 'The collision layer the ground is in (0 to 15).' },
@@ -378,6 +384,7 @@ export class PlanetPlugin implements Plugin {
         set('u_terrainEye', { x: eye[0], y: eye[1], z: eye[2], w: 1 });
         const d = built.data;
         for (const [i, c] of [d.layerColor0, d.layerColor1, d.layerColor2, d.layerColor3].entries()) set(`u_tint${i}`, { x: c.r, y: c.g, z: c.b, w: c.a });
+        set('u_tintLayers', d.tintLayers ? 1 : 0);
         set('u_macroScale', d.macroScale);
         set('u_macroVariation', d.macroVariation);
         this.place(app, entity, built, drawn);
