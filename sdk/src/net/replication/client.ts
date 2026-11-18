@@ -155,6 +155,13 @@ export interface ReplicationClientOptions {
      * `'transfer'`, `transferTarget` says where).
      */
     dial?: (address: string) => ReliableOrderedTransport;
+    /**
+     * Ping the server every `intervalMs`; silent for `timeoutMs` and a link
+     * that can be reopened is closed, so `reconnect` redials it — a server
+     * that vanished without closing the socket is noticed. Default 5 s / 15 s
+     * over a platform socket, off otherwise; `false` turns it off.
+     */
+    heartbeat?: { intervalMs: number; timeoutMs: number } | false;
 }
 
 export interface ReplicationReconnectOptions {
@@ -230,6 +237,7 @@ export class ReplicationClient {
     private redialTimer_: ReturnType<typeof setTimeout> | null = null;
     private redialDelay_ = 0;
     private readonly dial_: ((address: string) => ReliableOrderedTransport) | null;
+    private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
     /** The ticket the next hello shows, while a transfer is under way. */
     private transferTicket_: string | undefined;
     private transferTarget_: { address: string; ticket: string } | undefined;
@@ -238,6 +246,7 @@ export class ReplicationClient {
         this.world_ = world;
         this.credentials_ = options.credentials;
         this.dial_ = options.dial ?? null;
+        this.heartbeat_ = options.heartbeat === false ? null : (options.heartbeat ?? { intervalMs: 5000, timeoutMs: 15000 });
         const r = options.reconnect;
         this.reconnect_ = r ? {
             minDelayMs: (r === true ? undefined : r.minDelayMs) ?? 500,
@@ -333,7 +342,11 @@ export class ReplicationClient {
 
     /** One hello over a fresh channel. Leaves the channel installed on success. */
     private async handshake_(transport: ReliableOrderedTransport, resuming = false): Promise<ReplHelloResponse> {
-        const channel = new NetChannel(transport);
+        const beat = this.heartbeat_ && isRedialable(transport) ? this.heartbeat_ : null;
+        const channel = new NetChannel(transport, beat ? {
+            // Closing the socket is what starts a redial; the channel only notices the silence.
+            heartbeat: { ...beat, onDead: () => { if (this.channel_ === channel) (transport as RedialableSocket).close(4001, 'heartbeat timeout'); } },
+        } : {});
         this.channel_ = channel;
 
         // Handlers first: the initial spawn batch may hit the wire before the

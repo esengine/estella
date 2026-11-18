@@ -20,6 +20,16 @@ export interface ServerWebSocketLike {
     on(event: 'message', listener: (data: unknown, isBinary: boolean) => void): unknown;
     send(data: string | ArrayBufferLike | ArrayBufferView): void;
     close?(code?: number, reason?: string): void;
+    /** Bytes accepted by `send` but not yet written to the network. */
+    readonly bufferedAmount?: number;
+}
+
+export interface WebSocketTransportOptions {
+    /**
+     * A client this far behind on reading is closed (1013, "client too slow")
+     * rather than buffered for without end. Default 4 MiB; 0 turns it off.
+     */
+    maxBufferedBytes?: number;
 }
 
 /** What `ws` keeps under its socket: the Node stream, which can hold writes. */
@@ -40,7 +50,8 @@ function streamOf(socket: ServerWebSocketLike): CorkableStream | null {
  * Wrap one accepted server-side WebSocket for `ReplicationServer.attachConnection`.
  * A WebSocket loses and reorders nothing, so the reliable-ordered claim is honest.
  */
-export function webSocketTransport(socket: ServerWebSocketLike): ReliableOrderedTransport {
+export function webSocketTransport(socket: ServerWebSocketLike, options: WebSocketTransportOptions = {}): ReliableOrderedTransport {
+    const maxBuffered = options.maxBufferedBytes ?? 4 * 1024 * 1024;
     const handlers = new Set<(data: string | ArrayBuffer) => void>();
     socket.on('message', (data, isBinary) => {
         // Binary frames are the delta stream and must reach the channel as an
@@ -50,7 +61,16 @@ export function webSocketTransport(socket: ServerWebSocketLike): ReliableOrdered
     });
     return {
         delivery: 'reliable-ordered',
-        send: (data) => socket.send(data),
+        send: (data) => {
+            // A reader that has fallen this far behind will not catch up: the
+            // server's memory is what it would cost to keep trying. Throwing
+            // makes the server detach it like any link that refuses a frame.
+            if (maxBuffered > 0 && (socket.bufferedAmount ?? 0) > maxBuffered) {
+                socket.close?.(1013, 'client too slow');
+                throw new Error('[net] client too slow: its send buffer is over the limit');
+            }
+            socket.send(data);
+        },
         close: (code, reason) => socket.close?.(code, reason),
         on: (_event, handler) => {
             handlers.add(handler);

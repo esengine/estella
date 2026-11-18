@@ -84,6 +84,13 @@ interface Connection {
     readyTick: number;
     /** Token bucket: bytes this connection may still be sent. */
     tokens: number;
+    /** A hello has been answered (or is being): a second one is refused. */
+    helloed: boolean;
+    /** Closes the link if no hello arrives in time; cleared once one does. */
+    helloTimer: ReturnType<typeof setTimeout> | null;
+    /** Limit violations in the current minute, and when that minute began. */
+    violations: number;
+    violationWindow: number;
 }
 
 /** One connection's standing with one entity under a budget. */
@@ -275,6 +282,32 @@ export interface ReplicationServerOptions {
      * once. Only meaningful with `authenticate`.
      */
     reconnectGraceMs?: number;
+    /**
+     * What a client may send. A frame over `maxFrameBytes` is dropped unread;
+     * control messages (the hello, input commands) beyond `messagesPerSecond`
+     * are refused; a connection that does either more than
+     * `maxViolationsPerMinute` times is kicked. Defaults: 256 KiB, 120 a
+     * second with a burst of 240, 100 a minute. `false` turns all of it off.
+     */
+    limits?: ReplicationLimits | false;
+    /**
+     * Ping each client every `intervalMs`; one silent for `timeoutMs` (no
+     * frame of any kind, pongs included) is closed and detached — what a
+     * half-open TCP link never says by itself. Default 5 s / 15 s; `false`
+     * turns it off.
+     */
+    heartbeat?: { intervalMs: number; timeoutMs: number } | false;
+    /** A connection that has not said hello by now is closed. Default 10 s; 0 turns it off. */
+    helloTimeoutMs?: number;
+    /** Most connections at once; past it a hello is refused as "server full, try again". Default unlimited. */
+    maxConnections?: number;
+}
+
+export interface ReplicationLimits {
+    maxFrameBytes?: number;
+    messagesPerSecond?: number;
+    burst?: number;
+    maxViolationsPerMinute?: number;
 }
 
 /** What the server answers a refused hello with, from whatever `authenticate` threw. */
@@ -296,6 +329,12 @@ export class ReplicationServer {
     private nextConnectionId_ = 1;
     private readonly authenticate_: ReplicationServerOptions['authenticate'] | null;
     private readonly graceMs_: number;
+    private readonly limits_: Required<ReplicationLimits> | null;
+    private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
+    private readonly helloTimeoutMs_: number;
+    private readonly maxConnections_: number;
+    /** @internal Connections closed for breaking the limits, going silent, or never saying hello. */
+    readonly closedFor = { abuse: 0, silence: 0, noHello: 0 };
     /** playerId -> the connection id that player holds. */
     private readonly idOfPlayer_ = new Map<string, number>();
     private readonly playerOfId_ = new Map<number, string>();
@@ -459,6 +498,16 @@ export class ReplicationServer {
         this.world_ = world;
         this.authenticate_ = options.authenticate ?? null;
         this.graceMs_ = Math.max(0, options.reconnectGraceMs ?? 30_000);
+        const l = options.limits;
+        this.limits_ = l === false ? null : {
+            maxFrameBytes: l?.maxFrameBytes ?? 256 * 1024,
+            messagesPerSecond: l?.messagesPerSecond ?? 120,
+            burst: l?.burst ?? 240,
+            maxViolationsPerMinute: l?.maxViolationsPerMinute ?? 100,
+        };
+        this.heartbeat_ = options.heartbeat === false ? null : (options.heartbeat ?? { intervalMs: 5000, timeoutMs: 15000 });
+        this.helloTimeoutMs_ = options.helloTimeoutMs ?? 10_000;
+        this.maxConnections_ = options.maxConnections ?? Infinity;
         this.offDespawn_ = world.onDespawn((e) => {
             // Sampling handles replicated despawns; this catches direct holes.
             this.netIds_.unregisterEntity(e);
@@ -758,16 +807,40 @@ export class ReplicationServer {
     /** Accept a transport (server-side end of one client link). */
     attachConnection(transport: ReliableOrderedTransport): number {
         const id = this.nextConnectionId_++;
-        const channel = new NetChannel(transport);
-        const conn: Connection = {
-            id, linkId: id, channel, transport, ready: false,
+        // The connection record exists before the channel, so the channel's
+        // callbacks can reach it.
+        const conn = {
+            id, linkId: id, transport, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
             interest: new Set(), provenance: null,
             sent: new Map(), readyTick: 0, tokens: 0,
-        };
+            helloed: false, helloTimer: null, violations: 0, violationWindow: Date.now(),
+        } as Omit<Connection, 'channel'> as Connection;
+        const limits = this.limits_;
+        conn.channel = new NetChannel(transport, {
+            ...(limits ? {
+                limits: {
+                    maxFrameBytes: limits.maxFrameBytes,
+                    messagesPerSecond: limits.messagesPerSecond,
+                    burst: limits.burst,
+                    onViolation: () => this.violation_(conn),
+                },
+            } : {}),
+            ...(this.heartbeat_ ? {
+                heartbeat: { ...this.heartbeat_, onDead: () => this.dropDead_(conn, 'silence', 4001, 'heartbeat timeout') },
+            } : {}),
+        });
+        const channel = conn.channel;
         this.connections_.set(id, conn);
         this.links_.set(id, conn);
+        if (this.helloTimeoutMs_ > 0) {
+            conn.helloTimer = setTimeout(() => {
+                conn.helloTimer = null;
+                if (!conn.helloed) this.dropDead_(conn, 'noHello', 4002, 'no hello');
+            }, this.helloTimeoutMs_);
+            (conn.helloTimer as { unref?: () => void }).unref?.();
+        }
 
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
             // Exactly-once starts here: a repeat or a rewind must not enter the
@@ -787,7 +860,13 @@ export class ReplicationServer {
         });
 
         channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, async (req) => {
-            if (req.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
+            if (conn.helloed) return { ok: false, error: 'already said hello', fatal: true };
+            conn.helloed = true;
+            if (conn.helloTimer) { clearTimeout(conn.helloTimer); conn.helloTimer = null; }
+            if (this.connections_.size > this.maxConnections_) {
+                return { ok: false, error: 'server full; try again shortly', fatal: false };
+            }
+            if (req?.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
                 return { ok: false, error: `protocol v${req.protocolVersion}, server runs v${REPLICATION_PROTOCOL_VERSION}` };
             }
             if (req.abiHash !== ABI_LAYOUT_HASH) {
@@ -850,8 +929,33 @@ export class ReplicationServer {
         }
     }
 
+    /** One more limit broken; past the per-minute budget the connection is kicked. */
+    private violation_(conn: Connection): void {
+        const limits = this.limits_!;
+        const now = Date.now();
+        if (now - conn.violationWindow > 60_000) { conn.violationWindow = now; conn.violations = 0; }
+        if (++conn.violations <= limits.maxViolationsPerMinute) return;
+        if (this.links_.get(conn.linkId) !== conn) return;
+        this.closedFor.abuse++;
+        log.warn('repl', `connection ${conn.id}: over the message limits, kicked`);
+        if (this.connections_.get(conn.id) === conn) this.kick(conn.id, 'over the message limits');
+        else this.dropLink_(conn);
+    }
+
+    /**
+     * A link that went silent or never said hello: closed and detached like any
+     * dropped link, so an authenticated player still gets their grace period.
+     */
+    private dropDead_(conn: Connection, why: 'silence' | 'noHello', code: number, reason: string): void {
+        if (this.links_.get(conn.linkId) !== conn) return;
+        this.closedFor[why]++;
+        try { conn.transport.close?.(code, reason); } catch { /* already gone */ }
+        this.detachConnection(conn.linkId);
+    }
+
     /** Take one link out of the live maps; who it belonged to is the caller's business. */
     private dropLink_(conn: Connection): void {
+        if (conn.helloTimer) { clearTimeout(conn.helloTimer); conn.helloTimer = null; }
         this.forgetViewer_(conn);
         conn.channel.dispose();
         if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);

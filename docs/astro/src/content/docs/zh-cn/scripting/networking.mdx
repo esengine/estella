@@ -135,6 +135,13 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 - **结构本身也会复制,不只是值**:给活着的实体加一个 replicated 组件会发送
   它的完整状态,移除则会从每个 ghost 上移除。spawn → 组件加入 → 更新 →
   组件移除 → despawn 全部过线,并按权威端发出的顺序抵达。
+- **服务器会自我防护**:每个连接默认都有限制。超过 256 KiB 的帧直接丢弃不解析;控制消息(hello、输入命令)
+  超过每秒 120 条(突发 240 条)会被拒绝;一分钟内违规超过 100 次的连接会被踢掉。10 秒内不说 hello 的连接会被
+  关闭,重复的 hello 会被拒绝,`maxConnections` 满了会以"服务器已满，请稍后再试"拒绝新连接。服务器每 5 秒 ping
+  一次,15 秒没有任何回应的链路会被关闭——半开的 TCP 连接自己什么都不会说——已认证的玩家照常获得断线宽限期。
+  `webSocketTransport` 会关闭读取落后超过 4 MiB 的客户端(`maxBufferedBytes`),而不是无限为它缓冲。这些都能在
+  `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })` 上调整,`limits` 或 `heartbeat` 传
+  `false` 即关闭。客户端也会 ping(平台 socket 上,5 秒 / 15 秒),所以没关连接就消失的服务器会被发现并重拨。
 - **链路必须可靠且有序**:客户端按到达顺序应用收到的东西,因为那就是权威端
   的顺序。`attachConnection` 和 `Net.connect` 收的是 `ReliableOrderedTransport`
   ——内置 socket 都是;自己写的 transport 声明 `delivery: 'reliable-ordered'`,

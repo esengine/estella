@@ -144,4 +144,25 @@ describe('reconnect over a real socket', () => {
         expect(refused.state).toBe('closed');
         ana.socket.close();
     });
+
+    it('notices a server that went quiet without closing, and redials', async () => {
+        const app = App.new();
+        app.addPlugin(replicationPlugin);
+        const socket = new GameSocket({ url });
+        socket.connect();
+        const client = await app.getResource(Net).connect(socket, {
+            interpolationDelayTicks: 0, credentials: { token: 'ana' },
+            reconnect: { minDelayMs: 20, maxDelayMs: 100 },
+            heartbeat: { intervalMs: 20, timeoutMs: 150 },
+        });
+        expect(client.state).toBe('ready');
+        // Half-open: the server neither reads nor sends on this link any more,
+        // and the socket stays open — nothing at the TCP level says so.
+        clearInterval(ticking);
+        (sockets[0] as unknown as { _socket: { pause(): void } })._socket.pause();
+        expect(await until(() => client.state === 'reconnecting', [app], 2000)).toBe(true);
+        expect(await until(() => client.state === 'ready', [app], 2000)).toBe(true);
+        expect(sockets).toHaveLength(2);
+        client.disconnect();
+    });
 });

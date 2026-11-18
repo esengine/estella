@@ -58,6 +58,7 @@ export {
     type ReplicationPriorityView,
     type ReplicationHelloInfo,
     type ReplicationTransferTarget,
+    type ReplicationLimits,
 } from './server';
 export {
     ReplicationClient,
@@ -85,4 +86,4 @@ export {
 } from '../NetChannel';
 export { MemoryTransport, createMemoryTransportPair } from '../MemoryTransport';
 export { MessagePortTransport, type MessagePortLike } from '../MessagePortTransport';
-export { webSocketTransport, type ServerWebSocketLike } from '../webSocketTransport';
+export { webSocketTransport, type ServerWebSocketLike, type WebSocketTransportOptions } from '../webSocketTransport';

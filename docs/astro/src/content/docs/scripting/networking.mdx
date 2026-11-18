@@ -142,6 +142,20 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   live entity sends its full state; removing one removes it from every ghost.
   Spawn → component add → updates → component remove → despawn all cross the
   wire, and arrive in the order the authority sent them.
+- **A server defends itself**: every connection has limits by default. A frame
+  over 256 KiB is dropped unread; control messages (the hello, input commands)
+  past 120 a second (240 at once) are refused; a connection that does either
+  more than 100 times a minute is kicked. A connection that has not said hello
+  in 10 s is closed, a second hello is refused, and `maxConnections` turns
+  newcomers away as "server full, try again". The server pings every 5 s and
+  closes a link silent for 15 s — a half-open TCP link says nothing by itself —
+  and an authenticated player then gets their reconnect grace as for any drop.
+  `webSocketTransport` closes a client more than 4 MiB behind on reading
+  (`maxBufferedBytes`) instead of buffering for it without end. All of it is
+  tunable on `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })`,
+  and `false` turns `limits` or `heartbeat` off. The client pings too (over a
+  platform socket, 5 s / 15 s), so a server that vanished without closing is
+  noticed and redialed.
 - **The link must be reliable and ordered**: the client applies what arrives in
   arrival order, because that is the authority's order. `startServer().attachConnection`
   and `Net.connect` take a `ReliableOrderedTransport` — every built-in socket is
