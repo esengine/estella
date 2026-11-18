@@ -7,7 +7,7 @@
 
 PROJECT_NAME           = "Estella"
 PROJECT_NUMBER         = $(ESTELLA_VERSION)
-PROJECT_BRIEF          = "A fast 2D game engine powered by WebAssembly and ECS"
+PROJECT_BRIEF          = "A fast 2D and 3D game engine powered by WebAssembly and ECS"
 PROJECT_LOGO           =
 
 OUTPUT_DIRECTORY       = ./api
