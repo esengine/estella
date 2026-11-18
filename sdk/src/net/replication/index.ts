@@ -89,3 +89,4 @@ export {
 export { MemoryTransport, createMemoryTransportPair } from '../MemoryTransport';
 export { MessagePortTransport, type MessagePortLike } from '../MessagePortTransport';
 export { webSocketTransport, type ServerWebSocketLike, type WebSocketTransportOptions } from '../webSocketTransport';
+export { startSocketWorker, type SocketWorker, type SocketWorkerOptions, type WorkerSocketTransport } from '../socketWorker';

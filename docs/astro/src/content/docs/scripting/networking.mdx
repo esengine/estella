@@ -183,6 +183,14 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   `server.attachConnection(webSocketTransport(socket))` (from `esengine/replication`):
   everything one tick sends a client then leaves in one socket write rather than one
   per message, which roughly halves a crowded server's tick.
+  For a server with hundreds of players, take the sockets off the simulation's
+  thread altogether: `startSocketWorker({ port })` (Node) listens on a worker
+  thread, writes each client's frames there and hands every connection over as
+  a transport, so `server.attachConnection(transport)` and
+  `transport.onClose(() => server.detachConnection(link))` are all the server
+  does. Measured with `tools/net-capacity-benchmark.mjs --worker`, the main
+  thread's tick roughly halved again, and an 800-player server kept 18–20 of
+  its 20 ticks a second where it kept about 10.
 - **Players and reconnects**: by default a connection is anonymous, and one
   that drops and comes back is somebody new. Say who a player is and they keep
   their id:
