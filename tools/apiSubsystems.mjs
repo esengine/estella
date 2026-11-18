@@ -280,7 +280,7 @@ export const SUBSYSTEMS = [
         id: 'networking',
         title: 'Networking & replication',
         titleZh: '网络与状态复制',
-        source: ['net'],
+        source: ['net', 'persist', 'zones', 'metrics'],
         tier: 'experimental',
         why: 'as AI — the high-level layer waits on the layers under it',
         whyZh: '同 AI —— 高层要等它下面的层',
