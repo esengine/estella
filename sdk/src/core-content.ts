@@ -326,6 +326,7 @@ export {
     StreamedWorld,
     StreamPlane,
     WorldPersistent,
+    ExcludeFromFarProxy,
     WorldStreamingSource,
     WorldStreamer,
     WorldStreaming,

@@ -360,10 +360,11 @@ for (let cz = 0; cz < GRID; cz++) {
             continue;
         }
         if (cx === 10 && cz === 10) {
-            // The mill: its sails are turned by the game's own system, with no body to say so.
+            // The mill: its sails are turned by the game's own system, with no body to say so, so the hub keeps them out of the
+            // far proxy, which would show them frozen where they were authored.
             const mill = add('Windmill', [tf([mid[0], 0, mid[2]], quatY(-25))]);
             add('Tower', [tf(), renderer(meshes.millBody, textures.plaster, materials.masonry)], mill);
-            const hub = add('Hub', [tf([0, 8.5, 3.2])], mill);
+            const hub = add('Hub', [tf([0, 8.5, 3.2]), comp('ExcludeFromFarProxy')], mill);
             add('Sails', [tf(), renderer(meshes.sails, textures.cloth, materials.wood)], hub);
             continue;
         }

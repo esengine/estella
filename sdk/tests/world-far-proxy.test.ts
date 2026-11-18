@@ -187,6 +187,20 @@ describe('what a far proxy is made of', () => {
         ]);
     });
 
+    it('leaves out a subtree that says so, as what a game turns itself cannot be baked where it stands', async () => {
+        const scene = {
+            version: 4, name: 'cell', entities: [
+                entity(1, null, [place(0), renderer()]),
+                entity(2, null, [place(20), { type: 'ExcludeFromFarProxy', data: {} }]),
+                entity(3, 2, [place(0), renderer()]),
+                entity(4, 3, [place(0), renderer()]),
+            ],
+        } as unknown as SceneData;
+        const { surfaces, skipped } = await farProxySurfaces(scene, async () => null);
+        expect(surfaces.map((s) => s.entity)).toEqual([1]);
+        expect(skipped).toEqual([{ entity: 3, reason: 'excluded' }, { entity: 4, reason: 'excluded' }]);
+    });
+
     it('is asked for only by a world that ticks it', () => {
         const declared = (data: Record<string, unknown>) =>
             ({ version: 4, name: 'w', entities: [entity(1, null, [{ type: 'StreamedWorld', data }])] }) as unknown as SceneData;

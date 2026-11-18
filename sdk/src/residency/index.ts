@@ -6,7 +6,7 @@
  */
 
 export {
-    StreamedWorld, StreamPlane, WorldPersistent, WorldStreamingSource,
+    StreamedWorld, StreamPlane, WorldPersistent, WorldStreamingSource, ExcludeFromFarProxy,
     type StreamedWorldData, type WorldStreamingSourceData,
 } from './components';
 export {

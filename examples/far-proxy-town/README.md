@@ -11,7 +11,8 @@ What is in it, and what each piece checks:
 - A **clock tower** built as a hierarchy turned and scaled at its root, so a proxy has to compose the whole parent chain.
 - A **market square** of stalls whose canopies differ only in colour: those share one draw in a proxy.
 - **Carts on dynamic bodies** and a **ferry on a kinematic body**: they move, so no proxy carries them.
-- **Windmill sails** turned by the game's own system with no body: a proxy bakes them where they stand.
+- **Windmill sails** turned by the game's own system with no body: their hub carries `ExcludeFromFarProxy`, so no proxy shows
+  them frozen.
 - **Scaffolding** that is disabled, and a **field with nothing static on it** but ground.
 
 `scripts/build-town.mjs` writes every asset and the scene (seeded, so it writes the same files each time). `src/main.ts` flies the

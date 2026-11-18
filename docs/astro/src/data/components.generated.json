@@ -1955,6 +1955,12 @@
       ]
     },
     {
+      "name": "ExcludeFromFarProxy",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
       "name": "FirstPersonController",
       "source": "ts",
       "fields": [

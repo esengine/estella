@@ -83,6 +83,16 @@ export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<St
  */
 export const WorldPersistent: ComponentDef<{}> = defineTag('WorldPersistent');
 
+/**
+ * Keeps the entity's whole subtree out of its cell's far proxy, which bakes a cell's static meshes where they stand.
+ *
+ * For what moves with nothing the bake can see moving it: sails a game's own system turns, a door it opens, a sign it swaps.
+ * Bodies, characters and animators are left out without it. The subtree is still in the cell, and is drawn while the cell is.
+ *
+ * @experimental
+ */
+export const ExcludeFromFarProxy: ComponentDef<{}> = defineTag('ExcludeFromFarProxy');
+
 /** The fields of the `WorldStreamingSource` component. @experimental */
 export interface WorldStreamingSourceData {
     /**

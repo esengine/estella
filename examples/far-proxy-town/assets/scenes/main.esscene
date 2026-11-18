@@ -63917,6 +63917,10 @@
        "z": 3.2
       }
      }
+    },
+    {
+     "type": "ExcludeFromFarProxy",
+     "data": {}
     }
    ]
   },

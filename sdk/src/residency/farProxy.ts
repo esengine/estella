@@ -41,7 +41,7 @@ export interface FarProxySurface {
 }
 
 /** Why a MeshRenderer in a cell is left out of its proxy. @experimental */
-export type FarProxySkip = 'disabled' | 'blended' | 'moves' | 'skinned' | 'billboard' | 'no-mesh';
+export type FarProxySkip = 'disabled' | 'blended' | 'moves' | 'skinned' | 'billboard' | 'no-mesh' | 'excluded';
 
 type Vec3 = { x: number; y: number; z: number };
 type Quat = Vec3 & { w: number };
@@ -124,7 +124,8 @@ function moves(entity: SceneEntityData): boolean {
  * The surfaces of `cell` a far proxy is made of, with the ones left out and why.
  *
  * Prefab instances are expanded first, so a building placed as a prefab contributes its meshes. A surface qualifies when it is
- * enabled, opaque, drawn from a mesh reference, not skinned, not a billboard, and neither it nor any ancestor moves on its own.
+ * enabled, opaque, drawn from a mesh reference, not skinned, not a billboard, and neither it nor any ancestor moves on its own or
+ * carries `ExcludeFromFarProxy`.
  *
  * @experimental
  */
@@ -154,16 +155,22 @@ export async function farProxySurfaces(
         worlds.set(id, world);
         return world;
     };
-    const movesOf = (id: number, seen: Set<number> = new Set()): boolean => {
-        const known = moving.get(id);
-        if (known !== undefined) return known;
-        const entity = byId.get(id)!;
-        seen.add(id);
-        const parent = entity.parent ?? null;
-        const result = moves(entity) || (parent !== null && byId.has(parent) && !seen.has(parent) && movesOf(parent, seen));
-        moving.set(id, result);
-        return result;
+    /** Whether `test` holds of the entity or of any ancestor, remembered in `known`. */
+    const inherited = (known: Map<number, boolean>, test: (entity: SceneEntityData) => boolean) => {
+        const of = (id: number, seen: Set<number> = new Set()): boolean => {
+            const remembered = known.get(id);
+            if (remembered !== undefined) return remembered;
+            const entity = byId.get(id)!;
+            seen.add(id);
+            const parent = entity.parent ?? null;
+            const result = test(entity) || (parent !== null && byId.has(parent) && !seen.has(parent) && of(parent, seen));
+            known.set(id, result);
+            return result;
+        };
+        return of;
     };
+    const movesOf = inherited(moving, moves);
+    const excludedOf = inherited(new Map(), (entity) => componentOf(entity, 'ExcludeFromFarProxy') !== null);
 
     const surfaces: FarProxySurface[] = [];
     const skipped: Array<{ entity: number; reason: FarProxySkip }> = [];
@@ -177,6 +184,7 @@ export async function farProxySurfaces(
         if (componentOf(entity, 'MeshSkin')) { skip('skinned'); continue; }
         const billboard = componentOf(entity, 'Billboard');
         if (billboard && billboard.enabled !== false) { skip('billboard'); continue; }
+        if (excludedOf(entity.id)) { skip('excluded'); continue; }
         if (movesOf(entity.id)) { skip('moves'); continue; }
         surfaces.push({ entity: entity.id, mesh: renderer.mesh, world: worldOf(entity.id), renderer: { ...renderer } });
     }

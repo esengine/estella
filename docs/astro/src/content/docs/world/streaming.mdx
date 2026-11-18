@@ -136,7 +136,8 @@ The cook writes `world/<cell>.far.json` and its meshes beside the cell, and name
 (`WorldCell.proxy`, with `WorldManifest.farDistance`). Prefab instances are expanded, so a building placed as a prefab
 contributes its meshes. A surface is left out of the proxy when it is disabled or blended, skinned, a billboard, or when it or a
 parent moves on its own (a character controller, a body that is not static, an animator). A mesh your own system moves, with none
-of those, is baked where it stands.
+of those, would be baked where it stands: put `ExcludeFromFarProxy` on it, or on the entity above it, and its whole subtree stays
+out of the proxy while it is still drawn whenever its cell is in the world.
 
 `proxyError` is what decides how far a cell simplifies: keep it below what a pixel covers at the distance the proxy starts (past
 the sources' load radius). Surfaces that differ only in their colour share one draw, the colour carried by the vertices, and a
