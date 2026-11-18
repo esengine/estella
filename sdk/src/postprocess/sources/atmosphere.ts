@@ -318,9 +318,7 @@ void main() {
     ivec2 size = textureSize(u_sceneDepth, 0);
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
     bool covered = u_panorama <= 0.001;
-    // A pixel with surface on every side of it is surface whatever its alpha says: the sky cannot show through the middle of the ground. A
-    // cut-out's edge (a leaf) holds its coverage in the alpha there, and read as sky showing through, every leaf of a wood had a pale line round it.
-    bool surfaceAround = (texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r < 1.0);
+    bool surfaceAround = (abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5);
     bool geometry = covered ? (depth < 1.0 && (src.a > 0.999 || surfaceAround)) : depth < 1.0;
     if (geometry) { fragColor = vec4(1.0, 0.0, 0.0, -1.0); return; }
     vec3 entry = rayStart(v_texCoord);
@@ -444,9 +442,7 @@ void main() {
     // The scene was cleared to nothing when the background is not kept (the engine's rule, same threshold): what is left of a pixel's
     // alpha is how much the sky shows through it, and that includes a pixel whose depth says surface because one sample of it is.
     bool covered = u_panorama <= 0.001;
-    // A pixel with surface on every side of it is surface whatever its alpha says: the sky cannot show through the middle of the ground. A
-    // cut-out's edge (a leaf) holds its coverage in the alpha there, and read as sky showing through, every leaf of a wood had a pale line round it.
-    bool surfaceAround = (texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r < 1.0);
+    bool surfaceAround = (abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5);
     bool geometry = covered ? (depth < 1.0 && (src.a > 0.999 || surfaceAround)) : depth < 1.0;
     // A texel stands for the pixels under it. A sky texel holds the cloud layer in front of it, colour * T + L, with T (never negative) in
     // the alpha; a surface texel holds the cloud shadow it lies in, its light in the red and minus that in the alpha.
@@ -778,9 +774,7 @@ void main() {
     // The scene was cleared to nothing when the background is not kept (the engine's rule, same threshold): what is left of a pixel's
     // alpha is how much the sky shows through it, and that includes a pixel whose depth says surface because one sample of it is.
     bool covered = u_panorama <= 0.001;
-    // A pixel with surface on every side of it is surface whatever its alpha says: the sky cannot show through the middle of the ground. A
-    // cut-out's edge (a leaf) holds its coverage in the alpha there, and read as sky showing through, every leaf of a wood had a pale line round it.
-    bool surfaceAround = (texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r < 1.0 && texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r < 1.0);
+    bool surfaceAround = (abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5);
     bool geometry = covered ? (depth < 1.0 && (src.a > 0.999 || surfaceAround)) : depth < 1.0;
     // A surface is as the scene drew it: its cloud shadow is on the sun's light, which the sun's map dimmed where it was shaded.
     if (geometry && u_cloudShadowPass < 0.5) { fragColor = src; return; }
