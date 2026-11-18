@@ -26,8 +26,10 @@ export interface NativeEngineApi {
     draw_begin?(matrixPtr: number, viewportWidth: number, viewportHeight: number): void;
     draw_circle?(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, filled: boolean, segments: number): void;
     draw_circleOutline?(centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, thickness: number, segments: number): void;
+    draw_createTriangleMesh?(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): number;
     draw_deferBegin?(): void;
     draw_deferEnd?(): void;
+    draw_destroyTriangleMesh?(id: number): void;
     draw_end?(): void;
     draw_getDepthState?(): number;
     draw_getDrawCallCount?(): number;
@@ -48,6 +50,7 @@ export interface NativeEngineApi {
     draw_setLayer?(layer: number): void;
     draw_texture?(x: number, y: number, width: number, height: number, textureId: number, r: number, g: number, b: number, a: number): void;
     draw_textureRotated?(x: number, y: number, width: number, height: number, rotation: number, textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_triangleMesh?(id: number, r: number, g: number, b: number, a: number, xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
     draw_triangles?(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number, r: number, g: number, b: number, a: number, xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
     engine_getCounters?(): string;
     engine_getCpuScopes?(): string;
@@ -400,8 +403,10 @@ export function createNativeEngineApi(
     bind('draw_begin', 'es_draw_begin', false);
     bind('draw_circle', 'es_draw_circle', false);
     bind('draw_circleOutline', 'es_draw_circleOutline', false);
+    bind('draw_createTriangleMesh', 'es_draw_createTriangleMesh', false);
     bind('draw_deferBegin', 'es_draw_deferBegin', false);
     bind('draw_deferEnd', 'es_draw_deferEnd', false);
+    bind('draw_destroyTriangleMesh', 'es_draw_destroyTriangleMesh', false);
     bind('draw_end', 'es_draw_end', false);
     bind('draw_getDepthState', 'es_draw_getDepthState', false);
     bind('draw_getDrawCallCount', 'es_draw_getDrawCallCount', false);
@@ -422,6 +427,7 @@ export function createNativeEngineApi(
     bind('draw_setLayer', 'es_draw_setLayer', false);
     bind('draw_texture', 'es_draw_texture', false);
     bind('draw_textureRotated', 'es_draw_textureRotated', false);
+    bind('draw_triangleMesh', 'es_draw_triangleMesh', false);
     bind('draw_triangles', 'es_draw_triangles', false);
     bind('engine_getCounters', 'es_engine_getCounters', false);
     bind('engine_getCpuScopes', 'es_engine_getCpuScopes', false);

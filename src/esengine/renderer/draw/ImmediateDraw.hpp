@@ -26,6 +26,7 @@
 #include "./BatchVertex.hpp"
 
 #include <glm/glm.hpp>
+#include <string>
 #include <vector>
 #include <span>
 
@@ -187,6 +188,28 @@ public:
     void triangles(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount,
                    const glm::vec4& tint, const f32 xform[6]);
 
+    /**
+     * @brief Puts a shape on the GPU once, for drawMesh to draw any number of times without sending its vertices again.
+     *
+     * @details The same arrays as triangles(). Returns the mesh's id, or 0 when there is nothing to keep or an index
+     *          names a vertex the shape does not hold. Ids outlive frames; destroyMesh gives the GPU memory back.
+     */
+    u32 createMesh(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount);
+
+    /** Gives a mesh's GPU memory back. A draw already collected this frame still draws; the id is not drawn again. */
+    void destroyMesh(u32 id);
+
+    /**
+     * @brief Draws a mesh from createMesh moved by the 2D affine @p xform and multiplied by @p tint, as triangles() would.
+     *
+     * @details The transform is applied on the GPU: a copy costs one 28-byte instance record, and consecutive copies of
+     *          one mesh in one state are one instanced draw. Anything else drawn between two copies keeps its place.
+     */
+    void drawMesh(u32 id, const glm::vec4& tint, const f32 xform[6]);
+
+    /** Meshes createMesh holds now. */
+    u32 meshCount() const { return liveMeshes_; }
+
     // =========================================================================
     // Texture Drawing
     // =========================================================================
@@ -237,6 +260,15 @@ private:
                       const glm::vec4& color);
     /** Switches the batch texture, flushing first if it changed. */
     void useTexture(u32 textureId);
+    /** Ends the run of copies being collected: draws it, or records it for the deferred pass. */
+    void flushRun();
+    /** The frame's instance records not yet on the GPU, onto it. */
+    void uploadInstances();
+    /** One instanced draw of @p count copies of @p mesh from record @p first. */
+    void drawRun(PipelineHandle pipeline, u32 mesh, u32 first, u32 count);
+    /** The instanced variant's pipeline in the current blend and depth state; @p display for a pass that writes the display. */
+    PipelineHandle instancedPipeline(const PipelineDesc& state, bool display);
+    resource::ShaderHandle compileVariant(const std::vector<std::string>& features);
 
     GfxDevice& device_;
     RenderContext& context_;
@@ -262,10 +294,48 @@ private:
         u32 texture;
         u32 firstIndex;
         u32 indexCount;
+        /// Non-zero: an instanced run of this mesh, `instanceCount` copies from record `firstInstance`.
+        u32 mesh = 0;
+        u32 firstInstance = 0;
+        u32 instanceCount = 0;
     };
     std::vector<DeferredBatch> deferredBatches_;
     u32 recordedIndices_ = 0;
     bool recording_ = false;
+
+    /** A shape createMesh put on the GPU: BatchVertex vertices and 32-bit indices, both retained across a device loss. */
+    struct ResidentMesh {
+        BufferHandle vbo = BufferHandle::Invalid;
+        BufferHandle ebo = BufferHandle::Invalid;
+        u32 indexCount = 0;
+        bool live = false;
+    };
+    /** One copy: the affine's columns and translation, and a tint packed as the vertex colours are. 28 bytes. */
+    struct InstanceRecord {
+        f32 xform[6];
+        u32 tint;
+    };
+    std::vector<ResidentMesh> meshes_;          ///< id - 1
+    std::vector<u32> freeMeshes_;               ///< ids whose slots can be handed out again
+    std::vector<u32> doomedMeshes_;             ///< destroyed, buffers freed at the next begin() (a collected draw may still name them)
+    u32 liveMeshes_ = 0;
+    std::vector<InstanceRecord> instances_;     ///< the frame's records, in the order they were drawn
+    u32 instancesUploaded_ = 0;
+    BufferHandle instanceVbo_ = BufferHandle::Invalid;
+    u32 instanceCapacity_ = 0;                  ///< records instanceVbo_ holds
+    VertexLayoutHandle instanceLayout_ = VertexLayoutHandle::Invalid;
+    /// The INSTANCED batch variants, compiled on the first copy drawn, for the colour space they were compiled in.
+    resource::ShaderHandle instancedShader_;
+    resource::ShaderHandle instancedDisplayShader_;
+    bool instancedLinear_ = false;
+    bool instancedCompiled_ = false;
+    bool instancedDisplayCompiled_ = false;
+    struct Run {
+        u32 mesh = 0;
+        u32 first = 0;
+        u32 count = 0;
+    };
+    Run pendingRun_;
 
     /// Where the camera looks, from the view-projection this frame began with —
     /// what a 3D line is widened across.

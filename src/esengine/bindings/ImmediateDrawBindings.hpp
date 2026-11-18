@@ -34,6 +34,9 @@ void draw_textureRotated(f32 x, f32 y, f32 width, f32 height, f32 rotation,
 void draw_triangles(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount,
                     f32 r, f32 g, f32 b, f32 a,
                     f32 xx, f32 xy, f32 yx, f32 yy, f32 tx, f32 ty);
+u32 draw_createTriangleMesh(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount);
+void draw_destroyTriangleMesh(u32 id);
+void draw_triangleMesh(u32 id, f32 r, f32 g, f32 b, f32 a, f32 xx, f32 xy, f32 yx, f32 yy, f32 tx, f32 ty);
 void draw_setLayer(i32 layer);
 void draw_setDepth(f32 depth);
 u32 draw_getDrawCallCount();

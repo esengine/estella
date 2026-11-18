@@ -516,6 +516,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("draw_texture", &esengine::draw_texture);
     emscripten::function("draw_textureRotated", &esengine::draw_textureRotated);
     emscripten::function("draw_triangles", &esengine::draw_triangles);
+    emscripten::function("draw_createTriangleMesh", &esengine::draw_createTriangleMesh);
+    emscripten::function("draw_destroyTriangleMesh", &esengine::draw_destroyTriangleMesh);
+    emscripten::function("draw_triangleMesh", &esengine::draw_triangleMesh);
     emscripten::function("draw_setLayer", &esengine::draw_setLayer);
     emscripten::function("draw_setDepth", &esengine::draw_setDepth);
     emscripten::function("draw_getDrawCallCount", &esengine::draw_getDrawCallCount);

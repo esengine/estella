@@ -54,9 +54,10 @@ export interface DrawTriangles {
 }
 
 /**
- * Triangles copied into the engine's memory once and drawn by reference, with nothing copied a draw: what a `Graphics` keeps.
- * Made by {@link DrawAPI.createTriangles}. It belongs to the engine instance that made it: once that is shut down, or the buffer
- * is released, drawing it draws nothing.
+ * Triangles handed to the engine once and drawn by reference, with nothing copied a draw: what a `Graphics` keeps. The engine
+ * keeps them on the GPU and moves and tints each copy there, so a copy costs one small record; an engine built before that keeps
+ * them in its memory instead. Made by {@link DrawAPI.createTriangles}. It belongs to the engine instance that made it: once that
+ * is shut down, or the buffer is released, drawing it draws nothing.
  */
 export interface DrawTrianglesBuffer {
     readonly vertexCount: number;
@@ -69,8 +70,12 @@ export interface DrawTrianglesBuffer {
 
 class ResidentTriangles implements DrawTrianglesBuffer {
     private released_ = false;
+    /**
+     * @param meshId The engine's GPU mesh, drawn with `draw_triangleMesh`; 0 when the numbers are kept in its memory at `block_` instead.
+     */
     constructor(
         readonly owner: ESEngineModule,
+        readonly meshId: number,
         private readonly block_: number,
         readonly positionsAt: number,
         readonly colorsAt: number,
@@ -86,8 +91,10 @@ class ResidentTriangles implements DrawTrianglesBuffer {
     release(): void {
         if (this.released_) return;
         this.released_ = true;
-        // Freed only into the engine that gave it: a shut-down engine's memory is gone with it.
-        if (this.owner === module) this.owner._free(this.block_);
+        // Given back only to the engine that holds it: a shut-down engine's memory is gone with it.
+        if (this.owner !== module) return;
+        if (this.meshId) this.owner.draw_destroyTriangleMesh?.(this.meshId);
+        else this.owner._free(this.block_);
     }
 }
 
@@ -296,8 +303,9 @@ export interface DrawAPI {
     triangles(mesh: DrawTriangles | DrawTrianglesBuffer, options?: DrawTrianglesOptions): void;
 
     /**
-     * Copies a mesh into the engine's memory once, for {@link triangles} to draw by reference: a shape drawn many times a frame
-     * then costs no copy a draw. Release it when it is no longer drawn.
+     * Hands a mesh to the engine once, for {@link triangles} to draw by reference: it is kept on the GPU, and each copy drawn is
+     * moved and tinted there, so a shape drawn many times a frame costs one small record a copy, and consecutive copies are
+     * one instanced draw. Release it when it is no longer drawn.
      */
     createTriangles(mesh: DrawTriangles): DrawTrianglesBuffer;
 
@@ -523,6 +531,11 @@ export const Draw: DrawAPI = {
         try {
             if (mesh instanceof ResidentTriangles) {
                 if (!mesh.live) return;
+                if (mesh.meshId) {
+                    // On the GPU already: this copy is its transform and tint, nothing more.
+                    mesh.owner.draw_triangleMesh!(mesh.meshId, t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
+                    return;
+                }
                 // By reference: the numbers are already where the engine reads them.
                 mesh.owner.draw_triangles(mesh.positionsAt, mesh.vertexCount, mesh.colorsAt, mesh.indicesAt, mesh.indexCount,
                     t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
@@ -547,9 +560,16 @@ export const Draw: DrawAPI = {
         const vertexCount = Math.floor(mesh.positions.length / 2);
         const indexCount = mesh.indices.length - mesh.indices.length % 3;
         const colorCount = mesh.colors && mesh.colors.length >= vertexCount * 4 ? vertexCount * 4 : 0;
-        const block = m._malloc(Math.max(4, (vertexCount * 2 + colorCount + indexCount) * 4));
+        const bytes = (vertexCount * 2 + colorCount + indexCount) * 4;
+        if (m.draw_createTriangleMesh && m.draw_triangleMesh && vertexCount > 0 && indexCount > 0) {
+            // Through the shared scratch block: the engine copies the numbers onto the GPU and keeps none of this memory.
+            const at = writeTriangles(m, trianglesBlock(m, bytes), mesh, vertexCount, colorCount, indexCount);
+            const id = m.draw_createTriangleMesh(at.positionsAt, vertexCount, colorCount ? at.colorsAt : 0, at.indicesAt, indexCount);
+            if (id) return new ResidentTriangles(m, id, 0, 0, 0, 0, vertexCount, indexCount);
+        }
+        const block = m._malloc(Math.max(4, bytes));
         const at = writeTriangles(m, block, mesh, vertexCount, colorCount, indexCount);
-        return new ResidentTriangles(m, block, at.positionsAt, colorCount ? at.colorsAt : 0, at.indicesAt,
+        return new ResidentTriangles(m, 0, block, at.positionsAt, colorCount ? at.colorsAt : 0, at.indicesAt,
             indexCount ? vertexCount : 0, indexCount);
     },
 

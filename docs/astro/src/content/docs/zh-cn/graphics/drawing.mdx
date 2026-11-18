@@ -59,7 +59,7 @@ registerDrawCallback('debug-overlay', (elapsed) => {
 | `texture(pos, size, textureHandle, tint?)` | 一个贴图四边形。 |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | 同上,带旋转(弧度)。 |
 | `triangles(mesh, { tint?, transform? })` | 每个顶点带颜色的三角形(`positions` 为 x、y 坐标对,`indices`,可选 `colors`),按二维仿射 `[xx, xy, yx, yy, tx, ty]` 变换并乘上 `tint`,和其他图元一起合批。`Graphics.flush()` 就是通过它绘制的。 |
-| `createTriangles(mesh)` | 把网格一次性拷进引擎内存,返回一个 `triangles()` 按引用绘制的缓冲,每次绘制不再拷贝。不再绘制时调用 `release()`。 |
+| `createTriangles(mesh)` | 把网格一次性放上 GPU,返回一个 `triangles()` 按引用绘制的缓冲:每个副本在 GPU 上平移和着色,只花一条 28 字节的记录,同一缓冲连续画的副本合成一次实例化绘制。不再绘制时调用 `release()`。 |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | 按句柄绘制自定义网格(见下面的 `Geometry` API)。 |
 | `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
 | `setBlendMode(mode)` / `setDepthTest(on)` | 后续命令的混合 / 深度状态。 |
@@ -97,8 +97,8 @@ registerDrawCallback('hud-shape', () => g.flush());
 在一条线中途改样式,会从同一点接着画。
 
 改动后第一次绘制时三角化一次,之后 `flush()` 就是一次合批的 `Draw.triangles` 调用。
-三角形在那第一次绘制时拷进引擎内存,之后按引用绘制,`flush()` 不拷贝任何东西;`dispose()` 可提前归还这块内存
-(没人调用 `dispose()` 的 `Graphics` 在被回收时归还)。`geometry()` 返回这些三角形,
+三角形在那第一次绘制时放上 GPU 并留在那里:`flush()` 只送去副本的位置和淡度,由 GPU 变换每个顶点,
+接连 flush 的副本合成一次实例化绘制。`dispose()` 可提前归还这块 GPU 内存(没人调用 `dispose()` 的 `Graphics` 在被回收时归还)。`geometry()` 返回这些三角形,
 可以交给要保留它们的 `MeshRenderer`。
 
 ### 同一个形状,画很多次

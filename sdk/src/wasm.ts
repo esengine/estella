@@ -528,6 +528,12 @@ export interface ESEngineModule {
     draw_triangles(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number,
                    r: number, g: number, b: number, a: number,
                    xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
+    /** A shape put on the GPU once; 0 when there is nothing to keep. Absent on an engine built before it. */
+    draw_createTriangleMesh?(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): number;
+    draw_destroyTriangleMesh?(id: number): void;
+    /** A mesh from draw_createTriangleMesh, moved and tinted on the GPU: one instance record a copy. */
+    draw_triangleMesh?(id: number, r: number, g: number, b: number, a: number,
+               xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
     draw_setLayer(layer: number): void;
     draw_setDepth(depth: number): void;
     draw_getDrawCallCount(): number;

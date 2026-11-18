@@ -134,7 +134,61 @@ describe('Draw API', () => {
             expect(mock.draw_triangles).not.toHaveBeenCalled();
         });
 
-        it('copies a mesh into the engine once, and draws it by reference with nothing copied', () => {
+        /** The engine's GPU meshes, as an engine that has them answers: ids from 7, a copy drawn is its transform and tint. */
+        const withGpuMeshes = () => Object.assign(mock, {
+            draw_createTriangleMesh: vi.fn(() => 7),
+            draw_destroyTriangleMesh: vi.fn(),
+            draw_triangleMesh: vi.fn(),
+        });
+
+        it('puts a mesh on the GPU once, and draws each copy as its transform and tint alone', () => {
+            const gpu = withGpuMeshes();
+            const buffer = Draw.createTriangles(square);
+            expect(gpu.draw_createTriangleMesh).toHaveBeenCalledTimes(1);
+            const [pAt, verts, cAt, iAt, count] = gpu.draw_createTriangleMesh.mock.calls[0] as number[];
+            expect([verts, count]).toEqual([4, 6]);
+            expect([...mock.HEAPF32.subarray(pAt / 4, pAt / 4 + 8)]).toEqual(square.positions);
+            expect([...mock.HEAPF32.subarray(cAt / 4, cAt / 4 + 16)]).toEqual(square.colors);
+            expect([...mock.HEAPU32.subarray(iAt / 4, iAt / 4 + 6)]).toEqual(square.indices);
+            const heap = mock.HEAPF32.slice();
+            const allocated = mock._malloc.mock.calls.length;
+            for (let i = 0; i < 20; i++) Draw.triangles(buffer, { tint: { r: 1, g: 0.5, b: 1, a: 0.25 }, transform: [2, 0, 0, 2, i, 3] });
+            expect(mock._malloc.mock.calls.length).toBe(allocated);
+            expect(mock.HEAPF32).toEqual(heap);
+            expect(mock.draw_triangles).not.toHaveBeenCalled();
+            expect(gpu.draw_triangleMesh).toHaveBeenCalledTimes(20);
+            expect(gpu.draw_triangleMesh.mock.calls[5]).toEqual([7, 1, 0.5, 1, 0.25, 2, 0, 0, 2, 5, 3]);
+        });
+
+        it('gives a GPU mesh back once, and not to an engine that never held it', () => {
+            const gpu = withGpuMeshes();
+            const buffer = Draw.createTriangles(square);
+            buffer.release();
+            buffer.release();
+            Draw.triangles(buffer);
+            expect(gpu.draw_destroyTriangleMesh).toHaveBeenCalledTimes(1);
+            expect(gpu.draw_destroyTriangleMesh).toHaveBeenCalledWith(7);
+            expect(gpu.draw_triangleMesh).not.toHaveBeenCalled();
+            expect(mock._free).not.toHaveBeenCalled();
+
+            const kept = Draw.createTriangles(square);
+            shutdownDrawAPI();
+            const next = createDrawMockModule();
+            initDrawAPI(next as unknown as ESEngineModule);
+            kept.release();
+            expect(gpu.draw_destroyTriangleMesh).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps a mesh in engine memory when the engine will not put it on the GPU', () => {
+            const gpu = withGpuMeshes();
+            gpu.draw_createTriangleMesh.mockReturnValue(0);
+            const buffer = Draw.createTriangles(square);
+            Draw.triangles(buffer);
+            expect(gpu.draw_triangleMesh).not.toHaveBeenCalled();
+            expect(mock.draw_triangles).toHaveBeenCalledTimes(1);
+        });
+
+        it('copies a mesh into the engine once on an engine without GPU meshes, and draws it by reference with nothing copied', () => {
             const buffer = Draw.createTriangles(square);
             expect(buffer.live).toBe(true);
             expect(buffer.vertexCount).toBe(4);
@@ -151,7 +205,7 @@ describe('Draw API', () => {
             expect([...mock.HEAPU32.subarray(iAt / 4, iAt / 4 + 6)]).toEqual(square.indices);
         });
 
-        it('draws nothing from a released buffer, and frees it once', () => {
+        it('draws nothing from a released buffer in engine memory, and frees it once', () => {
             const buffer = Draw.createTriangles(square);
             buffer.release();
             buffer.release();
