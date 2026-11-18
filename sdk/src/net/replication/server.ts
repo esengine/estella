@@ -310,8 +310,23 @@ export interface ReplicationLimits {
     maxViolationsPerMinute?: number;
 }
 
+/**
+ * Throw from `authenticate` to send the client elsewhere: its hello is answered
+ * with this address (and ticket), and a client with `dial` says hello there.
+ */
+export class ReplicationRedirect extends Error {
+    constructor(readonly address: string, readonly ticket?: string) {
+        super(`redirected to ${address}`);
+        this.name = 'ReplicationRedirect';
+    }
+}
+
 /** What the server answers a refused hello with, from whatever `authenticate` threw. */
-function refusal(err: unknown): { ok: false; error: string; fatal: boolean } {
+function refusal(err: unknown): ReplHelloResponse & { ok: false } {
+    if (err instanceof Error && err.name === 'ReplicationRedirect') {
+        const r = err as ReplicationRedirect;
+        return { ok: false, error: 'redirected', fatal: false, redirect: r.ticket !== undefined ? { address: r.address, ticket: r.ticket } : { address: r.address } };
+    }
     if (err instanceof Error && err.name === 'SessionRejected') {
         return { ok: false, error: err.message, fatal: (err as { fatal?: boolean }).fatal !== false };
     }
@@ -327,6 +342,8 @@ export class ReplicationServer {
     /** Live connections by the id their link was attached under. */
     private readonly links_ = new Map<number, Connection>();
     private nextConnectionId_ = 1;
+    /** This server process; a client that meets another one drops its ghosts (see `ReplHelloOk.serverId`). */
+    readonly instanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     private readonly authenticate_: ReplicationServerOptions['authenticate'] | null;
     private readonly graceMs_: number;
     private readonly limits_: Required<ReplicationLimits> | null;
@@ -895,7 +912,7 @@ export class ReplicationServer {
             // response is on the wire — and flips the connection hot.
             Promise.resolve().then(() => this.sendInitialState_(conn));
             return {
-                ok: true, connectionId: conn.id, tick: this.tick_, fixedDelta: this.fixedDelta_,
+                ok: true, connectionId: conn.id, tick: this.tick_, fixedDelta: this.fixedDelta_, serverId: this.instanceId,
                 ...(playerId !== undefined ? { playerId } : {}),
             };
         });

@@ -204,6 +204,32 @@ describe('with authenticate', () => {
         expect(server.kick(id)).toBe(false);
     });
 
+    it("drops the ghosts of a server that is gone instead of matching a new one's entities by number", async () => {
+        // The same address after a restart: a new server process numbers its
+        // entities from 1 again, and its netId 1 is not the old one's.
+        const first = makeServer({ authenticate: tokens });
+        const ana = await join(first.server, { token: 'ana' });
+        spawn(first.app, 'old tree');
+        await step([first.app, ana.app], 2);
+        expect(ghostByName(ana.app, 'old tree')).toBeDefined();
+
+        const restarted = makeServer({ authenticate: tokens });
+        spawn(restarted.app, 'new well');
+        await step([restarted.app], 1);
+        const oldServer = ana.client.serverId;
+        expect(oldServer).toBe(first.server.instanceId);
+        const heard: string[] = [];
+        ana.client.onStateChange((state, c) => heard.push(`${state}${state === 'ready' ? ` ${c.serverId === restarted.server.instanceId ? 'new' : 'old'}` : ''}`));
+        await rejoin(restarted.server, ana.client);
+        // Every state, as it happened, and the server it ended on.
+        expect(heard).toEqual(['reconnecting', 'ready new']);
+        expect(ana.client.serverId).not.toBe(oldServer);
+        await step([restarted.app, ana.app], 2);
+        expect(ghostByName(ana.app, 'old tree')).toBeUndefined();
+        expect(ghostByName(ana.app, 'new well')).toBeDefined();
+        expect(ana.app.world.getEntitiesWithComponents([Replicated])).toHaveLength(1);
+    });
+
     it('keeps two players apart', async () => {
         const { app, server } = makeServer({ authenticate: tokens });
         const ana = await join(server, { token: 'ana' });

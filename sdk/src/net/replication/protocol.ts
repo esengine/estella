@@ -72,6 +72,13 @@ export interface ReplHelloOk {
     /** The server's fixed timestep in seconds (0 if it hasn't ticked yet) —
      *  the dt client prediction replays unacknowledged inputs with. */
     fixedDelta: number;
+    /**
+     * This server process, as a random id. netIds mean something only within
+     * one: a client whose hello lands on a different one (another zone, the
+     * same address after a restart) drops the ghosts it holds instead of
+     * matching them to the new server's entities by number.
+     */
+    serverId?: string;
     /** Who the server says this is, when it authenticates players. The same
      *  player always gets the same `connectionId` back while the server
      *  remembers them, which is what makes a reconnect land on the same pawn. */
@@ -84,6 +91,11 @@ export interface ReplHelloError {
     /** True when trying again cannot help (bad credentials, a banned player);
      *  a client that redials stops on it. */
     fatal?: boolean;
+    /**
+     * Not here: say hello at `address` instead, showing `ticket` when there is
+     * one. What a login routed to another zone is answered with.
+     */
+    redirect?: { address: string; ticket?: string };
 }
 
 export type ReplHelloResponse = ReplHelloOk | ReplHelloError;

@@ -162,6 +162,18 @@ export interface ReplicationClientOptions {
      * over a platform socket, off otherwise; `false` turns it off.
      */
     heartbeat?: { intervalMs: number; timeoutMs: number } | false;
+    /**
+     * Where to log in again when the server this client was on cannot be
+     * reached for `entryAfterMs` — typically the address it first connected to,
+     * any zone that routes logins (`esengine/zones`). Needs `dial` and
+     * `reconnect`. Without it the client redials its own server for good.
+     */
+    entry?: string | readonly string[];
+    /**
+     * How long to keep redialing the lost server before going to `entry`, and
+     * how long to keep at one entry before trying the next of a list. Default 3 s.
+     */
+    entryAfterMs?: number;
 }
 
 export interface ReplicationReconnectOptions {
@@ -193,13 +205,17 @@ function isRedialable(t: ReliableOrderedTransport): t is RedialableSocket {
 }
 
 /** One received message, tagged so the inbox can stay a single ordered queue. */
-type PendingOp =
+type PendingOp = (
     | { kind: 'spawn'; batch: ReplSpawnBatch }
     | { kind: 'despawn'; batch: ReplDespawnBatch }
     | { kind: 'remove'; batch: ReplComponentRemoveBatch }
     | { kind: 'state'; frame: Uint8Array }
     /** Everything held came from a server this client has left: drop it. */
-    | { kind: 'reset' };
+    | { kind: 'reset' }
+) & {
+    /** The channel it arrived on: where a server change is marked in the inbox. */
+    ch?: NetChannel;
+};
 
 export class ReplicationClient {
     private readonly world_: World;
@@ -229,6 +245,7 @@ export class ReplicationClient {
     private readonly reconnect_: Required<ReplicationReconnectOptions> | null;
     private playerId_: string | undefined;
     private state_: ReplicationClientState = 'idle';
+    private readonly stateListeners_ = new Set<(state: ReplicationClientState, client: ReplicationClient) => void>();
     private closeReason_: ReplCloseReason | string | undefined;
     /** The next initial batch reconciles against ghosts already held. */
     private resyncing_ = false;
@@ -238,6 +255,16 @@ export class ReplicationClient {
     private redialDelay_ = 0;
     private readonly dial_: ((address: string) => ReliableOrderedTransport) | null;
     private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
+    private readonly entries_: readonly string[];
+    /** Which entry the redials under way go to; -1 while redialing the lost server. */
+    private entryAt_ = -1;
+    /** When the current address started being redialed. */
+    private dialingSince_ = 0;
+    private readonly entryAfterMs_: number;
+    /** When the current run of failed redials began; 0 while connected. */
+    private lostSince_ = 0;
+    /** The server process the ghosts held came from. */
+    private serverId_: string | undefined;
     /** The ticket the next hello shows, while a transfer is under way. */
     private transferTicket_: string | undefined;
     private transferTarget_: { address: string; ticket: string } | undefined;
@@ -246,6 +273,8 @@ export class ReplicationClient {
         this.world_ = world;
         this.credentials_ = options.credentials;
         this.dial_ = options.dial ?? null;
+        this.entries_ = options.entry === undefined ? [] : typeof options.entry === 'string' ? [options.entry] : [...options.entry];
+        this.entryAfterMs_ = options.entryAfterMs ?? 3000;
         this.heartbeat_ = options.heartbeat === false ? null : (options.heartbeat ?? { intervalMs: 5000, timeoutMs: 15000 });
         const r = options.reconnect;
         this.reconnect_ = r ? {
@@ -283,6 +312,34 @@ export class ReplicationClient {
         return this.state_;
     }
 
+    /**
+     * The server process this client is connected to, or was last: a random id
+     * per process, so a change says the client is on another server now (a
+     * transfer, a reroute, a restart) even where the address is the same.
+     */
+    get serverId(): string | undefined {
+        return this.serverId_;
+    }
+
+    /**
+     * Hear every change of {@link state}, as it happens — a transfer or a
+     * reconnect can pass through several states between two frames, which
+     * polling `state` would miss. Read `serverId`, `closeReason` and
+     * `connectionId` from the client in the listener. Returns an unsubscribe.
+     */
+    onStateChange(listener: (state: ReplicationClientState, client: ReplicationClient) => void): () => void {
+        this.stateListeners_.add(listener);
+        return () => this.stateListeners_.delete(listener);
+    }
+
+    private setState_(state: ReplicationClientState): void {
+        if (this.state_ === state) return;
+        this.state_ = state;
+        for (const listener of [...this.stateListeners_]) {
+            try { listener(state, this); } catch (err) { log.warn('repl', 'a state listener threw', err); }
+        }
+    }
+
     /** Where a transfer told this client to go, when it had no `dial` to go there itself. */
     get transferTarget(): { address: string; ticket: string } | undefined {
         return this.transferTarget_;
@@ -308,13 +365,28 @@ export class ReplicationClient {
     /** Handshake over the transport; rejects (and detaches) on any mismatch. */
     async connect(transport: ReliableOrderedTransport): Promise<void> {
         if (this.channel_) throw new Error('[repl] client already connected');
-        this.state_ = 'connecting';
-        const res = await this.handshake_(transport);
+        this.setState_('connecting');
+        let link = transport;
+        let res = await this.handshake_(link);
+        // A login routed elsewhere: follow it, a few hops at most.
+        for (let hops = 0; !res.ok && res.redirect && hops < 4; hops++) {
+            if (!this.dial_) {
+                this.disconnect();
+                throw new Error(`[repl] redirected to ${res.redirect.address}; connect with a dial to follow it`);
+            }
+            (this.channel_ as NetChannel | null)?.dispose();
+            this.channel_ = null;
+            if (isRedialable(link)) link.close(1000, 'redirected');
+            link = this.dial_(res.redirect.address);
+            if (isRedialable(link) && link.readyState === 'closed') link.connect();
+            this.transferTicket_ = res.redirect.ticket;
+            res = await this.handshake_(link);
+        }
         if (!res.ok) {
             this.disconnect();
             throw new Error(`[repl] server refused connection: ${res.error}`);
         }
-        this.watchSocket_(transport);
+        this.watchSocket_(link);
     }
 
     /**
@@ -330,7 +402,7 @@ export class ReplicationClient {
         this.offSocket_ = null;
         this.channel_?.dispose();
         this.channel_ = null;
-        this.state_ = 'reconnecting';
+        this.setState_('reconnecting');
         const res = await this.handshake_(transport, true);
         if (!res.ok) {
             (this.channel_ as NetChannel | null)?.dispose();
@@ -352,15 +424,15 @@ export class ReplicationClient {
         // Handlers first: the initial spawn batch may hit the wire before the
         // hello response settles on this side. Batches queue until the fixed
         // step applies them, so ordering stays deterministic either way.
-        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.inbox_.push({ kind: 'spawn', batch }));
-        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.inbox_.push({ kind: 'despawn', batch }));
-        channel.on<ReplComponentRemoveBatch>(ReplMsg.componentRemove, (batch) => this.inbox_.push({ kind: 'remove', batch }));
+        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.inbox_.push({ kind: 'spawn', batch, ch: channel }));
+        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.inbox_.push({ kind: 'despawn', batch, ch: channel }));
+        channel.on<ReplComponentRemoveBatch>(ReplMsg.componentRemove, (batch) => this.inbox_.push({ kind: 'remove', batch, ch: channel }));
         channel.on<ReplAckMsg>(ReplMsg.ack, (ack) => {
             if (ack.seq > this.ackedSeq_) this.ackedSeq_ = ack.seq;
         });
         channel.onBinary(REPLICATION_CHANNEL, (payload) => {
             // Copy out: the payload view may alias a transport-owned buffer.
-            this.inbox_.push({ kind: 'state', frame: payload.slice() });
+            this.inbox_.push({ kind: 'state', frame: payload.slice(), ch: channel });
         });
         channel.on<ReplClosedMsg>(ReplMsg.closed, (msg) => this.closedByServer_(channel, msg));
 
@@ -385,7 +457,7 @@ export class ReplicationClient {
         }
         if (this.channel_ !== channel) return { ok: false, error: 'superseded', fatal: false };
         if (!res.ok) {
-            if (res.fatal !== false) { this.state_ = 'closed'; this.closeReason_ = res.error; }
+            if (res.fatal !== false) { this.closeReason_ = res.error; this.setState_('closed'); }
             return res;
         }
         if (resuming) {
@@ -395,13 +467,24 @@ export class ReplicationClient {
             this.ackedSeq_ = this.inputSeq_;
             this.resyncing_ = true;
         }
+        // Another server process: its netIds are not the ones held. Drop the
+        // ghosts ahead of the first thing it sent, which may already be queued —
+        // and behind everything the old one sent that is still waiting.
+        if (res.serverId !== undefined && this.serverId_ !== undefined && res.serverId !== this.serverId_) {
+            const first = this.inbox_.findIndex((op) => op.ch === channel);
+            this.inbox_.splice(first < 0 ? this.inbox_.length : first, 0, { kind: 'reset' });
+        }
+        if (res.serverId !== undefined) this.serverId_ = res.serverId;
         this.connectionId_ = res.connectionId;
         this.playerId_ = res.playerId;
         this.serverTick_ = res.tick;
         if (res.fixedDelta > 0) this.fixedDelta_ = res.fixedDelta;
-        this.state_ = 'ready';
+        this.setState_('ready');
         this.closeReason_ = undefined;
         this.redialDelay_ = 0;
+        this.lostSince_ = 0;
+        this.entryAt_ = -1;
+        this.dialingSince_ = 0;
         // A ticket is good once; a later reconnect to this server is an ordinary one.
         this.transferTicket_ = undefined;
         return res;
@@ -420,7 +503,7 @@ export class ReplicationClient {
             return;
         }
         this.closeReason_ = msg?.reason ?? 'kicked';
-        this.state_ = 'closed';
+        this.setState_('closed');
     }
 
     /**
@@ -428,11 +511,11 @@ export class ReplicationClient {
      * are per server), so they go — in order, ahead of anything the new server
      * sends — and the client says hello there with the ticket.
      */
-    private beginTransfer_(address: string, ticket: string, fallback?: string): void {
+    private beginTransfer_(address: string, ticket: string | undefined, fallback?: string): void {
         if (!this.dial_) {
-            this.transferTarget_ = { address, ticket };
+            this.transferTarget_ = { address, ticket: ticket ?? '' };
             this.closeReason_ = 'transfer';
-            this.state_ = 'closed';
+            this.setState_('closed');
             return;
         }
         this.inbox_.push({ kind: 'reset' });
@@ -440,14 +523,14 @@ export class ReplicationClient {
         this.ackedSeq_ = this.inputSeq_;
         this.connectionId_ = 0;
         this.transferTicket_ = ticket;
-        this.state_ = 'transferring';
+        this.setState_('transferring');
         const failed = (why: string): void => {
             this.channel_?.dispose();
             this.channel_ = null;
             this.transferTicket_ = undefined;
             if (fallback !== undefined && this.reconnect_) { this.goBack_(fallback); return; }
             this.closeReason_ = `transfer failed: ${why}`;
-            this.state_ = 'closed';
+            this.setState_('closed');
         };
         let transport: ReliableOrderedTransport;
         try {
@@ -460,6 +543,7 @@ export class ReplicationClient {
         if (isRedialable(transport) && transport.readyState === 'closed') transport.connect();
         void this.handshake_(transport, true).then((res) => {
             if (res.ok) this.watchSocket_(transport);
+            else if (res.redirect && this.state_ !== 'closed') this.follow_(transport, res.redirect);
             else if (this.state_ !== 'closed') failed(res.error);
         }, (err) => {
             if (isRedialable(transport)) transport.close(1000, 'transfer failed');
@@ -474,13 +558,13 @@ export class ReplicationClient {
      * zone, and takes it once the short arrival lease has run out.
      */
     private goBack_(address: string): void {
-        this.state_ = 'reconnecting';
+        this.setState_('reconnecting');
         let transport: ReliableOrderedTransport;
         try {
             transport = this.dial_!(address);
         } catch (err) {
             this.closeReason_ = `transfer failed and the way back too: ${(err as Error)?.message ?? err}`;
-            this.state_ = 'closed';
+            this.setState_('closed');
             return;
         }
         if (isRedialable(transport)) {
@@ -494,7 +578,7 @@ export class ReplicationClient {
         void this.handshake_(transport, true).then((res) => {
             if (res.ok || this.state_ === 'closed') return;
             drop();
-            if (res.fatal !== false) { this.closeReason_ = res.error; this.state_ = 'closed'; return; }
+            if (res.fatal !== false) { this.closeReason_ = res.error; this.setState_('closed'); return; }
             this.retryBack_(address);
         }, () => { drop(); if (this.state_ !== 'closed') this.retryBack_(address); });
     }
@@ -523,8 +607,11 @@ export class ReplicationClient {
         const offOpen = transport.on('open', () => {
             if (this.state_ !== 'reconnecting' || this.channel_) return;
             void this.handshake_(transport, true).then((res) => {
+                if (res.ok || this.state_ === 'closed') return;
+                // Routed elsewhere (a login at an entry, sent on to its zone).
+                if (res.redirect && this.dial_) { this.follow_(transport, res.redirect); return; }
                 // A refusal that is not final: drop the link and let the close redial.
-                if (!res.ok && this.state_ !== 'closed') transport.close(1000, 'hello refused');
+                transport.close(1000, 'hello refused');
             }, () => {
                 if (this.state_ !== 'closed') transport.close(1000, 'hello failed');
             });
@@ -536,15 +623,41 @@ export class ReplicationClient {
         if (this.state_ === 'closed' || this.state_ === 'idle') return;
         this.channel_?.dispose();
         this.channel_ = null;
-        this.state_ = 'reconnecting';
+        this.setState_('reconnecting');
+        this.lostSince_ ||= Date.now();
+        this.dialingSince_ ||= this.lostSince_;
         if (this.redialTimer_) return;
         const r = this.reconnect_!;
         this.redialDelay_ = this.redialDelay_ === 0 ? r.minDelayMs : Math.min(r.maxDelayMs, this.redialDelay_ * 2);
         this.redialTimer_ = setTimeout(() => {
             this.redialTimer_ = null;
             if (this.state_ !== 'reconnecting') return;
+            // The server this client was on has not come back: log in at the
+            // entry instead, which sends it where it belongs now.
+            // The address being redialed has not come back: log in at the next
+            // entry instead (the first after the lost server, then each in turn),
+            // which sends it where it belongs now.
+            if (this.entries_.length > 0 && this.dial_ && Date.now() - this.dialingSince_ >= this.entryAfterMs_) {
+                this.entryAt_ = (this.entryAt_ + 1) % this.entries_.length;
+                this.dialingSince_ = Date.now();
+                this.offSocket_?.();
+                this.offSocket_ = null;
+                this.goBack_(this.entries_[this.entryAt_]!);
+                return;
+            }
             socket.connect();
         }, this.redialDelay_);
+    }
+
+    /** A hello answered with "not here": leave this link and say hello where it says. */
+    private follow_(transport: ReliableOrderedTransport, redirect: { address: string; ticket?: string }): void {
+        this.channel_?.dispose();
+        this.channel_ = null;
+        this.offSocket_?.();
+        this.offSocket_ = null;
+        this.cancelRedial_();
+        if (isRedialable(transport)) transport.close(1000, 'redirected');
+        this.beginTransfer_(redirect.address, redirect.ticket, this.entries_[0]);
     }
 
     private cancelRedial_(): void {
@@ -585,7 +698,7 @@ export class ReplicationClient {
         this.channel_?.dispose();
         this.channel_ = null;
         this.connectionId_ = 0;
-        this.state_ = 'closed';
+        this.setState_('closed');
         // Retire the despawn subscription and all accumulated state — otherwise
         // every Play→Stop / reconnect cycle leaks a closure that keeps this dead
         // client alive (and mutating it on future despawns), plus stale queues.

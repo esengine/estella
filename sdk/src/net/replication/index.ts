@@ -52,6 +52,7 @@ export { registerReplicationArchetype, type ReplicationArchetype } from './arche
 export { NetIds } from './NetIds';
 export {
     ReplicationServer,
+    ReplicationRedirect,
     type ReplicationServerOptions,
     type ReplicationPlayer,
     type ReplicationBudgetOptions,
