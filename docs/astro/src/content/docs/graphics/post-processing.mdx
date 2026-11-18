@@ -87,6 +87,12 @@ scene is cleared to nothing while the effect is in the chain and its alpha says 
 sky is laid under an edge by that share instead of replacing the pixel. Nothing downstream sees it: the effect hands back alpha 1.
 Turn **Keep Background** up and the scene is cleared to the camera's colour again, which is what keeping the background means.
 
+`starfield`, and any sky defined with `over`, adds its light to a sky already drawn (a nebula ahead of it in the chain, or the
+environment's panorama) and is laid under the scene the same way: it reads how much of each pixel geometry covers from the scene as
+it was drawn, before any sky effect ran, so a blended surface in front of the sky (a planet's ring, glass, smoke) hides the stars by
+its own opacity. Where the environment's panorama is drawn as the background, the panorama is part of what the scene drew, and the
+stars are added wherever the depth is still the far plane.
+
 ### Clouds
 
 `skyAtmosphere` marches its clouds through the air, and the sun lights them from inside: each step asks how much of the cloud lies between it and the sun, so the far side of a deep cloud is dark and its thin edge is bright. **Silver Lining** is how bright that edge is near the sun.
