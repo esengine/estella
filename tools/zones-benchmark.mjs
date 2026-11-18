@@ -82,7 +82,32 @@ async function loadSdk() {
     const repl = await import(pathToFileURL(path.join(DIST, 'net', 'replication', 'index.js')).href);
     const persist = await import(pathToFileURL(path.join(DIST, 'persist', 'index.js')).href);
     const zones = await import(pathToFileURL(path.join(DIST, 'zones', 'index.js')).href);
-    return { sdk, repl, persist, zones };
+    const metrics = await import(pathToFileURL(path.join(DIST, 'metrics', 'index.js')).href);
+    return { sdk, repl, persist, zones, metrics };
+}
+
+/** Read a Prometheus text page into series, the zone it is for, and its sample-time buckets. */
+function parseMetrics(text) {
+    const series = new Map();
+    const buckets = [];
+    let zone = '';
+    for (const line of text.split('\n')) {
+        if (!line || line.startsWith('#')) continue;
+        const m = /^(\S+?)(\{.*\})? (\S+)$/.exec(line);
+        if (!m) continue;
+        const [, name, labels = '', value] = m;
+        const v = value === '+Inf' ? Infinity : Number(value);
+        zone ||= /zone="([^"]*)"/.exec(labels)?.[1] ?? '';
+        if (name === 'estella_replication_sample_ms_bucket') {
+            const le = /le="([^"]*)"/.exec(labels)?.[1];
+            buckets.push([le === '+Inf' ? Infinity : Number(le), v]);
+            continue;
+        }
+        series.set(name + labels.replace(/,?le="[^"]*"/, ''), v);
+    }
+    series.zone = zone;
+    series.buckets = buckets;
+    return series;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +115,7 @@ async function loadSdk() {
 // ---------------------------------------------------------------------------
 
 async function runZone() {
-    const { sdk, repl, persist, zones } = await loadSdk();
+    const { sdk, repl, persist, zones, metrics } = await loadSdk();
     const id = A.id;
     // The SDK's own store client, to the hub the coordinator serves.
     const store = new persist.RemoteStore({ connect: () => new sdk.GameSocket({ url: A.store }), secret: STORE_SECRET });
@@ -207,6 +232,16 @@ async function runZone() {
     const report_ = setInterval(() => {
         console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors, refusals }));
     }, 1000);
+    // What a deployment would scrape: the SDK's collectors on a /metrics endpoint.
+    const registry = new metrics.MetricsRegistry({ labels: { zone: id } });
+    registry.register(metrics.replicationMetrics(server));
+    registry.register(metrics.zoneMetrics(zone));
+    registry.register(metrics.playerPersistenceMetrics(records));
+    registry.register(metrics.processMetrics());
+    const http = await import('node:http');
+    const metricsServer = http.createServer(metrics.metricsHandler(registry));
+    await new Promise((r) => metricsServer.listen(0, '127.0.0.1', r));
+    console.log(`METRICS http://127.0.0.1:${metricsServer.address().port}/metrics`);
     console.log(`LISTEN ${address}`);
 
     process.stdin.setEncoding('utf8');
@@ -523,6 +558,16 @@ async function runAll() {
     const elapsed = (performance.now() - started) / 1000;
 
     // Let transfers in flight land, then everyone leaves and every zone saves.
+    // Scrape every live zone's /metrics as Prometheus would, before the run winds down.
+    const scraped = [];
+    for (const z of zoneProcs.filter(alive)) {
+        const url = z.log.match(/METRICS (\S+)/)?.[1];
+        if (!url) continue;
+        try {
+            const text = await (await fetch(url)).text();
+            scraped.push(parseMetrics(text));
+        } catch { /* a zone that would not answer is reported by its absence */ }
+    }
     for (const b of botProcs) b.stdin.write('quiet\n');
     await delay(3000);
     for (const b of botProcs) b.stdin.write('stop\n');
@@ -590,6 +635,24 @@ async function runAll() {
     console.log(`transfer time: p50 ${quantile(latencies, 0.5).toFixed(0)} ms, p95 ${quantile(latencies, 0.95).toFixed(0)} ms, max ${Math.max(0, ...latencies).toFixed(0)} ms`);
     console.log(`zone-side failures: ${JSON.stringify(zoneErrors)}; logins refused while held elsewhere: ${bots.reduce((n, b) => n + b.refused, 0)}`);
     console.log(`leases still held by a stopped zone: ${leftoverLeases}`);
+    if (scraped.length > 0) {
+        console.log('per zone, from its /metrics:');
+        console.log('  zone | present | sample p50/p99 ms | state KB/s | transfers sent/failed | messages delivered/forwarded/held/dropped | ELU  | rss MB');
+        for (const m of scraped) {
+            const g = (name, labels = '') => m.get(`estella_${name}{zone="${m.zone}"${labels}}`) ?? 0;
+            const count = g('replication_sample_ms_count');
+            const q = (p) => {
+                const want = p * count;
+                for (const [le, v] of m.buckets) if (v >= want) return le;
+                return Infinity;
+            };
+            console.log(`  ${m.zone.padEnd(4)} | ${String(g('replication_players_present')).padStart(7)} | ${`${q(0.5)} / ${q(0.99)}`.padStart(17)} | `
+                + `${(g('replication_state_bytes_total') / 1024 / elapsed).toFixed(0).padStart(10)} | `
+                + `${`${g('zone_transfers_total', ',outcome="sent"')} / ${g('zone_transfers_total', ',outcome="failed"')}`.padStart(21)} | `
+                + `${['delivered', 'forwarded', 'held', 'dropped'].map((o) => g('zone_player_messages_total', `,outcome="${o}"`)).join(' / ').padStart(42)} | `
+                + `${g('process_event_loop_utilization').toFixed(2)} | ${(g('process_resident_memory_bytes') / 1048576).toFixed(0).padStart(6)}`);
+        }
+    }
     if (DRAIN && drained) {
         const relogged = bots.reduce((n, b) => n + b.relogins, 0);
         const rerouted = bots.reduce((n, b) => n + b.rerouted.length, 0);
