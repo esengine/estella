@@ -134,6 +134,45 @@ describe('Draw API', () => {
             expect(mock.draw_triangles).not.toHaveBeenCalled();
         });
 
+        it('copies a mesh into the engine once, and draws it by reference with nothing copied', () => {
+            const buffer = Draw.createTriangles(square);
+            expect(buffer.live).toBe(true);
+            expect(buffer.vertexCount).toBe(4);
+            const allocated = mock._malloc.mock.calls.length;
+            const heap = mock.HEAPF32.slice();
+            for (let i = 0; i < 20; i++) Draw.triangles(buffer, { transform: [1, 0, 0, 1, i, 0] });
+            expect(mock._malloc.mock.calls.length).toBe(allocated);
+            expect(mock.HEAPF32).toEqual(heap);
+            expect(mock.draw_triangles).toHaveBeenCalledTimes(20);
+            const [pAt, verts, cAt, iAt, count] = mock.draw_triangles.mock.calls[0] as number[];
+            expect([verts, count]).toEqual([4, 6]);
+            expect([...mock.HEAPF32.subarray(pAt / 4, pAt / 4 + 8)]).toEqual(square.positions);
+            expect([...mock.HEAPF32.subarray(cAt / 4, cAt / 4 + 16)]).toEqual(square.colors);
+            expect([...mock.HEAPU32.subarray(iAt / 4, iAt / 4 + 6)]).toEqual(square.indices);
+        });
+
+        it('draws nothing from a released buffer, and frees it once', () => {
+            const buffer = Draw.createTriangles(square);
+            buffer.release();
+            buffer.release();
+            expect(buffer.live).toBe(false);
+            Draw.triangles(buffer);
+            expect(mock.draw_triangles).not.toHaveBeenCalled();
+            expect(mock._free).toHaveBeenCalledTimes(1);
+        });
+
+        it('lets a buffer go with the engine that held it: not drawn, not freed into the next one', () => {
+            const buffer = Draw.createTriangles(square);
+            shutdownDrawAPI();
+            const next = createDrawMockModule();
+            initDrawAPI(next as unknown as ESEngineModule);
+            expect(buffer.live).toBe(false);
+            Draw.triangles(buffer);
+            buffer.release();
+            expect(next.draw_triangles).not.toHaveBeenCalled();
+            expect(next._free).not.toHaveBeenCalled();
+        });
+
         it('keeps one heap block, grown only for a larger mesh', () => {
             const before = mock._malloc.mock.calls.length;
             for (let i = 0; i < 50; i++) Draw.triangles(square);

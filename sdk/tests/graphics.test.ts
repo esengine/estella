@@ -10,7 +10,17 @@ import { Graphics } from '../src/render/graphics';
 import { Draw } from '../src/render/draw';
 import type { MeshRendererGeometry } from '../src/ecs/component';
 
-vi.mock('../src/render/draw', () => ({ Draw: { triangles: vi.fn() } }));
+/** A resident buffer as Draw makes one: the mesh it was made from, live until released. */
+interface FakeBuffer { mesh: { indices: ArrayLike<number> }; live: boolean; release: ReturnType<typeof vi.fn> }
+vi.mock('../src/render/draw', () => ({
+    Draw: {
+        triangles: vi.fn(),
+        createTriangles: vi.fn((mesh: { indices: ArrayLike<number> }) => {
+            const buffer: FakeBuffer = { mesh, live: true, release: vi.fn(() => { buffer.live = false; }) };
+            return buffer;
+        }),
+    },
+}));
 
 const RED = { r: 1, g: 0, b: 0, a: 1 };
 const WHITE = { r: 1, g: 1, b: 1, a: 1 };
@@ -38,7 +48,12 @@ function hexagonPath(g: Graphics, cx: number, cy: number, r: number): void {
     }
 }
 
-beforeEach(() => vi.mocked(Draw.triangles).mockClear());
+beforeEach(() => {
+    vi.mocked(Draw.triangles).mockClear();
+    vi.mocked(Draw.createTriangles).mockClear();
+});
+
+const created = (): FakeBuffer[] => vi.mocked(Draw.createTriangles).mock.results.map((r) => r.value as FakeBuffer);
 
 describe('a Graphics path', () => {
     it('counts the points of the path being drawn, and clear() forgets them', () => {
@@ -159,11 +174,13 @@ describe('drawing a Graphics', () => {
         return g;
     };
 
-    it('is one batched call with the triangles it built', () => {
+    it('is one batched call, by reference to the triangles it put in the engine once', () => {
         hexagon().flush();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
+        expect(created()[0].mesh.indices.length).toBe(12);
         expect(Draw.triangles).toHaveBeenCalledTimes(1);
         const [mesh, options] = vi.mocked(Draw.triangles).mock.calls[0];
-        expect(mesh.indices.length).toBe(12);
+        expect(mesh).toBe(created()[0]);
         expect(options?.transform?.map((v) => v + 0)).toEqual([1, 0, 0, 1, 0, 0]);
         expect(options?.tint).toEqual({ r: 1, g: 1, b: 1, a: 1 });
     });
@@ -182,11 +199,12 @@ describe('drawing a Graphics', () => {
         expect(Draw.triangles).not.toHaveBeenCalled();
     });
 
-    it('builds its triangles once, however many times it is drawn, and again only after a change', () => {
+    it('builds its triangles and puts them in the engine once, however many times it is drawn, and again only after a change', () => {
         const g = hexagon();
         const first = g.geometry();
         for (let i = 0; i < 100; i++) g.flush({ x: i, alpha: (i + 1) / 100 });
         expect(g.geometry()).toBe(first);
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
         const meshes = new Set(vi.mocked(Draw.triangles).mock.calls.map(([mesh]) => mesh));
         expect(meshes.size).toBe(1);
         // A shape that draws nothing (no fill, no line width) changes nothing.
@@ -195,5 +213,27 @@ describe('drawing a Graphics', () => {
         g.lineStyle(1, WHITE);
         g.drawCircle(0, 0, 5);
         expect(g.geometry()).not.toBe(first);
+        // The old triangles' engine memory went back with the rebuild; the next draw puts the new ones there.
+        expect(created()[0].release).toHaveBeenCalledTimes(1);
+        g.flush();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives its engine memory back on dispose(), and puts it back if it is drawn again', () => {
+        const g = hexagon();
+        g.flush();
+        g.dispose();
+        expect(created()[0].release).toHaveBeenCalledTimes(1);
+        g.flush();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(2);
+    });
+
+    it('puts its triangles back when the engine that held them is gone', () => {
+        const g = hexagon();
+        g.flush();
+        created()[0].live = false;                // the engine was shut down and started again
+        g.flush();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(Draw.triangles).mock.calls[1][0]).toBe(created()[1]);
     });
 });

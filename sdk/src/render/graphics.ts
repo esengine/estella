@@ -17,7 +17,7 @@
  *          style, a shape, `closePath` or a draw ends it.
  */
 import type { Color, Vec2 } from '../types';
-import { Draw } from './draw';
+import { Draw, type DrawTrianglesBuffer } from './draw';
 import { buildPathGeometry, mergeGeometry, type LineCap, type LineJoin, type PathStyle } from './vectorPath';
 import type { MeshRendererGeometry } from '../ecs/component';
 
@@ -56,6 +56,21 @@ interface Shape {
 }
 
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
+
+/** What a Graphics' engine memory is reached through, so it can be given back when the Graphics is collected. */
+interface Holder {
+    buffer: DrawTrianglesBuffer | null;
+}
+
+/** A Graphics nobody disposed of gives its engine memory back when it is collected; one that was disposed of is unregistered. */
+interface Finalizer {
+    register(target: object, held: Holder, token: object): void;
+}
+/** Read off the global so a host without one (an older embedded engine) still runs: it then frees only on dispose(). */
+const FinalizerCtor = (globalThis as { FinalizationRegistry?: new (cleanup: (held: Holder) => void) => Finalizer }).FinalizationRegistry;
+const collected: Finalizer | null = FinalizerCtor
+    ? new FinalizerCtor((held) => { held.buffer?.release(); held.buffer = null; })
+    : null;
 const toPathColor = (c: Color): [number, number, number, number] => [c.r, c.g, c.b, c.a];
 
 export class Graphics {
@@ -72,6 +87,15 @@ export class Graphics {
     /** The triangles of every shape, built the first time they are needed after a change; null when they must be built again. */
     private built_: MeshRendererGeometry | null = null;
     private drawn_ = { positions: new Float32Array(0), colors: new Float32Array(0), indices: new Uint32Array(0) };
+    /**
+     * The triangles in the engine's memory, put there on the first draw after a build and drawn by reference from then on:
+     * a flush copies nothing. Made again after a rebuild, and after the engine itself was started again.
+     */
+    private readonly resident_: Holder = { buffer: null };
+
+    constructor() {
+        collected?.register(this, this.resident_, this);
+    }
 
     /**
      * Width of a fade to transparent along every outer edge, in the drawing's units: anti-aliasing for a surface drawn without
@@ -223,6 +247,12 @@ export class Graphics {
         this.built_ = null;
     }
 
+    /** Gives the drawing's engine memory back now, rather than when the Graphics is collected. It can still be drawn: it is put back. */
+    dispose(): void {
+        this.resident_.buffer?.release();
+        this.resident_.buffer = null;
+    }
+
     /** The drawing's triangles in its own coordinates: what {@link flush} draws, and what a MeshRenderer can be given to keep. */
     geometry(): MeshRendererGeometry {
         this.endPath_(true);
@@ -234,6 +264,8 @@ export class Graphics {
                 colors: Float32Array.from(built.colors ?? []),
                 indices: Uint32Array.from(built.indices),
             };
+            // The old triangles are not these: their memory goes back, and the next draw puts these there.
+            this.dispose();
         }
         return this.built_;
     }
@@ -250,7 +282,12 @@ export class Graphics {
         const sx = typeof scale === 'number' ? scale : scale.x;
         const sy = typeof scale === 'number' ? scale : scale.y;
         const cos = Math.cos(rotation), sin = Math.sin(rotation);
-        Draw.triangles(this.drawn_, {
+        const held = this.resident_;
+        if (!held.buffer?.live) {
+            held.buffer?.release();
+            held.buffer = Draw.createTriangles(this.drawn_);
+        }
+        Draw.triangles(held.buffer, {
             tint: { r: t.r, g: t.g, b: t.b, a: t.a * alpha },
             transform: [cos * sx, sin * sx, -sin * sy, cos * sy, options.x ?? 0, options.y ?? 0],
         });

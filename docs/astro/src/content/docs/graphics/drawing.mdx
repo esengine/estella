@@ -63,6 +63,7 @@ cleared every frame, so call it each frame you want the shape visible:
 | `texture(pos, size, textureHandle, tint?)` | A textured quad. |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
 | `triangles(mesh, { tint?, transform? })` | Triangles with a colour a vertex (`positions` x, y pairs, `indices`, optional `colors`), moved by a 2D affine `[xx, xy, yx, yy, tx, ty]` and multiplied by `tint`, batched with the other primitives. What `Graphics.flush()` draws through. |
+| `createTriangles(mesh)` | Copies a mesh into the engine's memory once and returns a buffer `triangles()` draws by reference, with nothing copied a draw. `release()` it when it is no longer drawn. |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A custom mesh by handle (see the `Geometry` API below). |
 | `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
 | `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
@@ -107,7 +108,10 @@ style, a shape, `closePath()` or a draw ends it, and a change of style part-way
 along a line goes on from the same point.
 
 The drawing is tessellated the first time it is drawn after a change, and
-`flush()` is then one batched `Draw.triangles` call. `geometry()` returns those
+`flush()` is then one batched `Draw.triangles` call. The triangles are copied into
+the engine's memory on that first draw and drawn from there by reference, so a
+flush copies nothing; `dispose()` gives that memory back early (a `Graphics`
+nobody disposes of gives it back when it is collected). `geometry()` returns those
 triangles, to hand to a `MeshRenderer` that should keep them.
 
 ### One shape, drawn many times

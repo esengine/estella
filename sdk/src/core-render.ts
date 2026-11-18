@@ -78,6 +78,7 @@ export {
     shutdownDrawAPI,
     type DrawAPI,
     type DrawTriangles,
+    type DrawTrianglesBuffer,
     type DrawTrianglesOptions,
 } from './render/draw';
 
