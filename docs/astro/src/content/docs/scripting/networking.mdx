@@ -312,6 +312,64 @@ never re-sends snap back. Owned entities bypass snapshot interpolation.
   of hard-snapping; add `maxError` so a genuine teleport still snaps. Purely
   presentational — the simulation state can't drift.
 
+## Keeping state across restarts — `esengine/persist`
+
+What a server holds dies with its process unless it is written somewhere.
+`esengine/persist` is the server side of that, in four layers you can use apart:
+
+- **A store.** `PersistStore` is a small asynchronous document store: a key, a
+  JSON value, and a version every write moves on by one. A write may name the
+  version it read (`expectVersion`, `0` for "must not exist") and is refused
+  with `PersistConflict` if someone wrote in between. `MemoryStore` is for tests;
+  `FileStore(dir)` keeps one file per key and replaces it atomically, for a
+  server that runs as one process. For several processes, implement the four
+  methods over your database, with `expectVersion` as a real compare-and-set.
+- **Records.** `RecordBook` writes each record with its schema version and
+  reads it back through `migrations` (`migrations[n]` upgrades n to n + 1), the
+  same contract the client-side `SaveManager` keeps.
+- **Entity snapshots.** `snapshotEntity(world, e, { include })` and
+  `restoreEntity(world, snapshot, into?)` save what a scene would save for one
+  entity — builtin and script components alike — as JSON. `Replicated` keeps
+  its archetype but not its netId or owner; references to other entities are
+  written as 0.
+- **Players and the world.** `PlayerPersistence` follows the players present:
+  call `track(playerIds)` every tick and it loads newcomers, saves and lets go
+  of leavers, and autosaves changed records (`autosaveMs`, default 60 s).
+  Writes to one player run in order, so a player who leaves and comes straight
+  back reads what they left with, and a write never overwrites a newer record
+  from another process — it fails and `onError` hears about it.
+  `WorldPersistence` keeps every entity marked `Persistent` (a `key`, made up on
+  first flush if empty): `restore(world)` at boot, `flush(world)` whenever you
+  like — it writes only entities that changed and deletes the ones that are gone.
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// each tick, with replication's player identity:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // the game's own
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// when a player leaves, before track() lets them go:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// on shutdown:
+await players.flush();
+await world.flush(app.world);
+```
+
+What a record holds, when the world is flushed, and which database backs the
+store are the game's. Nothing here runs on the client.
+
 ## Asynchronous online games — sessions
 
 Replication shares a tick between server and clients. A game played **asynchronously**

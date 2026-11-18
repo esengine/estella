@@ -277,6 +277,52 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
   渐出(视觉误差每 `halfLife` 秒减半)而不是硬 snap;加 `maxError` 让真正的
   传送仍然瞬移。纯表现层——模拟状态不可能因此漂移。
 
+## 跨重启保存状态——`esengine/persist`
+
+服务器手里的东西不写到别处，进程一停就没了。`esengine/persist` 负责服务器这一侧，分四层，可以单独使用：
+
+- **存储。** `PersistStore` 是一个很小的异步文档存储：键、JSON 值，以及每次写入加一的版本号。
+  写入可以带上读到的版本(`expectVersion`，`0` 表示"必须不存在")，若中间有人写过，会以
+  `PersistConflict` 拒绝。`MemoryStore` 用于测试；`FileStore(dir)` 每个键一个文件、原子替换，
+  适合单进程服务器。多进程时用你的数据库实现这四个方法，把 `expectVersion` 做成真正的比较并交换。
+- **记录。** `RecordBook` 写入时带上数据的 schema 版本，读出时经 `migrations` 升到当前版本
+  (`migrations[n]` 把 n 升到 n + 1)，与客户端 `SaveManager` 的约定相同。
+- **实体快照。** `snapshotEntity(world, e, { include })` 和 `restoreEntity(world, snapshot, into?)`
+  把一个实体按场景保存的方式存成 JSON，内置组件和脚本组件都可以。`Replicated` 保留 archetype，
+  不保留 netId 和 owner；指向其他实体的字段写成 0。
+- **玩家与世界。** `PlayerPersistence` 跟随在场玩家：每 tick 调 `track(playerIds)`，它会加载新来的、
+  保存并放下离开的，并自动保存有改动的记录(`autosaveMs`，默认 60 秒)。同一玩家的写入按顺序执行，
+  所以离开后马上回来读到的是离开时的数据；写入也不会覆盖其他进程写下的更新记录——它会失败并通知
+  `onError`。`WorldPersistence` 保存所有带 `Persistent` 的实体(一个 `key`，为空时首次 flush 自动生成)：
+  启动时 `restore(world)`，之后随时 `flush(world)`——只写有变化的实体，并删除已经不存在的。
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// 每 tick，配合复制层的玩家身份:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // 游戏自己的
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// 玩家离开时，在 track() 放下他之前:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// 关服时:
+await players.flush();
+await world.flush(app.world);
+```
+
+记录里存什么、世界何时 flush、存储背后用哪个数据库，都由游戏决定。这里的东西都不在客户端运行。
+
 ## 异步在线游戏——会话层
 
 状态复制让服务器与客户端共享一个 tick。而**异步**玩共享世界的游戏(城建、卡牌、抽卡)没有共享 tick,

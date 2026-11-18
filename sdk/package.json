@@ -42,6 +42,7 @@
     "./dist/ai/index.js",
     "./dist/net/replication/index.js",
     "./dist/net/session/index.js",
+    "./dist/persist/index.js",
     "./dist/gameplay/index.js",
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
@@ -184,6 +185,10 @@
     "./session": {
       "import": "./dist/net/session/index.js",
       "types": "./dist/net/session/index.d.ts"
+    },
+    "./persist": {
+      "import": "./dist/persist/index.js",
+      "types": "./dist/persist/index.d.ts"
     },
     "./gameplay": {
       "import": "./dist/gameplay/index.js",
