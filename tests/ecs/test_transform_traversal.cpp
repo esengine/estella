@@ -88,10 +88,7 @@ TEST_CASE("valid deep hierarchies compose every descendant") {
     for (int i = 0; i < 50000; ++i) {
         leaf = r.create();
         r.emplace<Transform>(leaf).position.x = 1;
-        if (parent != INVALID_ENTITY) {
-            r.emplace<Parent>(leaf).entity = parent;
-            r.emplace<Children>(parent).entities.push_back(leaf);
-        }
+        if (parent != INVALID_ENTITY) r.childOf().link(leaf, parent);
         parent = leaf;
     }
     system.ensureComposed(r);
@@ -99,12 +96,13 @@ TEST_CASE("valid deep hierarchies compose every descendant") {
     CHECK(t.worldPosition.x == doctest::Approx(50000));
 }
 
-TEST_CASE("corrupted child links cannot repeat a traversal forever") {
+TEST_CASE("a Children component written by hand does not change what composes") {
     Registry r; TransformSystem system;
     auto root = r.create(), child = r.create();
     r.emplace<Transform>(root).position.x = 3;
     r.emplace<Transform>(child).position.x = 2;
     setParent(r, child, root);
+    // The component is a copy of the relation: a duplicate or a back-edge written into it is not a link.
     r.get<Children>(root).entities.push_back(child);
     r.emplace<Children>(child).entities.push_back(root);
     system.setChangeTracking(true);

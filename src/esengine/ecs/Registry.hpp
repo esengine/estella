@@ -29,6 +29,7 @@
 #include "View.hpp"
 #include "ActiveView.hpp"
 #include "EntityChangeJournal.hpp"
+#include "Relation.hpp"
 #include "components/Hierarchy.hpp"
 #include "../events/Sink.hpp"
 
@@ -425,9 +426,7 @@ public:
 
         if (entity_changes_.readerCount()) {
             recordEntityChange(entity);
-            if (const auto* children = tryGet<Children>(entity)) {
-                for (const auto child : children->entities) recordEntityChange(child, ENTITY_CHANGE_SUBTREE);
-            }
+            child_of_.eachSource(entity, [this](Entity child) { recordEntityChange(child, ENTITY_CHANGE_SUBTREE); });
         }
 
         const u32 idx = entity.index();
@@ -445,6 +444,8 @@ public:
         // Connection (via Sink::connect) keeps subscriber lifetimes safe in both
         // teardown orders — Registry-first or system-first (RC12, fixes A12).
         on_destroy_signal_.publish(entity);
+        // After the callbacks, which may still ask where the entity stood; before the slot can be handed to anyone else.
+        child_of_.onDestroy(entity);
 
         component_masks_[idx].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {
@@ -497,6 +498,14 @@ public:
     usize entityCount() const {
         return entity_count_;
     }
+
+    /**
+     * @brief The (ChildOf, parent) relation: each entity's parent, and each parent's children in order
+     * @details The authority on the hierarchy. Edit it through setParent / destroyWithChildren / applySceneEntityOrder,
+     *          which also keep the Parent and Children components that scripts and scene files read.
+     */
+    const ExclusiveRelation& childOf() const { return child_of_; }
+    ExclusiveRelation& childOf() { return child_of_; }
 
     /**
      * @brief Slots permanently out of circulation, their generation spent.
@@ -748,6 +757,7 @@ public:
             }
         }
         entityValid_.clear();
+        child_of_.clear();
         disabled_.clear();
         inactive_.clear();
         activity_state_.clear();
@@ -996,6 +1006,7 @@ private:
     // =========================================================================
 
     std::vector<u8> entityValid_;
+    ExclusiveRelation child_of_;
     EntityChangeJournal entity_changes_;
     static constexpr u64 RESET_EPOCH_LIMIT = (u64{1} << 53) - 1;
     u64 entity_reset_epoch_ = 0;
@@ -1012,14 +1023,15 @@ private:
     usize disabled_count_ = 0;
     u32 activity_epoch_ = 1;
     mutable u32 resolved_activity_epoch_ = 0;
+    mutable u32 resolved_child_of_epoch_ = 0;
     mutable std::vector<u8> inactive_, activity_state_;
     mutable std::vector<u32> activity_path_;
 
     void ensureActivity() const {
-        if (resolved_activity_epoch_ == activity_epoch_) return;
+        // A link edited through the relation itself, not setParent, moves its epoch rather than this one.
+        if (resolved_activity_epoch_ == activity_epoch_ && resolved_child_of_epoch_ == child_of_.epoch()) return;
         inactive_.assign(entityValid_.size(), 0);
         activity_state_.assign(entityValid_.size(), 0);
-        const auto* parents = getPool<Parent>();
         // Each entity is resolved once, iteratively: deep chains do not recurse
         // or repeatedly walk their ancestors. O(entities + parent links).
         for (usize start = 0; start < entityValid_.size(); ++start) {
@@ -1033,9 +1045,9 @@ private:
                 activity_state_[at] = 1;
                 activity_path_.push_back(at);
                 if (disabled_[at]) { off = true; break; }
-                const auto* parent = parents ? parents->tryGet(Entity::make(at, generations_[at])) : nullptr;
-                if (!parent || !valid(parent->entity)) break;
-                at = parent->entity.index();
+                const Entity parent = child_of_.target(Entity::make(at, generations_[at]));
+                if (!parent.isValid()) break;
+                at = parent.index();
             }
             for (u32 index : activity_path_) {
                 inactive_[index] = off ? 1 : 0;
@@ -1043,6 +1055,7 @@ private:
             }
         }
         resolved_activity_epoch_ = activity_epoch_;
+        resolved_child_of_epoch_ = child_of_.epoch();
     }
     std::vector<u32> generations_;
     std::vector<ComponentMask> component_masks_;

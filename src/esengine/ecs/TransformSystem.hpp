@@ -133,15 +133,13 @@ private:
     u32 visited_ = 0;
     u32 serial_ = 0;
     bool overflowed_ = false;
-    struct TraversalTask {
-        Entity entity;
-        const glm::mat4* parentMatrix;
-        bool parentDirty;
-        bool parentFlatCollapsed;
+    /** What a tree entity hands its children in the cascade walk: the matrix they compose under, and how. */
+    struct Slot {
+        const glm::mat4* matrix;
+        bool dirty;
+        bool flatCollapsed;
     };
-    std::vector<TraversalTask> pending_;
-    std::vector<u32> traversal_stamps_;
-    u32 traversal_stamp_ = 0;
+    std::vector<Slot> slots_;
     bool have_dirty_ = false;
     bool have_static_ = false;
     bool have_children_ = false;
@@ -158,14 +156,6 @@ private:
         }
     }
 
-    bool visitOnce(Entity entity) {
-        const auto index = entity.index();
-        if (index >= traversal_stamps_.size()) traversal_stamps_.resize(index + 1, 0);
-        if (traversal_stamps_[index] == traversal_stamp_) return false;
-        traversal_stamps_[index] = traversal_stamp_;
-        return true;
-    }
-
     /**
      * @brief One composition, whoever asked for it
      * @details The serial advances here and nowhere else, so "a composition ran"
@@ -174,10 +164,6 @@ private:
      *          past a set nobody collected.
      */
     void compose(Registry& registry) {
-        if (++traversal_stamp_ == 0) {
-            std::fill(traversal_stamps_.begin(), traversal_stamps_.end(), 0);
-            ++traversal_stamp_;
-        }
         visited_ = 0;
         if (tracking_ && !overflowed_) changedOut_ = &changed_;
         updateDirtyTransforms(registry);
@@ -191,47 +177,34 @@ private:
         markComposed(registry);
     }
 
+    /**
+     * @brief Composes in two walks: the entities in no tree, then the trees in cascade order
+     * @details An entity with neither a parent nor children (most of a 2D scene) is its own world transform: the first walk
+     *          over the Transform pool copies it and moves on. Every entity in a tree is in the ChildOf relation's cascade, a
+     *          flat array in which each parent comes before its children; the second walk goes through it front to back,
+     *          reading each parent's result from the slot it wrote a few entries earlier. It needs no stack and no marks,
+     *          and the relation cannot hold a cycle or a duplicate for it to guard against.
+     */
     void updateDirtyTransforms(Registry& registry) {
         dirty_to_clear_.clear();
         have_dirty_ = !registry.entitiesWith<TransformDirty>().empty();
         have_static_ = !registry.entitiesWith<TransformStatic>().empty();
-        have_children_ = !registry.entitiesWith<Children>().empty();
+        const auto& rel = registry.childOf();
+        have_children_ = rel.linkCount() != 0;
         have_collapsed_ = !registry.entitiesWith<FlatGeometryCollapsed>().empty();
-        const bool haveParents = !registry.entitiesWith<Parent>().empty();
 
         // eachLive (no per-frame snapshot copy of the entity list): the callback
         // writes Transform fields and derived collapse tags, while deferring
         // TransformDirty removal; the Transform pool itself stays stable.
-        registry.eachLive<Transform>([&registry, this, haveParents](Entity entity, Transform& transform) {
-            if (!haveParents || !registry.has<Parent>(entity)) {
-                bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
-                bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
-
-                if (isStatic && !isDirty) {
-                    auto* children = registry.tryGet<Children>(entity);
-                    if (children) {
-                        visitOnce(entity);
-                        for (Entity child : children->entities) {
-                            updateEntityTransform(registry, child, transform.cachedMatrix_, false,
-                                registry.has<FlatGeometryCollapsed>(entity));
-                        }
-                    }
-                    return;
-                }
-
-                updateRootTransform(registry, entity, transform, isDirty);
-            }
+        registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
+            if (have_children_ && (rel.hasTarget(entity) || rel.hasSources(entity))) return;
+            const bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
+            const bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+            if (isStatic && !isDirty) return;
+            updateRootTransform(registry, entity, transform, isDirty);
         });
 
-        if (have_children_) {
-            const glm::mat4 identity{1.0f};
-            registry.eachLive<Children>([&registry, this, &identity](Entity entity, Children& children) {
-                if (registry.has<Transform>(entity) || registry.has<Parent>(entity) || !visitOnce(entity)) return;
-                if (have_dirty_ && registry.has<TransformDirty>(entity)) dirty_to_clear_.push_back(entity);
-                setFlatCollapsed(registry, entity, false);
-                for (Entity child : children.entities) updateEntityTransform(registry, child, identity, true, false);
-            });
-        }
+        if (have_children_) composeTrees(registry);
 
         for (Entity e : dirty_to_clear_) {
             if (registry.has<TransformDirty>(e)) {
@@ -240,6 +213,7 @@ private:
         }
     }
 
+    /** @brief A root's world transform is its local one: copied, never composed from a matrix. */
     void updateRootTransform(Registry& registry, Entity entity, Transform& transform, bool localDirty) {
         if (changedOut_) {
             ++visited_;
@@ -254,96 +228,99 @@ private:
         transform.worldRotation = transform.rotation;
         transform.worldScale = transform.scale;
         transform.decomposed_ = true;
-        const bool collapsed = transform.scale.x == 0 || transform.scale.y == 0;
-        setFlatCollapsed(registry, entity, collapsed);
-
-        if (localDirty) {
-            dirty_to_clear_.push_back(entity);
-        }
-
-        if (!have_children_) return;
-        auto* children = registry.tryGet<Children>(entity);
-        if (!children || children->entities.empty()) {
-            // A root's cachedMatrix_ is only read to transform its children, and
-            // with decomposed_ = true the renderer reads world TRS directly — so
-            // for a childless root (the common 2D case) the compose is dead work.
-            return;
-        }
-
-        transform.cachedMatrix_ = math::compose(transform.worldPosition, transform.worldRotation, transform.worldScale);
-        visitOnce(entity);
-        for (Entity child : children->entities) {
-            updateEntityTransform(registry, child, transform.cachedMatrix_, true, collapsed);
-        }
+        setFlatCollapsed(registry, entity, transform.scale.x == 0 || transform.scale.y == 0);
+        if (localDirty) dirty_to_clear_.push_back(entity);
     }
 
-    void updateEntityTransform(Registry& registry, Entity entity,
-                               const glm::mat4& parentWorldMatrix, bool parentDirty, bool parentFlatCollapsed) {
-        pending_.clear();
-        TraversalTask task{entity, &parentWorldMatrix, parentDirty, parentFlatCollapsed};
-        // Explicit DFS preserves child order without a depth limit or call-stack
-        // growth. Per-composition stamps bound corrupt duplicate/cyclic links.
-        for (;;) {
-            auto* transform = registry.tryGet<Transform>(task.entity);
-            if (registry.valid(task.entity) && visitOnce(task.entity)) {
-                const bool localDirty = have_dirty_ && registry.has<TransformDirty>(task.entity);
-                const bool dirty = task.parentDirty || localDirty;
-                const bool keepStatic = transform && have_static_ && registry.has<TransformStatic>(task.entity) && !dirty;
-                const glm::mat4* childMatrix = task.parentMatrix;
-                bool flatCollapsed = task.parentFlatCollapsed;
-                if (transform && !keepStatic) {
-                    flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
-                        || (task.parentFlatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
-                    const auto matrix = *task.parentMatrix * math::compose(transform->position, transform->rotation, transform->scale);
-                    if (changedOut_) ++visited_;
-                    // Only a matrix that changed is decomposed again: the same matrix decomposes to the same world fields, and
-                    // a still child of a model (most of a scene's meshes) was decomposed afresh by every view of every frame.
-                    if (matrix != transform->cachedMatrix_) {
-                        if (changedOut_) changedOut_->push_back(task.entity);
-                        transform->cachedMatrix_ = matrix;
-                        transform->decomposed_ = false;
-                        // Where it stands in the world changed (its own move or a parent's): a reader of Transform changes sees it.
-                        registry.markChanged<Transform>(task.entity);
-                    }
-                } else if (keepStatic) {
-                    flatCollapsed = registry.has<FlatGeometryCollapsed>(task.entity);
+    void composeTrees(Registry& registry) {
+        static const glm::mat4 identity{1.0f};
+        const auto& order = registry.childOf().cascade();
+        slots_.resize(order.size());
+        for (usize i = 0, n = order.size(); i < n; ++i) {
+            const Entity entity = order[i].entity;
+            auto* transform = registry.tryGet<Transform>(entity);
+            const bool localDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+
+            if (order[i].parent == ExclusiveRelation::NONE) {
+                // The root of a tree.
+                if (!transform) {
+                    // A parent with no Transform of its own (a folder of entities): its children compose against identity.
+                    if (localDirty) dirty_to_clear_.push_back(entity);
+                    setFlatCollapsed(registry, entity, false);
+                    slots_[i] = {&identity, true, false};
+                } else if (have_static_ && !localDirty && registry.has<TransformStatic>(entity)) {
+                    // A static root keeps the matrix it had; its children are recomposed only where they are dirty.
+                    slots_[i] = {&transform->cachedMatrix_, false, registry.has<FlatGeometryCollapsed>(entity)};
+                } else {
+                    updateRootTransform(registry, entity, *transform, localDirty);
+                    // A root's cachedMatrix_ is only read to transform its children, so only a root with children builds it.
+                    transform->cachedMatrix_ = math::compose(transform->worldPosition, transform->worldRotation, transform->worldScale);
+                    slots_[i] = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
                 }
-                setFlatCollapsed(registry, task.entity, flatCollapsed);
-                if (localDirty) dirty_to_clear_.push_back(task.entity);
-                if (transform) childMatrix = &transform->cachedMatrix_;
-                if (auto* children = registry.tryGet<Children>(task.entity)) {
-                    const auto& list = children->entities;
-                    // Descend directly into the first child. Only siblings need a
-                    // stack entry; long chains do no push/pop work per node.
-                    for (usize i = list.size(); i > 1; --i) {
-                        // Transform storage is stable throughout composition; borrow
-                        // its cache rather than copying a matrix into every task.
-                        pending_.push_back({list[i - 1], childMatrix, keepStatic ? false : dirty, flatCollapsed});
-                    }
-                    if (!list.empty()) {
-                        task = {list[0], childMatrix, keepStatic ? false : dirty, flatCollapsed};
-                        continue;
-                    }
-                }
+                continue;
             }
-            if (pending_.empty()) break;
-            task = pending_.back();
-            pending_.pop_back();
+
+            const Slot& parent = slots_[order[i].parent];
+            const bool dirty = parent.dirty || localDirty;
+            const bool keepStatic = transform && have_static_ && !dirty && registry.has<TransformStatic>(entity);
+            bool flatCollapsed = parent.flatCollapsed;
+            if (transform && !keepStatic) {
+                flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
+                    || (parent.flatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
+                const auto matrix = *parent.matrix * math::compose(transform->position, transform->rotation, transform->scale);
+                if (changedOut_) ++visited_;
+                // Only a matrix that changed is decomposed again: the same matrix decomposes to the same world fields, and
+                // a still child of a model (most of a scene's meshes) was decomposed afresh by every view of every frame.
+                if (matrix != transform->cachedMatrix_) {
+                    if (changedOut_) changedOut_->push_back(entity);
+                    transform->cachedMatrix_ = matrix;
+                    transform->decomposed_ = false;
+                    // Where it stands in the world changed (its own move or a parent's): a reader of Transform changes sees it.
+                    registry.markChanged<Transform>(entity);
+                }
+            } else if (keepStatic) {
+                flatCollapsed = registry.has<FlatGeometryCollapsed>(entity);
+            }
+            setFlatCollapsed(registry, entity, flatCollapsed);
+            if (localDirty) dirty_to_clear_.push_back(entity);
+            // An entity with no Transform passes its parent's matrix through to its children. Transform storage is stable
+            // throughout composition, so a slot borrows the cached matrix rather than copying it.
+            slots_[i] = {transform ? &transform->cachedMatrix_ : parent.matrix, keepStatic ? false : dirty, flatCollapsed};
         }
     }
 };
 
 inline bool isDescendantOf(Registry& registry, Entity entity, Entity ancestor) {
-    usize remaining = registry.entityCount();
-    while (registry.has<Parent>(entity)) {
-        // Corrupt/deserialized cycles must not hang a hierarchy edit.
-        if (remaining-- == 0) return true;
-        Entity parent = registry.get<Parent>(entity).entity;
-        if (parent == ancestor) return true;
-        if (!registry.valid(parent)) break;
-        entity = parent;
+    return registry.childOf().isDescendantOf(entity, ancestor);
+}
+
+/**
+ * @brief Writes the Parent and Children components from the ChildOf relation, for @p entity and the parents it left and joined
+ * @details The relation is the hierarchy; these components are its copy for whoever reads components rather than the relation
+ *          (scripts, scene files, the editor). Children lists the children in the relation's order, so a sibling removed from
+ *          the middle no longer reorders the rest.
+ */
+inline void syncHierarchyComponents(Registry& registry, Entity entity, Entity oldParent, Entity newParent) {
+    const auto& rel = registry.childOf();
+    if (!entity.isValid()) {
+    } else if (newParent.isValid()) {
+        if (auto* parent = registry.tryGet<Parent>(entity)) {
+            if (parent->entity != newParent) registry.patch<Parent>(entity).entity = newParent;
+        } else {
+            registry.emplace<Parent>(entity, newParent);
+        }
+    } else if (registry.has<Parent>(entity)) {
+        registry.remove<Parent>(entity);
     }
-    return false;
+    for (const Entity owner : {oldParent, newParent}) {
+        if (!owner.isValid() || !registry.valid(owner)) continue;
+        if (!registry.has<Children>(owner)) {
+            if (!rel.hasSources(owner)) continue;
+            registry.emplace<Children>(owner);
+        }
+        auto list = rel.sources(owner);
+        if (registry.get<Children>(owner).entities != list) registry.patch<Children>(owner).entities = std::move(list);
+    }
 }
 
 inline bool setParent(Registry& registry, Entity child, Entity newParent) {
@@ -354,58 +331,26 @@ inline bool setParent(Registry& registry, Entity child, Entity newParent) {
     // Validate the entire proposed link BEFORE touching either half of the old
     // one. A rejected edit is a transaction with no observable changes.
     if (!registry.valid(child)) return false;
+    auto& rel = registry.childOf();
     if (newParent != INVALID_ENTITY &&
-        (!registry.valid(newParent) || child == newParent || isDescendantOf(registry, newParent, child))) {
+        (!registry.valid(newParent) || child == newParent || rel.isDescendantOf(newParent, child))) {
         return false;
     }
-    const auto* current = registry.tryGet<Parent>(child);
-    if ((current ? current->entity : INVALID_ENTITY) == newParent) return true;
-    if (registry.has<Parent>(child)) {
-        Entity oldParent = registry.get<Parent>(child).entity;
-        if (registry.valid(oldParent) && registry.has<Children>(oldParent)) {
-            auto& oldChildren = registry.get<Children>(oldParent);
-            auto& vec = oldChildren.entities;
-            auto it = std::find(vec.begin(), vec.end(), child);
-            if (it != vec.end()) {
-                *it = vec.back();
-                vec.pop_back();
-            }
-        }
+    const Entity oldParent = rel.target(child);
+    // The components can disagree with the relation only where the parent was destroyed under the child: the relation made
+    // the child a root, while its Parent still names the dead entity. Detaching such a child is still an edit, of the component.
+    const bool stale = !newParent.isValid() && !oldParent.isValid() && registry.has<Parent>(child);
+    if (oldParent == newParent && !stale) return true;
 
-        if (newParent == INVALID_ENTITY) {
-            registry.remove<Parent>(child);
-        }
-    }
+    if (newParent.isValid()) rel.link(child, newParent); else rel.unlink(child);
+    syncHierarchyComponents(registry, child, oldParent, newParent);
 
-    if (newParent != INVALID_ENTITY && registry.valid(newParent)) {
-        if (registry.has<Parent>(child)) {
-            registry.get<Parent>(child).entity = newParent;
-        } else {
-            registry.emplace<Parent>(child, newParent);
-        }
-
-        if (!registry.has<Children>(newParent)) {
-            registry.emplace<Children>(newParent);
-        }
-        auto& newChildren = registry.get<Children>(newParent).entities;
+    if (newParent.isValid()) {
         // A childless root does not build a matrix. Its first child makes that
         // cache live, even when the parent has since been marked static.
-        if (newChildren.empty() && registry.has<TransformStatic>(newParent)
+        if (rel.count(newParent) == 1 && registry.has<TransformStatic>(newParent)
             && !registry.has<TransformDirty>(newParent)) {
             registry.emplace<TransformDirty>(newParent);
-        }
-        if (std::find(newChildren.begin(), newChildren.end(), child) == newChildren.end()) {
-            newChildren.push_back(child);
-        }
-
-        u32 parentDepth = 0;
-        if (registry.has<HierarchyDepth>(newParent)) {
-            parentDepth = registry.get<HierarchyDepth>(newParent).depth;
-        }
-        if (registry.has<HierarchyDepth>(child)) {
-            registry.get<HierarchyDepth>(child).depth = parentDepth + 1;
-        } else {
-            registry.emplace<HierarchyDepth>(child, parentDepth + 1);
         }
     }
 
@@ -425,66 +370,58 @@ inline bool setParent(Registry& registry, Entity child, Entity newParent) {
  * @details Two things read "order" when deciding what covers what, and one
  *          authored order has to reach both: component STORAGE order, which is
  *          the painter order of everything the renderer collects by pool walk,
- *          and each parent's CHILD LIST, which is the order the UI tree lays out
+ *          and each parent's CHILD order, which is the order the UI tree lays out
  *          and draws in (see UIRenderOrderSystem). A scene file gets both for
  *          free by spawning in order; this re-establishes them on a world that is
  *          already populated, so an editor drag or a runtime "bring to front"
  *          means the same thing a reload would.
  *
  *          Entities left out of @p order keep their relative order, after the
- *          listed ones — including inside child lists, where reparenting's
- *          swap-with-back removal can otherwise leave a stale order.
+ *          listed ones.
  */
 inline void applySceneEntityOrder(Registry& registry, const Entity* order, usize count) {
     if (!order || count == 0) return;
     const std::vector<u32> rank = registry.buildEntityRank(order, count);
     registry.applyEntityRank(rank);
 
-    const auto rankOf = [&rank](Entity e) {
-        const u32 idx = e.index();
-        return idx < rank.size() ? rank[idx] : SparseSetBase::UNRANKED;
-    };
-    registry.eachLive<Children>([&rankOf](Entity, Children& children) {
-        auto& list = children.entities;
-        if (list.size() <= 1) return;
-        std::stable_sort(list.begin(), list.end(),
-                         [&rankOf](Entity a, Entity b) { return rankOf(a) < rankOf(b); });
-    });
+    auto& rel = registry.childOf();
+    std::vector<Entity> parents;
+    registry.eachLive<Children>([&parents](Entity entity, Children&) { parents.push_back(entity); });
+    for (const Entity parent : parents) {
+        if (rel.sortSources(parent, rank)) syncHierarchyComponents(registry, INVALID_ENTITY, INVALID_ENTITY, parent);
+    }
+    invalidateTransformComposition();
 }
 
 inline Entity getRoot(Registry& registry, Entity entity) {
-    while (registry.has<Parent>(entity)) {
-        Entity parent = registry.get<Parent>(entity).entity;
-        if (!registry.valid(parent)) break;
-        entity = parent;
-    }
-    return entity;
+    return registry.childOf().root(entity);
 }
 
 inline void destroyWithChildren(Registry& registry, Entity entity) {
     if (!registry.valid(entity) || registry.destructionPending(entity)) return;
+    const auto& rel = registry.childOf();
     std::vector<Entity> owned, postorder;
     struct Reservations {
         Registry& registry;
         std::vector<Entity>& owned;
         ~Reservations() { for (Entity e : owned) registry.releaseDestruction(e); }
     } reservations{registry, owned};
-    struct Frame { Entity entity; std::vector<Entity> children; usize next = 0; };
+    // Reserve the whole subtree before destroying any of it, in postorder (children before their parent, in child order):
+    // an onDestroy callback that destroys part of it again joins the reservation rather than recursing.
+    struct Frame { Entity entity; Entity next; };
     std::vector<Frame> stack;
     const auto enter = [&](Entity e) {
         if (!registry.valid(e) || registry.destructionPending(e)) return;
         owned.push_back(e);
         if (!registry.reserveDestruction(e)) { owned.pop_back(); return; }
-        auto children = registry.has<Children>(e) ? registry.get<Children>(e).entities : std::vector<Entity>{};
-        stack.push_back({e, std::move(children), 0});
+        stack.push_back({e, rel.first(e)});
     };
     enter(entity);
-    // Reserve once and preserve child-list postorder. A corrupt back-edge or
-    // re-entrant subtree call joins an existing owner instead of recursing.
     while (!stack.empty()) {
         auto& frame = stack.back();
-        if (frame.next < frame.children.size()) {
-            const Entity child = frame.children[frame.next++];
+        if (frame.next.isValid()) {
+            const Entity child = frame.next;
+            frame.next = rel.next(child);
             enter(child);
         } else {
             postorder.push_back(frame.entity);
@@ -493,15 +430,13 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
     }
     for (Entity e : postorder) {
         if (!registry.valid(e)) continue;
-        if (registry.has<Parent>(e)) {
-            const Entity parent = registry.get<Parent>(e).entity;
-            if (registry.valid(parent) && registry.has<Children>(parent)) {
-                auto& children = registry.get<Children>(parent).entities;
-                const auto it = std::find(children.begin(), children.end(), e);
-                if (it != children.end()) { *it = children.back(); children.pop_back(); }
-            }
-        }
+        const Entity parent = rel.target(e);
         registry.destroy(e);
+        if (parent.isValid() && registry.valid(parent) && registry.has<Children>(parent)) {
+            auto& children = registry.get<Children>(parent).entities;
+            const auto it = std::find(children.begin(), children.end(), e);
+            if (it != children.end()) children.erase(it);
+        }
     }
 }
 

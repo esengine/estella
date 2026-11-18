@@ -3,6 +3,7 @@
 #include "esengine/ui/UITree.hpp"
 #include "esengine/ui/UIRenderOrderSystem.hpp"
 #include "esengine/ui/UIHitTestSystem.hpp"
+#include "esengine/ecs/TransformSystem.hpp"
 
 using namespace esengine;
 using namespace esengine::ecs;
@@ -40,12 +41,9 @@ TEST_CASE("nested canvas roots respect hierarchy instead of component insertion 
         for (Entity entity : {root, nested, leaf}) {
             registry.emplace<UINode>(entity); registry.emplace<Transform>(entity); registry.emplace<UIVisual>(entity);
         }
-        registry.emplace<Children>(root).entities = {group};
-        registry.emplace<Parent>(group).entity = root;
-        registry.emplace<Children>(group).entities = {nested};
-        registry.emplace<Parent>(nested).entity = group;
-        registry.emplace<Children>(nested).entities = {leaf};
-        registry.emplace<Parent>(leaf).entity = nested;
+        setParent(registry, group, root);
+        setParent(registry, nested, group);
+        setParent(registry, leaf, nested);
         UITree tree; tree.rebuild(registry);
         REQUIRE(tree.nodes_.size() == 3);
         CHECK(tree.nodes_[0].entity == root);

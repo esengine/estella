@@ -1272,8 +1272,7 @@ TEST_CASE("flat geometry: deep collapsed groups propagate and recover in one tra
     auto parent = root;
     for (u32 i = 0; i < 50000; ++i) {
         const auto child = registry.create();
-        registry.emplace<ecs::Parent>(child).entity = parent;
-        registry.emplace<ecs::Children>(parent).entities.push_back(child);
+        registry.childOf().link(child, parent);
         parent = child;
     }
     auto& transform = registry.emplace<ecs::Transform>(parent);
@@ -1817,13 +1816,11 @@ TEST_CASE("a Canvas inherits visibility and pointer policy from an ancestor outs
     registry.emplace<ecs::Transform>(parent).position = {13, 17, 0};
     registry.emplace<ecs::UINode>(parent).opacity = .5f;
     registry.get<ecs::UINode>(parent).pointerEvents = ecs::UIPointerEvents::None;
-    registry.emplace<ecs::Children>(parent).entities.push_back(canvas);
-    registry.emplace<ecs::Parent>(canvas).entity = parent;
+    ecs::setParent(registry, canvas, parent);
     registry.emplace<ecs::Transform>(canvas);
     registry.emplace<ecs::UINode>(canvas);
     registry.emplace<ecs::Canvas>(canvas);
-    registry.emplace<ecs::Children>(canvas).entities.push_back(leaf);
-    registry.emplace<ecs::Parent>(leaf).entity = canvas;
+    ecs::setParent(registry, leaf, canvas);
     registry.emplace<ecs::Transform>(leaf);
     auto& node = registry.emplace<ecs::UINode>(leaf);
     node.width = {40, 0};

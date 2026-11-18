@@ -86,22 +86,4 @@ struct Children {
     bool operator==(const Children&) const = default;
 };
 
-// =============================================================================
-// Hierarchy Depth Component
-// =============================================================================
-
-/**
- * @brief Cached hierarchy depth for sorting
- *
- * @details Used by TransformSystem to process transforms in correct order
- *          (parents before children). Updated when hierarchy changes.
- */
-struct HierarchyDepth {
-    /** @brief Depth level (0 = root, 1 = first level child, etc.) */
-    u32 depth = 0;
-
-    HierarchyDepth() = default;
-    explicit HierarchyDepth(u32 d) : depth(d) {}
-};
-
 }  // namespace esengine::ecs

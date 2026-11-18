@@ -376,8 +376,21 @@ TEST_CASE("hierarchy_depth") {
     esengine::ecs::setParent(registry, parent, grandparent);
     esengine::ecs::setParent(registry, child, parent);
 
-    CHECK_EQ(registry.get<esengine::ecs::HierarchyDepth>(parent).depth, 1u);
-    CHECK_EQ(registry.get<esengine::ecs::HierarchyDepth>(child).depth, 2u);
+    CHECK_EQ(registry.childOf().depth(parent), 1u);
+    CHECK_EQ(registry.childOf().depth(child), 2u);
+
+    // A subtree moved under a deeper parent takes its depth with it, every level of it.
+    esengine::Entity other = registry.create();
+    esengine::Entity deep = registry.create();
+    esengine::ecs::setParent(registry, deep, other);
+    esengine::ecs::setParent(registry, other, grandparent);
+    CHECK_EQ(registry.childOf().depth(deep), 2u);
+    CHECK(esengine::ecs::setParent(registry, parent, deep));
+    CHECK_EQ(registry.childOf().depth(parent), 3u);
+    CHECK_EQ(registry.childOf().depth(child), 4u);
+    // A parent under its own descendant is refused, and nothing moves.
+    CHECK_FALSE(esengine::ecs::setParent(registry, deep, child));
+    CHECK_EQ(registry.childOf().depth(child), 4u);
 }
 
 TEST_CASE("hierarchy_get_root") {
