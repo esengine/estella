@@ -153,6 +153,19 @@ describe('instanced meshes and billboards', () => {
         expect(tent.aabbMin[1]).toBeCloseTo(0.8, 4);
     });
 
+    it('leans a far card with its plant: on a round world its top is along the plant\'s up, not the world\'s', () => {
+        // Up is +x where this plant stands: a quarter of the way round a planet from its top.
+        const plant: Plant = { x: 10, y: 0, z: 0, yaw: 0.4, scale: 1, phase: 0, shade: 1, up: [1, 0, 0] };
+        const tent = buildBillboardMesh([plant], 4, 8, { u0: 0, v0: 0, u1: 1, v1: 1 }, null, true);
+        const tip = positionOf(tent, 2);
+        expect(tip[0]).toBeCloseTo(18, 4);
+        expect(tip[1]).toBeCloseTo(0, 4);
+        expect(tip[2]).toBeCloseTo(0, 4);
+        const cards = buildBillboardMesh([plant], 4, 8, { u0: 0, v0: 0, u1: 1, v1: 1 });
+        expect(cards.aabbMax[0]).toBeCloseTo(18, 4);
+        expect(cards.aabbMax[1]).toBeLessThan(2.01);
+    });
+
     it('is an empty mesh, not a crash, for a cell with no plants', () => {
         const mesh = buildGrassMesh([], { height: 10, width: 2, segments: 3, thin: 1 });
         expect(mesh.vertexCount).toBe(0);

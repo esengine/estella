@@ -490,8 +490,18 @@ export function buildBillboardMesh(
     plants: readonly Plant[], width: number, height: number, rect: CardRect, paint?: BladeParams['paint'], triangle = false,
 ): MeshData {
     const b = newBuilder();
+    const q = [0, 0, 0], up = [0, 1, 0];
     for (const plant of plants) {
         const w = width * plant.scale * 0.5, h = height * plant.scale;
+        // A plant that leans (the ground's normal, or which way is up where it stands on a round world) has its cards lean with it, as its mesh does.
+        const lean = plant.up ? leanTo(plant.up) : null;
+        up[0] = 0; up[1] = 1; up[2] = 0;
+        if (lean) lean(up);
+        const corner = (x: number, y: number, z: number, u: number, v: number, c: readonly [number, number, number]): number => {
+            q[0] = x; q[1] = y; q[2] = z;
+            if (lean) lean(q);
+            return vertex(b, plant.x + q[0]!, plant.y + q[1]!, plant.z + q[2]!, u, v, c[0], c[1], c[2], up[0]!, up[1]!, up[2]!);
+        };
         for (const turn of [0, Math.PI / 2]) {
             const a = plant.yaw + turn;
             const cos = Math.cos(a), sin = Math.sin(a);
@@ -500,16 +510,16 @@ export function buildBillboardMesh(
             if (triangle) {
                 // A tent: wide at a tenth of the height, where a conifer's needles begin, and a point at the top.
                 const foot = h * 0.1, vMid = rect.v0 + (rect.v1 - rect.v0) * 0.1, uMid = (rect.u0 + rect.u1) / 2;
-                const t0 = vertex(b, plant.x - cos * w, plant.y + foot, plant.z + sin * w, rect.u0, vMid, lower[0], lower[1], lower[2], 0, 1, 0);
-                const t1 = vertex(b, plant.x + cos * w, plant.y + foot, plant.z - sin * w, rect.u1, vMid, lower[0], lower[1], lower[2], 0, 1, 0);
-                const t2 = vertex(b, plant.x, plant.y + h, plant.z, uMid, rect.v1, upper[0], upper[1], upper[2], 0, 1, 0);
+                const t0 = corner(-cos * w, foot, sin * w, rect.u0, vMid, lower);
+                const t1 = corner(cos * w, foot, -sin * w, rect.u1, vMid, lower);
+                const t2 = corner(0, h, 0, uMid, rect.v1, upper);
                 b.idx.push(t0, t1, t2);
                 continue;
             }
-            const v0 = vertex(b, plant.x - cos * w, plant.y, plant.z + sin * w, rect.u0, rect.v0, lower[0], lower[1], lower[2], 0, 1, 0);
-            const v1 = vertex(b, plant.x + cos * w, plant.y, plant.z - sin * w, rect.u1, rect.v0, lower[0], lower[1], lower[2], 0, 1, 0);
-            const v2 = vertex(b, plant.x + cos * w, plant.y + h, plant.z - sin * w, rect.u1, rect.v1, upper[0], upper[1], upper[2], 0, 1, 0);
-            const v3 = vertex(b, plant.x - cos * w, plant.y + h, plant.z + sin * w, rect.u0, rect.v1, upper[0], upper[1], upper[2], 0, 1, 0);
+            const v0 = corner(-cos * w, 0, sin * w, rect.u0, rect.v0, lower);
+            const v1 = corner(cos * w, 0, -sin * w, rect.u1, rect.v0, lower);
+            const v2 = corner(cos * w, h, -sin * w, rect.u1, rect.v1, upper);
+            const v3 = corner(-cos * w, h, sin * w, rect.u0, rect.v1, upper);
             b.idx.push(v0, v1, v2, v0, v2, v3);
         }
     }

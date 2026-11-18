@@ -217,6 +217,11 @@ interface PlacedChunk {
     /** The plants of the rules' `plants` in it, by kind, standing relative to `at` (the chunk's centre), and what grew them once published. */
     planted: Map<number, Plant[]> | null;
     at: [number, number, number];
+    /**
+     * Where the planet stood when the chunk was worked out, for one on a planet: its places are the world's as it stood then, and a planet that is
+     * moved (a game that keeps the eye at the origin and moves the world past it) is somewhere else by the time the chunk is put in the world.
+     */
+    about: [number, number, number] | null;
     /** The chunk's side. */
     side: number;
     grown: GrownCell | null;
@@ -867,6 +872,8 @@ export class WorldGenPlugin implements Plugin {
     private chunk(app: App, meshData: BuiltWorld['meshData'], plan: WorldPlan | null, diffs: PlacementDiffs, layer: PlacementLayer, x0: number, z0: number, size: number,
                   rendering: boolean, plants: PlantSet | null, face: PlanetFace | null, far = false, thinnedBy = 1, given?: readonly Placement[]): PlacedChunk | Promise<PlacedChunk> {
         const placements: Placement[] = [];
+        const stood = face?.planet()?.centre;
+        const about: [number, number, number] | null = stood ? [stood[0], stood[1], stood[2]] : null;
         // What is placed in the square: asked of the plan here, or already worked out (by a worker).
         for (const planned of given ?? plan!.placementsIn(x0, z0, x0 + size, z0 + size, [layer.id])) {
             // On a planet a placement is taken from its face's plane to the planet, and named for its face: the same cell of two faces is two places.
@@ -881,7 +888,7 @@ export class WorldGenPlugin implements Plugin {
         const decor = rendering && !far ? placements.filter((p) => p.interactive === null && p.mesh) : [];
         const meshes = [...new Set(decor.map((p) => p.mesh))];
         const finish = (): PlacedChunk => {
-            const out: PlacedChunk = { decor: [], objects, planted: null, at: centre, side: size, grown: null, far, thinnedBy, entities: [], meshes: [] };
+            const out: PlacedChunk = { decor: [], objects, planted: null, at: centre, about, side: size, grown: null, far, thinnedBy, entities: [], meshes: [] };
             // The plants: each at its kind (its colouring there), relative to the chunk's centre, sunk by what its kind says.
             if (plants && rendering) {
                 const by = new Map<number, Plant[]>();
@@ -943,7 +950,9 @@ export class WorldGenPlugin implements Plugin {
     private place(app: App, gens: WorldGens, parent: Entity, chunk: PlacedChunk): void {
         const world = app.world;
         if (!world.valid(parent)) return;
-        const base = (world.get(parent, Transform) as TransformData).worldPosition;
+        // Its places are put in the parent's space: on a planet from where the planet stood when they were worked out, which is not where it stands now if it is moved.
+        const stands = (world.get(parent, Transform) as TransformData).worldPosition;
+        const base = chunk.about ? { x: chunk.about[0], y: chunk.about[1], z: chunk.about[2] } : stands;
         const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
         const built = gens.built_.get(parent);
         if (chunk.planted && built?.plants && built.plantsReady) {
