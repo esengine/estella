@@ -129,6 +129,7 @@ export default defineConfig([
             'net/session/index': 'src/net/session/index.ts',
             'persist/index': 'src/persist/index.ts',
             'zones/index': 'src/zones/index.ts',
+            'metrics/index': 'src/metrics/index.ts',
             'gameplay/index': 'src/gameplay/entry.ts',
             'dragonbones/index': 'src/dragonbones/entry.ts',
             'douyin/index': 'src/platform/douyin/index.ts',

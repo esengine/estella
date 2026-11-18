@@ -505,6 +505,7 @@ sample: (tick: number) => void
 setBandwidthBudget: (options: ReplicationBudgetOptions | null) => void
 setInterestPolicy: (policy: InterestPolicy | null) => void
 setInterestProvider: (provider: InterestProvider | null) => void
+stats: { sampleMs: Histogram; stateFrames: number; stateBytes: number; messagesIn: number; messagesOut: number; }
 table: ReplicationTable
 tickInputOf: (connectionId: number) => ReplInputMsg | null
 transfer: (connectionId: number, target: ReplicationTransferTarget, message?: string) => boolean

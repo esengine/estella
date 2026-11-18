@@ -185,6 +185,12 @@ export class ZoneHost<A = unknown> {
     private nextHeartbeat_ = 0;
     private nextRenew_ = 0;
     private draining_ = false;
+    /** Running totals for monitoring (`esengine/metrics` reads them on a scrape). */
+    readonly stats = {
+        transfersOut: 0, transfersFailed: 0,
+        loginsRouted: 0, loginsRefused: 0, onlineElsewhere: 0, takeOvers: 0, bounces: 0,
+        messagesDelivered: 0, messagesForwarded: 0, messagesHeld: 0, messagesDropped: 0,
+    };
     private readonly playerHandlers_ = new Map<string, Set<(playerId: string, connectionId: number, data: unknown) => void>>();
     private readonly zoneHandlers_ = new Map<string, Set<(data: unknown, fromZone: string) => void>>();
     private offBus_: (() => void)[] = [];
@@ -285,6 +291,7 @@ export class ZoneHost<A = unknown> {
         if (!server || this.leaving_.has(playerId)) return false;
         const id = server.connectionIdOf(playerId);
         if (id === undefined || !server.clientIds.includes(id)) return false;
+        this.stats.messagesDelivered++;
         const handlers = this.playerHandlers_.get(type);
         if (handlers && handlers.size > 0) {
             for (const h of [...handlers]) {
@@ -317,7 +324,8 @@ export class ZoneHost<A = unknown> {
                 return;
             }
             // Moved on while the message travelled: follow them once.
-            if (m.hops < 1) this.options_.bus!.publish(`zone:${lease.zoneId}`, { ...m, hops: m.hops + 1 });
+            if (m.hops < 1) { this.stats.messagesForwarded++; this.options_.bus!.publish(`zone:${lease.zoneId}`, { ...m, hops: m.hops + 1 }); }
+            else if (m.k === 'player') this.stats.messagesDropped++;
         }).catch(() => undefined);
     }
 
@@ -334,7 +342,8 @@ export class ZoneHost<A = unknown> {
         let held = this.held4Arrival_.get(playerId);
         if (!held) { held = { until: 0, messages: [] }; this.held4Arrival_.set(playerId, held); }
         held.until = this.now_() + HOLD_FOR_ARRIVAL_MS;
-        if (held.messages.length < HOLD_FOR_ARRIVAL_MAX) held.messages.push({ type, data });
+        if (held.messages.length < HOLD_FOR_ARRIVAL_MAX) { held.messages.push({ type, data }); this.stats.messagesHeld++; }
+        else this.stats.messagesDropped++;
     }
 
     /** Give held messages to players who have arrived; drop those for players who never did. */
@@ -349,6 +358,7 @@ export class ZoneHost<A = unknown> {
                 for (const msg of held.messages) this.deliver_(pid, msg.type, msg.data);
             } else if (held.until <= now) {
                 this.held4Arrival_.delete(pid);
+                this.stats.messagesDropped += held.messages.length;
             }
         }
     }
@@ -393,7 +403,8 @@ export class ZoneHost<A = unknown> {
         if (last && last.zoneId !== here && last.until > this.now_()) {
             const holder = bounced ? null : await this.directory.get(last.zoneId, fresh);
             // Online there: that zone replaces their older connection with this one.
-            if (holder) throw new ReplicationRedirect(holder.address);
+            if (holder) { this.stats.onlineElsewhere++; throw new ReplicationRedirect(holder.address); }
+            this.stats.takeOvers += bounced ? 0 : 1;
             // Held by a zone that is gone, or bounced: take them.
             await this.claim_(() => this.leases.takeOver(playerId, last.zoneId, here, kind));
         } else {
@@ -401,6 +412,7 @@ export class ZoneHost<A = unknown> {
         }
 
         if (bounced) {
+            this.stats.bounces++;
             this.held_.add(playerId);
             return { playerId };
         }
@@ -417,11 +429,13 @@ export class ZoneHost<A = unknown> {
             if (dest && !dest.draining) {
                 await this.leases.handOff(playerId, here, target.zone, this.options_.arrivalLeaseMs ?? 3000, dest.kind);
                 const ticket = await this.tickets.issue({ playerId, toZone: target.zone, fromZone: here, arrival: target.arrival });
+                this.stats.loginsRouted++;
                 throw new ReplicationRedirect(dest.address, ticket);
             }
         }
         if (this.draining_) {
             await this.leases.release(playerId, here).catch(() => false);
+            this.stats.loginsRefused++;
             throw retryLater('this zone is shutting down; try again shortly');
         }
         this.held_.add(playerId);
@@ -519,8 +533,8 @@ export class ZoneHost<A = unknown> {
         // Heard from within three heartbeats: a zone that died is out of the
         // running within seconds, not a whole directory time to live.
         const dest = await this.directory.get(toZone, this.heartbeatMs_ * 3);
-        if (!dest) throw new Error(`[zones] zone "${toZone}" is not up`);
-        if (dest.draining) throw new Error(`[zones] zone "${toZone}" is shutting down`);
+        if (!dest) { this.stats.transfersFailed++; throw new Error(`[zones] zone "${toZone}" is not up`); }
+        if (dest.draining) { this.stats.transfersFailed++; throw new Error(`[zones] zone "${toZone}" is shutting down`); }
         this.leaving_.add(pid);
         try {
             await (this.options_.players?.release(pid) ?? Promise.resolve());
@@ -530,6 +544,7 @@ export class ZoneHost<A = unknown> {
             // Back here if the destination cannot be reached: by then the short
             // arrival lease has run out and this zone takes the player again.
             server.transfer(connectionId, { address: dest.address, ticket, fallback: this.options_.zone.address });
+            this.stats.transfersOut++;
             this.arrivals_.delete(pid);
             // What arrived for them on the way out goes after them; the
             // destination holds it until they are connected there.
@@ -538,6 +553,9 @@ export class ZoneHost<A = unknown> {
             if (held && this.options_.bus) {
                 for (const msg of held) this.options_.bus.publish(`zone:${toZone}`, { k: 'player', playerId: pid, type: msg.type, data: msg.data, hops: 1 } satisfies ZoneEnvelope);
             }
+        } catch (err) {
+            this.stats.transfersFailed++;
+            throw err;
         } finally {
             this.leaving_.delete(pid);
             // Still here (the transfer failed): give them what was held.

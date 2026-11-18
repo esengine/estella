@@ -36,6 +36,7 @@ import {
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
 import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
+import { Histogram } from '../../metrics/histogram';
 
 interface Connection {
     /** The public id: what `Replicated.owner` holds. For an authenticated
@@ -353,6 +354,18 @@ export class ReplicationServer {
     private readonly messageHandlers_ = new Map<string, Set<(connectionId: number, data: unknown) => void>>();
     /** @internal Connections closed for breaking the limits, going silent, or never saying hello. */
     readonly closedFor = { abuse: 0, silence: 0, noHello: 0 };
+    /**
+     * Running totals for monitoring (`esengine/metrics` reads them on a scrape):
+     * how long each sample took, the state stream's frames and bytes, and game
+     * messages each way. Additions only — nothing here costs a sample anything.
+     */
+    readonly stats = {
+        sampleMs: new Histogram(),
+        stateFrames: 0,
+        stateBytes: 0,
+        messagesIn: 0,
+        messagesOut: 0,
+    };
     /** playerId -> the connection id that player holds. */
     private readonly idOfPlayer_ = new Map<string, number>();
     private readonly playerOfId_ = new Map<number, string>();
@@ -863,6 +876,7 @@ export class ReplicationServer {
         channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
             // Only from a connection that has said hello and been let in.
             if (!conn.ready || typeof msg?.type !== 'string') return;
+            this.stats.messagesIn++;
             const handlers = this.messageHandlers_.get(msg.type);
             if (!handlers) return;
             for (const h of [...handlers]) {
@@ -1055,6 +1069,7 @@ export class ReplicationServer {
     message(connectionId: number, type: string, data?: unknown): boolean {
         const conn = this.connections_.get(connectionId);
         if (!conn || !conn.ready) return false;
+        this.stats.messagesOut++;
         return this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }));
     }
 
@@ -1063,7 +1078,7 @@ export class ReplicationServer {
         let n = 0;
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready || (filter && !filter(conn.id))) continue;
-            if (this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }))) n++;
+            if (this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }))) { n++; this.stats.messagesOut++; }
         }
         return n;
     }
@@ -1128,6 +1143,7 @@ export class ReplicationServer {
             return;
         }
 
+        const sampleStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         // Everything this sample sends one client (spawns, despawns, the delta,
         // the ack) leaves in one write where the transport can hold writes:
         // a write per frame was most of what a crowded server spent its time on.
@@ -1142,6 +1158,7 @@ export class ReplicationServer {
             for (const release of releases) {
                 try { release(); } catch (err) { log.warn('repl', 'a transport failed to flush its batch', err); }
             }
+            this.stats.sampleMs.observe((typeof performance !== 'undefined' ? performance.now() : Date.now()) - sampleStart);
         }
     }
 
@@ -1236,7 +1253,11 @@ export class ReplicationServer {
             const frame = new FrameWriter(tick);
             for (const d of dirty) frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
             const payload = frame.finish();
-            this.broadcast_((c) => c.channel.sendBinary(REPLICATION_CHANNEL, payload));
+            this.broadcast_((c) => {
+                c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                this.stats.stateFrames++;
+                this.stats.stateBytes += payload.byteLength;
+            });
         }
     }
 
@@ -1422,7 +1443,12 @@ export class ReplicationServer {
             this.rowsDeferred += others.length - sentOthers;
         }
         this.deltaRowsSent += frame.entryCount;
-        if (frame.entryCount > 0) c.channel.sendBinary(REPLICATION_CHANNEL, frame.finish());
+        if (frame.entryCount > 0) {
+            const payload = frame.finish();
+            c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+            this.stats.stateFrames++;
+            this.stats.stateBytes += payload.byteLength;
+        }
     }
 
 
@@ -1600,6 +1626,8 @@ export class ReplicationServer {
                     if (payload) {
                         const sending = this.mark_();
                         c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                        this.stats.stateFrames++;
+                        this.stats.stateBytes += payload.byteLength;
                         this.since_('transport send', sending);
                     }
                 }

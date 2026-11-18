@@ -58,6 +58,8 @@ export class PlayerPersistence<T> {
     private readonly queue_ = new Map<string, Promise<void>>();
     private readonly now_: () => number;
     private nextAutosave_: number;
+    /** Running totals for monitoring (`esengine/metrics` reads them on a scrape). */
+    readonly stats = { loads: 0, loadErrors: 0, saves: 0, saveErrors: 0, conflicts: 0 };
     private inFlight_ = 0;
 
     constructor(options: PlayerPersistenceOptions<T>) {
@@ -210,6 +212,7 @@ export class PlayerPersistence<T> {
         void this.enqueue_(playerId, async () => {
             try {
                 const loaded = await this.book_.load(playerId);
+                this.stats.loads++;
                 if (this.entries_.get(playerId) !== entry) return; // left while loading
                 if (loaded) {
                     entry.data = loaded.data;
@@ -223,6 +226,7 @@ export class PlayerPersistence<T> {
                 entry.state = 'ready';
             } catch (err) {
                 if (this.entries_.get(playerId) !== entry) return;
+                this.stats.loadErrors++;
                 entry.state = 'failed';
                 entry.retryAt = this.now_() + (this.options_.retryMs ?? 2000);
                 this.options_.onError?.(playerId, err, 'load');
@@ -238,7 +242,10 @@ export class PlayerPersistence<T> {
         return this.enqueue_(playerId, async () => {
             try {
                 entry.version = await this.book_.save(playerId, data, entry.version);
+                this.stats.saves++;
             } catch (err) {
+                this.stats.saveErrors++;
+                if ((err as { name?: string })?.name === 'PersistConflict') this.stats.conflicts++;
                 entry.dirty = true;
                 this.options_.onError?.(playerId, err, 'save');
             }

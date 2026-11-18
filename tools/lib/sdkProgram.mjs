@@ -84,6 +84,7 @@ export const ENTRIES = {
     'session': 'src/net/session/index.ts',
     'persist': 'src/persist/index.ts',
     'zones': 'src/zones/index.ts',
+    'metrics': 'src/metrics/index.ts',
     'gameplay': 'src/gameplay/entry.ts',
     'wasm': 'src/wasm.ts',
     'wechat': 'src/index.wechat.ts',

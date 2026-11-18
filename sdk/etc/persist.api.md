@@ -94,6 +94,7 @@ release: (playerId: string) => Promise<void>
 save: (playerId: string) => Promise<void>
 saveTogether: (playerIds: readonly string[]) => Promise<void>
 set: (playerId: string, data: T) => void
+stats: { loads: number; loadErrors: number; saves: number; saveErrors: number; conflicts: number; }
 track: (playerIds: Iterable<string>) => void
 static new <T>(options: PlayerPersistenceOptions<T>): PlayerPersistence<T>
 static prototype: PlayerPersistence<any>

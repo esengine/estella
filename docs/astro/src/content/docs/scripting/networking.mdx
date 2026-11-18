@@ -642,6 +642,43 @@ they were in another zone.
 What is not here: a world that is seamless across zone borders (entities on
 both sides of a line seen from either).
 
+## Watching servers — `esengine/metrics`
+
+A server process reports about itself in the text format Prometheus scrapes
+(and as flat JSON). Collectors read totals the SDK's pieces already keep, at
+scrape time, so a registry costs a running server nothing until it is asked:
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // the game's own
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // scrape :9100/metrics
+```
+
+| Collector | Reports |
+|---|---|
+| `replicationMetrics` | connections, clients, players present and away, a histogram of replication sample time, state frames and bytes, delta rows sent and deferred by a budget, game messages in and out, connections closed for the limits / silence / no hello |
+| `zoneMetrics` | whether the zone is draining; transfers sent and failed; logins routed, online elsewhere, taken over, bounced back, refused; messages for players delivered, forwarded, held, dropped |
+| `playerPersistenceMetrics` | record loads and saves by outcome (ok, error, conflict), store operations pending |
+| `processMetrics` | resident memory, heap, uptime, event-loop utilization since the last scrape |
+
+Every name starts `estella_` (`prefix` changes it), and the registry's
+`labels` go on every series. `registry.snapshot()` gives the same as one flat
+record — a histogram as its count, sum and bucketed p50 / p99 — for a dashboard
+of the game's own or a log line. `tools/zones-benchmark.mjs` scrapes each zone's
+endpoint at the end of a run and prints them side by side.
+
 ## Asynchronous online games — sessions
 
 Replication shares a tick between server and clients. A game played **asynchronously**

@@ -174,6 +174,7 @@ onPlayerMessage: (type: string, handler: (playerId: string, connectionId: number
 onZoneMessage: (type: string, handler: (data: unknown, fromZone: string) => void) => () => void
 sendToPlayer: (playerId: string, type: string, data?: unknown) => Promise<boolean>
 start: () => Promise<void>
+stats: { transfersOut: number; transfersFailed: number; loginsRouted: number; loginsRefused: number; onlineElsewhere: number; takeOvers: number; bounces: number; messagesDelivered: number; messagesForwarded: number; messagesHeld: number; messagesDropped: number; }
 stop: () => Promise<void>
 takeArrival: (playerId: string) => A | undefined
 tick: () => void

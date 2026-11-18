@@ -527,6 +527,40 @@ zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
 
 这里没有的：跨区边界无缝的世界(边界两侧的实体互相可见)。
 
+## 监控服务器——`esengine/metrics`
+
+服务器进程以 Prometheus 抓取的文本格式(以及扁平的 JSON)报告自己的状态。采集器在被抓取时才读取 SDK 各部分本来就在
+维护的累计值，所以没人来问时，注册表对运行中的服务器没有任何开销：
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // 游戏自己的指标
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // 抓取 :9100/metrics
+```
+
+| 采集器 | 报告内容 |
+|---|---|
+| `replicationMetrics` | 连接数、客户端数、在场和宽限期内的玩家数、复制 sample 耗时的直方图、状态帧数和字节数、发出和被预算推迟的增量行数、游戏消息收发数、因限制/静默/未握手被关闭的连接数 |
+| `zoneMetrics` | 是否正在下线；转区成功和失败次数；登录被路由、在别处在线、被接管、弹回、被拒的次数；发给玩家的消息被送达、转发、暂存、丢弃的数量 |
+| `playerPersistenceMetrics` | 按结果(成功、出错、版本冲突)统计的记录加载和保存次数，进行中的存储操作数 |
+| `processMetrics` | 常驻内存、堆、运行时长、自上次抓取以来的事件循环占用率 |
+
+所有指标名都以 `estella_` 开头(`prefix` 可改)，注册表的 `labels` 会加在每个序列上。`registry.snapshot()` 把同样的
+内容给成一个扁平记录——直方图给出 count、sum 以及按桶估计的 p50 / p99——用于游戏自己的面板或日志。
+`tools/zones-benchmark.mjs` 在运行结束时抓取每个区的端点，并排打印出来。
+
 ## 异步在线游戏——会话层
 
 状态复制让服务器与客户端共享一个 tick。而**异步**玩共享世界的游戏(城建、卡牌、抽卡)没有共享 tick,
