@@ -30,6 +30,7 @@
  *   node tools/net-capacity-benchmark.mjs --hz 20 --steps 200,400,800,1600 --seconds 10
  *   node tools/net-capacity-benchmark.mjs --crowd --steps 50,100,200,400
  *   node tools/net-capacity-benchmark.mjs --crowd --budget 16000   # cap each client's state stream
+ *   node tools/net-capacity-benchmark.mjs --worker      # sockets on a worker thread (startSocketWorker)
  *   node tools/net-capacity-benchmark.mjs --no-batch    # one socket write per frame, as before
  *   node tools/net-capacity-benchmark.mjs --json out.json
  *
@@ -73,6 +74,8 @@ const INTEREST = A.interest ?? 'radius';
 const CROWD = A.crowd === true;
 const BATCH = A['no-batch'] !== true;
 const BUDGET = A.budget ? Number(A.budget) : 0;
+/** --worker: the SDK's socket worker owns the listener and every socket, off the main thread. */
+const WORKER = A.worker === true;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Side of the square world for `players` at the density that gives `VISIBLE` neighbours. */
@@ -152,12 +155,7 @@ async function runServer() {
     let framesOut = 0;
     const pawns = new Map();
 
-    const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
-    await new Promise((r) => wss.once('listening', r));
-    wss.on('connection', (socket) => {
-        // The SDK's adapter batches each sample into one write per client;
-        // --no-batch is the plain adapter every frame used to take.
-        const inner = BATCH ? repl.webSocketTransport(socket) : plainTransport(socket);
+    const accept = (inner, onGone) => {
         const id = server.attachConnection({
             ...inner,
             send: (d) => {
@@ -181,11 +179,27 @@ async function runServer() {
             app.world.despawn(pawns.get(id));
             pawns.delete(id);
         };
-        socket.on('close', drop);
-        socket.on('error', drop);
-    });
+        onGone(drop);
+    };
 
-    const port = wss.address().port;
+    let port;
+    if (WORKER) {
+        const sockets = await repl.startSocketWorker({
+            port: 0, host: '127.0.0.1', wsPath: createRequire(path.join(ROOT, 'sdk', 'package.json')).resolve('ws'),
+        });
+        sockets.onConnection((transport) => accept(transport, (drop) => transport.onClose(drop)));
+        port = sockets.port;
+    } else {
+        const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
+        await new Promise((r) => wss.once('listening', r));
+        wss.on('connection', (socket) => {
+            // The SDK's adapter batches each sample into one write per client;
+            // --no-batch is the plain adapter every frame used to take.
+            const inner = BATCH ? repl.webSocketTransport(socket) : plainTransport(socket);
+            accept(inner, (drop) => { socket.on('close', drop); socket.on('error', drop); });
+        });
+        port = wss.address().port;
+    }
     console.log(`LISTEN ${port}`);
     // A clean exit after N seconds, so `node --cpu-prof` gets to write its profile.
     if (A['exit-after']) setTimeout(() => process.exit(0), Number(A['exit-after']) * 1000);
@@ -340,7 +354,7 @@ async function runBots() {
 
 function child(role, extra) {
     const argv = [fileURLToPath(import.meta.url), '--role', role, '--hz', String(HZ), '--radius', String(RADIUS),
-        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(BATCH ? [] : ['--no-batch']), ...(BUDGET > 0 ? ['--budget', String(BUDGET)] : []), ...extra];
+        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(BATCH ? [] : ['--no-batch']), ...(BUDGET > 0 ? ['--budget', String(BUDGET)] : []), ...(WORKER ? ['--worker'] : []), ...extra];
     const proc = spawn(process.execPath, argv, {
         cwd: ROOT,
         env: { ...process.env, NODE_PATH: [path.join(ROOT, 'sdk', 'node_modules'), path.join(ROOT, 'node_modules')].join(path.delimiter) },
@@ -446,7 +460,7 @@ async function runAll() {
     const botProcs = Number(A.bots ?? Math.max(2, os.cpus().length - 4));
     const modeBase = CROWD ? `crowd (everyone within ${RADIUS})` : INTEREST === 'none' ? 'no interest (everyone sees everyone)'
         : `radius ${RADIUS}, ~${VISIBLE} visible`;
-    const mode = modeBase + (BUDGET > 0 ? `, budget ${BUDGET} B/s per client` : '') + (BATCH ? ', one write per client per sample' : ', one write per message (--no-batch)');
+    const mode = modeBase + (WORKER ? ', sockets on a worker thread' : '') + (BUDGET > 0 ? `, budget ${BUDGET} B/s per client` : '') + (BATCH ? ', one write per client per sample' : ', one write per message (--no-batch)');
     console.log(`net-capacity-benchmark: ${HZ} Hz, ${mode}, ${seconds}s per step, up to ${botProcs} bot processes, ${os.cpus()[0].model}`);
     console.log('players | rate     | tick p50/p99/max ms  | ELU  | out/client | out total   | seen | rss MB | bots ELU | verdict');
     const results = [];
