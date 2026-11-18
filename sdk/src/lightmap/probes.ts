@@ -203,6 +203,92 @@ export function gatherBricks(layout: ProbeLayout, solved: Float32Array, stride: 
 }
 
 /**
+ * What brick `b` of a sparse grid holds at finest-grid point `f` (each axis inside or on its box): its probes at its
+ * own spacing, blended trilinearly — the runtime's read (ProbeStore::sampleBricks, the shaders' probeGridIrradiance).
+ */
+function readBrick(bricks: Int32Array, data: Float32Array, stride: number, b: number, f: readonly number[],
+                   out: Float64Array): void {
+    const side = BRICK_CELLS + 1;
+    const low = [0, 0, 0], frac = [0, 0, 0];
+    for (let a = 0; a < 3; a++) {
+        const local = (f[a]! - bricks[b * 4 + a]! * BRICK_CELLS) / bricks[b * 4 + 3]!;
+        low[a] = Math.min(Math.max(Math.floor(local), 0), BRICK_CELLS - 1);
+        frac[a] = Math.min(Math.max(local - low[a]!, 0), 1);
+    }
+    out.fill(0);
+    for (let corner = 0; corner < 8; corner++) {
+        const dx = corner & 1, dy = (corner >> 1) & 1, dz = (corner >> 2) & 1;
+        const w = (dx ? frac[0]! : 1 - frac[0]!) * (dy ? frac[1]! : 1 - frac[1]!) * (dz ? frac[2]! : 1 - frac[2]!);
+        if (w === 0) continue;
+        const t = (low[0]! + dx) + side * ((low[1]! + dy) + side * (low[2]! + dz));
+        const at = (b * BRICK_PROBES + t) * stride;
+        for (let k = 0; k < stride; k++) out[k]! += data[at + k]! * w;
+    }
+}
+
+/**
+ * Makes a sparse grid's light continuous where bricks of different sizes meet, in place.
+ *
+ * A coarse brick's face is a blend of probes two or more finest cells apart; the fine brick across it holds a probe at
+ * every one, so the two disagree at the points between and a read crossing the face jumps. Each probe on a brick's
+ * boundary is set to what the coarsest brick touching that point holds there — as Unreal's volumetric lightmap
+ * stitches its bricks. Bricks are settled coarsest first, so a span-2 face matching a span-4 brick is final before a
+ * span-1 face reads it. A blend of a bilinear face sampled at finer points and blended again is the same face, so
+ * after this a read is continuous across every face, edge and corner.
+ *
+ * `data` holds BRICK_PROBES probes a brick, `stride` numbers each (27 for the irradiance, 9 for sky visibility).
+ */
+export function stitchBricks(resolution: readonly [number, number, number], bricks: Int32Array, data: Float32Array,
+                             stride: number): void {
+    const count = bricks.length / 4;
+    const cells = cellsFor(resolution);
+    const owner = new Int32Array(cells[0] * cells[1] * cells[2]).fill(-1);
+    for (let b = 0; b < count; b++) {
+        const span = bricks[b * 4 + 3]!;
+        for (let z = bricks[b * 4 + 2]!; z < Math.min(bricks[b * 4 + 2]! + span, cells[2]); z++) {
+            for (let y = bricks[b * 4 + 1]!; y < Math.min(bricks[b * 4 + 1]! + span, cells[1]); y++) {
+                for (let x = bricks[b * 4]!; x < Math.min(bricks[b * 4]! + span, cells[0]); x++) {
+                    owner[x + cells[0] * (y + cells[1] * z)] = b;
+                }
+            }
+        }
+    }
+    const order = Array.from({ length: count }, (_, b) => b).sort((p, q) => bricks[q * 4 + 3]! - bricks[p * 4 + 3]!);
+    const side = BRICK_CELLS + 1;
+    const value = new Float64Array(stride);
+    const f = [0, 0, 0];
+    for (const b of order) {
+        const span = bricks[b * 4 + 3]!;
+        for (let t = 0; t < BRICK_PROBES; t++) {
+            const tx = t % side, ty = Math.floor(t / side) % side, tz = Math.floor(t / (side * side));
+            if (tx !== 0 && tx !== BRICK_CELLS && ty !== 0 && ty !== BRICK_CELLS && tz !== 0 && tz !== BRICK_CELLS) continue;
+            f[0] = bricks[b * 4]! * BRICK_CELLS + tx * span;
+            f[1] = bricks[b * 4 + 1]! * BRICK_CELLS + ty * span;
+            f[2] = bricks[b * 4 + 2]! * BRICK_CELLS + tz * span;
+            // The coarsest brick among the cells this point touches (two along an axis it sits on a cell boundary of).
+            let coarsest = b;
+            for (let corner = 0; corner < 8; corner++) {
+                const c = [0, 0, 0];
+                let inside = true;
+                for (let a = 0; a < 3; a++) {
+                    const back = (corner >> a) & 1;
+                    if (back && f[a]! % BRICK_CELLS !== 0) { inside = false; break; }
+                    c[a] = Math.floor(f[a]! / BRICK_CELLS) - back;
+                    if (c[a]! < 0 || c[a]! >= cells[a]!) { inside = false; break; }
+                }
+                if (!inside) continue;
+                const o = owner[c[0]! + cells[0] * (c[1]! + cells[1] * c[2]!)]!;
+                if (o >= 0 && bricks[o * 4 + 3]! > bricks[coarsest * 4 + 3]!) coarsest = o;
+            }
+            if (coarsest === b) continue;
+            readBrick(bricks, data, stride, coarsest, f, value);
+            const at = (b * BRICK_PROBES + t) * stride;
+            for (let k = 0; k < stride; k++) data[at + k] = value[k]!;
+        }
+    }
+}
+
+/**
  * Nine RGB coefficients per probe, in grid order with x varying fastest.
  *
  * `atlas` is the solved light field indexed by texel — what a surface gives off,

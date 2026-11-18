@@ -319,6 +319,7 @@ static void testDenseGridCost() {
     std::printf("      13x3x9 grid: %u bricks, %ux%ux%u atlas, %u texels\n", store.brickCount(), store.atlasWidth(),
                 store.atlasHeight(), store.atlasDepth(), texels);
     CHECK(store.brickCount() == 6u && texels == 7500u, "the Bistro's grid is six bricks in the fewest texels that hold them");
+    CHECK(store.atlasBytes() == 7500u * 8u, "and takes 60,000 bytes of GPU memory");
 }
 
 /** A field linear in the grid's own coordinates, different per coefficient and channel: a coarse brick holds it
@@ -329,6 +330,9 @@ static glm::vec3 linearField(const glm::vec3& f, int c) {
 
 /** A 17x9x17 grid (4x2x4 finest-brick cells) as one span-2 brick per 2x2x2 cells, except the first, refined to eight
  *  bricks of span 1. */
+/** Measured once and held: a layout change that grows the atlas has to say so here. */
+static constexpr unsigned long long SPARSE_ATLAS_BYTES = 110000;
+
 static ProbeVolume sparseGrid(bool sky) {
     ProbeVolume v;
     v.resolution = {17, 9, 17};
@@ -389,6 +393,18 @@ static void testSparseRead() {
     store.layoutAtlas(256);
     store.setAtlasTexture(42);
     CHECK(store.brickCount() == 11u, "the atlas holds the grid's own bricks");
+    std::printf("      sparse grid: %ux%ux%u atlas, %llu bytes\n", store.atlasWidth(), store.atlasHeight(), store.atlasDepth(),
+                static_cast<unsigned long long>(store.atlasBytes()));
+    CHECK(store.atlasBytes() == SPARSE_ATLAS_BYTES, "eleven bricks take what eleven slots and the indirection page take");
+    // The same 17x9x17 grid dense: thirty-two bricks, every cell at the finest spacing.
+    ProbeVolume dense = scrambled({17, 9, 17}, true);
+    ProbeStore denseStore;
+    denseStore.add({0.0f, 0.0f, 0.0f}, {16.0f, 8.0f, 16.0f}, &dense);
+    denseStore.layoutAtlas(256);
+    std::printf("      the same grid dense: %u bricks, %llu bytes\n", denseStore.brickCount(),
+                static_cast<unsigned long long>(denseStore.atlasBytes()));
+    CHECK(denseStore.brickCount() == 32u && store.atlasBytes() * 2 < denseStore.atlasBytes(),
+          "and under half what the grid takes dense");
     std::vector<u16> texels;
     store.fillAtlas(texels);
 

@@ -17,7 +17,7 @@ import {
 import { solveDirect, solveGather, type BakeLight, type HitLookup } from './solve';
 import { skyRadiance, type SkySpec } from './sky';
 import type { LumelField } from './atlas';
-import { planProbes, gatherBricks, solveProbesAt, type ProbeGrid } from './probes';
+import { planProbes, gatherBricks, stitchBricks, solveProbesAt, type ProbeGrid } from './probes';
 import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
 
@@ -419,9 +419,16 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
         const visibility = opts.skyOcclusion ? new Float32Array(count * 9) : null;
         yield { scene, job: { kind: 'probes', atlas: radiance, positions: layout.positions, samples: opts.probeSamples,
                               out, skyVisibility: visibility } };
-        probes.push(gatherBricks(layout, out, 27));
+        const irradiance = gatherBricks(layout, out, 27);
+        const sky = visibility ? gatherBricks(layout, visibility, 9) : null;
+        // Where a fine brick meets a coarse one, its face takes the coarse one's light, so a read crossing it does not jump.
+        if (layout.bricks) {
+            stitchBricks(layout.resolution, layout.bricks, irradiance, 27);
+            if (sky) stitchBricks(layout.resolution, layout.bricks, sky, 9);
+        }
+        probes.push(irradiance);
         probeBricks.push(layout.bricks ?? null);
-        if (visibility) probeSkyVisibility.push(gatherBricks(layout, visibility, 9));
+        if (sky) probeSkyVisibility.push(sky);
     }
 
     // Captured from the same field, after the same bounces: a reflection of a

@@ -257,6 +257,10 @@ public:
     u32 atlasWidth() const { return atlas_width_; }
     u32 atlasHeight() const { return atlas_height_; }
     u32 atlasDepth() const { return atlas_depth_; }
+    /** @brief What the atlas takes on the GPU: four half floats a texel, no mips. What a sparse grid saves is here. */
+    u64 atlasBytes() const {
+        return static_cast<u64>(atlas_width_) * atlas_height_ * atlas_depth_ * 4u * sizeof(u16);
+    }
     /** @brief Texels across one page: the x distance from a coefficient's texel to the next one's. */
     u32 pageWidth() const { return static_cast<u32>(shape_.pageWidth); }
     /** @brief Bricks the atlas holds, across every grid placed. */

@@ -13,6 +13,7 @@ import { ROOT } from './lib/repo.mjs';
 import { importSdkSource } from './lib/sdkSource.mjs';
 
 const { encodeProbeFile, PROBE_FILE_VERSION } = await importSdkSource('lightmap/probeFile.ts');
+const { stitchBricks } = await importSdkSource('lightmap/probes.ts');
 
 const OUT = path.join(ROOT, 'fixtures', 'scenes');
 
@@ -65,6 +66,25 @@ const FIXTURES = {
         }).flat(),
         binary: true,
     },
+    // A SEAM: one span-2 brick (x cells 0-1) beside four span-1 bricks (x cells 2-3), 17 x 9 x 1 probes. Red
+    // everywhere, except the fine bricks' probes ON the shared face at odd y, which are blue: a bump the coarse face,
+    // blending probes two apart, cannot hold. Stitched as a bake stitches it, the fine face takes the coarse brick's
+    // red and the light is red across the seam; unstitched, the fine side of the seam turns blue.
+    'probe-seam.esprobes': (() => {
+        const resolution = [17, 9, 1];
+        const bricks = [0, 0, 0, 2, 2, 0, 0, 1, 3, 0, 0, 1, 2, 1, 0, 1, 3, 1, 0, 1];
+        const values = new Float32Array((bricks.length / 4) * 125 * 27);
+        for (let b = 0; b < bricks.length / 4; b++) {
+            for (let t = 0; t < 125; t++) {
+                const fx = bricks[b * 4] * 4 + (t % 5) * bricks[b * 4 + 3];
+                const fy = bricks[b * 4 + 1] * 4 + (Math.floor(t / 5) % 5) * bricks[b * 4 + 3];
+                const bump = bricks[b * 4 + 3] === 1 && fx === 8 && fy % 2 === 1;
+                values.set(constant(bump ? BLUE : RED), (b * 125 + t) * 27);
+            }
+        }
+        if (!process.env.PROBE_SEAM_UNSTITCHED) stitchBricks(resolution, Int32Array.from(bricks), values, 27);
+        return { resolution, bricks, irradiance: Array.from(values), binary: true };
+    })(),
 };
 
 for (const [name, data] of Object.entries(FIXTURES)) {

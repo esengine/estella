@@ -6,7 +6,7 @@ export { bakeLightmap, bakeLightmapSteps, bakeRunner, jobLength, LIGHTMAP_RANGE,
 export { skyRadiance, type SkySpec } from './sky';
 export type { BakeSurface } from './atlas';
 export type { BakeLight } from './solve';
-export { solveProbes, solveProbesAt, planProbes, gatherBricks, probeAt, BRICK_CELLS, BRICK_PROBES, type ProbeGrid,
+export { solveProbes, solveProbesAt, planProbes, gatherBricks, stitchBricks, probeAt, BRICK_CELLS, BRICK_PROBES, type ProbeGrid,
          type ProbeLayout } from './probes';
 export { encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, PROBE_FILE_SPARSE_VERSION, PROBES_PER_BRICK,
          type ProbeVolumeDocument } from './probeFile';

@@ -6,7 +6,7 @@
  * probe a sparse bake solves is the probe a dense bake solves at the same place.
  */
 import { describe, it, expect } from 'vitest';
-import { bakeLightmap, planProbes, probeAt, BRICK_CELLS, BRICK_PROBES, type BakeSurface, type ProbeGrid }
+import { bakeLightmap, planProbes, probeAt, stitchBricks, BRICK_CELLS, BRICK_PROBES, type BakeSurface, type ProbeGrid }
     from '../src/lightmap';
 import { MeshChannel, MeshChannelType, type MeshData } from '../src/asset/meshFormat';
 
@@ -120,10 +120,15 @@ describe('a sparse probe grid', () => {
         const bricks = sparse.probeBricks[0]!;
         expect(bricks).not.toBeNull();
         const side = BRICK_CELLS + 1;
+        const coarsest = Math.max(...Array.from(bricks).filter((_, i) => i % 4 === 3));
         let compared = 0, worst = 0;
         for (let b = 0; b < bricks.length / 4; b++) {
             const span = bricks[b * 4 + 3]!;
             for (let t = 0; t < BRICK_PROBES; t++) {
+                // A face a coarser brick touches is stitched to it (below); the rest is the solve's own.
+                const onFace = [t % side, Math.floor(t / side) % side, Math.floor(t / (side * side))]
+                    .some((v) => v === 0 || v === BRICK_CELLS);
+                if (onFace && span < coarsest) continue;
                 const f = [t % side, Math.floor(t / side) % side, Math.floor(t / (side * side))]
                     .map((v, a) => Math.min(bricks[b * 4 + a]! * BRICK_CELLS + v * span, GRID.resolution[a]! - 1));
                 const d = (f[0]! + 33 * (f[1]! + 17 * f[2]!)) * 27;
@@ -133,7 +138,148 @@ describe('a sparse probe grid', () => {
                 compared++;
             }
         }
-        expect(compared).toBe((bricks.length / 4) * BRICK_PROBES);
+        expect(compared).toBeGreaterThan(BRICK_PROBES);
         expect(worst).toBe(0);
+    });
+
+    describe('stitched where bricks of two sizes meet', () => {
+        // 17 x 9 x 9 probes, 4 x 2 x 2 finest-brick cells: one span-2 brick on the low half of x, eight span-1 on the high.
+        const res: [number, number, number] = [17, 9, 9];
+        const cells = [4, 2, 2];
+        const bricks = Int32Array.from([0, 0, 0, 2,
+            ...[2, 3].flatMap((x) => [0, 1].flatMap((y) => [0, 1].flatMap((z) => [x, y, z, 1])))]);
+        // A field a bilinear face cannot hold, so the coarse face and the fine probes on it disagree.
+        const field = (f: number[]) => 0.01 * f[0]! * f[0]! + 0.05 * f[1]! * f[1]! + 0.03 * f[2]! * f[2]! + 0.02 * f[1]! * f[2]!;
+        const fill = (): Float32Array => {
+            const data = new Float32Array((bricks.length / 4) * BRICK_PROBES);
+            for (let b = 0; b < bricks.length / 4; b++) {
+                for (let t = 0; t < BRICK_PROBES; t++) {
+                    const f = [t % 5, Math.floor(t / 5) % 5, Math.floor(t / 25)].map((v, a) => bricks[b * 4 + a]! * 4 + v * bricks[b * 4 + 3]!);
+                    data[b * BRICK_PROBES + t] = field(f);
+                }
+            }
+            return data;
+        };
+        /** The runtime's read: the cell under the point names a brick, the brick blends its own probes. */
+        const read = (data: Float32Array, p: number[]): number => {
+            const c = p.map((v, a) => Math.min(Math.floor(v / 4), cells[a]! - 1));
+            let b = -1;
+            for (let k = 0; k < bricks.length / 4; k++) {
+                const s = bricks[k * 4 + 3]!;
+                if ([0, 1, 2].every((a) => c[a]! >= bricks[k * 4 + a]! && c[a]! < bricks[k * 4 + a]! + s)) { b = k; break; }
+            }
+            const span = bricks[b * 4 + 3]!;
+            const lo = [0, 0, 0], fr = [0, 0, 0];
+            for (let a = 0; a < 3; a++) {
+                const local = (p[a]! - bricks[b * 4 + a]! * 4) / span;
+                lo[a] = Math.min(Math.max(Math.floor(local), 0), 3);
+                fr[a] = local - lo[a]!;
+            }
+            let v = 0;
+            for (let k = 0; k < 8; k++) {
+                const d = [k & 1, (k >> 1) & 1, (k >> 2) & 1];
+                const w = d.reduce((acc, di, a) => acc * (di ? fr[a]! : 1 - fr[a]!), 1);
+                v += w * data[b * BRICK_PROBES + (lo[0]! + d[0]!) + 5 * ((lo[1]! + d[1]!) + 5 * (lo[2]! + d[2]!))]!;
+            }
+            return v;
+        };
+        /** The largest step a read takes crossing the x = 8 face, sampled over the face. */
+        const seam = (data: Float32Array): number => {
+            let worst = 0;
+            for (let y = 0; y <= 8; y += 0.25) {
+                for (let z = 0; z <= 8; z += 0.25) worst = Math.max(worst, Math.abs(read(data, [8 - 1e-4, y, z]) - read(data, [8 + 1e-4, y, z])));
+            }
+            return worst;
+        };
+
+        it('jumps across the face before, and not after', () => {
+            const data = fill();
+            const before = seam(data);
+            stitchBricks(res, bricks, data, 1);
+            const after = seam(data);
+            expect(before).toBeGreaterThan(0.01);
+            expect(after).toBeLessThan(1e-4);
+        });
+
+        it('changes only the fine bricks\' faces the coarse brick touches', () => {
+            const data = fill();
+            const original = data.slice();
+            stitchBricks(res, bricks, data, 1);
+            for (let t = 0; t < BRICK_PROBES; t++) expect(data[t]).toBe(original[t]);
+            for (let b = 1; b < bricks.length / 4; b++) {
+                for (let t = 0; t < BRICK_PROBES; t++) {
+                    const tx = t % 5;
+                    const touches = bricks[b * 4] === 2 && tx === 0;
+                    if (!touches) expect(data[b * BRICK_PROBES + t]).toBe(original[b * BRICK_PROBES + t]);
+                }
+            }
+        });
+
+        it('is continuous across every face, edge and corner of a three-level plan', () => {
+            const grid: ProbeGrid = { min: [0, 0, 0], max: [32, 32, 32], resolution: [33, 33, 33], levels: 3 };
+            // Geometry near one corner only: span 1 there, 2 around it, 4 beyond.
+            const layout = planProbes(grid, (lo) => lo[0] < 6 && lo[1] < 6 && lo[2] < 6);
+            const b3 = layout.bricks!;
+            expect(new Set(Array.from(b3).filter((_, i) => i % 4 === 3))).toEqual(new Set([1, 2, 4]));
+            const f3 = (f: number[]) => 0.003 * f[0]! * f[0]! + 0.002 * f[1]! * f[2]! + 0.004 * f[2]! * f[2]! + 0.001 * f[0]! * f[1]!;
+            const data = new Float32Array((b3.length / 4) * BRICK_PROBES);
+            for (let b = 0; b < b3.length / 4; b++) {
+                for (let t = 0; t < BRICK_PROBES; t++) {
+                    const f = [t % 5, Math.floor(t / 5) % 5, Math.floor(t / 25)].map((v, a) => Math.min(b3[b * 4 + a]! * 4 + v * b3[b * 4 + 3]!, 32));
+                    data[b * BRICK_PROBES + t] = f3(f);
+                }
+            }
+            const cells3 = [8, 8, 8];
+            const read3 = (p: number[]): number => {
+                const c = p.map((v, a) => Math.min(Math.floor(v / 4), cells3[a]! - 1));
+                let b = 0;
+                for (; b < b3.length / 4; b++) {
+                    const s = b3[b * 4 + 3]!;
+                    if ([0, 1, 2].every((a) => c[a]! >= b3[b * 4 + a]! && c[a]! < b3[b * 4 + a]! + s)) break;
+                }
+                const span = b3[b * 4 + 3]!;
+                let v = 0;
+                const lo = [0, 0, 0], fr = [0, 0, 0];
+                for (let a = 0; a < 3; a++) {
+                    const local = (p[a]! - b3[b * 4 + a]! * 4) / span;
+                    lo[a] = Math.min(Math.max(Math.floor(local), 0), 3);
+                    fr[a] = local - lo[a]!;
+                }
+                for (let k = 0; k < 8; k++) {
+                    const d = [k & 1, (k >> 1) & 1, (k >> 2) & 1];
+                    const w = d.reduce((acc, di, a) => acc * (di ? fr[a]! : 1 - fr[a]!), 1);
+                    v += w * data[b * BRICK_PROBES + (lo[0]! + d[0]!) + 5 * ((lo[1]! + d[1]!) + 5 * (lo[2]! + d[2]!))]!;
+                }
+                return v;
+            };
+            const worstJump = (): number => {
+                let worst = 0;
+                let seed = 7;
+                const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+                for (let i = 0; i < 4000; i++) {
+                    const axis = i % 3;
+                    const p = [rnd() * 32, rnd() * 32, rnd() * 32];
+                    p[axis] = 4 * (1 + Math.floor(rnd() * 7));
+                    const a = p.slice(), q = p.slice();
+                    a[axis]! -= 1e-4; q[axis]! += 1e-4;
+                    worst = Math.max(worst, Math.abs(read3(a) - read3(q)));
+                }
+                return worst;
+            };
+            const before = worstJump();
+            stitchBricks(layout.resolution, b3, data, 1);
+            const after = worstJump();
+            expect(before).toBeGreaterThan(0.005);
+            expect(after).toBeLessThan(1e-4);
+        });
+
+        it('stitches every number of a probe (an irradiance\'s 27)', () => {
+            const one = fill();
+            const wide = new Float32Array(one.length * 27);
+            for (let i = 0; i < one.length; i++) for (let k = 0; k < 27; k++) wide[i * 27 + k] = one[i]! * (k + 1);
+            stitchBricks(res, bricks, one, 1);
+            stitchBricks(res, bricks, wide, 27);
+            for (let i = 0; i < one.length; i++) for (let k = 0; k < 27; k++) expect(wide[i * 27 + k]).toBeCloseTo(one[i]! * (k + 1), 4);
+        });
     });
 });
