@@ -215,7 +215,7 @@ rows of their group too. High is what the engine always did, so a project at Hig
 | GTAO slices (`gtaoSlices`) and steps (`gtaoSteps`) | GTAO | 2 × 4 | 2 × 5 | 3 × 6 |
 | Ambient occlusion blur radius (`aoBlurRadius`) | the blur after SSAO and GTAO, texels a side | 2 | 3 | 3 |
 | Screen-space GI rays (`ssgiRays`) and steps (`ssgiSteps`) | screen-space GI | 4 × 4 | 6 × 5 | 8 × 6 |
-| Screen-space GI denoise width (`ssgiDenoiseKernel`) | the bilateral average that lays screen-space GI over the picture | 3 × 3 | 5 × 5 | 5 × 5 |
+| Screen-space GI denoise width (`ssgiDenoiseKernel`) | the bilateral average that lays screen-space GI over the picture | 3 × 3 | 3 × 3 | 5 × 5 |
 | Voxel GI grid (`voxelGIGridSize`) | voxel GI on WebGPU, voxels across (half as many high) | 64 | 128 | 128 |
 | Voxel GI sun samples (`voxelGISunSamples`) | voxel GI on WebGPU, samples a side of each sun shadow tile | 64 | 128 | 256 |
 | Voxel GI bounce rays (`voxelGIBounceRays`) | voxel GI on WebGL2 | 1 | 2 | 2 |
@@ -241,27 +241,31 @@ no more often than that (one drawn only on request is left alone). The author's 
 reflections at most 30 times a second; Medium and High every frame. With no level in force a Custom reflection keeps its own values.
 
 Measured on the Windows box as above (headless Chromium, WebGL2 on D3D11, RTX 3060, 975 × 2110), each level with these rows at
-High's values (as before) against its new defaults, two rounds interleaved, medians of the passes' GPU times. The box was shared
-with other work, so whole-frame times moved by several milliseconds between runs and are not given; the counts are what carry over.
+High's values (as before) against its new defaults, one after the other on the same frame with the GPU to itself, medians of the passes'
+GPU times. `bistro` was raining at that frame. The box's milliseconds are not a phone's; the counts are what carry over.
 
 | Scene, level | Passes | Per pixel before → after | Those passes, ms before → after |
 |---|---|---|---|
-| `bistro`, Low, SSR and SSAO ticked back in | SSR | 48 steps + 6 halvings → 16 + 4 | 1.15–1.47 → 0.53–0.54 |
-| | screen-space GI gather and apply | 8 × 6 samples, 25 taps → 4 × 4, 9 taps | 0.98 → 0.35 |
+| `bistro`, Low, SSR and SSAO ticked back in | SSR | 48 steps + 6 halvings → 16 + 4 | 1.48 → 0.87 |
+| | screen-space GI gather and apply | 8 × 6 samples, 25 taps → 4 × 4, 9 taps | 0.81 → 0.35 |
 | | SSAO and its two blurs | 12 samples, 7 + 7 taps → 6, 5 + 5 | 0.24 → 0.14 |
-| `bistro`, Medium, SSR ticked back in | SSR | 48 + 6 → 32 + 5 | 2.04–2.08 → 1.52–1.53 |
-| | screen-space GI gather and apply | 8 × 6 → 6 × 5 samples, 25 taps both | 2.21 → 1.85 |
+| `bistro`, Medium, SSR ticked back in | SSR | 48 + 6 → 32 + 5 | 2.62 → 2.10 |
+| | screen-space GI gather and apply | 8 × 6, 25 taps → 6 × 5, 9 taps | 2.22 → 1.23 |
 | | SSAO and its two blurs | 12 → 8 samples | 0.40 → 0.33 |
-| `terrain-water`, Low, GTAO ticked back in | GTAO | 3 × 6 → 1 × 4 samples (2 × 4 shipped, see below) | 0.12 → 0.02 |
-| `terrain-water`, Medium | GTAO | 3 × 6 → 2 × 5 | 0.25 → 0.14 |
-| `cyber-rooftop`, Low | its rooftop's Custom planar reflection (scale 1, 2048) | 731 × 1583 every frame → 183 × 396 (1/16 of the pixels), at most 30 a second | 4.8–6.7 a frame it draws in, now at most every other frame |
-| `cyber-rooftop`, Medium | the same | 946 × 2048 → 473 × 1024 (a quarter) | 2.1–5.2 → 1.35–1.42 |
+| `terrain-water`, Low, GTAO ticked back in | GTAO | 3 × 6 → 2 × 4 samples | 0.12 → 0.05 |
+| `terrain-water`, Medium | GTAO | 3 × 6 → 2 × 5 | 0.25 → 0.15 |
+| `third-person-3d`, Medium | SSAO | 12 → 8 samples | 0.13 → 0.10 |
+| `cyber-rooftop`, Low | its rooftop's Custom planar reflection (scale 1, 2048) | 731 × 1583 every frame → 183 × 396 (1/16 of the pixels), at most 30 a second | 4.87 a frame it is drawn in, before |
+| `cyber-rooftop`, Medium | the same | 946 × 2048 → 473 × 1024 (a quarter) | 2.19 → 1.20 |
 | any, High | none | unchanged | unchanged |
 
 GTAO with a single slice laid the occlusion in horizontal bands on `terrain-water`'s grass and water at Low's size: the pattern that turns the slice
 from pixel to pixel repeats every other pixel of a pass drawn smaller than half the screen, so one slice samples only a few directions in rows.
-Two slices showed none, so two is the fewest the setting allows and Low uses 2 × 4. At Medium a 3 × 3 screen-space GI denoise halves its
-apply pass (1.12 → 0.51 ms on `bistro`); Medium keeps 5 × 5, since the smaller square was not compared on screen there.
+Two slices showed none, so two is the fewest the setting allows and Low uses 2 × 4. The 3 × 3 screen-space GI denoise at Medium halves its
+apply pass; on `bistro` it differs from 5 × 5 by 0.14 of 255 on average and by more than 8 at 136 pixels of two million. With SSR ticked back
+in at Low, the 16 steps leave a stipple of the step pattern in a puddle's reflection that the level, with no temporal anti-aliasing, does not
+smooth; a project that turns SSR on at Low may want more steps. With the camera walking at Medium (temporal anti-aliasing on), consecutive frames
+show the same edges and occlusion before and after.
 
 The work on the CPU was measured in Node on a Mac (these are a Mac's milliseconds; a phone takes several times as long):
 

@@ -197,7 +197,7 @@ export const GLOBAL_ILLUMINATION_SETTINGS = [
         key: 'ssgiDenoiseKernel',
         type: 'choice',
         options: [3, 5],
-        defaults: { low: 3, medium: 5, high: 5 },
+        defaults: { low: 3, medium: 3, high: 5 },
         group: 'globalIllumination',
         preference: false,
         requires: { postProcess: true },
