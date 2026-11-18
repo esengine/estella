@@ -169,6 +169,13 @@ uploaded. `tripo_image` makes pictures from words or from other pictures, and th
 takes as `images` for a model closer to what was meant than one picture gives. Every operation but the rig check spends credits,
 and each tool's description says how many.
 
+Nothing Tripo made is forgotten: the project keeps every job as history, with what was asked, where the result landed and what
+it cost, and `tripo_history` lets the agent look there before it pays for something again. It also lists the models in the
+project that Tripo made (from their `.meta`, so a cloned project has them), and with `remote_days` what the Tripo account made
+anywhere in the last month. A listed result whose file is gone comes back with `tripo_task` without spending credits. The same
+group can smart-segment a model or a picture into named parts, and turn a picture into a Gaussian splat (a `.splat` file the
+engine does not draw yet).
+
 A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
 cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
 topics, named at the end of their descriptions with what each is for, and the agent reads the ones it needs with `tool_guide`
