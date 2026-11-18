@@ -24,13 +24,17 @@
  *
  * Reported: transfers completed per second, transfer time (portal asked to
  * ready in the new zone) p50 / p95 / max, refused or failed transfers, and
- * the integrity check. `--crash` kills one zone halfway: its bots log in to
+ * the integrity check. `--drain` updates one zone halfway as a deployment
+ * would: it drains (every player moved to another line), exits, and a new
+ * process takes its id; reported are how long the drain took, how many it
+ * moved and how many it had to kick (none, when there is somewhere to go). `--crash` kills one zone halfway: its bots log in to
  * another zone, which refuses them until their leases run out; the time that
  * takes and the hops lost since the last autosave are reported apart.
  *
  *   node tools/zones-benchmark.mjs
  *   node tools/zones-benchmark.mjs --zones 4 --players 200 --seconds 30 --interval 3
  *   node tools/zones-benchmark.mjs --crash
+ *   node tools/zones-benchmark.mjs --drain     # a rolling update of one zone
  *
  * Reads the built SDK (sdk/dist). No wasm: the zones run the replication and
  * zone machinery, not a renderer or physics.
@@ -103,10 +107,20 @@ async function runZone() {
         onError: (_pid, _err, during) => { errors[during]++; },
     });
     const bus = new zones.RemoteBus({ connect: () => new sdk.GameSocket({ url: A.bus }) });
+    let zoneServer = null;
     const zone = new zones.ZoneHost({
         bus,
         zone: { id, address, kind: 'map' }, store, players: records, leaseTtlMs: LEASE_TTL, directoryTtlMs: 6000,
         authenticate: (c) => ({ playerId: c.token }),
+        // A player a drain moves is told so first (the same link carries the
+        // transfer after it), so the bot does not count the move as its portal.
+        route: async (ctx) => {
+            if (ctx.reason === 'drain') {
+                const cid = zoneServer?.connectionIdOf(ctx.playerId);
+                if (cid !== undefined) zoneServer.message(cid, 'moved-by-server');
+            }
+            return ctx.defaultRoute();
+        },
         onError: (_err, during) => { errors[during]++; },
     });
     const app = sdk.App.new();
@@ -125,6 +139,7 @@ async function runZone() {
         }
     };
     const server = app.getResource(repl.Net).startServer({ authenticate, reconnectGraceMs: 1000 });
+    zoneServer = server;
     zone.attach(server);
     await zone.start();
     // A whisper from a player here goes to wherever the other player is.
@@ -168,7 +183,8 @@ async function runZone() {
             // A portal: once per portalSeq, counted in the record the transfer saves.
             const actions = server.tickInputOf(cid)?.actions;
             const rec = records.get(pid);
-            if (!actions || typeof actions.portal !== 'string' || transferring.has(pid)) continue;
+            // Portals close while the zone drains: every move out of it is the drain's.
+            if (!actions || typeof actions.portal !== 'string' || transferring.has(pid) || zone.draining) continue;
             if (actions.portalSeq <= rec.lastPortalSeq || actions.portal === id) continue;
             transferring.add(pid);
             records.set(pid, { hops: rec.hops + 1, lastPortalSeq: actions.portalSeq });
@@ -188,16 +204,27 @@ async function runZone() {
         await app.tick(STEP);
     };
     const timer = setInterval(() => { void loop(); }, 1000 / HZ);
-    const report = setInterval(() => {
+    const report_ = setInterval(() => {
         console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors, refusals }));
     }, 1000);
     console.log(`LISTEN ${address}`);
 
     process.stdin.setEncoding('utf8');
     process.stdin.on('data', async (cmd) => {
+        if (cmd.includes('drain')) {
+            // The ticks go on: drain moves players through ordinary transfers.
+            const t0 = performance.now();
+            const report = await zone.drain({ deadlineMs: 15000 });
+            clearInterval(timer);
+            clearInterval(report_);
+            console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors, refusals }));
+            console.log('DRAINED ' + JSON.stringify({ ...report, ms: performance.now() - t0 }));
+            setTimeout(() => process.exit(0), 100);
+            return;
+        }
         if (!cmd.includes('stop')) return;
         clearInterval(timer);
-        clearInterval(report);
+        clearInterval(report_);
         await zone.stop();
         console.log('STAT ' + JSON.stringify({ id, present: server.presentIds.length, transfersOut, errors }));
         console.log('STOPPED');
@@ -260,6 +287,7 @@ async function runBots() {
         bot.server = client.serverId; // a login is not a hop: counting starts here
         bot.phase = new Set();
         client.onMessage('whisper', (d) => { bot.heard.push(Date.now() - d.sentAt); });
+        client.onMessage('moved-by-server', () => { bot.serverMoving = true; });
         client.onStateChange((state) => {
             const now = performance.now();
             if (state !== 'ready') {
@@ -275,6 +303,11 @@ async function runBots() {
                 bot.rerouted.push(now - bot.lostAt);
                 bot.events.push(`${t}s rerouted`);
                 bot.askedAt = 0;
+            } else if (moved && (bot.serverMoving || !bot.askedAt)) {
+                bot.askedAt = 0;
+                // Moved by the server (a zone draining), not through a portal.
+                bot.serverMoves++;
+                bot.events.push(`${t}s moved by the server`);
             } else if (moved) {
                 bot.hops++;
                 bot.events.push(`${t}s hop${bot.askedAt ? ` asked ${bot.portal}` : ' UNASKED'}`);
@@ -288,12 +321,13 @@ async function runBots() {
                 bot.askedAt = 0;
             }
             bot.server = client.serverId;
+            bot.serverMoving = false;
             bot.phase.clear();
         });
     }
 
     for (let i = 0; i < count; i++) {
-        const bot = { heard: [], whispersSent: 0, whisperSeq: 0, nextWhisper: performance.now() + Math.random() * whisperEvery, events: [], rerouted: [], token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
+        const bot = { serverMoves: 0, heard: [], whispersSent: 0, whisperSeq: 0, nextWhisper: performance.now() + Math.random() * whisperEvery, events: [], rerouted: [], token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
         const zone = zoneList[(first + i) % zoneList.length];
         for (;;) {
             try { await login(bot, zone); break; } catch { bot.refused++; await delay(300); }
@@ -369,7 +403,7 @@ async function runBots() {
         console.log('FINAL ' + JSON.stringify(bots.map((b) => ({
             token: b.token, hops: b.hops, bounces: b.bounces, bounceTimes: b.bounceTimes, latencies: b.latencies,
             refused: b.refused, recovered: b.recovered, relogins: b.relogins, rerouted: b.rerouted, events: b.events,
-            whispersSent: b.whispersSent, heard: b.heard,
+            whispersSent: b.whispersSent, heard: b.heard, serverMoves: b.serverMoves,
         }))));
         await delay(100);
         process.exit(0);
@@ -396,6 +430,7 @@ function child(role, extra) {
             buf = buf.slice(nl + 1);
             if (line.startsWith('STAT ')) proc.stats.push(JSON.parse(line.slice(5)));
             else if (line.startsWith('FINAL ')) proc.final = JSON.parse(line.slice(6));
+            else if (line.startsWith('DRAINED ')) proc.drained = JSON.parse(line.slice(8));
             else proc.log += line + '\n';
         }
     });
@@ -425,6 +460,7 @@ async function runAll() {
     const INTERVAL = Number(A.interval ?? 3);
     const BOT_PROCS = Math.max(1, Math.min(Number(A.bots ?? 4), PLAYERS));
     const CRASH = A.crash === true;
+    const DRAIN = A.drain === true;
 
     const store = new persist.MemoryStore();
     // One store for every zone, behind the SDK's StoreHub: every versioned
@@ -462,11 +498,25 @@ async function runAll() {
 
     const started = performance.now();
     let crashedAt = 0;
+    const retired = [];
+    let drained = null;
     if (CRASH) {
         await delay((SECONDS * 1000) / 2);
         zoneProcs[0].kill('SIGKILL');
         crashedAt = performance.now();
         await delay((SECONDS * 1000) / 2);
+    } else if (DRAIN) {
+        await delay((SECONDS * 1000) / 2);
+        const half = performance.now();
+        const old = zoneProcs[0];
+        old.stdin.write('drain\n');
+        drained = await waitFor(old, () => old.drained, 30000, 'drain');
+        // The new version takes the zone's id; the old process's numbers stay counted.
+        retired.push(old);
+        zoneProcs[0] = child('zone', ['--id', 'z0', '--store', served.url, '--bus', busUrl]);
+        await waitFor(zoneProcs[0], () => zoneProcs[0].log.match(/LISTEN (\S+)/), 30000, 'new z0');
+        drained.restartedAfterMs = performance.now() - half;
+        await delay(Math.max(0, SECONDS * 1000 - (performance.now() - started)));
     } else {
         await delay(SECONDS * 1000);
     }
@@ -516,7 +566,7 @@ async function runAll() {
     const hops = bots.reduce((n, b) => n + b.hops, 0);
     const zoneErrors = {};
     const refusals = {};
-    for (const z of zoneProcs) {
+    for (const z of [...zoneProcs, ...retired]) {
         const last = z.stats[z.stats.length - 1];
         for (const [k, v] of Object.entries(last?.errors ?? {})) zoneErrors[k] = (zoneErrors[k] ?? 0) + v;
         for (const [k, v] of Object.entries(last?.refusals ?? {})) refusals[k] = (refusals[k] ?? 0) + v;
@@ -540,6 +590,13 @@ async function runAll() {
     console.log(`transfer time: p50 ${quantile(latencies, 0.5).toFixed(0)} ms, p95 ${quantile(latencies, 0.95).toFixed(0)} ms, max ${Math.max(0, ...latencies).toFixed(0)} ms`);
     console.log(`zone-side failures: ${JSON.stringify(zoneErrors)}; logins refused while held elsewhere: ${bots.reduce((n, b) => n + b.refused, 0)}`);
     console.log(`leases still held by a stopped zone: ${leftoverLeases}`);
+    if (DRAIN && drained) {
+        const relogged = bots.reduce((n, b) => n + b.relogins, 0);
+        const rerouted = bots.reduce((n, b) => n + b.rerouted.length, 0);
+        console.log(`drain: ${drained.moved} players moved to other lines in ${drained.ms.toFixed(0)} ms, ${drained.kicked} kicked; `
+            + `new z0 up ${drained.restartedAfterMs.toFixed(0)} ms after the drain began; clients that saw a server move ${bots.reduce((n, b) => n + b.serverMoves, 0)}, `
+            + `had to log in again ${relogged}, rerouted by an entry ${rerouted}`);
+    }
     if (Object.keys(refusals).length > 0) console.log(`hellos turned away or redirected: ${JSON.stringify(refusals)}`);
     if (CRASH) {
         console.log(`crash: ${crashedPlayers.size} players touched, ${bots.reduce((n, b) => n + b.relogins, 0)} needed the bot to log in again; ${unsavedLost} hops lost unsaved, `
