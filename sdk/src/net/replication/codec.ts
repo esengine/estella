@@ -386,23 +386,27 @@ export class EncodedRows {
         this.end_[row] = this.w_.length;
     }
 
-    /** A state frame of these rows, in this order: the bytes a {@link FrameWriter}
-     *  given the same entries would produce. Every row must be encoded. */
-    frame(tick: number, rows: readonly number[]): Uint8Array {
+    /**
+     * A state frame of these rows, in this order: the bytes a {@link FrameWriter}
+     * given the same entries would produce. Every row must be encoded.
+     *
+     * `lead` spare bytes go in front of the frame, for a transport header to be
+     * written into rather than copied in front of it.
+     */
+    frame(tick: number, rows: readonly number[], lead = 0): Uint8Array {
         const start = this.start_;
         const end = this.end_;
-        let total = FRAME_HEADER_BYTES;
+        let total = lead + FRAME_HEADER_BYTES;
         for (let i = 0; i < rows.length; i++) total += end[rows[i]] - start[rows[i]];
         const out = new Uint8Array(total);
         const view = new DataView(out.buffer);
-        view.setUint32(0, FRAME_MAGIC, true);
-        view.setUint8(4, REPLICATION_PROTOCOL_VERSION);
-        view.setUint32(5, tick >>> 0, true);
-        view.setUint16(9, rows.length, true);
+        view.setUint32(lead, FRAME_MAGIC, true);
+        view.setUint8(lead + 4, REPLICATION_PROTOCOL_VERSION);
+        view.setUint32(lead + 5, tick >>> 0, true);
+        view.setUint16(lead + 9, rows.length, true);
         const src = this.w_.bytes;
-        let o = FRAME_HEADER_BYTES;
+        let o = lead + FRAME_HEADER_BYTES;
         for (let i = 0; i < rows.length; i++) {
-            // Rows are tens of bytes: a loop beats a subarray view per row.
             for (let k = start[rows[i]], e = end[rows[i]]; k < e; k++) out[o++] = src[k];
         }
         return out;

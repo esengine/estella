@@ -137,6 +137,7 @@ static prototype: MemoryIdempotencyStore
 
 ## NetChannel — class @experimental
 ```
+@internal sendBinaryInPlace: (channel: number, frame: Uint8Array) => void
 dispose: (reason?: string) => void
 handle: <Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>, codec?: RequestCodec<Req, Res>) => () => void
 on: <T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>) => () => void

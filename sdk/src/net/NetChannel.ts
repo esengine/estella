@@ -293,6 +293,23 @@ export class NetChannel {
     }
 
     /**
+     * {@link sendBinary} for a payload already laid out behind one spare leading
+     * byte: the channel id is written into that byte and the frame's buffer goes
+     * to the transport as it is, with no copy. The frame must be the whole of its
+     * buffer, and the caller hands it over — it is not to be written again.
+     *
+     * @internal
+     */
+    sendBinaryInPlace(channel: number, frame: Uint8Array): void {
+        if (channel === CONTROL_CHANNEL) throw new RangeError(`[net] binary channel ${CONTROL_CHANNEL} is reserved for control messages`);
+        if (frame.byteOffset !== 0 || frame.byteLength !== frame.buffer.byteLength || frame.byteLength < 1) {
+            throw new RangeError('[net] sendBinaryInPlace needs a frame that is its whole buffer, leading byte included');
+        }
+        frame[0] = channel;
+        this.transport.send(frame.buffer as ArrayBuffer);
+    }
+
+    /**
      * Scope later idempotency keys to this owner. A server knows the player only
      * after the hello, so the scope is set once the connection has authenticated.
      */
