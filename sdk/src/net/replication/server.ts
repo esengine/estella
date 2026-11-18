@@ -246,6 +246,11 @@ export interface ReplicationTransferTarget {
     address: string;
     /** Handed to the destination's `authenticate` in the hello's `transfer`. */
     ticket: string;
+    /**
+     * Where the client logs in again (an ordinary login, no ticket) if it
+     * cannot reach `address` — usually this server. Optional.
+     */
+    fallback?: string;
 }
 
 /** Who a player is, as the server's `authenticate` answers it. */
@@ -868,7 +873,11 @@ export class ReplicationServer {
     private release_(conn: Connection, reason: ReplCloseReason, message?: string, target?: ReplicationTransferTarget): void {
         const msg: ReplClosedMsg = { reason };
         if (message !== undefined) msg.message = message;
-        if (target) { msg.address = target.address; msg.ticket = target.ticket; }
+        if (target) {
+            msg.address = target.address;
+            msg.ticket = target.ticket;
+            if (target.fallback !== undefined) msg.fallback = target.fallback;
+        }
         try {
             conn.channel.send<ReplClosedMsg>(ReplMsg.closed, msg);
         } catch { /* a link that cannot be told is closed all the same */ }

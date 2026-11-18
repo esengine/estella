@@ -29,10 +29,22 @@ export interface ZoneHostOptions {
     authenticate(credentials: unknown, hello: ReplicationHelloInfo): ReplicationPlayer | Promise<ReplicationPlayer>;
     /** Player records to load on arrival and write on departure; the game's shape. */
     players?: PlayerPersistence<unknown>;
-    /** Directory time to live. Default 15 s; the heartbeat is a third of it. */
+    /** Directory time to live. Default 15 s. */
     directoryTtlMs?: number;
+    /**
+     * How often this zone tells the directory it is up. Default 1 s. A transfer
+     * goes only to a zone heard from within three of these, so this is what
+     * bounds how long players keep being sent to a zone that has died.
+     */
+    heartbeatMs?: number;
     /** Lease time to live. Default 30 s; renewed every third of it. */
     leaseTtlMs?: number;
+    /**
+     * How long a transferred player's lease lasts before the destination takes
+     * it up. Default 3 s. If the destination died, the player is free to log in
+     * elsewhere after this, not after a whole lease.
+     */
+    arrivalLeaseMs?: number;
     /** How long a transfer ticket is good for. Default 30 s. */
     ticketTtlMs?: number;
     /** A background step that failed (heartbeat, lease renewal, a departure's save). */
@@ -73,6 +85,10 @@ export class ZoneHost<A = unknown> {
 
     get zoneId(): string {
         return this.options_.zone.id;
+    }
+
+    private get heartbeatMs_(): number {
+        return this.options_.heartbeatMs ?? Math.min(1000, this.directory.ttlMs / 3);
     }
 
     /** The server this zone runs. `startServer({ authenticate: zone.authenticate })`, then this. */
@@ -159,7 +175,7 @@ export class ZoneHost<A = unknown> {
             }
         }
         if (now >= this.nextHeartbeat_) {
-            this.nextHeartbeat_ = now + this.directory.ttlMs / 3;
+            this.nextHeartbeat_ = now + this.heartbeatMs_;
             void this.announce_().catch((err) => this.options_.onError?.(err, 'heartbeat'));
         }
     }
@@ -176,15 +192,19 @@ export class ZoneHost<A = unknown> {
         const pid = server.playerIdOf(connectionId);
         if (pid === undefined) throw new Error(`[zones] connection ${connectionId} is not an authenticated player`);
         if (this.leaving_.has(pid)) throw new Error(`[zones] player "${pid}" is already being transferred`);
-        const dest = await this.directory.get(toZone);
+        // Heard from within three heartbeats: a zone that died is out of the
+        // running within seconds, not a whole directory time to live.
+        const dest = await this.directory.get(toZone, this.heartbeatMs_ * 3);
         if (!dest) throw new Error(`[zones] zone "${toZone}" is not up`);
         this.leaving_.add(pid);
         try {
             await (this.options_.players?.release(pid) ?? Promise.resolve());
-            await this.leases.handOff(pid, this.zoneId, toZone);
+            await this.leases.handOff(pid, this.zoneId, toZone, this.options_.arrivalLeaseMs ?? 3000);
             this.held_.delete(pid);
             const ticket = await this.tickets.issue<A | undefined>({ playerId: pid, toZone, fromZone: this.zoneId, arrival });
-            server.transfer(connectionId, { address: dest.address, ticket });
+            // Back here if the destination cannot be reached: by then the short
+            // arrival lease has run out and this zone takes the player again.
+            server.transfer(connectionId, { address: dest.address, ticket, fallback: this.options_.zone.address });
             this.arrivals_.delete(pid);
         } finally {
             this.leaving_.delete(pid);

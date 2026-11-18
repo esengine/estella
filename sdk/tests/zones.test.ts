@@ -109,11 +109,14 @@ const tokens = (c: unknown) => {
 };
 
 /** One zone process: a server App, its ZoneHost and records, and the game's provisioning. */
-async function bootZone(id: string, store: PersistStore, landmark: string) {
+async function bootZone(id: string, store: PersistStore, landmark: string, arrivalLeaseMs?: number) {
     const app = App.new();
     app.addPlugin(replicationPlugin);
     const records = new PlayerPersistence<Rec>({ store, schema: 1, create: () => ({ gold: 10 }) });
-    const zone = new ZoneHost<{ x: number }>({ zone: { id, address: `mem://${id}`, kind: 'map' }, store, authenticate: tokens, players: records as PlayerPersistence<unknown> });
+    const zone = new ZoneHost<{ x: number }>({
+        zone: { id, address: `mem://${id}`, kind: 'map' }, store, authenticate: tokens,
+        players: records as PlayerPersistence<unknown>, arrivalLeaseMs,
+    });
     const server = app.getResource(Net).startServer({ authenticate: zone.authenticate, reconnectGraceMs: 0 });
     zone.attach(server);
     await zone.start();
@@ -144,15 +147,17 @@ async function bootZone(id: string, store: PersistStore, landmark: string) {
 
 type Zone = Awaited<ReturnType<typeof bootZone>>;
 
-async function setupTwo() {
+async function setupTwo(arrivalLeaseMs?: number) {
     const store = new MemoryStore();
-    const A = await bootZone('A', store, 'forest tree');
-    const B = await bootZone('B', store, 'town well');
+    const A = await bootZone('A', store, 'forest tree', arrivalLeaseMs);
+    const B = await bootZone('B', store, 'town well', arrivalLeaseMs);
     const zones: Record<string, Zone> = { 'mem://A': A, 'mem://B': B };
     /** A client's dial: an in-memory link to whichever zone the address names. */
     const dial = (address: string): ReliableOrderedTransport => {
+        const target = zones[address];
+        if (!target) throw new Error(`nothing at ${address}`); // a zone that died
         const [a, b] = MemoryTransport.pair();
-        zones[address]!.server.attachConnection(a);
+        target.server.attachConnection(a);
         return b;
     };
     const client = async (token: string, at: Zone) => {
@@ -160,7 +165,9 @@ async function setupTwo() {
         app.addPlugin(replicationPlugin);
         const [a, b] = MemoryTransport.pair();
         at.server.attachConnection(a);
-        const c = await app.getResource(Net).connect(b, { interpolationDelayTicks: 0, credentials: { token }, dial });
+        const c = await app.getResource(Net).connect(b, {
+            interpolationDelayTicks: 0, credentials: { token }, dial, reconnect: { minDelayMs: 20, maxDelayMs: 40 },
+        });
         return { app, client: c };
     };
     const run = async (apps: App[], n: number) => {
@@ -219,6 +226,40 @@ describe('two zones', () => {
         await run([ana.app], 3);
         expect(ana.client.state).toBe('ready');
         expect(A.pawns.has('ana')).toBe(true);
+        expect((await A.zone.leases.get('ana'))!.zoneId).toBe('A');
+    });
+
+    it('sends nobody to a zone it has not heard from lately', async () => {
+        const { A, client, run, store } = await setupTwo();
+        const ana = await client('ana', A);
+        await run([ana.app], 3);
+        // Listed, but its last heartbeat was 5 s ago: well inside the directory's
+        // 15 s, well outside three 1 s heartbeats.
+        await store.put('zone:C', { id: 'C', address: 'mem://C', players: 0, seenAt: Date.now() - 5000 });
+        expect(await A.zone.directory.get('C')).not.toBeNull();
+        await expect(A.zone.transfer(ana.client.connectionId, 'C')).rejects.toThrow('not up');
+        expect(A.pawns.has('ana')).toBe(true);
+    });
+
+    it('a player sent to a zone that just died comes back by itself, record intact', async () => {
+        const { A, client, run, store } = await setupTwo(150);
+        const ana = await client('ana', A);
+        await run([ana.app], 3);
+        A.records.set('ana', { gold: 31 });
+        // C announced a moment ago, and has died since.
+        await store.put('zone:C', { id: 'C', address: 'mem://C', players: 0, seenAt: Date.now() });
+        await A.zone.transfer(ana.client.connectionId, 'C');
+        expect(ana.client.state).toBe('reconnecting');
+        // Back at A once the 150 ms arrival lease runs out.
+        const t0 = Date.now();
+        for (let i = 0; i < 100 && !(ana.client.state === 'ready' && A.pawns.has('ana')); i++) {
+            await run([ana.app], 1);
+            await new Promise((r) => setTimeout(r, 10));
+        }
+        expect(ana.client.state).toBe('ready');
+        expect(Date.now() - t0).toBeLessThan(1500);
+        expect(names(ana.app)).toEqual(['forest tree', 'pawn ana']);
+        expect(A.records.get('ana')).toEqual({ gold: 31 });
         expect((await A.zone.leases.get('ana'))!.zoneId).toBe('A');
     });
 

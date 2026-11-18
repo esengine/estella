@@ -84,15 +84,18 @@ export class PlayerLeases {
 
     /**
      * Give the player to `toZone`, from `fromZone` which must hold them now. The
-     * destination finds the lease already its own when the player arrives.
+     * destination finds the lease already its own when the player arrives. With
+     * `arrivalMs` the handed-over lease lasts only that long, until the
+     * destination renews it on arrival: should the player never get there (the
+     * destination died), they are free again after `arrivalMs`, not `ttlMs`.
      */
-    handOff(playerId: string, fromZone: string, toZone: string): Promise<PlayerLease> {
+    handOff(playerId: string, fromZone: string, toZone: string, arrivalMs?: number): Promise<PlayerLease> {
         return this.write_(playerId, (current) => {
             if (!current || current.zoneId !== fromZone || current.until <= this.now_()) {
                 throw new LeaseHeld(playerId, current?.zoneId ?? '', current?.until ?? 0);
             }
             return toZone;
-        });
+        }, arrivalMs);
     }
 
     /** Let the player go, if this zone still holds them. Returns whether it did. */
@@ -111,12 +114,12 @@ export class PlayerLeases {
     }
 
     /** Read, decide, write with the version read; retried when someone wrote in between. */
-    private async write_(playerId: string, decide: (current: PlayerLease | null) => string): Promise<PlayerLease> {
+    private async write_(playerId: string, decide: (current: PlayerLease | null) => string, ttlMs = this.ttlMs_): Promise<PlayerLease> {
         const key = this.prefix_ + playerId;
         for (let attempt = 0; attempt < 5; attempt++) {
             const doc = await this.store_.get<PlayerLease>(key);
             const zoneId = decide(doc?.value ?? null);
-            const lease: PlayerLease = { playerId, zoneId, until: this.now_() + this.ttlMs_ };
+            const lease: PlayerLease = { playerId, zoneId, until: this.now_() + ttlMs };
             try {
                 await this.store_.put(key, lease, { expectVersion: doc?.version ?? 0 });
                 return lease;

@@ -273,6 +273,7 @@ tick: number
 ## ReplClosedMsg — interface @experimental
 ```
 address: string | undefined
+fallback: string | undefined
 message: string | undefined
 reason: ReplCloseReason
 ticket: string | undefined
@@ -500,6 +501,7 @@ shapes: FieldShape[]
 ## ReplicationTransferTarget — interface @experimental
 ```
 address: string
+fallback: string | undefined
 ticket: string
 ```
 

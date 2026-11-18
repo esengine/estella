@@ -64,10 +64,14 @@ export class ZoneDirectory {
         await this.store_.delete(this.prefix_ + zoneId);
     }
 
-    /** One live zone, or null when it is unknown or has gone quiet. */
-    async get(zoneId: string): Promise<ZoneInfo | null> {
+    /**
+     * One live zone, or null when it is unknown or has gone quiet. `maxAgeMs`
+     * asks for a tighter bound than the time to live — a zone about to be
+     * trusted with a player should have been heard from very recently.
+     */
+    async get(zoneId: string, maxAgeMs = this.ttlMs_): Promise<ZoneInfo | null> {
         const doc = await this.store_.get<ZoneInfo>(this.prefix_ + zoneId);
-        if (!doc || this.now_() - doc.value.seenAt > this.ttlMs_) return null;
+        if (!doc || this.now_() - doc.value.seenAt > Math.min(maxAgeMs, this.ttlMs_)) return null;
         return doc.value;
     }
 

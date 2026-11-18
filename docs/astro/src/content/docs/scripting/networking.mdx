@@ -461,6 +461,18 @@ record just written, and no other zone writes it again. A login while another
 zone holds the player is refused with "try again shortly" (the client's
 `reconnect` keeps trying), so one player is never in two zones at once.
 
+A zone that dies is found out fast. Zones heartbeat every second
+(`heartbeatMs`), and a transfer goes only to a zone heard from within three
+heartbeats — not within the directory's whole time to live. A player sent to a
+zone in the moment it dies comes back by themselves: the hand-over lease lasts
+only `arrivalLeaseMs` (3 s) until the destination takes it up, and the client
+returns to the zone it left (the transfer names it as a fallback) and logs in
+again there once that runs out. Measured with `tools/zones-benchmark.mjs
+--crash` (4 zones, 200 players, one killed): every such player was back within
+3.7 s with nothing done by the game, and every record matched. A player whose
+own zone dies keeps redialing it; sending them to another zone is the game's
+call (the directory says which are up).
+
 On the client, `dial` opens a transport to an address a server names:
 
 ```ts

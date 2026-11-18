@@ -23,7 +23,7 @@ zoneId: string
 ```
 acquire: (playerId: string, zoneId: string) => Promise<PlayerLease>
 get: (playerId: string) => Promise<PlayerLease | null>
-handOff: (playerId: string, fromZone: string, toZone: string) => Promise<PlayerLease>
+handOff: (playerId: string, fromZone: string, toZone: string, arrivalMs?: number) => Promise<PlayerLease>
 release: (playerId: string, zoneId: string) => Promise<boolean>
 renew: (playerId: string, zoneId: string) => Promise<PlayerLease>
 ttlMs: number
@@ -73,7 +73,7 @@ ttlMs: number | undefined
 ## ZoneDirectory — class @experimental
 ```
 announce: (zone: Omit<ZoneInfo, "seenAt">) => Promise<void>
-get: (zoneId: string) => Promise<ZoneInfo | null>
+get: (zoneId: string, maxAgeMs?: number) => Promise<ZoneInfo | null>
 list: (kind?: string) => Promise<ZoneInfo[]>
 pick: (kind: string) => Promise<ZoneInfo | null>
 ttlMs: number
@@ -109,8 +109,10 @@ static prototype: ZoneHost<any>
 
 ## ZoneHostOptions — interface @experimental
 ```
+arrivalLeaseMs: number | undefined
 authenticate: (credentials: unknown, hello: ReplicationHelloInfo) => ReplicationPlayer | Promise<ReplicationPlayer>
 directoryTtlMs: number | undefined
+heartbeatMs: number | undefined
 leaseTtlMs: number | undefined
 now: (() => number) | undefined
 onError: ((error: unknown, during: "heartbeat" | "release" | "renew") => void) | undefined

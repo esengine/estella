@@ -403,7 +403,7 @@ export class ReplicationClient {
         channel.dispose();
         this.channel_ = null;
         if (msg?.reason === 'transfer' && typeof msg.address === 'string' && typeof msg.ticket === 'string') {
-            this.beginTransfer_(msg.address, msg.ticket);
+            this.beginTransfer_(msg.address, msg.ticket, typeof msg.fallback === 'string' ? msg.fallback : undefined);
             return;
         }
         this.closeReason_ = msg?.reason ?? 'kicked';
@@ -415,7 +415,7 @@ export class ReplicationClient {
      * are per server), so they go — in order, ahead of anything the new server
      * sends — and the client says hello there with the ticket.
      */
-    private beginTransfer_(address: string, ticket: string): void {
+    private beginTransfer_(address: string, ticket: string, fallback?: string): void {
         if (!this.dial_) {
             this.transferTarget_ = { address, ticket };
             this.closeReason_ = 'transfer';
@@ -428,23 +428,71 @@ export class ReplicationClient {
         this.connectionId_ = 0;
         this.transferTicket_ = ticket;
         this.state_ = 'transferring';
+        const failed = (why: string): void => {
+            this.channel_?.dispose();
+            this.channel_ = null;
+            this.transferTicket_ = undefined;
+            if (fallback !== undefined && this.reconnect_) { this.goBack_(fallback); return; }
+            this.closeReason_ = `transfer failed: ${why}`;
+            this.state_ = 'closed';
+        };
         let transport: ReliableOrderedTransport;
         try {
             transport = this.dial_(address);
         } catch (err) {
-            this.closeReason_ = `transfer failed: ${(err as Error)?.message ?? err}`;
-            this.state_ = 'closed';
+            failed(String((err as Error)?.message ?? err));
             return;
         }
         // A platform socket queues the hello until it opens.
         if (isRedialable(transport) && transport.readyState === 'closed') transport.connect();
         void this.handshake_(transport, true).then((res) => {
             if (res.ok) this.watchSocket_(transport);
-            else if (this.state_ !== 'closed') { this.closeReason_ = res.error; this.state_ = 'closed'; }
+            else if (this.state_ !== 'closed') failed(res.error);
         }, (err) => {
-            this.closeReason_ = `transfer failed: ${(err as Error)?.message ?? err}`;
-            this.state_ = 'closed';
+            if (isRedialable(transport)) transport.close(1000, 'transfer failed');
+            failed(String((err as Error)?.message ?? err));
         });
+    }
+
+    /**
+     * The destination of a transfer could not be reached: log in again where
+     * the client came from, as an ordinary reconnect that keeps redialing. That
+     * server turns it away while the lease is still on its way to the dead
+     * zone, and takes it once the short arrival lease has run out.
+     */
+    private goBack_(address: string): void {
+        this.state_ = 'reconnecting';
+        let transport: ReliableOrderedTransport;
+        try {
+            transport = this.dial_!(address);
+        } catch (err) {
+            this.closeReason_ = `transfer failed and the way back too: ${(err as Error)?.message ?? err}`;
+            this.state_ = 'closed';
+            return;
+        }
+        if (isRedialable(transport)) {
+            // The socket's own open and close drive the hello and the redials.
+            this.watchSocket_(transport);
+            if (transport.readyState === 'closed') transport.connect();
+            return;
+        }
+        // A transport that cannot be reopened: dial again for each attempt.
+        const drop = (): void => { this.channel_?.dispose(); this.channel_ = null; };
+        void this.handshake_(transport, true).then((res) => {
+            if (res.ok || this.state_ === 'closed') return;
+            drop();
+            if (res.fatal !== false) { this.closeReason_ = res.error; this.state_ = 'closed'; return; }
+            this.retryBack_(address);
+        }, () => { drop(); if (this.state_ !== 'closed') this.retryBack_(address); });
+    }
+
+    private retryBack_(address: string): void {
+        const r = this.reconnect_!;
+        this.redialDelay_ = this.redialDelay_ === 0 ? r.minDelayMs : Math.min(r.maxDelayMs, this.redialDelay_ * 2);
+        this.redialTimer_ = setTimeout(() => {
+            this.redialTimer_ = null;
+            if (this.state_ === 'reconnecting' && !this.channel_) this.goBack_(address);
+        }, this.redialDelay_);
     }
 
     /** Drop every ghost and everything kept about them: they belonged to a server this client left. */

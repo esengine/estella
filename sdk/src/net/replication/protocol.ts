@@ -174,4 +174,6 @@ export interface ReplClosedMsg {
     /** With `transfer`: the server to go to, and the ticket to show it. */
     address?: string;
     ticket?: string;
+    /** With `transfer`: where to log in again if `address` cannot be reached. */
+    fallback?: string;
 }
