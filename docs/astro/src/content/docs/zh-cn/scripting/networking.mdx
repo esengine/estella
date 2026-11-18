@@ -349,6 +349,63 @@ await world.flush(app.world);
 
 记录里存什么、世界何时 flush、存储背后用哪个数据库，都由游戏决定。这里的东西都不在客户端运行。
 
+## 一个世界，多台服务器——`esengine/zones`
+
+一个服务器进程同时能带几百个玩家(用 `tools/net-capacity-benchmark.mjs` 测你自己的)。更大的世界拆成若干
+**区**——一张地图、一张地图的一条线、一个副本——每个区一个进程，玩家在区之间移动。`esengine/zones` 是每个
+这样的游戏都需要的那部分，建在所有区共享的一个 `PersistStore` 上(接数据库就能跨机器)：
+
+- **`ZoneDirectory`**——每个区按心跳上报自己的 id、客户端连接的地址、`kind` 和人数；超过 `ttlMs` 没刷新的
+  条目就是已经没了的区。`pick(kind)` 返回最空的那个，用于把新玩家分到某条线上。
+- **`PlayerLeases`**——玩家在哪个区，作为所有区都认可的一个事实。区在登录时拿租约，玩家在时续约，离开时
+  释放或移交；带版本号的写入保证两个区抢同一个玩家不会都成功，进程崩溃后租约到期即释放玩家。
+- **`TransferTickets`**——一次性、会过期的转区通行证，带上到达所需的信息(出生点、传送门 id)。
+- **`ZoneHost`** 在复制服务器和 `PlayerPersistence` 之上运行一个区的这三件事。
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // 所有区共享
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // 一个 PlayerPersistence，可选
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// 每 tick
+zone.tick();
+// players.isReady(playerId) 之后为每个在场玩家生成角色；通过转区到达的玩家，
+// 站在哪里由 zone.takeArrival(playerId) 给出
+
+// 传送门：先写好记录该存的内容，再送走
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+转区按固定顺序执行，顺序本身就是保证：先写玩家记录，再把租约移交给目标区，再发票据，最后才告诉客户端去哪
+——所以目标区加载到的一定是刚写的记录，也不会有别的区再写它。另一个区持有玩家时的登录会被以"稍后再试"拒绝
+(客户端的 `reconnect` 会继续重试)，所以一个玩家不会同时在两个区。
+
+客户端用 `dial` 打开服务器指定地址的连接：
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+});
+```
+
+被转区时，客户端丢掉旧区的所有幽灵实体(netId 只在一台服务器内有效)，带票据连上新区，此后断线就像平常一样
+重连到新区(期间 `state` 为 `'transferring'`)。没有 `dial` 时，转区会让客户端结束，`closeReason` 为
+`'transfer'`，`transferTarget` 说明该去哪。`server.transfer(id, { address, ticket })` 是 `ZoneHost` 用的
+复制层那一步，留给有自己交接方式的游戏。
+
+这里没有的：跨区边界无缝的世界(边界两侧的实体互相可见)，以及区之间的消息(聊天、组队)——那是游戏自己选的
+消息总线。
+
 ## 异步在线游戏——会话层
 
 状态复制让服务器与客户端共享一个 tick。而**异步**玩共享世界的游戏(城建、卡牌、抽卡)没有共享 tick,

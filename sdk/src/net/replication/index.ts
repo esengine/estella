@@ -56,6 +56,8 @@ export {
     type ReplicationPlayer,
     type ReplicationBudgetOptions,
     type ReplicationPriorityView,
+    type ReplicationHelloInfo,
+    type ReplicationTransferTarget,
 } from './server';
 export {
     ReplicationClient,

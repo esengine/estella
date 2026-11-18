@@ -59,6 +59,8 @@ export interface ReplHelloRequest {
     components: ReplComponentSchema[];
     /** Whatever the server's `authenticate` reads (a token, a ticket). Absent for an anonymous client. */
     credentials?: unknown;
+    /** A transfer ticket another server handed this client on the way here (see `ReplClosedMsg`). */
+    transfer?: string;
 }
 
 export interface ReplHelloOk {
@@ -159,7 +161,7 @@ export interface ReplAckMsg {
 }
 
 /** Why the server is closing a connection, sent just before it lets go. */
-export type ReplCloseReason = 'replaced' | 'kicked';
+export type ReplCloseReason = 'replaced' | 'kicked' | 'transfer';
 
 /**
  * Server → client: this connection is being closed on purpose. A client that
@@ -169,4 +171,7 @@ export type ReplCloseReason = 'replaced' | 'kicked';
 export interface ReplClosedMsg {
     reason: ReplCloseReason;
     message?: string;
+    /** With `transfer`: the server to go to, and the ticket to show it. */
+    address?: string;
+    ticket?: string;
 }

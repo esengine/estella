@@ -146,6 +146,15 @@ export interface ReplicationClientOptions {
      * another login or kicked, or refuses the hello as final.
      */
     reconnect?: boolean | ReplicationReconnectOptions;
+    /**
+     * Open a transport to an address a server names when it transfers this
+     * client elsewhere (`server.transfer`, `esengine/zones`): typically
+     * `(url) => createSocket({ url })`. With it, a transfer drops every ghost
+     * from the old server and connects to the new one by itself, showing its
+     * ticket. Without it, a transfer ends the client (`closeReason`
+     * `'transfer'`, `transferTarget` says where).
+     */
+    dial?: (address: string) => ReliableOrderedTransport;
 }
 
 export interface ReplicationReconnectOptions {
@@ -160,7 +169,7 @@ export interface ReplicationReconnectOptions {
  * redialed; `closed` is the end — `disconnect()`, a final refusal, or the
  * server letting the player go (`closeReason` says which).
  */
-export type ReplicationClientState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'closed';
+export type ReplicationClientState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'transferring' | 'closed';
 
 /** What a platform socket adds to a transport: it can be reopened, and it says when it closes. */
 interface RedialableSocket extends ReliableOrderedTransport {
@@ -181,7 +190,9 @@ type PendingOp =
     | { kind: 'spawn'; batch: ReplSpawnBatch }
     | { kind: 'despawn'; batch: ReplDespawnBatch }
     | { kind: 'remove'; batch: ReplComponentRemoveBatch }
-    | { kind: 'state'; frame: Uint8Array };
+    | { kind: 'state'; frame: Uint8Array }
+    /** Everything held came from a server this client has left: drop it. */
+    | { kind: 'reset' };
 
 export class ReplicationClient {
     private readonly world_: World;
@@ -218,10 +229,15 @@ export class ReplicationClient {
     private offSocket_: (() => void) | null = null;
     private redialTimer_: ReturnType<typeof setTimeout> | null = null;
     private redialDelay_ = 0;
+    private readonly dial_: ((address: string) => ReliableOrderedTransport) | null;
+    /** The ticket the next hello shows, while a transfer is under way. */
+    private transferTicket_: string | undefined;
+    private transferTarget_: { address: string; ticket: string } | undefined;
 
     constructor(world: World, options: ReplicationClientOptions = {}) {
         this.world_ = world;
         this.credentials_ = options.credentials;
+        this.dial_ = options.dial ?? null;
         const r = options.reconnect;
         this.reconnect_ = r ? {
             minDelayMs: (r === true ? undefined : r.minDelayMs) ?? 500,
@@ -256,6 +272,11 @@ export class ReplicationClient {
 
     get state(): ReplicationClientState {
         return this.state_;
+    }
+
+    /** Where a transfer told this client to go, when it had no `dial` to go there itself. */
+    get transferTarget(): { address: string; ticket: string } | undefined {
+        return this.transferTarget_;
     }
 
     /** Why the link ended for good: the server's `replaced` / `kicked`, or a refusal's message. */
@@ -335,6 +356,7 @@ export class ReplicationClient {
             abiHash: ABI_LAYOUT_HASH,
             components: tableSchemas(this.table),
             ...(this.credentials_ !== undefined ? { credentials: this.credentials_ } : {}),
+            ...(this.transferTicket_ !== undefined ? { transfer: this.transferTicket_ } : {}),
         };
         let res: ReplHelloResponse;
         try {
@@ -362,19 +384,70 @@ export class ReplicationClient {
         this.state_ = 'ready';
         this.closeReason_ = undefined;
         this.redialDelay_ = 0;
+        // A ticket is good once; a later reconnect to this server is an ordinary one.
+        this.transferTicket_ = undefined;
         return res;
     }
 
-    /** The server let this link go on purpose: no redial, the client is done. */
+    /** The server let this link go on purpose: no redial; a transfer goes on elsewhere. */
     private closedByServer_(channel: NetChannel, msg: ReplClosedMsg): void {
         if (this.channel_ !== channel) return;
-        this.closeReason_ = msg?.reason ?? 'kicked';
-        this.state_ = 'closed';
         this.cancelRedial_();
         this.offSocket_?.();
         this.offSocket_ = null;
         channel.dispose();
         this.channel_ = null;
+        if (msg?.reason === 'transfer' && typeof msg.address === 'string' && typeof msg.ticket === 'string') {
+            this.beginTransfer_(msg.address, msg.ticket);
+            return;
+        }
+        this.closeReason_ = msg?.reason ?? 'kicked';
+        this.state_ = 'closed';
+    }
+
+    /**
+     * Leave this server for another. Ghosts from here mean nothing there (netIds
+     * are per server), so they go — in order, ahead of anything the new server
+     * sends — and the client says hello there with the ticket.
+     */
+    private beginTransfer_(address: string, ticket: string): void {
+        if (!this.dial_) {
+            this.transferTarget_ = { address, ticket };
+            this.closeReason_ = 'transfer';
+            this.state_ = 'closed';
+            return;
+        }
+        this.inbox_.push({ kind: 'reset' });
+        this.pendingInputs_.length = 0;
+        this.ackedSeq_ = this.inputSeq_;
+        this.connectionId_ = 0;
+        this.transferTicket_ = ticket;
+        this.state_ = 'transferring';
+        let transport: ReliableOrderedTransport;
+        try {
+            transport = this.dial_(address);
+        } catch (err) {
+            this.closeReason_ = `transfer failed: ${(err as Error)?.message ?? err}`;
+            this.state_ = 'closed';
+            return;
+        }
+        // A platform socket queues the hello until it opens.
+        if (isRedialable(transport) && transport.readyState === 'closed') transport.connect();
+        void this.handshake_(transport, true).then((res) => {
+            if (res.ok) this.watchSocket_(transport);
+            else if (this.state_ !== 'closed') { this.closeReason_ = res.error; this.state_ = 'closed'; }
+        }, (err) => {
+            this.closeReason_ = `transfer failed: ${(err as Error)?.message ?? err}`;
+            this.state_ = 'closed';
+        });
+    }
+
+    /** Drop every ghost and everything kept about them: they belonged to a server this client left. */
+    private resetWorld_(): void {
+        const all = this.netIds_.netIdList();
+        if (all.length > 0) this.applyDespawnBatch_({ tick: this.serverTick_, netIds: all });
+        this.authority_.clear();
+        this.serverTick_ = 0;
     }
 
     /** With `reconnect`, follow the socket so a drop starts a redial. */
@@ -496,6 +569,7 @@ export class ReplicationClient {
                 case 'despawn': this.applyDespawnBatch_(op.batch); break;
                 case 'remove': this.applyComponentRemoveBatch_(op.batch); break;
                 case 'state': this.applyStateFrame_(decodeStateFrame(op.frame, this.table, this.refs_)); break;
+                case 'reset': this.resetWorld_(); break;
             }
         }
         if (this.prediction_) {

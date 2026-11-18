@@ -409,6 +409,79 @@ await world.flush(app.world);
 What a record holds, when the world is flushed, and which database backs the
 store are the game's. Nothing here runs on the client.
 
+## One world, several servers — `esengine/zones`
+
+One server process holds a few hundred players at a time
+(`tools/net-capacity-benchmark.mjs` measures yours). A larger world is split
+into **zones** — a map, a line of a map, an instance — each its own process,
+and players move between them. `esengine/zones` is the part of that every such
+game needs, over one `PersistStore` all zones share (a database adapter makes
+it span machines):
+
+- **`ZoneDirectory`** — every zone announces its id, the address clients dial,
+  a `kind` and how full it is, on a heartbeat; an entry not refreshed within
+  `ttlMs` is a zone that is gone. `pick(kind)` returns the one with most room,
+  for putting a newcomer on a line.
+- **`PlayerLeases`** — which zone a player is in, as one fact. A zone takes the
+  lease on login, renews it while the player stays, and frees or hands it on
+  when they leave; versioned writes mean two zones racing for one player cannot
+  both win, and a zone that crashes frees its players when their leases run out.
+- **`TransferTickets`** — one-use, expiring passes from one zone to another,
+  carrying whatever the arrival needs (a spawn point, a portal id).
+- **`ZoneHost`** runs one zone's side of all three over a replication server and
+  `PlayerPersistence`.
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // shared by every zone
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // a PlayerPersistence, optional
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// every tick
+zone.tick();
+// a pawn for each present player once players.isReady(playerId); where it
+// stands comes from zone.takeArrival(playerId) when they arrived by transfer
+
+// a portal: write what the record should hold, then send them
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+A transfer runs in an order that is its guarantee: the player's record is
+written, the lease is handed to the destination, a ticket is issued, and only
+then is the client told where to go — so the zone they arrive at loads the
+record just written, and no other zone writes it again. A login while another
+zone holds the player is refused with "try again shortly" (the client's
+`reconnect` keeps trying), so one player is never in two zones at once.
+
+On the client, `dial` opens a transport to an address a server names:
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+});
+```
+
+When it is transferred, the client drops every ghost of the zone it left
+(netIds belong to one server), connects to the new one showing its ticket, and
+from then on reconnects there like any other drop (`state` is `'transferring'`
+in between). Without `dial`, a transfer ends the client with `closeReason`
+`'transfer'` and `transferTarget` saying where to go. `server.transfer(id, {
+address, ticket })` is the replication-level step `ZoneHost` uses, for a game
+with its own handoff.
+
+What is not here: a world that is seamless across zone borders (entities on
+both sides of a line seen from either) and messages between zones (chat,
+parties) — those are a bus the game picks.
+
 ## Asynchronous online games — sessions
 
 Replication shares a tick between server and clients. A game played **asynchronously**

@@ -234,6 +234,20 @@ function fieldEqual(a: unknown, b: unknown): boolean {
     return true;
 }
 
+/** What else a hello carried, for `authenticate`. */
+export interface ReplicationHelloInfo {
+    /** The ticket another server issued when it transferred this player here. */
+    transfer?: string;
+}
+
+/** Where a transferred player goes, and what they show when they get there. */
+export interface ReplicationTransferTarget {
+    /** What the client dials: a WebSocket URL, or whatever its `dial` understands. */
+    address: string;
+    /** Handed to the destination's `authenticate` in the hello's `transfer`. */
+    ticket: string;
+}
+
 /** Who a player is, as the server's `authenticate` answers it. */
 export interface ReplicationPlayer {
     playerId: string;
@@ -249,7 +263,7 @@ export interface ReplicationServerOptions {
      * `Replicated.owner` carries over, and a second login replaces the first.
      * Without it every connection is anonymous and new, as before.
      */
-    authenticate?(credentials: unknown): ReplicationPlayer | Promise<ReplicationPlayer>;
+    authenticate?(credentials: unknown, hello: ReplicationHelloInfo): ReplicationPlayer | Promise<ReplicationPlayer>;
     /**
      * How long a player who dropped stays present (in `presentIds`, owning what
      * they owned) waiting for a reconnect. Default 30 s; 0 lets them go at
@@ -583,6 +597,22 @@ export class ReplicationServer {
         return known;
     }
 
+    /**
+     * Send a connected player to another server: the client is told where and
+     * with what ticket, its link is closed, and the player leaves this server
+     * at once with no grace period. A client with `dial` goes there by itself.
+     * Returns whether the id was connected. Saving the player first, and
+     * issuing a ticket the destination accepts, are the caller's (see
+     * `esengine/zones`, which does both in order).
+     */
+    transfer(connectionId: number, target: ReplicationTransferTarget, message?: string): boolean {
+        const conn = this.connections_.get(connectionId);
+        if (!conn) return false;
+        this.release_(conn, 'transfer', message, target);
+        this.forgetPlayer_(connectionId);
+        return true;
+    }
+
     private get refs_(): EntityRefMap {
         return {
             toWire: (entity) => this.netIds_.netIdOf(entity as Entity) ?? 0,
@@ -765,7 +795,7 @@ export class ReplicationServer {
             let playerId: string | undefined;
             if (this.authenticate_) {
                 try {
-                    const player = await this.authenticate_(req.credentials);
+                    const player = await this.authenticate_(req.credentials, req.transfer !== undefined ? { transfer: req.transfer } : {});
                     if (typeof player?.playerId !== 'string' || player.playerId === '') {
                         return { ok: false, error: 'authentication produced no player', fatal: true };
                     }
@@ -835,9 +865,12 @@ export class ReplicationServer {
     }
 
     /** Say why, close the link, and stop serving it. The player's id is untouched. */
-    private release_(conn: Connection, reason: ReplCloseReason, message?: string): void {
+    private release_(conn: Connection, reason: ReplCloseReason, message?: string, target?: ReplicationTransferTarget): void {
+        const msg: ReplClosedMsg = { reason };
+        if (message !== undefined) msg.message = message;
+        if (target) { msg.address = target.address; msg.ticket = target.ticket; }
         try {
-            conn.channel.send<ReplClosedMsg>(ReplMsg.closed, message === undefined ? { reason } : { reason, message });
+            conn.channel.send<ReplClosedMsg>(ReplMsg.closed, msg);
         } catch { /* a link that cannot be told is closed all the same */ }
         try { conn.transport.close?.(4000, reason); } catch { /* already gone */ }
         this.dropLink_(conn);
