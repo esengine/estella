@@ -233,6 +233,30 @@ blur and subsurface scattering out by default, so their Low counts matter to a p
 at High (down to a sixty-fourth of the picture), 4 at Medium and 3 at Low. A level fewer drops the smallest step down and its step
 up, and the glow reaches less far around a light; the steps it keeps cost the same, so what Low saves is four small passes.
 
+Measured on the Windows box (RTX 3060, ANGLE on D3D11) in a headless Chromium at a phone's size (390 × 844 at a pixel ratio of
+2.5), GPU time per pass from timer queries, each level's old counts against its new ones in the same session, the mean of two runs.
+The box's milliseconds are not a phone's; what carries over is the steps each pixel takes, and the passes.
+
+| Scene, level | Passes | Old → new, ms | What changed per pixel |
+|---|---|---|---|
+| `terrain-water`, Low | clouds (365 × 791) | 1.02 → 0.81 | 16 → 12 cloud steps, 6 → 3 upper |
+| `terrain-water`, Low | sky composite (731 × 1583) | 0.45 → 0.28 | 16 → 8 scattering steps, 4 → 3 sunlight steps |
+| `terrain-water`, Low | cloud shadow map (1024²) | 0.39 → 0.16 | 6 → 3 samples |
+| `terrain-water`, Low | fog light (91 × 197) | 0.056 → 0.009 | 24 → 8 steps |
+| `terrain-water`, Low | bloom, all passes | 0.17 → 0.16, 12 → 8 passes | two levels fewer |
+| `terrain-water`, Low | whole frame | 5.6 → 4.9 | |
+| `terrain-water`, Medium | clouds, sky composite, fog light | 1.60 → 1.41, 0.72 → 0.59, 0.35 → 0.21 | 14, 12/3, 16 steps |
+| `terrain-water`, Medium | bloom | 12 → 10 passes | one level fewer |
+| `terrain-water` with depth of field, Low | depth of field gather (731 × 1583) | 1.21 → 0.31 | 64 → 16 taps |
+| `terrain-water` with depth of field, Medium | depth of field gather (975 × 2110) | 2.15 → 1.07 | 64 → 32 taps |
+| `bistro` with subsurface scattering, Low | the two scattering passes | 0.20 → 0.15 | 6 → 3 taps a side |
+| `bistro` with subsurface scattering, Medium | the two scattering passes | 0.33 → 0.27 | 6 → 4 taps a side |
+| `bistro`, Low | bloom, all passes | 0.18 → 0.17, 12 → 8 passes | two levels fewer |
+
+At Medium the cloud shadow map measured slower with four samples than with six (0.88 → 1.04 ms in both runs, 0.80 with three); Medium's timer gave one reading a run, so this is not settled.
+Fewer cloud steps than 12 at Low leave a hatch of the march's jitter on the clouds, which Low has no temporal smoothing to hide, so
+Low keeps 12; two sunlight steps turned the sky bluer by about 4%, so Low keeps 3.
+
 A material reads its count from the engine rather than from its own parameters: the frame's `u_quality` constants, whose first
 slot is the refraction count. A table entry claims a slot with `materialSlot`; zero, which is what the slot holds with the quality
 system off, means the most.
