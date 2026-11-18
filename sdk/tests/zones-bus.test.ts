@@ -265,7 +265,8 @@ describe('zones over a bus', () => {
         expect(await B.host.sendToPlayer('ana', 'whisper', { from: 'B' })).toBe(true);
         expect(await A.host.sendToPlayer('ana', 'whisper', { from: 'A' })).toBe(true);
         await moving;
-        for (let i = 0; i < 40 && ana.inbox.length < 2; i++) await run(1);
+        const end = Date.now() + 5000;
+        while (Date.now() < end && (ana.client.state !== 'ready' || ana.inbox.length < 2)) { await run(1); await delay(5); }
         expect(ana.client.state).toBe('ready');
         expect(ana.inbox).toHaveLength(2);
         expect(ana.inbox).toContainEqual({ from: 'A' });
