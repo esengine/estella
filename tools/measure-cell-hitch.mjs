@@ -44,7 +44,7 @@ const EXAMPLE = path.join(ROOT, 'examples/far-proxy-town');
 const out = path.join(WORK, 'web');
 
 if (!process.argv.includes('--no-export') || !existsSync(out)) {
-    rmSync(WORK, { recursive: true, force: true });
+    rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     mkdirSync(WORK, { recursive: true });
     const project = path.join(WORK, 'project');
     cpSync(EXAMPLE, project, { recursive: true, filter: (p) => !/[\\/](node_modules|build|\.esengine)([\\/]|$)/.test(p) });

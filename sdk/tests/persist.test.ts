@@ -33,7 +33,7 @@ beforeEach(() => {
     Spot = defineComponent('Spot', { x: 0, y: 0 });
     dir = mkdtempSync(path.join(tmpdir(), 'estella-persist-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 const flushTasks = () => new Promise((r) => setTimeout(r, 0));
 async function settle(p: PlayerPersistence<unknown>) {

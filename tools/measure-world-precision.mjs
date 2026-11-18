@@ -43,7 +43,7 @@ function scene(O) {
 
 function build(O) {
     const dir = path.join(ROOT, 'output/precision', String(O));
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     const project = path.join(dir, 'project');
     mkdirSync(path.join(project, 'assets/scenes'), { recursive: true });
     mkdirSync(path.join(project, 'src'), { recursive: true });
