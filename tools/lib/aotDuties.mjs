@@ -61,8 +61,9 @@ export const DUTIES = [
         what: 'a compiled write to a transform input says the composition is stale',
         // Not an observation, so not behind `isChangeTracked`: a server with no
         // Changed(Transform) consumer would otherwise move transforms nothing
-        // recomposes. Once per invocation, never per row.
-        web: ['world.invalidateTransformComposition'],
+        // recomposes. Once per invocation, never per row. The web road stamps every
+        // row it wrote (changed-ticks), so it says the stale composition is a stamped one.
+        web: ['world.invalidateStampedTransforms'],
         native: ['world.invalidateTransformComposition'],
         differential: {
             web: [{
@@ -140,7 +141,8 @@ export const DUTIES = [
     {
         id: 'changed-ticks',
         what: 'the Changed ticks the compiled code could not leave',
-        web: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
+        // stampEngineWrite: the engine's own stamp for a row no script watches, which composition and the renderer read.
+        web: ['world.isChangeTracked', 'world.markChanged', 'world.stampEngineWrite', 'world.queryEntities'],
         native: ['world.isChangeTracked', 'world.markChanged', 'world.queryEntities'],
         differential: {
             web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.ticks\[f\]/ }],

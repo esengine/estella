@@ -14388,6 +14388,7 @@ Generator<number, T, void>
 @internal getWrittenEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal hasCpp: boolean
 @internal hasPortableScriptAssetRefs: (component: AnyComponentDef) => boolean
+@internal invalidateStampedTransforms: () => void
 @internal invalidateTransformComposition: () => void
 @internal isAddedAfterSequence: (entity: Entity, component: AnyComponentDef, after: number) => boolean
 @internal isAddedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
