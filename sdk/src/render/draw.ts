@@ -30,6 +30,38 @@ let transformPtr: number = 0;
 let uniformsPtr: number = 0;
 
 const UNIFORMS_BUFFER_SIZE = 256;
+
+/** The heap block Draw.triangles copies a mesh into, grown to the largest mesh drawn and kept. */
+let trianglesPtr = 0;
+let trianglesBytes = 0;
+
+function trianglesBlock(m: ESEngineModule, bytes: number): number {
+    if (bytes <= trianglesBytes) return trianglesPtr;
+    if (trianglesPtr) m._free(trianglesPtr);
+    trianglesBytes = Math.max(bytes, trianglesBytes * 2, 4096);
+    trianglesPtr = m._malloc(trianglesBytes);
+    return trianglesPtr;
+}
+
+/**
+ * Triangles a {@link DrawAPI.triangles} call draws: an x, y pair a vertex, three indices a triangle, and an r, g, b, a quadruple a
+ * vertex (0 to 1; absent, every vertex is white). `buildPathGeometry` makes this shape from a path.
+ */
+export interface DrawTriangles {
+    positions: ArrayLike<number>;
+    indices: ArrayLike<number>;
+    colors?: ArrayLike<number>;
+}
+
+/** Where and how a {@link DrawTriangles} is drawn: a 2D affine and a colour every vertex is multiplied by. */
+export interface DrawTrianglesOptions {
+    /** Multiplies every vertex colour; its alpha fades the whole shape. Default white. */
+    tint?: Color;
+    /**
+     * x' = xx x + yx y + tx, y' = xy x + yy y + ty, as `[xx, xy, yx, yy, tx, ty]`. Default: the points as they are.
+     */
+    transform?: readonly [number, number, number, number, number, number];
+}
 const uniformBuffer = new Float32Array(UNIFORMS_BUFFER_SIZE);
 
 // Identity model matrix for legacy material draws that omit `transform`.
@@ -70,6 +102,11 @@ export function shutdownDrawAPI(): void {
         if (uniformsPtr) {
             module._free(uniformsPtr);
             uniformsPtr = 0;
+        }
+        if (trianglesPtr) {
+            module._free(trianglesPtr);
+            trianglesPtr = 0;
+            trianglesBytes = 0;
         }
     }
     bridge.disconnect();
@@ -196,6 +233,13 @@ export interface DrawAPI {
     textureRotated(position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint?: Color): void;
 
     /**
+     * Draws triangles with a colour a vertex, batched with the rest of the frame's shapes: a shape tessellated once (a path's
+     * `buildPathGeometry`, a `Graphics`) and drawn as often as needed, moved by `transform` and faded by `tint`, with no geometry
+     * built and no texture made for it. A mesh whose indices name a vertex it does not hold draws nothing.
+     */
+    triangles(mesh: DrawTriangles, options?: DrawTrianglesOptions): void;
+
+    /**
      * Sets the current render layer.
      * @param layer Layer index (higher layers render on top)
      */
@@ -270,6 +314,7 @@ function getModule(): ESEngineModule {
 }
 
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
+const IDENTITY_2D = [1, 0, 0, 1, 0, 0] as const;
 
 export const Draw: DrawAPI = {
     begin(viewProjection: Float32Array, viewportWidth = 0, viewportHeight = 0): void {
@@ -407,6 +452,34 @@ export const Draw: DrawAPI = {
             );
         } catch (e) {
             handleWasmError(e, 'Draw.texture');
+        }
+    },
+
+    triangles(mesh: DrawTriangles, options: DrawTrianglesOptions = {}): void {
+        const vertexCount = Math.floor(mesh.positions.length / 2);
+        const indexCount = mesh.indices.length - mesh.indices.length % 3;
+        if (vertexCount === 0 || indexCount === 0) return;
+        const colorCount = mesh.colors && mesh.colors.length >= vertexCount * 4 ? vertexCount * 4 : 0;
+        try {
+            const m = getModule();
+            // One block: positions, then colours, then indices, each 4 bytes a number.
+            const base = trianglesBlock(m, (vertexCount * 2 + colorCount + indexCount) * 4);
+            const positionsAt = base, colorsAt = base + vertexCount * 8, indicesAt = colorsAt + colorCount * 4;
+            const f32 = m.HEAPF32, u32 = m.HEAPU32;
+            const pAt = positionsAt / 4;
+            for (let i = 0; i < vertexCount * 2; i++) f32[pAt + i] = mesh.positions[i];
+            if (colorCount) {
+                const cAt = colorsAt / 4;
+                for (let i = 0; i < colorCount; i++) f32[cAt + i] = mesh.colors![i];
+            }
+            const iAt = indicesAt / 4;
+            for (let i = 0; i < indexCount; i++) u32[iAt + i] = mesh.indices[i];
+            const t = options.tint ?? WHITE;
+            const x = options.transform ?? IDENTITY_2D;
+            m.draw_triangles(positionsAt, vertexCount, colorCount ? colorsAt : 0, indicesAt, indexCount,
+                t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
+        } catch (e) {
+            handleWasmError(e, 'Draw.triangles');
         }
     },
 

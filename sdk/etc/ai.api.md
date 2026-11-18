@@ -235,6 +235,7 @@ Map<string, NodeState>
 agentHeight: number | undefined
 agentRadius: number | undefined
 areas: readonly NavAreaBox[] | undefined
+border: number | undefined
 cellHeight: number
 cellSize: number
 links: readonly NavLinkSegment[] | undefined

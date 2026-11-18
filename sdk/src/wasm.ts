@@ -525,6 +525,9 @@ export interface ESEngineModule {
                  r: number, g: number, b: number, a: number): void;
     draw_textureRotated(x: number, y: number, width: number, height: number, rotation: number,
                         textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_triangles(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number,
+                   r: number, g: number, b: number, a: number,
+                   xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
     draw_setLayer(layer: number): void;
     draw_setDepth(depth: number): void;
     draw_getDrawCallCount(): number;

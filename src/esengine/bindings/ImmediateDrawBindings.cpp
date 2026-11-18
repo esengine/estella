@@ -168,6 +168,19 @@ void draw_circleOutline(f32 centerX, f32 centerY, f32 radius,
     );
 }
 
+void draw_triangles(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount,
+                    f32 r, f32 g, f32 b, f32 a,
+                    f32 xx, f32 xy, f32 yx, f32 yy, f32 tx, f32 ty) {
+    if (!g_immediateDraw || !g_immediateDrawActive) return;
+    const f32 xform[6] = {xx, xy, yx, yy, tx, ty};
+    g_immediateDraw->triangles(
+        reinterpret_cast<const f32*>(positionsPtr), vertexCount,
+        colorsPtr ? reinterpret_cast<const f32*>(colorsPtr) : nullptr,
+        reinterpret_cast<const u32*>(indicesPtr), indexCount,
+        glm::vec4(r, g, b, a), xform
+    );
+}
+
 void draw_texture(f32 x, f32 y, f32 width, f32 height, u32 textureId,
                   f32 r, f32 g, f32 b, f32 a) {
     if (!g_immediateDraw || !g_immediateDrawActive) return;

@@ -62,6 +62,7 @@ cleared every frame, so call it each frame you want the shape visible:
 | `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | A circle (default `32` segments). |
 | `texture(pos, size, textureHandle, tint?)` | A textured quad. |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
+| `triangles(mesh, { tint?, transform? })` | Triangles with a colour a vertex (`positions` x, y pairs, `indices`, optional `colors`), moved by a 2D affine `[xx, xy, yx, yy, tx, ty]` and multiplied by `tint`, batched with the other primitives. What `Graphics.flush()` draws through. |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A custom mesh by handle (see the `Geometry` API below). |
 | `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
 | `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
@@ -70,8 +71,9 @@ cleared every frame, so call it each frame you want the shape visible:
 
 ## Vector paths: `Graphics`
 
-For shapes built from paths — polylines, béziers, arcs, rounded rects —
-`Graphics` records a path and replays it through `Draw` when you `flush()`:
+For shapes built from paths — polygons, polylines, béziers, arcs, rounded rects —
+`Graphics` records them, turns them into triangles once, and draws those
+triangles through `Draw` when you `flush()`:
 
 ```typescript
 import { Graphics, registerDrawCallback } from 'esengine';
@@ -87,16 +89,60 @@ g.curveTo(50, 80, 100, 0);           // quadratic bézier
 registerDrawCallback('hud-shape', () => g.flush());
 ```
 
-Path methods: `moveTo` / `lineTo`, `curveTo` (quadratic) / `cubicCurveTo`,
-`arc`, `drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse`, `clear()`.
-`lineStyle(thickness, color)` sets the stroke; `beginFill(color)` / `endFill()`
-fill **rects and circles** (path outlines stay strokes). The path is retained —
-build it once, `flush()` it every frame.
+Path methods: `moveTo` / `lineTo` / `closePath`, `curveTo` (quadratic) /
+`cubicCurveTo`, `arc`, and the shapes `drawRect` / `drawRoundRect` /
+`drawCircle` / `drawEllipse` / `drawPolygon(points)`; `clear()` starts over.
+
+- `lineStyle(thickness, color, { join?, cap?, miterLimit? })` sets the stroke:
+  corners are joined (`'miter'` by default, or `'round'` / `'bevel'`) and open
+  ends capped (`'butt'`, `'round'`, `'square'`). A thickness of `0` draws no
+  stroke.
+- `beginFill(color)` / `endFill()` fill **everything drawn between them**: a
+  path from `moveTo` / `lineTo` as much as a shape, concave outlines included.
+- `feather` (a property, in the drawing's units) fades every outer edge to
+  transparent — anti-aliasing where the quality level draws without MSAA.
+
+A path takes the style in force when it ends: a new `moveTo`, a change of
+style, a shape, `closePath()` or a draw ends it, and a change of style part-way
+along a line goes on from the same point.
+
+The drawing is tessellated the first time it is drawn after a change, and
+`flush()` is then one batched `Draw.triangles` call. `geometry()` returns those
+triangles, to hand to a `MeshRenderer` that should keep them.
+
+### One shape, drawn many times
+
+`flush({ x, y, rotation, scale, alpha, tint })` draws the same triangles moved,
+turned, scaled about the drawing's own origin and faded. Build a shape once
+and draw it wherever and however faint each copy should be: nothing is
+rebuilt, and no texture is made. A hit flash that pops and fades is one
+`Graphics`:
+
+```typescript
+const hexagon = new Graphics();
+hexagon.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+hexagon.beginFill({ r: 1, g: 0.85, b: 0.4, a: 0.6 });
+hexagon.drawPolygon(Array.from({ length: 6 }, (_, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2) * 26,
+  y: Math.sin((i / 6) * Math.PI * 2) * 26,
+})));
+hexagon.endFill();
+
+registerDrawCallback('hit-flashes', () => {
+  for (const hit of hits) {              // however many there are this frame
+    hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
+  }
+});
+```
+
+Do not bake opacity into a texture to fade a shape — drawing it to a canvas
+and uploading the result whenever its alpha changes makes a texture a frame,
+which is what a phone pays most for.
 
 ## Filled polygons and joined strokes: `setPath`
 
-`Graphics` draws immediately and fills only rects and circles. For a shape that lives in the scene (it sorts with the other renderables, batches, and a
-scene saves it), or that needs an arbitrary polygon fill or a stroke with real corners, build the path's geometry and let a `MeshRenderer` draw it:
+`Graphics` draws in a draw callback, over the scene. For a shape that lives in the scene (it sorts with the other renderables, batches, and a
+scene saves it), build the path's geometry and let a `MeshRenderer` draw it:
 
 ```typescript
 import { setPath, circlePoints, cubicBezier } from 'esengine';

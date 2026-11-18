@@ -30,7 +30,7 @@ export {
 // Graphics
 // =============================================================================
 
-export { Graphics } from './render/graphics';
+export { Graphics, type GraphicsLineOptions, type GraphicsDrawOptions } from './render/graphics';
 
 // =============================================================================
 // Texture
@@ -77,6 +77,8 @@ export {
     BlendMode,
     shutdownDrawAPI,
     type DrawAPI,
+    type DrawTriangles,
+    type DrawTrianglesOptions,
 } from './render/draw';
 
 // =============================================================================

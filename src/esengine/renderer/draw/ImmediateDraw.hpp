@@ -23,6 +23,7 @@
 #include "../../resource/Handle.hpp"
 #include "../rhi/PipelineState.hpp"
 #include "../rhi/TransientBufferPool.hpp"
+#include "./BatchVertex.hpp"
 
 #include <glm/glm.hpp>
 #include <vector>
@@ -175,6 +176,17 @@ public:
 
     void polygon(std::span<const glm::vec2> vertices, const glm::vec4& color);
 
+    /**
+     * @brief Triangles with a colour at every vertex, in one call: a shape tessellated once and drawn as often as asked.
+     *
+     * @details `positions` holds an x, y pair a vertex, `colors` an r, g, b, a quadruple a vertex (null: white), `indices` three a
+     *          triangle. Every colour is multiplied by `tint`, and every point is moved by the 2D affine `xform`
+     *          (x' = xform[0] x + xform[2] y + xform[4], y' = xform[1] x + xform[3] y + xform[5]), so one shape is drawn where and as
+     *          faded as this frame says without being built again. A call naming a vertex it does not hold draws nothing.
+     */
+    void triangles(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount,
+                   const glm::vec4& tint, const f32 xform[6]);
+
     // =========================================================================
     // Texture Drawing
     // =========================================================================
@@ -241,6 +253,9 @@ private:
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;
     bool pendingGeometry_ = false;
+    /** Reused by triangles(): a steady frame of shapes allocates nothing. */
+    std::vector<BatchVertex> triangleVertices_;
+    std::vector<u32> triangleIndices_;
     bool deferredGeometry_ = false;
     struct DeferredBatch {
         PipelineHandle pipeline;

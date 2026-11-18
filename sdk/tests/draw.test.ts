@@ -49,6 +49,8 @@ function createDrawMockModule() {
         }),
         _free: vi.fn(),
         HEAPF32: new Float32Array(heapBuffer),
+        HEAPU32: new Uint32Array(heapBuffer),
+        draw_triangles: vi.fn(),
 
         draw_begin: vi.fn(),
         draw_end: vi.fn(),
@@ -101,6 +103,43 @@ describe('Draw API', () => {
     // =========================================================================
     // initDrawAPI / shutdownDrawAPI
     // =========================================================================
+
+    describe('Draw.triangles', () => {
+        const square = { positions: [0, 0, 10, 0, 10, 10, 0, 10], indices: [0, 1, 2, 0, 2, 3], colors: [1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0.5] };
+
+        it('copies positions, colours and indices into the heap and submits them in one call', () => {
+            Draw.triangles(square, { tint: { r: 1, g: 1, b: 1, a: 0.5 }, transform: [2, 0, 0, 2, 5, 6] });
+            expect(mock.draw_triangles).toHaveBeenCalledTimes(1);
+            const [pAt, verts, cAt, iAt, count, r, g, b, a, xx, xy, yx, yy, tx, ty] = mock.draw_triangles.mock.calls[0] as number[];
+            expect(verts).toBe(4);
+            expect(count).toBe(6);
+            expect([...mock.HEAPF32.subarray(pAt / 4, pAt / 4 + 8)]).toEqual(square.positions);
+            expect([...mock.HEAPF32.subarray(cAt / 4, cAt / 4 + 16)]).toEqual(square.colors);
+            expect([...mock.HEAPU32.subarray(iAt / 4, iAt / 4 + 6)]).toEqual(square.indices);
+            expect([r, g, b, a]).toEqual([1, 1, 1, 0.5]);
+            expect([xx, xy, yx, yy, tx, ty]).toEqual([2, 0, 0, 2, 5, 6]);
+        });
+
+        it('draws white where a mesh gives no colours, at the identity where it gives no transform', () => {
+            Draw.triangles({ positions: square.positions, indices: square.indices });
+            const call = mock.draw_triangles.mock.calls[0] as number[];
+            expect(call[2]).toBe(0);
+            expect(call.slice(5, 9)).toEqual([1, 1, 1, 1]);
+            expect(call.slice(9)).toEqual([1, 0, 0, 1, 0, 0]);
+        });
+
+        it('submits nothing for a mesh with no whole triangle', () => {
+            Draw.triangles({ positions: [0, 0, 1, 1], indices: [0, 1] });
+            Draw.triangles({ positions: [], indices: [] });
+            expect(mock.draw_triangles).not.toHaveBeenCalled();
+        });
+
+        it('keeps one heap block, grown only for a larger mesh', () => {
+            const before = mock._malloc.mock.calls.length;
+            for (let i = 0; i < 50; i++) Draw.triangles(square);
+            expect(mock._malloc.mock.calls.length - before).toBe(1);
+        });
+    });
 
     describe('initDrawAPI', () => {
         it('should allocate viewProjection, transform, and uniforms buffers', () => {

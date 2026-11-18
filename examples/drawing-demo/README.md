@@ -27,10 +27,13 @@ a callback.
   snapshots drone positions each update, and the callback draws over them —
   the classic debug-overlay pattern.
 - **Graphics — the retained star** (`src/systems/star.ts`). `buildStar()`
-  records the path once — star polygon, filled hub, arc brackets, a bézier
-  swoosh (curves are subdivided *at record time*). After that, the per-frame
-  cost is only `flush()`, which replays the recorded commands through `Draw`.
-  Pressing **G** is the only time the path is rebuilt.
+  records the drawing once — a filled concave star with a mitred outline, a
+  filled hub, arc brackets with round caps, a bézier swoosh — and it is turned
+  into triangles the first time it is drawn. After that, the per-frame cost is
+  only `flush()`, one batched draw of those triangles. Pressing **G** is the
+  only time it is rebuilt. Around it, six **hit flashes**: one hexagon
+  `Graphics`, built once, drawn six times a frame by `flush({ x, y, rotation,
+  scale, alpha })` as each pops and fades — nothing rebuilt, no texture made.
 - **Mesh2D — the procedural ribbon** (`src/systems/ribbon.ts`). The `Ribbon`
   entity is authored in the scene with a `Mesh2D` component, so it sorts with
   sprites via `layer` and is saved and inspectable. Each frame the system
@@ -68,16 +71,19 @@ Remove one with `unregisterDrawCallback(id)`.
 import { Graphics } from 'esengine';
 
 const g = new Graphics();
-g.lineStyle(3, color);            // stroke for subsequent path commands
-g.beginFill(color);               // fills rects and circles (paths stay strokes)
-g.drawCircle(cx, cy, r);
+g.lineStyle(3, color, { join: 'miter', cap: 'round' });  // stroke, with corners and ends
+g.beginFill(color);               // fills everything drawn until endFill
+g.moveTo(x, y); g.lineTo(x, y);   // a path: filled and stroked
+g.closePath();
+g.drawCircle(cx, cy, r);          // also drawRect / drawRoundRect / drawEllipse / drawPolygon
 g.endFill();
-g.moveTo(x, y); g.lineTo(x, y);   // polylines
 g.curveTo(cpx, cpy, x, y);        // quadratic bézier (cubicCurveTo for cubic)
-g.arc(cx, cy, r, a0, a1);         // also drawRect / drawRoundRect / drawEllipse
+g.arc(cx, cy, r, a0, a1);
 g.clear();                        // start over (the G-key rebuild)
 
-registerDrawCallback('shape', () => g.flush());   // replay every frame
+registerDrawCallback('shape', () => g.flush());   // one batched draw a frame
+// The same drawing elsewhere, turned, scaled, faded — nothing rebuilt:
+// g.flush({ x, y, rotation, scale, alpha });
 ```
 
 ### Mesh2D (component) + Meshes2D (resource)
@@ -117,9 +123,12 @@ automatically on load.
   draw callback 里逐帧重发；命令自动合批、帧末清空,「动画」就是下一帧画
   不同的数字。包围盒追踪的是真实精灵实体——移动系统每帧快照位置，回调
   在其上叠加，这正是调试覆盖层的经典写法。
-- **`Graphics`（中）**——保留模式路径记录器：星形只在 `buildStar()` 时
-  记录一次（贝塞尔曲线在记录时细分），每帧只需 `flush()` 回放；按 **G**
-  以新参数 `clear()` 重录，这是唯一重建路径的时刻。
+- **`Graphics`（中）**——保留模式矢量绘制：星形只在 `buildStar()` 时记录一次
+  （填充的凹星形加尖角描边、填充的中心圆、圆头的弧形括号、贝塞尔弧线），
+  第一次绘制时三角化，之后每帧只是 `flush()` 一次合批绘制；按 **G** 以新参数
+  `clear()` 重录，这是唯一重建的时刻。星形周围的六个**受击闪光**是同一个六边形
+  `Graphics`，只建一次，每帧用 `flush({ x, y, rotation, scale, alpha })` 画六次，
+  各自弹出、淡出——不重建任何东西，也不生成纹理。
 - **`Mesh2D`（右）**——组件网格：`Ribbon` 实体在场景中作者化，随 `layer`
   与精灵排序；系统每帧重新生成顶点与逐顶点颜色，并通过 **`Meshes2D`**
   资源 `setGeometry` 重新上传——这是受支持的运行时改几何路径（直接改

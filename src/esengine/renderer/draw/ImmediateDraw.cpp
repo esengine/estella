@@ -572,6 +572,37 @@ void ImmediateDraw::polygon(std::span<const glm::vec2> vertices, const glm::vec4
     }
 }
 
+void ImmediateDraw::triangles(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount,
+                              const glm::vec4& tint, const f32 xform[6]) {
+    if (!inFrame_ || !positions || !indices || vertexCount == 0 || indexCount < 3) return;
+    const u32 used = indexCount - indexCount % 3;
+    // Checked before anything is written: an index past the vertices would read whatever the batch holds there.
+    for (u32 i = 0; i < used; ++i) {
+        if (indices[i] >= vertexCount) return;
+    }
+    useTexture(white_texture_id_);
+
+    triangleVertices_.resize(vertexCount);
+    for (u32 v = 0; v < vertexCount; ++v) {
+        const f32 x = positions[v * 2], y = positions[v * 2 + 1];
+        const glm::vec4 colour = colors
+            ? glm::vec4(colors[v * 4], colors[v * 4 + 1], colors[v * 4 + 2], colors[v * 4 + 3]) * tint
+            : tint;
+        triangleVertices_[v] = BatchVertex{
+            {xform[0] * x + xform[2] * y + xform[4], xform[1] * x + xform[3] * y + xform[5], 0.0f},
+            packColor(colour),
+            {0.0f, 0.0f},
+        };
+    }
+    const u32 base = pool_.appendVertices(LayoutId::Batch, triangleVertices_.data(),
+                                          static_cast<u32>(sizeof(BatchVertex) * vertexCount)) / sizeof(BatchVertex);
+    triangleIndices_.resize(used);
+    for (u32 i = 0; i < used; ++i) triangleIndices_[i] = base + indices[i];
+    pool_.appendIndices(LayoutId::Batch, triangleIndices_.data(), used);
+    pendingGeometry_ = true;
+    primitiveCount_ += used / 3;
+}
+
 void ImmediateDraw::texture(const glm::vec2& position, const glm::vec2& size,
                             u32 textureId, const glm::vec4& tint) {
     if (!inFrame_) return;

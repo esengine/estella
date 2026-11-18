@@ -48,6 +48,7 @@ export interface NativeEngineApi {
     draw_setLayer?(layer: number): void;
     draw_texture?(x: number, y: number, width: number, height: number, textureId: number, r: number, g: number, b: number, a: number): void;
     draw_textureRotated?(x: number, y: number, width: number, height: number, rotation: number, textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_triangles?(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number, r: number, g: number, b: number, a: number, xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
     engine_getCounters?(): string;
     engine_getCpuScopes?(): string;
     engine_getGpuScopes?(): string;
@@ -421,6 +422,7 @@ export function createNativeEngineApi(
     bind('draw_setLayer', 'es_draw_setLayer', false);
     bind('draw_texture', 'es_draw_texture', false);
     bind('draw_textureRotated', 'es_draw_textureRotated', false);
+    bind('draw_triangles', 'es_draw_triangles', false);
     bind('engine_getCounters', 'es_engine_getCounters', false);
     bind('engine_getCpuScopes', 'es_engine_getCpuScopes', false);
     bind('engine_getGpuScopes', 'es_engine_getGpuScopes', false);
