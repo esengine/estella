@@ -8,7 +8,7 @@ import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState, type PassConfig } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
-import { qualityPassAllowed } from './qualityFilter';
+import { qualityPassAllowed, qualityPassScale } from './qualityFilter';
 import { effectPassNames } from './effects';
 import { PassFusion, isFusedPass, type FusedPass } from './passFusion';
 
@@ -137,10 +137,10 @@ function getModule(): PostProcessCore {
  */
 export function syncStackToWasm(stack: PostProcessStack, force = false,
     allow: (name: string) => boolean = () => true): void {
-    pushStack(stack, force, allow, null);
+    pushStack(stack, force, allow, null, (pass) => pass.scale);
 }
 
-function pushPass(m: PostProcessCore, pass: PassConfig): void {
+function pushPass(m: PostProcessCore, pass: PassConfig, scale: number): void {
     try {
         if (pass.native) {
             if (!m.postprocess_addNativePass) return;
@@ -152,7 +152,7 @@ function pushPass(m: PostProcessCore, pass: PassConfig): void {
         } else {
             m.postprocess_addPass(pass.name, pass.shader);
         }
-        if (pass.scale !== 1) m.postprocess_setPassScale(pass.name, pass.scale);
+        if (scale !== 1) m.postprocess_setPassScale(pass.name, scale);
         if (pass.continuesEffect) m.postprocess_setPassContinuesEffect(pass.name);
     } catch (e) {
         handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
@@ -209,7 +209,8 @@ function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion): voi
     }
 }
 
-function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string) => boolean, fusion: PassFusion | null): void {
+function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string) => boolean, fusion: PassFusion | null,
+    scaleOf: (pass: PassConfig) => number): void {
     if (!force && !stack.isDirty && !fusion?.waiting) return;
 
     const m = getModule();
@@ -224,7 +225,7 @@ function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string
     const live = stack.passes.filter((pass) => pass.enabled && allow(pass.name));
     for (const pass of fusion ? fusion.plan(live) : live) {
         if (isFusedPass(pass)) pushFused(m, pass, fusion!);
-        else pushPass(m, pass);
+        else pushPass(m, pass, scaleOf(pass));
     }
 
     // The display look rides the stack as the passes do, and goes with them (clearPasses above): said again for every camera that has one.
@@ -324,6 +325,8 @@ export class PostProcessAPI {
     private allowQualityPass_ = (name: string): boolean => {
         return qualityPassAllowed(this.qualityFilter_, name);
     };
+
+    private qualityPassScale_ = (pass: PassConfig): number => qualityPassScale(this.qualityFilter_, pass);
 
     // -- per-App state (stacks / bindings / screen stack) --------------------
 
@@ -532,7 +535,7 @@ export class PostProcessAPI {
         }
 
         this.setBypass(false);
-        pushStack(stack, this.engineStack_ !== stack, this.allowQualityPass_, this.fusePasses_ ? this.fusion_ : null);
+        pushStack(stack, this.engineStack_ !== stack, this.allowQualityPass_, this.fusePasses_ ? this.fusion_ : null, this.qualityPassScale_);
         this.engineStack_ = stack;
     }
 

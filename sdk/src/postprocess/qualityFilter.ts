@@ -33,3 +33,8 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
     }
     return true;
 }
+
+export function qualityPassScale(profile: Readonly<QualityProfile> | null, pass: { scale: number; minScale?: number }): number {
+    if (profile === null || pass.minScale === undefined) return pass.scale;
+    return Math.max(Math.min(pass.minScale, pass.scale), pass.scale * profile.effectResolution);
+}
