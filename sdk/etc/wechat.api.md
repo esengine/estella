@@ -6830,6 +6830,7 @@ prefabPath: string
 
 ## NetTransport — interface @experimental
 ```
+batch: (() => () => void) | undefined
 on: (event: "message", handler: (data: string | ArrayBuffer) => void) => () => void
 send: (data: string | ArrayBuffer) => void
 ```
@@ -9140,6 +9141,7 @@ OnDemand = 2
 
 ## ReliableOrderedTransport — interface @experimental
 ```
+batch: (() => () => void) | undefined
 delivery: "reliable-ordered"
 on: (event: "message", handler: (data: string | ArrayBuffer) => void) => () => void
 send: (data: string | ArrayBuffer) => void

@@ -40,6 +40,7 @@ import type { InterestPolicy, InterestProvider } from './interest';
 interface Connection {
     id: number;
     channel: NetChannel;
+    transport: ReliableOrderedTransport;
     /** Handshake completed and the initial world spawn has been sent. */
     ready: boolean;
     /** Latest input command from this connection (stale seq never overwrites). */
@@ -521,7 +522,7 @@ export class ReplicationServer {
         const id = this.nextConnectionId_++;
         const channel = new NetChannel(transport);
         const conn: Connection = {
-            id, channel, ready: false,
+            id, channel, transport, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
             interest: new Set(), provenance: null,
@@ -631,6 +632,24 @@ export class ReplicationServer {
             return;
         }
 
+        // Everything this sample sends one client (spawns, despawns, the delta,
+        // the ack) leaves in one write where the transport can hold writes:
+        // a write per frame was most of what a crowded server spent its time on.
+        const releases: (() => void)[] = [];
+        for (const conn of this.connections_.values()) {
+            const release = conn.transport.batch?.();
+            if (release) releases.push(release);
+        }
+        try {
+            this.sampleConnected_(tick);
+        } finally {
+            for (const release of releases) {
+                try { release(); } catch (err) { log.warn('repl', 'a transport failed to flush its batch', err); }
+            }
+        }
+    }
+
+    private sampleConnected_(tick: number): void {
         const started = this.mark_();
         let at = started;
         const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();

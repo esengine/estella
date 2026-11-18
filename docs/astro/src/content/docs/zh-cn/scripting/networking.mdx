@@ -146,6 +146,9 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`。
   再用 `flushPendingRegistrations(app)` 装上项目在模块作用域注册的东西(与正式 Web
   运行时同一道门),权威端跑的就是项目自己的系统,而不是它的副本。
+  接入的每个 `ws` socket 用 `server.attachConnection(webSocketTransport(socket))`
+  (来自 `esengine/replication`)交给服务器:一个 tick 发给某个客户端的所有消息合成一次
+  socket 写出,而不是每条消息写一次,人多时服务器的 tick 耗时大约减半。
 - **重连目前由你负责**:`Replicated.owner` 是*连接* id,玩家重连会拿到新的一个。
   SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。(下面的请求/应答[会话层](#异步在线游戏会话层)确实会重连并保留订阅,但它与状态复制是两套东西。)
 

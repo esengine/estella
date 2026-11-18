@@ -29,6 +29,7 @@
  *   node tools/net-capacity-benchmark.mjs
  *   node tools/net-capacity-benchmark.mjs --hz 20 --steps 200,400,800,1600 --seconds 10
  *   node tools/net-capacity-benchmark.mjs --crowd --steps 50,100,200,400
+ *   node tools/net-capacity-benchmark.mjs --no-batch    # one socket write per frame, as before
  *   node tools/net-capacity-benchmark.mjs --json out.json
  *
  * Needs the engine wasm at build/wasm/web and a built sdk/dist.
@@ -69,7 +70,7 @@ const VISIBLE = Number(A.visible ?? 30);
 const SPEED = Number(A.speed ?? 6);
 const INTEREST = A.interest ?? 'radius';
 const CROWD = A.crowd === true;
-const CORK = A.cork === true;
+const BATCH = A['no-batch'] !== true;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Side of the square world for `players` at the density that gives `VISIBLE` neighbours. */
@@ -98,6 +99,20 @@ function definePawn(sdk) {
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
+
+/** The adapter servers wrote by hand before the SDK had one: one socket write per frame. */
+function plainTransport(socket) {
+    const handlers = new Set();
+    socket.on('message', (data, isBinary) => {
+        const frame = isBinary ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : String(data);
+        for (const h of [...handlers]) h(frame);
+    });
+    return {
+        delivery: 'reliable-ordered',
+        send: (d) => socket.send(d),
+        on: (_event, handler) => { handlers.add(handler); return () => handlers.delete(handler); },
+    };
+}
 
 async function runServer() {
     const players = Number(A.players);
@@ -133,28 +148,20 @@ async function runServer() {
     let bytesOut = 0;
     let framesOut = 0;
     const pawns = new Map();
-    const sockets = new Set();
 
     const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
     await new Promise((r) => wss.once('listening', r));
     wss.on('connection', (socket) => {
-        sockets.add(socket);
-        socket.on('close', () => sockets.delete(socket));
-        const handlers = new Set();
-        socket.on('message', (data, isBinary) => {
-            const frame = isBinary
-                ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
-                : String(data);
-            for (const h of [...handlers]) h(frame);
-        });
+        // The SDK's adapter batches each sample into one write per client;
+        // --no-batch is the plain adapter every frame used to take.
+        const inner = BATCH ? repl.webSocketTransport(socket) : plainTransport(socket);
         const id = server.attachConnection({
-            delivery: 'reliable-ordered',
+            ...inner,
             send: (d) => {
                 bytesOut += typeof d === 'string' ? Buffer.byteLength(d) : d.byteLength;
                 framesOut++;
-                socket.send(d);
+                inner.send(d);
             },
-            on: (_event, handler) => { handlers.add(handler); return () => handlers.delete(handler); },
         });
         // The pawn exists from the first tick: a connection with no positioned
         // entity fails open to the whole world, which would flood every joiner.
@@ -224,11 +231,7 @@ async function runServer() {
         const dt = (now - last) / 1000;
         last = now;
         const t0 = performance.now();
-        // --cork: everything a tick sends to one client leaves in one write
-        // instead of one write per message.
-        if (CORK) for (const s of sockets) s._socket?.cork();
         await app.tick(dt);
-        if (CORK) for (const s of sockets) s._socket?.uncork();
         ticks.push(performance.now() - t0);
         ticksThisSecond++;
         next += interval;
@@ -334,7 +337,7 @@ async function runBots() {
 
 function child(role, extra) {
     const argv = [fileURLToPath(import.meta.url), '--role', role, '--hz', String(HZ), '--radius', String(RADIUS),
-        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(CORK ? ['--cork'] : []), ...extra];
+        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(BATCH ? [] : ['--no-batch']), ...extra];
     const proc = spawn(process.execPath, argv, {
         cwd: ROOT,
         env: { ...process.env, NODE_PATH: [path.join(ROOT, 'sdk', 'node_modules'), path.join(ROOT, 'node_modules')].join(path.delimiter) },
@@ -440,7 +443,7 @@ async function runAll() {
     const botProcs = Number(A.bots ?? Math.max(2, os.cpus().length - 4));
     const modeBase = CROWD ? `crowd (everyone within ${RADIUS})` : INTEREST === 'none' ? 'no interest (everyone sees everyone)'
         : `radius ${RADIUS}, ~${VISIBLE} visible`;
-    const mode = modeBase + (CORK ? ', one write per client per tick' : ', one write per message');
+    const mode = modeBase + (BATCH ? ', one write per client per sample' : ', one write per message (--no-batch)');
     console.log(`net-capacity-benchmark: ${HZ} Hz, ${mode}, ${seconds}s per step, up to ${botProcs} bot processes, ${os.cpus()[0].model}`);
     console.log('players | rate     | tick p50/p99/max ms  | ELU  | out/client | out total   | seen | rss MB | bots ELU | verdict');
     const results = [];

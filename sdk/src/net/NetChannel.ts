@@ -25,6 +25,14 @@ export interface NetTransport {
     send(data: string | ArrayBuffer): void;
     /** Subscribe to incoming frames. Returns an unsubscribe function. */
     on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void;
+    /**
+     * Optional. Holds what is sent from now on and returns the function that
+     * lets it go, so a burst of frames leaves in one write to the network
+     * instead of one write per frame. Order and framing are unchanged: only
+     * when the bytes reach the socket moves. The replication server opens one
+     * around each sample; a transport without it sends as before.
+     */
+    batch?(): () => void;
 }
 
 /**

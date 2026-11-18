@@ -73,3 +73,4 @@ export {
 } from '../NetChannel';
 export { MemoryTransport, createMemoryTransportPair } from '../MemoryTransport';
 export { MessagePortTransport, type MessagePortLike } from '../MessagePortTransport';
+export { webSocketTransport, type ServerWebSocketLike } from '../webSocketTransport';
