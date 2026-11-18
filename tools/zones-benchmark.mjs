@@ -16,6 +16,12 @@
  * its bot counted: a lost write, a write from a zone that no longer holds the
  * player, or a transfer counted twice all show as a mismatch.
  *
+ * Whispers ride the zones' bus: every few seconds a bot sends one to another
+ * bot through its own zone, which passes it to wherever the other player is
+ * (`ZoneHost.sendToPlayer` over a `RemoteBus` to a `BusHub` the coordinator
+ * serves). Reported: how many arrived and how long they took — delivery is at
+ * most once, so the ones aimed at a player mid-transfer may not.
+ *
  * Reported: transfers completed per second, transfer time (portal asked to
  * ready in the new zone) p50 / p95 / max, refused or failed transfers, and
  * the integrity check. `--crash` kills one zone halfway: its bots log in to
@@ -149,7 +155,9 @@ async function runZone() {
         create: () => ({ hops: 0, lastPortalSeq: 0 }),
         onError: (_pid, _err, during) => { errors[during]++; },
     });
+    const bus = new zones.RemoteBus({ connect: () => new sdk.GameSocket({ url: A.bus }) });
     const zone = new zones.ZoneHost({
+        bus,
         zone: { id, address, kind: 'map' }, store, players: records, leaseTtlMs: LEASE_TTL, directoryTtlMs: 6000,
         authenticate: (c) => ({ playerId: c.token }),
         onError: (_err, during) => { errors[during]++; },
@@ -172,6 +180,14 @@ async function runZone() {
     const server = app.getResource(repl.Net).startServer({ authenticate, reconnectGraceMs: 1000 });
     zone.attach(server);
     await zone.start();
+    // A whisper from a player here goes to wherever the other player is.
+    let whispersRouted = 0;
+    server.onMessage('whisper', (cid, d) => {
+        const from = server.playerIdOf(cid);
+        if (!from || typeof d?.to !== 'string') return;
+        whispersRouted++;
+        void zone.sendToPlayer(d.to, 'whisper', { from, seq: d.seq, sentAt: d.sentAt });
+    });
     wss.on('connection', (socket) => {
         const link = server.attachConnection(repl.webSocketTransport(socket));
         socket.on('close', () => server.detachConnection(link));
@@ -253,6 +269,8 @@ async function runBots() {
     const first = Number(A.first);
     const count = Number(A.count);
     const interval = Number(A.interval ?? 3) * 1000;
+    const whisperEvery = Number(A.whisper ?? 2) * 1000;
+    const totalPlayers = Number(A.total);
     const bots = [];
     let quiet = false;
 
@@ -294,6 +312,7 @@ async function runBots() {
         // a turn can be late by seconds on a busy machine.
         bot.server = client.serverId; // a login is not a hop: counting starts here
         bot.phase = new Set();
+        client.onMessage('whisper', (d) => { bot.heard.push(Date.now() - d.sentAt); });
         client.onStateChange((state) => {
             const now = performance.now();
             if (state !== 'ready') {
@@ -327,7 +346,7 @@ async function runBots() {
     }
 
     for (let i = 0; i < count; i++) {
-        const bot = { events: [], rerouted: [], token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
+        const bot = { heard: [], whispersSent: 0, whisperSeq: 0, nextWhisper: performance.now() + Math.random() * whisperEvery, events: [], rerouted: [], token: `bot${first + i}`, hops: 0, bounces: 0, bounceTimes: [], relogins: 0, seq: 0, nextPortal: 0, askedAt: 0, latencies: [], refused: 0, reconnectingSince: 0, recovered: [] };
         const zone = zoneList[(first + i) % zoneList.length];
         for (;;) {
             try { await login(bot, zone); break; } catch { bot.refused++; await delay(300); }
@@ -381,6 +400,12 @@ async function runBots() {
                 }
             }
             if (c.state === 'ready') c.sendInput({ portal: bot.askedAt ? bot.portal : null, portalSeq: bot.seq });
+            // A whisper to another bot, wherever it is.
+            if (c.state === 'ready' && !quiet && now >= bot.nextWhisper) {
+                bot.nextWhisper = now + whisperEvery * (0.5 + Math.random());
+                const to = `bot${Math.floor(Math.random() * totalPlayers)}`;
+                if (to !== bot.token && c.message('whisper', { to, seq: ++bot.whisperSeq, sentAt: Date.now() })) bot.whispersSent++;
+            }
             await bot.app.tick(STEP);
         }
         // A portal asked for and never answered (the transfer was refused): ask again later.
@@ -397,6 +422,7 @@ async function runBots() {
         console.log('FINAL ' + JSON.stringify(bots.map((b) => ({
             token: b.token, hops: b.hops, bounces: b.bounces, bounceTimes: b.bounceTimes, latencies: b.latencies,
             refused: b.refused, recovered: b.recovered, relogins: b.relogins, rerouted: b.rerouted, events: b.events,
+            whispersSent: b.whispersSent, heard: b.heard,
         }))));
         await delay(100);
         process.exit(0);
@@ -455,11 +481,17 @@ async function runAll() {
 
     const store = new persist.MemoryStore();
     const served = await serveStore(store);
+    const { BusHub } = await import(pathToFileURL(path.join(DIST, 'zones', 'index.js')).href);
+    const hub = new BusHub();
+    const busServer = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
+    await new Promise((r) => busServer.once('listening', r));
+    busServer.on('connection', (socket) => hub.accept(socket));
+    const busUrl = `ws://127.0.0.1:${busServer.address().port}`;
     console.log(`zones-benchmark: ${ZONES} zones, ${PLAYERS} players in ${BOT_PROCS} bot processes, a portal every ~${INTERVAL}s each,`
         + ` ${SECONDS}s, lease ttl ${LEASE_TTL} ms, autosave ${AUTOSAVE} ms${CRASH ? ', one zone crashes halfway' : ''}`);
 
     const zoneProcs = [];
-    for (let i = 0; i < ZONES; i++) zoneProcs.push(child('zone', ['--id', `z${i}`, '--store', served.url]));
+    for (let i = 0; i < ZONES; i++) zoneProcs.push(child('zone', ['--id', `z${i}`, '--store', served.url, '--bus', busUrl]));
     const zoneList = [];
     for (let i = 0; i < ZONES; i++) {
         const m = await waitFor(zoneProcs[i], () => zoneProcs[i].log.match(/LISTEN (\S+)/), 30000, `zone z${i}`);
@@ -471,7 +503,7 @@ async function runAll() {
     for (let i = 0; i < BOT_PROCS; i++) {
         const n = Math.min(per, PLAYERS - i * per);
         if (n <= 0) break;
-        botProcs.push(child('bots', ['--zones', JSON.stringify(zoneList), '--first', String(i * per), '--count', String(n), '--interval', String(INTERVAL)]));
+        botProcs.push(child('bots', ['--zones', JSON.stringify(zoneList), '--first', String(i * per), '--count', String(n), '--interval', String(INTERVAL), '--total', String(PLAYERS)]));
     }
     for (const b of botProcs) await waitFor(b, () => b.log.includes('READY'), 120000, 'bots');
 
@@ -548,6 +580,10 @@ async function runAll() {
     }
 
     console.log(`transfers: ${hops} in ${elapsed.toFixed(1)} s = ${(hops / elapsed).toFixed(1)}/s`);
+    const sent = bots.reduce((n, b) => n + b.whispersSent, 0);
+    const heard = bots.flatMap((b) => b.heard);
+    console.log(`whispers across zones: ${heard.length} of ${sent} arrived (${sent ? ((100 * heard.length) / sent).toFixed(1) : '0'}%), `
+        + `p50 ${quantile(heard, 0.5).toFixed(0)} ms, p95 ${quantile(heard, 0.95).toFixed(0)} ms, max ${Math.max(0, ...heard).toFixed(0)} ms`);
     console.log(`transfer time: p50 ${quantile(latencies, 0.5).toFixed(0)} ms, p95 ${quantile(latencies, 0.95).toFixed(0)} ms, max ${Math.max(0, ...latencies).toFixed(0)} ms`);
     console.log(`zone-side failures: ${JSON.stringify(zoneErrors)}; logins refused while held elsewhere: ${bots.reduce((n, b) => n + b.refused, 0)}`);
     console.log(`leases still held by a stopped zone: ${leftoverLeases}`);
@@ -567,6 +603,7 @@ async function runAll() {
         + (examples.length ? `\n  ${examples.join('\n  ')}` : ''));
 
     served.wss.close();
+    busServer.close();
     for (const p of [...zoneProcs, ...botProcs]) if (alive(p)) p.kill();
     process.exit(mismatches === 0 ? 0 : 1);
 }
