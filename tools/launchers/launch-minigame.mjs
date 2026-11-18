@@ -29,6 +29,7 @@ import { HOST_PAGE } from './minigameHost.mjs';
 import { inputScript } from './inputScript.mjs';
 import { frameClockScript } from './frameClock.mjs';
 import { mimeOf, serveDir } from '../lib/staticServer.mjs';
+import { contextProbeScript, openLaunchLog } from './launchLog.mjs';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -106,7 +107,7 @@ async function main() {
   }
   JSON.parse(readFileSync(manifest, 'utf8')); // a manifest the vendor cannot parse is a dead package
 
-  const page = HOST_PAGE(entry, FAIL_SUBPACKAGE || null).replace('<head>', '<head>' + frameClockScript(FRAME_MS));
+  const page = HOST_PAGE(entry, FAIL_SUBPACKAGE || null).replace('<head>', '<head>' + contextProbeScript() + frameClockScript(FRAME_MS));
   const server = await serve(DIR, page);
   const base = `http://127.0.0.1:${server.address().port}/`;
 
@@ -115,6 +116,7 @@ async function main() {
     webPreferences: { backgroundThrottling: false },
   });
 
+  const launchLog = openLaunchLog(app, win.webContents, path.basename(DIR));
   const errors = [];
   const stop = onRendererConsole(win.webContents, (msg, level) => {
     // `[estella]` is the package's own voice (why a 分包 did not come down). Any
@@ -136,7 +138,7 @@ async function main() {
       let frames = 0;
       const tick = () => {
         const c = document.querySelector('canvas');
-        if (c && c.width > 0 && c.height > 0) frames++;
+        if (c && c.width > 0 && c.height > 0 && globalThis.__estellaIdentDone === true) frames++;
         if (frames >= ${SETTLE}) return resolve(true);
         if (Date.now() > deadline) return resolve(false);
         requestAnimationFrame(tick);
@@ -167,6 +169,7 @@ async function main() {
       ? `${FAIL_SUBPACKAGE} refused: the package ${said ? 'said why' : 'said nothing'}`
       : `painted=${painted} live=${live} errors=${errors.length}`));
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
+  launchLog.note(`verdict ok=${ok} painted=${painted} live=${live} errors=${errors.length}`);
   if (!FAIL_SUBPACKAGE && painted && !live) console.log('    one flat colour — it started and drew nothing');
   if (!ok) {
     // What the boot last announced through the host indicator. A package stuck
@@ -176,6 +179,7 @@ async function main() {
       .catch(() => null);
     if (stage) console.log(`    the boot was still saying: ${stage}`);
   }
+  launchLog.close();
   app.exit(ok ? 0 : 1);
 }
 

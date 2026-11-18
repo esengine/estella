@@ -128,6 +128,15 @@ describe('parseManifest — orientation (unified, project-wide)', () => {
       .packaging?.platforms).toBeUndefined();
   });
 
+  it('parses when a playable tells its network it is ready, and drops a value it does not know', () => {
+    const ready = (value: unknown) => parseManifest({ name: 'X', packaging: { platforms: { playable: { network: 'meta', ready: value } } } })
+      .packaging?.platforms?.playable?.ready;
+    expect(ready('after-ident')).toBe('after-ident');
+    expect(ready('start')).toBe('start');
+    expect(ready('later')).toBeUndefined();
+    expect(ready(undefined)).toBeUndefined();
+  });
+
   it('drops an invalid top-level orientation', () => {
     expect(parseManifest({ name: 'X', packaging: { orientation: 'diagonal' } }).packaging).toBeUndefined();
   });

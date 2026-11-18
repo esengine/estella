@@ -289,7 +289,19 @@ jobs:
       run: pnpm exec playwright install --with-deps chromium
 
     - name: Run the exit criteria
+      env:
+        ESTELLA_LAUNCH_LOG_DIR: ${{ github.workspace }}/.golden/launch-logs
       run: node tools/run-release-gate.mjs --host linux ${{ matrix.criteria }}
+
+    - name: Keep each mini-game launch's own log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: launch-logs-${{ matrix.shard }}
+        path: .golden/launch-logs/
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
 
     # As Build keeps its golden frames: a parity or a dead gesture is a claim about
     # a picture, and a picture left on the runner cannot be told from a slow one.

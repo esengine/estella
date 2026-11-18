@@ -119,7 +119,7 @@ export async function projectExportOptions(
     desktopChannel: plat?.desktop?.channel,
     steam: plat?.desktop?.steam,
     ...(platform === 'playable'
-      ? { playableAdProfile: (await loadPlayableProfile(root, plat?.playable?.network)) ?? undefined }
+      ? { playableAdProfile: (await loadPlayableProfile(root, plat?.playable?.network)) ?? undefined, playableReady: plat?.playable?.ready }
       : {}),
     sizeBudgetBytes: packaging?.sizeBudget?.[platform],
     // Unset leaves the hot-update config to fall back to asset-groups.json's

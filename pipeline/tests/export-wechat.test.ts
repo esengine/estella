@@ -626,6 +626,13 @@ describe('exportGame (wechat)', () => {
     expect(bundle).toContain('"level2"');
     expect(bundle).toContain('firstScene: "main"');
     expect(bundle).toContain('ident: true');
+    const outIdent = path.join(root, 'dist-wechat-ident');
+    expect((await exportGame({
+      minifyScripts: false, root, entryScene: 'scenes-multi/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      scriptsEntry: 'src/main.ts', sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: outIdent, platform: 'wechat',
+      splash: { ident: false },
+    })).ok).toBe(true);
+    expect(readFileSync(path.join(outIdent, 'game-bundle.js'), 'utf8')).not.toContain('ident: true');
     // No .esscene rides in packOptions — nothing ships under that suffix.
     const pcfg = JSON.parse(readFileSync(path.join(outMulti, 'project.config.json'), 'utf8'));
     expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });

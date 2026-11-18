@@ -124,7 +124,8 @@ describe('the exported page’s start screen', () => {
 
   it('holds for the engine’s ident, or longer if the project asked, and paints the colour it asked for', async () => {
     const { html } = await page({ background: '#102030', minMs: 800 });
-    expect(html).toContain('data-min-ms="2800"');
+    expect(html).toContain('data-min-ms="800"');
+    expect(html).toContain('data-ident-ms="2800"');
     expect(html).toContain('#102030');
     expect((await page({ minMs: 5200 })).html).toContain('data-min-ms="5200"');
   }, 180_000);
@@ -144,10 +145,18 @@ describe('the exported page’s start screen', () => {
       const { html } = await page(undefined, channel);
       const policy = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)![1];
       expect(html).toContain('<canvas id="es-splash-gl"');
-      expect(html).toContain('data-min-ms="2800"');
+      expect(html).toContain('data-ident-ms="2800"');
       expect(policy).toContain(`'${splashScriptCspHash()}'`);
       expect(policy).toContain("worker-src 'self' blob:");
     }
+  }, 180_000);
+
+  it('leaves the ident out of a project that turned it off', async () => {
+    const { html } = await page({ ident: false });
+    const policy = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)![1];
+    expect(html).not.toMatch(/es-splash-gl|es-splash-marked|data-ident-ms/);
+    expect(html).toContain('<div class="es-splash-title">My Game</div>');
+    expect(policy).not.toContain(`'${splashScriptCspHash()}'`);
   }, 180_000);
 });
 

@@ -80,6 +80,7 @@ export interface PlayableRuntimeConfig {
     prewarmShaders?: { timeoutMs?: number; /** Called after each frame drawn out of sight with how many shaders are still compiling and how much of the scene is still to be made. */ onProgress?: (pending: number, making: number) => void };
     /** Called once everything is loaded and warmed, just before the loop starts: where a page takes its start screen away. */
     onBeforeRun?: () => void;
+    readyAfter?: Promise<void>;
     /** Stands between the runtime and the inlined assets: what a host uses to answer for assets the file does not carry, as it makes them. */
     serve?: (source: RuntimeAssetSource) => RuntimeAssetSource;
 }
@@ -229,5 +230,6 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // A start screen that a throwing callback left up would cover the game for good.
     try { config.onBeforeRun?.(); } catch (e) { log.warn('playable', 'onBeforeRun failed', e); }
     await app.run();
+    await config.readyAfter;
     bridge?.ready?.();
 }

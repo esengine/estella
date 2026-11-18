@@ -16,7 +16,7 @@
 
 import { createWebApp } from './webAppFactory';
 import { bootPercent, bootSays, type BootStage } from './bootStages';
-import { playIdent, type IdentRun } from './ident';
+import { markIdentDone, playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
@@ -229,15 +229,59 @@ export function hostProgress(global: {
 export interface GlxContext { isWebGL2: boolean; platform: number; ctxid: number }
 export type GlxModule = { ccall(name: string, ret: string | null, args: string[], values: unknown[]): unknown; wxContextGlobal?: GlxContext };
 
-export function startIdent(canvas: { width: number; height: number; getContext(type: string, attributes?: unknown): unknown }): IdentRun | null {
+type ContextEvents = {
+    addEventListener?(type: string, listener: (event: { preventDefault?(): void }) => void): void;
+    removeEventListener?(type: string, listener: (event: { preventDefault?(): void }) => void): void;
+};
+
+export interface ScreenIdent extends IdentRun {
+    usable(timeoutMs?: number): Promise<void>;
+}
+
+export function startIdent(canvas: { width: number; height: number; getContext(type: string, attributes?: unknown): unknown } & ContextEvents): ScreenIdent | null {
     try {
         const gl = canvas.getContext('webgl2', glContextAttributes()) as WebGL2RenderingContext | null;
         if (!gl) return null;
         const host = globalThis as { requestAnimationFrame?: (step: () => void) => unknown };
-        return playIdent(gl, () => ({ width: canvas.width, height: canvas.height }), (step) => {
+        const size = (): { width: number; height: number } => ({ width: canvas.width, height: canvas.height });
+        const frame = (step: () => void): void => {
             if (typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
             else setTimeout(step, 16);
-        });
+        };
+        let run = playIdent(gl, size, frame);
+        if (!run) return null;
+        let stopped = false;
+        const waiting: (() => void)[] = [];
+        const onLost = (event: { preventDefault?(): void }): void => {
+            event.preventDefault?.();
+            run?.stop();
+            run = null;
+        };
+        const onRestored = (): void => {
+            if (!stopped) run = playIdent(gl, size, frame);
+            for (const resolve of waiting.splice(0)) resolve();
+        };
+        canvas.addEventListener?.('webglcontextlost', onLost);
+        canvas.addEventListener?.('webglcontextrestored', onRestored);
+        const finished = run.finished;
+        return {
+            finished,
+            usable(timeoutMs = 10_000) {
+                if (!gl.isContextLost()) return Promise.resolve();
+                return new Promise((resolve) => {
+                    waiting.push(resolve);
+                    setTimeout(resolve, timeoutMs);
+                });
+            },
+            stop() {
+                if (stopped) return;
+                stopped = true;
+                run?.stop();
+                run = null;
+                canvas.removeEventListener?.('webglcontextlost', onLost);
+                canvas.removeEventListener?.('webglcontextrestored', onRestored);
+            },
+        };
     } catch {
         return null;
     }
@@ -268,15 +312,24 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const tag = adapter.name;
     const canvas = adapter.createScreenCanvas();
     const ident = config.ident ? startIdent(canvas) : null;
+    markIdentDone(ident === null);
     if (ident) {
         try { (adapter.host as { hideLoading?: () => void }).hideLoading?.(); } catch (e) { log.warn(tag, `hideLoading threw: ${String(e)}`); }
     }
     const reached: BootStage[] = [];
+    let booted = false;
     let toast = hostProgress(ident ? {} : adapter.host);
     const progress = {
         reach(stage: BootStage): void { reached.push(stage); toast.reach(stage); },
-        finish(): void { toast.finish(); },
+        finish(): void { booted = true; toast.finish(); },
     };
+    if (ident) {
+        void ident.finished.then(() => {
+            if (booted) return;
+            toast = hostProgress(adapter.host);
+            for (const stage of reached) toast.reach(stage);
+        });
+    }
     progress.reach('config');
     progress.reach('scripts');
 
@@ -290,9 +343,8 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     progress.reach('engine');
     if (ident) {
         await ident.finished;
+        await ident.usable();
         ident.stop();
-        toast = hostProgress(adapter.host);
-        for (const stage of reached) toast.reach(stage);
     }
 
     // EmscriptenGLX runs the engine's GL calls inside the wasm and hands them to
@@ -396,7 +448,45 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     // Before run(), which may hand control to the engine's loop and not return.
     progress.finish();
     reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
+    if (ident) {
+        const drawn = countDraws(gl);
+        let seen = 0, frames = 0;
+        const off = app.onFrameEnd(() => {
+            if (drawn.count === seen) return;
+            seen = drawn.count;
+            if (++frames < 3) return;
+            off();
+            drawn.release();
+            markIdentDone(true);
+        });
+    }
     app.run();
+}
+
+const DRAWS = ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer'] as const;
+
+export function countDraws(gl: object): { readonly count: number; release(): void } {
+    const target = gl as Record<string, unknown>;
+    const own = new Map<string, unknown>();
+    const counter = {
+        count: 0,
+        release(): void {
+            for (const name of DRAWS) {
+                if (own.has(name)) target[name] = own.get(name);
+                else delete target[name];
+            }
+        },
+    };
+    for (const name of DRAWS) {
+        const original = target[name];
+        if (typeof original !== 'function') continue;
+        if (Object.prototype.hasOwnProperty.call(target, name)) own.set(name, original);
+        target[name] = (...args: unknown[]): unknown => {
+            counter.count++;
+            return (original as (...a: unknown[]) => unknown).apply(gl, args);
+        };
+    }
+    return counter;
 }
 
 /**

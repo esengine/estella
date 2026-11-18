@@ -173,7 +173,9 @@ try {
             await context.route('**/*', route => route.request().url().startsWith(origin + '/')
                 ? route.continue() : route.abort());
             await page.goto(origin + '/');
-            await page.waitForFunction(() => globalThis.__estellaLoading === null && globalThis.__draws >= 3, {}, { timeout: 30000 });
+            await page.waitForFunction(() => globalThis.__estellaIdentDone === true, {}, { timeout: 30000 });
+            const drawn = await page.evaluate(() => globalThis.__draws);
+            await page.waitForFunction(drawn => globalThis.__estellaLoading === null && globalThis.__draws >= drawn + 3, drawn, { timeout: 30000 });
             const frame = await page.screenshot({ path: path.join(out, `${dimension}.png`) });
             const image = PNG.sync.read(frame);
             let different = 0;

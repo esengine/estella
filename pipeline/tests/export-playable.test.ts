@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { exportGame } from '../src/export/exportGame';
+import { splashScript } from '../src/export/splash';
 import { runtimeHostPrebuild } from '../src/bundle/runtimeHosts';
 import { build } from 'esbuild';
 import { inflateRaw } from '../src/runtime/inflate';
@@ -262,9 +263,20 @@ describe('exportGame (playable)', () => {
     // before any script runs, and the host is what takes it away.
     expect(html).toContain('<div id="es-splash" class="es-splash-marked" role="status"');
     expect(html).toContain('<canvas id="es-splash-gl"');
-    expect(html).toContain('data-min-ms="2800"');
+    expect(html).toContain('data-ident-ms="2800"');
+    expect(html).toContain(splashScript());
     expect(html.indexOf('id="es-splash"')).toBeLessThan(html.indexOf('<script>'));
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('es-splash-gone');
+    expect(html).not.toContain('__GAME_READY__');
+    const afterIdent = path.join(root, 'dist-tiled-ready');
+    expect((await exportGame({
+      root, entryScene: 'scenes/tiled.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: afterIdent, title: 'Tiled', platform: 'playable', minify: false,
+      playableReady: 'after-ident',
+    })).ok).toBe(true);
+    const later = readFileSync(path.join(afterIdent, 'index.html'), 'utf8');
+    expect(later).toContain('window.__GAME_READY__="after-ident";');
+    expect(inlinedText(later, '__GAME_BUNDLE__')).toContain('readyAfter');
   }, 60_000);
 
   // An atlas page is one image however many sprites are on it: inlined once, every frame of it pointed there, and where

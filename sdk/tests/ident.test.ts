@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { IDENT_FRAGMENT, IDENT_SECONDS, IDENT_VERTEX, playIdent } from '../src/runtime/ident';
-import { startIdent } from '../src/runtime/miniGameRuntime';
+import { countDraws, startIdent } from '../src/runtime/miniGameRuntime';
 
 interface Call { name: string; args: unknown[] }
 
@@ -117,8 +117,69 @@ describe('the ident on a mini-game’s display canvas', () => {
         run.stop();
     });
 
+    it('keeps a context the browser takes back early restorable, and the engine waits for it', async () => {
+        const { gl: base, calls } = fakeGl();
+        let lost = false;
+        const gl = new Proxy(base as unknown as Record<string, unknown>, {
+            get: (from, name: string) => (name === 'isContextLost' ? () => lost : from[name]),
+        }) as unknown as WebGL2RenderingContext;
+        const listeners = new Map<string, (event: { preventDefault?(): void }) => void>();
+        const canvas = {
+            width: 8, height: 8, getContext: () => gl,
+            addEventListener: (type: string, fn: (event: { preventDefault?(): void }) => void) => { listeners.set(type, fn); },
+            removeEventListener: (type: string) => { listeners.delete(type); },
+        };
+        const run = startIdent(canvas)!;
+        let prevented = false;
+        lost = true;
+        listeners.get('webglcontextlost')!({ preventDefault: () => { prevented = true; } });
+        expect(prevented).toBe(true);
+        let usable = false;
+        void run.usable().then(() => { usable = true; });
+        await Promise.resolve();
+        expect(usable).toBe(false);
+        const before = calls.filter((c) => c.name === 'drawArrays').length;
+        lost = false;
+        listeners.get('webglcontextrestored')!({});
+        await Promise.resolve();
+        expect(usable).toBe(true);
+        expect(calls.filter((c) => c.name === 'drawArrays').length).toBe(before + 1);
+        run.stop();
+        expect(listeners.size).toBe(0);
+    });
+
+    it('lets the engine take a context that was never lost at once', async () => {
+        const { gl } = fakeGl();
+        const run = startIdent({ width: 8, height: 8, getContext: () => gl })!;
+        let usable = false;
+        void run.usable().then(() => { usable = true; });
+        await Promise.resolve();
+        expect(usable).toBe(true);
+        run.stop();
+    });
+
     it('is skipped, not fatal, on a host with no WebGL2 or one that throws', () => {
         expect(startIdent({ width: 1, height: 1, getContext: () => null })).toBeNull();
         expect(startIdent({ width: 1, height: 1, getContext: () => { throw new Error('no'); } })).toBeNull();
+    });
+});
+
+describe('counting what the game draws after the ident', () => {
+    it('counts the game\'s draws and clears, and hands the context back with nothing of its own on it', () => {
+        class Context { drawArrays(): string { return 'drawn'; } clear(): void {} }
+        const gl = new Context() as Context & Record<string, unknown>;
+        const ownBlit = (): void => {};
+        gl.blitFramebuffer = ownBlit;
+        const drawn = countDraws(gl);
+        expect(gl.drawArrays()).toBe('drawn');
+        gl.clear();
+        (gl.blitFramebuffer as () => void)();
+        expect(drawn.count).toBe(3);
+        drawn.release();
+        expect(Object.prototype.hasOwnProperty.call(gl, 'drawArrays')).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(gl, 'clear')).toBe(false);
+        expect(gl.blitFramebuffer).toBe(ownBlit);
+        gl.drawArrays();
+        expect(drawn.count).toBe(3);
     });
 });

@@ -133,7 +133,7 @@ app.whenReady().then(async () => {
             onRendererConsole(w.webContents, message => { if (/error|fail|cache|update|exception/i.test(message)) diagnostics.push(message.slice(0, 300)); });
             await w.loadURL(base);
             const deadline = Date.now() + 30_000;
-            while (!await w.webContents.executeJavaScript('!!globalThis.__cacheAcceptance').catch(() => false)) {
+            while (!await w.webContents.executeJavaScript('!!globalThis.__cacheAcceptance && globalThis.__estellaIdentDone === true').catch(() => false)) {
                 if (Date.now() > deadline) throw Error('mini-game did not reach its first scene');
                 await sleep(100);
             }

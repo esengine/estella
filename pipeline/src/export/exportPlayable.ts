@@ -50,7 +50,7 @@ import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
 import { atlasCatalogFields, type CatalogData, type CatalogEntry, type CookedAtlasInfo } from '../../../sdk/src/asset/Catalog';
-import type { ModuleChoice, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
+import type { ModuleChoice, PlayableReady, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
 export interface ExportPlayableResult {
@@ -137,6 +137,7 @@ function indexHtml(
   globals: string,
   loader: string,
   network: { head: string; body: string; bridge: string },
+  ident: boolean,
 ): string {
   return `<!doctype html>
 <html lang="en">
@@ -148,13 +149,12 @@ function indexHtml(
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${splashCss(PAGE_BACKGROUND)}
+      ${splashCss(PAGE_BACKGROUND, ident)}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    ${splashHtml(title, { scriptElsewhere: true })}${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
-    <script>${inlineSafe(splashScript())}</script>
+    ${splashHtml(title, { engineMark: ident, scriptElsewhere: true })}${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}${ident ? `\n    <script>${inlineSafe(splashScript())}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(loader)}</script>
   </body>
@@ -264,6 +264,8 @@ export async function exportPlayable(opts: {
   /** The ad network this package targets (Project Settings → Packaging → Playable):
    *  its size cap, its `<head>` markup and its click-through API. Absent ⇒ generic. */
   adProfile?: PlayableAdProfile;
+  ident?: boolean;
+  ready?: PlayableReady;
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -498,6 +500,7 @@ export async function exportPlayable(opts: {
       : '') +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(scenes), 'utf8')))};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
+    (opts.ready === 'after-ident' ? 'window.__GAME_READY__="after-ident";' : '') +
     `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +
     (modelBakes && bakeWorker ? span('model-bakes', `window.__GAME_MODEL_BAKES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(modelBakes), 'utf8')))};window.__GAME_BAKE_WORKER__=${JSON.stringify(pack(Buffer.from(bakeWorker, 'utf8')))};`) : '') +
     span('game-bundle.js', `window.__GAME_BUNDLE__=${JSON.stringify(pack(Buffer.from(bundle, 'utf8')))};`);
@@ -532,7 +535,7 @@ export async function exportPlayable(opts: {
         ? { ...packed, m: value.mime }
         : `data:${value.mime};base64,${Buffer.from(value.data).toString('base64')}`;
     }
-    const html = Buffer.from(indexHtml(title, beforeAssets + `window.__GAME_ASSETS__=${JSON.stringify(urls)};` + afterAssets, loader, network));
+    const html = Buffer.from(indexHtml(title, beforeAssets + `window.__GAME_ASSETS__=${JSON.stringify(urls)};` + afterAssets, loader, network, opts.ident === true));
     const delivery = zipFile ? makeZip([{ name: 'index.html', data: html },
       ...archiveFiles.map(file => ({ name: file.name, data: Buffer.from(file.content) }))]) : html;
     return { html, delivery, htmlBytes: html.byteLength, deliveryBytes: delivery.byteLength };
