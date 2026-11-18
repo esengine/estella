@@ -546,6 +546,7 @@ export {
     spriteMotionDriver,
     SPRITE_MOTION,
     SPINE_MOTION,
+    type AnimatorWindow,
     type AnimatorMotion,
     type AnimatorClipMotion,
     type AnimatorBlend1DMotion,
@@ -556,6 +557,7 @@ export {
     type MotionDriver,
     type MotionSpan,
     type MotionEvent,
+    type MotionWindow,
     type RootMotionDelta,
     AnimatorEvent,
     type AnimatorEventPayload,
@@ -1014,6 +1016,8 @@ export {
     COMBAT_ATTACK_START,
     COMBAT_HIT,
     COMBAT_ATTACK_END,
+    COMBAT_ATTACK_ACTIVE,
+    COMBAT_COMBO_WINDOW,
 } from './gameplay/vocabulary';
 
 /** What a game says about its own run, for the observation seam a packaged game

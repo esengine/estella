@@ -35,3 +35,16 @@ export const ATTACK_KEY = 'KeyJ';
 export const COMBAT_ATTACK_START = 'attack-start';
 export const COMBAT_HIT = 'hit';
 export const COMBAT_ATTACK_END = 'attack-end';
+/**
+ * The window a clip declares for the frames its swing can land in, its active
+ * frames: a custom event with a duration. While it is open the swing sweeps the
+ * space its anchor passes through each frame, so a blade moving faster than its
+ * own reach per frame still meets what it passed; when it closes, or the clip is
+ * left before it does, the swing is over.
+ */
+export const COMBAT_ATTACK_ACTIVE = 'attack-active';
+/**
+ * The window a clip declares for where the next attack of a combo may be taken:
+ * a transition with `{ param: 'combo', op: 'window' }` chains only inside it.
+ */
+export const COMBAT_COMBO_WINDOW = 'combo';

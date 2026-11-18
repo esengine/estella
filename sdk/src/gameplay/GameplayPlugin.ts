@@ -27,7 +27,7 @@ import {
 import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorEvent';
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Damage, applyDamage, type DamagePayload } from './Health';
-import { MeleeAttacks, resolveMeleeHits } from './MeleeAttack';
+import { MeleeAttacks, resolveMeleeHits, sweepMeleeWindows } from './MeleeAttack';
 import { huntTargets } from './Hunter';
 import { q } from '../math/quat';
 import { look as lookFirstPerson, move as moveFirstPerson, installViewModels, TouchLook } from './firstPersonSystems';
@@ -295,6 +295,9 @@ export class GameplayPlugin implements Plugin {
             ) => {
                 const queries = app.hasResource(Physics3D) ? app.getResource(Physics3D) : null;
                 resolveMeleeHits(world, attacks, queries, events, damage);
+                // The windows the animator reported with that pose: the swings that reach along a path.
+                const windows = app.hasResource(AnimatorController) ? app.getResource(AnimatorController) : null;
+                sweepMeleeWindows(world, attacks, queries, windows, damage);
             },
             { name: 'MeleeAttackSystem' },
         ), { runIf: playModeOnly });

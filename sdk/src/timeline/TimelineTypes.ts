@@ -145,6 +145,13 @@ export interface CustomEvent {
     time: number;
     name: string;
     payload: Record<string, unknown>;
+    /**
+     * Seconds of clip time the event stays open from `time`: a window (an attack's
+     * active frames, a combo's input window) that an animator reports while its
+     * playhead is inside it. The event is still posted once at `time`. Absent or 0,
+     * it is a moment and nothing more.
+     */
+    duration?: number;
 }
 
 export interface CustomEventTrack extends TrackBase {

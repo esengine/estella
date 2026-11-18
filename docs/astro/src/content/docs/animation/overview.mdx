@@ -451,6 +451,41 @@ with a `value`), `true` / `false` (bool), or `trigger` (fires once and is
 consumed). There is no separate int type — drive whole numbers through a float
 parameter and `eq` / `neq`.
 
+### Combos and the input buffer
+
+A combo is a transition that may only be taken during part of a clip. Declare that
+part as a [window](#windows-events-that-last) on the clip (a `customEvent` with a
+`duration`, here named `combo`) and give the transition a `window` condition, whose
+`param` names it:
+
+```json
+{ "to": "Attack2", "conditions": [
+  { "param": "attack", "op": "trigger" },
+  { "param": "combo", "op": "window" }
+] }
+```
+
+It holds while the state being left has that window open over the frame being
+stepped, so a combo window shorter than a frame is not skipped.
+
+A trigger stays set until a transition uses it. For an attack that is wrong both
+ways: a press a little before the window should still chain, and a button mashed
+during the windup should not fire another attack the moment this one ends. Give the
+trigger parameter a `buffer`, in seconds of animator time, and a press is remembered
+for that long and then dropped:
+
+```json
+{ "name": "attack", "type": "trigger", "buffer": 0.25 }
+```
+
+Pressing again restarts the buffer. A buffer of `0` is the next update only. In the
+Animator editor the buffer is the number beside a trigger parameter, and a condition
+whose operator is **in window** takes the window's name instead of a parameter.
+
+A chain reached from any state would win over the combo: any-state transitions are
+checked first. Leave the attack trigger out of the any-state list and put it on the
+states an attack may start from.
+
 ### Blend trees
 
 ![A 1D blend on speed selecting idle / walk / run by threshold](@/assets/guides/blend-tree.svg)
@@ -684,6 +719,33 @@ What the animator promises:
 
 The animator calls into no particle system, no audio and no gameplay: it states
 the event, and whoever owns those things answers it.
+
+### Windows: events that last
+
+Some beats are stretches, not moments: an attack's active frames, the part of a
+swing a combo can be chained in, a dodge's invulnerability. Give a `customEvent`
+a `duration` (seconds of clip time) and it is a **window**, open over
+`[time, time + duration)`. It is still posted once on the bus where it opens;
+what it adds is a state gameplay can ask about every frame:
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+```typescript
+const animator = app.getResource(AnimatorController);
+const active = animator.openWindow(entity, 'attack-active'); // null when shut
+for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
+```
+
+- A window is reported for every frame whose step reached any part of it, so one
+  shorter than a frame is still open on the frame that passed over it. A step that
+  only reaches its closing edge does not open it.
+- Only the state being played holds windows, as with events: leave the clip while
+  a window is open, a crossfade included, and it is shut on that frame. Gameplay
+  that waits for an "end" event an interrupted clip never reaches cannot be stuck.
+- Each opening has its own `id`, kept while it stays open. Two attacks back to back
+  whose windows touch are two openings, and so is each lap of a looping clip.
 
 ### State speed that follows a parameter
 

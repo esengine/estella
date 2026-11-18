@@ -24,7 +24,7 @@ import type { World } from '../ecs/world';
 import {
     MotionRegistry, blend1DMotionDriver, blend2DMotionDriver,
     type AnimatorMotion, type AnimatorClipMotion, type AnimatorBlend1DMotion,
-    type MotionContext, type MotionDriver, type MotionEvent, type MotionSpan,
+    type MotionContext, type MotionDriver, type MotionEvent, type MotionSpan, type MotionWindow,
     type RootMotionDelta,
 } from './motion';
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
@@ -52,16 +52,26 @@ export interface AnimatorParam {
     type: AnimatorParamType;
     /** Default value for float (number) / bool (boolean). Triggers default off. */
     default?: number | boolean;
+    /**
+     * A trigger's input buffer, in seconds of animator time: a set trigger no
+     * transition uses within this long is dropped. A press made a little before a
+     * combo window opens still chains; one made long before does not fire an
+     * attack nobody asked for when the current one ends. Absent, a trigger waits
+     * until a transition uses it.
+     */
+    buffer?: number;
 }
 
 /**
  * A transition condition. Numeric comparisons (`gt`/`lt`/`eq`/`neq`) carry a
  * `value`; `true`/`false` test a bool param; `trigger` fires when the named
- * trigger is set (and consumes it).
+ * trigger is set (and consumes it); `window` holds while the state being left
+ * has the window `param` names open (a combo's input window: a custom event with
+ * a duration on its clip), so a chain is taken only where the clip allows it.
  */
 export type AnimatorCondition =
     | { param: string; op: 'gt' | 'lt' | 'eq' | 'neq'; value: number }
-    | { param: string; op: 'true' | 'false' | 'trigger' };
+    | { param: string; op: 'true' | 'false' | 'trigger' | 'window' };
 
 export interface AnimatorTransition {
     /** Target state name. */
@@ -272,10 +282,13 @@ export interface AnimatorEvalResult {
     consumedTriggers: string[];
 }
 
+const NO_OPEN_WINDOWS: ReadonlySet<string> = new Set();
+
 function conditionHolds(
     c: AnimatorCondition,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
+    windows: ReadonlySet<string>,
 ): boolean {
     switch (c.op) {
         case 'gt': return Number(params[c.param] ?? 0) > c.value;
@@ -285,6 +298,7 @@ function conditionHolds(
         case 'true': return params[c.param] === true;
         case 'false': return params[c.param] === false;
         case 'trigger': return triggers.has(c.param);
+        case 'window': return windows.has(c.param);
     }
 }
 
@@ -295,13 +309,14 @@ function firstReady(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
+    windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): { to: string; usedTriggers: string[]; fadeDuration: number } | null {
     for (const t of list) {
         if (t.hasExitTime && !clipFinished) continue;
         const used: string[] = [];
         let ok = true;
         for (const c of t.conditions) {
-            if (!conditionHolds(c, params, triggers)) { ok = false; break; }
+            if (!conditionHolds(c, params, triggers, windows)) { ok = false; break; }
             if (c.op === 'trigger') used.push(c.param);
         }
         if (ok) return { to: t.to, usedTriggers: used, fadeDuration: t.duration ?? 0 };
@@ -322,10 +337,11 @@ export function evaluateAnimatorTransitions(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean = true,
+    windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): AnimatorEvalResult {
-    const fromAny = firstReady(def.anyStateTransitions ?? [], params, triggers, clipFinished);
+    const fromAny = firstReady(def.anyStateTransitions ?? [], params, triggers, clipFinished, windows);
     const current = def.states.find((s) => s.name === currentState);
-    const fired = fromAny ?? firstReady(current?.transitions ?? [], params, triggers, clipFinished);
+    const fired = fromAny ?? firstReady(current?.transitions ?? [], params, triggers, clipFinished, windows);
     return fired
         ? { next: fired.to, consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
@@ -395,6 +411,7 @@ export function evaluateAnimatorPath(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean = true,
+    windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): AnimatorPathEvalResult {
     const segments = currentPath ? currentPath.split(STATE_PATH_SEP) : [];
     const resolved = resolveStatePath(def, segments);
@@ -415,7 +432,7 @@ export function evaluateAnimatorPath(
     }
 
     for (const entry of lists) {
-        const fired = firstReady(entry.list, params, triggers, clipFinished);
+        const fired = firstReady(entry.list, params, triggers, clipFinished, windows);
         if (fired) {
             const next = [...entry.base, ...enterStatePath(entry.scope, fired.to)];
             return {
@@ -451,6 +468,27 @@ export function selectBlendClip(blend: AnimatorBlend1D, value: number): Animator
 }
 
 /** Motion kind for a Spine animation; the spine module registers its driver. */
+/**
+ * A window an animated entity's active motion holds open: a stretch of a clip
+ * declared as lasting (a custom event with a duration), reported while the playhead
+ * is inside it.
+ *
+ * @experimental
+ */
+export interface AnimatorWindow {
+    /** One opening: the same while it stays open, new each time it opens. */
+    id: number;
+    /** The animator layer whose motion holds it. */
+    layer: number;
+    name: string;
+    value: number;
+    text: string;
+    /** Where it opens in the clip's own time. */
+    start: number;
+}
+
+const NO_WINDOWS: readonly AnimatorWindow[] = [];
+
 export const SPINE_MOTION = 'spine';
 
 /**
@@ -731,10 +769,13 @@ export class AnimatorControllerAPI {
 
     setTrigger(entity: Entity, name: string): void {
         this.triggerStore(entity).add(name);
+        // A press again restarts its buffer: it is the latest one that is being remembered.
+        this.triggerAges_.get(entity)?.delete(name);
     }
 
     resetTrigger(entity: Entity, name: string): void {
         this.triggers.get(entity)?.delete(name);
+        this.triggerAges_.get(entity)?.delete(name);
     }
 
     getFloat(entity: Entity, name: string): number {
@@ -749,6 +790,7 @@ export class AnimatorControllerAPI {
     removeEntity(entity: Entity): void {
         this.params.delete(entity);
         this.triggers.delete(entity);
+        this.triggerAges_.delete(entity);
         this.runtimes_.delete(entity);
     }
 
@@ -773,6 +815,13 @@ export class AnimatorControllerAPI {
      * runs and simply says nothing, which is what a bare App is.
      */
     update(world: World, dt: number = 0, events?: AnimatorEventSink): void {
+        // Last update's windows are what this one's are told apart from; an entity
+        // this update does not step (disabled, removed, gone) has none afterwards.
+        const before = this.windowsBefore_;
+        this.windowsBefore_ = this.windows_;
+        this.windows_ = before;
+        for (const list of this.windows_.values()) list.length = 0;
+        this.windows_.clear();
         const entities = world.getEntitiesWithComponents([Animator]);
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
@@ -801,7 +850,10 @@ export class AnimatorControllerAPI {
             // trigger is one event every layer is told about, so an attack both
             // machines answer cannot depend on which was stepped first.
             const triggers = this.triggers.get(entity);
-            if (triggers) for (const t of this.spentTriggers_) triggers.delete(t);
+            if (triggers) {
+                for (const t of this.spentTriggers_) triggers.delete(t);
+                if (triggers.size > 0) this.ageTriggers(entity, def, triggers, dt);
+            }
             // Restating the stack for THIS rig comes before the constraints:
             // they measure where joints are, and this is what moves them.
             if (wrote && rig && clips) {
@@ -854,8 +906,19 @@ export class AnimatorControllerAPI {
         const leafMotion = motionOf(leaf);
         const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, lrt.time);
 
+        // The windows the state being left holds over the stretch its clock just
+        // covered: a press buffered before the combo window opens is taken the
+        // frame it does, and the window being shorter than a frame does not lose it.
+        const open = this.openNames_;
+        open.clear();
+        if (leafMotion) {
+            const held = this.windowScratch_;
+            held.length = 0;
+            ctx.windows(leafMotion, { from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered }, held);
+            for (const w of held) open.add(w.name);
+        }
         const { nextPath, consumedTriggers, fadeDuration } = evaluateAnimatorPath(
-            scope, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
+            scope, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished, open,
         );
         for (const t of consumedTriggers) this.spentTriggers_.push(t);
 
@@ -896,7 +959,10 @@ export class AnimatorControllerAPI {
         const span: MotionSpan = {
             from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered,
         };
-        if (motion) this.emitEvents(ctx, entity, motion, span, events);
+        if (motion) {
+            this.emitEvents(ctx, entity, motion, span, events);
+            this.gatherWindows(ctx, entity, index, motion, span, stateChanged);
+        }
         if (index === 0) {
             this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot, travel);
         }
@@ -949,6 +1015,54 @@ export class AnimatorControllerAPI {
         for (const e of crossed) {
             events?.send({ entity, name: e.name, value: e.value, text: e.text });
         }
+    }
+
+    /**
+     * Record the windows the ACTIVE motion held open, by the same rule as its events:
+     * a motion being faded out holds none, so an attack cancelled into a dodge stops
+     * reaching at once. Each opening gets an id, kept while it stays open and new when
+     * it opens again, so two attacks back to back are two even where no frame passes
+     * between them - the state changing is an opening of its own.
+     */
+    private gatherWindows(
+        ctx: MotionContext, entity: Entity, layer: number,
+        motion: AnimatorMotion, span: MotionSpan, entered: boolean,
+    ): void {
+        const found = this.windowScratch_;
+        found.length = 0;
+        ctx.windows(motion, span, found);
+        if (found.length === 0) return;
+        let list = this.windows_.get(entity);
+        if (!list) {
+            list = [];
+            this.windows_.set(entity, list);
+        }
+        const earlier = entered ? undefined : this.windowsBefore_.get(entity);
+        for (const w of found) {
+            const kept = earlier?.find((o) => o.layer === layer && o.name === w.name && o.start === w.start);
+            list.push({
+                id: kept?.id ?? this.nextWindowId_++,
+                layer, name: w.name, value: w.value, text: w.text, start: w.start,
+            });
+        }
+    }
+
+    /**
+     * The windows `entity`'s active motions held open in the last update, every
+     * layer's. Empty when none is, or the entity was not animated.
+     *
+     * @experimental
+     */
+    windowsOf(entity: Entity): readonly AnimatorWindow[] {
+        return this.windows_.get(entity) ?? NO_WINDOWS;
+    }
+
+    /** The open window named `name` on `entity`, or null. @experimental */
+    openWindow(entity: Entity, name: string): AnimatorWindow | null {
+        const list = this.windows_.get(entity);
+        if (!list) return null;
+        for (const w of list) if (w.name === name) return w;
+        return null;
     }
 
     /**
@@ -1115,6 +1229,30 @@ export class AnimatorControllerAPI {
         return rt;
     }
 
+    /**
+     * Age the triggers still set after every layer was asked, and drop a buffered
+     * one past its buffer. After the layers, so a trigger is always asked at least
+     * once: a buffer of 0 is "this frame only", not "never".
+     */
+    private ageTriggers(entity: Entity, def: AnimatorControllerDef, triggers: Set<string>, dt: number): void {
+        let ages = this.triggerAges_.get(entity);
+        for (const name of triggers) {
+            const buffer = def.parameters.find((p) => p.name === name && p.type === 'trigger')?.buffer;
+            if (buffer === undefined || !(buffer >= 0)) continue;
+            if (!ages) {
+                ages = new Map();
+                this.triggerAges_.set(entity, ages);
+            }
+            const age = (ages.get(name) ?? 0) + dt;
+            if (age >= buffer) {
+                triggers.delete(name);
+                ages.delete(name);
+            } else {
+                ages.set(name, age);
+            }
+        }
+    }
+
     /** What this entity's layers used up this frame, spent once they have all
      *  been asked. */
     private readonly spentTriggers_: string[] = [];
@@ -1122,6 +1260,15 @@ export class AnimatorControllerAPI {
     /** Reused across entities and frames: a steady animation states no events,
      *  and an array per animated entity per frame would be the only allocation. */
     private readonly eventScratch_: MotionEvent[] = [];
+    private readonly windowScratch_: MotionWindow[] = [];
+    /** The window names a layer's leaf holds this frame, for its `window` conditions. */
+    private readonly openNames_ = new Set<string>();
+    /** Seconds each still-set trigger has waited, for the ones whose parameter has a buffer. */
+    private readonly triggerAges_ = new Map<Entity, Map<string, number>>();
+    /** This update's open windows by entity, and the last update's, swapped each update. */
+    private windows_ = new Map<Entity, AnimatorWindow[]>();
+    private windowsBefore_ = new Map<Entity, AnimatorWindow[]>();
+    private nextWindowId_ = 1;
     private readonly rootScratch_: RootMotionDelta = {
         position: { x: 0, y: 0, z: 0 },
         rotation: { w: 1, x: 0, y: 0, z: 0 },

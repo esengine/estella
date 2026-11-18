@@ -53,6 +53,7 @@ type: "camera"
 
 ## CustomEvent — interface @experimental
 ```
+duration: number | undefined
 name: string
 payload: Record<string, unknown>
 time: number

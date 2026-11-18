@@ -19,7 +19,7 @@
  */
 
 import { WrapMode, TrackType, type TimelineAsset, type ParticleTrack } from './TimelineTypes';
-import type { MotionEvent } from '../animation/motion';
+import type { MotionEvent, MotionWindow } from '../animation/motion';
 
 /**
  * A stretch of clip time the playhead covered, in the direction it covered it —
@@ -151,6 +151,32 @@ function payloadText(payload: Record<string, unknown> | undefined): string {
  * and then in declaration order, so a long frame still reports swing before hit.
  * `childPath` is not read: the event happened to the character the clip plays on.
  */
+/**
+ * Every custom event with a `duration` whose stretch of clip time `runs` reached,
+ * once each, in the order the clip declares them. A window is [time, time + duration):
+ * a run that only touches its closing edge does not open it, and a run standing still
+ * (a paused clock) inside it keeps it open.
+ */
+export function collectCustomWindows(
+    asset: TimelineAsset, runs: readonly PlayheadRun[], out: MotionWindow[],
+): void {
+    for (const track of asset.tracks) {
+        if (track.type !== TrackType.CustomEvent) continue;
+        for (const event of track.events) {
+            const length = event.duration;
+            if (!(length !== undefined && length > 0)) continue;
+            const open = event.time, close = event.time + length;
+            for (const run of runs) {
+                const lo = Math.min(run.from, run.to), hi = Math.max(run.from, run.to);
+                if (lo < close && hi >= open) {
+                    out.push({ name: event.name, value: payloadValue(event.payload), text: payloadText(event.payload), start: open });
+                    break;
+                }
+            }
+        }
+    }
+}
+
 export function collectCustomEvents(
     asset: TimelineAsset, runs: readonly PlayheadRun[], out: MotionEvent[],
 ): void {
