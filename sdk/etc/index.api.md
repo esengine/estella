@@ -14772,6 +14772,7 @@ loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => Scene
 manifest: WorldManifest | null
 recordPhase: (name: string, phase: string, ms: number) => void
 renderReadinessOf: (name: string) => RenderReadinessStamp | null
+residencyEpoch: number
 residencyOf: (name: string) => CellResidency
 restampsOf: (name: string) => number
 status: () => WorldStreamerStatus

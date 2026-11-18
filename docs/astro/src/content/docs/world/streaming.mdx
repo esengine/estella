@@ -254,6 +254,7 @@ to its horizon), and plants (the far cards of [Foliage](/docs/graphics/foliage/)
 and `PlacedFoliage`, and of a generated world's plants) stand over a whole area
 at once. Mesh textures are held at the size their views need
 ([texture streaming](/docs/performance/quality-levels/), a quality setting).
-Navigation meshes are not streamed — a world-sized navmesh stays resident — and
+Navigation is baked a tile per square and follows residency (see
+[Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded; and
 the world origin is never rebased (`setRenderOriginStep` keeps *drawing* precise
 far from zero, see [Camera](/docs/graphics/camera/)).

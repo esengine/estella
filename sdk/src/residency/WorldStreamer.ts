@@ -187,6 +187,7 @@ export class WorldStreamer {
     private clearPromise_: Promise<void> | null = null;
     private clearing_ = false;
     private manifestRequest_ = 0;
+    private residencyEpoch_ = 0;
 
     constructor(host: WorldStreamHost) {
         this.host_ = host;
@@ -201,6 +202,7 @@ export class WorldStreamer {
         if (this.cells_.size > 0 || this.clearing_) await this.clearCells_();
         if (request !== this.manifestRequest_) return;
         this.manifest_ = manifest;
+        this.residencyEpoch_++;
         this.cells_.clear();
         this.proxies_.clear();
         for (const cell of manifest.cells) {
@@ -223,6 +225,11 @@ export class WorldStreamer {
 
     get manifest(): WorldManifest | null {
         return this.manifest_;
+    }
+
+    /** Counts every cell that became resident or stopped being, and every world adopted: unchanged, nothing came or went. */
+    get residencyEpoch(): number {
+        return this.residencyEpoch_;
     }
 
     residencyOf(name: string): CellResidency {
@@ -678,6 +685,7 @@ export class WorldStreamer {
             () => {
                 const now = performance.now();
                 state.residency = 'resident';
+                this.residencyEpoch_++;
                 state.delivery = now - state.issuedAt;
                 state.publishMs = now - state.publishedAt;
                 if (state.demandedAt > 0) {
@@ -703,9 +711,10 @@ export class WorldStreamer {
         // the cell brought. Scene persistence answers a different question, and
         // honouring it here leaves exactly what residency exists to remove.
         this.run_(() => this.host_.unload(name, { keepPersistent: false }),
-            () => { state.residency = 'unloaded'; this.step_(name); },
+            () => { state.residency = 'unloaded'; this.residencyEpoch_++; this.step_(name); },
             (err) => {
                 state.residency = this.host_.isLoaded(name) ? 'resident' : 'unloaded';
+                this.residencyEpoch_++;
                 log.error('residency', `cell "${name}" did not unload`, err);
             },
         );

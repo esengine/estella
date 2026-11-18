@@ -35,7 +35,7 @@ interface Sweep {
  * patch smaller than that and reachable from nowhere else is an artefact of the
  * voxel grid, and a polygon for it is a destination nobody can walk to.
  */
-export function buildRegionsMonotone(chf: NavCompactField, minRegionArea: number): number {
+export function buildRegionsMonotone(chf: NavCompactField, minRegionArea: number, border = 0): number {
     const { width: w, depth: d } = chf;
     const regs = chf.regs;
     regs.fill(0);
@@ -102,7 +102,7 @@ export function buildRegionsMonotone(chf: NavCompactField, minRegionArea: number
         }
     }
 
-    removeSmallRegions(chf, nextId, minRegionArea);
+    removeSmallRegions(chf, nextId, minRegionArea, border);
     return nextId;
 }
 
@@ -110,13 +110,15 @@ export function buildRegionsMonotone(chf: NavCompactField, minRegionArea: number
  * Drop patches of walkable ground that are too small to be worth a polygon AND
  * reachable from nowhere else. Size is judged over the whole connected group of
  * regions, not one at a time: a big room cut into six regions by the sweep is
- * not six small islands.
+ * not six small islands. In a tile (`border` > 0) a group reaching the tile's edge is never dropped: it goes on in the next tile,
+ * and how much of it lies in this one says nothing of its size.
  */
-function removeSmallRegions(chf: NavCompactField, regionCount: number, minRegionArea: number): void {
+function removeSmallRegions(chf: NavCompactField, regionCount: number, minRegionArea: number, border = 0): void {
     if (minRegionArea <= 0) return;
     const { width: w, depth: d } = chf;
     const spanCount = new Int32Array(regionCount);
     const linked: Set<number>[] = Array.from({ length: regionCount }, () => new Set<number>());
+    const atEdge = new Uint8Array(regionCount);
 
     for (let z = 0; z < d; z++) {
         for (let x = 0; x < w; x++) {
@@ -127,6 +129,7 @@ function removeSmallRegions(chf: NavCompactField, regionCount: number, minRegion
                 const r = chf.regs[i]!;
                 if (r === 0) continue;
                 spanCount[r]!++;
+                if (border > 0 && (x === border || z === border || x === w - border - 1 || z === d - border - 1)) atEdge[r] = 1;
                 for (let dir = 0; dir < 4; dir++) {
                     const ni = chf.neighbourSpan(x, z, i, dir);
                     if (ni < 0) continue;
@@ -145,17 +148,19 @@ function removeSmallRegions(chf: NavCompactField, regionCount: number, minRegion
         const stack = [r];
         visited[r] = 1;
         let total = 0;
+        let reachesEdge = false;
         while (stack.length) {
             const cur = stack.pop()!;
             group.push(cur);
             total += spanCount[cur]!;
+            if (atEdge[cur]) reachesEdge = true;
             for (const nr of linked[cur]!) {
                 if (visited[nr]) continue;
                 visited[nr] = 1;
                 stack.push(nr);
             }
         }
-        if (total < minRegionArea) for (const g of group) doomed.add(g);
+        if (total < minRegionArea && !reachesEdge) for (const g of group) doomed.add(g);
     }
 
     if (doomed.size === 0) return;

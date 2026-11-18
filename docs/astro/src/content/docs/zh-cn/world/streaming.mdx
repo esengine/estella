@@ -204,4 +204,4 @@ report.loadCount;            // 启动以来带进来过多少个地方
 分块的地面远处用常驻内存的概览来画,只在视野附近读入全精度的块;星球一直画到地平线),以及植物
 ([植被](/docs/zh-cn/graphics/foliage/)和 `PlacedFoliage` 的远景交叉面片,还有生成世界里植物的远景版本),
 它们让整片区域一次就立起来。网格的纹理按视图需要的尺寸保留([纹理流送](/docs/zh-cn/performance/quality-levels/),一项画质设置)。
-导航网格不流送——世界尺寸的 navmesh 一直常驻;世界原点也从不重定基准(`setRenderOriginStep` 让远离原点处的*绘制*保持精确,见[相机](/docs/zh-cn/graphics/camera/))。
+导航网格按格子分块烘焙并跟随加载状态(见[导航](/docs/zh-cn/gameplay/ai/navigation/#在流送世界里)),但智能体只在已加载的地方行走;世界原点也从不重定基准(`setRenderOriginStep` 让远离原点处的*绘制*保持精确,见[相机](/docs/zh-cn/graphics/camera/))。

@@ -31,6 +31,9 @@ import { NavVolume } from './NavVolume';
 import { NavObstacle } from './NavObstacle';
 import { buildNavMesh } from './navmesh/build';
 import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
+import { StreamedNavigation } from './navStreaming';
+import { WorldStreaming } from '../../residency/WorldStreamer';
+import { manifestPlane } from '../../residency/cells';
 import {
     applyObstaclesToGrid, collectNavObstacles, navObstacleDigest,
     collectNavLinks, navLinkDigest, collectNavAreas, navAreaDigest, applyAreasToGrid, FIRST_AREA,
@@ -585,6 +588,8 @@ export class NavPlugin implements Plugin {
 
         const runtimes = new Map<Entity, AgentRuntime>();
         const baked = new Set<Entity>();
+        // A streamed world's volume is baked a tile per grid square as its cells come and go, not once.
+        const streamed = new StreamedNavigation();
         const obstacleState: ObstacleState = { digest: 0, at: 0, deferred: 0, grid: null };
         const linkState: LinkState = { digest: 0, mesh: null };
         const areaState: AreaState = { digest: 0 };
@@ -608,9 +613,14 @@ export class NavPlugin implements Plugin {
                     const obstacles = collectNavObstacles(app.world);
                     const links = collectNavLinks(app.world);
                     const areas = collectNavAreas(app.world);
-                    if (updateObstacles(nav, obstacles, obstacleState, Date.now())) baked.clear();
-                    if (updateAreas(nav, areas, areaState)) baked.clear();
-                    bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles, links, areas);
+                    if (updateObstacles(nav, obstacles, obstacleState, Date.now())) { baked.clear(); streamed.dirtyAll(); }
+                    if (updateAreas(nav, areas, areaState)) { baked.clear(); streamed.dirtyAll(); }
+                    const streamer = app.hasResource(WorldStreaming) ? app.getResource(WorldStreaming) : null;
+                    if (streamer?.manifest && manifestPlane(streamer.manifest) === 'xz') {
+                        streamed.update(app.world, nav, streamer, provider, obstacles, areas);
+                    } else {
+                        bakeVolumes(world as NavWorldView, nav, provider, baked, obstacles, links, areas);
+                    }
                     updateLinks(nav, links, linkState);
                     // The mesh a bake just installed has never been told the prices.
                     updateAreas(nav, areas, areaState);
