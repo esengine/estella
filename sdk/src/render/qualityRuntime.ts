@@ -52,7 +52,7 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         api?.renderer_setLightingDirect?.(enabled && applied.lighting === 'direct');
         api?.renderer_setPlanarReflectionQuality?.(enabled ? applied.planarReflectionScale : 0.5,
             enabled ? applied.planarReflectionMaxSize : 1024,
-            enabled ? applied.planarReflectionUpdatesPerSecond : 0);
+            enabled ? applied.planarReflectionUpdatesPerSecond : 0, enabled === true);
     };
     app.pipeline?.setQuality(quality, apply);
     apply();

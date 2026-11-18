@@ -8272,6 +8272,7 @@ getStack: (camera: Entity) => PostProcessStack | null
 hdrFormat: () => HdrFormat | null
 init: (width: number, height: number) => boolean
 isInitialized: () => boolean
+levelValues: Readonly<QualitySettingValues>
 msaaCapability: () => { effective: number; max: number; }
 resize: (width: number, height: number) => void
 screenStack: PostProcessStack | null
@@ -8833,12 +8834,19 @@ voxelGIResolution: number | undefined
 ## QualityProfile — interface @experimental
 ```
 antialiasing: "msaa" | "temporal"
+aoBlurRadius: number
 aoResolution: number
 depthPrepass: boolean
 detailScale: number
 drawCallBudget: number
+dynamicGIFieldBuildMs: number
+dynamicGIFieldSize: 32 | 64 | 128
+dynamicGIProbeRows: number
 dynamicGIReduced: boolean
+environmentMapSize: 16 | 32
 fogResolution: number
+gtaoSlices: number
+gtaoSteps: number
 lensFlareResolution: number
 lighting: "direct" | "full"
 minRenderScale: number
@@ -8848,6 +8856,7 @@ planarReflectionMaxSize: number
 planarReflectionScale: number
 planarReflectionUpdatesPerSecond: number
 postProcess: boolean
+probeCaptureSize: 8 | 16 | 32
 renderScale: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
 shadowCascades: number
@@ -8856,11 +8865,22 @@ shadowDistance: number
 shadowSoftSamples: number
 shelterMaskSize: number
 skipEffects: readonly string[]
+skyEnvironmentCloudSteps: number
+skyEnvironmentInterval: number
+ssaoSamples: number
+ssgiDenoiseKernel: 3 | 5
+ssgiRays: number
 ssgiResolution: number
+ssgiSteps: number
+ssrRefine: number
+ssrSteps: number
 stillSky: boolean
 textureStreaming: boolean
 textureStreamingBudget: number
+voxelGIBounceRays: number
+voxelGIGridSize: 32 | 64 | 128
 voxelGIResolution: number
+voxelGISunSamples: number
 waterCaustics: boolean
 waterDisplacement: boolean
 waterMirror: boolean

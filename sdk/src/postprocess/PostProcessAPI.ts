@@ -8,6 +8,7 @@ import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState, type PassConfig } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
+import { qualitySettingDefaults, type QualitySettingValues } from '../render/qualitySettings/index';
 import { qualityPassAllowed, qualityPassScale, qualityPassUniforms } from './qualityFilter';
 import { effectPassNames } from './effects';
 import { PassFusion, isFusedPass, type FusedPass } from './passFusion';
@@ -42,6 +43,8 @@ class PostProcessBridge extends WasmBridge<NonNullable<EngineApi>> {
 
 const bridge = new PostProcessBridge();
 let module: PostProcessCore | null = null;
+const HIGHEST_LEVEL: Readonly<QualitySettingValues> = qualitySettingDefaults('high');
+
 /** Four floats the committed format decision is read back through. */
 let hdrPtr = 0;
 
@@ -316,6 +319,10 @@ export class PostProcessAPI {
     /** Whether the quality level in force has the dynamic GI run its cheaper way: the volume system sets the effect's switches from it. */
     get dynamicGIReduced(): boolean {
         return this.qualityFilter_?.dynamicGIReduced ?? false;
+    }
+
+    get levelValues(): Readonly<QualitySettingValues> {
+        return this.qualityFilter_ ?? HIGHEST_LEVEL;
     }
 
     /**

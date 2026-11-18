@@ -152,8 +152,8 @@ void main() {
      */
     createSsr(): ShaderHandle {
         const GLSL = `
-const int STEPS = 48;
-const int REFINE = 6;
+#define SSR_STEPS_MAX 48
+#define SSR_REFINE_MAX 6
 
 /// Interleaved gradient noise: a different start offset per pixel, so the stepping
 /// bands dissolve into noise that a temporal pass then averages away.
@@ -187,6 +187,8 @@ vec3 project(vec3 P) {
 #pragma param u_coverMatrix2 color default(0,0,1,0)
 #pragma param u_coverMatrix3 color default(0,0,0,1)
 #pragma param u_rainCover texture default(white)
+#pragma param u_ssrSteps float default(48) range(1,48)
+#pragma param u_ssrRefine float default(6) range(0,6)
 #pragma gbuffer
 
 #pragma fragment
@@ -285,14 +287,16 @@ void main() {
     // A ray heading back at the camera has nothing on screen to find.
     if (dot(R, V) > 0.97) { fragColor = scene; return; }
 
-    float stepLen = u_maxDistance / float(STEPS);
+    float steps = clamp(floor(u_ssrSteps + 0.5), 1.0, float(SSR_STEPS_MAX));
+    float stepLen = u_maxDistance / steps;
     float jitter = ign(gl_FragCoord.xy);
     vec3 eye = u_camera.w > 0.5 ? u_camera.xyz : P + u_camera.xyz * 1e4;
     vec3 hitColor = vec3(0.0);
     float hit = 0.0;
     float travelled = 0.0;
     vec3 prevP = P;
-    for (int i = 0; i < STEPS; ++i) {
+    for (int i = 0; i < SSR_STEPS_MAX; ++i) {
+        if (float(i) >= steps) break;
         float t = (float(i) + jitter) * stepLen + stepLen * 0.5;
         vec3 Q = P + R * t;
         vec3 s = project(Q);
@@ -304,10 +308,10 @@ void main() {
         // measured along the view: positive is behind it.
         float behind = length(Q - eye) - length(S - eye);
         if (behind > 0.0 && behind < u_thickness + stepLen) {
-            // Bisect between the last step in front and this one behind.
             vec3 a = prevP;
             vec3 b = Q;
-            for (int k = 0; k < REFINE; ++k) {
+            for (int k = 0; k < SSR_REFINE_MAX; ++k) {
+                if (float(k) >= u_ssrRefine) break;
                 vec3 m = 0.5 * (a + b);
                 vec3 sm = project(m);
                 float dm = depthAt(screenTexel(sm.xy, size), size);
@@ -358,8 +362,8 @@ void main() {
      */
     createSsgiGather(): ShaderHandle {
         const GLSL = `
-const int RAYS = 8;
-const int STEPS = 6;
+#define SSGI_RAYS_MAX 8
+#define SSGI_STEPS_MAX 6
 ${IGN_GLSL}
 /// A direction over the hemisphere of N, cosine weighted, from two numbers in [0, 1).
 vec3 cosineDirection(vec3 N, float u, float v) {
@@ -376,6 +380,8 @@ vec3 cosineDirection(vec3 N, float u, float v) {
 #pragma param u_radius float default(150) range(0.05,1500)
 #pragma param u_thickness float default(30) range(0.01,300)
 #pragma param u_maxBounce float default(3) range(0.5,16)
+#pragma param u_ssgiRays float default(8) range(1,8)
+#pragma param u_ssgiSteps float default(6) range(1,6)
 #pragma gbuffer
 #pragma highprecision
 
@@ -407,13 +413,16 @@ void main() {
     float rot = ign(gl_FragCoord.xy);
     float turn = ign(gl_FragCoord.yx + vec2(5.588238 * u_time.x * 60.0, 0.0));
     vec3 gathered = vec3(0.0);
-    for (int k = 0; k < RAYS; ++k) {
-        // A stratified pair per ray, shifted per pixel: the rays of one pixel never bunch, and its neighbours differ.
-        float u = fract((float(k) + 0.5) / float(RAYS) + rot);
+    float rays = clamp(floor(u_ssgiRays + 0.5), 1.0, float(SSGI_RAYS_MAX));
+    float marchSteps = clamp(floor(u_ssgiSteps + 0.5), 1.0, float(SSGI_STEPS_MAX));
+    for (int k = 0; k < SSGI_RAYS_MAX; ++k) {
+        if (float(k) >= rays) break;
+        float u = fract((float(k) + 0.5) / rays + rot);
         float v = fract(float(k) * 0.61803399 + turn);
         vec3 dir = cosineDirection(N, u, v);
-        for (int i = 1; i <= STEPS; ++i) {
-            float f = float(i) / float(STEPS);
+        for (int i = 1; i <= SSGI_STEPS_MAX; ++i) {
+            if (float(i) > marchSteps) break;
+            float f = float(i) / marchSteps;
             float t = u_radius * f * f;
             vec3 Q = P + N * (u_radius * 0.01) + dir * t;
             vec4 q = u_projection * vec4(Q, 1.0);
@@ -432,7 +441,7 @@ void main() {
             }
         }
     }
-    fragColor = vec4(gathered / float(RAYS), 1.0);
+    fragColor = vec4(gathered / rays, 1.0);
 }
 #pragma end
 
@@ -452,6 +461,7 @@ void main() {
 // The scene's albedo, beside its surface record (alpha 1 where a surface wrote one); black is "none written".
 #pragma param u_sceneAlbedo texture default(black) texel(data)
 #pragma param u_intensity float default(1) range(0,4)
+#pragma param u_ssgiKernel float default(5) range(3,5)
 #pragma gbuffer
 
 #pragma fragment
@@ -480,8 +490,11 @@ void main() {
     vec2 texel = 1.0 / vec2(textureSize(u_texture, 0));
     vec3 sum = vec3(0.0);
     float wsum = 0.0;
+    int kernelHalf = u_ssgiKernel < 4.0 ? 1 : 2;
     for (int j = -2; j <= 2; ++j) {
+        if (abs(j) > kernelHalf) continue;
         for (int i = -2; i <= 2; ++i) {
+            if (abs(i) > kernelHalf) continue;
             vec2 uv = v_texCoord + vec2(float(i), float(j)) * texel;
             ivec2 t = screenTexel(uv, size);
             float dt = depthAt(t, size);
@@ -1030,6 +1043,7 @@ void main() {
 #pragma param u_intensity float default(1) range(0,2)
 #pragma param u_bias float default(0.12) range(0,0.6)
 #pragma param u_power float default(1.6) range(0.5,4)
+#pragma param u_aoSamples float default(12) range(1,12)
 
 #pragma fragment
 precision highp float;
@@ -1040,7 +1054,7 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-const int K = 12;
+#define SSAO_SAMPLES_MAX 12
 const float TAU = 6.28318530718;
 
 void main() {
@@ -1099,8 +1113,10 @@ void main() {
     // neighbourhood closed off. Weighting near taps louder is the tempting
     // mistake — they land back on this surface and would vote OPEN loudest.
     float occl = 0.0;
-    for (int i = 0; i < K; ++i) {
-        float a = (float(i) + 0.5) / float(K);
+    float samples = clamp(floor(u_aoSamples + 0.5), 1.0, float(SSAO_SAMPLES_MAX));
+    for (int i = 0; i < SSAO_SAMPLES_MAX; ++i) {
+        if (float(i) >= samples) break;
+        float a = (float(i) + 0.5) / samples;
         float ang = a * 7.0 * TAU + rot;
         vec2 off = vec2(cos(ang), sin(ang)) * (a * radiusTexels);
         ivec2 st = c + ivec2(floor(off + 0.5));
@@ -1123,7 +1139,7 @@ void main() {
         occl += max(sinE - u_bias, 0.0) * range;
     }
 
-    float ao = 1.0 - clamp(occl / float(K) * u_intensity, 0.0, 1.0) * reach;
+    float ao = 1.0 - clamp(occl / samples * u_intensity, 0.0, 1.0) * reach;
     fragColor = vec4(vec3(pow(ao, u_power)), 1.0);
 }
 #pragma end
@@ -1142,6 +1158,7 @@ void main() {
         const source = `#pragma shader "PP SSAO Blur ${axis.toFixed(0)}"
 #pragma version 300 es
 #pragma domain PostProcess
+#pragma param u_aoBlurRadius float default(3) range(0,3)
 
 #pragma fragment
 precision highp float;
@@ -1153,7 +1170,7 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-const int R = 3;
+#define AO_BLUR_RADIUS_MAX 3
 /// A tap whose view-ray gap exceeds this many texel-widths is another surface.
 const float SLOPE = 4.0;
 
@@ -1175,7 +1192,10 @@ void main() {
     vec2 stepUv = ${step} / vec2(hsize);
     float sum = 0.0;
     float wsum = 0.0;
-    for (int i = -R; i <= R; ++i) {
+    int radius = int(clamp(floor(u_aoBlurRadius + 0.5), 0.0, float(AO_BLUR_RADIUS_MAX)));
+    for (int i = -AO_BLUR_RADIUS_MAX; i <= AO_BLUR_RADIUS_MAX; ++i) {
+        if (i < -radius) continue;
+        if (i > radius) break;
         vec2 uv = v_texCoord + stepUv * float(i);
         float g = exp(-float(i * i) / 8.0);
 

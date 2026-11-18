@@ -1326,8 +1326,8 @@ void renderer_setViewLighting(u32 mode, f32 rotationDegrees, f32 keyIntensity, f
     g_renderFrame->setViewLighting(lighting);
 }
 
-void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond) {
-    if (g_renderFrame) g_renderFrame->setPlanarQuality(scale, maxSize, updatesPerSecond);
+void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored) {
+    if (g_renderFrame) g_renderFrame->setPlanarQuality(scale, maxSize, updatesPerSecond, capAuthored);
 }
 
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity) {
