@@ -188,11 +188,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     async loadFromPixels(
-        width: number, height: number, pixels: Uint8Array, flipY: boolean, content: TextureContent,
+        width: number, height: number, pixels: Uint8Array, flipY: boolean, content: TextureContent, srgb = true,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
-        // A collage of colour images, so colour: the engine takes the code as said.
-        const format = samplesAsSrgb(true) ? 2 : 1;
+        // A collage of colour images, so colour, unless the caller says its texels are numbers: the engine takes the code as said.
+        const format = samplesAsSrgb(srgb) ? 2 : 1;
         // Native (no wasm heap): upload the bytes directly. Web embind lacks this
         // method, so it takes the heap path below unchanged.
         if (rm.createTextureFromBytes) {
