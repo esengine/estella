@@ -127,6 +127,7 @@ export interface EffectDef {
     /** Set for every built-in effect, by the table at the end of this file. */
     category?: EffectCategory;
     qualityGroup?: QualitySettingGroup;
+    labelZh?: string;
     /**
      * Set for an effect that is a stage of the chain's last pass and not a pass of its own ("displayLut"): it has no shader, and the volume's
      * values are handed to the stack for the last pass to read, which runs once and after the output transform.
@@ -1162,4 +1163,19 @@ for (const [group, types] of Object.entries(QUALITY_GROUPS) as [QualitySettingGr
         const def = effectRegistry.get(type);
         if (def) def.qualityGroup = group;
     }
+}
+
+const CHINESE_LABELS: Record<string, string> = {
+    blur: '模糊', bloom: '泛光', vignette: '暗角', grayscale: '灰度', colorGrade: '调色', chromaticAberration: '色差',
+    tonemap: '色调映射（ACES）', fxaa: 'FXAA 抗锯齿', lensDistortion: '镜头畸变', pixelate: '像素化', outline: '描边',
+    depthOutline: '深度描边', edgeOutline: '边缘描边', mist2d: '2D 薄雾', rain2d: '2D 雨', fog2d: '2D 战争迷雾',
+    distanceFog: '距离雾', starfield: '星空', skyAtmosphere: '天空大气', voxelGI: '体素 GI', dynamicGI: '动态 GI',
+    sharpen: '锐化', heightFog: '高度雾', ssgi: '屏幕空间 GI', contactShadows: '接触阴影', lightShafts: '光束',
+    autoExposure: '自动曝光', depthOfField: '景深', rain: '雨', snowCover: '积雪', ssao: '环境光遮蔽',
+    subsurface: '次表面散射', gtao: '环境光遮蔽（GTAO）', ssr: '屏幕空间反射', taa: '时间性抗锯齿', motionBlur: '运动模糊',
+    filmGrain: '胶片颗粒', lensFlare: '镜头光晕', agx: 'AgX 色调映射', lutGrade: '调色 LUT', palette: '调色板', displayLut: '显示 LUT',
+};
+for (const [type, label] of Object.entries(CHINESE_LABELS)) {
+    const def = effectRegistry.get(type);
+    if (def) def.labelZh = label;
 }

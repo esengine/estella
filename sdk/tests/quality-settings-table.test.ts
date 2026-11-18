@@ -134,4 +134,8 @@ describe('where an effect is listed among a level\'s settings', () => {
         const groups = new Set(QUALITY_SETTING_GROUPS.map((g) => g.id));
         for (const def of getAllEffectDefs()) expect(groups.has(effectQualityGroup(def.type)), def.type).toBe(true);
     });
+
+    it('names every built-in effect in Chinese too', () => {
+        for (const def of getAllEffectDefs()) expect(def.labelZh, def.type).toBeTruthy();
+    });
 });

@@ -152,6 +152,7 @@ export function registerUnderwaterEffect(): void {
     registerEffect({
         type: 'underwater',
         label: 'Underwater',
+        labelZh: '水下',
         category: 'atmosphere',
         qualityGroup: 'water',
         factory: () => Material.compileShader(SOURCE),

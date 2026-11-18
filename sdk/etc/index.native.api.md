@@ -4152,6 +4152,7 @@ factory: (() => ShaderHandle) | undefined
 fallback: EffectSubPass[] | undefined
 inline: (() => EffectStage) | undefined
 label: string
+labelZh: string | undefined
 multiPass: EffectSubPass[] | undefined
 native: string | undefined
 qualityGroup: QualitySettingGroup | undefined
