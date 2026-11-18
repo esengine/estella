@@ -24,6 +24,9 @@
  * position and the grid is rebuilt every sample. `--spread` gives each player
  * about 30 others in range instead of everyone.
  *
+ * `--quant STEP` sends positions as whole numbers of STEP world units (and
+ * rotations to 0.01 degree) through `quantizeReplicatedFields`.
+ *
  * `--refresh N` recomputes each connection's view every N samples
  * (`setInterestRefresh`).
  *
@@ -56,6 +59,7 @@ const SPREAD = argv.includes('--spread');
 const WASM = argv.includes('--wasm');
 const PHASES = argv.includes('--phases');
 const REFRESH = Number(opt('refresh', 1));
+const QUANT = Number(opt('quant', 0));
 const RADIUS = 100;
 const STEP = 1 / 20;
 
@@ -84,6 +88,12 @@ const move = (world, e, dx, dz, half) => {
         world.set(e, sdk.Transform, t);
     }
 };
+
+// Declared before either end builds its table.
+if (QUANT > 0) {
+    if (Pos) repl.quantizeReplicatedFields('BenchPos', { x: QUANT, y: QUANT, z: QUANT });
+    else repl.quantizeReplicatedFields('Transform', { position: QUANT, rotation: 0.01, scale: 0.001 });
+}
 
 const serverApp = newApp();
 serverApp.setFixedTimestep(STEP);
@@ -136,9 +146,10 @@ const stat = (xs) => {
 };
 const w = stat(wall);
 const c = stat(cpu);
-console.log(`${PLAYERS} players, ${SPREAD ? 'spread' : 'crowd'}, ${WASM ? 'engine' : 'script'} positions, ${BUDGET > 0 ? `budget ${BUDGET} B/s` : 'no budget'}${REFRESH > 1 ? `, views every ${REFRESH} samples` : ''}: `
+console.log(`${PLAYERS} players, ${SPREAD ? 'spread' : 'crowd'}, ${WASM ? 'engine' : 'script'} positions, ${BUDGET > 0 ? `budget ${BUDGET} B/s` : 'no budget'}${REFRESH > 1 ? `, views every ${REFRESH} samples` : ''}${QUANT > 0 ? `, positions to ${QUANT}` : ''}: `
     + `tick mean ${w.mean.toFixed(2)} ms (cpu ${c.mean.toFixed(2)} ms), p50 ${w.p50.toFixed(2)} (cpu ${c.p50.toFixed(2)}), p90 ${w.p90.toFixed(2)}, `
-    + `rows sent ${server.deltaRowsSent}, deferred ${server.rowsDeferred}`);
+    + `rows sent ${server.deltaRowsSent}, deferred ${server.rowsDeferred}, `
+    + `${(server.stats.stateBytes / Math.max(1, server.deltaRowsSent)).toFixed(1)} state bytes a row`);
 if (PHASES) {
     const rows = [...server.samplePhases].sort((a, b) => b[1] - a[1]);
     for (const [phase, ms] of rows) console.log(`  ${phase.padEnd(20)} ${(ms / TICKS).toFixed(3)} ms/tick`);
