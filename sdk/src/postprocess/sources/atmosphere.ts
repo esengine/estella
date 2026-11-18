@@ -223,6 +223,11 @@ float cloudShadowAt(vec3 world, vec3 cam, vec3 sun, float coverage, float overca
     }
     return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
 }
+float cloudBayer(vec2 p) {
+    ivec2 q = ivec2(p) & 3;
+    int b = ((q.x ^ q.y) & 1) * 8 + (q.y & 1) * 4 + (((q.x ^ q.y) >> 1) & 1) * 2 + ((q.y >> 1) & 1);
+    return (float(b) + 0.5) / 16.0;
+}
 /// The cloud slab along @p dir as a map of what is behind it, colour * T + L: how much of it the clouds let through, and the light they add.
 /// A function of the direction alone, so it can be worked out small and read back big.
 void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float overcast, vec3 windDrift, out vec3 L, out float T) {
@@ -236,7 +241,7 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
         float tt = min((base + thick - u_altitude) / dir.y, tb + thick * 6.0);
         float steps = clamp(floor(u_cloudSteps), 1.0, float(CLOUD_STEPS_MAX));
         float ds = (tt - tb) / steps;
-        float jitter = ign(gl_FragCoord.xy);
+        float jitter = cloudBayer(gl_FragCoord.xy);
         float sigma = 1.3 * (1.0 + overcast * 1.5);
         vec3 drift = windDrift;
         float cosS = dot(dir, sun);
@@ -276,7 +281,7 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
         float tt = max(u_cloud2Base + u_cloud2Thickness - u_altitude, 0.0) / dir.y;
         float steps = clamp(floor(u_cloud2Steps), 1.0, float(CLOUD2_STEPS_MAX));
         float ds = (tt - tb) / steps;
-        float jitter = ign(gl_FragCoord.yx);
+        float jitter = fract(cloudBayer(gl_FragCoord.xy) + 0.5);
         float sigma = 1.3 * (1.0 + overcast);
         vec3 drift = windDrift + vec3(u_cloud2DriftX - u_cloudDriftX, 0.0, u_cloud2DriftZ - u_cloudDriftZ);
         vec3 ambient = dome * 0.7 + lin(vec3(0.55, 0.65, 0.9)) * 0.015 * night;

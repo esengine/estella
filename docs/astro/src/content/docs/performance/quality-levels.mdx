@@ -254,8 +254,9 @@ The box's milliseconds are not a phone's; what carries over is the steps each pi
 | `bistro`, Low | bloom, all passes | 0.18 → 0.17, 12 → 8 passes | two levels fewer |
 
 At Medium the cloud shadow map measured slower with four samples than with six (0.88 → 1.04 ms in both runs, 0.80 with three); Medium's timer gave one reading a run, so this is not settled.
-Fewer cloud steps than 12 at Low leave a hatch of the march's jitter on the clouds, which Low has no temporal smoothing to hide, so
-Low keeps 12; two sunlight steps turned the sky bluer by about 4%, so Low keeps 3.
+The clouds' march starts each pixel at a 4 × 4 ordered offset, which the composite's read of four half-size texels a side evens out;
+the interleaved-gradient offset it had before left fine vertical streaks on the clouds at 12 steps, which Low has no temporal
+smoothing to hide. Low keeps 12 (fewer was not tried with the ordered offset); two sunlight steps turned the sky bluer by about 4%, so Low keeps 3.
 
 A material reads its count from the engine rather than from its own parameters: the frame's `u_quality` constants, whose first
 slot is the refraction count. A table entry claims a slot with `materialSlot`; zero, which is what the slot holds with the quality
