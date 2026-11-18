@@ -68,6 +68,8 @@ const systemdArg = (a: string): string => (/^[A-Za-z0-9_./:=@%+-]+$/.test(a) ? a
 export function serverDeployFiles(info: { name: string; server: ProjectServer; web: boolean; engine?: boolean }): Record<string, string> {
   const { name, server } = info;
   const engine = info.engine === true;
+  // A server with an address of its own answers there; its page may be served from anywhere else.
+  const site = server.url ? new URL(server.url.replace(/^ws/, 'http')).host : 'localhost';
   const slug = serverSlug(name);
   const port = server.port;
   const home = `/srv/${slug}`;
@@ -80,7 +82,7 @@ export function serverDeployFiles(info: { name: string; server: ProjectServer; w
   const caddyfile = `# ${name}: the game's page and its server at one address.
 # SITE_ADDRESS is the domain players open (Caddy gets its certificate itself); UPSTREAM is where the
 # server listens; WEB_ROOT is the web export. Each has the value for a server run under systemd.
-{$SITE_ADDRESS:localhost} {
+{$SITE_ADDRESS:${site}} {
 \tencode zstd gzip
 \t# Only the WebSocket upgrade goes to the server, so a server at / still leaves the page to file_server.
 \t@server {
@@ -143,7 +145,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      SITE_ADDRESS: \${SITE_ADDRESS:-localhost}
+      SITE_ADDRESS: \${SITE_ADDRESS:-${site}}
       UPSTREAM: server:${port}
       WEB_ROOT: /srv/web
     volumes:
@@ -163,8 +165,11 @@ volumes:
 
 \`server.mjs\` is the game's server (\`${server.entry}\`) in one file: Node 20 or later runs it with nothing installed.
 ${info.web ? '`web/` is the game\'s web export.' : '`web/` is where the game\'s web export goes: `estella export <project> --platform web --out web`.'}
-Players open one address; the page is served from \`web/\` and the game dials \`${server.path}\` on the same host
-(\`serverAddress({ path: '${server.path}' })\` in \`esengine/session\`), over \`wss:\` because the page is \`https:\`.
+${server.url
+    ? `The page dials \`${server.url}\` (the project's \`server.url\`, written into it), so \`web/\` can be served from anywhere,
+GitHub Pages included; this machine answers at ${site}. It also serves \`web/\` itself, for players who come here.`
+    : `Players open one address; the page is served from \`web/\` and the game dials \`${server.path}\` on the same host
+(\`serverAddress({ path: '${server.path}' })\` in \`esengine/session\`), over \`wss:\` because the page is \`https:\`.`}
 
 ## With Docker
 
