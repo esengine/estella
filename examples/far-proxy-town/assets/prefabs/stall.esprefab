@@ -1,0 +1,105 @@
+{
+  "version": "2",
+  "name": "stall",
+  "rootEntityId": "root",
+  "entities": [
+    {
+      "prefabEntityId": "root",
+      "name": "Stall",
+      "parent": null,
+      "children": [
+        "table",
+        "canopy"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "table",
+      "name": "Table",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/stall-table.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "canopy",
+      "name": "Canopy",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/stall-canopy.esmesh",
+            "texture": "assets/textures/cloth.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

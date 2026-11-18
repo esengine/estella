@@ -714,6 +714,10 @@ async function boot(): Promise<void> {
        * from outside; the counts are the difference. Engaging the profiler is
        * what fills them, so a package that is only played pays nothing.
        */
+      /** What the last frame drew: draw calls, GPU draws, triangles, meshes and what culling left out. */
+      drawn(): Record<string, number> {
+        return { ...Renderer.getStats() };
+      },
       render(): Record<string, number> {
         module.engine_setCpuProfiling?.(true);
         try {
