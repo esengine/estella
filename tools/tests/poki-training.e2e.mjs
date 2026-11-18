@@ -49,7 +49,7 @@ const status = page => page.evaluate(() => window.__estellaCooked.probe(['Device
 try {
     for (const viewport of [{ width: 800, height: 450 }, { width: 360, height: 640 }]) {
         for (const mode of ['normal', 'init-failed', 'sdk-missing', 'standalone']) {
-            const context = await browser.newContext({ viewport });
+            const context = await browser.newContext({ viewport, hasTouch: viewport.height > viewport.width });
             const page = await context.newPage();
             const observation = { viewport, mode, status: 'failed', errors: [], unexpectedRequests: [], events: [], screenshots: [] };
             cases.push(observation);
