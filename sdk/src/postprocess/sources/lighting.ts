@@ -1080,6 +1080,13 @@ void main() {
     // or a neighbour's geometry. The ceiling is the bandwidth budget.
     float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(size.x), 0.0), d) - P), 1e-6);
     float radiusTexels = clamp(u_radius / worldPerTexel, 2.0, 96.0);
+    // A surface too far off for this pass to measure is left open, faded out and not cut. Two things say so. Its radius is under a texel or two: its
+    // samples are then the texels beside it, where the radius was clamped up to a size it was never asked for. And one step of the depth buffer there
+    // is longer than the bias that keeps a flat surface from shading itself: the samples then vote occluded at random, differently each frame, and
+    // the surface boils (a planet seen from space, whose near face is still a few texels to the radius).
+    float depthStep = length(worldFromDepth(cuv, min(d + 1.0 / 16777216.0, 1.0)) - P);
+    float reach = smoothstep(1.0, 2.5, u_radius / worldPerTexel) * (1.0 - smoothstep(0.25, 1.0, depthStep / max(u_bias * u_radius, 1e-6)));
+    if (reach <= 0.0) { fragColor = vec4(1.0); return; }
 
     // A 4x4 rotation scrambled by a factor coprime to 16, so the blur averages a
     // pattern and not a band. Keyed to THIS pass's pixel — c counts full-res
@@ -1116,7 +1123,7 @@ void main() {
         occl += max(sinE - u_bias, 0.0) * range;
     }
 
-    float ao = 1.0 - clamp(occl / float(K) * u_intensity, 0.0, 1.0);
+    float ao = 1.0 - clamp(occl / float(K) * u_intensity, 0.0, 1.0) * reach;
     fragColor = vec4(vec3(pow(ao, u_power)), 1.0);
 }
 #pragma end

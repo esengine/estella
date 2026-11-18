@@ -71,6 +71,13 @@ void main() {
     vec3 up = normalize(worldFromDepth(cuv + vec2(0.0, 1.0 / float(size.y)), d) - P);
     float worldPerTexel = max(length(worldFromDepth(cuv + vec2(1.0 / float(size.x), 0.0), d) - P), 1e-6);
     float radiusTexels = clamp(u_radius / worldPerTexel, 3.0, 128.0);
+    // A surface too far off for this pass to measure is left open, faded out and not cut. Two things say so. Its radius is under a texel or two: its
+    // samples are then the texels beside it, where the radius was clamped up to a size it was never asked for. And one step of the depth buffer there
+    // is longer than the bias that keeps a flat surface from shading itself: the samples then vote occluded at random, differently each frame, and
+    // the surface boils (a planet seen from space, whose near face is still a few texels to the radius).
+    float depthStep = length(worldFromDepth(cuv, min(d + 1.0 / 16777216.0, 1.0)) - P);
+    float reach = smoothstep(1.5, 3.5, u_radius / worldPerTexel) * (1.0 - smoothstep(0.25, 1.0, depthStep / max(0.1 * u_radius, 1e-6)));
+    if (reach <= 0.0) { fragColor = vec4(1.0); return; }
 
     // A 4x4 pattern of slice angles and march offsets, keyed to this pass's own pixel (c counts full-resolution texels).
     ivec2 rp = c / 2;
@@ -133,7 +140,7 @@ void main() {
         visibility += projLen * (arc0 + arc1);
     }
     visibility /= float(SLICES);
-    float ao = 1.0 - clamp((1.0 - clamp(visibility, 0.0, 1.0)) * u_intensity, 0.0, 1.0);
+    float ao = 1.0 - clamp((1.0 - clamp(visibility, 0.0, 1.0)) * u_intensity, 0.0, 1.0) * reach;
     fragColor = vec4(vec3(pow(ao, u_power)), 1.0);
 }
 #pragma end
