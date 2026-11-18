@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
 import { Sprite, Transform } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
-import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
+import { loadWasmModule, HAS_WASM, HAS_EDITOR_API } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('world transform authority', () => {
     let module: ESEngineModule;
@@ -193,7 +193,7 @@ describe.skipIf(!HAS_WASM)('a compiled system that moves transforms', () => {
  * always has a renderer — so these run without one, which is the only way to tell
  * "it announced" apart from "something else was drawing anyway".
  */
-describe.skipIf(!HAS_WASM)('the editor writes through the same authority', () => {
+describe.skipIf(!HAS_EDITOR_API)('the editor writes through the same authority', () => {
     let module: ESEngineModule;
     beforeAll(async () => { module = await loadWasmModule(); });
 

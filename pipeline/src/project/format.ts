@@ -25,6 +25,7 @@ import {
 import { normalizePlatform, type ExportPlatform } from './platforms';
 import { cspConnectSources } from '../export/cspConnect';
 import { parseProjectTools, type ProjectTools } from '../tools/projectTools';
+import { parseProjectServer, type ProjectServer } from './serverConfig';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -380,22 +381,20 @@ export interface ProjectPackaging {
    *  derived from the design resolution's aspect (see {@link resolveOrientation}) —
    *  so a landscape design ships landscape with zero config. */
   orientation?: ScreenOrientation;
-  /**
-   * How the build treats asset optimization. `'auto'` (default) honors each
-   * asset's per-asset Import Settings — textures compress to KTX2 / downscale to
-   * their Max Size, WAV → MP3, `<name>.atlas/` folders pack — so what ships is
-   * authored on the asset, not toggled here. `'skip'` ships everything raw for
-   * fast iteration (Unity's "Asset Import Overrides"). The build derives the cook
-   * flags below from this; the per-ASSET decisions live in the Inspector.
+  /*
+   * What the build compresses. Each is one box in the Build dialog, off unless ticked: nothing is compressed that the
+   * person did not choose, and no size budget turns one on. The per-asset numbers (a texture's format and Max Size, a
+   * clip's bitrate) live in the asset's Import Settings; these say whether the build applies them at all.
    */
-  assetCompression?: 'auto' | 'skip';
-  /** @deprecated Superseded by {@link assetCompression}. Kept so older projects
-   *  still parse; the dialog no longer writes these. */
+  /** Apply each texture's Import Settings: its GPU format (KTX2) where the target ships one, and its Max Size. */
   compressTextures?: boolean;
-  /** @deprecated see {@link assetCompression}. */
+  /** WAV to MP3, at each clip's authored bitrate. */
   compressAudio?: boolean;
-  /** @deprecated see {@link assetCompression}. */
+  /** Pack each `<name>.atlas/` folder into atlas pages. */
   atlasTextures?: boolean;
+  /** A playable's PNGs as WebP: lossless, or lossy at quality 90 or 80. Absent ships them as PNG. Font pages and
+   *  nearest-filtered art are always lossless, as a lossy encoding would change what they draw. */
+  webpImages?: WebpImages;
   /**
    * Compress the engine binary to `.wasm.br` where the host can load one — the
    * POLICY half of `profile.wasmBrotli`, ignored by hosts that cannot. Off by
@@ -500,9 +499,14 @@ export interface ProjectPackaging {
   remoteRoot?: string;
 }
 
+/** The WebP encodings a playable's images can ship in. */
+export type WebpImages = 'lossless' | 90 | 80;
+export const WEBP_IMAGES: readonly WebpImages[] = ['lossless', 90, 80];
+
 /** The packaging settings a profile may set; the rest are the project's. */
 export const EXPORT_PROFILE_FIELDS = [
-  'config', 'sourceMaps', 'minifyScripts', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
+  'config', 'sourceMaps', 'minifyScripts', 'compressTextures', 'compressAudio', 'atlasTextures', 'webpImages',
+  'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
 ] as const satisfies readonly (keyof ProjectPackaging)[];
 
 /**
@@ -567,6 +571,8 @@ export interface ProjectManifest {
   scripts?: ProjectScripts;
   /** Optional third-party tools the project switches on (Luban for Excel tables). Off unless named here. */
   tools?: ProjectTools;
+  /** The game's own server, which `export --platform server` packages to deploy; see {@link ProjectServer}. */
+  server?: ProjectServer;
   /** One-line summary, shown when the project is used as a New-project template. */
   description?: string;
   /** Short category label for the template gallery (e.g. "2D", "Physics"). */
@@ -820,6 +826,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
   }
   const tools = parseProjectTools(o.tools);
   if (tools) manifest.tools = tools;
+  const server = parseProjectServer(o.server);
+  if (server) manifest.server = server;
   if (typeof o.description === 'string') manifest.description = o.description;
   if (typeof o.tag === 'string') manifest.tag = o.tag;
   if (o.features && typeof o.features === 'object') {
@@ -956,13 +964,12 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
     if (typeof p.compressWasm === 'boolean') pkg.compressWasm = p.compressWasm;
     if (typeof p.engineSubpackage === 'boolean') pkg.engineSubpackage = p.engineSubpackage;
-    if (p.assetCompression === 'auto' || p.assetCompression === 'skip') pkg.assetCompression = p.assetCompression;
-    // The deprecated trio the `assetCompression` switch replaced. Still read:
-    // a project written before it exists on disk, and dropping them here would
-    // silently turn its choice back on.
+    // An older project's `assetCompression: 'auto'` is not read as a choice: it was the default the dialog wrote for
+    // everyone, and compression now happens only where a box was ticked.
     if (typeof p.compressTextures === 'boolean') pkg.compressTextures = p.compressTextures;
     if (typeof p.compressAudio === 'boolean') pkg.compressAudio = p.compressAudio;
     if (typeof p.atlasTextures === 'boolean') pkg.atlasTextures = p.atlasTextures;
+    if ((WEBP_IMAGES as readonly unknown[]).includes(p.webpImages)) pkg.webpImages = p.webpImages as WebpImages;
     if (typeof p.icon === 'string' && p.icon !== '') pkg.icon = p.icon;
     // Project-wide orientation. `orientation` is authoritative; a project written by
     // an older editor carried it per-platform (packaging.platforms.{wechat|playable}

@@ -59,6 +59,8 @@ export {
     type SessionWelcome,
 } from './ClientSession';
 export { acceptWebSocket, type WebSocketLike, type AcceptWebSocketOptions } from './acceptWebSocket';
+export { serverAddress, type ServerAddressOptions } from './serverAddress';
+export { TokenBook, newToken, MIN_TOKEN_LENGTH, type TokenAccount } from './TokenBook';
 export { s, SchemaError, type Schema, type Infer } from './schema';
 export { proto, protoAs, jsonCodec, type ProtoMessage, type ProtoSchema } from './proto';
 export {

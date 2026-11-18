@@ -79,7 +79,7 @@ const BUILTINS: Record<string, string> = {
 const SPECIAL_BUILTINS = new Set(['mod', 'atan', 'lessThan', 'lessThanEqual', 'greaterThan', 'greaterThanEqual', 'equal', 'notEqual', 'not',
     'floatBitsToUint', 'floatBitsToInt', 'uintBitsToFloat', 'intBitsToFloat', 'inverse', 'isnan', 'isinf']);
 const FLOAT_RESULT = new Set(['length', 'distance', 'dot', 'determinant']);
-const DERIVATIVE = /\b(textureSample|textureSampleBias|dpdx|dpdy|fwidth)\(/;
+const DERIVATIVE = /\b(textureSample|textureSampleBias|dpdx|dpdy|fwidth|es_sampleNormal)\(/;
 
 /** `#pragma param` types as the material block declares them. */
 const PARAM_TYPES: Record<string, string> = { float: 'float', int: 'int', vec2: 'vec2', vec3: 'vec3', vec4: 'vec4', color: 'vec4', texture: 'sampler2D', textureArray: 'sampler2DArray' };
@@ -99,6 +99,7 @@ interface Env {
     samplers: Map<string, SamplerPair>;
     arity: Record<string, number>;
     returnFields: Record<string, string[]>;
+    handoffs: [string, string, string | null][];
 }
 
 function envOf(api: EngineShaderApi, source: string): Env {
@@ -122,6 +123,7 @@ function envOf(api: EngineShaderApi, source: string): Env {
         samplers: new Map(Object.entries(d.samplers).map(([n, [unit, kind]]) =>
             [n, { tex: `t${unit}`, smp: kind === 'depth' ? null : `s${unit}`, kind: kind === 'depth' ? 'depth' : '2d' } as SamplerPair])),
         arity: api.wgslArity,
+        handoffs: Object.entries(d.handoffs).map(([g, [v, guard]]) => [g, v, guard]),
     };
 }
 
@@ -903,7 +905,17 @@ class Emitter {
         });
         const arity = this.env.arity[n];
         if (arity !== out.length) this.err(`engine function '${n}' takes ${arity} arguments in WGSL and ${out.length} in GLSL`, e.line);
+        if (n === 'sampleNormal' && this.stage === 'fragment') return { code: `${this.mippedNormalHelper()}(${out.join(', ')})`, type: sig.ret };
         return { code: `${n}(${out.join(', ')})`, type: sig.ret };
+    }
+
+    private mippedNormalHelper(): string {
+        const name = 'es_sampleNormal';
+        if (!this.helpers.has(name)) {
+            this.helpers.set(name, `@diagnostic(off, derivative_uniformity)\nfn ${name}(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {\n`
+                + '    return sampleNormalGrad(map, samp, uv, dpdx(uv), dpdy(uv));\n}');
+        }
+        return name;
     }
 
     /** A call of an engine function that writes its arguments, as the WGSL call that returns them and a write of each. */
@@ -948,7 +960,8 @@ class Emitter {
             if (active.length === 0) continue;
             const guard = combo.map((c) => (c.on ? c.cond : `!${c.cond}`)).join(' && ');
             const params = ['es_in : VSOut', ...(this.usesFront ? ['@builtin(front_facing) es_ff : bool'] : [])].join(', ');
-            const setup = `    es_v = es_in;${this.usesFront ? ' es_front = es_ff;' : ''}\n    es_main();`;
+            const handoffs = this.env.handoffs.map(([g, v, guard]) => (guard ? `#ifdef ${guard}\n    ${g} = es_in.${v};\n#endif\n` : `    ${g} = es_in.${v};\n`)).join('');
+            const setup = `    es_v = es_in;${this.usesFront ? ' es_front = es_ff;' : ''}\n${handoffs}    es_main();`;
             let fn: string;
             if (active.length === 1 && active[0]!.location === 0) {
                 fn = `@fragment fn fs_main(${params}) -> @location(0) ${wType(active[0]!.type)} {\n${setup}\n    return ${safe(active[0]!.name)};\n}`;

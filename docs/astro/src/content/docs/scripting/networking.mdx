@@ -330,6 +330,55 @@ A session can speak protobuf instead of JSON (`wire: 'pb'` on the client, `wire`
 host; `proto()` / `protoAs()` bring a `.proto` message into a contract) and still be read
 as JSON in a debugger.
 
+## Deploy a game server
+
+A game with a server names it in `project.esproject`:
+
+```json
+"server": {
+  "entry": "server/main.ts",
+  "path": "/play",
+  "port": 8090,
+  "args": ["--port", "{port}", "--host", "{host}", "--data", "{data}/world.json"],
+  "health": "/healthz"
+}
+```
+
+```bash
+node pipeline/bin/estella.mjs export my-game --platform server
+```
+
+writes `dist-server/`: `server.mjs`, the server bundled into one file Node 20 runs with nothing
+installed (`esengine` is the SDK's headless build); `web/`, the game's web export (`--no-web`
+leaves it out); `wasm/` when the server runs the engine itself; and the files that put both on a
+machine: `compose.yaml` and a `Dockerfile` (`SITE_ADDRESS=play.example.com docker compose up -d --build`,
+and Caddy gets the certificate), or `deploy/<game>.service` for systemd with `deploy/Caddyfile`.
+`{port}`, `{host}`, `{data}` and `{wasm}` in `args` are filled in for each.
+
+The page and the server share one address, and only the WebSocket upgrade at `path` reaches the
+server. The client finds it without an address in its build:
+
+```ts
+import { serverAddress } from 'esengine/session';
+
+// wss://<the page's host>/play, or ?server=ws://127.0.0.1:8090/play while developing.
+const url = serverAddress({ path: '/play' });
+```
+
+A page served from somewhere else (GitHub Pages, a CDN, a desktop app) names its server: `"url":
+"wss://sector.example.com/play"` in the `server` block, or `--server-url` on the export. The web and
+desktop exports write it into the page and allow its origin in the page's policy, and
+`serverAddress` dials it; the server's `compose.yaml` and `Caddyfile` then answer at that host. The
+order is `?server=`, then the address in the build, then the page's own host.
+
+For a test with people you know, `TokenBook` signs players in by a token each: read the book from
+the data folder, never from the game's code, and make each token with `newToken()`.
+
+```ts
+const book = TokenBook.parse(JSON.parse(readFileSync(`${data}/players.json`, 'utf8')));
+// in authenticate: const who = book.check(raw.account, raw.token); if (!who) throw new SessionRejected('UNKNOWN PLAYER');
+```
+
 ## Best practices
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC

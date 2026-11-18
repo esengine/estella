@@ -21,6 +21,7 @@ export interface DomainApi {
     /** The engine's own samplers: GLSL name -> [unit, kind]. A twin names one by its unit (`t<unit>`, `s<unit>`); a depth texture
      *  has no sampler and is read by texel. */
     samplers: Record<string, [number, 'color' | 'depth']>;
+    handoffs: Record<string, [string, string | null]>;
 }
 
 export interface EngineShaderApi {

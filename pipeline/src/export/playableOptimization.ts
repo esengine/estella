@@ -6,20 +6,19 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveFfmpeg } from '../assets/videoCook';
 import { cookCached, encoderIdentity } from '../assets/cookCache';
-import { audioImportSettings, encodeWavToMp3 } from '../assets/audioCook';
 import { readTextureCookSettings } from '../project/importSettings';
+import type { WebpImages } from '../project/format';
 
 export interface PlayablePayload { data: Uint8Array; mime: string }
 export interface PlayableOptimizationAsset extends PlayablePayload {
   key: string;
   path: string;
   importer?: Record<string, unknown>;
-  sourceWav?: Uint8Array;
   /** Font pages, nearest-filtered art and data textures must retain their samples. */
   losslessOnly?: boolean;
 }
 export interface PlayableMeasuredSize { deliveryBytes: number; htmlBytes: number }
-export type PlayableSelectedCodec = 'webp-lossless' | 'webp-90' | 'webp-80' | 'mp3-128' | 'mp3-96';
+export type PlayableSelectedCodec = 'webp-lossless' | 'webp-90' | 'webp-80';
 export interface PlayableOptimizationReport {
   mode: 'auto' | 'skip';
   targetDeliveryBytes: number;
@@ -95,103 +94,59 @@ async function webp(bin: string, png: Uint8Array, quality: 'lossless' | 90 | 80)
 }
 
 /**
- * Select against the actual assembled HTML/archive, rather than source file sizes.
- * Every candidate is derived from the authored cook, never an earlier lossy result.
+ * A playable's PNGs in the WebP encoding the person chose, and nothing else: no size budget picks an encoding or lowers
+ * one. Font pages, nearest-filtered art and non-colour data keep every sample, so they take lossless whatever was
+ * chosen; a PNG WebP cannot carry faithfully (a colour profile, gamma, animation, 16-bit samples) stays PNG, and so does
+ * one WebP would make larger. The report is what was done and how the package stands against its budget.
  */
 export async function optimizePlayableAssets(opts: {
   root: string;
   assets: PlayableOptimizationAsset[];
-  textures: boolean;
-  audio: boolean;
+  /** Absent: every image ships as it was cooked. */
+  webp?: WebpImages;
   targetDeliveryBytes: number;
   maxHtmlBytes?: number;
   measure: (payloads: ReadonlyMap<string, PlayablePayload>) => PlayableMeasuredSize;
   warnings: string[];
-  /** Called as each stage of the search begins, so a long one is not a silent spinner. */
+  /** Called as the encoding begins, so a long one is not a silent spinner. */
   onStage?: (stage: string, assets: number) => void;
 }): Promise<{ payloads: Map<string, PlayablePayload>; report: PlayableOptimizationReport }> {
   const payloads = new Map<string, PlayablePayload>(opts.assets.map(asset => [asset.key, { data: asset.data, mime: asset.mime }]));
-  const measure = () => {
-    const size = opts.measure(payloads);
-    return { deliveryBytes: size.deliveryBytes, htmlBytes: size.htmlBytes };
-  };
+  // Only the two numbers: a measure may hand back the assembled buffers too, and the report is persisted.
+  const measure = (): PlayableMeasuredSize => { const size = opts.measure(payloads); return { deliveryBytes: size.deliveryBytes, htmlBytes: size.htmlBytes }; };
   const baseline = measure();
-  let selected = baseline;
-  const score = (size: PlayableMeasuredSize) => Math.max(size.deliveryBytes / opts.targetDeliveryBytes,
-    opts.maxHtmlBytes === undefined ? 0 : size.htmlBytes / opts.maxHtmlBytes);
-  const changes = new Map<string, PlayableOptimizationReport['changes'][number]>();
-  const sorted = [...opts.assets].sort((a, b) => b.data.byteLength - a.data.byteLength || a.path.localeCompare(b.path));
-  const protectedPngs = new Set<string>();
-  if (opts.textures && score(selected) > 1) {
-    for (const asset of sorted) {
-      if (asset.mime === 'image/png' && readTextureCookSettings(asset.importer, 'playable').compress !== 'off' && !canReencodePng(asset.data)) {
-        protectedPngs.add(asset.key);
-        opts.warnings.push(`${asset.path}: kept PNG to preserve color-profile, animation or sample-depth semantics (or an unrecognized PNG layout).`);
-      }
+  const changes: PlayableOptimizationReport['changes'] = [];
+  const images = opts.webp === undefined ? [] : opts.assets.filter(asset => asset.mime === 'image/png');
+  let encoder: { bin: string; id: string } | null = null;
+  if (images.length > 0) {
+    const bin = await resolveFfmpeg();
+    encoder = bin ? { bin, id: encoderIdentity(bin) } : null;
+    if (!encoder) opts.warnings.push('WebP images were chosen, but the bundled ffmpeg encoder was not found; images ship as PNG.');
+    else opts.onStage?.(String(opts.webp), images.length);
+  }
+  for (const asset of encoder ? images : []) {
+    const settings = readTextureCookSettings(asset.importer, 'playable');
+    // A texture whose Import Settings say not to compress it is shipped as authored.
+    if (settings.compress === 'off') continue;
+    if (!canReencodePng(asset.data)) {
+      opts.warnings.push(`${asset.path}: kept PNG, as WebP cannot carry its colour profile, gamma, animation or sample depth.`);
+      continue;
+    }
+    const keepsSamples = asset.losslessOnly || asset.importer?.filterMode === 'nearest' || !settings.srgb;
+    const quality = keepsSamples ? 'lossless' : opts.webp!;
+    try {
+      const bytes = (await cookCached(opts.root, [asset.data, `playable-webp:v3:${quality}`, encoder!.id],
+        () => webp(encoder!.bin, asset.data, quality))).bytes;
+      if (bytes.byteLength >= asset.data.byteLength) continue;
+      payloads.set(asset.key, { data: bytes, mime: 'image/webp' });
+      changes.push({ path: asset.path, codec: quality === 'lossless' ? 'webp-lossless' : quality === 90 ? 'webp-90' : 'webp-80',
+        inputBytes: asset.data.byteLength, outputBytes: bytes.byteLength });
+    } catch (error) {
+      opts.warnings.push(`${asset.path}: kept PNG, WebP encoding failed — ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  // What no encoder here can shrink (fonts, data, anything that is not a PNG or a WAV) is a floor under the page. When that
-  // part alone, weighed the way the page is weighed, is already over the target, no search will get there: the package is
-  // made as it is and the size is reported, instead of trying every image at every quality to arrive at the same answer.
-  const fixed = opts.assets.filter(a => !(a.mime === 'image/png' || a.sourceWav));
-  if (fixed.length > 0 && score(selected) > 1) {
-    const floor = opts.measure(new Map(fixed.map(a => [a.key, { data: a.data, mime: a.mime }])));
-    if (score(floor) > 1) {
-      opts.warnings.push(`Playable size cannot reach the target: the parts no encoder can shrink (fonts and other files) alone come to ${(floor.deliveryBytes / 1048576).toFixed(1)} MB, against a target of ${(opts.targetDeliveryBytes / 1048576).toFixed(1)} MB. The package is built as it is; its size and what it is made of are reported.`);
-      return { payloads, report: { mode: opts.textures || opts.audio ? 'auto' : 'skip', targetDeliveryBytes: opts.targetDeliveryBytes,
-        maxHtmlBytes: opts.maxHtmlBytes, baseline, selected, meetsTarget: false, changes: [] } };
-    }
-  }
-  let encoder: { bin: string; id: string } | null | undefined;
-  const failures = new Set<string>();
-  for (const stage of ['lossless', 'audio-128', 'audio-96', 90, 80] as const) {
-    if (score(selected) <= 1) break;
-    opts.onStage?.(String(stage), sorted.length);
-    for (const asset of sorted) {
-      if (score(selected) <= 1) break;
-      const previous = payloads.get(asset.key)!;
-      let candidate: PlayablePayload | undefined;
-      let codec: PlayableSelectedCodec;
-      try {
-        if (stage === 'audio-128' || stage === 'audio-96') {
-          const settings = audioImportSettings(asset.importer);
-          const bitrate = stage === 'audio-128' ? 128 : 96;
-          if (!opts.audio || !asset.sourceWav || !settings.compress || settings.bitrateKbps <= bitrate) continue;
-          const bytes = await encodeWavToMp3(asset.sourceWav, bitrate);
-          if (!bytes) continue;
-          candidate = { data: bytes, mime: 'audio/mpeg' }; codec = stage === 'audio-128' ? 'mp3-128' : 'mp3-96';
-        } else {
-          const settings = readTextureCookSettings(asset.importer, 'playable');
-          if (!opts.textures || asset.mime !== 'image/png' || settings.compress === 'off'
-            || (stage !== 'lossless' && (asset.losslessOnly || asset.importer?.filterMode === 'nearest' || !settings.srgb))) continue;
-          if (failures.has(asset.key) || protectedPngs.has(asset.key)) continue;
-          if (encoder === undefined) {
-            const bin = await resolveFfmpeg();
-            encoder = bin ? { bin, id: encoderIdentity(bin) } : null;
-            if (!encoder) opts.warnings.push('Playable WebP optimization unavailable: the bundled ffmpeg encoder was not found; images remain unchanged.');
-          }
-          if (!encoder) continue;
-          const quality = stage;
-          const bytes = (await cookCached(opts.root, [asset.data, `playable-webp:v3:${quality}`, encoder.id],
-            () => webp(encoder!.bin, asset.data, quality))).bytes;
-          candidate = { data: bytes, mime: 'image/webp' };
-          codec = stage === 'lossless' ? 'webp-lossless' : stage === 90 ? 'webp-90' : 'webp-80';
-        }
-        payloads.set(asset.key, candidate);
-        const measured = measure();
-        if (score(measured) < score(selected)) {
-          selected = measured;
-          changes.set(asset.key, { path: asset.path, codec, inputBytes: asset.data.byteLength, outputBytes: candidate.data.byteLength });
-        } else payloads.set(asset.key, previous);
-      } catch (error) {
-        payloads.set(asset.key, previous);
-        failures.add(asset.key);
-        opts.warnings.push(`${asset.path}: playable optimization retained the previous payload — ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  }
-  const report: PlayableOptimizationReport = { mode: opts.textures || opts.audio ? 'auto' : 'skip',
-    targetDeliveryBytes: opts.targetDeliveryBytes, maxHtmlBytes: opts.maxHtmlBytes,
-    baseline, selected, meetsTarget: score(selected) <= 1, changes: [...changes.values()] };
-  return { payloads, report };
+  const selected = images.length > 0 ? measure() : baseline;
+  const meetsTarget = selected.deliveryBytes <= opts.targetDeliveryBytes && selected.htmlBytes <= (opts.maxHtmlBytes ?? Infinity);
+  return { payloads, report: { mode: opts.webp === undefined ? 'skip' : 'auto', targetDeliveryBytes: opts.targetDeliveryBytes,
+    maxHtmlBytes: opts.maxHtmlBytes, baseline, selected, meetsTarget, changes } };
 }

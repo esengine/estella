@@ -33,7 +33,13 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
-                      or a platform the project defines in .esengine/platforms/ (default web)
+                      or a platform the project defines in .esengine/platforms/ (default web);
+                      server: the project's game server (its \`server\` block) as one file Node runs,
+                      the web export in web/, and Docker, Caddy and systemd files to deploy both
+  --no-web            server: leave out the web export
+  --server-url <url>  web, desktop, server: the game server's address the page dials
+                      (wss://host/path), over the project's server.url; without either a web
+                      page dials server.path on its own host
   --profile <name>    one of the project's export profiles (packaging.profiles): its
                       target, development or shipping, and the settings it overrides
                       A shipping Android build is signed with the project's release
@@ -89,7 +95,7 @@ The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
-const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi', 'all-scenes']);
+const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi', 'all-scenes', 'no-web']);
 
 function parseArgs(argv) {
   const [command, projectDir, ...rest] = argv;
@@ -1125,6 +1131,41 @@ if (opts.command === 'import-hdr') {
   process.exit(0);
 }
 
+if (opts.platform === 'server') {
+  // The game's server and the files that deploy it; then the web export beside it, as `export` writes it for the web.
+  const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, 'dist-server'));
+  const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'export', 'serverCli.ts'), 'serverCli.mjs');
+  let result;
+  try {
+    result = await mod.serverExportCommand({
+      projectDir: opts.projectDir, outDir, sdkDistDir: path.join(REPO, 'sdk', 'dist'),
+      serverUrl: opts['server-url'],
+      wasmDir: opts.wasm ? path.resolve(opts.wasm) : firstExisting([path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')]), minify: opts.minify === true, web: !opts['no-web'],
+      nodePaths: [path.join(REPO, 'sdk', 'node_modules'), path.join(REPO, 'node_modules')],
+    });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  } finally { cleanup(); }
+  if (!opts['no-web']) {
+    const { spawnSync } = await import('node:child_process');
+    const args = [fileURLToPath(import.meta.url), 'export', opts.projectDir, '--platform', 'web', '--out', path.join(outDir, 'web')];
+    for (const key of ['wasm', 'scene', 'title', 'scripts', 'server-url']) if (typeof opts[key] === 'string') args.push(`--${key}`, opts[key]);
+    if (opts.minify) args.push('--minify');
+    const web = spawnSync(process.execPath, args, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (web.status !== 0) {
+      console.error(web.stdout);
+      console.error(`the server is in ${outDir}, but the web export failed (exit ${web.status}); --no-web leaves it out`);
+      process.exit(1);
+    }
+    result.files.push('web/');
+  }
+  if (opts.json) writeFileSync(path.resolve(opts.json), `${JSON.stringify(result, null, 2)}
+`);
+  console.log(JSON.stringify(result, null, 2));
+  process.exit(0);
+}
+
 const project = projectSettings(opts.projectDir);
 // A profile names its target, so `--profile` alone is enough; the parser that
 // applies it refuses one that disagrees with an explicit --platform.
@@ -1239,6 +1280,7 @@ try {
     ...(opts['emulator-abi'] ? { androidEmulatorAbi: true } : {}),
     ...(opts.minify ? { minify: true } : {}),
     ...(opts['debug-channel'] ? { debugChannel: { url: opts['debug-channel'] } } : {}),
+    ...(opts['server-url'] ? { serverUrl: opts['server-url'] } : {}),
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
     ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),

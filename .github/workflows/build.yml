@@ -30,7 +30,7 @@ permissions:
 env:
   CPP_TESTS: >-
     test_ecs test_events test_particle test_tilemap test_tilemap_context test_sparse_set
-    test_resource_pool test_shader_variant test_log_format test_registry_safety
+    test_resource_pool test_shader_variant test_glsl_loop_floor test_log_format test_registry_safety
     test_registry_ondestroy test_view_api_matrix
     test_hierarchy_links test_entity_activity test_transform_traversal test_ui_tree test_tween_activity test_springbone
     test_shader_device test_draw_params test_per_draw_blocks test_texture_fb test_buffer_device
