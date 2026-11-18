@@ -1646,7 +1646,11 @@ export class Assets {
     async preloadSceneAssets(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean },
+        options?: {
+            readonly maxConcurrent?: number; readonly skipSpine?: boolean;
+            /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
+            readonly summary?: 'info' | 'debug';
+        },
     ): Promise<SceneAssetResult> {
         return this.preloadSceneAssets_(sceneData, onProgress, options);
     }
@@ -1654,7 +1658,11 @@ export class Assets {
     private async preloadSceneAssets_(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean },
+        options?: {
+            readonly maxConcurrent?: number; readonly skipSpine?: boolean;
+            /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
+            readonly summary?: 'info' | 'debug';
+        },
         recorder?: DependencyRecorder,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
@@ -1832,7 +1840,7 @@ export class Assets {
         if (totalCount > 0) {
             const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
                 .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
-            log.info('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+            log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
         }
 
         // `unresolved` refs warn above; a load that THREW only reached `missing`,

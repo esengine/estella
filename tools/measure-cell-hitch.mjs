@@ -64,7 +64,15 @@ const server = await serveHost(out);
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
-page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text().slice(0, 300)); });
+// Every console line, by what it says with its numbers taken out: a line printed per cell is work done per cell.
+const consoleLines = new Map();
+let measuring = false;
+page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text().slice(0, 300));
+    if (!measuring) return;
+    const key = `${m.type()} ${m.text().replace(/\[\d{2}:\d{2}:\d{2}\.\d+\]/g, '').replace(/[\d.]+/g, '#').replace(/"[^"]*"/g, '"…"').slice(0, 110)}`;
+    consoleLines.set(key, (consoleLines.get(key) ?? 0) + 1);
+});
 await page.goto(`http://127.0.0.1:${server.address().port}/?headless&backend=webgl2`);
 let ready = false;
 for (let i = 0; i < 900 && !ready; i++) {
@@ -89,6 +97,7 @@ if (PROFILE) {
     await cdp.send('Profiler.start');
 }
 
+measuring = true;
 const run = await page.evaluate(async ({ seconds, cells }) => {
     const c = window.__estellaCooked;
     const loafs = [];
@@ -191,6 +200,11 @@ for (const l of worst) {
     for (const ph of ['fetch', 'prefab', 'assets', 'readying']) console.log(line(ph, cellsSeen.map((d) => d.phases?.[ph] ?? 0)));
 }
 for (const e of errors.slice(0, 5)) console.log('page error:', e);
+{
+    const total = [...consoleLines.values()].reduce((a, b) => a + b, 0);
+    console.log(`console lines while running: ${total}`);
+    for (const [k, n] of [...consoleLines].sort((a, b) => b[1] - a[1]).slice(0, 12)) console.log(`  ${String(n).padStart(6)}  ${k}`);
+}
 if (profile) {
     const byId = new Map(profile.nodes.map((n) => [n.id, n]));
     const parent = new Map();

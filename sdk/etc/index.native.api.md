@@ -1083,7 +1083,7 @@ onSourceChanged: (listener: (path: string) => void) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
 pathForRenderedTexture: (renderId: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
-preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; }) => Promise<SceneAssetResult>
+preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; readonly summary?: "debug" | "info"; }) => Promise<SceneAssetResult>
 readMeshData: (handle: number) => Promise<MeshData | null>
 recoverFromDeviceLoss: () => Promise<boolean>
 register: <T>(loader: AssetLoader<T>) => void
@@ -6238,6 +6238,7 @@ sceneName: string | undefined
 source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
+streamedPiece: boolean | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ```

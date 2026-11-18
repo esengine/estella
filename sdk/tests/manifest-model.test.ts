@@ -193,3 +193,24 @@ describe('ManifestModel resolution', () => {
         expect(m.resolvePath('uuid-9')).toBe('assets/1234abcd.ktx2');
     });
 });
+
+describe('what a package does not carry', () => {
+    it('is said for a project file, and never for what the cook wrote for a streamed world', async () => {
+        const { log } = await import('../src/util/logger');
+        const { WORLD_DIR, cellDocumentPath } = await import('../src/residency/cutWorld');
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        try {
+            const model = ManifestModel.fromJson(manifest());
+            // The cook's own files: cells, the world manifest, far proxies. In the package, never in the manifest.
+            expect(WORLD_DIR).toBe('world');
+            model.resolvePath(cellDocumentPath('main.cell_1_0'));
+            model.resolvePath('world/main.cell_1_0.far.json');
+            model.resolvePath('world/main.cell_1_0.far.0.esmesh');
+            expect(warn).not.toHaveBeenCalled();
+            model.resolvePath('textures/missing-from-the-build.png');
+            expect(warn).toHaveBeenCalledTimes(1);
+        } finally {
+            warn.mockRestore();
+        }
+    });
+});

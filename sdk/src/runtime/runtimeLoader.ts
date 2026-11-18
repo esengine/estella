@@ -202,6 +202,11 @@ export interface LoadRuntimeSceneOptions {
      * what runs after a fetch answers runs inside a frame's budget and not whenever the network answers. Absent: at once.
      */
     gate?: () => Promise<void>;
+    /**
+     * One of the many scenes a streamed world brings in (a cell, a far proxy): the line saying what its preload took is a
+     * debug line, since a world says it hundreds of times and the residency report (`delivery`) holds the same numbers.
+     */
+    streamedPiece?: boolean;
     /** Authored ids this scene may reference in ANOTHER document — the persistent
      *  rows a streamed cell names. See {@link SceneLoadOptions.externalEntities}. */
     externalEntities?: ReadonlyMap<number, Entity>;
@@ -354,6 +359,9 @@ export interface PreparedRuntimeScene {
  *
  * @experimental
  */
+/** Apps already told that physics is not installed (see prepareRuntimeScene). */
+const saidNoPhysics = new WeakSet<App>();
+
 export async function prepareRuntimeScene(
     options: LoadRuntimeSceneOptions,
 ): Promise<PreparedRuntimeScene> {
@@ -439,7 +447,9 @@ export async function prepareRuntimeScene(
     // what "asset discovery" sounds like it costs.
     if (onPhase) onPhase('discover', performance.now() - discoverBegan);
     const assetResult = await timed('assets',
-        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true }));
+        // A streamed cell's preload is one of hundreds, and its numbers are in the residency report (`delivery`): not a console
+        // line each.
+        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info' }));
     await turn();
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
@@ -498,7 +508,11 @@ export async function prepareRuntimeScene(
     let physicsModule = options.physicsModule ?? null;
     const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
     if (!wantsPhysics) {
-        log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
+        // Once per game: said per scene, a streamed world said it for every cell it brought in.
+        if (!saidNoPhysics.has(app)) {
+            saidNoPhysics.add(app);
+            log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
+        }
     } else {
         await installOnce(app, 'physics', async () => {
         if (!physicsModule && app.sideModules) {
@@ -1057,12 +1071,12 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
             // loads the cell closes over the object this returns, so a copy
             // carries the fields somewhere nothing reads them.
             const config = createRuntimeSceneConfig(
-                cell.name, documents?.get(cell.name), sceneOpts, cell.path, { label: cell.name },
+                cell.name, documents?.get(cell.name), { ...sceneOpts, streamedPiece: true }, cell.path, { label: cell.name },
             );
             config.externalEntities = () => persistentEntityRows(app, world);
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
             return config;
-        }, (_cell, scene, path) => createRuntimeSceneConfig(scene, documents?.get(scene), sceneOpts, path));
+        }, (_cell, scene, path) => createRuntimeSceneConfig(scene, documents?.get(scene), { ...sceneOpts, streamedPiece: true }, path));
         life.throwIfAborted();
     }
 

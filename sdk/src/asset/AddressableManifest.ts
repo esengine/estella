@@ -25,6 +25,9 @@ export function probeRefs<T>(fn: () => T): T {
     }
 }
 
+/** Where the cook writes a streamed world, `WORLD_DIR` in residency/cutWorld (not imported: the asset layer sits below it). */
+const COOKED_WORLD_DIR = 'world';
+
 /**
  * A project file the package does not carry, said once and with the reason —
  * otherwise the first anyone hears of it is a 404 from the loader. Only refs
@@ -32,6 +35,9 @@ export function probeRefs<T>(fn: () => T): T {
  */
 function warnNotPackaged(ref: string): void {
     if (probing > 0 || warnedNotPackaged.has(ref) || ref.includes(':') || !/\.[a-z0-9]{2,8}$/i.test(ref)) return;
+    // What the cook writes for a streamed world (its cells, manifest and far proxies) is not an asset and is never in the
+    // manifest: a world of 144 cells said 1362 times that its own files were missing.
+    if (ref.startsWith(`${COOKED_WORLD_DIR}/`)) return;
     warnedNotPackaged.add(ref);
     log.warn('asset', `"${ref}" is not in this package. A build ships what its scenes reference, what the `
         + 'scripts name as a whole path in a string literal, and the folders asset-groups.json marks '
