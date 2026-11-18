@@ -43,6 +43,28 @@ function keyOf(fileName: string): string | null {
     }
 }
 
+/**
+ * Replace `file` with `tmp`. On Windows a rename over a file that another
+ * handle has open (a reader, an indexer, a virus scanner) fails for a moment
+ * with EPERM, EBUSY or EACCES; it is retried briefly rather than lost.
+ */
+async function renameOver(fs: Fs, tmp: string, file: string): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            await fs.rename(tmp, file);
+            return;
+        } catch (err) {
+            const code = (err as { code?: string }).code;
+            const transient = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
+            if (!transient || attempt >= 20) {
+                await fs.rm(tmp, { force: true }).catch(() => undefined);
+                throw err;
+            }
+            await new Promise((r) => setTimeout(r, Math.min(5 * (attempt + 1), 50)));
+        }
+    }
+}
+
 export class FileStore implements PersistStore {
     private fs_: Fs | null = null;
     private path_: PathMod | null = null;
@@ -101,7 +123,7 @@ export class FileStore implements PersistStore {
             const file = path.join(this.dir, fileNameOf(key));
             const tmp = `${file}.${tmpTag}.${++tmpSeq}.tmp`;
             await fs.writeFile(tmp, json, 'utf8');
-            await fs.rename(tmp, file);
+            await renameOver(fs, tmp, file);
             return current + 1;
         });
     }
