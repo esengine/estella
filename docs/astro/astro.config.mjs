@@ -105,7 +105,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Estella',
-      description: 'A fast 2D game engine powered by WebAssembly and ECS.',
+      description: 'A fast 2D and 3D game engine powered by WebAssembly and ECS.',
       // The editor's mark and palette, so the guides, the landing page and the
       // installed tool are visibly one product — see src/styles/estella.css.
       logo: { src: './public/favicon.svg', alt: 'Estella' },
