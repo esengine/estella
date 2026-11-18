@@ -2050,7 +2050,7 @@ export class ReplicationServer {
         // Sent even when empty: it is how a client that reconnected learns which
         // of the ghosts it still holds are gone.
         if (!this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
-                ReplMsg.spawn, { tick: this.tick_, entities, initial: true }))) {
+                ReplMsg.spawn, { tick: this.tick_, entities, initial: true, serverId: this.instanceId }))) {
             // Never told the world, so never a participant in the next delta.
             return;
         }

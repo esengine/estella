@@ -205,17 +205,13 @@ function isRedialable(t: ReliableOrderedTransport): t is RedialableSocket {
 }
 
 /** One received message, tagged so the inbox can stay a single ordered queue. */
-type PendingOp = (
+type PendingOp =
     | { kind: 'spawn'; batch: ReplSpawnBatch }
     | { kind: 'despawn'; batch: ReplDespawnBatch }
     | { kind: 'remove'; batch: ReplComponentRemoveBatch }
     | { kind: 'state'; frame: Uint8Array }
     /** Everything held came from a server this client has left: drop it. */
-    | { kind: 'reset' }
-) & {
-    /** The channel it arrived on: where a server change is marked in the inbox. */
-    ch?: NetChannel;
-};
+    | { kind: 'reset' };
 
 export class ReplicationClient {
     private readonly world_: World;
@@ -264,8 +260,10 @@ export class ReplicationClient {
     private readonly entryAfterMs_: number;
     /** When the current run of failed redials began; 0 while connected. */
     private lostSince_ = 0;
-    /** The server process the ghosts held came from. */
+    /** The server process this client is connected to (from the hello). */
     private serverId_: string | undefined;
+    /** The server process the ghosts held came from (from the initial batch applied). */
+    private ghostsFrom_: string | undefined;
     /** The ticket the next hello shows, while a transfer is under way. */
     private transferTicket_: string | undefined;
     private transferTarget_: { address: string; ticket: string } | undefined;
@@ -425,15 +423,15 @@ export class ReplicationClient {
         // Handlers first: the initial spawn batch may hit the wire before the
         // hello response settles on this side. Batches queue until the fixed
         // step applies them, so ordering stays deterministic either way.
-        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.inbox_.push({ kind: 'spawn', batch, ch: channel }));
-        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.inbox_.push({ kind: 'despawn', batch, ch: channel }));
-        channel.on<ReplComponentRemoveBatch>(ReplMsg.componentRemove, (batch) => this.inbox_.push({ kind: 'remove', batch, ch: channel }));
+        channel.on<ReplSpawnBatch>(ReplMsg.spawn, (batch) => this.inbox_.push({ kind: 'spawn', batch }));
+        channel.on<ReplDespawnBatch>(ReplMsg.despawn, (batch) => this.inbox_.push({ kind: 'despawn', batch }));
+        channel.on<ReplComponentRemoveBatch>(ReplMsg.componentRemove, (batch) => this.inbox_.push({ kind: 'remove', batch }));
         channel.on<ReplAckMsg>(ReplMsg.ack, (ack) => {
             if (ack.seq > this.ackedSeq_) this.ackedSeq_ = ack.seq;
         });
         channel.onBinary(REPLICATION_CHANNEL, (payload) => {
             // Copy out: the payload view may alias a transport-owned buffer.
-            this.inbox_.push({ kind: 'state', frame: payload.slice(), ch: channel });
+            this.inbox_.push({ kind: 'state', frame: payload.slice() });
         });
         channel.on<ReplClosedMsg>(ReplMsg.closed, (msg) => this.closedByServer_(channel, msg));
         channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
@@ -475,13 +473,6 @@ export class ReplicationClient {
             this.pendingInputs_.length = 0;
             this.ackedSeq_ = this.inputSeq_;
             this.resyncing_ = true;
-        }
-        // Another server process: its netIds are not the ones held. Drop the
-        // ghosts ahead of the first thing it sent, which may already be queued —
-        // and behind everything the old one sent that is still waiting.
-        if (res.serverId !== undefined && this.serverId_ !== undefined && res.serverId !== this.serverId_) {
-            const first = this.inbox_.findIndex((op) => op.ch === channel);
-            this.inbox_.splice(first < 0 ? this.inbox_.length : first, 0, { kind: 'reset' });
         }
         if (res.serverId !== undefined) this.serverId_ = res.serverId;
         this.connectionId_ = res.connectionId;
@@ -902,6 +893,12 @@ export class ReplicationClient {
      * 0 for a forward reference and never revisits it.
      */
     private applySpawnBatch_(batch: ReplSpawnBatch): void {
+        // The first state from a server process. From another one than the
+        // ghosts held came from, its netIds are not theirs: drop them first.
+        if (batch.initial && batch.serverId !== undefined) {
+            if (this.ghostsFrom_ !== undefined && batch.serverId !== this.ghostsFrom_) this.resetWorld_();
+            this.ghostsFrom_ = batch.serverId;
+        }
         if (batch.initial && this.resyncing_) {
             this.resyncing_ = false;
             this.reconcileHeld_(batch);

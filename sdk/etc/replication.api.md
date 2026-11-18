@@ -333,6 +333,7 @@ seq: number
 ```
 entities: ReplSpawnEntity[]
 initial: boolean | undefined
+serverId: string | undefined
 tick: number
 ```
 

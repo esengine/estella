@@ -141,6 +141,12 @@ export interface ReplSpawnBatch {
      * named here, updated in place, and drops the rest.
      */
     initial?: boolean;
+    /**
+     * With `initial`: the server process it comes from. A client that held
+     * ghosts of another drops them as it applies this batch — in order with
+     * everything else it applies, which is the only place that decision is safe.
+     */
+    serverId?: string;
 }
 
 export interface ReplDespawnBatch {
