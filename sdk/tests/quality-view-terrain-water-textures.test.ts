@@ -109,7 +109,7 @@ describe('what reaches the renderer', () => {
     });
 
     it('gives the underwater effect its shaft steps and caustic layers as uniforms', () => {
-        expect(qualityEffectUniforms(defaultQualityProfile('low'), 'underwater')).toEqual([['u_shaftSteps', 12], ['u_causticLayers', 2]]);
+        expect(qualityEffectUniforms(defaultQualityProfile('low'), 'underwater')).toEqual([['u_shaftSteps', 16], ['u_causticLayers', 2]]);
         expect(qualityEffectUniforms(resolveQualityProfile('high', { waterShaftSteps: 5 }), 'underwater')).toContainEqual(['u_shaftSteps', 5]);
     });
 

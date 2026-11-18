@@ -73,7 +73,7 @@ export const WATER_SETTINGS = [
     {
         key: 'waterShaftSteps',
         type: 'number',
-        defaults: { low: 12, medium: 16, high: MOST_WATER_SHAFT_STEPS },
+        defaults: { low: 16, medium: 16, high: MOST_WATER_SHAFT_STEPS },
         min: 1, max: MOST_WATER_SHAFT_STEPS, step: 1, integer: true,
         group: 'water',
         preference: false,
