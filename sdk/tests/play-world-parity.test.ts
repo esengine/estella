@@ -133,7 +133,7 @@ describe('what Play hands the shipping runtime', () => {
         initRuntime.mockClear();
         vi.stubGlobal('fetch', refuseFetch);
         await initPlayRealmRuntime({
-            app: { enableStats: vi.fn(), run: vi.fn() } as never,
+            app: { enableStats: vi.fn(), run: vi.fn(), signal: new AbortController().signal } as never,
             module: {} as never,
             canvas: { width: 800, height: 600 } as never,
             sceneData: data,
