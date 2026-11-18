@@ -38,6 +38,8 @@ export interface PlanSpec {
     seed: number;
     world: string;
     seaLevel: number;
+    /** How far apart the ground is read (`WorldGen.groundStep`); absent in a plan made before there was one. */
+    groundStep?: number;
     face: number;
     radius: number;
     centre: [number, number, number];
@@ -125,7 +127,7 @@ async function makeFor(spec: PlanSpec, load: ProviderLoader): Promise<Made> {
             return got;
         },
     };
-    const face = new PlanetFace(spec.face, () => facts);
+    const face = new PlanetFace(spec.face, () => facts, spec.groundStep);
     const zones = new Zones();
     for (const z of spec.zones) zones.set(z);
     return { face, ...makeFacePlan(face, {
