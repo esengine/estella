@@ -14,8 +14,9 @@ export {
     type WorldCell, type WorldManifest, type ResidencySource, type ResidencyDecision,
 } from './cells';
 export {
-    WorldStreamer, WorldStreaming,
+    WorldStreamer, WorldStreaming, DEFAULT_STREAMING_POLICY,
     type CellResidency, type WorldStreamHost, type WorldStreamerStatus, type CellDelivery,
+    type StreamingPolicy, type SlowStreamingPolicy,
 } from './WorldStreamer';
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
 export { worldResidencyReport, type WorldResidencyReport } from './report';

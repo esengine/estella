@@ -69,18 +69,52 @@ export class Bakes {
     private starvedBefore_ = false;
     private readonly running_ = new Set<Running>();
     private readonly marks_ = new Map<object, { label: string; progress: number }>();
+    /** Who holds the game for work that must finish first (see `hold`). */
+    private readonly holds_ = new Set<object>();
+
+    /**
+     * Holds the game while `owner`'s work finishes: the App is paused for it and the jobs go on being stepped through the
+     * pause, as a world that cannot keep up with its player stops the game rather than showing a hole (Unreal's
+     * `wp.Runtime.BlockOnSlowStreaming`). Say false when the work is done. A pause the game itself asked for does not step
+     * the jobs; only a hold does.
+     */
+    hold(owner: object, held: boolean): void {
+        if (held) this.holds_.add(owner);
+        else this.holds_.delete(owner);
+    }
+
+    /** Whether anyone holds the game for its work. */
+    get holding(): boolean {
+        return this.holds_.size > 0;
+    }
 
     /**
      * Runs `job` over the frames to come, under `label`; the promise is what it returns. A job that is cancelled (see `cancel`)
      * never settles.
      */
-    run<T>(label: string, job: WorkJob<T>): { done: Promise<T>; cancel: () => void } {
+    run<T>(label: string, job: WorkJob<T>): { done: Promise<T>; cancel: () => void; finish: () => void } {
         let entry!: Running;
         const done = new Promise<T>((resolve, reject) => {
             entry = { label, progress: 0, job, done: resolve as (v: unknown) => void, fail: reject };
         });
         this.running_.add(entry);
-        return { done, cancel: () => { this.running_.delete(entry); } };
+        return {
+            done,
+            cancel: () => { this.running_.delete(entry); },
+            // What is left, now, in this call: for work that must not wait for frames any more (the player is upon it, or
+            // the frames have stopped and something waits on the promise).
+            finish: () => {
+                if (!this.running_.delete(entry)) return;
+                try {
+                    for (;;) {
+                        const next = entry.job.next();
+                        if (next.done) { entry.done(next.value); return; }
+                    }
+                } catch (e) {
+                    entry.fail(e);
+                }
+            },
+        };
     }
 
     /**
@@ -206,7 +240,11 @@ export function bakesOf(app: App): Bakes {
     if (!app.hasResource(BakesRes)) {
         const bakes = new Bakes();
         app.insertResource(BakesRes, bakes);
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => bakes.step(), { name: 'BakeSystem' }));
+        // Through a pause only while something holds the game for its work: a game paused at its menu bakes nothing, as before.
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            if (app.isPaused() && !bakes.holding) return;
+            bakes.step();
+        }, { name: 'BakeSystem', runWhenPaused: true }));
     }
     return app.getResource(BakesRes);
 }

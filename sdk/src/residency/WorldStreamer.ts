@@ -55,9 +55,56 @@ export interface WorldStreamHost {
     readyRenderPrograms?(name: string): Promise<RenderReadiness>;
     discardPrepared(name: string): number;
     loadAdditive(name: string): Promise<unknown>;
-    unload(name: string, options?: { keepPersistent?: boolean }): Promise<void>;
+    unload(name: string, options?: { keepPersistent?: boolean; staggered?: boolean }): Promise<void>;
     isLoaded(name: string): boolean;
+    /** Finish, now, what of `name`'s publication or unload is being spread over frames. Absent: nothing is spread. */
+    rush?(name: string): void;
+    /** Says whether a player would see `name` missing, so its work spread over frames may take more of a frame. */
+    urge?(name: string, urgent: boolean): void;
 }
+
+/**
+ * What the streamer does when a world cannot keep up with a source that is upon it. Unreal's `wp.Runtime.BlockOnSlowStreaming`
+ * is the first, and its default.
+ *
+ * - `wait`: an urgent cell's publication is finished in the frame it became urgent, and the game is held (paused, the
+ *   streaming going on through the pause) until every urgent cell is in. A hitch and a stop, never a hole.
+ * - `publish`: the same finishing, and no hold: a cell still being fetched is missing until it arrives.
+ * - `budget`: nothing is ever finished outside the frame's budget; an urgent cell only gets the budget's priority extra.
+ *
+ * @experimental
+ */
+export type SlowStreamingPolicy = 'wait' | 'publish' | 'budget';
+
+/**
+ * How much a world streams at once, and what it does when it falls behind. The defaults are Unreal's.
+ *
+ * @experimental
+ */
+export interface StreamingPolicy {
+    /**
+     * Cells being prepared (fetched, decoded, their assets acquired) at once; an urgent cell is not held back by it.
+     * Unreal: `wp.Runtime.MaxLoadingStreamingCells`, 4.
+     */
+    maxLoadingCells: number;
+    /** Cells being published (spawned over frames) at once. Unreal makes one level visible at a time. */
+    maxPublishingCells: number;
+    /** See {@link SlowStreamingPolicy}. Unreal: `wp.Runtime.BlockOnSlowStreaming`, on. */
+    slowStreaming: SlowStreamingPolicy;
+    /**
+     * A cell a source needs is URGENT when it is not in and the source is within this share of its `loadRadius` of it:
+     * distance to the cell over load radius. Unreal: `wp.Runtime.BlockOnSlowStreamingRatio`, 0.25.
+     */
+    slowStreamingRatio: number;
+}
+
+/** @experimental */
+export const DEFAULT_STREAMING_POLICY: Readonly<StreamingPolicy> = Object.freeze({
+    maxLoadingCells: 4,
+    maxPublishingCells: 1,
+    slowStreaming: 'wait',
+    slowStreamingRatio: 0.25,
+});
 
 /** What the streamer is doing, for a report. @experimental */
 export interface WorldStreamerStatus {
@@ -94,6 +141,18 @@ export interface WorldStreamerStatus {
     prefetchMisses: number;
     /** Demanded to resident, milliseconds — what a prefetch hit is worth. */
     lastDemandToResidentMs: number;
+    /** Cells a source is upon that are not in yet (see {@link StreamingPolicy.slowStreamingRatio}). */
+    urgentCells: string[];
+    /** Cells wanted that wait their turn: past `maxLoadingCells` to prepare, or `maxPublishingCells` to publish. */
+    queuedCells: string[];
+    /** Whether the game is held for an urgent cell (policy `wait`). */
+    holding: boolean;
+    /** How often the game was held, and how long it was held in all, milliseconds. */
+    holdCount: number;
+    holdMs: number;
+    /** Publications finished outside the budget because their cell was urgent. */
+    rushCount: number;
+    policy: StreamingPolicy;
 }
 
 interface CellState {
@@ -139,6 +198,10 @@ interface CellState {
     dwellMs: number;
     /** What the last demand for this cell found. */
     outcome: 'hit' | 'miss' | '';
+    /** Whether a source is upon it while it is not in. */
+    urgent: boolean;
+    /** Whether its last preparation or publication failed: such a cell does not hold the game, or it would hold for ever. */
+    failed: boolean;
 }
 
 /** A cell's far proxy: a scene of its merged static meshes, in the world while the cell is not. */
@@ -187,6 +250,16 @@ export class WorldStreamer {
     private clearPromise_: Promise<void> | null = null;
     private clearing_ = false;
     private manifestRequest_ = 0;
+    private policy_: StreamingPolicy = { ...DEFAULT_STREAMING_POLICY };
+    /** The cells the last reconciliation wants stepped, in the order it wants them: what a freed slot goes to next. */
+    private order_: string[] = [];
+    private holding_ = false;
+    private holdStarted_ = 0;
+    private holdCount_ = 0;
+    private holdMs_ = 0;
+    private rushCount_ = 0;
+    private onHold_: ((held: boolean) => void) | null = null;
+    private appPaused_: () => boolean = () => false;
     private residencyEpoch_ = 0;
 
     constructor(host: WorldStreamHost) {
@@ -219,12 +292,59 @@ export class WorldStreamer {
                 phases: {}, issuedAt: 0, delivery: 0,
                 demandedAt: 0, preparedAt: 0, publishedAt: 0,
                 prepareMs: 0, publishMs: 0, demandToResidentMs: 0, dwellMs: 0, outcome: '',
+                urgent: false, failed: false,
             });
         }
     }
 
     get manifest(): WorldManifest | null {
         return this.manifest_;
+    }
+
+    /** What the streamer does at once and when it falls behind; see {@link StreamingPolicy}. */
+    get policy(): Readonly<StreamingPolicy> {
+        return this.policy_;
+    }
+
+    /** Changes the policy; what is left out keeps its value. A cap below one is taken as one. */
+    setPolicy(policy: Partial<StreamingPolicy>): void {
+        const next = { ...this.policy_, ...policy };
+        next.maxLoadingCells = Math.max(1, Math.floor(next.maxLoadingCells));
+        next.maxPublishingCells = Math.max(1, Math.floor(next.maxPublishingCells));
+        next.slowStreamingRatio = Math.max(0, next.slowStreamingRatio);
+        if (next.slowStreaming !== 'wait' && next.slowStreaming !== 'publish' && next.slowStreaming !== 'budget') {
+            next.slowStreaming = DEFAULT_STREAMING_POLICY.slowStreaming;
+        }
+        this.policy_ = next;
+        if (next.slowStreaming !== 'wait') this.setHolding_(false);
+    }
+
+    /**
+     * Who holds the game for an urgent cell (policy `wait`): handed true when the hold begins and false when it ends.
+     * `paused` says whether the game is paused at all, so the residency system can tell its own hold from the game's pause.
+     */
+    setHoldHandler(onHold: ((held: boolean) => void) | null, paused: () => boolean = () => false): void {
+        this.onHold_ = onHold;
+        this.appPaused_ = paused;
+    }
+
+    /** Whether the game is held for an urgent cell. */
+    get holding(): boolean {
+        return this.holding_;
+    }
+
+    /** Whether the game is paused by someone other than this streamer: then residency waits too, as it always has. */
+    pausedWithoutHold(): boolean {
+        return !this.holding_ && this.appPaused_();
+    }
+
+    private setHolding_(held: boolean): void {
+        if (held === this.holding_) return;
+        this.holding_ = held;
+        const now = performance.now();
+        if (held) { this.holdCount_++; this.holdStarted_ = now; }
+        else this.holdMs_ += now - this.holdStarted_;
+        this.onHold_?.(held);
     }
 
     /** Counts every cell that became resident or stopped being, and every world adopted: unchanged, nothing came or went. */
@@ -326,6 +446,8 @@ export class WorldStreamer {
             state.desired = wanted;
             state.speculated = speculated.has(name);
         }
+        this.order_ = [...decision.toLoad, ...decision.prefetch.filter((name) => !target.has(name))];
+        this.judgeUrgency_(sources);
         // Which stand-ins are wanted is settled before any cell steps: a cell stepped on the way (a prefetch of one that is
         // leaving) reads its proxy's want to decide whether it may go.
         this.wantProxies_(sources);
@@ -340,6 +462,61 @@ export class WorldStreamer {
                 this.step_(name);
             }
         }
+        this.judgeHold_();
+    }
+
+    /**
+     * Which cells a source is upon while they are not in: within `slowStreamingRatio` of the source's load radius (Unreal's
+     * DistanceToCell / LoadingRange). An urgent cell's work may take the budget's priority extra; under `wait` and `publish`
+     * its publication is finished at once.
+     */
+    private judgeUrgency_(sources: readonly ResidencySource[]): void {
+        const ratio = this.policy_.slowStreamingRatio;
+        for (const [name, state] of this.cells_) {
+            let urgent = false;
+            if (state.desired && state.residency !== 'resident') {
+                for (const source of sources) {
+                    if (distanceToCell(state.cell, source.x, source.z) <= ratio * source.loadRadius) { urgent = true; break; }
+                }
+            }
+            if (urgent !== state.urgent) {
+                state.urgent = urgent;
+                this.host_.urge?.(name, urgent);
+            }
+            if (urgent && state.residency === 'publishing' && this.policy_.slowStreaming !== 'budget') this.rush_(name);
+        }
+    }
+
+    private rush_(name: string): void {
+        if (!this.host_.rush) return;
+        this.rushCount_++;
+        this.host_.rush(name);
+    }
+
+    /** Under `wait`, the game is held while any urgent cell that can still arrive is not in. */
+    private judgeHold_(): void {
+        let held = false;
+        if (this.policy_.slowStreaming === 'wait' && !this.clearing_) {
+            for (const state of this.cells_.values()) {
+                if (state.urgent && !state.failed && state.residency !== 'resident') { held = true; break; }
+            }
+        }
+        this.setHolding_(held);
+    }
+
+    /** A slot came free: the cells waiting for one are stepped again, in the order the last reconciliation wanted them. */
+    private pump_(): void {
+        if (this.clearing_) return;
+        // Not a cell that has just failed: it is asked for again by the next reconciliation, as it always was, rather
+        // than at once and for ever.
+        for (const name of this.order_) if (!this.cells_.get(name)?.failed) this.step_(name);
+        this.judgeHold_();
+    }
+
+    private count_(residency: CellResidency): number {
+        let n = 0;
+        for (const state of this.cells_.values()) if (state.residency === residency) n++;
+        return n;
     }
 
     /**
@@ -396,9 +573,12 @@ export class WorldStreamer {
         if (this.clearPromise_) return this.clearPromise_;
         this.clearing_ = true;
         this.sourceCount_ = 0;
-        for (const state of this.cells_.values()) {
+        this.setHolding_(false);
+        for (const [name, state] of this.cells_) {
             state.desired = false;
             state.speculated = false;
+            // Work spread over frames is finished here: a world being cleared may have no frames left to step it.
+            if (state.residency === 'publishing' || state.residency === 'unloading') this.host_.rush?.(name);
         }
         this.clearPromise_ = (async () => {
             for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
@@ -459,6 +639,15 @@ export class WorldStreamer {
             cancelledRefs: this.cancelledRefs_,
             prefetchHits: this.prefetchHits_, prefetchMisses: this.prefetchMisses_,
             lastDemandToResidentMs: this.lastDemandToResident_,
+            urgentCells: [...this.cells_].filter(([, state]) => state.urgent).map(([name]) => name),
+            queuedCells: [...this.cells_].filter(([, state]) =>
+                (state.residency === 'unloaded' && (state.desired || state.speculated))
+                || (state.residency === 'prepared' && state.desired)).map(([name]) => name),
+            holding: this.holding_,
+            holdCount: this.holdCount_,
+            holdMs: this.holdMs_ + (this.holding_ ? performance.now() - this.holdStarted_ : 0),
+            rushCount: this.rushCount_,
+            policy: { ...this.policy_ },
         };
     }
 
@@ -507,8 +696,13 @@ export class WorldStreamer {
         }
         if (state.residency === 'publishing' || state.residency === 'unloading') return;
         if (state.residency === 'unloaded' && (state.desired || state.speculated)) {
+            // Past the cap it waits its turn; a freed slot steps the cells in priority order (`pump_`). An urgent cell does
+            // not wait: queued behind cells only prefetched, the one under a player was missing for seconds.
+            if (!state.urgent && this.count_('preparing') >= this.policy_.maxLoadingCells) return;
             this.beginPrepare_(name, state);
         } else if (state.residency === 'prepared' && state.desired) {
+            // One cell made visible at a time, as Unreal does; an urgent cell does not wait behind one that is not.
+            if (!state.urgent && this.count_('publishing') >= this.policy_.maxPublishingCells) return;
             this.publishWhenReady_(name, state);
         } else if (state.residency === 'prepared' && !state.speculated) {
             // Speculation is not authority. A cell nobody is near any more goes
@@ -524,11 +718,13 @@ export class WorldStreamer {
     }
 
     private discardPrepared_(name: string, state: CellState): void {
+        const wasPreparing = state.residency === 'preparing';
         this.cancelledRefs_ += this.host_.discardPrepared(name);
         state.residency = 'unloaded';
         state.assetsReady = false;
         state.renderReadiness = null;
         this.cancelCount_++;
+        if (wasPreparing) this.pump_();
     }
 
     private beginPrepare_(name: string, state: CellState): void {
@@ -559,7 +755,9 @@ export class WorldStreamer {
             (err) => {
                 state.residency = 'unloaded';
                 state.assetsReady = false;
+                state.failed = true;
                 log.error('residency', `cell "${name}" did not prepare`, err);
+                this.pump_();
             },
         );
     }
@@ -631,6 +829,7 @@ export class WorldStreamer {
         // cell is still wanted — or wanted now when it was not — is asked again
         // here rather than assumed from when it started.
         this.step_(name);
+        this.pump_();
     }
 
     /**
@@ -681,10 +880,20 @@ export class WorldStreamer {
         state.residency = 'publishing';
         state.publishedAt = performance.now();
         this.loadCount_++;
-        this.run_(() => this.host_.loadAdditive(name),
+        this.run_(() => {
+            const loading = this.host_.loadAdditive(name);
+            // Already upon it: not spread over frames at all. Said after the load began; a host whose job has not started
+            // yet keeps the word for it.
+            if (state.urgent && this.policy_.slowStreaming !== 'budget') this.rush_(name);
+            return loading;
+        },
             () => {
                 const now = performance.now();
                 state.residency = 'resident';
+                state.failed = false;
+                // Said even when it was not urgent: it also forgets a rush that found no work spread over frames.
+                state.urgent = false;
+                this.host_.urge?.(name, false);
                 this.residencyEpoch_++;
                 state.delivery = now - state.issuedAt;
                 state.publishMs = now - state.publishedAt;
@@ -693,13 +902,16 @@ export class WorldStreamer {
                     this.lastDemandToResident_ = state.demandToResidentMs;
                 }
                 this.step_(name);
+                this.pump_();
             },
             (err) => {
                 // A cell that failed to come up owns nothing (the scene load is a
                 // transaction), so it goes back to being absent and may be asked
                 // for again rather than being stuck half-present.
                 state.residency = 'unloaded';
+                state.failed = true;
                 log.error('residency', `cell "${name}" did not load`, err);
+                this.pump_();
             },
         );
     }
@@ -710,8 +922,15 @@ export class WorldStreamer {
         // `keepPersistent: false` is the contract: a cell's unload takes everything
         // the cell brought. Scene persistence answers a different question, and
         // honouring it here leaves exactly what residency exists to remove.
-        this.run_(() => this.host_.unload(name, { keepPersistent: false }),
-            () => { state.residency = 'unloaded'; this.residencyEpoch_++; this.step_(name); },
+        // Spread over frames, hidden at once (`retire`), unless the world is being cleared and may have no frames left.
+        this.run_(() => this.host_.unload(name, { keepPersistent: false, staggered: !this.clearing_ }),
+            () => {
+                state.residency = 'unloaded';
+                this.residencyEpoch_++;
+                // A rush said while it left (the world cleared) is not carried to its next arrival.
+                this.host_.urge?.(name, false);
+                this.step_(name);
+            },
             (err) => {
                 state.residency = this.host_.isLoaded(name) ? 'resident' : 'unloaded';
                 this.residencyEpoch_++;

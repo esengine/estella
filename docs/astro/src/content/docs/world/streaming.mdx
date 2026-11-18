@@ -96,6 +96,64 @@ boundary would otherwise spend every frame instantiating and destroying a place.
 Set `unloadRadius` comfortably larger than `loadRadius` — half again is a good
 starting point.
 
+### Arriving within a frame's budget
+
+A cell is published **over frames**, not in one. Its entities are spawned, their
+components written and the hierarchy linked a piece at a time, under the same
+per-frame budget the bakes, the terrain's pages and the procedural chunks share
+(`Bakes.budgetMs`, 8 ms). While it arrives its roots are switched off
+(`Disabled`), so no system, query, body or draw sees half a place; the last
+step switches it on whole, and every `Added` filter sees its components arrive
+in that frame. Leaving is the same in reverse: the cell is switched off in the
+frame it is let go, then destroyed under the budget, and its assets given back
+after.
+
+What the streamer does at once, and what it does when it falls behind, is its
+**policy** (`streamer.setPolicy({...})`). The defaults are Unreal Engine's:
+
+| Policy | Default | What it decides | Unreal |
+| --- | --- | --- | --- |
+| `Bakes.budgetMs` | 8 | Milliseconds a frame gives all work spread over frames | `s.LevelStreamingActorsUpdateTimeLimit` (5 ms) |
+| `Bakes.priorityExtraMs` | 12 | More, while a cell a source is upon is still arriving | `s.PriorityLevelStreamingActorsUpdateExtraTime` (5 ms) |
+| `maxLoadingCells` | 4 | Cells prepared at once; the rest wait, nearest first (an urgent one never waits) | `wp.Runtime.MaxLoadingStreamingCells` (4) |
+| `maxPublishingCells` | 1 | Cells published at once (an urgent one never waits) | one level made visible at a time |
+| `slowStreamingRatio` | 0.25 | A wanted cell is **urgent** while a source is within this share of its `loadRadius` of it | `wp.Runtime.BlockOnSlowStreamingRatio` (0.25) |
+| `slowStreaming` | `'wait'` | What an urgent cell does (below) | `wp.Runtime.BlockOnSlowStreaming` (on) |
+
+`slowStreaming` is the one choice a game has to make, because each answer costs
+something different:
+
+- `'wait'`: an urgent cell is finished in the frame it becomes urgent, and the
+  game is **held** (paused, with streaming going on through the pause) until
+  every urgent cell is in. A hitch and a stop, never a hole. Unreal's default.
+- `'publish'`: the same finishing, never a hold. A cell still being fetched is
+  missing until it arrives.
+- `'budget'`: nothing is ever done outside the budget; an urgent cell only gets
+  `priorityExtraMs`. The steadiest frame rate, and a hole when the world cannot
+  keep up (Unreal with `BlockOnSlowStreaming` off, as Movie Render Queue sets it).
+
+A hold is a pause owned by the streamer: a pause the game asked for (a menu)
+stops streaming as it always did, and a hold never ends that pause. A cell that
+failed to prepare or publish does not hold the game. `worldResidencyReport`
+says what the policy is doing: `urgentCells`, `queuedCells`, `holding`,
+`holdCount`, `holdMs` and `rushCount` (publications finished outside the budget).
+
+`maxLoadingCells` is the trade a slow device feels most, because preparing a
+cell (decoding, uploading textures, readying programs) costs main-thread time
+that is not under the budget. Measured along `examples/far-proxy-town`'s flight
+with the CPU slowed five times (`tools/measure-cell-hitch.mjs`): with no cap the
+worst frame was 375 ms and 72 of 2700 frames took over 100 ms, and the cell under
+the flyer was always in; with the default 4, 8 frames took over 100 ms and the worst was one that finished
+an urgent cell at once (547 ms; the next worst, 196 ms), but the cell under the flyer was still
+being prepared for 571 frames, each of which `wait` turns into a held game. A game
+that moves fast gives `prefetchRadius` room for that, or raises the cap.
+
+The numbers differ from Unreal's on purpose: Estella has one budget for all work
+spread over frames where Unreal has one for level streaming alone, and the
+default leaves room for the terrain and chunks beside a cell. A cell clearing a
+world (`clear()`, Play stopped) is finished and taken out at once, since the
+frames that would have stepped it may be gone.
+
 ## What the cook produces
 
 Partitioning happens at **cook time**, not at boot:
@@ -268,8 +326,9 @@ so the replacement cannot take ownership of a name that still has live content.
 
 Cells load asynchronously through the same scene loading a game already uses.
 They are ordered (a cell a source is walking into goes before one it only might,
-nearest first) and can be readied ahead by `prefetchRadius`, but there is no
-admission budget: a large cell arriving is still a hitch. A cell's far proxy
+nearest first), can be readied ahead by `prefetchRadius`, and arrive within
+the frame's budget (above). One component's write is not split: a single entity
+whose components alone outlast the budget still costs its frame. A cell's far proxy
 (above) carries its static meshes only: what moves, blends or is not a mesh
 (sprites, particles, lights) is not drawn while the cell is absent, and a
 proxy has one level, not a chain of coarser ones further out. Some content has a far version of its own:

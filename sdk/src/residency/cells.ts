@@ -150,7 +150,7 @@ export function desiredResidency(
     resident: ReadonlySet<string>,
 ): ResidencyDecision {
     const target: string[] = [];
-    const prefetch: string[] = [];
+    const prefetch: Array<{ name: string; distance: number }> = [];
     const toUnload: string[] = [];
     /** Demanded-and-absent cells with how far the nearest source is. */
     const pending: Array<{ name: string; distance: number }> = [];
@@ -169,7 +169,7 @@ export function desiredResidency(
             else if (distance <= Math.max(source.loadRadius, source.unloadRadius)) kept = true;
             if (distance <= Math.max(source.loadRadius, source.prefetchRadius)) speculated = true;
         }
-        if (speculated) prefetch.push(cell.name);
+        if (speculated) prefetch.push({ name: cell.name, distance: nearest });
         const isResident = resident.has(cell.name);
         if (wanted || (kept && isResident)) {
             target.push(cell.name);
@@ -181,5 +181,8 @@ export function desiredResidency(
     // Nearest first, and stable: two cells a source is equally far from keep the
     // order the cook wrote them in rather than one the sort invented.
     pending.sort((a, b) => a.distance - b.distance);
-    return { target, prefetch, toLoad: pending.map((p) => p.name), toUnload };
+    // The same for what is only readied: with a cap on preparations at once (`StreamingPolicy.maxLoadingCells`), the order
+    // is who gets a slot, and in the cook's order the cell ahead of a player waited behind the far side of the map.
+    prefetch.sort((a, b) => a.distance - b.distance);
+    return { target, prefetch: prefetch.map((p) => p.name), toLoad: pending.map((p) => p.name), toUnload };
 }

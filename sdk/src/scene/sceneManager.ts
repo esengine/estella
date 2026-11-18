@@ -71,6 +71,16 @@ export interface SceneConfig {
      * is how a headless host satisfies it — never by inventing a claim.
      */
     readyRenderPrograms?: () => Promise<RenderReadiness>;
+    /**
+     * How this scene's entities are destroyed by a STAGGERED unload (`unload(name, { staggered: true })`): handed the
+     * doomed entities after survivors were decided, it hides them at once and takes them out over frames, and the rest of
+     * the teardown (systems, assets) waits for it. Absent, a staggered unload is an ordinary one.
+     */
+    retire?: (doomed: readonly Entity[]) => Promise<void>;
+    /** Finish, now, whatever of this scene's arrival or departure is being spread over frames. */
+    rush?: () => void;
+    /** Says whether a player would see this scene missing, so work spread over frames for it may take more of a frame. */
+    urge?: (urgent: boolean) => void;
 }
 
 /**
@@ -116,6 +126,11 @@ export interface SceneContext {
  */
 export interface TransitionOptions {
     keepPersistent?: boolean;
+    /**
+     * Unload over frames, through the scene's `retire` (a streamed cell): hidden at once, destroyed under the frame's
+     * budget, its assets given back after. A load of the same name waits for it.
+     */
+    staggered?: boolean;
     transition?: 'none' | 'fade';
     duration?: number;
     color?: Color;
@@ -292,6 +307,8 @@ export class SceneManagerState {
     private readonly transitionController_ = new SceneTransitionController();
     private switching_ = false;
     private loadPromises_ = new Map<string, Promise<SceneContext>>();
+    /** Staggered unloads in flight: a load of the same name waits, rather than taking up a scene half torn down. */
+    private unloadPromises_ = new Map<string, Promise<void>>();
     private stopEntityTracking_: (() => void) | null = null;
 
     constructor(app: App) {
@@ -468,6 +485,16 @@ export class SceneManagerState {
         return this.configs_.get(name)?.discardPrepared?.() ?? 0;
     }
 
+    /** Finish, now, what of `name`'s arrival or departure is being spread over frames (see `SceneConfig.rush`). */
+    rush(name: string): void {
+        this.configs_.get(name)?.rush?.();
+    }
+
+    /** Says whether a player would see `name` missing (see `SceneConfig.urge`). */
+    urge(name: string, urgent: boolean): void {
+        this.configs_.get(name)?.urge?.(urgent);
+    }
+
     /**
      * The one load path. `mode` is the only difference between the two doors —
      * which is why they were two copies, and why the fix for re-loading a SLEPT
@@ -483,6 +510,8 @@ export class SceneManagerState {
             if (mode === 'additive') this.additiveScenes_.add(name);
             else this.activeScene_ = name;
         };
+        const leaving = this.unloadPromises_.get(name);
+        if (leaving) await leaving.catch(() => undefined);
 
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
@@ -570,10 +599,21 @@ export class SceneManagerState {
         instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
     ): void {
         const world = this.app_.world;
+        const doomed = this.settleSurvivors_(instance, keepPersistent, wasSleeping);
+        for (const entity of doomed) {
+            if (world.valid(entity)) world.despawn(entity);
+        }
+        this.finishDispose_(instance);
+    }
+
+    /**
+     * Decide who outlives the scene and move them out of its way, answering who does not. Decide first, destroy after:
+     * `despawn` takes the whole subtree with it, so a survivor under a doomed parent was being killed by its parent's turn
+     * in the loop — whether it lived at all came down to iteration order.
+     */
+    private settleSurvivors_(instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean): Entity[] {
+        const world = this.app_.world;
         const { survivors, doomed } = this.partitionOnUnload_(instance, keepPersistent);
-        // Decide first, destroy after. `despawn` takes the whole subtree with it,
-        // so a survivor under a doomed parent was being killed by its parent's
-        // turn in the loop — whether it lived at all came down to iteration order.
         const doomedSet = new Set(doomed);
         for (const survivor of survivors) {
             if (!world.has(survivor, Parent)) continue;
@@ -581,9 +621,11 @@ export class SceneManagerState {
             if (doomedSet.has(parent)) detachPreservingWorldTransform(world, survivor);
         }
         for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
-        for (const entity of doomed) {
-            if (world.valid(entity)) world.despawn(entity);
-        }
+        return doomed;
+    }
+
+    /** Everything a scene owns besides its entities: what is torn down once they are gone. */
+    private finishDispose_(instance: SceneInstance): void {
         instance.entities.clear();
         instance.savedEnabled.clear();
 
@@ -740,8 +782,29 @@ export class SceneManagerState {
             }
         }
 
-        this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping);
-        this.removeSceneSlot_(name, instance);
+        const retire = options?.staggered ? instance.config.retire : undefined;
+        if (!retire) {
+            this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping);
+            this.removeSceneSlot_(name, instance);
+            return;
+        }
+        const leaving = (async () => {
+            const doomed = this.settleSurvivors_(instance, options?.keepPersistent ?? true, wasSleeping);
+            try {
+                await retire(doomed);
+            } finally {
+                // Whatever retire left (it threw, or something survived it) goes now: the teardown below assumes no entity.
+                for (const entity of doomed) if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
+                this.finishDispose_(instance);
+                this.removeSceneSlot_(name, instance);
+            }
+        })();
+        this.unloadPromises_.set(name, leaving);
+        try {
+            await leaving;
+        } finally {
+            if (this.unloadPromises_.get(name) === leaving) this.unloadPromises_.delete(name);
+        }
     }
 
     /**

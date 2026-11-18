@@ -68,6 +68,15 @@ export interface WorldResidencyReport {
     prefetchHits: number;
     prefetchMisses: number;
     lastDemandToResidentMs: number;
+    /** Cells a source is upon that are not in yet, and cells waiting their turn (see `StreamingPolicy`). */
+    urgentCells: string[];
+    queuedCells: string[];
+    /** Whether the game is held for an urgent cell, how often it was and for how long in all (ms). */
+    holding: boolean;
+    holdCount: number;
+    holdMs: number;
+    /** Publications finished outside the frame's budget because their cell was urgent. */
+    rushCount: number;
     /** Live entities each resident cell owns. Absent from the map = not resident. */
     cellEntityCounts: Record<string, number>;
     /** Of those, how many draw anything. */
@@ -102,6 +111,7 @@ const EMPTY: WorldResidencyReport = {
     loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0,
     prefetchRequests: 0, cancelledRefs: 0,
     prefetchHits: 0, prefetchMisses: 0, lastDemandToResidentMs: 0,
+    urgentCells: [], queuedCells: [], holding: false, holdCount: 0, holdMs: 0, rushCount: 0,
     cellEntityCounts: {}, cellRenderCounts: {}, assetRefsByCell: {},
     authoredCellEntityCounts: {}, cellRows: {},
     persistentEntities: 0, persistentHandles: [], delivery: {},
@@ -176,6 +186,12 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         prefetchHits: status.prefetchHits,
         prefetchMisses: status.prefetchMisses,
         lastDemandToResidentMs: status.lastDemandToResidentMs,
+        urgentCells: status.urgentCells,
+        queuedCells: status.queuedCells,
+        holding: status.holding,
+        holdCount: status.holdCount,
+        holdMs: status.holdMs,
+        rushCount: status.rushCount,
         cellEntityCounts, cellRenderCounts, assetRefsByCell, authoredCellEntityCounts,
         cellRows,
         persistentEntities: persistent.length,

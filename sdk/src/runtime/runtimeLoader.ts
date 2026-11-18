@@ -5,8 +5,10 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { SceneOwner } from '../ecs/component';
-import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
+import { SceneOwner, Disabled, Parent } from '../ecs/component';
+import { bakesOf } from './bakes';
+import { loadSceneData, loadSceneDataJob, revealStagedEntities, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs,
+         type SceneData, type StagedSpawn } from '../scene/scene';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
@@ -598,6 +600,12 @@ export async function publishRuntimeScene(
     // gone, the world may have switched, a generation may have moved. A prepared
     // scene holding a runtime handle would be holding a guess.
     now?: { externalEntities?: ReadonlyMap<number, Entity> },
+    /**
+     * Spread the spawn over frames (a streamed cell): handed the staged spawn as a job, it runs it under the frame's budget.
+     * The scene's roots stay switched off until the end of this call and are switched on whole, so nothing sees it half
+     * arrived — Unreal's AddToWorld, time-sliced, with the level visible only once it returns true.
+     */
+    spread?: (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>,
 ): Promise<void> {
     const { sceneData, assetResult, spineManager, spineAssetInfo,
             dragonBonesManager, dragonBonesAssetInfo, discovered } = prepared;
@@ -625,8 +633,11 @@ export async function publishRuntimeScene(
     };
     void discovered;
 
-    const entityMap = await timed('spawn',
-        () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
+    let staged: StagedSpawn | null = null;
+    const entityMap = spread
+        // Not timed as one phase: its own phases (spawn.*) are charged their work, and not the frames between.
+        ? (staged = await spread(loadSceneDataJob(app.world, sceneData, options.externalEntities, onPhase))).entities
+        : await timed('spawn', () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
@@ -674,6 +685,11 @@ export async function publishRuntimeScene(
         });
     }
 
+    // Last, once everything about it is in place: a staged scene is switched on whole.
+    if (staged) {
+        const whole = staged;
+        mark('reveal', () => revealStagedEntities(app.world, whole));
+    }
 }
 
 /**
@@ -685,11 +701,28 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 }
 
 
+/** A streamed cell's scene: brought in and taken out over frames, under the frame's budget (see `createRuntimeSceneConfig`). */
+export interface StreamedSceneOptions {
+    /** What the work is called where work in hand is shown (the editor's status bar, a loading screen). */
+    label?: string;
+}
+
+/** Despawns `doomed` one entity a step, yielding how far along it is. */
+function* despawnJob(world: App['world'], doomed: readonly Entity[]): Generator<number, void, void> {
+    for (let i = 0; i < doomed.length; i++) {
+        const entity = doomed[i]!;
+        if (world.valid(entity)) world.despawn(entity);
+        yield (i + 1) / doomed.length;
+    }
+}
+
 export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData | undefined,
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
     scenePath?: string,
+    /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
+    streamed?: StreamedSceneOptions,
 ): SceneConfig {
     // Built first and closed over, so whoever sets `externalEntities` / `onPhase`
     // on the CONFIG is honoured here too: declared in one place and read in
@@ -697,6 +730,27 @@ export function createRuntimeSceneConfig(
     // Held by the config, which IS the per-scene object: a prepared cell has one
     // place to live and one owner to release it.
     let prepared: PreparedRuntimeScene | null = null;
+    // A streamed cell's work over frames: the one job in hand (its arrival or its departure), and whether a player would
+    // see it missing. Urgency is said to the budget only while there is work for it to speed.
+    let spreading: { finish: () => void } | null = null;
+    let urgent = false;
+    // Rushed before its job began (the load still awaiting what comes before the spawn): the job is finished the moment
+    // it starts. Forgotten once the scene is no longer urgent.
+    let rushed = false;
+    const label = streamed?.label ?? name;
+    const overFrames = async <T>(what: string, job: Generator<number, T, void>): Promise<T> => {
+        const bakes = bakesOf(options.app);
+        const handle = bakes.run(`${what} ${label}`, job);
+        spreading = handle;
+        bakes.urge(config, urgent);
+        if (rushed) { rushed = false; handle.finish(); }
+        try {
+            return await handle.done;
+        } finally {
+            spreading = null;
+            bakes.urge(config, false);
+        }
+    };
     const readied = async (): Promise<PreparedRuntimeScene> => {
         let data = sceneData;
         if (!data) {
@@ -738,9 +792,34 @@ export function createRuntimeSceneConfig(
         async setup() {
             const ready = prepared ?? await readied();
             prepared = null;
-            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() });
+            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() },
+                streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },
     };
+    if (streamed) {
+        // Hidden at once, every top of the doomed set switched off in this frame, then destroyed under the budget: Unreal's
+        // incremental unregistration (`s.LevelStreamingUnregisterComponentsTimeLimit`), with the place gone the moment it goes.
+        config.retire = async (doomed) => {
+            const world = options.app.world;
+            const going = new Set(doomed);
+            for (const entity of doomed) {
+                if (!world.valid(entity)) continue;
+                const parent = world.has(entity, Parent) ? (world.get(entity, Parent).entity as Entity) : null;
+                if (parent !== null && going.has(parent)) continue;
+                if (!world.has(entity, Disabled)) world.insert(entity, Disabled, {});
+            }
+            await overFrames('Taking out', despawnJob(world, doomed));
+        };
+        config.rush = () => {
+            if (spreading) spreading.finish();
+            else rushed = true;
+        };
+        config.urge = (now) => {
+            urgent = now;
+            if (!now) rushed = false;
+            if (spreading) bakesOf(options.app).urge(config, now);
+        };
+    }
     return config;
 }
 
@@ -940,7 +1019,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
             // loads the cell closes over the object this returns, so a copy
             // carries the fields somewhere nothing reads them.
             const config = createRuntimeSceneConfig(
-                cell.name, documents?.get(cell.name), sceneOpts, cell.path,
+                cell.name, documents?.get(cell.name), sceneOpts, cell.path, { label: cell.name },
             );
             config.externalEntities = () => persistentEntityRows(app, world);
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);

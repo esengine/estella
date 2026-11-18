@@ -83,6 +83,43 @@ world.insert(player, WorldStreamingSource, {
 必须存在的全部理由:否则一个站在边界上的源会每一帧都在实例化和销毁同一个地方。把
 `unloadRadius` 设得比 `loadRadius` 明显更大——多出一半是个不错的起点。
 
+### 在一帧的预算里到达
+
+一个格子是**分帧**发布的,不是一帧做完。它的实体逐个生成、组件逐个写入、层级逐个连上,用的是烘焙、地形分页和程序化区块共用的同一份每帧预算
+(`Bakes.budgetMs`,8 毫秒)。到达期间它的根实体是关着的(`Disabled`),所以没有系统、查询、刚体或绘制会看到半个地方;
+最后一步把它整体打开,所有 `Added` 过滤器都在这一帧看到它的组件到达。离开时反过来:放手的那一帧就关掉,再在预算内逐步销毁,资源最后归还。
+
+流送器同时做多少、跟不上时怎么办,是它的**策略**(`streamer.setPolicy({...})`)。默认值取自虚幻引擎:
+
+| 策略 | 默认 | 决定什么 | 虚幻 |
+| --- | --- | --- | --- |
+| `Bakes.budgetMs` | 8 | 一帧给所有分帧工作的毫秒数 | `s.LevelStreamingActorsUpdateTimeLimit`(5 毫秒) |
+| `Bakes.priorityExtraMs` | 12 | 有来源已经到了跟前的格子还没到齐时,额外再给的时间 | `s.PriorityLevelStreamingActorsUpdateExtraTime`(5 毫秒) |
+| `maxLoadingCells` | 4 | 同时准备的格子数;其余按远近排队(紧急的格子从不排队) | `wp.Runtime.MaxLoadingStreamingCells`(4) |
+| `maxPublishingCells` | 1 | 同时发布的格子数(紧急的格子从不排队) | 一次只让一个关卡变为可见 |
+| `slowStreamingRatio` | 0.25 | 来源到一个想要的格子的距离小于自己 `loadRadius` 的这个比例时,这个格子就是**紧急**的 | `wp.Runtime.BlockOnSlowStreamingRatio`(0.25) |
+| `slowStreaming` | `'wait'` | 紧急格子怎么处理(见下) | `wp.Runtime.BlockOnSlowStreaming`(开) |
+
+`slowStreaming` 是游戏必须自己做的那个选择,因为每个答案的代价不同:
+
+- `'wait'`:紧急格子在变紧急的那一帧就做完,并且**暂停游戏**(暂停期间流送照常进行),直到所有紧急格子都到齐。
+  会卡一下、停一下,但永远不会露出空洞。虚幻的默认做法。
+- `'publish'`:同样当场做完,但从不暂停。还在下载的格子到达之前就是缺的。
+- `'budget'`:任何工作都不超出预算;紧急格子只多拿 `priorityExtraMs`。帧率最平稳,世界跟不上时就会露出空洞
+  (相当于虚幻关掉 `BlockOnSlowStreaming`,Movie Render Queue 就是这么设的)。
+
+暂停由流送器自己持有:游戏自己要的暂停(比如菜单)照旧会让流送停下,流送器的暂停也绝不会结束游戏自己的暂停。
+准备或发布失败的格子不会让游戏暂停。`worldResidencyReport` 会报告策略正在做什么:`urgentCells`、`queuedCells`、`holding`、
+`holdCount`、`holdMs` 和 `rushCount`(在预算之外做完的发布次数)。
+
+`maxLoadingCells` 是慢设备上最能感觉到的取舍,因为准备一个格子(解码、上传纹理、准备着色器程序)花的主线程时间不在预算之内。
+沿 `examples/far-proxy-town` 的飞行路线、CPU 放慢五倍测量(`tools/measure-cell-hitch.mjs`):不设上限时最差一帧 375 毫秒,
+2700 帧里有 72 帧超过 100 毫秒,飞行者脚下的格子始终在;默认 4 时超过 100 毫秒的只有 8 帧,最差的一帧是当场做完一个紧急格子(547 毫秒;其次是 196 毫秒),
+但飞行者脚下的格子有 571 帧还在准备,`wait` 会把这些帧都变成游戏暂停。移动快的游戏要给 `prefetchRadius` 留出这段余量,或者调高上限。
+
+数值和虚幻不同是有意的:Estella 所有分帧工作共用一份预算,虚幻那一份只给关卡流送,默认值要给格子旁边的地形和区块留出余地。
+清空世界时(`clear()`、停止 Play)正在进行的格子会当场做完并移除,因为原本推进它的那些帧可能已经没有了。
+
 ## cook 产出什么
 
 切分发生在 **cook 时**,不在启动时:
@@ -219,7 +256,8 @@ report.loadCount;            // 启动以来带进来过多少个地方
 ## 这一版不做什么
 
 格子通过游戏本来就在用的场景加载路径异步到达。它们有先后(来源正要走进的格子先于只是可能走进的,近的先)
-,也可以用 `prefetchRadius` 提前准备,但没有准入预算:一个大格子到达时仍然是一次卡顿。
+,可以用 `prefetchRadius` 提前准备,并在每帧的预算里分帧到达(见上文)。
+单个组件的写入不会再拆开:一个实体光是它的组件就超出预算时,那一帧仍然要付这个代价。
 格子的远景代理(见上文)只带它的静态网格:会动的、半透明的、不是网格的东西(精灵、粒子、灯光)在格子不在时不画;
 代理也只有一级,没有越远越粗的多级。
 有些内容自带远景版本:地面([地形](/docs/zh-cn/graphics/terrain/)是按距离切分的四叉树,画到 `drawDistance`;
