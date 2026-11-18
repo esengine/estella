@@ -21,7 +21,7 @@ import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
 import { registryEntityFields } from '../residency/componentRefs';
-import { assembleFarProxies, farProxySceneName, farProxySettings } from '../residency/farProxy';
+import { deferFarProxies, farProxySceneName, farProxySettings, type FarProxyHost } from '../residency/farProxy';
 import { decodeMesh, encodeMesh } from '../asset/meshFormat';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
@@ -104,6 +104,11 @@ export interface PlayRealmRuntimeConfig {
     achievements?: string[];
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
     enableStats?: boolean;
+    /**
+     * How a far proxy's merged group is simplified, as a build does it. Without one Play's proxies keep every triangle of what they
+     * stand for: right to look at, and as heavy as the whole world loaded.
+     */
+    simplifyFarProxy?: FarProxyHost['simplify'];
 }
 
 /**
@@ -190,14 +195,36 @@ export function playRealmTextureSettings(
 }
 
 /** An http backend that answers some paths from memory: what Play made itself, like a world's far proxy meshes. */
+/** What Play makes itself and serves under package paths: bytes already made, and bytes made the first time they are asked for. */
+export interface PlayMade {
+    bytes: Map<string, Uint8Array>;
+    later: Map<string, () => Promise<Uint8Array | null>>;
+}
+
+/** An http backend that answers some paths from what Play made: a world's far proxies, documents and meshes. */
 class OverlayBackend extends HttpBackend {
-    constructor(private readonly overlay_: ReadonlyMap<string, Uint8Array>) {
+    constructor(private readonly made_: PlayMade) {
         super({ baseUrl: '' });
     }
 
+    private async made(path: string): Promise<Uint8Array | null> {
+        for (const key of [path, this.resolveUrl(path)]) {
+            const bytes = this.made_.bytes.get(key);
+            if (bytes) return bytes;
+            const make = this.made_.later.get(key);
+            if (make) return make();
+        }
+        return null;
+    }
+
     override async fetchBinary(path: string): Promise<ArrayBuffer> {
-        const bytes = this.overlay_.get(path) ?? this.overlay_.get(this.resolveUrl(path));
+        const bytes = await this.made(path);
         return bytes ? bytes.slice().buffer : super.fetchBinary(path);
+    }
+
+    override async fetchText(path: string): Promise<string> {
+        const bytes = await this.made(path);
+        return bytes ? new TextDecoder().decode(bytes) : super.fetchText(path);
     }
 }
 
@@ -207,9 +234,9 @@ function createPlayRealmSource(
     pathMap?: Record<string, string>,
     addressable?: AddressableManifest | null,
     compressedTexture?: RuntimeAssetSource['compressedTexture'],
-    overlay: ReadonlyMap<string, Uint8Array> = new Map(),
+    made: PlayMade = { bytes: new Map(), later: new Map() },
 ): RuntimeAssetSource {
-    const backend = new OverlayBackend(overlay);
+    const backend = new OverlayBackend(made);
     return {
         backend,
         ...(compressedTexture ? { compressedTexture } : {}),
@@ -267,12 +294,13 @@ export async function cutPlayWorld(
 /**
  * Give a cut world the far proxies a build would, when its `StreamedWorld` asks for them.
  *
- * Assembled by the same `assembleFarProxies` a cook runs, so the same surfaces stand in for each cell, grouped the same way;
- * Play has no simplifier, so its proxies keep every triangle of what they stand for. The documents join the cut's and the meshes
- * are served from `made` under the paths the documents name.
+ * Named on the manifest now and made by the same assembly a cook runs, simplified by `simplify` when the host lends the build's
+ * simplifier, but each only when the streamer first fetches it: simplifying every cell before the game starts is a wait as long
+ * as the world is large. The documents and meshes are served from `made` under the paths the manifest names.
  */
 export async function addPlayFarProxies(
-    cut: CutWorld, scene: SceneData, resolveRef: (ref: string) => string, made: Map<string, Uint8Array>,
+    cut: CutWorld, scene: SceneData, resolveRef: (ref: string) => string, made: PlayMade,
+    simplify?: FarProxyHost['simplify'],
 ): Promise<void> {
     const settings = farProxySettings(scene);
     if (settings === null) return;
@@ -280,20 +308,28 @@ export async function addPlayFarProxies(
         const response = await fetch(resolveRef(ref));
         return response.ok ? response : null;
     };
-    const proxies = await assembleFarProxies(cut, settings, {
+    const make = await deferFarProxies(cut, settings, {
         loadPrefab: async (ref) => (await (await fetched(ref))?.json() ?? null) as never,
         readMesh: async (ref) => {
             const response = await fetched(ref);
             return response ? decodeMesh(new Uint8Array(await response.arrayBuffer())) : null;
         },
+        ...(simplify ? { simplify } : {}),
     });
-    for (const proxy of proxies) {
-        cut.documents.set(farProxySceneName(proxy.cell), proxy.document);
-        for (const { path, mesh } of proxy.meshes) {
-            const bytes = encodeMesh(mesh);
-            made.set(path, bytes);
-            made.set(resolveRef(path), bytes);
-        }
+    for (const cell of cut.manifest.cells) {
+        if (!cell.proxy) continue;
+        const document = async (): Promise<Uint8Array> => {
+            const proxy = await make(cell.name);
+            for (const { path, mesh } of proxy?.meshes ?? []) {
+                const bytes = encodeMesh(mesh);
+                made.bytes.set(path, bytes);
+                made.bytes.set(resolveRef(path), bytes);
+            }
+            const empty: SceneData = { version: 4, name: farProxySceneName(cell.name), entities: [] };
+            return new TextEncoder().encode(JSON.stringify(proxy?.document ?? empty));
+        };
+        made.later.set(cell.proxy, document);
+        made.later.set(resolveRef(cell.proxy), document);
     }
 }
 
@@ -305,7 +341,7 @@ export async function addPlayFarProxies(
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
     const life = app.signal;
-    const made = new Map<string, Uint8Array>();
+    const made: PlayMade = { bytes: new Map(), later: new Map() };
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
                                          config.compressedTexture, made);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
@@ -315,7 +351,8 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
     );
     if (cut) {
-        await addPlayFarProxies(cut, sceneData, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap), made);
+        await addPlayFarProxies(cut, sceneData, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap), made,
+            config.simplifyFarProxy);
     }
     life.throwIfAborted();
     await initRuntime({

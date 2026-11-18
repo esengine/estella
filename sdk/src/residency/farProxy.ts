@@ -16,6 +16,7 @@ import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
 import { WORLD_DIR, type CutWorld } from './cutWorld';
+import type { WorldCell } from './cells';
 
 /** How a world's far proxies are baked and how far they are shown, from its `StreamedWorld`. @experimental */
 export interface FarProxySettings {
@@ -292,6 +293,80 @@ function refTable(): (value: unknown) => number {
 
 type Colour = { r: number; g: number; b: number; a: number };
 
+/** Reads a mesh reference once however many surfaces name it: built-ins here, everything else through the host. */
+function meshCache(host: FarProxyHost): (reference: string) => Promise<MeshData | null> {
+    const meshes = new Map<string, Promise<MeshData | null>>();
+    return (reference) => {
+        let pending = meshes.get(reference);
+        if (!pending) {
+            pending = reference.startsWith('builtin:')
+                ? Promise.resolve(builtinMeshTemplate(reference)?.build() ?? null)
+                : host.readMesh(reference).catch(() => null);
+            meshes.set(reference, pending);
+        }
+        return pending;
+    };
+}
+
+/** One cell's proxy, or null when nothing in it is a surface a proxy can be made of. */
+async function assembleCell(
+    cell: WorldCell, document: SceneData, plane: 'xz' | 'xy', settings: FarProxySettings, host: FarProxyHost,
+    readMesh: (reference: string) => Promise<MeshData | null>,
+): Promise<AssembledFarProxy | null> {
+    const { surfaces } = await farProxySurfaces(document, host.loadPrefab);
+    const intern = refTable();
+    const parts: FarProxyPart[] = [];
+    const renderers = new Map<number, Record<string, unknown>>();
+    let unread = 0;
+    for (const surface of surfaces) {
+        const mesh = await readMesh(surface.mesh);
+        if (!mesh || mesh.vertexCount === 0 || mesh.indices.length === 0) { unread++; continue; }
+        const r = surface.renderer;
+        renderers.set(surface.entity, r);
+        // A tint is the vertex colour times the renderer's colour, so it can be carried by the vertices instead: then surfaces
+        // that differ only in tint share one draw.
+        const tint = (r.color ?? { r: 1, g: 1, b: 1, a: 1 }) as Colour;
+        const tinted = tintVertices(mesh, tint);
+        parts.push({
+            entity: surface.entity, mesh: tinted ?? mesh, world: surface.world,
+            state: {
+                material: intern(r.material), texture: intern(r.texture), normalMap: intern(r.normalMap),
+                color: tinted ? { r: 1, g: 1, b: 1, a: 1 } : tint,
+                layer: typeof r.layer === 'number' ? r.layer : 0,
+                cullBackfaces: r.cullBackfaces === true, lit: r.lit === true, castShadows: r.castShadows !== false,
+                parallax: (r.parallax ?? { x: 1, y: 1 }) as { x: number; y: number }, group: '',
+            },
+        });
+    }
+    if (parts.length === 0) return null;
+    const centre = [(cell.minX + cell.maxX) / 2, (cell.minZ + cell.maxZ) / 2] as const;
+    const origin: [number, number, number] = plane === 'xy' ? [centre[0], centre[1], 0] : [centre[0], 0, centre[1]];
+    const proxy: AssembledFarProxy = {
+        cell: cell.name, path: farProxyPath(cell.name),
+        document: { version: document.version, name: farProxySceneName(cell.name), entities: [] },
+        meshes: [], surfaces: parts.length, trianglesBefore: 0, trianglesAfter: 0, unread,
+    };
+    for (const [i, group] of groupFarProxy(parts, origin).entries()) {
+        // A second UV set is a lightmap's, which no shader reads; carried, it costs bytes and holds seams the simplifier keeps.
+        const merged = withoutChannel(group.mesh, MeshChannel.TexCoord1);
+        const mesh = host.simplify ? await host.simplify(merged, settings.ratio, settings.maxWorldError) : merged;
+        const meshPath = farProxyMeshPath(cell.name, i);
+        proxy.meshes.push({ path: meshPath, mesh });
+        proxy.trianglesBefore += group.mesh.indices.length / 3;
+        proxy.trianglesAfter += mesh.indices.length / 3;
+        // The first source's renderer carries the group's material, textures and switches, as the strings the runtime resolves.
+        proxy.document.entities.push({
+            id: i + 1, name: 'Far proxy ' + i, parent: null, children: [], visible: true,
+            components: [
+                { type: 'Transform', data: { position: { x: origin[0], y: origin[1], z: origin[2] } } },
+                // The group's colour, not the first source's: a tint the vertices carry is not applied twice.
+                { type: 'MeshRenderer', data: { ...renderers.get(group.sources[0]!)!, color: group.state.color, mesh: meshPath, enabled: true } },
+            ],
+        });
+    }
+    return proxy;
+}
+
 /**
  * Assemble every cell of `cut` its far proxy, and name each one on the cut's manifest. A cell with nothing a proxy can be made
  * of gets none, so the manifest names a proxy only where there is one to show.
@@ -302,75 +377,47 @@ export async function assembleFarProxies(
     cut: CutWorld, settings: FarProxySettings, host: FarProxyHost,
 ): Promise<AssembledFarProxy[]> {
     const out: AssembledFarProxy[] = [];
-    const meshes = new Map<string, Promise<MeshData | null>>();
-    const readMesh = (reference: string): Promise<MeshData | null> => {
-        let pending = meshes.get(reference);
-        if (!pending) {
-            pending = reference.startsWith('builtin:')
-                ? Promise.resolve(builtinMeshTemplate(reference)?.build() ?? null)
-                : host.readMesh(reference).catch(() => null);
-            meshes.set(reference, pending);
-        }
-        return pending;
-    };
-    const plane = cut.manifest.plane ?? 'xz';
+    const readMesh = meshCache(host);
     for (const cell of cut.manifest.cells) {
         const document = cut.documents.get(cell.name);
         if (!document) continue;
-        const { surfaces } = await farProxySurfaces(document, host.loadPrefab);
-        const intern = refTable();
-        const parts: FarProxyPart[] = [];
-        const renderers = new Map<number, Record<string, unknown>>();
-        let unread = 0;
-        for (const surface of surfaces) {
-            const mesh = await readMesh(surface.mesh);
-            if (!mesh || mesh.vertexCount === 0 || mesh.indices.length === 0) { unread++; continue; }
-            const r = surface.renderer;
-            renderers.set(surface.entity, r);
-            // A tint is the vertex colour times the renderer's colour, so it can be carried by the vertices instead: then surfaces
-            // that differ only in tint share one draw.
-            const tint = (r.color ?? { r: 1, g: 1, b: 1, a: 1 }) as Colour;
-            const tinted = tintVertices(mesh, tint);
-            parts.push({
-                entity: surface.entity, mesh: tinted ?? mesh, world: surface.world,
-                state: {
-                    material: intern(r.material), texture: intern(r.texture), normalMap: intern(r.normalMap),
-                    color: tinted ? { r: 1, g: 1, b: 1, a: 1 } : tint,
-                    layer: typeof r.layer === 'number' ? r.layer : 0,
-                    cullBackfaces: r.cullBackfaces === true, lit: r.lit === true, castShadows: r.castShadows !== false,
-                    parallax: (r.parallax ?? { x: 1, y: 1 }) as { x: number; y: number }, group: '',
-                },
-            });
-        }
-        if (parts.length === 0) continue;
-        const centre = [(cell.minX + cell.maxX) / 2, (cell.minZ + cell.maxZ) / 2] as const;
-        const origin: [number, number, number] = plane === 'xy' ? [centre[0], centre[1], 0] : [centre[0], 0, centre[1]];
-        const proxy: AssembledFarProxy = {
-            cell: cell.name, path: farProxyPath(cell.name),
-            document: { version: document.version, name: farProxySceneName(cell.name), entities: [] },
-            meshes: [], surfaces: parts.length, trianglesBefore: 0, trianglesAfter: 0, unread,
-        };
-        for (const [i, group] of groupFarProxy(parts, origin).entries()) {
-            // A second UV set is a lightmap's, which no shader reads; carried, it costs bytes and holds seams the simplifier keeps.
-            const merged = withoutChannel(group.mesh, MeshChannel.TexCoord1);
-            const mesh = host.simplify ? await host.simplify(merged, settings.ratio, settings.maxWorldError) : merged;
-            const meshPath = farProxyMeshPath(cell.name, i);
-            proxy.meshes.push({ path: meshPath, mesh });
-            proxy.trianglesBefore += group.mesh.indices.length / 3;
-            proxy.trianglesAfter += mesh.indices.length / 3;
-            // The first source's renderer carries the group's material, textures and switches, as the strings the runtime resolves.
-            proxy.document.entities.push({
-                id: i + 1, name: 'Far proxy ' + i, parent: null, children: [], visible: true,
-                components: [
-                    { type: 'Transform', data: { position: { x: origin[0], y: origin[1], z: origin[2] } } },
-                    // The group's colour, not the first source's: a tint the vertices carry is not applied twice.
-                    { type: 'MeshRenderer', data: { ...renderers.get(group.sources[0]!)!, color: group.state.color, mesh: meshPath, enabled: true } },
-                ],
-            });
-        }
+        const proxy = await assembleCell(cell, document, cut.manifest.plane ?? 'xz', settings, host, readMesh);
+        if (!proxy) continue;
         cell.proxy = proxy.path;
         out.push(proxy);
     }
     if (out.length > 0) cut.manifest.farDistance = settings.farDistance;
     return out;
+}
+
+/**
+ * Name on `cut`'s manifest a proxy for every cell with a surface one could be made of, and answer how to make each when it is
+ * first wanted, instead of making them all now: what a host that cannot wait for every cell to simplify (the editor's Play)
+ * does. A cell named whose meshes all fail to read is made as an empty proxy.
+ *
+ * @experimental
+ */
+export async function deferFarProxies(
+    cut: CutWorld, settings: FarProxySettings, host: FarProxyHost,
+): Promise<(cellName: string) => Promise<AssembledFarProxy | null>> {
+    const named: WorldCell[] = [];
+    for (const cell of cut.manifest.cells) {
+        const document = cut.documents.get(cell.name);
+        if (!document || (await farProxySurfaces(document, host.loadPrefab)).surfaces.length === 0) continue;
+        cell.proxy = farProxyPath(cell.name);
+        named.push(cell);
+    }
+    if (named.length > 0) cut.manifest.farDistance = settings.farDistance;
+    const readMesh = meshCache(host);
+    const made = new Map<string, Promise<AssembledFarProxy | null>>();
+    return (cellName) => {
+        let pending = made.get(cellName);
+        if (!pending) {
+            const cell = named.find((c) => c.name === cellName);
+            pending = cell ? assembleCell(cell, cut.documents.get(cellName)!, cut.manifest.plane ?? 'xz', settings, host, readMesh)
+                : Promise.resolve(null);
+            made.set(cellName, pending);
+        }
+        return pending;
+    };
 }

@@ -348,7 +348,7 @@ export {
     worldManifestPath,
     registryEntityFields,
     WORLD_DIR,
-    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies,
+    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
     type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
     type AssembledFarProxy,
     type StreamedWorldData,

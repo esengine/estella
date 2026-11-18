@@ -14,7 +14,7 @@ import path from 'node:path';
 import { decodeMesh, encodeMesh, type MeshData } from 'esengine';
 import { assembleFarProxies, type CutWorld, type FarProxySettings } from 'esengine/node';
 import type { AssetIndex } from '../assets/assetDb';
-import { simplifyMesh } from '../assets/meshSimplify';
+import { simplifyFarProxyMesh } from '../assets/meshSimplify';
 
 /** What baking a world's far proxies did, for the build's report. */
 export interface FarProxyCookResult {
@@ -46,9 +46,7 @@ export async function cookFarProxies(
     const proxies = await assembleFarProxies(cut, settings, {
         loadPrefab: async (ref) => await readPrefab(ref) as never,
         readMesh: meshReader(root, index),
-        simplify: async (mesh, ratio, maxError) => (await simplifyMesh(mesh, {
-            ratio, maxError, flags: ['ErrorAbsolute', 'Permissive'],
-        }))?.data ?? mesh,
+        simplify: simplifyFarProxyMesh,
     });
     const result: FarProxyCookResult = { cells: proxies.length, surfaces: 0, trianglesBefore: 0, trianglesAfter: 0, warnings: [] };
     for (const proxy of proxies) {

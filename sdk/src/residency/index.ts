@@ -30,7 +30,7 @@ export {
 } from './cutWorld';
 export { registryEntityFields } from './componentRefs';
 export {
-    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies,
+    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
     type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
     type AssembledFarProxy,
 } from './farProxy';

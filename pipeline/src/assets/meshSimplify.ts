@@ -109,3 +109,12 @@ export async function simplifyMesh(data: MeshData, options: SimplifyOptions): Pr
         error,
     };
 }
+
+/**
+ * A far proxy's group, simplified as far as `maxWorldError` world units allow and down to `ratio` of its triangles at most: the one
+ * policy both a build and the editor's Play use, so a proxy in Play is the proxy the package ships. Free to cross seams and drop
+ * specks, as a level seen only from afar is.
+ */
+export async function simplifyFarProxyMesh(data: MeshData, ratio: number, maxWorldError: number): Promise<MeshData> {
+    return (await simplifyMesh(data, { ratio, maxError: maxWorldError, flags: ['ErrorAbsolute', 'Permissive'] }))?.data ?? data;
+}

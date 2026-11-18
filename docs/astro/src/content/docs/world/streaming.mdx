@@ -148,8 +148,9 @@ The streamer hands over in both directions without a gap. Walking towards a cell
 walking away, the cell stays until its proxy is. A proxy that fails to load does not hold its cell. `WorldStreamerStatus.proxyCells`
 and the residency report list the cells drawn by their proxy.
 
-Play makes the same proxies from the same cells, in memory, but does not simplify them: they keep every triangle of what they
-stand for, so a proxy in Play looks exactly like its cell, and a build's looks like it within `proxyError`.
+Play makes the same proxies from the same cells, simplified by the same code a build uses, and keeps them in memory. It makes
+each one when the streamer first asks for it, not before the game starts: in `far-proxy-town`, Play starts after 172 ms of naming
+which cells have a proxy, and each proxy costs about 30 ms (at most 190) as it arrives.
 
 ## The rules a streamed world has to obey
 
