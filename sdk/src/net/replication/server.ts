@@ -31,7 +31,7 @@ import {
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, diffSchemas, tableSchemas, EncodedRows, FrameWriter,
-    type EntityRefMap, type ReplicationTable, type ReplicationTableEntry,
+    type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
@@ -237,6 +237,35 @@ const NOBODY: ReadonlySet<Entity> = new Set<Entity>();
 function sameVisibility(held: VisibilityStamp | null, now: VisibilityStamp): boolean {
     return held !== null && held.source === now.source
         && held.snapshot === now.snapshot && held.owned === now.owned;
+}
+
+/** Whether a shape holds a quantized number anywhere. */
+function hasStep(shape: FieldShape): boolean {
+    if (shape.kind === 'f32') return shape.step !== undefined;
+    if (shape.kind === 'object') return shape.shapes.some(hasStep);
+    return false;
+}
+
+/**
+ * Whether two values of a quantized shape would arrive as the same value. The
+ * shadow holds what was last SENT, so movement under a step accumulates until
+ * it crosses one and is sent then: what a client holds is never more than half
+ * a step from the truth, and a field drifting by less does not cost a row a tick.
+ */
+function sameOnWire(shape: FieldShape, a: unknown, b: unknown): boolean {
+    if (shape.kind === 'f32' && shape.step !== undefined) {
+        if (typeof a !== 'number' || typeof b !== 'number') return a === b;
+        return Math.round(a / shape.step) === Math.round(b / shape.step);
+    }
+    if (shape.kind === 'object') {
+        if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b;
+        for (let i = 0; i < shape.keys.length; i++) {
+            const k = shape.keys[i]!;
+            if (!sameOnWire(shape.shapes[i]!, (a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
+        }
+        return true;
+    }
+    return fieldEqual(a, b);
 }
 
 function fieldEqual(a: unknown, b: unknown): boolean {
@@ -2102,6 +2131,7 @@ export class ReplicationServer {
             for (const e of this.world_.getRemovedEntitiesSince(te.def, floor)) candidates.add(e);
 
             this.dirtyCandidates += candidates.size;
+            const quantized = te.shapes.map(hasStep);
             for (const e of candidates) {
                 const perComp = this.shadow_.get(e);
                 if (!perComp) continue;
@@ -2123,7 +2153,8 @@ export class ReplicationServer {
                 let mask = 0;
                 for (let i = 0; i < te.fields.length; i++) {
                     const f = te.fields[i];
-                    if (!(f in snap) || !fieldEqual(data[f], snap[f])) {
+                    if (!(f in snap) || !(quantized[i]
+                        ? sameOnWire(te.shapes[i]!, data[f], snap[f]) : fieldEqual(data[f], snap[f]))) {
                         mask |= 1 << i;
                         snap[f] = cloneValue(data[f]);
                     }

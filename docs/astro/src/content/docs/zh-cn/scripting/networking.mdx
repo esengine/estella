@@ -199,7 +199,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 在客户端 despawn 其 ghost,delta 帧只携带兴趣内的内容。
 
 ```typescript
-import { radiusInterest } from 'esengine';
+import { radiusInterest } from 'esengine/replication';
 
 // 每个客户端看到它拥有的实体周围 800 单位内的实体。
 server.setInterestPolicy(radiusInterest(800));
@@ -223,7 +223,7 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 采样只准备一次空间索引,然后用它回答所有连接:
 
 ```typescript
-import { radiusInterestProvider } from 'esengine';
+import { radiusInterestProvider } from 'esengine/replication';
 
 server.setInterestProvider(radiusInterestProvider(800));
 ```
@@ -293,6 +293,30 @@ server.setBandwidthBudget({
 开销与看到它的玩家数无关。实测 200 人挤在一处、20Hz(`tools/net-capacity-benchmark.mjs --crowd --budget 16000`)：
 每个玩家的流量从约 52 KB/s 降到 17.6 KB/s，服务器总流量从 10 MB/s 降到 3.4 MB/s，tick 耗时不变。没人超预算时
 它有一点固定开销(200 人、每人看到 30 个时每 tick 约 1.5 ms)，所以在会出现人群的地方开启。
+
+#### 每行更少字节:`quantizeReplicatedFields`
+
+复制的数字默认按 32 位浮点发送。大多数并不需要这么精确:位置到厘米、角度到百分之一度就够了。量化一个字段，
+就把它按"多少个步长"的整数发送，每个数 1 到 3 字节而不是 4 字节:
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// 100 单位一米时:位置精确到 1 厘米，角度精确到 0.01 度。
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- 到达客户端的是最接近的步长整数倍。字段是对象时(`position` 的 `x, y, z`)，里面每个数都量化。
+- 变化不到一个步长的字段不发送:变化会相对上次发送的值累积，越过一个步长时才发出，所以客户端与服务器的差距
+  永远不超过半个步长。
+- 在**两端**启动时、任何连接之前声明。每一端在第一次用到时建表，此后不变；步长和服务器不一致的客户端会在
+  握手时被拒绝。
+- 生成(spawn)仍然携带精确值，只有每 tick 的增量会被量化。插值和预测平滑把量化字段当普通数字处理。
+
+行头(哪个实体、哪个组件、哪些字段)也改成了变长整数，一行在数值之前只占几个字节而不是 10 个。用
+`tools/net-sample-microbench.mjs --wasm --quant 1` 实测(800 人每秒移动 6 单位，位置精确到 1 单位):
+每行从 22.4 字节降到 9.7 字节；又因为不到一个步长的位置变化不发送，发送的行数少了约三分之二；一次采样从
+约 9 ms 降到约 6.5 ms。
 
 ### 客户端预测——零延迟输入
 

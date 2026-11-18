@@ -11,10 +11,15 @@
  *
  *          Frame layout (little-endian):
  *            u32 magic 'ESRP' | u8 version | u32 tick | u16 entryCount
- *            entry: u32 netId | u16 componentId | u32 fieldMask
+ *            entry: varint netId | varint componentId | varint fieldMask
  *                   | field values for set mask bits, in declaration order
  *
- *          Value shapes: number → f32 (engine truth is f32), boolean → u8,
+ *          A varint is LEB128: seven bits a byte, low first, high bit set on
+ *          every byte but the last.
+ *
+ *          Value shapes: number → f32 (engine truth is f32), or, when the field
+ *          is quantized (quantizeReplicatedFields), a zigzag varint of whole
+ *          steps; boolean → u8,
  *          string → u16 len + utf8, plain object → keys recursively in
  *          declaration order, entity-ref field → u32 netId (remapped at both
  *          ends), anything else → JSON string fallback.
@@ -29,7 +34,8 @@ const FRAME_MAGIC = 0x45535250; // 'ESRP'
 // =============================================================================
 
 export type FieldShape =
-    | { kind: 'f32' }
+    /** A number. With `step`, quantized: sent as a whole number of steps. */
+    | { kind: 'f32'; step?: number }
     | { kind: 'bool' }
     | { kind: 'string' }
     | { kind: 'entity' }
@@ -52,6 +58,59 @@ function buildShape(defaultValue: unknown): FieldShape {
         }
         default: return { kind: 'json' };
     }
+}
+
+// =============================================================================
+// Quantization
+// =============================================================================
+
+const quantization_ = new Map<string, Readonly<Record<string, number>>>();
+
+/**
+ * Send some of a component's replicated number fields as whole numbers of a
+ * step instead of 32-bit floats. A position in world units with step `1` (a
+ * centimetre at 100 units a metre) costs one to three bytes an axis instead of
+ * four, and the value that arrives is the nearest multiple of the step. A field
+ * holding an object (a position's `x, y, z`) quantizes every number in it.
+ *
+ * Declare it at startup, on both ends, before any connection: each end builds
+ * its table the first time it is used and keeps it, and the handshake refuses a
+ * client whose steps differ from the server's. An empty `steps` removes the
+ * component's quantization (for tables built after that).
+ *
+ * Applies to state frames, the per-tick deltas. A spawn still carries the exact
+ * value. A value whose whole number of steps is beyond 2^53, or not finite, is
+ * sent as 0.
+ *
+ * @example
+ * ```ts
+ * // Positions to the centimetre and angles to a hundredth of a degree, at 100 units a metre.
+ * quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01 });
+ * ```
+ */
+export function quantizeReplicatedFields(component: string, steps: Record<string, number>): void {
+    for (const [field, step] of Object.entries(steps)) {
+        if (!(typeof step === 'number' && Number.isFinite(step) && step > 0)) {
+            throw new RangeError(`[repl] quantizeReplicatedFields: "${component}.${field}" needs a positive finite step, got ${step}`);
+        }
+    }
+    if (Object.keys(steps).length === 0) quantization_.delete(component);
+    else quantization_.set(component, { ...steps });
+}
+
+/** Every f32 inside a shape, given a step; null when it holds no number. */
+function quantized(shape: FieldShape, step: number): FieldShape | null {
+    if (shape.kind === 'f32') return { kind: 'f32', step };
+    if (shape.kind === 'object') {
+        let any = false;
+        const shapes = shape.shapes.map((s) => {
+            const q = quantized(s, step);
+            if (q) { any = true; return q; }
+            return s;
+        });
+        return any ? { kind: 'object', keys: shape.keys, shapes } : null;
+    }
+    return null;
 }
 
 /**
@@ -104,13 +163,15 @@ export function buildReplicationTable(): ReplicationTable {
         }
         const defaults = def._default as Record<string, unknown>;
         const entityFields = new Set(def.entityFields);
-        entries.push({
-            id: entries.length,
-            name,
-            def,
-            fields,
-            shapes: fields.map((f) => (entityFields.has(f) ? { kind: 'entity' } : buildShape(defaults[f]))),
-        });
+        const shapes = fields.map((f): FieldShape => (entityFields.has(f) ? { kind: 'entity' } : buildShape(defaults[f])));
+        for (const [field, step] of Object.entries(quantization_.get(name) ?? {})) {
+            const i = fields.indexOf(field);
+            if (i < 0) throw new Error(`[repl] "${name}.${field}" is quantized but is not one of its replicated fields`);
+            const q = quantized(shapes[i]!, step);
+            if (!q) throw new Error(`[repl] "${name}.${field}" is quantized but holds no number`);
+            shapes[i] = q;
+        }
+        entries.push({ id: entries.length, name, def, fields, shapes });
     }
     return { entries, byName: new Map(entries.map((e) => [e.name, e])) };
 }
@@ -125,6 +186,9 @@ export function shapeSignature(shape: FieldShape): string {
     switch (shape.kind) {
         case 'object':
             return `{${shape.keys.map((k, i) => `${k}:${shapeSignature(shape.shapes[i])}`).join(',')}}`;
+        case 'f32':
+            // A different step is a different number arriving: the handshake has to see it.
+            return shape.step === undefined ? 'f32' : `f32/${shape.step}`;
         default:
             return shape.kind;
     }
@@ -204,6 +268,21 @@ export class ByteWriter {
     u32(v: number): void { this.ensure_(4); this.view_.setUint32(this.len_, v >>> 0, true); this.len_ += 4; }
     f32(v: number): void { this.ensure_(4); this.view_.setFloat32(this.len_, v, true); this.len_ += 4; }
 
+    /** A non-negative whole number up to 2^53, seven bits a byte (LEB128). */
+    varint(v: number): void {
+        this.ensure_(8);
+        const buf = this.buf_;
+        let len = this.len_;
+        if (v < 0x80000000) {
+            // The common case, in int32 arithmetic.
+            while (v >= 0x80) { buf[len++] = (v & 0x7f) | 0x80; v >>>= 7; }
+        } else {
+            while (v >= 0x80) { buf[len++] = (v % 0x80) | 0x80; v = Math.floor(v / 0x80); }
+        }
+        buf[len++] = v;
+        this.len_ = len;
+    }
+
     string(s: string): void {
         const bytes = textEncoder().encode(s);
         if (bytes.byteLength > 0xffff) throw new Error('[repl] string field exceeds 65535 utf-8 bytes');
@@ -241,6 +320,19 @@ export class ByteReader {
     u32(): number { const v = this.view_.getUint32(this.pos_, true); this.pos_ += 4; return v; }
     f32(): number { const v = this.view_.getFloat32(this.pos_, true); this.pos_ += 4; return v; }
 
+    varint(): number {
+        let v = 0;
+        let scale = 1;
+        for (;;) {
+            if (this.pos_ >= this.bytes_.byteLength) throw new RangeError('[repl] varint runs past the end of the frame');
+            const b = this.bytes_[this.pos_++]!;
+            v += (b & 0x7f) * scale;
+            if (b < 0x80) return v;
+            scale *= 0x80;
+            if (scale > 2 ** 56) throw new RangeError('[repl] varint longer than 2^53');
+        }
+    }
+
     string(): string {
         const len = this.u16();
         const s = textDecoder().decode(this.bytes_.subarray(this.pos_, this.pos_ + len));
@@ -265,7 +357,14 @@ const IDENTITY_REFS: EntityRefMap = { toWire: (e) => e, fromWire: (n) => n };
 
 export function encodeValue(w: ByteWriter, shape: FieldShape, value: unknown, refs: EntityRefMap = IDENTITY_REFS): void {
     switch (shape.kind) {
-        case 'f32': w.f32(typeof value === 'number' ? value : 0); break;
+        case 'f32': {
+            const n = typeof value === 'number' ? value : 0;
+            if (shape.step === undefined) { w.f32(n); break; }
+            const q = Math.round(n / shape.step);
+            // Zigzag: small magnitudes of either sign are small numbers.
+            w.varint(Number.isSafeInteger(q) && Math.abs(q) < 2 ** 52 ? (q >= 0 ? q * 2 : -q * 2 - 1) : 0);
+            break;
+        }
         case 'bool': w.u8(value ? 1 : 0); break;
         case 'string': w.string(typeof value === 'string' ? value : ''); break;
         case 'entity': w.u32(refs.toWire(typeof value === 'number' ? value : 0)); break;
@@ -282,7 +381,12 @@ export function encodeValue(w: ByteWriter, shape: FieldShape, value: unknown, re
 
 export function decodeValue(r: ByteReader, shape: FieldShape, refs: EntityRefMap = IDENTITY_REFS): unknown {
     switch (shape.kind) {
-        case 'f32': return r.f32();
+        case 'f32': {
+            if (shape.step === undefined) return r.f32();
+            const z = r.varint();
+            // Zigzag back, then through f32: what the engine would hold.
+            return Math.fround((z % 2 === 0 ? z / 2 : -(z + 1) / 2) * shape.step);
+        }
         case 'bool': return r.u8() !== 0;
         case 'string': return r.string();
         case 'entity': return refs.fromWire(r.u32());
@@ -347,9 +451,9 @@ function writeEntry(
     w: ByteWriter, netId: number, table: ReplicationTableEntry, fieldMask: number,
     data: Record<string, unknown>, refs?: EntityRefMap,
 ): void {
-    w.u32(netId);
-    w.u16(table.id);
-    w.u32(fieldMask);
+    w.varint(netId >>> 0);
+    w.varint(table.id);
+    w.varint(fieldMask >>> 0);
     for (let i = 0; i < table.fields.length; i++) {
         if (fieldMask & (1 << i)) encodeValue(w, table.shapes[i], data[table.fields[i]], refs);
     }
@@ -424,9 +528,9 @@ export function decodeStateFrame(payload: Uint8Array, table: ReplicationTable, r
     const count = r.u16();
     const entries: StateEntry[] = [];
     for (let n = 0; n < count; n++) {
-        const netId = r.u32();
-        const componentId = r.u16();
-        const fieldMask = r.u32();
+        const netId = r.varint();
+        const componentId = r.varint();
+        const fieldMask = r.varint();
         const te = table.entries[componentId];
         if (!te) throw new Error(`[repl] state frame names unknown component id ${componentId}`);
         const values: unknown[] = [];

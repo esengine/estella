@@ -232,7 +232,7 @@ spawns, leaving ones despawn their client ghost, and delta frames carry only
 what's inside.
 
 ```typescript
-import { radiusInterest } from 'esengine';
+import { radiusInterest } from 'esengine/replication';
 
 // Each client sees entities within 800 units of any entity it owns.
 server.setInterestPolicy(radiusInterest(800));
@@ -259,7 +259,7 @@ reads once per connection. A *provider* prepares one spatial index per sample an
 answers every connection from it:
 
 ```typescript
-import { radiusInterestProvider } from 'esengine';
+import { radiusInterestProvider } from 'esengine/replication';
 
 server.setInterestProvider(radiusInterestProvider(800));
 ```
@@ -351,6 +351,38 @@ stream fell from about 52 KB/s to 17.6 KB/s and the server's from 10 MB/s to
 3.4 MB/s, at the same tick cost. Where nobody is over budget it costs a little
 (about 1.5 ms a tick for 200 players seeing 30 each), so turn it on where crowds
 happen.
+
+#### Fewer bytes a row: `quantizeReplicatedFields`
+
+A replicated number travels as a 32-bit float. Most of them do not need to:
+a position to the centimetre, an angle to a hundredth of a degree. Quantizing a
+field sends it as a whole number of steps, in one to three bytes instead of four:
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// At 100 units a metre: positions to 1 cm, angles to 0.01 degree.
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- The value that arrives is the nearest multiple of the step. A field holding
+  an object (`position`'s `x, y, z`) quantizes every number in it.
+- A field that moves less than a step is not sent: the movement adds up against
+  what was last sent and goes out when it crosses a step, so a client is never
+  more than half a step from the server.
+- Declare it at startup on **both** ends, before any connection. Each end builds
+  its table the first time it is used, and the handshake refuses a client whose
+  steps are not the server's.
+- Spawns still carry the exact value; only the per-tick deltas are quantized.
+  Interpolation and prediction smoothing treat a quantized field as the number
+  it is.
+
+The row header (which entity, which component, which fields) is variable-length
+as well, so a row costs a few bytes before its values instead of ten. Measured
+with `tools/net-sample-microbench.mjs --wasm --quant 1` (800 players moving 6
+units a second, positions to 1 unit): a row went from 22.4 bytes to 9.7, and
+because a position under a step is not sent, rows sent fell by about two
+thirds; the sample went from about 9 ms to about 6.5 ms.
 
 ### Client prediction — zero-latency input
 

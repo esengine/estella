@@ -29,6 +29,7 @@ export {
     ByteWriter,
     ByteReader,
     FrameWriter,
+    quantizeReplicatedFields,
     type FieldShape,
     type ReplicationTable,
     type ReplicationTableEntry,

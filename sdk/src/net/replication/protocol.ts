@@ -12,6 +12,11 @@
 import type { SceneComponentData } from '../../scene/scene';
 
 /**
+ * 6: a state-frame row's netId, component id and field mask are variable-length
+ * integers, and a number field may be declared quantized (a step, sent as a
+ * whole number of steps). A v5 endpoint would read the row header as fixed
+ * width and every row after the first as garbage.
+ *
  * 5: a hello may carry credentials and the answer names the player; the first
  * spawn batch of a connection is marked `initial` (it is sent even when empty),
  * and the server can say why it is closing a connection. A v4 server would
@@ -22,7 +27,7 @@ import type { SceneComponentData } from '../../scene/scene';
  * a v3 endpoint would read the same JSON and build a different world, which is
  * exactly what a version is for.
  */
-export const REPLICATION_PROTOCOL_VERSION = 5;
+export const REPLICATION_PROTOCOL_VERSION = 6;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
