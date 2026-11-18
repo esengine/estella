@@ -8833,6 +8833,7 @@ voxelGIResolution: number | undefined
 ```
 antialiasing: "msaa" | "temporal"
 aoResolution: number
+batchScanFrames: number
 depthPrepass: boolean
 detailScale: number
 drawCallBudget: number
@@ -8840,14 +8841,20 @@ dynamicGIReduced: boolean
 fogResolution: number
 lensFlareResolution: number
 lighting: "direct" | "full"
+lodDistanceScale: number
 minRenderScale: number
 msaaSamples: 2 | 1 | 4 | 8
+occlusionGridSize: 16 | 32 | 64
 particleLimit: number
 planarReflectionMaxSize: number
 planarReflectionScale: number
 planarReflectionUpdatesPerSecond: number
+planetDrawLevels: number
+plantInteractionActive: number
+plantInteractionPerFrame: number
 postProcess: boolean
 renderScale: number
+renderTargetIdleMB: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
 shadowCascades: number
 shadowCellSize: 512 | 1024 | 128 | 256
@@ -8857,13 +8864,27 @@ shelterMaskSize: number
 skipEffects: readonly string[]
 ssgiResolution: number
 stillSky: boolean
+terrainAtlasSize: 512 | 1024 | 2048
+terrainSurfaceTexels: 64 | 128 | 256
+terrainSurfacesPerFrame: number
+terrainTileBudgetMB: number
 textureStreaming: boolean
 textureStreamingBudget: number
+textureStreamingInFlight: number
+textureStreamingIntervalMs: number
+textureStreamingMinEdge: 16 | 32 | 64 | 128 | 256
+textureStreamingShrinkMs: number
+textureStreamingStartEdge: 512 | 64 | 128 | 256
+textureStreamingUnseenMs: number
 voxelGIResolution: number
+voxelRebuildBudgetMs: number
+waterCausticLayers: number
 waterCaustics: boolean
 waterDisplacement: boolean
 waterMirror: boolean
+waterReflectionSteps: number
 waterRippleCells: number
+waterShaftSteps: number
 waterWaves: number
 ```
 
@@ -9607,20 +9628,26 @@ textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined
 assetFailureCooldown: number | undefined
 assetLoadTimeout: number | undefined
 audioCacheBudget: number | undefined
+chunksInFlight: number | undefined
 defaultFontFamily: string | undefined
 maxDeltaTime: number | undefined
 maxFixedSteps: number | undefined
 multiTouch: boolean | undefined
+planetTilesKept: number | undefined
+preloadConcurrency: number | undefined
 retainedBudget: number | undefined
 sceneTransitionColor: string | undefined
 sceneTransitionDuration: number | undefined
+terrainPagesInFlight: number | undefined
 textCanvasSize: number | undefined
 textureCacheBudget: number | undefined
+worldPlanCacheLimit: number | undefined
+worldPlansKept: number | undefined
 ```
 
 ## RuntimeConfig — const @experimental
 ```
-{ sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
+{ chunksInFlight: number; preloadConcurrency: number; terrainPagesInFlight: number; planetTilesKept: number; worldPlanCacheLimit: number; worldPlansKept: number; sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
 ```
 
 ## RuntimeInitConfig — interface @experimental
@@ -18307,7 +18334,7 @@ Plugin
 
 ## selectSphereNodes — function @experimental
 ```
-(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number): SphereNode[]
+(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number, finest?: number): SphereNode[]
 ```
 
 ## serializeAnimClip — function @experimental

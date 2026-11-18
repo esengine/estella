@@ -239,8 +239,10 @@ export interface NativeEngineApi {
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setImpostorAtlas?(entity: number, texture: number, frames: number): void;
     renderer_setLightingDirect?(on: boolean): void;
+    renderer_setLodDistanceScale?(scale: number): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
+    renderer_setOcclusionGridSize?(size: number): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
@@ -252,6 +254,7 @@ export interface NativeEngineApi {
     renderer_setShadowDistance?(distance: number): void;
     renderer_setSkyEnvironment?(environmentHandle: number): void;
     renderer_setStage?(stage: number): void;
+    renderer_setTargetPoolIdleBudget?(megabytes: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setTreeSortLayers?(mask: number): void;
     renderer_setViewId?(view: number): void;
@@ -606,8 +609,10 @@ export function createNativeEngineApi(
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setImpostorAtlas', 'es_renderer_setImpostorAtlas', false);
     bind('renderer_setLightingDirect', 'es_renderer_setLightingDirect', false);
+    bind('renderer_setLodDistanceScale', 'es_renderer_setLodDistanceScale', false);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
+    bind('renderer_setOcclusionGridSize', 'es_renderer_setOcclusionGridSize', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
     bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
@@ -619,6 +624,7 @@ export function createNativeEngineApi(
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
     bind('renderer_setSkyEnvironment', 'es_renderer_setSkyEnvironment', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
+    bind('renderer_setTargetPoolIdleBudget', 'es_renderer_setTargetPoolIdleBudget', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
     bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);

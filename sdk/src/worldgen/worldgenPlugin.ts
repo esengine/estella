@@ -17,6 +17,7 @@
  *
  *          A server without a renderer makes the plan and the interactive entities, and nothing that is only drawn.
  */
+import { worldgenLimits } from './limits';
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
@@ -730,7 +731,7 @@ export class WorldGenPlugin implements Plugin {
         const flatY = (app.world.tryGet(entity, Transform) as TransformData | null)?.worldPosition.y ?? 0;
         const spec = (): PlaneSpec => ({
             plane: true, rules: { ...built.rules!, fields: undefined, plants: undefined } as WorldRules, seed: built.data.seed, world: built.data.world,
-            ground, flatY, water: waterData, layers: terrains ? terrains.layerNames() : [], zones: [...zones.all()],
+            ground, flatY, water: waterData, layers: terrains ? terrains.layerNames() : [], zones: [...zones.all()], limits: { ...worldgenLimits() },
         });
         // The same key and the same workers as the placements: a worker that has laid a square out has the plan a page of it is painted from.
         const workerAt = (x: number, z: number): number => Math.abs((Math.floor(x / 256) * 73856093) ^ (Math.floor(z / 256) * 19349663)) % pool.size;
@@ -773,7 +774,7 @@ export class WorldGenPlugin implements Plugin {
         return {
             rules: { ...built.rules!, fields: undefined, plants: undefined } as WorldRules, seed: data.seed, world: data.world, seaLevel: data.seaLevel,
             face: unit.face.face, radius: facts.radius, centre: facts.centre, layers: [...facts.layers], fieldNames: [...facts.fieldNames],
-            zones: [...unit.zones.zones.all()], provider: facts.worker!,
+            zones: [...unit.zones.zones.all()], provider: facts.worker!, limits: { ...worldgenLimits() },
         };
     }
 

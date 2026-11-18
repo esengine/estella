@@ -53,6 +53,9 @@ import { movers } from './movers';
 import { ImageRevisions, imagePixelsAt, loadLayersInto, releaseLayerArrays } from './layerArrays';
 import { SurfaceCache, type SurfaceRequest } from './surfaceCache';
 import { isMiniGame } from '../platform';
+import { Quality, qualityProfileOf } from '../render/qualityRuntime';
+import { defaultQualityProfile, type QualityProfile } from '../render/quality';
+import { RuntimeConfig } from '../defaults';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
 import { TiledGroundEdit } from './tiledGroundEdit';
@@ -207,8 +210,6 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
     },
 });
 
-/** The side of the atlases the pages are kept in, in texels: 900 pages of 67 by 67. */
-const ATLAS_SIZE = 2048;
 /** The share of the atlas the nodes drawn may fill: the rest is for the coarser pages that stand in while a finer one is made. */
 const PAGE_SHARE = 0.85;
 /** The most layers a terrain draws: two paint atlases of four weights. */
@@ -223,15 +224,14 @@ const tileKey = (entity: Entity, tx: number, tz: number): string => `terrain:${e
  */
 export type TerrainPager = (x0: number, z0: number, size: number) => Promise<PageImage> | null;
 
-/** Pages asked at once of a provider that answers later. */
-const PAGES_IN_FLIGHT = 16;
-/** A baked surface page's side in texels (half on a minigame), and how the surface atlas holds its pages: 7 to a row, 9 rows. */
-const SURFACE_TEXELS = 256;
 const SURFACE_PER_ROW = 7;
 const SURFACE_ROWS = 9;
-/** Surface pages drawn a frame: each is two squares of the layers' whole shading, so a ground comes in over some frames, nearest first. */
-const SURFACES_PER_FRAME = 2;
 const NO_SURFACES: ReadonlyMap<string, number> = new Map();
+
+function surfaceTexelsOf(app: App): number {
+    const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
+    return (quality?.enabled ? quality.profile : defaultQualityProfile(isMiniGame() ? 'low' : 'high')).terrainSurfaceTexels;
+}
 
 /** What the plugin knows about one terrain it has built. */
 interface Built {
@@ -639,7 +639,7 @@ export class Terrains {
 export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__ */ new Terrains(), 'Terrains');
 
 /** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
-function signatureOf(data: TerrainData, at: { x: number; z: number }, images: string): string {
+function signatureOf(data: TerrainData, at: { x: number; z: number }, images: string, atlasSize: number): string {
     const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
         collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, occlusionMap: _m, occlusionStrength: _n, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
@@ -649,7 +649,7 @@ function signatureOf(data: TerrainData, at: { x: number; z: number }, images: st
     const fromProvider = data.extent === TerrainExtent.Infinite || (!data.heightmap && !data.tiles);
     const where = fromProvider ? `@${at.x},${at.z}` : '';
     const late = fromProvider && data.provider !== NOISE_PROVIDER ? `#${terrainProvidersRevision()}` : '';
-    return `${JSON.stringify(shape)}${where}${late}${images}`;
+    return `${JSON.stringify(shape)}${where}${late}${images}@${atlasSize}`;
 }
 
 async function tiledSourceOf(app: App, data: TerrainData): Promise<TiledSource> {
@@ -706,6 +706,7 @@ export class TerrainPlugin implements Plugin {
     private layerEdits_ = 0;
     private watching_: (() => void) | null = null;
     private images_ = new ImageRevisions();
+    private quality_: Readonly<QualityProfile> = defaultQualityProfile('high');
 
     build(app: App): void {
         const terrains = new Terrains();
@@ -716,17 +717,18 @@ export class TerrainPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             // What the ground IS needs no renderer: a server or a test without one still makes the source and answers from it.
             const rendering = app.hasResource(Assets);
+            this.quality_ = qualityProfileOf(app);
             this.sweep(app, terrains);
             for (const entity of app.world.getEntitiesWithComponents([Terrain, Transform])) {
                 const data = app.world.get(entity, Terrain) as TerrainData;
                 const images = this.images_.of(app, [data.heightmap, data.splatmap, data.splatmap2]);
-                const signature = signatureOf(data, (app.world.get(entity, Transform) as TransformData).worldPosition, images);
+                const signature = signatureOf(data, (app.world.get(entity, Transform) as TransformData).worldPosition, images, this.quality_.terrainAtlasSize);
                 let built = terrains.built_.get(entity);
                 if (!built || built.signature !== signature) {
                     if (built) this.destroy(app, built);
                     built = {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
-                        table: new PageTable(ATLAS_SIZE), heights: 0, paint: 0, mesh: 0, instance: 0,
+                        table: new PageTable(this.quality_.terrainAtlasSize), heights: 0, paint: 0, mesh: 0, instance: 0,
                         nodes: new Map(), spare: [], wanted: new Map(), fit: 1, asked: new Set(), pending: false, failure: null, edits: 0,
                         paint2: 0, arrays: [], packed: '', packing: false, washed: false, shaded: false,
                         baked: null, surfaceOn: false, pageMade: new Map(), pageSerial: 0, surfaceGen: 0,
@@ -736,6 +738,8 @@ export class TerrainPlugin implements Plugin {
                     continue;
                 }
                 built.data = { ...data };
+                const tiled = built.source instanceof ModifiedSource ? built.source.base : built.source;
+                if (tiled instanceof TiledSource) tiled.budget = this.quality_.terrainTileBudgetMB * 1024 * 1024;
                 // Modifiers are the world's: a terrain moved stands under them somewhere else, so what they reached is made again.
                 if (built.source instanceof ModifiedSource) {
                     const at = (app.world.get(entity, Transform) as TransformData).worldPosition, o = built.source.origin;
@@ -917,7 +921,7 @@ export class TerrainPlugin implements Plugin {
             if (built.epoch !== epoch) return;
             const assets = app.getResource(Assets);
             built.mesh = assets.createMesh(buildPatchMesh(PATCH_CELLS));
-            [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered ? 3 : 2, ATLAS_SIZE, () => built.table.clear());
+            [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered ? 3 : 2, built.table.atlasSize, () => built.table.clear());
             built.instance = Material.createInstance(material);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
                 built.failure = 'the engine refused the terrain\'s mesh, atlases or material';
@@ -939,7 +943,7 @@ export class TerrainPlugin implements Plugin {
                 set('u_layerCount', 1);
             }
             set('u_terrainPages', 1);
-            set('u_atlasTexels', ATLAS_SIZE);
+            set('u_atlasTexels', built.table.atlasSize);
             set('u_pageTexels', PAGE_TEXELS);
             set('u_patchCells', PATCH_CELLS);
         } catch (e) {
@@ -1019,7 +1023,7 @@ export class TerrainPlugin implements Plugin {
     private treeOf(built: Built, source: TerrainSource, share = 1): QuadtreeParams {
         const d = built.data;
         const leafSize = PATCH_CELLS * Math.max(d.cellSize, 1e-3);
-        const range0 = leafSize * 2.5 * Math.max(d.detail, 0.25) * share;
+        const range0 = leafSize * 2.5 * Math.max(d.detail, 0.25) * this.quality_.detailScale * share;
         const reach = source.bounds ? Math.max(source.bounds[2] - source.bounds[0], source.bounds[3] - source.bounds[1]) : Math.max(d.drawDistance, leafSize);
         let levels = 1;
         while (levels < 16 && (source.bounds ? leafSize * 2 ** (levels - 1) < reach : levelRange({ range0 }, levels - 1) < reach)) levels++;
@@ -1125,10 +1129,15 @@ export class TerrainPlugin implements Plugin {
             built.surfaceOn = false;
             return NO_SURFACES;
         }
-        if (!built.baked) {
-            const texels = isMiniGame() ? SURFACE_TEXELS / 2 : SURFACE_TEXELS;
-            built.baked = new SurfaceCache(texels, SURFACE_PER_ROW, SURFACE_ROWS);
+        const texels = surfaceTexelsOf(app);
+        if (built.baked && built.baked.texels !== texels) {
+            bakesOf(app).clear(built.baked);
+            built.baked.release();
+            built.baked = null;
+            if (built.surfaceOn) Material.setUniform(built.instance, 'u_surfaceOn', 0);
+            built.surfaceOn = false;
         }
+        if (!built.baked) built.baked = new SurfaceCache(texels, SURFACE_PER_ROW, SURFACE_ROWS);
         const cache = built.baked;
         const texture = cache.texture();
         if (!texture) return NO_SURFACES;
@@ -1154,7 +1163,7 @@ export class TerrainPlugin implements Plugin {
         }
         const far = (r: SurfaceRequest): number => Math.hypot(r.x0 + r.size / 2 - eye[0], r.z0 + r.size / 2 - eye[2]);
         requests.sort((a, b) => far(a) - far(b));
-        const ready = cache.update(requests, built.instance, shader, SURFACES_PER_FRAME);
+        const ready = cache.update(requests, built.instance, shader, this.quality_.terrainSurfacesPerFrame);
         // Shown with the rest of the ground's making while pages are being baked: of the nodes there are pages for, how many are drawn
         // from theirs.
         const wanted = Math.min(requests.length, cache.perRow * cache.rows);
@@ -1183,7 +1192,7 @@ export class TerrainPlugin implements Plugin {
             for (const node of sorted) {
                 const key = nodeKey(node.level, node.ix, node.iz);
                 if (built.asked.has(key)) continue;
-                if (built.asked.size >= PAGES_IN_FLIGHT) break;
+                if (built.asked.size >= RuntimeConfig.terrainPagesInFlight) break;
                 const image = pager(node.x0, node.z0, node.size);
                 if (!image) { refused = true; break; }
                 built.asked.add(key);
@@ -1252,7 +1261,7 @@ export class TerrainPlugin implements Plugin {
         for (const node of order) {
             const key = nodeKey(node.level, node.ix, node.iz);
             if (built.asked.has(key)) continue;
-            if (source.region && built.asked.size >= PAGES_IN_FLIGHT) break;
+            if (source.region && built.asked.size >= RuntimeConfig.terrainPagesInFlight) break;
             const image = makePage(source, node.x0, node.z0, node.size, repaint);
             if (image instanceof Promise) {
                 // A provider answering later: its page is stored when it lands, if the terrain is still the one that asked.
@@ -1303,7 +1312,7 @@ export class TerrainPlugin implements Plugin {
             // The tint names the page and the level (see the Terrain shader's hook), and the baked surface's page (2 + its slot; 1 none): every
             // channel above zero, as the hook divides by it.
             const surface = surfaces.get(key);
-            const color = { r: (ox + 0.5) / ATLAS_SIZE, g: (oy + 0.5) / ATLAS_SIZE, b: (n.level + 1) / 64, a: surface === undefined ? 1 : 2 + surface };
+            const color = { r: (ox + 0.5) / built.table.atlasSize, g: (oy + 0.5) / built.table.atlasSize, b: (n.level + 1) / 64, a: surface === undefined ? 1 : 2 + surface };
             const position = { x: n.x0, y: page.min, z: n.z0 };
             const scale = { x: n.size, y: Math.max(page.max - page.min, 1e-3), z: n.size };
             const t = world.get(e, Transform) as TransformData;

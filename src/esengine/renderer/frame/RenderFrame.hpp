@@ -129,6 +129,10 @@ public:
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
+    void setLodDistanceScale(f32 scale) { lod_distance_scale_ = scale > 0.0f ? scale : 1.0f; }
+    f32 lodDistanceScale() const { return lod_distance_scale_; }
+    void setOcclusionGridSize(u32 size) { occlusion_.setSize(size); }
+    void setTargetPoolIdleBudget(u64 bytes) { target_pool_.setIdleByteBudget(bytes); }
     /**
      * @brief The environment the sky lights the scene with (the Sky Atmosphere's, worked out by the SDK as the sky changes), or an
      *        invalid handle for none. An Ambient light that names no environment of its own lights with it.
@@ -1233,6 +1237,7 @@ private:
     /// Whether the opaque scene is drawn twice, depth alone first. See DrawList::DrawPass.
     bool depth_prepass_ = false;
     bool lighting_direct_ = false;
+    f32 lod_distance_scale_ = 1.0f;
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.
     std::vector<DrawList> shadow_view_lists_;

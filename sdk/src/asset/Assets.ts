@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { RuntimeConfig } from '../defaults';
 import type { Backend } from './Backend';
 import { packedBackend } from './packedBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
@@ -153,13 +154,6 @@ interface PendingUpdate {
     remoteRoot: string | null;
 }
 
-/**
- * Default upper bound on concurrent loads inside preloadSceneAssets.
- * Picked to match typical browser per-origin connection limits; scenes
- * with hundreds of assets would otherwise fan out all at once and
- * saturate the network, CPU image decoders, and WASM memory.
- */
-const DEFAULT_PRELOAD_CONCURRENCY = 6;
 
 /** A preload's timings are a report, so they need no platform: a realm without
  *  one (a test, a tool) still loads. */
@@ -1231,7 +1225,7 @@ export class Assets {
             if (got.cache !== 'unsupported' && got.cache !== undefined) cacheable = true;
             if (got.cache === 'failed') uncached.push(got.url);
         });
-        await runWithConcurrency(tasks, DEFAULT_PRELOAD_CONCURRENCY, () => {
+        await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => {
             onProgress?.(++done, changed.length);
         });
 
@@ -1547,7 +1541,7 @@ export class Assets {
         let loadedCount = 0;
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
-        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
+        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
         await runWithConcurrency(tasks, maxConcurrent, () => {
             onProgress?.(++loadedCount, totalCount);
         });
@@ -1790,7 +1784,7 @@ export class Assets {
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
 
-        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
+        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
         const began = preloadClock();
         await runWithConcurrency(tasks, maxConcurrent, () => {
             onProgress?.(++loadedCount, totalCount);

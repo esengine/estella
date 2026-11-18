@@ -12,6 +12,7 @@
  *          of it. The planet's provider is the game's own generator, handed over as the text of a self-contained module and loaded here, which is what lets
  *          the ground be read in the worker with no help from the main thread.
  */
+import { setWorldgenLimits, worldgenLimits, type WorldgenLimits } from './limits';
 import type { Placement } from './plan';
 import type { WorldPlan } from './plan';
 import type { WorldRules } from './rules';
@@ -47,6 +48,7 @@ export interface PlanSpec {
     zones: ZoneDef[];
     /** The planet's provider: the text of a module whose default export is it, and what it is asked with. */
     provider: { source: string; seed: number; version: number; world: string };
+    limits?: WorldgenLimits;
 }
 
 /** What a plan on a plane is made from: the ground and the water as data, the rules and the zones. */
@@ -61,6 +63,7 @@ export interface PlaneSpec {
     water: WaterQueryData | null;
     layers: string[];
     zones: ZoneDef[];
+    limits?: WorldgenLimits;
 }
 
 /** A question: the square of the face's plane, and whether it is the far plan's. */
@@ -86,7 +89,6 @@ interface Made {
 /** The plans kept, newest last, and the providers loaded (by the text of their source). */
 const plans = new Map<string, Made>();
 const providers = new Map<string, Promise<PlanetProvider>>();
-const PLANS_KEPT = 24;
 
 /** How the text of a provider's module becomes the provider: a blob the worker imports. A test, which has no blob to import, gives its own. */
 export type ProviderLoader = (source: string) => Promise<PlanetProvider>;
@@ -136,12 +138,13 @@ async function makeFor(spec: PlanSpec, load: ProviderLoader): Promise<Made> {
 
 /** The plan for `key`: the one this worker kept, or one made from `spec`. */
 async function planFor(key: string, spec: PlanSpec | PlaneSpec | null | undefined, load: ProviderLoader): Promise<Made> {
+    setWorldgenLimits(spec?.limits);
     let made = plans.get(key);
     if (!made) {
         if (!spec) throw new Error(`the plan ${key} is not known to this worker`);
         made = 'plane' in spec ? makePlane(spec) : await makeFor(spec, load);
         plans.set(key, made);
-        if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+        if (plans.size > worldgenLimits().plansKept) plans.delete(plans.keys().next().value!);
     }
     return made;
 }

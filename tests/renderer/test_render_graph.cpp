@@ -428,6 +428,22 @@ int main() {
         CHECK(pool.count() < 200, "and the sizes the window has left are gone");
     }
 
+    {
+        MockGfxDevice d;
+        rg::TargetPool pool(d);
+        pool.setIdleByteBudget(16ull * 1024 * 1024);
+        rg::TargetShape shape;
+        shape.format = GfxPixelFormat::RGBA16F;
+        for (u32 size = 0; size < 200; ++size) {
+            shape.width = 1000 + size * 3;
+            shape.height = 800 + size * 2;
+            pool.release(pool.acquire(shape));
+            pool.age();
+        }
+        CHECK(pool.idleByteBudget() == 16ull * 1024 * 1024, "the idle budget is the one it was set to");
+        CHECK(pool.bytes() <= 16ull * 1024 * 1024 + 64ull * 1024 * 1024, "and a lower budget keeps less of what a resize leaves behind");
+    }
+
     // --- what a frame uses every frame is kept, however much of it there is ---
     {
         MockGfxDevice d;

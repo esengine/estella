@@ -3,6 +3,9 @@
 import type { QualitySetting } from './types';
 
 export const MOST_WATER_WAVES = 8;
+export const MOST_WATER_SHAFT_STEPS = 24;
+export const MOST_WATER_REFLECTION_STEPS = 20;
+export const MOST_WATER_CAUSTIC_LAYERS = 3;
 
 export const WATER_SETTINGS = [
     {
@@ -65,6 +68,50 @@ export const WATER_SETTINGS = [
         description: {
             en: 'Whether the sun\'s web of light is drawn on what lies under the water, and, seen from under it, the light shafts.',
             zh: '阳光的光网是否画在水下的东西上，以及从水下看时的光束。',
+        },
+    },
+    {
+        key: 'waterShaftSteps',
+        type: 'number',
+        defaults: { low: 12, medium: 16, high: MOST_WATER_SHAFT_STEPS },
+        min: 1, max: MOST_WATER_SHAFT_STEPS, step: 1, integer: true,
+        group: 'water',
+        preference: false,
+        requires: { waterCaustics: true, postProcess: true },
+        uniform: { effects: ['underwater'], name: 'u_shaftSteps' },
+        label: { en: 'Underwater light shaft steps', zh: '水下光柱步数' },
+        description: {
+            en: 'Samples a pixel takes along its ray under the water to gather the sun\'s shafts. Fewer is cheaper and grainier; the steps are jittered per pixel, so the loss shows as noise rather than as bands.',
+            zh: '水下每个像素沿视线取多少个样本来累积阳光光柱。越少越省、颗粒感越重；每个像素的步点有抖动，所以损失表现为噪点而不是条带。',
+        },
+    },
+    {
+        key: 'waterReflectionSteps',
+        type: 'number',
+        defaults: { low: 8, medium: 12, high: MOST_WATER_REFLECTION_STEPS },
+        min: 1, max: MOST_WATER_REFLECTION_STEPS, step: 1, integer: true,
+        group: 'water',
+        preference: false,
+        requires: { waterMirror: true },
+        label: { en: 'Water reflection steps', zh: '水面反射步数' },
+        description: {
+            en: 'Steps a pixel of the surface takes following its reflected ray through the picture, from above and in its mirror from below. Fewer steps are each longer, so the ray reaches as far as High\'s twenty and finds the same things, less exactly.',
+            zh: '水面每个像素沿反射光线在画面里走几步，从上方看的反射和从下方看的镜面都算。步数少时每步更长，光线仍走到和高档 20 步一样远，映出的东西相同，只是没那么准。',
+        },
+    },
+    {
+        key: 'waterCausticLayers',
+        type: 'number',
+        defaults: { low: 2, medium: 3, high: MOST_WATER_CAUSTIC_LAYERS },
+        min: 1, max: MOST_WATER_CAUSTIC_LAYERS, step: 1, integer: true,
+        group: 'water',
+        preference: false,
+        requires: { waterCaustics: true },
+        uniform: { effects: ['underwater'], name: 'u_causticLayers' },
+        label: { en: 'Caustic layers', zh: '焦散层数' },
+        description: {
+            en: 'How many scales of the web of light are laid over one another, the coarsest first, on what lies under the water and in the shafts. Each layer is two reads of noise per sample.',
+            zh: '光网叠几层尺度（从最粗的起），用于水下物体上的焦散和光柱。每层每个样本要读两次噪声。',
         },
     },
 ] as const satisfies readonly QualitySetting[];

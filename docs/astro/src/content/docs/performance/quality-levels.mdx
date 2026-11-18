@@ -34,7 +34,7 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 | Group | Settings |
 |---|---|
 | Resolution & Anti-Aliasing | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA |
-| View Distance & Draws | Depth pre-pass, Draw call budget |
+| View Distance & Draws | Depth pre-pass, Draw call budget, LOD distance scale, Occlusion grid, Batch scan interval |
 | Lights & Shading | 3D lighting (Full or Direct) |
 | Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
 | Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
@@ -42,9 +42,9 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 | Sky & Volumetrics | Still sky from a panorama, Fog volume resolution; the sky, fog, light shaft and weather effects |
 | Post-Processing | A master switch, Lens flare resolution; every other effect |
 | Effects & Particles | Particle limit, 2D rain shelter mask |
-| Terrain & Foliage | Detail distance |
-| Water | Water waves (1 to 8), Water ripple cells, the Displacement, Mirror and Caustics switches; the underwater effect. Shown once the water module is in the build |
-| Textures & Memory | Texture streaming and its budget |
+| Terrain & Foliage | Detail distance, Terrain surface page size and pages a frame, Terrain page atlas, Planet draw levels, Voxel rebuild budget, Plants that bend and that start bending a frame |
+| Water | Water waves (1 to 8), Water ripple cells, the Displacement, Mirror and Caustics switches, Underwater light shaft steps, Water reflection steps, Caustic layers; the underwater effect. Shown once the water module is in the build |
+| Textures & Memory | Texture streaming, its budget, smallest and starting sizes, shrink and unseen delays, interval and textures at once; Idle render targets; Terrain tile memory |
 
 A group's effects are a matrix of effect by level, ticked where the level runs the effect. A changed cell is tinted and carries a
 reset arrow, whose tip names the level's own default and which puts it back. A cell where the setting does nothing at that level
@@ -74,9 +74,11 @@ shading to the end of a tile it is geometry paid for twice. It is off at Low and
 the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
 (see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
 
-**Detail distance** is the share of its distances a placed plant keeps at the level: at 0.5, a tree that changes to its
-cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner.
-Low keeps 0.5, Medium 0.8 and High all of it, so the same world draws a fraction of the triangles on a phone.
+**Detail distance** is the share of its detail distances the ground and the plants keep at the level: at 0.5, a tree that changes to its
+cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner; a
+Foliage field is drawn and keeps its finer blades half as far; and a terrain or a planet keeps its finest cells half as far
+before the ground coarsens. Low keeps 0.5, Medium 0.8 and High all of it, so the same world draws a fraction of the triangles
+on a phone.
 
 **Draw call budget** is the most draws a frame at the level should ask of the GPU: 150 at Low, 400 at Medium and 1,500 at
 High. Every pass counts, not only the scene's own list: each shadow cascade draws its casters again, the depth pre-pass draws
@@ -85,6 +87,48 @@ module shows the frame's GPU draws against the budget and splits them by pass, a
 it. A draw costs the CPU and the driver more than the GPU, and on a phone or in a mini game it is what a 3D scene runs out of
 first. To bring it down, see [Static batching](/docs/performance/static-batching/) for many different meshes and fewer shadow
 cascades for the shadow pass.
+
+**LOD distance scale** multiplies the distances at which every LOD Group hands over to its next level and stops being drawn,
+and the one where an impostor card stands in for its model: 0.6 at Low, 0.8 at Medium, 1 at High. It is applied to the size
+on screen each group is measured by, so a group authored to change at 40 m changes at 24 m at Low; hysteresis and the levels a
+group declares are untouched. A Foliage field's far versions are LOD Groups too, so at Low they take both this and the detail
+distance.
+
+**Occlusion grid** is the side of the grid the declared Occluders are drawn into on the CPU before each object's bounds are
+tested against it: 64 at every level. A coarser grid is a quarter of the texels to fill, and an occluder must cover a texel
+whole to hide anything, so it hides less: at 32 only an occluder wider than two of its texels (6% of the screen) hides what is
+behind it. Filling the grid for `third-person-3d`'s two occluders took 0.14 ms a frame at 64 and 0.06 ms at 32 on a CPU slowed
+five times, which no level needs to save at the price of drawing what an occluder would have hidden; a project can still set it. **Batch scan interval** is the frames between looks at a merged model and at a static batch for parts
+that moved or went away: 60 at Low, 30 at Medium and High; `refresh()` still looks at once.
+
+**Terrain surface page size** and **pages a frame** are the baked surface a terrain draws with Virtual Texture on: 128 texels a
+page at Low and 256 at Medium and High (the minigame's half size, which was fixed, is now Low's), and one page baked a frame at
+Low, two at Medium and High. **Terrain page atlas** is the side of the atlases a terrain and a planet keep their pages of heights
+and paint in: 1024 at Low and 2048 at Medium and High. A quarter of the pages fit a 1024 atlas, so a ground that asks for more
+is drawn at the share of its detail distance that fits, as it already was past 2048. **Planet draw levels** is the most levels
+of a planet's tree drawn: a planet whose cell size asks for more is drawn no finer than that many levels down from a whole face,
+while its collision and what code reads of its ground keep the cell size the Planet was given. **Voxel rebuild budget** is
+the milliseconds of a frame a voxel terrain spends making again what an edit changed (2, 3 and 4), and **Plants that bend** and
+**Plants starting to bend a frame** cap PlantInteraction (128 and 16, 256 and 32, 512 and 48); a game's own lower
+`maxActive` or `maxActivatedPerFrame` is kept.
+
+What these settings took off two examples, exported for the web and played headless at a phone's size (844×390 at 2.5×), the
+counts the renderer reports, before these settings and after:
+
+| Example, level | Triangles before → after | Texture memory before → after |
+|---|---|---|
+| `third-person-3d`, Low | 7,244 → 5,154 (LOD levels 3/12/6 → 0/7/14) | 13.1 MB → 13.1 MB |
+| `third-person-3d`, Medium | 7,264 → 6,216 | 83.8 MB → 83.8 MB |
+| `terrain-water`, Low | 598,283 → 555,275 | 373.1 MB → 337.1 MB (1024 page atlases) |
+| `terrain-water`, Medium | 658,771 → 615,763 | 496.4 MB → 496.4 MB |
+
+`bistro` and `dusk-fort`, which have no LOD Group, terrain or water, draw the same at Low and Medium as before, to the draw and the byte.
+
+**Underwater light shaft steps**, **Water reflection steps** and **Caustic layers** are loops in the water's shaders, each
+compiled at its High count and stopped early by the level: shafts walk 12, 16 and 24 samples a pixel; the surface's reflection
+(from above, and its mirror from below) follows its ray 8, 12 and 20 steps, each longer than the one before by as much as it
+takes for the fewer steps to reach as far as High's twenty, so what it finds is the same and lands less exactly; the web of light on what lies under the water lays 2, 3 and 3 of its scales. A shaft's samples are jittered per pixel,
+so fewer show as grain rather than bands.
 
 **Texture streaming** holds each texture that only meshes draw at the size its views need. A texture a MeshRenderer draws, as
 its texture, its normal map or through its material, is first loaded no larger than 256 texels on a side, so a scene comes up in a
@@ -126,6 +170,25 @@ be softer than the rest, and a move costs a decode and an upload on the frame it
 milliseconds while a scene settles. A texture a sprite, a UI element, a tilemap, a particle or a trail also draws is put back at its
 size and left there. A KTX2 file is cut at a level without decoding; where the host transcodes KTX2 itself (the native builds) it
 cannot be, and the texture is left at its size.
+
+Under the sea in `terrain-water` (the U key), at 2110×975 on a desktop GPU, the underwater pass took 6.28 ms with 24 shaft steps
+and 4.31 ms with Medium's 16; with caustics turned on at Low it took 3.52 ms before, 1.98 ms with Low's 12 and 0.35 ms with a
+single step. Below 12 the per-pixel jitter shows as a regular grain on what lies under the water.
+
+The streaming's own pace is the level's too, each read only while streaming is on: **Streaming smallest size** (32 at Low, 64
+at Medium and High), **Streaming shrink delay** (2 s at Low, 3 s), **Streaming unseen hold** (3 s at Low, 5 s), **Streaming
+interval** (500 ms at Low, 250 ms), **Streaming textures at once** (2 at Low, 4) and **Streaming starting size** (128 at Low,
+256). **Idle render targets** is the megabytes of render targets no pass is using that the renderer keeps to lend again: 64 at
+Low, 128 at Medium and 256 at High; past it the longest idle are destroyed. **Terrain tile memory** is what a tiled terrain
+keeps of its full-detail tiles: 64, 128 and 256 MB, the least recently used let go first and read again when wanted.
+
+<Aside type="note">
+How many loads run at once and how much a generated world keeps are not a level's: they follow the network and the package,
+not the device's GPU. They are in **Project Settings → Game → Runtime → Loading & Streaming**: scene preload at once (6),
+chunks made at once per streamed layer (16), ground pages asked at once (16), planet surface tiles kept (6,000), the world plan
+cache (40,000) and the plans each planning worker keeps (24). Like the rest of the runtime block, only what differs from these is
+written to `project.esproject`.
+</Aside>
 
 ## Leaving effects out
 

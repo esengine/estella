@@ -229,6 +229,40 @@ static void testReopening(const glm::mat4& vp) {
           "and drawn again for the next view, which declared none");
 }
 
+static void testCoarserGridHidesLess(const glm::mat4& vp) {
+    const f32 x0 = worldX(0.03f, 99.5f), x1 = worldX(0.096f, 99.5f);
+    const glm::vec3 centre{(x0 + x1) * 0.5f, (x0 + x1) * 0.5f, -100.0f};
+    const glm::vec3 half{(x1 - x0) * 0.5f, (x1 - x0) * 0.5f, 0.5f};
+    const f32 a = worldX(0.04f, 300.0f), b = worldX(0.055f, 300.0f);
+    const glm::vec3 behind{(a + b) * 0.5f, (a + b) * 0.5f, -300.0f};
+    const glm::vec3 small{(b - a) * 0.5f, (b - a) * 0.5f, (b - a) * 0.5f};
+
+    OcclusionView v;
+    CHECK(v.size() == OcclusionView::kSize, "the grid starts at its full size");
+    v.begin(vp);
+    v.addBox(centre, kNoTurn, half);
+    v.finish();
+    CHECK(v.hidden(behind, small), "on the full grid a wall two texels across hides what is squarely behind it");
+
+    v.setSize(32);
+    CHECK(v.size() == 32, "the grid takes the size it is given");
+    v.begin(vp);
+    v.addBox(centre, kNoTurn, half);
+    v.finish();
+    CHECK(!v.hidden(behind, small), "on a grid half as fine the same wall covers no texel whole and hides nothing");
+
+    v.setSize(16);
+    v.begin(vp);
+    addWall(v);
+    v.finish();
+    CHECK(v.hidden({0.0f, 0.0f, -300.0f}, {2.0f, 2.0f, 2.0f}), "a wide wall still hides what is behind it on the coarsest grid");
+
+    v.setSize(48);
+    CHECK(v.size() == 32, "a size between two powers of two is the one below");
+    v.setSize(1000);
+    CHECK(v.size() == OcclusionView::kSize, "and no grid is larger than the one it is stored in");
+}
+
 static void runAll(const char* name, const glm::mat4& vp) {
     g_convention = name;
     testNothingDeclared(vp);
@@ -241,6 +275,7 @@ static void runAll(const char* name, const glm::mat4& vp) {
     testEyeInsideAndNearPlane(vp);
     testOrderDoesNotMatter(vp);
     testReopening(vp);
+    testCoarserGridHidesLess(vp);
 }
 
 int main() {
