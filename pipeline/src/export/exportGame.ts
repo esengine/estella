@@ -1330,7 +1330,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !opts.developmentPreview && opts.splash?.ident !== false };
+    // A development preview is a page someone debugs, reloaded on every save: the start screen shows loading and nothing more, no
+    // logo and no minimum time, which a game holds back for only where a player sees it.
+    const authored = await splashLook(opts.root, opts.splash, warnings);
+    const look: SplashLook = opts.developmentPreview
+      ? { ...authored, logo: undefined, minMs: 0, engineMark: false }
+      : { ...authored, engineMark: opts.splash?.ident !== false };
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
