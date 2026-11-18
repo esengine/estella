@@ -189,8 +189,12 @@ app.whenReady().then(async () => {
         offline = true;
         win.destroy();
         win = await boot();
-        await sleep(500);
-        const restart = await capture('offline-restart');
+        // A restart opens on the engine's ident, as every launch does: wait for the game under it as the updates above do,
+        // rather than judge the frame half a second in, which is the ident's.
+        let restart;
+        const restartDeadline = Date.now() + 10_000;
+        do { await sleep(100); restart = await capture('offline-restart'); }
+        while (restart.pixel.some((c, i) => Math.abs(c - colors[2][i]) > 15) && Date.now() < restartDeadline);
         const status = await win.webContents.executeJavaScript('globalThis.__cacheAcceptance.status()');
         const report = await query('diskCache');
         if (restart.pixel.some((c, i) => Math.abs(c - colors[2][i]) > 15)
