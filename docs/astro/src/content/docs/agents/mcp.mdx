@@ -153,9 +153,13 @@ It needs a Tripo API key, which you add in **Settings > Tools and AI > AI Agents
 developers.tripo3d.ai). The key stays in this machine's keychain: it is never written into the project, and the editor window
 never reads it back. Every generation spends the account's credits; `tripo_balance` shows what is left.
 
-A generation takes one to three minutes. `tripo_generate` waits up to 150 seconds by default; if the model is not ready by then
-it answers with a task id, and `tripo_task` waits for that same task and imports it without spending again. Each generation is
-one undo step: Undo removes the files it wrote, but not the credits it spent.
+A generation takes two to five minutes, and the editor keeps it rather than the agent's call: `tripo_generate` answers at once
+with a task id, the editor polls Tripo and imports the model when it is ready whether or not the agent is still waiting, and
+`tripo_task` waits for a task and answers its prefab without spending again. While generations run, one notice in the corner
+shows them (a single one by name and percentage, several as a count with the list behind **Details**), and the Content Browser
+shows a placeholder with progress where each model will land. A generation still running when the editor closes is taken up again
+the next time the project opens. The import happens outside the agent's undo step, so Undo does not remove a generated model:
+delete it from the Content Browser.
 
 A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
 cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
