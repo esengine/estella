@@ -35,7 +35,7 @@ import {
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
-import type { InterestPolicy, InterestProvider } from './interest';
+import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
 
 interface Connection {
     /** The public id: what `Replicated.owner` holds. For an authenticated
@@ -72,6 +72,92 @@ interface Connection {
      * nothing certified it — the connection is queried.
      */
     provenance: VisibilityStamp | null;
+    /**
+     * Under a bandwidth budget: for each visible entity, the tick this
+     * connection was last brought up to date on it, and how long it has waited
+     * since. What it is owed is every field that changed after that tick — read
+     * off the server's one record of when each field changed, never kept per
+     * connection, so a change costs the same however many connections see it.
+     */
+    sent: Map<Entity, SentState>;
+    /** The tick its initial state was sent: nothing older is owed. */
+    readyTick: number;
+    /** Token bucket: bytes this connection may still be sent. */
+    tokens: number;
+}
+
+/** One connection's standing with one entity under a budget. */
+interface SentState {
+    /** The tick it was last sent (or spawned) at. */
+    tick: number;
+    /** Accumulated priority; reset when it is sent. */
+    urgency: number;
+}
+
+/** When each replicated field of one component last changed. */
+interface FieldChanges {
+    te: ReplicationTableEntry;
+    /** Per field, the tick it last changed at. */
+    at: Int32Array;
+}
+
+/** When anything on one entity last changed, and per component, per field. */
+interface EntityChanges {
+    at: number;
+    comps: FieldChanges[];
+}
+
+/** What a priority function is asked about: one entity, as one connection sees it. */
+export interface ReplicationPriorityView {
+    world: World;
+    entity: Entity;
+    connectionId: number;
+    /** The entities the connection owns: its anchors. */
+    owned: readonly Entity[];
+}
+
+export interface ReplicationBudgetOptions {
+    /** Bytes of state updates each connection may be sent per second. */
+    bytesPerSecond: number;
+    /**
+     * How much one entity matters to one connection this sample. It adds up
+     * while the entity waits and resets when it is sent, so a low number means
+     * "less often", never "never". Default: 1 within `nearDistance` of the
+     * nearest entity the connection owns, falling off as distance grows; 1 for
+     * anything without a position.
+     */
+    priority?: (view: ReplicationPriorityView) => number;
+    /** For the default priority: the distance within which everything is equally urgent. Default 10. */
+    nearDistance?: number;
+    /**
+     * For the default priority: where an entity is. Default `Transform`'s
+     * world position. Read once per entity per sample, whatever the number of
+     * connections. Null means "no place": such an entity ranks as near.
+     */
+    position?: (world: World, entity: Entity) => InterestPoint | null;
+}
+
+/**
+ * The k-th smallest of `a[0..n)`, in linear time on average, reordering `a`.
+ * The budget needs only where the head of a ranking ends, not the ranking.
+ */
+function selectKth(a: Float64Array, n: number, k: number): number {
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+        const pivot = a[(lo + hi) >>> 1]!;
+        let i = lo;
+        let j = hi;
+        while (i <= j) {
+            while (a[i]! < pivot) i++;
+            while (a[j]! > pivot) j--;
+            if (i <= j) { const t = a[i]!; a[i] = a[j]!; a[j] = t; i++; j--; }
+        }
+        if (k <= j) hi = j;
+        else if (k >= i) lo = i;
+        else return a[k]!;
+    }
+    return a[k]!;
 }
 
 /**
@@ -196,6 +282,31 @@ export class ReplicationServer {
     private readonly playerOfId_ = new Map<number, string>();
     /** Players with no live link, by id -> when the server stops waiting (ms). */
     private readonly away_ = new Map<number, number>();
+    private budget_: ReplicationBudgetOptions | null = null;
+    /** Some connection still owes rows from a budget that was lifted; drained next sample. */
+    private owing_ = false;
+    /** @internal Delta rows held back by the budget, summed over connections and samples. */
+    rowsDeferred = 0;
+    /**
+     * What the budgeted send reads about an entity, read once per sample and
+     * shared by every connection: N connections owed the same M entities is
+     * N x M questions with the same M answers, and a builtin component read
+     * converts out of the engine heap each time.
+     */
+    /** Under a budget: when each field of each replicated entity last changed. One record for every connection. */
+    private readonly changes_ = new Map<Entity, EntityChanges>();
+    /** The tick the budget started: every change before it went out in full. */
+    private budgetSince_ = 0;
+    /** Scratch for ranking, grown as needed and reused by every connection. */
+    private rankU_ = new Float64Array(256);
+    private rankSorted_ = new Float64Array(256);
+    /** Running mean of bytes per budgeted entity row, to guess how many fit. */
+    private bytesPerRow_ = 24;
+    private readonly sampleReads_ = {
+        position: new Map<Entity, InterestPoint | null>(),
+        owner: new Map<Entity, number>(),
+        data: new Map<Entity, Map<number, Record<string, unknown> | null>>(),
+    };
     private table_: ReplicationTable | null = null;
     /** Last broadcast value per entity × table entry: entity → componentId → field record. */
     private readonly shadow_ = new Map<Entity, Map<number, Record<string, unknown>>>();
@@ -618,6 +729,7 @@ export class ReplicationServer {
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
             interest: new Set(), provenance: null,
+            sent: new Map(), readyTick: 0, tokens: 0,
         };
         this.connections_.set(id, conn);
         this.links_.set(id, conn);
@@ -844,7 +956,7 @@ export class ReplicationServer {
         const sample = this.collectDirty_();
         this.since_('dirty discovery', at);
 
-        if (!this.interest_) {
+        if (!this.interest_ && !this.budget_ && !this.owing_) {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
         } else {
             this.sampleWithInterest_(tick, spawnedEntities, despawned, sample);
@@ -929,6 +1041,221 @@ export class ReplicationServer {
      *       connection's visibility settled first. A failed send is not rolled
      *       back — that connection is a dead participant (see sendTo_).
      */
+    /**
+     * Cap what each connection is sent per second, and send what matters most
+     * first. With a budget the server keeps, per connection, what each visible
+     * entity still owes it; every sample it adds each owed entity's priority to
+     * what it has waited, writes the most urgent rows until the connection's
+     * allowance is spent, and keeps the rest for later. A deferred entity is
+     * never lost — the next row it gets carries every field that changed since
+     * the last one — and nothing waits forever, since waiting is what raises it.
+     *
+     * Entities a connection owns always go out (prediction reconciles against
+     * every authoritative update), as do spawns, despawns and component
+     * removals; the budget meters the state stream. `null` lifts it, and what
+     * was still owed goes out on the next sample.
+     */
+    setBandwidthBudget(options: ReplicationBudgetOptions | null): void {
+        if (options && !(options.bytesPerSecond > 0)) throw new Error('[repl] bytesPerSecond must be positive');
+        if (!options && this.budget_) this.owing_ = true;
+        if (options && !this.budget_ && !this.owing_) {
+            // Everything up to now went out in full: nobody is owed anything older.
+            this.budgetSince_ = this.tick_;
+            this.changes_.clear();
+            for (const conn of this.connections_.values()) conn.sent.clear();
+        }
+        this.budget_ = options;
+    }
+
+    /** @internal Entities a connection is still owed rows for. */
+    owedCount(connectionId: number): number {
+        const c = this.connections_.get(connectionId);
+        if (!c || (!this.budget_ && !this.owing_)) return 0;
+        const base = Math.max(this.budgetSince_, c.readyTick);
+        let n = 0;
+        for (const e of c.interest) {
+            const ch = this.changes_.get(e);
+            if (ch && ch.at > (c.sent.get(e)?.tick ?? base)) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Record this sample's changes once, for every connection: per entity the
+     * last tick anything changed, per field the tick it did. Removed components
+     * and despawned entities leave the record.
+     */
+    private recordChanges_(tick: number, dirty: DirtyEntry[], removals: RemovalEntry[], despawned: { entity: Entity }[]): void {
+        for (const d of despawned) this.changes_.delete(d.entity);
+        for (const r of removals) {
+            const ch = this.changes_.get(r.entity);
+            if (ch) ch.comps = ch.comps.filter((c) => c.te.id !== r.componentId);
+        }
+        for (const d of dirty) {
+            let ch = this.changes_.get(d.entity);
+            if (!ch) { ch = { at: 0, comps: [] }; this.changes_.set(d.entity, ch); }
+            let fc: FieldChanges | undefined;
+            for (let i = 0; i < ch.comps.length; i++) if (ch.comps[i]!.te === d.te) { fc = ch.comps[i]; break; }
+            if (!fc) { fc = { te: d.te, at: new Int32Array(d.te.fields.length) }; ch.comps.push(fc); }
+            for (let i = 0, m = d.mask; m !== 0; i++, m >>>= 1) if (m & 1) fc.at[i] = tick;
+            ch.at = tick;
+        }
+    }
+
+    /**
+     * One connection's delta frame under the budget: of the entities it sees,
+     * the ones that changed since it was last sent them are owed; owned ones go
+     * first, the rest by accumulated priority until the allowance is spent.
+     */
+    private sendBudgeted_(c: Connection, tick: number): void {
+        const reads = this.sampleReads_;
+        const ownerOf = (e: Entity): number => {
+            let o = reads.owner.get(e);
+            if (o === undefined) {
+                o = (this.world_.tryGet(e, Replicated) as ReplicatedData | null)?.owner ?? 0;
+                reads.owner.set(e, o);
+            }
+            return o;
+        };
+        const dataOf = (e: Entity, te: ReplicationTableEntry): Record<string, unknown> | null => {
+            let comps = reads.data.get(e);
+            if (!comps) { comps = new Map(); reads.data.set(e, comps); }
+            let d = comps.get(te.id);
+            if (d === undefined) {
+                d = this.world_.has(e, te.def) ? this.world_.tryGet(e, te.def) as Record<string, unknown> : null;
+                comps.set(te.id, d);
+            }
+            return d;
+        };
+
+        // Who is owed what: a compare of two ticks per visible entity.
+        const base = Math.max(this.budgetSince_, c.readyTick);
+        const owned: Entity[] = [];
+        const others: Entity[] = [];
+        const states: SentState[] = [];
+        for (const e of c.interest) {
+            const ch = this.changes_.get(e);
+            if (!ch) continue;
+            let st = c.sent.get(e);
+            if (ch.at <= (st ? st.tick : base)) continue;
+            if (!st) { st = { tick: base, urgency: 0 }; c.sent.set(e, st); }
+            if (ownerOf(e) === c.id) owned.push(e);
+            else { others.push(e); states.push(st); }
+        }
+        if (owned.length === 0 && others.length === 0) return;
+
+        const budget = this.budget_;
+        const dt = this.fixedDelta_ > 0 ? this.fixedDelta_ : 1 / 60;
+        if (budget) {
+            const perTick = budget.bytesPerSecond * dt;
+            // Unused allowance carries over, but only one tick's worth: a quiet
+            // second must not buy a burst that floods the link.
+            c.tokens = Math.min(c.tokens + perTick, perTick * 2);
+        }
+
+        const frame = new FrameWriter(tick);
+        const write = (e: Entity, st: SentState): void => {
+            const netId = this.knownNetIds_.get(e);
+            const ch = this.changes_.get(e);
+            if (netId !== undefined && ch) {
+                for (const fc of ch.comps) {
+                    let mask = 0;
+                    for (let i = 0; i < fc.at.length; i++) if (fc.at[i]! > st.tick) mask |= 1 << i;
+                    if (mask === 0) continue;
+                    const data = dataOf(e, fc.te);
+                    if (data) frame.entry(netId, fc.te, mask, data, this.refs_);
+                }
+            }
+            st.tick = tick;
+            st.urgency = 0;
+        };
+        for (const e of owned) write(e, c.sent.get(e)!);
+
+        let order = others.map((_, i) => i);
+        if (budget && others.length > 0) {
+            const n = others.length;
+            if (this.rankU_.length < n) { this.rankU_ = new Float64Array(n * 2); this.rankSorted_ = new Float64Array(n * 2); }
+            const u = this.rankU_;
+            const score = this.priorityFor_(c, budget, owned);
+            for (let i = 0; i < n; i++) {
+                const st = states[i]!;
+                st.urgency += score(others[i]!);
+                u[i] = st.urgency;
+            }
+            // Only the head of the ranking is ever sent. A native numeric sort of
+            // a copy finds where that head ends; only the entities above it are
+            // ranked exactly — a comparator sort of all of them cost more than
+            // everything else a connection does.
+            const fit = Math.ceil(Math.max(c.tokens - frame.byteLength, 0) / this.bytesPerRow_) + 2;
+            if (fit < n) {
+                const copy = this.rankSorted_;
+                copy.set(u.subarray(0, n));
+                const threshold = selectKth(copy, n, n - fit);
+                const head: number[] = [];
+                for (let i = 0; i < n; i++) if (u[i]! >= threshold) head.push(i);
+                order = head;
+            }
+            order.sort((a, b) => u[b]! - u[a]!);
+        }
+
+        let sentOthers = 0;
+        const before = frame.byteLength;
+        for (const i of order) {
+            // One row every sample whatever the allowance: what the owned rows
+            // cost, or one entity bigger than a tick's worth, must not stop the
+            // rest from moving at all.
+            if (budget && sentOthers > 0 && frame.byteLength >= c.tokens) break;
+            write(others[i]!, states[i]!);
+            sentOthers++;
+        }
+        if (sentOthers > 0) {
+            this.bytesPerRow_ = this.bytesPerRow_ * 0.9 + ((frame.byteLength - before) / sentOthers) * 0.1;
+        }
+        if (budget) {
+            c.tokens -= frame.byteLength;
+            this.rowsDeferred += others.length - sentOthers;
+        }
+        this.deltaRowsSent += frame.entryCount;
+        if (frame.entryCount > 0) c.channel.sendBinary(REPLICATION_CHANNEL, frame.finish());
+    }
+
+
+    /** This sample's priority for one connection: the game's, or distance to its nearest owned entity. */
+    private priorityFor_(c: Connection, budget: ReplicationBudgetOptions, owned: Entity[]): (e: Entity) => number {
+        const anchors = this.ownedByConnection_?.get(c.id);
+        const ownedAll = anchors ? [...anchors] : owned;
+        if (budget.priority) {
+            const fn = budget.priority;
+            return (entity) => Math.max(0, fn({ world: this.world_, entity, connectionId: c.id, owned: ownedAll }) || 0);
+        }
+        const near = budget.nearDistance ?? 10;
+        const cache = this.sampleReads_.position;
+        const read = budget.position ?? transformPosition;
+        const positionOf = (e: Entity): InterestPoint | null => {
+            let p = cache.get(e);
+            if (p === undefined) { p = read(this.world_, e); cache.set(e, p); }
+            return p;
+        };
+        const points: InterestPoint[] = [];
+        for (const e of ownedAll) {
+            const p = positionOf(e);
+            if (p) points.push(p);
+        }
+        if (points.length === 0) return () => 1;
+        return (entity) => {
+            const p = positionOf(entity);
+            if (!p) return 1;
+            let best = Infinity;
+            for (const a of points) {
+                const dx = p.x - a.x, dy = p.y - a.y, dz = (p.z ?? 0) - (a.z ?? 0);
+                const d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 < best) best = d2;
+            }
+            const d = Math.sqrt(best);
+            return d <= near ? 1 : near / d;
+        };
+    }
+
     private sampleWithInterest_(
         tick: number,
         spawnedEntities: Entity[],
@@ -936,6 +1263,20 @@ export class ReplicationServer {
         { dirty, removals }: DirtySample,
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
+        const budgeted = this.budget_ !== null || this.owing_;
+        if (budgeted) {
+            this.recordChanges_(tick, dirty, removals, despawned);
+            const reads = this.sampleReads_;
+            reads.position.clear();
+            reads.owner.clear();
+            reads.data.clear();
+            // This sample's dirty rows already hold the live records.
+            for (const d of dirty) {
+                let comps = reads.data.get(d.entity);
+                if (!comps) { comps = new Map(); reads.data.set(d.entity, comps); }
+                comps.set(d.te.id, d.data);
+            }
+        }
         // One snapshot for every connection this sample: a provider prepares
         // here, and never on the per-connection path below.
         const visibility = this.resolveVisibility_({
@@ -978,11 +1319,14 @@ export class ReplicationServer {
                 if (conn.interest.has(e)) continue;
                 enters.push(e);
                 this.watch_(e, conn.id);
+                // A spawn carries the current state: nothing older is owed.
+                if (budgeted) conn.sent.set(e, { tick, urgency: 0 });
             }
             const leaveIds: number[] = [];
             for (const e of conn.interest) {
                 if (visible.has(e)) continue;
                 this.unwatch_(e, conn.id);
+                conn.sent.delete(e);
                 const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
                 if (netId !== undefined) leaveIds.push(netId);
             }
@@ -994,7 +1338,9 @@ export class ReplicationServer {
 
         // Whose debt is whose.
         const routing = this.mark_();
-        const routed = this.route_(plans, dirty, removals);
+        // Under a budget the server's change record says who is owed which
+        // field; only removals, which ride the control plane, are routed.
+        const routed = this.route_(plans, budgeted ? [] : dirty, removals);
         this.since_('routing', routing);
 
         // The wire. Spawn payloads serialize once per entity per tick, however
@@ -1031,6 +1377,10 @@ export class ReplicationServer {
                         ReplMsg.componentRemove, removeBatch(tick, mine.removals.map((i) => removals[i]!)));
                 }
                 this.since_('control send', control);
+                if (budgeted) {
+                    this.sendBudgeted_(c, tick);
+                    return;
+                }
                 if (mine.dirty.length > 0) {
                     const encoding = this.mark_();
                     const frame = new FrameWriter(tick);
@@ -1048,6 +1398,13 @@ export class ReplicationServer {
                     }
                 }
             });
+        }
+        // A lifted budget drained everything owed above, to every connection:
+        // the shared path is safe again and the change record is not needed.
+        if (!this.budget_ && this.owing_) {
+            this.owing_ = false;
+            this.changes_.clear();
+            for (const conn of this.connections_.values()) conn.sent.clear();
         }
     }
 
@@ -1493,6 +1850,7 @@ export class ReplicationServer {
         }
         conn.interest = visible;
         conn.ready = true;
+        conn.readyTick = this.tick_;
         // After the send, not before: a connection that never heard about the
         // world is not a viewer of it, and the early return above is the only
         // other way out of this function.

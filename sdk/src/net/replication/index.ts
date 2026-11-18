@@ -50,7 +50,13 @@ export {
 } from './interest';
 export { registerReplicationArchetype, type ReplicationArchetype } from './archetype';
 export { NetIds } from './NetIds';
-export { ReplicationServer, type ReplicationServerOptions, type ReplicationPlayer } from './server';
+export {
+    ReplicationServer,
+    type ReplicationServerOptions,
+    type ReplicationPlayer,
+    type ReplicationBudgetOptions,
+    type ReplicationPriorityView,
+} from './server';
 export {
     ReplicationClient,
     predictionReplays,

@@ -174,6 +174,11 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
  * to the parent, so two children of different parents sharing an offset would
  * otherwise occupy the same point. The server composes before it samples.
  */
+/** @internal The world position the built-in policies read: `Transform.worldPosition`. */
+export function transformPosition(world: World, entity: Entity): InterestPoint | null {
+    return defaultPosition(world, entity);
+}
+
 function defaultPosition(world: World, entity: Entity): InterestPoint | null {
     const Transform = getComponent('Transform');
     if (!Transform || !world.has(entity, Transform)) return null;

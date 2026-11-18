@@ -262,6 +262,45 @@ around by writing the reader differently:
   through the same composition. A game that writes `worldPosition` itself does
   not — that field is the composition's output, not an input.
 
+#### When a crowd is too much: a bandwidth budget
+
+Interest decides *whether* a connection sees an entity. In a town square or
+around a world boss it sees hundreds, and sending every one of them every tick
+is more than a phone's link — or the server — can carry. A budget caps each
+connection's state stream and sends what matters most first:
+
+```ts
+server.setBandwidthBudget({
+    bytesPerSecond: 16_000,              // per connection
+    // optional; the default is distance to the nearest entity the connection owns
+    priority: ({ entity, owned }) => isBoss(entity) ? 5 : 1,
+});
+```
+
+Every sample, each entity a connection is owed an update for adds its priority
+to what it has already waited; the most urgent go out until the connection's
+allowance is spent, and the rest wait. Waiting is what raises them, so a low
+priority means *less often*, never *never*. A deferred entity is late, not
+wrong: the row it eventually gets carries every field that changed since its
+last one, at current values, and the client interpolates across the gap.
+
+Entities the connection owns always go out (prediction reconciles against
+every authoritative update), and so do spawns, despawns and component
+removals — the budget meters the state stream. Unused allowance carries over by
+at most one tick. `setBandwidthBudget(null)` lifts it, and what was still owed
+goes out on the next sample. It works with or without an interest source; for
+the default priority, `position` reads where an entity is when that is not
+`Transform`.
+
+The server records once when each field last changed, and each connection only
+when it was last sent each entity, so a change costs the same however many
+players see it. Measured with 200 players in one crowd at 20 Hz
+(`tools/net-capacity-benchmark.mjs --crowd --budget 16000`): each player's
+stream fell from about 52 KB/s to 17.6 KB/s and the server's from 10 MB/s to
+3.4 MB/s, at the same tick cost. Where nobody is over budget it costs a little
+(about 1.5 ms a tick for 200 players seeing 30 each), so turn it on where crowds
+happen.
+
 ### Client prediction — zero-latency input
 
 Without prediction, your own pawn only moves after a full server round trip.

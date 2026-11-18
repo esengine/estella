@@ -29,6 +29,7 @@
  *   node tools/net-capacity-benchmark.mjs
  *   node tools/net-capacity-benchmark.mjs --hz 20 --steps 200,400,800,1600 --seconds 10
  *   node tools/net-capacity-benchmark.mjs --crowd --steps 50,100,200,400
+ *   node tools/net-capacity-benchmark.mjs --crowd --budget 16000   # cap each client's state stream
  *   node tools/net-capacity-benchmark.mjs --no-batch    # one socket write per frame, as before
  *   node tools/net-capacity-benchmark.mjs --json out.json
  *
@@ -71,6 +72,7 @@ const SPEED = Number(A.speed ?? 6);
 const INTEREST = A.interest ?? 'radius';
 const CROWD = A.crowd === true;
 const BATCH = A['no-batch'] !== true;
+const BUDGET = A.budget ? Number(A.budget) : 0;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Side of the square world for `players` at the density that gives `VISIBLE` neighbours. */
@@ -126,6 +128,7 @@ async function runServer() {
     app.setFixedTimestep(1 / HZ);
     const server = app.getResource(repl.Net).startServer();
     if (INTEREST === 'radius') server.setInterestProvider(repl.radiusInterestProvider(RADIUS));
+    if (BUDGET > 0) server.setBandwidthBudget({ bytesPerSecond: BUDGET });
 
     // Movement: each pawn consumes its connection's command for this tick.
     app.addSystemToSchedule(sdk.Schedule.FixedUpdate, sdk.defineSystem(
@@ -337,7 +340,7 @@ async function runBots() {
 
 function child(role, extra) {
     const argv = [fileURLToPath(import.meta.url), '--role', role, '--hz', String(HZ), '--radius', String(RADIUS),
-        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(BATCH ? [] : ['--no-batch']), ...extra];
+        '--visible', String(VISIBLE), '--speed', String(SPEED), '--interest', INTEREST, ...(CROWD ? ['--crowd'] : []), ...(BATCH ? [] : ['--no-batch']), ...(BUDGET > 0 ? ['--budget', String(BUDGET)] : []), ...extra];
     const proc = spawn(process.execPath, argv, {
         cwd: ROOT,
         env: { ...process.env, NODE_PATH: [path.join(ROOT, 'sdk', 'node_modules'), path.join(ROOT, 'node_modules')].join(path.delimiter) },
@@ -443,7 +446,7 @@ async function runAll() {
     const botProcs = Number(A.bots ?? Math.max(2, os.cpus().length - 4));
     const modeBase = CROWD ? `crowd (everyone within ${RADIUS})` : INTEREST === 'none' ? 'no interest (everyone sees everyone)'
         : `radius ${RADIUS}, ~${VISIBLE} visible`;
-    const mode = modeBase + (BATCH ? ', one write per client per sample' : ', one write per message (--no-batch)');
+    const mode = modeBase + (BUDGET > 0 ? `, budget ${BUDGET} B/s per client` : '') + (BATCH ? ', one write per client per sample' : ', one write per message (--no-batch)');
     console.log(`net-capacity-benchmark: ${HZ} Hz, ${mode}, ${seconds}s per step, up to ${botProcs} bot processes, ${os.cpus()[0].model}`);
     console.log('players | rate     | tick p50/p99/max ms  | ELU  | out/client | out total   | seen | rss MB | bots ELU | verdict');
     const results = [];

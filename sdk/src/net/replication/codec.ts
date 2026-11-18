@@ -326,6 +326,9 @@ export class FrameWriter {
 
     get entryCount(): number { return this.count_; }
 
+    /** Bytes written so far, header included. */
+    get byteLength(): number { return this.w_.length; }
+
     entry(netId: number, table: ReplicationTableEntry, fieldMask: number, data: Record<string, unknown>, refs?: EntityRefMap): void {
         this.w_.u32(netId);
         this.w_.u16(table.id);
