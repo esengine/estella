@@ -59,10 +59,8 @@ export const DUTIES = [
     {
         id: 'composition-stale',
         what: 'a compiled write to a transform input says the composition is stale',
-        // Not an observation, so not behind `isChangeTracked`: a server with no
-        // Changed(Transform) consumer would otherwise move transforms nothing
-        // recomposes. Once per invocation, never per row. The web road stamps every
-        // row it wrote (changed-ticks), so it says the stale composition is a stamped one.
+        // Not behind `isChangeTracked`: with no Changed(Transform) consumer, transforms would move and nothing recompose.
+        // Once per invocation. The web road stamps every row it wrote (changed-ticks), so its staleness is a stamped one.
         web: ['world.invalidateStampedTransforms'],
         native: ['world.invalidateTransformComposition'],
         differential: {
