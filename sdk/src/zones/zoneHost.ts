@@ -19,6 +19,19 @@ import type { PlayerPersistence } from '../persist/players';
 import { ZoneDirectory } from './directory';
 import { LeaseHeld, PlayerLeases, type PlayerLease } from './leases';
 import { TransferTickets } from './tickets';
+import type { ZoneBus } from './bus';
+
+/** What one zone tells another over the bus. */
+type ZoneEnvelope =
+    | { k: 'player'; playerId: string; type: string; data?: unknown; hops: number }
+    | { k: 'kick'; playerId: string; message?: string; hops: number };
+
+/** What every zone hears on the shared topic. */
+interface ZoneBroadcast {
+    from: string;
+    type: string;
+    data?: unknown;
+}
 
 export interface ZoneHostOptions {
     /** This zone: its id, the address clients dial, and how it is grouped and sized. */
@@ -52,6 +65,13 @@ export interface ZoneHostOptions {
     now?: () => number;
     /** Where a player goes when nothing else says: a new player, or one whose zone and its kind are all gone. */
     home?: string;
+    /**
+     * Messages between zones: what is sent to a player in another zone, a kick
+     * there, and what every zone hears. Without it a zone reaches only its own
+     * players. A `MemoryBus` for zones in one process, a `RemoteBus` to a
+     * `BusHub` across processes.
+     */
+    bus?: ZoneBus;
     /**
      * Where a player who logs in here belongs. Called for every login that is
      * not a transfer, with where they were last; return a zone id (or `{ zone,
@@ -101,6 +121,10 @@ export async function defaultZoneRoute(ctx: ZoneRouteContext): Promise<ZoneRoute
     return null;
 }
 
+/** How long a message waits for a player on their way to this zone, and how many wait. */
+const HOLD_FOR_ARRIVAL_MS = 3000;
+const HOLD_FOR_ARRIVAL_MAX = 32;
+
 /** A refusal the client should retry, named the way the replication server recognizes. */
 function retryLater(message: string): Error {
     const err = new Error(message) as Error & { fatal: boolean };
@@ -123,6 +147,16 @@ export class ZoneHost<A = unknown> {
     private readonly arrivals_ = new Map<string, A>();
     private nextHeartbeat_ = 0;
     private nextRenew_ = 0;
+    private readonly playerHandlers_ = new Map<string, Set<(playerId: string, connectionId: number, data: unknown) => void>>();
+    private readonly zoneHandlers_ = new Map<string, Set<(data: unknown, fromZone: string) => void>>();
+    private offBus_: (() => void)[] = [];
+    /**
+     * Messages for players on their way here (their lease is this zone's, they
+     * are not connected yet): held a moment and given to them when they are.
+     */
+    private readonly held4Arrival_ = new Map<string, { until: number; messages: { type: string; data: unknown }[] }>();
+    /** Messages for players being transferred out: sent after them once the transfer is done, or given here if it fails. */
+    private readonly held4Leaving_ = new Map<string, { type: string; data: unknown }[]>();
 
     constructor(options: ZoneHostOptions) {
         this.options_ = options;
@@ -145,9 +179,149 @@ export class ZoneHost<A = unknown> {
         this.server_ = server;
     }
 
-    /** Be listed. Call once the server accepts connections. */
+    /** Be listed, and hear the bus. Call once the server accepts connections. */
     async start(): Promise<void> {
+        const bus = this.options_.bus;
+        if (bus && this.offBus_.length === 0) {
+            this.offBus_.push(bus.subscribe(`zone:${this.zoneId}`, (m) => this.fromBus_(m as ZoneEnvelope)));
+            this.offBus_.push(bus.subscribe('zones', (m) => this.fromZones_(m as ZoneBroadcast)));
+        }
         await this.announce_();
+    }
+
+    /**
+     * Send a game message to a player wherever they are: here, it goes to their
+     * client (`ReplicationClient.onMessage`) unless `onPlayerMessage` handles it;
+     * in another zone, over the bus to that zone, which does the same. A player
+     * who moved on while it travelled is followed one zone further. Resolves
+     * whether the player was online anywhere; delivery is at most once.
+     */
+    async sendToPlayer(playerId: string, type: string, data?: unknown): Promise<boolean> {
+        if (this.deliver_(playerId, type, data)) return true;
+        if (this.holdForLeaving_(playerId, type, data)) return true;
+        const lease = await this.leases.get(playerId);
+        if (!lease || lease.zoneId === this.zoneId || !this.options_.bus) return false;
+        this.options_.bus.publish(`zone:${lease.zoneId}`, { k: 'player', playerId, type, data, hops: 0 } satisfies ZoneEnvelope);
+        return true;
+    }
+
+    /** Kick a player wherever they are. Resolves whether they were online anywhere. */
+    async kickPlayer(playerId: string, message?: string): Promise<boolean> {
+        if (this.kickHere_(playerId, message)) return true;
+        const lease = await this.leases.get(playerId);
+        if (!lease || lease.zoneId === this.zoneId || !this.options_.bus) return false;
+        this.options_.bus.publish(`zone:${lease.zoneId}`, { k: 'kick', playerId, message, hops: 0 } satisfies ZoneEnvelope);
+        return true;
+    }
+
+    /** Tell every zone (this one too): an announcement, an event starting. */
+    broadcastZones(type: string, data?: unknown): void {
+        const msg: ZoneBroadcast = data === undefined ? { from: this.zoneId, type } : { from: this.zoneId, type, data };
+        if (this.options_.bus) this.options_.bus.publish('zones', msg);
+        else this.fromZones_(msg);
+    }
+
+    /** Hear what any zone broadcasts. Returns an unsubscribe. */
+    onZoneMessage(type: string, handler: (data: unknown, fromZone: string) => void): () => void {
+        let set = this.zoneHandlers_.get(type);
+        if (!set) { set = new Set(); this.zoneHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
+    }
+
+    /**
+     * Handle messages sent to players here (`sendToPlayer`, from this zone or
+     * another) instead of passing them to the client: to filter, store or
+     * translate them. Returns an unsubscribe.
+     */
+    onPlayerMessage(type: string, handler: (playerId: string, connectionId: number, data: unknown) => void): () => void {
+        let set = this.playerHandlers_.get(type);
+        if (!set) { set = new Set(); this.playerHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
+    }
+
+    /** A message for a player, if they are connected here. */
+    private deliver_(playerId: string, type: string, data: unknown): boolean {
+        const server = this.server_;
+        if (!server || this.leaving_.has(playerId)) return false;
+        const id = server.connectionIdOf(playerId);
+        if (id === undefined || !server.clientIds.includes(id)) return false;
+        const handlers = this.playerHandlers_.get(type);
+        if (handlers && handlers.size > 0) {
+            for (const h of [...handlers]) {
+                try { h(playerId, id, data); } catch { /* one handler does not stop the rest */ }
+            }
+            return true;
+        }
+        return server.message(id, type, data);
+    }
+
+    private kickHere_(playerId: string, message?: string): boolean {
+        const server = this.server_;
+        if (!server) return false;
+        const id = server.connectionIdOf(playerId);
+        if (id === undefined) return false;
+        return server.kick(id, message);
+    }
+
+    private fromBus_(m: ZoneEnvelope): void {
+        if (!m || typeof m.playerId !== 'string') return;
+        const done = m.k === 'player'
+            ? this.deliver_(m.playerId, m.type, m.data) || this.holdForLeaving_(m.playerId, m.type, m.data)
+            : this.kickHere_(m.playerId, m.message);
+        if (done || !this.options_.bus) return;
+        void this.leases.get(m.playerId).then((lease) => {
+            if (!lease) return;
+            if (lease.zoneId === this.zoneId) {
+                // On their way here: hold it until they are connected.
+                if (m.k === 'player' && !this.deliver_(m.playerId, m.type, m.data)) this.holdForArrival_(m.playerId, m.type, m.data);
+                return;
+            }
+            // Moved on while the message travelled: follow them once.
+            if (m.hops < 1) this.options_.bus!.publish(`zone:${lease.zoneId}`, { ...m, hops: m.hops + 1 });
+        }).catch(() => undefined);
+    }
+
+    /** A player being transferred out: keep the message to send after them. */
+    private holdForLeaving_(playerId: string, type: string, data: unknown): boolean {
+        if (!this.leaving_.has(playerId)) return false;
+        let held = this.held4Leaving_.get(playerId);
+        if (!held) { held = []; this.held4Leaving_.set(playerId, held); }
+        if (held.length < HOLD_FOR_ARRIVAL_MAX) held.push({ type, data });
+        return true;
+    }
+
+    private holdForArrival_(playerId: string, type: string, data: unknown): void {
+        let held = this.held4Arrival_.get(playerId);
+        if (!held) { held = { until: 0, messages: [] }; this.held4Arrival_.set(playerId, held); }
+        held.until = this.now_() + HOLD_FOR_ARRIVAL_MS;
+        if (held.messages.length < HOLD_FOR_ARRIVAL_MAX) held.messages.push({ type, data });
+    }
+
+    /** Give held messages to players who have arrived; drop those for players who never did. */
+    private releaseHeld_(): void {
+        if (this.held4Arrival_.size === 0) return;
+        const now = this.now_();
+        for (const [pid, held] of [...this.held4Arrival_]) {
+            const server = this.server_;
+            const id = server?.connectionIdOf(pid);
+            if (server && id !== undefined && server.clientIds.includes(id)) {
+                this.held4Arrival_.delete(pid);
+                for (const msg of held.messages) this.deliver_(pid, msg.type, msg.data);
+            } else if (held.until <= now) {
+                this.held4Arrival_.delete(pid);
+            }
+        }
+    }
+
+    private fromZones_(m: ZoneBroadcast): void {
+        if (!m || typeof m.type !== 'string') return;
+        const handlers = this.zoneHandlers_.get(m.type);
+        if (!handlers) return;
+        for (const h of [...handlers]) {
+            try { h(m.data, m.from); } catch { /* one handler does not stop the rest */ }
+        }
     }
 
     /**
@@ -235,6 +409,7 @@ export class ZoneHost<A = unknown> {
     /** Every tick: records follow the players present, leases are renewed, and the directory hears from us. */
     tick(): void {
         const server = this.requireServer_();
+        this.releaseHeld_();
         const present = new Set<string>();
         for (const id of server.presentIds) {
             const pid = server.playerIdOf(id);
@@ -301,13 +476,26 @@ export class ZoneHost<A = unknown> {
             // arrival lease has run out and this zone takes the player again.
             server.transfer(connectionId, { address: dest.address, ticket, fallback: this.options_.zone.address });
             this.arrivals_.delete(pid);
+            // What arrived for them on the way out goes after them; the
+            // destination holds it until they are connected there.
+            const held = this.held4Leaving_.get(pid);
+            this.held4Leaving_.delete(pid);
+            if (held && this.options_.bus) {
+                for (const msg of held) this.options_.bus.publish(`zone:${toZone}`, { k: 'player', playerId: pid, type: msg.type, data: msg.data, hops: 1 } satisfies ZoneEnvelope);
+            }
         } finally {
             this.leaving_.delete(pid);
+            // Still here (the transfer failed): give them what was held.
+            const held = this.held4Leaving_.get(pid);
+            this.held4Leaving_.delete(pid);
+            for (const msg of held ?? []) this.deliver_(pid, msg.type, msg.data);
         }
     }
 
     /** For shutdown: records written, leases freed, and the zone taken off the directory. */
     async stop(): Promise<void> {
+        for (const off of this.offBus_) off();
+        this.offBus_ = [];
         await this.directory.withdraw(this.zoneId).catch(() => undefined);
         await this.options_.players?.flush();
         await Promise.all([...this.held_].map((pid) => this.leases.release(pid, this.zoneId).catch(() => false)));

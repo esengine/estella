@@ -10,6 +10,10 @@
  *          Everything lives in a PersistStore all zones share.
  */
 export { ZoneDirectory, type ZoneInfo, type ZoneDirectoryOptions } from './directory';
+export {
+    MemoryBus, BusHub, RemoteBus,
+    type ZoneBus, type BusHubSocket, type BusHubOptions, type RemoteBusOptions,
+} from './bus';
 export { PlayerLeases, LeaseHeld, type PlayerLease, type PlayerLeasesOptions } from './leases';
 export { TransferTickets, TicketRefused, type TransferTicket, type TransferTicketsOptions } from './tickets';
 export {

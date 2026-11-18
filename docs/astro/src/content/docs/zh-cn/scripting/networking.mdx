@@ -146,6 +146,11 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   的顺序。`attachConnection` 和 `Net.connect` 收的是 `ReliableOrderedTransport`
   ——内置 socket 都是;自己写的 transport 声明 `delivery: 'reliable-ordered'`,
   做不到这个保证的会是编译错误,而不是一次静默失步。
+- **游戏消息**:除了状态流，服务器和客户端之间还可以互发游戏自己类型的消息——聊天、通知、状态里没有的请求。
+  `server.message(id, 'notice', data)` 和 `server.broadcastMessage(type, data, filter?)` 发给客户端，客户端用
+  `client.onMessage(type, handler)` 在消息到达时接收;`client.message(type, data)` 发给
+  `server.onMessage(type, (connectionId, data) => …)`，只接收已经完成握手的连接，并受同样的连接限制。以 `repl:` 开头的
+  类型保留给协议。消息不会跨重连排队:未连接时 `client.message` 返回 false。
 - **归属**:`Replicated.owner` 把某连接的 `sendInput` 命令路由到它的实体;
   `client.ownsEntity(e)` 回答"这个 ghost 是不是我的"。
 - **编辑器预览**:在 Play 模式下拉里选 **2–4 Players**——listen server 和
@@ -443,8 +448,40 @@ client.onStateChange((state) => {       // 每一次变化，发生时就通知
 `'transfer'`，`transferTarget` 说明该去哪。`server.transfer(id, { address, ticket })` 是 `ZoneHost` 用的
 复制层那一步，留给有自己交接方式的游戏。
 
-这里没有的：跨区边界无缝的世界(边界两侧的实体互相可见)，以及区之间的消息(聊天、组队)——那是游戏自己选的
-消息总线。
+### 区之间的消息
+
+区之间通过**总线**通信：往一个主题发布，所有订阅了它的进程都会收到。投递是至多一次，和 Redis 的频道一样——
+无论多久都必须送到的东西(邮件、交易结果)存进存储，总线只负责说一声"现在去看"。`MemoryBus` 用于同一进程里的
+多个区;跨进程时，起一个 `BusHub`(把每个接入的 `ws` socket 交给它)，每个区用一个 `RemoteBus` 连上去，它会在
+断线后重连并重新订阅。Redis 或 NATS 适配器就是实现 `ZoneBus` 的两个方法。
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// 由一个进程托管中继
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// 每个区
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// 这里的玩家发出的私聊，送给任何地方的玩家
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // 不管她在哪个区
+zone.broadcastZones('event', { name: 'double-xp' });   // 所有区都会收到
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+`sendToPlayer` 会把消息送到玩家的客户端(`client.onMessage`)，除非持有他的区用 `onPlayerMessage` 自己处理这个
+类型。正在转区的玩家不会漏收：他离开期间到达的消息会跟着他转发过去，目标区会替他暂存(3 秒、32 条)，等他连上
+再交给他。用 `tools/zones-benchmark.mjs` 实测(4 个区、200 个玩家，每人约每 3 秒走一次传送门、约每 2 秒随机给
+另一个人发私聊):99.5% 的私聊送达，p50 5 ms，p95 14 ms;中途杀掉一个区时为 97.5%——没送到的是发给它的玩家、
+在他们到达别的区之前那几秒里的消息。
+
+这里没有的：跨区边界无缝的世界(边界两侧的实体互相可见)。
 
 ## 异步在线游戏——会话层
 

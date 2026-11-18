@@ -161,6 +161,15 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   and `Net.connect` take a `ReliableOrderedTransport` — every built-in socket is
   one; a transport you write yourself declares `delivery: 'reliable-ordered'`,
   and one that cannot make that promise is a compile error rather than a desync.
+- **Game messages**: beside the state stream, a server and its clients send
+  each other messages of the game's own types — chat, a notice, a request the
+  state does not carry. `server.message(id, 'notice', data)` and
+  `server.broadcastMessage(type, data, filter?)` reach clients, which hear them
+  with `client.onMessage(type, handler)` as they arrive; `client.message(type,
+  data)` reaches `server.onMessage(type, (connectionId, data) => …)`, from
+  connections that have said hello and under the same limits as everything
+  else. Types starting `repl:` are the protocol's. A message is not queued
+  across a reconnect: `client.message` returns false while not connected.
 - **Ownership**: `Replicated.owner` routes a connection's `sendInput` commands to
   its entities; `client.ownsEntity(e)` answers "is this ghost mine".
 - **Editor preview**: pick **2–4 Players** in the Play-mode dropdown — a listen
@@ -535,9 +544,48 @@ in between). Without `dial`, a transfer ends the client with `closeReason`
 address, ticket })` is the replication-level step `ZoneHost` uses, for a game
 with its own handoff.
 
+### Messages between zones
+
+Zones talk over a **bus**: publish to a topic, and every process subscribed to
+it hears. Delivery is at most once, as on a Redis channel — what has to arrive
+however long it takes (mail, a trade's result) goes in the store, and the bus
+says "look now". `MemoryBus` serves zones in one process; across processes,
+host a `BusHub` (hand it each accepted `ws` socket) and give each zone a
+`RemoteBus`, which redials a lost hub and subscribes again. A Redis or NATS
+adapter is the two methods of `ZoneBus`.
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// one process hosts the hub
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// every zone
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// a whisper from a player here, to a player anywhere
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // wherever she is
+zone.broadcastZones('event', { name: 'double-xp' });   // every zone hears
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+`sendToPlayer` delivers to the player's client (`client.onMessage`) unless the
+zone that has them handles the type itself with `onPlayerMessage`. A player in
+the middle of a transfer is not missed: what arrives for them while they leave
+is sent after them, and the zone they are going to holds it (3 s, 32 messages)
+until they are connected. Measured with `tools/zones-benchmark.mjs` (4 zones,
+200 players each walking through a portal every ~3 s and whispering to a random
+other every ~2 s): 99.5% of whispers arrived, p50 5 ms, p95 14 ms; with a zone
+killed halfway, 97.5% — the rest were for its players in the seconds before
+they were in another zone.
+
 What is not here: a world that is seamless across zone borders (entities on
-both sides of a line seen from either) and messages between zones (chat,
-parties) — those are a bus the game picks.
+both sides of a line seen from either).
 
 ## Asynchronous online games — sessions
 
