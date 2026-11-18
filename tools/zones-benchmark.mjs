@@ -5,9 +5,9 @@
  *
  * Every zone is its own Node process with a replication server, a ZoneHost and
  * player records; bots in other processes walk through portals between them.
- * The zones share one store, served here over a WebSocket from the coordinator
- * (a MemoryStore behind an RPC, so a versioned write is atomic across
- * processes the way a database adapter's must be — a FileStore is not).
+ * The zones share one store: a MemoryStore behind the SDK's StoreHub in the
+ * coordinator, which each zone reaches through a RemoteStore — so a versioned
+ * write is atomic across processes, as a database adapter's must be.
  *
  * A portal is a bot's input: `{ portal: zoneId, portalSeq }`. The zone the bot
  * is in counts the hop in the player's record (`hops + 1`) and transfers it.
@@ -44,7 +44,7 @@ import { performance } from 'node:perf_hooks';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const DIST = path.join(ROOT, 'sdk', 'dist');
-const { WebSocketServer, WebSocket } = createRequire(path.join(ROOT, 'sdk', 'package.json'))('ws');
+const { WebSocketServer } = createRequire(path.join(ROOT, 'sdk', 'package.json'))('ws');
 
 function args() {
     const out = {};
@@ -65,6 +65,8 @@ const STEP = 1 / HZ;
 const LEASE_TTL = Number(A['lease-ttl'] ?? 5000);
 const AUTOSAVE = Number(A.autosave ?? 2000);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Between the coordinator's store hub and its zones. */
+const STORE_SECRET = 'zones-benchmark';
 const quantile = (xs, q) => {
     if (xs.length === 0) return 0;
     const s = [...xs].sort((a, b) => a - b);
@@ -80,69 +82,14 @@ async function loadSdk() {
 }
 
 // ---------------------------------------------------------------------------
-// The shared store, over a socket
-// ---------------------------------------------------------------------------
-
-/** Serve a PersistStore: one JSON request per message, answered in order. */
-function serveStore(store) {
-    const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
-    wss.on('connection', (socket) => {
-        socket.on('message', async (raw) => {
-            const req = JSON.parse(String(raw));
-            try {
-                let result;
-                if (req.op === 'get') result = await store.get(req.key);
-                else if (req.op === 'put') result = await store.put(req.key, req.value, req.options);
-                else if (req.op === 'delete') result = await store.delete(req.key, req.options);
-                else if (req.op === 'keys') result = await store.keys(req.prefix);
-                socket.send(JSON.stringify({ id: req.id, ok: true, result }));
-            } catch (err) {
-                socket.send(JSON.stringify({
-                    id: req.id, ok: false,
-                    error: { name: err.name, message: err.message, key: err.key, expected: err.expected, actual: err.actual },
-                }));
-            }
-        });
-    });
-    return new Promise((resolve) => wss.on('listening', () => resolve({ wss, url: `ws://127.0.0.1:${wss.address().port}` })));
-}
-
-/** The client half: a PersistStore whose every call is a round trip to `serveStore`. */
-async function remoteStore(url, persist) {
-    const socket = new WebSocket(url, { perMessageDeflate: false });
-    await new Promise((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
-    const pending = new Map();
-    let seq = 0;
-    socket.on('message', (raw) => {
-        const res = JSON.parse(String(raw));
-        const p = pending.get(res.id);
-        pending.delete(res.id);
-        if (!p) return;
-        if (res.ok) p.resolve(res.result);
-        else if (res.error.name === 'PersistConflict') p.reject(new persist.PersistConflict(res.error.key, res.error.expected, res.error.actual));
-        else p.reject(Object.assign(new Error(res.error.message), { name: res.error.name }));
-    });
-    const call = (req) => new Promise((resolve, reject) => {
-        const id = ++seq;
-        pending.set(id, { resolve, reject });
-        socket.send(JSON.stringify({ ...req, id }));
-    });
-    return {
-        get: (key) => call({ op: 'get', key }),
-        put: (key, value, options) => call({ op: 'put', key, value, options }),
-        delete: (key, options) => call({ op: 'delete', key, options }),
-        keys: (prefix) => call({ op: 'keys', prefix }),
-    };
-}
-
-// ---------------------------------------------------------------------------
 // A zone
 // ---------------------------------------------------------------------------
 
 async function runZone() {
     const { sdk, repl, persist, zones } = await loadSdk();
     const id = A.id;
-    const store = await remoteStore(A.store, persist);
+    // The SDK's own store client, to the hub the coordinator serves.
+    const store = new persist.RemoteStore({ connect: () => new sdk.GameSocket({ url: A.store }), secret: STORE_SECRET });
     const Pos = sdk.defineComponent('BenchPos', { x: 0, z: 0 }, { replicatedFields: ['x', 'z'] });
 
     const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
@@ -480,7 +427,13 @@ async function runAll() {
     const CRASH = A.crash === true;
 
     const store = new persist.MemoryStore();
-    const served = await serveStore(store);
+    // One store for every zone, behind the SDK's StoreHub: every versioned
+    // write and transaction runs here, so they are atomic across processes.
+    const storeHub = new persist.StoreHub(store, { secret: STORE_SECRET });
+    const storeServer = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
+    await new Promise((r) => storeServer.once('listening', r));
+    storeServer.on('connection', (socket) => storeHub.accept(socket));
+    const served = { wss: storeServer, url: `ws://127.0.0.1:${storeServer.address().port}` };
     const { BusHub } = await import(pathToFileURL(path.join(DIST, 'zones', 'index.js')).href);
     const hub = new BusHub();
     const busServer = new WebSocketServer({ port: 0, host: '127.0.0.1', perMessageDeflate: false });
