@@ -46,16 +46,44 @@ TEST_CASE("both wire null representations detach") {
     }
 }
 
-TEST_CASE("an existing corrupt ancestor cycle is rejected without hanging") {
+TEST_CASE("the hierarchy is the ChildOf relation, and a Parent written as a component links nothing") {
     Registry r;
     const auto a = r.create(), b = r.create(), child = r.create();
-    // Raw native component writes can bypass the hierarchy transaction. The
-    // public operation must fail safely even when handed such a damaged tree.
+    // The relation is the authority; the components are its copy. A raw component write cannot make a link, so it cannot
+    // make the cycle the components once could hold.
     r.emplace<Parent>(a, b);
     r.emplace<Parent>(b, a);
-    CHECK_FALSE(setParent(r, child, a));
+    CHECK_FALSE(r.childOf().hasTarget(a));
+    CHECK(setParent(r, child, a));
+    CHECK(r.childOf().target(child) == a);
+    CHECK(r.get<Children>(a).entities == std::vector<Entity>{child});
+}
+
+TEST_CASE("removing a sibling keeps the others in order") {
+    Registry r;
+    const auto root = r.create(), a = r.create(), b = r.create(), c = r.create();
+    for (const auto e : {a, b, c}) REQUIRE(setParent(r, e, root));
+    REQUIRE(setParent(r, a, INVALID_ENTITY));
+    CHECK(r.get<Children>(root).entities == std::vector<Entity>{b, c});
+    r.destroy(b);
+    CHECK(r.childOf().first(root) == c);
+    CHECK(r.childOf().count(root) == 1);
+}
+
+TEST_CASE("a destroyed parent leaves its children roots") {
+    Registry r;
+    const auto root = r.create(), child = r.create(), leaf = r.create();
+    REQUIRE(setParent(r, child, root));
+    REQUIRE(setParent(r, leaf, child));
+    r.destroy(root);
+    CHECK_FALSE(r.childOf().hasTarget(child));
+    CHECK(r.childOf().depth(child) == 0);
+    CHECK(r.childOf().depth(leaf) == 1);
+    // The slot is reused by a new entity, which owns none of the old one's links.
+    const auto fresh = r.create();
+    CHECK_FALSE(r.childOf().hasSources(fresh));
+    CHECK(setParent(r, child, INVALID_ENTITY));
     CHECK_FALSE(r.has<Parent>(child));
-    CHECK_FALSE(r.has<Children>(a));
 }
 
 TEST_CASE("subtree destruction is iterative and children precede their parents") {
@@ -67,10 +95,9 @@ TEST_CASE("subtree destruction is iterative and children precede their parents")
         const auto e = r.create();
         ids.push_back(e);
         if (i != 0) {
-            // A valid chain constructed directly so this test measures teardown,
+            // A valid chain linked directly so this test measures teardown,
             // not the separate ancestry checks charged by setParent.
-            r.emplace<Parent>(e, ids[i - 1]);
-            r.emplace<Children>(ids[i - 1]).entities.push_back(e);
+            r.childOf().link(e, ids[i - 1]);
         }
     }
     auto connection = r.onDestroy([&](Entity e) { events.push_back(e); });
@@ -152,4 +179,44 @@ TEST_CASE("subtree finalization preserves a nested reservation in a reused child
     CHECK(r.destructionPending(fresh));
     r.releaseDestruction(fresh);
     CHECK_FALSE(r.destructionPending(fresh));
+}
+
+TEST_CASE("the cascade lists every tree parent first, siblings in order, and follows every edit") {
+    Registry r;
+    const auto root = r.create(), a = r.create(), b = r.create(), a1 = r.create(), a2 = r.create(), lone = r.create();
+    REQUIRE(setParent(r, a, root));
+    REQUIRE(setParent(r, b, root));
+    REQUIRE(setParent(r, a1, a));
+    REQUIRE(setParent(r, a2, a));
+    const auto check = [&](std::vector<Entity> expected) {
+        std::vector<Entity> got;
+        for (const auto& tree : r.childOf().cascade()) {
+            if (!tree.alive) continue;
+            const auto& order = tree.entries;
+            for (usize i = 0; i < order.size(); ++i) {
+                got.push_back(order[i].entity);
+                const auto at = r.childOf().cascadeAt(order[i].entity);
+                CHECK(order[at.slot].entity == order[i].entity);
+                const Entity parent = r.childOf().target(order[i].entity);
+                if (parent.isValid()) {
+                    REQUIRE(order[i].parent < i);
+                    CHECK(order[order[i].parent].entity == parent);
+                } else {
+                    CHECK(order[i].parent == ExclusiveRelation::NONE);
+                }
+            }
+        }
+        CHECK(got == expected);
+    };
+    // An entity in no tree is not listed.
+    (void)lone;
+    check({root, a, a1, a2, b});
+    REQUIRE(setParent(r, b, a1));
+    check({root, a, a1, b, a2});
+    const Entity order[] = {a2, a1};
+    applySceneEntityOrder(r, order, 2);
+    check({root, a, a2, a1, b});
+    r.destroy(a);
+    // The destroyed parent's children are roots of their own trees now; a2 has no children, so only a1's tree remains.
+    check({a1, b});
 }

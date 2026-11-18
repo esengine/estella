@@ -66,15 +66,15 @@ TEST_CASE("destruction and clear do not disable a recycled slot") {
     r.setEntityEnabled(replacement, false); r.clear();
     CHECK(r.isEntityActive(r.create()));
 }
-TEST_CASE("a deep chain resolves iteratively and responds to native component writes") {
+TEST_CASE("a deep chain resolves iteratively and responds to edits of the relation itself") {
     Registry r;
     const auto root = r.create();
     auto last = root;
-    for (int i = 0; i < 50000; ++i) { const auto child = r.create(); r.emplace<Parent>(child, last); last = child; }
+    for (int i = 0; i < 50000; ++i) { const auto child = r.create(); r.childOf().link(child, last); last = child; }
     r.setEntityEnabled(root, false);
     CHECK_FALSE(r.isEntityActive(last));
-    r.remove<Parent>(last); CHECK(r.isEntityActive(last));
-    r.emplaceOrReplace<Parent>(last, root); CHECK_FALSE(r.isEntityActive(last));
+    r.childOf().unlink(last); CHECK(r.isEntityActive(last));
+    r.childOf().link(last, root); CHECK_FALSE(r.isEntityActive(last));
 }
 TEST_CASE("unrelated entity churn leaves the all-active epoch stable") {
     Registry r;

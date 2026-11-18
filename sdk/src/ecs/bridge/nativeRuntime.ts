@@ -74,7 +74,8 @@ function nativeTransformComposition(scope: Record<string, unknown>) {
     const bytes = (buffer as () => ArrayBuffer | null)();
     if (!bytes) return undefined;
     // The arena never moves, unlike a growable wasm heap, so one view lasts.
-    const epoch = new Uint32Array(bytes, 0, 1);
+    // The epoch, and after it the count of writes that left no stamp; an older host hands over the first word only.
+    const epoch = new Uint32Array(bytes, 0, Math.min(2, bytes.byteLength >>> 2));
     const track = scope[COMPOSITION_BINDINGS.setChangeTracking];
     const last = scope[COMPOSITION_BINDINGS.compositionChanges];
     const reports = typeof track === 'function' && typeof last === 'function'

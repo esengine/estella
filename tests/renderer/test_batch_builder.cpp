@@ -1248,13 +1248,14 @@ TEST_CASE("flat geometry: authored planar zero scales remain collapsed through r
         system.ensureComposed(registry);
         CHECK_FALSE(ecs::hasFlatGeometryArea(registry, child, transform));
         CHECK_FALSE(ecs::pointInTransformedBox(registry, child, transform, 0, 0, 20, 30, .5f, .5f));
-        registry.get<ecs::Transform>(parent).scale.x = 1;
+        // Written as every producer writes, stamped: composition recomposes what the stamps name.
+        registry.patch<ecs::Transform>(parent).scale.x = 1;
         ecs::invalidateTransformComposition();
         system.ensureComposed(registry);
         CHECK(ecs::hasFlatGeometryArea(registry, child, transform));
         CHECK(ecs::pointInTransformedBox(registry, child, transform, 0, 0, 20, 30, .5f, .5f));
-        registry.get<ecs::Transform>(parent).scale.x = 0;
-        transform.rotation = glm::angleAxis(.5f, glm::vec3(0, 1, 0));
+        registry.patch<ecs::Transform>(parent).scale.x = 0;
+        registry.patch<ecs::Transform>(child).rotation = glm::angleAxis(.5f, glm::vec3(0, 1, 0));
         ecs::invalidateTransformComposition();
         system.ensureComposed(registry);
         CHECK(ecs::hasFlatGeometryArea(registry, child, transform));
@@ -1272,15 +1273,14 @@ TEST_CASE("flat geometry: deep collapsed groups propagate and recover in one tra
     auto parent = root;
     for (u32 i = 0; i < 50000; ++i) {
         const auto child = registry.create();
-        registry.emplace<ecs::Parent>(child).entity = parent;
-        registry.emplace<ecs::Children>(parent).entities.push_back(child);
+        registry.childOf().link(child, parent);
         parent = child;
     }
     auto& transform = registry.emplace<ecs::Transform>(parent);
     transform.rotation = glm::angleAxis(.4f, glm::vec3(0, 0, 1));
     system.ensureComposed(registry);
     CHECK_FALSE(ecs::hasFlatGeometryArea(registry, parent, transform));
-    registry.get<ecs::Transform>(root).scale.x = 1;
+    registry.patch<ecs::Transform>(root).scale.x = 1;
     ecs::invalidateTransformComposition();
     system.ensureComposed(registry);
     CHECK(ecs::hasFlatGeometryArea(registry, parent, transform));
@@ -1817,13 +1817,11 @@ TEST_CASE("a Canvas inherits visibility and pointer policy from an ancestor outs
     registry.emplace<ecs::Transform>(parent).position = {13, 17, 0};
     registry.emplace<ecs::UINode>(parent).opacity = .5f;
     registry.get<ecs::UINode>(parent).pointerEvents = ecs::UIPointerEvents::None;
-    registry.emplace<ecs::Children>(parent).entities.push_back(canvas);
-    registry.emplace<ecs::Parent>(canvas).entity = parent;
+    ecs::setParent(registry, canvas, parent);
     registry.emplace<ecs::Transform>(canvas);
     registry.emplace<ecs::UINode>(canvas);
     registry.emplace<ecs::Canvas>(canvas);
-    registry.emplace<ecs::Children>(canvas).entities.push_back(leaf);
-    registry.emplace<ecs::Parent>(leaf).entity = canvas;
+    ecs::setParent(registry, leaf, canvas);
     registry.emplace<ecs::Transform>(leaf);
     auto& node = registry.emplace<ecs::UINode>(leaf);
     node.width = {40, 0};

@@ -59,6 +59,7 @@ void SpringBoneSystem::restoreBones(ecs::Registry& registry, State& state) {
         auto* t = registry.tryGet<ecs::Transform>(state.entities[i]);
         if (t && state.hasWritten[i] && t->rotation == state.written[i]) {
             t->rotation = state.animated[i];
+            registry.markChanged<ecs::Transform>(state.entities[i]);
             ecs::invalidateTransformComposition();
         }
     }
@@ -281,7 +282,10 @@ void SpringBoneSystem::update(ecs::Registry& registry, ecs::TransformSystem* tra
             const size_t b = static_cast<size_t>(parentOf[i]);
             const glm::quat local = glm::normalize(glm::inverse(fkRotation_[b]) * aimed);
             auto& t = registry.get<ecs::Transform>(found_[i]);
-            t.rotation = local;
+            if (t.rotation != local) {
+                t.rotation = local;
+                registry.markChanged<ecs::Transform>(found_[i]);
+            }
             st.written[i] = local;
             st.hasWritten[i] = true;
             wrote = true;

@@ -11,6 +11,7 @@
 * @file    BuiltinBridge.ts
 * @brief   C++ Registry integration layer for builtin components
 */
+import { flushEngineStamps } from '../engineStamps';
 import type { Entity } from '../../types';
 import { mergeIntoDefaults } from '../component';
 import type { BuiltinComponentDef } from '../component';
@@ -573,8 +574,26 @@ export class BuiltinBridge {
         heap[this.transformEpochWord_] = (heap[this.transformEpochWord_] + 1) >>> 0;
     }
 
+    /**
+     * Say that local transforms were written with nothing saying which (the bytes, through no setter): besides staleness, the
+     * word after the epoch, so the next composition composes everything instead of only what was stamped.
+     */
+    invalidateUnstampedTransforms(): void {
+        this.invalidateTransformComposition();
+        const injected = this.transformComposition_;
+        if (injected) {
+            if (injected.epoch.length > 1) injected.epoch[1] = (injected.epoch[1]! + 1) >>> 0;
+            return;
+        }
+        const heap = this.module_?.HEAPU32;
+        if (this.transformEpochWord_ < 0 || !heap) return;
+        heap[this.transformEpochWord_ + 1] = (heap[this.transformEpochWord_ + 1] + 1) >>> 0;
+    }
+
     /** Compose if any producer invalidated since the last one; O(1) otherwise. */
     ensureTransformsComposed(): void {
+        // Composition recomposes what the write stamps say changed, so a script's writes are the engine's to know first.
+        flushEngineStamps(this.cppRegistry_);
         if (this.transformComposition_) { this.transformComposition_.ensure(); return; }
         if (!this.cppRegistry_) return;
         this.module_?.transform_ensureComposed?.(this.cppRegistry_);

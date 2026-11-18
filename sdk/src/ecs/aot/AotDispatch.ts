@@ -37,7 +37,7 @@
  *          somebody else's bytes.
  */
 
-import type { AnyComponentDef } from '../component';
+import { isBuiltinComponent, type AnyComponentDef } from '../component';
 import { computeQueryCacheKey, type World, queryDepIds, feedsTransformComposition } from '../world';
 import type { Entity } from '../../types';
 import { CMD_DESPAWN } from './AotContext';
@@ -252,17 +252,21 @@ export class AotDispatch {
             // NOT an observation, so it must not inherit `isChangeTracked`'s
             // opt-in: a server with no `Changed(Transform)` consumer would
             // otherwise move transforms nobody recomposes.
+            const base = plan.offsets[k];
             for (const def of q.mutated) {
-                if (feedsTransformComposition(def)) {
-                    this.world.invalidateTransformComposition();
-                    break;
+                if (this.world.isChangeTracked(def)) {
+                    // Through the mutation seam: stamps the engine's copy too, and tells Changed() queries.
+                    for (let i = 0; i < n; i++) this.world.markChanged(plan.scratch[base + i * q.width] as unknown as Entity, def);
+                } else if (isBuiltinComponent(def)) {
+                    // Nothing in script watches it, but the engine's readers of changes do (composition recomposes only the
+                    // Transforms stamped since its last pass; the renderer keeps what it built for the rest).
+                    for (let i = 0; i < n; i++) this.world.stampEngineWrite(plan.scratch[base + i * q.width] as unknown as Entity, def);
                 }
             }
             for (const def of q.mutated) {
-                if (!this.world.isChangeTracked(def)) continue;
-                const base = plan.offsets[k];
-                for (let i = 0; i < n; i++) {
-                    this.world.markChanged(plan.scratch[base + i * q.width] as unknown as Entity, def);
+                if (feedsTransformComposition(def)) {
+                    this.world.invalidateStampedTransforms();
+                    break;
                 }
             }
         }

@@ -360,9 +360,12 @@ void layoutUINodeSubtree(
         f32 localY = (1.0f - ppy) * ph - yt - 0.5f * fh;
 
         if (auto* t = registry.tryGet<Transform>(e)) {
-            // Leave tween-driven position axes alone (see TweenSystem anim_override_).
+            // Leave tween-driven position axes alone (see TweenSystem anim_override_). Stamped where it moved: composition
+            // recomposes the written entities, and a layout pass that places every node where it already was moves none.
+            const glm::vec3 before = t->position;
             if (!(un.anim_override_ & UINode::ANIM_POS_X)) t->position.x = localX;
             if (!(un.anim_override_ & UINode::ANIM_POS_Y)) t->position.y = localY;
+            if (t->position != before) registry.markChanged<Transform>(e);
         }
     }
 
@@ -466,8 +469,10 @@ void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
                 const f32 fh = YGNodeLayoutGetHeight(it->second);
                 const f32 localX = -0.5f * availW + YGNodeLayoutGetLeft(it->second) + 0.5f * fw;
                 const f32 localY = 0.5f * availH - YGNodeLayoutGetTop(it->second) - 0.5f * fh;
+                const glm::vec3 before = t->position;
                 if (!(un->anim_override_ & UINode::ANIM_POS_X)) t->position.x = cx + localX;
                 if (!(un->anim_override_ & UINode::ANIM_POS_Y)) t->position.y = cy + localY;
+                if (t->position != before) registry.markChanged<Transform>(node.entity);
             }
         }
         i += node.subtree_size;

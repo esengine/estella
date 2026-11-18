@@ -426,8 +426,8 @@ export function applyPhysics2DTransforms(
 
     // The per-body loop writes the component heap directly and calls no C++, so
     // the composition is told here. The batch path above says so itself, and one
-    // parented body sends EVERY body down this one.
-    app.world.invalidateTransformComposition();
+    // parented body sends EVERY body down this one. Each body it moves is stamped below.
+    app.world.invalidateStampedTransforms();
 
     const transformPtrFn = engineMod?.getTransformPtr;
     const getTransformPtr = transformPtrFn
@@ -482,6 +482,7 @@ export function applyPhysics2DTransforms(
                 // The engine's readers of changes (the renderer) see a body that moved, and only one that did; Changed()
                 // queries stay out of it, as the note at the top of this function says. Compared as the f32s they will be.
                 if (engF32[fi] !== Math.fround(localX) || engF32[fi + 1] !== Math.fround(localY)
+                    || engF32[fi + 2] !== 0 || engF32[fi + 3] !== 0 || engF32[fi + 4] !== 0
                     || engF32[fi + 5] !== Math.fround(sinH) || engF32[fi + 6] !== Math.fround(cosH)) {
                     app.world.stampEngineWrite(entityId as Entity, Transform);
                 }
