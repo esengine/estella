@@ -160,7 +160,7 @@ export {
     type ProbeGrid, bakeHoldsStill, type BakeMobility, BAKE_DEFAULTS,
     captureReflection, flatSky, type CapturedPanorama, type SkyRadiance,
     LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, lightmapImage,
-    bakeLightmapSteps, bakeRunner, type BakeScene, type BakeJob, type BakeStep,
+    bakeLightmapSteps, bakeRunner, jobLength, type BakeScene, type BakeJob, type BakeStep,
     skyRadiance, type SkySpec,
 } from './lightmap';
 /**
@@ -170,7 +170,8 @@ export {
  * @experimental Pre-1.0: a sparse grid will be a new version of this file.
  */
 export {
-    encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, type ProbeVolumeDocument,
+    encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, PROBE_FILE_SPARSE_VERSION, PROBES_PER_BRICK,
+    type ProbeVolumeDocument,
 } from './lightmap';
 /**
  * What a scene declares about its baked light: the knobs, and the fingerprint of

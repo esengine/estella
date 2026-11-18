@@ -323,7 +323,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
   const options = {
     atlasSize: declared.atlasSize, texelsPerUnit: declared.texelsPerUnit,
     bounces: declared.bounces, samples: declared.samples,
-    probeSamples: declared.probeSamples,
+    probeSamples: declared.probeSamples, probeLevels: declared.probeLevels,
   };
   for (const k of Object.keys(options)) if (typeof options[k] !== 'number') delete options[k];
   if (declared.skyOcclusion === true) options.skyOcclusion = true;

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { unwrapLightmapUV, type UnwrapOptions, type UnwrapResult } from './unwrap';
-export { bakeLightmap, bakeLightmapSteps, bakeRunner, LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, lightmapImage,
+export { bakeLightmap, bakeLightmapSteps, bakeRunner, jobLength, LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, lightmapImage,
          type BakeOptions, type BakeResult, type BakeScene, type BakeJob, type BakeStep } from './bake';
 export { skyRadiance, type SkySpec } from './sky';
 export type { BakeSurface } from './atlas';
 export type { BakeLight } from './solve';
-export { solveProbes, probeAt, type ProbeGrid } from './probes';
-export { encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, type ProbeVolumeDocument } from './probeFile';
+export { solveProbes, solveProbesAt, planProbes, gatherBricks, probeAt, BRICK_CELLS, BRICK_PROBES, type ProbeGrid,
+         type ProbeLayout } from './probes';
+export { encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, PROBE_FILE_SPARSE_VERSION, PROBES_PER_BRICK,
+         type ProbeVolumeDocument } from './probeFile';
 export { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
 export { bakeHoldsStill, type BakeMobility } from './mobility';

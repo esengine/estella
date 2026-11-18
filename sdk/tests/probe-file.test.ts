@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { decodeProbeFile, encodeProbeFile, fromHalfBits, isBinaryProbeFile, PROBE_FILE_VERSION, toHalfBits }
-    from '../src/lightmap/probeFile';
+import { decodeProbeFile, encodeProbeFile, fromHalfBits, isBinaryProbeFile, PROBE_FILE_SPARSE_VERSION, PROBE_FILE_VERSION,
+         PROBES_PER_BRICK, toHalfBits } from '../src/lightmap/probeFile';
 
 /** A grid whose every number differs, so a value read from the wrong place shows. */
 function grid(res: [number, number, number], sky: boolean) {
@@ -65,12 +65,33 @@ describe('the .esprobes file', () => {
 
     it('refuses a version it does not know, by name, in either form', () => {
         const bytes = encodeProbeFile(grid([1, 1, 1], false));
-        new DataView(bytes.buffer).setUint16(4, 3, true);
-        expect(() => decodeProbeFile(bytes, 'a.esprobes')).toThrow(/a\.esprobes is a version 3 probe file/);
+        new DataView(bytes.buffer).setUint16(4, 9, true);
+        expect(() => decodeProbeFile(bytes, 'a.esprobes')).toThrow(/a\.esprobes is a version 9 probe file/);
         const json = new TextEncoder().encode(JSON.stringify({ version: 7, resolution: [1, 1, 1], irradiance: new Array(27).fill(0) }));
         expect(() => decodeProbeFile(json, 'b.esprobes')).toThrow(/b\.esprobes is a version 7 probe document/);
         const unversioned = new TextEncoder().encode(JSON.stringify({ resolution: [1, 1, 1], irradiance: new Array(27).fill(0) }));
         expect(() => decodeProbeFile(unversioned, 'c.esprobes')).toThrow(/version undefined/);
+    });
+
+    it('writes a grid with bricks as version 3, and reads its bricks back', () => {
+        // A 9x5x5 grid is 2x1x1 finest-brick cells: one coarse brick of span 2 covers both.
+        for (const sky of [false, true]) {
+            const bricks = [0, 0, 0, 2];
+            const irradiance = Array.from({ length: PROBES_PER_BRICK * 27 }, (_, i) => (i % 13) * 0.25);
+            const skyVisibility = sky ? Array.from({ length: PROBES_PER_BRICK * 9 }, (_, i) => (i % 5) / 4) : undefined;
+            const bytes = encodeProbeFile({ version: PROBE_FILE_SPARSE_VERSION, resolution: [9, 5, 5], irradiance, bricks,
+                                            ...(skyVisibility ? { skyVisibility } : {}) });
+            expect(new DataView(bytes.buffer).getUint16(4, true)).toBe(PROBE_FILE_SPARSE_VERSION);
+            expect(bytes.length).toBe(20 + 4 + 16 + PROBES_PER_BRICK * (27 + (sky ? 9 : 0)) * 2);
+            const read = decodeProbeFile(bytes);
+            expect(read.version).toBe(PROBE_FILE_SPARSE_VERSION);
+            expect(read.resolution).toEqual([9, 5, 5]);
+            expect(Array.from(read.bricks!)).toEqual(bricks);
+            closeAsHalf(read.irradiance, irradiance);
+            if (sky) closeAsHalf(read.skyVisibility!, skyVisibility!);
+        }
+        expect(() => encodeProbeFile({ version: 3, resolution: [9, 5, 5], irradiance: new Array(27).fill(0), bricks: [0, 0, 0, 2] }))
+            .toThrow(/want 3375/);
     });
 
     it('refuses a file whose length does not match its grid', () => {

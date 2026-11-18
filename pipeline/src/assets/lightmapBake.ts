@@ -14,6 +14,7 @@ import { PNG } from 'pngjs';
 import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type BakeStep, type CapturedPanorama, type ProbeGrid, encodeProbeFile, PROBE_FILE_VERSION,
+         PROBE_FILE_SPARSE_VERSION, jobLength,
          type ProbeVolumeDocument } from 'esengine';
 import { encodeRgbaPng } from './png';
 import { adoptOrphan } from './assetMeta';
@@ -276,7 +277,7 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
         const next = steps.next();
         if (next.done) return next.value;
         runner ??= bakeRunner(next.value.scene);
-        runner(next.value.job, 0, next.value.scene.lumels.count);
+        runner(next.value.job, 0, jobLength(next.value));
     }
 }
 
@@ -408,9 +409,15 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         const counts = v.halfExtents.map((h) => probeCountFor(h, v.spacing)) as
             [number, number, number];
         const total = counts[0] * counts[1] * counts[2];
-        if (total > MAX_PROBES_PER_VOLUME) {
-            warnings.push(`${v.label}: ${counts.join('x')} probes is past the ${MAX_PROBES_PER_VOLUME}`
-                + ' one volume may carry — raise its spacing or shrink its box');
+        // A sparse grid solves the finest spacing only near geometry: the cap is on what the open air would cost at
+        // the coarsest brick, eight times fewer probes a level, and the runtime's atlas still turns away what it
+        // cannot hold (that volume is then read per object).
+        const levels = Math.max(1, Math.floor(input.options?.probeLevels ?? 1));
+        const cap = MAX_PROBES_PER_VOLUME * 8 ** (levels - 1);
+        if (total > cap) {
+            warnings.push(`${v.label}: ${counts.join('x')} probes is past the ${cap}`
+                + ` one volume may carry at ${levels} probe level(s) — raise its spacing, shrink its box`
+                + (levels < 4 ? ' or raise BakedLighting probeLevels' : ''));
             continue;
         }
         gridSlot.push(i);
@@ -442,11 +449,13 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         for (const w of packed.warnings) warnings.push(w);
         return packed;
     };
-    const asDocument = (grid: ProbeGrid, sh: Float32Array, sky?: Float32Array): ProbeVolumeDocument => ({
-        version: PROBE_FILE_VERSION,
+    const asDocument = (grid: ProbeGrid, sh: Float32Array, sky: Float32Array | undefined,
+                        bricks: Int32Array | null): ProbeVolumeDocument => ({
+        version: bricks ? PROBE_FILE_SPARSE_VERSION : PROBE_FILE_VERSION,
         resolution: [grid.resolution[0], grid.resolution[1], grid.resolution[2]],
         irradiance: sh,
         ...(sky ? { skyVisibility: sky } : {}),
+        ...(bricks ? { bricks } : {}),
     });
 
     if (surfaces.length === 0) {
@@ -455,7 +464,9 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         // nothing to bake into an atlas and still has somewhere to stand.
         const empty = yield* bakeLightmapSteps([], lights,
                                                { ...input.options, probeGrids: grids, occluders, ...reflectionOptions });
-        gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k], empty.probeSkyVisibility[k]); });
+        gridSlot.forEach((at, k) => {
+            probes[at] = asDocument(grids[k], empty.probes[k], empty.probeSkyVisibility[k], empty.probeBricks[k] ?? null);
+        });
         return {
             atlasBytes: encodeRgbaPng(1, 1, new Uint8Array([0, 0, 0, 255])),
             scaleOffset: input.surfaces.map(() => null),
@@ -478,7 +489,9 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     const scaleOffset: Array<[number, number, number, number] | null> =
         input.surfaces.map(() => null);
     slot.forEach((at, k) => { scaleOffset[at] = result.scaleOffset[k]; });
-    gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], result.probes[k], result.probeSkyVisibility[k]); });
+    gridSlot.forEach((at, k) => {
+        probes[at] = asDocument(grids[k], result.probes[k], result.probeSkyVisibility[k], result.probeBricks[k] ?? null);
+    });
 
     return {
         atlasBytes: encodeRgbaPng(result.size, result.size, lightmapImage(result.pixels, result.size)),

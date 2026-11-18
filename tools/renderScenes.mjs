@@ -337,6 +337,9 @@ export const SCENES = [
   // pixel (the grid through the frame's probe atlas) its left end is red and its right blue, as a merged building
   // spanning a shed and the yard is dark under the roof and lit outside.
   { id: "probe-per-pixel", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
+  // The same mesh and field, the grid SPARSE: one brick of span 2 (version 3 file, bricks in the atlas). Read with the
+  // span the middle is the same mix; read without it the read lands two probes off and the mix moves.
+  { id: "probe-per-pixel-sparse", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel-sparse.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel-sparse.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
   // The same box, and a mesh whose ORIGIN is outside it (x -200) while its right end draws inside: an imported level's
   // walls keep the origin the file gave them. Chosen by its origin it is in no volume and black; by its box it reads the
   // grid where each pixel stands.

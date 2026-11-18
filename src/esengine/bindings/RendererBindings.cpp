@@ -642,6 +642,19 @@ u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr) {
                                  ConstSpan<f32>(sh, static_cast<usize>(want))).id();
 }
 
+u32 probe_volume_createBricks(i32 resX, i32 resY, i32 resZ, i32 brickCount, uintptr_t bricksPtr, uintptr_t shPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return 0;
+    if (resX <= 0 || resY <= 0 || resZ <= 0 || brickCount <= 0) return 0;
+    const u64 ints = static_cast<u64>(brickCount) * 4u;
+    const u64 want = static_cast<u64>(brickCount) * static_cast<u64>(ProbeVolume::kBrickProbes) * 27u;
+    const i32* bricks = boundarySpan<i32>(bricksPtr, ints, "probe_volume_createBricks.bricks");
+    const f32* sh = boundarySpan<f32>(shPtr, want, "probe_volume_createBricks.irradiance");
+    if (!bricks || !sh) return 0;
+    return rm->createProbeVolumeBricks({resX, resY, resZ}, ConstSpan<i32>(bricks, static_cast<usize>(ints)),
+                                       ConstSpan<f32>(sh, static_cast<usize>(want))).id();
+}
+
 /** @brief Releases a probe volume. */
 void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();

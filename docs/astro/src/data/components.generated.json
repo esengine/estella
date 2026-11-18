@@ -256,6 +256,13 @@
           "doc": "Probes keep how much sky they see, not the sky itself: the sky in play (a live Sky Atmosphere, a weather) lights them through it, so rooms stay dark."
         },
         {
+          "key": "probeLevels",
+          "type": "number",
+          "default": "1",
+          "doc": "Brick sizes a probe volume may use. 1 = a probe at every spacing; more keeps that spacing near geometry only and samples the open air coarser, with far fewer probes.",
+          "range": "1–4, step 1"
+        },
+        {
           "key": "bakedFrom",
           "type": "string",
           "default": "empty",
@@ -268,7 +275,8 @@
         "texelsPerUnit",
         "bounces",
         "samples",
-        "probeSamples"
+        "probeSamples",
+        "probeLevels"
       ]
     },
     {

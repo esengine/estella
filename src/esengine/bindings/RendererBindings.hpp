@@ -184,11 +184,15 @@ void renderer_setSkyEnvironment(u32 environmentHandle);
 /** @brief Registers a grid of baked irradiance: `x*y*z*27` floats, x fastest. */
 u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr);
 
+/** @brief Registers a sparse grid of baked irradiance: `brickCount` bricks of four ints (first finest-brick cell
+ *         x, y, z and span) at `bricksPtr`, and `brickCount*125*27` floats at `shPtr`, brick after brick. */
+u32 probe_volume_createBricks(i32 resX, i32 resY, i32 resZ, i32 brickCount, uintptr_t bricksPtr, uintptr_t shPtr);
+
 /** @brief Releases a probe volume. */
 void probe_volume_release(u32 volumeHandle);
 
-/** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in grid order
- *         (a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
+/** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in the order its
+ *         irradiance is (grid order, or brick after brick for a sparse grid; a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
  *         frame's sky is added through this. */
 void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr);
 /** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */

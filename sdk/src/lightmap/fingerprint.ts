@@ -90,7 +90,8 @@ export function bakeFingerprint(inputs: BakeInputs): string {
     lines.push(`o|${opts.atlasSize}|${opts.texelsPerUnit}|${opts.bounces}|${opts.samples}`
         + `|${opts.probeSamples}|${opts.dilate}|${nums(inputs.ambient ?? opts.ambient)}`
         // Only where it is on: a scene that never asked for it keeps the fingerprint its last bake wrote.
-        + (opts.skyOcclusion ? '|skyOcclusion' : ''));
+        + (opts.skyOcclusion ? '|skyOcclusion' : '')
+        + (opts.probeLevels > 1 ? `|probeLevels=${opts.probeLevels}` : ''));
     const text = lines.join('\n');
     const hex = (v: number): string => v.toString(16).padStart(8, '0');
     return hex(fnv1a(text, 0x811c9dc5)) + hex(fnv1a(text, 0x9e3779b9));

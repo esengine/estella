@@ -17,7 +17,16 @@
  *   20      2*27n the irradiance: nine RGB coefficients per probe, x fastest then y then z
  *   ...     2*9n  the sky's visibility, nine coefficients per probe, when flag bit 0 is set
  *
- * Little-endian throughout. Version 1, the JSON document, is still read: every grid baked before this one is one.
+ * Version 3 is a SPARSE grid (lightmap/probes planProbes): the header as above, the resolution being the finest
+ * grid's, then
+ *
+ *   20      4     bricks, b
+ *   24      16b   per brick: its first finest-brick cell x, y, z and its span in those cells (u32 each)
+ *   ...     2*27n the irradiance, n = b * 125: each brick's (BRICK_CELLS+1)^3 probes, x fastest, brick after brick
+ *   ...     2*9n  the sky's visibility, when flag bit 0 is set
+ *
+ * A grid with no bricks is written as version 2, so a dense bake reads as it did. Little-endian throughout.
+ * Version 1, the JSON document, is still read: every grid baked before version 2 is one.
  */
 
 /** A solved grid: what a bake produces and what a load hands the engine. */
@@ -31,10 +40,17 @@ export interface ProbeVolumeDocument {
     /** Baked with sky occlusion: nine coefficients per probe of how much of the sky each sees, and the irradiance
      *  then holds the lights alone. Absent otherwise (the irradiance holds the sky as it was). */
     skyVisibility?: ArrayLike<number>;
+    /** A sparse grid: four ints a brick (first finest-brick cell x, y, z and its span), and the irradiance and sky
+     *  visibility then hold PROBES_PER_BRICK probes a brick, in turn. Absent for a dense grid. */
+    bricks?: ArrayLike<number>;
 }
 
-/** The version encodeProbeFile writes, and the newest decodeProbeFile reads. */
+/** The version encodeProbeFile writes for a dense grid. */
 export const PROBE_FILE_VERSION = 2;
+/** The version it writes for a sparse one, and the newest decodeProbeFile reads. */
+export const PROBE_FILE_SPARSE_VERSION = 3;
+/** Probes a brick of a sparse grid carries: 5 a side, its far faces included. */
+export const PROBES_PER_BRICK = 125;
 
 const MAGIC = [0x45, 0x53, 0x50, 0x56]; // 'ESPV'
 const HEADER_BYTES = 20;
@@ -88,9 +104,13 @@ function probeCount(resolution: unknown, where: string): number {
     return r[0] * r[1] * r[2];
 }
 
-/** The file's bytes for a grid, in the current version. */
+/** The file's bytes for a grid: version 2 for a dense one, version 3 for one with bricks. */
 export function encodeProbeFile(doc: ProbeVolumeDocument): Uint8Array {
-    const probes = probeCount(doc.resolution, 'encodeProbeFile');
+    const brickInts = doc.bricks?.length ?? 0;
+    if (brickInts % 4 !== 0) throw new Error(`encodeProbeFile: ${brickInts} brick ints are not four a brick`);
+    const brickCount = brickInts / 4;
+    const cells = probeCount(doc.resolution, 'encodeProbeFile');
+    const probes = brickCount > 0 ? brickCount * PROBES_PER_BRICK : cells;
     if (doc.irradiance.length !== probes * 27) {
         throw new Error(`encodeProbeFile: ${probes} probes want ${probes * 27} coefficients, got ${doc.irradiance.length}`);
     }
@@ -99,13 +119,19 @@ export function encodeProbeFile(doc: ProbeVolumeDocument): Uint8Array {
         throw new Error(`encodeProbeFile: ${probes} probes want ${probes * 9} sky visibility coefficients, got ${sky.length}`);
     }
     const values = probes * 27 + (sky ? probes * 9 : 0);
-    const bytes = new Uint8Array(HEADER_BYTES + values * 2);
+    const table = brickCount > 0 ? 4 + brickCount * 16 : 0;
+    const bytes = new Uint8Array(HEADER_BYTES + table + values * 2);
     const view = new DataView(bytes.buffer);
     bytes.set(MAGIC, 0);
-    view.setUint16(4, PROBE_FILE_VERSION, true);
+    view.setUint16(4, brickCount > 0 ? PROBE_FILE_SPARSE_VERSION : PROBE_FILE_VERSION, true);
     view.setUint16(6, sky ? FLAG_SKY : 0, true);
     for (let a = 0; a < 3; a++) view.setUint32(8 + a * 4, doc.resolution[a], true);
     let at = HEADER_BYTES;
+    if (brickCount > 0) {
+        view.setUint32(at, brickCount, true);
+        at += 4;
+        for (let i = 0; i < brickInts; i++, at += 4) view.setUint32(at, doc.bricks![i]!, true);
+    }
     for (let i = 0; i < doc.irradiance.length; i++, at += 2) view.setUint16(at, toHalfBits(doc.irradiance[i]), true);
     if (sky) for (let i = 0; i < sky.length; i++, at += 2) view.setUint16(at, toHalfBits(sky[i]), true);
     return bytes;
@@ -125,36 +151,47 @@ export function decodeProbeFile(bytes: Uint8Array, where = '.esprobes'): ProbeVo
         if (bytes.length < HEADER_BYTES) throw new Error(`${where}: ${bytes.length} bytes is shorter than its header`);
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const version = view.getUint16(4, true);
-        if (version !== PROBE_FILE_VERSION) {
-            throw new Error(`${where} is a version ${version} probe file; this engine reads versions 1 and ${PROBE_FILE_VERSION}`);
+        if (version !== PROBE_FILE_VERSION && version !== PROBE_FILE_SPARSE_VERSION) {
+            throw new Error(`${where} is a version ${version} probe file; this engine reads versions 1 to ${PROBE_FILE_SPARSE_VERSION}`);
         }
         const flags = view.getUint16(6, true);
         const resolution: [number, number, number] = [view.getUint32(8, true), view.getUint32(12, true), view.getUint32(16, true)];
-        const probes = probeCount(resolution, where);
+        const cells = probeCount(resolution, where);
         const sky = (flags & FLAG_SKY) !== 0;
-        const want = HEADER_BYTES + (probes * 27 + (sky ? probes * 9 : 0)) * 2;
+        let at = HEADER_BYTES;
+        let bricks: Int32Array | undefined;
+        if (version === PROBE_FILE_SPARSE_VERSION) {
+            if (bytes.length < HEADER_BYTES + 4) throw new Error(`${where}: a sparse grid with no brick count`);
+            const count = view.getUint32(at, true);
+            at += 4;
+            if (count === 0 || bytes.length < at + count * 16) throw new Error(`${where}: ${count} bricks do not fit its ${bytes.length} bytes`);
+            bricks = new Int32Array(count * 4);
+            for (let i = 0; i < bricks.length; i++, at += 4) bricks[i] = view.getUint32(at, true);
+        }
+        const probes = bricks ? (bricks.length / 4) * PROBES_PER_BRICK : cells;
+        const want = at + (probes * 27 + (sky ? probes * 9 : 0)) * 2;
         if (bytes.length !== want) {
-            throw new Error(`${where}: ${resolution.join('x')} probes${sky ? ' with sky visibility' : ''} want ${want} bytes, got ${bytes.length}`);
+            throw new Error(`${where}: ${resolution.join('x')} probes${bricks ? ` in ${bricks.length / 4} bricks` : ''}`
+                + `${sky ? ' with sky visibility' : ''} want ${want} bytes, got ${bytes.length}`);
         }
         const irradiance = new Float32Array(probes * 27);
-        let at = HEADER_BYTES;
         for (let i = 0; i < irradiance.length; i++, at += 2) irradiance[i] = fromHalfBits(view.getUint16(at, true));
         let skyVisibility: Float32Array | undefined;
         if (sky) {
             skyVisibility = new Float32Array(probes * 9);
             for (let i = 0; i < skyVisibility.length; i++, at += 2) skyVisibility[i] = fromHalfBits(view.getUint16(at, true));
         }
-        return { version, resolution, irradiance, ...(skyVisibility ? { skyVisibility } : {}) };
+        return { version, resolution, irradiance, ...(skyVisibility ? { skyVisibility } : {}), ...(bricks ? { bricks } : {}) };
     }
 
     let data: { version?: unknown; resolution?: unknown; irradiance?: unknown; skyVisibility?: unknown };
     try {
         data = JSON.parse(new TextDecoder().decode(bytes));
     } catch {
-        throw new Error(`${where} is neither a version ${PROBE_FILE_VERSION} probe file nor a version 1 JSON document`);
+        throw new Error(`${where} is neither a binary probe file nor a version 1 JSON document`);
     }
     if (data.version !== 1) {
-        throw new Error(`${where} is a version ${JSON.stringify(data.version)} probe document; this engine reads versions 1 and ${PROBE_FILE_VERSION}`);
+        throw new Error(`${where} is a version ${JSON.stringify(data.version)} probe document; this engine reads versions 1 to ${PROBE_FILE_SPARSE_VERSION}`);
     }
     const probes = probeCount(data.resolution, where);
     const res = data.resolution as [number, number, number];

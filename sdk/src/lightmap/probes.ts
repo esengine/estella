@@ -20,8 +20,35 @@ export interface ProbeGrid {
     /** The world box the probes fill, corner to corner. */
     min: readonly [number, number, number];
     max: readonly [number, number, number];
-    /** Probes along each axis. */
+    /** Probes along each axis: the FINEST spacing, the one near geometry. */
     resolution: readonly [number, number, number];
+    /**
+     * How many sizes of brick the grid may use (1 = every probe, the dense grid). Above one, a brick of
+     * BRICK_CELLS cells with nothing near it is solved at twice its children's spacing, up to 2^(levels-1) times
+     * the finest: probes go where light changes against something, not into the air between.
+     */
+    levels?: number;
+}
+
+/** Cells a brick spans along each axis at its own spacing; its probes are BRICK_CELLS + 1 a side, the far faces
+ *  included, which is how the runtime's atlas stores it (ProbeStore::kBrickCells). */
+export const BRICK_CELLS = 4;
+/** Probes a brick carries: (BRICK_CELLS + 1) cubed. */
+export const BRICK_PROBES = (BRICK_CELLS + 1) ** 3;
+
+/**
+ * Where a grid's probes are solved, and how the solved list becomes the grid.
+ *
+ * Dense (`bricks` absent): `positions` is the grid in its order, x fastest — what a version 2 `.esprobes` holds.
+ * Sparse: `bricks` is four ints a brick — its first finest-brick cell x, y, z and its span in those cells (1, 2, 4,
+ * ...) — and `brickProbes` names, for each of a brick's BRICK_PROBES probes in x-fastest order, the entry of
+ * `positions` it reads. Probes two bricks share are solved once.
+ */
+export interface ProbeLayout {
+    resolution: [number, number, number];
+    positions: Float64Array;
+    bricks?: Int32Array;
+    brickProbes?: Int32Array;
 }
 
 /**
@@ -55,6 +82,126 @@ export function probeAt(min: number, max: number, i: number, n: number): number 
     return min + (max - min) * (i / (n - 1));
 }
 
+/** Finest-brick cells along each axis: enough for every probe interval, one on a flat axis. */
+function cellsFor(resolution: readonly [number, number, number]): [number, number, number] {
+    return resolution.map((n) => Math.max(1, Math.ceil((n - 1) / BRICK_CELLS))) as [number, number, number];
+}
+
+/**
+ * Where a grid's probes go. One level is every probe of the grid. More, and the grid is cut into the bricks the
+ * runtime reads: starting from bricks 2^(levels-1) finest-brick cells a side, each one that `nearGeometry` says
+ * has something in it (its box widened by one finest cell, so a surface just past a face counts) is split into
+ * eight of half the span, down to the finest; the rest keep their span and are solved at its spacing.
+ *
+ * A brick's probe t along an axis sits at finest index `first * BRICK_CELLS + t * span`, clamped to the grid's last
+ * probe: past the far edge a brick repeats the edge's probe, as the runtime does for a dense grid.
+ */
+export function planProbes(grid: ProbeGrid,
+                           nearGeometry: (min: [number, number, number], max: [number, number, number]) => boolean): ProbeLayout {
+    const res: [number, number, number] = [grid.resolution[0], grid.resolution[1], grid.resolution[2]];
+    const at = (axis: number, i: number) => probeAt(grid.min[axis]!, grid.max[axis]!, i, res[axis]!);
+    const levels = Math.max(1, Math.min(8, Math.floor(grid.levels ?? 1)));
+    const leaves: number[] = [];
+    if (levels > 1) planLeaves(grid, res, levels, nearGeometry, leaves);
+    // Every brick at the finest span is the dense grid in pieces, and as bricks it carries its shared faces twice:
+    // it is solved and written dense.
+    let coarse = false;
+    for (let i = 3; i < leaves.length; i += 4) if (leaves[i]! > 1) { coarse = true; break; }
+    if (!coarse) {
+        const positions = new Float64Array(res[0] * res[1] * res[2] * 3);
+        let k = 0;
+        for (let z = 0; z < res[2]; z++) {
+            for (let y = 0; y < res[1]; y++) {
+                for (let x = 0; x < res[0]; x++) {
+                    positions[k++] = at(0, x); positions[k++] = at(1, y); positions[k++] = at(2, z);
+                }
+            }
+        }
+        return { resolution: res, positions };
+    }
+
+    const bricks = Int32Array.from(leaves);
+    const count = bricks.length / 4;
+    const brickProbes = new Int32Array(count * BRICK_PROBES);
+    const index = new Map<number, number>();
+    const coords: number[] = [];
+    const side = BRICK_CELLS + 1;
+    for (let b = 0; b < count; b++) {
+        const span = bricks[b * 4 + 3]!;
+        for (let t = 0; t < BRICK_PROBES; t++) {
+            const tx = t % side, ty = Math.floor(t / side) % side, tz = Math.floor(t / (side * side));
+            const fx = Math.min(bricks[b * 4]! * BRICK_CELLS + tx * span, res[0] - 1);
+            const fy = Math.min(bricks[b * 4 + 1]! * BRICK_CELLS + ty * span, res[1] - 1);
+            const fz = Math.min(bricks[b * 4 + 2]! * BRICK_CELLS + tz * span, res[2] - 1);
+            const key = fx + res[0] * (fy + res[1] * fz);
+            let slot = index.get(key);
+            if (slot === undefined) {
+                slot = coords.length / 3;
+                index.set(key, slot);
+                coords.push(fx, fy, fz);
+            }
+            brickProbes[b * BRICK_PROBES + t] = slot;
+        }
+    }
+    const positions = new Float64Array(coords.length);
+    for (let i = 0; i < coords.length; i += 3) {
+        positions[i] = at(0, coords[i]!); positions[i + 1] = at(1, coords[i + 1]!); positions[i + 2] = at(2, coords[i + 2]!);
+    }
+    return { resolution: res, positions, bricks, brickProbes };
+}
+
+/** The bricks planProbes keeps, four numbers each (first finest-brick cell xyz, span), into `leaves`. */
+function planLeaves(grid: ProbeGrid, res: [number, number, number], levels: number,
+                    nearGeometry: (min: [number, number, number], max: [number, number, number]) => boolean,
+                    leaves: number[]): void {
+    const at = (axis: number, i: number) => probeAt(grid.min[axis]!, grid.max[axis]!, i, res[axis]!);
+    const cells = cellsFor(res);
+    const step = res.map((n, a) => (n > 1 ? (grid.max[a]! - grid.min[a]!) / (n - 1) : 0));
+    // World bounds of a brick, widened by one finest cell.
+    const near = (first: number[], span: number): boolean => {
+        const lo = [0, 0, 0] as [number, number, number];
+        const hi = [0, 0, 0] as [number, number, number];
+        for (let a = 0; a < 3; a++) {
+            const from = Math.min(first[a]! * BRICK_CELLS, res[a]! - 1);
+            const to = Math.min((first[a]! + span) * BRICK_CELLS, res[a]! - 1);
+            lo[a] = at(a, from) - step[a]!;
+            hi[a] = at(a, to) + step[a]!;
+            if (res[a] === 1) { lo[a] = grid.min[a]!; hi[a] = grid.max[a]!; }
+        }
+        return nearGeometry(lo, hi);
+    };
+    const split = (first: number[], span: number): void => {
+        if (first[0]! >= cells[0] || first[1]! >= cells[1] || first[2]! >= cells[2]) return;
+        if (span === 1 || !near(first, span)) { leaves.push(first[0]!, first[1]!, first[2]!, span); return; }
+        const half = span / 2;
+        for (let dz = 0; dz < 2; dz++) {
+            for (let dy = 0; dy < 2; dy++) {
+                for (let dx = 0; dx < 2; dx++) split([first[0]! + dx * half, first[1]! + dy * half, first[2]! + dz * half], half);
+            }
+        }
+    };
+    const top = 2 ** (levels - 1);
+    for (let z = 0; z < cells[2]; z += top) {
+        for (let y = 0; y < cells[1]; y += top) {
+            for (let x = 0; x < cells[0]; x += top) split([x, y, z], top);
+        }
+    }
+
+}
+
+/**
+ * A solved layout as the grid it describes: dense, the solved list as it is; sparse, each brick's BRICK_PROBES
+ * probes laid out in turn (`stride` numbers a probe: 27 for the irradiance, 9 for the sky's visibility).
+ */
+export function gatherBricks(layout: ProbeLayout, solved: Float32Array, stride: number): Float32Array {
+    if (!layout.bricks || !layout.brickProbes) return solved;
+    const out = new Float32Array(layout.brickProbes.length * stride);
+    for (let i = 0; i < layout.brickProbes.length; i++) {
+        out.set(solved.subarray(layout.brickProbes[i]! * stride, layout.brickProbes[i]! * stride + stride), i * stride);
+    }
+    return out;
+}
+
 /**
  * Nine RGB coefficients per probe, in grid order with x varying fastest.
  *
@@ -71,48 +218,53 @@ export function probeAt(min: number, max: number, i: number, n: number): number 
 export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                             atlas: Float32Array, atlasSize: number, samples: number,
                             sky: SkyRadiance, skyVisibility?: Float32Array): Float32Array {
-    const [nx, ny, nz] = grid.resolution;
-    const count = Math.max(0, nx) * Math.max(0, ny) * Math.max(0, nz);
-    const out = new Float32Array(count * 27);
-    if (count === 0) return out;
+    const { positions } = planProbes({ ...grid, levels: 1 }, () => false);
+    const out = new Float32Array((positions.length / 3) * 27);
+    solveProbesAt(positions, 0, positions.length / 3, bvh, lookup, atlas, atlasSize, samples, sky, out, skyVisibility);
+    return out;
+}
 
+/**
+ * {@link solveProbes} for probes `from` to `to` of a position list (three floats each): nine RGB coefficients per
+ * probe into `out` at its index. Each probe writes only its own entries, so any split of the list gives the same
+ * answer; a probe's rays are numbered by its index, as the dense grid's always were.
+ */
+export function solveProbesAt(positions: Float64Array, from: number, to: number, bvh: Bvh, lookup: HitLookup,
+                              atlas: Float32Array, atlasSize: number, samples: number,
+                              sky: SkyRadiance, out: Float32Array, skyVisibility?: Float32Array | null): void {
+    if (to <= from) return;
     const dirs = sphere(samples);
     const basis = new Float32Array(9);
     const seen = new Float32Array(3);
     // The Monte-Carlo weight of one direction over the sphere, folded in once.
     const weight = (4 * Math.PI) / samples;
 
-    for (let z = 0; z < nz; z++) {
-        const pz = probeAt(grid.min[2], grid.max[2], z, nz);
-        for (let y = 0; y < ny; y++) {
-            const py = probeAt(grid.min[1], grid.max[1], y, ny);
-            for (let x = 0; x < nx; x++) {
-                const px = probeAt(grid.min[0], grid.max[0], x, nx);
-                const at = (x + y * nx + z * nx * ny) * 27;
-                const vAt = (x + y * nx + z * nx * ny) * 9;
-                for (let s = 0; s < samples; s++) {
-                    const dx = dirs[s * 3]!, dy = dirs[s * 3 + 1]!, dz = dirs[s * 3 + 2]!;
-                    shBasis(dx, dy, dz, basis);
-                    if (!rayRadiance(bvh, lookup, atlas, atlasSize, px, py, pz, dx, dy, dz,
-                                     seen, 0, at * samples + s)) {
-                        if (skyVisibility) {
-                            for (let i = 0; i < 9; i++) skyVisibility[vAt + i]! += basis[i]! * weight;
-                            continue;
-                        }
-                        sky(dx, dy, dz, seen, 0);
-                    }
-                    const r = seen[0]!, g = seen[1]!, b = seen[2]!;
-                    for (let i = 0; i < 9; i++) {
-                        const w = basis[i]! * weight;
-                        out[at + i * 3]! += r * w;
-                        out[at + i * 3 + 1]! += g * w;
-                        out[at + i * 3 + 2]! += b * w;
-                    }
+    for (let p = from; p < to; p++) {
+        const px = positions[p * 3]!, py = positions[p * 3 + 1]!, pz = positions[p * 3 + 2]!;
+        const at = p * 27;
+        const vAt = p * 9;
+        for (let i = 0; i < 27; i++) out[at + i] = 0;
+        if (skyVisibility) for (let i = 0; i < 9; i++) skyVisibility[vAt + i] = 0;
+        for (let s = 0; s < samples; s++) {
+            const dx = dirs[s * 3]!, dy = dirs[s * 3 + 1]!, dz = dirs[s * 3 + 2]!;
+            shBasis(dx, dy, dz, basis);
+            if (!rayRadiance(bvh, lookup, atlas, atlasSize, px, py, pz, dx, dy, dz,
+                             seen, 0, at * samples + s)) {
+                if (skyVisibility) {
+                    for (let i = 0; i < 9; i++) skyVisibility[vAt + i]! += basis[i]! * weight;
+                    continue;
                 }
-                convolveCosine(out, at);
-                if (skyVisibility) convolveCosineScalar(skyVisibility, vAt);
+                sky(dx, dy, dz, seen, 0);
+            }
+            const r = seen[0]!, g = seen[1]!, b = seen[2]!;
+            for (let i = 0; i < 9; i++) {
+                const w = basis[i]! * weight;
+                out[at + i * 3]! += r * w;
+                out[at + i * 3 + 1]! += g * w;
+                out[at + i * 3 + 2]! += b * w;
             }
         }
+        convolveCosine(out, at);
+        if (skyVisibility) convolveCosineScalar(skyVisibility, vAt);
     }
-    return out;
 }

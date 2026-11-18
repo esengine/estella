@@ -111,6 +111,23 @@ class BakeKernel {
     } finally { this.m._free(ap); this.m._free(sp); }
   }
 
+  /** Probes at `positions` (three doubles each) gathering `atlas`: 27 floats each into `out`, and with `skyOut`
+   *  nine of how much sky each sees (see lm_probes). */
+  probes(positions, atlas, atlasSize, samples, sky, out, skyOut) {
+    const count = positions.length / 3;
+    const pp = this.put(positions), ap = this.put(atlas), sp = this.put(sky);
+    const vp = skyOut ? this.m._malloc(Math.max(4, skyOut.byteLength)) : 0;
+    try {
+      this.pass((at) => {
+        this.m._lm_probes(pp, count, ap, atlasSize, samples, sp, at, vp, this.threads);
+        if (skyOut) skyOut.set(new Float32Array(this.heap(), vp, skyOut.length));
+      }, out);
+    } finally {
+      this.m._free(pp); this.m._free(ap); this.m._free(sp);
+      if (vp) this.m._free(vp);
+    }
+  }
+
   /** Each PNG's texture stats (see lm_texture_stats), decoded side by side. */
   textureStats(files, cutoffs, toLinear) {
     const lut = this.put(toLinear);

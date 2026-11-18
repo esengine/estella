@@ -321,6 +321,99 @@ static void testDenseGridCost() {
     CHECK(store.brickCount() == 6u && texels == 7500u, "the Bistro's grid is six bricks in the fewest texels that hold them");
 }
 
+/** A field linear in the grid's own coordinates, different per coefficient and channel: a coarse brick holds it
+ *  exactly, so any read of a sparse grid that is right is exact, and one that is wrong is not close. */
+static glm::vec3 linearField(const glm::vec3& f, int c) {
+    return {0.1f * f.x + 0.02f * c, 0.05f * f.y - 0.01f * c + 1.0f, 0.03f * f.z + 0.07f * f.x - 0.5f};
+}
+
+/** A 17x9x17 grid (4x2x4 finest-brick cells) as one span-2 brick per 2x2x2 cells, except the first, refined to eight
+ *  bricks of span 1. */
+static ProbeVolume sparseGrid(bool sky) {
+    ProbeVolume v;
+    v.resolution = {17, 9, 17};
+    std::vector<glm::ivec4> bricks;
+    for (int z = 0; z < 4; z += 2) {
+        for (int x = 0; x < 4; x += 2) {
+            if (x == 0 && z == 0) {
+                for (int dz = 0; dz < 2; ++dz) for (int dy = 0; dy < 2; ++dy) for (int dx = 0; dx < 2; ++dx)
+                    bricks.push_back({dx, dy, dz, 1});
+            } else {
+                bricks.push_back({x, 0, z, 2});
+            }
+        }
+    }
+    CHECK(v.setBricks(bricks), "bricks that tile the grid are taken");
+    const int side = ProbeVolume::kBrickSide;
+    v.irradiance.resize(v.bricks.size() * ProbeVolume::kBrickProbes * 9);
+    if (sky) v.skyVisibility.resize(v.irradiance.size());
+    for (usize b = 0; b < v.bricks.size(); ++b) {
+        const glm::ivec4 k = v.bricks[b];
+        for (int t = 0; t < ProbeVolume::kBrickProbes; ++t) {
+            const glm::vec3 f{static_cast<f32>(std::min(k.x * 4 + (t % side) * k.w, 16)),
+                              static_cast<f32>(std::min(k.y * 4 + ((t / side) % side) * k.w, 8)),
+                              static_cast<f32>(std::min(k.z * 4 + (t / (side * side)) * k.w, 16))};
+            for (int c = 0; c < 9; ++c) {
+                const usize at = (b * ProbeVolume::kBrickProbes + static_cast<usize>(t)) * 9 + static_cast<usize>(c);
+                v.irradiance[at] = linearField(f, c);
+                if (sky) v.skyVisibility[at] = 0.01f * f.x + 0.02f * f.y + 0.03f * f.z + 0.001f * c;
+            }
+        }
+    }
+    v.revision = ProbeVolume::nextRevision();
+    return v;
+}
+
+/** Bricks that do not tile the grid are refused, and the grid stays dense (and so invalid for these coefficients). */
+static void testSparseBricksRefused() {
+    ProbeVolume v;
+    v.resolution = {17, 9, 17};
+    CHECK(v.setBricks({{0, 0, 0, 4}}) && v.sparse(), "one coarse brick may cover the whole grid, reaching past its far side");
+    CHECK(!v.setBricks({{0, 0, 0, 4}, {4, 0, 0, 1}}), "a brick past the grid's cells is refused");
+    CHECK(!v.setBricks({{1, 0, 0, 2}, {0, 0, 0, 1}}), "a brick not on a multiple of its span is refused");
+    CHECK(!v.setBricks({{0, 0, 0, 3}}), "a span that is not a power of two is refused");
+    std::vector<glm::ivec4> overlap{{0, 0, 0, 2}, {0, 0, 0, 1}, {2, 0, 0, 2}, {0, 0, 2, 2}, {2, 0, 2, 2}};
+    CHECK(!v.setBricks(overlap), "two bricks over one cell are refused");
+    std::vector<glm::ivec4> gap{{2, 0, 0, 2}, {0, 0, 2, 2}, {2, 0, 2, 2}};
+    CHECK(!v.setBricks(gap), "a cell no brick covers is refused");
+    CHECK(!v.sparse(), "and a refused grid is left dense");
+}
+
+/** A sparse grid read on the CPU (per object), and through the atlas the way the shaders read it, both give the
+ *  field it holds — across a coarse brick, a fine one, and the faces where they meet. */
+static void testSparseRead() {
+    ProbeVolume grid = sparseGrid(true);
+    CHECK(grid.isValid() && grid.probeCount() == 11u * 125u, "eleven bricks of 125 probes");
+    ProbeStore store;
+    store.add({0.0f, 0.0f, 0.0f}, {16.0f, 8.0f, 16.0f}, &grid);
+    store.layoutAtlas(256);
+    store.setAtlasTexture(42);
+    CHECK(store.brickCount() == 11u, "the atlas holds the grid's own bricks");
+    std::vector<u16> texels;
+    store.fillAtlas(texels);
+
+    f32 cpuWorst = 0.0f, gpuWorst = 0.0f;
+    for (int i = 0; i <= 64; ++i) {
+        const f32 t = static_cast<f32>(i) / 64.0f;
+        const glm::vec3 P{16.0f * t, 8.0f * std::fmod(t * 5.0f, 1.0f), 16.0f * std::fmod(t * 3.0f, 1.0f)};
+        ProbeConstants cpu{}, run{};
+        store.sample(P, cpu, false);
+        store.sample(P, run, true);
+        for (int c = 0; c < 9; ++c) {
+            const glm::vec3 want = linearField(P, c);
+            cpuWorst = std::max(cpuWorst, glm::length(glm::vec3(cpu.irradiance[c]) - want));
+            const glm::vec4 got = shaderRead(texels, store, run, P, c);
+            gpuWorst = std::max(gpuWorst, glm::length(glm::vec3(got) - want));
+            const f32 sky = 0.01f * P.x + 0.02f * P.y + 0.03f * P.z + 0.001f * c;
+            gpuWorst = std::max(gpuWorst, std::fabs(got.w - sky));
+            cpuWorst = std::max(cpuWorst, std::fabs((c == 0 ? cpu.reflection.y : cpu.irradiance[c].w) - sky));
+        }
+    }
+    std::printf("      sparse read: worst CPU error %.6f, worst atlas error %.5f\n", cpuWorst, gpuWorst);
+    CHECK(cpuWorst < 1e-4f, "read per object, a sparse grid gives the field it holds");
+    CHECK(gpuWorst < 8e-3f, "read through the atlas, it gives the same to half-float precision");
+}
+
 /** A grid the atlas cannot hold keeps the per-object read rather than failing the frame. */
 static void testOversizeGridKeepsPerObject() {
     ProbeVolume wide = scrambled({200, 1, 1}, false);
@@ -387,6 +480,8 @@ int main() {
     testGridRun();
     testOversizeGridKeepsPerObject();
     testDenseGridCost();
+    testSparseBricksRefused();
+    testSparseRead();
     testSampleByBox();
     std::printf(g_failures ? "\n%d failure(s)\n" : "\nall probe store claims hold\n",
                 g_failures);

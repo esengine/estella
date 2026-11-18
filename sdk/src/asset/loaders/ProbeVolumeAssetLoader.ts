@@ -31,16 +31,23 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
         const bytes = new Uint8Array(await ctx.loadBinary(ctx.catalog.getBuildPath(path)));
         const data = decodeProbeFile(bytes, path);
         const res = data.resolution;
-        const want = res[0] * res[1] * res[2] * 27;
+        const bricks = data.bricks as Int32Array | undefined;
+        const want = data.irradiance.length;
         const m = marshallingCore(this.core_());
         if (!m?.probe_volume_create) {
             throw new Error('this engine build carries no probe_volume_create');
+        }
+        if (bricks && !m.probe_volume_createBricks) {
+            throw new Error(`${path} is a sparse probe grid, which this engine build cannot read`);
         }
 
         const handle = withScratch(m, (alloc) => {
             const shPtr = alloc(want * 4);
             m.HEAPF32.set(data.irradiance as Float32Array, shPtr >> 2);
-            return m.probe_volume_create!(res[0], res[1], res[2], shPtr);
+            if (!bricks) return m.probe_volume_create!(res[0], res[1], res[2], shPtr);
+            const bricksPtr = alloc(bricks.length * 4);
+            new Int32Array(m.HEAPU8.buffer, bricksPtr, bricks.length).set(bricks);
+            return m.probe_volume_createBricks!(res[0], res[1], res[2], bricks.length / 4, bricksPtr, shPtr);
         });
 
         if (!handle) {
@@ -48,7 +55,7 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
         }
         if (data.skyVisibility !== undefined) {
             const visibility = data.skyVisibility as Float32Array;
-            const count = res[0] * res[1] * res[2] * 9;
+            const count = visibility.length;
             if (!m.probe_volume_setSkyVisibility) {
                 throw new Error(`${path} is baked with sky occlusion, which this engine build cannot read`);
             }

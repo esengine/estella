@@ -53,13 +53,26 @@ const FIXTURES = {
         irradiance: [...constant(RED), ...constant(BLUE)],
         binary: true,
     },
+    // The same red-to-blue field as a SPARSE grid (version 3): nine probes along x held by one brick of span 2, so
+    // its five probes per axis sit two finest probes apart. A read that ignored the span would land on the wrong
+    // probes and paint the middle the wrong mix; the gate expects what probe-per-pixel does.
+    'probe-ends-sparse.esprobes': {
+        resolution: [9, 1, 1],
+        bricks: [0, 0, 0, 2],
+        irradiance: Array.from({ length: 125 }, (_, t) => {
+            const u = Math.min((t % 5) * 2, 8) / 8;
+            return constant(RED).map((r, i) => r * (1 - u) + constant(BLUE)[i] * u);
+        }).flat(),
+        binary: true,
+    },
 };
 
 for (const [name, data] of Object.entries(FIXTURES)) {
     if (data.binary) {
-        writeFileSync(path.join(OUT, name), encodeProbeFile({ version: PROBE_FILE_VERSION, resolution: data.resolution,
-                                                              irradiance: data.irradiance }));
-        console.log(`wrote ${name}: ${data.resolution.join('x')} probes, version ${PROBE_FILE_VERSION}`);
+        const bytes = encodeProbeFile({ version: PROBE_FILE_VERSION, resolution: data.resolution, irradiance: data.irradiance,
+                                        ...(data.bricks ? { bricks: data.bricks } : {}) });
+        writeFileSync(path.join(OUT, name), bytes);
+        console.log(`wrote ${name}: ${data.resolution.join('x')} probes, version ${new DataView(bytes.buffer).getUint16(4, true)}`);
         continue;
     }
     const doc = { version: 1, resolution: data.resolution, irradiance: data.irradiance };

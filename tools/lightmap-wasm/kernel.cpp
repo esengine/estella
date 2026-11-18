@@ -566,6 +566,82 @@ void lm_gather(const float* position, const float* normal, int count,
 }
 
 /**
+ * probes.ts's solveProbesAt over every probe: what light arrives at each point in the air, as nine RGB
+ * coefficients, gathered over the whole sphere from the solved field `atlas`. `positions` is three doubles a probe;
+ * `out` takes 27 floats a probe, and `skyOut` (null without sky occlusion) nine of how much of the sky each sees,
+ * the sky then not gathered. The arithmetic is the TypeScript's: directions, basis and sums held in floats where
+ * it holds them in a Float32Array, so the two agree but for the trees that pick among coincident hits.
+ */
+void lm_probes(const double* positions, int count, const float* atlas, int atlasSize, int samples,
+               const double* sky, float* out, float* skyOut, int threads) {
+    const Scene& s = g_scene;
+    Sky skyOf;
+    skyOf.kind = static_cast<int>(sky[0]);
+    for (int k = 0; k < 3; ++k) { skyOf.rgb[k] = sky[1 + k]; skyOf.tint[k] = sky[5 + k]; }
+    skyOf.c = std::cos(sky[4]); skyOf.s = std::sin(sky[4]);
+    for (int k = 0; k < 27; ++k) skyOf.radiance[k] = sky[8 + k];
+    // The Fibonacci sphere, as probes.ts's `sphere`.
+    std::vector<float> dirs(static_cast<size_t>(samples) * 3);
+    const double golden = M_PI * (3 - std::sqrt(5.0));
+    for (int i = 0; i < samples; ++i) {
+        const double y = 1 - (2.0 * i + 1) / samples;
+        const double r = std::sqrt(std::max(0.0, 1 - y * y));
+        const double phi = i * golden;
+        dirs[i * 3] = static_cast<float>(std::cos(phi) * r);
+        dirs[i * 3 + 1] = static_cast<float>(y);
+        dirs[i * 3 + 2] = static_cast<float>(std::sin(phi) * r);
+    }
+    static constexpr double kBand[9] = {1, 2.0 / 3, 2.0 / 3, 2.0 / 3, 0.25, 0.25, 0.25, 0.25, 0.25};
+    const double weight = (4 * M_PI) / samples;
+    parallelFor(count, threads, 4, [&](int p) {
+        const double px = positions[p * 3], py = positions[p * 3 + 1], pz = positions[p * 3 + 2];
+        float* o = out + static_cast<size_t>(p) * 27;
+        float* v = skyOut ? skyOut + static_cast<size_t>(p) * 9 : nullptr;
+        for (int i = 0; i < 27; ++i) o[i] = 0;
+        if (v) for (int i = 0; i < 9; ++i) v[i] = 0;
+        Hit hit;
+        double seenD[3];
+        for (int k = 0; k < samples; ++k) {
+            const double dx = dirs[k * 3], dy = dirs[k * 3 + 1], dz = dirs[k * 3 + 2];
+            const float basis[9] = {
+                0.282095f, static_cast<float>(0.488603 * dy), static_cast<float>(0.488603 * dz),
+                static_cast<float>(0.488603 * dx), static_cast<float>(1.092548 * dx * dy),
+                static_cast<float>(1.092548 * dy * dz), static_cast<float>(0.315392 * (3 * dz * dz - 1)),
+                static_cast<float>(1.092548 * dx * dz), static_cast<float>(0.546274 * (dx * dx - dy * dy)),
+            };
+            // As probes.ts numbers a ray: the probe's first coefficient index times the samples, plus the ray.
+            const uint32_t seed = static_cast<uint32_t>(static_cast<uint64_t>(p) * 27u * static_cast<uint64_t>(samples)
+                                                        + static_cast<uint64_t>(k));
+            const int tri = firstHit(s, px, py, pz, dx, dy, dz, 1e7, 0, seed, 0, hit);
+            float seen[3] = {0, 0, 0};
+            if (tri < 0) {
+                if (v) {
+                    for (int i = 0; i < 9; ++i) v[i] = static_cast<float>(static_cast<double>(v[i]) + basis[i] * weight);
+                    continue;
+                }
+                skyOf.at(dx, dy, dz, seenD);
+                for (int c = 0; c < 3; ++c) seen[c] = static_cast<float>(seenD[c]);
+            } else if (facesRay(s, tri, dx, dy, dz)) {
+                // Geometry with no place in the atlas is black rather than sky: something is there, and it is unlit.
+                const int texel = texelOf(s, tri, hit.u, hit.v, atlasSize);
+                if (texel >= 0) {
+                    const float* alb = s.albedo + static_cast<size_t>(s.triSurface[tri]) * 3;
+                    for (int c = 0; c < 3; ++c) seen[c] = atlas[static_cast<size_t>(texel) * 3 + c] * alb[c];
+                }
+            }
+            for (int i = 0; i < 9; ++i) {
+                const double w = basis[i] * weight;
+                for (int c = 0; c < 3; ++c) o[i * 3 + c] = static_cast<float>(static_cast<double>(o[i * 3 + c]) + seen[c] * w);
+            }
+        }
+        for (int i = 0; i < 9; ++i) {
+            for (int c = 0; c < 3; ++c) o[i * 3 + c] = static_cast<float>(o[i * 3 + c] * kBand[i]);
+            if (v) v[i] = static_cast<float>(v[i] * kBand[i]);
+        }
+    });
+}
+
+/**
  * lightmapBake.ts's statsOf for each PNG, summed in its order, through the
  * caller's `toLinear` table so the conversion has one author. `files` is
  * (pointer, size) pairs; `out` is five doubles per file: 1 solved, 2 empty, or

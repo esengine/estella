@@ -50,8 +50,9 @@ public:
     };
 
     /// Cells a brick spans along each axis, and the texels it is stored in: one more, for the probes on its far faces.
-    static constexpr i32 kBrickCells = 4;
-    static constexpr i32 kBrickTexels = kBrickCells + 1;
+    /// The grid's own, so a sparse grid's bricks go into the atlas as they are.
+    static constexpr i32 kBrickCells = ProbeVolume::kBrickCells;
+    static constexpr i32 kBrickTexels = ProbeVolume::kBrickSide;
     /// Pages across the atlas: the nine coefficients', then the indirection's.
     static constexpr i32 kAtlasPages = 10;
 
@@ -118,6 +119,10 @@ public:
         const ProbeVolume& g = *best->grid;
         if (perPixel && best->indirection.x >= 0 && atlas_texture_ != 0) {
             writeGridRun(*best, out);
+            return true;
+        }
+        if (g.sparse()) {
+            sampleBricks(*best, p, out);
             return true;
         }
         i32 low[3] = {0, 0, 0};
@@ -217,13 +222,14 @@ public:
             }
             if (shared) continue;
             const glm::ivec3 n = bricksFor(v.grid->resolution);
-            const i32 count = n.x * n.y * n.z;
+            // A sparse grid brings its own bricks; a dense one is every cell a brick.
+            const i32 count = v.grid->sparse() ? static_cast<i32>(v.grid->bricks.size()) : n.x * n.y * n.z;
             const glm::ivec3 grown{std::max(extent.x, n.x), std::max(extent.y, n.y), extent.z + n.z};
             const Shape shape = shapeFor(bricks + count, maxSlotsX, maxSlotsYZ, grown);
             if (shape.slots.x == 0 || shape.pageWidth * kAtlasPages > side || shape.height > side || shape.depth > side) {
                 continue;
             }
-            placed_.push_back({v.grid, bricks, n, glm::ivec3(0, 0, extent.z)});
+            placed_.push_back({v.grid, bricks, n, glm::ivec3(0, 0, extent.z), count});
             bricks += count;
             extent = grown;
             key.push_back(v.grid->revision);
@@ -256,7 +262,7 @@ public:
     /** @brief Bricks the atlas holds, across every grid placed. */
     u32 brickCount() const {
         u32 n = 0;
-        for (const Placed& p : placed_) n += static_cast<u32>(p.bricks.x * p.bricks.y * p.bricks.z);
+        for (const Placed& p : placed_) n += static_cast<u32>(p.count);
         return n;
     }
 
@@ -285,6 +291,37 @@ public:
             const ProbeVolume& g = *p.grid;
             const glm::ivec3 r = g.resolution;
             const bool sky = g.hasSkyVisibility();
+            if (g.sparse()) {
+                const auto put = [&](u16* t, usize probe) {
+                    const glm::vec3& sh = g.irradiance[probe];
+                    t[0] = packHalf(sh.x);
+                    t[1] = packHalf(sh.y);
+                    t[2] = packHalf(sh.z);
+                    t[3] = packHalf(sky ? g.skyVisibility[probe] : 0.0f);
+                };
+                for (usize b = 0; b < g.bricks.size(); ++b) {
+                    const glm::ivec4 k = g.bricks[b];
+                    const glm::ivec3 o = slotOrigin(p.firstBrick + static_cast<i32>(b));
+                    for (i32 t = 0; t < ProbeVolume::kBrickProbes; ++t) {
+                        const i32 tx = t % kBrickTexels, ty = (t / kBrickTexels) % kBrickTexels, tz = t / (kBrickTexels * kBrickTexels);
+                        const usize probe = (b * static_cast<usize>(ProbeVolume::kBrickProbes) + static_cast<usize>(t)) * 9;
+                        for (i32 c = 0; c < 9; ++c) put(texel(c * page + o.x + tx, o.y + ty, o.z + tz), probe + static_cast<usize>(c));
+                    }
+                    // Every finest-brick cell the brick covers names it, with its span.
+                    for (i32 z = k.z; z < std::min(k.z + k.w, p.bricks.z); ++z) {
+                        for (i32 y = k.y; y < std::min(k.y + k.w, p.bricks.y); ++y) {
+                            for (i32 x = k.x; x < std::min(k.x + k.w, p.bricks.x); ++x) {
+                                u16* ind = texel(p.indirection.x + x, p.indirection.y + y, p.indirection.z + z);
+                                ind[0] = packHalf(static_cast<f32>(o.x));
+                                ind[1] = packHalf(static_cast<f32>(o.y));
+                                ind[2] = packHalf(static_cast<f32>(o.z));
+                                ind[3] = packHalf(static_cast<f32>(k.w));
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
             for (i32 bz = 0; bz < p.bricks.z; ++bz) {
                 for (i32 by = 0; by < p.bricks.y; ++by) {
                     for (i32 bx = 0; bx < p.bricks.x; ++bx) {
@@ -354,13 +391,66 @@ private:
         i32 height = 0;
         i32 depth = 0;
     };
-    /** @brief A grid whose bricks start at slot firstBrick, and whose indirection block starts at a texel. */
+    /** @brief A grid whose bricks start at slot firstBrick, and whose indirection block (`bricks` cells a side, one
+     *         per finest-brick cell) starts at a texel. `count` is the slots it takes. */
     struct Placed {
         const ProbeVolume* grid = nullptr;
         i32 firstBrick = 0;
         glm::ivec3 bricks{1};
         glm::ivec3 indirection{0};
+        i32 count = 0;
     };
+
+    /**
+     * @brief A sparse grid read on the CPU the way the shaders read it: the finest-brick cell under @p p names a
+     *        brick, and the brick's own probes are blended trilinearly at its spacing.
+     */
+    void sampleBricks(const Volume& v, const glm::vec3& p, ProbeConstants& out) const {
+        const ProbeVolume& g = *v.grid;
+        const glm::ivec3 cells = g.cells();
+        glm::vec3 grid{0.0f};
+        for (int a = 0; a < 3; ++a) {
+            const i32 n = g.resolution[a];
+            if (n <= 1) continue;
+            const f32 u = (p[a] - v.min[a]) / (v.max[a] - v.min[a]) * static_cast<f32>(n - 1);
+            grid[a] = std::fmin(std::fmax(u, 0.0f), static_cast<f32>(n - 1));
+        }
+        glm::ivec3 cell;
+        for (int a = 0; a < 3; ++a) cell[a] = std::min(static_cast<i32>(std::floor(grid[a] / kBrickCells)), cells[a] - 1);
+        const i32 b = g.cellBrick[static_cast<usize>(cell.x) + static_cast<usize>(cells.x)
+                                  * (static_cast<usize>(cell.y) + static_cast<usize>(cells.y) * static_cast<usize>(cell.z))];
+        const glm::ivec4 k = g.bricks[static_cast<usize>(b)];
+        i32 low[3];
+        f32 frac[3];
+        for (int a = 0; a < 3; ++a) {
+            const f32 local = (grid[a] - static_cast<f32>(k[a] * kBrickCells)) / static_cast<f32>(k.w);
+            low[a] = std::min(std::max(static_cast<i32>(std::floor(local)), 0), kBrickCells - 1);
+            frac[a] = std::fmin(std::fmax(local - static_cast<f32>(low[a]), 0.0f), 1.0f);
+        }
+        const bool sky = g.hasSkyVisibility();
+        out = ProbeConstants{};
+        for (u32 corner = 0; corner < 8; ++corner) {
+            const f32 w = ((corner & 1u) ? frac[0] : 1.0f - frac[0])
+                        * ((corner & 2u) ? frac[1] : 1.0f - frac[1])
+                        * ((corner & 4u) ? frac[2] : 1.0f - frac[2]);
+            if (w <= 0.0f) continue;
+            const i32 t = (low[0] + ((corner & 1u) ? 1 : 0))
+                        + kBrickTexels * ((low[1] + ((corner & 2u) ? 1 : 0)) + kBrickTexels * (low[2] + ((corner & 4u) ? 1 : 0)));
+            const usize base = (static_cast<usize>(b) * static_cast<usize>(ProbeVolume::kBrickProbes) + static_cast<usize>(t)) * 9;
+            for (u32 c = 0; c < 9; ++c) {
+                const glm::vec3& sh = g.irradiance[base + c];
+                out.irradiance[c].x += sh.x * w;
+                out.irradiance[c].y += sh.y * w;
+                out.irradiance[c].z += sh.z * w;
+            }
+            if (sky) {
+                out.reflection.y += g.skyVisibility[base] * w;
+                for (u32 c = 1; c < 9; ++c) out.irradiance[c].w += g.skyVisibility[base + c] * w;
+            }
+        }
+        out.irradiance[0].w = 1.0f;
+        if (sky) out.reflection.z = 1.0f;
+    }
 
     /**
      * @brief The shape of fewest texels that holds @p bricks slots and an indirection page of @p extent texels, with at
