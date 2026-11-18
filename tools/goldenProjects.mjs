@@ -1452,6 +1452,16 @@ export const SHIPPED = {
     { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
   "The space frigate is steered by orders that hold.":
     { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+  "An agent working in Estella is told how a task is done here and can prove it done: official skills and `verify`.":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour; no golden project is judged on how it was authored." },
+  "A planet can tint its terrain layers by its own four layer colours.":
+    { notCertifiable: "A planet shading option no golden project turns on; it is looked at in the space frigate's worlds through that example's own tools." },
+  "A playable ad can wait for the engine's ident before telling its ad network it is ready.":
+    { notCertifiable: "When the ad network is told, which no golden project is judged on. Covered by pipeline/tests/export-playable.test.ts and project-export-options.test.ts." },
+  "A game's server exports with its page, ready to deploy.":
+    { notCertifiable: "A server export; no golden project has a server. Covered by pipeline/tests/export-server.test.ts." },
+  "A game's page can be served apart from its server.":
+    { notCertifiable: "Where a page dials its server; no golden project has one. Covered by sdk/tests/net-session-deploy.test.ts." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
