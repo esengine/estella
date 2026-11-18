@@ -1037,6 +1037,7 @@ catalog: Catalog
 checkForUpdate: (options: CheckForUpdateOptions) => Promise<UpdatePlan>
 cleanDiskCache: (budgetBytes: number, execute?: boolean) => Promise<CacheCleanupResult>
 createMesh: (data: MeshData) => number
+createTexture: (image: { width: number; height: number; pixels: Uint8Array; }, options?: { srgb?: boolean; flipY?: boolean; }) => Promise<number>
 diskCacheReport: (rescan?: boolean) => Promise<ContentCacheReport>
 fetchBinary: (ref: string) => Promise<ArrayBuffer>
 fetchJson: <T = unknown>(ref: string) => Promise<T>
@@ -1085,6 +1086,7 @@ releaseAnimClip: (ref: string) => void
 releaseAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void
 releaseAudio: (ref: string) => void
 releaseBuiltMesh: (handle: number) => void
+releaseBuiltTexture: (handle: number) => void
 releaseFont: (ref: string) => void
 releaseGroup: (groupName: string) => void
 releaseMaterial: (handle: number) => void
