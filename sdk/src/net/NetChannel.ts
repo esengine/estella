@@ -33,6 +33,12 @@ export interface NetTransport {
      * around each sample; a transport without it sends as before.
      */
     batch?(): () => void;
+    /**
+     * Optional. Close the link from this end. The replication server calls it
+     * when it lets a connection go on purpose (a newer login replaced it, or it
+     * was kicked); without it the server only stops talking to the link.
+     */
+    close?(code?: number, reason?: string): void;
 }
 
 /**

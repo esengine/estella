@@ -66,7 +66,7 @@ export async function startServer(options: ServerOptions): Promise<() => Promise
     wss.on('connection', (socket: WebSocket) => {
         const id = server.attachConnection(webSocketTransport(socket));
         console.log(`[server] connection ${id} attached`);
-        // Detaching is what makes the roster shrink: `clientIds` drops this id,
+        // Detaching is what makes the roster shrink: `presentIds` drops this id,
         // and ProvisionPawnsSystem retires the pawn on its next fixed tick.
         // Without it the world fills up with pawns nobody is steering.
         const drop = () => {

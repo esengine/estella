@@ -12,12 +12,17 @@
 import type { SceneComponentData } from '../../scene/scene';
 
 /**
+ * 5: a hello may carry credentials and the answer names the player; the first
+ * spawn batch of a connection is marked `initial` (it is sent even when empty),
+ * and the server can say why it is closing a connection. A v4 server would
+ * admit a client that sent credentials as nobody in particular.
+ *
  * 4: a spawn stopped being a scene snapshot. It now carries protocol identity,
  * a ghost-construction key, and a baseline of DECLARED replication fields only —
  * a v3 endpoint would read the same JSON and build a different world, which is
  * exactly what a version is for.
  */
-export const REPLICATION_PROTOCOL_VERSION = 4;
+export const REPLICATION_PROTOCOL_VERSION = 5;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
@@ -30,6 +35,7 @@ export const ReplMsg = {
     componentRemove: 'repl:crm',
     input: 'repl:input',
     ack: 'repl:ack',
+    closed: 'repl:closed',
 } as const;
 
 /**
@@ -51,6 +57,8 @@ export interface ReplHelloRequest {
     abiHash: string;
     /** The client's full replication table, for exact schema comparison. */
     components: ReplComponentSchema[];
+    /** Whatever the server's `authenticate` reads (a token, a ticket). Absent for an anonymous client. */
+    credentials?: unknown;
 }
 
 export interface ReplHelloOk {
@@ -62,11 +70,18 @@ export interface ReplHelloOk {
     /** The server's fixed timestep in seconds (0 if it hasn't ticked yet) —
      *  the dt client prediction replays unacknowledged inputs with. */
     fixedDelta: number;
+    /** Who the server says this is, when it authenticates players. The same
+     *  player always gets the same `connectionId` back while the server
+     *  remembers them, which is what makes a reconnect land on the same pawn. */
+    playerId?: string;
 }
 
 export interface ReplHelloError {
     ok: false;
     error: string;
+    /** True when trying again cannot help (bad credentials, a banned player);
+     *  a client that redials stops on it. */
+    fatal?: boolean;
 }
 
 export type ReplHelloResponse = ReplHelloOk | ReplHelloError;
@@ -94,6 +109,12 @@ export interface ReplSpawnEntity {
 export interface ReplSpawnBatch {
     tick: number;
     entities: ReplSpawnEntity[];
+    /**
+     * The whole of what the connection can see, sent once right after the
+     * hello. A client that already holds ghosts (it reconnected) keeps the ones
+     * named here, updated in place, and drops the rest.
+     */
+    initial?: boolean;
 }
 
 export interface ReplDespawnBatch {
@@ -135,4 +156,17 @@ export interface ReplInputMsg {
 export interface ReplAckMsg {
     tick: number;
     seq: number;
+}
+
+/** Why the server is closing a connection, sent just before it lets go. */
+export type ReplCloseReason = 'replaced' | 'kicked';
+
+/**
+ * Server → client: this connection is being closed on purpose. A client that
+ * redials stops on it — a player replaced by a newer login must not log back
+ * in and replace that one in turn.
+ */
+export interface ReplClosedMsg {
+    reason: ReplCloseReason;
+    message?: string;
 }

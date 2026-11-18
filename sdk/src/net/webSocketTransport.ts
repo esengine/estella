@@ -19,6 +19,7 @@ import type { ReliableOrderedTransport } from './NetChannel';
 export interface ServerWebSocketLike {
     on(event: 'message', listener: (data: unknown, isBinary: boolean) => void): unknown;
     send(data: string | ArrayBufferLike | ArrayBufferView): void;
+    close?(code?: number, reason?: string): void;
 }
 
 /** What `ws` keeps under its socket: the Node stream, which can hold writes. */
@@ -50,6 +51,7 @@ export function webSocketTransport(socket: ServerWebSocketLike): ReliableOrdered
     return {
         delivery: 'reliable-ordered',
         send: (data) => socket.send(data),
+        close: (code, reason) => socket.close?.(code, reason),
         on: (_event, handler) => {
             handlers.add(handler);
             return () => handlers.delete(handler);

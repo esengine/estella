@@ -123,7 +123,8 @@ export const provisionPawnsSystem = defineSystem(
         // Who is entitled to a pawn this tick.
         const live = new Set<number>();
         if (arena.hostPlays) live.add(HOST_PLAYER);
-        for (const id of net.server?.clientIds ?? []) live.add(id);
+        // `presentIds`: connected players, plus any who dropped and are still waited for, so a reconnect finds its pawn.
+        for (const id of net.server?.presentIds ?? []) live.add(id);
 
         const have = new Set<number>();
         for (const e of world.getEntitiesWithComponents([Pawn])) {

@@ -13,6 +13,8 @@ export {
     type ReplComponentRemoveBatch,
     type ReplInputMsg,
     type ReplAckMsg,
+    type ReplClosedMsg,
+    type ReplCloseReason,
 } from './protocol';
 export {
     buildReplicationTable,
@@ -48,11 +50,13 @@ export {
 } from './interest';
 export { registerReplicationArchetype, type ReplicationArchetype } from './archetype';
 export { NetIds } from './NetIds';
-export { ReplicationServer } from './server';
+export { ReplicationServer, type ReplicationServerOptions, type ReplicationPlayer } from './server';
 export {
     ReplicationClient,
     predictionReplays,
     type ReplicationClientOptions,
+    type ReplicationClientState,
+    type ReplicationReconnectOptions,
     type PredictionOptions,
     type PredictionSmoothing,
 } from './client';

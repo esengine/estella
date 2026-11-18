@@ -66,7 +66,7 @@ export async function startArenaServer(options: ServerOptions): Promise<() => Pr
     wss.on('connection', (socket: WebSocket) => {
         const id = server.attachConnection(webSocketTransport(socket));
         console.log(`[arena] connection ${id} attached`);
-        // Detaching is what makes the roster shrink: `clientIds` drops this id,
+        // Detaching is what makes the roster shrink: `presentIds` drops this id,
         // and ProvisionPawnsSystem retires the pawn on its next fixed tick.
         // Without it the arena fills up with pawns nobody is steering.
         const drop = () => {

@@ -48,6 +48,11 @@ export class NetIds {
         return this.byNetId_.size;
     }
 
+    /** Every registered netId, as a copy. */
+    netIdList(): number[] {
+        return [...this.byNetId_.keys()];
+    }
+
     clear(): void {
         this.byNetId_.clear();
         this.byEntity_.clear();

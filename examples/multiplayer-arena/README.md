@@ -85,8 +85,9 @@ by a third party, and a leaver whose pawn goes with them.
 
 ### What it does not do yet
 
-A player who reconnects arrives as a **new connection id**, so they get a new
-pawn rather than their old one back. Ownership is keyed on the connection
-(`Replicated.owner`), and the SDK has no notion of a player identity that
-outlives a socket — a stable id, a session token, and a reconnect window all
-belong to the game for now. Worth knowing before you build a match around it.
+Players here are anonymous: one who reconnects arrives as a **new connection
+id** and gets a new pawn. The SDK can do better once the game says who a
+player is: `startServer({ authenticate })` on the server and
+`Net.connect(socket, { credentials, reconnect: true })` on the client give a
+returning player their old connection id, and with it their pawn. This
+example leaves that off to stay small.

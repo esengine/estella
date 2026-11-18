@@ -95,7 +95,8 @@ serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
 serverApp.world.insert(e, Health, {});
 serverApp.world.insert(e, Replicated, { owner: connectionId });   // 归该连接所有
 const input = server.inputOf(connectionId);        // 该客户端的最新输入
-// server.clientIds —— 每 tick 轮询,为每个已连接玩家生成/回收一个 pawn。
+// server.presentIds —— 每 tick 轮询,为每个玩家生成/回收一个 pawn(在线的,或掉线后还在等的;
+// 不配 authenticate 时与 server.clientIds 相同)。
 
 // --- 客户端 app ---
 const clientNet = clientApp.getResource(Net);
@@ -149,12 +150,31 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   接入的每个 `ws` socket 用 `server.attachConnection(webSocketTransport(socket))`
   (来自 `esengine/replication`)交给服务器:一个 tick 发给某个客户端的所有消息合成一次
   socket 写出,而不是每条消息写一次,人多时服务器的 tick 耗时大约减半。
-- **重连目前由你负责**:`Replicated.owner` 是*连接* id,玩家重连会拿到新的一个。
-  SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。(下面的请求/应答[会话层](#异步在线游戏会话层)确实会重连并保留订阅,但它与状态复制是两套东西。)
+- **玩家与重连**:默认每个连接都是匿名的,掉线再连回来就是另一个人。告诉服务器玩家是谁,
+  玩家就能保住自己的 id:
+
+  ```ts
+  // 服务器:把 hello 里的凭据换成玩家,抛错即拒绝
+  const server = net.startServer({
+      authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+      reconnectGraceMs: 30_000,   // 掉线玩家保留多久(默认 30 秒)
+  });
+  // 客户端:每次 hello 带同一份凭据,掉线自动重拨
+  const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+  ```
+
+  服务器记得这个玩家期间,他始终拿同一个连接 id,所以 `Replicated.owner`、`tickInputOf` 以及按它们
+  索引的一切都延续下去。掉线的玩家在宽限期内仍在 `presentIds` 里(不在 `clientIds` 里,也没有输入);
+  宽限期内重拨会落回同一个 id,客户端手里已有的幽灵实体保持是同一批实体,并补上错过的状态。同一个
+  `playerId` 再次登录会顶掉前一个,`server.kick(id)` 立即结束一个玩家;两种情况下旧客户端都会进入
+  `state === 'closed'`,`closeReason` 为 `'replaced'` 或 `'kicked'`,并且不再重拨。抛出带
+  `fatal: false` 的 `SessionRejected`(来自 `esengine/session`)可以拒绝一次 hello 而不让客户端停止重拨。
+  `reconnect` 适用于平台 socket(`GameSocket`、`createSocket`);其他传输请自己调用
+  `client.resume(newTransport)`。凭据是什么、由谁签发和校验,归游戏自己。
 
 完整范式(复制、每 tick 输入、客户端预测)见 **Multiplayer Arena** 示例(约 130 行)。它的 `server/` 目录就是专用服务器那一半:同一个项目,无头运行,后面是一条真实的 WebSocket。
 
-要在这套范式上开始自己的游戏,用 **Online 3D** 模板创建(`estella create online-3d ./my-game`,或在编辑器的"新建项目"画廊里选):一块有光照的 3D 地面,每个玩家一个角色(在自己屏幕上即时预测、向其他人复制),跟随自己角色的镜头,以及用同一份代码无头运行的 `server/`。两端必须一致的规则(速度、世界边界)放在 `src/shared/rules.ts`,不在任何系统里,服务器才能拒绝它们禁止的事。模板留给游戏自己的部分写在它的 README 里:重连后保持玩家身份、保存世界、谁能看到什么。
+要在这套范式上开始自己的游戏,用 **Online 3D** 模板创建(`estella create online-3d ./my-game`,或在编辑器的"新建项目"画廊里选):一块有光照的 3D 地面,每个玩家一个角色(在自己屏幕上即时预测、向其他人复制),跟随自己角色的镜头,以及用同一份代码无头运行的 `server/`。两端必须一致的规则(速度、世界边界)放在 `src/shared/rules.ts`,不在任何系统里,服务器才能拒绝它们禁止的事。模板留给游戏自己的部分写在它的 README 里:玩家是谁(上面的身份只差一个选项)、保存世界、谁能看到什么。
 
 ### 兴趣管理——谁看见什么
 

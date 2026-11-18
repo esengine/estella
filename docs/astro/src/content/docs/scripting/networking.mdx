@@ -98,7 +98,8 @@ serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
 serverApp.world.insert(e, Health, {});
 serverApp.world.insert(e, Replicated, { owner: connectionId });   // owned by that client
 const input = server.inputOf(connectionId);        // that client's latest input
-// server.clientIds — poll each tick to spawn/retire a pawn per connected player.
+// server.presentIds — poll each tick to spawn/retire a pawn per player (connected,
+// or dropped and still waited for; the same as server.clientIds without authenticate).
 
 // --- CLIENT app ---
 const clientNet = clientApp.getResource(Net);
@@ -159,14 +160,37 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   `server.attachConnection(webSocketTransport(socket))` (from `esengine/replication`):
   everything one tick sends a client then leaves in one socket write rather than one
   per message, which roughly halves a crowded server's tick.
-- **Reconnect is yours for now**: `Replicated.owner` is a *connection* id, and a
-  player who reconnects gets a new one. Nothing in the SDK carries an identity
-  across a dropped socket, so a stable player id, a session token and a grace
-  window belong to your game. (The request/reply [session layer](#asynchronous-online-games--sessions) below does redial and keep subscriptions across drops, but it is separate from replication.)
+- **Players and reconnects**: by default a connection is anonymous, and one
+  that drops and comes back is somebody new. Say who a player is and they keep
+  their id:
+
+  ```ts
+  // server: turn the hello's credentials into a player, or throw to refuse
+  const server = net.startServer({
+      authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+      reconnectGraceMs: 30_000,   // how long a dropped player stays present (default 30 s)
+  });
+  // client: the same credentials on every hello, and redial on a drop
+  const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+  ```
+
+  A player keeps one connection id for as long as the server remembers them, so
+  `Replicated.owner`, `tickInputOf` and everything keyed by them carry over. A
+  player who drops stays in `presentIds` (not in `clientIds`, and sending no
+  input) for the grace period; a redial inside it lands on the same id, and the
+  ghosts the client already holds stay the same entities, updated to what they
+  missed. A second login with the same `playerId` replaces the first, and
+  `server.kick(id)` ends a player's session at once; either way the old client
+  goes to `state === 'closed'` with `closeReason` `'replaced'` or `'kicked'` and
+  does not redial. Throwing `SessionRejected` (from `esengine/session`) with
+  `fatal: false` refuses a hello without stopping the client's redial.
+  `reconnect` works over a platform socket (`GameSocket`, `createSocket`); for
+  another transport, call `client.resume(newTransport)` yourself. What the
+  credentials are, and who issues and checks them, is the game's.
 
 See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines. Its `server/` directory is the dedicated-server half: the same project, headless, behind a real WebSocket.
 
-To start a game of your own on that pattern, create it from the **Online 3D** template (`estella create online-3d ./my-game`, or pick it in the editor's New project gallery): a lit 3D ground, a pawn per player that is predicted on its owner's screen and replicated to everyone else, a camera that follows your own, and a `server/` that runs the same code headless. The rules both ends must agree on (speed, the world's edge) sit in `src/shared/rules.ts`, apart from any system, so a server can refuse what they forbid. What it leaves to the game is written in its README: a stable player identity across reconnects, saving the world, and who sees what.
+To start a game of your own on that pattern, create it from the **Online 3D** template (`estella create online-3d ./my-game`, or pick it in the editor's New project gallery): a lit 3D ground, a pawn per player that is predicted on its owner's screen and replicated to everyone else, a camera that follows your own, and a `server/` that runs the same code headless. The rules both ends must agree on (speed, the world's edge) sit in `src/shared/rules.ts`, apart from any system, so a server can refuse what they forbid. What it leaves to the game is written in its README: who a player is (the identity above is one option away), saving the world, and who sees what.
 
 ### Interest management — who sees what
 

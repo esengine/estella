@@ -27,7 +27,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
-    type ReplComponentRemoveBatch,
+    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
@@ -38,7 +38,12 @@ import { NetIds } from './NetIds';
 import type { InterestPolicy, InterestProvider } from './interest';
 
 interface Connection {
+    /** The public id: what `Replicated.owner` holds. For an authenticated
+     *  player it is the player's number, the same on every link they open. */
     id: number;
+    /** The id `attachConnection` returned for this link — what the host
+     *  detaches by. Equal to `id` until a returning player takes their number. */
+    linkId: number;
     channel: NetChannel;
     transport: ReliableOrderedTransport;
     /** Handshake completed and the initial world spawn has been sent. */
@@ -143,11 +148,54 @@ function fieldEqual(a: unknown, b: unknown): boolean {
     return true;
 }
 
+/** Who a player is, as the server's `authenticate` answers it. */
+export interface ReplicationPlayer {
+    playerId: string;
+}
+
+export interface ReplicationServerOptions {
+    /**
+     * Turn a hello's credentials into a player, or throw to refuse the
+     * connection (the error's message reaches the client; one named
+     * `SessionRejected` with `fatal: false` lets a redialing client try again).
+     * With it, a player keeps one connection id for as long as the server
+     * remembers them: a reconnect lands on the same id, so everything keyed by
+     * `Replicated.owner` carries over, and a second login replaces the first.
+     * Without it every connection is anonymous and new, as before.
+     */
+    authenticate?(credentials: unknown): ReplicationPlayer | Promise<ReplicationPlayer>;
+    /**
+     * How long a player who dropped stays present (in `presentIds`, owning what
+     * they owned) waiting for a reconnect. Default 30 s; 0 lets them go at
+     * once. Only meaningful with `authenticate`.
+     */
+    reconnectGraceMs?: number;
+}
+
+/** What the server answers a refused hello with, from whatever `authenticate` threw. */
+function refusal(err: unknown): { ok: false; error: string; fatal: boolean } {
+    if (err instanceof Error && err.name === 'SessionRejected') {
+        return { ok: false, error: err.message, fatal: (err as { fatal?: boolean }).fatal !== false };
+    }
+    if (err instanceof Error && err.message) return { ok: false, error: err.message, fatal: true };
+    return { ok: false, error: 'authentication failed', fatal: true };
+}
+
 export class ReplicationServer {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
+    /** Live connections by public id. */
     private readonly connections_ = new Map<number, Connection>();
+    /** Live connections by the id their link was attached under. */
+    private readonly links_ = new Map<number, Connection>();
     private nextConnectionId_ = 1;
+    private readonly authenticate_: ReplicationServerOptions['authenticate'] | null;
+    private readonly graceMs_: number;
+    /** playerId -> the connection id that player holds. */
+    private readonly idOfPlayer_ = new Map<string, number>();
+    private readonly playerOfId_ = new Map<number, string>();
+    /** Players with no live link, by id -> when the server stops waiting (ms). */
+    private readonly away_ = new Map<number, number>();
     private table_: ReplicationTable | null = null;
     /** Last broadcast value per entity × table entry: entity → componentId → field record. */
     private readonly shadow_ = new Map<Entity, Map<number, Record<string, unknown>>>();
@@ -277,8 +325,10 @@ export class ReplicationServer {
      *  what the wire carried, against what routing considered. */
     deltaRowsSent = 0;
 
-    constructor(world: World) {
+    constructor(world: World, options: ReplicationServerOptions = {}) {
         this.world_ = world;
+        this.authenticate_ = options.authenticate ?? null;
+        this.graceMs_ = Math.max(0, options.reconnectGraceMs ?? 30_000);
         this.offDespawn_ = world.onDespawn((e) => {
             // Sampling handles replicated despawns; this catches direct holes.
             this.netIds_.unregisterEntity(e);
@@ -346,7 +396,10 @@ export class ReplicationServer {
     dispose(): void {
         if (this.disposed_) return;
         this.disposed_ = true;
-        for (const id of [...this.connections_.keys()]) this.detachConnection(id);
+        for (const conn of [...this.links_.values()]) this.dropLink_(conn);
+        this.away_.clear();
+        this.idOfPlayer_.clear();
+        this.playerOfId_.clear();
         for (const o of this.observations_) {
             this.world_.disposeRemovedReader(o.def, o.readerId);
             this.world_.disposeWriteReader(o.def, o.writeReaderId);
@@ -378,6 +431,45 @@ export class ReplicationServer {
             if (c.ready) out.push(c.id);
         }
         return out;
+    }
+
+    /**
+     * {@link clientIds} plus the players who dropped and are still waited for
+     * (see `reconnectGraceMs`). Provision and retire per-player entities from
+     * this one and a player who reconnects finds their pawn where they left it;
+     * with no `authenticate` it is the same list as `clientIds`.
+     */
+    get presentIds(): number[] {
+        const out = this.clientIds;
+        for (const id of this.away_.keys()) out.push(id);
+        return out;
+    }
+
+    /** The authenticated player holding this connection id, if any. */
+    playerIdOf(connectionId: number): string | undefined {
+        return this.playerOfId_.get(connectionId);
+    }
+
+    /** The connection id a player holds — live or waited for — if the server knows them. */
+    connectionIdOf(playerId: string): number | undefined {
+        return this.idOfPlayer_.get(playerId);
+    }
+
+    /** Whether this id belongs to a player who dropped and has not come back yet. */
+    isAway(connectionId: number): boolean {
+        return this.away_.has(connectionId);
+    }
+
+    /**
+     * Let a player go now: their link (if any) is told why and closed, and they
+     * leave `presentIds` without a grace period. Returns whether anyone held the id.
+     */
+    kick(connectionId: number, message?: string): boolean {
+        const conn = this.connections_.get(connectionId);
+        const known = conn !== undefined || this.away_.has(connectionId);
+        if (conn) this.release_(conn, 'kicked', message);
+        this.forgetPlayer_(connectionId);
+        return known;
     }
 
     private get refs_(): EntityRefMap {
@@ -522,12 +614,13 @@ export class ReplicationServer {
         const id = this.nextConnectionId_++;
         const channel = new NetChannel(transport);
         const conn: Connection = {
-            id, channel, transport, ready: false,
+            id, linkId: id, channel, transport, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
             interest: new Set(), provenance: null,
         };
         this.connections_.set(id, conn);
+        this.links_.set(id, conn);
 
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
             // Exactly-once starts here: a repeat or a rewind must not enter the
@@ -546,7 +639,7 @@ export class ReplicationServer {
             conn.queue.push(msg);
         });
 
-        channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, (req) => {
+        channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, async (req) => {
             if (req.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
                 return { ok: false, error: `protocol v${req.protocolVersion}, server runs v${REPLICATION_PROTOCOL_VERSION}` };
             }
@@ -557,10 +650,28 @@ export class ReplicationServer {
             if (mismatch) {
                 return { ok: false, error: `replication schema mismatch: ${mismatch}` };
             }
+            let playerId: string | undefined;
+            if (this.authenticate_) {
+                try {
+                    const player = await this.authenticate_(req.credentials);
+                    if (typeof player?.playerId !== 'string' || player.playerId === '') {
+                        return { ok: false, error: 'authentication produced no player', fatal: true };
+                    }
+                    playerId = player.playerId;
+                } catch (err) {
+                    return refusal(err);
+                }
+                // The link may have gone while authenticate ran.
+                if (this.links_.get(conn.linkId) !== conn) return { ok: false, error: 'connection closed', fatal: false };
+                this.admitPlayer_(conn, playerId);
+            }
             // The initial world spawn goes out on the next microtask — after this
             // response is on the wire — and flips the connection hot.
             Promise.resolve().then(() => this.sendInitialState_(conn));
-            return { ok: true, connectionId: id, tick: this.tick_, fixedDelta: this.fixedDelta_ };
+            return {
+                ok: true, connectionId: conn.id, tick: this.tick_, fixedDelta: this.fixedDelta_,
+                ...(playerId !== undefined ? { playerId } : {}),
+            };
         });
 
         return id;
@@ -575,14 +686,80 @@ export class ReplicationServer {
         }
     }
 
-    detachConnection(id: number): void {
-        const conn = this.connections_.get(id);
+    /**
+     * The link `attachConnection` returned `linkId` for is gone. An anonymous
+     * connection leaves with it; an authenticated player stays present (in
+     * `presentIds`, owning what they owned, sending no input) for
+     * `reconnectGraceMs`, and a reconnect inside it takes the same id back.
+     */
+    detachConnection(linkId: number): void {
+        const conn = this.links_.get(linkId);
         if (!conn) return;
+        this.dropLink_(conn);
+        if (this.playerOfId_.has(conn.id) && this.graceMs_ > 0) {
+            this.away_.set(conn.id, Date.now() + this.graceMs_);
+        } else {
+            this.forgetPlayer_(conn.id);
+        }
+    }
+
+    /** Take one link out of the live maps; who it belonged to is the caller's business. */
+    private dropLink_(conn: Connection): void {
         this.forgetViewer_(conn);
         conn.channel.dispose();
-        this.connections_.delete(id);
-        // Ids are never reused, so this is the whole lifetime of the count.
+        if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);
+        this.links_.delete(conn.linkId);
+    }
+
+    /** The id is nobody's any more: no player, no wait, no owned-set history. */
+    private forgetPlayer_(id: number): void {
+        this.away_.delete(id);
+        // Ids are never handed to anyone else, so this is the whole lifetime of the count.
         this.ownedEpoch_.delete(id);
+        const playerId = this.playerOfId_.get(id);
+        if (playerId === undefined) return;
+        this.playerOfId_.delete(id);
+        if (this.idOfPlayer_.get(playerId) === id) this.idOfPlayer_.delete(playerId);
+    }
+
+    /** Say why, close the link, and stop serving it. The player's id is untouched. */
+    private release_(conn: Connection, reason: ReplCloseReason, message?: string): void {
+        try {
+            conn.channel.send<ReplClosedMsg>(ReplMsg.closed, message === undefined ? { reason } : { reason, message });
+        } catch { /* a link that cannot be told is closed all the same */ }
+        try { conn.transport.close?.(4000, reason); } catch { /* already gone */ }
+        this.dropLink_(conn);
+    }
+
+    /**
+     * Give an authenticated link its player's id. A first login keeps the id
+     * its link was attached under; a returning player takes theirs back,
+     * replacing a link that still holds it.
+     */
+    private admitPlayer_(conn: Connection, playerId: string): void {
+        const held = this.idOfPlayer_.get(playerId);
+        if (held === undefined) {
+            this.idOfPlayer_.set(playerId, conn.id);
+            this.playerOfId_.set(conn.id, playerId);
+            return;
+        }
+        const holder = this.connections_.get(held);
+        if (holder && holder !== conn) this.release_(holder, 'replaced', 'signed in from another connection');
+        this.away_.delete(held);
+        if (conn.id === held) return;
+        // Not ready yet, so nothing is indexed under the provisional id.
+        if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);
+        conn.id = held;
+        this.connections_.set(held, conn);
+    }
+
+    /** Players whose grace ran out leave `presentIds`. */
+    private expireAway_(): void {
+        if (this.away_.size === 0) return;
+        const now = Date.now();
+        for (const [id, until] of [...this.away_]) {
+            if (until <= now) this.forgetPlayer_(id);
+        }
     }
 
     /** The latest input command a connection sent (null before the first).
@@ -612,6 +789,7 @@ export class ReplicationServer {
      */
     beginTick(fixedDelta: number): void {
         if (fixedDelta > 0) this.fixedDelta_ = fixedDelta;
+        this.expireAway_();
         for (const conn of [...this.connections_.values()]) {
             const next = conn.queue.shift();
             if (next) conn.applied = next;
@@ -1294,7 +1472,7 @@ export class ReplicationServer {
     }
 
     private sendInitialState_(conn: Connection): void {
-        if (!this.connections_.has(conn.id)) return;
+        if (this.connections_.get(conn.id) !== conn) return;
         let anyReady = false;
         for (const c of this.connections_.values()) if (c.ready) { anyReady = true; break; }
         if (!anyReady) this.rebaseRegistry_();
@@ -1306,9 +1484,10 @@ export class ReplicationServer {
             const netId = this.knownNetIds_.get(e);
             if (netId !== undefined) entities.push(this.spawnPayload_(e, netId));
         }
-        if (entities.length > 0
-            && !this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
-                ReplMsg.spawn, { tick: this.tick_, entities }))) {
+        // Sent even when empty: it is how a client that reconnected learns which
+        // of the ghosts it still holds are gone.
+        if (!this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
+                ReplMsg.spawn, { tick: this.tick_, entities, initial: true }))) {
             // Never told the world, so never a participant in the next delta.
             return;
         }
@@ -1339,7 +1518,7 @@ export class ReplicationServer {
             return true;
         } catch (err) {
             log.warn('repl', `connection ${conn.id} could not be sent to; detaching it`, err);
-            this.detachConnection(conn.id);
+            this.detachConnection(conn.linkId);
             return false;
         }
     }
