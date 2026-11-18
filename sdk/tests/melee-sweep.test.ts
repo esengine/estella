@@ -91,7 +91,7 @@ function windows(): MeleeWindowSource & { id: number | null } {
 
 function moveAnchor(world: any, x: number): void {
     const t = world.get(ANCHOR, Transform) as TransformData;
-    t.worldPosition!.x = x; t.position.x = x;
+    world.insert(ANCHOR, Transform, { ...t, position: { ...t.position, x }, worldPosition: { ...t.worldPosition!, x } });
 }
 
 function frame(world: any, attacks: MeleeAttacks, query: MeleeOverlapQuery, open: MeleeWindowSource): DamagePayload[] {
@@ -194,9 +194,9 @@ describe('a swing in its active window', () => {
         const world = scene(), attacks = new MeleeAttacks(), query = physics(world), open = windows();
         moveAnchor(world, 0);
         open.id = 1;
-        (world.get(ATTACKER, Health) as HealthData).current = 0;
+        world.insert(ATTACKER, Health, { current: 0, max: 100 } as HealthData);
         expect(frame(world, attacks, query, open)).toEqual([]);
-        (world.get(ATTACKER, Health) as HealthData).current = 100;
+        world.insert(ATTACKER, Health, { current: 100, max: 100 } as HealthData);
         attackOf(world).enabled = false;
         expect(frame(world, attacks, query, open)).toEqual([]);
     });

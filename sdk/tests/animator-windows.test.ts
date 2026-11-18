@@ -159,7 +159,7 @@ describe('an animator window', () => {
         const { ctrl, world } = rig(clip([win('attack-active', 0, 1)]));
         ctrl.update(world, 0);
         expect(open(ctrl)).toEqual(['attack-active']);
-        (world.get(E, Animator) as AnimatorData).enabled = false;
+        world.insert(E, Animator, { ...(world.get(E, Animator) as AnimatorData), enabled: false });
         ctrl.update(world, 0.1);
         expect(open(ctrl)).toEqual([]);
     });
