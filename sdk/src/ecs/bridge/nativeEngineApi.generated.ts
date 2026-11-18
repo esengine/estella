@@ -144,6 +144,8 @@ export interface NativeEngineApi {
     postprocess_updateGIField?(headerPtr: number, headerCount: number, sdfPtr: number, sdfOffset: number, sdfCount: number): boolean;
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_createBricks?(resX: number, resY: number, resZ: number, brickCount: number, bricksPtr: number, shPtr: number): number;
+    probe_volume_getBricks?(volumeHandle: number, outPtr: number, maxBricks: number): number;
+    probe_volume_getResolution?(volumeHandle: number, outPtr: number): boolean;
     probe_volume_release?(volumeHandle: number): void;
     probe_volume_setSkyVisibility?(volumeHandle: number, visibilityPtr: number): void;
     registry_batchSyncPhysicsTransforms?(registry: unknown, bufferPtr: number, count: number, ppu: number): void;
@@ -515,6 +517,8 @@ export function createNativeEngineApi(
     bind('postprocess_updateGIField', 'es_postprocess_updateGIField', false);
     bind('probe_volume_create', 'es_probe_volume_create', false);
     bind('probe_volume_createBricks', 'es_probe_volume_createBricks', false);
+    bind('probe_volume_getBricks', 'es_probe_volume_getBricks', false);
+    bind('probe_volume_getResolution', 'es_probe_volume_getResolution', false);
     bind('probe_volume_release', 'es_probe_volume_release', false);
     bind('probe_volume_setSkyVisibility', 'es_probe_volume_setSkyVisibility', false);
     bind('registry_batchSyncPhysicsTransforms', 'es_registry_batchSyncPhysicsTransforms', true);

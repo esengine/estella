@@ -569,6 +569,11 @@ probes, and the cap on a volume's probes grows eight times a level. Where a fine
 the coarse brick's light, so there is no seam where the spacing changes. A grid whose bricks would all be fine is
 written dense, as with one level.
 
+To see what a bake laid down, select the volume in the editor: a sparse grid shows its bricks, the finest in violet and
+the coarser ones in amber (2x), pale yellow (4x) and grey (8x); a dense one shows a cross at every probe. Both are read
+from the grid the engine loaded, so what you see is what the frame reads, not what the component's spacing would ask
+for now.
+
 A mesh **without** lightmap UVs reads the grid where each pixel stands: ten texture reads a lookup (the indirection
 cell, then one filtered read per coefficient). A mesh with them, and every mesh at the **low** quality level
 (`probesPerPixel: false` in its profile), reads one value where it stands instead, and no atlas is held on the GPU:

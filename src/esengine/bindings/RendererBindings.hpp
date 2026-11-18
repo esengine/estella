@@ -197,6 +197,13 @@ u32 probe_volume_createBricks(i32 resX, i32 resY, i32 resZ, i32 brickCount, uint
 /** @brief Releases a probe volume. */
 void probe_volume_release(u32 volumeHandle);
 
+/** @brief The finest grid's probes along x, y and z, as three ints at `outPtr`. False for no such volume. */
+bool probe_volume_getResolution(u32 volumeHandle, uintptr_t outPtr);
+
+/** @brief A sparse volume's bricks, four ints each (first finest-brick cell x, y, z and span), up to `maxBricks` of
+ *         them at `outPtr`. Returns how many it has: 0 for a dense volume or none, more than `maxBricks` when cut short. */
+i32 probe_volume_getBricks(u32 volumeHandle, uintptr_t outPtr, i32 maxBricks);
+
 /** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in the order its
  *         irradiance is (grid order, or brick after brick for a sparse grid; a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
  *         frame's sky is added through this. */

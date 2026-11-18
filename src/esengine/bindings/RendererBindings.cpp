@@ -668,6 +668,35 @@ void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
     grid->revision = ProbeVolume::nextRevision();
 }
 
+bool probe_volume_getResolution(u32 volumeHandle, uintptr_t outPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    const ProbeVolume* grid = rm ? rm->getProbeVolume(resource::ProbeVolumeHandle(volumeHandle)) : nullptr;
+    if (!grid || !grid->isValid()) return false;
+    i32* out = boundarySpanMut<i32>(outPtr, 3, "probe_volume_getResolution.out");
+    if (!out) return false;
+    out[0] = grid->resolution.x;
+    out[1] = grid->resolution.y;
+    out[2] = grid->resolution.z;
+    return true;
+}
+
+i32 probe_volume_getBricks(u32 volumeHandle, uintptr_t outPtr, i32 maxBricks) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    const ProbeVolume* grid = rm ? rm->getProbeVolume(resource::ProbeVolumeHandle(volumeHandle)) : nullptr;
+    if (!grid || !grid->isValid() || !grid->sparse()) return 0;
+    const i32 count = static_cast<i32>(grid->bricks.size());
+    const i32 take = std::min(count, std::max(maxBricks, 0));
+    if (take > 0) {
+        i32* out = boundarySpanMut<i32>(outPtr, static_cast<u64>(take) * 4u, "probe_volume_getBricks.out");
+        if (!out) return 0;
+        for (i32 b = 0; b < take; ++b) {
+            const glm::ivec4 k = grid->bricks[static_cast<usize>(b)];
+            out[b * 4] = k.x; out[b * 4 + 1] = k.y; out[b * 4 + 2] = k.z; out[b * 4 + 3] = k.w;
+        }
+    }
+    return count;
+}
+
 void probe_volume_release(u32 volumeHandle) {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->releaseProbeVolume(resource::ProbeVolumeHandle(volumeHandle));

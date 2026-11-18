@@ -374,6 +374,7 @@ export type {
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,
 } from './render/quality';
 export { Quality } from './render/qualityRuntime';
+export { probeVolumeLayout, type ProbeVolumeLayout } from './render/probeLayout';
 export { warmShaders, shadersCompiled, pendingShaders, holdShaderWarmup } from './render/shaderWarmup';
 export { RenderDemand } from './render/renderDemand';
 export { buildPathGeometry, mergeGeometry, cubicBezier, quadraticBezier, circlePoints } from './render/vectorPath';

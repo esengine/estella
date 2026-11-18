@@ -373,6 +373,8 @@ export interface ESEngineModule {
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_createBricks?(resX: number, resY: number, resZ: number, brickCount: number, bricksPtr: number,
                                shPtr: number): number;
+    probe_volume_getResolution?(volumeHandle: number, outPtr: number): boolean;
+    probe_volume_getBricks?(volumeHandle: number, outPtr: number, maxBricks: number): number;
     /** Release a probe volume. */
     probe_volume_release?(volumeHandle: number): void;
     /** Nine floats per probe of how much of the sky each sees (a bake with sky occlusion). */
