@@ -235,33 +235,32 @@ private:
         changedSlots_.clear();
 
         // A static entity is recomposed only when tagged dirty, as the full walk does: a write to it is not one.
-        const auto changed = [&](Entity entity, bool tagged) {
+        const auto changed = [&](Entity entity, bool tagged, Transform* transform) {
             if (!tagged && have_static_ && registry.has<TransformStatic>(entity)) return;
             if (inTree(rel, entity)) {
                 const auto at = rel.cascadeAt(entity);
                 changedSlots_.emplace_back(at.tree, at.slot);
                 return;
             }
-            auto* transform = registry.tryGet<Transform>(entity);
             if (!transform) {
                 if (tagged) dirty_to_clear_.push_back(entity);
                 return;
             }
             updateRootTransform(registry, entity, *transform, tagged);
         };
-        registry.anyChangedSinceWhere<Transform>(seenTick_, [&](Entity entity) {
-            changed(entity, have_dirty_ && registry.has<TransformDirty>(entity));
-            return false;
+        // Down the pool's own arrays: the written Transform is in hand, with no lookup for it.
+        registry.eachChangedSince<Transform>(seenTick_, [&](Entity entity, Transform& transform) {
+            changed(entity, have_dirty_ && registry.has<TransformDirty>(entity), &transform);
         });
         // Moved under another parent, detached, or left a root by a destroyed parent: composed under a new matrix whatever its
         // own stamp says, and a static one too.
         for (const Entity entity : retargeted_) {
-            if (registry.valid(entity)) changed(entity, true);
+            if (registry.valid(entity)) changed(entity, true, registry.tryGet<Transform>(entity));
         }
         if (have_dirty_) {
             for (const Entity entity : registry.entitiesWith<TransformDirty>()) {
                 // Written and tagged was handled above, with its tag.
-                if (!registry.changedSince<Transform>(entity, seenTick_)) changed(entity, true);
+                if (!registry.changedSince<Transform>(entity, seenTick_)) changed(entity, true, registry.tryGet<Transform>(entity));
             }
         }
         if (changedSlots_.empty()) return;

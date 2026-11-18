@@ -262,6 +262,23 @@ public:
         return pool ? pool->version() : 0;
     }
 
+    /**
+     * @brief Calls @p visit(entity, component) for each T written, added or replaced after @p tick, in storage order
+     * @details One pass down the pool's dense arrays (entities, components, stamps side by side), so a visit is handed its
+     *          component without a lookup. @p visit must not add or remove a T.
+     */
+    template<typename T, typename Visit>
+    void eachChangedSince(u32 tick, Visit&& visit) {
+        auto* pool = getPool<T>();
+        if (!pool || !tickAfter(pool->lastChangedTick(), tick)) return;
+        const u32* stamps = pool->changeTicks();
+        const auto& entities = pool->entities();
+        auto& components = pool->components();
+        for (usize i = 0, n = entities.size(); i < n; ++i) {
+            if (tickAfter(stamps[i], tick)) visit(entities[i], components[i]);
+        }
+    }
+
     /** @brief How many entities have a T. */
     template<typename T>
     usize countOf() const {
