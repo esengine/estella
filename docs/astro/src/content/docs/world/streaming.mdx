@@ -166,11 +166,37 @@ cell may reference the persistent world, which outlives it. A reference from one
 cell into another — or from the persistent world into a cell — fails the build,
 because either one points at something residency is entitled to delete.
 
-**Residency owns existence; it does not own continuity.** A cell that unloads
-loses its runtime state, and reloading rebuilds it from what was authored. An
-enemy at 25 health that you walk away from comes back at full health. What does
-survive is the entity's authored identity, which a save system can be built on
-(the engine keeps no per-cell state for you).
+**Residency owns existence; continuity is asked for.** A cell that unloads loses its
+runtime state, and reloading rebuilds it from what was authored: an enemy you wounded
+and walked away from comes back at full health. Put `RememberState` on what should not:
+
+```typescript
+world.insert(enemy, RememberState, {});                     // its health and where it stood
+world.insert(chest, RememberState, { keepTransform: false }); // opened stays opened
+```
+
+As a remembered entity is taken out with its cell, its game components (the ones your
+project defines, such as `Health` or a chest's `opened` flag) and its Transform are written
+down under the id it was authored with. When the cell is brought in again its document is
+changed before anything spawns, so it arrives as it was left, never for a frame as authored.
+A remembered entity destroyed while its cell is in (a boss killed, an ore mined, a building
+torn down) is written down as gone, with everything under it, and its cell never brings it
+back. The engine's own components are not kept: they hold asset handles and state a cell
+rebuilds. Entities spawned at run time have no authored id and are not remembered.
+
+The memory is the `WorldMemoryRes` resource. Carry it through a save with
+[save slots](/docs/scripting/save/):
+
+```typescript
+const saves = new SaveManager({ version: 1 });
+const memory = app.getResource(WorldMemoryRes);
+saves.save('slot1', { player, world: memory.toJSON() });   // when saving
+const loaded = saves.load<{ world: WorldMemoryData }>('slot1');
+if (loaded) memory.read(loaded.world);                     // when loading, before the world streams in
+```
+
+`read` replaces what is remembered; cells already in the world keep how they are, and the
+next one brought in reads the new memory. `clear()` forgets everything, for a new game.
 
 ## Procedural chunks
 

@@ -6674,6 +6674,18 @@
       ]
     },
     {
+      "name": "RememberState",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "keepTransform",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Keep where it stood as well, so something moved is found where it was left."
+        }
+      ]
+    },
+    {
       "name": "Replicated",
       "source": "ts",
       "fields": [

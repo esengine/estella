@@ -34,6 +34,7 @@ import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
 import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
+import { WorldMemoryRes } from '../residency/worldMemory';
 import type { WorldManifest } from '../residency/cells';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
@@ -387,6 +388,9 @@ export async function prepareRuntimeScene(
             }
         }));
     }
+    // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything
+    // of it spawns.
+    if (app.hasResource(WorldMemoryRes)) sceneData = app.getResource(WorldMemoryRes).adapt(sceneName ?? '', sceneData);
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.

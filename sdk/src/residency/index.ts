@@ -30,6 +30,9 @@ export {
 } from './cutWorld';
 export { registryEntityFields } from './componentRefs';
 export {
+    RememberState, WorldMemory, WorldMemoryRes, type RememberStateData, type WorldMemoryData,
+} from './worldMemory';
+export {
     farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
     type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
     type AssembledFarProxy,

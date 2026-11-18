@@ -139,9 +139,31 @@ Play 用同样的格子、和构建同一套简化代码做出同样的代理,�
 另一个格子、或者从持久世界指向格子内部——都会让构建失败,因为它们指向的东西 residency
 有权删除。
 
-**Residency 拥有"存在",不拥有"延续"。** 卸载的格子会丢掉运行时状态,重新加载会按编排
-内容重建。你走开时只剩 25 点血的敌人,回来时是满血的。真正留下来的是实体的编排身份,
-存档系统可以建在它上面(引擎不替你保存每个格子的状态)。
+**Residency 拥有"存在","延续"需要声明。** 卸载的格子会丢掉运行时状态,重新加载会按编排内容重建:
+你打伤后走开的敌人,回来时是满血的。不该这样的东西,加上 `RememberState`:
+
+```typescript
+world.insert(enemy, RememberState, {});                     // 记住血量和位置
+world.insert(chest, RememberState, { keepTransform: false }); // 开过的宝箱保持打开
+```
+
+被记住的实体随格子卸载时,它的游戏组件(项目自己定义的组件,比如 `Health`、宝箱的 `opened`)和 Transform
+会按它的编排 id 记下来。格子再次加载时,在任何东西生成之前先改好文档,所以它回来时就是离开时的样子,
+一帧都不会以编排时的样子出现。被记住的实体在格子加载期间被销毁(Boss 被打死、矿被采完、建筑被拆),
+会连同它下面的一切记为"已消失",格子不会再把它带回来。引擎自己的组件不保留:它们持有资源句柄和格子会自己重建的状态。
+运行时才生成的实体没有编排 id,不会被记住。
+
+记忆存放在 `WorldMemoryRes` 资源里。用[存档槽](/docs/zh-cn/scripting/save/)带进存档:
+
+```typescript
+const saves = new SaveManager({ version: 1 });
+const memory = app.getResource(WorldMemoryRes);
+saves.save('slot1', { player, world: memory.toJSON() });   // 存档时
+const loaded = saves.load<{ world: WorldMemoryData }>('slot1');
+if (loaded) memory.read(loaded.world);                     // 读档时,在世界流入之前
+```
+
+`read` 会替换现有记忆;已经在世界里的格子保持原样,下一个加载的格子读取新的记忆。`clear()` 清空一切,用于新游戏。
 
 ## 程序化区块
 

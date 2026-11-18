@@ -9,6 +9,7 @@
 import type { App, Plugin } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, WorldStreamer } from './WorldStreamer';
+import { WorldMemory, WorldMemoryRes } from './worldMemory';
 import { manifestPlane, planeSecond, type ResidencySource } from './cells';
 import { WorldStreamingSource, type WorldStreamingSourceData } from './components';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
@@ -71,5 +72,9 @@ export const worldResidencyPlugin: Plugin = {
     build(app: App): void {
         app.insertResource(WorldStreaming, new WorldStreamer(app.getResource(SceneManager)));
         app.addSystemToSchedule(Schedule.PostUpdate, worldResidencySystem, { runIf: playModeOnly });
+        // What a cell's RememberState entities were left as, and which were destroyed, read back when the cell returns.
+        const memory = new WorldMemory(app, () => app.getResource(WorldStreaming).manifest);
+        app.insertResource(WorldMemoryRes, memory);
+        app.world.onDespawn((entity) => memory.despawned(entity));
     },
 };

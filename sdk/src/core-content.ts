@@ -328,6 +328,7 @@ export {
     StreamPlane,
     WorldPersistent,
     ExcludeFromFarProxy,
+    RememberState, WorldMemory, WorldMemoryRes, type RememberStateData, type WorldMemoryData,
     WorldStreamingSource,
     WorldStreamer,
     WorldStreaming,

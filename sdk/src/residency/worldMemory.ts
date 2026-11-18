@@ -1,0 +1,192 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    worldMemory.ts
+ * @brief   What a streamed world remembers of a cell once it has gone: the state of what asked to be remembered, and what was
+ *          destroyed.
+ *
+ * @details A cell that unloads loses its runtime state and comes back as authored. An entity carrying `RememberState` does
+ *          not: as it is taken out with its cell, its game components (and its Transform) are written down under the id it was
+ *          authored with, and when the cell is next brought in its document is changed before anything spawns, so it arrives as
+ *          it was left, not as it was authored, and never for a frame as authored. One destroyed while its cell is in (a chest
+ *          looted, a boss killed, an ore mined) is written down as gone, and its cell never brings it back.
+ *
+ *          Only game components are kept, the ones a project defines: the engine's own hold asset handles and runtime state a
+ *          cell rebuilds on its own. Entity fields are written as authored ids, the form a document holds. `toJSON` and `read`
+ *          carry the memory through a save.
+ */
+
+import type { App } from '../app/app';
+import type { Entity } from '../types';
+import { defineComponent, getComponent, type ComponentDef } from '../ecs/component';
+import { serializeEntityComponents, type SceneComponentData, type SceneData, type SceneEntityData } from '../scene/scene';
+import { SceneManager } from '../scene/sceneManager';
+import { sceneOriginOf } from '../scene/sceneOrigins';
+import { defineResource } from '../ecs/resource';
+import { registryEntityFields } from './componentRefs';
+import type { WorldManifest } from './cells';
+
+/** The fields of the `RememberState` component. @experimental */
+export interface RememberStateData {
+    /** Whether where it stood is kept too, so something moved or carried is found where it was left. */
+    keepTransform: boolean;
+}
+
+/**
+ * Asks a streamed world to remember this entity across its cell unloading: its game components (and, unless told not to, its
+ * Transform) come back as they were left, and if it is destroyed it stays destroyed.
+ *
+ * @experimental
+ */
+export const RememberState: ComponentDef<RememberStateData> = defineComponent<RememberStateData>(
+    'RememberState', { keepTransform: true },
+    { fields: { keepTransform: { tooltip: 'Keep where it stood as well, so something moved is found where it was left.' } } },
+);
+
+/** One remembered entity: what it was left as, or that it is gone. */
+interface Remembered {
+    gone?: true;
+    components?: SceneComponentData[];
+}
+
+/** A world's memory as a save holds it. @experimental */
+export interface WorldMemoryData {
+    version: 1;
+    /** The persistent scene the memory is of: a save of another world is not applied to this one. */
+    world: string;
+    /** `cell:id` (the cell's name and the id the entity was authored with) to what is remembered of it. */
+    entries: Record<string, Remembered>;
+}
+
+/** What a streamed world remembers of its cells. @experimental */
+export class WorldMemory {
+    private entries_ = new Map<string, Remembered>();
+    /** Every authored id a cell's document held when it was last brought in, to the cells holding it. */
+    private readonly cellsOf_ = new Map<number, Set<string>>();
+    private world_ = '';
+
+    constructor(private readonly app_: App, private readonly manifest_: () => WorldManifest | null) {}
+
+    /** How many entities are remembered, gone ones included. */
+    get size(): number { return this.entries_.size; }
+
+    /** Whether the entity authored as `id` in `cell` was destroyed and stays so. */
+    isGone(cell: string, id: number): boolean {
+        return this.entries_.get(`${cell}:${id}`)?.gone === true;
+    }
+
+    /** Forget everything: a new game. */
+    clear(): void {
+        this.entries_.clear();
+    }
+
+    /** The memory as a save holds it. */
+    toJSON(): WorldMemoryData {
+        return { version: 1, world: this.manifest_()?.scene ?? this.world_, entries: Object.fromEntries(this.entries_) };
+    }
+
+    /** Take a save's memory in place of this one. Cells already in keep what they are; the next one brought in reads it. */
+    read(data: WorldMemoryData): void {
+        if (data?.version !== 1) throw new Error('WorldMemory: not a world memory this version reads');
+        this.world_ = data.world;
+        this.entries_ = new Map(Object.entries(data.entries ?? {}));
+    }
+
+    /**
+     * A cell's document, as it should be brought in: what was destroyed taken out, with everything under it, and what was
+     * remembered set back to how it was left. Any other scene is handed back as it is.
+     */
+    adapt(sceneName: string, data: SceneData): SceneData {
+        const manifest = this.manifest_();
+        if (!manifest || !manifest.cells.some((c) => c.name === sceneName)) return data;
+        if (this.world_ && this.world_ !== manifest.scene) return data;
+        const entities = data.entities ?? [];
+        for (const entity of entities) {
+            let cells = this.cellsOf_.get(entity.id);
+            if (!cells) this.cellsOf_.set(entity.id, cells = new Set());
+            cells.add(sceneName);
+        }
+        if (this.entries_.size === 0) return data;
+        const byId = new Map(entities.map((e) => [e.id, e]));
+        const doomed = new Set<number>();
+        const take = (id: number): void => {
+            if (doomed.has(id)) return;
+            doomed.add(id);
+            for (const child of byId.get(id)?.children ?? []) take(child);
+        };
+        for (const entity of entities) {
+            if (this.entries_.get(`${sceneName}:${entity.id}`)?.gone) take(entity.id);
+        }
+        const kept: SceneEntityData[] = [];
+        for (const entity of entities) {
+            if (doomed.has(entity.id)) continue;
+            const left = this.entries_.get(`${sceneName}:${entity.id}`)?.components;
+            if (!left) { kept.push(entity); continue; }
+            const components = entity.components.filter((c) => !left.some((l) => l.type === c.type));
+            kept.push({ ...entity, components: [...components, ...left.map((c) => ({ type: c.type, data: structuredClone(c.data) }))] });
+        }
+        for (const entity of kept) {
+            if (entity.children?.some((c) => doomed.has(c))) entity.children = entity.children.filter((c) => !doomed.has(c));
+        }
+        return { ...data, entities: kept };
+    }
+
+    /** Told of every entity the world destroys: a remembered one is written down as left, or as gone. */
+    despawned(entity: Entity): void {
+        const world = this.app_.world;
+        if (!world.has(entity, RememberState)) return;
+        const id = sceneOriginOf(this.app_, entity);
+        if (id === undefined) return;
+        const cell = this.cellOf_(entity, id);
+        if (!cell) return;
+        const manager = this.app_.hasResource(SceneManager) ? this.app_.getResource(SceneManager) : null;
+        const status = manager?.getSceneStatus(cell.name) ?? null;
+        const key = `${cell.name}:${id}`;
+        // Destroyed while its cell is in: gone for good. Taken out with its cell: remembered as it is now.
+        if (status !== null && status !== 'unloading') {
+            this.entries_.set(key, { gone: true });
+            return;
+        }
+        this.entries_.set(key, { components: this.snapshot_(entity) });
+    }
+
+    /** The cell an entity was brought in with: the one of the cells holding its id whose scene owns it. */
+    private cellOf_(entity: Entity, id: number): { name: string } | null {
+        const cells = this.cellsOf_.get(id);
+        if (!cells) return null;
+        const manager = this.app_.hasResource(SceneManager) ? this.app_.getResource(SceneManager) : null;
+        for (const name of cells) {
+            if (manager?.getScene(name)?.entities.has(entity)) return { name };
+        }
+        // A scene already gone from its slot (taken out over several frames): the only candidate is it.
+        return cells.size === 1 ? { name: [...cells][0]! } : null;
+    }
+
+    /** What is kept of an entity: its game components, its Transform if asked, entity fields as authored ids. */
+    private snapshot_(entity: Entity): SceneComponentData[] {
+        const world = this.app_.world;
+        const keepTransform = (world.get(entity, RememberState) as RememberStateData).keepTransform !== false;
+        const fieldsOf = registryEntityFields();
+        const out: SceneComponentData[] = [];
+        for (const component of serializeEntityComponents(world, entity)) {
+            const def = getComponent(component.type);
+            if (component.type === 'Transform') {
+                if (!keepTransform) continue;
+                const t = component.data as { position?: unknown; rotation?: unknown; scale?: unknown };
+                out.push({ type: 'Transform', data: { position: t.position, rotation: t.rotation, scale: t.scale } });
+                continue;
+            }
+            if (!def || def._builtin) continue;
+            const data = structuredClone(component.data) as Record<string, unknown>;
+            for (const field of fieldsOf(component.type)) {
+                const target = data[field];
+                if (typeof target === 'number' && target !== 0) data[field] = sceneOriginOf(this.app_, target as Entity) ?? 0;
+            }
+            out.push({ type: component.type, data });
+        }
+        return out;
+    }
+}
+
+/** The streamed world's memory. @experimental */
+export const WorldMemoryRes = defineResource<WorldMemory>(null!, 'WorldMemory');
