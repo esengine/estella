@@ -32,7 +32,7 @@ import { NavObstacle } from './NavObstacle';
 import { buildNavMesh } from './navmesh/build';
 import { collectNavGeometry, navGeometryReady, type NavGeometry } from './navGeometry';
 import { StreamedNavigation } from './navStreaming';
-import { WorldStreaming } from '../../residency/WorldStreamer';
+import { worldResidencyView } from '../../residency/WorldStreamer';
 import { manifestPlane } from '../../residency/cells';
 import {
     applyObstaclesToGrid, collectNavObstacles, navObstacleDigest,
@@ -615,7 +615,7 @@ export class NavPlugin implements Plugin {
                     const areas = collectNavAreas(app.world);
                     if (updateObstacles(nav, obstacles, obstacleState, Date.now())) { baked.clear(); streamed.dirtyAll(); }
                     if (updateAreas(nav, areas, areaState)) { baked.clear(); streamed.dirtyAll(); }
-                    const streamer = app.hasResource(WorldStreaming) ? app.getResource(WorldStreaming) : null;
+                    const streamer = worldResidencyView(app);
                     if (streamer?.manifest && manifestPlane(streamer.manifest) === 'xz') {
                         streamed.update(app.world, nav, streamer, provider, obstacles, areas);
                     } else {

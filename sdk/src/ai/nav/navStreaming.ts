@@ -19,13 +19,7 @@ import type { Navigation } from './Navigation';
 import { bakeNavTile, stitchNavTiles, type NavSquare, type NavTile } from './navTiles';
 import type { NavObstacleBox, NavAreaBox } from './navmesh/compact';
 import type { WorldCell, WorldManifest } from '../../residency/cells';
-
-/** What a streamed world's navigation reads of its streamer. */
-export interface NavResidency {
-    readonly manifest: WorldManifest | null;
-    readonly residencyEpoch: number;
-    residencyOf(name: string): string;
-}
+import type { WorldResidencyView } from '../../residency/WorldStreamer';
 
 /** Tiles baked in one frame at most: a cell arriving costs a few frames a tile, not one frame all of them. */
 const TILES_PER_FRAME = 2;
@@ -55,7 +49,7 @@ export class StreamedNavigation {
      * colliders can answer, in which case nothing is baked yet.
      */
     update(
-        world: World, nav: Navigation, residency: NavResidency,
+        world: World, nav: Navigation, residency: WorldResidencyView,
         geometry: ((min: Vec3, max: Vec3, layers: number) => { verts: Float32Array; indices: ArrayLike<number> }) | null,
         obstacles: readonly NavObstacleBox[], areas: readonly NavAreaBox[],
     ): void {

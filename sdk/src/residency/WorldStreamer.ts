@@ -24,6 +24,7 @@ import {
     sameReadiness, type RenderReadiness, type RenderReadinessStamp,
 } from '../render/renderReadiness';
 import { defineResource } from '../ecs/resource';
+import type { App } from '../app/app';
 import { log } from '../util/logger';
 
 /**
@@ -945,3 +946,13 @@ export class WorldStreamer {
 
 /** The world's residency authority. @experimental */
 export const WorldStreaming = defineResource<WorldStreamer>(null!, 'WorldStreaming');
+
+export interface WorldResidencyView {
+    readonly manifest: WorldManifest | null;
+    readonly residencyEpoch: number;
+    residencyOf(name: string): CellResidency;
+}
+
+export function worldResidencyView(app: App): WorldResidencyView | null {
+    return app.hasResource(WorldStreaming) ? app.getResource(WorldStreaming) : null;
+}
