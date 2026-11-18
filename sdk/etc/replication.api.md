@@ -166,6 +166,7 @@ ResourceDef<NetSession>
 
 ## NetChannel — class @experimental
 ```
+@internal sendBinaryInPlace: (channel: number, frame: Uint8Array) => void
 dispose: (reason?: string) => void
 handle: <Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>, codec?: RequestCodec<Req, Res>) => () => void
 on: <T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>) => () => void
@@ -507,6 +508,7 @@ sample: (tick: number) => void
 setBandwidthBudget: (options: ReplicationBudgetOptions | null) => void
 setInterestPolicy: (policy: InterestPolicy | null) => void
 setInterestProvider: (provider: InterestProvider | null) => void
+setInterestRefresh: (samples: number) => void
 stats: { sampleMs: Histogram; stateFrames: number; stateBytes: number; messagesIn: number; messagesOut: number; }
 table: ReplicationTable
 tickInputOf: (connectionId: number) => ReplInputMsg | null

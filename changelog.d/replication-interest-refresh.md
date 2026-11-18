@@ -1,0 +1,7 @@
+---
+section: Added
+commits:
+  - feat(net): setInterestRefresh recomputes each connection's view every N samples, staggered, so a crowd that all moves is not queried and diffed for every connection every sample - despawns still leave every view at once, and a connection whose own entities change is recomputed in that sample
+  - perf(net): a state frame is built with a spare leading byte the channel writes its id into, so the channel sends it without copying it behind one
+---
+**A server with a moving crowd can recompute views less often, with `server.setInterestRefresh(n)`.** When everybody moves, every connection's view changes every sample, and asking the interest source and diffing the answer for each of them was most of what a sample cost. With a refresh interval each connection's view is recomputed every `n`th sample, staggered so an even share is done each time; between recomputes a connection keeps its view and is still sent every change to what is in it. An entity walking into range arrives up to `n - 1` samples late, and one walking out is sent as long; a despawn leaves every view at once, and a connection whose own entities change is recomputed in that sample. The default, `1`, keeps every view current. Measured with `tools/net-sample-microbench.mjs --wasm --refresh 4` (800 players, about 30 in view each, all moving), a sample went from about 8.2 ms to 5.5 ms. State frames also stopped being copied once more on their way to the transport.

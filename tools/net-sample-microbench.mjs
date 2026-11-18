@@ -24,6 +24,9 @@
  * position and the grid is rebuilt every sample. `--spread` gives each player
  * about 30 others in range instead of everyone.
  *
+ * `--refresh N` recomputes each connection's view every N samples
+ * (`setInterestRefresh`).
+ *
  * `--phases` also prints what each phase of the sample cost per tick (the
  * server's own `samplePhases`), so a change to one phase can be read off that
  * phase rather than off the whole tick.
@@ -52,6 +55,7 @@ const WARMUP = Number(opt('warmup', 60));
 const SPREAD = argv.includes('--spread');
 const WASM = argv.includes('--wasm');
 const PHASES = argv.includes('--phases');
+const REFRESH = Number(opt('refresh', 1));
 const RADIUS = 100;
 const STEP = 1 / 20;
 
@@ -86,6 +90,7 @@ serverApp.setFixedTimestep(STEP);
 if (!WASM) serverApp.addPlugin(repl.replicationPlugin);
 const server = serverApp.getResource(repl.Net).startServer({ heartbeat: false, helloTimeoutMs: 0 });
 server.setInterestProvider(repl.radiusInterestProvider(RADIUS, position ? { position } : {}));
+if (REFRESH > 1) server.setInterestRefresh(REFRESH);
 if (BUDGET > 0) server.setBandwidthBudget({ bytesPerSecond: BUDGET, ...(position ? { position } : {}) });
 
 // Each connection: a real client completes the handshake, then lets go of its
@@ -131,7 +136,7 @@ const stat = (xs) => {
 };
 const w = stat(wall);
 const c = stat(cpu);
-console.log(`${PLAYERS} players, ${SPREAD ? 'spread' : 'crowd'}, ${WASM ? 'engine' : 'script'} positions, ${BUDGET > 0 ? `budget ${BUDGET} B/s` : 'no budget'}: `
+console.log(`${PLAYERS} players, ${SPREAD ? 'spread' : 'crowd'}, ${WASM ? 'engine' : 'script'} positions, ${BUDGET > 0 ? `budget ${BUDGET} B/s` : 'no budget'}${REFRESH > 1 ? `, views every ${REFRESH} samples` : ''}: `
     + `tick mean ${w.mean.toFixed(2)} ms (cpu ${c.mean.toFixed(2)} ms), p50 ${w.p50.toFixed(2)} (cpu ${c.p50.toFixed(2)}), p90 ${w.p90.toFixed(2)}, `
     + `rows sent ${server.deltaRowsSent}, deferred ${server.rowsDeferred}`);
 if (PHASES) {

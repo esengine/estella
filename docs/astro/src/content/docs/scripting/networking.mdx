@@ -293,6 +293,26 @@ around by writing the reader differently:
   through the same composition. A game that writes `worldPosition` itself does
   not — that field is the composition's output, not an input.
 
+#### When everyone moves: `setInterestRefresh`
+
+In a crowd where everybody moves, every view changes every sample, and querying
+and diffing every connection's view every sample is most of what a sample costs.
+A view does not have to be that fresh:
+
+```typescript
+server.setInterestRefresh(4); // each connection's view every 4th sample, staggered
+```
+
+Each sample recomputes a quarter of the views; between recomputes a connection
+keeps the view it has and is still sent every change to what is in it. The cost
+is at the edge only: an entity walking into range arrives up to three samples
+late, and one walking out keeps being sent as long. A despawn leaves every view
+in the sample it happens, a connection whose own entities change is recomputed
+at once, and so is everyone when the interest source is replaced. The default,
+`1`, recomputes every view every sample. Measured with
+`tools/net-sample-microbench.mjs --wasm --refresh 4` (800 players, about 30 in
+view each, all moving): a sample went from about 8.2 ms to 5.5 ms.
+
 #### When a crowd is too much: a bandwidth budget
 
 Interest decides *whether* a connection sees an entity. In a town square or

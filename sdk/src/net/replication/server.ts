@@ -74,6 +74,14 @@ interface Connection {
      */
     provenance: VisibilityStamp | null;
     /**
+     * The sample `interest` was last computed in, and the interest source and
+     * owned set it was computed against: under a refresh interval a view stands
+     * between recomputes only while those two are the same. -1: never computed.
+     */
+    viewedAt: number;
+    viewSource: number;
+    viewOwned: number;
+    /**
      * Under a bandwidth budget: for each visible entity, the tick this
      * connection was last brought up to date on it, and how long it has waited
      * since. What it is owed is every field that changed after that tick — read
@@ -425,6 +433,10 @@ export class ReplicationServer {
      * cannot be mistaken for it.
      */
     private interestEpoch_ = 0;
+    /** Recompute each connection's view every this many samples (1: every one). */
+    private interestRefresh_ = 1;
+    /** Samples taken with interest on: what the staggered refresh counts. */
+    private interestSample_ = 0;
     private tick_ = 0;
     private fixedDelta_ = 0;
     /** Removal-history claims, one per replicated component. */
@@ -732,6 +744,27 @@ export class ReplicationServer {
         this.setInterest_(provider ? { kind: 'provider', value: provider } : null);
     }
 
+    /**
+     * Recompute each connection's view only every `samples` samples, staggered
+     * so a `1 / samples` share of the connections is recomputed each time. In a
+     * crowd where everyone moves, every view changes every sample, and asking
+     * the interest source and diffing the answer for every connection every
+     * sample is most of what a sample costs; between recomputes a connection
+     * keeps the view it has and is sent every change to what is in it.
+     *
+     * What it costs: an entity coming into range is spawned up to `samples - 1`
+     * samples late, and one going out of range keeps being sent as long. An
+     * entity that is despawned leaves every view at once, and a connection whose
+     * owned entities change, or a replaced interest source, is recomputed in
+     * that sample. `1` (the default) recomputes every view every sample.
+     */
+    setInterestRefresh(samples: number): void {
+        if (!Number.isInteger(samples) || samples < 1) {
+            throw new RangeError(`[repl] setInterestRefresh: samples must be a whole number of at least 1, got ${samples}`);
+        }
+        this.interestRefresh_ = samples;
+    }
+
     private setInterest_(next: typeof this.interest_): void {
         const previous = this.interest_;
         this.interestEpoch_++;
@@ -847,7 +880,7 @@ export class ReplicationServer {
             id, linkId: id, transport, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
-            interest: new Set(), provenance: null,
+            interest: new Set(), provenance: null, viewedAt: -1, viewSource: 0, viewOwned: 0,
             sent: new Map(), readyTick: 0, tokens: 0,
             helloed: false, helloTimer: null, violations: 0, violationWindow: Date.now(),
         } as Omit<Connection, 'channel'> as Connection;
@@ -1528,12 +1561,28 @@ export class ReplicationServer {
             conn: Connection; visible: ReadonlySet<Entity>; enters: Entity[];
             leaveIds: number[]; entered: ReadonlySet<Entity>;
         }[] = [];
+        const sampleNo = ++this.interestSample_;
+        const every = this.interestRefresh_;
+        // Under a refresh interval, a view that is not recomputed this sample
+        // still loses what was despawned — by the reverse index, not a scan.
+        let gone: Map<number, Entity[]> | null = null;
+        if (every > 1 && despawned.length > 0 && this.viewersByEntity_) {
+            gone = new Map();
+            for (const d of despawned) {
+                for (const id of this.viewersByEntity_.get(d.entity) ?? []) {
+                    let list = gone.get(id);
+                    if (!list) { list = []; gone.set(id, list); }
+                    list.push(d.entity);
+                }
+            }
+        }
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
+            const ownedNow = this.ownedEpoch_.get(conn.id) ?? 0;
             const stamp = visibility.snapshot === null ? null : {
                 source: this.interestEpoch_,
                 snapshot: visibility.snapshot,
-                owned: this.ownedEpoch_.get(conn.id) ?? 0,
+                owned: ownedNow,
             };
             // Nothing this answer is a function of moved: no query, no copy of
             // a result, neither scan over it. Routing needs no help — the
@@ -1544,7 +1593,26 @@ export class ReplicationServer {
                 });
                 continue;
             }
+            if (every > 1 && conn.viewedAt >= 0 && conn.viewSource === this.interestEpoch_
+                && conn.viewOwned === ownedNow && (sampleNo + conn.id) % every !== 0) {
+                const leaveIds: number[] = [];
+                for (const e of gone?.get(conn.id) ?? []) {
+                    if (!conn.interest.delete(e)) continue;
+                    this.unwatch_(e, conn.id);
+                    conn.sent.delete(e);
+                    const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
+                    if (netId !== undefined) leaveIds.push(netId);
+                }
+                // Not proved against this sample's snapshot: a later sample whose
+                // snapshot matches must not take this view as its answer.
+                conn.provenance = null;
+                plans.push({ conn, visible: conn.interest, enters: [], leaveIds, entered: NOBODY });
+                continue;
+            }
             this.visibilityRecomputes++;
+            conn.viewedAt = sampleNo;
+            conn.viewSource = this.interestEpoch_;
+            conn.viewOwned = ownedNow;
             let at = this.mark_();
             const visible = visibility.visible(conn.id);
             this.since_('visibility query', at);
@@ -1628,12 +1696,14 @@ export class ReplicationServer {
                         this.rowsEncoded++;
                     }
                     this.deltaRowsSent += mine.dirty.length;
-                    const payload = encoded.frame(tick, mine.dirty);
+                    // One spare byte in front for the channel id, so the channel
+                    // sends this buffer instead of copying it behind one.
+                    const framed = encoded.frame(tick, mine.dirty, 1);
                     this.since_('frame encode', encoding);
                     const sending = this.mark_();
-                    c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                    c.channel.sendBinaryInPlace(REPLICATION_CHANNEL, framed);
                     this.stats.stateFrames++;
-                    this.stats.stateBytes += payload.byteLength;
+                    this.stats.stateBytes += framed.byteLength - 1;
                     this.since_('transport send', sending);
                 }
             });
