@@ -5928,6 +5928,27 @@
           "range": "0–1, step 0.01"
         },
         {
+          "key": "seaWaveLength",
+          "type": "number",
+          "default": "30",
+          "doc": "The longest of the waves, crest to crest, in metres. Shorter trains ride on it.",
+          "range": "≥ 0.1"
+        },
+        {
+          "key": "seaWaveSteepness",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How steep the waves are: 0 is a mirror.",
+          "range": "0–2, step 0.01"
+        },
+        {
+          "key": "seaShallowDepth",
+          "type": "number",
+          "default": "8",
+          "doc": "How deep the water is before its bottom is lost to its colour, in metres. Shallower, it is clearer and paler, and it breaks white along the shore.",
+          "range": "≥ 0.01"
+        },
+        {
           "key": "layers",
           "type": "array",
           "default": "empty",
@@ -5973,7 +5994,10 @@
         "seaColor.g",
         "seaColor.b",
         "seaColor.a",
-        "seaOpacity"
+        "seaOpacity",
+        "seaWaveLength",
+        "seaWaveSteepness",
+        "seaShallowDepth"
       ]
     },
     {
@@ -11435,13 +11459,21 @@
           "type": "number",
           "default": "0",
           "doc": "The height of the sea above the planet's radius: ground lower than this is under water."
+        },
+        {
+          "key": "groundStep",
+          "type": "number",
+          "default": "1.5",
+          "doc": "How far apart the ground is read under what is placed, in the units of the planet. Larger is quicker to lay out and follows the ground less closely: several units for trees seen from the air, 1.5 for a world walked on foot.",
+          "range": "≥ 0.1"
         }
       ],
       "animatable": [
         "version",
         "seed",
         "surface",
-        "seaLevel"
+        "seaLevel",
+        "groundStep"
       ]
     },
     {

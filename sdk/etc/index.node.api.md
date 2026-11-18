@@ -7804,6 +7804,9 @@ sea: boolean
 seaColor: Color
 seaLevel: number
 seaOpacity: number
+seaShallowDepth: number
+seaWaveLength: number
+seaWaveSteepness: number
 seed: number
 tintLayers: boolean
 world: string
@@ -14534,6 +14537,7 @@ ComponentDef<WorldGenData>
 
 ## WorldGenData — interface @experimental
 ```
+groundStep: number
 paintGround: boolean
 rules: string
 seaLevel: number
