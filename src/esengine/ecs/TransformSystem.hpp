@@ -213,13 +213,19 @@ private:
         // eachLive (no per-frame snapshot copy of the entity list): the callback
         // writes Transform fields and derived collapse tags, while deferring
         // TransformDirty removal; the Transform pool itself stays stable.
-        registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
-            if (inTree(rel, entity)) return;
-            const bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
-            const bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
-            if (isStatic && !isDirty) return;
-            updateRootTransform(registry, entity, transform, isDirty);
-        });
+        if (plainRoots()) {
+            registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
+                if (!inTree(rel, entity)) copyRoot(registry, entity, transform);
+            });
+        } else {
+            registry.eachLive<Transform>([&registry, &rel, this](Entity entity, Transform& transform) {
+                if (inTree(rel, entity)) return;
+                const bool isStatic = have_static_ && registry.has<TransformStatic>(entity);
+                const bool isDirty = have_dirty_ && registry.has<TransformDirty>(entity);
+                if (isStatic && !isDirty) return;
+                updateRootTransform(registry, entity, transform, isDirty);
+            });
+        }
         if (!have_children_) return;
         for (const auto& tree : rel.cascade()) {
             if (!tree.alive) continue;
@@ -249,9 +255,17 @@ private:
             updateRootTransform(registry, entity, *transform, tagged);
         };
         // Down the pool's own arrays: the written Transform is in hand, with no lookup for it.
-        registry.eachChangedSince<Transform>(seenTick_, [&](Entity entity, Transform& transform) {
-            changed(entity, have_dirty_ && registry.has<TransformDirty>(entity), &transform);
-        });
+        if (plainRoots()) {
+            registry.eachChangedSince<Transform>(seenTick_, [&](Entity entity, Transform& transform) {
+                if (!inTree(rel, entity)) { copyRoot(registry, entity, transform); return; }
+                const auto at = rel.cascadeAt(entity);
+                changedSlots_.emplace_back(at.tree, at.slot);
+            });
+        } else {
+            registry.eachChangedSince<Transform>(seenTick_, [&](Entity entity, Transform& transform) {
+                changed(entity, have_dirty_ && registry.has<TransformDirty>(entity), &transform);
+            });
+        }
         // Moved under another parent, detached, or left a root by a destroyed parent: composed under a new matrix whatever its
         // own stamp says, and a static one too.
         for (const Entity entity : retargeted_) {
@@ -319,6 +333,22 @@ private:
         return context;
     }
     std::vector<u32> chain_;
+
+    /**
+     * @brief Whether a root needs nothing but its copy: no static Transform to leave alone, no dirty tag to clear, no change
+     *        list to feed. The usual frame; each entity then costs what copying it costs, and not the branches around it.
+     */
+    bool plainRoots() const { return !have_static_ && !have_dirty_ && !changedOut_; }
+
+    /** @brief updateRootTransform for a plainRoots() frame. */
+    void copyRoot(Registry& registry, Entity entity, Transform& transform) {
+        transform.worldPosition = transform.position;
+        transform.worldRotation = transform.rotation;
+        transform.worldScale = transform.scale;
+        transform.decomposed_ = true;
+        const bool collapsed = transform.scale.x == 0 || transform.scale.y == 0;
+        if (collapsed || have_collapsed_) setFlatCollapsed(registry, entity, collapsed);
+    }
 
     /** @brief A root's world transform is its local one: copied, never composed from a matrix. */
     void updateRootTransform(Registry& registry, Entity entity, Transform& transform, bool localDirty) {

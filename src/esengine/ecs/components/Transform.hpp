@@ -61,8 +61,10 @@ struct Transform {
     ES_PROPERTY(readonly)
     glm::vec3 worldScale{1.0f, 1.0f, 1.0f};
 
-    glm::mat4 cachedMatrix_{std::numeric_limits<f32>::quiet_NaN()};
+    // Beside the world fields, ahead of the matrix: composition sets it with every world transform it writes, and here it sits
+    // in the cache line it already wrote, not in a line of the matrix that a root never reads.
     bool decomposed_ = true;
+    glm::mat4 cachedMatrix_{std::numeric_limits<f32>::quiet_NaN()};
 
     void ensureDecomposed() {
         if (!decomposed_) {
