@@ -5652,6 +5652,17 @@
       "tag": true
     },
     {
+      "name": "Persistent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "key",
+          "type": "string",
+          "default": "empty"
+        }
+      ]
+    },
+    {
       "name": "PlacedFoliage",
       "source": "ts",
       "fields": [
