@@ -4,7 +4,7 @@
  * @file    streamingDistricts.mjs
  * @brief   Two textured neighbourhoods exercising the shared XY and XZ residency path.
  */
-export function streamingDistricts(plane, tag = 'base') {
+export function streamingDistricts(plane, tag = 'base', world = {}) {
     const screen = plane === 'xy';
     const component = (type, data = {}) => ({ type, data });
     const transform = (position, scale, rotation) => component('Transform', { position,
@@ -12,7 +12,7 @@ export function streamingDistricts(plane, tag = 'base') {
     const persistent = (id, name, components) => ({ id, name, parent: null, children: [], visible: true,
         components: [...components, component('WorldPersistent')] });
     const entities = [
-        persistent(1, 'World', [component('StreamedWorld', { cellSize: 100, plane: screen ? 1 : 0 })]),
+        persistent(1, 'World', [component('StreamedWorld', { cellSize: 100, plane: screen ? 1 : 0, ...world })]),
         persistent(2, 'Observer', [transform({ x: 50, y: screen ? 50 : 0, z: screen ? 0 : 50 }),
             component('WorldStreamingSource', { loadRadius: 30, unloadRadius: 80, prefetchRadius: 500 })]),
         persistent(3, 'Camera', [transform(screen ? { x: 200, y: 150, z: 900 } : { x: 200, y: 500, z: 150 }, undefined,

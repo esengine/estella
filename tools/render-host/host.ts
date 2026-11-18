@@ -25,6 +25,7 @@ import {
     Children, MeshRenderer, RuntimeOnly, CompositeBatch, CompositeBatchingRes, StaticBatchingRes,
     HttpBackend, initRuntime, createRuntimeSceneConfig, WorldStreaming, worldResidencyReport,
     cutWorld, registryEntityFields, stableEntityId, persistentEntityRows,
+    assembleFarProxies, farProxySettings, farProxySceneName, decodeMesh, encodeMesh,
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
@@ -482,8 +483,29 @@ const api = {
         if (!app || !module || streamedSource) throw new Error('loadStreamedWorld requires a fresh host');
         const cut = cutWorld(scene, name, { entityFieldsOf: registryEntityFields() });
         if (!cut || cut.errors.length > 0) throw new Error(`Cannot partition world: ${cut?.errors.join('; ')}`);
+        // Far proxies as Play makes them: assembled here, unsimplified, their meshes answered from memory.
+        const made = new Map<string, Uint8Array>();
+        const settings = farProxySettings(scene);
+        if (settings) {
+            for (const proxy of await assembleFarProxies(cut, settings, {
+                loadPrefab: async () => null,
+                readMesh: async (ref) => {
+                    const response = await fetch(ref);
+                    return response.ok ? decodeMesh(new Uint8Array(await response.arrayBuffer())) : null;
+                },
+            })) {
+                cut.documents.set(farProxySceneName(proxy.cell), proxy.document);
+                for (const { path, mesh } of proxy.meshes) made.set(path, encodeMesh(mesh));
+            }
+        }
+        class MadeBackend extends HttpBackend {
+            override async fetchBinary(path: string): Promise<ArrayBuffer> {
+                const bytes = made.get(path.replace(/^\/+/, ''));
+                return bytes ? bytes.slice().buffer : super.fetchBinary(path);
+            }
+        }
         streamedSource = {
-            backend: new HttpBackend({ baseUrl: '' }),
+            backend: new MadeBackend({ baseUrl: '' }),
             decodePixels: async path => {
                 const response = await fetch(path);
                 if (!response.ok) throw new Error(`Texture fetch failed: ${response.status} ${path}`);

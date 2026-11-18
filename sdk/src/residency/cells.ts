@@ -34,6 +34,11 @@ export interface WorldCell {
     entityCount: number;
     /** Top-level authored entities inside — each one a residency atom. */
     rootCount: number;
+    /**
+     * Where the cell's far proxy document ships, package-relative, when the cook baked one: its static meshes merged and
+     * simplified, shown while the cell is not resident.
+     */
+    proxy?: string;
 }
 
 /** A cooked world: the persistent scene's cells. @experimental */
@@ -55,6 +60,8 @@ export interface WorldManifest {
      */
     persistentRefs: number[];
     cells: WorldCell[];
+    /** How far from a source a cell that is not resident shows its far proxy. Absent when the world has none. */
+    farDistance?: number;
 }
 
 /** One source's ask, as the streamer samples it. @experimental */

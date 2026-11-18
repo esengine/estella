@@ -60,7 +60,7 @@ const proxy = await bakeStaticProxy(sources, {
 `pruneDisconnected: true` 允许删除小的独立构件,默认关闭,启用后需要对照画面验收。
 
 会运动、变形、朝向相机、透明混合、带光照贴图、骨骼或形态目标的表面会列入 `refused`,由原有逻辑继续管理。
-这目前是 HLOD 的几何制作环节;纹理和发光烘焙、自动生成格子代理、距离选择以及精细场景与代理之间的流送交接尚未接通。
+流送世界的格子用的是同一套分组:在 `StreamedWorld` 上勾选 **Far proxies**,每个格子都会带一个烘好的替身,格子不常驻时由流送器显示(见[世界流送](/docs/zh-cn/world/streaming/))。纹理和发光烘焙、越远越粗的多级代理还没有做。
 
 ## 这些尺寸是屏幕占比,不是距离
 
@@ -148,7 +148,7 @@ world.insert(tree, Impostor, { screenSize: 0.06, frames: 8, resolution: 1024 });
 
 `LODGroup` 讲的是**同一个物体在不同尺寸下**的事。它不是流式加载:每一级的网格都常驻,
 不会加载也不会卸载;小到 `cullSize` 以下的物体只是不画,并没有从世界里移走。
-把远处的物体合并成一个代理(HLOD),以及把世界分块加载,都是另外的题目;引擎里没有把任意场景物体烘成代理的通用 HLOD。
+把远处的物体合并成一个代理(HLOD),以及把世界分块加载,都是另外的题目;流送世界的格子由上面的烘焙得到远景代理。
 现有的是针对具体内容的:植物的远景版本(`Foliage`、`PlacedFoliage`,见[植被](/docs/zh-cn/graphics/foliage/))、
 地形自己按距离切分的四叉树([地形](/docs/zh-cn/graphics/terrain/)),以及[静态合批](/docs/zh-cn/performance/static-batching/)
 (把不同网格合并以省绘制调用,但不会让它们在远处变便宜)。

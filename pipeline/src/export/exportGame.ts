@@ -1072,6 +1072,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   progress({ phase: 'Cutting worlds' });
   const world = await cookWorlds(opts.root, payloadDir, scenes);
   warnings.push(...world.warnings);
+  for (const far of world.farProxies) {
+    progress({ phase: 'Cutting worlds', detail: `${far.scene}: far proxies for ${far.cells} cell(s), `
+      + `${far.trianglesBefore} -> ${far.trianglesAfter} triangles` });
+  }
   // The flat manifest is a build-time intermediate: the addressable one above is
   // derived from it, and every runtime now reads only that. Dropping it keeps one
   // asset model in the package — the mini-game export has always done this.

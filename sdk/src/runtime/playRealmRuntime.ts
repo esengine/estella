@@ -21,6 +21,8 @@ import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
 import { registryEntityFields } from '../residency/componentRefs';
+import { assembleFarProxies, farProxySceneName, farProxySettings } from '../residency/farProxy';
+import { decodeMesh, encodeMesh } from '../asset/meshFormat';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
@@ -187,14 +189,27 @@ export function playRealmTextureSettings(
     };
 }
 
+/** An http backend that answers some paths from memory: what Play made itself, like a world's far proxy meshes. */
+class OverlayBackend extends HttpBackend {
+    constructor(private readonly overlay_: ReadonlyMap<string, Uint8Array>) {
+        super({ baseUrl: '' });
+    }
+
+    override async fetchBinary(path: string): Promise<ArrayBuffer> {
+        const bytes = this.overlay_.get(path) ?? this.overlay_.get(this.resolveUrl(path));
+        return bytes ? bytes.slice().buffer : super.fetchBinary(path);
+    }
+}
+
 function createPlayRealmSource(
     manifest: Record<string, string>,
     assetBaseUrl?: string,
     pathMap?: Record<string, string>,
     addressable?: AddressableManifest | null,
     compressedTexture?: RuntimeAssetSource['compressedTexture'],
+    overlay: ReadonlyMap<string, Uint8Array> = new Map(),
 ): RuntimeAssetSource {
-    const backend = new HttpBackend({ baseUrl: '' });
+    const backend = new OverlayBackend(overlay);
     return {
         backend,
         ...(compressedTexture ? { compressedTexture } : {}),
@@ -250,6 +265,39 @@ export async function cutPlayWorld(
 }
 
 /**
+ * Give a cut world the far proxies a build would, when its `StreamedWorld` asks for them.
+ *
+ * Assembled by the same `assembleFarProxies` a cook runs, so the same surfaces stand in for each cell, grouped the same way;
+ * Play has no simplifier, so its proxies keep every triangle of what they stand for. The documents join the cut's and the meshes
+ * are served from `made` under the paths the documents name.
+ */
+export async function addPlayFarProxies(
+    cut: CutWorld, scene: SceneData, resolveRef: (ref: string) => string, made: Map<string, Uint8Array>,
+): Promise<void> {
+    const settings = farProxySettings(scene);
+    if (settings === null) return;
+    const fetched = async (ref: string): Promise<Response | null> => {
+        const response = await fetch(resolveRef(ref));
+        return response.ok ? response : null;
+    };
+    const proxies = await assembleFarProxies(cut, settings, {
+        loadPrefab: async (ref) => (await (await fetched(ref))?.json() ?? null) as never,
+        readMesh: async (ref) => {
+            const response = await fetched(ref);
+            return response ? decodeMesh(new Uint8Array(await response.arrayBuffer())) : null;
+        },
+    });
+    for (const proxy of proxies) {
+        cut.documents.set(farProxySceneName(proxy.cell), proxy.document);
+        for (const { path, mesh } of proxy.meshes) {
+            const bytes = encodeMesh(mesh);
+            made.set(path, bytes);
+            made.set(resolveRef(path), bytes);
+        }
+    }
+}
+
+/**
  * Boot the shipping runtime against a single in-memory scene snapshot. The host
  * page has already created `app` (createWebApp) + bound a GL context; here we
  * register the snapshot as the sole scene, wire a fetch-backed source, and run.
@@ -257,14 +305,18 @@ export async function cutPlayWorld(
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
     const life = app.signal;
+    const made = new Map<string, Uint8Array>();
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
-                                         config.compressedTexture);
+                                         config.compressedTexture, made);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
     const entryName = config.entrySceneName ?? '__play';
     const cut = await cutPlayWorld(
         sceneData, entryName,
         (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
     );
+    if (cut) {
+        await addPlayFarProxies(cut, sceneData, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap), made);
+    }
     life.throwIfAborted();
     await initRuntime({
         app,

@@ -116,6 +116,34 @@ lies in the screen plane, where every entity has the same z, so set `plane` to *
 world x and y instead; the streaming sources are then read by their x and y too. Without it a 2D world falls into one row of cells along x. The same
 field, `plane: 'xy'`, is in the cooked manifest (`WorldManifest.plane`), and a cell's `z` is then world y.
 
+## Far proxies
+
+A cell that is not resident is not in the world, so without more a place past the load radius is not drawn at all. Tick
+**Far proxies** on `StreamedWorld` and a build bakes each cell a stand-in: the cell's static, opaque meshes merged into one
+draw per material and simplified, shown while the cell is absent.
+
+```typescript
+world.insert(settings, StreamedWorld, {
+    cellSize: 1000,
+    farProxies: true,
+    farDistance: 8000,   // a cell this close to a source and not resident shows its proxy
+    proxyError: 1,       // how far, in world units, a simplified surface may move
+    proxyRatio: 0.1,     // the share of triangles to aim for; proxyError can keep more
+});
+```
+
+The cook writes `world/<cell>.far.json` and its meshes beside the cell, and names them on the cell in the manifest
+(`WorldCell.proxy`, with `WorldManifest.farDistance`). Prefab instances are expanded, so a building placed as a prefab
+contributes its meshes. A surface is left out of the proxy when it is disabled or blended, skinned, a billboard, or when it or a
+parent moves on its own (a character controller, a body that is not static, an animator).
+
+The streamer hands over in both directions without a gap. Walking towards a cell, its proxy stays until the cell is in the world;
+walking away, the cell stays until its proxy is. A proxy that fails to load does not hold its cell. `WorldStreamerStatus.proxyCells`
+and the residency report list the cells drawn by their proxy.
+
+Play makes the same proxies from the same cells, in memory, but does not simplify them: they keep every triangle of what they
+stand for, so a proxy in Play looks exactly like its cell, and a build's looks like it within `proxyError`.
+
 ## The rules a streamed world has to obey
 
 **A subtree is the unit of residency.** Only top-level entities are placed, so a
@@ -206,11 +234,10 @@ so the replacement cannot take ownership of a name that still has live content.
 Cells load asynchronously through the same scene loading a game already uses.
 They are ordered (a cell a source is walking into goes before one it only might,
 nearest first) and can be readied ahead by `prefetchRadius`, but there is no
-admission budget: a large cell arriving is still a hitch. Streamed cells have
-no HLOD yet: the [static proxy baker](/docs/performance/level-of-detail/) can
-merge and simplify a cell's static meshes, but cooking does not run it and
-streaming does not draw its result, so a cell that is not resident is not
-represented at all in the distance. Some content has a far version of its own:
+admission budget: a large cell arriving is still a hitch. A cell's far proxy
+(above) carries its static meshes only: what moves, blends or is not a mesh
+(sprites, particles, lights) is not drawn while the cell is absent, and a
+proxy has one level, not a chain of coarser ones further out. Some content has a far version of its own:
 the ground ([Terrain](/docs/graphics/terrain/) is a distance-based quadtree out to
 `drawDistance`; tiled ground draws its distance from an overview that is always
 in memory and reads full-detail tiles only near the view; a planet is drawn down

@@ -941,7 +941,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
             config.externalEntities = () => persistentEntityRows(app, world);
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
             return config;
-        });
+        }, (_cell, scene, path) => createRuntimeSceneConfig(scene, documents?.get(scene), sceneOpts, path));
         life.throwIfAborted();
     }
 

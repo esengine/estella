@@ -165,6 +165,23 @@ describe('what Play hands the shipping runtime', () => {
         }
     });
 
+    it('gives each cell with static meshes the far proxy a build would, served from memory', async () => {
+        const cube: Component = { type: 'MeshRenderer', data: { mesh: 'builtin:cube', opaque: true } };
+        const config = await boot(scene(
+            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, farProxies: true, farDistance: 4000 } }] }),
+            entity(1, 'Player', [10, 0, 10], { components: [{ type: 'WorldPersistent', data: {} }] }),
+            entity(2, 'RockA', [500, 0, 500], { components: [cube] }),
+            entity(3, 'RockB', [1500, 0, 500]),
+        ));
+        const world = config.worlds![0];
+        expect(world.farDistance).toBe(4000);
+        expect(world.cells.map((c) => c.proxy)).toEqual(['world/main.cell_0_0.far.json', undefined]);
+        const proxy = config.cellDocuments!.get('main.cell_0_0#far')!;
+        const mesh = (proxy.entities[0]!.components.find((c) => c.type === 'MeshRenderer')!.data as { mesh: string }).mesh;
+        // Fetching anything would throw: the proxy's mesh is the realm's own.
+        expect((await config.source.backend.fetchBinary(mesh)).byteLength).toBeGreaterThan(0);
+    });
+
     it('carries no world at all for a scene that is not one', async () => {
         const config = await boot(scene(entity(0, 'Ground', [0, 0, 0])));
         expect(config.worlds).toBeUndefined();

@@ -8074,11 +8074,41 @@
             "Ground (x, z)",
             "Screen (x, y)"
           ]
+        },
+        {
+          "key": "farProxies",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Bake each cell a merged, simplified stand-in of its static meshes, drawn while the cell is not loaded."
+        },
+        {
+          "key": "farDistance",
+          "type": "number",
+          "default": "8000",
+          "doc": "How far from a source an unloaded cell still shows its far proxy.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "proxyError",
+          "type": "number",
+          "default": "1",
+          "doc": "How far a far proxy surface may move from the original.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "proxyRatio",
+          "type": "number",
+          "default": "0.1",
+          "doc": "Share of triangles a far proxy aims to keep.",
+          "range": "0.01–1"
         }
       ],
       "animatable": [
         "cellSize",
-        "plane"
+        "plane",
+        "farDistance",
+        "proxyError",
+        "proxyRatio"
       ]
     },
     {

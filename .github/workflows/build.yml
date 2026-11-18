@@ -115,6 +115,8 @@ jobs:
       run: node tools/tests/composite-batch.e2e.mjs --webgl-only
     - name: Check 2D and 3D world residency teardown with genuine headless Chromium
       run: node tools/tests/world-residency.e2e.mjs --webgl-only
+    - name: Check a streamed cell's far proxy draws it while absent, with no gap in the hand-over
+      run: node tools/tests/far-proxy.e2e.mjs --webgl-only
     - name: Check baked static proxy geometry and materials
       run: node tools/tests/static-proxy.e2e.mjs --webgl-only
     - name: Upload static proxy observations
@@ -863,6 +865,8 @@ jobs:
       run: node tools/tests/composite-batch.e2e.mjs --webgpu-only
     - name: Check 2D and 3D world residency teardown on the second backend
       run: node tools/tests/world-residency.e2e.mjs --webgpu-only
+    - name: Check a streamed cell's far proxy on the second backend
+      run: node tools/tests/far-proxy.e2e.mjs --webgpu-only
     - name: Check baked static proxy geometry and materials on the second backend
       run: node tools/tests/static-proxy.e2e.mjs --webgpu-only
     - name: Upload second-backend static proxy observations

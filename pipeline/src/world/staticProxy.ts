@@ -5,7 +5,7 @@
  * @brief   Bake a static cluster into material-preserving, simplified geometry proxies.
  */
 import { createHash } from 'node:crypto';
-import { staticBatchLayout, staticBatchLayoutRefusal, mergeMeshes, planStaticBatches, staticBatchKey, encodeMesh,
+import { staticBatchLayout, staticBatchLayoutRefusal, staticBatchKey, encodeMesh, groupFarProxy,
     type MeshData, type StaticBatchDrawState, type StaticBatchRefusal } from 'esengine';
 import { simplifyMesh } from '../assets/meshSimplify';
 
@@ -90,19 +90,9 @@ export async function bakeStaticProxy(sources: readonly StaticProxySource[], opt
         if (reason) result.refused.push({ entity: source.entity, reason });
         else accepted.set(source.entity, source);
     }
-    const plan = planStaticBatches([...accepted.values()].map(source => ({
-        entity: source.entity, key: staticBatchKey(source.state, staticBatchLayout(source.mesh.channels, source.mesh.vertexStride)),
-        center: [0, 0, 0], vertices: source.mesh.vertexCount,
-    })), { cellSize: 1, maxVertices: options.maxVertices ?? 262144 });
-    const groups = [...plan.batches.map(batch => batch.entities), ...plan.alone.map(entity => [entity])]
-        .sort((a, b) => a[0]! - b[0]!);
-    for (const ids of groups) {
+    const groups = groupFarProxy([...accepted.values()], options.origin, options.maxVertices ?? 262144);
+    for (const { sources: ids, mesh: merged } of groups) {
         const parts = ids.map(entity => accepted.get(entity)!);
-        const merged = mergeMeshes(parts.map(source => {
-            const world = Array.from(source.world);
-            for (let axis = 0; axis < 3; axis++) world[12 + axis]! -= options.origin[axis]!;
-            return { mesh: source.mesh, world };
-        }));
         const preservedGeometry = parts.some(source => source.preserveGeometry);
         const simplified = preservedGeometry ? null : await simplifyMesh(merged, { ratio: options.ratio, maxError: options.maxWorldError,
             flags: options.pruneDisconnected ? ['ErrorAbsolute', 'Permissive', 'Prune'] : ['ErrorAbsolute', 'Permissive'] });

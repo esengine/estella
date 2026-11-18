@@ -30,6 +30,11 @@ export {
 } from './cutWorld';
 export { registryEntityFields } from './componentRefs';
 export {
+    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies,
+    type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
+    type AssembledFarProxy,
+} from './farProxy';
+export {
     ProceduralChunks, ProceduralChunksRes, chunksOf, streamingSourcesOf,
     type ChunkLayer, type ChunkSource, type ChunkState, type ChunkLayerStatus,
 } from './chunks';

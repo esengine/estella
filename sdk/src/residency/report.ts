@@ -54,6 +54,8 @@ export interface WorldResidencyReport {
     renderClaims: Record<string, RenderReadinessStamp & { restamps: number }>;
     loadingCells: string[];
     unloadingCells: string[];
+    /** Cells drawn by their far proxy right now. */
+    proxyCells: string[];
     loadCount: number;
     unloadCount: number;
     prepareCount: number;
@@ -96,7 +98,7 @@ const EMPTY: WorldResidencyReport = {
     streamed: false, cellCount: 0, cells: [], cellSize: 0, plane: 'xz', sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
     preparedWithRenderClaim: [], renderClaims: {},
-    loadingCells: [], unloadingCells: [],
+    loadingCells: [], unloadingCells: [], proxyCells: [],
     loadCount: 0, unloadCount: 0, prepareCount: 0, cancelCount: 0,
     prefetchRequests: 0, cancelledRefs: 0,
     prefetchHits: 0, prefetchMisses: 0, lastDemandToResidentMs: 0,
@@ -164,6 +166,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
                 .map(([c, stamp]) => [c, { ...stamp, restamps: streamer.restampsOf(c) }])),
         loadingCells: status.loadingCells,
         unloadingCells: status.unloadingCells,
+        proxyCells: status.proxyCells,
         loadCount: status.loadCount,
         unloadCount: status.unloadCount,
         prepareCount: status.prepareCount,

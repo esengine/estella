@@ -32,6 +32,17 @@ export interface StreamedWorldData {
     cellSize: number;
     /** The plane the cells lie on: the ground (x, z) of a 3D world, or the screen (x, y) of a 2D one. */
     plane: StreamPlane;
+    /**
+     * Whether a build bakes each cell a far proxy: its static, opaque meshes merged and simplified, drawn in the cell's place
+     * while the cell is not resident. Off by default.
+     */
+    farProxies: boolean;
+    /** How far from a source a cell that is not resident still shows its far proxy, world units. */
+    farDistance: number;
+    /** Largest distance, world units, a far proxy's surface may move from the original's. */
+    proxyError: number;
+    /** Target share of triangles a far proxy keeps, in (0, 1]; `proxyError` can keep more. */
+    proxyRatio: number;
 }
 
 /**
@@ -45,11 +56,15 @@ export interface StreamedWorldData {
  */
 export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<StreamedWorldData>(
     'StreamedWorld',
-    { cellSize: 1000, plane: StreamPlane.Ground },
+    { cellSize: 1000, plane: StreamPlane.Ground, farProxies: false, farDistance: 8000, proxyError: 1, proxyRatio: 0.1 },
     {
         fields: {
             cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the plane.' },
             plane: { enum: [{ label: 'Ground (x, z)', value: StreamPlane.Ground }, { label: 'Screen (x, y)', value: StreamPlane.Screen }], tooltip: 'Which two world axes the cells are cut along: a 3D world is cut on the ground, a 2D world on the screen plane.' },
+            farProxies: { tooltip: 'Bake each cell a merged, simplified stand-in of its static meshes, drawn while the cell is not loaded.' },
+            farDistance: { min: 0, unit: 'wu', tooltip: 'How far from a source an unloaded cell still shows its far proxy.' },
+            proxyError: { min: 0, unit: 'wu', tooltip: 'How far a far proxy surface may move from the original.' },
+            proxyRatio: { min: 0.01, max: 1, tooltip: 'Share of triangles a far proxy aims to keep.' },
         },
     },
 );

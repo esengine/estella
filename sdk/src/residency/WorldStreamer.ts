@@ -17,7 +17,8 @@
  *          of things to hide.
  */
 
-import { desiredResidency, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
+import { desiredResidency, distanceToCell, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
+import { farProxySceneName } from './farProxy';
 import type { SceneConfig } from '../scene/sceneManager';
 import {
     sameReadiness, type RenderReadiness, type RenderReadinessStamp,
@@ -71,6 +72,8 @@ export interface WorldStreamerStatus {
     preparedCells: string[];
     loadingCells: string[];
     unloadingCells: string[];
+    /** Cells whose far proxy is in the world, drawn in the cell's place. */
+    proxyCells: string[];
     /** Cells brought in since boot, and cells taken out. Churn is the difference. */
     loadCount: number;
     unloadCount: number;
@@ -138,6 +141,16 @@ interface CellState {
     outcome: 'hit' | 'miss' | '';
 }
 
+/** A cell's far proxy: a scene of its merged static meshes, in the world while the cell is not. */
+interface ProxyState {
+    scene: string;
+    residency: 'unloaded' | 'loading' | 'resident' | 'unloading';
+    /** Whether the last reconciliation wants it in the world. */
+    wanted: boolean;
+    /** A proxy that failed to load stops holding its cell's unload back. */
+    failed: boolean;
+}
+
 /** Where one cell's last delivery spent its time. @experimental */
 export interface CellDelivery {
     /** Phases of the preparation, which runs between frames and on no system timer. */
@@ -158,6 +171,8 @@ export class WorldStreamer {
     private manifest_: WorldManifest | null = null;
     /** In manifest order, so every list this produces is stable. */
     private readonly cells_ = new Map<string, CellState>();
+    /** Cell name → its far proxy, for cells the cook baked one. */
+    private readonly proxies_ = new Map<string, ProxyState>();
     private sourceCount_ = 0;
     private loadCount_ = 0;
     private unloadCount_ = 0;
@@ -178,14 +193,23 @@ export class WorldStreamer {
     }
 
     /** Adopt a cooked world after the previous world's operations and receipts drain. The latest request wins. */
-    async loadManifest(manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig): Promise<void> {
+    async loadManifest(
+        manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig,
+        proxyConfig?: (cell: WorldCell, scene: string, path: string) => SceneConfig,
+    ): Promise<void> {
         const request = ++this.manifestRequest_;
         if (this.cells_.size > 0 || this.clearing_) await this.clearCells_();
         if (request !== this.manifestRequest_) return;
         this.manifest_ = manifest;
         this.cells_.clear();
+        this.proxies_.clear();
         for (const cell of manifest.cells) {
             this.host_.register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
+            if (cell.proxy && manifest.farDistance !== undefined) {
+                const scene = farProxySceneName(cell.name);
+                this.host_.register(proxyConfig?.(cell, scene, cell.proxy) ?? { name: scene, path: cell.proxy });
+                this.proxies_.set(cell.name, { scene, residency: 'unloaded', wanted: false, failed: false });
+            }
             this.cells_.set(cell.name, {
                 cell, residency: 'unloaded', desired: false, speculated: false,
                 assetsReady: false, renderReadiness: null, readinessInFlight: false,
@@ -295,15 +319,63 @@ export class WorldStreamer {
             state.desired = wanted;
             state.speculated = speculated.has(name);
         }
+        // Which stand-ins are wanted is settled before any cell steps: a cell stepped on the way (a prefetch of one that is
+        // leaving) reads its proxy's want to decide whether it may go.
+        this.wantProxies_(sources);
         // Demanded first and nearest first: a place a player is walking into
         // outranks one they might. Then speculation, then what nobody needs.
         for (const name of decision.toLoad) this.step_(name);
         for (const name of decision.prefetch) if (!target.has(name)) this.step_(name);
+        for (const proxy of this.proxies_.values()) this.stepProxy_(proxy);
         for (const name of decision.toUnload) this.step_(name);
         for (const [name, state] of this.cells_) {
             if ((state.residency === 'prepared' || state.residency === 'preparing') && !state.desired && !state.speculated) {
                 this.step_(name);
             }
+        }
+    }
+
+    /**
+     * A proxy is wanted where a source is within the far distance and its cell is not shown and staying: absent, still on its
+     * way, or about to leave. So it is in before its cell goes, and goes only once its cell is in: the place is never empty.
+     */
+    private wantProxies_(sources: readonly ResidencySource[]): void {
+        const far = this.manifest_?.farDistance ?? 0;
+        for (const [name, proxy] of this.proxies_) {
+            const state = this.cells_.get(name)!;
+            let near = false;
+            for (const source of sources) {
+                if (distanceToCell(state.cell, source.x, source.z) <= far) { near = true; break; }
+            }
+            proxy.wanted = !this.clearing_ && near && !(state.residency === 'resident' && state.desired);
+        }
+    }
+
+    private stepProxy_(proxy: ProxyState): void {
+        if (proxy.residency === 'loading' || proxy.residency === 'unloading') return;
+        if (proxy.wanted && proxy.residency === 'unloaded' && !proxy.failed) {
+            proxy.residency = 'loading';
+            // Prepared and its programs readied before it is published, as a cell is: a proxy counted in the world before it can
+            // draw is the gap it exists to close.
+            this.run_(async () => {
+                await this.host_.prepare(proxy.scene);
+                await this.host_.readyRenderPrograms?.(proxy.scene);
+                return this.host_.loadAdditive(proxy.scene);
+            },
+                () => { proxy.residency = 'resident'; this.stepProxy_(proxy); },
+                (err) => {
+                    proxy.residency = 'unloaded';
+                    proxy.failed = true;
+                    log.error('residency', `far proxy "${proxy.scene}" did not load`, err);
+                });
+        } else if (!proxy.wanted && proxy.residency === 'resident') {
+            proxy.residency = 'unloading';
+            this.run_(() => this.host_.unload(proxy.scene, { keepPersistent: false }),
+                () => { proxy.residency = 'unloaded'; this.stepProxy_(proxy); },
+                (err) => {
+                    proxy.residency = this.host_.isLoaded(proxy.scene) ? 'resident' : 'unloaded';
+                    log.error('residency', `far proxy "${proxy.scene}" did not unload`, err);
+                });
         }
     }
 
@@ -322,11 +394,14 @@ export class WorldStreamer {
             state.speculated = false;
         }
         this.clearPromise_ = (async () => {
+            for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
             for (const name of this.cells_.keys()) this.step_(name);
-            // Publication may finish by starting an unload, so drain the entire chain.
+            // Publication may finish by starting an unload, so drain the entire chain; a proxy still loading when the drain
+            // began lands and unloads itself inside it.
             while (this.operations_.size > 0) await Promise.allSettled([...this.operations_]);
-            const remaining = [...this.cells_].filter(([, state]) => state.residency !== 'unloaded');
-            if (remaining.length > 0) throw new Error(`World residency could not release: ${remaining.map(([name]) => name).join(', ')}`);
+            const remaining = [...this.cells_].filter(([, state]) => state.residency !== 'unloaded').map(([name]) => name);
+            for (const proxy of this.proxies_.values()) if (proxy.residency !== 'unloaded') remaining.push(proxy.scene);
+            if (remaining.length > 0) throw new Error(`World residency could not release: ${remaining.join(', ')}`);
         })().finally(() => {
             this.clearing_ = false;
             this.clearPromise_ = null;
@@ -370,6 +445,7 @@ export class WorldStreamer {
             sourceCount: this.sourceCount_,
             desiredCells, prefetchCells, residentCells, preparedCells,
             loadingCells, unloadingCells,
+            proxyCells: [...this.proxies_].filter(([, proxy]) => proxy.residency === 'resident').map(([name]) => name),
             loadCount: this.loadCount_, unloadCount: this.unloadCount_,
             prepareCount: this.prepareCount_, cancelCount: this.cancelCount_,
             prefetchRequests: this.prefetchRequests_,
@@ -433,6 +509,9 @@ export class WorldStreamer {
             // happens to be ready.
             this.discardPrepared_(name, state);
         } else if (state.residency === 'resident' && !state.desired) {
+            // Held until its far proxy is in, so the place does not vanish for the frames the proxy takes to arrive.
+            const proxy = this.proxies_.get(name);
+            if (proxy && proxy.wanted && !proxy.failed && proxy.residency !== 'resident' && !this.clearing_) return;
             this.beginUnload_(name, state);
         }
     }
