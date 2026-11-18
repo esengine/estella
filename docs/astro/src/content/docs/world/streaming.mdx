@@ -138,15 +138,24 @@ failed to prepare or publish does not hold the game. `worldResidencyReport`
 says what the policy is doing: `urgentCells`, `queuedCells`, `holding`,
 `holdCount`, `holdMs` and `rushCount` (publications finished outside the budget).
 
-`maxLoadingCells` is the trade a slow device feels most, because preparing a
-cell (decoding, uploading textures, readying programs) costs main-thread time
-that is not under the budget. Measured along `examples/far-proxy-town`'s flight
-with the CPU slowed five times (`tools/measure-cell-hitch.mjs`): with no cap the
-worst frame was 375 ms and 72 of 2700 frames took over 100 ms, and the cell under
-the flyer was always in; with the default 4, 8 frames took over 100 ms and the worst was one that finished
-an urgent cell at once (547 ms; the next worst, 196 ms), but the cell under the flyer was still
-being prepared for 571 frames, each of which `wait` turns into a held game. A game
-that moves fast gives `prefetchRadius` room for that, or raises the cap.
+A cell's **preparation** takes its pieces in a frame's turns too. Fetching its
+document and its assets happens off the frame, but what runs when they answer
+(parsing the document, expanding its prefabs, finding and resolving its assets,
+readying its programs) waits for a turn (`Bakes.turn`): each frame gives as many
+as what is left of its budget fits, and at least one. Before, every answer ran
+the moment it came, and four cells answering at once were one long frame. A
+cell that is urgent, or rushed because the world is being cleared, takes no
+turns. Decoding an asset (a mesh, a texture) is not split this way yet.
+
+`maxLoadingCells` caps how many cells are being prepared at once. Above it, the
+nearest cells are prepared first. More at once brings the far side of a fast
+player's view in sooner, and gives the turns more to share.
+
+Measured along `examples/far-proxy-town`'s flight with the CPU slowed five times
+(`tools/measure-cell-hitch.mjs`, the game running in real time, three runs each):
+the longest piece of preparation in a long frame went from 25–105 ms to 23–45 ms,
+and its total over a minute from 1.8–4.2 s to 1.0–1.6 s. The frames themselves
+vary too much from run to run on a shared machine to say more than that.
 
 The numbers differ from Unreal's on purpose: Estella has one budget for all work
 spread over frames where Unreal has one for level streaming alone, and the

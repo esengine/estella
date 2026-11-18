@@ -1640,10 +1640,13 @@ hold: (owner: object, held: boolean) => void
 holding: boolean
 mark: (owner: object, label: string, progress: number) => void
 priorityExtraMs: number
+release: (owner: object) => void
 run: <T>(label: string, job: WorkJob<T>) => { done: Promise<T>; cancel: () => void; finish: () => void; }
 step: (now?: () => number) => void
+turn: (owner?: object) => Promise<void>
 urge: (owner: object, urgent: boolean) => void
 urgent: boolean
+waiting: number
 static new (): Bakes
 static prototype: Bakes
 ```
@@ -6187,6 +6190,7 @@ settled: () => Promise<void>
 ```
 app: App
 externalEntities: ReadonlyMap<number, number> | undefined
+gate: (() => Promise<void>) | undefined
 module: ESEngineModule | null
 onPhase: ((phase: string, ms: number) => void) | undefined
 physics3dBackend: Physics3DBackend | undefined

@@ -236,6 +236,20 @@ describe('streaming policy', () => {
         expect(h.calls).toContain('unload:c_5_0:whole');
     });
 
+    it('lets a preparation through when the world is cleared', async () => {
+        const h = heldHost();
+        const s = new WorldStreamer(h.host);
+        s.setPolicy({ slowStreaming: 'budget' });
+        s.loadManifest(manifest(cell(5, 0)));
+        s.update([source(-10, 50, 1000)]);
+        await flush();
+        expect(s.residencyOf('c_5_0')).toBe('preparing');
+        const cleared = s.clear();
+        expect(h.calls).toContain('rush:c_5_0');
+        h.prepared('c_5_0');
+        await cleared;
+    });
+
     it('finishes publication spread over frames when the world is cleared', async () => {
         const h = heldHost();
         const s = new WorldStreamer(h.host);
@@ -260,6 +274,70 @@ describe('Bakes hold and finish', () => {
         await expect(handle.done).resolves.toBe('made');
         expect(steps).toBe(100);
         expect(bakes.active).toEqual([]);
+    });
+
+    it('a turn waits for a frame, and a frame gives at least one', async () => {
+        const bakes = new Bakes();
+        const order: string[] = [];
+        void bakes.turn({}).then(() => order.push('a'));
+        void bakes.turn({}).then(() => order.push('b'));
+        await Promise.resolve();
+        expect(order).toEqual([]);
+        expect(bakes.waiting).toBe(2);
+        // A frame with no time left still gives one turn, in the order they were asked for.
+        let t = 0;
+        bakes.budgetMs = 0;
+        bakes.step(() => t);
+        await Promise.resolve();
+        expect(order).toEqual(['a']);
+        bakes.step(() => t);
+        await Promise.resolve();
+        expect(order).toEqual(['a', 'b']);
+        t++;
+    });
+
+    it('gives as many turns as the frame has time for, by what a turn has been costing', async () => {
+        const bakes = new Bakes();
+        let t = 0;
+        const clock = () => t;
+        bakes.budgetMs = 8;
+        const owner = {};
+        let opened = 0;
+        // Each piece of work after a turn takes 3 ms and then asks for the next turn.
+        const worker = async (pieces: number) => {
+            for (let i = 0; i < pieces; i++) { await bakes.turn(owner); opened++; t += 3; }
+        };
+        void worker(10);
+        // The first frame: nothing known about the cost, one turn and then another as the estimate allows.
+        bakes.step(clock);
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+        const afterFirst = opened;
+        expect(afterFirst).toBeGreaterThanOrEqual(1);
+        bakes.step(clock);
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+        // Known to cost 3 ms, an 8 ms frame fits two: never the whole queue.
+        expect(opened - afterFirst).toBeLessThanOrEqual(2);
+    });
+
+    it('lets an urgent owner, and a released one, through at once', async () => {
+        const bakes = new Bakes();
+        const urgent = {}, later = {};
+        bakes.urge(urgent, true);
+        let passed = false;
+        await bakes.turn(urgent).then(() => { passed = true; });
+        expect(passed).toBe(true);
+        let released = false;
+        void bakes.turn(later).then(() => { released = true; });
+        bakes.release(later);
+        await Promise.resolve();
+        expect(released).toBe(true);
+        let urged = false;
+        const other = {};
+        void bakes.turn(other).then(() => { urged = true; });
+        bakes.urge(other, true);
+        await Promise.resolve();
+        expect(urged).toBe(true);
+        expect(bakes.waiting).toBe(0);
     });
 
     it('a hold is counted per owner', () => {

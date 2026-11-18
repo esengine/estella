@@ -16,10 +16,10 @@ const FETCHED = 'the loader reached for the path';
 
 const doc = { version: '1.0', name: 'cell_0_0', entities: [] } as unknown as SceneData;
 
-/** An app whose only observable behaviour is whether a fetch was attempted. */
+/** An app whose only observable behaviour is whether a fetch was attempted, as JSON or as text. */
 function appThatRefusesToFetch() {
   const fetchJson = vi.fn(() => { throw new Error(FETCHED); });
-  return { fetchJson, app: { getResource: () => ({ fetchJson }) } as never };
+  return { fetchJson, app: { getResource: () => ({ fetchJson, fetchText: fetchJson }) } as never };
 }
 
 const opts = (app: unknown) => ({ app, module: null, source: {} } as never);

@@ -71,6 +71,64 @@ export class Bakes {
     private readonly marks_ = new Map<object, { label: string; progress: number }>();
     /** Who holds the game for work that must finish first (see `hold`). */
     private readonly holds_ = new Set<object>();
+    /** Work waiting for its turn in a frame (see `turn`), in the order it asked. */
+    private gates_: Array<{ owner: object; open: () => void }> = [];
+    /** How long the work after one turn has been taking, smoothed as `piece_` is; and the turn last given, to measure it. */
+    private gateCost_ = 0;
+    private lastGate_: { at: number; frame: number } | null = null;
+    private frame_ = 0;
+
+    /**
+     * Waits for a turn inside a frame's budget. For work that is not a job but runs whenever something it waited on answers
+     * (a cell's preparation resuming from a fetch): without it every such answer ran in full the moment it came, and four
+     * cells answered in one task were one long frame. Awaited between pieces of that work, it moves each piece into a frame
+     * that has the time for it — as many turns a frame as the budget's remainder fits, and always one.
+     *
+     * An owner whose work would be seen missing (`urge`) is let through at once, and `release` lets an owner's waiting
+     * turns through (it is finishing now, or the frames have stopped).
+     */
+    turn(owner: object = SHARED): Promise<void> {
+        const now = this.clock_();
+        // The work since the last turn given, if it ran in that turn's frame: what one piece costs.
+        if (this.lastGate_ && this.lastGate_.frame === this.frame_) {
+            const piece = now - this.lastGate_.at;
+            this.gateCost_ = Math.max(piece, this.gateCost_ * 0.9);
+            this.lastGate_ = null;
+        }
+        if (this.urgent_.has(owner)) return Promise.resolve();
+        return new Promise<void>((open) => { this.gates_.push({ owner, open }); });
+    }
+
+    /** Lets every turn `owner` is waiting for through, now. */
+    release(owner: object): void {
+        const kept: typeof this.gates_ = [];
+        for (const gate of this.gates_) {
+            if (gate.owner === owner) gate.open();
+            else kept.push(gate);
+        }
+        this.gates_ = kept;
+    }
+
+    /** How many turns are waiting. */
+    get waiting(): number {
+        return this.gates_.length;
+    }
+
+    /** Gives this frame's turns: in the order asked, as many as fit what the frame has left, and at least one. */
+    private openGates_(now: () => number, left: number): void {
+        let given = 0;
+        while (this.gates_.length > 0) {
+            if (given > 0 && (given + 1) * Math.max(this.gateCost_, 0.25) > left) break;
+            const gate = this.gates_.shift()!;
+            gate.open();
+            given++;
+        }
+        if (given > 0) {
+            this.lastGate_ = { at: now(), frame: this.frame_ };
+            // What the turns given will take comes off what the work stepped elsewhere may still have this frame.
+            this.left_ -= given * this.gateCost_;
+        }
+    }
 
     /**
      * Holds the game while `owner`'s work finishes: the App is paused for it and the jobs go on being stepped through the
@@ -180,8 +238,11 @@ export class Bakes {
      * While any owner says so the frame's budget is larger by `priorityExtraMs`. Say false when it is done, or it is held for good.
      */
     urge(owner: object, urgent: boolean): void {
-        if (urgent) this.urgent_.add(owner);
-        else this.urgent_.delete(owner);
+        if (urgent) {
+            this.urgent_.add(owner);
+            // What it is waiting for a turn for is now wanted at once.
+            this.release(owner);
+        } else this.urgent_.delete(owner);
     }
 
     /** Whether something the player would see missing is still being made: what a loading screen waits for. */
@@ -197,6 +258,7 @@ export class Bakes {
     /** Starts the frame's budget and steps the jobs for their part of it, oldest first; a job that finishes or throws settles its promise. */
     step(now: () => number = () => performance.now()): void {
         this.clock_ = now;
+        this.frame_++;
         this.starvedBefore_ = this.starved_;
         this.starved_ = false;
         const start = now();
@@ -206,7 +268,10 @@ export class Bakes {
         this.turns_.clear();
         this.open_ = null;
         this.left_ = budget;
-        if (this.running_.size === 0) return;
+        if (this.running_.size === 0) {
+            this.openGates_(now, budget / (this.starvedBefore_ ? 2 : 1));
+            return;
+        }
         const end = start + (this.starvedBefore_ ? budget / 2 : budget);
         for (const r of [...this.running_]) {
             // Every job advances at least once a frame, so a long one cannot starve those behind it.
@@ -229,6 +294,7 @@ export class Bakes {
             if (now() >= end) break;
         }
         this.left_ = budget - (now() - start);
+        this.openGates_(now, Math.max(0, this.left_));
     }
 }
 

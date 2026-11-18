@@ -2,18 +2,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    measure-cell-hitch.mjs
- * @brief   What a streamed cell's arrival and departure cost the frame it lands in, along the far-proxy town's flight.
+ * @brief   What streamed cells cost the frames a player sees, along the far-proxy town's flight, at phone speed.
  *
  * @details Exports `examples/far-proxy-town` with this checkout's SDK, boots it in headless Chromium with the CPU slowed
- *          five times (a phone), and steps the flight one frame at a time, timing each step on the page's main thread. A
- *          frame in which a cell came in or went out is a streaming frame; what the worst of those cost, against the frames
- *          around them, is the hitch a player feels. Beside the times it counts frames in which the cell under the flyer
- *          was not in (a hole) and what the streamer reports of its policy (urgent cells, holds, rushed publications).
+ *          (five times by default: a phone), and lets the game RUN, in real time, for as long as asked. Each frame the
+ *          browser presents is timed from one animation frame to the next, and every Long Animation Frame is kept with the
+ *          scripts that made it long, so a hitch is told by what ran in it: a cell's spawn, its preparation resuming from a
+ *          fetch, or the frame's ordinary work. Every tenth frame it asks whether the cell under the flyer is in (a hole)
+ *          and what the streamer's policy is doing.
  *
- *          Run it on two checkouts (or before and after a change to the SDK) and compare the summaries; `--json` writes
- *          the per-frame rows.
+ *          Real time and not stepped frames, on purpose: a driver that steps frames inside one task never lets a fetch
+ *          resolve between them, so every cell's preparation looked a whole batch of frames slower than it is, and a paused
+ *          game still draws, so a stepped frame was timed with another frame inside it.
  *
- *          node tools/measure-cell-hitch.mjs [--frames 2700] [--cpu 5] [--label after] [--json out.json] [--no-export]
+ *          Run it on two checkouts (or before and after a change to the SDK) and compare the summaries.
+ *
+ *          node tools/measure-cell-hitch.mjs [--seconds 60] [--cpu 5] [--label after] [--json out.json] [--no-export]
  */
 import { spawnSync } from 'node:child_process';
 import { cpSync, rmSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -26,7 +30,7 @@ const require = createRequire(path.join(ROOT, 'pipeline/package.json'));
 const { chromium } = require('playwright');
 
 const arg = (name, fallback) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
-const FRAMES = Number(arg('frames', 2700));
+const SECONDS = Number(arg('seconds', 60));
 const CPU = Number(arg('cpu', 5));
 const LABEL = arg('label', 'run');
 const JSON_OUT = arg('json', null);
@@ -63,9 +67,9 @@ for (let i = 0; i < 900 && !ready; i++) {
     if (!ready) await new Promise((d) => setTimeout(d, 100));
 }
 if (!ready) throw new Error('the package never exposed a streaming report');
+// Settled before the clock starts: the first cells come in with the game held at its start.
 await page.evaluate(() => window.__estellaCooked.setPaused(true));
 await page.evaluate(() => window.farProxyTown.restart());
-// Settled before the clock starts: the first cells come in with no flight under way.
 for (let i = 0; i < 400; i++) {
     const s = await page.evaluate(() => window.__estellaCooked.streaming());
     if (i >= 10 && s.loadingCells.length === 0 && s.unloadingCells.length === 0) break;
@@ -75,69 +79,105 @@ for (let i = 0; i < 400; i++) {
 const cdp = await page.context().newCDPSession(page);
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU });
 
-/** In the page, `n` frames: each step timed alone, and what residency said after it. */
-const rows = [];
-const BATCH = 60;
-for (let done = 0; done < FRAMES; done += BATCH) {
-    const batch = await page.evaluate(async ({ n, cells }) => {
-        const c = window.__estellaCooked;
-        const out = [];
-        for (let i = 0; i < n; i++) {
-            const t0 = performance.now();
-            await c.step(1, 1 / 60);
-            const ms = performance.now() - t0;
-            const s = c.streaming();
-            const at = c.probe(['Flyer']).at.Flyer;
-            const under = cells.find((k) => at && at.x >= k.minX && at.x < k.maxX && at.z >= k.minZ && at.z < k.maxZ);
-            out.push({
-                ms, loads: s.loadCount, unloads: s.unloadCount,
-                hole: !!under && !s.residentCells.includes(under.name),
-                // Where the cell under the flyer stands when it is not in: what a hole is waiting for.
-                under: !under ? '' : s.residentCells.includes(under.name) ? 'resident'
-                    : s.loadingCells.includes(under.name) ? 'loading' : s.unloadingCells.includes(under.name) ? 'unloading'
-                    : s.preparedCells.includes(under.name) ? 'prepared' : (s.queuedCells ?? []).includes(under.name) ? 'queued'
-                    : s.desiredCells.includes(under.name) ? 'desired' : 'absent',
-                publishing: s.loadingCells.length, unloading: s.unloadingCells.length,
-                urgent: (s.urgentCells ?? []).length, holding: !!s.holding,
-                holdCount: s.holdCount ?? 0, rushCount: s.rushCount ?? 0,
-                bakes: c.bakes().map((b) => b.label).join(', '),
-            });
-        }
-        return out;
-    }, { n: Math.min(BATCH, FRAMES - done), cells });
-    rows.push(...batch);
-}
+const run = await page.evaluate(async ({ seconds, cells }) => {
+    const c = window.__estellaCooked;
+    const loafs = [];
+    let observer = null;
+    try {
+        observer = new PerformanceObserver((list) => {
+            for (const e of list.getEntries()) {
+                loafs.push({
+                    at: e.startTime, ms: e.duration, blocking: e.blockingDuration ?? 0,
+                    scripts: (e.scripts ?? []).map((s) => ({
+                        ms: s.duration, invoker: s.invoker, fn: s.sourceFunctionName, src: (s.sourceURL ?? '').split('/').pop(),
+                    })),
+                });
+            }
+        });
+        observer.observe({ type: 'long-animation-frame', buffered: false });
+    } catch { /* no LoAF in this browser: the frame intervals still stand */ }
+    window.farProxyTown.restart();
+    c.setPaused(false);
+    const frames = [];
+    const samples = [];
+    const began = performance.now();
+    let last = began;
+    let n = 0;
+    await new Promise((resolve) => {
+        const tick = (t) => {
+            frames.push({ at: t - began, ms: t - last });
+            last = t;
+            if (++n % 10 === 0) {
+                const s = c.streaming();
+                const at = c.probe(['Flyer']).at.Flyer;
+                const under = cells.find((k) => at && at.x >= k.minX && at.x < k.maxX && at.z >= k.minZ && at.z < k.maxZ);
+                samples.push({
+                    at: t - began, hole: !!under && !s.residentCells.includes(under.name),
+                    loads: s.loadCount, unloads: s.unloadCount, holding: !!s.holding,
+                    holdCount: s.holdCount ?? 0, holdMs: s.holdMs ?? 0, rushCount: s.rushCount ?? 0,
+                });
+            }
+            if (t - began < seconds * 1000) requestAnimationFrame(tick);
+            else resolve();
+        };
+        requestAnimationFrame(tick);
+    });
+    c.setPaused(true);
+    observer?.disconnect();
+    const s = c.streaming();
+    return { frames, samples, loafs, delivery: s.delivery ?? {} };
+}, { seconds: SECONDS, cells });
+
 await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 await page.close();
 server.close();
 await browser.close();
 
-// A streaming frame: a cell finished arriving or leaving in it, or work for one was in hand.
-for (let i = 0; i < rows.length; i++) {
-    const r = rows[i], p = rows[i - 1];
-    r.streaming = r.publishing > 0 || r.unloading > 0 || r.bakes.length > 0
-        || (p !== undefined && (r.loads !== p.loads || r.unloads !== p.unloads));
-}
 const sorted = (xs) => [...xs].sort((a, b) => a - b);
 const pct = (xs, q) => { const s = sorted(xs); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0; };
-const all = rows.map((r) => r.ms);
-const streaming = rows.filter((r) => r.streaming).map((r) => r.ms);
-const quiet = rows.filter((r) => !r.streaming).map((r) => r.ms);
-const last = rows[rows.length - 1];
+const median = (xs) => pct(xs, 0.5);
+const ms = run.frames.slice(1).map((f) => f.ms);
+const first = run.samples[0], last = run.samples[run.samples.length - 1];
 const summary = {
-    label: LABEL, frames: rows.length, cpuSlowdown: CPU,
-    loads: last.loads - rows[0].loads, unloads: last.unloads - rows[0].unloads,
-    worstMs: Math.max(...all), p99Ms: pct(all, 0.99), medianMs: pct(all, 0.5),
-    streamingFrames: streaming.length, worstStreamingMs: streaming.length ? Math.max(...streaming) : 0,
-    quietMedianMs: pct(quiet, 0.5), quietWorstMs: quiet.length ? Math.max(...quiet) : 0,
-    over33: all.filter((m) => m > 33.4).length, over50: all.filter((m) => m > 50).length, over100: all.filter((m) => m > 100).length,
-    holeFrames: rows.filter((r) => r.hole).length,
-    holdCount: last.holdCount, rushCount: last.rushCount,
+    label: LABEL, seconds: SECONDS, cpuSlowdown: CPU, frames: ms.length,
+    loads: last.loads - first.loads, unloads: last.unloads - first.unloads,
+    medianFrameMs: median(ms), p99FrameMs: pct(ms, 0.99), worstFrameMs: Math.max(...ms),
+    over50: ms.filter((m) => m > 50).length, over100: ms.filter((m) => m > 100).length, over200: ms.filter((m) => m > 200).length,
+    longAnimationFrames: run.loafs.length,
+    holeSamples: run.samples.filter((s) => s.hole).length, samples: run.samples.length,
+    // Over the flight only: a world's first cells hold the game at boot, which is a loading screen and not a hitch.
+    holdCount: last.holdCount - first.holdCount, holdMs: Math.round(last.holdMs - first.holdMs),
+    rushCount: last.rushCount - first.rushCount, heldSamples: run.samples.filter((s) => s.holding).length,
     errors: errors.length,
 };
-const worst = rows.map((r, i) => ({ i, ...r })).sort((a, b) => b.ms - a.ms).slice(0, 8)
-    .map((r) => `#${r.i} ${r.ms.toFixed(1)} ms${r.streaming ? ' streaming' : ''}${r.bakes ? ` [${r.bakes}]` : ''}`);
 console.log(JSON.stringify(summary, null, 1));
-console.log('worst frames:\n  ' + worst.join('\n  '));
+
+// What the long frames ran: script time by the function a script entry names, over every Long Animation Frame.
+const byFn = new Map();
+for (const l of run.loafs) for (const s of l.scripts) {
+    const k = `${s.fn || '(anonymous)'} ${s.invoker ?? ''} ${s.src}`.trim();
+    const e = byFn.get(k) ?? { ms: 0, n: 0, worst: 0 };
+    e.ms += s.ms; e.n++; e.worst = Math.max(e.worst, s.ms);
+    byFn.set(k, e);
+}
+console.log('long-frame scripts (total / count / worst):');
+for (const [k, e] of [...byFn].sort((a, b) => b[1].ms - a[1].ms).slice(0, 15)) {
+    console.log(`  ${e.ms.toFixed(0).padStart(7)} ms ${String(e.n).padStart(5)} ${e.worst.toFixed(0).padStart(6)} ms  ${k}`);
+}
+const worst = [...run.loafs].sort((a, b) => b.ms - a.ms).slice(0, 6);
+console.log('worst long frames:');
+for (const l of worst) {
+    const top = [...l.scripts].sort((a, b) => b.ms - a.ms).slice(0, 3).map((s) => `${s.fn || s.invoker} ${s.ms.toFixed(0)}`).join(', ');
+    console.log(`  ${(l.at / 1000).toFixed(1)} s: ${l.ms.toFixed(0)} ms (blocking ${l.blocking.toFixed(0)}) — ${top}`);
+}
+{
+    const cellsSeen = Object.values(run.delivery);
+    const line = (name, xs) => `  ${name.padEnd(20)} median ${median(xs).toFixed(0).padStart(6)} ms  max ${Math.max(0, ...xs).toFixed(0).padStart(6)} ms`;
+    console.log(`delivery over ${cellsSeen.length} cells (wall clock):`);
+    console.log(line('prepare', cellsSeen.map((d) => d.prepareMs)));
+    console.log(line('publish', cellsSeen.map((d) => d.publishMs)));
+    console.log(line('demand to resident', cellsSeen.map((d) => d.demandToResidentMs)));
+    for (const ph of ['fetch', 'prefab', 'assets', 'readying']) console.log(line(ph, cellsSeen.map((d) => d.phases?.[ph] ?? 0)));
+}
 for (const e of errors.slice(0, 5)) console.log('page error:', e);
-if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ summary, rows }, null, 1));
+if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify({ summary, ...run }, null, 1));

@@ -197,6 +197,11 @@ function applyTextureMetadata(
 // =============================================================================
 
 export interface LoadRuntimeSceneOptions {
+    /**
+     * Awaited between the pieces of a preparation (a streamed cell's): resolves when a frame has time for the next piece, so
+     * what runs after a fetch answers runs inside a frame's budget and not whenever the network answers. Absent: at once.
+     */
+    gate?: () => Promise<void>;
     /** Authored ids this scene may reference in ANOTHER document — the persistent
      *  rows a streamed cell names. See {@link SceneLoadOptions.externalEntities}. */
     externalEntities?: ReadonlyMap<number, Entity>;
@@ -359,6 +364,14 @@ export async function prepareRuntimeScene(
         const began = performance.now();
         try { return await run(); } finally { onPhase(phase, performance.now() - began); }
     };
+    // Waiting for a turn is not work: a phase is charged its own time and not the frames it waited (`wait`).
+    const gate = options.gate;
+    const turn = async (): Promise<void> => {
+        if (!gate) return;
+        const began = onPhase ? performance.now() : 0;
+        await gate();
+        if (onPhase) onPhase('wait', performance.now() - began);
+    };
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -381,6 +394,7 @@ export async function prepareRuntimeScene(
     // outgoing scene had just released, so a restarted scene drew its images white.
     let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
     if (sceneHasPrefabEntries(sceneData)) {
+        await turn();
         sceneData = await timed('prefab', () => expandScenePrefabs(sceneData, async (ref) => {
             try {
                 return ((await runtimeAssets.loadPrefab(ref))?.data as PrefabData) ?? null;
@@ -396,6 +410,7 @@ export async function prepareRuntimeScene(
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.
+    await turn();
     const discoverBegan = onPhase ? performance.now() : 0;
     const discovered = discoverSceneAssets(sceneData);
 
@@ -425,6 +440,7 @@ export async function prepareRuntimeScene(
     if (onPhase) onPhase('discover', performance.now() - discoverBegan);
     const assetResult = await timed('assets',
         () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true }));
+    await turn();
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
@@ -751,6 +767,12 @@ export function createRuntimeSceneConfig(
             bakes.urge(config, false);
         }
     };
+    // A streamed cell's preparation takes its pieces in a frame's turns (`Bakes.turn`); urgent, it is let through at once.
+    // Rushed (`rush`), it waits for no turn at all until it is no longer wanted at once: the frames may have stopped.
+    let hurried = false;
+    const gate = streamed
+        ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
+        : undefined;
     const readied = async (): Promise<PreparedRuntimeScene> => {
         let data = sceneData;
         if (!data) {
@@ -759,11 +781,20 @@ export function createRuntimeSceneConfig(
             // on WeChat — and only when something asks for the scene.
             if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
             const began = performance.now();
-            data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
+            const text = await options.app.getResource(AssetsResource).fetchText(scenePath);
             config.onPhase?.('fetch', performance.now() - began);
+            // Parsed in a frame's turn: a cell's document is the largest single piece of its preparation.
+            if (gate) {
+                const waited = performance.now();
+                await gate();
+                config.onPhase?.('wait', performance.now() - waited);
+            }
+            const parsed = performance.now();
+            data = JSON.parse(text) as SceneData;
+            config.onPhase?.('parse', performance.now() - parsed);
         }
         return prepareRuntimeScene({
-            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase,
+            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
         });
     };
     const config: SceneConfig = {
@@ -776,6 +807,8 @@ export function createRuntimeSceneConfig(
         // describe requirements for geometry nothing has acquired.
         async readyRenderPrograms() {
             if (prepared === null) return { applicable: false } as RenderReadiness;
+            if (gate) await gate();
+            if (prepared === null) return { applicable: false } as RenderReadiness;
             const readied = readyMeshPrograms(options.module, prepared.sceneData);
             // Queued compiles are not ready programs: where shaders compile in the background, the claim waits for them.
             if (readied.applicable) await shadersCompiled(options.module);
@@ -787,6 +820,7 @@ export function createRuntimeSceneConfig(
             const owed = prepared?.assetResult.scope.size ?? 0;
             prepared?.assetResult.scope.releaseAll();
             prepared = null;
+            hurried = false;
             return owed;
         },
         async setup() {
@@ -811,12 +845,16 @@ export function createRuntimeSceneConfig(
             await overFrames('Taking out', despawnJob(world, doomed));
         };
         config.rush = () => {
+            // Its preparation waits for no more turns either: rushed is wanted now, or the frames have stopped.
+            hurried = true;
+            bakesOf(options.app).release(config);
             if (spreading) spreading.finish();
             else rushed = true;
         };
         config.urge = (now) => {
             urgent = now;
-            if (!now) rushed = false;
+            if (!now) { rushed = false; hurried = false; }
+            if (now) bakesOf(options.app).release(config);
             if (spreading) bakesOf(options.app).urge(config, now);
         };
     }

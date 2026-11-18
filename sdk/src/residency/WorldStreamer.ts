@@ -578,7 +578,10 @@ export class WorldStreamer {
             state.desired = false;
             state.speculated = false;
             // Work spread over frames is finished here: a world being cleared may have no frames left to step it.
-            if (state.residency === 'publishing' || state.residency === 'unloading') this.host_.rush?.(name);
+            // A preparation waiting for a frame's turn is let through too, or clearing would wait for frames that never come.
+            if (state.residency === 'publishing' || state.residency === 'unloading' || state.residency === 'preparing') {
+                this.host_.rush?.(name);
+            }
         }
         this.clearPromise_ = (async () => {
             for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
