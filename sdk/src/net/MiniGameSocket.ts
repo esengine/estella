@@ -20,6 +20,8 @@ export class MiniGameSocket implements PlatformSocket {
     private protocols_?: string | string[];
     private readonly g_: MiniGameGlobal;
     private task_: MiniGameSocketTask | null = null;
+    /** Ends the current task once: the host's close and close() race for it. */
+    private end_: ((code: number, reason: string) => void) | null = null;
     private sendQueue_: (string | ArrayBuffer)[] = [];
     private events_ = new Emitter<PlatformSocketEvents>();
 
@@ -57,6 +59,7 @@ export class MiniGameSocket implements PlatformSocket {
         this.task_ = task;
 
         task.onOpen(() => {
+            if (this.task_ !== task) return; // let go of by close()
             this.readyState = 'open';
             for (const msg of this.sendQueue_) {
                 task.send({ data: msg });
@@ -66,6 +69,7 @@ export class MiniGameSocket implements PlatformSocket {
         });
 
         task.onMessage((res: { data: string | ArrayBuffer }) => {
+            if (this.task_ !== task) return;
             this.events_.emit('message', res.data);
         });
 
@@ -79,6 +83,7 @@ export class MiniGameSocket implements PlatformSocket {
         };
 
         task.onClose((res: { code: number; reason: string }) => end(res.code, res.reason));
+        this.end_ = end;
 
         task.onError((err: unknown) => {
             const failedToOpen = this.readyState === 'connecting';
@@ -97,10 +102,18 @@ export class MiniGameSocket implements PlatformSocket {
         }
     }
 
+    /**
+     * Close the link and let go of it now: the host's close still goes out, but
+     * nothing waits for the peer to answer — one that stopped answering (a
+     * half-open link) would hold `close` back. `close` is emitted here, once.
+     */
     close(code?: number, reason?: string): void {
-        if (this.task_) {
-            this.readyState = 'closing';
-            this.task_.close({ code, reason });
-        }
+        const task = this.task_;
+        if (!task) return;
+        const end = this.end_;
+        this.task_ = null;
+        this.end_ = null;
+        try { task.close({ code, reason }); } catch { /* already closing */ }
+        end?.(code ?? 1000, reason ?? '');
     }
 }

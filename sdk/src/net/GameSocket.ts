@@ -84,10 +84,23 @@ export class GameSocket implements PlatformSocket {
         }
     }
 
+    /**
+     * Close the link and let go of it now. The closing handshake still goes out,
+     * but nothing waits for the peer to answer it: a peer that has stopped
+     * answering (a half-open link, which is often why a link is being closed)
+     * would hold `close` back until the browser gives up. `close` is emitted
+     * here, once, and the socket can `connect()` again straight away.
+     */
     close(code?: number, reason?: string): void {
-        if (this.ws_) {
-            this.readyState = 'closing';
-            this.ws_.close(code, reason);
-        }
+        const ws = this.ws_;
+        if (!ws) return;
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        this.ws_ = null;
+        this.readyState = 'closed';
+        try { ws.close(code, reason); } catch { /* already closing or closed */ }
+        this.events_.emit('close', code ?? 1000, reason ?? '');
     }
 }
