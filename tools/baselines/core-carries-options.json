@@ -19,7 +19,6 @@
     "platform/minigame/adapter.ts -> ../../video/WasmVideoBackend",
     "platform/web.ts -> ../video/WebVideoBackend",
     "runtime/packagedRuntime.ts -> ../video/VideoAPI",
-    "runtime/playRealmRuntime.ts -> ../video/VideoAPI",
     "runtime/playableRuntime.ts -> ../video/VideoAPI"
   ]
 }
