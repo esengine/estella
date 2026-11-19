@@ -53,6 +53,7 @@ import { SubsystemRegistry } from './subsystems';
 import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
 import type { SideModuleHost } from '../sideModules/host';
 import { watchWebGPUDeviceLoss } from '../render/renderer';
+import { noteDrawFrame } from '../render/draw';
 import { log } from '../util/logger';
 import { createAbort, type AbortHandle } from '../util/abort';
 import { isAppHostPaused } from './hostPause';
@@ -2068,6 +2069,7 @@ export class App {
         time.delta = this.isPaused() && !this.step_pending_ ? 0 : delta * scale;
         time.elapsed += time.delta;
         time.frameCount++;
+        noteDrawFrame();
         if (this.step_pending_) this.steppedFrames_++;
         time.fixedDelta = this.fixedTimestep_;
     }
