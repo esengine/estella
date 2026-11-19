@@ -408,11 +408,24 @@ What holds for the project *whatever* it ships to stays in **Settings → Projec
 
 Orientation is **one project-wide setting**, not per-target: **Settings → Project → Game → Display → Orientation** (portrait or landscape), right beside the design resolution.
 Every target honors it — the WeChat `game.json` `deviceOrientation`, the web build's
-rotate-to-fit prompt (and a best-effort `screen.orientation.lock`), the desktop
-window's aspect, and the native app's `app.config.json` (the engine can letterbox
-but cannot rotate a phone). Left unset, it's **derived from the design resolution's aspect**
-(wider-or-square ⇒ landscape, taller ⇒ portrait), so a landscape design ships
-landscape everywhere with zero configuration.
+best-effort `screen.orientation.lock`, the desktop window's aspect, and the native
+app's `app.config.json` (the engine can letterbox but cannot rotate a phone). Left
+unset, it's **derived from the design resolution's aspect** (wider-or-square ⇒
+landscape, taller ⇒ portrait), so a landscape design ships landscape everywhere
+with zero configuration.
+
+On the web, a phone held the wrong way shows the game letterboxed by default:
+nothing covers it. A project that wants the page to ask instead turns on
+**Project Settings → Packaging → Web → Ask to rotate the device when held the wrong way**.
+Then, on a touch screen held the wrong way, the canvas is hidden behind a
+"Rotate your device" notice until the player turns the phone; a desktop browser
+always shows the game. In the manifest the setting is:
+
+```json
+"packaging": { "platforms": { "web": { "rotateHint": true } } }
+```
+
+It is off by default, and an untouched project writes nothing for it.
 
 A **playable is the exception, deliberately**: it never pins the page. Inside an ad
 SDK the container's size is the SDK's business, so a rotate-to-fit overlay can hide

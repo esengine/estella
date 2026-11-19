@@ -113,13 +113,12 @@ try {
                 const expected = mode === 'sdk-missing' || mode === 'standalone' ? [] : ['init', 'loaded'];
                 const trace = async () => assert.deepEqual(await page.evaluate(() => (window.__events ?? []).map(e => e.event)), expected);
                 if (viewport.height > viewport.width) {
-                    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('rotate-hint')).display), 'flex');
-                    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('canvas')).display), 'none');
-                    await snapshot('rotate-hint'); await trace();
+                    assert.equal(await page.evaluate(() => document.getElementById('rotate-hint')), null);
+                    assert.notEqual(await page.evaluate(() => getComputedStyle(document.getElementById('canvas')).display), 'none');
+                    await snapshot('portrait'); await trace();
                     surface = { width: viewport.height, height: viewport.width };
                     observation.rotatedViewport = surface;
                     await page.setViewportSize(surface);
-                    await page.waitForFunction(() => getComputedStyle(document.getElementById('canvas')).display !== 'none');
                     await page.waitForTimeout(100); await trace();
                 }
                 if (mode === 'standalone') {

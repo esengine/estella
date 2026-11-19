@@ -13,6 +13,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { exportGame, splashScriptCspHash } from '../src/export/exportGame';
+import { projectExportOptions } from '../src/export/projectExportOptions';
+import { orientationLockScript, orientationLockCspHash } from '../src/export/orientationHtml';
+import { parseManifest } from '../src/project/format';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import type { ProjectPackaging } from '../src/project/format';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
@@ -83,12 +86,37 @@ describe('the exported page’s start screen', () => {
     expect(preview.html).not.toContain('data-ident-ms');
   }, 180_000);
 
-  it('asks to be turned only on a touch screen, so a desktop browser always shows the game', async () => {
+  it('does not cover the game with a rotate notice unless the project asks for one', async () => {
     const { html } = await page(undefined, undefined, undefined, { orientation: 'portrait' });
+    expect(html).not.toContain('rotate-hint');
+    expect(html).not.toContain('#canvas{display:none');
+  }, 180_000);
+
+  it('still tries to lock the orientation without the notice, its script allowed by the page policy', async () => {
+    const { html } = await page(undefined, undefined, undefined, { orientation: 'portrait' });
+    expect(html).toContain(orientationLockScript('portrait'));
+    expect(html).toContain(`'${orientationLockCspHash('portrait')}'`);
+  }, 180_000);
+
+  it('asks to be turned only on a touch screen when the project turns the notice on', async () => {
+    const { html } = await page(undefined, undefined, undefined, { orientation: 'portrait', webRotateHint: true });
     expect(html).toContain('id="rotate-hint"');
     expect(html).toContain('@media (orientation:landscape) and (pointer:coarse){#canvas{display:none');
     expect(html).not.toContain('@media (orientation:landscape){');
+    expect(html).toContain(orientationLockScript('portrait'));
+    expect(html).toContain(`'${orientationLockCspHash('portrait')}'`);
   }, 180_000);
+
+  it('takes the notice from packaging.platforms.web.rotateHint, for the web export only', async () => {
+    const manifest = (web: Record<string, unknown> | undefined) =>
+      ({ formatVersion: '1', name: 'g', ...(web ? { packaging: { platforms: { web } } } : {}) });
+    expect((await projectExportOptions('/tmp/game', parseManifest(manifest(undefined)), 'web')).webRotateHint).toBeUndefined();
+    expect((await projectExportOptions('/tmp/game', parseManifest(manifest({ rotateHint: false })), 'web')).webRotateHint).toBeUndefined();
+    const on = parseManifest(manifest({ rotateHint: true }));
+    expect(on.packaging?.platforms?.web?.rotateHint).toBe(true);
+    expect((await projectExportOptions('/tmp/game', on, 'web')).webRotateHint).toBe(true);
+    expect((await projectExportOptions('/tmp/game', on, 'wechat')).webRotateHint).toBeUndefined();
+  });
 
   it('has its own line in the size report, logo included', async () => {
     const plain = await page();
