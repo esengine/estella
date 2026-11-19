@@ -12,6 +12,8 @@ import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { FollowTarget } from './FollowTarget';
 import { CameraBounds } from './CameraBounds';
+import { CameraDeoccluder, CameraCollision } from './CameraDeoccluder';
+import { PositionComposer } from './PositionComposer';
 import { LookAtTarget } from './LookAtTarget';
 import { CameraBrain, cameraRigUpdate } from './CameraRig';
 import { applyCameraNoise } from './CameraNoise';
@@ -1029,9 +1031,11 @@ export function cameraPlugin(
             };
 
             // Every camera's pipeline (CameraRig.ts): position, rotation, then the limits on both, in that order, and the
-            // brain's blend handed to the director. Before camera collection, so the director picks and blends cameras
-            // that have already moved this frame. Play mode only (gameplay).
-            app.addSystemToSchedule(Schedule.Update, defineSystem(
+            // brain's blend handed to the director. After Update, as Cinemachine's Brain runs in LateUpdate: a target the
+            // game moves this frame is framed where it is now, not where it was, which in Update put a fast target a
+            // frame past the soft zone a composer never lets it leave. Before camera collection, so the director picks and
+            // blends cameras that have already moved this frame. Play mode only (gameplay).
+            app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
                 [Res(Time)],
                 (time: TimeData) => {
                     // The main view's own pixels, as last drawn (UICameraInfo is synced before Update): the UI layout's
@@ -1040,10 +1044,16 @@ export function cameraPlugin(
                     const view = app.getResource(UICameraInfo);
                     const aspect = view.vpH > 0 ? view.vpW / view.vpH : 0;
                     const director = app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
-                    cameraRigUpdate(app.world, time.delta, aspect, director);
+                    const collision = app.hasResource(CameraCollision) ? app.getResource(CameraCollision) : null;
+                    // The targets' world poses are resolved when the frame draws; read before that they are the previous
+                    // frame's, and every stage framed a moving target a frame late. Resolving them now is the pass the
+                    // render system makes again, which then finds nothing to do.
+                    const cpp = app.world.getCppRegistry();
+                    if (cpp) Renderer.updateTransforms({ _cpp: cpp });
+                    cameraRigUpdate(app.world, time.delta, aspect, director, collision);
                 },
                 { name: 'CameraRigSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, LookAtTarget, CameraBounds, CameraBrain] });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraDeoccluder, CameraBounds, CameraBrain] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

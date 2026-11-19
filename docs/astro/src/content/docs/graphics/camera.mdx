@@ -51,8 +51,8 @@ in the Details.
 
 | Item | Template | What it is |
 |---|---|---|
-| Follow Camera 2D | `camera:follow-2d` | Orthographic camera with `FollowTarget` and a little give. |
-| Tracking Camera | `camera:tracking` | Perspective camera that stands behind and above its target (`FollowTarget`) and frames it (`LookAtTarget`). |
+| Follow Camera 2D | `camera:follow-2d` | Orthographic camera that frames its target with a `PositionComposer`: a dead zone it may wander in, a soft zone it never leaves. |
+| Tracking Camera | `camera:tracking` | Perspective camera that stands behind and above its target (`FollowTarget`), frames it (`LookAtTarget`) and keeps it in sight (`CameraDeoccluder`). |
 | Look-At Camera | `camera:look-at` | A camera that stays where it is put and turns to its target. |
 | Handheld Camera | `camera:handheld` | A camera with mild `CameraNoise`, like one held by hand. |
 | Dolly Camera with Track | `camera:dolly` | A `Spline` track and a camera on it (`CameraDolly`, Track Target) that looks at its target. |
@@ -163,6 +163,42 @@ the camera's `Transform` directly (so the director blends already-followed views
 and runs in **play mode only** — the editor's navigation view is never dragged
 around by it.
 
+## Frame a target by moving the camera
+
+`PositionComposer` frames a target the way `LookAtTarget` does, on the screen, but moves the camera instead of turning
+it: Cinemachine's Position Composer, and the usual 2D camera. The target is held at a screen point; inside the dead zone
+it may wander with the camera still; past it the camera catches up, eased by `damping`; and the soft zone is as far as
+it ever gets: past its edge the camera moves at once. A 3D camera also keeps `cameraDistance` from the target along
+where it looks.
+
+```typescript
+import { PositionComposer } from 'esengine';
+
+cmds.entity(cameraEntity).insert(PositionComposer, {
+  target: player,
+  screenX: 0.4, screenY: 0.4,              // a little left of and below centre: room to see ahead
+  deadzoneWidth: 0.1, deadzoneHeight: 0.2, // walking about does not move the camera
+  softzoneWidth: 0.6, softzoneHeight: 0.6, // a dash never takes the player past here
+  damping: 0.25,
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `target` | Entity | `0` | Entity framed (`0` = none). |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | Point framed, as a world-space offset from the target. |
+| `screenX` / `screenY` | number | `0.5` | Where the target is held: `0` left or bottom edge, `1` right or top. |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | Share of the screen the target may move in with the camera still. |
+| `softzoneWidth` / `softzoneHeight` | number | `0.8` | Share of the screen the target is kept inside; past its edge the camera moves at once. |
+| `damping` | number | `0.3` | Seconds to catch up most of the way across the screen (`0` = at once). |
+| `cameraDistance` | number | `0` | 3D: how far in front of the camera the target is kept. `0` keeps whatever distance it has. |
+| `depthDamping` | number | `0.3` | 3D: seconds to catch up most of the way to that distance. |
+
+The camera slides across its own screen, its right and up, so a turned camera moves like a dolly. An orthographic
+camera's screen is `orthoSize` tall at any depth. It is a position stage of the camera pipeline: a camera uses it,
+`FollowTarget` or `CameraDolly`. The viewport preview draws its dead and soft zones, and the Follow Camera 2D preset is
+one.
+
 ## Look at a target
 
 `FollowTarget` decides where a camera stands; `LookAtTarget` decides where it looks. Add it to a perspective camera
@@ -211,12 +247,13 @@ moved by the components it carries, always in this order:
 
 | Stage | Component | Cinemachine | Unreal |
 |---|---|---|---|
-| 1. Position: where it stands | `FollowTarget` or `CameraDolly` | Position Control (Follow, Spline Dolly) | camera rig position node |
+| 1. Position: where it stands | `FollowTarget`, `CameraDolly` or `PositionComposer` | Position Control (Follow, Spline Dolly, Position Composer) | camera rig position node |
 | 2. Rotation: where it looks | `LookAtTarget` | Rotation Control (Rotation Composer) | camera rig look-at node |
-| 3. Finalize: limits on the result | `CameraBounds` | Extensions (Confiner) | camera modifiers |
+| 3. Finalize: limits on the result | `CameraDeoccluder`, `CameraBounds` | Extensions (Deoccluder, Confiner) | spring arm probe, camera modifiers |
 | 4. Noise: drift on the drawn view | `CameraNoise` | Noise (Basic Multi-Channel Perlin) | camera shake |
 
-Each stage decides in the world and writes through the camera's parent, and reads what the stages before it wrote, so
+The pipeline runs after the game's own Update systems, as Cinemachine's Brain runs in LateUpdate, and reads where each
+target is this frame. Each stage decides in the world and writes through the camera's parent, and reads what the stages before it wrote, so
 a camera that follows and looks at the same character aims from where it stands this frame. Noise moves only the drawn
 view, per camera, before the blend. The camera director then picks one live camera and blends into it (below): Cinemachine's
 Brain and Unreal's `PlayerCameraManager`. The `camera-shots` example puts every stage together: a tracking shot on a
@@ -280,6 +317,37 @@ Noise moves the view that is drawn and never the camera's `Transform`, so it doe
 look-at work from where the camera really is. It is applied to each camera before the director blends between them, so a
 blend from a shaky camera to a steady one settles. A 2D camera drifts across the screen and rolls. Noise follows the game
 clock: it stops when the game is paused.
+
+## Keep the target in sight
+
+A wall that comes between a 3D camera and what it frames hides the shot. `CameraDeoccluder` keeps it in view, as
+Cinemachine's Deoccluder (Pull Camera Forward) and UE's spring arm do: a sphere is swept from the target back to where
+the rig put the camera, and when it meets something the camera is drawn in along that line to just short of it. Along
+that line the target stays where the composition held it. When the wall is gone the camera eases back out to where its
+rig wants it; the rig's own stages never see the pulled-in place.
+
+```typescript
+import { CameraDeoccluder } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraDeoccluder, {
+  radius: 15,               // stop this far short of a wall
+  minimumDistance: 30,      // never closer to the target than this
+  dampingWhenOccluded: 0,   // in at once, so the wall is never seen through
+  damping: 0.4,             // back out over about 0.4 seconds
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `target` | Entity | `0` | What must stay in sight. `0` takes the `LookAtTarget`'s target (with its offset), else the `FollowTarget`'s. |
+| `radius` | number | `15` | Radius of the swept sphere: how far short of a wall the camera stops. |
+| `layers` | number | `0` | Physics layers that hide the target; `0` is every layer. |
+| `minimumDistance` | number | `30` | The camera is never drawn closer to the target than this. |
+| `dampingWhenOccluded` | number | `0` | Seconds to move in when something hides the target; `0` is at once. |
+| `damping` | number | `0.4` | Seconds to move back out once nothing does. |
+
+The sweep asks the 3D physics world, so only bodies with 3D colliders hide a target, and a scene without 3D physics
+leaves the camera where its rig put it. The Tracking Camera preset carries one.
 
 ## Keep the camera inside the level
 

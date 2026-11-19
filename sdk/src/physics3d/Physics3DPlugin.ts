@@ -23,6 +23,7 @@ import {
 import { Physics3DQueries } from './Physics3DQueries';
 import { CollisionGeometryRes } from '../runtime/collisionGeometry';
 import { setupPhysics3DDebugDraw } from './Physics3DDebugDraw';
+import { CameraCollision } from '../camera/CameraDeoccluder';
 
 /** Ask the 3D world what is where. Present once the module has loaded. */
 export const Physics3D = defineResource<Physics3DQueries | null>(null, 'Physics3D');
@@ -80,6 +81,10 @@ export class Physics3DPlugin implements Plugin {
             // Whatever throws things about without knowing there is a solver asks through this.
             setBodyPusher((entity, velocity) => queries.setLinearVelocity(entity, velocity));
             app.insertResource(Physics3D, queries);
+            // What a camera's deoccluder sweeps with. Beside the queries, because the camera core must not know physics exists.
+            app.insertResource(CameraCollision, {
+                sweep: (origin, radius, delta, layers) => queries.sphereCast(origin, radius, delta, layers)?.fraction ?? null,
+            });
             // What a foot-plant constraint stands on. Beside the queries, because the animation core must not know physics exists.
             if (app.hasResource(AnimatorController)) {
                 app.getResource(AnimatorController).setGroundProbe((origin, drop, layers) => {

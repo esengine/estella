@@ -141,6 +141,8 @@ const DISPOSITION = {
   Hitboxes: ['owed', 'no example scene authors a hitbox set yet; the first one goes in an example with melee combat'],
   WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
+  PositionComposer: ['owed', 'no example frames its player with a composer yet; celestial-heights, whose cameras follow its player with a FollowTarget dead zone, is where the first one goes'],
+  CameraDeoccluder: ['owed', 'no example has a follow camera among walls with 3D colliders yet (the ThirdPersonCamera of third-person-3d probes for itself); the first one goes on a tracking camera in a walled 3D example'],
   GripHolder: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripPose: ['owed', 'no example holds a tool in a named pose yet; a character with something in its hand is where the first one goes'],
   GripSurface: ['owed', 'no example marks where a hand may take hold of a mesh yet; the character with a rifle that gets the first grip is where the first one goes'],

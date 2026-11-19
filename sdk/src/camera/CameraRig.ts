@@ -9,9 +9,9 @@
  *          are that director; this file is the procedural half each camera runs before it, in the stages Cinemachine
  *          names and UE's camera rigs order the same way:
  *
- *            1. position  where the camera stands    FollowTarget, CameraDolly (a camera uses one)
+ *            1. position  where the camera stands    FollowTarget, CameraDolly, PositionComposer (a camera uses one)
  *            2. rotation  where it looks             LookAtTarget
- *            3. finalize  limits on the result       CameraBounds
+ *            3. finalize  limits on the result       CameraDeoccluder (keep the target in sight), CameraBounds
  *            4. noise     drift on the drawn view    CameraNoise (CameraPlugin, on the view, before the blend)
  *
  *          A stage decides in the world and writes through the camera's parent (cameraPlace.ts), the world value beside the
@@ -25,8 +25,10 @@ import type { World } from '../ecs/world';
 import { BlendCurve, type CameraDirectorState } from './CameraDirector';
 import { followUpdate } from './FollowTarget';
 import { dollyUpdate } from './CameraDolly';
+import { positionComposerUpdate } from './PositionComposer';
 import { lookAtUpdate } from './LookAtTarget';
 import { cameraBoundsUpdate } from './CameraBounds';
+import { deoccluderRestore, deoccluderUpdate, type CameraCollisionProbe } from './CameraDeoccluder';
 
 export interface CameraBrainData {
   /**
@@ -62,12 +64,20 @@ export function syncCameraBrain(world: World, director: CameraDirectorState): vo
 /**
  * One frame of every camera's pipeline, stage by stage. `screenAspect` is the width over the height of the screen the
  * cameras draw on (0 while it is not known), each camera measured by its share of it (cameraAspect.ts); `director` is
- * null where no view is resolved.
+ * null where no view is resolved; `collision` is what the deoccluder sweeps with (the 3D physics plugin's), or null.
  */
-export function cameraRigUpdate(world: World, dt: number, screenAspect: number, director: CameraDirectorState | null): void {
+export function cameraRigUpdate(
+  world: World, dt: number, screenAspect: number, director: CameraDirectorState | null,
+  collision: CameraCollisionProbe | null = null,
+): void {
   if (director) syncCameraBrain(world, director);
+  // Last frame's pull toward the target is the deoccluder's, not the rig's: taken back first, so the stages work from
+  // where the rig wants each camera.
+  deoccluderRestore(world);
   followUpdate(world, dt);
   dollyUpdate(world, dt);
+  positionComposerUpdate(world, dt, screenAspect);
   lookAtUpdate(world, dt, screenAspect);
+  deoccluderUpdate(world, dt, collision);
   cameraBoundsUpdate(world, screenAspect);
 }

@@ -45,8 +45,8 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 
 | 菜单项 | 模板 | 内容 |
 |---|---|---|
-| Follow Camera 2D | `camera:follow-2d` | 正交相机加 `FollowTarget`，带一点余量。 |
-| Tracking Camera | `camera:tracking` | 透视相机，站在目标后上方（`FollowTarget`）并构图（`LookAtTarget`）。 |
+| Follow Camera 2D | `camera:follow-2d` | 用 `PositionComposer` 构图的正交相机：目标可在死区内移动，永远不会离开软区。 |
+| Tracking Camera | `camera:tracking` | 透视相机，站在目标后上方（`FollowTarget`）、构图（`LookAtTarget`）并保持目标可见（`CameraDeoccluder`）。 |
 | Look-At Camera | `camera:look-at` | 放在哪就在哪，转头看目标。 |
 | Handheld Camera | `camera:handheld` | 带轻微 `CameraNoise` 的相机，像手持拍摄。 |
 | Dolly Camera with Track | `camera:dolly` | 一条 `Spline` 轨道和轨道上的相机（`CameraDolly`，Track Target），并看向目标。 |
@@ -146,6 +146,35 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 数据形状导出为 `FollowTargetData` 类型。跟随系统直接写相机的 `Transform`(所以 director
 混合的是已跟随的视图),且**只在 play 模式运行**——编辑器的导航视图永远不会被它拖走。
 
+## 移动相机来构图
+
+`PositionComposer` 和 `LookAtTarget` 一样在屏幕上构图，但它移动相机而不是转动相机：对应 Cinemachine 的 Position Composer，也是常用的 2D 相机。目标被保持在一个屏幕点上；在死区内目标可以随意移动、相机不动；超出死区后相机按 `damping` 平滑追上；软区是目标能到的最远处：越过软区边缘，相机立刻移动。3D 相机还会沿视线方向与目标保持 `cameraDistance` 的距离。
+
+```typescript
+import { PositionComposer } from 'esengine';
+
+cmds.entity(cameraEntity).insert(PositionComposer, {
+  target: player,
+  screenX: 0.4, screenY: 0.4,              // 稍偏左下：给前方留出视野
+  deadzoneWidth: 0.1, deadzoneHeight: 0.2, // 走动不会带动相机
+  softzoneWidth: 0.6, softzoneHeight: 0.6, // 冲刺也不会让玩家越过这里
+  damping: 0.25,
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 构图的目标（`0` = 无）。 |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | 构图点，相对目标的世界空间偏移。 |
+| `screenX` / `screenY` | number | `0.5` | 目标被保持的位置：`0` 为左/下边缘，`1` 为右/上边缘。 |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | 目标可以移动而相机不动的屏幕占比。 |
+| `softzoneWidth` / `softzoneHeight` | number | `0.8` | 目标被限制在内的屏幕占比；越过边缘相机立刻移动。 |
+| `damping` | number | `0.3` | 在屏幕方向上追上大部分距离所需秒数（`0` = 立刻）。 |
+| `cameraDistance` | number | `0` | 3D：目标在相机前方保持的距离。`0` 保持当前距离。 |
+| `depthDamping` | number | `0.3` | 3D：追上该距离所需秒数。 |
+
+相机沿自身屏幕平面（右和上）滑动，所以转过角度的相机像轨道车一样移动。正交相机在任何深度下屏幕高度都是 `orthoSize`。它是相机流水线的位置阶段：一台相机用它、`FollowTarget` 或 `CameraDolly` 之一。视口里的相机预览会画出它的死区和软区，Follow Camera 2D 预设就是它。
+
 ## 看向目标
 
 `FollowTarget` 决定相机站在哪,`LookAtTarget` 决定它看向哪。把它加到透视相机上并指向一个实体,相机就会转动,
@@ -190,12 +219,12 @@ cmds.entity(cameraEntity).insert(LookAtTarget, {
 
 | 阶段 | 组件 | Cinemachine | Unreal |
 |---|---|---|---|
-| 1. 位置:站在哪 | `FollowTarget` 或 `CameraDolly` | Position Control(Follow、Spline Dolly) | 相机 rig 的位置节点 |
+| 1. 位置:站在哪 | `FollowTarget`、`CameraDolly` 或 `PositionComposer` | Position Control(Follow、Spline Dolly、Position Composer) | 相机 rig 的位置节点 |
 | 2. 朝向:看向哪 | `LookAtTarget` | Rotation Control(Rotation Composer) | 相机 rig 的注视节点 |
-| 3. 收尾:对结果的限制 | `CameraBounds` | Extensions(Confiner) | 相机修改器 |
+| 3. 收尾:对结果的限制 | `CameraDeoccluder`、`CameraBounds` | Extensions(Deoccluder、Confiner) | 弹簧臂探测、相机修改器 |
 | 4. 噪声:画面上的漂移 | `CameraNoise` | Noise(Basic Multi-Channel Perlin) | 相机震动 |
 
-每个阶段都按世界坐标决策,再经由相机的父节点写回;后面的阶段读取前面阶段这一帧写下的结果,所以一台既跟随又注视
+流水线在游戏自己的 Update 系统之后运行（和 Cinemachine Brain 在 LateUpdate 运行一样），读取的是目标这一帧的位置。每个阶段都按世界坐标决策,再经由相机的父节点写回;后面的阶段读取前面阶段这一帧写下的结果,所以一台既跟随又注视
 同一个角色的相机,是从它这一帧所站的位置去瞄准的。噪声只移动最终画面,逐相机施加,在混合之前。
 之后相机导演(下文)从中选出一台活动相机并混合过去,相当于 Cinemachine 的 Brain 和 Unreal 的 `PlayerCameraManager`。示例 `camera-shots` 把所有阶段放在一起：
 轨道上的跟拍、环形轨道上的摇臂和一个远景，不写一行相机代码。
@@ -254,6 +283,32 @@ cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, freque
 噪声只移动最终画面,从不改相机的 `Transform`,所以不会累积,跟随、轨道和注视也都按相机真实的位置计算。
 它在导演混合之前逐相机施加,所以从一台晃动的相机混合到一台稳定的相机时,晃动会逐渐平息。2D 相机在屏幕上漂移并翻滚。
 噪声跟随游戏时钟:游戏暂停时它也停止。
+
+## 保持目标可见
+
+3D 相机和它拍摄的目标之间出现墙时，画面就被挡住了。`CameraDeoccluder` 让目标保持可见，和 Cinemachine 的 Deoccluder（Pull Camera Forward）以及 UE 的弹簧臂一样：从目标向相机的位置扫一个球，碰到东西时，相机沿这条线被拉近到它跟前。沿这条线移动，目标在画面中的构图位置不变。墙移开后，相机平滑退回到相机组合原本要放的位置；相机组合自己的各个阶段永远看不到被拉近的位置。
+
+```typescript
+import { CameraDeoccluder } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraDeoccluder, {
+  radius: 15,               // 在墙前这么远处停下
+  minimumDistance: 30,      // 离目标不会比这更近
+  dampingWhenOccluded: 0,   // 立刻拉近，永远不会看穿墙
+  damping: 0.4,             // 约 0.4 秒退回
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 必须保持可见的对象。`0` 取 `LookAtTarget` 的目标（含偏移），否则取 `FollowTarget` 的。 |
+| `radius` | number | `15` | 扫掠球的半径：相机在墙前停下的距离。 |
+| `layers` | number | `0` | 会挡住目标的物理层；`0` 为全部。 |
+| `minimumDistance` | number | `30` | 相机离目标不会比这更近。 |
+| `dampingWhenOccluded` | number | `0` | 目标被挡住时拉近所需秒数；`0` 为立刻。 |
+| `damping` | number | `0.4` | 遮挡消失后退回所需秒数。 |
+
+扫掠查询的是 3D 物理世界，所以只有带 3D 碰撞体的物体会挡住目标；没有 3D 物理的场景里相机保持原位。Tracking Camera 预设自带它。
 
 ## 把相机限制在关卡内
 
