@@ -241,6 +241,8 @@ export const CRITERIA = [
   },
   {
     id: 'far-proxies-stand-in',
+    host: 'macos',
+    why: 'it flies a web package of a streamed town through forty-five samples three times over; a Linux runner has no GPU, and rasterised in software one flight took two hours and the run ended on a screenshot timeout',
     says: 'along one flight over a streamed town, every cell within the far distance is drawn by itself or its proxy, the proxies look like the town fully loaded, and a lap leaves loaded what it found',
     answeredBy: 'node tools/verify-far-proxy-town.mjs',
     needs: ['tools/verify-far-proxy-town.mjs', 'examples/far-proxy-town/project.esproject'],
