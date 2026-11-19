@@ -61,7 +61,10 @@ function positionKey(data: MeshData, i: number): string {
     return `${view.getFloat32(at, true)},${view.getFloat32(at + 4, true)},${view.getFloat32(at + 8, true)}`;
 }
 
-/** Edges of the picked clusters that are not shared by exactly two of their triangles: none on a closed surface. */
+/**
+ * Edges of the picked clusters only one of their triangles has: a gap, which is what two levels that do not meet leave.
+ * An edge four triangles share is a fold a collapse can make where two sheets touch, and is not counted: it hides nothing.
+ */
 function openEdges(data: MeshData, lod: ClusterLod, picked: number[]): number {
     const ids = new Map<string, number>();
     const weld = (i: number) => {
@@ -82,7 +85,7 @@ function openEdges(data: MeshData, lod: ClusterLod, picked: number[]): number {
         }
     }
     let open = 0;
-    for (const n of uses.values()) if (n !== 2) open++;
+    for (const n of uses.values()) if (n % 2 === 1) open++;
     return open;
 }
 

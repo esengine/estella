@@ -21,8 +21,26 @@ export const CLUSTER_MAX_TRIANGLES = 128;
 const CLUSTER_MAX_VERTICES = 192;
 /** A group that keeps more than this share of its triangles was not simplified: its clusters stay as they are. */
 const STUCK_SHARE = 0.85;
-/** Clusters a group gathers at most after the two pairing rounds and the lone clusters taken in. */
-const GROUP_MAX_CLUSTERS = 6;
+/**
+ * Pairing rounds a level's clusters are grouped by: four make groups of up to sixteen. A small group has a long border for
+ * its area, and the border is held still, so the simplifier spends its whole error on a thin interior: measured on a
+ * 1.4M-triangle generated model, groups of four needed 0.3 of the radius to reach the size groups of sixteen reach at 0.01.
+ */
+const PAIRING_ROUNDS = 4;
+/** Clusters a group gathers at most after the pairing rounds and the lone clusters taken in. */
+const GROUP_MAX_CLUSTERS = 24;
+/**
+ * What a full swing of an attribute costs, as a share of its group's radius. The simplifier adds attribute error to the
+ * distance it reports, so an attribute must be in the mesh's units: in a UV's own units a seam on a model a few
+ * centimetres across reads as an error of metres, and a far view keeps a level it cannot see the difference of.
+ *
+ * Small, because fine shading is the normal map's to carry, as a generated model's is: measured on a 1.4M-triangle one
+ * with its own maps, 0.05 drew 3% of the triangles near with 3.5% of its pixels off the source by more than a tenth,
+ * and a few hundred far. A share of 2 brought those pixels to 0.3% for twice the triangles near and ten times far, and
+ * left a smooth mesh drawn whole at a few pixels a triangle. A mesh lit by its vertex normals alone loses grooves
+ * shallower than a pixel at this share.
+ */
+const ATTRIBUTE_SHARE = 0.05;
 /** Floats one cluster's bounds occupy in {@link ClusterLod.bounds}: its own sphere and error, then its group's. */
 export const CLUSTER_BOUNDS_FLOATS = 10;
 
@@ -157,14 +175,13 @@ function pair(members: number[][], adjacency: Map<number, number>[]): { members:
 }
 
 /**
- * The level's clusters as groups of neighbours: two pairing rounds make groups of up to four, and a cluster left alone
+ * The level's clusters as groups of neighbours: the pairing rounds make groups of up to sixteen, and a cluster left alone
  * joins the neighbouring group it shares the most with. A cluster simplified alone has its whole outline held and gives
  * up almost nothing, so as few as possible are left that way.
  */
 function partition(clusters: Cluster[], ids: number[], weld: Uint32Array, vertexCount: number): number[][] {
     let graph = { members: ids.map((_, node) => [node]), adjacency: sharedEdges(clusters, ids, weld, vertexCount) };
-    graph = pair(graph.members, graph.adjacency);
-    graph = pair(graph.members, graph.adjacency);
+    for (let round = 0; round < PAIRING_ROUNDS; round++) graph = pair(graph.members, graph.adjacency);
     const { members, adjacency } = graph;
     const gone = new Uint8Array(members.length);
     members.forEach((m, a) => {
@@ -253,15 +270,26 @@ export async function buildClusterLod(data: MeshData): Promise<ClusterLod | null
             });
 
             const target = Math.floor(count / 3 / 2) * 3;
-            const [kept, error] = MeshoptSimplifier.simplifyWithAttributes(merged, groupPositions, 3, groupAttributes,
-                attributeStride, weights, lock, target, 3e38, ['ErrorAbsolute']);
+            const bounds = sphereOfSpheres(group.map(id => clusters[id]!.self));
+            const scale = bounds.radius * ATTRIBUTE_SHARE;
+            const groupWeights = weights.map(w => w * scale);
+            let [kept, error] = MeshoptSimplifier.simplifyWithAttributes(merged, groupPositions, 3, groupAttributes,
+                attributeStride, groupWeights, lock, target, 3e38, ['ErrorAbsolute']);
+            // A group cut into UV islands holds every island's edge as a seam and stops shrinking: a generated model's
+            // unwrap does that nearly everywhere. Once more, free to collapse across a seam; the held border is held still.
+            if (kept.length === 0 || kept.length > count * STUCK_SHARE) {
+                [kept, error] = MeshoptSimplifier.simplifyWithAttributes(merged, groupPositions, 3, groupAttributes,
+                    attributeStride, groupWeights, lock, target, 3e38, ['ErrorAbsolute', 'Permissive']);
+            }
             if (kept.length === 0 || kept.length > count * STUCK_SHARE) {
                 for (const id of group) for (const i of clusters[id]!.indices) frozen[weld[i]!] = 1;
                 continue;
             }
 
-            const bounds = sphereOfSpheres(group.map(id => clusters[id]!.self));
-            bounds.error += error;
+            // The larger of what the group's clusters show and what this collapse moved, not their sum: summed over a dozen
+            // levels the bound kept twice the triangles at every distance on a generated model, and a level's own error
+            // never falls below its children's, which is all that keeps one level drawn everywhere.
+            bounds.error = Math.max(bounds.error, error);
             for (const id of group) clusters[id]!.parent = bounds;
             const source = Uint32Array.from(toSource);
             for (const indices of split(kept, groupPositions, source)) {
