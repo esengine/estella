@@ -8,7 +8,8 @@ import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState, type PassConfig } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
-import { qualityPassAllowed } from './qualityFilter';
+import { qualitySettingDefaults, type QualitySettingValues } from '../render/qualitySettings/index';
+import { qualityPassAllowed, qualityPassScale, qualityPassUniforms } from './qualityFilter';
 import { effectPassNames } from './effects';
 import { PassFusion, isFusedPass, type FusedPass } from './passFusion';
 
@@ -42,6 +43,8 @@ class PostProcessBridge extends WasmBridge<NonNullable<EngineApi>> {
 
 const bridge = new PostProcessBridge();
 let module: PostProcessCore | null = null;
+const HIGHEST_LEVEL: Readonly<QualitySettingValues> = qualitySettingDefaults('high');
+
 /** Four floats the committed format decision is read back through. */
 let hdrPtr = 0;
 
@@ -137,10 +140,10 @@ function getModule(): PostProcessCore {
  */
 export function syncStackToWasm(stack: PostProcessStack, force = false,
     allow: (name: string) => boolean = () => true): void {
-    pushStack(stack, force, allow, null);
+    pushStack(stack, force, allow, null, { scaleOf: (pass) => pass.scale, uniformsOf: () => [] });
 }
 
-function pushPass(m: PostProcessCore, pass: PassConfig): void {
+function pushPass(m: PostProcessCore, pass: PassConfig, scale: number, levelUniforms: [string, number][]): void {
     try {
         if (pass.native) {
             if (!m.postprocess_addNativePass) return;
@@ -152,14 +155,14 @@ function pushPass(m: PostProcessCore, pass: PassConfig): void {
         } else {
             m.postprocess_addPass(pass.name, pass.shader);
         }
-        if (pass.scale !== 1) m.postprocess_setPassScale(pass.name, pass.scale);
+        if (scale !== 1) m.postprocess_setPassScale(pass.name, scale);
         if (pass.continuesEffect) m.postprocess_setPassContinuesEffect(pass.name);
     } catch (e) {
         handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
         return;
     }
 
-    for (const [name, value] of pass.floatUniforms) {
+    for (const [name, value] of [...pass.floatUniforms, ...levelUniforms]) {
         try {
             m.postprocess_setUniformFloat(pass.name, name, value);
         } catch (e) {
@@ -184,7 +187,7 @@ function pushPass(m: PostProcessCore, pass: PassConfig): void {
     }
 }
 
-function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion): void {
+function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion, uniformsOf: (name: string) => [string, number][]): void {
     try {
         m.postprocess_addPass(pass.name, pass.shader);
     } catch (e) {
@@ -192,7 +195,7 @@ function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion): voi
         return;
     }
     for (const member of pass.members) {
-        for (const [name, value] of member.floatUniforms) {
+        for (const [name, value] of [...member.floatUniforms, ...uniformsOf(member.name)]) {
             try {
                 m.postprocess_setUniformFloat(pass.name, fusion.paramName(member.effect!, name), value);
             } catch (e) {
@@ -209,7 +212,13 @@ function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion): voi
     }
 }
 
-function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string) => boolean, fusion: PassFusion | null): void {
+interface QualityPush {
+    scaleOf: (pass: PassConfig) => number;
+    uniformsOf: (passName: string) => [string, number][];
+}
+
+function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string) => boolean, fusion: PassFusion | null,
+    quality: QualityPush): void {
     if (!force && !stack.isDirty && !fusion?.waiting) return;
 
     const m = getModule();
@@ -223,8 +232,8 @@ function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string
 
     const live = stack.passes.filter((pass) => pass.enabled && allow(pass.name));
     for (const pass of fusion ? fusion.plan(live) : live) {
-        if (isFusedPass(pass)) pushFused(m, pass, fusion!);
-        else pushPass(m, pass);
+        if (isFusedPass(pass)) pushFused(m, pass, fusion!, quality.uniformsOf);
+        else pushPass(m, pass, quality.scaleOf(pass), quality.uniformsOf(pass.name));
     }
 
     // The display look rides the stack as the passes do, and goes with them (clearPasses above): said again for every camera that has one.
@@ -312,17 +321,26 @@ export class PostProcessAPI {
         return this.qualityFilter_?.dynamicGIReduced ?? false;
     }
 
+    get levelValues(): Readonly<QualitySettingValues> {
+        return this.qualityFilter_ ?? HIGHEST_LEVEL;
+    }
+
     /**
      * Whether the quality level in force runs an effect, by its type. For a system that prepares something for an effect off the GPU (the dynamic GI
      * builds a distance field, a second of a phone's CPU): it asks before it does.
      */
     effectAllowed(type: string): boolean {
         const passes = effectPassNames(type);
-        return (passes.length > 0 ? passes : [type]).every((name) => qualityPassAllowed(this.qualityFilter_, name));
+        return (passes.length > 0 ? passes : [type]).some((name) => qualityPassAllowed(this.qualityFilter_, name));
     }
 
     private allowQualityPass_ = (name: string): boolean => {
         return qualityPassAllowed(this.qualityFilter_, name);
+    };
+
+    private qualityPush_: QualityPush = {
+        scaleOf: (pass) => qualityPassScale(this.qualityFilter_, pass),
+        uniformsOf: (passName) => qualityPassUniforms(this.qualityFilter_, passName),
     };
 
     // -- per-App state (stacks / bindings / screen stack) --------------------
@@ -532,7 +550,7 @@ export class PostProcessAPI {
         }
 
         this.setBypass(false);
-        pushStack(stack, this.engineStack_ !== stack, this.allowQualityPass_, this.fusePasses_ ? this.fusion_ : null);
+        pushStack(stack, this.engineStack_ !== stack, this.allowQualityPass_, this.fusePasses_ ? this.fusion_ : null, this.qualityPush_);
         this.engineStack_ = stack;
     }
 

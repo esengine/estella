@@ -10,6 +10,7 @@
  *          kept by chunk and saved by chunk.
  */
 import type { App, Plugin } from '../app/app';
+import { qualityProfileOf } from '../render/qualityRuntime';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import { defineComponent, MeshRenderer, RuntimeOnly, Transform, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
@@ -184,8 +185,6 @@ const collideLayerOf = (entity: Entity): string => `voxel-collide:${entity}`;
 const pieceKey = (entity: Entity, key: string): string => `voxel:${entity}:${key}`;
 const columnKey = (cx: number, cz: number): string => `${cx},${cz}`;
 
-/** The most time edits may take of a frame, in milliseconds. At least one chunk is always made, so a dig is never left waiting. */
-const REBUILD_BUDGET_MS = 4;
 
 /** What a game asks of its volumes. Places are in the world. @experimental */
 export class VoxelTerrains {
@@ -465,6 +464,7 @@ export class VoxelPlugin implements Plugin {
     private remake(app: App, built: Built): void {
         if (built.waiting.size === 0) return;
         const started = performance.now();
+        const budgetMs = qualityProfileOf(app).voxelRebuildBudgetMs;
         const rendering = app.hasResource(Assets) && !!(built.instance || built.data.material);
         for (const [key, chunk] of built.waiting) {
             const column = columnKey(chunk.cx, chunk.cz);
@@ -478,7 +478,7 @@ export class VoxelPlugin implements Plugin {
                 built.lastRebuildMs = performance.now() - began;
             }
             built.waiting.delete(key);
-            if (performance.now() - started > REBUILD_BUDGET_MS) break;
+            if (performance.now() - started > budgetMs) break;
         }
     }
 

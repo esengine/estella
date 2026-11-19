@@ -674,6 +674,9 @@ struct LightJS {
     f32 shadowDistance;
     bool meshShadows;
     f32 shadowExtent;
+    f32 cascadeSplit;
+    f32 shadowBias;
+    f32 shadowSlopeFloor;
     bool followEnvironmentSun;
     bool aimFollowedSun;
     u32 environment;
@@ -709,6 +712,9 @@ void lightApplyJS(esengine::ecs::Light& c, const LightJS& js) {
     c.shadowDistance = js.shadowDistance;
     c.meshShadows = js.meshShadows;
     c.shadowExtent = js.shadowExtent;
+    c.cascadeSplit = js.cascadeSplit;
+    c.shadowBias = js.shadowBias;
+    c.shadowSlopeFloor = js.shadowSlopeFloor;
     c.followEnvironmentSun = js.followEnvironmentSun;
     c.aimFollowedSun = js.aimFollowedSun;
     c.environment = resource::EnvironmentHandle(js.environment);
@@ -751,6 +757,9 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
     js.shadowDistance = c.shadowDistance;
     js.meshShadows = c.meshShadows;
     js.shadowExtent = c.shadowExtent;
+    js.cascadeSplit = c.cascadeSplit;
+    js.shadowBias = c.shadowBias;
+    js.shadowSlopeFloor = c.shadowSlopeFloor;
     js.followEnvironmentSun = c.followEnvironmentSun;
     js.aimFollowedSun = c.aimFollowedSun;
     js.environment = c.environment.id();
@@ -2086,6 +2095,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("shadowDistance", &LightJS::shadowDistance)
         .field("meshShadows", &LightJS::meshShadows)
         .field("shadowExtent", &LightJS::shadowExtent)
+        .field("cascadeSplit", &LightJS::cascadeSplit)
+        .field("shadowBias", &LightJS::shadowBias)
+        .field("shadowSlopeFloor", &LightJS::shadowSlopeFloor)
         .field("followEnvironmentSun", &LightJS::followEnvironmentSun)
         .field("aimFollowedSun", &LightJS::aimFollowedSun)
         .field("environment", &LightJS::environment)
@@ -4380,19 +4392,22 @@ static_assert(offsetof(esengine::ecs::Light, sourceAngle) == 76, "ABI offset dri
 static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 80, "ABI offset drift: esengine::ecs::Light.shadowDistance (EHT expected 80)");
 static_assert(offsetof(esengine::ecs::Light, meshShadows) == 84, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 84)");
 static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 88, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 88)");
-static_assert(offsetof(esengine::ecs::Light, followEnvironmentSun) == 92, "ABI offset drift: esengine::ecs::Light.followEnvironmentSun (EHT expected 92)");
-static_assert(offsetof(esengine::ecs::Light, aimFollowedSun) == 93, "ABI offset drift: esengine::ecs::Light.aimFollowedSun (EHT expected 93)");
-static_assert(offsetof(esengine::ecs::Light, environment) == 96, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 96)");
-static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 100, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 100)");
-static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 104, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 104)");
-static_assert(offsetof(esengine::ecs::Light, reflectionScale) == 108, "ABI offset drift: esengine::ecs::Light.reflectionScale (EHT expected 108)");
-static_assert(offsetof(esengine::ecs::Light, diffuseScale) == 112, "ABI offset drift: esengine::ecs::Light.diffuseScale (EHT expected 112)");
-static_assert(offsetof(esengine::ecs::Light, diffuseTint) == 116, "ABI offset drift: esengine::ecs::Light.diffuseTint (EHT expected 116)");
-static_assert(offsetof(esengine::ecs::Light, reflectionSaturation) == 132, "ABI offset drift: esengine::ecs::Light.reflectionSaturation (EHT expected 132)");
-static_assert(offsetof(esengine::ecs::Light, bakedTint) == 136, "ABI offset drift: esengine::ecs::Light.bakedTint (EHT expected 136)");
-static_assert(offsetof(esengine::ecs::Light, hemisphere) == 152, "ABI offset drift: esengine::ecs::Light.hemisphere (EHT expected 152)");
-static_assert(offsetof(esengine::ecs::Light, groundColor) == 156, "ABI offset drift: esengine::ecs::Light.groundColor (EHT expected 156)");
-static_assert(offsetof(esengine::ecs::Light, enabled) == 172, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 172)");
+static_assert(offsetof(esengine::ecs::Light, cascadeSplit) == 92, "ABI offset drift: esengine::ecs::Light.cascadeSplit (EHT expected 92)");
+static_assert(offsetof(esengine::ecs::Light, shadowBias) == 96, "ABI offset drift: esengine::ecs::Light.shadowBias (EHT expected 96)");
+static_assert(offsetof(esengine::ecs::Light, shadowSlopeFloor) == 100, "ABI offset drift: esengine::ecs::Light.shadowSlopeFloor (EHT expected 100)");
+static_assert(offsetof(esengine::ecs::Light, followEnvironmentSun) == 104, "ABI offset drift: esengine::ecs::Light.followEnvironmentSun (EHT expected 104)");
+static_assert(offsetof(esengine::ecs::Light, aimFollowedSun) == 105, "ABI offset drift: esengine::ecs::Light.aimFollowedSun (EHT expected 105)");
+static_assert(offsetof(esengine::ecs::Light, environment) == 108, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 108)");
+static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 112, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 112)");
+static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 116, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 116)");
+static_assert(offsetof(esengine::ecs::Light, reflectionScale) == 120, "ABI offset drift: esengine::ecs::Light.reflectionScale (EHT expected 120)");
+static_assert(offsetof(esengine::ecs::Light, diffuseScale) == 124, "ABI offset drift: esengine::ecs::Light.diffuseScale (EHT expected 124)");
+static_assert(offsetof(esengine::ecs::Light, diffuseTint) == 128, "ABI offset drift: esengine::ecs::Light.diffuseTint (EHT expected 128)");
+static_assert(offsetof(esengine::ecs::Light, reflectionSaturation) == 144, "ABI offset drift: esengine::ecs::Light.reflectionSaturation (EHT expected 144)");
+static_assert(offsetof(esengine::ecs::Light, bakedTint) == 148, "ABI offset drift: esengine::ecs::Light.bakedTint (EHT expected 148)");
+static_assert(offsetof(esengine::ecs::Light, hemisphere) == 164, "ABI offset drift: esengine::ecs::Light.hemisphere (EHT expected 164)");
+static_assert(offsetof(esengine::ecs::Light, groundColor) == 168, "ABI offset drift: esengine::ecs::Light.groundColor (EHT expected 168)");
+static_assert(offsetof(esengine::ecs::Light, enabled) == 184, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 184)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, probes) == 0, "ABI offset drift: esengine::ecs::LightProbeVolume.probes (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, capture) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.capture (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, captureInterval) == 8, "ABI offset drift: esengine::ecs::LightProbeVolume.captureInterval (EHT expected 8)");
@@ -4709,7 +4724,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "bf937027e22ea446";
+static const char* kEsAbiLayoutHash = "a7d308843175abab";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -6,6 +6,7 @@ import { FOG_UNIFORMS, FOG_EXPLORED_TEXTURE, FOG_VISIBLE_TEXTURE } from './fogOf
 import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { EffectStage } from './effectStage';
+import type { QualitySettingGroup } from '../render/qualitySettings/types';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
 import type { starfieldEffects } from './sources/starfield';
@@ -94,6 +95,8 @@ export interface EffectSubPass {
      * effect ends on a pass that reads the small result and writes the big one.
      */
     scale?: number;
+    minScale?: number;
+    levelStep?: { key: string; atLeast: number };
     /** Uniforms this pass always carries, whatever the volume says: constants of its design (the voxel atlas's size). */
     uniforms?: Record<string, number>;
     /**
@@ -124,6 +127,8 @@ export interface EffectDef {
     label: string;
     /** Set for every built-in effect, by the table at the end of this file. */
     category?: EffectCategory;
+    qualityGroup?: QualitySettingGroup;
+    labelZh?: string;
     /**
      * Set for an effect that is a stage of the chain's last pass and not a pass of its own ("displayLut"): it has no shader, and the volume's
      * values are handed to the stack for the last pass to read, which runs once and after the output transform.
@@ -156,8 +161,11 @@ export interface EffectDef {
 
 const effectRegistry = new Map<string, EffectDef>();
 
+let passOwners: Map<string, string> | null = null;
+
 export function registerEffect(def: EffectDef): void {
     effectRegistry.set(def.type, def);
+    passOwners = null;
 }
 
 export function getEffectDef(type: string): EffectDef | undefined {
@@ -177,6 +185,20 @@ export function effectPassNames(type: string): string[] {
         return def.multiPass ? def.multiPass.map((pass) => pass.name) : [def.type, ...(def.fallback?.map((pass) => pass.name) ?? [])];
     }
     return [];
+}
+
+export function effectOfPass(passName: string): string | undefined {
+    if (!passOwners) {
+        passOwners = new Map();
+        for (const def of effectRegistry.values()) {
+            for (const pass of effectPassNames(def.type)) passOwners.set(pass.toLowerCase(), def.type);
+        }
+    }
+    return passOwners.get(passName.toLowerCase());
+}
+
+export function effectQualityGroup(type: string): QualitySettingGroup {
+    return getEffectDef(type)?.qualityGroup ?? 'postProcessing';
 }
 
 export function getEffectTypes(): string[] {
@@ -212,16 +234,16 @@ registerEffect({
     // all of the work is done on small targets (about a third of the five full-size blurs it replaces).
     multiPass: [
         { name: 'bloom_prefilter', factory: () => postProcessEffects.createBloomPrefilter(), scale: 0.5 },
-        { name: 'bloom_down_1', factory: () => postProcessEffects.createBloomDown(1), scale: 0.25 },
-        { name: 'bloom_down_2', factory: () => postProcessEffects.createBloomDown(2), scale: 0.125 },
-        { name: 'bloom_down_3', factory: () => postProcessEffects.createBloomDown(3), scale: 0.0625 },
-        { name: 'bloom_down_4', factory: () => postProcessEffects.createBloomDown(4), scale: 0.03125 },
-        { name: 'bloom_down_5', factory: () => postProcessEffects.createBloomDown(5), scale: 0.015625 },
-        { name: 'bloom_up_4', factory: () => postProcessEffects.createBloomUp(4, 'bloom_down_4'), scale: 0.03125 },
-        { name: 'bloom_up_3', factory: () => postProcessEffects.createBloomUp(3, 'bloom_down_3'), scale: 0.0625 },
-        { name: 'bloom_up_2', factory: () => postProcessEffects.createBloomUp(2, 'bloom_down_2'), scale: 0.125 },
-        { name: 'bloom_up_1', factory: () => postProcessEffects.createBloomUp(1, 'bloom_down_1'), scale: 0.25 },
-        { name: 'bloom_up_0', factory: () => postProcessEffects.createBloomUp(0, 'bloom_prefilter'), scale: 0.5 },
+        { name: 'bloom_down_1', factory: () => postProcessEffects.createBloomDown(1), scale: 0.25, levelStep: { key: 'bloomLevels', atLeast: 1 } },
+        { name: 'bloom_down_2', factory: () => postProcessEffects.createBloomDown(2), scale: 0.125, levelStep: { key: 'bloomLevels', atLeast: 2 } },
+        { name: 'bloom_down_3', factory: () => postProcessEffects.createBloomDown(3), scale: 0.0625, levelStep: { key: 'bloomLevels', atLeast: 3 } },
+        { name: 'bloom_down_4', factory: () => postProcessEffects.createBloomDown(4), scale: 0.03125, levelStep: { key: 'bloomLevels', atLeast: 4 } },
+        { name: 'bloom_down_5', factory: () => postProcessEffects.createBloomDown(5), scale: 0.015625, levelStep: { key: 'bloomLevels', atLeast: 5 } },
+        { name: 'bloom_up_4', factory: () => postProcessEffects.createBloomUp(4, 'bloom_down_4'), scale: 0.03125, levelStep: { key: 'bloomLevels', atLeast: 5 } },
+        { name: 'bloom_up_3', factory: () => postProcessEffects.createBloomUp(3, 'bloom_down_3'), scale: 0.0625, levelStep: { key: 'bloomLevels', atLeast: 4 } },
+        { name: 'bloom_up_2', factory: () => postProcessEffects.createBloomUp(2, 'bloom_down_2'), scale: 0.125, levelStep: { key: 'bloomLevels', atLeast: 3 } },
+        { name: 'bloom_up_1', factory: () => postProcessEffects.createBloomUp(1, 'bloom_down_1'), scale: 0.25, levelStep: { key: 'bloomLevels', atLeast: 2 } },
+        { name: 'bloom_up_0', factory: () => postProcessEffects.createBloomUp(0, 'bloom_prefilter'), scale: 0.5, levelStep: { key: 'bloomLevels', atLeast: 1 } },
         { name: 'bloom_composite', factory: () => postProcessEffects.createBloomComposite() },
     ],
 });
@@ -577,7 +599,7 @@ registerEffect({
     // WebGL2 has no compute: the same cache built by fragment passes, at a fixed half-size gather.
     fallback: [
         { name: 'gi_voxels', factory: () => voxelGIFallback.createVoxels(), uniforms: { u_feedbackWidth: VOXEL_ATLAS.width, u_feedbackHeight: VOXEL_ATLAS.height } },
-        { name: 'gi_gather', factory: () => voxelGIFallback.createGather(), scale: 0.5 },
+        { name: 'gi_gather', factory: () => voxelGIFallback.createGather(), scale: 0.5, minScale: 0.25 },
         { name: 'gi_apply', factory: () => voxelGIFallback.createApply() },
     ],
     uniforms: [
@@ -662,7 +684,7 @@ registerEffect({
     // The sun's light through the haze (the shadow map, the clouds' shafts) is the dear part and smooth: it is walked at half size and
     // read back by how near each texel's ray is to the pixel's. The haze itself is analytic and stays full size.
     multiPass: [
-        { name: 'fog_volume', factory: () => postProcessEffects.createHeightFogVolume(), scale: 0.5 },
+        { name: 'fog_volume', factory: () => postProcessEffects.createHeightFogVolume(), scale: 0.5, minScale: 0.125 },
         { name: 'fog_composite', factory: () => postProcessEffects.createHeightFog() },
     ],
     uniforms: [
@@ -738,7 +760,7 @@ registerEffect({
     ],
     // What each surface receives, at half size and in a float; then the neighbours on the same surface averaged and added.
     multiPass: [
-        { name: 'ssgi_gather', factory: () => postProcessEffects.createSsgiGather(), scale: 0.5 },
+        { name: 'ssgi_gather', factory: () => postProcessEffects.createSsgiGather(), scale: 0.5, minScale: 0.125 },
         { name: 'ssgi_apply', factory: () => postProcessEffects.createSsgiApply() },
     ],
 });
@@ -915,9 +937,9 @@ registerEffect({
     // that applies it — the chain's last pass feeds the blit and is full size
     // regardless, so the composite is where the upsample has to happen.
     multiPass: [
-        { name: 'ssao_ao', factory: () => postProcessEffects.createSsaoAo(), scale: 0.5 },
-        { name: 'ssao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5 },
-        { name: 'ssao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5 },
+        { name: 'ssao_ao', factory: () => postProcessEffects.createSsaoAo(), scale: 0.5, minScale: 0.25 },
+        { name: 'ssao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5, minScale: 0.25 },
+        { name: 'ssao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5, minScale: 0.25 },
         { name: 'ssao_composite', factory: () => postProcessEffects.createSsaoComposite() },
     ],
 });
@@ -957,9 +979,9 @@ registerEffect({
         { name: 'u_thickness', label: 'Thickness', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
     ],
     multiPass: [
-        { name: 'gtao_ao', factory: () => gtaoPasses.createGtaoAo(), scale: 0.5 },
-        { name: 'gtao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5 },
-        { name: 'gtao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5 },
+        { name: 'gtao_ao', factory: () => gtaoPasses.createGtaoAo(), scale: 0.5, minScale: 0.25 },
+        { name: 'gtao_blur_x', factory: () => postProcessEffects.createSsaoBlur(0), scale: 0.5, minScale: 0.25 },
+        { name: 'gtao_blur_y', factory: () => postProcessEffects.createSsaoBlur(1), scale: 0.5, minScale: 0.25 },
         { name: 'gtao_composite', factory: () => postProcessEffects.createSsaoComposite() },
     ],
 });
@@ -1042,7 +1064,7 @@ registerEffect({
     // The flare is smooth (ghosts fade by the cube of their distance from the edge, the halo by the fourth power) and dear: ninety taps a pixel to
     // find what is bright. It is worked out at half size and laid over the full-size picture, which is a quarter of the pixels paying.
     multiPass: [
-        { name: 'lensflare_flare', factory: () => lensEffects.createLensFlare(), scale: 0.5 },
+        { name: 'lensflare_flare', factory: () => lensEffects.createLensFlare(), scale: 0.5, minScale: 0.125 },
         { name: 'lensflare_composite', factory: () => lensEffects.createLensFlareComposite() },
     ],
     uniforms: [
@@ -1130,4 +1152,31 @@ for (const [category, types] of Object.entries(CATEGORIES) as [EffectCategory, s
         const def = effectRegistry.get(type);
         if (def) def.category = category;
     }
+}
+
+const QUALITY_GROUPS: Partial<Record<QualitySettingGroup, string[]>> = {
+    globalIllumination: ['ssao', 'gtao', 'ssgi', 'voxelGI', 'dynamicGI', 'contactShadows'],
+    reflections: ['ssr'],
+    sky: ['skyAtmosphere', 'starfield', 'distanceFog', 'heightFog', 'mist2d', 'lightShafts', 'rain', 'rain2d', 'snowCover'],
+};
+for (const [group, types] of Object.entries(QUALITY_GROUPS) as [QualitySettingGroup, string[]][]) {
+    for (const type of types) {
+        const def = effectRegistry.get(type);
+        if (def) def.qualityGroup = group;
+    }
+}
+
+const CHINESE_LABELS: Record<string, string> = {
+    blur: '模糊', bloom: '泛光', vignette: '暗角', grayscale: '灰度', colorGrade: '调色', chromaticAberration: '色差',
+    tonemap: '色调映射（ACES）', fxaa: 'FXAA 抗锯齿', lensDistortion: '镜头畸变', pixelate: '像素化', outline: '描边',
+    depthOutline: '深度描边', edgeOutline: '边缘描边', mist2d: '2D 薄雾', rain2d: '2D 雨', fog2d: '2D 战争迷雾',
+    distanceFog: '距离雾', starfield: '星空', skyAtmosphere: '天空大气', voxelGI: '体素 GI', dynamicGI: '动态 GI',
+    sharpen: '锐化', heightFog: '高度雾', ssgi: '屏幕空间 GI', contactShadows: '接触阴影', lightShafts: '光束',
+    autoExposure: '自动曝光', depthOfField: '景深', rain: '雨', snowCover: '积雪', ssao: '环境光遮蔽',
+    subsurface: '次表面散射', gtao: '环境光遮蔽（GTAO）', ssr: '屏幕空间反射', taa: '时间性抗锯齿', motionBlur: '运动模糊',
+    filmGrain: '胶片颗粒', lensFlare: '镜头光晕', agx: 'AgX 色调映射', lutGrade: '调色 LUT', palette: '调色板', displayLut: '显示 LUT',
+};
+for (const [type, label] of Object.entries(CHINESE_LABELS)) {
+    const def = effectRegistry.get(type);
+    if (def) def.labelZh = label;
 }

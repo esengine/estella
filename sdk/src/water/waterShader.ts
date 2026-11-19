@@ -8,6 +8,23 @@
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { CAUSTICS_GLSL } from '../render/waterCaustics';
+import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
+
+const REFLECTION_GROWTH = 1.25;
+const MOST_REFLECTION_GROWTH = 4;
+
+export function waterReflectionGrowth(steps: number): number {
+    const reach = (g: number, n: number): number => (g ** n - 1) / (g - 1);
+    const want = reach(REFLECTION_GROWTH, MOST_WATER_REFLECTION_STEPS);
+    if (steps >= MOST_WATER_REFLECTION_STEPS) return REFLECTION_GROWTH;
+    if (steps <= 1 || reach(MOST_REFLECTION_GROWTH, steps) <= want) return MOST_REFLECTION_GROWTH;
+    let lo = REFLECTION_GROWTH, hi = MOST_REFLECTION_GROWTH;
+    for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (reach(mid, steps) < want) lo = mid; else hi = mid;
+    }
+    return hi;
+}
 import { WAVE_SET, WAVE_SET_SIZE } from './waves';
 import { PACK_NORMAL_GLSL } from '../render/shaderLib';
 
@@ -261,6 +278,9 @@ const WATER = `#pragma shader "Water"
 #pragma param u_waveCount float default(${WAVE_SET_SIZE}) range(1,${WAVE_SET_SIZE}) ui(slider)
 #pragma param u_mirror float default(1) range(0,1) ui(slider)
 #pragma param u_causticOn float default(1) range(0,1) ui(slider)
+#pragma param u_reflectSteps float default(${MOST_WATER_REFLECTION_STEPS}) range(1,${MOST_WATER_REFLECTION_STEPS}) ui(slider)
+#pragma param u_reflectGrowth float default(${REFLECTION_GROWTH}) range(1,${MOST_REFLECTION_GROWTH}) ui(slider)
+#pragma param u_causticLayers float default(${MOST_WATER_CAUSTIC_LAYERS}) range(1,${MOST_WATER_CAUSTIC_LAYERS}) ui(slider)
 // The disturbance the water keeps (WaterZone ripples): a window of the xz plane, red the height of the ripples (0.5 at rest, u_rippleRange above or below at 1 and 0)
 // and green the foam they left, as the CPU stepped them. u_rippleSize is the window's side, u_rippleTexel one texel of it.
 #pragma param u_rippleOn float default(0) range(0,1) ui(slider)
@@ -568,7 +588,8 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
     // Every length here is a share of how far off the water is: a step, and how thick what the ray meets is taken to be. None is a number of units.
     float stride = max(eyeDist * 0.03, 1e-4);
     float travelled = stride;
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < ${MOST_WATER_REFLECTION_STEPS}; ++i) {
+        if (float(i) >= u_reflectSteps) break;
         vec3 q = p + r * travelled;
         vec4 clip = u_projection * vec4(q, 1.0);
         if (clip.w <= 1e-4) break;
@@ -582,7 +603,7 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
         // Fading toward the picture's edge: a reflection that runs off screen thins away instead of stopping on a line.
         vec2 edge = min(uv, 1.0 - uv);
         if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + qDist * 0.002) return vec4(textureLod(u_sceneColor, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
-        stride *= 1.25;
+        stride *= u_reflectGrowth;
         travelled += stride;
     }
     return vec4(0.0);
@@ -765,7 +786,7 @@ void main() {
                 float causticMost = u_causticStrength * cosUp * reachSun * min(sunColor.a, 2.0) * 0.5;
                 if (causticMost > 0.004) {
                     vec3 onSurface = seabed + sunDir.xyz * (depthBelow / max(cosUp, 0.15));
-                    float c = causticPattern(onSurface.xz / u_causticScale, time * u_causticSpeed);
+                    float c = causticPattern(onSurface.xz / u_causticScale, time * u_causticSpeed, u_causticLayers);
                     behind *= 1.0 + causticMost * c * waterSunVisibility(seabed, sunTiles.x, sunTiles.y);
                 }
             }

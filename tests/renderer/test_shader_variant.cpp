@@ -356,6 +356,7 @@ static void testWGSLEmission() {
           "batch texture contract (t0..t7 / s0..s7) injected");
     CHECK(fs.find("@group(0) @binding(3) var<uniform> tc : TimeConstants;") != std::string::npos,
           "TimeConstants twin injected at binding 3");
+    CHECK(fs.find("u_quality : vec4f") != std::string::npos, "the WGSL twin carries u_quality where the GLSL block does");
     CHECK(fs.find("u_progress : f32,") != std::string::npos &&
           fs.find("u_edgeColor : vec4f,") != std::string::npos &&
           fs.find("@group(0) @binding(1) var<uniform> mc : MaterialConstants;") != std::string::npos,
@@ -605,6 +606,7 @@ static void testFragmentOnly() {
           af.find("uniform TimeConstants") != std::string::npos,
           "u_time clock block injected into both stages");
     CHECK(af.find("vec4 u_viewport") != std::string::npos, "u_viewport rides the injected block");
+    CHECK(af.find("vec4 u_quality") != std::string::npos, "u_quality rides the injected block");
 
     ParsedShader reserved = ShaderParser::parse(
         "#pragma shader \"R\"\n#pragma version 300 es\n#pragma domain Unlit\n"

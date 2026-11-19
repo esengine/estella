@@ -50,6 +50,7 @@ struct DynamicGIParams {
     bool halfRes = false;
     /// How many of the rows of probes the picture would have are kept, 0.25 to 1 (it acts where `probeSpacing` is 0).
     f32 probeDensity = 1.0f;
+    u32 probeRows = 90;
 };
 
 /**

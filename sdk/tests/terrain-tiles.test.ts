@@ -78,6 +78,16 @@ describe('ground kept as tiles', () => {
         expect(reads).toEqual(['t0_0.png']);
     });
 
+    it('keeps to a budget lowered after it was made, as a quality level changing hands it one', async () => {
+        const one = T * T * 4;
+        const { source } = world();
+        for (const x of [-300, -140, 20]) await source.region(x, -300, 1, 2);
+        expect(source.stats().resident).toBe(3);
+        source.budget = one;
+        await source.region(180, -300, 1, 2);
+        expect(source.stats()).toMatchObject({ resident: 1, bytes: one });
+    });
+
     it('refuses a document whose tiles fall outside its grid, or are listed twice', () => {
         const doc = { version: 1, tileSamples: 9, tilesX: 1, tilesZ: 1, overview: 'o.png', tiles: [{ x: 0, z: 0, height: 'a.png' }] };
         expect(parseTerrainTiles(doc).tiles).toHaveLength(1);

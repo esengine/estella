@@ -18,6 +18,7 @@
  *              placed twice.
  *            - Ids are made of the layer, the grid cell, the recipe and the member, with their versions: never a position in a list.
  */
+import { worldgenLimits } from '../worldgenLimits';
 import { Environment, fbm, hash01, hashString, type FieldValues } from './fields';
 import { bandWeight, type BiomeDef, type PlacementLayer, type Recipe, type RecipeMember, type WorldRules } from './rules';
 import type { Zones } from './zones';
@@ -88,8 +89,6 @@ interface Candidate {
 
 type Viable = { ok: true; candidate: Candidate } | { ok: false; reason: Rejection; detail?: string };
 
-/** Entries a cache holds before it is emptied: a source walking for ever does not grow it without end. */
-const CACHE_LIMIT = 40000;
 
 function groupRadius(recipe: Recipe): number {
     let r = footprintOf(recipe.anchor, recipe.anchor.scale?.[1] ?? 1);
@@ -242,7 +241,7 @@ export class WorldPlan {
         const key = `${li}:${gx},${gz}`;
         const had = this.groups_.get(key);
         if (had !== undefined) return had;
-        if (this.groups_.size > CACHE_LIMIT) this.groups_.clear();
+        if (this.groups_.size > worldgenLimits().cacheLimit) this.groups_.clear();
         const made = this.makeGroup(li, gx, gz);
         this.groups_.set(key, made);
         return made;
@@ -333,7 +332,7 @@ export class WorldPlan {
         const key = `${li}:${gx},${gz}`;
         const had = this.viable_.get(key);
         if (had) return had;
-        if (this.viable_.size > CACHE_LIMIT) this.viable_.clear();
+        if (this.viable_.size > worldgenLimits().cacheLimit) this.viable_.clear();
         const made = this.makeViable(li, gx, gz);
         this.viable_.set(key, made);
         return made;

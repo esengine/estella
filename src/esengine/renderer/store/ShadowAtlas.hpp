@@ -94,7 +94,7 @@ public:
             why = AtlasRefusal::TooLarge;
             return -1;
         }
-        if (tiles_.size() + count > MAX_SHADOW_TILES) {
+        if (tiles_.size() + count > tile_budget_) {
             why = AtlasRefusal::TileBudget;
             return -1;
         }
@@ -109,6 +109,9 @@ public:
         }
         return static_cast<i32>(before);
     }
+
+    void setTileBudget(u32 tiles) { tile_budget_ = std::clamp(tiles, 1u, MAX_SHADOW_TILES); }
+    u32 tileBudget() const { return tile_budget_; }
 
     u32 tileCount() const { return static_cast<u32>(tiles_.size()); }
     const ShadowTile& tile(u32 index) const { return tiles_[index]; }
@@ -185,6 +188,7 @@ private:
     u32 cols_;
     std::vector<ShadowTile> tiles_;
     std::vector<bool> used_;
+    u32 tile_budget_ = MAX_SHADOW_TILES;
 };
 
 }  // namespace esengine

@@ -16,6 +16,7 @@ import { DISTORTION, PARTICLE } from './vfxShaders';
 import { paramDefaultValue, reflectEsshader } from './shaderReflect';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from './windFieldShader';
 import { PACK_NORMAL_GLSL, NOISE2D_GLSL, NOISE2D_WGSL } from './shaderLib';
+import { qualitySetting, type QualityNumberSetting } from './qualitySettings/index';
 
 export interface BuiltinShaderTemplate {
     id: string;
@@ -514,6 +515,8 @@ void main() {
 // The shading a glTF material says beyond its base colour. Those channels are
 // per-material constants and per-material samplers, which is what a material has
 // and a component does not — a MeshRenderer's per-object attributes are full.
+const REFRACTION_TAPS_MAX = (qualitySetting('refractionSamples') as QualityNumberSetting).max;
+
 /** The Model shader's source, for what is derived from it in an optional module. */
 export const MODEL = `#pragma shader "Model"
 #pragma version 300 es
@@ -590,6 +593,8 @@ export const MODEL = `#pragma shader "Model"
 
 #pragma fragment
 precision mediump float;
+
+const int REFRACTION_TAPS_MAX = ${REFRACTION_TAPS_MAX};
 
 in vec4 v_color;
 in vec2 v_texCoord;
@@ -768,12 +773,14 @@ void main() {
             vec2 screenUv = landed.xy / max(landed.w, 1e-4) * 0.5 + 0.5;
             float spread = roughness * roughness * 0.04;
             vec3 behind = texture(u_sceneColor, clamp(screenUv, vec2(0.001), vec2(0.999))).rgb;
-            for (int i = 0; i < 8; ++i) {
+            float taps = u_quality.x > 0.0 ? clamp(floor(u_quality.x), 1.0, float(REFRACTION_TAPS_MAX)) : float(REFRACTION_TAPS_MAX);
+            for (int i = 0; i < REFRACTION_TAPS_MAX; ++i) {
+                if (float(i) >= taps) break;
                 float a = float(i) * 2.39996;
-                vec2 o = vec2(cos(a), sin(a)) * (spread * sqrt((float(i) + 0.5) / 8.0));
+                vec2 o = vec2(cos(a), sin(a)) * (spread * sqrt((float(i) + 0.5) / taps));
                 behind += texture(u_sceneColor, clamp(screenUv + o, vec2(0.001), vec2(0.999))).rgb;
             }
-            seen = behind / 9.0 * u_attenuationColor.rgb * (1.0 - fresnel) * u_transmission;
+            seen = behind / (taps + 1.0) * u_attenuationColor.rgb * (1.0 - fresnel) * u_transmission;
             refracted = 1.0;
         } else {
             // No picture to refract (the scene is not a texture here): the surface lets that much of the scene show instead,
@@ -895,7 +902,8 @@ void main() {
     vec3 lit = vec3(0.0);
     float glossLevel = 0.0;
     vec3 glossTint = vec3(0.0);
-    for (int i = 0; i < 16; ++i) {
+    int lightCount = int(u_ambient.a);
+    for (int i = 0; i < lightCount; ++i) {
         vec3 l = vec3(0.0), g = vec3(0.0), x = vec3(0.0);
         shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,
                    u_lights[i].shadowMap, u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, l, g, x, true);

@@ -63,6 +63,8 @@ struct VoxelGIParams {
     f32 sunAlbedo = 0.6f;
     /// How much of the light the last gather found on a surface it gives off again (the bounces after the first): 0 is one bounce.
     f32 bounceFeedback = 1.0f;
+    u32 gridSize = 128;
+    u32 sunSamples = 256;
 };
 
 class VoxelGI {
@@ -82,22 +84,17 @@ public:
                            u32 width, u32 height, TextureHandle shadowAtlas = TextureHandle::Invalid,
                            rg::ResourceId shadowResource = rg::kNoResource);
 
-    /** Samples a side of each sun shadow tile the sun kernel reads back into the grid. */
-    static constexpr u32 kSunSamples = 256;
-
     /** Frees the device objects (the grid, the programs). */
     void release();
 
-    /** The grid's size in voxels per axis: the window the cache covers is this many voxels across. */
-    static constexpr u32 kDimsX = 128;
-    static constexpr u32 kDimsY = 64;
-    static constexpr u32 kDimsZ = 128;
-    static_assert((kDimsX & (kDimsX - 1)) == 0 && (kDimsY & (kDimsY - 1)) == 0 && (kDimsZ & (kDimsZ - 1)) == 0,
-                  "the kernels wrap a cell into the grid with a mask");
+    static constexpr u32 kMaxGridSize = 128;
+    static constexpr u32 kMinGridSize = 32;
+    static u32 gridSizeOf(u32 asked);
+    static u32 sunSamplesOf(u32 asked);
 
 private:
     struct Programs;
-    bool ensure();
+    bool ensure(u32 gridSize);
     /// The two pictures the gathers accumulate into, made again when their size changes.
     bool ensureHistory(u32 width, u32 height);
     void writeParams(const VoxelGIParams& p);
@@ -126,6 +123,7 @@ private:
     /// The render origin that view-projection was made for.
     glm::dvec3 previousOrigin_{0.0};
     f32 previousVoxelSize_ = 0.0f;
+    u32 gridSize_ = 0;
     /// The window's origin, in cells, as of the frame being drawn.
     i32 origin_[3] = {0, 0, 0};
 };

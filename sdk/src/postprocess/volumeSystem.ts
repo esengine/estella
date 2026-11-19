@@ -283,7 +283,7 @@ function applyBlendedEffects(
             for (const [index, subPass] of def.multiPass.entries()) {
                 const alt = subPass.alternate?.when(effectData.uniforms) ? subPass.alternate : null;
                 const shader = alt ? getOrCreateShader(api, alt.key, alt.factory) : getOrCreateShader(api, subPass.name, subPass.factory);
-                stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0);
+                stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0, subPass.minScale);
                 for (const [uniformName, uniformValue] of effectData.uniforms) {
                     stack.setUniform(subPass.name, uniformName, uniformValue);
                 }
@@ -294,7 +294,7 @@ function applyBlendedEffects(
             // No compute stage: the fragment version of the same effect stands in for it.
             for (const [index, subPass] of def.fallback.entries()) {
                 const shader = getOrCreateShader(api, subPass.name, subPass.factory);
-                stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0);
+                stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0, subPass.minScale);
                 if (def.inline && def.fallback.length === 1) stack.setEffect(subPass.name, effectType);
                 for (const u of def.uniforms) stack.setUniform(subPass.name, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
                 for (const [name, value] of Object.entries(subPass.uniforms ?? {})) stack.setUniform(subPass.name, name, value);

@@ -16,6 +16,7 @@ export {
     uniformInUnits,
     getEffectTypes,
     getAllEffectDefs,
+    effectQualityGroup,
 } from './effects';
 export {
     signedDistanceBox,

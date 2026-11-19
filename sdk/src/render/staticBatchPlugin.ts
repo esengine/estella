@@ -28,6 +28,7 @@ import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { MeshChannel, type MeshData } from '../asset/meshFormat';
 import { log } from '../util/logger';
+import { qualityProfileOf } from './qualityRuntime';
 import type { Entity } from '../types';
 import {
     STATIC_BATCH_DEFAULTS, channelSignature, layoutRefusal, mergeMeshes, planStaticBatches, staticBatchKey, worldMatrix,
@@ -179,8 +180,6 @@ interface StaticBatchGroupState {
 
 /** Frames with nothing new to merge before a pass starts. */
 const SETTLE_FRAMES = 2;
-/** Frames between checks for a part that has gone away. */
-const SWEEP_FRAMES = 30;
 
 const drawsOf = (meshes: readonly MeshData[]): number => new Set(meshes).size;
 
@@ -218,7 +217,7 @@ export class StaticBatchPlugin implements Plugin {
                     .finally(() => { state.busy_ = false; });
                 return;
             }
-            if (frame % SWEEP_FRAMES === 0) this.sweep(app, state, assets);
+            if (frame % qualityProfileOf(app).batchScanFrames === 0) this.sweep(app, state, assets);
         }, { name: 'StaticBatchSystem' }), { runIf: playModeOnly });
     }
 

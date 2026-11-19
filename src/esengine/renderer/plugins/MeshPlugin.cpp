@@ -1107,7 +1107,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 glm::vec3 centre;
                 f32 radius = 0.0f;
                 lod::boundingSphere(position, transform.worldRotation, scale, resident->localMin, resident->localMax, centre, radius);
-                if (radius > 0.0f && lod::screenRelativeSize(ctx.view_projection, centre, radius) < stand->screenSize) {
+                if (radius > 0.0f && lod::screenRelativeSize(ctx.view_projection, centre, radius) * ctx.frame->lodDistanceScale() < stand->screenSize) {
                     if (collect_ctx.frustum.intersectsAABB(centre, glm::vec3(radius))) {
                         emitImpostorCard(collect_ctx, *atlas, mesh, entity, centre, radius, transform.worldRotation);
                     }
@@ -1185,7 +1185,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             glm::vec3 centre(0.0f);
             f32 radius = 0.0f;
             lod::boundingSphere(position, rotation, scale, localMin, localMax, centre, radius);
-            const f32 screenSize = lod::screenRelativeSize(ctx.view_projection, centre, radius);
+            const f32 screenSize = lod::screenRelativeSize(ctx.view_projection, centre, radius) * (ctx.frame ? ctx.frame->lodDistanceScale() : 1.0f);
             auto& state = *collect_ctx.lod.state;
             const u32 view = collect_ctx.lod.view;
             const u8 level = lod::selectLevel(levels.set, screenSize, state.lastLevel(view, entity));

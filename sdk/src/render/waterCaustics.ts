@@ -15,7 +15,8 @@
  *          Water material's, and the Underwater effect is given the same ones, so the two halves agree about what the light is doing.
  */
 
-/** GLSL: `causticPattern(p, t)`, 0 to 1, p in world units of the surface divided by the pattern's scale. */
+import { MOST_WATER_CAUSTIC_LAYERS } from './qualitySettings/water';
+
 export const CAUSTICS_GLSL = `float causticHash(vec2 p) {
     p = fract(p * vec2(0.1031, 0.1030));
     p += dot(p, p.yx + 33.33);
@@ -28,11 +29,12 @@ float causticNoise(vec2 p) {
     return mix(mix(causticHash(i), causticHash(i + vec2(1.0, 0.0)), f.x),
                mix(causticHash(i + vec2(0.0, 1.0)), causticHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-float causticPattern(vec2 p, float t) {
+float causticPattern(vec2 p, float t, float layers) {
     float sum = 0.0;
     float weight = 1.0;
     float norm = 0.0;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < ${MOST_WATER_CAUSTIC_LAYERS}; ++i) {
+        if (float(i) >= layers) break;
         float s = exp2(float(i));
         float a = causticNoise(p * s + vec2(0.31, 0.12) * t * (1.0 + 0.3 * float(i)) + 7.0 * float(i));
         float b = causticNoise(p * s * 1.37 - vec2(0.17, 0.4) * t * (1.0 + 0.2 * float(i)) + 31.0 * float(i));
