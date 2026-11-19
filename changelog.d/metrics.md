@@ -1,6 +1,0 @@
----
-section: Added
-commits:
-  - feat(metrics): esengine/metrics reports a server process in the Prometheus text format - a registry with the game's own counters, gauges and histograms, collectors for the replication server, zones, player records and the process read at scrape time from totals those pieces now keep, a flat JSON snapshot, and a /metrics request handler
----
-**A game server can be watched, with `esengine/metrics`.** A `MetricsRegistry` renders the Prometheus text format (and a flat JSON snapshot), and `metricsHandler(registry)` serves it at the server's own `/metrics`. Built-in collectors report what the SDK's server pieces know: `replicationMetrics(server)` — connections, players present and away, how long each replication sample takes, state bytes and frames, rows a bandwidth budget deferred, game messages, connections closed for the limits; `zoneMetrics(zone)` — transfers, routed and refused logins, messages for players delivered, forwarded, held and dropped, whether the zone is draining; `playerPersistenceMetrics(players)` — record loads and saves by outcome; and `processMetrics()` — memory, uptime and event-loop utilization. Collectors read totals at scrape time, so a registry costs nothing until it is asked, and the game adds its own counters, gauges and histograms beside them.

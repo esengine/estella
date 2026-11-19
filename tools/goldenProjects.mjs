@@ -1461,7 +1461,68 @@ export const SHIPPED = {
   "A game's server exports with its page, ready to deploy.":
     { notCertifiable: "A server export; no golden project has a server. Covered by pipeline/tests/export-server.test.ts." },
   "A game's page can be served apart from its server.":
-    { notCertifiable: "Where a page dials its server; no golden project has one. Covered by sdk/tests/net-session-deploy.test.ts." },
+    { notCertifiable: "Where a page dials its server; no golden project has one. Covered by sdk/tests/net-session-deploy.test.ts." },  "A clip can declare windows, and a melee swing reaches along":
+    { notCertifiable: "A timeline event with a duration and a swept melee hit; no golden project has a melee swing. Covered by sdk/tests/animator-windows.test.ts and melee-sweep.test.ts." },
+  "The editor previews a scene in your own browser with one cli":
+    { notCertifiable: "An editor toolbar action that opens a development build in the system browser; a golden project is judged as a package, not on how it was previewed. Covered by desktop/tests/device-preview.test.ts and device-preview-ui.test.tsx; not clicked in a real editor." },
+  "A streamed world's cells arrive and leave within the frame's":
+    { notCertifiable: "How a streamed cell is spread over frames and what the streamer does when it falls behind; the streamed golden project is judged on what is resident, not on frame times. Covered by sdk/tests/world-streaming-policy.test.ts and world-residency.test.ts, and measured with tools/measure-cell-hitch.mjs." },
+  "Combos chain inside the window their clip declares, and an a":
+    { notCertifiable: "An animator condition and an input buffer; no golden project has a combo. Covered by sdk/tests/animator-combo.test.ts." },
+  "A streamed world draws its distant places: each cell can shi":
+    { notCertifiable: "Far proxies of a streamed world's cells; the streamed golden project ships none. Covered by sdk/tests/world-far-proxy.test.ts, pipeline/tests/cook-world-far-proxy.test.ts, tools/tests/far-proxy.e2e.mjs and tools/verify-far-proxy-town.mjs." },
+  "`Graphics` fills any outline, builds its triangles once, and":
+    { notCertifiable: "The immediate-mode Graphics drawing API; no golden project draws with it. Covered by sdk/tests/graphics.test.ts." },
+  "A game server can be watched, with `esengine/metrics`.":
+    { notCertifiable: "A metrics registry for a dedicated server; no golden project has a server. Covered by sdk/tests/metrics.test.ts." },
+  "A game server can keep what it holds across restarts, with `":
+    { notCertifiable: "A document store for a dedicated server; no golden project has a server. Covered by sdk/tests/persist.test.ts, persist-remote.test.ts and replication-persist.test.ts." },
+  "A planet's sea has waves, shallows and a shore.":
+    { notCertifiable: "A planet's sea shading; no golden project has a planet. Its fields are in the component reference and the API reports; no test in the repository pins its look." },
+  "A quality level sets how large the effects that are already ":
+    { notCertifiable: "A per-level size for effects drawn below the picture's size; a golden project is judged at one level and not on what an effect cost. Covered by sdk/tests/postfx-effect-resolution.test.ts and quality-runtime.test.ts." },
+  "A selected probe volume shows what its bake laid down.":
+    { notCertifiable: "An editor viewport overlay for a selected probe volume; nothing a package draws. Covered by desktop/scripts/editor-checks/probe-bricks.mjs." },
+  "The low quality level reads probe volumes one value per obje":
+    { notCertifiable: "Which way a mesh reads its probe volume at a quality level, and the counters that say what it cost; no golden project bakes a probe volume. Covered by the probe-per-pixel and probe-per-object render scenes and sdk/tests/quality-runtime.test.ts." },
+  "A probe volume can be baked sparse: its spacing kept near ge":
+    { notCertifiable: "A bake option for probe volumes; no golden project bakes one. Covered by sdk/tests/probe-sparse.test.ts, probe-file.test.ts and the probe-per-pixel-sparse render scene." },
+  "Lights and shadows have per-level settings.":
+    { notCertifiable: "Per-level budgets for lights and shadows; a golden project is judged at one level. Covered by sdk/tests/quality-runtime.test.ts and quality-settings-table.test.ts, and tests/renderer/test_shadow_atlas.cpp." },
+  "Four quality groups gain the costs that were written into th":
+    { notCertifiable: "Per-level values for view distance, terrain, water and textures; a golden project is judged at one level. Covered by sdk/tests/quality-view-terrain-water-textures.test.ts." },
+  "A crowded server can cap what each player is sent, with `ser":
+    { notCertifiable: "A bandwidth budget on a replication server; no golden project has a server. Covered by sdk/tests/replication-budget.test.ts." },
+  "A replicated game can send its own messages between server a":
+    { notCertifiable: "Game-defined messages beside replicated state; no golden project is networked. Exercised through sdk/tests/zones-bus.test.ts, which sends them across a transfer." },
+  "A server with a moving crowd can recompute views less often,":
+    { notCertifiable: "How often a replication server recomputes interest; no golden project has a server. Covered by sdk/tests/replication-interest-refresh.test.ts." },
+  "A replicated game can say who a player is, and a player who ":
+    { notCertifiable: "Player identity and rejoin on a replication server; no golden project is networked. Covered by sdk/tests/replication-identity.test.ts." },
+  "Replicated numbers can be sent as whole numbers of a step, w":
+    { notCertifiable: "A wire encoding for replicated fields; no golden project is networked. Covered by sdk/tests/replication-quantize.test.ts." },
+  "An agent working through the editor's MCP now has a 3D gamep":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour. Covered by desktop/tests/skills.test.ts." },
+  "An agent working through the editor's MCP now has an animati":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour. Covered by desktop/tests/skills.test.ts." },
+  "An agent working through the editor's MCP now has a multipla":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour. Covered by desktop/tests/skills.test.ts." },
+  "An agent working through the editor's MCP now has a performa":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour. Covered by desktop/tests/skills.test.ts." },
+  "An agent working through the editor's MCP now has a shipping":
+    { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour. Covered by desktop/tests/skills.test.ts." },
+  "A game server can keep its sockets off the simulation's thre":
+    { notCertifiable: "A worker for a dedicated server's sockets; no golden project has a server. Covered by sdk/tests/socket-worker.test.ts." },
+  "A texture can be made from pixels at run time.":
+    { notCertifiable: "An Assets call that makes a texture from bytes; no golden project makes one at run time. It rides the texture path the existing upload and residency suites hold; no test names this call." },
+  "AI agents can generate 3D models with Tripo AI.":
+    { notCertifiable: "An editor tool group that calls a paid outside service; nothing a package holds, and no check may spend an account's credits. Covered against a stand-in service by desktop/tests/tripo.test.ts and tripo-notice.test.ts." },
+  "AI agents can rig, animate, retexture and reduce models with":
+    { notCertifiable: "More of the same outside service through the editor's tools; nothing a package holds. Covered against a stand-in service by desktop/tests/tripo.test.ts." },
+  "A streamed world remembers what happened in a cell after you":
+    { notCertifiable: "What a streamed cell is restored to when it returns; the streamed golden project changes nothing in a cell it leaves. Covered by sdk/tests/world-memory.test.ts." },
+  "A world bigger than one server can be split into zones, each":
+    { notCertifiable: "Several server processes sharing one world; no golden project has a server. Covered by sdk/tests/zones.test.ts, zones-bus.test.ts and zones-ws.test.ts, and run across real processes by tools/zones-benchmark.mjs." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

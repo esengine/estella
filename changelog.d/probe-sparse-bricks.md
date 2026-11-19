@@ -1,8 +1,0 @@
----
-section: Added
-commits:
-  - feat(bake): a probe volume can be baked sparse - fine bricks of probes near geometry and coarser ones in the open air, solved by the C++ bake kernel on every core and written as a version 3 .esprobes the runtime reads brick by brick
-  - feat(editor): the Lighting panel sets how many brick sizes a probe volume may use, and Bake Lighting passes it - Probe levels 1 to 4, where above 1 the bake keeps the probe spacing near geometry and samples the open air 2, 4 or 8 times coarser
-  - fix(bake): a sparse probe grid is stitched where bricks of two sizes meet - each probe on a finer brick's face takes the coarser brick's light there, so a read crossing the seam does not jump
----
-**A probe volume can be baked sparse: its spacing kept near geometry, the open air between sampled coarser.** `BakedLighting.probeLevels` (Probe levels in the Lighting panel, 1 to 4) lets a bake cut a volume into bricks of 4x4x4 cells and leave a brick with nothing near it at 2, 4 or 8 times the spacing, so a large volume with a fine spacing near its floor and walls is baked where before it was refused for having too many probes (the limit now grows eight times a level). The runtime reads the bricks through the same atlas as a dense grid, per pixel and per object. Probes are now solved by the C++ bake kernel on every core rather than in TypeScript on one, and a grid whose bricks would all be fine is still written dense. Where a fine brick meets a coarse one its face takes the coarse brick's light, so there is no seam where the spacing changes. The default stays 1, a probe at every spacing.
