@@ -107,6 +107,9 @@ private:
         /// and a record has to be reachable by index.
         TextureHandle texture = TextureHandle::Invalid;
         u32 texture_rows = 0;  ///< Rows the texture currently holds.
+        std::vector<u8> texture_mirror;
+        u32 mirror_rows = 0;
+        u64 mirror_generation = 0;
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_stride = 0;

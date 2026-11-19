@@ -191,6 +191,8 @@ void RenderFrame::init(u32 width, u32 height) {
     shadow_pool_.init();
     velocity_pool_.init();
     cover_pool_.init();
+    shadow_mover_pool_.init();
+    cover_mover_pool_.init();
     planar_pool_.init();
     probe_pool_.init();
     batch_shader_id_ = initBatchShader();
@@ -225,6 +227,8 @@ void RenderFrame::shutdown() {
     shadow_pool_.shutdown();
     velocity_pool_.shutdown();
     cover_pool_.shutdown();
+    shadow_mover_pool_.shutdown();
+    cover_mover_pool_.shutdown();
     if (cover_frame_ubo_ != BufferHandle::Invalid) {
         device_.deleteBuffer(cover_frame_ubo_);
         cover_frame_ubo_ = BufferHandle::Invalid;
@@ -1034,10 +1038,14 @@ void RenderFrame::end() {
 
 #ifdef ES_ENABLE_POSTPROCESS
     // What stands over each place, for an effect that keeps rain off what is sheltered.
-    if (usePostProcess && scene_resource_ != rg::kNoResource && cover_list_.commandCount() > 0) {
+    if (usePostProcess && scene_resource_ != rg::kNoResource && cover_wanted_ && coverCommandCount() > 0) {
         const rg::ResourceId cover = post_process_->declareCover(1024);
-        if (cover != rg::kNoResource) {
-            post_process_->setCoverMatrix(cover_view_projection_);
+        const bool standing = cover_drawn_valid_ && cover_trusted_ && cover_drawn_key_ == cover_key_
+                           && cover_drawn_target_ == post_process_->coverTargetId();
+        ES_PROFILE_COUNTER("render.cover.reused", standing ? 1u : 0u);
+        if (standing) ++cover_kept_total_;
+        if (cover != rg::kNoResource) post_process_->setCoverMatrix(cover_view_projection_);
+        if (cover != rg::kNoResource && !standing) {
             rg::PassDesc pass;
             pass.name = "rain-cover";
             pass.write = cover;
@@ -2678,23 +2686,21 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
         // A frame that plans no map gives the atlas back, as the pool it came from gave back what no frame asked for.
         shadow_target_.reset();
         shadow_drawn_valid_ = false;
+        shadow_held_valid_ = false;
+        shadow_lists_valid_ = false;
         return;
     }
 
-    // Collected now rather than when the pass runs: whether it runs at all is decided by what it would draw. (Before the camera's
-    // own collect, as the casters' level of detail always assumed: they cast what the camera settled on last frame.)
-    // First what the collect would read. The same as what the collect that drew the atlas read, it would come back with the key
-    // the atlas holds, and is not made. With the change audit on it is made all the same, and a different key is a bug: something
-    // the collect reads that the inputs do not say.
-    u64 inputs = 0;
-    const bool vouched = shadowInputs(registry, inputs);
+    u64 inputs = 0, heldInputs = 0;
+    bool heldVouched = false;
+    const bool vouched = shadowInputs(registry, inputs, heldInputs, heldVouched);
     const bool inputsMatch = vouched && shadow_drawn_valid_ && shadow_drawn_inputs_valid_ && inputs == shadow_drawn_inputs_;
     const bool skipped = inputsMatch && !registry.changeAuditEnabled();
     if (skipped) {
         shadow_reused_ = true;
     } else {
         u64 key = 0;
-        const bool trusted = collectShadowViews(registry, key);
+        const bool trusted = collectShadowViews(registry, inputs, vouched, heldInputs, heldVouched, key);
         shadow_reused_ = trusted && shadow_drawn_valid_ && key == shadow_drawn_key_;
         if (inputsMatch && !shadow_reused_) {
             ++shadow_inputs_stale_;
@@ -2736,7 +2742,6 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     }
 
     shadow_frame_tiles_ = shadow_frame_draws_ = 0;
-    shadow_pool_uploaded_ = false;
     shadow_tile_passes_left_ = 0;
     // The atlas already holds what this would draw: no pass, and every reader samples last frame's squares, which are this frame's.
     // Otherwise, square by square: under the layout the squares were drawn in, one whose key is what it holds stands, and only
@@ -2898,22 +2903,26 @@ void RenderFrame::releaseShadowFrameUbos() {
     shadow_frame_ubos_.clear();
 }
 
-bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key) {
+bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key, u64& heldKey, bool& heldVouched) {
     u64 h = hash::kFnv64Offset;
-    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
-    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
-    // Every caster is asked, whether or not an earlier one vouched: each keeps its own look at what changed.
+    u64 held = hash::kFnv64Offset;
+    const auto mix = [&h, &held](u64 v) { h = hash::combine(h, v); held = hash::combine(held, v); };
+    const auto words = [&h, &held](const void* data, usize bytes) {
+        h = hash::combineWords(h, data, bytes);
+        held = hash::combineWords(held, data, bytes);
+    };
     bool vouched = true;
+    heldVouched = true;
     auto ctx = makeContext();
     ctx.purpose = RenderPurpose::ShadowDepth;
     for (auto& plugin : plugins_) {
         if (!plugin->castsShadows()) continue;
-        u64 part = 0;
+        u64 part = 0, heldPart = 0;
         if (!plugin->castInputs(ctx, registry, part)) vouched = false;
-        mix(part);
+        if (!plugin->castHeldInputs(heldPart)) heldVouched = false;
+        h = hash::combine(h, part);
+        held = hash::combine(held, heldPart);
     }
-    // What the collect reads besides the casters: where each square is and what it looks through, the camera (a sun's casters are
-    // culled to what can shade what it sees), and what makes the same handles draw something else.
     mix(device_.deviceGeneration());
     mix(device_.geometryWrites());
     mix(static_cast<u64>(shadow_target_ ? static_cast<u32>(shadow_target_->handle()) : 0u));
@@ -2931,38 +2940,27 @@ bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key) {
     mix(shadow_receiver_cull_ ? 1u : 0u);
     mix(view_id_);
     key = h;
+    heldKey = held;
+    heldVouched = heldVouched && vouched;
     return vouched;
 }
 
-bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
-    u32 shadowCastersCulled = 0;
+void RenderFrame::collectShadowLists(ecs::Registry& registry, CasterSplit split, TransientBufferPool& pool,
+                                     std::vector<DrawList>& lists, u32& culled) {
     const usize viewCount = shadow_views_.size();
-    // Reset once for the pass, NOT once per view: a draw carries an offset rather
-    // than the bytes behind it, so six faces reset to zero are six draws reading
-    // whatever landed at zero last.
-    shadow_pool_.beginFrame();
-    ensureShadowFrameUbos(static_cast<u32>(viewCount));
-    if (shadow_view_lists_.size() < viewCount) shadow_view_lists_.resize(viewCount);
-
-    // Collect every view before any is drawn, so the pool uploads once and then
-    // stays still: growth re-creates the buffer behind the handle, and a recorded
-    // draw names the buffer it was recorded with.
+    pool.beginFrame();
+    if (lists.size() < viewCount) lists.resize(viewCount);
+    culled = 0;
     for (usize vi = 0; vi < viewCount; ++vi) {
         const ShadowView& view = shadow_views_[vi];
-        DrawList& list = shadow_view_lists_[vi];
+        DrawList& list = lists[vi];
         list.clear();
-
-        // What this looks through is the view's, held here rather than swapped into
-        // the frame's own: the scene pass after this one still reads the camera it
-        // was given, so there is nothing to put back.
         Frustum viewFrustum;
         viewFrustum.extractFromMatrix(view.view_projection);
         auto ctx = makeContext();
         ctx.view_projection = view.view_projection;
         ctx.purpose = RenderPurpose::ShadowDepth;
-        // Only the plugins that cast are asked: a map holds depth, and everything
-        // else would write colour into a texture every receiver reads back as one.
-        RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, shadow_pool_,
+        RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, pool,
                                         list, ctx,
                                         computeCameraView(view.view_projection)};
         if (view.sun && shadow_receiver_cull_) {
@@ -2973,31 +2971,33 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
         }
         collectCtx.screen_ui = screen_domain_;
         collectCtx.ui_tree_layers = ui_tree_layers_;
-        // A shadow is part of the camera's picture: what the camera culled by its level of detail (grass past its distance)
-        // does not cast, and what it draws coarse casts coarse.
         collectCtx.lod = {view_id_, &lod_view_state_, nullptr, true};
+        collectCtx.casters = split;
         for (auto& plugin : plugins_) {
             if (plugin->castsShadows()) plugin->collect(collectCtx);
         }
-        shadowCastersCulled += collectCtx.shadowCulled;
-        list.finalize(shadow_pool_);
+        culled += collectCtx.shadowCulled;
+        list.finalize(pool);
     }
-    shadow_casters_culled_ = shadowCastersCulled;
+}
 
-    // What the squares would draw, as one number. Everything a depth draw reads: where each square is and what it looks through,
-    // the draws, their records in the pool, and the materials of the few that carry one (a cut-out's alpha, a bent caster). Beside
-    // them, what would make the same handles draw something else: a lost device, geometry rewritten in place, another atlas.
+u32 RenderFrame::shadowViewDraws(usize vi) const {
+    u32 draws = 0;
+    if (vi < shadow_view_lists_.size() && shadow_view_lists_[vi].commandCount() > 0) draws += shadow_view_lists_[vi].mergedDrawCallCount();
+    if (vi < shadow_mover_lists_.size() && shadow_mover_lists_[vi].commandCount() > 0) draws += shadow_mover_lists_[vi].mergedDrawCallCount();
+    return draws;
+}
+
+bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64 inputs, bool vouched, u64 heldInputs, bool heldVouched,
+                                     u64& key) {
+    const usize viewCount = shadow_views_.size();
+    ensureShadowFrameUbos(static_cast<u32>(viewCount));
     u64 h = hash::kFnv64Offset;
     const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
-    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
-    // Square by square, so a frame can redraw the squares that changed and keep the rest. Each view's key starts from what makes
-    // the same handles draw something else, then where its square is, what it looks through, its draws and the records they read
-    // (wherever in the pool they lie), and its materials.
     mix(device_.deviceGeneration());
     mix(device_.geometryWrites());
     mix(static_cast<u64>(shadow_target_ ? static_cast<u32>(shadow_target_->handle()) : 0u));
     const u64 base = h;
-    // Where every square is, and the clouds' square beside them: two frames with one layout put each view where it was.
     mix(viewCount);
     for (const ShadowView& view : shadow_views_) {
         mix((static_cast<u64>(view.x) << 32) | view.y);
@@ -3006,13 +3006,66 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
     mix(static_cast<u64>(static_cast<i64>(cloud_tile_)));
     mix(shadow_target_ ? shadow_target_->getWidth() : 0u);
     shadow_layout_ = h;
-
-    // Indices built this frame are not read back here; a caster drawn through them is drawn every frame.
-    bool poolTrusted = true;
-    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
-        if (shadow_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) poolTrusted = false;
+    const bool audit = registry.changeAuditEnabled();
+    const bool sized = shadow_view_lists_.size() >= viewCount && shadow_mover_lists_.size() >= viewCount
+                    && shadow_held_hash_.size() == viewCount;
+    if (!audit && vouched && sized && shadow_lists_valid_ && inputs == shadow_lists_inputs_) {
+        ++shadow_lists_kept_;
+        ES_PROFILE_COUNTER("render.shadow.collectMode", 1u);
+        key = shadow_lists_key_;
+        return shadow_lists_trusted_;
     }
-    bool trusted = poolTrusted;
+    const bool heldStands = heldVouched && sized && shadow_held_valid_ && heldInputs == shadow_held_inputs_;
+    u32 moverCulled = 0;
+    if (heldStands && !audit) {
+        ES_PROFILE_COUNTER("render.shadow.collectMode", 2u);
+    } else {
+        const std::vector<u64> wasHashes = heldStands ? shadow_held_hash_ : std::vector<u64>{};
+        collectShadowLists(registry, heldVouched ? CasterSplit::Held : CasterSplit::All, shadow_pool_, shadow_view_lists_,
+                           shadow_held_culled_);
+        shadow_held_uploaded_ = false;
+        ++shadow_held_builds_;
+        ES_PROFILE_COUNTER("render.shadow.collectMode", heldVouched ? 3u : 4u);
+        bool poolTrusted = true;
+        for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+            if (shadow_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) poolTrusted = false;
+        }
+        shadow_held_hash_.assign(viewCount, 0);
+        shadow_held_trusted_.assign(viewCount, 0);
+        for (usize vi = 0; vi < viewCount; ++vi) {
+            bool viewTrusted = poolTrusted;
+            shadow_held_hash_[vi] = shadow_view_lists_[vi].contentHashOfRecords(hash::kFnv64Offset, shadow_pool_, viewTrusted);
+            shadow_held_trusted_[vi] = viewTrusted ? 1 : 0;
+        }
+        if (heldStands && wasHashes != shadow_held_hash_) {
+            ++shadow_held_stale_;
+            if (!warned_shadow_held_) {
+                warned_shadow_held_ = true;
+                ES_LOG_WARN("change audit: the shadow casters held from an earlier frame are not what they collect now - something"
+                            " they are derived from changed without moving their inputs");
+            }
+        }
+        shadow_held_inputs_ = heldInputs;
+        shadow_held_valid_ = heldVouched;
+    }
+    if (shadow_mover_lists_.size() < viewCount) shadow_mover_lists_.resize(viewCount);
+    if (shadow_held_valid_) {
+        collectShadowLists(registry, CasterSplit::Movers, shadow_mover_pool_, shadow_mover_lists_, moverCulled);
+        ++shadow_mover_collects_;
+    } else {
+        shadow_mover_pool_.beginFrame();
+        for (usize vi = 0; vi < viewCount; ++vi) shadow_mover_lists_[vi].clear();
+    }
+    shadow_pool_uploaded_ = false;
+    shadow_casters_culled_ = shadow_held_culled_ + moverCulled;
+    ES_PROFILE_COUNTER("render.shadow.heldBuilds", shadow_held_builds_);
+    ES_PROFILE_COUNTER("render.shadow.heldStale", shadow_held_stale_);
+
+    bool moverPoolTrusted = true;
+    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+        if (shadow_mover_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) moverPoolTrusted = false;
+    }
+    bool trusted = true;
     shadow_view_keys_.assign(viewCount, 0);
     shadow_view_trusted_.assign(viewCount, 0);
     const MaterialStore& materials = context_.materials();
@@ -3024,18 +3077,19 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
         vwords(&view.view_projection, sizeof(glm::mat4));
         vmix((static_cast<u64>(view.x) << 32) | view.y);
         vmix(view.size);
-        const DrawList& list = shadow_view_lists_[vi];
-        // Records a compute pass wrote are not in the pool to be read: the list says so.
-        bool viewTrusted = poolTrusted;
-        v = list.contentHashOfRecords(v, shadow_pool_, viewTrusted);
-        for (u32 c = 0; c < list.commandCount(); ++c) {
-            const DrawCommand& cmd = list.command(c);
-            if (cmd.material_id == 0) continue;
-            // A material that moves its vertices may move them by the clock (wind): the same draw, another shape.
-            if (materials.hasVertexHook(cmd.material_id)) { viewTrusted = false; continue; }
-            if (const MaterialRecord* m = materials.find(cmd.material_id)) {
-                vwords(m->uboBytes.data(), m->uboBytes.size());
-                for (const auto& binding : m->textures) vmix(binding.texture.id());
+        vmix(shadow_held_hash_[vi]);
+        bool viewTrusted = shadow_held_trusted_[vi] != 0 && moverPoolTrusted;
+        const DrawList& movers = shadow_mover_lists_[vi];
+        v = movers.contentHashOfRecords(v, shadow_mover_pool_, viewTrusted);
+        for (const DrawList* list : {static_cast<const DrawList*>(&shadow_view_lists_[vi]), &movers}) {
+            for (u32 c = 0; c < list->commandCount(); ++c) {
+                const DrawCommand& cmd = list->command(c);
+                if (cmd.material_id == 0) continue;
+                if (materials.hasVertexHook(cmd.material_id)) { viewTrusted = false; continue; }
+                if (const MaterialRecord* m = materials.find(cmd.material_id)) {
+                    vwords(m->uboBytes.data(), m->uboBytes.size());
+                    for (const auto& binding : m->textures) vmix(binding.texture.id());
+                }
             }
         }
         shadow_view_keys_[vi] = v;
@@ -3043,34 +3097,41 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
         trusted = trusted && viewTrusted;
         mix(v);
     }
-    (void)words;
     key = h;
+    shadow_lists_inputs_ = inputs;
+    shadow_lists_valid_ = vouched && !audit;
+    shadow_lists_key_ = key;
+    shadow_lists_trusted_ = trusted;
     return trusted;
 }
 
 void RenderFrame::drawShadowView(usize vi) {
     const ShadowView& view = shadow_views_[vi];
-    DrawList& list = shadow_view_lists_[vi];
-    // A cube face pointing away from every mesh collects nothing, and a point light has six chances at that. The square already
-    // holds what it was cleared to — depth 1, nothing here — so drawing it would agree at cost.
-    if (list.commandCount() == 0) return;
-    if (!shadow_pool_uploaded_) {
+    DrawList& held = shadow_view_lists_[vi];
+    DrawList* movers = vi < shadow_mover_lists_.size() ? &shadow_mover_lists_[vi] : nullptr;
+    const bool anyHeld = held.commandCount() > 0;
+    const bool anyMovers = movers && movers->commandCount() > 0;
+    if (!anyHeld && !anyMovers) return;
+    if (anyHeld && !shadow_held_uploaded_) {
         shadow_pool_.upload();
+        shadow_held_uploaded_ = true;
+    }
+    if (anyMovers && !shadow_pool_uploaded_) {
+        shadow_mover_pool_.upload();
         shadow_pool_uploaded_ = true;
     }
     device_.setViewport(view.x, view.y, view.size, view.size);
-    // Not a camera's: this projection spans exactly the occluders it draws, so it sits inside either clip volume as built, and the
-    // depths it writes are compared against the copy of it the receiving shader holds.
-    //
-    // One buffer per view, not one written per view: the write reaches the GPU on the queue, never between draws already recorded
-    // into this open pass. Binding IS an encoder command, so that is what tells the faces apart.
     context_.useFrameConstants(shadow_frame_ubos_[vi], view.view_projection);
-    // The depth variant is still a Lit shader and still declares the light block, and a draw whose declared UBO is unbound is
-    // undefined behaviour that draws nothing — the whole pass came back empty for exactly this.
     context_.lights().uploadAndBind();
-    list.execute(device_, shadow_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr, context_.perDrawBlocks());
+    if (anyHeld) {
+        held.execute(device_, shadow_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr, context_.perDrawBlocks());
+    }
+    if (anyMovers) {
+        movers->execute(device_, shadow_mover_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr,
+                        context_.perDrawBlocks());
+    }
     ++shadow_frame_tiles_;
-    shadow_frame_draws_ += list.mergedDrawCallCount();
+    shadow_frame_draws_ += shadowViewDraws(vi);
 }
 
 void RenderFrame::recordShadowTiles(bool all) {
@@ -3084,7 +3145,7 @@ void RenderFrame::recordShadowTiles(bool all) {
         if (!all && !shadow_view_redraw_[vi]) continue;
         shadow_tile_keys_[vi] = shadow_view_keys_[vi];
         shadow_tile_held_[vi] = shadow_view_trusted_[vi];
-        shadow_tile_draws_[vi] = shadow_view_lists_[vi].commandCount() > 0 ? shadow_view_lists_[vi].mergedDrawCallCount() : 0;
+        shadow_tile_draws_[vi] = shadowViewDraws(vi);
     }
     shadow_tile_layout_ = shadow_layout_;
     shadow_tiles_known_ = true;
@@ -3311,7 +3372,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     stats_.lightsSpared += collectCtx.lightsSpared;
 
     velocity_list_.clear();
-    cover_list_.clear();
+    cover_wanted_ = false;
 #ifdef ES_ENABLE_POSTPROCESS
     if (followMotion) collectMotion(registry);
     if (sceneGBuffer && post_process_ && post_process_->isEngaged() && post_process_->coverWanted()) collectCover(registry);
@@ -3358,18 +3419,45 @@ void RenderFrame::collectMotion(ecs::Registry& registry) {
 #endif
 }
 
+bool RenderFrame::coverInputs(ecs::Registry& registry, u64& key, u64& heldKey, bool& heldVouched) {
+    u64 h = hash::kFnv64Offset;
+    u64 held = hash::kFnv64Offset;
+    const auto mix = [&h, &held](u64 v) { h = hash::combine(h, v); held = hash::combine(held, v); };
+    bool vouched = true;
+    heldVouched = true;
+    auto ctx = makeContext();
+    ctx.purpose = RenderPurpose::ShadowDepth;
+    ctx.rainCover = true;
+    for (auto& plugin : plugins_) {
+        if (!plugin->castsShadows()) continue;
+        u64 part = 0, heldPart = 0;
+        if (!plugin->castInputs(ctx, registry, part)) vouched = false;
+        if (!plugin->castHeldInputs(heldPart)) heldVouched = false;
+        h = hash::combine(h, part);
+        held = hash::combine(held, heldPart);
+    }
+    mix(device_.deviceGeneration());
+    mix(device_.geometryWrites());
+    h = hash::combineWords(h, &cover_view_projection_, sizeof(glm::mat4));
+    held = hash::combineWords(held, &cover_view_projection_, sizeof(glm::mat4));
+    mix(view_id_);
+    key = h;
+    heldKey = held;
+    heldVouched = heldVouched && vouched;
+    return vouched;
+}
+
 void RenderFrame::collectCover(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect.cover");
 #ifdef ES_ENABLE_POSTPROCESS
+    cover_wanted_ = true;
     const f32 range = post_process_->coverRange();
-    // From above, over the camera, snapped to the map's own texel grid so the map does not shimmer as the camera moves.
     const glm::vec4 eye4 = cameraFromViewProjection(view_projection_);
     const glm::vec3 eye = eye4.w > 0.5f ? glm::vec3(eye4) : glm::vec3(0.0f);
     const f32 texel = (range * 2.0f) / 1024.0f;
     const glm::vec3 centre(std::floor(eye.x / texel) * texel, eye.y, std::floor(eye.z / texel) * texel);
     const f32 depth = range * 2.0f;
     const glm::mat4 view = glm::lookAt(centre + glm::vec3(0.0f, range, 0.0f), centre, glm::vec3(0.0f, 0.0f, -1.0f));
-    // Written out like the shadow maps' own, so the depth it stores runs over [0, 1] on either device.
     glm::mat4 proj(1.0f);
     proj[0][0] = 1.0f / range;
     proj[1][1] = 1.0f / range;
@@ -3377,32 +3465,102 @@ void RenderFrame::collectCover(ecs::Registry& registry) {
     proj[3][2] = 0.0f;
     cover_view_projection_ = proj * view;
 
-    cover_pool_.beginFrame();
-    cover_list_.clear();
+    u64 inputs = 0, heldInputs = 0;
+    bool heldVouched = false;
+    const bool vouched = coverInputs(registry, inputs, heldInputs, heldVouched);
+    const bool audit = registry.changeAuditEnabled();
+    if (!audit && vouched && cover_lists_valid_ && inputs == cover_lists_inputs_) {
+        ES_PROFILE_COUNTER("render.cover.collectMode", 1u);
+        return;
+    }
+
     Frustum frustum;
     frustum.extractFromMatrix(cover_view_projection_);
-    auto ctx = makeContext();
-    ctx.view_projection = cover_view_projection_;
-    ctx.purpose = RenderPurpose::ShadowDepth;
-    ctx.rainCover = true;
-    RenderCollectContext collectCtx{registry, frustum, clip_state_, cover_pool_, cover_list_, ctx,
-                                    computeCameraView(cover_view_projection_)};
-    collectCtx.screen_ui = screen_domain_;
-    collectCtx.ui_tree_layers = ui_tree_layers_;
-    for (auto& plugin : plugins_) {
-        if (plugin->castsShadows()) plugin->collect(collectCtx);
+    const auto collectInto = [&](CasterSplit split, TransientBufferPool& pool, DrawList& list) {
+        pool.beginFrame();
+        list.clear();
+        auto ctx = makeContext();
+        ctx.view_projection = cover_view_projection_;
+        ctx.purpose = RenderPurpose::ShadowDepth;
+        ctx.rainCover = true;
+        RenderCollectContext collectCtx{registry, frustum, clip_state_, pool, list, ctx,
+                                        computeCameraView(cover_view_projection_)};
+        collectCtx.screen_ui = screen_domain_;
+        collectCtx.ui_tree_layers = ui_tree_layers_;
+        collectCtx.casters = split;
+        for (auto& plugin : plugins_) {
+            if (plugin->castsShadows()) plugin->collect(collectCtx);
+        }
+        list.finalize(pool);
+    };
+
+    const bool heldStands = heldVouched && cover_held_valid_ && heldInputs == cover_held_inputs_;
+    if (heldStands && !audit) {
+        ES_PROFILE_COUNTER("render.cover.collectMode", 2u);
+    } else {
+        collectInto(heldVouched ? CasterSplit::Held : CasterSplit::All, cover_pool_, cover_list_);
+        cover_held_uploaded_ = false;
+        ++cover_builds_;
+        ES_PROFILE_COUNTER("render.cover.collectMode", heldVouched ? 3u : 4u);
+        bool trusted = true;
+        for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+            if (cover_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) trusted = false;
+        }
+        cover_held_hash_ = cover_list_.contentHashOfRecords(hash::kFnv64Offset, cover_pool_, trusted);
+        cover_held_trusted_ = trusted;
+        cover_held_inputs_ = heldInputs;
+        cover_held_valid_ = heldVouched;
     }
-    cover_list_.finalize(cover_pool_);
+    if (cover_held_valid_) {
+        collectInto(CasterSplit::Movers, cover_mover_pool_, cover_mover_list_);
+        ++cover_mover_collects_;
+    } else {
+        cover_mover_pool_.beginFrame();
+        cover_mover_list_.clear();
+    }
+    cover_movers_uploaded_ = false;
+
+    u64 h = hash::combine(hash::kFnv64Offset, device_.deviceGeneration());
+    h = hash::combine(h, device_.geometryWrites());
+    h = hash::combineWords(h, &cover_view_projection_, sizeof(glm::mat4));
+    h = hash::combine(h, cover_held_hash_);
+    bool trusted = cover_held_trusted_;
+    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+        if (cover_mover_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) trusted = false;
+    }
+    h = cover_mover_list_.contentHashOfRecords(h, cover_mover_pool_, trusted);
+    const MaterialStore& materials = context_.materials();
+    for (const DrawList* list : {&cover_list_, &cover_mover_list_}) {
+        for (u32 c = 0; c < list->commandCount(); ++c) {
+            const DrawCommand& cmd = list->command(c);
+            if (cmd.material_id == 0) continue;
+            if (materials.hasVertexHook(cmd.material_id)) { trusted = false; continue; }
+            if (const MaterialRecord* m = materials.find(cmd.material_id)) {
+                h = hash::combineWords(h, m->uboBytes.data(), m->uboBytes.size());
+                for (const auto& binding : m->textures) h = hash::combine(h, binding.texture.id());
+            }
+        }
+    }
+    cover_key_ = h;
+    cover_trusted_ = trusted;
+    cover_lists_inputs_ = inputs;
+    cover_lists_valid_ = vouched && !audit;
 #else
     (void)registry;
 #endif
 }
 
 void RenderFrame::executeCoverPass() {
-    if (cover_list_.commandCount() == 0) return;
+    if (coverCommandCount() == 0) return;
     ES_PROFILE_SCOPE("render.cover");
-    // Here, in the pass, and not while collecting: an upload during collect opens a pass that swallows the host draws that follow it.
-    cover_pool_.upload();
+    if (cover_list_.commandCount() > 0 && !cover_held_uploaded_) {
+        cover_pool_.upload();
+        cover_held_uploaded_ = true;
+    }
+    if (cover_mover_list_.commandCount() > 0 && !cover_movers_uploaded_) {
+        cover_mover_pool_.upload();
+        cover_movers_uploaded_ = true;
+    }
     if (cover_frame_ubo_ == BufferHandle::Invalid) {
         cover_frame_ubo_ = device_.createBuffer({GfxBufferUsage::Uniform, RenderContext::frameConstantsSize(), /*dynamic=*/true},
                                                 GfxContent::transient(), nullptr);
@@ -3411,10 +3569,21 @@ void RenderFrame::executeCoverPass() {
     device_.setViewport(0, 0, 1024, 1024);
     context_.useFrameConstants(cover_frame_ubo_, cover_view_projection_);
     context_.lights().uploadAndBind();
-    cover_list_.execute(device_, cover_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr,
-                        context_.perDrawBlocks());
-    ES_PROFILE_COUNTER("render.cover.draws", cover_list_.mergedDrawCallCount());
-    // The constants the chain after this reads are the camera's, which this pass borrowed the slot from.
+    if (cover_list_.commandCount() > 0) {
+        cover_list_.execute(device_, cover_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr,
+                            context_.perDrawBlocks());
+    }
+    if (cover_mover_list_.commandCount() > 0) {
+        cover_mover_list_.execute(device_, cover_mover_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr,
+                                  context_.perDrawBlocks());
+    }
+    ++cover_draws_total_;
+    ES_PROFILE_COUNTER("render.cover.draws", cover_list_.mergedDrawCallCount() + cover_mover_list_.mergedDrawCallCount());
+#ifdef ES_ENABLE_POSTPROCESS
+    cover_drawn_key_ = cover_key_;
+    cover_drawn_valid_ = cover_trusted_;
+    cover_drawn_target_ = post_process_ ? post_process_->coverTargetId() : 0;
+#endif
     context_.updateCameraConstants(view_projection_, scene_jitter_);
     device_.invalidatePipelineCache();
 }

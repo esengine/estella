@@ -815,6 +815,17 @@ target_include_directories(test_overlay_segments PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/glm
 )
 add_test(NAME test_overlay_segments COMMAND test_overlay_segments)
+
+add_executable(test_caster_cache
+    renderer/test_caster_cache.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
+)
+target_link_libraries(test_caster_cache PRIVATE esengine)
+target_include_directories(test_caster_cache PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_caster_cache COMMAND test_caster_cache)
 add_test(NAME test_batch_builder COMMAND test_batch_builder)
 
 # GfxDevice compressed-texture entry (RC6-A). Header-only: drives MockGfxDevice to
