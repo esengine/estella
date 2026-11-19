@@ -300,6 +300,16 @@ Scrubbing shows the cut in the viewport's camera preview window. Dragging, jumpi
 playing backwards is safe: which shot and which nested frame are showing is a function of
 time alone. Events inside a nested timeline fire only while it plays forward, like any other.
 
+### Render to frames or a video
+
+**Render** in the Sequencer's header makes the timeline into pictures, as UE's Movie Render Queue and Unity's Recorder
+do. Pick the frame rate (24, 30 or 60), the format (MP4, WebM, or PNG frames alone) and the stretch to render. The
+render plays the **game**, not the preview: the timeline's `TimelinePlayer` (the preview root's) in Play, with every
+system the game runs, paused and stepped exactly one frame of the render at a time, each frame read back from the
+game's own canvas. So a render is the same picture every time, however fast the machine is. Frames are written to
+`renders/<timeline>-<time>/frame_00000.png` in the project and the video beside them (`renders/<timeline>-<time>.mp4`),
+encoded with the ffmpeg the editor ships. Play is left as it was found, and Cancel stops between frames.
+
 ### What the preview animates
 
 Scrubbing or playing in the Sequencer animates the **live viewport**, not a separate
