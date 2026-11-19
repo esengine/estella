@@ -195,9 +195,20 @@ Animator's layers are. The first meets the rig's own pose; each later track is s
 | `blend` | `override` | `override` leans the pose of the tracks above toward its own; `additive` adds what its clips move beyond their own first frame (where the clip starts in its animation), so a lean or a flinch reads the same over any pose. |
 | `weight` | `1` | How much of the track there is, 0 to 1. |
 | `mask` | all | The joints it may move (Unity's Avatar Mask): paths below the rig, each with everything under it. |
+| `rootMotion` | `false` | Move the rig by its clips' root motion (see below). |
 
 So a wave on the upper body over a walk is a second track masked to `Spine`, and a breath is an additive track at a low
 weight. In the Details these are **Track blend**, **Track weight** and **Mask** (paths separated by commas).
+
+**Root motion.** A clip's root track (the `Transform` position and rotation at the animation's own root) normally poses
+the rig like any joint, so a walk plays on the spot it was made at. Turn on the track's `rootMotion` (**Root motion** in
+the Details) and it says where the character goes instead, as Unity's Apply Root Motion does: the root track is left out
+of the pose and the rig is moved by how far the clip's root has travelled since the clip began, from where the rig
+stood. Clips follow on, each starting where the track had brought the rig by its start, so two walks in a row go twice
+as far; a looping clip keeps travelling lap after lap; crossfading clips blend where they put the rig; and after the
+last clip the rig stays where it got to. The travel turns with the rig, so a character facing another way walks that
+way. It is worked out from the clips at every time, never added up frame by frame, so scrubbing, seeking and looping
+put the rig in the same place each time, and the scene's own position is left as it was.
 
 ### Camera shakes
 

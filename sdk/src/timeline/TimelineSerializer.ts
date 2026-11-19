@@ -61,6 +61,7 @@ function serializeTrack(track: Track): Record<string, unknown> {
             return {
                 ...base, hold: track.hold,
                 ...(track.blend === 'additive' ? { blend: 'additive' } : {}),
+                ...(track.rootMotion ? { rootMotion: true } : {}),
                 ...(track.weight !== undefined && track.weight !== 1 ? { weight: track.weight } : {}),
                 ...(track.mask ? { mask: track.mask } : {}),
                 clips: track.clips,

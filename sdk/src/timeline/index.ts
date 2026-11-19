@@ -91,6 +91,7 @@ export {
     sampleAnimationTracks,
     animationClipWeights,
     extrapolatedTime,
+    forgetAnimationRests,
     clipLocalTime,
     type AnimationClipWeight,
 } from './timelineAnimation';
@@ -162,3 +163,4 @@ export {
     type TimelineMotionEffects,
 } from './timelineMotion';
 export { TimelineSpawns, spawnClipActive, type TimelineSpawner } from './timelineSpawns';
+export { rootPlacementAt, clipRootTravel, composePlacement, invertPlacement, blendPlacements } from './timelineRootMotion';

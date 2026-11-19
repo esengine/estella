@@ -214,6 +214,7 @@ function parseTrack(raw: any): Track {
                 type: TrackType.Animation,
                 hold: raw.hold === true,
                 ...(raw.blend === 'additive' ? { blend: 'additive' } : {}),
+                ...(raw.rootMotion === true ? { rootMotion: true } : {}),
                 ...(typeof raw.weight === 'number' && Number.isFinite(raw.weight) && raw.weight !== 1
                     ? { weight: Math.min(1, Math.max(0, raw.weight)) } : {}),
                 ...(Array.isArray(raw.mask) ? { mask: raw.mask.filter((m: unknown): m is string => typeof m === 'string') } : {}),

@@ -285,6 +285,12 @@ export interface AnimationTrack extends TrackBase {
     /** How much of the track there is, 0 to 1; absent is 1. */
     weight?: number;
     /**
+     * Move the rig by its clips' root motion (Unity's Apply Root Motion on a track): each clip's root track says how far
+     * the character travels, from where the clip before left it, instead of where it stands. Off, a clip's root track
+     * poses the rig like any joint.
+     */
+    rootMotion?: boolean;
+    /**
      * The parts of the rig the track may move (Unity's Avatar Mask on a track): paths below the rig, each the subtree
      * under it, '' the whole rig. Absent moves all of it; an empty list moves nothing.
      */

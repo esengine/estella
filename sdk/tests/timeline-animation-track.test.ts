@@ -16,6 +16,8 @@ import { createMockModule } from './mocks/wasm';
 import { Animator } from '../src/animation/Animator';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
+import { composePlacement } from '../src/timeline/timelineRootMotion';
+import { forgetAnimationRests } from '../src/timeline/timelineAnimation';
 
 const hold = (value: number, duration = 1): TimelineAsset => ({
     version: '1.3', type: 'timeline', duration, wrapMode: WrapMode.Once,
@@ -209,5 +211,80 @@ describe('saved and loaded', () => {
         expect(back[0]).toMatchObject({ blend: 'additive', weight: 0.25, mask: ['Arm', 'Leg/Foot'] });
         expect(back[0]!.clips[0]).toMatchObject({ preExtrapolation: 'hold', postExtrapolation: 'pingPong' });
         expect(back[1]!.clips[0]).not.toHaveProperty('postExtrapolation');
+    });
+});
+
+describe('root motion', () => {
+    let world: World;
+    let rig: Entity, arm: Entity;
+    beforeEach(() => {
+        world = new World();
+        const mod = createMockModule();
+        world.connectCpp(mod.getRegistry(), mod);
+        rig = world.spawn('rig');
+        world.insert(rig, Transform, { position: { x: 10, y: 0, z: 0 } });
+        arm = world.spawn('Arm');
+        world.insert(arm, Transform, {});
+        world.setParent(arm, rig);
+    });
+    const deps = (): SampleDeps => ({ world: world as never, getComponent, resolveChild: (r, p) => resolveChildEntity(world, r, p) });
+    const linear = (time: number, value: number) => ({ time, value, inTangent: 0, outTangent: 0, interpolation: 'linear' as never });
+    // A walk: the root goes 100 forward over its second, the arm held at 5.
+    const walk: TimelineAsset = { version: '1.3', type: 'timeline', duration: 1, wrapMode: WrapMode.Once, tracks: [
+        { type: TrackType.Property, name: '', childPath: '', component: 'Transform', channels: [{ property: 'position.x', keyframes: [linear(0, 0), linear(1, 100)] }] },
+        { type: TrackType.Property, name: '', childPath: 'Arm', component: 'Transform', channels: [{ property: 'position.x', keyframes: [linear(0, 5), linear(1, 5)] }] },
+    ] };
+    const lookup = (ref: string) => (ref === 'walk' ? walk : undefined);
+    const rigX = () => world.get(rig, Transform).position.x;
+    const tl = (track: Partial<AnimationTrack>): TimelineAsset => ({
+        version: '1.3', type: 'timeline', duration: 9, wrapMode: WrapMode.Once,
+        tracks: [{ type: TrackType.Animation, name: '', childPath: '', hold: false, clips: [], ...track } as AnimationTrack],
+    });
+
+    it('moves the rig by how far each clip walked, the next going on from where the last left it, and stays there after', () => {
+        const t = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk' }), clip({ start: 1, duration: 1, clip: 'walk' })] });
+        sampleAnimationTracks(t, 0.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(60, 6);
+        expect(world.get(arm, Transform).position.x).toBeCloseTo(5, 6);
+        sampleAnimationTracks(t, 1.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(160, 6);
+        sampleAnimationTracks(t, 5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(210, 6);
+        // Scrubbed back: the same place for the same time.
+        sampleAnimationTracks(t, 0.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(60, 6);
+    });
+
+    it('keeps travelling lap after lap on a looping clip', () => {
+        sampleAnimationTracks(tl({ rootMotion: true, clips: [clip({ start: 0, duration: 2.5, clip: 'walk', loop: true })] }), 2.25, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 225, 6);
+    });
+
+    it('poses the root like any joint with root motion off', () => {
+        sampleAnimationTracks(tl({ clips: [clip({ start: 0, duration: 1, clip: 'walk' })] }), 0.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(50, 6);
+    });
+
+    it('starts again from where the rig stands once its rests are forgotten', () => {
+        const t = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk' })] });
+        sampleAnimationTracks(t, 0.5, rig, deps(), lookup);
+        world.insert(rig, Transform, { position: { x: -40, y: 0, z: 0 } });
+        forgetAnimationRests(world);
+        sampleAnimationTracks(t, 0.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10, 6);
+    });
+
+    it('walks the way the rig faces', () => {
+        const s = Math.SQRT1_2;
+        const turned = { position: { x: 0, y: 0, z: 0 }, rotation: { w: s, x: 0, y: s, z: 0 } };
+        const p = composePlacement(turned, { position: { x: 100, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 } }).position;
+        expect(p.x).toBeCloseTo(0, 6);
+        expect(p.z).toBeCloseTo(-100, 6);
+    });
+
+    it('saves and loads the track’s root motion', () => {
+        const json = JSON.parse(serializeTimelineToJson(tl({ rootMotion: true, clips: [clip({ clip: 'walk' })] })));
+        expect((parseTimelineAsset(json).tracks[0] as AnimationTrack).rootMotion).toBe(true);
+        expect(JSON.parse(serializeTimelineToJson(tl({ clips: [] }))).tracks[0]).not.toHaveProperty('rootMotion');
     });
 });

@@ -58,6 +58,7 @@ locked: boolean | undefined
 mask: string[] | undefined
 muted: boolean | undefined
 name: string
+rootMotion: boolean | undefined
 type: "animation"
 weight: number | undefined
 ```

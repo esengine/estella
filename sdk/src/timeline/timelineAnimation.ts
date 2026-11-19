@@ -27,11 +27,24 @@ import { mixPoses, type WeightedPose } from '../animation/poseMix';
 import { overlayPose, addPoseOver } from '../animation/layerStack';
 import { MaskReach } from '../animation/animatorMask';
 import type { World } from '../ecs/world';
+import { isRootPlacementChannel } from './TimelineEvaluator';
+import { rootPlacementAt } from './timelineRootMotion';
 import { getComponent } from '../ecs/component';
 import type { Entity } from '../types';
 
 /** Per world, what each (joint, component) held before an animation track first wrote it. */
 const rests = new WeakMap<object, Map<string, Record<string, unknown>>>();
+/** Per world, where each rig stood before a root-motion track first moved it. */
+const rootRests = new WeakMap<object, Map<Entity, { position: { x: number; y: number; z: number }; rotation: { w: number; x: number; y: number; z: number } }>>();
+
+/**
+ * Forgets what every joint and rig in `world` held before an animation track moved it, so the next sample takes them
+ * afresh: the editor's preview does this when it binds, after putting the scene's own values back.
+ */
+export function forgetAnimationRests(world: object): void {
+    rests.delete(world);
+    rootRests.delete(world);
+}
 
 const copyData = (data: Record<string, unknown>): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
@@ -184,21 +197,43 @@ export function sampleAnimationTracks(
                 if (!anim) continue;
                 const pose = borrow();
                 pose.reset();
-                sampleTimelineIntoPose(anim, local, rig, deps, pose);
+                // With root motion the clip's root track says where the rig goes, not a pose: it is left out here.
+                sampleTimelineIntoPose(anim, local, rig, deps, pose, track.rootMotion ? ROOT_LEFT_OUT : undefined);
                 layer.sources.push({ pose, weight });
                 layer.total += weight;
                 if (additive) {
                     // An additive clip says how far its animation moves from where the clip starts in it.
                     const ref = borrow();
                     ref.reset();
-                    sampleTimelineIntoPose(anim, clipLocalTime(c, c.start, lengthOf(c)), rig, deps, ref);
+                    sampleTimelineIntoPose(anim, clipLocalTime(c, c.start, lengthOf(c)), rig, deps, ref, track.rootMotion ? ROOT_LEFT_OUT : undefined);
                     layer.refs.push(ref);
                 }
             }
             if (layer.sources.length > 0) layers.push(layer);
         }
         if (layers.length > 0) composeRig(world, rig, layers);
+        // The rig's travel: the last root-motion track on it says where it is.
+        for (let i = tracks.length - 1; i >= 0; i--) {
+            if (!tracks[i]!.rootMotion) continue;
+            moveRoot(world, rig, tracks[i]!, time, lookup);
+            break;
+        }
     }
+}
+
+const ROOT_LEFT_OUT = { skipChannel: isRootPlacementChannel };
+
+/** Places `rig` where `track`'s root motion has brought it at `time`, from where it stood before the track moved it. */
+function moveRoot(world: PoseWorld, rig: Entity, track: AnimationTrack, time: number, lookup: (ref: string) => TimelineAsset | undefined): void {
+    const def = getComponent('Transform');
+    if (!def || !world.has(rig, def)) return;
+    const now = world.get(rig, def) as { position: { x: number; y: number; z: number }; rotation: { w: number; x: number; y: number; z: number } };
+    let byRig = rootRests.get(world as object);
+    if (!byRig) rootRests.set(world as object, (byRig = new Map()));
+    let base = byRig.get(rig);
+    if (!base) byRig.set(rig, (base = { position: { ...now.position }, rotation: { ...now.rotation } }));
+    const at = rootPlacementAt(track, time, base, lookup, animationClipWeights);
+    world.set(rig, def, { ...now, position: at.position, rotation: at.rotation });
 }
 
 /** Composes `layers` on `rig` over its own pose and writes the result once. */
