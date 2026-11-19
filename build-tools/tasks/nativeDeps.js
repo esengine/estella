@@ -244,6 +244,11 @@ export async function ensureSdlBuild(options) {
     const cmake = options.cmake || 'cmake';
     logger.step(`Building SDL3 for ${options.target} (once per pin)...`);
     await runCommand(cmake, [
+        // Fresh, because this directory is cached between runs and a CMakeCache remembers the compiler by its full path: the
+        // day a build machine's toolset moved (MSVC 14.51 to 14.52), the cached one named a cl.exe that was gone and the
+        // configure failed before it looked for another. Reached only when the install is missing, so nothing is rebuilt
+        // that would have been kept.
+        '--fresh',
         '-S', options.sdl, '-B', buildDir, '-G', 'Ninja',
         '-DCMAKE_BUILD_TYPE=Release',
         `-DCMAKE_INSTALL_PREFIX=${prefix}`,
@@ -336,6 +341,8 @@ export async function ensureDawnBuild(options) {
 
     const cmake = options.cmake || 'cmake';
     const shared = [
+        // Fresh, for the reason SDL's is (see ensureSdlBuild): a cached CMakeCache names a compiler that may be gone.
+        '--fresh',
         '-S', options.dawn, '-B', buildDir, '-G', 'Ninja',
         '-DCMAKE_BUILD_TYPE=Release',
         ...dawnBackendFlags(target.backend),
