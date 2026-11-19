@@ -7,6 +7,9 @@ import { Res } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, TimelinePlayback, type TimelineEventPayload, type TimelinePlaybackPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
+import { TimelineSpawns, type TimelineSpawner } from './timelineSpawns';
+import { Prefabs } from '../prefab/prefabServer';
+import { Name } from '../ecs/component';
 import { resolveTimelinePath } from './timelineBindings';
 import { installTimeDilation } from './timeDilation';
 import { Time, type TimeData } from '../ecs/resource';
@@ -43,6 +46,9 @@ export class TimelinePlugin implements Plugin {
     private readonly lastPlayback_ = new Map<Entity, { playing: boolean; laps: number }>();
     /** The audio clips each player is playing. */
     private readonly voices_ = new TimelineAudioVoices();
+    /** What each player's spawn tracks have made. */
+    private readonly spawns_ = new TimelineSpawns();
+    private spawner_: TimelineSpawner | null = null;
 
     build(app: App): void {
         const world = app.world;
@@ -80,10 +86,23 @@ export class TimelinePlugin implements Plugin {
             );
         }
 
+        // Spawn clips make their prefab through the game's prefab server, named so the other tracks find it.
+        this.spawner_ = {
+            spawn: async (prefab, parent, name) => {
+                if (!app.hasResource(Prefabs)) return null;
+                const made = await app.getResource(Prefabs).instantiate(prefab, parent !== null && world.valid(parent) ? { parent } : undefined);
+                if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
+                return made.root;
+            },
+            despawn: (entity) => { if (world.valid(entity)) world.despawn(entity); },
+            prepare: (prefab) => (app.hasResource(Prefabs) ? app.getResource(Prefabs).prepare(prefab) : Promise.resolve({ release() {} })),
+        };
+
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
             this.voices_.stop(entity);
+            this.spawns_.stop(entity, this.spawner_);
             this.lastPlayback_.delete(entity);
             if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
         });
@@ -115,12 +134,12 @@ export class TimelinePlugin implements Plugin {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     current = entity;
                     // A player with no timeline (or one that cannot be found) is not heard either.
-                    if (!player.timeline) { this.voices_.stop(entity); continue; }
+                    if (!player.timeline) { this.voices_.stop(entity); this.spawns_.stop(entity, this.spawner_); continue; }
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
                     const asset = tl.getAsset(player.timeline);
-                    if (!asset) { this.voices_.stop(entity); continue; }
+                    if (!asset) { this.voices_.stop(entity); this.spawns_.stop(entity, this.spawner_); continue; }
                     const published = assets?.resolveRegistryAsset<PublishedTimeline>(
                         'timeline', player.timeline,
                     );
@@ -154,6 +173,10 @@ export class TimelinePlugin implements Plugin {
                     this.processAnimFrames(world, entity, state.time, published?.textureHandles);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
+                    // Spawned entities: there while the playhead is inside their clip, gone once the timeline is stopped.
+                    const owner = entity;
+                    if (!state.playing && !state.started && state.time === 0) this.spawns_.stop(entity, this.spawner_);
+                    else if (this.spawner_) this.spawns_.sync(entity, asset, state.time, this.spawner_, (p) => resolveTimelinePath(world, owner, owner, p));
                     // A clip that ran out gives the view back; one that is only paused keeps it.
                     if (justFinished && director) setTimelineShot(director, entity, null);
 
@@ -186,6 +209,7 @@ export class TimelinePlugin implements Plugin {
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.voices_.stopAll();
+        this.spawns_.stopAll(this.spawner_);
         this.animFramesStates_.clear();
     }
 

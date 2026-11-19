@@ -18,6 +18,7 @@ import {
     type CameraTrack,
     type SequenceTrack,
     type AnimationTrack,
+    type SpawnTrack,
 } from './TimelineTypes';
 import { log } from '../util/logger';
 
@@ -228,6 +229,18 @@ function parseTrack(raw: any): Track {
                     ...(EXTRAPOLATIONS.has(c.postExtrapolation) && c.postExtrapolation !== 'none' ? { postExtrapolation: c.postExtrapolation } : {}),
                 })),
             } as AnimationTrack;
+
+        case TrackType.Spawn:
+            return {
+                ...base,
+                type: TrackType.Spawn,
+                clips: (raw.clips ?? []).map((c: any) => ({
+                    start: finite(c.start, 0),
+                    duration: Math.max(0, finite(c.duration, 0)),
+                    prefab: typeof c.prefab === 'string' ? c.prefab : '',
+                    name: typeof c.name === 'string' ? c.name : '',
+                })),
+            } as SpawnTrack;
 
         default:
             log.warn('timeline', `Unknown track type: ${raw.type}, skipping`);

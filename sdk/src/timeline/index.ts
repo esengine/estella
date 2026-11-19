@@ -28,6 +28,8 @@ export {
     type AnimationClipItem,
     type AnimationExtrapolation,
     type AnimationTrackBlend,
+    type SpawnClip,
+    type SpawnTrack,
     type AnimFrame,
     type AnimFramesTrack,
     type Track,
@@ -86,6 +88,7 @@ export {
 export {
     sampleAnimationTracks,
     animationClipWeights,
+    extrapolatedTime,
     clipLocalTime,
     type AnimationClipWeight,
 } from './timelineAnimation';
@@ -154,3 +157,4 @@ export {
     createTimelineMotionDriver,
     type TimelineMotionEffects,
 } from './timelineMotion';
+export { TimelineSpawns, spawnClipActive, type TimelineSpawner } from './timelineSpawns';

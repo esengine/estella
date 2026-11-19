@@ -59,6 +59,7 @@ export const TrackType = {
     Camera: 'camera',
     Sequence: 'sequence',
     Animation: 'animation',
+    Spawn: 'spawn',
 } as const;
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
@@ -289,7 +290,26 @@ export interface AnimationTrack extends TrackBase {
     mask?: string[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack;
+/** One instance of a spawn track: a prefab made for as long as the playhead is inside the clip. */
+export interface SpawnClip {
+    start: number;
+    duration: number;
+    /** The prefab it makes, by asset ref. */
+    prefab: string;
+    /** What the instance is called: the timeline's other tracks address it by this name, below the track's entity. */
+    name: string;
+}
+
+/**
+ * Entities a timeline brings in for a while (UE's spawnables, the prefab of Unity's Control track): each clip makes its
+ * prefab under the track's entity when the playhead enters it and takes it away when the playhead leaves.
+ */
+export interface SpawnTrack extends TrackBase {
+    type: typeof TrackType.Spawn;
+    clips: SpawnClip[];
+}
+
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack | SpawnTrack;
 
 export interface TimelineAsset {
     version: string;

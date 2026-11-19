@@ -123,6 +123,7 @@ A timeline is a set of tracks evaluated together each frame:
 | Camera | `Camera` | Which camera is the view, shot by shot (see [below](#cameras-and-sequences)). |
 | Sequence | `Sequence` | Another timeline, played inside a window of this one. |
 | Animation | `Animation` | Skeletal animation clips on a rig, eased and crossfaded over its own animation (see [below](#animation-tracks)). |
+| Spawn | `Spawn` | Entities made from a prefab while the playhead is inside a clip (see [below](#spawned-entities)). |
 
 ### Fade and time dilation
 
@@ -196,6 +197,25 @@ Animator's layers are. The first meets the rig's own pose; each later track is s
 
 So a wave on the upper body over a walk is a second track masked to `Spine`, and a breath is an additive track at a low
 weight. In the Details these are **Track blend**, **Track weight** and **Mask** (paths separated by commas).
+
+### Spawned entities
+
+A spawn track brings entities in for a while, as UE's spawnables and the prefab of Unity's Control track do: a dragon
+that flies through a cut scene need not stand hidden in the level the rest of the time. Each clip names a `prefab` and
+the `name` its instance is given:
+
+| Clip field | Description |
+|---|---|
+| `start` / `duration` | When the instance exists: made as the playhead enters the clip, taken away as it leaves. |
+| `prefab` | The prefab it makes, by asset ref. |
+| `name` | What the instance is called. |
+
+The instance is made under the track's entity (the root for a track on the root), so the timeline's other tracks
+address it by its name like any child: a property, animation or camera track with the path `Dragon` moves, animates
+or films the spawned Dragon while it is there and does nothing while it is not. Stopping the timeline, or its player
+going away, takes every instance away; the prefabs a timeline spawns are loaded when its player first plays, so an
+instance appears on the frame its clip starts. In the editor the Sequencer's preview makes the instance too, posed by
+those tracks as you scrub, but it is never an entity of the scene: it is not listed, and it is not saved.
 
 ### Activation ranges
 

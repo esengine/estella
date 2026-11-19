@@ -65,6 +65,8 @@ function serializeTrack(track: Track): Record<string, unknown> {
                 ...(track.mask ? { mask: track.mask } : {}),
                 clips: track.clips,
             };
+        case TrackType.Spawn:
+            return { ...base, clips: track.clips };
         case TrackType.AnimFrames:
             // On-disk key is `animFrames` (matches the loader's read path).
             return { ...base, animFrames: track.frames };
