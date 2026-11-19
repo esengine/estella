@@ -9,5 +9,23 @@
   "spineVersion": "none",
   "scripts": { "main": "src/main.ts" },
   "assetExclude": ["tools", "references", "source"],
-  "features": { "rendering": { "colorSpace": "linear", "outputTransform": "neutral" } }
+  "features": {
+    "rendering": {
+      "colorSpace": "linear",
+      "outputTransform": "neutral",
+      "quality": {
+        "mode": "auto",
+        "targetFps": 60,
+        "dynamicResolution": true,
+        "asyncShaderCompile": true,
+        "prewarmShaders": true,
+        "prewarmTimeoutMs": 12000,
+        "profiles": {
+          "low": { "textureStreaming": false },
+          "medium": { "antialiasing": "msaa", "msaaSamples": 1, "depthPrepass": false, "stillSky": false, "textureStreaming": false },
+          "high": { "msaaSamples": 2, "depthPrepass": false }
+        }
+      }
+    }
+  }
 }

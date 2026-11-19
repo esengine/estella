@@ -50,6 +50,7 @@ node examples/windrise/tools/preview.mjs
 ```powershell
 node pipeline/bin/estella.mjs import-model examples/windrise/assets/character/lumine-final.glb --project examples/windrise --scale 100
 node examples/windrise/tools/compact-clips.mjs
+python examples/windrise/tools/prepare-runtime-textures.py
 node examples/windrise/tools/build.mjs
 ```
 
@@ -69,9 +70,12 @@ Blender 检查脚本使用 `scenario-blender-expert` 的 `bx_audit` / `bx_review
 node sdk/node_modules/typescript/bin/tsc -p examples/windrise/tsconfig.json --noEmit
 node pipeline/bin/estella.mjs export examples/windrise --out output/windrise/web --no-aot --json output/windrise/export.json
 node examples/windrise/tools/verify.mjs
+node examples/windrise/tools/benchmark.mjs output/windrise/web output/windrise/frame-times.json
 ```
 
 验证通过无界面 Chromium 操作真实按键，检查资源加载、骨骼变化、冲刺体力、跳跃落地、技能状态恢复、摄影模式、步行抵达神像和 1280×720 布局。截图及报告输出到 `output/windrise`。这些结果证明当前 WebGL2 构建可运行，不代表移动设备、WebGPU 或编辑器交互验收。
+
+性能测试从一个新的浏览器会话进入普通试玩，记录首次进场、再次打开、出生点、按 W 向前走和大树机位的帧时间与实际绘制量。默认视口为 1600×900，环境变量 `WINDRISE_DPR=2` 可复测双倍像素密度。首屏材质在加载画面内异步预热。远景林木按河岸分批绘制，草叶随距离裁剪。场景使用 2K 的荧身体贴图和 1K 的神像贴图，原始导入贴图可供继续绘制。修改原图后，使用 Pillow 和 NumPy 运行上面的贴图准备脚本。
 
 Blender 网格检查通过。人物身体有 9 条、神像有 2 条被三个以上面共享的边警告。重建的两条飘带通过网格与贴合检查，随上身骨骼运动。头发、裙摆和手部的极端动作仍有精修空间。
 

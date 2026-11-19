@@ -1,6 +1,6 @@
 {
   "seed": 129873,
-  "entities": 191,
+  "entities": 193,
   "characterPrefab": "assets/character/lumine-final.esprefab",
   "characterState": "candidate",
   "referenceCamera": {

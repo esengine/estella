@@ -43,6 +43,7 @@ function material(name,shader,properties,extra={}){const rel=`assets/materials/$
 const toon=material('landscape','builtin:toon',{u_bands:3,u_bandSoftness:.12,u_shadeColor:rgb(.2,.31,.38),u_specThreshold:1,u_rimStrength:.08,u_rimWidth:.24,u_rimColor:rgb(.88,1,.6)});
 const groundSource=builtinShaderTemplate('toon').source.replace('#pragma shader "Toon"','#pragma shader "Windrise meadow"').replace('float alpha = base.a;',meadowPaint);
 const {withWgslTwin}=await importSdkSource('shaders/wgsl/twin.ts');
+const {lodSphereRadius,lodCullSizeWithin}=await importSdkSource('render/lodDistance.ts');
 write('assets/materials/meadow.esshader',withWgslTwin(groundSource));meta('assets/materials/meadow.esshader','shader');
 const groundMat=material('meadow','meadow.esshader',{u_bands:5,u_bandSoftness:.24,u_shadeColor:rgb(.18,.30,.31),u_specThreshold:1});
 meta('assets/textures/meadow.png','texture');
@@ -68,11 +69,16 @@ class Mesh{
  v(p,n=[0,1,0],c=[1,1,1,1],uv=[0,0]){let i=this.p.length/3;this.p.push(...p);this.n.push(...n);this.c.push(...(c.length===3?[...c,1]:c));this.uv.push(...uv);return i;}
  tri(a,b,c){this.i.push(a,b,c);}
  quad(points,color,normal){const n=normal||norm(cross(points[1].map((v,i)=>v-points[0][i]),points[2].map((v,i)=>v-points[0][i])));const ids=points.map((p,i)=>this.v(p,n,color,[[0,0],[1,0],[1,1],[0,1]][i]));this.i.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);}
- save(name,mat=toon,parent=null,extra={}){if(!this.i.length)return;const rel=`assets/models/${name}.esmesh`;const {channels,vertexStride}=packChannels([{semantic:MeshChannel.Position,components:3,type:MeshChannelType.Float32},{semantic:MeshChannel.TexCoord0,components:2,type:MeshChannelType.Float32},{semantic:MeshChannel.Color,components:4,type:MeshChannelType.UNorm8},{semantic:MeshChannel.Normal,components:3,type:MeshChannelType.Float32}]);
+ save(name,mat=toon,parent=null,extra={},drawDistance=0){if(!this.i.length)return;const rel=`assets/models/${name}.esmesh`;const {channels,vertexStride}=packChannels([{semantic:MeshChannel.Position,components:3,type:MeshChannelType.Float32},{semantic:MeshChannel.TexCoord0,components:2,type:MeshChannelType.Float32},{semantic:MeshChannel.Color,components:4,type:MeshChannelType.UNorm8},{semantic:MeshChannel.Normal,components:3,type:MeshChannelType.Float32}]);
   const count=this.p.length/3;const vertices=new Uint8Array(count*vertexStride),view=new DataView(vertices.buffer),lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
   for(let i=0;i<count;i++){const at=i*vertexStride;for(let k=0;k<3;k++){let x=this.p[i*3+k];view.setFloat32(at+channels[0].offset+k*4,x,true);view.setFloat32(at+channels[3].offset+k*4,this.n[i*3+k],true);lo[k]=Math.min(lo[k],x);hi[k]=Math.max(hi[k],x);}for(let k=0;k<2;k++)view.setFloat32(at+channels[1].offset+k*4,this.uv[i*2+k],true);for(let k=0;k<4;k++)view.setUint8(at+channels[2].offset+k,Math.max(0,Math.min(255,Math.round(this.c[i*4+k]*255))));}
   write(rel,Buffer.from(encodeMesh({channels,vertexStride,vertexCount:count,vertices,indices:new Uint32Array(this.i),aabbMin:lo,aabbMax:hi})));meta(rel,'mesh');
-  return entity(name,[tr(),{type:'MeshRenderer',data:{mesh:rel,material:mat,color:white,lit:true,opaque:true,cullBackfaces:false,castShadows:true,...extra}}],parent);
+  const components=[tr(),{type:'MeshRenderer',data:{mesh:rel,material:mat,color:white,lit:true,opaque:true,cullBackfaces:false,castShadows:true,...extra}}];
+  if(drawDistance>0){
+   const radius=lodSphereRadius([{aabbMin:lo,aabbMax:hi}]);
+   components.push({type:'LODGroup',data:{lod1Size:0,lod2Size:0,lod3Size:0,cullSize:lodCullSizeWithin(radius,drawDistance),hysteresis:.1,enabled:true}});
+  }
+  return entity(name,components,parent);
  }
 }
 function ellipsoid(m,p,s,col,segments=10,rings=6,flat=false){const rows=[];for(let j=0;j<=rings;j++){const th=j/rings*Math.PI,row=[];for(let k=0;k<=segments;k++){const ph=k/segments*Math.PI*2,n=[Math.sin(th)*Math.cos(ph),Math.cos(th),Math.sin(th)*Math.sin(ph)];let f=flat?1+.045*Math.sin(k*12+j*3):1;row.push(m.v(n.map((v,i)=>p[i]+v*s[i]*f),norm(n.map((v,i)=>v/s[i])),col,[k/segments,j/rings]));}rows.push(row);}for(let j=0;j<rings;j++)for(let k=0;k<segments;k++){m.tri(rows[j][k],rows[j][k+1],rows[j+1][k+1]);m.tri(rows[j][k],rows[j+1][k+1],rows[j+1][k]);}}
@@ -93,7 +99,7 @@ for(let direction of [-1,1])for(let layer=0;layer<3;layer++){
  const m=new Mesh(),cols=240,rows=18;
  const height=(x,z)=>{let ridge=32+layer*13+13*Math.sin(x*.018+layer*4)+8*Math.sin(x*.043+layer)+3.5*Math.sin(x*.13);return Math.pow(Math.max(0,Math.sin(z*Math.PI)),.9)*ridge*.49+1.5*Math.sin(x*.21+z*32);};
  for(let j=0;j<=rows;j++)for(let k=0;k<=cols;k++){let x=-420+k/cols*840,v=j/rows,y=height(x,v)-3,z=direction*(130+layer*105+j*6);let n=norm([height(x-.5,v)-height(x+.5,v),1,-direction*(height(x,v+.01)-height(x,v-.01))/2.16]);let rock=Math.max(0,Math.min(1,(.65-n[1])*2.0));let col=mix(mix([.10,.24,.045],[.26,.39,.20],layer*.25),[.35,.38,.31],rock);col=mix(col,[.32,.48,.58],layer*.22);m.v([x,y,z],n,col,[k/cols,v]);}
- for(let j=0;j<rows;j++)for(let k=0;k<cols;k++){let a=j*(cols+1)+k,b=a+1,c=a+cols+1,d=c+1;if(direction<0){m.tri(a,b,c);m.tri(b,d,c);}else{m.tri(a,c,b);m.tri(b,c,d);}}m.save(`Distant ridge ${direction} ${layer}`);
+ for(let j=0;j<rows;j++)for(let k=0;k<cols;k++){let a=j*(cols+1)+k,b=a+1,c=a+cols+1,d=c+1;if(direction<0){m.tri(a,b,c);m.tri(b,d,c);}else{m.tri(a,c,b);m.tri(b,c,d);}}m.save(`Distant ridge ${direction} ${layer}`,toon,null,{castShadows:false});
 }
 // The east shoulder splits into three rock spurs below the highest ice field.
 const peak=new Mesh(),spears=[[5,-223,95,2.65,2.25],[22,-230,79,2.2,2.12],[40,-216,57,1.72,1.9],[-13,-232,55,1.78,1.9]];
@@ -132,8 +138,12 @@ if(existsSync(path.join(root,statuePrefab))){
  const renderer=prefab.entities.flatMap(e=>e.components).find(c=>c.type==='MeshRenderer');
  const mesh=decodeMesh(readFileSync(path.join(root,renderer.data.mesh)));
  const factor=6.1/(mesh.aabbMax[1]-mesh.aabbMin[1]);
- const stoneMaterial=material('statue-stone','builtin:model',{u_normalMap:'assets/shrine/anemo-statue_2.png',u_roughness:.92,u_metallic:0});
- entity('Statue of the wind',[tr(sx,sy-mesh.aabbMin[1]*factor,sz,{scale:{x:factor,y:factor,z:factor},rotation:{x:0,y:-Math.SQRT1_2,z:0,w:Math.SQRT1_2}}),{...renderer,data:{...renderer.data,material:stoneMaterial,castShadows:true}}]);
+ const normalMap='assets/shrine/windrise-normal.png',statueTexture='assets/shrine/windrise-stone.jpg';
+ meta(normalMap,'texture');meta(statueTexture,'texture');
+ const normalSettings=JSON.parse(readFileSync(path.join(root,normalMap+'.meta'),'utf8'));
+ normalSettings.importer.sRGB=false;json(normalMap+'.meta',normalSettings);
+ const stoneMaterial=material('statue-stone','builtin:model',{u_normalMap:normalMap,u_roughness:.92,u_metallic:0});
+ entity('Statue of the wind',[tr(sx,sy-mesh.aabbMin[1]*factor,sz,{scale:{x:factor,y:factor,z:factor},rotation:{x:0,y:-Math.SQRT1_2,z:0,w:Math.SQRT1_2}}),{...renderer,data:{...renderer.data,material:stoneMaterial,texture:statueTexture,castShadows:true}}]);
  ellipsoid(energy,[sx,sy+4.25,sz+.30],[.14,.16,.14],[.2,1,.95],14,10);
 }else{ellipsoid(energy,[sx,sy+4.2,sz+.45],[.19,.23,.19],[.3,1,.9],10,6);stone.save('Statue of the wind');}
 energy.save('Anemo shrine glow',glow);
@@ -178,7 +188,15 @@ if(prefabPath){
  const charMat=paintedMaterial('lumine-toon',characterSource,{u_bands:3,u_bandSoftness:.10,u_specThreshold:1,u_rimColor:rgb(1,.91,.72),u_rimStrength:.030,u_rimWidth:.16});
  for(const e of list){const copy=structuredClone(e);copy.id=mapping.get(key(e));delete copy.prefabEntityId;copy.parent=e.parent==null?visual:mapping.get(e.parent);copy.children=(e.children??[]).map(id=>mapping.get(id));
   copy.components=copy.components.filter(c=>c.type!=='TimelinePlayer');
-  for(const c of copy.components){if(c.type==='MeshRenderer'){c.data.lit=true;c.data.castShadows=true;c.data.material=charMat;}if(c.type==='MeshSkin')c.data.joints=c.data.joints.map(id=>mapping.get(id));}
+  for(const c of copy.components){
+   if(c.type==='MeshRenderer'){
+    c.data.lit=true;c.data.castShadows=true;c.data.material=charMat;
+    if(c.data.texture==='assets/character/lumine-final_2.jpg'){
+     c.data.texture='assets/character/lumine-field.jpg';meta(c.data.texture,'texture');
+    }
+   }
+   if(c.type==='MeshSkin')c.data.joints=c.data.joints.map(id=>mapping.get(id));
+  }
   if(e.parent===null&&prefabPath===characterPrefab)copy.components.push({type:'Animator',data:{controller:'assets/character/locomotion.esanimator'}});
   entities.push(copy);if(e.parent==null)entities[visual].children.push(copy.id);
  }

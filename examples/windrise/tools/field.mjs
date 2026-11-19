@@ -41,8 +41,9 @@ function blade(mesh,base,rng,h,w,phase,exposure){
     const [x,y,z]=base,n=[dx*.15,.98,dz*.15];
     const vert=(s,t)=>mesh.v([x+dx*w*s-dz*lean*t*t,y+h*t,z+dz*w*s+dx*lean*t*t],n,
         [t,phase,exposure,1],[(s+1)/2,t]);
-    const l=vert(-1,0),r=vert(1,0),ml=vert(-.65,.54),mr=vert(.65,.54),tip=vert(0,1);
-    mesh.tri(l,r,mr);mesh.tri(l,mr,ml);mesh.tri(ml,mr,tip);
+    // The tip retains its bend and wind weight. The cutout tufts provide the
+    // fine curved blades among these single-triangle blades.
+    mesh.tri(vert(-1,0),vert(1,0),vert(0,1));
 }
 
 function flower(mesh,x,y,z,size,colour,phase){
@@ -123,7 +124,7 @@ export function buildFieldDetails({Mesh,H,grassMat,sprigMat,toon,stoneMaterial,p
                 for(let k=0;k<3;k++)flower(flowers,x+(rng()-.5)*.28,y,z+(rng()-.5)*.28,height*(.85+rng()*.5),c,rng()*tau);
             }
         }
-        grass.save(`Wind grass ${cx}-${cz}`,grassMat,null,{castShadows:false});
+        grass.save(`Wind grass ${cx}-${cz}`,grassMat,null,{castShadows:false},46);
     }
     flowers.save('Meadow wildflower patches',toon,null,{castShadows:false});
     sprigs.save('Fine meadow grass',sprigMat,null,{castShadows:false,texture:'assets/textures/grass-tuft.png'});

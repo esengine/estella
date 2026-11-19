@@ -14,8 +14,9 @@ float cloudNoise(vec2 p) {
                mix(cloudHash(i+vec2(0,1)),cloudHash(i+1.),f.x),f.y);
 }
 float cloudBank(vec2 p,vec2 c,vec2 radii) {
-    vec2 d=vec2(atan(sin(p.x-c.x),cos(p.x-c.x)),p.y-c.y)/radii;
-    return length(d);
+    float azimuth=fract((p.x-c.x)*.1591549431+.5)*6.283185307-3.141592654;
+    vec2 d=vec2(azimuth,p.y-c.y)/radii;
+    return dot(d,d);
 }
 vec3 skyRadiance(vec3 dir,vec3 sun,vec3 sunColor,float env) {
     vec2 p=vec2(atan(dir.x,-dir.z),asin(clamp(dir.y,-1.,1.)));
@@ -27,14 +28,16 @@ vec3 skyRadiance(vec3 dir,vec3 sun,vec3 sunColor,float env) {
     field=min(field,cloudBank(p,vec2(-1.62,.29),vec2(.45,.12)));
     field=min(field,cloudBank(p,vec2(2.74,.37),vec2(.57,.13)));
     field=min(field,cloudBank(p,vec2(1.74,.54),vec2(.26,.09)));
+    vec3 disc=(1.-env)*sunColor*smoothstep(.99962,.99994,dot(dir,sun))*1.6;
+    if(field>2.25) return blue+disc;
     vec2 q=p*vec2(48.,62.);
     float billow=cloudNoise(q)*.49+cloudNoise(q*2.13+7.1)*.25+cloudNoise(q*4.31)*.13+cloudNoise(q*9.26)*.06;
-    float shell=field+billow*.88-.43;
+    float shell=sqrt(field)+billow*.88-.43;
     float density=1.-smoothstep(.91,1.06,shell);
     float rim=smoothstep(.20,1.03,shell*.59+billow*.62+max(0.,p.y)*.42);
     vec3 cloud=mix(vec3(.50,.68,.92),vec3(.97,1.03,1.08),rim);
     vec3 sky=mix(blue,cloud,density);
-    return sky+(1.-env)*sunColor*smoothstep(.99962,.99994,dot(dir,sun))*1.6;
+    return sky+disc;
 }`;
 
 const wgsl = `
@@ -48,8 +51,9 @@ fn cloudNoise(p:vec2f)->f32 {
                mix(cloudHash(i+vec2f(0,1)),cloudHash(i+1.),f.x),f.y);
 }
 fn cloudBank(p:vec2f,c:vec2f,radii:vec2f)->f32 {
-    let d=vec2f(atan2(sin(p.x-c.x),cos(p.x-c.x)),p.y-c.y)/radii;
-    return length(d);
+    let azimuth=fract((p.x-c.x)*.1591549431+.5)*6.283185307-3.141592654;
+    let d=vec2f(azimuth,p.y-c.y)/radii;
+    return dot(d,d);
 }
 fn skyRadiance(dir:vec3f,sun:vec3f,sunColor:vec3f,env:f32)->vec3f {
     let p=vec2f(atan2(dir.x,-dir.z),asin(clamp(dir.y,-1.,1.)));
@@ -61,14 +65,16 @@ fn skyRadiance(dir:vec3f,sun:vec3f,sunColor:vec3f,env:f32)->vec3f {
     field=min(field,cloudBank(p,vec2f(-1.62,.29),vec2f(.45,.12)));
     field=min(field,cloudBank(p,vec2f(2.74,.37),vec2f(.57,.13)));
     field=min(field,cloudBank(p,vec2f(1.74,.54),vec2f(.26,.09)));
+    let disc=(1.-env)*sunColor*smoothstep(.99962,.99994,dot(dir,sun))*1.6;
+    if(field>2.25){return blue+disc;}
     let q=p*vec2f(48.,62.);
     let billow=cloudNoise(q)*.49+cloudNoise(q*2.13+7.1)*.25+cloudNoise(q*4.31)*.13+cloudNoise(q*9.26)*.06;
-    let shell=field+billow*.88-.43;
+    let shell=sqrt(field)+billow*.88-.43;
     let density=1.-smoothstep(.91,1.06,shell);
     let rim=smoothstep(.20,1.03,shell*.59+billow*.62+max(0.,p.y)*.42);
     let cloud=mix(vec3f(.50,.68,.92),vec3f(.97,1.03,1.08),rim);
     let sky=mix(blue,cloud,density);
-    return sky+(1.-env)*sunColor*smoothstep(.99962,.99994,dot(dir,sun))*1.6;
+    return sky+disc;
 }`;
 
 export function installWindriseSky() {

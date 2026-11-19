@@ -75,15 +75,25 @@ const forks = [
 function trunk(mesh,origin,size,rng,hero) {
     for(const [i,points] of forks.entries()){
         const branches=hero?points.map(([x,y,z,r])=>[x,crownHeight(x,y,z),z,r]):points.map(([x,y,z,r])=>[x*.54,y*.82,z*.54,r*(i===0?.86:.62)]);
-        bough(mesh,branches,origin,size,hero?28:10,hero?5:2,i*.73);
+        if(hero) bough(mesh,branches,origin,size,28,5,i*.73);
+        else if(i<5) {
+            // At this scale the outer forks end inside the foliage. Keep the
+            // branching silhouette with one tapered ring at each visible bend.
+            const bends=branches.filter((_,j)=>j%2===0 || j===branches.length-1);
+            bough(mesh,bends,origin,size,6,1,i*.73);
+        }
     }
     const arms=hero?13:6;
     for(let i=0;i<arms;i++) {
         const a=(i+rng()*.55)*tau/arms, dx=Math.cos(a), dz=Math.sin(a);
         const reach=5.3+rng()*5.1, curve=(rng()-.5)*2.8;
+        if(!hero) {
+            if(i%2===0) bough(mesh,[[0,2.1,0,1.3],[dx*3,.5,dz*3,.75],[dx*reach,-.6,dz*reach,.05]],origin,size,4,1,a);
+            continue;
+        }
         bough(mesh,[[0,2.9,0,1.48],[dx*2,1.6,dz*2,1.23],[dx*4.2,.51,dz*4.2,.75],
             [dx*reach*.78-dz*curve,.14,dz*reach*.78+dx*curve,.37],
-            [dx*reach-dz*curve,-.61,dz*reach+dx*curve,.03]],origin,size,hero?14:7,3,a);
+            [dx*reach-dz*curve,-.61,dz*reach+dx*curve,.03]],origin,size,14,3,a);
     }
 }
 
@@ -111,17 +121,19 @@ function lobe(mesh,center,radii,crown,rng,count,size) {
         const sky=clamp((exposureHeight-10)/17);
         const direct=dot(n,[-.43,.77,.30])*.28+dot(macro,[-.43,.77,.30])*.23;
         const value=clamp(.084+sky*.59+direct+(rng()-.5)*.14-crown.blue*.16);
-        const rows=[];
-        for(let y=0;y<3;y++){
+        // A tuft on a valley tree is only a few pixels across. Its four corners
+        // carry the same outline, UVs and sky gradient as the curved hero tuft.
+        const segments=crown.distant?1:2, rows=[];
+        for(let y=0;y<=segments;y++){
             const row=[];
-            for(let x=0;x<3;x++){
-                const s=x-1,t=y-1;
+            for(let x=0;x<=segments;x++){
+                const s=2*x/segments-1,t=2*y/segments-1;
                 const point=add(p,add(add(scale(u,s*width),scale(v,t*height)),scale(n,(1-s*s*.48-t*t*.48)*width*.23)));
-                row.push(mesh.v(point,n,[clamp(value+t*.064),crown.blue,.1,1],[x*.5,y*.5]));
+                row.push(mesh.v(point,n,[clamp(value+t*.064),crown.blue,.1,1],[x/segments,y/segments]));
             }
             rows.push(row);
         }
-        for(let y=0;y<2;y++)for(let x=0;x<2;x++){
+        for(let y=0;y<segments;y++)for(let x=0;x<segments;x++){
             mesh.tri(rows[y][x],rows[y][x+1],rows[y+1][x+1]);
             mesh.tri(rows[y][x],rows[y+1][x+1],rows[y+1][x]);
         }
@@ -141,7 +153,7 @@ function lobe(mesh,center,radii,crown,rng,count,size) {
 }
 
 function crown(mesh,origin,size,rng,hero,blue,fringe=null) {
-    const shelf=(x,y,z,rx,ry,rz)=>lobe(mesh,[x,(y-18)*.82+17.65,z],[rx,ry*.87,rz],{origin,blue,fringe},rng,hero?91:32,size);
+    const shelf=(x,y,z,rx,ry,rz)=>lobe(mesh,[x,(y-18)*.82+17.65,z],[rx,ry*.87,rz],{origin,blue,fringe,distant:!hero},rng,hero?91:32,size);
     if(!hero){
         shelf(-1,22.5,0,9,8.5,8);
         for(let i=0;i<7;i++){
@@ -173,8 +185,9 @@ export function buildGrove({Mesh,H,woodMaterial,leafMaterial}) {
     leaves.save('Great oak crown',leafMaterial,null,{texture:'assets/textures/oak-tuft.png'});
     sprays.save('Great oak outer sprays',leafMaterial,null,{texture:'assets/textures/oak-leaves.png',castShadows:false});
 
-    const hedges=new Mesh(),branches=new Mesh();
+    const banks=[{name:'Valley woodland',hedges:new Mesh(),branches:new Mesh()},{name:'South woodland',hedges:new Mesh(),branches:new Mesh()}];
     const tree=(x,z,sz,blue)=>{
+        const {hedges,branches}=banks[z>0?1:0];
         const at=[x,H(x,z),z];
         trunk(branches,at,sz,rng,false);crown(hedges,at,sz,rng,false,blue);
     };
@@ -185,8 +198,10 @@ export function buildGrove({Mesh,H,woodMaterial,leafMaterial}) {
             tree(cx+Math.cos(a)*r,cz+Math.sin(a)*r,.115+rng()*.135,.36+rng()*.40);
         }
     }
-    branches.save('Valley woodland trunks',woodMaterial);
-    hedges.save('Valley woodland crowns',leafMaterial,null,{texture:'assets/textures/oak-tuft.png',castShadows:false});
+    for(const {name,branches,hedges} of banks) {
+        branches.save(name+' trunks',woodMaterial,null,{castShadows:false});
+        hedges.save(name+' crowns',leafMaterial,null,{texture:'assets/textures/oak-tuft.png',castShadows:false});
+    }
 
     const bushes=new Mesh();
     for(const [cx,cz,amount,spread] of [[-16,-8,8,5],[1,-5,7,5],[-16,4,8,6],[8,10,6,6],[-12,16,6,5],[13,-18,5,4],[-30,-30,10,9],[26,-37,10,8],[-19,43,9,9],[20,59,8,7]]){
