@@ -5,12 +5,12 @@
 # Estella
 
 **A 2D and 3D game engine whose editor is an MCP server.**<br/>
-Your AI agent builds the game with the same 167 tools the editor's own UI uses —
+Your AI agent builds the game with the same 181 tools the editor's own UI uses —
 then ships it to the web, mini-game platforms, playable ads, desktop and native mobile.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
-[![MCP](https://img.shields.io/badge/MCP-167_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
+[![MCP](https://img.shields.io/badge/MCP-181_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Mini--games%20%7C%20Playable%20ads%20%7C%20Desktop%20%7C%20Android%20%7C%20iOS-green.svg)](https://estellaengine.com/docs/publishing/overview/)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-1f6feb.svg)](https://deepwiki.com/esengine/estella)
 
@@ -65,6 +65,7 @@ before it starts.
 | `look` · `render` | reference images beside the game, light and field sweeps, frame capture and replay, shadows, LOD, bakes |
 | `code` · `project` | scripts, symbol search, type-check, project settings, health, export |
 | `image` · `sound` · `modeling` | draw sprites and textures, compose sound and music, build 3D models from steps |
+| `terrain` · `tripo` | shape land from steps (ranges, rivers, roads, a coast) and place it in the scene; generate textured 3D models with Tripo AI (your own key and credits) |
 | `play` · `view` · `device` | gamepads, time scale, scripted playtests, editor view, and a game running on a connected phone |
 
 **How undo works.** Tools are sorted by how their effect is taken back, not by what
@@ -90,7 +91,7 @@ scene.
 An MCP server can be bolted onto any editor. What an agent can actually get done
 depends on what sits behind it.
 
-- <img src="docs/assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> **The protocol is the editor, not a plugin on it.** The 167 tools call the pipelines the
+- <img src="docs/assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> **The protocol is the editor, not a plugin on it.** The 181 tools call the pipelines the
   editor's own menus, inspector and toolbar run, so an agent's edit is the edit a person
   would have made, and undoes the same way. Calls are schema-checked and permission-gated
   by the editor itself.
