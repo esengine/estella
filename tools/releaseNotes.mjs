@@ -5670,4 +5670,18 @@ export const NOTED = {
     { note: "A world bigger than one server can be split into zones" },
   "feat(zones): esengine/zones splits a world over several server processes - a directory of live zones, player leases that keep each player in one zone, one-use transfer tickets, and ZoneHost, which saves the record, hands the lease on and issues the ticket before server.transfer sends the client, whose dial connects it to the new zone with its ghosts from the old one dropped":
     { note: "A world bigger than one server can be split into zones, each its own process, with `esengine/zones`." },
+  "fix(render): GTAO draws on WebGPU again - its slice and step bounds are constants the WGSL translator takes, as the other GI and reflection shaders' already were, where a #define left the pass with no WGSL and the frame black; the voxel GI fallback's bounce bound follows, and the test that transpiles every fullscreen pass now reads the GTAO, subsurface and voxel fallback passes too":
+    { note: "Global Illumination & Occlusion and Reflections hold the samples, steps, grids and bakes those effects spend." },
+  "feat(pipeline): a model's import can cut it to a triangle budget - Max Triangles in the import settings reduces every mesh by the same share, skinned ones too with their rig kept, where a generated model of 1.4 million triangles drew far more than a game needs":
+    { note: "A model's import settings take a triangle budget." },
+  "fix(editor): a Tripo model is imported at 60,000 triangles - Tripo's own topology is about 1.4 million a model, so a scene of nine drew eleven million and ran at 30 fps where it now runs at 60; the budget is the file's Max Triangles import setting, written when the model lands unless it already names one, and the .glb keeps every triangle":
+    { note: "A model's import settings take a triangle budget." },
+  "fix(editor): a Tripo model keeps every triangle unless a budget is asked for - importing each at 60,000 took detail a hero model or a bake source needs without being asked; tripo_generate and tripo_process take max_triangles for the import to cut to, and a model's answer says how many triangles it has and, past 200,000, what that costs and how to draw fewer":
+    { note: "A model's import settings take a triangle budget." },
+  "fix(editor): the Tripo job, landing and test files are back, with the opt-in triangle budget they were meant to carry - the commit before this one removed all three, its patch having been made in a checkout that does not track them":
+    { note: "A model's import settings take a triangle budget." },
+  "fix(tools): a residency read waits for a cell that is readied and wanted, not only for one loading - a cell's preparation finishes in a frame's turns now, so between prepared and publishing it is queued; with the clock handed over nothing stepped it and the read after a source came back saw the place still absent":
+    { internal: "The wait a verification launcher makes before it reads a streamed world; nothing a project can call, draw or author changes." },
+  "feat(editor): tripo_generate makes a game asset unless asked otherwise - smart low-poly is on by default, clean topology under 20,000 triangles for 10 credits more where Tripo's own is about 1.4 million; smart_low_poly false asks for the full topology, and detailed geometry, separable parts, a face limit past what it makes, v2.5 and the P series leave it off":
+    { note: "AI agents can generate 3D models with Tripo AI." },
 };

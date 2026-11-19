@@ -1523,6 +1523,8 @@ export const SHIPPED = {
     { notCertifiable: "What a streamed cell is restored to when it returns; the streamed golden project changes nothing in a cell it leaves. Covered by sdk/tests/world-memory.test.ts." },
   "A world bigger than one server can be split into zones, each":
     { notCertifiable: "Several server processes sharing one world; no golden project has a server. Covered by sdk/tests/zones.test.ts, zones-bus.test.ts and zones-ws.test.ts, and run across real processes by tools/zones-benchmark.mjs." },
+  "A model's import settings take a triangle budget.":
+    { notCertifiable: "An import setting that cuts a model to a triangle count; no golden project sets one. Covered by pipeline/tests/mesh-simplify.test.ts." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

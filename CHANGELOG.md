@@ -14,6 +14,20 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.109.1] - 2026-11-19
+
+### Added
+
+- **A model's import settings take a triangle budget.** Set **Max Triangles** on a model and the import cuts it to at most that many triangles, skinned characters included, with their rigs and animations intact. The source file keeps all of them, so you can raise the number later. Tripo's own models run to about 1.4 million triangles each, enough for nine of them to halve a frame rate; they keep every triangle unless the agent asks for a budget with `max_triangles`, and each answer says how many triangles the model has.
+
+### Changed
+
+- **A model made with Tripo AI is a game asset unless asked otherwise.** `tripo_generate` turns smart low-poly on by default: clean topology under 20,000 triangles, for 10 credits more, where Tripo's own output is over a million. `smart_low_poly: false` asks for the full mesh as before.
+
+### Fixed
+
+- **GTAO is no longer black on WebGPU.** In 0.109.0 the GTAO effect declared its loop bounds in a form the WebGPU shader translation refuses, so on a WebGPU device its pass had no shader and drew black over the picture. WebGL2 was not affected. The voxel GI's WebGL2 fallback had the same bound and is corrected with it.
+
 ## [0.109.0] - 2026-11-19
 
 ### Added
@@ -15801,7 +15815,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.109.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.109.1...HEAD
+[0.109.1]: https://github.com/esengine/estella/compare/v0.109.0...v0.109.1
 [0.109.0]: https://github.com/esengine/estella/compare/v0.108.0...v0.109.0
 [0.108.0]: https://github.com/esengine/estella/compare/v0.107.0...v0.108.0
 [0.107.0]: https://github.com/esengine/estella/compare/v0.106.0...v0.107.0
