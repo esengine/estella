@@ -48,6 +48,16 @@ you watch it happen in the window, and you can take the mouse back at any time. 
 editor starts **read-only**; an agent edits only after you allow it in
 *Window → Connect AI Tools…*, which also writes the client's MCP config for you.
 
+**The tools are not all loaded at once.** A session starts with the everyday ones
+only, about fifty: read and edit the scene, play and step the game, open and save,
+screenshots, logs, undo. The rest sit in the groups below, and the agent lists a group
+when the work calls for it (`enable_tools { groups: ["look"] }`), so a session does not
+pay thousands of tokens of tool descriptions for tools it never uses. Long tool guides
+work the same way: a description is the short form, and `tool_guide` reads the rest by
+topic. How a kind of task is done end to end (2D and 3D gameplay, UI, animation,
+multiplayer, performance, shipping) is a skill the agent reads with `skill_guide`
+before it starts.
+
 | Group | What the agent gets |
 |---|---|
 | core | scene tree, entities, components, play / step / input, screenshots, logs, undo |
@@ -56,6 +66,22 @@ editor starts **read-only**; an agent edits only after you allow it in
 | `code` · `project` | scripts, symbol search, type-check, project settings, health, export |
 | `image` · `sound` · `modeling` | draw sprites and textures, compose sound and music, build 3D models from steps |
 | `play` · `view` · `device` | gamepads, time scale, scripted playtests, editor view, and a game running on a connected phone |
+
+**How undo works.** Tools are sorted by how their effect is taken back, not by what
+they touch:
+
+| A call that… | is taken back by |
+|---|---|
+| reads (scene tree, screenshots, logs, stats) | nothing to take back |
+| plays, steps or sends input to the game | **Stop**: the game runs in its own copy of the world and never touches the scene you edit |
+| edits the scene or a prefab | **Undo**: the edit goes through the editor's own history, the one Ctrl+Z walks |
+| writes project files (a script, an asset, an image, a material) | **Undo** as well: the editor keeps each file as it was before the call and puts it back |
+| leaves the project or runs code nobody can enumerate (a new project, an export, an editor command, code evaluated in the running game) | not undoable, and marked so |
+
+One call is one step however much it did: a tool that adds six entities and writes two
+files is undone by a single Undo, by you with Ctrl+Z or by the agent with its `undo`
+tool. A save is not a step, so undoing never rolls a saved file back under an unchanged
+scene.
 
 → [Connecting an agent](https://estellaengine.com/docs/agents/mcp/)
 
