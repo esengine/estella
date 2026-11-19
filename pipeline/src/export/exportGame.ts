@@ -348,13 +348,10 @@ const PREVIEW_CONNECT = ['http:', 'https:', 'ws:', 'wss:'];
 
 export const splashScriptCspHash = (): string => `sha256-${createHash('sha256').update(splashScript()).digest('base64')}`;
 
-/** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
- *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
- *  for desktop. */
 function indexHtml(
   title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
   debugChannel?: DebugChannelConfig, webChannel?: 'poki' | 'crazygames' | 'youtube', webConnect?: readonly string[],
-  serverUrl?: string,
+  serverUrl?: string, rotateHint = false,
 ): string {
   const server = serverUrl ? serverUrlOf(serverUrl) : undefined;
   // The editor a development build dials is the one address beyond 'self' the
@@ -392,13 +389,13 @@ function indexHtml(
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
       ${splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false)}
-      ${orientation ? orientationCss(orientation) : ''}
+      ${orientation && rotateHint ? orientationCss(orientation) : ''}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
     ${splashHtml(title, look)}
-    ${orientation ? orientationOverlayHtml(orientation) : ''}
+    ${orientation && rotateHint ? orientationOverlayHtml(orientation) : ''}
     ${orientation ? orientationLockScript(orientation) : ''}
     <script type="module" src="./game.js"></script>
   </body>
@@ -517,6 +514,7 @@ export interface ExportGameOptions {
   serverUrl?: string;
   /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ false. */
   webEngineJs?: boolean;
+  webRotateHint?: boolean;
   /**
    * Web: bundle the SDK, the host and the project scripts into one tree-shaken, code-split graph (one shared SDK) instead
    * of copying the SDK's chunks beside the page for an import map to resolve. Absent ⇒ true; false keeps the copied tree.
@@ -1339,7 +1337,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
-      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined, opts.serverUrl),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined, opts.serverUrl, platform === 'web' && opts.webRotateHint === true),
     );
   }
   let modelBakes: PackagedGameConfig['modelBakes'];
