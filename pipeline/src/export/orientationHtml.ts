@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  orientationHtml.ts — the WEB export's orientation pin, for the ONE
- *        project-wide orientation (format.ts resolveOrientation): in the wrong device
- *        orientation on a touch device the canvas is hidden and a "rotate your device" overlay shows;
- *        screen.orientation.lock() is attempted best-effort (it only takes in
- *        fullscreen / on some browsers, so the CSS overlay is the universal fallback).
+ * @file  orientationHtml.ts — the WEB export's orientation pieces, for the ONE
+ *        project-wide orientation (format.ts resolveOrientation). A page with an
+ *        orientation always attempts screen.orientation.lock(), best-effort (it only
+ *        takes in fullscreen / on some browsers). The "rotate your device" overlay,
+ *        which hides the canvas on a touch device held the wrong way, is a project
+ *        setting that is off by default (packaging.platforms.web.rotateHint): without
+ *        it the game is shown, letterboxed, whichever way the device is held, and
+ *        where the lock does not take nothing else pins the page.
  *
  *        Web only, on purpose. A page a player opened in their own browser CAN be
  *        rotated, and there the media query reports the device. A playable lives in an
- *        SDK-sized container whose aspect the phone does not govern, so the same
+ *        SDK-sized container whose aspect the phone does not govern, so the
  *        overlay would hide the game for good — it stays responsive instead
  *        (exportPlayable). WeChat pins orientation via game.json deviceOrientation,
  *        and desktop sizes its own window.
