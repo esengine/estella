@@ -40,10 +40,78 @@ function shortAngle(a: number, b: number): number {
   return d;
 }
 
-/** Interpolate two POVs. Continuous fields lerp; discrete ones snap to the target. */
+type Quat = { x: number; y: number; z: number; w: number };
+
+/** The orientation a POV is drawn with: its tilt, or a turn about Z by its 2D rotation (CameraPlugin's view). */
+function povQuat(p: CameraPOV): Quat {
+  return p.tilt ?? { x: 0, y: 0, z: Math.sin(p.rotation / 2), w: Math.cos(p.rotation / 2) };
+}
+
+/** Spherical interpolation the short way round: q and -q are one orientation, and the other way is the long turn. */
+function slerp(a: Quat, b: Quat, t: number): Quat {
+  let dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+  const sign = dot < 0 ? -1 : 1;
+  dot *= sign;
+  let wa: number;
+  let wb: number;
+  if (dot > 0.9995) {
+    // Nearly the same: a straight line, normalised below, is what a sine of a vanishing angle would divide by zero for.
+    wa = 1 - t;
+    wb = t * sign;
+  } else {
+    const angle = Math.acos(dot);
+    const s = Math.sin(angle);
+    wa = Math.sin((1 - t) * angle) / s;
+    wb = (Math.sin(t * angle) / s) * sign;
+  }
+  const q = { x: a.x * wa + b.x * wb, y: a.y * wa + b.y * wb, z: a.z * wa + b.z * wb, w: a.w * wa + b.w * wb };
+  const n = Math.hypot(q.x, q.y, q.z, q.w) || 1;
+  return { x: q.x / n, y: q.y / n, z: q.z / n, w: q.w / n };
+}
+
+/** `q` turned further by `r`, about the axis `r` names in `q`'s own frame. */
+function mulQuat(q: Quat, r: Quat): Quat {
+  return {
+    x: q.w * r.x + q.x * r.w + q.y * r.z - q.z * r.y,
+    y: q.w * r.y - q.x * r.z + q.y * r.w + q.z * r.x,
+    z: q.w * r.z + q.x * r.y - q.y * r.x + q.z * r.w,
+    w: q.w * r.w - q.x * r.x - q.y * r.y - q.z * r.z,
+  };
+}
+
+/** The vector (x, y, z) of `q`'s own frame, in the world. */
+function rotateVec(q: Quat, x: number, y: number, z: number): { x: number; y: number; z: number } {
+  const tx = 2 * (q.y * z - q.z * y);
+  const ty = 2 * (q.z * x - q.x * z);
+  const tz = 2 * (q.x * y - q.y * x);
+  return {
+    x: x + q.w * tx + (q.y * tz - q.z * ty),
+    y: y + q.w * ty + (q.z * tx - q.x * tz),
+    z: z + q.w * tz + (q.x * ty - q.y * tx),
+  };
+}
+
+/**
+ * Interpolate two POVs. Continuous fields lerp; discrete ones snap to the target.
+ *
+ * A camera turned off the 2D plane is drawn from its `tilt`, not its Z angle, so a blend where either end has one
+ * carries a tilt the whole way: the slerp of the two orientations. Without it every frame of the blend was drawn
+ * looking straight down -Z, and the view jumped back to the target's turn when the blend ended. An `orbit` (the editor
+ * view's) blends when both ends have one, and is the target's from the midpoint otherwise, as a projection is.
+ */
 export function lerpPOV(a: CameraPOV, b: CameraPOV, t: number): CameraPOV {
   const l = (x: number, y: number) => x + (y - x) * t;
+  const tilt = a.tilt || b.tilt ? slerp(povQuat(a), povQuat(b), t) : undefined;
+  const orbit = a.orbit && b.orbit
+    ? {
+        yaw: a.orbit.yaw + shortAngle(a.orbit.yaw, b.orbit.yaw) * t,
+        pitch: l(a.orbit.pitch, b.orbit.pitch),
+        focusZ: l(a.orbit.focusZ, b.orbit.focusZ),
+      }
+    : t < 0.5 ? a.orbit : b.orbit;
   return {
+    ...(tilt ? { tilt } : {}),
+    ...(orbit ? { orbit } : {}),
     entity: b.entity,
     isActive: b.isActive,
     x: l(a.x, b.x),
@@ -239,7 +307,20 @@ function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): Cam
   }
   dir.shakes = alive;
   if (ox === 0 && oy === 0 && orot === 0) return pov;
-  return { ...pov, x: pov.x + ox, y: pov.y + oy, rotation: pov.rotation + orot };
+  if (!pov.tilt) return { ...pov, x: pov.x + ox, y: pov.y + oy, rotation: pov.rotation + orot };
+  // A turned camera shakes in its own frame: across its screen, and rolled about where it looks. In world x and y a
+  // camera looking along x would move toward what it sees and show no shake, and a 3D view never reads the Z angle.
+  const right = rotateVec(pov.tilt, 1, 0, 0);
+  const up = rotateVec(pov.tilt, 0, 1, 0);
+  const roll = mulQuat(pov.tilt, { x: 0, y: 0, z: Math.sin(orot / 2), w: Math.cos(orot / 2) });
+  return {
+    ...pov,
+    x: pov.x + right.x * ox + up.x * oy,
+    y: pov.y + right.y * ox + up.y * oy,
+    z: pov.z + right.z * ox + up.z * oy,
+    rotation: pov.rotation + orot,
+    tilt: roll,
+  };
 }
 
 /** The active camera by policy: isActive wins (authoritative), else highest priority. */

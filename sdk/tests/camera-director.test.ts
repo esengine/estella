@@ -11,6 +11,7 @@ import {
   resolveMainPOV,
   BlendCurve,
   createDirectorState,
+  shakeCamera,
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
@@ -156,5 +157,96 @@ describe('timeline shot override', () => {
     const d = dir();
     d.timelineShot = { from: null, to: 9, weight: 1, curve: BlendCurve.Linear };
     expect(resolveMainPOV(d, [A, B], 0, true)?.entity).toBe(1);
+  });
+});
+
+/** A turn of `degrees` about world up (+Y), as the camera Transform's quaternion. */
+const yawQuat = (degrees: number) => {
+  const h = (degrees * Math.PI) / 360;
+  return { x: 0, y: Math.sin(h), z: 0, w: Math.cos(h) };
+};
+/** Where a camera with orientation `q` looks: its local -Z in the world. */
+const forward = (q: { x: number; y: number; z: number; w: number }) => ({
+  x: -(2 * (q.x * q.z + q.w * q.y)),
+  y: -(2 * (q.y * q.z - q.w * q.x)),
+  z: -(1 - 2 * (q.x * q.x + q.y * q.y)),
+});
+/** The orientation a POV is drawn with: its tilt, or a turn about Z by its rotation. */
+const drawnQuat = (p: CameraPOV) =>
+  p.tilt ?? { x: 0, y: 0, z: Math.sin(p.rotation / 2), w: Math.cos(p.rotation / 2) };
+
+describe('blending 3D cameras', () => {
+  const persp = { projection: ProjectionType.Perspective, fov: 60, near: 1, far: 5000 };
+  const A = mkPOV({ ...persp, entity: 1, tilt: yawQuat(0) as CameraPOV['tilt'] });
+  const B = mkPOV({ ...persp, entity: 2, tilt: yawQuat(90) as CameraPOV['tilt'] });
+
+  it('turns the view halfway at the middle of the blend, instead of facing -Z for the whole of it', () => {
+    const f = forward(drawnQuat(lerpPOV(A, B, 0.5)));
+    // Halfway between looking down -Z and looking down -X: 45 degrees, on the ground plane.
+    expect(f.x).toBeCloseTo(-Math.SQRT1_2, 5);
+    expect(f.y).toBeCloseTo(0, 5);
+    expect(f.z).toBeCloseTo(-Math.SQRT1_2, 5);
+  });
+
+  it('ends exactly on each camera, and keeps a unit orientation all the way', () => {
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      const q = drawnQuat(lerpPOV(A, B, t));
+      expect(Math.hypot(q.x, q.y, q.z, q.w)).toBeCloseTo(1, 6);
+    }
+    expect(forward(drawnQuat(lerpPOV(A, B, 1))).x).toBeCloseTo(-1, 6);
+    expect(forward(drawnQuat(lerpPOV(A, B, 0))).z).toBeCloseTo(-1, 6);
+  });
+
+  it('turns the short way round, as the 2D roll does', () => {
+    const near = mkPOV({ ...persp, entity: 3, tilt: yawQuat(170) as CameraPOV['tilt'] });
+    const far = mkPOV({ ...persp, entity: 4, tilt: yawQuat(-170) as CameraPOV['tilt'] });
+    const f = forward(drawnQuat(lerpPOV(near, far, 0.5)));
+    // 170 and -170 are twenty degrees apart through 180, where the camera looks down +Z.
+    expect(f.z).toBeCloseTo(1, 5);
+  });
+
+  it('blends from a camera that only rolls into one that is turned', () => {
+    const flat = mkPOV({ ...persp, entity: 5 });
+    const q = drawnQuat(lerpPOV(flat, B, 0.5));
+    expect(forward(q).x).toBeCloseTo(-Math.SQRT1_2, 5);
+  });
+
+  it('carries the turn through the director while a setViewTarget blend runs', () => {
+    const d = dir({ target: 1, currentMain: A });
+    d.hasPending = true;
+    d.pendingTarget = 2;
+    d.pendingTime = 1;
+    d.pendingCurve = BlendCurve.Linear;
+    resolveMainPOV(d, [A, B], 0, true);
+    const mid = resolveMainPOV(d, [A, B], 0.5, true)!;
+    expect(mid.tilt).toBeDefined();
+    expect(forward(drawnQuat(mid)).x).toBeCloseTo(-Math.SQRT1_2, 5);
+  });
+});
+
+describe('shaking a 3D camera', () => {
+  const persp = { projection: ProjectionType.Perspective, fov: 60, near: 1, far: 5000 };
+  // Looking down -X: its screen's right is world -Z, its screen's up is world +Y.
+  const side = mkPOV({ ...persp, entity: 1, isActive: true, tilt: yawQuat(90) as CameraPOV['tilt'] });
+
+  it('moves the eye across the screen, not along the view where it shows nothing', () => {
+    const d = dir();
+    shakeCamera({ getResource: () => d } as never, { amplitude: 10, rotation: 0.2, duration: 1 });
+    resolveMainPOV(d, [side], 0, true);
+    const shaken = resolveMainPOV(d, [side], 0.13, true)!;
+    // Along the view (world X) it stands still; across it (world Z and Y) it moves.
+    expect(shaken.x).toBeCloseTo(side.x, 6);
+    expect(Math.abs(shaken.z - side.z) + Math.abs(shaken.y - side.y)).toBeGreaterThan(1);
+  });
+
+  it('rolls a 3D view about where it looks', () => {
+    const d = dir();
+    shakeCamera({ getResource: () => d } as never, { amplitude: 0, rotation: 0.2, duration: 1 });
+    resolveMainPOV(d, [side], 0, true);
+    const shaken = resolveMainPOV(d, [side], 0.13, true)!;
+    const q = drawnQuat(shaken);
+    // Still looking down -X, but turned about that axis: the orientation is not the one it started with.
+    expect(forward(q).x).toBeCloseTo(-1, 5);
+    expect(Math.abs(q.x - side.tilt!.x) + Math.abs(q.z - side.tilt!.z)).toBeGreaterThan(1e-3);
   });
 });
