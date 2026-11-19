@@ -3956,6 +3956,30 @@
           "advanced": true
         },
         {
+          "key": "cascadeSplit",
+          "type": "number",
+          "default": "0.75",
+          "doc": "Where a sun's cascades are cut: 0 = evenly along the view, 1 = each cascade a fixed multiple farther (sharpest near the camera).",
+          "range": "0–1",
+          "advanced": true
+        },
+        {
+          "key": "shadowBias",
+          "type": "number",
+          "default": "1.5",
+          "doc": "Shadow map texels a surface is moved toward the light and off itself before it is tested: more removes acne, too much lifts the shadow off its caster.",
+          "range": "0–16",
+          "advanced": true
+        },
+        {
+          "key": "shadowSlopeFloor",
+          "type": "number",
+          "default": "0.15",
+          "doc": "The least light a grazed surface is treated as facing, which caps the extra bias it gets: lower clears acne on walls the light skims, higher keeps their shadows attached.",
+          "range": "0.01–1",
+          "advanced": true
+        },
+        {
           "key": "followEnvironmentSun",
           "type": "boolean",
           "default": "false",

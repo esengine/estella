@@ -763,6 +763,8 @@ void RenderFrame::publishFrameCounters() {
     // The same for what has no quads of its own to say it (a tilemap's strips): how many (screen tile, loop light) pairs are left set.
     ES_PROFILE_COUNTER("render.lights2d.tileBits", context_.lights().loopTileBits());
     ES_PROFILE_COUNTER("render.lights3d.tileBits", context_.lights().loopTileBits3D());
+    ES_PROFILE_COUNTER("render.lights.loop", context_.lights().count());
+    ES_PROFILE_COUNTER("render.lights.tiled", context_.lights().tiledCount());
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
     // batch.draws does not move when a cull stops working. These two do.
@@ -1099,6 +1101,7 @@ void RenderFrame::end() {
     // After the graph, which is where the kernels run: a frame that dispatched none (its emitters fell back to the CPU, or
     // nothing moved) says so.
     ES_PROFILE_COUNTER("render.particles.gpuDispatches", gpu_particles_ ? gpu_particles_->lastDispatches() : 0u);
+    ES_PROFILE_COUNTER("render.particles.depthGridWidth", gpu_particles_ ? gpu_particles_->depthGridWidth() : 0u);
 #endif
     scene_resource_ = rg::kNoResource;
     shadow_resource_ = rg::kNoResource;
@@ -1895,6 +1898,9 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         bool castsMeshShadow = false;
         ShadowCaster caster;
         caster.light = entity;
+        caster.split = std::isfinite(light.cascadeSplit) ? std::clamp(light.cascadeSplit, 0.0f, 1.0f) : 0.75f;
+        caster.bias = std::isfinite(light.shadowBias) ? std::clamp(light.shadowBias, 0.0f, 16.0f) : 1.5f;
+        caster.slopeFloor = std::isfinite(light.shadowSlopeFloor) ? std::clamp(light.shadowSlopeFloor, 0.01f, 1.0f) : 0.15f;
         // The sun is the environment's, so the ambient light's colour and intensity
         // scale it as they scale the rest of the panorama; this light's own scale on top.
         gpu.color = glm::vec4(followsSun ? sky->sunColor * skyScale * rgb : rgb, light.intensity);
@@ -1973,14 +1979,13 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         collected.push_back({gpu, castsMeshShadow, caster});
     }
 
-    light_cap_.limit = MAX_LIGHTS + MAX_TILED_LIGHTS;
+    const QualityValues& quality = context_.qualityValues();
+    const u32 loopLimit = std::clamp(quality.count(QualityValue::LoopLights), 1u, MAX_LIGHTS);
+    const u32 tiledLimit = std::min(quality.count(QualityValue::TiledLights), MAX_TILED_LIGHTS);
+    light_cap_.limit = loopLimit + tiledLimit;
     light_cap_.requested = static_cast<u32>(collected.size() + light_cap_.refused.size());
-    // The lights past the loop's sixteen that can still be carried: point and spot lights with no shadow map, which a tile mask
-    // can hand to the fragments they reach. Everything else turned away is refused as it always was.
     std::vector<CollectedLight> tiled;
-    if (collected.size() > MAX_LIGHTS) {
-        // Which sixteen the loop reads: the sun, and what casts a shadow (the loop is the only place a shadow is read), first;
-        // then the brightest. Sorted whole, since what is left over is read in this order too.
+    if (collected.size() > loopLimit) {
         const auto rank = [](const CollectedLight& l) {
             const bool directional = l.gpu.posDir.z > 0.5f && l.gpu.posDir.z < 1.5f;
             return directional ? 0 : (l.castsMeshShadow ? 1 : 2);
@@ -1990,23 +1995,22 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             if (ra != rb) return ra < rb;
             return a.gpu.color.a > b.gpu.color.a;
         });
-        for (usize i = MAX_LIGHTS; i < collected.size(); ++i) {
+        for (usize i = loopLimit; i < collected.size(); ++i) {
             CollectedLight& rest = collected[i];
             const bool positional = rest.gpu.posDir.z < 0.5f || rest.gpu.posDir.z > 1.5f;
-            if (positional && !rest.castsMeshShadow && tiled.size() < MAX_TILED_LIGHTS) {
+            if (positional && !rest.castsMeshShadow && tiled.size() < tiledLimit) {
                 tiled.push_back(rest);
                 continue;
             }
-            // Recorded AFTER the sort and BEFORE the resize: this is the one moment
-            // the frame knows which lights it is about to stop carrying, and it used
-            // to spend that moment printing how many.
             light_cap_.refused.push_back({rest.caster.light, static_cast<u8>(rest.gpu.posDir.z),
                                           rest.gpu.color.a, LightRefusal::Capacity});
-            ES_LOG_WARN("collectLights: light {} is not in this frame ({}); {} kept of {}, brightest first",
-                        rest.caster.light.raw, lightRefusalName(LightRefusal::Capacity),
-                        MAX_LIGHTS + tiled.size(), collected.size());
+            if (loopLimit == MAX_LIGHTS && tiledLimit == MAX_TILED_LIGHTS) {
+                ES_LOG_WARN("collectLights: light {} is not in this frame ({}); {} kept of {}, brightest first",
+                            rest.caster.light.raw, lightRefusalName(LightRefusal::Capacity),
+                            loopLimit + tiled.size(), collected.size());
+            }
         }
-        collected.resize(MAX_LIGHTS);
+        collected.resize(loopLimit);
     }
     light_cap_.accepted = static_cast<u32>(collected.size() + tiled.size());
     for (u32 slot = 0; slot < collected.size(); ++slot) {
@@ -2222,14 +2226,11 @@ static void frustumCorners(const glm::mat4& invVP, glm::vec3 out[8]) {
     }
 }
 
-/// Where cascade boundary @p i falls along near..far, as a fraction. Logarithmic is
-/// the split that gives every cascade equal texel density, uniform keeps the near one
-/// from collapsing when near is small; 0.75 is the standard mix of the two.
-static f32 splitFraction(u32 i, u32 count, f32 nearDist, f32 farDist) {
+static f32 splitFraction(u32 i, u32 count, f32 nearDist, f32 farDist, f32 lambda) {
     const f32 t = static_cast<f32>(i) / static_cast<f32>(count);
     const f32 logSplit = nearDist * std::pow(farDist / nearDist, t);
     const f32 uniform = nearDist + (farDist - nearDist) * t;
-    const f32 d = uniform + 0.75f * (logSplit - uniform);
+    const f32 d = uniform + lambda * (logSplit - uniform);
     return (d - nearDist) / std::max(farDist - nearDist, 1e-6f);
 }
 
@@ -2307,6 +2308,14 @@ void RenderFrame::setLightingDirect(bool on) {
     context_.materials().setLightingDirect(on);
 }
 
+static_assert(qualityCap(QualityValue::LoopLights) == static_cast<f32>(MAX_LIGHTS), "the loop's cap is the light block's array");
+static_assert(qualityCap(QualityValue::TiledLights) == static_cast<f32>(MAX_TILED_LIGHTS), "the tiled cap is the tiled array");
+static_assert(qualityCap(QualityValue::ShadowTiles) == static_cast<f32>(MAX_SHADOW_TILES), "the tile cap is the shadow arrays");
+
+bool RenderFrame::setQualityValue(const std::string& name, f32 value) {
+    return context_.qualityValues().set(name, value);
+}
+
 void RenderFrame::setShadow2DSoftSamples(u32 samples) {
     shadow_2d_soft_samples_ = std::clamp(samples, 1u, 32u);
 }
@@ -2319,6 +2328,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     // Zeroed first, and the atlas given back: a tile that outlived its map would
     // shadow the scene against geometry from a frame that no longer exists.
     shadow_atlas_.reset();
+    shadow_atlas_.setTileBudget(context_.qualityValues().count(QualityValue::ShadowTiles));
     std::swap(shadow_plan_, previous_shadow_plan_);
     shadow_plan_.clear();
     shadow_plan_.atlasSize = shadow_atlas_size_;
@@ -2535,8 +2545,8 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
                     // This slice of the view, as a sphere: a box would grow and shrink as
                     // the light turns, and the texel density with it.
                     const u32 slot = hasFocus ? c - 1 : c;
-                    const f32 t0 = splitFraction(slot, cascadeCount, nearDist, farDist);
-                    const f32 t1 = splitFraction(slot + 1, cascadeCount, nearDist, farDist);
+                    const f32 t0 = splitFraction(slot, cascadeCount, nearDist, farDist, caster.split);
+                    const f32 t1 = splitFraction(slot + 1, cascadeCount, nearDist, farDist, caster.split);
                     glm::vec3 slice[8];
                     for (u32 i = 0; i < 4; ++i) {
                         const glm::vec3 ray = corners[i + 4] - corners[i];
@@ -2589,6 +2599,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
             // to forgive is not a property of the tile but of the fragment asking, and
             // is derived there out of this matrix and the size of the square.
             tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex, atlasSize);
+            tiles[tileIndex].w = packShadowBias(caster.bias, caster.slopeFloor);
 
             // A face whose frustum misses the whole of the geometry gathers nothing, and
             // asking each mesh in turn is the only way to find that out otherwise. The

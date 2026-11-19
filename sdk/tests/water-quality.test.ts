@@ -65,11 +65,11 @@ describe('what a quality level allows water', () => {
 
     it('is the low profile on a minigame with no policy: flat, no mirror, no web of light', () => {
         const q = waterQualityOf(null, true);
-        expect(q).toEqual({ waves: 3, rippleCells: 32, displacement: false, mirror: false, caustics: false });
+        expect(q).toEqual({ waves: 3, rippleCells: 32, displacement: false, mirror: false, caustics: false, reflectionSteps: 8, causticLayers: 2 });
     });
 
     it('follows the profile of the level a project is at, so a project can change what a level means', () => {
-        expect(waterQualityOf(defaultQualityProfile('high'), false)).toEqual({ waves: WAVE_SET_SIZE, rippleCells: 128, displacement: true, mirror: true, caustics: true });
+        expect(waterQualityOf(defaultQualityProfile('high'), false)).toEqual({ waves: WAVE_SET_SIZE, rippleCells: 128, displacement: true, mirror: true, caustics: true, reflectionSteps: 20, causticLayers: 3 });
         const own = resolveQualityProfile('low', { waterMirror: true, waterDisplacement: true, waterWaves: 4 });
         expect(waterQualityOf(own, true)).toMatchObject({ waves: 4, displacement: true, mirror: true, caustics: false });
         // A profile wins over the minigame rule: the project said what it wants.

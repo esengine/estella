@@ -12,6 +12,9 @@
 #include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
+#ifdef ES_ENABLE_GPU_PARTICLES
+#include "../renderer/frame/GpuParticles.hpp"
+#endif
 #include "../renderer/lod/LodSelection.hpp"
 #include "../renderer/store/LightPlan.hpp"
 #include "../renderer/store/ShadowPlan.hpp"
@@ -1369,8 +1372,22 @@ void renderer_setViewLighting(u32 mode, f32 rotationDegrees, f32 keyIntensity, f
     g_renderFrame->setViewLighting(lighting);
 }
 
-void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond) {
-    if (g_renderFrame) g_renderFrame->setPlanarQuality(scale, maxSize, updatesPerSecond);
+void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored) {
+    if (g_renderFrame) g_renderFrame->setPlanarQuality(scale, maxSize, updatesPerSecond, capAuthored);
+}
+
+void renderer_setParticleDepthGrid(u32 texels) {
+#ifdef ES_ENABLE_GPU_PARTICLES
+    if (g_renderFrame) {
+        if (GpuParticles* gpu = g_renderFrame->gpuParticles()) gpu->setDepthGridMax(texels);
+    }
+#else
+    (void)texels;
+#endif
+}
+
+void renderer_setQualityConstants(f32 x, f32 y, f32 z, f32 w) {
+    if (auto* context = ctx().tryGet<RenderContext>()) context->setQualityConstants(glm::vec4(x, y, z, w));
 }
 
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity) {
@@ -1383,6 +1400,10 @@ void renderer_setShadowDistance(f32 distance) {
 
 void renderer_setShadow2DSoftSamples(u32 samples) {
     if (g_renderFrame) g_renderFrame->setShadow2DSoftSamples(samples);
+}
+
+bool renderer_setQualityValue(const std::string& name, f32 value) {
+    return g_renderFrame && g_renderFrame->setQualityValue(name, value);
 }
 
 void renderer_setLightingDirect(bool on) {
@@ -1409,6 +1430,18 @@ u32 renderer_getProbeDraws(bool perPixel) {
     if (!rc) return 0;
     const ProbeStore& probes = rc->probes();
     return perPixel ? probes.perPixelDraws() : probes.perObjectDraws();
+}
+
+void renderer_setLodDistanceScale(f32 scale) {
+    if (g_renderFrame) g_renderFrame->setLodDistanceScale(scale);
+}
+
+void renderer_setOcclusionGridSize(u32 size) {
+    if (g_renderFrame) g_renderFrame->setOcclusionGridSize(size);
+}
+
+void renderer_setTargetPoolIdleBudget(u32 megabytes) {
+    if (g_renderFrame) g_renderFrame->setTargetPoolIdleBudget(static_cast<u64>(megabytes) * 1024 * 1024);
 }
 
 void renderer_setAsyncShaderCompile(bool on) {

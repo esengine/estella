@@ -907,7 +907,7 @@ PlanetPlugin
 
 ## selectSphereNodes — function @experimental
 ```
-(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number): SphereNode[]
+(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number, finest?: number): SphereNode[]
 ```
 
 ## sphereNodeKey — const @experimental

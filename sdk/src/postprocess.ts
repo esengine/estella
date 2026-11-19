@@ -21,6 +21,7 @@ export {
     uniformInUnits,
     getEffectTypes,
     getAllEffectDefs,
+    effectQualityGroup,
     PostProcessPlugin,
     postProcessPlugin,
     defineSkyEffect,

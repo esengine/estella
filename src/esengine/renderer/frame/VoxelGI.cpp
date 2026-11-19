@@ -508,13 +508,32 @@ void VoxelGI::release() {
     failed_ = false;
 }
 
-bool VoxelGI::ensure() {
+u32 VoxelGI::gridSizeOf(u32 asked) {
+    u32 size = kMinGridSize;
+    while (size * 2u <= std::min(asked, kMaxGridSize)) size *= 2u;
+    return size;
+}
+
+u32 VoxelGI::sunSamplesOf(u32 asked) {
+    return std::clamp(asked, 8u, 256u);
+}
+
+bool VoxelGI::ensure(u32 gridSize) {
     if (failed_) return false;
     if (!device_.supportsCompute()) return false;
-    const u32 voxels = kDimsX * kDimsY * kDimsZ;
+    if (grid_ != BufferHandle::Invalid && gridSize_ != gridSize) {
+        device_.deleteBuffer(grid_);
+        device_.deleteBuffer(tags_);
+        grid_ = tags_ = BufferHandle::Invalid;
+        historyValid_ = false;
+    }
+    const u32 voxels = gridSize * (gridSize / 2u) * gridSize;
     if (grid_ == BufferHandle::Invalid) {
         grid_ = device_.createBuffer({GfxBufferUsage::Storage, voxels * kVoxelWords * 4u, false}, GfxContent::transient(), nullptr);
         tags_ = device_.createBuffer({GfxBufferUsage::Storage, voxels * 4u, false}, GfxContent::transient(), nullptr);
+        gridSize_ = gridSize;
+    }
+    if (params_ == BufferHandle::Invalid) {
         params_ = device_.createBuffer({GfxBufferUsage::Uniform, sizeof(ParamsBlock), true}, GfxContent::transient(), nullptr);
         sun_ = device_.createBuffer({GfxBufferUsage::Uniform, sizeof(SunBlock), true}, GfxContent::transient(), nullptr);
     }
@@ -566,21 +585,23 @@ bool VoxelGI::ensureHistory(u32 width, u32 height) {
 void VoxelGI::writeParams(const VoxelGIParams& p) {
     // The window is centred on the eye, snapped to whole cells so the grid does not swim as the camera moves.
     const glm::vec4 eye = cameraFromViewProjection(context_.viewProjection());
-    const f32 vs = std::max(p.voxelSize, 0.001f);
+    const u32 g = gridSize_;
+    const f32 coarser = static_cast<f32>(kMaxGridSize) / static_cast<f32>(g);
+    const f32 vs = std::max(p.voxelSize, 0.001f) * coarser;
     ParamsBlock block{};
-    block.origin[0] = static_cast<i32>(std::floor(eye.x / vs)) - static_cast<i32>(kDimsX / 2);
-    block.origin[1] = static_cast<i32>(std::floor(eye.y / vs)) - static_cast<i32>(kDimsY / 2);
-    block.origin[2] = static_cast<i32>(std::floor(eye.z / vs)) - static_cast<i32>(kDimsZ / 2);
+    block.origin[0] = static_cast<i32>(std::floor(eye.x / vs)) - static_cast<i32>(g / 2);
+    block.origin[1] = static_cast<i32>(std::floor(eye.y / vs)) - static_cast<i32>(g / 4);
+    block.origin[2] = static_cast<i32>(std::floor(eye.z / vs)) - static_cast<i32>(g / 2);
     block.origin[3] = static_cast<i32>(frame_);
-    block.dims[0] = kDimsX;
-    block.dims[1] = kDimsY;
-    block.dims[2] = kDimsZ;
+    block.dims[0] = g;
+    block.dims[1] = g / 2u;
+    block.dims[2] = g;
     block.dims[3] = std::clamp(p.rays, 1u, 64u);
     block.a[0] = vs;
     block.a[1] = std::clamp(p.decay, 0.0f, 0.999f);
     block.a[2] = std::max(p.maxBounce, 0.01f);
     block.a[3] = p.intensity;
-    block.b[0] = std::clamp(p.range, 1.0f, 90.0f);
+    block.b[0] = std::clamp(p.range / coarser, 1.0f, 90.0f);
     block.b[1] = std::max(p.bias, 0.0f);
     block.b[2] = std::clamp(p.bounceFeedback, 0.0f, 1.0f);
     block.b[3] = p.debug;
@@ -629,7 +650,7 @@ u32 VoxelGI::writeSun(const VoxelGIParams& p) {
         block.toLight[2] = -aim.z;
         const u32 used = std::min({tiles, kSunTiles, MAX_SHADOW_TILES - first});
         block.toLight[3] = static_cast<f32>(used);
-        block.samples[0] = kSunSamples;
+        block.samples[0] = sunSamplesOf(p.sunSamples);
         for (u32 k = 0; k < used; ++k) {
             const glm::vec4& r = lc.shadowTile[first + k];
             block.rect[k][0] = r.x; block.rect[k][1] = r.y; block.rect[k][2] = r.z; block.rect[k][3] = r.w;
@@ -644,7 +665,7 @@ u32 VoxelGI::writeSun(const VoxelGIParams& p) {
 
 rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg::ResourceId scene, const VoxelGIParams& params,
                                 u32 width, u32 height, TextureHandle shadowAtlas, rg::ResourceId shadowResource) {
-    if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
+    if (!ensure(gridSizeOf(params.gridSize)) || input == rg::kNoResource || scene == rg::kNoResource) return input;
 
     // The passes are tied together by what each writes, since the graph only runs what the image reaches. The first two write a
     // single texel nobody samples: their work is in the grid, and the texel is what says "this ran before that".
@@ -680,7 +701,7 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
                 GfxComputeBinding::storage(2, grid_),
                 GfxComputeBinding::storage(3, tags_),
             };
-            device_.dispatchCompute(maintain_, bindings, 4, (kDimsX * kDimsY * kDimsZ + 63) / 64);
+            device_.dispatchCompute(maintain_, bindings, 4, (gridSize_ * (gridSize_ / 2u) * gridSize_ + 63) / 64);
         };
         graph.addPass(std::move(pass));
     }
@@ -735,7 +756,8 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
                 GfxComputeBinding::sampled(4, shadowAtlas),
                 GfxComputeBinding::uniform(10, sun_),
             };
-            device_.dispatchCompute(sunInject_, bindings, 6, (kSunSamples * tiles + 7) / 8, (kSunSamples + 7) / 8);
+            const u32 n = sunSamplesOf(p.sunSamples);
+            device_.dispatchCompute(sunInject_, bindings, 6, (n * tiles + 7) / 8, (n + 7) / 8);
         };
         graph.addPass(std::move(pass));
     }

@@ -94,7 +94,7 @@ export class TiledSource implements TerrainSource {
         private overviewSplat: Splat | null,
         private overviewSplat2: Splat | null,
         private readonly read: (path: string) => Promise<TerrainImage | null>,
-        readonly budget = TERRAIN_TILE_BUDGET,
+        public budget = TERRAIN_TILE_BUDGET,
     ) {
         this.bounds = [-params.sizeX / 2, -params.sizeZ / 2, params.sizeX / 2, params.sizeZ / 2];
         this.maxHeight = params.height;

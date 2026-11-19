@@ -94,6 +94,7 @@ inline constexpr const char* FRAME_CONSTANTS_BLOCK = "FrameConstants";
 struct TimeConstants {
     glm::vec4 time{0.0f};
     glm::vec4 viewport{0.0f};
+    glm::vec4 quality{0.0f};
 };
 
 inline constexpr u32 TIME_CONSTANTS_BINDING = 3;

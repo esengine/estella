@@ -27,6 +27,7 @@ import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import type { MeshData } from '../asset/meshFormat';
 import { engineApi } from '../ecs/bridge/engineApi';
+import { qualityProfileOf } from './qualityRuntime';
 import { withScratch } from '../wasm/wasmScratch';
 import type { CppRegistry } from '../wasm';
 import { log } from '../util/logger';
@@ -84,8 +85,6 @@ export const CompositeBatch: ComponentDef<CompositeBatchData> = defineComponent<
 
 /** Looks a part may change in a row before it is taken for one that moves inside the model. */
 const MOVING_AFTER = 3;
-/** Frames between looks at a composite (half a second at 60 fps). A look reads every part through the engine, which is the pass's whole cost on a still model; `refresh(root)` looks at once. */
-const SCAN_FRAMES = 30;
 
 interface PartState {
     entity: Entity;
@@ -206,7 +205,7 @@ export class CompositeBatchPlugin implements Plugin {
                     const c = state.composites_.get(root);
                     if (!c) continue;
                     state.forced_.delete(root);
-                    c.nextScan = frame + SCAN_FRAMES;
+                    c.nextScan = frame + qualityProfileOf(app).batchScanFrames;
                     await this.scan(app, c);
                 }
             })()

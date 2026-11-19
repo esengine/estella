@@ -27,6 +27,7 @@ void renderer_resize(u32 width, u32 height);
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit);
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
+bool renderer_setQualityValue(const std::string& name, f32 value);
 void renderer_setDepthPrepass(bool on);
 /** @brief Whether meshes read their probe volume per pixel (true, the default) or per object, holding no probe atlas. */
 void renderer_setProbesPerPixel(bool on);
@@ -35,6 +36,9 @@ f64 renderer_getProbeAtlasBytes();
 /** @brief Draws that read a probe volume last frame: per pixel when `perPixel`, else per object. */
 u32 renderer_getProbeDraws(bool perPixel);
 void renderer_setLightingDirect(bool on);
+void renderer_setLodDistanceScale(f32 scale);
+void renderer_setOcclusionGridSize(u32 size);
+void renderer_setTargetPoolIdleBudget(u32 megabytes);
 /**
  * Draws whose shader the browser is still compiling are left out, not waited for: a frame never stops for a compile, and what needs the shader
  * appears when it is done (several at once compile side by side, which the waiting form never gives them). Off (the default) is a frame that waits.
@@ -42,7 +46,9 @@ void renderer_setLightingDirect(bool on);
 void renderer_setAsyncShaderCompile(bool on);
 /** How many shaders are still compiling in the background; a loading screen waits for it to reach 0. */
 u32 renderer_getPendingShaders();
-void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored);
+void renderer_setParticleDepthGrid(u32 texels);
+void renderer_setQualityConstants(f32 x, f32 y, f32 z, f32 w);
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity);
 /**
  * The editor view's lighting. mode 0 = the scene's own lights (the default, and the

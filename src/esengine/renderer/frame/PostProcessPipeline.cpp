@@ -1505,6 +1505,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                 gi.probeSpacing = static_cast<u32>(std::max(get("u_probeSpacing", 0.0f), 0.0f));
                 gi.halfRes = get("u_halfRes", 0.0f) > 0.5f;
                 gi.probeDensity = get("u_probeDensity", 1.0f);
+                gi.probeRows = static_cast<u32>(std::max(get("u_probeRows", static_cast<f32>(gi.probeRows)), 1.0f) + 0.5f);
                 auto& cache = dynamic_gis_[temporalKey_];
                 if (!cache) {
                     if (dynamic_gis_.size() > 4) {
@@ -1534,6 +1535,8 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                 gi.blend = get("u_blend", gi.blend);
                 gi.sunAlbedo = get("u_sunAlbedo", gi.sunAlbedo);
                 gi.bounceFeedback = get("u_bounceFeedback", gi.bounceFeedback);
+                gi.gridSize = static_cast<u32>(std::max(get("u_gridSize", static_cast<f32>(gi.gridSize)), 1.0f) + 0.5f);
+                gi.sunSamples = static_cast<u32>(std::max(get("u_sunSamples", static_cast<f32>(gi.sunSamples)), 1.0f) + 0.5f);
                 auto& cache = voxel_gis_[temporalKey_];
                 if (!cache) {
                     // A handful of cameras at most have a cache each; one past that evicts another's, which rebuilds when its camera returns.

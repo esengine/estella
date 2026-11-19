@@ -159,7 +159,7 @@ void TargetPool::age() {
     for (const auto& entry : entries_) {
         if (entry.fbo && !entry.inUse && entry.idle >= kBudgetGraceTicks) idleBytes += static_cast<u64>(entry.shape.width) * entry.shape.height * texelBytes(entry.shape);
     }
-    while (idleBytes > kIdleByteBudget) {
+    while (idleBytes > idle_byte_budget_) {
         Entry* oldest = nullptr;
         for (auto& entry : entries_) {
             if (entry.fbo && !entry.inUse && entry.idle >= kBudgetGraceTicks && (!oldest || entry.idle > oldest->idle)) oldest = &entry;

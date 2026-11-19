@@ -340,6 +340,7 @@ export function defineSkyEffect(src: SkyEffectSource): void {
     registerEffect({
         type: src.type,
         label: src.label,
+        qualityGroup: 'sky',
         factory: () => (shader ??= Material.compileShader(skyEffectSource(src))),
         uniforms: [
             { name: 'u_intensity', label: 'Brightness', min: 0, max: 8, step: 0.01, defaultValue: 1 },

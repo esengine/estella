@@ -10,10 +10,11 @@
 #include <string>
 
 namespace esengine {
-void RenderFrame::setPlanarQuality(f32 scale, u32 maxSize, f32 rate) {
+void RenderFrame::setPlanarQuality(f32 scale, u32 maxSize, f32 rate, bool capAuthored) {
     planar_scale_ = std::isfinite(scale) ? std::clamp(scale, 0.125f, 1.0f) : 0.5f;
     planar_max_size_ = std::clamp(maxSize, 64u, 4096u);
     planar_rate_ = std::isfinite(rate) ? std::clamp(rate, 0.0f, 120.0f) : 0.0f;
+    planar_capped_ = capAuthored;
 }
 
 void RenderFrame::releasePlanarCaptures() {
@@ -74,9 +75,12 @@ void RenderFrame::declarePlanarReflection(ecs::Registry& registry) {
     capture.lastSeen = planar_frame_;
     capture.rejected = eligible - 1;
     const bool project = surface.quality == ecs::ReflectionQuality::Project;
+    const bool capped = planar_capped_ && !project;
     const f32 requestedScale = project ? planar_scale_ : surface.resolutionScale;
-    const f32 scale = std::isfinite(requestedScale) ? std::clamp(requestedScale, 0.125f, 1.0f) : 0.5f;
-    const u32 limit = std::clamp(project ? planar_max_size_ : surface.maxSize, 64u, 4096u);
+    const f32 authoredScale = std::isfinite(requestedScale) ? std::clamp(requestedScale, 0.125f, 1.0f) : 0.5f;
+    const f32 scale = capped ? std::min(authoredScale, planar_scale_) : authoredScale;
+    const u32 authoredLimit = std::clamp(project ? planar_max_size_ : surface.maxSize, 64u, 4096u);
+    const u32 limit = capped ? std::min(authoredLimit, planar_max_size_) : authoredLimit;
     u32 sourceW = scene_viewport_.w ? scene_viewport_.w : width_;
     u32 sourceH = scene_viewport_.h ? scene_viewport_.h : height_;
     if (auto* target = target_manager_.get(current_target_); target && !scene_viewport_.w) {
@@ -106,9 +110,12 @@ void RenderFrame::declarePlanarReflection(ecs::Registry& registry) {
         capture.valid = false;
     }
     if (!capture.target) return;
-    const auto policy = project ? (planar_rate_ > 0 ? ecs::ReflectionUpdate::FixedRate : ecs::ReflectionUpdate::EveryFrame) : surface.update;
+    const bool rateCapped = capped && planar_rate_ > 0 && surface.update != ecs::ReflectionUpdate::OnDemand;
+    const auto policy = project || rateCapped ? (planar_rate_ > 0 ? ecs::ReflectionUpdate::FixedRate : ecs::ReflectionUpdate::EveryFrame) : surface.update;
     const f32 requestedRate = project ? planar_rate_ : surface.updatesPerSecond;
-    const f32 rate = std::isfinite(requestedRate) ? std::clamp(requestedRate, 1.0f, 120.0f) : 30.0f;
+    const f32 authoredRate = std::isfinite(requestedRate) ? std::clamp(requestedRate, 1.0f, 120.0f) : 30.0f;
+    const f32 rate = rateCapped ? (surface.update == ecs::ReflectionUpdate::FixedRate ? std::min(authoredRate, planar_rate_) : planar_rate_)
+                                : authoredRate;
     const bool due = !capture.valid || generationChanged || capture.receiver != selected
         || capture.revision != surface.revision || capture.mask != surface.cullingMask
         || policy == ecs::ReflectionUpdate::EveryFrame

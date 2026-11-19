@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { QualitySetting } from './types';
+
+export const REFLECTION_SETTINGS = [
+    {
+        key: 'planarReflectionScale',
+        type: 'number',
+        defaults: { low: 0.25, medium: 0.5, high: 1 },
+        min: 0.125, max: 1, step: 0.125,
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Planar reflection scale', zh: '平面反射比例' },
+        description: {
+            en: 'The share of the screen\'s resolution a planar reflection (a mirror, a still pond) is drawn at, on a side. A reflection set to its own (Custom) values is drawn at no more than this while a level is in force.',
+            zh: '平面反射（镜子、静水）按屏幕分辨率的多少比例绘制（按边长）。档位生效时，自定义（Custom）数值的反射也不超过它。',
+        },
+    },
+    {
+        key: 'planarReflectionMaxSize',
+        type: 'number',
+        defaults: { low: 512, medium: 1024, high: 2048 },
+        min: 64, max: 4096, step: 64, integer: true,
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Planar reflection max size', zh: '平面反射最大尺寸' },
+        description: {
+            en: 'The most texels a side a planar reflection is drawn at, whatever the scale makes of a large screen. It caps a Custom reflection too while a level is in force.',
+            zh: '平面反射每边最多多少像素，不管比例在大屏上算出多大。档位生效时也限制自定义（Custom）反射。',
+        },
+    },
+    {
+        key: 'planarReflectionUpdatesPerSecond',
+        type: 'number',
+        defaults: { low: 30, medium: 0, high: 0 },
+        min: 0, max: 120, step: 1,
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Planar reflection updates / s', zh: '平面反射每秒更新次数' },
+        description: {
+            en: 'How often a planar reflection is drawn again. 0 is every frame; this never caps the main scene. While a level is in force a Custom reflection is drawn no more often than this, except one drawn only on request.',
+            zh: '平面反射每秒重画几次。0 表示每帧；它不限制主场景。档位生效时，自定义（Custom）反射也不会比它更频繁（只在请求时重画的除外）。',
+        },
+    },
+    {
+        key: 'ssrSteps',
+        type: 'number',
+        defaults: { low: 16, medium: 32, high: 48 },
+        min: 4, max: 48, step: 1, integer: true,
+        group: 'reflections',
+        preference: false,
+        requires: { postProcess: true },
+        uniform: { effects: ['ssr'], name: 'u_ssrSteps' },
+        label: { en: 'SSR steps', zh: 'SSR 步数' },
+        description: {
+            en: 'Steps a screen-space reflection ray marches over its full distance. Fewer steps are longer ones: a thin thing can be stepped over, and the refinement after a hit has more to make up.',
+            zh: '屏幕空间反射的射线在整段距离上走几步。步数少则每步长：可能跨过薄的物体，命中后的细化要补的更多。',
+        },
+    },
+    {
+        key: 'ssrRefine',
+        type: 'number',
+        defaults: { low: 4, medium: 5, high: 6 },
+        min: 0, max: 6, step: 1, integer: true,
+        group: 'reflections',
+        preference: false,
+        requires: { postProcess: true },
+        uniform: { effects: ['ssr'], name: 'u_ssrRefine' },
+        label: { en: 'SSR refinement', zh: 'SSR 细化次数' },
+        description: {
+            en: 'Halvings a screen-space reflection takes between the step before a hit and the hit, to find where the ray met the surface.',
+            zh: '屏幕空间反射在命中前一步和命中之间对分几次，找射线和表面的交点。',
+        },
+    },
+    {
+        key: 'skyEnvironmentInterval',
+        type: 'number',
+        defaults: { low: 4, medium: 2, high: 1 },
+        min: 0.25, max: 10, step: 0.25,
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Sky lighting update interval', zh: '天空光照更新间隔' },
+        description: {
+            en: 'The least time, in seconds, between two bakes of the sky into the light and reflections it gives the scene, while the sky keeps changing (a moving sun, drifting clouds). A bake is a few milliseconds of the main thread.',
+            zh: '天空持续变化（太阳移动、云飘动）时，两次把天空烘成场景光照和反射之间至少隔几秒。每次烘焙占主线程几毫秒。',
+        },
+    },
+    {
+        key: 'skyEnvironmentCloudSteps',
+        type: 'number',
+        defaults: { low: 8, medium: 12, high: 16 },
+        min: 4, max: 16, step: 1, integer: true,
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Sky lighting cloud steps', zh: '天空光照云层步数' },
+        description: {
+            en: 'Steps through the lower cloud layer for each direction of the sky bake (the higher layer takes six for every sixteen of these). The clouds drawn on screen are not affected.',
+            zh: '天空烘焙时每个方向穿过低层云走几步（高层云每 16 步走 6 步）。不影响屏幕上画出来的云。',
+        },
+    },
+    {
+        key: 'environmentMapSize',
+        type: 'choice',
+        options: [16, 32],
+        defaults: { low: 16, medium: 32, high: 32 },
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Environment reflection size', zh: '环境反射尺寸' },
+        description: {
+            en: 'Texels a side of the sharpest level of the reflection the sky and the captured probes give, worked out from a panorama twice as wide. 16 is a quarter of the bake of 32; a mirror shows the sky blurred.',
+            zh: '天空与捕获探针提供的反射，最清晰一级每边多少纹素；由两倍宽的全景图算出。16 的烘焙量是 32 的四分之一，镜面里的天空会变糊。',
+        },
+    },
+    {
+        key: 'probeCaptureSize',
+        type: 'choice',
+        options: [8, 16, 32],
+        defaults: { low: 16, medium: 32, high: 32 },
+        group: 'reflections',
+        preference: false,
+        label: { en: 'Probe capture size', zh: '探针捕获尺寸' },
+        description: {
+            en: 'Pixels a side of each of the six faces a light probe volume that captures at run time draws the scene into, one a frame.',
+            zh: '运行时捕获的光照探针体积，每帧画一个面、共六个面，每面多少像素。',
+        },
+    },
+] as const satisfies readonly QualitySetting[];

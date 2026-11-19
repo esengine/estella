@@ -126,6 +126,7 @@ public:
     void setShadowDistance(f32 distance);
     /// How many samples across a light source a soft 2D shadow is drawn with: the quality level's say on the penumbra's smoothness and cost.
     void setShadow2DSoftSamples(u32 samples);
+    bool setQualityValue(const std::string& name, f32 value);
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
@@ -133,6 +134,10 @@ public:
      *         atlas) or per object (one value where it stands). Off holds no atlas at all: a weak GPU's quality level. */
     void setProbesPerPixel(bool on) { probes_per_pixel_ = on; }
     bool probesPerPixel() const { return probes_per_pixel_; }
+    void setLodDistanceScale(f32 scale) { lod_distance_scale_ = scale > 0.0f ? scale : 1.0f; }
+    f32 lodDistanceScale() const { return lod_distance_scale_; }
+    void setOcclusionGridSize(u32 size) { occlusion_.setSize(size); }
+    void setTargetPoolIdleBudget(u64 bytes) { target_pool_.setIdleByteBudget(bytes); }
     /**
      * @brief The environment the sky lights the scene with (the Sky Atmosphere's, worked out by the SDK as the sky changes), or an
      *        invalid handle for none. An Ambient light that names no environment of its own lights with it.
@@ -140,7 +145,7 @@ public:
     void setSkyEnvironment(resource::EnvironmentHandle environment) { sky_environment_ = environment; }
     void setLightingDirect(bool on);
     bool lightingDirect() const { return lighting_direct_; }
-    void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+    void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored);
     /**
      * @brief Note that a view drew a mesh with texture @p texture (a resource handle) where it needs @p side texels across for a texel to
      *        be about a pixel. The largest asked since the last take is kept.
@@ -908,6 +913,7 @@ private:
     bool planar_float_refused_ = false;
     u32 planar_max_size_ = 1024;
     f32 planar_rate_ = 0;
+    bool planar_capped_ = false;
     Entity planar_receiver_ = INVALID_ENTITY;
     u32 planar_texture_ = 0;
     /// Each impostor's atlas, by raw entity id: set by the SDK's bake, read by the mesh collect.
@@ -1072,6 +1078,9 @@ private:
         /// degrees — a cube's six are right angles and do not read the angle.
         f32 range = 0.0f;
         f32 outerAngle = 0.0f;
+        f32 split = 0.75f;
+        f32 bias = 1.5f;
+        f32 slopeFloor = 0.15f;
     };
     /// A collected light and the map it asked for, if any. Paired rather than flagged
     /// inside the GPU struct, because the cap sort reorders these and the answer has
@@ -1278,6 +1287,7 @@ private:
     bool depth_prepass_ = false;
     bool probes_per_pixel_ = true;
     bool lighting_direct_ = false;
+    f32 lod_distance_scale_ = 1.0f;
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.
     std::vector<DrawList> shadow_view_lists_;
