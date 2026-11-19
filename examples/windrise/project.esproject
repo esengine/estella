@@ -19,7 +19,6 @@
         "dynamicResolution": true,
         "asyncShaderCompile": true,
         "prewarmShaders": true,
-        "prewarmTimeoutMs": 12000,
         "profiles": {
           "low": { "textureStreaming": false },
           "medium": { "antialiasing": "msaa", "msaaSamples": 1, "depthPrepass": false, "stillSky": false, "textureStreaming": false },

@@ -13,7 +13,11 @@ try {
     const page = await browser.newPage({ viewport, deviceScaleFactor: Number(process.env.WINDRISE_DPR || 1) });
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
-    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('console', message => {
+        const messageText = message.text();
+        if (message.type() === 'error' || /shader\(s\) still compiling|shader warm-up failed/.test(messageText))
+            errors.push(messageText);
+    });
     page.on('response', res => { if (res.status() >= 400) errors.push(res.status() + ' ' + res.url()); });
     await page.addInitScript(() => {
         let calls = 0, triangles = 0, previous = 0, collecting = false;
