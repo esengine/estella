@@ -14,6 +14,7 @@ import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, runtimeConfigOf, withAudioLoadTypes,
 } from '../src/project/runtimeConfig';
 import { importerDefaults } from '../src/project/importSettings';
+import { parseManifest } from '../src/project/format';
 import { audioLoadTypeOf } from '../src/assets/audioCook';
 
 describe('runtimeConfigOf', () => {
@@ -192,6 +193,35 @@ describe('how an audio clip loads', () => {
     const rc = withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, { 'assets/bgm.mp3': 'streaming' });
     expect(packagedRuntimeFields(rc).audioConfig).toEqual({ loadTypes: { 'assets/bgm.mp3': 'streaming' } });
     expect(DEFAULT_RUNTIME_CONFIG.audioConfig.loadTypes).toBeUndefined();
+  });
+});
+
+describe('Web shader compilation through a saved project', () => {
+  function reopened(quality?: Record<string, unknown>) {
+    const manifest = parseManifest({ name: 'Shader defaults', features: { rendering: { quality } } });
+    return runtimeConfigOf(parseManifest(JSON.parse(JSON.stringify(manifest))));
+  }
+
+  it('enables compilation for a Web export without selecting a device tier or enabling warm-up', () => {
+    for (const rc of [DEFAULT_RUNTIME_CONFIG, reopened({}), reopened({ targetFps: 30 })]) {
+      expect(packagedRuntimeFields(rc, 'web').quality).toEqual({ asyncShaderCompile: true });
+      for (const target of ['desktop', 'android', 'wechat', 'playable']) {
+        expect(packagedRuntimeFields(rc, target).quality).toBeUndefined();
+      }
+    }
+    const settings = packagedRuntimeFields(reopened({ prewarmShaders: true }), 'web').quality;
+    expect(settings).toMatchObject({ asyncShaderCompile: true, prewarmShaders: true });
+    expect(settings).not.toHaveProperty('mode');
+    expect(packagedRuntimeFields(reopened({ mode: 'off' }), 'web').quality)
+      .toMatchObject({ asyncShaderCompile: true, mode: 'off' });
+  });
+
+  it.each([false, true])('keeps an explicit %s through reopening and packaging', (asyncShaderCompile) => {
+    expect(packagedRuntimeFields(reopened({ asyncShaderCompile }), 'web').quality?.asyncShaderCompile).toBe(asyncShaderCompile);
+    const rc = reopened({ mode: 'auto', targetFps: 45, prewarmShaders: true, asyncShaderCompile });
+    for (const platform of ['web', 'desktop', 'wechat', 'playable']) {
+      expect(packagedRuntimeFields(rc, platform).quality).toMatchObject({ mode: 'auto', targetFps: 45, prewarmShaders: true, asyncShaderCompile });
+    }
   });
 });
 

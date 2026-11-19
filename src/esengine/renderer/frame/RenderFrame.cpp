@@ -3141,17 +3141,21 @@ void RenderFrame::recordShadowTiles(bool all) {
         shadow_tile_held_.assign(viewCount, 0);
         shadow_tile_draws_.assign(viewCount, 0);
     }
+    bool allDrawn = true;
     for (usize vi = 0; vi < viewCount; ++vi) {
         if (!all && !shadow_view_redraw_[vi]) continue;
+        // A caster waiting for its depth shader still owes this tile a draw on a later frame.
+        const bool complete = shadow_view_lists_[vi].skippedForProgram() == 0 && shadow_mover_lists_[vi].skippedForProgram() == 0;
+        allDrawn = allDrawn && complete;
         shadow_tile_keys_[vi] = shadow_view_keys_[vi];
-        shadow_tile_held_[vi] = shadow_view_trusted_[vi];
+        shadow_tile_held_[vi] = shadow_view_trusted_[vi] && complete;
         shadow_tile_draws_[vi] = shadowViewDraws(vi);
     }
     shadow_tile_layout_ = shadow_layout_;
     shadow_tiles_known_ = true;
     // The atlas as a whole now holds this frame: the key (and the inputs) a frame with nothing changed compares with.
     shadow_drawn_key_ = shadow_pending_key_;
-    shadow_drawn_valid_ = shadow_pending_trusted_;
+    shadow_drawn_valid_ = shadow_pending_trusted_ && allDrawn;
     shadow_drawn_inputs_ = shadow_pending_inputs_;
     shadow_drawn_inputs_valid_ = shadow_pending_inputs_valid_;
     u32 heldTiles = 0, heldDraws = 0;
@@ -3581,7 +3585,7 @@ void RenderFrame::executeCoverPass() {
     ES_PROFILE_COUNTER("render.cover.draws", cover_list_.mergedDrawCallCount() + cover_mover_list_.mergedDrawCallCount());
 #ifdef ES_ENABLE_POSTPROCESS
     cover_drawn_key_ = cover_key_;
-    cover_drawn_valid_ = cover_trusted_;
+    cover_drawn_valid_ = cover_trusted_ && cover_list_.skippedForProgram() == 0 && cover_mover_list_.skippedForProgram() == 0;
     cover_drawn_target_ = post_process_ ? post_process_->coverTargetId() : 0;
 #endif
     context_.updateCameraConstants(view_projection_, scene_jitter_);

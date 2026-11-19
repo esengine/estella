@@ -78,6 +78,7 @@ void DrawList::clear() {
     run_entities_.clear();
     run_first_.clear();
     merged_draw_calls_ = 0;
+    skipped_for_program_ = 0;
     depth_required_ = false;
     ui_stencil_required_ = false;
 }

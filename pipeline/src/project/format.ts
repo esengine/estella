@@ -737,6 +737,15 @@ const versionNum = (v: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/** Keep device and export defaults unresolved while a quality setting lives in the project file. */
+export function parseProjectQuality(value: unknown): QualityConfig {
+  const quality = parseQualityConfig(value);
+  const source = value as QualityConfig | null | undefined;
+  if (source?.mode !== quality.mode) delete quality.mode;
+  if (typeof source?.asyncShaderCompile !== 'boolean') delete quality.asyncShaderCompile;
+  return quality;
+}
+
 /** Parse + validate a raw `project.esproject` value. Throws on malformed / too-new. */
 export function parseManifest(raw: unknown): ProjectManifest {
   if (!raw || typeof raw !== 'object') {
@@ -904,10 +913,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (r.outputTransform === 'aces' || r.outputTransform === 'neutral') rendering.outputTransform = r.outputTransform;
       // Only a NON-default count persists; 4 is absence, like the fields above.
       if (r.msaa === 1 || r.msaa === 2 || r.msaa === 8) rendering.msaa = r.msaa;
-      if (r.quality) {
-        const quality = parseQualityConfig(r.quality);
-        rendering.quality = quality;
-      }
+      if (r.quality) rendering.quality = parseProjectQuality(r.quality);
       // Same shape: only the opt-in persists, WebGL2 is absence.
       if (r.backend === 'webgpu') rendering.backend = 'webgpu';
       // Camera fit — 'none' (off) is the default, expressed by absence.

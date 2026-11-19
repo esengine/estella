@@ -470,8 +470,8 @@ whatever the quality level, **Off** included, and are saved under `features.rend
 
 | Setting | What it does |
 |---|---|
-| **Compile shaders in the background** (`asyncShaderCompile`) | A draw whose shader the browser is still compiling is left out, so the game opens at once and fills in as shaders are ready. Off, the first draw to need a shader waits for it: every frame is complete, but a first visit can stall for seconds. Needs `KHR_parallel_shader_compile`; without it shaders compile as before. |
-| **Warm up behind the loading screen** (`prewarmShaders`) | Draws the first scene out of sight, behind the loading screen, until no shader is compiling, then opens on a complete picture. Shown once background compilation is on. |
+| **Compile shaders in the background** (`asyncShaderCompile`) | **Default** enables background compilation in Web exports and editor Play. Other export targets default to Off. Choose **On** or **Off** to override the default for all targets. With `KHR_parallel_shader_compile`, materials appear as their programs become ready. Browsers without the extension compile synchronously. |
+| **Warm up behind the loading screen** (`prewarmShaders`) | Draws the first scene behind the loading screen while its shaders compile. Available when background compilation is set to **Default** or **On**. |
 | **Warm-up timeout** | The longest the loading screen waits (in seconds, default 30) before opening anyway. Shown once warm-up is on. |
 
 **Render on Demand**

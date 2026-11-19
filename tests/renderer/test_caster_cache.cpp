@@ -160,6 +160,18 @@ int main() {
     registry.emplace<ecs::Light>(sun, light);
 
     const glm::mat4 vp = cameraAt(glm::vec3(0.0f, 8.0f, 0.0f));
+    device.setSkipPendingPrograms(true);
+    device.programsReady = false;
+    for (int i = 0; i < 3; ++i) drawFrame(frame, registry, vp);
+    const auto pending = frame.casterCacheStats();
+    device.programsReady = true;
+    drawFrame(frame, registry, vp);
+    CHECK(counter("render.shadow.reused") == 0.0 && counter("render.shadow.draws") > 0.0,
+          "static shadow tiles retry their casters when the shader becomes ready");
+    if (coverOn) CHECK(frame.casterCacheStats().coverDraws == pending.coverDraws + 1,
+                       "the rain cover retries its casters too");
+    drawFrame(frame, registry, vp);
+    CHECK(counter("render.shadow.reused") == 1.0, "the complete static shadow atlas can be reused again");
     for (int i = 0; i < 4; ++i) drawFrame(frame, registry, vp);
     const auto settled = frame.casterCacheStats();
     const int shadowDraws = device.drawElementsInstancedCalls;

@@ -26,11 +26,12 @@
  * fails the build when a field in this shape is not carried by every consumer —
  * or is not listed there as a declared, reasoned gap.
  */
-import { DEFAULT_PHYSICS3D_WORLD, parseQualityConfig, parseRuntimeBuildConfig } from 'esengine';
+import { DEFAULT_PHYSICS3D_WORLD, parseRuntimeBuildConfig } from 'esengine';
 import type {
   AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, Physics3DWorldConfig, QualityConfig, RuntimeBuildConfig,
 } from 'esengine';
-import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging, type WebpImages } from './format';
+import { parseProjectQuality, resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging, type WebpImages } from './format';
+import type { ExportPlatform } from './platforms';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
 export interface RuntimeScreenFit {
@@ -83,6 +84,7 @@ export interface RuntimeProjectConfig {
   /** Scene-target multisampling the project asks for; 4 is the default. The
    *  device clamps it — this is the policy half, never the capability. */
   msaaSamples: number;
+  /** The shader compilation default depends on the export platform. An explicit boolean takes precedence. */
   quality: QualityConfig;
   /** Whether the project names a level, `off` among them. One that names none takes the device's default (see `defaultQualityMode`). */
   qualityModeNamed: boolean;
@@ -151,6 +153,7 @@ export function runtimeConfigOf(
   manifest: Pick<ProjectManifest, 'designResolution' | 'features' | 'packaging'>,
 ): RuntimeProjectConfig {
   const f = manifest.features;
+  const quality = parseProjectQuality(f?.rendering?.quality);
   return {
     achievements: manifest.packaging?.achievements ?? [],
     // Only when the channel is actually Steam: an app id left behind by a project
@@ -172,8 +175,8 @@ export function runtimeConfigOf(
     outputTransform: f?.rendering?.outputTransform === 'aces' ? 'aces'
       : f?.rendering?.outputTransform === 'neutral' ? 'neutral' : 'none',
     msaaSamples: msaaOf(f?.rendering?.msaa),
-    quality: parseQualityConfig(f?.rendering?.quality),
-    qualityModeNamed: parseQualityConfig(f?.rendering?.quality).mode === (f?.rendering?.quality as { mode?: unknown } | undefined)?.mode,
+    quality: { ...quality, mode: quality.mode ?? 'off' },
+    qualityModeNamed: quality.mode !== undefined,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -203,25 +206,24 @@ export type PackagedRuntimeFields = Pick<
 >;
 
 /**
- * The shipped-build slice of the config, with defaults OMITTED — absence is how
- * `game.config.json` and the generated mini-game / playable boots all express a
- * default, so an untouched project ships the same bytes it always did.
+ * The shipped-build slice of the config. A target-specific default is written
+ * into the package when it differs from the shared runtime's default.
  *
  * Every packaged target goes through this one function rather than restating the
  * list, which is what makes "the export forgot a setting" impossible to write
  * rather than merely unlikely.
  */
-export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntimeFields {
+export function packagedRuntimeFields(rc: RuntimeProjectConfig, platform?: ExportPlatform): PackagedRuntimeFields {
+  // An unnamed level lets the device choose its tier. Shader compilation is a separate export setting.
+  const declared = rc.qualityModeNamed ? rc.quality : qualityShips(rc.quality) ? withoutMode(rc.quality) : undefined;
+  const quality = platform === 'web' ? { ...declared, asyncShaderCompile: rc.quality.asyncShaderCompile ?? true } : declared;
   return {
     ...(rc.ySortLayers ? { ySortLayers: rc.ySortLayers } : {}),
     ...(rc.depthLayers ? { depthLayers: rc.depthLayers } : {}),
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
     ...(rc.outputTransform !== 'none' ? { outputTransform: rc.outputTransform } : {}),
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
-    // The block also carries three delivery choices that have nothing to do with a quality level (compile shaders in the background, warm them up
-    // behind the splash, draw only changing frames); with the level off they must still ship, or the switch is read from a project and never reaches a game.
-    // A named level ships, `off` too: left out, it would read as no level and a phone would take medium over the author's word.
-    ...(rc.qualityModeNamed ? { quality: rc.quality } : qualityShips(rc.quality) ? { quality: withoutMode(rc.quality) } : {}),
+    ...(quality ? { quality } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or

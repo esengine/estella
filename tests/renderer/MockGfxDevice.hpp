@@ -42,6 +42,7 @@ struct MockGfxDevice final : GfxDevice {
     int beginRenderPassCalls = 0;
     int endRenderPassCalls = 0;
     int createProgramCalls = 0;
+    bool programsReady = true;
     // A stand-in for a backend with (or without) a compute stage.
     bool computeSupported = false;
     int createComputeCalls = 0;
@@ -306,6 +307,7 @@ protected:
         if (stage) *stage = GfxShaderStage::None;
         return true;
     }
+    bool backendProgramReady(u32) override { return programsReady; }
     void backendDeleteProgram(u32) override { ++deleteProgramCalls; }
     void backendUseProgram(u32 id) override { ++useProgramCalls; lastProgram = ShaderHandle{id}; }
     i32 backendUniformLocation(u32, const char* name) override {

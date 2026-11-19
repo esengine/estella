@@ -79,6 +79,7 @@ describe.skipIf(!existsSync(path.join(SDK, 'index.lean.js')))('a web package bui
     expect(existsSync(path.join(out, 'chunks'))).toBe(true);
     const cfg = JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8'));
     expect(cfg.scripts).toBe('scripts.js');
+    expect(cfg.quality).toEqual({ asyncShaderCompile: true });
 
     // Nothing is left for a page to resolve, and the host and the scripts import the SDK from the same chunks:
     // two copies of the core would split every identity-keyed resource between them.
