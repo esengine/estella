@@ -299,8 +299,7 @@ describe('player preferences', () => {
         q.setPreferences({ antialiasing: 'off', renderScale: 0.6, ssao: false, skipEffects: ['bloom', 'filmGrain'] });
         expect(q.profile.msaaSamples).toBe(1);
         expect(q.profile.antialiasing).toBe('msaa');
-        expect(q.profile.skipEffects).toEqual(expect.arrayContaining(['taa', 'fxaa', 'bloom', 'filmGrain']));
-        expect(q.profile.ssao).toBe(false);
+        expect(q.profile.skipEffects).toEqual(expect.arrayContaining(['taa', 'fxaa', 'bloom', 'filmGrain', 'ssao', 'gtao']));
         expect(q.renderScale).toBe(0.6);
     });
 
@@ -308,12 +307,11 @@ describe('player preferences', () => {
         const q = new QualityController({ mode: 'high' });
         q.setPreferences({ ssao: false, skipEffects: ['vignette'] });
         q.setMode('low');
-        expect(q.profile.ssao).toBe(false);
-        expect(q.profile.skipEffects).toContain('vignette');
+        expect(q.profile.skipEffects).toEqual(expect.arrayContaining(['ssao', 'gtao', 'vignette']));
         expect(q.profile.msaaSamples).toBe(1);
         q.setMode('high');
         q.setPreferences(null);
-        expect(q.profile.ssao).toBe(true);
+        expect(q.profile.skipEffects).not.toContain('ssao');
         expect(q.profile.skipEffects).not.toContain('vignette');
         expect(q.profile.msaaSamples).toBe(4);
     });

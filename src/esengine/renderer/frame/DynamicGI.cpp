@@ -861,17 +861,8 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
     if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
     if (!upload()) return input;
     if (params.skip & 8u) return input;  // measuring: nothing declared at all
-    // About 160 x 90 probes whatever the size of the picture: 8 pixels apart at 720p, 12 at 1080p, 16 at 1440p. Their cost is in their number.
-    // On a phone half as many rows: the pass costs per probe (a workgroup of 64 rays and its reduction) and a phone has the most pixels
-    // and the least to spend, 11 ms of a 23 on a Snapdragon 8 Elite at 160 x 90 probes against 3 at half of that along each axis.
-#if defined(__ANDROID__)
-    constexpr u32 kProbeRows = 45;
-#else
-    constexpr u32 kProbeRows = 90;
-#endif
-    // A quality level may ask for fewer rows still (`probeDensity` under 1): two thirds of them is 30 rows on a phone, 1.2 ms of a
-    // Snapdragon 8 Elite's 6.6.
-    const u32 rows = std::max(static_cast<u32>(static_cast<f32>(kProbeRows) * std::clamp(params.probeDensity, 0.25f, 1.0f) + 0.5f), 8u);
+    const u32 probeRows = std::clamp(params.probeRows, 8u, 90u);
+    const u32 rows = std::max(static_cast<u32>(static_cast<f32>(probeRows) * std::clamp(params.probeDensity, 0.25f, 1.0f) + 0.5f), 8u);
     probeSpacing_ = params.probeSpacing > 0 ? std::clamp(params.probeSpacing, 4u, 64u)
                                             : std::clamp(((height + rows - 1) / rows + 1) / 2 * 2, 8u, 48u);
     const u32 tilesX = (width + probeSpacing_ - 1) / probeSpacing_, tilesY = (height + probeSpacing_ - 1) / probeSpacing_;

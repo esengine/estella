@@ -945,6 +945,9 @@ export interface LightPtrData {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    cascadeSplit: number;
+    shadowBias: number;
+    shadowSlopeFloor: number;
     followEnvironmentSun: boolean;
     aimFollowedSun: boolean;
     environment: number;
@@ -983,19 +986,22 @@ export function fillLight(
     out.shadowDistance = f32[(ptr + 80) >> 2];
     out.meshShadows = u8[ptr + 84] !== 0;
     out.shadowExtent = f32[(ptr + 88) >> 2];
-    out.followEnvironmentSun = u8[ptr + 92] !== 0;
-    out.aimFollowedSun = u8[ptr + 93] !== 0;
-    out.environment = u32[(ptr + 96) >> 2];
-    out.environmentRotation = f32[(ptr + 100) >> 2];
-    out.drawEnvironment = u8[ptr + 104] !== 0;
-    out.reflectionScale = f32[(ptr + 108) >> 2];
-    out.diffuseScale = f32[(ptr + 112) >> 2];
-    const diffuseTint_ = out.diffuseTint; diffuseTint_.r = f32[(ptr + 116) >> 2]; diffuseTint_.g = f32[((ptr + 116) >> 2) + 1]; diffuseTint_.b = f32[((ptr + 116) >> 2) + 2]; diffuseTint_.a = f32[((ptr + 116) >> 2) + 3];
-    out.reflectionSaturation = f32[(ptr + 132) >> 2];
-    const bakedTint_ = out.bakedTint; bakedTint_.r = f32[(ptr + 136) >> 2]; bakedTint_.g = f32[((ptr + 136) >> 2) + 1]; bakedTint_.b = f32[((ptr + 136) >> 2) + 2]; bakedTint_.a = f32[((ptr + 136) >> 2) + 3];
-    out.hemisphere = u8[ptr + 152] !== 0;
-    const groundColor_ = out.groundColor; groundColor_.r = f32[(ptr + 156) >> 2]; groundColor_.g = f32[((ptr + 156) >> 2) + 1]; groundColor_.b = f32[((ptr + 156) >> 2) + 2]; groundColor_.a = f32[((ptr + 156) >> 2) + 3];
-    out.enabled = u8[ptr + 172] !== 0;
+    out.cascadeSplit = f32[(ptr + 92) >> 2];
+    out.shadowBias = f32[(ptr + 96) >> 2];
+    out.shadowSlopeFloor = f32[(ptr + 100) >> 2];
+    out.followEnvironmentSun = u8[ptr + 104] !== 0;
+    out.aimFollowedSun = u8[ptr + 105] !== 0;
+    out.environment = u32[(ptr + 108) >> 2];
+    out.environmentRotation = f32[(ptr + 112) >> 2];
+    out.drawEnvironment = u8[ptr + 116] !== 0;
+    out.reflectionScale = f32[(ptr + 120) >> 2];
+    out.diffuseScale = f32[(ptr + 124) >> 2];
+    const diffuseTint_ = out.diffuseTint; diffuseTint_.r = f32[(ptr + 128) >> 2]; diffuseTint_.g = f32[((ptr + 128) >> 2) + 1]; diffuseTint_.b = f32[((ptr + 128) >> 2) + 2]; diffuseTint_.a = f32[((ptr + 128) >> 2) + 3];
+    out.reflectionSaturation = f32[(ptr + 144) >> 2];
+    const bakedTint_ = out.bakedTint; bakedTint_.r = f32[(ptr + 148) >> 2]; bakedTint_.g = f32[((ptr + 148) >> 2) + 1]; bakedTint_.b = f32[((ptr + 148) >> 2) + 2]; bakedTint_.a = f32[((ptr + 148) >> 2) + 3];
+    out.hemisphere = u8[ptr + 164] !== 0;
+    const groundColor_ = out.groundColor; groundColor_.r = f32[(ptr + 168) >> 2]; groundColor_.g = f32[((ptr + 168) >> 2) + 1]; groundColor_.b = f32[((ptr + 168) >> 2) + 2]; groundColor_.a = f32[((ptr + 168) >> 2) + 3];
+    out.enabled = u8[ptr + 184] !== 0;
 }
 
 export function writeLight(
@@ -1021,19 +1027,22 @@ export function writeLight(
     f32[(ptr + 80) >> 2] = data.shadowDistance;
     u8[ptr + 84] = data.meshShadows ? 1 : 0;
     f32[(ptr + 88) >> 2] = data.shadowExtent;
-    u8[ptr + 92] = data.followEnvironmentSun ? 1 : 0;
-    u8[ptr + 93] = data.aimFollowedSun ? 1 : 0;
-    u32[(ptr + 96) >> 2] = data.environment;
-    f32[(ptr + 100) >> 2] = data.environmentRotation;
-    u8[ptr + 104] = data.drawEnvironment ? 1 : 0;
-    f32[(ptr + 108) >> 2] = data.reflectionScale;
-    f32[(ptr + 112) >> 2] = data.diffuseScale;
-    f32[(ptr + 116) >> 2] = data.diffuseTint.r; f32[((ptr + 116) >> 2) + 1] = data.diffuseTint.g; f32[((ptr + 116) >> 2) + 2] = data.diffuseTint.b; f32[((ptr + 116) >> 2) + 3] = data.diffuseTint.a;
-    f32[(ptr + 132) >> 2] = data.reflectionSaturation;
-    f32[(ptr + 136) >> 2] = data.bakedTint.r; f32[((ptr + 136) >> 2) + 1] = data.bakedTint.g; f32[((ptr + 136) >> 2) + 2] = data.bakedTint.b; f32[((ptr + 136) >> 2) + 3] = data.bakedTint.a;
-    u8[ptr + 152] = data.hemisphere ? 1 : 0;
-    f32[(ptr + 156) >> 2] = data.groundColor.r; f32[((ptr + 156) >> 2) + 1] = data.groundColor.g; f32[((ptr + 156) >> 2) + 2] = data.groundColor.b; f32[((ptr + 156) >> 2) + 3] = data.groundColor.a;
-    u8[ptr + 172] = data.enabled ? 1 : 0;
+    f32[(ptr + 92) >> 2] = data.cascadeSplit;
+    f32[(ptr + 96) >> 2] = data.shadowBias;
+    f32[(ptr + 100) >> 2] = data.shadowSlopeFloor;
+    u8[ptr + 104] = data.followEnvironmentSun ? 1 : 0;
+    u8[ptr + 105] = data.aimFollowedSun ? 1 : 0;
+    u32[(ptr + 108) >> 2] = data.environment;
+    f32[(ptr + 112) >> 2] = data.environmentRotation;
+    u8[ptr + 116] = data.drawEnvironment ? 1 : 0;
+    f32[(ptr + 120) >> 2] = data.reflectionScale;
+    f32[(ptr + 124) >> 2] = data.diffuseScale;
+    f32[(ptr + 128) >> 2] = data.diffuseTint.r; f32[((ptr + 128) >> 2) + 1] = data.diffuseTint.g; f32[((ptr + 128) >> 2) + 2] = data.diffuseTint.b; f32[((ptr + 128) >> 2) + 3] = data.diffuseTint.a;
+    f32[(ptr + 144) >> 2] = data.reflectionSaturation;
+    f32[(ptr + 148) >> 2] = data.bakedTint.r; f32[((ptr + 148) >> 2) + 1] = data.bakedTint.g; f32[((ptr + 148) >> 2) + 2] = data.bakedTint.b; f32[((ptr + 148) >> 2) + 3] = data.bakedTint.a;
+    u8[ptr + 164] = data.hemisphere ? 1 : 0;
+    f32[(ptr + 168) >> 2] = data.groundColor.r; f32[((ptr + 168) >> 2) + 1] = data.groundColor.g; f32[((ptr + 168) >> 2) + 2] = data.groundColor.b; f32[((ptr + 168) >> 2) + 3] = data.groundColor.a;
+    u8[ptr + 184] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -1057,6 +1066,9 @@ export function createLightData(): LightPtrData {
         shadowDistance: 0,
         meshShadows: false,
         shadowExtent: 0,
+        cascadeSplit: 0,
+        shadowBias: 0,
+        shadowSlopeFloor: 0,
         followEnvironmentSun: false,
         aimFollowedSun: false,
         environment: 0,

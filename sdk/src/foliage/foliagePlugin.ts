@@ -31,6 +31,7 @@ import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
 import { installFoliageContacts } from './foliageContacts';
 import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
+import { qualityProfileOf } from '../render/qualityRuntime';
 import { buildFoliageCell, type CellSurroundings, type DensityMap, type FoliageCellSpec } from './cellBuild';
 import { ImageRevisions, imagePixelsAt } from '../terrain/layerArrays';
 import { bakesOf } from '../runtime/bakes';
@@ -307,8 +308,10 @@ export class FoliagePlugin implements Plugin {
             const water = waterOf(app);
             const revision = (terrains?.revision_ ?? 0) * 100003 + (water?.revision_ ?? 0);
             const waiting = !!terrains?.loading || !!water?.baking;
+            const detail = qualityProfileOf(app).detailScale;
             for (const entity of app.world.getEntitiesWithComponents([Foliage, Transform])) {
-                const data = app.world.get(entity, Foliage) as FoliageData;
+                const authored = app.world.get(entity, Foliage) as FoliageData;
+                const data: FoliageData = detail === 1 ? authored : { ...authored, lodDistance: authored.lodDistance * detail, drawDistance: authored.drawDistance * detail };
                 // The colour map is read by the material each frame: changing it grows nothing again.
                 const { colorMap: _c, colorMapStrength: _s, colorMapFrom: _f, palette: _p, ...grown } = data;
                 const signature = JSON.stringify(grown) + this.images_.of(app, [data.densityMap, data.scaleMap]);

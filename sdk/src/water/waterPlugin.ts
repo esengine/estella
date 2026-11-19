@@ -48,6 +48,8 @@ import {
     type RiverStation, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
+import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
+import { waterReflectionGrowth } from './waterShader';
 import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postprocess/weather';
 import { defaultQualityProfile, type QualityProfile } from '../render/quality';
 import { isMiniGame } from '../platform';
@@ -123,10 +125,15 @@ export interface WaterQuality {
     displacement: boolean;
     mirror: boolean;
     caustics: boolean;
+    reflectionSteps: number;
+    causticLayers: number;
 }
 
 /** Everything on: a project with no quality policy, off a minigame. */
-export const FULL_WATER: WaterQuality = { waves: WAVE_SET_SIZE, rippleCells: 256, displacement: true, mirror: true, caustics: true };
+export const FULL_WATER: WaterQuality = {
+    waves: WAVE_SET_SIZE, rippleCells: 256, displacement: true, mirror: true, caustics: true,
+    reflectionSteps: MOST_WATER_REFLECTION_STEPS, causticLayers: MOST_WATER_CAUSTIC_LAYERS,
+};
 
 /**
  * What water is allowed: the active quality profile when the project has a quality policy running; else the low profile on a minigame, which has the least to spend and
@@ -135,7 +142,10 @@ export const FULL_WATER: WaterQuality = { waves: WAVE_SET_SIZE, rippleCells: 256
 export function waterQualityOf(profile: Readonly<QualityProfile> | null, miniGame: boolean): WaterQuality {
     const p = profile ?? (miniGame ? defaultQualityProfile('low') : null);
     if (!p) return FULL_WATER;
-    return { waves: p.waterWaves, rippleCells: p.waterRippleCells, displacement: p.waterDisplacement, mirror: p.waterMirror, caustics: p.waterCaustics };
+    return {
+        waves: p.waterWaves, rippleCells: p.waterRippleCells, displacement: p.waterDisplacement, mirror: p.waterMirror, caustics: p.waterCaustics,
+        reflectionSteps: p.waterReflectionSteps, causticLayers: p.waterCausticLayers,
+    };
 }
 
 /** The zone a scene without a `WaterZone` is given: the component's defaults, over every lake and river. */
@@ -687,6 +697,9 @@ export class WaterPlugin implements Plugin {
         set('u_waveCount', q.waves);
         set('u_mirror', q.mirror ? 1 : 0);
         set('u_causticOn', q.caustics ? 1 : 0);
+        set('u_reflectSteps', q.reflectionSteps);
+        set('u_reflectGrowth', waterReflectionGrowth(q.reflectionSteps));
+        set('u_causticLayers', q.causticLayers);
         set('u_waveSpace', 1);
         set('u_origin', { x: ox, y: oz });
         set('u_cellSize', zone.cellSize);

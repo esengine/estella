@@ -14,6 +14,7 @@ import { ParticleCollisionEvent, type ParticleCollisionEventPayload } from './co
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Draw } from '../render/draw';
 import { registerScopedDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import type { QualityController } from '../render/quality';
 
 import { bakeGradient, type Gradient } from './gradient';
 import { bakeCurve, type Curve } from './curve';
@@ -97,6 +98,10 @@ export class ParticlePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(Particle), EventWriter(ParticleCollisionEvent)],
             (time: TimeData, particle: ParticleAPI, events: EventWriterInstance<ParticleCollisionEventPayload>) => {
+                const quality = app.getResourceByName('Quality') as QualityController | null | undefined;
+                particle.setLevelCollisionBudget(quality?.enabled ? {
+                    queries: quality.profile.particleCollisionQueries, events: quality.profile.particleCollisionEvents,
+                } : null);
                 particle.update(time.delta);
                 for (const hit of particle.collisionEvents) events.send(hit);
             },

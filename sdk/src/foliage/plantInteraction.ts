@@ -11,6 +11,7 @@
  *          grown again, and `saveState` is the same table. A tree comes down as an entity with its own meshes, and its placement is taken out for good.
  */
 import type { App } from '../app/app';
+import { qualityProfileOf } from '../render/qualityRuntime';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource, Res, Time, type TimeData } from '../ecs/resource';
 import { defineComponent, getComponent, MeshRenderer, RuntimeOnly, Transform, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
@@ -427,7 +428,9 @@ export class PlantInteraction {
     /** Which plants should be entities, within what each kind says, and which no longer should. */
     private scan(contacts: readonly { x: number; z: number }[]): void {
         const wanted = new Set<string>();
-        let budget = this.maxActivatedPerFrame;
+        const quality = this.app_ ? qualityProfileOf(this.app_) : null;
+        const most = Math.min(this.maxActive, quality?.plantInteractionActive ?? Infinity);
+        let budget = Math.min(this.maxActivatedPerFrame, quality?.plantInteractionPerFrame ?? Infinity);
         for (const cell of this.cells_.values()) {
             if (cell.reach <= 0) continue;
             const at = this.cellAt(cell);
@@ -447,7 +450,7 @@ export class PlantInteraction {
                     const limit = already ? reach * 1.25 : reach;
                     if (d2 > limit * limit) continue;
                     wanted.add(id);
-                    if (already || budget <= 0 || this.active_.size >= this.maxActive) continue;
+                    if (already || budget <= 0 || this.active_.size >= most) continue;
                     budget--;
                     this.activate(cell, key, entry, kind, id);
                 }

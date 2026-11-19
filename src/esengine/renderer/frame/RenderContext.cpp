@@ -270,6 +270,7 @@ void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {
     TimeConstants time{
         glm::vec4(elapsedSec, dt, viewExposure_, 0.0f),
         glm::vec4(w, h, w > 0.0f ? 1.0f / w : 0.0f, h > 0.0f ? 1.0f / h : 0.0f),
+        qualityConstants_,
     };
     device_.updateBuffer(timeUbo_, 0, &time, sizeof(TimeConstants));
 

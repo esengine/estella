@@ -48,7 +48,7 @@ constexpr u32 kEventHeaderBytes = 16;
 constexpr u32 kMaxEvents = 4096;
 constexpr u32 kMaxColliders = 64;
 static_assert(sizeof(particle::SdfColliderInstance) == 64, "the kernel's Collider is 64 bytes");
-// The depth a frame leaves, at most this many texels across: a particle needs where a surface is, not its edges.
+constexpr u32 kDepthGridMin = 64;
 constexpr u32 kDepthGridMax = 640;
 
 // Mirrors the kernel's `Params`: vec4s only, so the layout is the same in both languages with no padding to get wrong.
@@ -1045,7 +1045,7 @@ void GpuParticles::declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene
                 return;
             }
         }
-        const u32 w = std::max(std::min(sceneW, kDepthGridMax), 1u);
+        const u32 w = std::max(std::min(sceneW, depthGridMax_), 1u);
         const u32 h = std::max(1u, static_cast<u32>(static_cast<u64>(sceneH) * w / std::max(sceneW, 1u)));
         if (w != depthW_ || h != depthH_ || depthGrid_ == BufferHandle::Invalid) {
             if (depthGrid_ != BufferHandle::Invalid) device_.deleteBuffer(depthGrid_);
@@ -1073,6 +1073,10 @@ void GpuParticles::declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene
         }
     };
     graph.addPass(std::move(pass));
+}
+
+void GpuParticles::setDepthGridMax(u32 texels) {
+    depthGridMax_ = std::clamp(texels, kDepthGridMin, kDepthGridMax);
 }
 
 rg::ResourceId GpuParticles::declare(rg::RenderGraph& graph) {

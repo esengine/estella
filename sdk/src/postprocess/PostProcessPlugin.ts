@@ -98,11 +98,17 @@ export class PostProcessPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PostUpdate, postProcessVolumeSystem);
         app.addSystemToSchedule(Schedule.PostUpdate, editorViewVolumeSystem(app));
         // After the volumes: it lights the scene with the sky they resolved.
-        const sky = new SkyEnvironment();
+        const sky = new SkyEnvironment(() => ({
+            interval: api.levelValues.skyEnvironmentInterval,
+            faceSize: api.levelValues.environmentMapSize,
+            cloudSteps: api.levelValues.skyEnvironmentCloudSteps,
+        }));
         this.skies_.set(app, sky);
         app.addSystemToSchedule(Schedule.PostUpdate, skyEnvironmentSystem(app, sky));
-        // After the sky: a volume filled at run time shows the sky that lights the scene where it sees it.
-        app.addSystemToSchedule(Schedule.PostUpdate, probeCaptureSystem(() => app.wasmModule, () => sky.panorama));
+        app.addSystemToSchedule(Schedule.PostUpdate, probeCaptureSystem(() => app.wasmModule, () => sky.panorama, () => ({
+            captureFace: api.levelValues.probeCaptureSize,
+            reflectionFace: api.levelValues.environmentMapSize,
+        })));
         app.addSystemToSchedule(Schedule.PostUpdate, dynamicGISystem(app));
     }
 

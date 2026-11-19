@@ -31,6 +31,7 @@ import type { PointLight } from './surfaceCache';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import type { MeshSdf } from './meshSdfFormat';
 import type { MeshCards } from './cardFormat';
+import { qualitySettingDefaults } from '../render/qualitySettings/index';
 
 export { buildInstances, instanceKey, type GIEntry, type GISidecars } from './giInstances';
 
@@ -117,10 +118,13 @@ function sendScene(m: NonNullable<ReturnType<typeof marshallingCore>>, field: { 
     }
 }
 
+const HIGHEST_LEVEL = qualitySettingDefaults('high');
+const AUTHORED_FIELD_SIZE = 128;
+
 export function dynamicGISystem(app: App) {
     let cube = 0, loading = false, lastKey = '';
     // The field that follows the camera, kept between frames so that a camera that moves rebuilds only the slabs that came into view.
-    let field: { sdf: GlobalSdf; sceneKey: string; cell: number; sent: number[] | null } | null = null;
+    let field: { sdf: GlobalSdf; sceneKey: string; cell: number; dim: number; sent: number[] | null } | null = null;
     let built: { sceneKey: string; instances: GIInstance[] } | null = null;
     // A camera that moved while the field is still being rebuilt for the last move: what is waiting to be packed and sent when it is done.
     let waiting: { instances: GIInstance[]; light: GILight | null; lights: PointLight[]; work: number; full: boolean; build: number } | null = null;
@@ -153,8 +157,11 @@ export function dynamicGISystem(app: App) {
                 });
             };
             const effect = dynamicGIEffect(volumes);
-            // A quality level that leaves the effect out (the low one does: a device that cannot afford the passes) builds no field either.
-            const allowed = !app.hasResource(PostProcess) || app.getResource(PostProcess).effectAllowed('dynamicGI');
+            const post = app.hasResource(PostProcess) ? app.getResource(PostProcess) : null;
+            const allowed = !post || post.effectAllowed('dynamicGI');
+            const level = post?.levelValues ?? HIGHEST_LEVEL;
+            const dim = level.dynamicGIFieldSize;
+            const budget = level.dynamicGIFieldBuildMs;
             if (!effect || !allowed) { lastKey = ''; field = null; waiting = null; return; }
             // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.
             const m = marshallingCore(app.wasmModule ?? nativeEngineApi());
@@ -198,15 +205,15 @@ export function dynamicGISystem(app: App) {
             // A cell size asks for the field that follows the eye: three levels, each four times the last, around the camera. Without one the
             // field is a single window that holds the whole scene.
             const following = effect.cellSize > 0 && eye !== null;
-            const snap = following ? effect.cellSize * 8 : 1;
+            const coarser = AUTHORED_FIELD_SIZE / dim;
+            const snap = following ? effect.cellSize * coarser * 8 : 1;
             const eyeKey = following ? eye!.map((v) => Math.floor(v / snap)).join(',') : '';
-            const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + eyeKey;
+            const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + '#' + dim + eyeKey;
             // The rebuild a camera move asked for goes on a few milliseconds a frame, and is handed to the engine when it is whole: until then
             // the engine traces the field as it was, which is a window a little behind the eye and nothing worse.
             if (field && waiting) {
                 const ts = performance.now();
-                // A scene with no GI yet is worth a few slow frames (about 2 s on a phone instead of 10); a camera that moves is not.
-                const finished = field.sdf.step(waiting.full ? 12 : 3);
+                const finished = field.sdf.step(waiting.full ? budget * 4 : budget);
                 waiting.work += performance.now() - ts;
                 if (finished) {
                     const w = waiting;
@@ -223,22 +230,22 @@ export function dynamicGISystem(app: App) {
             if (!built || built.sceneKey !== sceneKey) built = { sceneKey, instances: buildInstances(entries, cube, (p) => sidecars.get(p) ?? null).instances };
             const instances = built.instances;
             if (instances.length === 0) return;
-            const cell = following ? effect.cellSize : 0;
-            if (!field || field.sceneKey !== sceneKey || field.cell !== cell) {
+            const cell = following ? effect.cellSize * coarser : 0;
+            if (!field || field.sceneKey !== sceneKey || field.cell !== cell || field.dim !== dim) {
                 // A scene the field has not seen: a new field, over the frames that follow, and the whole of it sent when it is done.
                 let sdf: GlobalSdf;
                 if (following) {
-                    sdf = new GlobalSdf([{ dim: 128, cell }, { dim: 128, cell: cell * 4 }, { dim: 128, cell: cell * 16 }]);
+                    sdf = new GlobalSdf([{ dim, cell }, { dim, cell: cell * 4 }, { dim, cell: cell * 16 }]);
                     sdf.setCenter(eye!);
                 } else {
                     const { min, max } = instanceBounds(instances);
                     const extent = Math.max(max[0]! - min[0]!, max[1]! - min[1]!, max[2]! - min[2]!);
-                    sdf = new GlobalSdf([{ dim: 128, cell: (extent * 1.15) / 124 }]);
+                    sdf = new GlobalSdf([{ dim, cell: (extent * 1.15) / (dim - 4) }]);
                     sdf.setCenter([(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2]);
                 }
                 instances.forEach((inst, id) => sdf.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }, true));
                 sdf.queueAll();
-                field = { sdf, sceneKey, cell, sent: null };
+                field = { sdf, sceneKey, cell, dim, sent: null };
                 waiting = { instances, light, lights: point.slice(0, 8), work: 0, full: true, build: performance.now() - t0 };
                 return;
             }

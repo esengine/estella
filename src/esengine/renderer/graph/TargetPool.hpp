@@ -125,6 +125,9 @@ public:
     /** @brief Bytes of unborrowed targets the pool keeps, whatever their age: past it the longest idle are destroyed. */
     static constexpr u64 kIdleByteBudget = 256ull * 1024 * 1024;
 
+    void setIdleByteBudget(u64 bytes) { idle_byte_budget_ = bytes; }
+    u64 idleByteBudget() const { return idle_byte_budget_; }
+
     /** @brief Ticks unborrowed before a target counts against that budget. More than one, since age runs once per graph and a frame can
      *  have several: a target one graph borrows is otherwise idle on the ticks the others take. */
     static constexpr u32 kBudgetGraceTicks = 4;
@@ -152,6 +155,7 @@ private:
 
     GfxDevice& device_;
     std::vector<Entry> entries_;
+    u64 idle_byte_budget_ = kIdleByteBudget;
 };
 
 }  // namespace rg
