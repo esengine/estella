@@ -14,6 +14,8 @@ import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
 import type { Entity } from '../src/types';
 import { createMockModule } from './mocks/wasm';
 import { Animator } from '../src/animation/Animator';
+import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
+import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 
 const hold = (value: number, duration = 1): TimelineAsset => ({
     version: '1.3', type: 'timeline', duration, wrapMode: WrapMode.Once,
@@ -45,6 +47,28 @@ describe('animationClipWeights', () => {
     });
     it('holds the last clip’s final frame after it when asked', () => {
         expect(animationClipWeights({ ...track, hold: true }, 9, () => 1.2)).toEqual([{ index: 1, weight: 1, local: 1.2 }]);
+    });
+    it('fills the time after a clip with its post-extrapolation, until the next clip', () => {
+        const one = (post: AnimationTrack['clips'][number]['postExtrapolation'], more: AnimationTrack['clips'] = []): AnimationTrack =>
+            ({ type: TrackType.Animation, name: '', childPath: '', hold: false, clips: [clip({ start: 1, duration: 1, clip: 'r', easeOut: 0.5, postExtrapolation: post }), ...more] });
+        const two = () => 2;
+        expect(animationClipWeights(one('loop'), 2.25, two)).toEqual([{ index: 0, weight: 1, local: 0.25 }]);
+        expect(animationClipWeights(one('pingPong'), 2.25, two)[0]!.local).toBeCloseTo(0.75, 9);
+        expect(animationClipWeights(one('continue'), 2.5, two)).toEqual([{ index: 0, weight: 1, local: 1.5 }]);
+        expect(animationClipWeights(one('hold'), 7, two)).toEqual([{ index: 0, weight: 1, local: 1 }]);
+        expect(animationClipWeights(one('none'), 2.5, two)).toEqual([]);
+        // An extrapolated end does not ease out to nothing first.
+        expect(animationClipWeights(one('hold'), 1.9, two)[0]!.weight).toBe(1);
+        // Up to the next clip, which then plays.
+        const gap = one('loop', [clip({ start: 3, duration: 1, clip: 'a' })]);
+        expect(animationClipWeights(gap, 2.5, two)).toEqual([{ index: 0, weight: 1, local: 0.5 }]);
+        expect(animationClipWeights(gap, 3.5, two)).toEqual([{ index: 1, weight: 1, local: 0.5 }]);
+    });
+    it('fills the time before the first clip with its pre-extrapolation', () => {
+        const tr: AnimationTrack = { type: TrackType.Animation, name: '', childPath: '', hold: false, clips: [clip({ start: 1, duration: 1, clip: 'r', clipIn: 0.2, easeIn: 0.5, preExtrapolation: 'hold' })] };
+        expect(animationClipWeights(tr, 0.5, () => 2)).toEqual([{ index: 0, weight: 1, local: 0.2 }]);
+        expect(animationClipWeights(tr, 1.1, () => 2)[0]!.weight).toBe(1);
+        expect(animationClipWeights({ ...tr, clips: [{ ...tr.clips[0]!, preExtrapolation: 'loop' }] }, 0.25, () => 2)[0]!.local).toBeCloseTo(0.45, 9);
     });
     it('starts a clip partway into its animation, at its speed, looping or holding at its end', () => {
         expect(clipLocalTime(clip({ start: 1, clipIn: 0.5, speed: 2 }), 1.5, 0)).toBe(1.5);
@@ -112,9 +136,78 @@ describe('sampleAnimationTracks', () => {
         expect(x()).toBeCloseTo(25, 6);
     });
 
+    describe('tracks on one rig are layers', () => {
+        let leg: Entity;
+        const both = (value: number): TimelineAsset => ({
+            version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Once,
+            tracks: ['Arm', 'Leg'].map((childPath) => ({ type: TrackType.Property, name: '', childPath, component: 'Transform', channels: [
+                { property: 'position.x', keyframes: [{ time: 0, value, inTangent: 0, outTangent: 0 }, { time: 2, value, inTangent: 0, outTangent: 0 }] },
+            ] })) as TimelineAsset['tracks'],
+        });
+        const more: Record<string, TimelineAsset> = { ...anims, b30: both(30), b70: both(70) };
+        const lookupMore = (ref: string) => more[ref];
+        const layered = (...tracks: Partial<AnimationTrack>[]): TimelineAsset => ({
+            version: '1.3', type: 'timeline', duration: 5, wrapMode: WrapMode.Once,
+            tracks: tracks.map((t) => ({ type: TrackType.Animation, name: '', childPath: '', hold: false, clips: [], ...t } as AnimationTrack)),
+        });
+        beforeEach(() => {
+            leg = world.spawn('Leg');
+            world.insert(leg, Transform, {});
+            world.setParent(leg, rig);
+        });
+        const legX = () => world.get(leg, Transform).position.x;
+
+        it('leans the track below toward an override track by its weight', () => {
+            sampleAnimationTracks(layered({ clips: [clip({ duration: 2, clip: 'a' })] }, { weight: 0.5, clips: [clip({ duration: 2, clip: 'b' })] }), 1, rig, deps(), lookupMore);
+            expect(x()).toBeCloseTo(30, 6);
+        });
+        it('moves only the joints a track’s mask admits', () => {
+            sampleAnimationTracks(layered({ clips: [clip({ duration: 2, clip: 'b30' })] }, { mask: ['Leg'], clips: [clip({ duration: 2, clip: 'b70' })] }), 1, rig, deps(), lookupMore);
+            expect(x()).toBeCloseTo(30, 6);
+            expect(legX()).toBeCloseTo(70, 6);
+            // A first track with a mask leaves the joints outside it to the rig.
+            world.insert(arm, Transform, { position: { x: 5, y: 0, z: 0 } });
+            sampleAnimationTracks(layered({ mask: ['Leg'], clips: [clip({ duration: 2, clip: 'b70' })] }), 1, rig, deps(), lookupMore);
+            expect(x()).toBe(5);
+        });
+        it('adds what an additive track’s clips move beyond their first frame, frame after frame the same', () => {
+            const tl = layered({ clips: [clip({ duration: 2, clip: 'a' })] }, { blend: 'additive', clips: [clip({ duration: 2, clip: 'r' })] });
+            sampleAnimationTracks(tl, 1, rig, deps(), lookupMore);
+            sampleAnimationTracks(tl, 1, rig, deps(), lookupMore);
+            // 10 from the base, plus the ramp's 100 beyond its first frame's 0.
+            expect(x()).toBeCloseTo(110, 6);
+            sampleAnimationTracks(layered({ clips: [clip({ duration: 2, clip: 'a' })] }, { blend: 'additive', weight: 0.5, clips: [clip({ duration: 2, clip: 'r' })] }), 1, rig, deps(), lookupMore);
+            expect(x()).toBeCloseTo(60, 6);
+        });
+        it('adds onto the rig’s own pose when the additive track is alone, without creeping', () => {
+            world.insert(arm, Transform, { position: { x: 7, y: 0, z: 0 } });
+            const tl = layered({ blend: 'additive', clips: [clip({ duration: 2, clip: 'r' })] });
+            for (let i = 0; i < 3; i++) sampleAnimationTracks(tl, 1, rig, deps(), lookupMore);
+            expect(x()).toBeCloseTo(107, 6);
+        });
+    });
+
     it('plays from Clip In at the clip’s speed', () => {
         sampleAnimationTracks(timeline({ clips: [clip({ start: 1, duration: 2, clip: 'r', clipIn: 0.5, speed: 0.5 })] }), 2, rig, deps(), lookup);
         // 0.5 + 1 * 0.5 = 1s into the ramp.
         expect(x()).toBeCloseTo(100, 6);
+    });
+});
+
+describe('saved and loaded', () => {
+    it('keeps a clip’s extrapolation and a track’s blend, weight and mask, and leaves the defaults out', () => {
+        const asset: TimelineAsset = { version: '1.3', type: 'timeline', duration: 4, wrapMode: WrapMode.Once, tracks: [
+            { type: TrackType.Animation, name: '', childPath: 'Rig', hold: false, blend: 'additive', weight: 0.25, mask: ['Arm', 'Leg/Foot'],
+                clips: [clip({ clip: 'a', preExtrapolation: 'hold', postExtrapolation: 'pingPong' })] },
+            { type: TrackType.Animation, name: '', childPath: 'Rig', hold: false, clips: [clip({ clip: 'b' })] },
+        ] };
+        const json = JSON.parse(serializeTimelineToJson(asset));
+        expect(json.tracks[1]).not.toHaveProperty('blend');
+        expect(json.tracks[1]).not.toHaveProperty('weight');
+        expect(json.tracks[1]).not.toHaveProperty('mask');
+        const back = parseTimelineAsset(json).tracks as AnimationTrack[];
+        expect(back[0]).toMatchObject({ blend: 'additive', weight: 0.25, mask: ['Arm', 'Leg/Foot'] });
+        expect(back[0]!.clips[0]).toMatchObject({ preExtrapolation: 'hold', postExtrapolation: 'pingPong' });
+        expect(back[1]!.clips[0]).not.toHaveProperty('postExtrapolation');
     });
 });

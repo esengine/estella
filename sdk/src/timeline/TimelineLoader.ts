@@ -56,6 +56,9 @@ const MIGRATIONS: [string, string, MigrationFn][] = [
     ['1.2', '1.3', () => undefined],
 ];
 
+/** The clip extrapolations a file may name. */
+const EXTRAPOLATIONS = new Set(['none', 'hold', 'loop', 'pingPong', 'continue']);
+
 function migrateAsset(raw: any): void {
     let version = raw.version ?? '1.0';
 
@@ -208,6 +211,10 @@ function parseTrack(raw: any): Track {
                 ...base,
                 type: TrackType.Animation,
                 hold: raw.hold === true,
+                ...(raw.blend === 'additive' ? { blend: 'additive' } : {}),
+                ...(typeof raw.weight === 'number' && Number.isFinite(raw.weight) && raw.weight !== 1
+                    ? { weight: Math.min(1, Math.max(0, raw.weight)) } : {}),
+                ...(Array.isArray(raw.mask) ? { mask: raw.mask.filter((m: unknown): m is string => typeof m === 'string') } : {}),
                 clips: (raw.clips ?? []).map((c: any) => ({
                     start: finite(c.start, 0),
                     duration: Math.max(0, finite(c.duration, 0)),
@@ -217,6 +224,8 @@ function parseTrack(raw: any): Track {
                     loop: c.loop === true,
                     easeIn: Math.max(0, finite(c.easeIn, 0)),
                     easeOut: Math.max(0, finite(c.easeOut, 0)),
+                    ...(EXTRAPOLATIONS.has(c.preExtrapolation) && c.preExtrapolation !== 'none' ? { preExtrapolation: c.preExtrapolation } : {}),
+                    ...(EXTRAPOLATIONS.has(c.postExtrapolation) && c.postExtrapolation !== 'none' ? { postExtrapolation: c.postExtrapolation } : {}),
                 })),
             } as AnimationTrack;
 

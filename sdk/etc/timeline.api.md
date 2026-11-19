@@ -41,20 +41,25 @@ duration: number
 easeIn: number
 easeOut: number
 loop: boolean
+postExtrapolation: AnimationExtrapolation | undefined
+preExtrapolation: AnimationExtrapolation | undefined
 speed: number
 start: number
 ```
 
 ## AnimationTrack — interface @experimental
 ```
+blend: AnimationTrackBlend | undefined
 childPath: string
 clips: AnimationClipItem[]
 group: string | undefined
 hold: boolean
 locked: boolean | undefined
+mask: string[] | undefined
 muted: boolean | undefined
 name: string
 type: "animation"
+weight: number | undefined
 ```
 
 ## AudioTrack — interface @experimental

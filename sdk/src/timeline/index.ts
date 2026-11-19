@@ -26,6 +26,8 @@ export {
     type SequenceTrack,
     type AnimationTrack,
     type AnimationClipItem,
+    type AnimationExtrapolation,
+    type AnimationTrackBlend,
     type AnimFrame,
     type AnimFramesTrack,
     type Track,

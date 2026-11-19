@@ -248,7 +248,21 @@ export interface AnimationClipItem {
      *  the overlap is the crossfade instead. */
     easeIn: number;
     easeOut: number;
+    /** What the clip plays before it starts, when it is the track's first (Unity's Pre-Extrapolate); absent is none. */
+    preExtrapolation?: AnimationExtrapolation;
+    /** What the clip plays after it ends, until the next clip (Unity's Post-Extrapolate); absent is none. */
+    postExtrapolation?: AnimationExtrapolation;
 }
+
+/**
+ * How a clip fills time outside itself, as Unity's clip extrapolation does: `none` leaves the rig to its own animation,
+ * `hold` keeps the clip's end frame, `loop` and `pingPong` repeat the clip's span forwards or back and forth, and
+ * `continue` keeps playing its animation on (looping it or holding its last frame as the clip's Loop says).
+ */
+export type AnimationExtrapolation = 'none' | 'hold' | 'loop' | 'pingPong' | 'continue';
+
+/** How an animation track meets the tracks before it on the same rig (Unity's override track, an additive layer). */
+export type AnimationTrackBlend = 'override' | 'additive';
 
 /**
  * Skeletal animation over time on one rig (Unity's Animation Track, UE's Skeletal Animation track): clips that blend
@@ -260,6 +274,19 @@ export interface AnimationTrack extends TrackBase {
     clips: AnimationClipItem[];
     /** Keep the last clip's final pose after it ends (Unity's Post-Extrapolation Hold), instead of handing the rig back. */
     hold: boolean;
+    /**
+     * How this track meets the animation tracks before it on the same rig: `override` (the default) leans their pose
+     * toward its own, `additive` adds what its clips move beyond their own first frame. The first track on a rig meets
+     * the rig's own animation.
+     */
+    blend?: AnimationTrackBlend;
+    /** How much of the track there is, 0 to 1; absent is 1. */
+    weight?: number;
+    /**
+     * The parts of the rig the track may move (Unity's Avatar Mask on a track): paths below the rig, each the subtree
+     * under it, '' the whole rig. Absent moves all of it; an empty list moves nothing.
+     */
+    mask?: string[];
 }
 
 export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack;

@@ -9,16 +9,24 @@
  *          later fades in, their weights summing to one. Where a clip has nothing before or after it, its ease in and
  *          out blend it with what the rig is doing anyway (its Animator), and at full weight the track decides the pose.
  *
- *          Each clip is sampled into a pose, never written directly; the poses are mixed, with the rig's own pose as
- *          one more source for whatever weight the clips leave, and the mix is written once. The rig's own pose is its
- *          Animator's for this frame where it has one (the timeline runs after the Animator), and otherwise its rest
- *          pose: what each joint held before the track first moved it. What it holds now would be the track's own last
- *          frame, and an ease in would close in on itself.
+ *          Outside its span a clip can go on (Unity's clip extrapolation): before the first clip and after each one,
+ *          until the next, it holds, loops, ping-pongs or continues its animation where asked.
+ *
+ *          Several tracks on one rig are layers, in track order (Unity's override tracks, the Animator's layers): the
+ *          first meets the rig's own pose, each later one leans what is under it toward its own pose (override) or adds
+ *          what its clips move beyond their first frame (additive), by its weight, and only on the joints its mask
+ *          admits. Each clip is sampled into a pose, never written directly; the layers are composed and the result
+ *          written once. The rig's own pose is its Animator's for this frame where it has one (the timeline runs after
+ *          the Animator), and otherwise its rest pose: what each joint held before a track first moved it. What it
+ *          holds now would be the track's own last frame, and an ease in would close in on itself.
  */
-import { TrackType, type AnimationClipItem, type AnimationTrack, type TimelineAsset } from './TimelineTypes';
+import { TrackType, type AnimationClipItem, type AnimationExtrapolation, type AnimationTrack, type TimelineAsset } from './TimelineTypes';
 import { sampleTimelineIntoPose, type SampleDeps } from './TimelineEvaluator';
-import { Pose, type PoseWorld } from '../animation/pose';
+import { Pose, type PoseTrack, type PoseWorld } from '../animation/pose';
 import { mixPoses, type WeightedPose } from '../animation/poseMix';
+import { overlayPose, addPoseOver } from '../animation/layerStack';
+import { MaskReach } from '../animation/animatorMask';
+import type { World } from '../ecs/world';
 import { getComponent } from '../ecs/component';
 import type { Entity } from '../types';
 
@@ -57,15 +65,36 @@ export function clipLocalTime(clip: AnimationClipItem, time: number, length: num
 }
 
 /**
+ * Track time `time`, outside `clip`'s span, mapped into it as `mode` fills the time around the clip: held at the nearer
+ * end, looped, ping-ponged, or (continue) left as it is for the animation to carry on.
+ */
+export function extrapolatedTime(clip: AnimationClipItem, time: number, mode: AnimationExtrapolation): number {
+    const d = clip.duration, off = time - clip.start;
+    if (d <= 0) return clip.start;
+    switch (mode) {
+        case 'loop': return clip.start + (((off % d) + d) % d);
+        case 'pingPong': {
+            const p = ((off % (2 * d)) + 2 * d) % (2 * d);
+            return clip.start + (p <= d ? p : 2 * d - p);
+        }
+        case 'continue': return time;
+        default: return off < 0 ? clip.start : clip.start + d;
+    }
+}
+
+/**
  * The clips of `track` that count at `time`, with their weights: ramps over the ease in and out, or over the overlap
- * with a neighbour, which makes the overlap a crossfade. With `hold`, after the last clip ends its final pose stays at
- * full weight. `lengthOf` gives a clip's animation length (for looping and holding), 0 when unknown.
+ * with a neighbour, which makes the overlap a crossfade. Where no clip plays, the one before fills the time with its
+ * post-extrapolation (the track's `hold` is every clip's hold), and before the first clip its pre-extrapolation, at
+ * full weight; the ease on an end that is extrapolated is not used. `lengthOf` gives a clip's animation length (for
+ * looping and holding), 0 when unknown.
  */
 export function animationClipWeights(
     track: AnimationTrack, time: number, lengthOf: (clip: AnimationClipItem) => number,
 ): AnimationClipWeight[] {
     const clips = track.clips;
     const out: AnimationClipWeight[] = [];
+    const extended = (m: AnimationExtrapolation | undefined) => !!m && m !== 'none';
     for (let i = 0; i < clips.length; i++) {
         const c = clips[i]!;
         const end = c.start + c.duration;
@@ -73,21 +102,28 @@ export function animationClipWeights(
         const prev = clips[i - 1], next = clips[i + 1];
         const prevEnd = prev ? prev.start + prev.duration : -Infinity;
         // Into the clip: across the overlap with the one before, or over its own ease in.
-        const fadeIn = prevEnd > c.start ? prevEnd - c.start : c.easeIn;
-        const fadeOut = next && next.start < end ? end - next.start : c.easeOut;
+        const fadeIn = prevEnd > c.start ? prevEnd - c.start : i === 0 && extended(c.preExtrapolation) ? 0 : c.easeIn;
+        const fadeOut = next && next.start < end ? end - next.start : extended(c.postExtrapolation) ? 0 : c.easeOut;
         const wIn = fadeIn > 0 ? clamp01((time - c.start) / fadeIn) : 1;
         const wOut = fadeOut > 0 ? clamp01((end - time) / fadeOut) : 1;
         const weight = wIn * wOut;
         if (weight > 0) out.push({ index: i, weight, local: clipLocalTime(c, time, lengthOf(c)) });
     }
-    if (out.length === 0 && track.hold && clips.length > 0) {
-        // Past the last clip that has ended: its last frame, whole.
-        let last = -1;
-        for (let i = 0; i < clips.length; i++) if (clips[i]!.start + clips[i]!.duration <= time) last = i;
-        if (last >= 0) {
-            const c = clips[last]!;
-            out.push({ index: last, weight: 1, local: clipLocalTime(c, c.start + c.duration, lengthOf(c)) });
-        }
+    if (out.length > 0 || clips.length === 0) return out;
+    // Between clips or past them: the latest clip that has ended goes on as its post-extrapolation says.
+    let last = -1;
+    for (let i = 0; i < clips.length; i++) if (clips[i]!.duration > 0 && clips[i]!.start + clips[i]!.duration <= time) last = i;
+    if (last >= 0) {
+        const c = clips[last]!;
+        const mode = c.postExtrapolation ?? (track.hold ? 'hold' : 'none');
+        if (mode !== 'none') out.push({ index: last, weight: 1, local: clipLocalTime(c, extrapolatedTime(c, time, mode), lengthOf(c)) });
+        return out;
+    }
+    // Before the first clip: its pre-extrapolation.
+    const first = clips[0]!;
+    const pre = first.preExtrapolation ?? 'none';
+    if (pre !== 'none' && time < first.start && first.duration > 0) {
+        out.push({ index: 0, weight: 1, local: clipLocalTime(first, extrapolatedTime(first, time, pre), lengthOf(first)) });
     }
     return out;
 }
@@ -96,39 +132,81 @@ export function animationClipWeights(
 const pool: Pose[] = [];
 const borrow = (): Pose => pool.pop() ?? new Pose();
 
+/** One track's part in a rig's stack this frame: its clips' poses, what they start from, and how the layer applies. */
+interface Layer {
+    track: AnimationTrack;
+    sources: WeightedPose[];
+    /** For an additive track, each clip's first frame, in the order of `sources`. */
+    refs: Pose[];
+    total: number;
+    reach: MaskReach | null;
+}
+
+/** A track's mask resolved on its rig, or null where it moves the whole rig. */
+function reachOf(track: AnimationTrack, rig: Entity, deps: SampleDeps): MaskReach | null {
+    if (!track.mask) return null;
+    const reach = new MaskReach();
+    reach.resolve(deps.world as unknown as Pick<World, 'tryGet'>, rig, { paths: track.mask }, (r, p) => deps.resolveChild(r, p) ?? null);
+    return reach;
+}
+
 /**
- * Samples every animation track of `asset` at `time` onto its rig below `root`, mixed as {@link animationClipWeights}
- * says and over what the rig holds now. `lookup` finds a clip's animation by its ref (a playing timeline's own
- * lookup). Writes nothing where no clip counts.
+ * Samples every animation track of `asset` at `time` onto its rig below `root`: each track's clips as
+ * {@link animationClipWeights} says, the tracks on one rig composed as layers in track order over what the rig holds
+ * now. `lookup` finds a clip's animation by its ref (a playing timeline's own lookup). Writes nothing where no clip
+ * counts.
  */
 export function sampleAnimationTracks(
     asset: TimelineAsset, time: number, root: Entity, deps: SampleDeps,
     lookup: (ref: string) => TimelineAsset | undefined,
 ): void {
+    // The tracks of each rig, in track order.
+    const rigs = new Map<Entity, AnimationTrack[]>();
     for (const track of asset.tracks) {
         if (track.type !== TrackType.Animation || track.clips.length === 0) continue;
         const rig = deps.resolveChild(root, track.childPath);
         if (rig == null) continue;
-        const lengthOf = (c: AnimationClipItem) => (c.clip ? lookup(c.clip)?.duration ?? 0 : 0);
-        const counted = animationClipWeights(track, time, lengthOf);
-        if (counted.length === 0) continue;
-
-        const world = deps.world as unknown as PoseWorld;
-        const sources: WeightedPose[] = [];
-        let total = 0;
-        for (const { index, weight, local } of counted) {
-            const anim = track.clips[index]!.clip ? lookup(track.clips[index]!.clip) : undefined;
-            if (!anim) continue;
-            const pose = borrow();
-            pose.reset();
-            sampleTimelineIntoPose(anim, local, rig, deps, pose);
-            sources.push({ pose, weight });
-            total += weight;
+        const list = rigs.get(rig);
+        if (list) list.push(track); else rigs.set(rig, [track]);
+    }
+    const world = deps.world as unknown as PoseWorld;
+    for (const [rig, tracks] of rigs) {
+        const layers: Layer[] = [];
+        for (const track of tracks) {
+            const lengthOf = (c: AnimationClipItem) => (c.clip ? lookup(c.clip)?.duration ?? 0 : 0);
+            const counted = animationClipWeights(track, time, lengthOf);
+            if (counted.length === 0) continue;
+            const additive = track.blend === 'additive';
+            const layer: Layer = { track, sources: [], refs: [], total: 0, reach: reachOf(track, rig, deps) };
+            for (const { index, weight, local } of counted) {
+                const c = track.clips[index]!;
+                const anim = c.clip ? lookup(c.clip) : undefined;
+                if (!anim) continue;
+                const pose = borrow();
+                pose.reset();
+                sampleTimelineIntoPose(anim, local, rig, deps, pose);
+                layer.sources.push({ pose, weight });
+                layer.total += weight;
+                if (additive) {
+                    // An additive clip says how far its animation moves from where the clip starts in it.
+                    const ref = borrow();
+                    ref.reset();
+                    sampleTimelineIntoPose(anim, clipLocalTime(c, c.start, lengthOf(c)), rig, deps, ref);
+                    layer.refs.push(ref);
+                }
+            }
+            if (layer.sources.length > 0) layers.push(layer);
         }
-        if (sources.length === 0) continue;
-        // The rest pose of every joint a clip moves, recorded before the track writes it the first time.
-        let rest = rests.get(deps.world as object);
-        if (!rest) rests.set(deps.world as object, (rest = new Map()));
+        if (layers.length > 0) composeRig(world, rig, layers);
+    }
+}
+
+/** Composes `layers` on `rig` over its own pose and writes the result once. */
+function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
+    // The rest pose of every joint a clip moves, recorded before a track writes it the first time.
+    let rest = rests.get(world as object);
+    if (!rest) rests.set(world as object, (rest = new Map()));
+    for (const { sources } of layers) {
         for (const { pose } of sources) {
             for (const tr of pose.tracks) {
                 const key = `${tr.entity} ${tr.def._name}`;
@@ -137,29 +215,43 @@ export function sampleAnimationTracks(
                 }
             }
         }
-        // What the clips leave is the rig's own pose, for every field a clip writes: its Animator's, or its rest.
-        if (total < 1) {
-            const base = borrow();
-            base.reset();
-            const animator = animatedByAnimator(world, rig);
-            for (const { pose } of sources) {
-                for (const tr of pose.tracks) {
-                    if (tr.touched.size === 0) continue;
-                    const into = base.track(world, tr.entity, tr.def);
-                    if (!into) continue;
-                    const was = animator ? undefined : rest.get(`${tr.entity} ${tr.def._name}`);
-                    for (const f of tr.touched) {
-                        if (was && f in was) into.data[f] = typeof was[f] === 'object' && was[f] !== null ? { ...(was[f] as object) } : was[f];
-                        into.touched.add(f);
-                    }
-                }
-            }
-            sources.push({ pose: base, weight: 1 - total });
-        }
-        const out = borrow();
-        mixPoses(sources, out, world);
-        out.applyTo(world);
-        for (const { pose } of sources) pool.push(pose);
-        pool.push(out);
     }
+    // Under the layers, the rig's own pose for every field a layer may write: its Animator's, or its rest.
+    const animator = animatedByAnimator(world, rig);
+    const composed = borrow();
+    composed.reset();
+    const restOf = rest;
+    const seed = (tr: PoseTrack) => {
+        const into = composed.track(world, tr.entity, tr.def);
+        if (!into) return;
+        const was = animator ? undefined : restOf.get(`${tr.entity} ${tr.def._name}`);
+        for (const f of tr.touched) {
+            if (into.touched.has(f)) continue;
+            if (was && f in was) into.data[f] = typeof was[f] === 'object' && was[f] !== null ? { ...(was[f] as object) } : was[f];
+            into.touched.add(f);
+        }
+    };
+    for (const { sources, reach } of layers) {
+        for (const { pose } of sources) {
+            for (const tr of pose.tracks) if (tr.touched.size > 0 && (!reach || reach.admits(tr))) seed(tr);
+        }
+    }
+    for (const layer of layers) {
+        const w = clamp01(layer.track.weight ?? 1);
+        if (layer.track.blend === 'additive') {
+            layer.sources.forEach(({ pose, weight }, i) => addPoseOver(composed, pose, layer.refs[i]!, weight * w, world, layer.reach));
+            continue;
+        }
+        // The clips mixed among themselves, then leaned in by as much of them as there is.
+        const mixed = borrow();
+        mixPoses(layer.sources, mixed, world);
+        overlayPose(composed, mixed, Math.min(1, layer.total) * w, world, layer.reach);
+        pool.push(mixed);
+    }
+    composed.applyTo(world);
+    for (const layer of layers) {
+        for (const { pose } of layer.sources) pool.push(pose);
+        for (const ref of layer.refs) pool.push(ref);
+    }
+    pool.push(composed);
 }

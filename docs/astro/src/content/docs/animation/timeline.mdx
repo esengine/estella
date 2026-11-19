@@ -170,12 +170,32 @@ entity:
 | `speed` | `1` | Playback speed. |
 | `loop` | `false` | Repeat the animation to fill the clip instead of holding its last frame. |
 | `easeIn` / `easeOut` | `0` | Seconds to blend in from, and back out to, the rig's own animation. |
+| `preExtrapolation` / `postExtrapolation` | none | What the clip plays before it (when it is the first) and after it, until the next clip: `hold`, `loop`, `pingPong` or `continue`. |
 
 Where two clips overlap, the overlap is a crossfade: the earlier fades out as the later fades in. Where a clip eases
 in or out, it blends with the rig's own pose: its `Animator`'s for that frame when it has one (the timeline runs
 after the Animator, so at full weight the track decides the pose), and otherwise its rest pose. Between clips the rig
 is its own again; set the track's `hold` to keep the last clip's final pose after it ends. The Sequencer draws the
 ease as a ramp at a bar's end and the crossfade as a hatch over the overlap, and its preview plays the blend.
+
+A clip can also go on outside itself, as Unity's clip extrapolation does: `hold` keeps its end frame, `loop` and
+`pingPong` repeat its span forwards or back and forth, and `continue` keeps playing its animation on. Post-extrapolation
+fills the time after a clip until the next one starts; pre-extrapolation fills the time before the track's first clip.
+An extrapolated end does not ease: the clip stays at full weight across it. The Sequencer draws the stretch a clip
+fills as a faint dashed band, and the clip's Details sets both as **Before** and **After**. The track's `hold` is every
+clip's Hold where it names none.
+
+**Layers.** Several animation tracks on the same rig are layers, in track order, as Unity's override tracks and the
+Animator's layers are. The first meets the rig's own pose; each later track is set on the track:
+
+| Track field | Default | Description |
+|---|---|---|
+| `blend` | `override` | `override` leans the pose of the tracks above toward its own; `additive` adds what its clips move beyond their own first frame (where the clip starts in its animation), so a lean or a flinch reads the same over any pose. |
+| `weight` | `1` | How much of the track there is, 0 to 1. |
+| `mask` | all | The joints it may move (Unity's Avatar Mask): paths below the rig, each with everything under it. |
+
+So a wave on the upper body over a walk is a second track masked to `Spine`, and a breath is an additive track at a low
+weight. In the Details these are **Track blend**, **Track weight** and **Mask** (paths separated by commas).
 
 ### Activation ranges
 
