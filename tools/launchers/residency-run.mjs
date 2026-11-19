@@ -148,7 +148,7 @@ async function main() {
     for (let i = 0; i < tries; i++) {
       const s = await exec('window.__estellaCooked.streaming()');
       if (!s.streamed) return true;
-      if (s.loadingCells.length === 0 && s.unloadingCells.length === 0) return true;
+      if (s.loadingCells.length === 0 && s.unloadingCells.length === 0 && s.queuedCells.length === 0) return true;
       await exec(holdScript([], 2));
       // Tight at first: how long an arrival takes is a number worth measuring,
       // and a poll that sleeps 20 ms can only ever report multiples of 20 ms.
