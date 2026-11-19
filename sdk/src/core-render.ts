@@ -71,6 +71,8 @@ export { CameraBounds } from './camera/CameraBounds';
 export type { CameraBoundsData } from './camera/CameraBounds';
 export { CameraDeoccluder, CameraCollision } from './camera/CameraDeoccluder';
 export { PositionComposer } from './camera/PositionComposer';
+export { CameraTargetGroup, GroupFraming, GroupCenter, FramingMode, FramingAdjustment } from './camera/CameraTargetGroup';
+export type { CameraTargetGroupData, GroupFramingData } from './camera/CameraTargetGroup';
 export type { PositionComposerData } from './camera/PositionComposer';
 export type { CameraDeoccluderData, CameraCollisionProbe } from './camera/CameraDeoccluder';
 export type { CameraDirectorState, TimelineShot, CameraDirectorReport, CameraCandidateReport } from './camera/CameraDirector';

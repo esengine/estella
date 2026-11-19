@@ -50,6 +50,8 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 | Look-At Camera | `camera:look-at` | 放在哪就在哪，转头看目标。 |
 | Handheld Camera | `camera:handheld` | 带轻微 `CameraNoise` 的相机，像手持拍摄。 |
 | Dolly Camera with Track | `camera:dolly` | 一条 `Spline` 轨道和轨道上的相机（`CameraDolly`，Track Target），并看向目标。 |
+| Target Group Camera 2D | `camera:group-2d` | 一个 `CameraTargetGroup` 和框住它的正交相机（`PositionComposer`、`GroupFraming` 缩放）。 |
+| Target Group Camera | `camera:group-3d` | 一个 `CameraTargetGroup` 和跟随、注视并框住它的透视相机（`GroupFraming` 先推拉再缩放）。 |
 | Camera Brain | `camera:brain` | 场景的 `CameraBrain`，换相机时混合而不是硬切。 |
 
 ## `Camera` 组件
@@ -221,7 +223,7 @@ cmds.entity(cameraEntity).insert(LookAtTarget, {
 |---|---|---|---|
 | 1. 位置:站在哪 | `FollowTarget`、`CameraDolly` 或 `PositionComposer` | Position Control(Follow、Spline Dolly、Position Composer) | 相机 rig 的位置节点 |
 | 2. 朝向:看向哪 | `LookAtTarget` | Rotation Control(Rotation Composer) | 相机 rig 的注视节点 |
-| 3. 收尾:对结果的限制 | `CameraDeoccluder`、`CameraBounds` | Extensions(Deoccluder、Confiner) | 弹簧臂探测、相机修改器 |
+| 3. 收尾:对结果的限制 | `GroupFraming`、`CameraDeoccluder`、`CameraBounds` | Extensions(Group Framing、Deoccluder、Confiner) | 弹簧臂探测、相机修改器 |
 | 4. 噪声:画面上的漂移 | `CameraNoise` | Noise(Basic Multi-Channel Perlin) | 相机震动 |
 
 流水线在游戏自己的 Update 系统之后运行（和 Cinemachine Brain 在 LateUpdate 运行一样），读取的是目标这一帧的位置。每个阶段都按世界坐标决策,再经由相机的父节点写回;后面的阶段读取前面阶段这一帧写下的结果,所以一台既跟随又注视
@@ -283,6 +285,43 @@ cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, freque
 噪声只移动最终画面,从不改相机的 `Transform`,所以不会累积,跟随、轨道和注视也都按相机真实的位置计算。
 它在导演混合之前逐相机施加,所以从一台晃动的相机混合到一台稳定的相机时,晃动会逐渐平息。2D 相机在屏幕上漂移并翻滚。
 噪声跟随游戏时钟:游戏暂停时它也停止。
+
+## 同时框住多个目标
+
+两名玩家同屏、Boss 和主角同框：`CameraTargetGroup` 把多个实体当成一个目标，和 Cinemachine 的 Target Group 一样。每一帧它所在的实体会被放到成员的中心，所以任何接受目标的阶段（`FollowTarget`、`LookAtTarget`、`PositionComposer`、`CameraDolly`）只要把目标设成这个组实体，就能框住整组。相机上的 `GroupFraming` 再决定画面大小：把包住所有成员（每个成员是半径为组 `radius` 的球）的盒子撑满屏幕的 `framingSize`，方式是缩放镜头或推拉相机。
+
+```typescript
+import { CameraTargetGroup, GroupFraming, PositionComposer, FramingAdjustment } from 'esengine';
+
+const players = cmds.spawn()
+  .insert(Transform, {})
+  .insert(CameraTargetGroup, { members: [p1, p2], weights: [1, 1], radius: 40 })
+  .id();
+
+cmds.entity(cameraEntity)
+  .insert(PositionComposer, { target: players })
+  .insert(GroupFraming, { framingSize: 0.7, adjustment: FramingAdjustment.Zoom });
+```
+
+| `CameraTargetGroup` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `members` | Entity[] | `[]` | 一起被框住的实体。 |
+| `weights` | number[] | `[]` | 按顺序对应每个成员的权重；缺省为 `1`，`0` 表示排除该成员。 |
+| `radius` | number | `50` | 每个成员的大小（以原点为中心的球）：取景时保留在画面内的部分。 |
+| `center` | number | `Bounds` | 组所在的位置：`GroupCenter.Bounds`（盒子中心）或 `GroupCenter.Average`（加权平均）。 |
+
+| `GroupFraming` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `group` | Entity | `0` | 被框住的组。`0` 取相机的构图、注视或跟随目标所指的组。 |
+| `framingSize` | number | `0.8` | 组占据的屏幕比例。 |
+| `mode` | number | `Both` | 按宽 `FramingMode.Horizontal`、按高 `Vertical`，或取需要更大空间的那个（`Both`）。 |
+| `adjustment` | number | `Zoom` | `FramingAdjustment.Zoom` 改镜头（orthoSize 或视野角）；`DollyThenZoom` 先沿视线推拉相机，超出范围的部分再缩放。 |
+| `damping` | number | `0.5` | 追上大部分所需秒数（`0` = 立刻）。 |
+| `minFov` / `maxFov` | number | `10` / `80` | 视野角范围（度）。 |
+| `minOrthoSize` / `maxOrthoSize` | number | `1` / `5000` | 正交相机的范围。 |
+| `minDistance` / `maxDistance` | number | `100` / `5000` | 推拉时离组中心最近和最远的距离。 |
+
+推拉量和相机组合放置的位置分开保存，所以同时跟随该组的相机会平滑后退，而不是每帧被推一步。创建菜单的 Target Group Camera 2D 和 Target Group Camera 会同时创建一个组和一台框住它的相机。
 
 ## 保持目标可见
 

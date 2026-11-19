@@ -14,6 +14,7 @@ import { FollowTarget } from './FollowTarget';
 import { CameraBounds } from './CameraBounds';
 import { CameraDeoccluder, CameraCollision } from './CameraDeoccluder';
 import { PositionComposer } from './PositionComposer';
+import { CameraTargetGroup, GroupFraming } from './CameraTargetGroup';
 import { LookAtTarget } from './LookAtTarget';
 import { CameraBrain, cameraRigUpdate } from './CameraRig';
 import { applyCameraNoise } from './CameraNoise';
@@ -1053,7 +1054,7 @@ export function cameraPlugin(
                     cameraRigUpdate(app.world, time.delta, aspect, director, collision);
                 },
                 { name: 'CameraRigSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraDeoccluder, CameraBounds, CameraBrain] });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

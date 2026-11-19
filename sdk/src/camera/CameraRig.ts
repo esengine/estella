@@ -11,7 +11,8 @@
  *
  *            1. position  where the camera stands    FollowTarget, CameraDolly, PositionComposer (a camera uses one)
  *            2. rotation  where it looks             LookAtTarget
- *            3. finalize  limits on the result       CameraDeoccluder (keep the target in sight), CameraBounds
+ *            3. finalize  limits on the result       GroupFraming (size the shot to a CameraTargetGroup),
+ *                                                   CameraDeoccluder (keep the target in sight), CameraBounds
  *            4. noise     drift on the drawn view    CameraNoise (CameraPlugin, on the view, before the blend)
  *
  *          A stage decides in the world and writes through the camera's parent (cameraPlace.ts), the world value beside the
@@ -29,6 +30,7 @@ import { positionComposerUpdate } from './PositionComposer';
 import { lookAtUpdate } from './LookAtTarget';
 import { cameraBoundsUpdate } from './CameraBounds';
 import { deoccluderRestore, deoccluderUpdate, type CameraCollisionProbe } from './CameraDeoccluder';
+import { targetGroupUpdate, groupFramingRestore, groupFramingUpdate } from './CameraTargetGroup';
 
 export interface CameraBrainData {
   /**
@@ -71,13 +73,17 @@ export function cameraRigUpdate(
   collision: CameraCollisionProbe | null = null,
 ): void {
   if (director) syncCameraBrain(world, director);
-  // Last frame's pull toward the target is the deoccluder's, not the rig's: taken back first, so the stages work from
-  // where the rig wants each camera.
+  // Last frame's corrections (the deoccluder's pull, the group framing's dolly) are theirs, not the rig's: taken back
+  // first, in the reverse of the order they were made, so the stages work from where the rig wants each camera.
   deoccluderRestore(world);
+  groupFramingRestore(world);
+  // Groups stand where their members are before anything frames them.
+  targetGroupUpdate(world);
   followUpdate(world, dt);
   dollyUpdate(world, dt);
   positionComposerUpdate(world, dt, screenAspect);
   lookAtUpdate(world, dt, screenAspect);
+  groupFramingUpdate(world, dt, screenAspect);
   deoccluderUpdate(world, dt, collision);
   cameraBoundsUpdate(world, screenAspect);
 }

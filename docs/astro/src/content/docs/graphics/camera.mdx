@@ -56,6 +56,8 @@ in the Details.
 | Look-At Camera | `camera:look-at` | A camera that stays where it is put and turns to its target. |
 | Handheld Camera | `camera:handheld` | A camera with mild `CameraNoise`, like one held by hand. |
 | Dolly Camera with Track | `camera:dolly` | A `Spline` track and a camera on it (`CameraDolly`, Track Target) that looks at its target. |
+| Target Group Camera 2D | `camera:group-2d` | A `CameraTargetGroup` and an orthographic camera that frames it (`PositionComposer`, `GroupFraming` zoom). |
+| Target Group Camera | `camera:group-3d` | A `CameraTargetGroup` and a perspective camera that follows, looks at and frames it (`GroupFraming` dolly then zoom). |
 | Camera Brain | `camera:brain` | The scene's `CameraBrain`, so a change of camera blends instead of cutting. |
 
 ## The `Camera` component
@@ -249,7 +251,7 @@ moved by the components it carries, always in this order:
 |---|---|---|---|
 | 1. Position: where it stands | `FollowTarget`, `CameraDolly` or `PositionComposer` | Position Control (Follow, Spline Dolly, Position Composer) | camera rig position node |
 | 2. Rotation: where it looks | `LookAtTarget` | Rotation Control (Rotation Composer) | camera rig look-at node |
-| 3. Finalize: limits on the result | `CameraDeoccluder`, `CameraBounds` | Extensions (Deoccluder, Confiner) | spring arm probe, camera modifiers |
+| 3. Finalize: limits on the result | `GroupFraming`, `CameraDeoccluder`, `CameraBounds` | Extensions (Group Framing, Deoccluder, Confiner) | spring arm probe, camera modifiers |
 | 4. Noise: drift on the drawn view | `CameraNoise` | Noise (Basic Multi-Channel Perlin) | camera shake |
 
 The pipeline runs after the game's own Update systems, as Cinemachine's Brain runs in LateUpdate, and reads where each
@@ -317,6 +319,49 @@ Noise moves the view that is drawn and never the camera's `Transform`, so it doe
 look-at work from where the camera really is. It is applied to each camera before the director blends between them, so a
 blend from a shaky camera to a steady one settles. A 2D camera drifts across the screen and rolls. Noise follows the game
 clock: it stops when the game is paused.
+
+## Frame several targets
+
+Two players on one screen, a boss and the hero: a `CameraTargetGroup` makes several entities one target, as
+Cinemachine's Target Group does. Each frame its entity is put at the members' centre, so any stage that takes a target
+(`FollowTarget`, `LookAtTarget`, `PositionComposer`, `CameraDolly`) frames the whole group when given the group's entity.
+`GroupFraming` on the camera then sizes the shot: the box about the members, each a sphere of the group's `radius`, is
+made to fill `framingSize` of the screen, by zooming or by dollying.
+
+```typescript
+import { CameraTargetGroup, GroupFraming, PositionComposer, FramingAdjustment } from 'esengine';
+
+const players = cmds.spawn()
+  .insert(Transform, {})
+  .insert(CameraTargetGroup, { members: [p1, p2], weights: [1, 1], radius: 40 })
+  .id();
+
+cmds.entity(cameraEntity)
+  .insert(PositionComposer, { target: players })
+  .insert(GroupFraming, { framingSize: 0.7, adjustment: FramingAdjustment.Zoom });
+```
+
+| `CameraTargetGroup` | Type | Default | Description |
+|---|---|---|---|
+| `members` | Entity[] | `[]` | The entities framed together. |
+| `weights` | number[] | `[]` | Each member's weight, in order; a missing one is `1`, `0` leaves the member out. |
+| `radius` | number | `50` | How big each member is, as a sphere about its origin: what the framing keeps on screen. |
+| `center` | number | `Bounds` | Where the group stands: `GroupCenter.Bounds` (middle of the box) or `GroupCenter.Average` (weighted). |
+
+| `GroupFraming` | Type | Default | Description |
+|---|---|---|---|
+| `group` | Entity | `0` | The group framed. `0` takes the group the camera's composer, aim or follow targets. |
+| `framingSize` | number | `0.8` | Share of the screen the group fills. |
+| `mode` | number | `Both` | Fit `FramingMode.Horizontal`, `Vertical`, or whichever needs more room (`Both`). |
+| `adjustment` | number | `Zoom` | `FramingAdjustment.Zoom` changes the lens (orthoSize or field of view); `DollyThenZoom` moves the camera along where it looks first and zooms for what its range leaves. |
+| `damping` | number | `0.5` | Seconds to catch up most of the way (`0` = at once). |
+| `minFov` / `maxFov` | number | `10` / `80` | The lens's range in degrees. |
+| `minOrthoSize` / `maxOrthoSize` | number | `1` / `5000` | An orthographic camera's range. |
+| `minDistance` / `maxDistance` | number | `100` / `5000` | How near the group's centre a dolly may come, and how far it may go. |
+
+A dolly is held apart from where the rig puts the camera, so a camera that also follows the group backs away smoothly
+instead of being walked along a step a frame. The Create menu's Target Group Camera 2D and Target Group Camera make a
+group and a camera framing it.
 
 ## Keep the target in sight
 

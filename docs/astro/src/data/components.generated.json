@@ -991,6 +991,45 @@
       ]
     },
     {
+      "name": "CameraTargetGroup",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "members",
+          "type": "Entity",
+          "default": "",
+          "doc": "The entities framed together. A camera given this entity as its target frames all of them."
+        },
+        {
+          "key": "weights",
+          "type": "array",
+          "default": "empty",
+          "doc": "Each member's weight, in order; a missing one is 1 and 0 leaves the member out."
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "50",
+          "doc": "How big each member is, in world units: what the framing keeps on screen.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "center",
+          "type": "enum",
+          "default": "Bounds",
+          "doc": "Where the group stands: the middle of the box about them, or their weighted average.",
+          "values": [
+            "Bounds",
+            "Average"
+          ]
+        }
+      ],
+      "animatable": [
+        "radius",
+        "center"
+      ]
+    },
+    {
       "name": "Canvas",
       "source": "cpp",
       "fields": [
@@ -3522,6 +3561,110 @@
         "size.x",
         "size.y",
         "size.z"
+      ]
+    },
+    {
+      "name": "GroupFraming",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "group",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The CameraTargetGroup framed. Empty takes the group the camera's composer, aim or follow targets."
+        },
+        {
+          "key": "framingSize",
+          "type": "number",
+          "default": "0.8",
+          "doc": "Share of the screen the group fills.",
+          "range": "0.05–2, step 0.01"
+        },
+        {
+          "key": "mode",
+          "type": "enum",
+          "default": "Both",
+          "doc": "Fit the group's width, its height, or whichever needs more room.",
+          "values": [
+            "Both",
+            "Horizontal",
+            "Vertical"
+          ]
+        },
+        {
+          "key": "adjustment",
+          "type": "enum",
+          "default": "Zoom",
+          "doc": "Fit by the lens alone, or move nearer or further first and zoom for the rest.",
+          "values": [
+            "Zoom",
+            "Dolly then zoom"
+          ]
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Seconds to catch up most of the way; 0 at once.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "minFov",
+          "type": "number",
+          "default": "10",
+          "range": "1–179",
+          "advanced": true
+        },
+        {
+          "key": "maxFov",
+          "type": "number",
+          "default": "80",
+          "range": "1–179",
+          "advanced": true
+        },
+        {
+          "key": "minOrthoSize",
+          "type": "number",
+          "default": "1",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "maxOrthoSize",
+          "type": "number",
+          "default": "5000",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "minDistance",
+          "type": "number",
+          "default": "100",
+          "doc": "Dolly: how near the group's centre the camera may come.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "maxDistance",
+          "type": "number",
+          "default": "5000",
+          "doc": "Dolly: how far from it the camera may go.",
+          "range": "≥ 0",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "group",
+        "framingSize",
+        "mode",
+        "adjustment",
+        "damping",
+        "minFov",
+        "maxFov",
+        "minOrthoSize",
+        "maxOrthoSize",
+        "minDistance",
+        "maxDistance"
       ]
     },
     {
