@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {
+    "u_normalMap": "anemo-statue_2.png",
+    "u_metallicRoughnessMap": "anemo-statue_1.jpg",
+    "u_metallic": 1,
+    "u_roughness": 1
+  }
+}

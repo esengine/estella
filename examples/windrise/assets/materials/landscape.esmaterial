@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:toon",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {
+    "u_bands": 3,
+    "u_bandSoftness": 0.12,
+    "u_shadeColor": {
+      "r": 0.2,
+      "g": 0.31,
+      "b": 0.38,
+      "a": 1
+    },
+    "u_specThreshold": 1,
+    "u_rimStrength": 0.08,
+    "u_rimWidth": 0.24,
+    "u_rimColor": {
+      "r": 0.88,
+      "g": 1,
+      "b": 0.6,
+      "a": 1
+    }
+  }
+}

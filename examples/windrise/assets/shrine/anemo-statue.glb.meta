@@ -1,0 +1,13 @@
+{
+  "uuid": "973d0927-338c-4d8b-a430-a820af69d550",
+  "version": "2.0",
+  "type": "model",
+  "importer": {
+    "maxTriangles": 60000,
+    "scale": 100
+  },
+  "tripo": {
+    "task_id": "28af8faa-8a4d-401a-b99a-1e2e151488be",
+    "type": "text_to_model"
+  }
+}

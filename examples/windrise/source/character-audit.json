@@ -1,0 +1,34 @@
+{
+  "repairs": [
+    {
+      "side": -1,
+      "newFaces": 3
+    },
+    {
+      "side": 1,
+      "newFaces": 3
+    }
+  ],
+  "gate": {
+    "profile": "game",
+    "eps": 0.000188,
+    "tol": 0.003753,
+    "gap": 0.018767,
+    "pass": true,
+    "errors": [],
+    "warnings": [
+      "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a: 9 edges shared by 3 or more faces"
+    ],
+    "per_object": {
+      "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a": {
+        "tris": 24791,
+        "parts": 8,
+        "errors": [],
+        "warnings": [
+          "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a: 9 edges shared by 3 or more faces"
+        ]
+      }
+    },
+    "skipped": []
+  }
+}

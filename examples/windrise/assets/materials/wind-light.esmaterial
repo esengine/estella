@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:sprite-unlit",
+  "blendMode": 1,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_tint": {
+      "r": 0.22,
+      "g": 1.5,
+      "b": 1.8,
+      "a": 0.7
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "subject": "Genshin Impact / Mondstadt / Windrise / Lumine default outfit",
+  "status": "Unofficial visual reconstruction study; not a one-to-one replica",
+  "references": [
+    {"purpose": "Windrise layout, oak silhouette and colour reference", "url": "https://i0.wp.com/wawndinery.com/wp-content/uploads/2023/11/6-vennessastree.png"},
+    {"purpose": "Lumine default outfit, front/side/back reference", "url": "https://i.pinimg.com/originals/6c/6c/b3/6c6cb369e3dac853b2233ab444ebf12c.jpg"}
+  ],
+  "rasterAssets": [
+    {"path": "references/lumine-front.png", "role": "ImageGen reference-guided front A-pose used by Tripo"},
+    {"path": "assets/textures/oak-leaves.png", "role": "ImageGen transparent oak leaf card"},
+    {"path": "assets/textures/grass-tuft.png", "role": "ImageGen transparent grass tuft"},
+    {"path": "assets/textures/meadow.png", "role": "ImageGen painted tiling ground albedo"}
+  ],
+  "tripo": {
+    "integration": "Estella MCP, existing configured account",
+    "creditsBefore": 555,
+    "creditsConsumed": 165,
+    "creditsAfter": 390,
+    "tasks": [
+      {"id":"46c7ac47-144c-4e48-8a8f-d29de4b7f30a","operation":"image_to_model","input":"references/lumine-front.png","source":"source/tripo/lumine.glb","model":"v3.1-20260211","credits":50},
+      {"id":"c6a4ad50-e21e-422e-ac92-c92c5a9515a2","operation":"rig_check","riggable":true,"credits":0},
+      {"id":"c081e5fd-a9ba-4200-9939-150728b35023","operation":"rig","model":"v3.0-20260909","spec":"mixamo","credits":25},
+      {"id":"df4832ba-4bb2-400d-801c-82342b1cef70","operation":"animate","actions":["idle","walk","run","jump","slash"],"inPlace":true,"source":"source/tripo/lumine-animated.glb","credits":50},
+      {"id":"28af8faa-8a4d-401a-b99a-1e2e151488be","operation":"text_to_model","model":"v3.1-20260211","source":"assets/shrine/anemo-statue.glb","credits":40}
+    ]
+  },
+  "characterFinishing": {
+    "tool": "Blender 5.2.1 LTS, background mode",
+    "changes": ["Weld duplicate seam vertices", "Bridge two severed ribbon spans with six faces", "Bind both ribbon spans to Spine2 instead of nearby hands", "Recalculate normals", "Retain five source actions and export glTF skin", "Compress linear timeline samples with maximum scalar error 0.0002"],
+    "meshTriangles":24791,
+    "statueTriangles":24281,
+    "source":"source/lumine.blend",
+    "auditReports":["source/character-audit.json","source/statue-audit.json"]
+  },
+  "environment": {"source":"tools/build.mjs","seed":129873,"editableFormats":["esscene","esmesh","esmaterial","esshader","esprefab","estimeline","esanimator"],"scale":"metres"},
+  "limitations": ["Approximate geometry, face, clothing, landscape layout and lighting", "Generic Tripo movement clips, not original game animations", "No facial animation or cloth simulation", "Character has 9 non-manifold-edge warnings; statue has 2", "Verified on headless Chromium WebGL2; no mobile or WebGPU acceptance claim"]
+}

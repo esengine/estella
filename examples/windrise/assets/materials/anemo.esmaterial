@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:toon",
+  "blendMode": 1,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_emissive": {
+      "r": 0.18,
+      "g": 2.4,
+      "b": 2.1,
+      "a": 1
+    },
+    "u_shadeColor": {
+      "r": 0.3,
+      "g": 0.9,
+      "b": 0.85,
+      "a": 1
+    },
+    "u_specThreshold": 1,
+    "u_bands": 2
+  }
+}

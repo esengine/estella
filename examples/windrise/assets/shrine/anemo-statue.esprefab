@@ -1,0 +1,43 @@
+{
+  "version": "2",
+  "name": "anemo-statue",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "tripo_node_28af8faa-8a4d-401a-b99a-1e2e151488be",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "scale": {
+              "x": 179.99999523162842,
+              "y": 179.99999523162842,
+              "z": 179.99999523162842
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/shrine/anemo-statue.esmesh",
+            "lit": true,
+            "texture": "assets/shrine/anemo-statue_0.jpg",
+            "material": "assets/shrine/anemo-statue_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}
