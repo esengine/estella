@@ -244,6 +244,15 @@ const MODEL: ImporterFieldSpec[] = [
       + 'triangles. Skinned meshes are cut too and keep their rig; morphing ones are left as they are.',
   },
   {
+    key: 'clusterLod', label: 'Cluster LOD', type: 'bool', default: false,
+    category: 'Import',
+    tooltip: 'Keep every triangle of a dense static mesh and draw only the ones a view can tell apart: the mesh is cut '
+      + 'into clusters of 128 triangles at every level of detail, and each part of it is drawn at the level whose error '
+      + 'is under a pixel from where the camera stands. For a sculpted, scanned or generated model of hundreds of '
+      + 'thousands of triangles or more. The file grows by about the size of its index data, and the mesh gets no '
+      + 'Generate LODs levels. Skinned and morphing meshes are drawn whole.',
+  },
+  {
     key: 'lodLevels', label: 'Generate LODs', type: 'enum', default: 0, category: 'Import',
     options: [{ label: 'Off', value: 0 }, { label: '1 level', value: 1 },
               { label: '2 levels', value: 2 }, { label: '3 levels', value: 3 }],

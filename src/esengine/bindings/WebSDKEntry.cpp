@@ -477,6 +477,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("meshInstances_set", &esengine::meshInstances_set);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
     emscripten::function("mesh_rematerializeFromChannels", &esengine::mesh_rematerializeFromChannels);
+    emscripten::function("mesh_setClusters", &esengine::mesh_setClusters);
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
     emscripten::function("environment_setSky", &esengine::environment_setSky);

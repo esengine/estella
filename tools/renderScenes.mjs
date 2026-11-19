@@ -546,6 +546,12 @@ export const SCENES = [
   // rather than honoured into a bind pose: the skin draws as it always did
   // (mesh-skin's own points), and thresholds that would cull it decide nothing.
   { id: "lod-skin-refused", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-skin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":0,\"render.lod.culled\":0,\"render.meshes\":1}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A torus of 9216 triangles cut into clusters (fixtures/scenes/cluster-torus.esmesh), red and unlit on black.
+  // The counters are the claim: one clustered mesh, drawn with the triangles a 256-pixel view can tell apart
+  // from where it stands, and fewer of them the farther that is. The probes are the witness that the picked
+  // clusters are the torus: red on its ring, black in its hole and outside it.
+  { id: "cluster-lod-near", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/cluster-lod.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.cluster.meshes\":1,\"render.cluster.sourceTriangles\":9216,\"render.cluster.triangles\":4608,\"render.triangles\":4608}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.2,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.8,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.05,\"y\":0.05,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  { id: "cluster-lod-far", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/cluster-lod.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Transform\",\"key\":\"position.z\",\"value\":-1200,\"steps\":4}", ESTELLA_VERIFY_COUNTERS: "{\"render.cluster.meshes\":1,\"render.cluster.sourceTriangles\":9216,\"render.cluster.triangles\":1152,\"render.triangles\":1152}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.443,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.2,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A PAIR differing in ONE field: nine cubes behind a wall an Occluder declares
   // solid, two beside it. Three draws here, twelve with that field off below — and
   // the SAME four pixels, which is the whole claim about what an occluder changes.
@@ -1203,6 +1209,9 @@ export const SCENES = [
   // handle, so a recovery that reloaded would leave every reference pointing at
   // geometry nothing rebuilt, while the frame drew whichever level came back.
   { id: "device-loss-lod", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/lod-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":4,\"render.lod.level0\":1,\"render.lod.level1\":1,\"render.lod.level2\":1,\"render.meshes\":3}" } },
+  // A clustered mesh is drawn through an index buffer of the picked clusters that nothing keeps the bytes of: after a
+  // loss it has to be written again, or the torus comes back as triangles of vertex 0.
+  { id: "device-loss-cluster-lod", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "1", ESTELLA_VERIFY_SCENE: "/scenes/cluster-lod.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_COUNTERS: "{\"render.cluster.meshes\":1,\"render.cluster.triangles\":4608}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.5,\"y\":0.2,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.8,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
   // The player's case: nothing asks for the recovery, only frames pass, and it
   // happens FOUR times — backgrounding a tab is not a one-off, a recovery that
   // works once and never again passes any single-round check, and it takes

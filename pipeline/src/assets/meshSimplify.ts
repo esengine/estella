@@ -78,9 +78,18 @@ export async function reduceMesh(data: MeshData, ratio: number): Promise<Simplif
     return crossed && (!kept || crossed.triangles < kept.triangles) ? crossed : kept;
 }
 
-async function collapse(data: MeshData, options: SimplifyOptions): Promise<Simplified | null> {
-    await MeshoptSimplifier.ready;
+/** A mesh's vertices as the simplifier reads them: positions, and beside them the channels a collapse must also keep. */
+export interface SimplifierStreams {
+    positions: Float32Array;
+    /** `attributeStride` floats a vertex: normal, UV sets and colour, whichever the mesh carries. */
+    attributes: Float32Array;
+    attributeStride: number;
+    /** One weight per attribute float. */
+    weights: number[];
+}
 
+/** The streams of `data`, which must carry a float position (@ref canReduce). */
+export function simplifierStreams(data: MeshData): SimplifierStreams {
     const { vertexCount, vertexStride } = data;
     const view = new DataView(data.vertices.buffer, data.vertices.byteOffset, data.vertices.byteLength);
     const position = floatChannel(data, MeshChannel.Position, 3)!;
@@ -108,6 +117,14 @@ async function collapse(data: MeshData, options: SimplifyOptions): Promise<Simpl
     const weights = [...(normal ? [NORMAL_WEIGHT, NORMAL_WEIGHT, NORMAL_WEIGHT] : []),
                      ...(uv ? [UV_WEIGHT, UV_WEIGHT] : []), ...(uv1 ? [UV_WEIGHT, UV_WEIGHT] : []),
                      ...Array<number>(color?.components ?? 0).fill(1)];
+    return { positions, attributes, attributeStride, weights };
+}
+
+async function collapse(data: MeshData, options: SimplifyOptions): Promise<Simplified | null> {
+    await MeshoptSimplifier.ready;
+
+    const { vertexCount, vertexStride } = data;
+    const { positions, attributes, attributeStride, weights } = simplifierStreams(data);
 
     const triangles = data.indices.length / 3;
     const targetTriangles = Math.max(1, Math.floor(triangles * options.ratio));
@@ -132,7 +149,8 @@ async function collapse(data: MeshData, options: SimplifyOptions): Promise<Simpl
     for (let i = 0; i < kept.length; i++) indices[i] = remap[kept[i]!]!;
 
     return {
-        data: { ...data, vertexCount: used, vertices, indices },
+        // A hierarchy the source carried names the triangles that were just collapsed away.
+        data: { ...data, vertexCount: used, vertices, indices, clusters: undefined },
         triangles: indices.length / 3,
         error,
     };

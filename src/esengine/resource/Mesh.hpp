@@ -8,9 +8,11 @@
 
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
+#include "../renderer/lod/ClusterSelection.hpp"
 #include "../renderer/rhi/GfxEnums.hpp"
 #include "./Handle.hpp"
 
+#include <memory>
 #include <vector>
 
 namespace esengine {
@@ -129,6 +131,13 @@ public:
     bool isMorphable() const {
         return morphTargetCount > 0 && morphTexture != TextureHandle::Invalid;
     }
+
+    /**
+     * The mesh at every level of detail, as clusters a view picks from (ClusterSelection.hpp). Null for a mesh drawn whole.
+     * `indexBuffer` holds level 0, the mesh's own triangles, so whatever knows nothing of clusters draws it as it always was.
+     * Given after the geometry is realized and dropped when it is realized again: the indices in it name these vertices.
+     */
+    std::shared_ptr<const lod::ClusterHierarchy> clusters;
 
     /** Changes whenever this mesh's geometry does (it is realized again: a reload, a recovery): see core/Revision.hpp. */
     u64 revision = 0;

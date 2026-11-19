@@ -505,6 +505,13 @@ public:
      * @param indices Triangle-list indices into it.
      * @return Handle to the mesh, or invalid on failure.
      */
+    /**
+     * @brief Gives a realized mesh its cluster hierarchy, which a view then draws it through.
+     * @return False, and the mesh stays one drawn whole, when the handle names no mesh or the hierarchy names an index
+     *         run or a vertex the mesh does not have.
+     */
+    bool setMeshClusters(MeshHandle target, lod::ClusterHierarchy hierarchy);
+
     MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                           const glm::vec3& localMin, const glm::vec3& localMax,

@@ -89,6 +89,7 @@ export interface NativeEngineApi {
     mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
     mesh_release?(meshHandle: number): void;
     mesh_rematerializeFromChannels?(targetHandle: number, channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
+    mesh_setClusters?(meshHandle: number, clustersPtr: number, clusterCount: number, indexPtr: number, indexCount: number): number;
     particle_collisionEventCount?(): number;
     particle_collisionEvents?(): number;
     particle_collisionQueries?(): number;
@@ -473,6 +474,7 @@ export function createNativeEngineApi(
     bind('mesh_createFromChannels', 'es_mesh_createFromChannels', false);
     bind('mesh_release', 'es_mesh_release', false);
     bind('mesh_rematerializeFromChannels', 'es_mesh_rematerializeFromChannels', false);
+    bind('mesh_setClusters', 'es_mesh_setClusters', false);
     bind('particle_collisionEventCount', 'es_particle_collisionEventCount', false);
     bind('particle_collisionEvents', 'es_particle_collisionEvents', false);
     bind('particle_collisionQueries', 'es_particle_collisionQueries', false);

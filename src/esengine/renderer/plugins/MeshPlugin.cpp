@@ -1102,6 +1102,85 @@ void emitKeptPlacements(const RenderFrameContext& ctx, RenderCollectContext& col
 }
 }  // namespace
 
+/** @brief The error a clustered mesh may show, in pixels of the scene view, before a finer cluster is drawn. */
+constexpr f32 kClusterPixelError = 1.0f;
+/** @brief Collects a cut may go undrawn before its buffer is given back. A frame has several: the scene's, each shadow map's. */
+constexpr u64 kClusterCutIdleCollects = 2048;
+
+const MeshPlugin::ClusterCut* MeshPlugin::clusterCut(RenderCollectContext& collect, Entity entity, const Mesh& mesh,
+                                                     const glm::vec3& position, const glm::quat& rotation, const glm::vec3& scale) {
+    const RenderFrameContext& ctx = collect.frame_context;
+    GfxDevice& device = collect.buffer_pool.device();
+    const lod::ClusterHierarchy& hierarchy = *mesh.clusters;
+    ClusterCut& cut = cluster_cuts_[entity.id()];
+    cut.usedAt = cluster_serial_;
+
+    // The eye in the mesh's own space, where the bounds are stored. An error over a distance is the same ratio in either
+    // space under one scale for every axis; under three, the largest is the one that shows the most.
+    const glm::vec3 grow = glm::max(glm::abs(scale), glm::vec3(1e-12f));
+    const f32 largest = std::max({grow.x, grow.y, grow.z});
+    lod::ClusterEye eye;
+    eye.flat = cluster_flat_;
+    eye.scale = cluster_flat_ ? cluster_scale_ * largest : cluster_scale_;
+    eye.threshold = kClusterPixelError / std::max(ctx.frame ? ctx.frame->lodDistanceScale() : 1.0f, 1e-3f);
+    if (ctx.has_view_eye) {
+        const glm::vec3 offset = glm::inverse(rotation) * (ctx.view_eye - position);
+        eye.position = glm::vec3(scale.x < 0.0f ? -offset.x : offset.x, scale.y < 0.0f ? -offset.y : offset.y,
+                                 scale.z < 0.0f ? -offset.z : offset.z) / grow;
+    } else {
+        // No eye to measure from: as if it stood on the surface, which asks for the mesh's own triangles.
+        eye.flat = true;
+        eye.scale = std::numeric_limits<f32>::max();
+    }
+
+    const bool stored = cut.buffer != BufferHandle::Invalid && cut.mesh == &mesh && cut.meshRevision == mesh.revision
+        && cut.deviceGeneration == device.deviceGeneration();
+    if (stored && cut.picked && cut.eye.position == eye.position && cut.eye.scale == eye.scale
+        && cut.eye.threshold == eye.threshold && cut.eye.flat == eye.flat) {
+        return &cut;
+    }
+
+    const u32 indexCount = lod::selectClusters(hierarchy, eye, cluster_picked_);
+    const u64 signature = lod::cutSignature(cluster_picked_);
+    if (!stored || signature != cut.signature || indexCount != cut.indexCount) {
+        lod::assembleCut(hierarchy, cluster_picked_, mesh.arenaFirstVertex, cluster_indices_);
+        const u32 bytes = indexCount * static_cast<u32>(sizeof(u32));
+        if (cut.buffer != BufferHandle::Invalid && cut.deviceGeneration == device.deviceGeneration() && indexCount <= cut.capacity) {
+            device.updateBuffer(cut.buffer, 0, cluster_indices_.data(), bytes);
+        } else {
+            // Room to spare: an eye that walks toward a mesh asks for a little more each time, and a buffer made to fit
+            // would be made again at every step.
+            const u32 capacity = std::min(indexCount + indexCount / 2 + 3 * 128, static_cast<u32>(hierarchy.indices.size()));
+            cluster_indices_.resize(capacity, 0);
+            BufferDesc desc;
+            desc.usage = GfxBufferUsage::Index;
+            desc.size = capacity * static_cast<u32>(sizeof(u32));
+            desc.dynamic = true;
+            if (cut.buffer != BufferHandle::Invalid) {
+                device.resizeBuffer(cut.buffer, desc.size, cluster_indices_.data());
+            } else {
+                // Rewritten whenever the pick changes, and again from here after a device loss: nothing has to keep its bytes.
+                cut.buffer = device.createBuffer(desc, GfxContent::transient(), cluster_indices_.data());
+            }
+            if (cut.buffer == BufferHandle::Invalid) {
+                cut = ClusterCut{};
+                return nullptr;
+            }
+            cut.capacity = capacity;
+        }
+        cut.signature = signature;
+        cut.indexCount = indexCount;
+        cut.clusters = static_cast<u32>(cluster_picked_.size());
+        ++cluster_rebuilt_;
+    }
+    cut.mesh = &mesh;
+    cut.meshRevision = mesh.revision;
+    cut.deviceGeneration = device.deviceGeneration();
+    cut.eye = eye;
+    cut.picked = true;
+    return &cut;
+}
+
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& clips = collect_ctx.clip_state;
@@ -1115,6 +1194,27 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     // — what shadows and motion have in common is that neither is the surface's own look.
     const bool motion = ctx.purpose == RenderPurpose::Motion;
     const bool depthPass = shadowDepth || motion;
+    ++cluster_serial_;
+    if (ctx.purpose == RenderPurpose::Scene) {
+        // What an error measures in this view: NDC y per world unit is the length of the view-projection's second row under
+        // both projections, and half the view's pixels span one unit of NDC. An orthographic view's fourth row has no
+        // direction in it: nothing there shrinks with distance.
+        const glm::mat4& vp = ctx.view_projection;
+        cluster_scale_ = glm::length(glm::vec3(vp[0][1], vp[1][1], vp[2][1])) * 0.5f * (ctx.frame ? ctx.frame->viewHeightPx() : 1080.0f);
+        cluster_flat_ = glm::length(glm::vec3(vp[0][3], vp[1][3], vp[2][3])) < 1e-12f;
+        cluster_meshes_ = cluster_triangles_ = cluster_source_triangles_ = cluster_rebuilt_ = cluster_drawn_ = 0;
+        if (cluster_serial_ % 256 == 0 && !cluster_cuts_.empty()) {
+            GfxDevice& device = buffers.device();
+            for (auto it = cluster_cuts_.begin(); it != cluster_cuts_.end();) {
+                if (it->second.usedAt + kClusterCutIdleCollects < cluster_serial_) {
+                    if (it->second.buffer != BufferHandle::Invalid) device.deleteBuffer(it->second.buffer);
+                    it = cluster_cuts_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
     if (!motion && ctx.track_motion && ctx.motion_frame % 256 == 0) {
         for (auto it = poses_.begin(); it != poses_.end();) {
             if (it->second.frame + 8 < ctx.motion_frame) {
@@ -1691,13 +1791,18 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // One draw of `count` records from `offset`, of the geometry `geo`. A cutout that asks for tips gets its soft outer band
                 // as a second, blended draw of the same instances: no depth written, sorted with the other blended draws, and no
                 // surface record.
+                // The indices a draw of `geo` reads: its own, or the cut a clustered mesh is drawn through.
+                BufferHandle cutBuffer = BufferHandle::Invalid;
+                u32 cutIndexCount = 0;
                 const auto emit = [&](const Mesh& geo, u32 offset, u32 count) {
                     BatchDrawKey drawn = key;
                     drawn.instanceCount = count;
                     drawn.vertexBuffer = geo.vertexBuffer;
-                    drawn.indexBuffer = geo.indexBuffer;
+                    drawn.indexBuffer = cutBuffer != BufferHandle::Invalid ? cutBuffer : geo.indexBuffer;
                     drawn.vertexLayout = geo.layout;
-                    pushBatchDraw(draw_list, clips, offset, 0, geo.firstIndex, geo.indexCount, drawn);
+                    const u32 firstIndex = cutBuffer != BufferHandle::Invalid ? 0 : geo.firstIndex;
+                    const u32 indexCount = cutBuffer != BufferHandle::Invalid ? cutIndexCount : geo.indexCount;
+                    pushBatchDraw(draw_list, clips, offset, 0, firstIndex, indexCount, drawn);
                     if (!depthPass && !wire && key.materialId != 0 && ctx.materials && ctx.materials->hasTipPass(key.materialId)) {
                         const u32 tipProgram = ctx.materials->meshProgram(key.materialId, ctx.resources, geo.hasNormals, skinned,
                                                                           key.envTextureId != 0, geo.hasLightmapUV, false,
@@ -1708,7 +1813,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                             tips.stage = RenderStage::Transparent;
                             tips.blend = BlendMode::Normal;
                             tips.depthWrite = false;
-                            pushBatchDraw(draw_list, clips, offset, 0, geo.firstIndex, geo.indexCount, tips);
+                            pushBatchDraw(draw_list, clips, offset, 0, firstIndex, indexCount, tips);
                         }
                     }
                 };
@@ -1729,6 +1834,20 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.vertexBuffer = resident->vertexBuffer;
                 key.indexBuffer = resident->indexBuffer;
                 key.vertexLayout = resident->layout;
+                // A clustered mesh, one entity's own: through the clusters the scene's eye picks. The wireframe view draws
+                // the mesh's own edges, which are level 0's, over level 0.
+                if (resident->clusters && !wire) {
+                    if (const ClusterCut* cut = clusterCut(collect_ctx, entity, *resident, position, rotation, scale)) {
+                        cutBuffer = cut->buffer;
+                        cutIndexCount = cut->indexCount;
+                        if (ctx.purpose == RenderPurpose::Scene) {
+                            ++cluster_meshes_;
+                            cluster_drawn_ += cut->clusters;
+                            cluster_triangles_ += cut->indexCount / 3;
+                            cluster_source_triangles_ += resident->indexCount / 3;
+                        }
+                    }
+                }
                 emit(*resident, instOffset, 1);
                 // The edges, as a second draw of the same instance with its own ink: same
                 // vertices, the mesh's line list, tested against the surface just drawn.
@@ -1828,6 +1947,15 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     ES_PROFILE_COUNTER("render.mesh.coldDecompose", coldDecompose);
     ES_PROFILE_COUNTER("render.mesh.lodGathers", lodGathers);
     ES_PROFILE_COUNTER("render.mesh.programAsks", programAsks);
+    if (ctx.purpose == RenderPurpose::Scene) {
+        // Clustered meshes the scene drew, the clusters and triangles they were drawn with, the triangles they have at
+        // level 0, and how many of them had their index buffer rewritten because the pick changed.
+        ES_PROFILE_COUNTER("render.cluster.meshes", cluster_meshes_);
+        ES_PROFILE_COUNTER("render.cluster.clusters", cluster_drawn_);
+        ES_PROFILE_COUNTER("render.cluster.triangles", cluster_triangles_);
+        ES_PROFILE_COUNTER("render.cluster.sourceTriangles", cluster_source_triangles_);
+        ES_PROFILE_COUNTER("render.cluster.rebuilt", cluster_rebuilt_);
+    }
     // The scene's own collect says it; a shadow map's, which comes after, would overwrite it with zeroes.
     if (ctx.purpose == RenderPurpose::Scene) {
         // Draws whose view-independent half was kept from an earlier walk, and those derived again because something changed.

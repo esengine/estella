@@ -4,9 +4,12 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
-import { decodeMesh, encodeChannelTable, type MeshData } from '../meshFormat';
+import { decodeMesh, encodeChannelTable, MESH_CLUSTER_BOUNDS_FLOATS, type MeshClusters, type MeshData } from '../meshFormat';
 import { builtinMeshTemplate, isBuiltinMeshRef } from '../builtinMeshes';
 import { extractPositions, registerMeshCollision, releaseMeshCollision } from '../meshCollision';
+
+/** One cluster as the engine takes it: first index, index count, ten floats of bounds (lod::Cluster). */
+const CLUSTER_RECORD_BYTES = 48;
 
 /** A mesh uploaded to the GPU, named by the handle everything else references. */
 export interface MeshResult {
@@ -111,7 +114,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                 morphPtr, morph?.deltas.length ?? 0, morph?.names.length ?? 0,
                 morph?.hasNormals ? 1 : 0,
             ];
-            return mint
+            const handle = mint
                 ? m!.mesh_createFromChannels!(
                     tablePtr, mesh.channels.length, mesh.vertexStride,
                     vertexPtr, mesh.vertices.byteLength,
@@ -127,7 +130,38 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                     mesh.aabbMin[0], mesh.aabbMin[1], mesh.aabbMin[2],
                     mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2],
                     bindPtr, bind?.length ?? 0, ...shapes);
+            if (handle && mesh.clusters) this.uploadClusters_(m!, alloc, handle, mesh, mesh.clusters);
+            return handle;
         });
+    }
+
+    /**
+     * Hands a realized mesh its cluster hierarchy. After the geometry, and again whenever it is realized again: the
+     * engine drops the hierarchy with the vertices it names. An engine without the call, or one that refuses the
+     * hierarchy, draws the mesh whole from the level-0 indices it already has.
+     */
+    private uploadClusters_(m: NonNullable<ReturnType<typeof marshallingCore>>, alloc: (bytes: number) => number,
+                            handle: number, mesh: MeshData, clusters: MeshClusters): void {
+        if (!m.mesh_setClusters) return;
+        const count = clusters.ranges.length / 2;
+        const records = new Uint8Array(count * CLUSTER_RECORD_BYTES);
+        const view = new DataView(records.buffer);
+        for (let c = 0; c < count; c++) {
+            const at = c * CLUSTER_RECORD_BYTES;
+            view.setUint32(at, clusters.ranges[c * 2]!, true);
+            view.setUint32(at + 4, clusters.ranges[c * 2 + 1]!, true);
+            for (let k = 0; k < MESH_CLUSTER_BOUNDS_FLOATS; k++) {
+                view.setFloat32(at + 8 + k * 4, clusters.bounds[c * MESH_CLUSTER_BOUNDS_FLOATS + k]!, true);
+            }
+        }
+        const indexCount = mesh.indices.length + clusters.coarseIndices.length;
+        const recordPtr = alloc(records.byteLength);
+        const indexPtr = alloc(indexCount * 4);
+        m.HEAPU8.set(records, recordPtr);
+        m.HEAPU8.set(new Uint8Array(mesh.indices.buffer, mesh.indices.byteOffset, mesh.indices.byteLength), indexPtr);
+        m.HEAPU8.set(new Uint8Array(clusters.coarseIndices.buffer, clusters.coarseIndices.byteOffset,
+                                    clusters.coarseIndices.byteLength), indexPtr + mesh.indices.byteLength);
+        m.mesh_setClusters(handle, recordPtr, count, indexPtr, indexCount);
     }
 
     /** Gives back a handle {@link uploadData} minted. */

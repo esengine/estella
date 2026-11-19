@@ -116,6 +116,25 @@ same share; 0, the default, leaves it as it is. The source file keeps every tria
 later. Skinned meshes are cut too and keep their rig and animations; morphing meshes are left as they are. A model
 generated with the editor's Tripo tools is a smart low-poly one by default, under 20,000 triangles; asked for at Tripo's full topology, it keeps every triangle unless the agent also asks for a budget (`max_triangles`).
 
+## Cluster LOD
+
+A triangle budget throws detail away for every view. **Cluster LOD** keeps all of it and draws the part a view can tell
+apart. Tick it in the model's import settings and each dense static mesh is cut into clusters of up to 128 triangles;
+neighbouring clusters are simplified together to half their triangles, level after level, down to a handful. Each
+frame, every part of the mesh is drawn from the level whose error is under a pixel from where the camera stands: the
+mesh's own triangles under the camera and a few hundred across the valley, with no seam where two levels meet and no
+`LODGroup` to set up. Shadows are drawn from the same triangles as the surface.
+
+What it costs: the `.esmesh` grows by about the size of its index data (every level's triangles are stored, and they
+share the mesh's vertices), the engine keeps those indices in memory, and a camera that moves has the index buffer
+rewritten for each mesh whose clusters changed. What it leaves alone: skinned and morphing meshes are drawn whole, and
+so is a mesh placed many times through `MeshInstances`. The download is no smaller, so where package size is the
+limit, as in a mini-game, a triangle budget is still the tool. A mesh with Cluster LOD gets no Generate LODs levels.
+
+The frame counters say what it did: `render.cluster.triangles` is what the scene drew of the
+`render.cluster.sourceTriangles` its clustered meshes have, and `render.cluster.rebuilt` is how many of them had their
+index buffer rewritten this frame.
+
 ## Generated levels of detail
 
 A mesh seen from far away does not need the triangles it has up close. Set

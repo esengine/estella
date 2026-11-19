@@ -323,6 +323,13 @@ export interface ESEngineModule {
                                     morphPtr: number, morphFloats: number,
                                     morphTargets: number, morphNormals: number): number;
     /**
+     * Give a mesh its cluster hierarchy: `clusterCount` 48-byte records (first index, index count, ten floats of
+     * bounds) and the indices of every level, the mesh's own first. Returns 1, or 0 where the engine refused it and
+     * the mesh stays drawn whole. Optional: absent on an older wasm build, which draws every mesh whole.
+     */
+    mesh_setClusters?(meshHandle: number, clustersPtr: number, clusterCount: number,
+                      indexPtr: number, indexCount: number): number;
+    /**
      * The renderer's program-readiness epoch. Advanced whenever programs that
      * WERE ready go cold, so a readiness record carrying an older one is naming
      * programs that may no longer exist and has to be re-derived.

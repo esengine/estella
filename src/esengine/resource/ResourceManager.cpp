@@ -726,6 +726,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
         std::memcpy(mesh.inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
     }
     mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
+    mesh.clusters.reset();
     mesh.revision = nextRevision();
     meshes_revision_ = mesh.revision;
 
@@ -837,6 +838,23 @@ bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexB
                      target.id());
         return false;
     }
+    return true;
+}
+
+bool ResourceManager::setMeshClusters(MeshHandle target, lod::ClusterHierarchy hierarchy) {
+    Mesh* mesh = meshes_.get(target);
+    if (!mesh) {
+        ES_LOG_ERROR("setMeshClusters: handle {} names no live mesh", target.id());
+        return false;
+    }
+    if (!lod::clusterHierarchyValid(hierarchy, mesh->vertexCount)) {
+        ES_LOG_ERROR("setMeshClusters: mesh {} was given a hierarchy that names what it does not have; it is drawn whole",
+                     target.id());
+        return false;
+    }
+    mesh->clusters = std::make_shared<const lod::ClusterHierarchy>(std::move(hierarchy));
+    mesh->revision = nextRevision();
+    meshes_revision_ = mesh->revision;
     return true;
 }
 

@@ -12,7 +12,7 @@
 
 /** Magic 'ESMH', little-endian. */
 const MAGIC = 0x484d5345;
-const VERSION = 4;
+const VERSION = 5;
 /** The last version whose indices are always 32-bit. */
 const VERSION_U32_INDICES = 3;
 /** Flag bits at header offset 50, beside the morph-normals bit. */
@@ -20,6 +20,14 @@ const FLAG_MORPH_NORMALS = 1;
 /** v4: the index section is 16-bit. Widened to 32-bit when read, so nothing downstream
  *  of the decoder knows the file was narrower. */
 const FLAG_U16_INDICES = 2;
+/** v5: a cluster hierarchy follows everything else in the file (@ref MeshClusters). */
+const FLAG_CLUSTERS = 4;
+/** The last version without one: what a mesh that carries none is still written as. */
+const VERSION_NO_CLUSTERS = 4;
+/** One cluster on disk: its first index and index count, then the ten floats of its bounds. */
+const CLUSTER_BYTES = 48;
+/** Floats of bounds one cluster has: centre, radius and error of the cluster, then of the group that replaces it. */
+export const MESH_CLUSTER_BOUNDS_FLOATS = 10;
 /** Largest vertex index a 16-bit index can name. */
 const MAX_U16_INDEX = 0xffff;
 
@@ -110,6 +118,20 @@ export interface MeshMorphTargets {
     deltas: Float32Array;
 }
 
+/**
+ * The mesh at every level of detail, as clusters a view picks from piece by piece (the model import builds them for a
+ * dense static mesh). The mesh's own `indices` are level 0, in cluster order, so a reader that knows nothing of clusters
+ * draws the mesh as it was. Cluster runs are addressed in `indices` followed by `coarseIndices`, as one array.
+ */
+export interface MeshClusters {
+    /** The triangles of every level above the mesh's own. They name the same vertices. */
+    coarseIndices: Uint32Array;
+    /** Two per cluster: the first index of its run, and how many indices the run has. */
+    ranges: Uint32Array;
+    /** {@link MESH_CLUSTER_BOUNDS_FLOATS} per cluster. A cluster nothing replaces has `Infinity` for its group's error. */
+    bounds: Float32Array;
+}
+
 export interface MeshData {
     channels: MeshChannelDesc[];
     vertexStride: number;
@@ -133,6 +155,8 @@ export interface MeshData {
      * vertex a delta moves.
      */
     morph?: MeshMorphTargets;
+    /** The levels of detail a view picks clusters from. Absent for a mesh drawn whole. */
+    clusters?: MeshClusters;
 }
 
 /** Bytes one component of a channel type occupies. */
@@ -178,14 +202,17 @@ export function encodeMesh(data: MeshData): Uint8Array {
     // meshes with more than 65536 vertices stay on the version every reader knows.
     const narrow = fitsU16(data.indices);
     const indexBytes = narrow ? 2 : 4;
+    const clusters = data.clusters;
+    const clusterCount = clusters ? clusters.ranges.length / 2 : 0;
+    const clusterBytes = clusters ? 8 + clusterCount * CLUSTER_BYTES + clusters.coarseIndices.length * 4 : 0;
     const size = HEADER_BYTES + data.channels.length * CHANNEL_BYTES
         + data.vertexCount * data.vertexStride + data.indices.length * indexBytes
-        + jointCount * MATRIX_BYTES + nameBytes + deltaFloats * 4;
+        + jointCount * MATRIX_BYTES + nameBytes + deltaFloats * 4 + clusterBytes;
     const out = new Uint8Array(size);
     const view = new DataView(out.buffer);
 
     view.setUint32(0, MAGIC, true);
-    view.setUint16(4, narrow ? VERSION : VERSION_U32_INDICES, true);
+    view.setUint16(4, clusters ? VERSION : narrow ? VERSION_NO_CLUSTERS : VERSION_U32_INDICES, true);
     view.setUint16(6, data.channels.length, true);
     view.setUint32(8, data.vertexStride, true);
     view.setUint32(12, data.vertexCount, true);
@@ -196,7 +223,8 @@ export function encodeMesh(data: MeshData): Uint8Array {
     }
     view.setUint32(44, jointCount, true);
     view.setUint16(48, names.length, true);
-    view.setUint16(50, (data.morph?.hasNormals ? FLAG_MORPH_NORMALS : 0) | (narrow ? FLAG_U16_INDICES : 0), true);
+    view.setUint16(50, (data.morph?.hasNormals ? FLAG_MORPH_NORMALS : 0) | (narrow ? FLAG_U16_INDICES : 0)
+        | (clusters ? FLAG_CLUSTERS : 0), true);
     view.setUint32(52, nameBytes, true);
 
     let at = HEADER_BYTES;
@@ -236,6 +264,20 @@ export function encodeMesh(data: MeshData): Uint8Array {
         for (let i = 0; i < data.morph.deltas.length; i++) {
             view.setFloat32(at + i * 4, data.morph.deltas[i]!, true);
         }
+        at += deltaFloats * 4;
+    }
+    if (clusters) {
+        view.setUint32(at, clusterCount, true);
+        view.setUint32(at + 4, clusters.coarseIndices.length, true);
+        at += 8;
+        for (let c = 0; c < clusterCount; c++, at += CLUSTER_BYTES) {
+            view.setUint32(at, clusters.ranges[c * 2]!, true);
+            view.setUint32(at + 4, clusters.ranges[c * 2 + 1]!, true);
+            for (let k = 0; k < MESH_CLUSTER_BOUNDS_FLOATS; k++) {
+                view.setFloat32(at + 8 + k * 4, clusters.bounds[c * MESH_CLUSTER_BOUNDS_FLOATS + k]!, true);
+            }
+        }
+        for (let i = 0; i < clusters.coarseIndices.length; i++) view.setUint32(at + i * 4, clusters.coarseIndices[i]!, true);
     }
     return out;
 }
@@ -341,6 +383,34 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
         const deltas = new Float32Array(deltaFloats);
         for (let i = 0; i < deltas.length; i++) deltas[i] = view.getFloat32(deltaBase + i * 4, true);
         out.morph = { names, hasNormals: morphNormals, deltas };
+    }
+    if (version > VERSION_NO_CLUSTERS && (flags & FLAG_CLUSTERS) !== 0) {
+        let clusterAt = expected;
+        if (bytes.byteLength < clusterAt + 8) throw new Error('.esmesh is truncated: its cluster section has no header');
+        const clusterCount = view.getUint32(clusterAt, true);
+        const coarseCount = view.getUint32(clusterAt + 4, true);
+        clusterAt += 8;
+        if (bytes.byteLength < clusterAt + clusterCount * CLUSTER_BYTES + coarseCount * 4) {
+            throw new Error(`.esmesh is truncated: ${clusterCount} clusters and ${coarseCount} indices do not fit in it`);
+        }
+        const ranges = new Uint32Array(clusterCount * 2);
+        const bounds = new Float32Array(clusterCount * MESH_CLUSTER_BOUNDS_FLOATS);
+        const total = indexCount + coarseCount;
+        for (let c = 0; c < clusterCount; c++, clusterAt += CLUSTER_BYTES) {
+            const first = view.getUint32(clusterAt, true), count = view.getUint32(clusterAt + 4, true);
+            // Checked here, where the file is read: a run outside the indices would be assembled into a draw.
+            if (first + count > total || count % 3 !== 0) {
+                throw new Error(`.esmesh cluster ${c} names indices ${first}..${first + count} of ${total}`);
+            }
+            ranges[c * 2] = first;
+            ranges[c * 2 + 1] = count;
+            for (let k = 0; k < MESH_CLUSTER_BOUNDS_FLOATS; k++) {
+                bounds[c * MESH_CLUSTER_BOUNDS_FLOATS + k] = view.getFloat32(clusterAt + 8 + k * 4, true);
+            }
+        }
+        const coarseIndices = new Uint32Array(coarseCount);
+        for (let i = 0; i < coarseCount; i++) coarseIndices[i] = view.getUint32(clusterAt + i * 4, true);
+        out.clusters = { coarseIndices, ranges, bounds };
     }
     return out;
 }

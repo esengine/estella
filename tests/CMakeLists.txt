@@ -430,6 +430,15 @@ target_include_directories(test_lod_selection PRIVATE
 )
 add_test(NAME test_lod_selection COMMAND test_lod_selection)
 
+# The rule a clustered mesh is drawn by: from any eye, exactly one level of a surface everywhere. Header-only, like the
+# selection above it.
+add_executable(test_cluster_selection renderer/test_cluster_selection.cpp)
+target_include_directories(test_cluster_selection PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_cluster_selection COMMAND test_cluster_selection)
+
 add_executable(test_placement_bounds renderer/test_placement_bounds.cpp)
 target_include_directories(test_placement_bounds PRIVATE
     ${CMAKE_SOURCE_DIR}/src

@@ -6,6 +6,7 @@
 #include "../RenderTypePlugin.hpp"
 #include "../draw/BatchVertex.hpp"
 #include "../../resource/Handle.hpp"
+#include "../lod/ClusterSelection.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -143,6 +144,42 @@ private:
         std::vector<PlacedInstance> instances;
         std::vector<u8> records;
     };
+    /**
+     * @brief The clusters one entity's clustered mesh is drawn through: the index buffer holding them and what it was picked for.
+     *
+     * @details Picked from the SCENE camera's eye for every pass of the frame, a shadow map's included, so a surface and its
+     *          shadow are the same triangles. The buffer is rewritten only when the picked clusters change: an eye that stands
+     *          still, or moves without crossing a cluster's threshold, costs the pick and nothing else.
+     */
+    struct ClusterCut {
+        BufferHandle buffer = BufferHandle::Invalid;
+        /// Indices the buffer has room for, and how many of them are the cut.
+        u32 capacity = 0;
+        u32 indexCount = 0;
+        u32 clusters = 0;
+        u64 signature = 0;
+        const Mesh* mesh = nullptr;
+        u64 meshRevision = 0;
+        u64 deviceGeneration = 0;
+        lod::ClusterEye eye;
+        bool picked = false;
+        /// The collect that last drew through it (cluster_serial_): one not drawn for a while gives its buffer back.
+        u64 usedAt = 0;
+    };
+    std::unordered_map<u32, ClusterCut> cluster_cuts_;
+    std::vector<u32> cluster_picked_, cluster_indices_;
+    u64 cluster_serial_ = 0;
+    /// The scene view's measure of a world unit at one unit from its eye, in pixels, and whether it is orthographic: read off
+    /// the last scene collect, and what every other pass of the frame picks by.
+    f32 cluster_scale_ = 0.0f;
+    bool cluster_flat_ = false;
+    u32 cluster_meshes_ = 0, cluster_triangles_ = 0, cluster_source_triangles_ = 0, cluster_rebuilt_ = 0, cluster_drawn_ = 0;
+    /**
+     * @brief The cut @p entity draws @p mesh through this frame, or null where it is drawn whole (the device refused a buffer).
+     */
+    const ClusterCut* clusterCut(RenderCollectContext& collect, Entity entity, const Mesh& mesh, const glm::vec3& position,
+                                 const glm::quat& rotation, const glm::vec3& scale);
+
     /// Moves whenever poses_ erases a node, so a pose a proxy points at is known to be still there.
     u32 pose_generation_ = 0;
     /** @brief The pose @p entity has in this view, made if @p make; through @p kept's pointer when that is still good. */

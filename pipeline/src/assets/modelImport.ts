@@ -17,6 +17,7 @@ import {
     type PrefabComponentData as ComponentData,
 } from 'esengine';
 import { canSimplify, simplifyMesh, type SimplifierFlag, canReduce, reduceMesh } from './meshSimplify';
+import { CLUSTER_MAX_TRIANGLES, withClusters } from './clusterLod';
 import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
 import type { CompoundColliderPart3D } from 'esengine/physics3d';
 
@@ -559,6 +560,23 @@ export async function capTriangles(meshes: ImportedMesh[], maxTriangles: number)
 }
 
 /**
+ * Gives every mesh that can take one a cluster hierarchy (@ref withClusters), and says which dense meshes could not.
+ * Mutates in place. A mesh too small to be worth cutting is left as it is and not mentioned.
+ */
+export async function clusterMeshes(meshes: ImportedMesh[]): Promise<string[]> {
+    const warnings: string[] = [];
+    for (const mesh of meshes) {
+        const made = await withClusters(mesh.data);
+        if (made) {
+            mesh.data = made;
+        } else if (mesh.triangleCount > CLUSTER_MAX_TRIANGLES * 4) {
+            warnings.push(`${mesh.name}: skinned or morphing, so Cluster LOD left its ${mesh.triangleCount} triangles drawn whole`);
+        }
+    }
+    return warnings;
+}
+
+/**
  * Makes the cheaper stand-ins a `LODGroup` swaps in, and says what it left alone.
  * Mutates in place, after any unwrap: a level is a collapse of the mesh as it will
  * be written, lightmap UV included. Skinned and morphing meshes keep one level.
@@ -569,6 +587,8 @@ export async function generateLods(meshes: ImportedMesh[], options: LodOptions):
     if (levels === 0) return warnings;
     for (const mesh of meshes) {
         if (mesh.triangleCount < options.minTriangles) continue;
+        // Drawn through its clusters, which are its levels: a stand-in would be the same surface a second time.
+        if (mesh.data.clusters) continue;
         if (!canSimplify(mesh.data)) {
             if (mesh.skinJoints?.length || mesh.data.morph) {
                 warnings.push(`${mesh.name}: skinned or morphing, so it keeps a single level of detail`);

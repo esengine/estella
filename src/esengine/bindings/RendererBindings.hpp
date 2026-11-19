@@ -174,6 +174,12 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
                                    uintptr_t morphPtr, u32 morphFloats,
                                    u32 morphTargets, u32 morphNormals);
 
+/**
+ * @brief Gives a mesh its cluster hierarchy: `clusterCount` 48-byte records (lod::Cluster) and the indices of every
+ *        level, the mesh's own first. Returns 1, or 0 where the engine refused it and the mesh stays drawn whole.
+ */
+u32 mesh_setClusters(u32 meshHandle, uintptr_t clustersPtr, u32 clusterCount, uintptr_t indexPtr, u32 indexCount);
+
 void mesh_release(u32 meshHandle);
 
 /** @brief Registers a baked environment (27 irradiance floats + a reflection atlas,

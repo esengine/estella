@@ -560,6 +560,19 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
 }
 
 /** @brief Releases a mesh and the buffers it owns. */
+u32 mesh_setClusters(u32 meshHandle, uintptr_t clustersPtr, u32 clusterCount, uintptr_t indexPtr, u32 indexCount) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm || clusterCount == 0 || indexCount == 0) return 0;
+    const u8* records = boundarySpan<u8>(clustersPtr, static_cast<u64>(clusterCount) * sizeof(lod::Cluster), "mesh_setClusters");
+    const u32* indices = boundarySpan<u32>(indexPtr, indexCount, "mesh_setClusters");
+    if (!records || !indices) return 0;
+    lod::ClusterHierarchy hierarchy;
+    hierarchy.clusters.resize(clusterCount);
+    std::memcpy(hierarchy.clusters.data(), records, static_cast<usize>(clusterCount) * sizeof(lod::Cluster));
+    hierarchy.indices.assign(indices, indices + indexCount);
+    return rm->setMeshClusters(resource::MeshHandle(meshHandle), std::move(hierarchy)) ? 1 : 0;
+}
+
 void mesh_release(u32 meshHandle) {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->releaseMesh(resource::MeshHandle(meshHandle));
