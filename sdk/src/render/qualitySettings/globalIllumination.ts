@@ -265,4 +265,19 @@ export const GLOBAL_ILLUMINATION_SETTINGS = [
             zh: '体素 GI 以片元通道运行时（WebGL2），每个体素为第一次之后的反弹发几条射线。',
         },
     },
+    {
+        key: 'contactShadowSteps',
+        type: 'number',
+        defaults: { low: 8, medium: 12, high: 20 },
+        min: 4, max: 20, step: 1, integer: true,
+        group: 'globalIllumination',
+        preference: false,
+        requires: { postProcess: true },
+        uniform: { effects: ['contactShadows'], name: 'u_contactShadowSteps' },
+        label: { en: 'Contact shadow steps', zh: '接触阴影步数' },
+        description: {
+            en: 'How many steps the Contact Shadows effect marches toward the sun from each pixel, over the length the effect is given. Fewer steps are longer ones: a blocker thinner than a step can be stepped over, and the shadow\'s end bands.',
+            zh: '接触阴影效果从每个像素朝太阳走多少步，总长是效果自己设的长度。步数少每步就长：比一步还薄的遮挡物可能被跨过去，阴影末端会出条带。',
+        },
+    },
 ] as const satisfies readonly QualitySetting[];

@@ -96,6 +96,7 @@ export interface EffectSubPass {
      */
     scale?: number;
     minScale?: number;
+    levelStep?: { key: string; atLeast: number };
     /** Uniforms this pass always carries, whatever the volume says: constants of its design (the voxel atlas's size). */
     uniforms?: Record<string, number>;
     /**
@@ -233,16 +234,16 @@ registerEffect({
     // all of the work is done on small targets (about a third of the five full-size blurs it replaces).
     multiPass: [
         { name: 'bloom_prefilter', factory: () => postProcessEffects.createBloomPrefilter(), scale: 0.5 },
-        { name: 'bloom_down_1', factory: () => postProcessEffects.createBloomDown(1), scale: 0.25 },
-        { name: 'bloom_down_2', factory: () => postProcessEffects.createBloomDown(2), scale: 0.125 },
-        { name: 'bloom_down_3', factory: () => postProcessEffects.createBloomDown(3), scale: 0.0625 },
-        { name: 'bloom_down_4', factory: () => postProcessEffects.createBloomDown(4), scale: 0.03125 },
-        { name: 'bloom_down_5', factory: () => postProcessEffects.createBloomDown(5), scale: 0.015625 },
-        { name: 'bloom_up_4', factory: () => postProcessEffects.createBloomUp(4, 'bloom_down_4'), scale: 0.03125 },
-        { name: 'bloom_up_3', factory: () => postProcessEffects.createBloomUp(3, 'bloom_down_3'), scale: 0.0625 },
-        { name: 'bloom_up_2', factory: () => postProcessEffects.createBloomUp(2, 'bloom_down_2'), scale: 0.125 },
-        { name: 'bloom_up_1', factory: () => postProcessEffects.createBloomUp(1, 'bloom_down_1'), scale: 0.25 },
-        { name: 'bloom_up_0', factory: () => postProcessEffects.createBloomUp(0, 'bloom_prefilter'), scale: 0.5 },
+        { name: 'bloom_down_1', factory: () => postProcessEffects.createBloomDown(1), scale: 0.25, levelStep: { key: 'bloomLevels', atLeast: 1 } },
+        { name: 'bloom_down_2', factory: () => postProcessEffects.createBloomDown(2), scale: 0.125, levelStep: { key: 'bloomLevels', atLeast: 2 } },
+        { name: 'bloom_down_3', factory: () => postProcessEffects.createBloomDown(3), scale: 0.0625, levelStep: { key: 'bloomLevels', atLeast: 3 } },
+        { name: 'bloom_down_4', factory: () => postProcessEffects.createBloomDown(4), scale: 0.03125, levelStep: { key: 'bloomLevels', atLeast: 4 } },
+        { name: 'bloom_down_5', factory: () => postProcessEffects.createBloomDown(5), scale: 0.015625, levelStep: { key: 'bloomLevels', atLeast: 5 } },
+        { name: 'bloom_up_4', factory: () => postProcessEffects.createBloomUp(4, 'bloom_down_4'), scale: 0.03125, levelStep: { key: 'bloomLevels', atLeast: 5 } },
+        { name: 'bloom_up_3', factory: () => postProcessEffects.createBloomUp(3, 'bloom_down_3'), scale: 0.0625, levelStep: { key: 'bloomLevels', atLeast: 4 } },
+        { name: 'bloom_up_2', factory: () => postProcessEffects.createBloomUp(2, 'bloom_down_2'), scale: 0.125, levelStep: { key: 'bloomLevels', atLeast: 3 } },
+        { name: 'bloom_up_1', factory: () => postProcessEffects.createBloomUp(1, 'bloom_down_1'), scale: 0.25, levelStep: { key: 'bloomLevels', atLeast: 2 } },
+        { name: 'bloom_up_0', factory: () => postProcessEffects.createBloomUp(0, 'bloom_prefilter'), scale: 0.5, levelStep: { key: 'bloomLevels', atLeast: 1 } },
         { name: 'bloom_composite', factory: () => postProcessEffects.createBloomComposite() },
     ],
 });

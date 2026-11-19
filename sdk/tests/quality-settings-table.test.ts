@@ -3,8 +3,11 @@
 import { describe, expect, it } from 'vitest';
 import { QualityController, defaultQualityProfile, parseQualityConfig, resolveQualityProfile, type QualityLevel } from '../src/render/quality';
 import {
-    QUALITY_SETTINGS, QUALITY_SETTING_GROUPS, parseQualitySetting, qualitySettingRequirementsMet, type QualitySetting,
+    QUALITY_SETTINGS, QUALITY_SETTING_GROUPS, parseQualitySetting, qualityEffectUniforms, qualityEngineValues, qualityMaterialConstants, qualitySettingRequirementsMet,
+    type QualitySetting,
 } from '../src/render/qualitySettings/index';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { qualityPassAllowed } from '../src/postprocess/qualityFilter';
 import { effectPassNames, effectQualityGroup, getAllEffectDefs } from '../src/postprocess/effects';
 import { registerBasicEffectSources } from '../src/postprocess/sources/basic';
@@ -137,5 +140,52 @@ describe('where an effect is listed among a level\'s settings', () => {
 
     it('names every built-in effect in Chinese too', () => {
         for (const def of getAllEffectDefs()) expect(def.labelZh, def.type).toBeTruthy();
+    });
+});
+
+describe('the values the engine reads by name', () => {
+    const ENGINE_CAPS: Record<string, number> = { loopLights: 16, tiledLights: 96, shadowTiles: 16 };
+
+    it('are named once each, held at the engine\'s old constant at high, and never past the size the engine compiled for', () => {
+        const named = settings.filter((s) => s.type !== 'enum' && s.engine !== undefined);
+        expect(new Set(named.map((s) => s.engine)).size).toBe(named.length);
+        expect(Object.fromEntries(named.map((s) => [s.engine, s.defaults.high]))).toEqual(ENGINE_CAPS);
+        for (const s of named) {
+            if (s.type !== 'number') continue;
+            expect(s.max, s.key).toBe(ENGINE_CAPS[s.engine!]);
+            expect(s.defaults.low <= s.defaults.medium && s.defaults.medium <= s.defaults.high, s.key).toBe(true);
+            expect(parseQualitySetting(s, s.max + 100, 0), s.key).toBe(s.max);
+            expect(parseQualitySetting(s, s.min - 100, 0), s.key).toBe(s.min);
+        }
+    });
+
+    it('are the level\'s values, and the high ones with no level at all', () => {
+        expect(Object.fromEntries(qualityEngineValues(defaultQualityProfile('low')))).toEqual({ loopLights: 8, tiledLights: 32, shadowTiles: 8 });
+        expect(Object.fromEntries(qualityEngineValues(null))).toEqual(ENGINE_CAPS);
+    });
+
+    it('marks the soft-shadow and tiled-light values as acting only with full lighting', () => {
+        const byKey = (key: string) => settings.find((s) => s.key === key)!;
+        for (const key of ['tiledLights', 'shadowBlockerSamples', 'shadowFilterSamples', 'shadowSearchRadius']) {
+            expect(qualitySettingRequirementsMet(byKey(key), defaultQualityProfile('low')), key).toBe(false);
+            expect(qualitySettingRequirementsMet(byKey(key), defaultQualityProfile('high')), key).toBe(true);
+        }
+        expect(qualitySettingRequirementsMet(byKey('loopLights'), defaultQualityProfile('low'))).toBe(true);
+    });
+
+    it('sends the contact shadow march its steps, bounded by the loop the shader compiles', () => {
+        expect(qualityEffectUniforms(defaultQualityProfile('low'), 'contactShadows')).toEqual([['u_contactShadowSteps', 8]]);
+        expect(qualityEffectUniforms(defaultQualityProfile('high'), 'contactShadows')).toEqual([['u_contactShadowSteps', 20]]);
+        const source = readFileSync(resolve(__dirname, '../src/postprocess/sources/lighting.ts'), 'utf8');
+        expect(source).toContain("CONTACT_SHADOW_STEPS_MAX = ${qualityUniformMax('contactShadowSteps')}");
+        expect(source).toContain("${qualityUniformParam('contactShadowSteps')}");
+    });
+
+    it('gives the soft 3D shadow its three numbers in the material slots, 0 being the engine\'s own with no level', () => {
+        expect(qualityMaterialConstants(defaultQualityProfile('low')).slice(1)).toEqual([8, 8, 12]);
+        expect(qualityMaterialConstants(defaultQualityProfile('medium')).slice(1)).toEqual([8, 16, 16]);
+        expect(qualityMaterialConstants(defaultQualityProfile('high')).slice(1)).toEqual([16, 32, 24]);
+        const slots = settings.flatMap((s) => (s.type === 'number' || s.type === 'choice') && s.materialSlot !== undefined ? [s.materialSlot] : []);
+        expect(new Set(slots).size).toBe(slots.length);
     });
 });

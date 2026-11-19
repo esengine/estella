@@ -12,10 +12,10 @@ vi.mock('../src/platform', () => ({
     platformOnAppHide: () => () => {}, platformOnAppShow: () => () => {},
 }));
 vi.mock('../src/ecs/bridge/engineApi', () => ({
-    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile, renderer_setProbesPerPixel: probesPerPixel }),
+    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile, renderer_setProbesPerPixel: probesPerPixel, renderer_setParticleDepthGrid: depthGrid, renderer_setQualityConstants: materialConstants, renderer_setQualityValue: qualityValue }),
 }));
 
-const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile, probesPerPixel } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn(), probesPerPixel: vi.fn() }));
+const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile, probesPerPixel, depthGrid, materialConstants, qualityValue } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn(), probesPerPixel: vi.fn(), depthGrid: vi.fn(), materialConstants: vi.fn(), qualityValue: vi.fn(() => true) }));
 
 describe('quality runtime device selection', () => {
     it('applies the tier shadow range and restores camera coverage when disabled', () => {
@@ -32,6 +32,23 @@ describe('quality runtime device selection', () => {
         expect(distanceBudget).toHaveBeenLastCalledWith(0);
         expect(reflectionBudget).toHaveBeenLastCalledWith(0.5, 1024, 0, false);
     });
+    it('sends the GPU particles\' depth grid and the material constants of the level, and the authored ones when the quality system is off', () => {
+        let apply: (() => void) | undefined;
+        let controller: import('../src/render/quality').QualityController;
+        const app = { wasmModule: null, insertResource: (_: unknown, value: typeof controller) => { controller = value; },
+            pipeline: { setQuality: (_: unknown, callback: () => void) => { apply = callback; } },
+            addPlugin: vi.fn(), onFrameEnd: () => () => {},
+        } as unknown as App;
+        installQuality(app, { mode: 'low', profiles: { low: { refractionSamples: 3 } } }, 4);
+        expect(depthGrid).toHaveBeenLastCalledWith(320);
+        expect(materialConstants).toHaveBeenLastCalledWith(3, 8, 8, 12);
+        controller!.setMode('medium'); apply!();
+        expect(depthGrid).toHaveBeenLastCalledWith(480);
+        expect(materialConstants).toHaveBeenLastCalledWith(6, 8, 16, 16);
+        controller!.setMode('off'); apply!();
+        expect(depthGrid).toHaveBeenLastCalledWith(640);
+        expect(materialConstants).toHaveBeenLastCalledWith(0, 0, 0, 0);
+    });
     it('draws a soft 2D shadow with the samples of its level, and with the sixteen it always had when the quality system is off', () => {
         let apply: (() => void) | undefined;
         let controller: import('../src/render/quality').QualityController;
@@ -43,6 +60,23 @@ describe('quality runtime device selection', () => {
         expect(softSamples).toHaveBeenLastCalledWith(6);
         controller!.setMode('off'); apply!();
         expect(softSamples).toHaveBeenLastCalledWith(16);
+    });
+    it('tells the engine each value a setting names by its engine name, clamped by the table, and the high value with the quality system off', () => {
+        let apply: (() => void) | undefined;
+        let controller: import('../src/render/quality').QualityController;
+        const app = { wasmModule: null, insertResource: (_: unknown, value: typeof controller) => { controller = value; },
+            pipeline: { setQuality: (_: unknown, callback: () => void) => { apply = callback; } },
+            addPlugin: vi.fn(), onFrameEnd: () => () => {},
+        } as unknown as App;
+        const sent = (): Record<string, number> => Object.fromEntries(qualityValue.mock.calls.map((c) => [c[0], c[1]]));
+        qualityValue.mockClear();
+        installQuality(app, { mode: 'low', profiles: { low: { shadowFilterSamples: 40, shadowBlockerSamples: 16, loopLights: 0 } as never } }, 4);
+        expect(sent()).toEqual({ loopLights: 1, tiledLights: 32, shadowTiles: 8 });
+        expect(materialConstants).toHaveBeenLastCalledWith(expect.any(Number), 16, 8, 12);
+        controller!.setMode('medium'); apply!();
+        expect(sent()).toEqual({ loopLights: 12, tiledLights: 64, shadowTiles: 12 });
+        controller!.setMode('off'); apply!();
+        expect(sent()).toEqual({ loopLights: 16, tiledLights: 96, shadowTiles: 16 });
     });
     it('turns the depth prepass on for a level that asks for it and off with the quality system, or for a level that does not', () => {
         let apply: (() => void) | undefined;

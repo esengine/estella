@@ -27,6 +27,7 @@ void renderer_resize(u32 width, u32 height);
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit);
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
+bool renderer_setQualityValue(const std::string& name, f32 value);
 void renderer_setDepthPrepass(bool on);
 /** @brief Whether meshes read their probe volume per pixel (true, the default) or per object, holding no probe atlas. */
 void renderer_setProbesPerPixel(bool on);
@@ -43,6 +44,8 @@ void renderer_setAsyncShaderCompile(bool on);
 /** How many shaders are still compiling in the background; a loading screen waits for it to reach 0. */
 u32 renderer_getPendingShaders();
 void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored);
+void renderer_setParticleDepthGrid(u32 texels);
+void renderer_setQualityConstants(f32 x, f32 y, f32 z, f32 w);
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity);
 /**
  * The editor view's lighting. mode 0 = the scene's own lights (the default, and the

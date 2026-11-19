@@ -35,13 +35,13 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 |---|---|
 | Resolution & Anti-Aliasing | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA |
 | View Distance & Draws | Depth pre-pass, Draw call budget |
-| Lights & Shading | 3D lighting (Full or Direct) |
-| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
-| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI, the samples and steps of each effect below (see [Samples, steps and bakes](#samples-steps-and-bakes)); the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
+| Lights & Shading | 3D lighting (Full or Direct), Per-pixel lights, Tiled lights |
+| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only), Shadow maps, 3D soft-shadow search samples, filter samples and max radius |
+| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI, Contact shadow steps, the samples and steps of each effect below (see [Samples, steps and bakes](#samples-steps-and-bakes)); the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
 | Reflections | Planar reflection scale, max size and updates per second, SSR steps and refinement, the sky's lighting bake, environment reflection size, probe capture size; the screen-space reflections effect |
-| Sky & Volumetrics | Still sky from a panorama, Fog volume resolution; the sky, fog, light shaft and weather effects |
-| Post-Processing | A master switch, Lens flare resolution; every other effect |
-| Effects & Particles | Particle limit, 2D rain shelter mask |
+| Sky & Volumetrics | Still sky from a panorama, Fog volume resolution, Fog light steps, Fog cloud samples, Cloud steps, Upper cloud steps, Cloud shadow samples, Sky scattering steps, Sky sunlight steps; the sky, fog, light shaft and weather effects |
+| Post-Processing | A master switch, Lens flare resolution, Depth of field samples, Light shaft samples, Motion blur samples, Subsurface scattering samples, Bloom levels; every other effect |
+| Effects & Particles | Particle limit, 2D rain shelter mask, Refraction blur samples, Particle collision queries and events, GPU particle depth grid |
 | Terrain & Foliage | Detail distance |
 | Water | Water waves (1 to 8), Water ripple cells, the Displacement, Mirror and Caustics switches; the underwater effect. Shown once the water module is in the build |
 | Textures & Memory | Texture streaming and its budget |
@@ -73,6 +73,37 @@ shading to the end of a tile it is geometry paid for twice. It is off at Low and
 **3D lighting** is Full or Direct. Direct compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights of
 the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
 (see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
+
+**Per-pixel lights** is how many lights every lit pixel works out in turn, at most the sixteen the light block holds: the sun and the
+lights that cast a shadow are kept first, then the brightest. A point or spot light past them that casts no shadow goes to **Tiled
+lights** with Full lighting, which shades it only on the screen tiles its reach covers (up to that many, the dimmest dropped first);
+with Direct it is not drawn. **Shadow maps** is how many maps a frame draws: a cascade, a spot light and the sky's cloud shadow take
+one each and a point light six, lights that stand somewhere ask first and take all they need or none, and the sun then gives up its
+farthest cascades. The three **3D soft-shadow** rows act only where a soft shadow is drawn (a light with a source size, Full
+lighting): how many reads look for what blocks a pixel, how many a wide penumbra is averaged over, and the widest a penumbra can be,
+in texels of its map. **Contact shadow steps** is how many steps the Contact Shadows effect marches from each pixel. High is the
+engine's own numbers for every one of them.
+
+Measured on the `cyber-rooftop` example (a moon, a point light and two spot lights that cast shadows, seven point lights that do not) at a
+phone's viewport, 390 × 844 at a pixel ratio of 2.5, comparing pixels and the renderer's own counters:
+
+| Setting | What changed | Picture |
+|---|---|---|
+| Per-pixel lights 4 or 8, Full lighting | 11 lights in the loop become 4 or 8, the rest go to the tiles; (screen tile, loop light) pairs 1,770 → 627 at 4 | identical (largest difference 1 of 255) |
+| Per-pixel lights 8, Direct lighting (the old Medium value) | 3 of the 11 lights are not drawn | the rooftop floor visibly darker; why Low is 8 and Medium 12 |
+| Per-pixel lights 4, Direct lighting | 7 of the 11 lights are not drawn | most of the coloured light gone |
+| Shadow maps 6 | the point light takes all six; both spot lights and the moon cast nothing (3 casters refused) | 1.3% of pixels change; why Low is 8 |
+| Shadow maps 12 | the 9 maps the scene asks for all fit | identical |
+| 3D soft-shadow search samples 8 | 13 shadow-map reads a soft-shadowed pixel instead of 21; scene pass unchanged (6.35 → 6.32 ms) | 0.03% of pixels change |
+| 3D soft-shadow filter samples 8 (16) | at most 8 (16) reads a wide penumbra instead of 32; scene pass 6.35 → 5.65 ms (5.89) | 0.05% (0.02%) of pixels change, a grainier penumbra |
+| 3D soft-shadow max radius 12 | scene pass 6.36 → 6.01 ms | 0.34% of pixels change, the widest penumbrae narrower |
+| Everything at its Low value, Full lighting | scene pass 6.36 → 5.66 ms, whole frame on the GPU 13.6 → 12.2 ms | 4.1% of pixels change, mostly the three dimmest lights |
+
+The milliseconds are an RTX 3060 drawing the phone-sized frame, the setting switched in the same page and the two read
+alternately; on a phone the share saved is what carries over, not the number.
+
+The 3D soft-shadow rows and Tiled lights do nothing at Low and Medium as shipped, which light Direct; they act at those levels only in a
+project that sets them to Full.
 
 **Detail distance** is the share of its distances a placed plant keeps at the level: at 0.5, a tree that changes to its
 cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner.
@@ -281,6 +312,70 @@ The cloud steps change the sky's light by under 1% (8 against 16) and its bake b
 The Dynamic GI probe rows, the voxel GI grid and sun samples are WebGPU compute passes, which the headless browser on the box does not run,
 and no example turns voxel GI, Dynamic GI or a capturing probe volume on: their Low and Medium values are the starting points above, not
 measured.
+
+## Steps and samples
+
+Some effects march a ray or gather a ring of taps, and how many they take is a setting of the group the effect belongs to. Each
+shader is compiled for High's count and stops at the level's: fewer steps are longer ones over the same distance, so a cloud is
+as deep, a light shaft as long and a blur as wide, and what is lost is smoothness — grain where a jittered march has too few
+steps to hide its pattern, a horizon a shade off where the sky's air is measured in fewer pieces.
+
+| Setting | What it counts | Group | Low | Medium | High |
+|---|---|---|---|---|---|
+| Fog light steps (`fogVolumeSteps`) | steps of the sun's light through height fog | Sky & Volumetrics | 8 | 16 | 24 |
+| Fog cloud samples (`fogCloudSamples`) | points up through the clouds each of those steps asks | Sky & Volumetrics | 2 | 3 | 4 |
+| Cloud steps (`cloudSteps`) | steps of a sky ray through the main cloud layer | Sky & Volumetrics | 12 | 14 | 16 |
+| Upper cloud steps (`cloudUpperSteps`) | steps through the upper cloud layer | Sky & Volumetrics | 3 | 4 | 6 |
+| Cloud shadow samples (`cloudShadowSamples`) | points along the sun's ray for the clouds' shadow on the ground | Sky & Volumetrics | 3 | 4 | 6 |
+| Sky scattering steps (`skyScatterSteps`) | steps the sky's colour is gathered in | Sky & Volumetrics | 8 | 12 | 16 |
+| Sky sunlight steps (`skyLightDepthSteps`) | steps from a point of the sky to the sun | Sky & Volumetrics | 3 | 3 | 4 |
+| Depth of field samples (`dofSamples`) | taps a blurred pixel gathers | Post-Processing | 16 | 32 | 64 |
+| Light shaft samples (`lightShaftSamples`) | points a pixel looks at toward the sun | Post-Processing | 16 | 24 | 40 |
+| Motion blur samples (`motionBlurSamples`) | points a moving pixel is smeared over | Post-Processing | 6 | 10 | 16 |
+| Subsurface scattering samples (`subsurfaceSamples`) | taps to each side, in each of the two passes | Post-Processing | 3 | 4 | 6 |
+| Refraction blur samples (`refractionSamples`) | taps of the scene behind a rough transmissive surface | Effects & Particles | 4 | 6 | 8 |
+
+High is what each shader had written in, so a High picture is the one it was. Low leaves depth of field, light shafts, motion
+blur and subsurface scattering out by default, so their Low counts matter to a project that ticks them back on.
+
+**Bloom levels** (`bloomLevels`, Post-Processing) is how many times bloom halves the bright light before building it back up: 5
+at High (down to a sixty-fourth of the picture), 4 at Medium and 3 at Low. A level fewer drops the smallest step down and its step
+up, and the glow reaches less far around a light; the steps it keeps cost the same, so what Low saves is four small passes.
+
+Measured on the Windows box (RTX 3060, ANGLE on D3D11) in a headless Chromium at a phone's size (390 × 844 at a pixel ratio of
+2.5), GPU time per pass from timer queries, each level's old counts against its new ones in the same session, the mean of two runs.
+The box's milliseconds are not a phone's; what carries over is the steps each pixel takes, and the passes.
+
+| Scene, level | Passes | Old → new, ms | What changed per pixel |
+|---|---|---|---|
+| `terrain-water`, Low | clouds (365 × 791) | 1.02 → 0.81 | 16 → 12 cloud steps, 6 → 3 upper |
+| `terrain-water`, Low | sky composite (731 × 1583) | 0.45 → 0.28 | 16 → 8 scattering steps, 4 → 3 sunlight steps |
+| `terrain-water`, Low | cloud shadow map (1024²) | 0.39 → 0.16 | 6 → 3 samples |
+| `terrain-water`, Low | fog light (91 × 197) | 0.056 → 0.009 | 24 → 8 steps |
+| `terrain-water`, Low | bloom, all passes | 0.17 → 0.16, 12 → 8 passes | two levels fewer |
+| `terrain-water`, Low | whole frame | 5.6 → 4.9 | |
+| `terrain-water`, Medium | clouds, sky composite, fog light | 1.60 → 1.41, 0.72 → 0.59, 0.35 → 0.21 | 14, 12/3, 16 steps |
+| `terrain-water`, Medium | bloom | 12 → 10 passes | one level fewer |
+| `terrain-water` with depth of field, Low | depth of field gather (731 × 1583) | 1.21 → 0.31 | 64 → 16 taps |
+| `terrain-water` with depth of field, Medium | depth of field gather (975 × 2110) | 2.15 → 1.07 | 64 → 32 taps |
+| `bistro` with subsurface scattering, Low | the two scattering passes | 0.20 → 0.15 | 6 → 3 taps a side |
+| `bistro` with subsurface scattering, Medium | the two scattering passes | 0.33 → 0.27 | 6 → 4 taps a side |
+| `bistro`, Low | bloom, all passes | 0.18 → 0.17, 12 → 8 passes | two levels fewer |
+
+At Medium the cloud shadow map measured slower with four samples than with six (0.88 → 1.04 ms in both runs, 0.80 with three); Medium's timer gave one reading a run, so this is not settled.
+The clouds' march starts each pixel at a 4 × 4 ordered offset, which the composite's read of four half-size texels a side evens out;
+the interleaved-gradient offset it had before left fine vertical streaks on the clouds at 12 steps, which Low has no temporal
+smoothing to hide. Low keeps 12 (fewer was not tried with the ordered offset); two sunlight steps turned the sky bluer by about 4%, so Low keeps 3.
+
+A material reads its count from the engine rather than from its own parameters: the frame's `u_quality` constants, whose first
+slot is the refraction count. A table entry claims a slot with `materialSlot`; zero, which is what the slot holds with the quality
+system off, means the most.
+
+**Particle collisions** with physics bodies are capped by the level too: **Particle collision queries** is the most rays they
+cast in a frame (1,024 at Low, 2,048 at Medium, 4,096 at High) and **Particle collision events** the most collisions reported
+to the game (256, 512, 1,024). A budget the game sets itself with `Particle.setCollisionBudget` wins over the level's, field by
+field, since a game that relies on its events has said how many it needs. **GPU particle depth grid** is how many texels across
+the copy of the scene's depth is that GPU-simulated particles collide with (320, 480, 640, WebGPU only).
 
 ## Device rules
 

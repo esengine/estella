@@ -17,6 +17,7 @@
 #include "./TiledLights.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <glm/glm.hpp>
 
 namespace esengine {
@@ -72,6 +73,10 @@ inline constexpr u32 SHADOW_CUBE_FACES = 6;
  *          could not hold one beside a sun's cascades.
  */
 inline constexpr u32 MAX_SHADOW_TILES = 16;
+
+inline f32 packShadowBias(f32 texels, f32 slopeFloor) {
+    return std::floor(std::clamp(texels, 0.0f, 16.0f) * 64.0f + 0.5f) + std::clamp(slopeFloor, 0.01f, 0.999f);
+}
 
 /**
  * @brief Columns of the reflection atlas one frame can address — column 0 the

@@ -4139,6 +4139,7 @@ factory: (() => ShaderHandle) | undefined
 fallback: EffectSubPass[] | undefined
 inline: (() => EffectStage) | undefined
 label: string
+labelZh: string | undefined
 multiPass: EffectSubPass[] | undefined
 native: string | undefined
 qualityGroup: QualitySettingGroup | undefined
@@ -5924,6 +5925,7 @@ BuiltinComponentDef<LightData>
 ```
 aimFollowedSun: boolean
 bakedTint: Color
+cascadeSplit: number
 color: Color
 cookie: number
 cookieSize: Vec2
@@ -5948,8 +5950,10 @@ outerAngle: number
 radius: number
 reflectionSaturation: number
 reflectionScale: number
+shadowBias: number
 shadowDistance: number
 shadowExtent: number
+shadowSlopeFloor: number
 shadowSoftness: number
 shadowStrength: number
 sourceAngle: number
@@ -7346,6 +7350,8 @@ ResourceDef<ParticleAPI>
 ## ParticleAPI — class @experimental
 ```
 @internal collisionContacts: readonly ParticleCollisionEventPayload[]
+@internal setLevelCollisionBudget: (budget: ParticleCollisionBudget | null) => void
+collisionBudget: Readonly<ParticleCollisionBudget>
 collisionError: string | null
 collisionEvents: readonly ParticleCollisionEventPayload[]
 collisionStats: readonly ParticleCollisionStats[]
@@ -8563,7 +8569,6 @@ getStack: (camera: Entity) => PostProcessStack | null
 hdrFormat: () => HdrFormat | null
 init: (width: number, height: number) => boolean
 isInitialized: () => boolean
-levelValues: Readonly<QualitySettingValues>
 msaaCapability: () => { effective: number; max: number; }
 resize: (width: number, height: number) => void
 screenStack: PostProcessStack | null
@@ -9006,6 +9011,7 @@ ResourceDef<QualityController | null>
 ```
 defaults: Readonly<Record<QualityLevel, boolean>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -9019,9 +9025,11 @@ uniform: QualityEffectUniform | undefined
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
+materialSlot: 0 | 2 | 3 | 1 | undefined
 optionLabels: Readonly<Record<number, QualitySettingText>> | undefined
 options: readonly number[]
 preference: boolean
@@ -9071,6 +9079,7 @@ name: string
 ```
 defaults: Readonly<Record<QualityLevel, string>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -9095,10 +9104,12 @@ type: "enum"
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
+engine: string | undefined
 group: QualitySettingGroup
 integer: boolean | undefined
 key: string
 label: QualitySettingText
+materialSlot: 0 | 2 | 3 | 1 | undefined
 max: number
 min: number
 preference: boolean
@@ -9125,53 +9136,57 @@ voxelGIResolution: number | undefined
 ## QualityProfile — interface @experimental
 ```
 antialiasing: "msaa" | "temporal"
-aoBlurRadius: number
 aoResolution: number
+bloomLevels: number
+cloudShadowSamples: number
+cloudSteps: number
+cloudUpperSteps: number
+contactShadowSteps: number
 depthPrepass: boolean
 detailScale: number
+dofSamples: number
 drawCallBudget: number
-dynamicGIFieldBuildMs: number
-dynamicGIFieldSize: 32 | 64 | 128
-dynamicGIProbeRows: number
 dynamicGIReduced: boolean
-environmentMapSize: 16 | 32
+fogCloudSamples: number
 fogResolution: number
-gtaoSlices: number
-gtaoSteps: number
+fogVolumeSteps: number
 lensFlareResolution: number
+lightShaftSamples: number
 lighting: "direct" | "full"
+loopLights: number
 minRenderScale: number
+motionBlurSamples: number
 msaaSamples: 2 | 1 | 4 | 8
+particleCollisionEvents: number
+particleCollisionQueries: number
+particleDepthGrid: number
 particleLimit: number
 planarReflectionMaxSize: number
 planarReflectionScale: number
 planarReflectionUpdatesPerSecond: number
 postProcess: boolean
-probeCaptureSize: 8 | 16 | 32
+refractionSamples: number
 renderScale: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
+shadowBlockerSamples: 8 | 16
 shadowCascades: number
 shadowCellSize: 512 | 1024 | 128 | 256
 shadowDistance: number
+shadowFilterSamples: 8 | 16 | 32
+shadowSearchRadius: number
 shadowSoftSamples: number
+shadowTiles: number
 shelterMaskSize: number
 skipEffects: readonly string[]
-skyEnvironmentCloudSteps: number
-skyEnvironmentInterval: number
-ssaoSamples: number
-ssgiDenoiseKernel: 3 | 5
-ssgiRays: number
+skyLightDepthSteps: number
+skyScatterSteps: number
 ssgiResolution: number
-ssgiSteps: number
-ssrRefine: number
-ssrSteps: number
 stillSky: boolean
+subsurfaceSamples: number
 textureStreaming: boolean
 textureStreamingBudget: number
-voxelGIBounceRays: number
-voxelGIGridSize: 32 | 64 | 128
+tiledLights: number
 voxelGIResolution: number
-voxelGISunSamples: number
 waterCaustics: boolean
 waterDisplacement: boolean
 waterMirror: boolean

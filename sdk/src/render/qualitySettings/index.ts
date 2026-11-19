@@ -115,12 +115,30 @@ export function qualityEffectScale(values: object, effectType: string): number {
     return scale;
 }
 
+export function qualityMaterialConstants(values: object): [number, number, number, number] {
+    const out: [number, number, number, number] = [0, 0, 0, 0];
+    for (const s of QUALITY_SETTINGS) {
+        if ((s.type === 'number' || s.type === 'choice') && s.materialSlot !== undefined) out[s.materialSlot] = (values as Record<string, number>)[s.key]!;
+    }
+    return out;
+}
+
 export function qualityEffectUniforms(values: object, effectType: string): [string, number][] {
     const out: [string, number][] = [];
     for (const s of QUALITY_SETTINGS) {
         if (s.type === 'enum' || !s.uniform?.effects.includes(effectType)) continue;
         const value = (values as Record<string, unknown>)[s.key];
         out.push([s.uniform.name, typeof value === 'boolean' ? (value ? 1 : 0) : value as number]);
+    }
+    return out;
+}
+
+export function qualityEngineValues(values: object | null): [string, number][] {
+    const out: [string, number][] = [];
+    for (const s of QUALITY_SETTINGS) {
+        if (s.type === 'enum' || s.engine === undefined) continue;
+        const value = values === null ? s.defaults.high : (values as Record<string, unknown>)[s.key];
+        out.push([s.engine, typeof value === 'boolean' ? (value ? 1 : 0) : value as number]);
     }
     return out;
 }

@@ -754,6 +754,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setQualityBudgets", &esengine::renderer_setQualityBudgets);
     emscripten::function("renderer_setShadowDistance", &esengine::renderer_setShadowDistance);
     emscripten::function("renderer_setShadow2DSoftSamples", &esengine::renderer_setShadow2DSoftSamples);
+    emscripten::function("renderer_setQualityValue", &esengine::renderer_setQualityValue);
     emscripten::function("renderer_setDepthPrepass", &esengine::renderer_setDepthPrepass);
     emscripten::function("renderer_setProbesPerPixel", &esengine::renderer_setProbesPerPixel);
     emscripten::function("renderer_getProbeAtlasBytes", &esengine::renderer_getProbeAtlasBytes);
@@ -762,6 +763,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setAsyncShaderCompile", &esengine::renderer_setAsyncShaderCompile);
     emscripten::function("renderer_getPendingShaders", &esengine::renderer_getPendingShaders);
     emscripten::function("renderer_setPlanarReflectionQuality", &esengine::renderer_setPlanarReflectionQuality);
+    emscripten::function("renderer_setParticleDepthGrid", &esengine::renderer_setParticleDepthGrid);
+    emscripten::function("renderer_setQualityConstants", &esengine::renderer_setQualityConstants);
     emscripten::function("renderer_getPlanarReflectionStatus", &esengine::renderer_getPlanarReflectionStatus);
     emscripten::function("renderer_setViewLighting", &esengine::renderer_setViewLighting);
     emscripten::function("renderer_setCullingMask", &esengine::renderer_setCullingMask);

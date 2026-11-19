@@ -183,6 +183,18 @@ struct Light {
                 tooltip="Shadow map coverage radius; 0 = fit the view.")
     f32 shadowExtent{0.0f};
 
+    ES_PROPERTY(min=0, max=1, slider, advanced, shown_when=type:Directional,
+                tooltip="Where a sun's cascades are cut: 0 = evenly along the view, 1 = each cascade a fixed multiple farther (sharpest near the camera).")
+    f32 cascadeSplit{0.75f};
+
+    ES_PROPERTY(min=0, max=16, advanced, shown_when=type:Point|Directional|Spot,
+                tooltip="Shadow map texels a surface is moved toward the light and off itself before it is tested: more removes acne, too much lifts the shadow off its caster.")
+    f32 shadowBias{1.5f};
+
+    ES_PROPERTY(min=0.01, max=1, advanced, shown_when=type:Point|Directional|Spot,
+                tooltip="The least light a grazed surface is treated as facing, which caps the extra bias it gets: lower clears acne on walls the light skims, higher keeps their shadows attached.")
+    f32 shadowSlopeFloor{0.15f};
+
     /** @brief Be the sun of the frame's environment. The direction and strength come
      *         from the panorama, turned with it; @ref color and @ref intensity scale
      *         what it gives and the Transform's aim is not read. The environment then

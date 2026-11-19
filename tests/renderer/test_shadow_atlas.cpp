@@ -4,6 +4,7 @@
 
 #include "esengine/renderer/store/ShadowAtlas.hpp"
 #include "esengine/renderer/store/ShadowPlan.hpp"
+#include "esengine/renderer/frame/QualityValues.hpp"
 
 #include <cstdio>
 #include <cmath>
@@ -249,6 +250,40 @@ int main() {
                 CHECK(sameTexels, "fitted UVs and PCF offsets preserve pixel resolution");
             }
         }
+    }
+
+    {
+        ShadowAtlas budgeted(2048, 256);
+        budgeted.setTileBudget(6);
+        AtlasRefusal w = AtlasRefusal::None;
+        CHECK(budgeted.allocate(6, 1, w) == 0, "a point light's six faces fit a budget of six");
+        CHECK(budgeted.allocate(1, 1, w) == -1 && w == AtlasRefusal::TileBudget, "a seventh tile is refused by the level's budget");
+        budgeted.setTileBudget(0);
+        CHECK(budgeted.tileBudget() == 1, "a budget of nothing still lets one map through");
+        budgeted.setTileBudget(99);
+        CHECK(budgeted.tileBudget() == MAX_SHADOW_TILES, "a budget past the shader's arrays is held to them");
+    }
+    {
+        QualityValues q;
+        CHECK(q.count(QualityValue::LoopLights) == MAX_LIGHTS && q.count(QualityValue::ShadowTiles) == MAX_SHADOW_TILES
+                  && q.count(QualityValue::TiledLights) == MAX_TILED_LIGHTS,
+              "with no level the renderer keeps the numbers it had");
+        CHECK(q.set("tiledLights", 400.0f) && q.count(QualityValue::TiledLights) == MAX_TILED_LIGHTS,
+              "a value past the array it bounds is held to it");
+        CHECK(q.set("loopLights", 4.0f) && q.count(QualityValue::LoopLights) == 4u, "a budget is set by its name");
+        CHECK(!q.set("noSuchValue", 1.0f), "a name the renderer does not read is refused");
+        CHECK(q.set("shadowTiles", std::nanf("")) && q.count(QualityValue::ShadowTiles) == MAX_SHADOW_TILES,
+              "a value that is not a number falls back");
+    }
+
+    {
+        const f32 packed = packShadowBias(1.5f, 0.15f);
+        const f32 texels = std::floor(packed);
+        CHECK(near(texels / 64.0f, 1.5f) && std::fabs((packed - texels) - 0.15f) < 1e-4f,
+              "a light's bias and slope floor come back out of the tile's w as the shader decodes them");
+        const f32 wide = packShadowBias(40.0f, 2.0f);
+        CHECK(near(std::floor(wide) / 64.0f, 16.0f) && std::fabs((wide - std::floor(wide)) - 0.999f) < 1e-3f,
+              "a bias past the packed range is held to sixteen texels and the floor below one");
     }
 
     std::printf(g_failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", g_failures);

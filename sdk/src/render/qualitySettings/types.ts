@@ -34,6 +34,7 @@ interface QualitySettingBase<T> {
     readonly label: QualitySettingText;
     readonly description: QualitySettingText;
     readonly requires?: Readonly<Record<string, boolean | number | string>>;
+    readonly engine?: string;
 }
 
 export interface QualityNumberSetting extends QualitySettingBase<number> {
@@ -44,6 +45,7 @@ export interface QualityNumberSetting extends QualitySettingBase<number> {
     readonly integer?: boolean;
     readonly scalesEffects?: readonly string[];
     readonly uniform?: QualityEffectUniform;
+    readonly materialSlot?: 0 | 1 | 2 | 3;
 }
 
 export interface QualityBooleanSetting extends QualitySettingBase<boolean> {
@@ -56,6 +58,7 @@ export interface QualityChoiceSetting extends QualitySettingBase<number> {
     readonly options: readonly number[];
     readonly optionLabels?: Readonly<Record<number, QualitySettingText>>;
     readonly uniform?: QualityEffectUniform;
+    readonly materialSlot?: 0 | 1 | 2 | 3;
 }
 
 export interface QualityEnumSetting extends QualitySettingBase<string> {

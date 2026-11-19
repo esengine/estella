@@ -12,6 +12,7 @@ import { Material } from '../render/material';
 import { stageShaderSource, type EffectStage } from './effectStage';
 import { SSAO_GLSL } from './sources/shared';
 import { IGN_GLSL } from '../render/shaderLib';
+import { qualityUniformMax, qualityUniformParam } from './qualityParams';
 
 export const lensEffects = {
     /**
@@ -33,6 +34,7 @@ export const lensEffects = {
 #pragma param u_intensity float default(0.5) range(0,2)
 #pragma param u_maxBlur float default(0.05) range(0.002,0.25)
 #pragma param u_objectMotion float default(1) range(0,1)
+${qualityUniformParam('motionBlurSamples')}
 #pragma param u_prevViewProjection0 color default(1,0,0,0)
 #pragma param u_prevViewProjection1 color default(0,1,0,0)
 #pragma param u_prevViewProjection2 color default(0,0,1,0)
@@ -71,12 +73,13 @@ void main() {
     vec2 pixels = m * u_viewport.xy;
     if (dot(pixels, pixels) < 1.0) { fragColor = cur; return; }
 
-    const int TAPS = 16;
+    float taps = clamp(floor(u_motionTaps), 1.0, float(${qualityUniformMax('motionBlurSamples')}));
     float noise = ign(gl_FragCoord.xy) - 0.5;
     vec3 sum = cur.rgb;
     float weight = 1.0;
-    for (int i = 0; i < TAPS; ++i) {
-        float t = (float(i) + 0.5 + noise) / float(TAPS) - 0.5;
+    for (int i = 0; i < ${qualityUniformMax('motionBlurSamples')}; ++i) {
+        if (float(i) >= taps) break;
+        float t = (float(i) + 0.5 + noise) / taps - 0.5;
         vec2 uv = v_texCoord + m * t;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) continue;
         sum += texture(u_texture, uv).rgb;

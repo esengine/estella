@@ -12,6 +12,9 @@
 #include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
+#ifdef ES_ENABLE_GPU_PARTICLES
+#include "../renderer/frame/GpuParticles.hpp"
+#endif
 #include "../renderer/lod/LodSelection.hpp"
 #include "../renderer/store/LightPlan.hpp"
 #include "../renderer/store/ShadowPlan.hpp"
@@ -1372,6 +1375,20 @@ void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerS
     if (g_renderFrame) g_renderFrame->setPlanarQuality(scale, maxSize, updatesPerSecond, capAuthored);
 }
 
+void renderer_setParticleDepthGrid(u32 texels) {
+#ifdef ES_ENABLE_GPU_PARTICLES
+    if (g_renderFrame) {
+        if (GpuParticles* gpu = g_renderFrame->gpuParticles()) gpu->setDepthGridMax(texels);
+    }
+#else
+    (void)texels;
+#endif
+}
+
+void renderer_setQualityConstants(f32 x, f32 y, f32 z, f32 w) {
+    if (auto* context = ctx().tryGet<RenderContext>()) context->setQualityConstants(glm::vec4(x, y, z, w));
+}
+
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity) {
     return g_renderFrame ? g_renderFrame->planarStatus(view, entity) : "{\"state\":\"unavailable\"}";
 }
@@ -1382,6 +1399,10 @@ void renderer_setShadowDistance(f32 distance) {
 
 void renderer_setShadow2DSoftSamples(u32 samples) {
     if (g_renderFrame) g_renderFrame->setShadow2DSoftSamples(samples);
+}
+
+bool renderer_setQualityValue(const std::string& name, f32 value) {
+    return g_renderFrame && g_renderFrame->setQualityValue(name, value);
 }
 
 void renderer_setLightingDirect(bool on) {

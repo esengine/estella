@@ -331,7 +331,7 @@ export class PostProcessAPI {
      */
     effectAllowed(type: string): boolean {
         const passes = effectPassNames(type);
-        return (passes.length > 0 ? passes : [type]).every((name) => qualityPassAllowed(this.qualityFilter_, name));
+        return (passes.length > 0 ? passes : [type]).some((name) => qualityPassAllowed(this.qualityFilter_, name));
     }
 
     private allowQualityPass_ = (name: string): boolean => {

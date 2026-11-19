@@ -6,10 +6,12 @@ import { defineResource } from '../ecs/resource';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { getPlatform, platformNow, platformOnAppHide, platformOnAppShow } from '../platform';
 import { QualityController, type QualityConfig, type QualityProfile } from './quality';
+import { qualityMaterialConstants } from './qualitySettings/index';
 import { getDeviceIdentity } from './renderer';
 import { decidePower } from './power';
 import { NO_POWER_STATE } from '../device/types';
 import { setSkyStillWanted } from '../postprocess/skyStill';
+import { qualityEngineValues } from './qualitySettings/index';
 
 /** @experimental */
 export const Quality = defineResource<QualityController | null>(null, 'Quality');
@@ -47,6 +49,10 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         api?.renderer_setShadowDistance?.(enabled ? applied.shadowDistance : 0);
         // With no quality policy a soft 2D shadow is drawn with the sixteen samples it always was.
         api?.renderer_setShadow2DSoftSamples?.(enabled ? applied.shadowSoftSamples : 16);
+        const setValue = api?.renderer_setQualityValue;
+        let delivered = setValue !== undefined;
+        for (const [name, value] of qualityEngineValues(enabled ? applied : null)) delivered = setValue?.(name, value) === true && delivered;
+        quality.setLimitation('quality-values-unavailable', enabled && !delivered);
         api?.renderer_setDepthPrepass?.(enabled && applied.depthPrepass);
         // With no quality policy a volume is read per pixel, as it always was.
         api?.renderer_setProbesPerPixel?.(!enabled || applied.probesPerPixel);
@@ -55,6 +61,9 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         api?.renderer_setPlanarReflectionQuality?.(enabled ? applied.planarReflectionScale : 0.5,
             enabled ? applied.planarReflectionMaxSize : 1024,
             enabled ? applied.planarReflectionUpdatesPerSecond : 0, enabled === true);
+        api?.renderer_setParticleDepthGrid?.(enabled ? applied.particleDepthGrid : 640);
+        const material = enabled ? qualityMaterialConstants(applied) : [0, 0, 0, 0];
+        api?.renderer_setQualityConstants?.(material[0]!, material[1]!, material[2]!, material[3]!);
     };
     app.pipeline?.setQuality(quality, apply);
     apply();

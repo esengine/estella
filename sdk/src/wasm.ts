@@ -772,6 +772,7 @@ export interface ESEngineModule {
     renderer_setShadowDistance?(distance: number): void;
     /** How many samples across a light source a soft 2D shadow is drawn with (1 to 32). */
     renderer_setShadow2DSoftSamples?(samples: number): void;
+    renderer_setQualityValue?(name: string, value: number): boolean;
     /** Draw the opaque scene twice, depth alone first, so a pixel is shaded for the surface in front of it. */
     renderer_setDepthPrepass?(on: boolean): void;
     renderer_setProbesPerPixel?(on: boolean): void;
@@ -781,6 +782,8 @@ export interface ESEngineModule {
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_getPendingShaders?(): number;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean): void;
+    renderer_setParticleDepthGrid?(texels: number): void;
+    renderer_setQualityConstants?(x: number, y: number, z: number, w: number): void;
     renderer_getPlanarReflectionStatus?(view: number, entity: number): string;
     renderer_setViewLighting?(mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean): void;
     renderer_setCullingMask?(mask: number): void;

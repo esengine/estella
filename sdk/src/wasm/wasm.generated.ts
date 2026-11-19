@@ -701,6 +701,9 @@ export interface Light {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    cascadeSplit: number;
+    shadowBias: number;
+    shadowSlopeFloor: number;
     followEnvironmentSun: boolean;
     aimFollowedSun: boolean;
     environment: number;

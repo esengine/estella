@@ -83,6 +83,9 @@ public:
     /// Particle slots handed to a draw this frame, over every emitter and camera: what the GPU is asked to draw.
     u32 drawnSlots() const { return drawn_; }
 
+    void setDepthGridMax(u32 texels);
+    u32 depthGridWidth() const { return depthW_; }
+
 private:
     struct Slot {
         BufferHandle state = BufferHandle::Invalid;
@@ -127,6 +130,7 @@ private:
     BufferHandle depthGrid_ = BufferHandle::Invalid;
     BufferHandle depthParams_ = BufferHandle::Invalid;
     u32 depthW_ = 0, depthH_ = 0;
+    u32 depthGridMax_ = 640;
     bool depthValid_ = false;
     bool depthCopied_ = false;
     bool wantsDepth_ = false;
