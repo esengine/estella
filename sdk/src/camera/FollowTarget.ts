@@ -13,6 +13,7 @@
 import { defineComponent, Transform } from '../ecs/component';
 import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity, type Vec3 } from '../types';
+import { placeCamera } from './cameraPlace';
 
 export interface FollowTargetData {
   /** Entity to follow (0 = none; a negative id, which older scenes hold, is none too). */
@@ -89,18 +90,18 @@ export function followUpdate(world: World, dt: number): void {
     if (ft.target <= 0 || !world.valid(target) || !world.has(target, Transform)) continue;
     const camT = world.get(e, Transform);
     const tgtT = world.get(target, Transform);
-    // A camera that does not follow depth is asked for the depth it already has,
-    // so the step's own arithmetic leaves it there — no second code path.
-    const desiredZ = ft.followZ ? tgtT.position.z + ft.offsetZ : camT.position.z;
+    // In the world, where the offset is said to be: under a parent the camera's own position is in the parent's space, and an
+    // offset added there was turned and scaled with it. A camera that does not follow depth is asked for the depth it already
+    // has, so the step's own arithmetic leaves it there — no second code path.
+    const now = camT.worldPosition;
+    const desiredZ = ft.followZ ? tgtT.worldPosition.z + ft.offsetZ : now.z;
     const next = followStep(
-      camT.position,
-      { x: tgtT.position.x + ft.offsetX, y: tgtT.position.y + ft.offsetY, z: desiredZ },
+      now,
+      { x: tgtT.worldPosition.x + ft.offsetX, y: tgtT.worldPosition.y + ft.offsetY, z: desiredZ },
       ft.deadzone,
       ft.damping,
       dt,
     );
-    if (next.x !== camT.position.x || next.y !== camT.position.y || next.z !== camT.position.z) {
-      world.set(e, Transform, { ...camT, position: next });
-    }
+    if (next.x !== now.x || next.y !== now.y || next.z !== now.z) placeCamera(world, e, camT, next);
   }
 }

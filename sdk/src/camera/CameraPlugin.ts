@@ -14,6 +14,8 @@ import { FollowTarget } from './FollowTarget';
 import { CameraBounds } from './CameraBounds';
 import { LookAtTarget } from './LookAtTarget';
 import { CameraBrain, cameraRigUpdate } from './CameraRig';
+import { applyCameraNoise } from './CameraNoise';
+import { CameraDolly } from './CameraDolly';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -596,6 +598,9 @@ function resolveCameras(
 
     const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
     if (povs.length === 0) return [];
+    // Each camera's handheld drift, on the view it gives and not its Transform, before the director picks and blends: a blend
+    // from a shaky camera to a still one settles. Play mode only, as the rest of the camera pipeline.
+    if (world && playModeOnly()) applyCameraNoise(world, povs, now);
     const canvas = frameCanvas.fit;
     // A camera drawing into a texture is not a candidate for the screen: it does
     // not compete with the main view, and it renders BEFORE it, because what it
@@ -1038,7 +1043,7 @@ export function cameraPlugin(
                     cameraRigUpdate(app.world, time.delta, aspect, director);
                 },
                 { name: 'CameraRigSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget, LookAtTarget, CameraBounds, CameraBrain] });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, LookAtTarget, CameraBounds, CameraBrain] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

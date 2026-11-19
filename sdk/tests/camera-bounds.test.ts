@@ -44,7 +44,8 @@ describe('cameraBoundsUpdate', () => {
 
     const spawnCamera = (x: number, y: number, bounds?: Partial<typeof CameraBounds._default>): Entity => {
         const e = world.spawn('camera');
-        world.insert(e, Transform, { position: { x, y, z: 0 } });
+        // Both, as the engine's transform system holds them for an entity at the top of the hierarchy: a follow reads where things are in the world.
+        world.insert(e, Transform, { position: { x, y, z: 0 }, worldPosition: { x, y, z: 0 } });
         world.insert(e, Camera, {
             projectionType: ProjectionType.Orthographic,
             orthoSize: 540,
@@ -99,7 +100,7 @@ describe('cameraBoundsUpdate', () => {
     // one such thing, not the thing bounds belong to.
     it('holds a followed camera that was damped past the edge', () => {
         const player = world.spawn('player');
-        world.insert(player, Transform, { position: { x: -5000, y: 0, z: 0 } });
+        world.insert(player, Transform, { position: { x: -5000, y: 0, z: 0 }, worldPosition: { x: -5000, y: 0, z: 0 } });
         const e = spawnCamera(-4900, 0, { minX: -2000, maxX: 2000 });
         world.insert(e, FollowTarget, { target: player, offsetX: 0, offsetY: 0, deadzone: 0, damping: 0 });
 

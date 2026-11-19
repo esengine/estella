@@ -562,6 +562,10 @@ export const SCENES = [
   // camera shows it. Without a brain the view cuts: the cube where the right camera shows it.
   { id: "camera-brain-blend", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-brain-blend.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Camera\",\"key\":\"priority\",\"value\":5,\"steps\":30}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.725,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.275,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
   { id: "camera-brain-cut", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-brain-cut.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Camera\",\"key\":\"priority\",\"value\":5,\"steps\":30}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.275,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
+  // A camera that starts at the left end of a straight track and keeps level with a cube in front of its right half
+  // (CameraDolly, Track Target): it rides to the cube, so the cube is in the middle of the view, and not at its right edge
+  // where a camera left at the start would see it.
+  { id: "camera-dolly-track", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-dolly-track.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.93,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // A torus of 9216 triangles cut into clusters (fixtures/scenes/cluster-torus.esmesh), red and unlit on black.
   // The counters are the claim: one clustered mesh, drawn with the triangles a 256-pixel view can tell apart
   // from where it stands, and fewer of them the farther that is. The probes are the witness that the picked

@@ -13,10 +13,9 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { defineComponent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
-import { SplineCurve } from './curve';
+import { placedSpline, splinePoint, splineHeading, releaseGoneSplines } from './placedSpline';
 import { installTerrainBands } from './terrainBand2D';
 import { installRoadDecals } from './roadDecal';
-import { Spline, type SplineData } from './splineComponent';
 
 export { Spline, type SplineData } from './splineComponent';
 
@@ -85,16 +84,8 @@ export function pathPlace(travelled: number, length: number, mode: number, forwa
     return { s: Math.min(Math.max(travelled, 0), length), done: forward ? travelled >= length : travelled <= 0 };
 }
 
-type Quat = { x: number; y: number; z: number; w: number };
-
-function turn(q: Quat, vx: number, vy: number, vz: number): [number, number, number] {
-    const tx = 2 * (q.y * vz - q.z * vy), ty = 2 * (q.z * vx - q.x * vz), tz = 2 * (q.x * vy - q.y * vx);
-    return [vx + q.w * tx + (q.y * tz - q.z * ty), vy + q.w * ty + (q.z * tx - q.x * tz), vz + q.w * tz + (q.x * ty - q.y * tx)];
-}
-
 export class SplinePlugin implements Plugin {
     name = 'spline';
-    private readonly curves_ = new Map<number, { key: string; curve: SplineCurve }>();
 
     build(app: App): void {
         app.addSystemToSchedule(Schedule.Update,
@@ -104,45 +95,22 @@ export class SplinePlugin implements Plugin {
         installRoadDecals(app);
     }
 
-    private curveOf(app: App, entity: number): { curve: SplineCurve; at: TransformData } | null {
-        const world = app.world;
-        if (entity < 0 || !world.valid(entity as never)) return null;
-        const spline = world.tryGet(entity as never, Spline) as SplineData | null;
-        if (!spline || spline.points.length < 2) return null;
-        const at = world.tryGet(entity as never, Transform) as TransformData | null;
-        if (!at) return null;
-        const key = JSON.stringify([spline.points, spline.closed]);
-        let held = this.curves_.get(entity);
-        if (!held || held.key !== key) {
-            held = { key, curve: new SplineCurve(spline.points, spline.closed) };
-            this.curves_.set(entity, held);
-        }
-        return { curve: held.curve, at };
-    }
-
     private follow(app: App, dt: number): void {
         const world = app.world;
         for (const entity of world.getEntitiesWithComponents([PathFollower, Transform])) {
             const f = world.get(entity, PathFollower) as PathFollowerData;
             if (!f.playing) continue;
-            const held = this.curveOf(app, f.spline);
-            if (!held) continue;
-            const { curve, at } = held;
-            const sx = at.worldScale.x, sy = at.worldScale.y, sz = at.worldScale.z;
-            // Speed is in world units and the curve's length is in its own: a scaled spline is longer in the world.
-            const unit = (Math.abs(sx) + Math.abs(sy) + Math.abs(sz)) / 3 || 1;
-            const length = curve.length * unit;
+            const track = placedSpline(world, f.spline);
+            if (!track) continue;
             const travelled = f.distance + f.speed * dt;
-            const placed = pathPlace(travelled, length, f.mode, f.speed >= 0);
-            const local = curve.position(placed.s / unit);
-            const r = turn(at.worldRotation, local[0] * sx, local[1] * sy, local[2] * sz);
+            const placed = pathPlace(travelled, track.length, f.mode, f.speed >= 0);
+            const r = splinePoint(track, placed.s);
             const t = world.get(entity, Transform) as TransformData;
-            t.position.x = r[0] + at.worldPosition.x;
-            t.position.y = r[1] + at.worldPosition.y;
-            t.position.z = r[2] + at.worldPosition.z;
+            t.position.x = r[0];
+            t.position.y = r[1];
+            t.position.z = r[2];
             if (f.orient !== PathOrient.None) {
-                const tan = curve.tangent(placed.s / unit);
-                const d = turn(at.worldRotation, tan[0] * sx, tan[1] * sy, tan[2] * sz);
+                const d = splineHeading(track, placed.s);
                 // Going backwards along the curve faces the other way.
                 const dir = f.speed < 0 ? -1 : 1;
                 if (f.orient === PathOrient.FaceXZ) {
@@ -158,7 +126,7 @@ export class SplinePlugin implements Plugin {
             world.set(entity, PathFollower, { ...f, distance: ended ? placed.s : travelled, playing: !ended });
         }
         // A curve nobody reads any more is let go.
-        for (const key of [...this.curves_.keys()]) if (!world.valid(key as never)) this.curves_.delete(key);
+        releaseGoneSplines(world);
     }
 }
 

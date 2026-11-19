@@ -152,6 +152,27 @@ export class SplineCurve {
         }
         return { s: bestS, distance: Math.sqrt(bestD2), side: bestSide };
     }
+
+    /** The distance along the curve of its point nearest (x, y, z), measured in all three axes: a track that climbs is not flattened. */
+    nearestDistance(x: number, y: number, z: number): number {
+        let bestD2 = Infinity, bestS = 0;
+        const pieces = this.closed ? this.count : this.count - 1;
+        for (let i = 0; i < pieces; i++) {
+            const j = this.next(i);
+            const ax = this.px[i]!, ay = this.py[i]!, az = this.pz[i]!;
+            const ex = this.px[j]! - ax, ey = this.py[j]! - ay, ez = this.pz[j]! - az;
+            const len2 = ex * ex + ey * ey + ez * ez;
+            const t = len2 > 0 ? Math.min(Math.max(((x - ax) * ex + (y - ay) * ey + (z - az) * ez) / len2, 0), 1) : 0;
+            const dx = x - (ax + t * ex), dy = y - (ay + t * ey), dz = z - (az + t * ez);
+            const d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < bestD2) {
+                bestD2 = d2;
+                const pieceLength = i === this.count - 1 ? this.length - this.ps[i]! : this.ps[j]! - this.ps[i]!;
+                bestS = this.ps[i]! + t * pieceLength;
+            }
+        }
+        return bestS;
+    }
 }
 
 function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }

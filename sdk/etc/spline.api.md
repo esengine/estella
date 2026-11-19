@@ -60,6 +60,7 @@ closed: boolean
 count: number
 length: number
 nearest: (x: number, z: number) => SplineNearest
+nearestDistance: (x: number, y: number, z: number) => number
 position: (s: number) => [number, number, number]
 tangent: (s: number) => [number, number, number]
 width: (s: number) => number

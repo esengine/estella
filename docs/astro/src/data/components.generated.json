@@ -832,6 +832,109 @@
       ]
     },
     {
+      "name": "CameraDolly",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "spline",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity whose Spline the camera rides."
+        },
+        {
+          "key": "mode",
+          "type": "enum",
+          "default": "Fixed",
+          "doc": "Fixed: where Position says. Track Target: level with the target. Speed: moving along at Speed.",
+          "values": [
+            "Fixed",
+            "Track Target",
+            "Speed"
+          ]
+        },
+        {
+          "key": "position",
+          "type": "number",
+          "default": "0",
+          "doc": "Where on the track the camera is, in world units from its start."
+        },
+        {
+          "key": "target",
+          "type": "Entity",
+          "default": "none",
+          "doc": "What a Track Target dolly keeps level with."
+        },
+        {
+          "key": "offset",
+          "type": "number",
+          "default": "0",
+          "doc": "World units ahead of (or, negative, behind) the point nearest the target."
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "0",
+          "doc": "World units a second along the track; negative runs backwards."
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0.3",
+          "doc": "Seconds to catch up most of the way to the target's place; 0 is at once.",
+          "range": "≥ 0, step 0.05"
+        }
+      ],
+      "animatable": [
+        "spline",
+        "mode",
+        "position",
+        "target",
+        "offset",
+        "speed",
+        "damping"
+      ]
+    },
+    {
+      "name": "CameraNoise",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "amplitude",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the view drifts across, up and along itself, in world units.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "rotation",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How far the view nods, pans and rolls. About 0.5 is a camera held by hand.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "frequency",
+          "type": "number",
+          "default": "0.3",
+          "doc": "How often the drift changes direction: about 0.3 by hand, 2 on a vehicle.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "seed",
+          "type": "number",
+          "default": "0",
+          "doc": "Which drift. 0 takes one from the entity, so no two cameras move alike.",
+          "range": "step 1"
+        }
+      ],
+      "animatable": [
+        "amplitude",
+        "rotation",
+        "frequency",
+        "seed"
+      ]
+    },
+    {
       "name": "Canvas",
       "source": "cpp",
       "fields": [

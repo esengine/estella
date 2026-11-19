@@ -9,18 +9,22 @@
  *          are that director; this file is the procedural half each camera runs before it, in the stages Cinemachine
  *          names and UE's camera rigs order the same way:
  *
- *            1. position  where the camera stands    FollowTarget
+ *            1. position  where the camera stands    FollowTarget, CameraDolly (a camera uses one)
  *            2. rotation  where it looks             LookAtTarget
  *            3. finalize  limits on the result       CameraBounds
+ *            4. noise     drift on the drawn view    CameraNoise (CameraPlugin, on the view, before the blend)
  *
- *          A stage reads what the stages before it wrote, so a camera that follows and looks at one target aims from
- *          where it stands this frame, not last. Shake is not a stage: it moves the drawn view only (shakeCamera), as a
- *          Cinemachine Impulse and a UE camera shake do, and never the camera's Transform.
+ *          A stage decides in the world and writes through the camera's parent (cameraPlace.ts), the world value beside the
+ *          local one, so a stage reads what the stages before it wrote this frame: a camera that follows and looks at one
+ *          target aims from where it stands now. Noise and shake move what is drawn and never the camera's Transform, as
+ *          Cinemachine's noise and Impulse and a UE camera shake do: noise per camera before the director blends, shake on
+ *          the blended view after it.
  */
 import { defineComponent } from '../ecs/component';
 import type { World } from '../ecs/world';
 import { BlendCurve, type CameraDirectorState } from './CameraDirector';
 import { followUpdate } from './FollowTarget';
+import { dollyUpdate } from './CameraDolly';
 import { lookAtUpdate } from './LookAtTarget';
 import { cameraBoundsUpdate } from './CameraBounds';
 
@@ -63,6 +67,7 @@ export function syncCameraBrain(world: World, director: CameraDirectorState): vo
 export function cameraRigUpdate(world: World, dt: number, screenAspect: number, director: CameraDirectorState | null): void {
   if (director) syncCameraBrain(world, director);
   followUpdate(world, dt);
+  dollyUpdate(world, dt);
   lookAtUpdate(world, dt, screenAspect);
   cameraBoundsUpdate(world, screenAspect);
 }

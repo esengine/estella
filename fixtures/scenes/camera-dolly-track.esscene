@@ -1,0 +1,128 @@
+{
+  "version": 4,
+  "name": "CameraDollyTrack",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -500,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 1,
+            "farPlane": 5000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "CameraDolly",
+          "data": {
+            "spline": 1,
+            "mode": 1,
+            "position": 0,
+            "target": 2,
+            "offset": 0,
+            "speed": 0,
+            "damping": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Track",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Spline",
+          "data": {
+            "points": [
+              {
+                "x": -800,
+                "y": 0,
+                "z": 0,
+                "width": 1
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "width": 1
+              },
+              {
+                "x": 800,
+                "y": 0,
+                "z": 0,
+                "width": 1
+              }
+            ],
+            "closed": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Subject",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 0,
+              "z": -600
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true,
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

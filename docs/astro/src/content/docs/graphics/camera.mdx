@@ -136,7 +136,7 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `target` | Entity | `0` | Entity to follow (`0` = none; a `-1` from an older scene reads as none too). |
-| `offsetX` | number | `0` | World-space X offset from the target. |
+| `offsetX` | number | `0` | World-space X offset from the target (in the world even under a parent). |
 | `offsetY` | number | `0` | World-space Y offset from the target. |
 | `offsetZ` | number | `0` | World-space Z offset from the target (used by 3D follow). |
 | `followZ` | boolean | `false` | Follow the target's depth too. Off for a flat scene, where the camera's z is how far back it stands. |
@@ -190,14 +190,74 @@ moved by the components it carries, always in this order:
 
 | Stage | Component | Cinemachine | Unreal |
 |---|---|---|---|
-| 1. Position: where it stands | `FollowTarget` | Position Control (Follow) | camera rig position node |
+| 1. Position: where it stands | `FollowTarget` or `CameraDolly` | Position Control (Follow, Spline Dolly) | camera rig position node |
 | 2. Rotation: where it looks | `LookAtTarget` | Rotation Control (Rotation Composer) | camera rig look-at node |
 | 3. Finalize: limits on the result | `CameraBounds` | Extensions (Confiner) | camera modifiers |
+| 4. Noise: drift on the drawn view | `CameraNoise` | Noise (Basic Multi-Channel Perlin) | camera shake |
 
-A stage reads what the stages before it wrote, so a camera that follows and looks at the same character aims from
-where it stands this frame. The camera director then picks one live camera and blends into it (below): Cinemachine's
+Each stage decides in the world and writes through the camera's parent, and reads what the stages before it wrote, so
+a camera that follows and looks at the same character aims from where it stands this frame. Noise moves only the drawn
+view, per camera, before the blend. The camera director then picks one live camera and blends into it (below): Cinemachine's
 Brain and Unreal's `PlayerCameraManager`. Camera shake is applied after that, to the drawn view only, never to a
 camera's `Transform`, as a Cinemachine Impulse and an Unreal camera shake are. The pipeline runs in **play mode only**.
+
+## Ride a track
+
+A `CameraDolly` puts a camera on a track: a `Spline` entity laid in the scene, like a dolly on rails. It is the other way
+to say where a camera stands (`FollowTarget` is the first); a camera uses one of the two. `mode` picks the place on the
+track:
+
+- **Fixed** (`DollyMode.Fixed`): at `position`, for a script or an animation to move.
+- **Track Target** (`DollyMode.TrackTarget`): at the point of the track nearest `target`, moved along by `offset`: a
+  camera that runs beside what it films.
+- **Speed** (`DollyMode.Speed`): moving at `speed`, round and round a closed track or to the end of an open one.
+
+```typescript
+import { CameraDolly, DollyMode, LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity)
+  .insert(CameraDolly, { spline: railEntity, mode: DollyMode.TrackTarget, target: runner, offset: -150, damping: 0.4 })
+  .insert(LookAtTarget, { target: runner });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `spline` | Entity | `0` | The entity whose `Spline` is the track. |
+| `mode` | number | `Fixed` | How the place on the track is chosen (`DollyMode`). |
+| `position` | number | `0` | Where on the track the camera is, in world units from its start. Written back every frame, in every mode. |
+| `target` | Entity | `0` | What a Track Target dolly keeps level with. |
+| `offset` | number | `0` | World units ahead of (or, negative, behind) the point nearest the target. |
+| `speed` | number | `0` | World units a second along the track, for Speed; negative runs backwards. |
+| `damping` | number | `0.3` | Seconds for a Track Target dolly to catch up most of the way; `0` is at once. |
+
+Distances are along the curve in world units, so a scaled spline is longer. On a closed track a Track Target dolly takes
+the short way round, so a target crossing the seam does not send the camera round the loop. The track is the same curve a
+`PathFollower` rides.
+
+## Handheld noise
+
+A `CameraNoise` makes a camera drift and nod like one held by hand, or sway like one on a boat: six channels of smooth
+Perlin noise, three moving the view across, up and along itself and three turning it about the same axes, as Cinemachine's
+Basic Multi-Channel Perlin does.
+
+```typescript
+import { CameraNoise } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraNoise, { rotation: 0.5, frequency: 0.3 });   // handheld
+cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, frequency: 2 });   // on a vehicle
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `amplitude` | number | `0` | How far the view drifts, in world units. |
+| `rotation` | number | `0.5` | How far the view turns, in degrees. About `0.5` is a camera held by hand. |
+| `frequency` | number | `0.3` | How often the drift changes direction, in Hz: about `0.3` by hand, `2` on a vehicle. |
+| `seed` | number | `0` | Which drift; `0` takes one from the entity, so no two cameras move alike. |
+
+Noise moves the view that is drawn and never the camera's `Transform`, so it does not build up, and follow, dolly and
+look-at work from where the camera really is. It is applied to each camera before the director blends between them, so a
+blend from a shaky camera to a steady one settles. A 2D camera drifts across the screen and rolls. Noise follows the game
+clock: it stops when the game is paused.
 
 ## Keep the camera inside the level
 

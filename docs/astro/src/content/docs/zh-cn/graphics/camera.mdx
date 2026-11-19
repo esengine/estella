@@ -173,14 +173,69 @@ cmds.entity(cameraEntity).insert(LookAtTarget, {
 
 | 阶段 | 组件 | Cinemachine | Unreal |
 |---|---|---|---|
-| 1. 位置:站在哪 | `FollowTarget` | Position Control(Follow) | 相机 rig 的位置节点 |
+| 1. 位置:站在哪 | `FollowTarget` 或 `CameraDolly` | Position Control(Follow、Spline Dolly) | 相机 rig 的位置节点 |
 | 2. 朝向:看向哪 | `LookAtTarget` | Rotation Control(Rotation Composer) | 相机 rig 的注视节点 |
 | 3. 收尾:对结果的限制 | `CameraBounds` | Extensions(Confiner) | 相机修改器 |
+| 4. 噪声:画面上的漂移 | `CameraNoise` | Noise(Basic Multi-Channel Perlin) | 相机震动 |
 
-后面的阶段读取前面阶段写下的结果,所以一台既跟随又注视同一个角色的相机,是从它这一帧所站的位置去瞄准的。
+每个阶段都按世界坐标决策,再经由相机的父节点写回;后面的阶段读取前面阶段这一帧写下的结果,所以一台既跟随又注视
+同一个角色的相机,是从它这一帧所站的位置去瞄准的。噪声只移动最终画面,逐相机施加,在混合之前。
 之后相机导演(下文)从中选出一台活动相机并混合过去,相当于 Cinemachine 的 Brain 和 Unreal 的 `PlayerCameraManager`。
 震屏在那之后施加,只作用于最终画面,从不改相机的 `Transform`,和 Cinemachine 的 Impulse、Unreal 的相机震动一样。
 流水线**只在播放模式下**运行。
+
+## 沿轨道移动
+
+`CameraDolly` 把相机放到一条轨道上:场景里的一个 `Spline` 实体,就像架在导轨上的摄影车。它是决定相机站在哪的另一种
+方式(另一种是 `FollowTarget`),一台相机用其中一种。`mode` 决定相机在轨道上的位置:
+
+- **固定**(`DollyMode.Fixed`):在 `position` 处,由脚本或动画来移动。
+- **追踪目标**(`DollyMode.TrackTarget`):在轨道上离 `target` 最近的点,再沿轨道挪 `offset`:一台跟着拍摄对象跑的相机。
+- **匀速**(`DollyMode.Speed`):以 `speed` 前进,闭合轨道上一圈圈绕,开放轨道上走到头为止。
+
+```typescript
+import { CameraDolly, DollyMode, LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity)
+  .insert(CameraDolly, { spline: railEntity, mode: DollyMode.TrackTarget, target: runner, offset: -150, damping: 0.4 })
+  .insert(LookAtTarget, { target: runner });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `spline` | Entity | `0` | 作为轨道的 `Spline` 所在的实体。 |
+| `mode` | number | `Fixed` | 如何选择轨道上的位置(`DollyMode`)。 |
+| `position` | number | `0` | 相机在轨道上的位置,从起点算起的世界单位。每一帧、每种模式下都会写回。 |
+| `target` | Entity | `0` | 追踪目标模式下相机要对齐的对象。 |
+| `offset` | number | `0` | 在离目标最近的点之前(负数为之后)多少世界单位。 |
+| `speed` | number | `0` | 匀速模式下每秒沿轨道前进的世界单位;负数为倒退。 |
+| `damping` | number | `0.3` | 追踪目标模式下追上大部分距离所需的秒数;`0` 为立即。 |
+
+距离是沿曲线量的世界单位,所以缩放过的样条更长。在闭合轨道上,追踪目标的相机走较短的那一边,目标跨过接缝时
+相机不会绕整圈跑回去。轨道和 `PathFollower` 用的是同一条曲线。
+
+## 手持噪声
+
+`CameraNoise` 让相机像手持拍摄那样轻微漂移和点头,或者像在船上那样摇晃:六个通道的平滑 Perlin 噪声,三个让画面
+沿自身的左右、上下、前后漂移,三个让画面绕这三根轴转动,和 Cinemachine 的 Basic Multi-Channel Perlin 一样。
+
+```typescript
+import { CameraNoise } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraNoise, { rotation: 0.5, frequency: 0.3 });   // 手持
+cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, frequency: 2 });   // 车载
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `amplitude` | number | `0` | 画面漂移的距离,世界单位。 |
+| `rotation` | number | `0.5` | 画面转动的角度。手持相机大约 `0.5`。 |
+| `frequency` | number | `0.3` | 漂移改变方向的频率(Hz):手持约 `0.3`,车载约 `2`。 |
+| `seed` | number | `0` | 选哪一种漂移;`0` 由实体决定,所以任意两台相机都不会同步晃动。 |
+
+噪声只移动最终画面,从不改相机的 `Transform`,所以不会累积,跟随、轨道和注视也都按相机真实的位置计算。
+它在导演混合之前逐相机施加,所以从一台晃动的相机混合到一台稳定的相机时,晃动会逐渐平息。2D 相机在屏幕上漂移并翻滚。
+噪声跟随游戏时钟:游戏暂停时它也停止。
 
 ## 把相机限制在关卡内
 

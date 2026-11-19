@@ -173,6 +173,8 @@ const DISPOSITION = {
   TerrainBand2D: ['owed', 'no example draws a 2D ground from a spline yet; the first side-scroller built on one carries it'],
   Impostor: ['owed', 'no example has far objects small enough to stand a picture in for yet; an open 3D world with distant props is the first to'],
   LookAtTarget: ['owed', 'no example frames a 3D shot on a character yet; the shots of the cutscene example, each holding its subject on screen, are where the first one goes'],
+  CameraDolly: ['owed', 'no example rides a camera on a track yet; a tracking shot of the cutscene example, running beside its subject, is where the first one goes'],
+  CameraNoise: ['owed', 'no example holds a camera by hand yet; the shots of the cutscene example are where the first one goes'],
   CameraBrain: ['owed', 'no example switches between cameras by priority yet; the cutscene example, handing its shots over by priority rather than by script, is where the first one goes'],
   Billboard: ['owed', 'no example draws a card that faces the camera yet; a 3D scene with signs or far trees on cards is the first to'],
   CanvasEffect: ['owed', 'authored by a game today (space-frigate, in a repository of its own, puts it on the Canvas its HUD builds in code) and as scene data by the pixel fixture ui-screen-effect, which is not an example; the pages of the ui-game template are where the first one goes'],
