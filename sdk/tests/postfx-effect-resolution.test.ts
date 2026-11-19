@@ -80,7 +80,7 @@ describe('the resolution of each effect that is drawn small', () => {
             expect(setting, key).toBeDefined();
             expect(setting.scalesEffects, key).toEqual(RESOLUTIONS[key]);
         }
-        const scaled = QUALITY_SETTINGS.flatMap((s) => ('scalesEffects' in s ? [...s.scalesEffects] : []));
+        const scaled = QUALITY_SETTINGS.flatMap((s) => ('scalesEffects' in s ? [...(s.scalesEffects ?? [])] : []));
         expect(scaled).not.toContain('bloom');
         expect(scaled).not.toContain('skyAtmosphere');
         expect(QUALITY_SETTINGS.find((s) => s.key === ('effectResolution' as never))).toBeUndefined();

@@ -15,7 +15,7 @@ vi.mock('../src/ecs/bridge/engineApi', () => ({
     engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile, renderer_setProbesPerPixel: probesPerPixel, renderer_setParticleDepthGrid: depthGrid, renderer_setQualityConstants: materialConstants, renderer_setQualityValue: qualityValue }),
 }));
 
-const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile, probesPerPixel, depthGrid, materialConstants, qualityValue } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn(), probesPerPixel: vi.fn(), depthGrid: vi.fn(), materialConstants: vi.fn(), qualityValue: vi.fn(() => true) }));
+const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile, probesPerPixel, depthGrid, materialConstants, qualityValue } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn(), probesPerPixel: vi.fn(), depthGrid: vi.fn(), materialConstants: vi.fn(), qualityValue: vi.fn((_key: string, _value: number) => true) }));
 
 describe('quality runtime device selection', () => {
     it('applies the tier shadow range and restores camera coverage when disabled', () => {
