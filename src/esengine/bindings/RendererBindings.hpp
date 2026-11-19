@@ -42,7 +42,7 @@ void renderer_setLightingDirect(bool on);
 void renderer_setAsyncShaderCompile(bool on);
 /** How many shaders are still compiling in the background; a loading screen waits for it to reach 0. */
 u32 renderer_getPendingShaders();
-void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored);
 std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity);
 /**
  * The editor view's lighting. mode 0 = the scene's own lights (the default, and the

@@ -23,6 +23,8 @@ export const gtaoPasses = {
 #pragma param u_intensity float default(1) range(0,2)
 #pragma param u_power float default(1.4) range(0.5,4)
 #pragma param u_thickness float default(0.5) range(0,1)
+#pragma param u_gtaoSlices float default(3) range(1,3)
+#pragma param u_gtaoSteps float default(6) range(1,6)
 
 #pragma fragment
 precision highp float;
@@ -33,8 +35,8 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-const int SLICES = 3;
-const int STEPS = 6;
+#define GTAO_SLICES_MAX 3
+#define GTAO_STEPS_MAX 6
 const float PI = 3.14159265359;
 const float HALF_PI = 1.57079632679;
 // How far a horizon falls back, at full thickness, each time what lies beyond the thing that raised it is lower again. A wall goes on standing and keeps it; a strand does not.
@@ -86,8 +88,11 @@ void main() {
     float jitter = fract(float(((rp.x * 5 + rp.y * 3) & 15)) * 0.0625 + 0.03125);
 
     float visibility = 0.0;
-    for (int slice = 0; slice < SLICES; ++slice) {
-        float phi = (float(slice) + turn) * (PI / float(SLICES));
+    float slices = clamp(floor(u_gtaoSlices + 0.5), 1.0, float(GTAO_SLICES_MAX));
+    float marchSteps = clamp(floor(u_gtaoSteps + 0.5), 1.0, float(GTAO_STEPS_MAX));
+    for (int slice = 0; slice < GTAO_SLICES_MAX; ++slice) {
+        if (float(slice) >= slices) break;
+        float phi = (float(slice) + turn) * (PI / slices);
         vec2 dir = vec2(cos(phi), sin(phi));
         vec3 dirW = right * dir.x + up * dir.y;
         // The slice plane holds the view vector and this direction; its normal is the axis the normal is projected off.
@@ -103,8 +108,9 @@ void main() {
         float lowCos1 = cos(n - HALF_PI);
         float hCos0 = lowCos0;
         float hCos1 = lowCos1;
-        for (int i = 0; i < STEPS; ++i) {
-            float f = (float(i) + jitter) / float(STEPS);
+        for (int i = 0; i < GTAO_STEPS_MAX; ++i) {
+            if (float(i) >= marchSteps) break;
+            float f = (float(i) + jitter) / marchSteps;
             f = f * f + 1.0 / radiusTexels;
             vec2 off = dir * (f * radiusTexels);
             ivec2 s0 = c + ivec2(floor(off + 0.5));
@@ -139,7 +145,7 @@ void main() {
         float arc1 = (cosN + 2.0 * h1 * sin(n) - cos(2.0 * h1 - n)) * 0.25;
         visibility += projLen * (arc0 + arc1);
     }
-    visibility /= float(SLICES);
+    visibility /= slices;
     float ao = 1.0 - clamp((1.0 - clamp(visibility, 0.0, 1.0)) * u_intensity, 0.0, 1.0) * reach;
     fragColor = vec4(vec3(pow(ao, u_power)), 1.0);
 }

@@ -3,7 +3,7 @@
 vi.mock('../src/runtime/runtimeAssets', () => ({ createTextureFromPixels: vi.fn(() => 9) }));
 
 import { describe, it, expect, vi } from 'vitest';
-import { SkyEnvironment } from '../src/postprocess/skyEnvironment';
+import { FULL_SKY_BAKE, SkyEnvironment } from '../src/postprocess/skyEnvironment';
 import { defineSkyEffect } from '../src/postprocess/customSky';
 import { stillSkyKey } from '../src/postprocess/skyStill';
 import { CUSTOM_SKY_HEIGHT, CUSTOM_SKY_WIDTH } from '../src/postprocess/customSky';
@@ -42,7 +42,7 @@ function run(sky: SkyEnvironment, c: ReturnType<typeof core>, type: string, keys
 describe('a still sky as the scene\'s environment', () => {
     it('is captured once, and the environment kept while nothing it is made from changes', () => {
         const c = core();
-        const sky = new SkyEnvironment(1);
+        const sky = new SkyEnvironment(() => FULL_SKY_BAKE);
         run(sky, c, 'stillNebula', () => 'a', 0, 10);
         expect(c.postprocess_requestSkyCapture).toHaveBeenCalledTimes(1);
         expect(c.environment_create).toHaveBeenCalledTimes(1);
@@ -51,7 +51,7 @@ describe('a still sky as the scene\'s environment', () => {
 
     it('is captured again when its params change, at most once a second', () => {
         const c = core();
-        const sky = new SkyEnvironment(1);
+        const sky = new SkyEnvironment(() => FULL_SKY_BAKE);
         run(sky, c, 'stillNebula', (t) => (t < 2 ? 'a' : `b${Math.floor(t * 4)}`), 0, 4);
         expect(c.postprocess_requestSkyCapture).toHaveBeenCalledTimes(3);
         run(sky, c, 'stillNebula', () => 'c', 4.25, 8);
@@ -62,7 +62,7 @@ describe('a still sky as the scene\'s environment', () => {
 
     it('leaves a sky that is not still captured again every second', () => {
         const c = core();
-        const sky = new SkyEnvironment(1);
+        const sky = new SkyEnvironment(() => FULL_SKY_BAKE);
         run(sky, c, 'movingNebula', () => undefined, 0, 10);
         expect(c.postprocess_requestSkyCapture.mock.calls.length).toBeGreaterThanOrEqual(8);
     });

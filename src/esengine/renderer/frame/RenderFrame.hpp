@@ -140,7 +140,7 @@ public:
     void setSkyEnvironment(resource::EnvironmentHandle environment) { sky_environment_ = environment; }
     void setLightingDirect(bool on);
     bool lightingDirect() const { return lighting_direct_; }
-    void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+    void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond, bool capAuthored);
     /**
      * @brief Note that a view drew a mesh with texture @p texture (a resource handle) where it needs @p side texels across for a texel to
      *        be about a pixel. The largest asked since the last take is kept.
@@ -893,6 +893,7 @@ private:
     bool planar_float_refused_ = false;
     u32 planar_max_size_ = 1024;
     f32 planar_rate_ = 0;
+    bool planar_capped_ = false;
     Entity planar_receiver_ = INVALID_ENTITY;
     u32 planar_texture_ = 0;
     /// Each impostor's atlas, by raw entity id: set by the SDK's bake, read by the mesh collect.

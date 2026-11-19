@@ -29,6 +29,7 @@ import { IGN_GLSL } from '../render/shaderLib';
 export { VOXEL_ATLAS } from './voxelAtlas';
 
 const COMMON = `
+#define VOXEL_BOUNCE_RAYS_MAX 2
 const ivec3 DIMS = ivec3(128, 64, 128);
 const ivec2 META = ivec2(2047, 1023);
 ivec2 slotTexel(ivec3 s, int region) { return ivec2((s.z & 15) * 128 + s.x, region * 512 + (s.z >> 4) * 64 + s.y); }
@@ -60,6 +61,7 @@ export const voxelGIFallback = {
 #pragma param u_bias float default(1.2) range(0,4)
 #pragma param u_sunAlbedo float default(0.6) range(0,1)
 #pragma param u_bounceFeedback float default(1) range(0,1)
+#pragma param u_bounceRays float default(2) range(1,2)
 #pragma lights
 
 #pragma fragment
@@ -269,15 +271,17 @@ void main() {
             vec3 tx = normalize(cross(up, n));
             vec3 ty = cross(n, tx);
             vec3 incoming = vec3(0.0);
-            for (int r = 0; r < 2; ++r) {
-                float u = fract(seed + float(r) * 0.5);
+            float bounceRays = clamp(floor(u_bounceRays + 0.5), 1.0, float(VOXEL_BOUNCE_RAYS_MAX));
+            for (int r = 0; r < VOXEL_BOUNCE_RAYS_MAX; ++r) {
+                if (float(r) >= bounceRays) break;
+                float u = fract(seed + float(r) / bounceRays);
                 float v = fract(seed * 7.13 + float(r) * 0.618);
                 float rr = sqrt(u);
                 float phi = 6.2831853 * v;
                 vec3 dir = normalize(tx * (rr * cos(phi)) + ty * (rr * sin(phi)) + n * sqrt(max(1.0 - u, 0.0)));
                 incoming += traceHeld(o, dir, heldWindow, vs);
             }
-            incoming *= 0.5;
+            incoming /= bounceRays;
             vec3 albedo = albedoCount > 0.0 ? albedoSum / albedoCount : vec3(sunLit ? u_sunAlbedo : 0.0);
             sum += clamp(albedo * incoming * (u_intensity * u_bounceFeedback), vec3(0.0), vec3(u_maxBounce)) * count;
         }

@@ -26,11 +26,11 @@ describe('quality runtime device selection', () => {
             addPlugin: vi.fn(), onFrameEnd: () => () => {},
         } as unknown as App;
         installQuality(app, { mode: 'high', profiles: { high: { shadowDistance: 60, planarReflectionScale: 0.75, planarReflectionMaxSize: 1536 } } }, 4);
-        expect(reflectionBudget).toHaveBeenLastCalledWith(0.75,1536,0);
+        expect(reflectionBudget).toHaveBeenLastCalledWith(0.75, 1536, 0, true);
         expect(distanceBudget).toHaveBeenLastCalledWith(60);
         controller!.setMode('off'); apply!();
         expect(distanceBudget).toHaveBeenLastCalledWith(0);
-        expect(reflectionBudget).toHaveBeenLastCalledWith(0.5,1024,0);
+        expect(reflectionBudget).toHaveBeenLastCalledWith(0.5, 1024, 0, false);
     });
     it('draws a soft 2D shadow with the samples of its level, and with the sixteen it always had when the quality system is off', () => {
         let apply: (() => void) | undefined;

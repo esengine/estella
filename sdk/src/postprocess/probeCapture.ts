@@ -22,11 +22,11 @@ import { createTextureFromPixels } from '../runtime/runtimeAssets';
 import { getResourceManager } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { panoramaDirection, panoramaUV } from '../lightmap/panorama';
+import { SKY_FACE_SIZE } from './skyEnvironment';
 
 /** Pixels a face is across: the light a room sends is smooth, and six of these are drawn one a frame. */
 export const PROBE_CAPTURE_FACE = 32;
 const RANGE = 8;
-const WIDTH = 64;
 
 // Toward each face and its up, as RenderFrameProbeCapture.cpp draws them: +X -X +Y -Y +Z -Z.
 const FACE_DIR = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] as const;
@@ -47,13 +47,13 @@ const FACE_BASIS = FACE_DIR.map((f, i) => {
  * The six RGBM faces (side by side, rows bottom-up as a readback lands) as a panorama of radiance, Panorama's layout. A
  * pixel with alpha 0 had nothing drawn on it and takes the sky there: `sky`, or black without one.
  */
-export function capturePanorama(rgba: Uint8Array, face: number, sky: Panorama | null): Panorama {
-    const height = WIDTH >> 1;
-    const rgb = new Float32Array(WIDTH * height * 3);
+export function capturePanorama(rgba: Uint8Array, face: number, sky: Panorama | null, width = 64): Panorama {
+    const height = width >> 1;
+    const rgb = new Float32Array(width * height * 3);
     const stride = face * 6;
     for (let y = 0; y < height; y++) {
-        for (let x = 0; x < WIDTH; x++) {
-            const d = panoramaDirection((x + 0.5) / WIDTH, (y + 0.5) / height);
+        for (let x = 0; x < width; x++) {
+            const d = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
             let f = 0, best = -Infinity;
             for (let i = 0; i < 6; i++) { const c = dot(d, FACE_DIR[i]!); if (c > best) { best = c; f = i; } }
             const b = FACE_BASIS[f]!;
@@ -62,7 +62,7 @@ export function capturePanorama(rgba: Uint8Array, face: number, sky: Panorama | 
             const px = Math.min(face - 1, Math.max(0, Math.floor(u * face)));
             const row = Math.min(face - 1, Math.max(0, Math.floor(v * face)));
             const i = (row * stride + f * face + px) * 4;
-            const o = (y * WIDTH + x) * 3;
+            const o = (y * width + x) * 3;
             if (rgba[i + 3]! === 0) {
                 if (sky) {
                     const [su, sv] = panoramaUV(d[0]!, d[1]!, d[2]!);
@@ -77,7 +77,7 @@ export function capturePanorama(rgba: Uint8Array, face: number, sky: Panorama | 
             rgb[o] = (rgba[i]! / 255) * m; rgb[o + 1] = (rgba[i + 1]! / 255) * m; rgb[o + 2] = (rgba[i + 2]! / 255) * m;
         }
     }
-    return { width: WIDTH, height, rgb };
+    return { width, height, rgb };
 }
 
 interface CaptureCore {
@@ -103,10 +103,9 @@ interface CaptureState {
     /** The sky panorama that atlas's column 0 was made from: a new sky (the one first made after the captures, a changing
      *  weather) remakes it. */
     sky: Panorama | null;
+    face: number;
 }
 
-/** The reflections' atlas: the same size as the sky's, so a surface leaving a room sees no change of sharpness. */
-const REFLECTION_FACE = 32;
 const REFLECTION_MIPS = 3;
 const REFLECTION_RANGE = 8;
 
@@ -114,9 +113,9 @@ const REFLECTION_RANGE = 8;
  * One atlas, column 0 the sky and a column for each capture in order, prefiltered as an environment's reflection is: what
  * a surface inside a captured box reflects is the room around it rather than the sky outside.
  */
-export function reflectionAtlas(sky: Panorama, captures: readonly Panorama[]): { width: number; height: number; rgba: Uint8Array; columns: number } {
+export function reflectionAtlas(sky: Panorama, captures: readonly Panorama[], face = SKY_FACE_SIZE): { width: number; height: number; rgba: Uint8Array; columns: number } {
     const columns = 1 + captures.length;
-    const pyramids = [sky, ...captures].map((p) => prefilterOctahedral(p, REFLECTION_FACE, REFLECTION_MIPS, REFLECTION_RANGE));
+    const pyramids = [sky, ...captures].map((p) => prefilterOctahedral(p, face, REFLECTION_MIPS, REFLECTION_RANGE));
     const colWidth = pyramids[0]!.width, height = pyramids[0]!.height;
     const rgba = new Uint8Array(colWidth * columns * height * 4);
     pyramids.forEach((pyramid, column) => {
@@ -128,20 +127,21 @@ export function reflectionAtlas(sky: Panorama, captures: readonly Panorama[]): {
 }
 
 /** Rebuilds the reflection atlas from every capture held, and points each volume at its column; lets the last one go. */
-function rebuildReflections(core: CaptureCore, module: ESEngineModule | null, state: CaptureState, sky: Panorama | null): void {
+function rebuildReflections(core: CaptureCore, module: ESEngineModule | null, state: CaptureState, sky: Panorama | null, face: number): void {
     const entities = [...state.grids.keys()];
     state.sky = sky;
+    state.face = face;
     const drop = state.reflection;
     state.reflection = null;
     if (sky && entities.length && core.environment_create && core.renderer_setProbeVolumeReflection) {
-        const atlas = reflectionAtlas(sky, entities.map((e) => state.grids.get(e)!.panorama));
+        const atlas = reflectionAtlas(sky, entities.map((e) => state.grids.get(e)!.panorama), face);
         const texture = createTextureFromPixels(module, { width: atlas.width, height: atlas.height, pixels: atlas.rgba },
             TextureContent.Retained, false, { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         if (texture) {
             const environment = withScratch(core as never, (alloc: (n: number) => number) => {
                 const shPtr = alloc(27 * 4);
                 core.HEAPF32.set(projectIrradianceSH(sky), shPtr >> 2);
-                return core.environment_create!(shPtr, texture, REFLECTION_FACE, REFLECTION_MIPS, REFLECTION_RANGE, atlas.columns);
+                return core.environment_create!(shPtr, texture, face, REFLECTION_MIPS, REFLECTION_RANGE, atlas.columns);
             });
             if (environment) {
                 state.reflection = { environment, texture };
@@ -162,8 +162,17 @@ function rebuildReflections(core: CaptureCore, module: ESEngineModule | null, st
  * The system that keeps capturing volumes filled: one capture at a time, the volume due longest first, again every
  * `captureInterval` seconds (or once). `sky` answers the panorama the scene's sky was last made from, for what shows of it.
  */
-export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () => Panorama | null) {
-    const state: CaptureState = { grids: new Map(), pending: null, reflection: null, sky: null };
+export interface ProbeCaptureLevel {
+    readonly captureFace: number;
+    readonly reflectionFace: number;
+}
+
+export const FULL_PROBE_CAPTURE: ProbeCaptureLevel = { captureFace: PROBE_CAPTURE_FACE, reflectionFace: SKY_FACE_SIZE };
+
+export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () => Panorama | null,
+    level: () => ProbeCaptureLevel = () => FULL_PROBE_CAPTURE) {
+    const state: CaptureState = { grids: new Map(), pending: null, reflection: null, sky: null, face: SKY_FACE_SIZE };
+    let pendingFace = PROBE_CAPTURE_FACE;
     return defineSystem(
         [Query(LightProbeVolume, Transform)],
         (volumes: Iterable<[Entity, LightProbeVolumeData, TransformData]>) => {
@@ -171,6 +180,7 @@ export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () 
             if (!core?.renderer_requestProbeCapture || !core.renderer_pollProbeCapture || !core.renderer_takeProbeCapture
                 || !core.renderer_setProbeVolumeOverride || !core.probe_volume_create) return;
             const now = performance.now() / 1000;
+            const { captureFace, reflectionFace } = level();
             const live = new Set<Entity>();
             let due: { entity: Entity; at: [number, number, number]; since: number } | null = null;
             for (const [entity, volume, transform] of volumes) {
@@ -193,19 +203,19 @@ export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () 
                 state.grids.delete(entity);
                 dropped = true;
             }
-            if (dropped || (state.grids.size && sky() !== state.sky)) rebuildReflections(core, module(), state, sky());
+            if (dropped || (state.grids.size && (sky() !== state.sky || state.face !== reflectionFace))) rebuildReflections(core, module(), state, sky(), reflectionFace);
             if (state.pending !== null) {
                 const status = core.renderer_pollProbeCapture();
                 if (status === 0) return;
                 const entity = state.pending;
                 state.pending = null;
                 if (status !== 1 || !live.has(entity)) return;
-                const bytes = PROBE_CAPTURE_FACE * 6 * PROBE_CAPTURE_FACE * 4;
+                const bytes = pendingFace * 6 * pendingFace * 4;
                 let panorama: Panorama | null = null;
                 const handle = withScratch(core as never, (alloc: (n: number) => number) => {
                     const px = alloc(bytes);
                     if (!core.renderer_takeProbeCapture!(px, bytes)) return 0;
-                    panorama = capturePanorama(core.HEAPU8.slice(px, px + bytes), PROBE_CAPTURE_FACE, sky());
+                    panorama = capturePanorama(core.HEAPU8.slice(px, px + bytes), pendingFace, sky(), reflectionFace * 2);
                     const shPtr = alloc(27 * 4);
                     core.HEAPF32.set(projectIrradianceSH(panorama), shPtr >> 2);
                     return core.probe_volume_create!(1, 1, 1, shPtr);
@@ -215,13 +225,13 @@ export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () 
                 const old = state.grids.get(entity);
                 if (old) core.probe_volume_release?.(old.handle);
                 state.grids.set(entity, { handle, at: now, panorama });
-                // What a shiny surface in the box reflects follows what lights it.
-                rebuildReflections(core, module(), state, sky());
+                rebuildReflections(core, module(), state, sky(), reflectionFace);
                 return;
             }
             if (due) {
-                core.renderer_requestProbeCapture(due.at[0], due.at[1], due.at[2], PROBE_CAPTURE_FACE);
+                core.renderer_requestProbeCapture(due.at[0], due.at[1], due.at[2], captureFace);
                 state.pending = due.entity;
+                pendingFace = captureFace;
             }
         },
         { name: 'ProbeCaptureSystem', runWhenPaused: true },

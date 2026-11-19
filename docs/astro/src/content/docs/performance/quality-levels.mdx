@@ -37,8 +37,8 @@ a column for each level, **Low, Medium and High side by side**, every cell edita
 | View Distance & Draws | Depth pre-pass, Draw call budget |
 | Lights & Shading | 3D lighting (Full or Direct) |
 | Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
-| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
-| Reflections | Planar reflection scale, max size and updates per second; the screen-space reflections effect |
+| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI, the samples and steps of each effect below (see [Samples, steps and bakes](#samples-steps-and-bakes)); the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
+| Reflections | Planar reflection scale, max size and updates per second, SSR steps and refinement, the sky's lighting bake, environment reflection size, probe capture size; the screen-space reflections effect |
 | Sky & Volumetrics | Still sky from a panorama, Fog volume resolution; the sky, fog, light shaft and weather effects |
 | Post-Processing | A master switch, Lens flare resolution; every other effect |
 | Effects & Particles | Particle limit, 2D rain shelter mask |
@@ -206,6 +206,81 @@ pixels each pass draws, which fall to a quarter for every halving.
 `third-person-3d` at Low runs no ambient occlusion, so nothing changes there. The box shares its GPU with other work, so a single
 frame's total moves by a millisecond or more between runs; the pass times are medians.
 
+
+## Samples, steps and bakes
+
+How many samples, rays and steps the lighting effects take, how large a grid or bake they keep and how often they redo it are
+rows of their group too. High is what the engine always did, so a project at High draws what it drew; Low and Medium spend less.
+
+| Setting | Acts on | Low | Medium | High |
+|---|---|---|---|---|
+| SSAO samples (`ssaoSamples`) | SSAO | 6 | 8 | 12 |
+| GTAO slices (`gtaoSlices`) and steps (`gtaoSteps`) | GTAO | 2 × 4 | 2 × 5 | 3 × 6 |
+| Ambient occlusion blur radius (`aoBlurRadius`) | the blur after SSAO and GTAO, texels a side | 2 | 3 | 3 |
+| Screen-space GI rays (`ssgiRays`) and steps (`ssgiSteps`) | screen-space GI | 4 × 4 | 6 × 5 | 8 × 6 |
+| Screen-space GI denoise width (`ssgiDenoiseKernel`) | the bilateral average that lays screen-space GI over the picture | 3 × 3 | 3 × 3 | 5 × 5 |
+| Voxel GI grid (`voxelGIGridSize`) | voxel GI on WebGPU, voxels across (half as many high) | 64 | 128 | 128 |
+| Voxel GI sun samples (`voxelGISunSamples`) | voxel GI on WebGPU, samples a side of each sun shadow tile | 64 | 128 | 256 |
+| Voxel GI bounce rays (`voxelGIBounceRays`) | voxel GI on WebGL2 | 1 | 2 | 2 |
+| Dynamic GI probe rows (`dynamicGIProbeRows`) | Dynamic GI | 30 | 45 | 90 |
+| Dynamic GI field size (`dynamicGIFieldSize`) | Dynamic GI's distance field, cells a side of each level | 64 | 128 | 128 |
+| Dynamic GI field build budget (`dynamicGIFieldBuildMs`) | ms a frame the field rebuilds in after a move (four times it for a scene's first field) | 1 | 2 | 3 |
+| SSR steps (`ssrSteps`) and refinement (`ssrRefine`) | screen-space reflections | 16 + 4 | 32 + 5 | 48 + 6 |
+| Sky lighting update interval (`skyEnvironmentInterval`) | seconds between two bakes of a changing sky | 4 | 2 | 1 |
+| Sky lighting cloud steps (`skyEnvironmentCloudSteps`) | the sky bake's march through the clouds | 8 | 12 | 16 |
+| Environment reflection size (`environmentMapSize`) | the sky's and the captured probes' reflections, texels a side | 16 | 32 | 32 |
+| Probe capture size (`probeCaptureSize`) | each face a capturing light probe volume draws | 16 | 32 | 32 |
+
+A loop a level shortens keeps its reach: SSR with 16 steps marches as far as with 48 in longer strides, a GTAO slice or a GI ray
+spreads its fewer samples over the same radius, and a smaller voxel grid or distance field covers the same world with larger
+cells. Each shader is compiled once, with the High count as its bound, and stops early where the level says, so changing level
+compiles nothing. The Dynamic GI probe rows are no longer set by platform (45 on Android, 90 elsewhere); the cheaper dynamic GI
+still keeps two thirds of the level's rows. By default Low leaves SSR, SSAO, GTAO, voxel GI and dynamic GI out altogether, so their
+Low values matter only to a project that ticks them back in.
+
+While a level is in force a **planar reflection set to its own values** (Custom) is held under the level's: its scale and size no
+larger than the level's planar reflection scale and max size, and, where the level sets planar reflection updates per second, drawn
+no more often than that (one drawn only on request is left alone). The author's values can only make it cheaper. Low draws planar
+reflections at most 30 times a second; Medium and High every frame. With no level in force a Custom reflection keeps its own values.
+
+Measured on the Windows box as above (headless Chromium, WebGL2 on D3D11, RTX 3060, 975 × 2110), each level with these rows at
+High's values (as before) against its new defaults, one after the other on the same frame with the GPU to itself, medians of the passes'
+GPU times. `bistro` was raining at that frame. The box's milliseconds are not a phone's; the counts are what carry over.
+
+| Scene, level | Passes | Per pixel before → after | Those passes, ms before → after |
+|---|---|---|---|
+| `bistro`, Low, SSR and SSAO ticked back in | SSR | 48 steps + 6 halvings → 16 + 4 | 1.48 → 0.87 |
+| | screen-space GI gather and apply | 8 × 6 samples, 25 taps → 4 × 4, 9 taps | 0.81 → 0.35 |
+| | SSAO and its two blurs | 12 samples, 7 + 7 taps → 6, 5 + 5 | 0.24 → 0.14 |
+| `bistro`, Medium, SSR ticked back in | SSR | 48 + 6 → 32 + 5 | 2.62 → 2.10 |
+| | screen-space GI gather and apply | 8 × 6, 25 taps → 6 × 5, 9 taps | 2.22 → 1.23 |
+| | SSAO and its two blurs | 12 → 8 samples | 0.40 → 0.33 |
+| `terrain-water`, Low, GTAO ticked back in | GTAO | 3 × 6 → 2 × 4 samples | 0.12 → 0.05 |
+| `terrain-water`, Medium | GTAO | 3 × 6 → 2 × 5 | 0.25 → 0.15 |
+| `third-person-3d`, Medium | SSAO | 12 → 8 samples | 0.13 → 0.10 |
+| `cyber-rooftop`, Low | its rooftop's Custom planar reflection (scale 1, 2048) | 731 × 1583 every frame → 183 × 396 (1/16 of the pixels), at most 30 a second | 4.87 a frame it is drawn in, before |
+| `cyber-rooftop`, Medium | the same | 946 × 2048 → 473 × 1024 (a quarter) | 2.19 → 1.20 |
+| any, High | none | unchanged | unchanged |
+
+GTAO with a single slice laid the occlusion in horizontal bands on `terrain-water`'s grass and water at Low's size: the pattern that turns the slice
+from pixel to pixel repeats every other pixel of a pass drawn smaller than half the screen, so one slice samples only a few directions in rows.
+Two slices showed none, so two is the fewest the setting allows and Low uses 2 × 4. The 3 × 3 screen-space GI denoise at Medium halves its
+apply pass; on `bistro` it differs from 5 × 5 by 0.14 of 255 on average and by more than 8 at 136 pixels of two million. With SSR ticked back
+in at Low, the 16 steps leave a stipple of the step pattern in a puddle's reflection that the level, with no temporal anti-aliasing, does not
+smooth; a project that turns SSR on at Low may want more steps. With the camera walking at Medium (temporal anti-aliasing on), consecutive frames
+show the same edges and occlusion before and after.
+
+The work on the CPU was measured in Node on a Mac (these are a Mac's milliseconds; a phone takes several times as long):
+
+| Bake | High | Medium | Low |
+|---|---|---|---|
+| Sky lighting: panorama, irradiance and reflection | 64 × 32 directions, 16 cloud steps: 14.8 ms | 64 × 32, 12 steps: 13.3 ms | 32 × 16, 8 steps: 3.3 ms |
+| Dynamic GI distance field, three levels, a full build of 49 boxes | 128³: 6.3 M cells, 30 MB, 270 ms | the same | 64³: 0.8 M cells, 3.8 MB, 108 ms |
+
+The cloud steps change the sky's light by under 1% (8 against 16) and its bake by a sixth; the size of the panorama is what the bake costs.
+The Dynamic GI probe rows, the voxel GI grid and sun samples are WebGPU compute passes, which the headless browser on the box does not run,
+and no example turns voxel GI, Dynamic GI or a capturing probe volume on: their Low and Medium values are the starting points above, not
+measured.
 
 ## Device rules
 

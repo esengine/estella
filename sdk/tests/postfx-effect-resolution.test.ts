@@ -173,7 +173,7 @@ describe('a level value sent to an effect as a uniform', () => {
             const profile = resolveQualityProfile('high', { testMarchSteps: 40.4 } as never);
             expect(qualityPassUniforms(profile, 'testmarch_b')).toEqual([['u_levelSteps', 32]]);
             expect(qualityPassUniforms(profile, 'testmarch_a')).toEqual([['u_levelSteps', 32]]);
-            expect(qualityPassUniforms(profile, 'ssao_ao')).toEqual([]);
+            expect(qualityPassUniforms(profile, 'ssao_ao').some(([name]) => name === 'u_levelSteps')).toBe(false);
             expect(qualityPassUniforms(null, 'testmarch_a')).toEqual([]);
         } finally {
             (QUALITY_SETTINGS as unknown as object[]).pop();

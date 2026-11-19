@@ -252,7 +252,7 @@ export interface NativeEngineApi {
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
-    renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
+    renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean): void;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     renderer_setProbesPerPixel?(on: boolean): void;

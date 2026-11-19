@@ -37,6 +37,7 @@ export interface SkyEnvironmentInput {
     params: (name: string) => number;
     /** Whether the frame lights in linear space. The sky is worked out as light either way; a gamma frame is lit by the codes of it. */
     linear: boolean;
+    cloudSteps?: number;
 }
 
 // The constants of the effect's own shader (sources/atmosphere.ts): kilometres, per kilometre.
@@ -165,7 +166,7 @@ function scatter(dir: readonly number[], sun: readonly number[], alt: number, ha
 
 interface CloudParams {
     coverage: number; base: number; thick: number; alt: number; scale: number; softness: number; evolve: number;
-    silver: number; brightness: number; driftX: number; driftZ: number;
+    silver: number; brightness: number; driftX: number; driftZ: number; steps: number;
     c2: { coverage: number; base: number; thick: number; scale: number; driftX: number; driftZ: number };
 }
 
@@ -210,7 +211,7 @@ function cloudLayer(dir: readonly number[], sun: readonly number[], dome: Float6
     if (p.coverage > 0.01 && dir[1]! > 0.01) {
         const tb = Math.max(p.base - p.alt, 0) / dir[1]!;
         const tt = Math.min((p.base + p.thick - p.alt) / dir[1]!, tb + p.thick * 6);
-        const STEPS = 16;
+        const STEPS = p.steps;
         const ds = (tt - tb) / STEPS;
         const sigma = 1.3 * (1 + overcast * 1.5);
         const phase = cloudPhase(cosS, p.silver);
@@ -241,7 +242,7 @@ function cloudLayer(dir: readonly number[], sun: readonly number[], dome: Float6
     if (c2.coverage > 0.01 && dir[1]! > 0.01) {
         const tb = Math.max(c2.base - p.alt, 0) / dir[1]!;
         const tt = Math.max(c2.base + c2.thick - p.alt, 0) / dir[1]!;
-        const STEPS = 6;
+        const STEPS = Math.max(2, Math.round(p.steps * 6 / SKY_CLOUD_STEPS));
         const ds = (tt - tb) / STEPS;
         const sigma = 1.3 * (1 + overcast);
         const phase = cloudPhase(cosS, p.silver);
@@ -308,7 +309,7 @@ function skyRadianceAndClouds(dir: readonly number[], input: SkyEnvironmentInput
         const T = cloudLayer(dir, sun, dome, sunTrans, cloudNight, overcast, {
             coverage, base: P('u_cloudBase'), thick: P('u_cloudThickness'), alt: P('u_altitude'), scale: P('u_cloudScale'),
             softness: P('u_cloudSoftness'), evolve: P('u_cloudEvolve'), silver: P('u_cloudSilver'), brightness: P('u_cloudBrightness'),
-            driftX: P('u_cloudDriftX'), driftZ: P('u_cloudDriftZ'),
+            driftX: P('u_cloudDriftX'), driftZ: P('u_cloudDriftZ'), steps: Math.max(1, Math.round(input.cloudSteps ?? SKY_CLOUD_STEPS)),
             c2: { coverage: P('u_cloud2Coverage'), base: P('u_cloud2Base'), thick: P('u_cloud2Thickness'), scale: P('u_cloud2Scale'),
                   driftX: P('u_cloud2DriftX') - P('u_cloudDriftX'), driftZ: P('u_cloud2DriftZ') - P('u_cloudDriftZ') },
         }, L);
@@ -382,6 +383,7 @@ export function skyPanorama(input: SkyEnvironmentInput, width = SKY_PANORAMA_WID
 export const SKY_PANORAMA_WIDTH = 64;
 export const SKY_FACE_SIZE = 32;
 export const SKY_MIP_COUNT = 3;
+export const SKY_CLOUD_STEPS = 16;
 export const SKY_MAX_RANGE = 8;
 
 /** The parameters of a resolved Sky Atmosphere, its own default where the volume says nothing. */
@@ -416,6 +418,14 @@ export function skyEnvironmentKey(input: SkyEnvironmentInput): string {
     return parts.join(',');
 }
 
+export interface SkyBakeLevel {
+    readonly interval: number;
+    readonly faceSize: number;
+    readonly cloudSteps: number;
+}
+
+export const FULL_SKY_BAKE: SkyBakeLevel = { interval: 1, faceSize: SKY_FACE_SIZE, cloudSteps: SKY_CLOUD_STEPS };
+
 /** A sky made into an environment: what the frame is handed, and the reflection atlas it holds. */
 interface BakedSky {
     environment: number;
@@ -434,7 +444,7 @@ interface SkyEnvironmentCore {
 }
 
 /**
- * The sky environment the frame lights with: worked out again when the sky changes, at most once a `minInterval` seconds, and
+ * The sky environment the frame lights with: worked out again when the sky changes, at most once a level's `skyEnvironmentInterval` seconds, and
  * let go (the frame told it has none) when no Sky Atmosphere asks to light the scene.
  */
 export class SkyEnvironment {
@@ -445,8 +455,9 @@ export class SkyEnvironment {
     private capturing_ = false;
     private requested_ = '';
     private panorama_: Panorama | null = null;
+    private requestedFace_ = SKY_FACE_SIZE;
 
-    constructor(private readonly minInterval = 1) {}
+    constructor(private readonly level: () => SkyBakeLevel = () => FULL_SKY_BAKE) {}
 
     /** The panorama the sky's environment was last made from (radiance, Panorama's layout), or null: what a probe capture
      *  shows where it sees the sky. */
@@ -472,12 +483,12 @@ export class SkyEnvironment {
             }
             return;
         }
-        const key = skyEnvironmentKey(input);
+        const level = this.level();
+        const key = `${skyEnvironmentKey(input)}|${level.faceSize}|${level.cloudSteps}`;
         if (key === this.key_) return;
-        // A first sky is made at once; a sky that keeps changing waits its turn.
-        if (this.baked_ && now - this.lastBake_ < this.minInterval) return;
-        const panorama = skyForFrame(skyPanorama(input), input.linear);
-        const made = bakePanorama(module, core, panorama);
+        if (this.baked_ && now - this.lastBake_ < level.interval) return;
+        const panorama = skyForFrame(skyPanorama({ ...input, cloudSteps: level.cloudSteps }, level.faceSize * 2), input.linear);
+        const made = bakePanorama(module, core, panorama, level.faceSize);
         if (!made) return;
         this.panorama_ = panorama;
         this.adopt(core, made, key, now);
@@ -505,17 +516,19 @@ export class SkyEnvironment {
             });
             if (!pixels) return;
             const panorama = decodeSkyCapture(pixels, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
-            const made = bakePanorama(module, core, panorama);
+            const made = bakePanorama(module, core, panorama, this.requestedFace_);
             if (made) { this.panorama_ = panorama; this.adopt(core, made, this.requested_, now); }
             return;
         }
-        const key = still === undefined ? `custom:${type}` : `custom:${type}:${still}`;
-        const recent = now - this.lastBake_ < this.minInterval;
+        const level = this.level();
+        const key = still === undefined ? `custom:${type}:${level.faceSize}` : `custom:${type}:${level.faceSize}:${still}`;
+        const recent = now - this.lastBake_ < level.interval;
         if (this.baked_ && key === this.key_ && (still !== undefined || recent)) return;
         if (this.baked_ && still !== undefined && recent) return;
         core.postprocess_requestSkyCapture(type, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
         this.capturing_ = true;
         this.requested_ = key;
+        this.requestedFace_ = level.faceSize;
     }
 
     private adopt(core: SkyEnvironmentCore, made: BakedSky, key: string, now: number): void {
@@ -544,9 +557,9 @@ export class SkyEnvironment {
 }
 
 /** A panorama of radiance made into an environment: its nine irradiance coefficients and its prefiltered reflection. */
-function bakePanorama(module: ESEngineModule | null, core: SkyEnvironmentCore, panorama: Panorama): BakedSky | null {
+function bakePanorama(module: ESEngineModule | null, core: SkyEnvironmentCore, panorama: Panorama, faceSize: number): BakedSky | null {
     const irradiance = projectIrradianceSH(panorama);
-    const atlas = prefilterOctahedral(panorama, SKY_FACE_SIZE, SKY_MIP_COUNT, SKY_MAX_RANGE);
+    const atlas = prefilterOctahedral(panorama, faceSize, SKY_MIP_COUNT, SKY_MAX_RANGE);
     // flipY false: the atlas' rows are a layout (row 0 is mip 0), as the environment loader takes it.
     const texture = createTextureFromPixels(module, { width: atlas.width, height: atlas.height, pixels: atlas.rgba },
         TextureContent.Retained, false, { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
@@ -554,7 +567,7 @@ function bakePanorama(module: ESEngineModule | null, core: SkyEnvironmentCore, p
     const environment = withScratch(core as never, (alloc: (bytes: number) => number) => {
         const shPtr = alloc(27 * 4);
         core.HEAPF32.set(irradiance, shPtr >> 2);
-        return core.environment_create!(shPtr, texture, SKY_FACE_SIZE, SKY_MIP_COUNT, SKY_MAX_RANGE, 1);
+        return core.environment_create!(shPtr, texture, faceSize, SKY_MIP_COUNT, SKY_MAX_RANGE, 1);
     });
     if (!environment) {
         getResourceManager()?.releaseTexture(texture);
