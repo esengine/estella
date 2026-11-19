@@ -150,7 +150,9 @@ that cannot follow a change of the tool list. The table below names tools from e
 The `tripo` group generates a textured 3D model from a sentence or a picture with [Tripo AI](https://www.tripo3d.ai/) and imports
 it the way a dropped `.glb` is imported, so the answer names a prefab the agent can place, with Tripo's preview picture beside it.
 It needs a Tripo API key, which you add in **Settings > Tools and AI > AI Agents > Tripo API key** (keys are made at
-developers.tripo3d.ai). The key stays in this machine's keychain: it is never written into the project, and the editor window
+developers.tripo3d.ai). Tripo runs a second site for mainland China, tripo3d.com, with its own accounts, keys and
+credits: choose it under **Tripo site** in the same section and add its key below the international one. A generation
+already running stays on the site that started it. The key stays in this machine's keychain: it is never written into the project, and the editor window
 never reads it back. Every generation spends the account's credits; `tripo_balance` shows what is left.
 
 A generation takes two to five minutes, and the editor keeps it rather than the agent's call: `tripo_generate` answers at once
