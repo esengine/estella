@@ -546,6 +546,22 @@ export const SCENES = [
   // rather than honoured into a bind pose: the skin draws as it always did
   // (mesh-skin's own points), and thresholds that would cull it decide nothing.
   { id: "lod-skin-refused", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/lod-skin.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.lod.groups\":0,\"render.lod.culled\":0,\"render.meshes\":1}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // The camera pipeline (sdk/src/camera/CameraRig.ts), in play mode where it runs. A perspective camera that starts
+  // looking down -Z with a red cube up and to its right: LookAtTarget turns it until the cube is where the shot puts
+  // it, and keeps it there. The probes are the shot: red where the cube is held, black where it would be if the
+  // camera had not turned.
+  { id: "camera-look-at", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-look-at.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.9,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
+  // Held up and to the left of centre (screenX 0.3, screenY 0.7): on a square view, which a 16:9 lens assumption put
+  // twice as far left as asked.
+  { id: "camera-look-at-off-centre", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-look-at-off-centre.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3,\"y\":0.3,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
+  // The camera under a node turned a quarter about up, its target behind where the node faces: the world turn it wants
+  // goes through the parent's back to its own rotation.
+  { id: "camera-look-at-parented", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-look-at-parented.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.9,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
+  // Two active cameras either side of a cube; the right one's priority goes above the left one's. With a CameraBrain
+  // blending linearly over a second, half a second later the view is halfway: the cube in the middle, where neither
+  // camera shows it. Without a brain the view cuts: the cube where the right camera shows it.
+  { id: "camera-brain-blend", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-brain-blend.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Camera\",\"key\":\"priority\",\"value\":5,\"steps\":30}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.725,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.275,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
+  { id: "camera-brain-cut", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/camera-brain-cut.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_SET_FIELD: "{\"entity\":1,\"component\":\"Camera\",\"key\":\"priority\",\"value\":5,\"steps\":30}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.275,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]"} },
   // A torus of 9216 triangles cut into clusters (fixtures/scenes/cluster-torus.esmesh), red and unlit on black.
   // The counters are the claim: one clustered mesh, drawn with the triangles a 256-pixel view can tell apart
   // from where it stands, and fewer of them the farther that is. The probes are the witness that the picked

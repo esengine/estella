@@ -812,6 +812,26 @@
       ]
     },
     {
+      "name": "CameraBrain",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "defaultBlend",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "blendCurve",
+          "type": "number",
+          "default": "3"
+        }
+      ],
+      "animatable": [
+        "defaultBlend",
+        "blendCurve"
+      ]
+    },
+    {
       "name": "Canvas",
       "source": "cpp",
       "fields": [
@@ -2899,8 +2919,9 @@
       "fields": [
         {
           "key": "target",
-          "type": "number",
-          "default": "-1"
+          "type": "Entity",
+          "default": "none",
+          "doc": "The transform this camera follows."
         },
         {
           "key": "offsetX",
@@ -2925,12 +2946,16 @@
         {
           "key": "deadzone",
           "type": "number",
-          "default": "0"
+          "default": "0",
+          "doc": "How far the target may move, in world units, before the camera follows.",
+          "range": "≥ 0"
         },
         {
           "key": "damping",
           "type": "number",
-          "default": "0.25"
+          "default": "0.25",
+          "doc": "Seconds to catch up most of the way; 0 follows at once.",
+          "range": "≥ 0, step 0.05"
         }
       ],
       "animatable": [
@@ -4134,6 +4159,80 @@
           "type": "boolean",
           "default": "true"
         }
+      ]
+    },
+    {
+      "name": "LookAtTarget",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "target",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The transform this camera turns to look at."
+        },
+        {
+          "key": "offsetX",
+          "type": "number",
+          "default": "0",
+          "doc": "Point looked at, as an offset from the target in world units: its head rather than its feet."
+        },
+        {
+          "key": "offsetY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "offsetZ",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "screenX",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Where the target is held across the screen: 0 left, 0.5 centre, 1 right.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "screenY",
+          "type": "number",
+          "default": "0.5",
+          "doc": "Where the target is held up the screen: 0 bottom, 0.5 centre, 1 top.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "deadzoneWidth",
+          "type": "number",
+          "default": "0",
+          "doc": "Share of the screen the target may move across without the camera turning.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "deadzoneHeight",
+          "type": "number",
+          "default": "0",
+          "doc": "Share of the screen the target may move up and down without the camera turning.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "damping",
+          "type": "number",
+          "default": "0.1",
+          "doc": "Seconds to turn most of the way to the target; 0 turns at once.",
+          "range": "≥ 0, step 0.05"
+        }
+      ],
+      "animatable": [
+        "target",
+        "offsetX",
+        "offsetY",
+        "offsetZ",
+        "screenX",
+        "screenY",
+        "deadzoneWidth",
+        "deadzoneHeight",
+        "damping"
       ]
     },
     {

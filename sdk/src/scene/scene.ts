@@ -213,6 +213,8 @@ export function remapEntityFields(
     const data = compData.data as Record<string, unknown>;
     const remap = (editorId: unknown): unknown => {
         if (typeof editorId !== 'number' || editorId === INVALID_ENTITY) return editorId;
+        // No entity has a negative id: one is a field's own "none", which older documents wrote as -1.
+        if (editorId < 0) return INVALID_ENTITY;
         const runtimeId = entityMap.get(editorId) ?? external?.get(editorId);
         if (runtimeId === undefined) {
             log.warn(

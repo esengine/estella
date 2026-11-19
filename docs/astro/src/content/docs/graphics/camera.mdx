@@ -135,7 +135,7 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `target` | Entity | `-1` | Entity to follow (`-1` = none). |
+| `target` | Entity | `0` | Entity to follow (`0` = none; a `-1` from an older scene reads as none too). |
 | `offsetX` | number | `0` | World-space X offset from the target. |
 | `offsetY` | number | `0` | World-space Y offset from the target. |
 | `offsetZ` | number | `0` | World-space Z offset from the target (used by 3D follow). |
@@ -147,6 +147,57 @@ The data shape is exported as the `FollowTargetData` type. The follow system wri
 the camera's `Transform` directly (so the director blends already-followed views)
 and runs in **play mode only** — the editor's navigation view is never dragged
 around by it.
+
+## Look at a target
+
+`FollowTarget` decides where a camera stands; `LookAtTarget` decides where it looks. Add it to a perspective camera
+and point it at an entity: the camera turns so the target sits at a chosen point of the screen, the way Unity
+Cinemachine's Rotation Composer frames a shot. The target may drift inside a dead zone around that point without the
+camera turning, and outside it the camera turns only enough to bring it back to the zone's edge, eased by `damping`.
+
+```typescript
+import { LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity).insert(LookAtTarget, {
+  target: hero,
+  offsetY: 160,          // the head, not the feet
+  screenX: 0.5,          // held in the middle...
+  screenY: 0.6,          // ...a little above centre
+  deadzoneWidth: 0.1,    // free to move across a tenth of the screen
+  deadzoneHeight: 0.1,
+  damping: 0.2,
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `target` | Entity | `0` | Entity to look at (`0` = none). |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | Point looked at, as a world-space offset from the target. |
+| `screenX` | number | `0.5` | Where the target is held across the screen: `0` left edge, `0.5` centre, `1` right edge. |
+| `screenY` | number | `0.5` | Where the target is held up the screen: `0` bottom edge, `0.5` centre, `1` top edge. |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | Share of the screen the target may move in without the camera turning. |
+| `damping` | number | `0.1` | Seconds to turn most of the way to the target (`0` = at once). The same at any frame rate. |
+
+The camera turns about world up and its own right, so it never rolls. A camera under a parent is turned in the world
+and its own rotation is worked out through the parent's. An orthographic camera is left alone: it draws a plane, and
+turning it would show the plane's edge. The screen point is measured on the view the camera actually draws, its
+`viewport` share of the screen, so a shot holds the same framing on a phone and on a wide monitor.
+
+## The camera pipeline
+
+Every `Camera` is a virtual camera: a view the scene describes. Each frame, before any view is chosen, every camera is
+moved by the components it carries, always in this order:
+
+| Stage | Component | Cinemachine | Unreal |
+|---|---|---|---|
+| 1. Position: where it stands | `FollowTarget` | Position Control (Follow) | camera rig position node |
+| 2. Rotation: where it looks | `LookAtTarget` | Rotation Control (Rotation Composer) | camera rig look-at node |
+| 3. Finalize: limits on the result | `CameraBounds` | Extensions (Confiner) | camera modifiers |
+
+A stage reads what the stages before it wrote, so a camera that follows and looks at the same character aims from
+where it stands this frame. The camera director then picks one live camera and blends into it (below): Cinemachine's
+Brain and Unreal's `PlayerCameraManager`. Camera shake is applied after that, to the drawn view only, never to a
+camera's `Transform`, as a Cinemachine Impulse and an Unreal camera shake are. The pipeline runs in **play mode only**.
 
 ## Keep the camera inside the level
 
@@ -248,7 +299,32 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 
 `BlendCurve` values are `Linear`, `EaseIn`, `EaseOut`, and `EaseInOut`. `time <= 0`
 (or no prior view) is an instant cut. Position, zoom, and rotation interpolate;
-discrete fields (projection, viewport) snap at the midpoint.
+a 3D camera's orientation turns the short way round from one camera's to the
+other's; discrete fields (projection, viewport) snap at the midpoint.
+
+## Switching cameras by priority
+
+Among the active cameras that fill the screen, the one with the highest `priority` is live; on a tie, the first. Raise
+a camera's priority, or turn a camera on or off, and a different one goes live. By default the view cuts to it. Add a
+`CameraBrain` to any entity of the scene and the view blends instead, the way a Cinemachine Brain's Default Blend does:
+
+```typescript
+import { CameraBrain, BlendCurve } from 'esengine';
+
+cmds.spawn().insert(CameraBrain, { defaultBlend: 1.2, blendCurve: BlendCurve.EaseInOut });
+
+// Later: this camera goes live, and the view eases over to it in 1.2 seconds.
+cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `defaultBlend` | number | `1` | Seconds the view takes to move to a camera that goes live without being asked for. `0` cuts. |
+| `blendCurve` | number | `EaseInOut` | Easing of that blend: `BlendCurve.Linear`, `EaseIn`, `EaseOut` or `EaseInOut`. |
+
+If the live camera changes again in the middle of a blend, the new blend starts from where the view is, so it never
+jumps. A `setViewTarget` names its own blend time and is not affected by the brain. One brain per scene; a scene
+without one cuts, as before.
 
 ## The camera director
 
@@ -322,7 +398,8 @@ updateCameraAspectRatio(app.world, canvas.width / canvas.height);
 
 ## Multiple cameras & split-screen
 
-With several `Camera` entities, `isActive` + `priority` decide which is live. Give
+With several `Camera` entities, the active one with the highest `priority` is live (see
+[Switching cameras by priority](#switching-cameras-by-priority)). Give
 each camera a sub-rectangle via `viewport` to share the screen — e.g. two-player
 split-screen, left and right halves:
 

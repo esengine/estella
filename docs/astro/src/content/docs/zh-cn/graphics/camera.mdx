@@ -122,7 +122,7 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `target` | Entity | `-1` | 要跟随的实体(`-1` = 无)。 |
+| `target` | Entity | `0` | 要跟随的实体(`0` = 无;旧场景里的 `-1` 也当作无)。 |
 | `offsetX` | number | `0` | 相对目标的世界空间 X 偏移。 |
 | `offsetY` | number | `0` | 相对目标的世界空间 Y 偏移。 |
 | `offsetZ` | number | `0` | 相对目标的世界空间 Z 偏移(3D 跟随使用)。 |
@@ -132,6 +132,55 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 
 数据形状导出为 `FollowTargetData` 类型。跟随系统直接写相机的 `Transform`(所以 director
 混合的是已跟随的视图),且**只在 play 模式运行**——编辑器的导航视图永远不会被它拖走。
+
+## 看向目标
+
+`FollowTarget` 决定相机站在哪,`LookAtTarget` 决定它看向哪。把它加到透视相机上并指向一个实体,相机就会转动,
+让目标停在画面上指定的位置,就像 Unity Cinemachine 的 Rotation Composer 构图那样。目标在这个位置周围的死区里移动时,
+相机不转;移出死区后,相机只转到让目标回到死区边缘为止,转动的快慢由 `damping` 控制。
+
+```typescript
+import { LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity).insert(LookAtTarget, {
+  target: hero,
+  offsetY: 160,          // 看头部,而不是脚下
+  screenX: 0.5,          // 水平居中……
+  screenY: 0.6,          // ……略高于画面中心
+  deadzoneWidth: 0.1,    // 在画面宽度的十分之一内自由移动
+  deadzoneHeight: 0.1,
+  damping: 0.2,
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 要看向的实体(`0` = 无)。 |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | 看向的点,即相对目标的世界空间偏移。 |
+| `screenX` | number | `0.5` | 目标在画面上的水平位置:`0` 左边缘,`0.5` 中心,`1` 右边缘。 |
+| `screenY` | number | `0.5` | 目标在画面上的竖直位置:`0` 下边缘,`0.5` 中心,`1` 上边缘。 |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | 目标可以移动而相机不转的范围,占画面的比例。 |
+| `damping` | number | `0.1` | 转到目标大部分路程所需的秒数(`0` = 立即)。在任何帧率下结果相同。 |
+
+相机只绕世界的上方向和自身的右方向转动,所以不会发生翻滚。挂在父节点下的相机按世界朝向转动,
+再通过父节点换算成自己的本地旋转。正交相机不受影响:它画的是一个平面,转动它只会看到平面的边缘。
+画面位置按相机实际绘制的视口(它的 `viewport` 占屏幕的部分)来量,所以同一个构图在手机和宽屏上都一样。
+
+## 相机流水线
+
+每个 `Camera` 都是一台虚拟相机:场景描述的一个视角。每一帧,在选出要显示的视角之前,每台相机都按它带的组件
+依次被移动,顺序固定为:
+
+| 阶段 | 组件 | Cinemachine | Unreal |
+|---|---|---|---|
+| 1. 位置:站在哪 | `FollowTarget` | Position Control(Follow) | 相机 rig 的位置节点 |
+| 2. 朝向:看向哪 | `LookAtTarget` | Rotation Control(Rotation Composer) | 相机 rig 的注视节点 |
+| 3. 收尾:对结果的限制 | `CameraBounds` | Extensions(Confiner) | 相机修改器 |
+
+后面的阶段读取前面阶段写下的结果,所以一台既跟随又注视同一个角色的相机,是从它这一帧所站的位置去瞄准的。
+之后相机导演(下文)从中选出一台活动相机并混合过去,相当于 Cinemachine 的 Brain 和 Unreal 的 `PlayerCameraManager`。
+震屏在那之后施加,只作用于最终画面,从不改相机的 `Transform`,和 Cinemachine 的 Impulse、Unreal 的相机震动一样。
+流水线**只在播放模式下**运行。
 
 ## 把相机限制在关卡内
 
@@ -227,7 +276,30 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 ```
 
 `BlendCurve` 取值为 `Linear`、`EaseIn`、`EaseOut`、`EaseInOut`。`time <= 0`(或没有先前视图)
-即硬切。位置、缩放、旋转会插值;离散字段(投影、视口)在中点翻转。
+即硬切。位置、缩放、旋转会插值;3D 相机的朝向沿较短的路径从一台转到另一台;离散字段(投影、视口)在中点翻转。
+
+## 按优先级切换相机
+
+在铺满屏幕的激活相机里,`priority` 最高的那台是活动相机;优先级相同时取第一台。提高某台相机的优先级,或者打开、
+关闭某台相机,活动相机就会换成另一台。默认是直接切过去。在场景里任意实体上加一个 `CameraBrain`,就会改为平滑混合,
+相当于 Cinemachine Brain 的 Default Blend:
+
+```typescript
+import { CameraBrain, BlendCurve } from 'esengine';
+
+cmds.spawn().insert(CameraBrain, { defaultBlend: 1.2, blendCurve: BlendCurve.EaseInOut });
+
+// 之后:这台相机成为活动相机,画面在 1.2 秒内平滑过渡过去。
+cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `defaultBlend` | number | `1` | 没有显式指定、活动相机自己变了时,画面过渡所用的秒数。`0` 为硬切。 |
+| `blendCurve` | number | `EaseInOut` | 过渡的缓动:`BlendCurve.Linear`、`EaseIn`、`EaseOut` 或 `EaseInOut`。 |
+
+如果在混合途中活动相机又变了,新的混合从画面当前所在的位置开始,不会跳变。`setViewTarget` 自带混合时长,
+不受大脑影响。每个场景一个大脑;没有大脑的场景照旧硬切。
 
 ## 相机 director
 
@@ -295,7 +367,7 @@ updateCameraAspectRatio(app.world, canvas.width / canvas.height);
 
 ## 多相机与分屏
 
-有多个 `Camera` 实体时,`isActive` + `priority` 决定谁是活动的。用 `viewport` 给每个相机一个
+有多个 `Camera` 实体时,激活的相机里 `priority` 最高的那台是活动相机(见[按优先级切换相机](#按优先级切换相机))。用 `viewport` 给每个相机一个
 子矩形来共享屏幕——例如双人分屏,左右各半:
 
 ```typescript

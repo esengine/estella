@@ -12,10 +12,10 @@
  */
 import { defineComponent, Transform } from '../ecs/component';
 import type { World } from '../ecs/world';
-import type { Entity, Vec3 } from '../types';
+import { INVALID_ENTITY, type Entity, type Vec3 } from '../types';
 
 export interface FollowTargetData {
-  /** Entity to follow (-1 = none). */
+  /** Entity to follow (0 = none; a negative id, which older scenes hold, is none too). */
   target: number;
   /** World-space offset added to the target position. */
   offsetX: number;
@@ -35,13 +35,22 @@ export interface FollowTargetData {
 }
 
 export const FollowTarget = defineComponent<FollowTargetData>('FollowTarget', {
-  target: -1,
+  target: INVALID_ENTITY,
   offsetX: 0,
   offsetY: 0,
   offsetZ: 0,
   followZ: false,
   deadzone: 0,
   damping: 0.25,
+}, {
+  // Named so a scene's reference to the followed entity is carried to the entity it loads as; before, only a target a
+  // script set at run time was followed.
+  entityFields: ['target'],
+  fields: {
+    target: { tooltip: 'The transform this camera follows.' },
+    deadzone: { min: 0, tooltip: 'How far the target may move, in world units, before the camera follows.' },
+    damping: { min: 0, step: 0.05, unit: 's', tooltip: 'Seconds to catch up most of the way; 0 follows at once.' },
+  },
 });
 
 /**
@@ -77,7 +86,7 @@ export function followUpdate(world: World, dt: number): void {
   for (const e of entities) {
     const ft = world.get(e, FollowTarget);
     const target = ft.target as Entity;
-    if (ft.target < 0 || !world.valid(target) || !world.has(target, Transform)) continue;
+    if (ft.target <= 0 || !world.valid(target) || !world.has(target, Transform)) continue;
     const camT = world.get(e, Transform);
     const tgtT = world.get(target, Transform);
     // A camera that does not follow depth is asked for the depth it already has,

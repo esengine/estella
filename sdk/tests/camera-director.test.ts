@@ -81,6 +81,21 @@ describe('resolveMainPOV', () => {
     expect(resolveMainPOV(dir(), [highInactive, lowActive], 0, true)?.entity).toBe(1);
   });
 
+  it('picks the highest priority among active cameras, which is every camera the engine hands over', () => {
+    // The engine's camera list holds only active cameras (registry_getCameraEntities), so "the first active one" was
+    // whichever came first, and priority chose nothing.
+    const first = mkPOV({ entity: 1, isActive: true, priority: 1 });
+    const higher = mkPOV({ entity: 2, isActive: true, priority: 5 });
+    expect(resolveMainPOV(dir(), [first, higher], 0, true)?.entity).toBe(2);
+    expect(resolveMainPOV(dir(), [higher, first], 0, true)?.entity).toBe(2);
+  });
+
+  it('keeps the first of two active cameras of equal priority, whichever order they arrive in next', () => {
+    const a = mkPOV({ entity: 1, isActive: true, priority: 3 });
+    const b = mkPOV({ entity: 2, isActive: true, priority: 3 });
+    expect(resolveMainPOV(dir(), [a, b], 0, true)?.entity).toBe(1);
+  });
+
   it('falls back to highest priority when none is active', () => {
     const p0 = mkPOV({ entity: 1, priority: 0 });
     const p5 = mkPOV({ entity: 2, priority: 5 });

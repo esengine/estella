@@ -13,6 +13,7 @@
  * component left at its defaults constrains nothing.
  */
 import { defineComponent, Transform, Camera, ProjectionType } from '../ecs/component';
+import { cameraAspect } from './cameraAspect';
 import type { World } from '../ecs/world';
 
 export interface CameraBoundsData {
@@ -46,8 +47,12 @@ export function clampCameraAxis(
     return Math.min(Math.max(centre, min + halfExtent), max - halfExtent);
 }
 
-/** Hold every bounded camera inside its rectangle (called by the bounds system). */
-export function cameraBoundsUpdate(world: World): void {
+/**
+ * Hold every bounded camera inside its rectangle (the finalize stage of CameraRig.ts). Its width is the screen's share
+ * the camera draws (`screenAspect` wide for its height, cameraAspect); before a screen is known, Camera.aspectRatio, or
+ * square.
+ */
+export function cameraBoundsUpdate(world: World, screenAspect = 0): void {
     for (const e of world.getEntitiesWithComponents([CameraBounds, Camera, Transform])) {
         const camera = world.get(e, Camera);
         // The half extents of a perspective camera depend on how far away the
@@ -57,7 +62,8 @@ export function cameraBoundsUpdate(world: World): void {
         const bounds = world.get(e, CameraBounds);
         const transform = world.get(e, Transform);
         const halfHeight = camera.orthoSize;
-        const halfWidth = halfHeight * (camera.aspectRatio > 0 ? camera.aspectRatio : 1);
+        const drawn = cameraAspect(camera, screenAspect);
+        const halfWidth = halfHeight * (drawn > 0 ? drawn : camera.aspectRatio > 0 ? camera.aspectRatio : 1);
         const x = clampCameraAxis(transform.position.x, halfWidth, bounds.minX, bounds.maxX);
         const y = clampCameraAxis(transform.position.y, halfHeight, bounds.minY, bounds.maxY);
         if (x === transform.position.x && y === transform.position.y) continue;

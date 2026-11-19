@@ -173,6 +173,15 @@ export interface CameraDirectorState {
   timelineShot: TimelineShot | null;
   /** The timeline player that set `timelineShot`, so only it can take it back. */
   timelineOwner: number;
+  /**
+   * The blend a change of the live camera gets when nothing asked for it: a higher priority, a camera turned on or off,
+   * isActive moved. Seconds; 0 cuts, which is what a scene without a CameraBrain does. Set from the scene's CameraBrain
+   * each frame (CameraRig.ts), as Cinemachine's Brain holds its Default Blend.
+   */
+  defaultBlend: number;
+  defaultCurve: number;
+  /** The camera the last resolve settled on, to see the live camera change between two of them. -1 before the first. */
+  lastLive: number;
 }
 
 /** A shot between two cameras, `weight` of the way from `from` (or none) to `to`. */
@@ -199,6 +208,9 @@ export const DEFAULT_DIRECTOR: CameraDirectorState = {
   shakeSeq: 0,
   timelineShot: null,
   timelineOwner: -1,
+  defaultBlend: 0,
+  defaultCurve: BlendCurve.EaseInOut,
+  lastLive: -1,
 };
 
 /** A fresh director state (own arrays) — use per App, not the shared default. */
@@ -323,13 +335,19 @@ function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): Cam
   };
 }
 
-/** The active camera by policy: isActive wins (authoritative), else highest priority. */
+/**
+ * The live camera by policy: the highest priority among the active cameras, as Cinemachine picks among enabled virtual
+ * cameras; among all of them when none is active. A tie keeps the first. The engine hands over only active cameras, so
+ * taking the first active one, as this did, let priority choose nothing.
+ */
 function pickActive(candidates: CameraPOV[]): CameraPOV {
-  const active = candidates.find((c) => c.isActive);
-  if (active) return active;
-  let best = candidates[0];
-  for (const c of candidates) if (c.priority > best.priority) best = c;
-  return best;
+  const anyActive = candidates.some((c) => c.isActive);
+  let best: CameraPOV | null = null;
+  for (const c of candidates) {
+    if (anyActive && !c.isActive) continue;
+    if (!best || c.priority > best.priority) best = c;
+  }
+  return best ?? candidates[0];
 }
 
 /**
@@ -353,6 +371,7 @@ export function resolveMainPOV(
   }
 
   // Apply a pending setViewTarget — snapshot the current view as the blend start.
+  const asked = dir.hasPending;
   if (dir.hasPending) {
     dir.hasPending = false;
     if (dir.pendingTime > 0 && dir.currentMain) {
@@ -382,6 +401,17 @@ export function resolveMainPOV(
   const targetPOV =
     (dir.target >= 0 ? candidates.find((c) => c.entity === dir.target) : undefined) ??
     pickActive(candidates);
+
+  // The live camera changed with nothing asking: blend into it by the brain's default, from wherever the view is now (a
+  // blend under way included, so a second change mid-blend does not jump).
+  if (!asked && dir.lastLive >= 0 && targetPOV.entity !== dir.lastLive && dir.defaultBlend > 0 && dir.currentMain) {
+    dir.from = clonePOV(dir.currentMain);
+    dir.blending = true;
+    dir.startTime = now;
+    dir.duration = dir.defaultBlend;
+    dir.curve = dir.defaultCurve;
+  }
+  dir.lastLive = targetPOV.entity;
 
   let main: CameraPOV;
   if (dir.blending && dir.from) {

@@ -172,6 +172,8 @@ const DISPOSITION = {
   BoneConstraint2D: ['owed', 'arrives with the first example that has a Bone2D, for the same reason'],
   TerrainBand2D: ['owed', 'no example draws a 2D ground from a spline yet; the first side-scroller built on one carries it'],
   Impostor: ['owed', 'no example has far objects small enough to stand a picture in for yet; an open 3D world with distant props is the first to'],
+  LookAtTarget: ['owed', 'no example frames a 3D shot on a character yet; the shots of the cutscene example, each holding its subject on screen, are where the first one goes'],
+  CameraBrain: ['owed', 'no example switches between cameras by priority yet; the cutscene example, handing its shots over by priority rather than by script, is where the first one goes'],
   Billboard: ['owed', 'no example draws a card that faces the camera yet; a 3D scene with signs or far trees on cards is the first to'],
   CanvasEffect: ['owed', 'authored by a game today (space-frigate, in a repository of its own, puts it on the Canvas its HUD builds in code) and as scene data by the pixel fixture ui-screen-effect, which is not an example; the pages of the ui-game template are where the first one goes'],
   Replicated: ['code-only', 'multiplayer-arena declares its replicated set beside the server systems that own it; the wire table is a contract both ends compile against, not scene content'],

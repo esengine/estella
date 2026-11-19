@@ -10,8 +10,10 @@ import type { SystemDef } from '../ecs/system';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
-import { FollowTarget, followUpdate } from './FollowTarget';
-import { CameraBounds, cameraBoundsUpdate } from './CameraBounds';
+import { FollowTarget } from './FollowTarget';
+import { CameraBounds } from './CameraBounds';
+import { LookAtTarget } from './LookAtTarget';
+import { CameraBrain, cameraRigUpdate } from './CameraRig';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -1021,22 +1023,22 @@ export function cameraPlugin(
                 },
             };
 
-            // Per-camera follow (Cinemachine vcam Body): damp FollowTarget cameras
-            // toward their target each frame, BEFORE camera collection, so the
-            // director blends already-followed POVs. Play mode only (gameplay).
+            // Every camera's pipeline (CameraRig.ts): position, rotation, then the limits on both, in that order, and the
+            // brain's blend handed to the director. Before camera collection, so the director picks and blends cameras
+            // that have already moved this frame. Play mode only (gameplay).
             app.addSystemToSchedule(Schedule.Update, defineSystem(
                 [Res(Time)],
-                (time: TimeData) => followUpdate(app.world, time.delta),
-                { name: 'CameraFollowSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget] });
-
-            // Runs last of the camera movers: bounds constrain where a camera
-            // ends its frame, whatever put it there.
-            app.addSystemToSchedule(Schedule.Update, defineSystem(
-                [],
-                () => cameraBoundsUpdate(app.world),
-                { name: 'CameraBoundsSystem' },
-            ), { runIf: playModeOnly, activeWhen: [CameraBounds] });
+                (time: TimeData) => {
+                    // The main view's own pixels, as last drawn (UICameraInfo is synced before Update): the UI layout's
+                    // box is in design units, which held a 16:9 design on a square screen and put an off-centre target
+                    // twice as far off as asked.
+                    const view = app.getResource(UICameraInfo);
+                    const aspect = view.vpH > 0 ? view.vpW / view.vpH : 0;
+                    const director = app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
+                    cameraRigUpdate(app.world, time.delta, aspect, director);
+                },
+                { name: 'CameraRigSystem' },
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, LookAtTarget, CameraBounds, CameraBrain] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

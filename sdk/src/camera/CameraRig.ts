@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    CameraRig.ts
+ * @brief   The camera pipeline: what moves each camera this frame, in a fixed order, and the brain that picks the view.
+ *
+ * @details Every Camera entity is a virtual camera: a view the scene describes. One of them is drawn, the live one, chosen
+ *          and blended into by the director (CameraDirector.ts). Unity's Cinemachine Brain and UE's PlayerCameraManager
+ *          are that director; this file is the procedural half each camera runs before it, in the stages Cinemachine
+ *          names and UE's camera rigs order the same way:
+ *
+ *            1. position  where the camera stands    FollowTarget
+ *            2. rotation  where it looks             LookAtTarget
+ *            3. finalize  limits on the result       CameraBounds
+ *
+ *          A stage reads what the stages before it wrote, so a camera that follows and looks at one target aims from
+ *          where it stands this frame, not last. Shake is not a stage: it moves the drawn view only (shakeCamera), as a
+ *          Cinemachine Impulse and a UE camera shake do, and never the camera's Transform.
+ */
+import { defineComponent } from '../ecs/component';
+import type { World } from '../ecs/world';
+import { BlendCurve, type CameraDirectorState } from './CameraDirector';
+import { followUpdate } from './FollowTarget';
+import { lookAtUpdate } from './LookAtTarget';
+import { cameraBoundsUpdate } from './CameraBounds';
+
+export interface CameraBrainData {
+  /**
+   * Seconds the view takes to move to a camera that becomes live without being asked for: a higher priority, a camera
+   * turned on or off, isActive moved. 0 cuts. A setViewTarget names its own blend and is not changed by this.
+   */
+  defaultBlend: number;
+  /** The easing of that blend (BlendCurve: 0 linear, 1 ease in, 2 ease out, 3 ease in and out). */
+  blendCurve: number;
+}
+
+/**
+ * How the view changes cameras, for the scene it is in: Cinemachine's Brain, and the blend UE's PlayerCameraManager gives
+ * a new view target. One per scene, on any entity; a scene without one cuts, as every scene did before it existed.
+ */
+export const CameraBrain = defineComponent<CameraBrainData>('CameraBrain', {
+  defaultBlend: 1,
+  blendCurve: BlendCurve.EaseInOut,
+});
+
+/** The brain's settings into the director: the first CameraBrain in the scene, or a cut when there is none. */
+export function syncCameraBrain(world: World, director: CameraDirectorState): void {
+  const brain = world.getEntitiesWithComponents([CameraBrain])[0];
+  if (brain === undefined) {
+    director.defaultBlend = 0;
+    return;
+  }
+  const data = world.get(brain, CameraBrain);
+  director.defaultBlend = Math.max(0, data.defaultBlend);
+  director.defaultCurve = data.blendCurve;
+}
+
+/**
+ * One frame of every camera's pipeline, stage by stage. `screenAspect` is the width over the height of the screen the
+ * cameras draw on (0 while it is not known), each camera measured by its share of it (cameraAspect.ts); `director` is
+ * null where no view is resolved.
+ */
+export function cameraRigUpdate(world: World, dt: number, screenAspect: number, director: CameraDirectorState | null): void {
+  if (director) syncCameraBrain(world, director);
+  followUpdate(world, dt);
+  lookAtUpdate(world, dt, screenAspect);
+  cameraBoundsUpdate(world, screenAspect);
+}
