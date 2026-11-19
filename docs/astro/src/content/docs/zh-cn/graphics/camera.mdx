@@ -180,7 +180,8 @@ cmds.entity(cameraEntity).insert(LookAtTarget, {
 
 每个阶段都按世界坐标决策,再经由相机的父节点写回;后面的阶段读取前面阶段这一帧写下的结果,所以一台既跟随又注视
 同一个角色的相机,是从它这一帧所站的位置去瞄准的。噪声只移动最终画面,逐相机施加,在混合之前。
-之后相机导演(下文)从中选出一台活动相机并混合过去,相当于 Cinemachine 的 Brain 和 Unreal 的 `PlayerCameraManager`。
+之后相机导演(下文)从中选出一台活动相机并混合过去,相当于 Cinemachine 的 Brain 和 Unreal 的 `PlayerCameraManager`。示例 `camera-shots` 把所有阶段放在一起：
+轨道上的跟拍、环形轨道上的摇臂和一个远景，不写一行相机代码。
 震屏在那之后施加,只作用于最终画面,从不改相机的 `Transform`,和 Cinemachine 的 Impulse、Unreal 的相机震动一样。
 流水线**只在播放模式下**运行。
 

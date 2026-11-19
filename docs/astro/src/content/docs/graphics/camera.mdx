@@ -198,7 +198,8 @@ moved by the components it carries, always in this order:
 Each stage decides in the world and writes through the camera's parent, and reads what the stages before it wrote, so
 a camera that follows and looks at the same character aims from where it stands this frame. Noise moves only the drawn
 view, per camera, before the blend. The camera director then picks one live camera and blends into it (below): Cinemachine's
-Brain and Unreal's `PlayerCameraManager`. Camera shake is applied after that, to the drawn view only, never to a
+Brain and Unreal's `PlayerCameraManager`. The `camera-shots` example puts every stage together: a tracking shot on a
+rail, a crane on an orbit and a wide shot, with no camera code. Camera shake is applied after that, to the drawn view only, never to a
 camera's `Transform`, as a Cinemachine Impulse and an Unreal camera shake are. The pipeline runs in **play mode only**.
 
 ## Ride a track

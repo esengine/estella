@@ -1,0 +1,1415 @@
+{
+  "version": 4,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 200,
+              "y": 1,
+              "z": 200
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:plane",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": false,
+            "enabled": true,
+            "color": {
+              "r": 0.36,
+              "g": 0.42,
+              "b": 0.33,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Route",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Spline",
+          "data": {
+            "points": [
+              {
+                "x": 900.0,
+                "y": 80,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": 779.4,
+                "y": 80,
+                "z": 225.0,
+                "width": 1
+              },
+              {
+                "x": 450.0,
+                "y": 80,
+                "z": 389.7,
+                "width": 1
+              },
+              {
+                "x": 0.0,
+                "y": 80,
+                "z": 450.0,
+                "width": 1
+              },
+              {
+                "x": -450.0,
+                "y": 80,
+                "z": 389.7,
+                "width": 1
+              },
+              {
+                "x": -779.4,
+                "y": 80,
+                "z": 225.0,
+                "width": 1
+              },
+              {
+                "x": -900.0,
+                "y": 80,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": -779.4,
+                "y": 80,
+                "z": -225.0,
+                "width": 1
+              },
+              {
+                "x": -450.0,
+                "y": 80,
+                "z": -389.7,
+                "width": 1
+              },
+              {
+                "x": -0.0,
+                "y": 80,
+                "z": -450.0,
+                "width": 1
+              },
+              {
+                "x": 450.0,
+                "y": 80,
+                "z": -389.7,
+                "width": 1
+              },
+              {
+                "x": 779.4,
+                "y": 80,
+                "z": -225.0,
+                "width": 1
+              }
+            ],
+            "closed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Tracking Rail",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Spline",
+          "data": {
+            "points": [
+              {
+                "x": 1300.0,
+                "y": 200,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": 1125.8,
+                "y": 200,
+                "z": 410.0,
+                "width": 1
+              },
+              {
+                "x": 650.0,
+                "y": 200,
+                "z": 710.1,
+                "width": 1
+              },
+              {
+                "x": 0.0,
+                "y": 200,
+                "z": 820.0,
+                "width": 1
+              },
+              {
+                "x": -650.0,
+                "y": 200,
+                "z": 710.1,
+                "width": 1
+              },
+              {
+                "x": -1125.8,
+                "y": 200,
+                "z": 410.0,
+                "width": 1
+              },
+              {
+                "x": -1300.0,
+                "y": 200,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": -1125.8,
+                "y": 200,
+                "z": -410.0,
+                "width": 1
+              },
+              {
+                "x": -650.0,
+                "y": 200,
+                "z": -710.1,
+                "width": 1
+              },
+              {
+                "x": -0.0,
+                "y": 200,
+                "z": -820.0,
+                "width": 1
+              },
+              {
+                "x": 650.0,
+                "y": 200,
+                "z": -710.1,
+                "width": 1
+              },
+              {
+                "x": 1125.8,
+                "y": 200,
+                "z": -410.0,
+                "width": 1
+              }
+            ],
+            "closed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Crane Orbit",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Spline",
+          "data": {
+            "points": [
+              {
+                "x": 1500.0,
+                "y": 650,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": 1299.0,
+                "y": 650,
+                "z": 750.0,
+                "width": 1
+              },
+              {
+                "x": 750.0,
+                "y": 650,
+                "z": 1299.0,
+                "width": 1
+              },
+              {
+                "x": 0.0,
+                "y": 650,
+                "z": 1500.0,
+                "width": 1
+              },
+              {
+                "x": -750.0,
+                "y": 650,
+                "z": 1299.0,
+                "width": 1
+              },
+              {
+                "x": -1299.0,
+                "y": 650,
+                "z": 750.0,
+                "width": 1
+              },
+              {
+                "x": -1500.0,
+                "y": 650,
+                "z": 0.0,
+                "width": 1
+              },
+              {
+                "x": -1299.0,
+                "y": 650,
+                "z": -750.0,
+                "width": 1
+              },
+              {
+                "x": -750.0,
+                "y": 650,
+                "z": -1299.0,
+                "width": 1
+              },
+              {
+                "x": -0.0,
+                "y": 650,
+                "z": -1500.0,
+                "width": 1
+              },
+              {
+                "x": 750.0,
+                "y": 650,
+                "z": -1299.0,
+                "width": 1
+              },
+              {
+                "x": 1299.0,
+                "y": 650,
+                "z": -750.0,
+                "width": 1
+              }
+            ],
+            "closed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Runner",
+      "parent": null,
+      "children": [
+        5
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 900,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1.4,
+              "y": 1.6,
+              "z": 1.4
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:capsule",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.95,
+              "g": 0.45,
+              "b": 0.12,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "PathFollower",
+          "data": {
+            "spline": 1,
+            "speed": 320,
+            "distance": 0,
+            "mode": 1,
+            "orient": 1,
+            "playing": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Visor",
+      "parent": 4,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 25,
+              "z": 14
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.18,
+              "z": 0.3
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.12,
+              "g": 0.16,
+              "b": 0.22,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Track",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "scale": {
+              "x": 21,
+              "y": 1,
+              "z": 11
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:plane",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": false,
+            "enabled": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.5,
+              "b": 0.44,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Pillar 1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1576,
+              "y": 220,
+              "z": 310
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Pillar 2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 989,
+              "y": 220,
+              "z": 841
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Pillar 3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 23,
+              "y": 220,
+              "z": 1050
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Pillar 4",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -951,
+              "y": 220,
+              "z": 858
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Pillar 5",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1562,
+              "y": 220,
+              "z": 339
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Pillar 6",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1576,
+              "y": 220,
+              "z": -310
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Pillar 7",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -989,
+              "y": 220,
+              "z": -841
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Pillar 8",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -23,
+              "y": 220,
+              "z": -1050
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Pillar 9",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 951,
+              "y": 220,
+              "z": -858
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Pillar 10",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1562,
+              "y": 220,
+              "z": -339
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 4.4,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cylinder",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.72,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Stone 1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 100,
+              "z": 0
+            },
+            "scale": {
+              "x": 2.0,
+              "y": 2.0,
+              "z": 2.0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.0,
+              "z": 0,
+              "w": 1.0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.5,
+              "g": 0.52,
+              "b": 0.56,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Stone 2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -380,
+              "y": 70.0,
+              "z": 120
+            },
+            "scale": {
+              "x": 1.4,
+              "y": 1.4,
+              "z": 1.4
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.3894183423086505,
+              "z": 0,
+              "w": 0.9210609940028851
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.5,
+              "g": 0.52,
+              "b": 0.56,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Stone 3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 420,
+              "y": 90.0,
+              "z": -90
+            },
+            "scale": {
+              "x": 1.8,
+              "y": 1.8,
+              "z": 1.8
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.7173560908995228,
+              "z": 0,
+              "w": 0.6967067093471654
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.5,
+              "g": 0.52,
+              "b": 0.56,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Stone 4",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 55.00000000000001,
+              "z": -260
+            },
+            "scale": {
+              "x": 1.1,
+              "y": 1.1,
+              "z": 1.1
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.9320390859672264,
+              "z": 0,
+              "w": 0.3623577544766734
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": true,
+            "enabled": true,
+            "color": {
+              "r": 0.5,
+              "g": 0.52,
+              "b": 0.56,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 0.96,
+              "b": 0.88,
+              "a": 1
+            },
+            "intensity": 0.9,
+            "direction": {
+              "x": -0.45,
+              "y": -0.75
+            },
+            "directionZ": -0.5,
+            "meshShadows": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Sky Light",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 0.55,
+            "enabled": true,
+            "environment": "assets/env/sky.esenv",
+            "drawEnvironment": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "Tracking Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1300,
+              "y": 200,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 50,
+            "nearPlane": 10,
+            "farPlane": 12000,
+            "isActive": true,
+            "priority": 10
+          }
+        },
+        {
+          "type": "CameraDolly",
+          "data": {
+            "spline": 2,
+            "mode": 1,
+            "position": 0,
+            "target": 4,
+            "offset": -140,
+            "speed": 0,
+            "damping": 0.35
+          }
+        },
+        {
+          "type": "LookAtTarget",
+          "data": {
+            "target": 4,
+            "offsetX": 0,
+            "offsetY": 60,
+            "offsetZ": 0,
+            "screenX": 0.5,
+            "screenY": 0.55,
+            "deadzoneWidth": 0.06,
+            "deadzoneHeight": 0.06,
+            "damping": 0.12
+          }
+        },
+        {
+          "type": "CameraNoise",
+          "data": {
+            "amplitude": 2,
+            "rotation": 0.6,
+            "frequency": 0.35,
+            "seed": 0
+          }
+        },
+        {
+          "type": "Shot",
+          "data": {
+            "key": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Crane Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1500,
+              "y": 650,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 50,
+            "nearPlane": 10,
+            "farPlane": 12000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "CameraDolly",
+          "data": {
+            "spline": 3,
+            "mode": 2,
+            "position": 0,
+            "target": 0,
+            "offset": 0,
+            "speed": 260,
+            "damping": 0
+          }
+        },
+        {
+          "type": "LookAtTarget",
+          "data": {
+            "target": 4,
+            "offsetX": 0,
+            "offsetY": 60,
+            "offsetZ": 0,
+            "screenX": 0.5,
+            "screenY": 0.5,
+            "deadzoneWidth": 0,
+            "deadzoneHeight": 0,
+            "damping": 0.25
+          }
+        },
+        {
+          "type": "Shot",
+          "data": {
+            "key": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "Wide Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -700,
+              "y": 260,
+              "z": 1750
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 35,
+            "nearPlane": 10,
+            "farPlane": 12000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "LookAtTarget",
+          "data": {
+            "target": 4,
+            "offsetX": 0,
+            "offsetY": 60,
+            "offsetZ": 0,
+            "screenX": 0.5,
+            "screenY": 0.45,
+            "deadzoneWidth": 0.22,
+            "deadzoneHeight": 0.18,
+            "damping": 0.8
+          }
+        },
+        {
+          "type": "CameraNoise",
+          "data": {
+            "amplitude": 0,
+            "rotation": 0.25,
+            "frequency": 0.2,
+            "seed": 0
+          }
+        },
+        {
+          "type": "Shot",
+          "data": {
+            "key": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "Camera Brain",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "CameraBrain",
+          "data": {
+            "defaultBlend": 1.6,
+            "blendCurve": 3
+          }
+        }
+      ]
+    }
+  ]
+}
