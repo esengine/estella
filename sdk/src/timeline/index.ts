@@ -66,7 +66,11 @@ export {
     playheadRuns,
     runCrosses,
     collectCustomEvents,
+    collectSignals,
+    TimelineEvent,
     type PlayheadRun,
+    type TimelineSignal,
+    type TimelineEventPayload,
 } from './timelineEvents';
 
 export {

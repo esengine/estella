@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getComponent, SpineAnimation } from '../ecs/component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
+import { setEntityActive, isEntityActive } from '../ecs/entityUtils';
 // Straight from the generated enum module (the C++ ES_ENUM is the single source), not
 // via the UI barrel: this file is core runtime and must not pull the UI module in.
 import { UIDisplay } from '../wasm/wasm.generated';
@@ -83,33 +84,11 @@ export function applyTimelineEvent(
             break;
         }
         case TimelineEventType.ActivationSet: {
-            // ActivationSet fires every frame the track is evaluated; only WRITE a
-            // component when its `enabled` actually flips, or change-detection is
-            // dirtied (and the reconciler re-projects) 60×/s for a steady value.
+            // ActivationSet fires every frame the track is evaluated; only WRITE when the state actually flips, or
+            // change-detection is dirtied (and the reconciler re-projects) 60x a second for a steady value.
             const active = intParam !== 0;
-            if (world.has(entity, SpineAnimation)) {
-                const current = world.get(entity, SpineAnimation);
-                if (current.enabled !== active) {
-                    current.enabled = active;
-                    world.set(entity, SpineAnimation, current);
-                }
-            }
-            if (world.has(entity, SpriteAnimator)) {
-                const current = world.get(entity, SpriteAnimator);
-                if (current.enabled !== active) {
-                    world.insert(entity, SpriteAnimator, { ...current, enabled: active });
-                }
-            }
-            const Sprite = getComponent('Sprite');
-            if (Sprite && world.has(entity, Sprite)) {
-                const current = world.get(entity, Sprite);
-                if (current.enabled !== active) {
-                    world.set(entity, Sprite, { ...current, enabled: active });
-                }
-            }
-            // A UI node has no `enabled`: `display` is its show/hide, and the only one
-            // that takes the subtree with it — which is what an activation track means
-            // when it switches a whole widget off (a closed chest, an idle badge).
+            // A UI node has no `enabled`: `display` is its show/hide, and the only one that takes the subtree with it,
+            // which is what an activation track means when it switches a whole widget off (a closed chest, a badge).
             const UINode = getComponent('UINode');
             if (UINode && world.has(entity, UINode)) {
                 const current = world.get(entity, UINode);
@@ -117,6 +96,12 @@ export function applyTimelineEvent(
                 if (current.display !== display) {
                     world.insert(entity, UINode, { ...current, display });
                 }
+                break;
+            }
+            // Anything else is switched on and off whole, its subtree with it, as Unity's Activation Track sets a
+            // GameObject active: a mesh, a light, a character and its sword, not only a 2D renderer's own flag.
+            if (typeof world.valid === 'function' && world.valid(entity) && isEntityActive(world, entity) !== active) {
+                setEntityActive(world, entity, active);
             }
             break;
         }

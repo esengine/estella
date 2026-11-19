@@ -3,6 +3,8 @@
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
+import { EventWriter, type EventWriterInstance } from '../ecs/event';
+import { TimelineEvent, type TimelineEventPayload } from './timelineEvents';
 import { Time, type TimeData } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
@@ -81,9 +83,10 @@ export class TimelinePlugin implements Plugin {
         // clock + the shared evaluator (property tracks) + edge-detected event
         // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
         // land via world.set (the same path the editor preview uses).
+        app.addEvent(TimelineEvent);
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time)],
-            (time: TimeData) => {
+            [Res(Time), EventWriter(TimelineEvent)],
+            (time: TimeData, events: EventWriterInstance<TimelineEventPayload>) => {
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
                 const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
@@ -119,6 +122,13 @@ export class TimelinePlugin implements Plugin {
                         deps, audio,
                         lookup: (ref) => tl.getAsset(ref),
                         onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,
+                        // What the playhead crossed, for the game: each about the entity its track names.
+                        onSignals: (signals) => {
+                            for (const s of signals) {
+                                const target = resolveChildEntity(world, entity, s.childPath) ?? entity;
+                                events.send({ kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, target });
+                            }
+                        },
                     });
                     this.processAnimFrames(world, entity, state.time, published?.textureHandles);
                     // A clip that ran out gives the view back; one that is only paused keeps it.

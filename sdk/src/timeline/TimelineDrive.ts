@@ -15,7 +15,7 @@
 import { applyWrapMode, sampleTimeline, type SampleDeps, type SampleOptions } from './TimelineEvaluator';
 import { applyTimelineEvent, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
-import { forEachParticleEvent, playheadRuns, runCrosses, type PlayheadRun } from './timelineEvents';
+import { forEachParticleEvent, playheadRuns, runCrosses, collectSignals, type PlayheadRun, type TimelineSignal } from './timelineEvents';
 import { collectSequenceLayers, resolveActiveShot, type ActiveShot, type SequenceLookup } from './timelineSequences';
 import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
@@ -144,6 +144,8 @@ export interface AdvanceContext {
     lookup?: SequenceLookup;
     /** The view this step asks for (null: none), for the camera director. */
     onShot?: (shot: ActiveShot | null) => void;
+    /** The events and markers this step's playhead crossed, for the game (TimelinePlugin sends them as TimelineEvent). */
+    onSignals?: (signals: TimelineSignal[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +231,11 @@ export function advanceTimelineTS(
 
     for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
         applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
+    }
+    if (ctx.onSignals) {
+        const signals: TimelineSignal[] = [];
+        collectSignals(asset, segments, signals);
+        if (signals.length) ctx.onSignals(signals);
     }
 
     const lookup = ctx.lookup ?? NO_TIMELINES;

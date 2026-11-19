@@ -20,6 +20,8 @@
 
 import { WrapMode, TrackType, type TimelineAsset, type ParticleTrack } from './TimelineTypes';
 import type { MotionEvent, MotionWindow } from '../animation/motion';
+import { defineEvent, type EventDef } from '../ecs/event';
+import type { Entity } from '../types';
 
 /**
  * A stretch of clip time the playhead covered, in the direction it covered it —
@@ -190,6 +192,60 @@ export function collectCustomEvents(
                     value: payloadValue(event.payload),
                     text: payloadText(event.payload),
                 });
+            }
+        }
+    }
+}
+
+/** What a playing timeline tells the game: {@link TimelineEvent}'s payload. */
+export interface TimelineEventPayload {
+    /** `'event'` for an event track's item, `'marker'` for a marker. */
+    kind: 'event' | 'marker';
+    /** Its name, as authored (`door-open`, `hit`). */
+    name: string;
+    /** An event's data; empty for a marker. */
+    payload: Record<string, unknown>;
+    /** Where it sits in the clip, in seconds. */
+    time: number;
+    /** The entity playing the timeline (its TimelinePlayer). */
+    player: Entity;
+    /** The entity the track is about, or the player for a track on the root. */
+    target: Entity;
+}
+
+/**
+ * The events and markers a TimelinePlayer's playhead crosses, sent as the frame plays them: Unity's Signals and UE's
+ * event tracks. Read it with `EventReader(TimelineEvent)`; a system reads them the next frame.
+ */
+export const TimelineEvent: EventDef<TimelineEventPayload> = defineEvent<TimelineEventPayload>('TimelineEvent', {
+    kind: 'event', name: '', payload: {}, time: 0, player: 0 as Entity, target: 0 as Entity,
+});
+
+/** A named moment a playhead crossed: an event (with its payload) or a marker, and where it is in the clip. */
+export interface TimelineSignal {
+    kind: 'event' | 'marker';
+    name: string;
+    payload: Record<string, unknown>;
+    time: number;
+    /** The track's name path below the timeline's root ('' = the root itself). */
+    childPath: string;
+}
+
+/**
+ * Every custom event and marker `runs` crossed, in playhead order (run by run, then as the clip declares them): what a
+ * timeline tells the game it played, as Unity's Signals and UE's event tracks do.
+ */
+export function collectSignals(asset: TimelineAsset, runs: readonly PlayheadRun[], out: TimelineSignal[]): void {
+    for (const run of runs) {
+        for (const track of asset.tracks) {
+            if (track.type === TrackType.CustomEvent) {
+                for (const e of track.events) {
+                    if (runCrosses(run, e.time)) out.push({ kind: 'event', name: e.name, payload: e.payload ?? {}, time: e.time, childPath: track.childPath });
+                }
+            } else if (track.type === TrackType.Marker) {
+                for (const m of track.markers) {
+                    if (runCrosses(run, m.time)) out.push({ kind: 'marker', name: m.name, payload: {}, time: m.time, childPath: track.childPath });
+                }
             }
         }
     }

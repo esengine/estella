@@ -90,10 +90,10 @@ A timeline is a set of tracks evaluated together each frame:
 | Sprite frames | `AnimFrames` | Swap sprite-sheet frames over time. |
 | Sprite clip | `SpriteAnim` | Start a named `anim-clip` at a time. |
 | Audio | `Audio` | Fire one-shot sounds at keyframes. |
-| Activation | `Activation` | Toggle entities on/off over ranges — `enabled` on a renderer, `UINode.display` on a UI node (see [below](#activation-ranges)). |
+| Activation | `Activation` | Switch an entity on and off over ranges, its children with it; `UINode.display` on a UI node (see [below](#activation-ranges)). |
 | Spine | `Spine` | Play Spine animations as clips. |
-| Marker | `Marker` | Named time markers. |
-| Custom event | `CustomEvent` | Named events with a payload, for your own systems. |
+| Marker | `Marker` | Named time markers, sent to the game as a `TimelineEvent` when crossed. |
+| Custom event | `CustomEvent` | Named events with a payload (and an optional window), sent as a `TimelineEvent` (see [below](#events-and-markers)). |
 | Camera | `Camera` | Which camera is the view, shot by shot (see [below](#cameras-and-sequences)). |
 | Sequence | `Sequence` | Another timeline, played inside a window of this one. |
 
@@ -105,14 +105,45 @@ how a badge appears at the end of a flourish, how any two-state widget is animat
 
 What it writes depends on what the target is:
 
-- **A renderer** — `Sprite`, `SpineAnimation`, `SpriteAnimator` — gets its `enabled`
-  field flipped.
-- **A UI node** gets `UINode.display`. A UI node has no `enabled`; `display` is its
-  show/hide, and the only one that **takes the subtree with it**, which is exactly
-  what an activation range means.
+- **An entity** is switched on and off whole, as Unity's Activation Track sets a GameObject
+  active: everything under it goes with it (a character and its sword, a lamp and its
+  light), and a switched-off entity is out of every query, not just unpainted. A renderer's
+  own `enabled` is left as the author set it.
+- **A UI node** gets `UINode.display`. A UI node's show/hide is `display`, which also
+  **takes the subtree with it**.
 
 Either way the write only happens when the state actually flips, so a track that is
 not moving does not dirty change detection every frame.
+
+### Events and markers
+
+Event and marker tracks tell the game what the timeline is doing, as Unity's Signals and
+UE's event tracks do. Each one the playhead crosses is sent as a `TimelineEvent`, with the
+entity its track is about; a system reads them the next frame:
+
+```typescript
+import { defineSystem, EventReader, TimelineEvent } from 'esengine';
+
+const onCue = defineSystem([EventReader(TimelineEvent)], (events) => {
+  for (const e of events) {
+    if (e.name === 'door-open') openDoor(e.target);
+    if (e.kind === 'event') console.log(e.payload);   // a marker's payload is empty
+  }
+});
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `'event'` \| `'marker'` | An event track's item, or a marker. |
+| `name` | string | Its name, as authored. |
+| `payload` | object | An event's data; empty for a marker. |
+| `time` | number | Where it sits in the clip, in seconds. |
+| `player` | Entity | The entity playing the timeline. |
+| `target` | Entity | The entity its track is about (the player for a track on the root). |
+
+Each is sent once per pass; a loop sends it again on the next lap. An event with a window
+(`duration`) is also reported as open for that long to an Animator state that plays the
+timeline.
 
 ## Author in the Sequencer
 
@@ -131,6 +162,18 @@ curves and their tangent handles for eases the dope sheet can't express:
 ![The Sequencer curve editor — value curves with tangent handles](@/assets/guides/en/seq-curves.png)
 
 *The curve editor: each keyframed channel becomes an editable curve (here `position.x` easing in, `position.y` bobbing), with per-key tangent handles.*
+
+### Tracks on an entity
+
+**Track** in the Sequencer's header adds any track the runtime plays: pick its kind
+(Active, Spine animation, Sprite animation, Audio, Particles, Markers, Events), then the
+entity below the root it is about, or the root itself. The track sits under that entity's
+row with its first item at the playhead. Spans (an active range, a Spine animation, an
+event with a window) are bars, dragged by their body and resized by their edges; moments
+(a sound, a particle action, a marker, an event) are pins, dragged in time. The row's
+**+** adds another at the playhead, and a selected item is edited in the Details: a
+sound's asset and volume, a particle action, a Spine animation's name, loop and speed, an
+event's name, window and payload. Delete removes it; every edit is one undo step.
 
 ### Cameras and sequences
 

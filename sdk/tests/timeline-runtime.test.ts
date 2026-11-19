@@ -5,7 +5,10 @@ import { applyTimelineEvent, TimelineEventType } from '../src/timeline/TimelineR
 // Importing the component modules is what puts them in the builtin registry, which is
 // where `applyTimelineEvent` looks them up by name.
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
-import { Sprite } from '../src/ecs/component';
+import { Sprite, Transform } from '../src/ecs/component';
+import { World } from '../src/ecs/world';
+import { isEntityActive } from '../src/ecs/entityUtils';
+import { createMockModule } from './mocks/wasm';
 
 const ENTITY = 7;
 
@@ -57,14 +60,26 @@ describe('applyTimelineEvent — ActivationSet', () => {
         expect(world.writes.get(UINode)).toBe(1);
     });
 
-    it('still drives a plain sprite through `enabled`, and both when an entity has both', () => {
-        const world = mockWorld([
-            [Sprite, { enabled: true }],
-            [UINode, { display: UIDisplay.Flex }],
-        ]);
+    it('switches anything else off whole, its children with it, as Unity’s Activation Track does', () => {
+        const world = new World();
+        const mod = createMockModule();
+        world.connectCpp(mod.getRegistry(), mod);
+        const door = world.spawn('door');
+        world.insert(door, Transform, {});
+        world.insert(door, Sprite, { enabled: true });
+        const light = world.spawn('light');
+        world.insert(light, Transform, {});
+        world.setParent(light, door);
 
-        activate(world, false);
-        expect(world.store.get(Sprite)!.enabled).toBe(false);
-        expect(world.store.get(UINode)!.display).toBe(UIDisplay.None);
+        applyTimelineEvent(world, null, TimelineEventType.ActivationSet, door, 0, 0, '');
+        expect(isEntityActive(world, door)).toBe(false);
+        // Out of every query, children included: switched off is not just unpainted.
+        expect(world.getEntitiesWithComponents([Transform])).not.toContain(light);
+        // The renderer's own flag is the author's, left alone.
+        expect(world.get(door, Sprite).enabled).toBe(true);
+
+        applyTimelineEvent(world, null, TimelineEventType.ActivationSet, door, 1, 0, '');
+        expect(isEntityActive(world, door)).toBe(true);
+        expect(world.getEntitiesWithComponents([Transform])).toContain(light);
     });
 });

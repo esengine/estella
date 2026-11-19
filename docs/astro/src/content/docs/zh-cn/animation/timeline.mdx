@@ -86,10 +86,10 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 | 精灵帧 | `AnimFrames` | 随时间切换精灵表帧。 |
 | 精灵剪辑 | `SpriteAnim` | 在某时刻启动一个命名 `anim-clip`。 |
 | 音频 | `Audio` | 在关键帧触发一次性声音。 |
-| 激活 | `Activation` | 按区间开关实体——渲染器写 `enabled`,UI 节点写 `UINode.display`([见下文](#激活区间))。 |
+| 激活 | `Activation` | 按区间开关实体,连同其子对象;UI 节点写 `UINode.display`([见下文](#激活区间))。 |
 | Spine | `Spine` | 把 Spine 动画作为片段播放。 |
-| 标记 | `Marker` | 命名时间标记。 |
-| 自定义事件 | `CustomEvent` | 带 payload 的命名事件,供你自己的系统消费。 |
+| 标记 | `Marker` | 命名时间标记,播放头经过时作为 `TimelineEvent` 发给游戏。 |
+| 自定义事件 | `CustomEvent` | 带 payload(及可选持续窗口)的命名事件,作为 `TimelineEvent` 发出([见下文](#事件与标记))。 |
 | 相机 | `Camera` | 逐镜头决定哪台相机是当前视图([见下文](#相机与子序列))。 |
 | 子序列 | `Sequence` | 在本时间轴的一个时间窗里播放另一条时间轴。 |
 
@@ -101,11 +101,41 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 
 它写什么,取决于目标是什么:
 
-- **渲染器**——`Sprite`、`SpineAnimation`、`SpriteAnimator`——翻的是它的 `enabled` 字段。
-- **UI 节点**写的是 `UINode.display`。UI 节点没有 `enabled`;`display` 才是它的显示/隐藏,
-  而且是唯一**会把整棵子树一起带走**的那个——这正是一个激活区间的含义。
+- **实体**被整个开关,和 Unity 的 Activation Track 设置 GameObject active 一样:它下面的一切
+  一起开关(角色和它的剑、灯和它的光),关掉的实体退出所有查询,而不只是不画。渲染器自己的
+  `enabled` 保持作者设的值。
+- **UI 节点**写的是 `UINode.display`。UI 节点的显示/隐藏是 `display`,它同样**会把整棵子树
+  一起带走**。
 
 两种情况下都只在状态真的翻转时才写,所以一条不动的轨道不会每帧把变更检测弄脏。
+
+### 事件与标记
+
+事件轨道和标记轨道告诉游戏时间轴正在做什么,对应 Unity 的 Signal 和 UE 的事件轨道。播放头经过的每一个
+都作为 `TimelineEvent` 发出,并带上它所在轨道对应的实体;系统在下一帧读到:
+
+```typescript
+import { defineSystem, EventReader, TimelineEvent } from 'esengine';
+
+const onCue = defineSystem([EventReader(TimelineEvent)], (events) => {
+  for (const e of events) {
+    if (e.name === 'door-open') openDoor(e.target);
+    if (e.kind === 'event') console.log(e.payload);   // 标记的 payload 为空
+  }
+});
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `kind` | `'event'` \| `'marker'` | 事件轨道的条目,或标记。 |
+| `name` | string | 作者写的名字。 |
+| `payload` | object | 事件的数据;标记为空。 |
+| `time` | number | 在时间轴里的位置(秒)。 |
+| `player` | Entity | 播放这条时间轴的实体。 |
+| `target` | Entity | 轨道对应的实体(根上的轨道为播放者本身)。 |
+
+每趟只发一次;循环时下一圈再发。带持续窗口(`duration`)的事件,还会在这段时间里对播放该时间轴的
+Animator 状态报告为打开。
 
 ## 在 Sequencer 里创作
 
@@ -122,6 +152,15 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 ![Sequencer 曲线编辑器——带切线手柄的值曲线](@/assets/guides/zh/seq-curves.png)
 
 *曲线编辑器:每个关键帧通道变成一条可编辑曲线(这里 `position.x` 缓入、`position.y` 起伏),每个关键帧带切线手柄。*
+
+### 实体上的轨道
+
+Sequencer 头部的 **Track** 可以添加运行时能播的任何轨道:先选类型(激活、Spine 动画、序列帧动画、
+音频、粒子、标记、事件),再选它对应的根下实体,或根本身。轨道放在该实体那一行下面,第一个条目在
+播放头处。区间(激活区间、Spine 动画、带窗口的事件)是条,拖动主体移动、拖动边缘改长度;瞬间
+(声音、粒子动作、标记、事件)是图钉,拖动改时间。行上的 **+** 在播放头处再加一个,选中的条目在
+Details 里编辑:声音资源和音量、粒子动作、Spine 动画名/循环/速度、事件名/窗口/附带数据。Delete 删除;
+每次编辑都是一步撤销。
 
 ### 相机与子序列
 

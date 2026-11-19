@@ -358,3 +358,30 @@ describe('native particle event tracks', () => {
         expect(calls).toEqual(['reset','play','stop','reset','play']);
     });
 });
+
+describe('signals: the events and markers a playhead crosses', () => {
+    const asset: TimelineAsset = {
+        version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Loop,
+        tracks: [
+            { type: TrackType.CustomEvent, name: '', childPath: 'Door', events: [{ time: 0.5, name: 'open', payload: { by: 'key' } }] },
+            { type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 1.5, name: 'beat' }] },
+        ],
+    };
+    const deps: SampleDeps = { world: {} as SampleDeps['world'], getComponent: () => undefined, resolveChild: () => 1 as never };
+
+    it('hands each over once as it is crossed, with its kind, payload, time and track, and again on the next loop', () => {
+        const s = createTimelineState(WrapMode.Loop);
+        s.playing = true;
+        const heard: string[] = [];
+        const onSignals = (signals: { kind: string; name: string; payload: Record<string, unknown>; time: number; childPath: string }[]) => {
+            for (const x of signals) heard.push(`${x.kind}:${x.name}@${x.time}:${x.childPath}:${JSON.stringify(x.payload)}`);
+        };
+        advanceTimelineTS(asset, 1 as never, s, 0.4, { deps, onSignals });
+        expect(heard).toEqual([]);
+        advanceTimelineTS(asset, 1 as never, s, 0.2, { deps, onSignals });
+        expect(heard).toEqual(['event:open@0.5:Door:{"by":"key"}']);
+        advanceTimelineTS(asset, 1 as never, s, 1.95, { deps, onSignals });
+        // 0.6 → 2.55 wraps: the marker at 1.5, then the event at 0.5 of the next loop.
+        expect(heard.slice(1)).toEqual(['marker:beat@1.5::{}', 'event:open@0.5:Door:{"by":"key"}']);
+    });
+});
