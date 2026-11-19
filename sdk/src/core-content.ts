@@ -1033,6 +1033,8 @@ export { Playthrough, type PlaythroughData, type PlaythroughValue } from './runt
 export {
     TimelinePlugin,
     timelinePlugin,
+    timelineSignalType,
+    type TimelineSignalEventData,
     parseTimelineAsset,
     Timeline,
     TimelineAPI,

@@ -10,6 +10,7 @@ import { TimelineAudioVoices } from './timelineAudio';
 import { TimelineSpawns, type TimelineSpawner } from './timelineSpawns';
 import { Prefabs } from '../prefab/prefabServer';
 import { Name } from '../ecs/component';
+import { ensureEntityEvents } from '../ecs/entityEvents';
 import { resolveTimelinePath } from './timelineBindings';
 import { installTimeDilation } from './timeDilation';
 import { Time, type TimeData } from '../ecs/resource';
@@ -114,6 +115,9 @@ export class TimelinePlugin implements Plugin {
         // land via world.set (the same path the editor preview uses).
         // Slow motion a timeline keys (UE's Time Dilation track): a component, so a script can use it too.
         installTimeDilation(app);
+        // Signals reach the entity events too, so a visual script, a state machine or an event binding on the track's
+        // entity (or on the player, where they bubble to) reacts to `timeline:<name>`: Unity's Signal Receiver.
+        const entityEvents = ensureEntityEvents(app);
         app.addEvent(TimelineEvent);
         app.addEvent(TimelinePlayback);
         app.addSystemToSchedule(Schedule.Update, defineSystem(
@@ -173,6 +177,11 @@ export class TimelinePlugin implements Plugin {
                             for (const s of signals) {
                                 const target = resolveTimelinePath(world, entity, entity, s.childPath) ?? entity;
                                 events.send({ kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, target });
+                                const type = timelineSignalType(s.name);
+                                if (!s.name || !entityEvents.hasListenersFor(type)) continue;
+                                const data: TimelineSignalEventData = { kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, other: entity };
+                                const sent = entityEvents.emit(target, type, data);
+                                if (target !== entity && !sent.propagationStopped && world.valid(entity)) entityEvents.emitBubbled(entity, sent);
                             }
                         },
                     });
@@ -276,3 +285,19 @@ export class TimelinePlugin implements Plugin {
 }
 
 export const timelinePlugin = /* @__PURE__ */ new TimelinePlugin();
+
+/** The entity event a timeline signal (a marker or an event named `name`) is sent as: `timeline:<name>`. */
+export const timelineSignalType = (name: string): string => `timeline:${name}`;
+
+/**
+ * What a `timeline:<name>` entity event carries: the signal, the player that crossed it, and (as `other`, the field a
+ * visual script's On Event reads) the player again.
+ */
+export interface TimelineSignalEventData {
+    kind: 'event' | 'marker';
+    name: string;
+    payload: Record<string, unknown>;
+    time: number;
+    player: Entity;
+    other: Entity;
+}

@@ -298,6 +298,13 @@ Each is sent once per pass; a loop sends it again on the next lap. An event with
 (`duration`) is also reported as open for that long to an Animator state that plays the
 timeline.
 
+**In a visual script.** Each named one is also sent as the entity event `timeline:<name>` (a marker named `boom`
+is `timeline:boom`), to the entity its track is about and then up to the player, as Unity's Signal Receiver hears a
+signal on the bound object. A visual script's **On Event** node with that type reacts to it: its `target` is the
+track's entity and its `other` the player. A graph on a door hears the events of the door's own track; a graph on the
+entity playing the timeline hears all of them. The same event reaches an event binding or a state machine on those
+entities, and `timelineSignalType(name)` spells the type in code.
+
 ## Author in the Sequencer
 
 Double-click an `.estimeline` (or open the timeline of a selected entity) to author

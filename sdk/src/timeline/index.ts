@@ -145,6 +145,8 @@ export {
 export {
     TimelinePlugin,
     timelinePlugin,
+    timelineSignalType,
+    type TimelineSignalEventData,
 } from './TimelinePlugin';
 
 export {

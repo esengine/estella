@@ -273,6 +273,12 @@ const onCue = defineSystem([EventReader(TimelineEvent)], (events) => {
 每趟只发一次;循环时下一圈再发。带持续窗口(`duration`)的事件,还会在这段时间里对播放该时间轴的
 Animator 状态报告为打开。
 
+**在可视化脚本里。** 每个有名字的事件或标记还会作为实体事件 `timeline:<名称>` 发出(名为 `boom` 的标记就是
+`timeline:boom`),先发给轨道对应的实体,再冒泡到播放器,对应 Unity 的 Signal Receiver 在绑定对象上接收信号。可视化脚本里
+类型为它的 **监听事件** 节点就会响应:`target` 是轨道对应的实体,`other` 是播放器。门上的脚本图能收到门自己那条轨道的事件;
+播放时间轴的实体上的脚本图能收到全部事件。事件绑定和状态机在这些实体上同样能收到,代码里用 `timelineSignalType(name)`
+拼出这个类型。
+
 ## 在 Sequencer 里创作
 
 双击一个 `.estimeline`(或打开选中实体的时间轴),就在 **Sequencer**(关键帧动画编辑器)里
