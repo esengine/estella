@@ -266,6 +266,23 @@ growing finer ticks as it does; the lanes then scroll sideways, and the view kee
 playing. **Fit** brings the whole timeline back. Every marker of a marker track is also drawn on the ruler by name;
 clicking one jumps the playhead to it, as UE's marked frames do.
 
+### Selecting and editing many at once
+
+A drag over empty lanes draws a box: the keys and clips it touches are selected (**Shift** or **Ctrl** adds to the
+selection, as does Shift/Ctrl-clicking one). Dragging any selected item moves all of them, keys and clips of every
+track together, as one undo step; a locked track's items stay where they are. With a selection:
+
+| Key | Does |
+| --- | --- |
+| **Ctrl+C** / **Ctrl+X** | Copy / cut it. |
+| **Ctrl+V** | Paste it at the playhead, the same shape, into the tracks and channels it came from. |
+| **Ctrl+D** | Duplicate it right after itself. |
+| **S** | Split each selected clip the playhead is inside: the second part carries on where the first stopped (an animation's or a sound's Clip In moves on by the time cut off), and the cut is a hard edge, with no ease or fade on either side of it. |
+| **Delete** | Delete it. |
+| **Ctrl+A** | Select every key and clip. |
+
+A clip's right-click menu has Split, Copy and Paste too. A click on one item of a selection selects it alone.
+
 ### Tracks on an entity
 
 **Track** in the Sequencer's header adds any track the runtime plays: pick its kind
