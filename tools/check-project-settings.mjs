@@ -328,7 +328,7 @@ const BLOCKS = [
 
 /** The member names of an interface, from its source text. */
 function interfaceKeys(src, name) {
-  const at = src.indexOf(`export interface ${name} {`);
+  const at = src.search(new RegExp(`export interface ${name}( extends [\\w, ]+)? \\{`));
   if (at < 0) return null;
   const body = src.slice(at);
   const end = body.indexOf(String.fromCharCode(10) + '}');
