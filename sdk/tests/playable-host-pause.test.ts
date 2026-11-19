@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { App, setAppHostPaused } from '../src/app/app';
+import { App } from '../src/app/app';
+import { setAppHostPaused } from '../src/app/hostPause';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { Time } from '../src/ecs/resource';
 import { AudioAPI, setAudioHostSuspended } from '../src/audio/Audio';

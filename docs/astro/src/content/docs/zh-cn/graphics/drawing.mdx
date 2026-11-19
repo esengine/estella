@@ -58,6 +58,9 @@ registerDrawCallback('debug-overlay', (elapsed) => {
 | `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | 一个圆(默认 `32` 段)。 |
 | `texture(pos, size, textureHandle, tint?)` | 一个贴图四边形。 |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | 同上,带旋转(弧度)。 |
+| `triangles(mesh, { tint?, transform? })` | 每个顶点带颜色的三角形(`positions` 为 x、y 坐标对,`indices`,可选 `colors`),按二维仿射 `[xx, xy, yx, yy, tx, ty]` 变换并乘上 `tint`,和其他图元一起合批。`Graphics.flush()` 就是通过它绘制的。 |
+| `createTriangles(mesh)` | 把网格一次性放上 GPU,返回一个 `triangles()` 按引用绘制的缓冲:每个副本在 GPU 上平移和着色,只花一条 28 字节的记录,同一缓冲连续画的副本合成一次实例化绘制。不再绘制时调用 `release()`。 |
+| `trianglesMany(buffer, copies, count?)` | 一次调用画同一缓冲的许多副本:`copies` 里每个副本 10 个数(仿射 `xx, xy, yx, yy, tx, ty`,然后着色 `r, g, b, a`)。画面和每个副本调一次 `triangles()` 相同,但不必每个副本进一次引擎。 |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | 按句柄绘制自定义网格(见下面的 `Geometry` API)。 |
 | `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
 | `setBlendMode(mode)` / `setDepthTest(on)` | 后续命令的混合 / 深度状态。 |
@@ -66,8 +69,8 @@ registerDrawCallback('debug-overlay', (elapsed) => {
 
 ## 矢量路径:`Graphics`
 
-由路径构成的形状——折线、贝塞尔、圆弧、圆角矩形——用 `Graphics` 记录路径,
-`flush()` 时经 `Draw` 回放:
+由路径构成的形状——多边形、折线、贝塞尔、圆弧、圆角矩形——用 `Graphics` 记录,
+它只三角化一次,`flush()` 时经 `Draw` 画出这些三角形:
 
 ```typescript
 import { Graphics, registerDrawCallback } from 'esengine';
@@ -83,14 +86,66 @@ g.curveTo(50, 80, 100, 0);           // 二次贝塞尔
 registerDrawCallback('hud-shape', () => g.flush());
 ```
 
-路径方法:`moveTo` / `lineTo`、`curveTo`(二次)/ `cubicCurveTo`、`arc`、
-`drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse`、`clear()`。
-`lineStyle(thickness, color)` 设描边;`beginFill(color)` / `endFill()` 的填充
-支持**矩形和圆**(路径轮廓保持描边)。路径是保留的——构建一次,每帧 `flush()`。
+路径方法:`moveTo` / `lineTo` / `closePath`、`curveTo`(二次)/ `cubicCurveTo`、`arc`,
+以及形状 `drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse` / `drawPolygon(points)`;`clear()` 清空重来。
+
+- `lineStyle(thickness, color, { join?, cap?, miterLimit? })` 设描边:拐角会被连接(默认 `'miter'`,也可以是
+  `'round'` / `'bevel'`),开放的端点加端帽(`'butt'`、`'round'`、`'square'`)。宽度为 `0` 表示不描边。
+- `beginFill(color)` / `endFill()` 之间画的**所有东西**都会被填充:`moveTo` / `lineTo` 画的路径和形状一样,凹多边形也可以。
+- `feather`(属性,单位同绘制坐标)让每条外边缘渐隐到透明——画质等级不开 MSAA 时的抗锯齿。
+
+一条路径在结束时采用当时的样式:新的 `moveTo`、改样式、画形状、`closePath()` 或绘制都会结束它;
+在一条线中途改样式,会从同一点接着画。
+
+改动后第一次绘制时三角化一次,之后 `flush()` 就是一次合批的 `Draw.triangles` 调用。
+三角形在那第一次绘制时放上 GPU 并留在那里:`flush()` 只送去副本的位置和淡度,由 GPU 变换每个顶点,
+接连 flush 的副本合成一次实例化绘制。`dispose()` 可提前归还这块 GPU 内存(没人调用 `dispose()` 的 `Graphics` 在被回收时归还)。`geometry()` 返回这些三角形,
+可以交给要保留它们的 `MeshRenderer`。
+
+### 同一个形状,画很多次
+
+`flush({ x, y, rotation, scale, alpha, tint })` 把同一组三角形平移、旋转、绕绘制原点缩放并淡化后画出。
+形状只建一次,每个副本想画在哪、多淡都行:不重建任何东西,也不生成纹理。一个弹出又淡出的受击闪光就是一个 `Graphics`:
+
+```typescript
+const hexagon = new Graphics();
+hexagon.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+hexagon.beginFill({ r: 1, g: 0.85, b: 0.4, a: 0.6 });
+hexagon.drawPolygon(Array.from({ length: 6 }, (_, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2) * 26,
+  y: Math.sin((i / 6) * Math.PI * 2) * 26,
+})));
+hexagon.endFill();
+
+registerDrawCallback('hit-flashes', () => {
+  for (const hit of hits) {              // 这一帧有多少个都行
+    hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
+  }
+});
+```
+
+一帧要画几百个副本时,`flushMany(copies, count?)` 一次调用全部画出。`copies` 里每个副本占
+`GRAPHICS_COPY_STRIDE`(8)个数:`x, y, rotation, scale, r, g, b, alpha`。画面和每个副本 `flush()` 一次相同,
+省掉的是每个副本进一次引擎的调用。留一个数组,每帧填它:
+
+```typescript
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
+});
+```
+
+不要为了淡出一个形状而把透明度烘进纹理——画到 Canvas 再在透明度每次变化时上传,就是每帧一张新纹理,
+这正是手机上最贵的开销。
 
 ## 多边形填充和带拐角的描边:`setPath`
 
-`Graphics` 是立即模式,只填充矩形和圆。要让一个形状**留在场景里**(和别的可渲染物一起排序、合批,随场景保存),或者需要任意多边形填充、有真正拐角的描边,就生成路径的几何体,交给 `MeshRenderer` 画:
+`Graphics` 在绘制回调里画,叠在场景之上。要让一个形状**留在场景里**(和别的可渲染物一起排序、合批,随场景保存),就生成路径的几何体,交给 `MeshRenderer` 画:
 
 ```typescript
 import { setPath, circlePoints, cubicBezier } from 'esengine';

@@ -13,7 +13,7 @@ import type { App, Plugin } from '../../app/app';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { defineResource, Res, Time, type TimeData } from '../../ecs/resource';
 import type { ReliableOrderedTransport } from '../NetChannel';
-import { ReplicationServer } from './server';
+import { ReplicationServer, type ReplicationServerOptions } from './server';
 import { ReplicationClient, type ReplicationClientOptions } from './client';
 import { ensureReplicationComponentsRegistered } from './components';
 
@@ -38,11 +38,12 @@ export class NetSession {
         return this.client_;
     }
 
-    /** Become the authority. Attach one transport per accepted client. */
-    startServer(): ReplicationServer {
+    /** Become the authority. Attach one transport per accepted client. With
+     *  `authenticate`, players keep their connection id across reconnects. */
+    startServer(options?: ReplicationServerOptions): ReplicationServer {
         if (this.role_ !== 'offline') throw new Error(`[repl] session already ${this.role_}`);
         this.role_ = 'server';
-        this.server_ = new ReplicationServer(this.app_.world);
+        this.server_ = new ReplicationServer(this.app_.world, options);
         return this.server_;
     }
 

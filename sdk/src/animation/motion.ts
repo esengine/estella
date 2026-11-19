@@ -114,6 +114,17 @@ export interface MotionEvent {
 }
 
 /**
+ * Something a clip declares LASTS: open from `start` for a stretch of its own time
+ * (an attack's active frames, a combo's input window, a dodge's invulnerability).
+ * A state, not a moment: gameplay asks whether it is open rather than waiting for
+ * an end that an interrupted clip would never reach.
+ */
+export interface MotionWindow extends MotionEvent {
+    /** Where it opens, in the clip's own time: what tells two windows of one name apart. */
+    start: number;
+}
+
+/**
  * How far a motion asks to move over a span, in the animated entity's OWN frame.
  * A request, not a result: what the character ends up doing with it is the
  * character controller's answer, and this never reaches a Transform.
@@ -148,6 +159,8 @@ export interface MotionContext {
     loops(motion: AnimatorMotion): boolean;
     /** Append a nested motion's events over `span` to `out`. */
     events(motion: AnimatorMotion, span: MotionSpan, out: MotionEvent[]): void;
+    /** Append the windows a nested motion held open over `span` to `out`. */
+    windows(motion: AnimatorMotion, span: MotionSpan, out: MotionWindow[]): void;
     /** A nested motion's displacement over `span`; false when it states none. */
     rootDelta(motion: AnimatorMotion, span: MotionSpan, out: RootMotionDelta): boolean;
     /**
@@ -216,6 +229,14 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
      * predecessor). Sampling poses must stay free of those side effects.
      */
     events?(ctx: MotionContext, motion: M, span: MotionSpan, out: MotionEvent[]): void;
+    /**
+     * Append every window of `motion` that was open at any point of `span` to `out`:
+     * one shorter than a frame is still open on the frame that passed over it, which
+     * a sample of where the playhead ended up would miss. A window is half open, so
+     * the frame that ends exactly where it closes does not count it. Absent, the
+     * motion declares none.
+     */
+    windows?(ctx: MotionContext, motion: M, span: MotionSpan, out: MotionWindow[]): void;
     /**
      * How far `motion` asks to move over `span`, into `out`. False when the motion
      * states no root motion — which is not the same as stating none this frame.
@@ -289,6 +310,9 @@ export class MotionRegistry {
         loops: (motion) => this.driverFor(motion)?.loops?.(this.ctx_, motion) ?? false,
         events: (motion, span, out) => {
             this.driverFor(motion)?.events?.(this.ctx_, motion, span, out);
+        },
+        windows: (motion, span, out) => {
+            this.driverFor(motion)?.windows?.(this.ctx_, motion, span, out);
         },
         rootDelta: (motion, span, out) =>
             this.driverFor(motion)?.rootMotion?.(this.ctx_, motion, span, out) ?? false,
@@ -457,6 +481,10 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     events(ctx, blend, span, out) {
         const selected = blendSelection(ctx, blend);
         if (selected) ctx.events(selected, span, out);
+    },
+    windows(ctx, blend, span, out) {
+        const selected = blendSelection(ctx, blend);
+        if (selected) ctx.windows(selected, span, out);
     },
     /**
      * Weighted like the pose. Picking makes a character crossing run's threshold
@@ -695,6 +723,10 @@ export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
     events(ctx, blend, span, out) {
         const dominant = dominantOf(ctx, blend);
         if (dominant) ctx.events(dominant, span, out);
+    },
+    windows(ctx, blend, span, out) {
+        const dominant = dominantOf(ctx, blend);
+        if (dominant) ctx.windows(dominant, span, out);
     },
     rootMotion(ctx, blend, span, out) {
         const points = blend.points;

@@ -28,6 +28,8 @@ export const STAR = {
     outerRadius: 130,
     innerRadius: 58,
     hue: 0.58,
+    /** The hit-flash hexagons around the star. */
+    flashRadius: 26,
 };
 
 export const RIBBON = {

@@ -95,7 +95,8 @@ serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
 serverApp.world.insert(e, Health, {});
 serverApp.world.insert(e, Replicated, { owner: connectionId });   // 归该连接所有
 const input = server.inputOf(connectionId);        // 该客户端的最新输入
-// server.clientIds —— 每 tick 轮询,为每个已连接玩家生成/回收一个 pawn。
+// server.presentIds —— 每 tick 轮询,为每个玩家生成/回收一个 pawn(在线的,或掉线后还在等的;
+// 不配 authenticate 时与 server.clientIds 相同)。
 
 // --- 客户端 app ---
 const clientNet = clientApp.getResource(Net);
@@ -134,10 +135,22 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 - **结构本身也会复制,不只是值**:给活着的实体加一个 replicated 组件会发送
   它的完整状态,移除则会从每个 ghost 上移除。spawn → 组件加入 → 更新 →
   组件移除 → despawn 全部过线,并按权威端发出的顺序抵达。
+- **服务器会自我防护**:每个连接默认都有限制。超过 256 KiB 的帧直接丢弃不解析;控制消息(hello、输入命令)
+  超过每秒 120 条(突发 240 条)会被拒绝;一分钟内违规超过 100 次的连接会被踢掉。10 秒内不说 hello 的连接会被
+  关闭,重复的 hello 会被拒绝,`maxConnections` 满了会以"服务器已满，请稍后再试"拒绝新连接。服务器每 5 秒 ping
+  一次,15 秒没有任何回应的链路会被关闭——半开的 TCP 连接自己什么都不会说——已认证的玩家照常获得断线宽限期。
+  `webSocketTransport` 会关闭读取落后超过 4 MiB 的客户端(`maxBufferedBytes`),而不是无限为它缓冲。这些都能在
+  `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })` 上调整,`limits` 或 `heartbeat` 传
+  `false` 即关闭。客户端也会 ping(平台 socket 上,5 秒 / 15 秒),所以没关连接就消失的服务器会被发现并重拨。
 - **链路必须可靠且有序**:客户端按到达顺序应用收到的东西,因为那就是权威端
   的顺序。`attachConnection` 和 `Net.connect` 收的是 `ReliableOrderedTransport`
   ——内置 socket 都是;自己写的 transport 声明 `delivery: 'reliable-ordered'`,
   做不到这个保证的会是编译错误,而不是一次静默失步。
+- **游戏消息**:除了状态流，服务器和客户端之间还可以互发游戏自己类型的消息——聊天、通知、状态里没有的请求。
+  `server.message(id, 'notice', data)` 和 `server.broadcastMessage(type, data, filter?)` 发给客户端，客户端用
+  `client.onMessage(type, handler)` 在消息到达时接收;`client.message(type, data)` 发给
+  `server.onMessage(type, (connectionId, data) => …)`，只接收已经完成握手的连接，并受同样的连接限制。以 `repl:` 开头的
+  类型保留给协议。消息不会跨重连排队:未连接时 `client.message` 返回 false。
 - **归属**:`Replicated.owner` 把某连接的 `sendInput` 命令路由到它的实体;
   `client.ownsEntity(e)` 回答"这个 ghost 是不是我的"。
 - **编辑器预览**:在 Play 模式下拉里选 **2–4 Players**——listen server 和
@@ -146,12 +159,38 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`。
   再用 `flushPendingRegistrations(app)` 装上项目在模块作用域注册的东西(与正式 Web
   运行时同一道门),权威端跑的就是项目自己的系统,而不是它的副本。
-- **重连目前由你负责**:`Replicated.owner` 是*连接* id,玩家重连会拿到新的一个。
-  SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。(下面的请求/应答[会话层](#异步在线游戏会话层)确实会重连并保留订阅,但它与状态复制是两套东西。)
+  接入的每个 `ws` socket 用 `server.attachConnection(webSocketTransport(socket))`
+  (来自 `esengine/replication`)交给服务器:一个 tick 发给某个客户端的所有消息合成一次
+  socket 写出,而不是每条消息写一次,人多时服务器的 tick 耗时大约减半。
+  玩家上百时，可以把 socket 整个移出模拟所在的线程:`startSocketWorker({ port })`(来自 `esengine/node`)在一个工作线程上监听，
+  在那里写出每个客户端的帧，并把每个连接作为一个传输交给主线程，服务器只需 `server.attachConnection(transport)`
+  和 `transport.onClose(() => server.detachConnection(link))`。用 `tools/net-capacity-benchmark.mjs --worker` 实测，
+  主线程的 tick 耗时又降了约一半，800 人的服务器从每秒约 10 个 tick 提升到 18–20 个(目标 20)。
+- **玩家与重连**:默认每个连接都是匿名的,掉线再连回来就是另一个人。告诉服务器玩家是谁,
+  玩家就能保住自己的 id:
+
+  ```ts
+  // 服务器:把 hello 里的凭据换成玩家,抛错即拒绝
+  const server = net.startServer({
+      authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+      reconnectGraceMs: 30_000,   // 掉线玩家保留多久(默认 30 秒)
+  });
+  // 客户端:每次 hello 带同一份凭据,掉线自动重拨
+  const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+  ```
+
+  服务器记得这个玩家期间,他始终拿同一个连接 id,所以 `Replicated.owner`、`tickInputOf` 以及按它们
+  索引的一切都延续下去。掉线的玩家在宽限期内仍在 `presentIds` 里(不在 `clientIds` 里,也没有输入);
+  宽限期内重拨会落回同一个 id,客户端手里已有的幽灵实体保持是同一批实体,并补上错过的状态。同一个
+  `playerId` 再次登录会顶掉前一个,`server.kick(id)` 立即结束一个玩家;两种情况下旧客户端都会进入
+  `state === 'closed'`,`closeReason` 为 `'replaced'` 或 `'kicked'`,并且不再重拨。抛出带
+  `fatal: false` 的 `SessionRejected`(来自 `esengine/session`)可以拒绝一次 hello 而不让客户端停止重拨。
+  `reconnect` 适用于平台 socket(`GameSocket`、`createSocket`);其他传输请自己调用
+  `client.resume(newTransport)`。凭据是什么、由谁签发和校验,归游戏自己。
 
 完整范式(复制、每 tick 输入、客户端预测)见 **Multiplayer Arena** 示例(约 130 行)。它的 `server/` 目录就是专用服务器那一半:同一个项目,无头运行,后面是一条真实的 WebSocket。
 
-要在这套范式上开始自己的游戏,用 **Online 3D** 模板创建(`estella create online-3d ./my-game`,或在编辑器的"新建项目"画廊里选):一块有光照的 3D 地面,每个玩家一个角色(在自己屏幕上即时预测、向其他人复制),跟随自己角色的镜头,以及用同一份代码无头运行的 `server/`。两端必须一致的规则(速度、世界边界)放在 `src/shared/rules.ts`,不在任何系统里,服务器才能拒绝它们禁止的事。模板留给游戏自己的部分写在它的 README 里:重连后保持玩家身份、保存世界、谁能看到什么。
+要在这套范式上开始自己的游戏,用 **Online 3D** 模板创建(`estella create online-3d ./my-game`,或在编辑器的"新建项目"画廊里选):一块有光照的 3D 地面,每个玩家一个角色(在自己屏幕上即时预测、向其他人复制),跟随自己角色的镜头,以及用同一份代码无头运行的 `server/`。两端必须一致的规则(速度、世界边界)放在 `src/shared/rules.ts`,不在任何系统里,服务器才能拒绝它们禁止的事。模板留给游戏自己的部分写在它的 README 里:玩家是谁(上面的身份只差一个选项)、保存世界、谁能看到什么。
 
 ### 兴趣管理——谁看见什么
 
@@ -160,7 +199,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 在客户端 despawn 其 ghost,delta 帧只携带兴趣内的内容。
 
 ```typescript
-import { radiusInterest } from 'esengine';
+import { radiusInterest } from 'esengine/replication';
 
 // 每个客户端看到它拥有的实体周围 800 单位内的实体。
 server.setInterestPolicy(radiusInterest(800));
@@ -184,7 +223,7 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 采样只准备一次空间索引,然后用它回答所有连接:
 
 ```typescript
-import { radiusInterestProvider } from 'esengine';
+import { radiusInterestProvider } from 'esengine/replication';
 
 server.setInterestProvider(radiusInterestProvider(800));
 ```
@@ -212,6 +251,72 @@ server.setInterestProvider(radiusInterestProvider(800));
   策略便宜。
 - 物理驱动和父节点驱动的移动都会到达索引,因为两者都经过同一次合成。自己去写
   `worldPosition` 的游戏则不会——那个字段是合成的输出,不是输入。
+
+#### 人人都在动时:`setInterestRefresh`
+
+人群里每个人都在动,每个视野每次采样都会变;每次采样给每个连接查一遍视野、再做
+差集,就是采样的大头。视野其实不必这么新:
+
+```typescript
+server.setInterestRefresh(4); // 每个连接的视野每 4 次采样重算一次,错开进行
+```
+
+每次采样重算四分之一的视野;两次重算之间,连接保留原来的视野,视野里的实体照样
+每次变化都发给它。代价只在视野边缘:走进范围的实体最多晚三次采样出现,走出范围
+的也会多发这么久。实体销毁当次采样就离开所有视野,自己拥有的实体变了的连接立刻
+重算,换了兴趣源则所有连接都重算。默认值 `1` 表示每次采样重算全部视野。用
+`tools/net-sample-microbench.mjs --wasm --refresh 4` 实测(800 人、每人视野约 30
+人、全员移动):一次采样从约 8.2 ms 降到 5.5 ms。
+
+#### 人太多时：带宽预算
+
+兴趣管理决定一个连接*能不能*看到某个实体。在主城或世界 boss 周围，一个连接能看到几百个实体，
+每 tick 全发，手机的网络和服务器都扛不住。预算给每个连接的状态流设上限，并先发最重要的：
+
+```ts
+server.setBandwidthBudget({
+    bytesPerSecond: 16_000,              // 每个连接
+    // 可选；默认按到该连接自己拥有的最近实体的距离
+    priority: ({ entity, owned }) => isBoss(entity) ? 5 : 1,
+});
+```
+
+每次 sample，连接欠着更新的每个实体都把自己的优先级累加到已等待的值上；最紧急的先发，直到该连接的额度
+用完，其余的继续等。等待本身会抬高优先级，所以低优先级意味着*发得少*，而不是*永远不发*。被推迟的实体只是
+晚到，不会错：它最终收到的那一行带着自上次以来所有变过的字段的当前值，客户端插值补上中间的空档。
+
+连接自己拥有的实体总会发出(预测需要对照每一次权威更新)，生成、销毁和组件移除也照常发出——预算只计量
+状态流。没用完的额度最多结转一个 tick。`setBandwidthBudget(null)` 取消预算，还欠着的会在下一次 sample
+全部发出。有没有兴趣管理都可以用；实体位置不在 `Transform` 上时，用 `position` 告诉默认优先级去哪读。
+
+服务器只记录一份"每个字段最后在哪个 tick 变化"，每个连接只记录"每个实体上次发给它是哪个 tick"，所以一次变化的
+开销与看到它的玩家数无关。实测 200 人挤在一处、20Hz(`tools/net-capacity-benchmark.mjs --crowd --budget 16000`)：
+每个玩家的流量从约 52 KB/s 降到 17.6 KB/s，服务器总流量从 10 MB/s 降到 3.4 MB/s，tick 耗时不变。没人超预算时
+它有一点固定开销(200 人、每人看到 30 个时每 tick 约 1.5 ms)，所以在会出现人群的地方开启。
+
+#### 每行更少字节:`quantizeReplicatedFields`
+
+复制的数字默认按 32 位浮点发送。大多数并不需要这么精确:位置到厘米、角度到百分之一度就够了。量化一个字段，
+就把它按"多少个步长"的整数发送，每个数 1 到 3 字节而不是 4 字节:
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// 100 单位一米时:位置精确到 1 厘米，角度精确到 0.01 度。
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- 到达客户端的是最接近的步长整数倍。字段是对象时(`position` 的 `x, y, z`)，里面每个数都量化。
+- 变化不到一个步长的字段不发送:变化会相对上次发送的值累积，越过一个步长时才发出，所以客户端与服务器的差距
+  永远不超过半个步长。
+- 在**两端**启动时、任何连接之前声明。每一端在第一次用到时建表，此后不变；步长和服务器不一致的客户端会在
+  握手时被拒绝。
+- 生成(spawn)仍然携带精确值，只有每 tick 的增量会被量化。插值和预测平滑把量化字段当普通数字处理。
+
+行头(哪个实体、哪个组件、哪些字段)也改成了变长整数，一行在数值之前只占几个字节而不是 10 个。用
+`tools/net-sample-microbench.mjs --wasm --quant 1` 实测(800 人每秒移动 6 单位，位置精确到 1 单位):
+每行从 22.4 字节降到 9.7 字节；又因为不到一个步长的位置变化不发送，发送的行数少了约三分之二；一次采样从
+约 9 ms 降到约 6.5 ms。
 
 ### 客户端预测——零延迟输入
 
@@ -253,6 +358,253 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
 - **平滑**:`prediction: { apply, smoothing: { halfLife: 0.08 } }` 让修正
   渐出(视觉误差每 `halfLife` 秒减半)而不是硬 snap;加 `maxError` 让真正的
   传送仍然瞬移。纯表现层——模拟状态不可能因此漂移。
+
+## 跨重启保存状态——`esengine/persist`
+
+服务器手里的东西不写到别处，进程一停就没了。`esengine/persist` 负责服务器这一侧，分四层，可以单独使用：
+
+- **存储。** `PersistStore` 是一个很小的异步文档存储：键、JSON 值，以及每次写入加一的版本号。
+  写入可以带上读到的版本(`expectVersion`，`0` 表示"必须不存在")，若中间有人写过，会以
+  `PersistConflict` 拒绝。`MemoryStore` 用于测试；`FileStore(dir)` 每个键一个文件、原子替换，
+  适合单进程服务器。`transact(ops)` 把多个键作为一个整体写入，要么全部成功要么都不生效(`FileStore` 通过预写日志
+  实现，崩溃不会留下写了一半的状态)。多进程时，把一个存储放在 `StoreHub` 后面，每个进程用一个 `RemoteStore`(见下文)，
+  或者用你的数据库实现这些方法，把 `expectVersion` 做成真正的比较并交换。
+- **记录。** `RecordBook` 写入时带上数据的 schema 版本，读出时经 `migrations` 升到当前版本
+  (`migrations[n]` 把 n 升到 n + 1)，与客户端 `SaveManager` 的约定相同。
+- **实体快照。** `snapshotEntity(world, e, { include })` 和 `restoreEntity(world, snapshot, into?)`
+  把一个实体按场景保存的方式存成 JSON，内置组件和脚本组件都可以。`Replicated` 保留 archetype，
+  不保留 netId 和 owner；指向其他实体的字段写成 0。
+- **玩家与世界。** `PlayerPersistence` 跟随在场玩家：每 tick 调 `track(playerIds)`，它会加载新来的、
+  保存并放下离开的，并自动保存有改动的记录(`autosaveMs`，默认 60 秒)。同一玩家的写入按顺序执行，
+  所以离开后马上回来读到的是离开时的数据；写入也不会覆盖其他进程写下的更新记录——它会失败并通知
+  `onError`。`WorldPersistence` 保存所有带 `Persistent` 的实体(一个 `key`，为空时首次 flush 自动生成)：
+  启动时 `restore(world)`，之后随时 `flush(world)`——只写有变化的实体，并删除已经不存在的。
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// 每 tick，配合复制层的玩家身份:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // 游戏自己的
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// 玩家离开时，在 track() 放下他之前:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// 关服时:
+await players.flush();
+await world.flush(app.world);
+```
+
+**多个玩家一起写。** `players.saveTogether(['ana', 'bo'])` 把两条记录作为一个事务写入，各自对照加载时的版本——
+交易、赠送，任何不能只做一半的事。其中任意一条在此期间被别人写过，就两条都不写，并以 `PersistConflict` 拒绝。
+
+**多个进程共用一个存储。** `StoreHub` 把任意存储通过 WebSocket 提供出去；每个服务器进程用一个 `RemoteStore`，
+它本身就是一个存储——所以记录、租约、票据和事务跨进程时与单进程时行为一致，因为每次按版本号的写入都在存储所在的
+地方执行：
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// 持有数据的那个进程
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// 每个服务器进程
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+存储暂时连不上时发起的调用会等它恢复(`timeoutMs`，10 秒)；断线前已发出、还没收到应答的调用会直接失败，而不会再发
+一次——重试时，按版本号的写入会告诉你它是否已经执行过。存储服务只校验一个共享密钥，没有更细的权限，只适合内网使用。
+
+记录里存什么、世界何时 flush、存储背后用哪个数据库，都由游戏决定。这里的东西都不在客户端运行。
+
+## 一个世界，多台服务器——`esengine/zones`
+
+一个服务器进程同时能带几百个玩家(用 `tools/net-capacity-benchmark.mjs` 测你自己的；
+`tools/net-sample-microbench.mjs --wasm --phases` 只给复制采样分阶段计时，用来比较服务器的两个版本)。更大的世界拆成若干
+**区**——一张地图、一张地图的一条线、一个副本——每个区一个进程，玩家在区之间移动。`esengine/zones` 是每个
+这样的游戏都需要的那部分，建在所有区共享的一个 `PersistStore` 上(接数据库就能跨机器)：
+
+- **`ZoneDirectory`**——每个区按心跳上报自己的 id、客户端连接的地址、`kind` 和人数；超过 `ttlMs` 没刷新的
+  条目就是已经没了的区。`pick(kind)` 返回最空的那个，用于把新玩家分到某条线上。
+- **`PlayerLeases`**——玩家在哪个区，作为所有区都认可的一个事实。区在登录时拿租约，玩家在时续约，离开时
+  释放或移交；带版本号的写入保证两个区抢同一个玩家不会都成功，进程崩溃后租约到期即释放玩家。
+- **`TransferTickets`**——一次性、会过期的转区通行证，带上到达所需的信息(出生点、传送门 id)。
+- **`ZoneHost`** 在复制服务器和 `PlayerPersistence` 之上运行一个区的这三件事。
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // 所有区共享
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // 一个 PlayerPersistence，可选
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// 每 tick
+zone.tick();
+// players.isReady(playerId) 之后为每个在场玩家生成角色；通过转区到达的玩家，
+// 站在哪里由 zone.takeArrival(playerId) 给出
+
+// 传送门：先写好记录该存的内容，再送走
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+转区按固定顺序执行，顺序本身就是保证：先写玩家记录，再把租约移交给目标区，再发票据，最后才告诉客户端去哪
+——所以目标区加载到的一定是刚写的记录，也不会有别的区再写它。
+
+**任何一个区都可以接受登录，并把玩家送到他该去的地方。** 游戏的 `authenticate` 认出是谁之后：玩家正在另一个区
+在线，就把他送过去，由那个区用新连接替换旧连接(所以一个玩家不会同时在两个区，跨区登录也是后登录的顶掉先登录的)；
+持有玩家的区已经停止心跳，就直接把玩家接管过来，不用等租约过期；然后由路由决定他去哪：
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // 新玩家，以及无处可去的玩家
+    route: async (ctx) => {             // 可选：只有游戏知道的情况
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // 回到下线时的区，否则同类型里还活着的一条线，
+    },                                  // 否则回城，否则留在这里
+});
+```
+
+被路由走的玩家像转区一样交接(租约、票据)，他的 hello 会收到一个重定向，配了 `dial` 的客户端会自己跟过去——
+`net.connect` 要等到在目标区就绪才返回。
+
+区死掉会很快被发现。区每秒心跳一次(`heartbeatMs`)，转区只会去三次心跳内上报过的区，而不是目录的整个有效期。
+恰好在目标区死掉的那一刻被送过去的玩家会自己回来：移交出去的租约在目标区接手前只有 `arrivalLeaseMs`(3 秒)，
+客户端回到出发的区(转区时会把它作为退路告诉客户端)，等这段租约过期后在那里重新登录。用
+`tools/zones-benchmark.mjs --crash` 实测(4 个区、200 个玩家、杀掉一个区)：这样的玩家全部在 3.7 秒内自己回来，
+游戏不用做任何事，所有存档都对得上。
+
+玩家自己所在的区死掉时，配了 `entry` 的客户端会自己找到别的区：`entry` 是一个地址(或者一个地址列表，依次尝试)，
+重拨失败超过 `entryAfterMs`(3 秒)后就去那里重新登录，通常是挡在各个区前面的负载均衡地址。接到他的区会从死掉的区
+接管玩家，然后像普通登录一样路由。同一轮崩溃压测里，被杀掉的区里的玩家全部在 5.4 秒内(p50 3 秒)到了别的区，
+在目标区死掉那一刻被送过去的玩家，也被出发的区立刻收了回来(p50 130 ms)。
+
+客户端用 `dial` 打开服务器指定地址的连接：
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // 自己的区没了时去哪里重新登录
+});
+client.onStateChange((state) => {       // 每一次变化，发生时就通知
+    if (state === 'reconnecting') showBanner('正在重连…');
+    if (state === 'ready') hideBanner(); // client.serverId 说明现在连着哪台服务器
+});
+```
+
+被转区时，客户端丢掉旧区的所有幽灵实体(netId 只在一台服务器内有效)，带票据连上新区，此后断线就像平常一样
+重连到新区(期间 `state` 为 `'transferring'`)。没有 `dial` 时，转区会让客户端结束，`closeReason` 为
+`'transfer'`，`transferTarget` 说明该去哪。`server.transfer(id, { address, ticket })` 是 `ZoneHost` 用的
+复制层那一步，留给有自己交接方式的游戏。
+
+### 不掉线地关掉一个区
+
+滚动更新或者撤掉一条线时，让区平滑下线，而不是直接停掉：
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// 在 drain 完成之前继续调用 zone.tick()
+```
+
+区会立刻被标记为下线中——`pick`、默认路由和所有转区都会绕开它，在这里的登录会被送去别处——它持有的每个玩家都
+按路由的决定转走，路由会收到 `reason: 'drain'`(默认是同类型里另一个活着的区，否则回城)，每次转一小批
+(`concurrency`)。路由找不到去处、或者转区一直失败的玩家，到 `deadlineMs` 时会被踢掉，存档照常写入；最后执行
+`stop()`。区一消失，新进程就可以用同一个 id 接上。用 `tools/zones-benchmark.mjs --drain` 实测(4 个区、200 个
+玩家，中途更新一个区)：下线在约 1 秒内转走了它的 41–53 个玩家，没有踢掉任何人，也没有客户端需要重新登录。
+
+### 区之间的消息
+
+区之间通过**总线**通信：往一个主题发布，所有订阅了它的进程都会收到。投递是至多一次，和 Redis 的频道一样——
+无论多久都必须送到的东西(邮件、交易结果)存进存储，总线只负责说一声"现在去看"。`MemoryBus` 用于同一进程里的
+多个区;跨进程时，起一个 `BusHub`(把每个接入的 `ws` socket 交给它)，每个区用一个 `RemoteBus` 连上去，它会在
+断线后重连并重新订阅。Redis 或 NATS 适配器就是实现 `ZoneBus` 的两个方法。
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// 由一个进程托管中继
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// 每个区
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// 这里的玩家发出的私聊，送给任何地方的玩家
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // 不管她在哪个区
+zone.broadcastZones('event', { name: 'double-xp' });   // 所有区都会收到
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+`sendToPlayer` 会把消息送到玩家的客户端(`client.onMessage`)，除非持有他的区用 `onPlayerMessage` 自己处理这个
+类型。正在转区的玩家不会漏收：他离开期间到达的消息会跟着他转发过去，目标区会替他暂存(3 秒、32 条)，等他连上
+再交给他。用 `tools/zones-benchmark.mjs` 实测(4 个区、200 个玩家，每人约每 3 秒走一次传送门、约每 2 秒随机给
+另一个人发私聊):99.5% 的私聊送达，p50 5 ms，p95 14 ms;中途杀掉一个区时为 97.5%——没送到的是发给它的玩家、
+在他们到达别的区之前那几秒里的消息。
+
+这里没有的：跨区边界无缝的世界(边界两侧的实体互相可见)。
+
+## 监控服务器——`esengine/metrics`
+
+服务器进程以 Prometheus 抓取的文本格式(以及扁平的 JSON)报告自己的状态。采集器在被抓取时才读取 SDK 各部分本来就在
+维护的累计值，所以没人来问时，注册表对运行中的服务器没有任何开销：
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // 游戏自己的指标
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // 抓取 :9100/metrics
+```
+
+| 采集器 | 报告内容 |
+|---|---|
+| `replicationMetrics` | 连接数、客户端数、在场和宽限期内的玩家数、复制 sample 耗时的直方图、状态帧数和字节数、发出和被预算推迟的增量行数、游戏消息收发数、因限制/静默/未握手被关闭的连接数 |
+| `zoneMetrics` | 是否正在下线；转区成功和失败次数；登录被路由、在别处在线、被接管、弹回、被拒的次数；发给玩家的消息被送达、转发、暂存、丢弃的数量 |
+| `playerPersistenceMetrics` | 按结果(成功、出错、版本冲突)统计的记录加载和保存次数，进行中的存储操作数 |
+| `processMetrics` | 常驻内存、堆、运行时长、自上次抓取以来的事件循环占用率 |
+
+所有指标名都以 `estella_` 开头(`prefix` 可改)，注册表的 `labels` 会加在每个序列上。`registry.snapshot()` 把同样的
+内容给成一个扁平记录——直方图给出 count、sum 以及按桶估计的 p50 / p99——用于游戏自己的面板或日志。
+`tools/zones-benchmark.mjs` 在运行结束时抓取每个区的端点，并排打印出来。
 
 ## 异步在线游戏——会话层
 

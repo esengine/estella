@@ -595,6 +595,15 @@ public:
      */
     ProbeVolumeHandle createProbeVolume(const glm::ivec3& resolution, ConstSpan<f32> irradiance);
 
+    /**
+     * @brief Registers a SPARSE grid: bricks at their own spacing (see ProbeVolume).
+     * @param resolution The finest grid's probes along x, y and z.
+     * @param bricks Four ints a brick: its first finest-brick cell x, y, z and its span in those cells.
+     * @param irradiance Nine RGB coefficients per probe, ProbeVolume::kBrickProbes probes a brick, brick after brick.
+     */
+    ProbeVolumeHandle createProbeVolumeBricks(const glm::ivec3& resolution, ConstSpan<i32> bricks,
+                                              ConstSpan<f32> irradiance);
+
     /** @brief The probe volume a handle names, or null. */
     ProbeVolume* getProbeVolume(ProbeVolumeHandle handle);
     const ProbeVolume* getProbeVolume(ProbeVolumeHandle handle) const;

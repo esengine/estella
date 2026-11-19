@@ -30,6 +30,129 @@ let transformPtr: number = 0;
 let uniformsPtr: number = 0;
 
 const UNIFORMS_BUFFER_SIZE = 256;
+
+/** The heap block Draw.triangles copies a mesh into, grown to the largest mesh drawn and kept. */
+let trianglesPtr = 0;
+let trianglesBytes = 0;
+
+function trianglesBlock(m: ESEngineModule, bytes: number): number {
+    if (bytes <= trianglesBytes) return trianglesPtr;
+    if (trianglesPtr) m._free(trianglesPtr);
+    trianglesBytes = Math.max(bytes, trianglesBytes * 2, 4096);
+    trianglesPtr = m._malloc(trianglesBytes);
+    return trianglesPtr;
+}
+
+/** Frames begun so far: what tells a drawing kept from an earlier frame from one built in this one. */
+let frameNumber = 0;
+
+/** @internal The number of the frame being drawn, counted from the first `Draw.begin`. */
+export function drawFrameNumber(): number {
+    return frameNumber;
+}
+
+/** The heap block Draw.trianglesMany lays its copies' records out in, grown to the most copies drawn at once and kept. */
+let copiesPtr = 0;
+let copiesBytes = 0;
+
+function copiesBlock(m: ESEngineModule, bytes: number): number {
+    if (bytes <= copiesBytes) return copiesPtr;
+    if (copiesPtr) m._free(copiesPtr);
+    copiesBytes = Math.max(bytes, copiesBytes * 2, 4096);
+    copiesPtr = m._malloc(copiesBytes);
+    return copiesPtr;
+}
+
+/** Numbers one copy takes in the array {@link DrawAPI.trianglesMany} reads: xx, xy, yx, yy, tx, ty, then r, g, b, a. */
+export const DRAW_COPY_STRIDE = 10;
+
+/** A colour channel as the byte the engine packs it to. */
+function channel(v: number): number {
+    return v >= 1 ? 255 : v > 0 ? (v * 255 + 0.5) | 0 : 0;
+}
+
+/**
+ * Triangles a {@link DrawAPI.triangles} call draws: an x, y pair a vertex, three indices a triangle, and an r, g, b, a quadruple a
+ * vertex (0 to 1; absent, every vertex is white). `buildPathGeometry` makes this shape from a path.
+ */
+export interface DrawTriangles {
+    positions: ArrayLike<number>;
+    indices: ArrayLike<number>;
+    colors?: ArrayLike<number>;
+}
+
+/**
+ * Triangles handed to the engine once and drawn by reference, with nothing copied a draw: what a `Graphics` keeps. The engine
+ * keeps them on the GPU and moves and tints each copy there, so a copy costs one small record; an engine built before that keeps
+ * them in its memory instead. Made by {@link DrawAPI.createTriangles}. It belongs to the engine instance that made it: once that
+ * is shut down, or the buffer is released, drawing it draws nothing.
+ */
+export interface DrawTrianglesBuffer {
+    readonly vertexCount: number;
+    readonly indexCount: number;
+    /** False once released, or once the engine that holds it has been shut down. */
+    readonly live: boolean;
+    /** Gives its memory back to the engine. Safe to call more than once. */
+    release(): void;
+}
+
+class ResidentTriangles implements DrawTrianglesBuffer {
+    private released_ = false;
+    /**
+     * @param meshId The engine's GPU mesh, drawn with `draw_triangleMesh`; 0 when the numbers are kept in its memory at `block_` instead.
+     */
+    constructor(
+        readonly owner: ESEngineModule,
+        readonly meshId: number,
+        private readonly block_: number,
+        readonly positionsAt: number,
+        readonly colorsAt: number,
+        readonly indicesAt: number,
+        readonly vertexCount: number,
+        readonly indexCount: number,
+    ) {}
+
+    get live(): boolean {
+        return !this.released_ && this.owner === module;
+    }
+
+    release(): void {
+        if (this.released_) return;
+        this.released_ = true;
+        // Given back only to the engine that holds it: a shut-down engine's memory is gone with it.
+        if (this.owner !== module) return;
+        if (this.meshId) this.owner.draw_destroyTriangleMesh?.(this.meshId);
+        else this.owner._free(this.block_);
+    }
+}
+
+/** The numbers of a mesh laid out one after another from `base`: positions, then colours, then indices, 4 bytes each. */
+function writeTriangles(m: ESEngineModule, base: number, mesh: DrawTriangles, vertexCount: number, colorCount: number, indexCount: number):
+    { positionsAt: number; colorsAt: number; indicesAt: number } {
+    const positionsAt = base, colorsAt = base + vertexCount * 8, indicesAt = colorsAt + colorCount * 4;
+    const f32 = m.HEAPF32, u32 = m.HEAPU32;
+    // One copy each, not a loop of indexed writes: what a typed array is handed straight across as.
+    f32.set(slice(mesh.positions, vertexCount * 2), positionsAt / 4);
+    if (colorCount) f32.set(slice(mesh.colors!, colorCount), colorsAt / 4);
+    u32.set(slice(mesh.indices, indexCount), indicesAt / 4);
+    return { positionsAt, colorsAt, indicesAt };
+}
+
+/** The first `n` numbers of `values`, without a copy when it already has exactly that many. */
+function slice(values: ArrayLike<number>, n: number): ArrayLike<number> {
+    if (values.length === n) return values;
+    return ArrayBuffer.isView(values) ? (values as unknown as Float32Array).subarray(0, n) : Array.prototype.slice.call(values, 0, n);
+}
+
+/** Where and how a {@link DrawTriangles} is drawn: a 2D affine and a colour every vertex is multiplied by. */
+export interface DrawTrianglesOptions {
+    /** Multiplies every vertex colour; its alpha fades the whole shape. Default white. */
+    tint?: Color;
+    /**
+     * x' = xx x + yx y + tx, y' = xy x + yy y + ty, as `[xx, xy, yx, yy, tx, ty]`. Default: the points as they are.
+     */
+    transform?: readonly [number, number, number, number, number, number];
+}
 const uniformBuffer = new Float32Array(UNIFORMS_BUFFER_SIZE);
 
 // Identity model matrix for legacy material draws that omit `transform`.
@@ -70,6 +193,16 @@ export function shutdownDrawAPI(): void {
         if (uniformsPtr) {
             module._free(uniformsPtr);
             uniformsPtr = 0;
+        }
+        if (copiesPtr) {
+            module._free(copiesPtr);
+            copiesPtr = 0;
+            copiesBytes = 0;
+        }
+        if (trianglesPtr) {
+            module._free(trianglesPtr);
+            trianglesPtr = 0;
+            trianglesBytes = 0;
         }
     }
     bridge.disconnect();
@@ -196,6 +329,29 @@ export interface DrawAPI {
     textureRotated(position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint?: Color): void;
 
     /**
+     * Draws triangles with a colour a vertex, batched with the rest of the frame's shapes: a shape tessellated once (a path's
+     * `buildPathGeometry`, a `Graphics`) and drawn as often as needed, moved by `transform` and faded by `tint`, with no geometry
+     * built and no texture made for it. A mesh whose indices name a vertex it does not hold draws nothing.
+     */
+    triangles(mesh: DrawTriangles | DrawTrianglesBuffer, options?: DrawTrianglesOptions): void;
+
+    /**
+     * Draws `count` copies of a buffer from {@link createTriangles} in one call: {@link DRAW_COPY_STRIDE} numbers a copy in
+     * `copies` (the 2D affine xx, xy, yx, yy, tx, ty, then the tint r, g, b, a), in the order they are drawn. The same picture as
+     * {@link triangles} once a copy, without a call into the engine a copy: for hundreds of copies a frame.
+     *
+     * @param count Copies to draw; default, as many as `copies` holds.
+     */
+    trianglesMany(buffer: DrawTrianglesBuffer, copies: ArrayLike<number>, count?: number): void;
+
+    /**
+     * Hands a mesh to the engine once, for {@link triangles} to draw by reference: it is kept on the GPU, and each copy drawn is
+     * moved and tinted there, so a shape drawn many times a frame costs one small record a copy, and consecutive copies are
+     * one instanced draw. Release it when it is no longer drawn.
+     */
+    createTriangles(mesh: DrawTriangles): DrawTrianglesBuffer;
+
+    /**
      * Sets the current render layer.
      * @param layer Layer index (higher layers render on top)
      */
@@ -270,10 +426,12 @@ function getModule(): ESEngineModule {
 }
 
 const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
+const IDENTITY_2D = [1, 0, 0, 1, 0, 0] as const;
 
 export const Draw: DrawAPI = {
     begin(viewProjection: Float32Array, viewportWidth = 0, viewportHeight = 0): void {
         const m = getModule();
+        frameNumber++;
         try {
             m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
             m.draw_begin(viewProjectionPtr, viewportWidth, viewportHeight);
@@ -408,6 +566,92 @@ export const Draw: DrawAPI = {
         } catch (e) {
             handleWasmError(e, 'Draw.texture');
         }
+    },
+
+    triangles(mesh: DrawTriangles | DrawTrianglesBuffer, options: DrawTrianglesOptions = {}): void {
+        const t = options.tint ?? WHITE;
+        const x = options.transform ?? IDENTITY_2D;
+        try {
+            if (mesh instanceof ResidentTriangles) {
+                if (!mesh.live) return;
+                if (mesh.meshId) {
+                    // On the GPU already: this copy is its transform and tint, nothing more.
+                    mesh.owner.draw_triangleMesh!(mesh.meshId, t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
+                    return;
+                }
+                // By reference: the numbers are already where the engine reads them.
+                mesh.owner.draw_triangles(mesh.positionsAt, mesh.vertexCount, mesh.colorsAt, mesh.indicesAt, mesh.indexCount,
+                    t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
+                return;
+            }
+            const plain = mesh as DrawTriangles;
+            const vertexCount = Math.floor(plain.positions.length / 2);
+            const indexCount = plain.indices.length - plain.indices.length % 3;
+            if (vertexCount === 0 || indexCount === 0) return;
+            const colorCount = plain.colors && plain.colors.length >= vertexCount * 4 ? vertexCount * 4 : 0;
+            const m = getModule();
+            const at = writeTriangles(m, trianglesBlock(m, (vertexCount * 2 + colorCount + indexCount) * 4), plain, vertexCount, colorCount, indexCount);
+            m.draw_triangles(at.positionsAt, vertexCount, colorCount ? at.colorsAt : 0, at.indicesAt, indexCount,
+                t.r, t.g, t.b, t.a, x[0], x[1], x[2], x[3], x[4], x[5]);
+        } catch (e) {
+            handleWasmError(e, 'Draw.triangles');
+        }
+    },
+
+    trianglesMany(buffer: DrawTrianglesBuffer, copies: ArrayLike<number>, count = Math.floor(copies.length / DRAW_COPY_STRIDE)): void {
+        const n = Math.min(count, Math.floor(copies.length / DRAW_COPY_STRIDE));
+        if (!(n > 0) || !(buffer instanceof ResidentTriangles) || !buffer.live) return;
+        try {
+            const m = buffer.owner;
+            if (!buffer.meshId || !m.draw_triangleMeshMany) {
+                // An engine that keeps no meshes on the GPU: the same copies, a call each.
+                for (let i = 0, at = 0; i < n; i++, at += DRAW_COPY_STRIDE) {
+                    if (buffer.meshId) {
+                        m.draw_triangleMesh!(buffer.meshId, copies[at + 6], copies[at + 7], copies[at + 8], copies[at + 9],
+                            copies[at], copies[at + 1], copies[at + 2], copies[at + 3], copies[at + 4], copies[at + 5]);
+                    } else {
+                        m.draw_triangles(buffer.positionsAt, buffer.vertexCount, buffer.colorsAt, buffer.indicesAt, buffer.indexCount,
+                            copies[at + 6], copies[at + 7], copies[at + 8], copies[at + 9],
+                            copies[at], copies[at + 1], copies[at + 2], copies[at + 3], copies[at + 4], copies[at + 5]);
+                    }
+                }
+                return;
+            }
+            // The engine's own instance records, written where it reads them: seven 4-byte words a copy.
+            const base = copiesBlock(m, n * 28) >> 2;
+            const f32 = m.HEAPF32, u32 = m.HEAPU32;
+            for (let i = 0, at = 0, to = base; i < n; i++, at += DRAW_COPY_STRIDE, to += 7) {
+                f32[to] = copies[at];
+                f32[to + 1] = copies[at + 1];
+                f32[to + 2] = copies[at + 2];
+                f32[to + 3] = copies[at + 3];
+                f32[to + 4] = copies[at + 4];
+                f32[to + 5] = copies[at + 5];
+                u32[to + 6] = (channel(copies[at + 6]) | (channel(copies[at + 7]) << 8) | (channel(copies[at + 8]) << 16)
+                    | (channel(copies[at + 9]) << 24)) >>> 0;
+            }
+            m.draw_triangleMeshMany(buffer.meshId, base << 2, n);
+        } catch (e) {
+            handleWasmError(e, 'Draw.trianglesMany');
+        }
+    },
+
+    createTriangles(mesh: DrawTriangles): DrawTrianglesBuffer {
+        const m = getModule();
+        const vertexCount = Math.floor(mesh.positions.length / 2);
+        const indexCount = mesh.indices.length - mesh.indices.length % 3;
+        const colorCount = mesh.colors && mesh.colors.length >= vertexCount * 4 ? vertexCount * 4 : 0;
+        const bytes = (vertexCount * 2 + colorCount + indexCount) * 4;
+        if (m.draw_createTriangleMesh && m.draw_triangleMesh && vertexCount > 0 && indexCount > 0) {
+            // Through the shared scratch block: the engine copies the numbers onto the GPU and keeps none of this memory.
+            const at = writeTriangles(m, trianglesBlock(m, bytes), mesh, vertexCount, colorCount, indexCount);
+            const id = m.draw_createTriangleMesh(at.positionsAt, vertexCount, colorCount ? at.colorsAt : 0, at.indicesAt, indexCount);
+            if (id) return new ResidentTriangles(m, id, 0, 0, 0, 0, vertexCount, indexCount);
+        }
+        const block = m._malloc(Math.max(4, bytes));
+        const at = writeTriangles(m, block, mesh, vertexCount, colorCount, indexCount);
+        return new ResidentTriangles(m, 0, block, at.positionsAt, colorCount ? at.colorsAt : 0, at.indicesAt,
+            indexCount ? vertexCount : 0, indexCount);
     },
 
     textureRotated(position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint: Color = WHITE): void {

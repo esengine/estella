@@ -62,6 +62,7 @@ export {
     motionOf,
     STATE_PATH_SEP,
     SPINE_MOTION,
+    type AnimatorWindow,
     type AnimatorData,
     type AnimatorBlend1D,
     type AnimatorBlendThreshold,
@@ -215,6 +216,7 @@ export {
     type MotionParams,
     type MotionSpan,
     type MotionEvent,
+    type MotionWindow,
     type RootMotionDelta,
 } from './motion';
 

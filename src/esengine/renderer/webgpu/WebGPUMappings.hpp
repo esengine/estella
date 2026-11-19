@@ -431,6 +431,14 @@ inline u32 scanWGSLArrayTextureMask(const char* source, u32 group) {
     return scanWGSLTextureKindMask(source, group, "texture_2d_array");
 }
 
+/**
+ * @brief Bit mask of the group's bindings a WGSL source declares as `texture_3d`.
+ * @details Such a binding's layout entry is `viewDimension = 3D`, and only a volume's view binds under it.
+ */
+inline u32 scanWGSLVolumeTextureMask(const char* source, u32 group) {
+    return scanWGSLTextureKindMask(source, group, "texture_3d");
+}
+
 /// WriteBuffer's size (and offset) must be a 4-byte multiple; buffers are allocated
 /// rounded up so the slack exists. Callers supply exactly `size` bytes, so an
 /// unaligned size must be staged, never read up to `alignedWriteSize` in place.

@@ -60,4 +60,16 @@ export const GLOBAL_ILLUMINATION_SETTINGS = [
             zh: '让 Dynamic GI 效果走省的那条路：四个像素里一个去问探针，探针每帧只打四分之一的射线，卡面分八帧更新，探针行数减到三分之二。在 Snapdragon 8 Elite 上约 4.5 ms，完整为 7.3 ms。两个面相交的边上光会串一两个像素，光照变化后要约两倍的时间才稳定。',
         },
     },
+    {
+        key: 'probesPerPixel',
+        type: 'boolean',
+        defaults: { low: false, medium: true, high: true },
+        group: 'globalIllumination',
+        preference: false,
+        label: { en: 'Per-pixel light probes', zh: '逐像素光照探针' },
+        description: {
+            en: 'A mesh without lightmap UVs reads its probe volume per pixel: the grid where each pixel stands, through a 3D atlas of bricks, ten texture reads a lookup. Off, it reads one value where the mesh stands (what a mesh with lightmap UVs always does) and no atlas is held on the GPU: a long mesh reaching from a lit yard into a dark shed is lit as one, and a weak GPU saves the reads and the memory.',
+            zh: '没有光照贴图 UV 的网格逐像素读取探针体积：每个像素按自己所在的位置，经一张 3D 砖块图集查询，一次查询读十次纹理。关闭时整个网格只在自己的位置读一个值（有光照贴图 UV 的网格一直如此），GPU 上也不保留图集：一个从亮处伸进暗棚的长网格会被当成一个整体照亮，弱 GPU 省下这些读取和显存。',
+        },
+    },
 ] as const satisfies readonly QualitySetting[];

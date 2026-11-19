@@ -377,6 +377,8 @@ private:
         bool storage = false;
         /// Above 1 a 2D array: `view` and `sampleView` are then the one 2DArray view of every layer and level.
         u32 layers = 1;
+        /// A 3D texture `layers` deep: `view` and `sampleView` are its one 3D view.
+        bool volume = false;
     };
     struct ProgramRec {
         WGPUShaderModule vertex = nullptr;
@@ -397,6 +399,8 @@ private:
         u32 group1DepthMask = 0;
         /// Which of group1Mask's bindings are `texture_2d_array`.
         u32 group1ArrayMask = 0;
+        /// Which of group1Mask's bindings are `texture_3d`.
+        u32 group1VolumeMask = 0;
     };
     /// What a pass's second colour attachment means to the pipeline drawn into it: there is none, the
     /// pipeline writes it, or the pipeline leaves it alone (its target is declared with an empty write mask).
@@ -452,12 +456,13 @@ private:
      *         convention (engine units 0..7 at 0..7/8..15, material units 8..15
      *         at 16..23/24..31). */
     WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask, u32 depthMask = 0,
-                                       u32 vertexMask = 0, u32 arrayMask = 0);
+                                       u32 vertexMask = 0, u32 arrayMask = 0, u32 volumeMask = 0);
     /** @brief Returns the cached explicit pipeline layout for a program's masks.
      *         A program with group-1 bindings but an empty group 0 still gets a
      *         (zero-entry) group-0 layout, so group indices stay positional. */
     WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask, u32 group1DepthMask = 0,
-                                        u32 group1VertexMask = 0, u32 group1ArrayMask = 0);
+                                        u32 group1VertexMask = 0, u32 group1ArrayMask = 0,
+                                        u32 group1VolumeMask = 0);
     /** @brief Lazily creates the dummy backfill resources: a zeroed uniform
      *         buffer and a 1x1 white texture, standing in for declared-but-
      *         unbound bindings (GL reads an unbound block/unit without
@@ -730,8 +735,8 @@ private:
     // Explicit layouts, cached by every mask that shapes them: {group, mask, depth, vertex, array} for
     // bind-group layouts, {group0, group1, depth, vertex, array} for pipeline layouts. Pipelines and bind groups
     // share the cached objects, so group compatibility holds by identity.
-    std::map<std::array<u32, 5>, WGPUBindGroupLayout> group_layouts_;
-    std::map<std::array<u32, 5>, WGPUPipelineLayout> pipeline_layouts_;
+    std::map<std::array<u32, 6>, WGPUBindGroupLayout> group_layouts_;
+    std::map<std::array<u32, 6>, WGPUPipelineLayout> pipeline_layouts_;
     // Backfill belongs to this backend, not to the registry: nothing above it can
     // name these, so they are made again lazily rather than recovered.
     BufferRec dummy_ubo_;         ///< Zeroed backfill for declared-but-unbound UBO slots.
@@ -743,6 +748,8 @@ private:
     /// The same for an array unit: white layers under a `texture_2d_array` declaration (two, since one layer
     /// makes a plain 2D texture here).
     TextureRec dummy_array_texture_;
+    /// And for a `texture_3d` declaration: one white texel, a 1x1x1 volume.
+    TextureRec dummy_volume_texture_;
 
     /** This device's objects by registry id. */
     std::unordered_map<u32, BufferRec> buffers_;

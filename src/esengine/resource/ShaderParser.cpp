@@ -335,7 +335,9 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
     src +=
         "\n"
         "#ifdef SKINNED\n"
-        "struct SkinConstants { bones : array<mat4x4f, 64> };\n"
+        // As many bones as the renderer poses (SkinConstants.hpp). This said 64 while the block holds MESH_MAX_BONES,
+        // so a skin of more joints than 64 (a Tripo rig has 78) read past the array and drew as a white smear.
+        "struct SkinConstants { bones : array<mat4x4f, " + std::to_string(MESH_MAX_BONES) + "> };\n"
         "@group(0) @binding(5) var<uniform> skin : SkinConstants;\n"
         "#endif\n"
         "#ifdef MESH\n"
@@ -595,7 +597,8 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "layout(location = 6) in vec4 a_weights;\n"
         // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
         "layout(std140) uniform SkinConstants {\n"
-        "    mat4 u_bones[64];\n"
+        // MESH_MAX_BONES, the size of the block the renderer fills; see the WGSL twin.
+        "    mat4 u_bones[" + std::to_string(MESH_MAX_BONES) + "];\n"
         "};\n"
         "#endif\n"
         "#endif\n"
@@ -1555,6 +1558,14 @@ struct LightConstants {
 @group(0) @binding(2) var<uniform> lc : LightConstants;
 struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : vec4f };
 @group(0) @binding(7) var<uniform> pc : ProbeConstants;
+#ifdef ES_SURFACE_3D
+#ifndef MESH_LIGHTMAP
+// The frame's probe atlas, a volume of bricks read per pixel, on the bake's unit: only resident 3D surfaces carry probe runs,
+// and a variant reading a bake has that unit's 2D atlas instead.
+@group(1) @binding(5) var t5 : texture_3d<f32>;
+@group(1) @binding(13) var s5 : sampler;
+#endif
+#endif
 struct PlanarConstants { planarProjection : mat4x4f, planarParams : vec4f };
 @group(0) @binding(9) var<uniform> planar : PlanarConstants;
 // Which run of that block this fragment's instance reads. WGSL has no module
@@ -2070,31 +2081,31 @@ fn bakedIrradiance() -> vec3f {
     return c * c * 8.0;
 }
 #endif
+#ifdef ES_SURFACE_3D
 #ifndef MESH_LIGHTMAP
-// See the GLSL twin: the grid itself, at P, through the frame's probe atlas.
+// See the GLSL twin: the grid itself, at P, through its indirection cell and the brick that names.
 fn probeGridIrradiance(N : vec3f, P : vec3f) -> vec4f {
     let base = clamp(i32(g_probeSlot), 0, 99) * 10;
     let a = pc.u_probeIrradiance[base + 1];
     let b = pc.u_probeIrradiance[base + 2];
     let c = pc.u_probeIrradiance[base + 3];
-    let last = vec3f(a.w, b.w, pc.u_probeIrradiance[base + 4].x) - 1.0;
+    let d = pc.u_probeIrradiance[base + 4];
+    let last = vec3f(a.w, b.w, c.w);
     let g = clamp((P - a.xyz) * b.xyz, vec3f(0.0), last);
-    let z0 = min(floor(g.z), max(last.z - 1.0, 0.0));
-    let z1 = min(z0 + 1.0, last.z);
-    let fz = clamp(g.z - z0, 0.0, 1.0);
-    let inTile = c.xy + g.xy + 0.5;
+    let cell = min(floor(g * 0.25), max(ceil(last * 0.25) - 1.0, vec3f(0.0)));
+    let brick = textureLoad(t5, vec3i(c.xyz + cell + 0.5), 0);
+    let first = floor(cell / brick.w) * brick.w;
+    let uvw = (brick.xyz + (g - first * 4.0) / brick.w + 0.5) * d.xyz;
     var basis = array<f32, 9>(0.282095, 0.488603 * N.y, 0.488603 * N.z, 0.488603 * N.x,
                               1.092548 * N.x * N.y, 1.092548 * N.y * N.z, 0.315392 * (3.0 * N.z * N.z - 1.0),
                               1.092548 * N.x * N.z, 0.546274 * (N.x * N.x - N.y * N.y));
     var sum = vec4f(0.0);
     for (var i = 0; i < 9; i = i + 1) {
-        let tile = inTile + vec2f(f32(i) * a.w, 0.0);
-        let lo = textureSampleLevel(t5, s5, (tile + vec2f(0.0, z0 * b.w)) * c.zw, 0.0);
-        let hi = textureSampleLevel(t5, s5, (tile + vec2f(0.0, z1 * b.w)) * c.zw, 0.0);
-        sum += mix(lo, hi, fz) * basis[i];
+        sum += textureSampleLevel(t5, s5, uvw + vec3f(f32(i) * d.w * d.x, 0.0, 0.0), 0.0) * basis[i];
     }
     return sum;
 }
+#endif
 #endif
 // See the GLSL twin: how much of the sky a probe sees toward d, 1 where nothing was baked of it.
 fn skyOcclusion(d : vec3f) -> f32 {
@@ -2108,8 +2119,10 @@ fn skyOcclusion(d : vec3f) -> f32 {
         + pc.u_probeIrradiance[base + 6].w * (0.315392 * (3.0 * d.z * d.z - 1.0))
         + pc.u_probeIrradiance[base + 7].w * (1.092548 * d.x * d.z)
         + pc.u_probeIrradiance[base + 8].w * (0.546274 * (d.x * d.x - d.y * d.y));
+#ifdef ES_SURFACE_3D
 #ifndef MESH_LIGHTMAP
     if (pc.u_probeIrradiance[base].w > 1.5) { v = probeGridIrradiance(d, g_probePos).a; }
+#endif
 #endif
     return mix(1.0, clamp(v, 0.0, 1.0), step(0.5, pc.u_probeIrradiance[base + 9].z));
 }
@@ -2119,12 +2132,14 @@ R"(fn indirectIrradiance(N : vec3f) -> vec3f {
     let base = clamp(i32(g_probeSlot), 0, 99) * 10;
     let mode = pc.u_probeIrradiance[base].w;
     var result : vec3f;
+#ifdef ES_SURFACE_3D
 #ifndef MESH_LIGHTMAP
     if (mode > 1.5) {
         let grid = probeGridIrradiance(N, g_probePos);
         let sky = step(0.5, pc.u_probeIrradiance[base + 9].z);
         result = max(grid.rgb, vec3f(0.0)) * lc.u_bakedTint.rgb + envIrradiance(N) * (clamp(grid.a, 0.0, 1.0) * sky);
     } else
+#endif
 #endif
     if (mode > 0.5) {
         var sh : array<vec4f, 9>;
@@ -2861,6 +2876,10 @@ const char* stageName(ShaderStage stage) {
 // sharedCode are GLSL-only mechanisms — twins carry their own helpers.
 // headerLineCount is exact when the body carries no #if lines (removed lines
 // shift the compile-log remap; acceptable for hand-authored twins).
+bool hasFeature(const std::vector<std::string>& features, const char* name) {
+    return std::find(features.begin(), features.end(), name) != features.end();
+}
+
 ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
                                                ShaderStage stage,
                                                const std::vector<std::string>& features) {
@@ -2897,7 +2916,10 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         // engine texture contract — fragment-only twins run under the batch
         // conventions (PostProcess reads its input/scene as t0/s0 and t1/s1).
         inject(parsed.domain == "PostProcess" ? wgslPPVSOut() : wgslCanonicalVSOut(lit));
-        inject(wgslBatchTextureDecls(parsed.domain == "PostProcess", materialLowUnits(parsed)));
+        // A resident 3D surface that reads no bake has the probe atlas, a volume, on unit 5 (declared with the lit header).
+        const bool probeAtlas = lit && hasFeature(features, "ES_SURFACE_3D") && !hasFeature(features, "MESH_LIGHTMAP");
+        inject(wgslBatchTextureDecls(parsed.domain == "PostProcess",
+                                     materialLowUnits(parsed) | (probeAtlas ? (1u << LIGHTMAP_TEXTURE_UNIT) : 0u)));
     }
     inject(kFrameHeaderWGSL);
     inject(kTimeHeaderWGSL);
@@ -3192,9 +3214,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp mat4 u_planarProjection; highp vec4 u_planarParams;\n"
             "};\n"
             "flat in highp float v_probeSlot;\n"
-            // The frame's probe atlas, for a volume read per pixel; a variant reading a bake has that sampler on this unit.
+            // The frame's probe atlas, a volume of bricks read per pixel; a variant reading a bake has that sampler on this
+            // unit, and only resident 3D surfaces carry the runs that read it — a 2D draw's batch samplers own its unit.
+            "#ifdef ES_SURFACE_3D\n"
             "#ifndef MESH_LIGHTMAP\n"
-            "uniform highp sampler2D u_probeGrid;\n"
+            "uniform highp sampler3D u_probeGrid;\n"
+            "#endif\n"
             "#endif\n"
             // Where the surface being lit stands, for that read: set by whatever lights it (the BRDF, envRadiance).
             "highp vec3 g_probePos = vec3(0.0);\n"
@@ -3725,21 +3750,25 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // or a draw carrying no run at all — is the environment, which is what every
             // surface reflected before there were probes.
             "highp float reflectionColumn() { return u_probeIrradiance[probeRun() + 9].x; }\n"
-            // A run marked 2 says where the grid is, not what it holds (ProbeStore::writeGridRun): its nine
-            // coefficient tiles in the frame's atlas, read here at P. The hardware blends x and y inside a tile; the
-            // two slices around P's z are blended here. rgb is the irradiance toward N, a the sky's visibility.
+            // A run marked 2 says where the grid is, not what it holds (ProbeStore::writeGridRun). P's grid position picks
+            // an indirection cell, the cell names a brick's first texel and the span of cells the brick covers, and the
+            // nine coefficients are read at the same place in nine pages, each filtered by the hardware in all three axes.
+            // A brick holds the probes on its far faces too, so a read never filters into a neighbour.
+            // rgb is the irradiance toward N, a the sky's visibility.
+            "#ifdef ES_SURFACE_3D\n"
             "#ifndef MESH_LIGHTMAP\n"
             "highp vec4 probeGridIrradiance(in highp vec3 N, in highp vec3 P) {\n"
             "    highp int base = probeRun();\n"
             "    highp vec4 a = u_probeIrradiance[base + 1];\n"
             "    highp vec4 b = u_probeIrradiance[base + 2];\n"
             "    highp vec4 c = u_probeIrradiance[base + 3];\n"
-            "    highp vec3 last = vec3(a.w, b.w, u_probeIrradiance[base + 4].x) - 1.0;\n"
+            "    highp vec4 d = u_probeIrradiance[base + 4];\n"
+            "    highp vec3 last = vec3(a.w, b.w, c.w);\n"
             "    highp vec3 g = clamp((P - a.xyz) * b.xyz, vec3(0.0), last);\n"
-            "    highp float z0 = min(floor(g.z), max(last.z - 1.0, 0.0));\n"
-            "    highp float z1 = min(z0 + 1.0, last.z);\n"
-            "    highp float fz = clamp(g.z - z0, 0.0, 1.0);\n"
-            "    highp vec2 inTile = c.xy + g.xy + 0.5;\n"
+            "    highp vec3 cell = min(floor(g * 0.25), max(ceil(last * 0.25) - 1.0, vec3(0.0)));\n"
+            "    highp vec4 brick = texelFetch(u_probeGrid, ivec3(c.xyz + cell + 0.5), 0);\n"
+            "    highp vec3 first = floor(cell / brick.w) * brick.w;\n"
+            "    highp vec3 uvw = (brick.xyz + (g - first * 4.0) / brick.w + 0.5) * d.xyz;\n"
             "    highp float basis[9];\n"
             "    basis[0] = 0.282095;\n"
             "    basis[1] = 0.488603 * N.y;\n"
@@ -3752,13 +3781,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    basis[8] = 0.546274 * (N.x * N.x - N.y * N.y);\n"
             "    highp vec4 sum = vec4(0.0);\n"
             "    for (int i = 0; i < 9; i++) {\n"
-            "        highp vec2 tile = inTile + vec2(float(i) * a.w, 0.0);\n"
-            "        highp vec4 lo = textureLod(u_probeGrid, (tile + vec2(0.0, z0 * b.w)) * c.zw, 0.0);\n"
-            "        highp vec4 hi = textureLod(u_probeGrid, (tile + vec2(0.0, z1 * b.w)) * c.zw, 0.0);\n"
-            "        sum += mix(lo, hi, fz) * basis[i];\n"
+            "        sum += textureLod(u_probeGrid, uvw + vec3(float(i) * d.w * d.x, 0.0, 0.0), 0.0) * basis[i];\n"
             "    }\n"
             "    return sum;\n"
             "}\n"
+            "#endif\n"
             "#endif\n"
             // A bake outranks a volume for the same reason a volume outranks the sky:
             // it holds every light and bounce that reached this very point.
@@ -3776,8 +3803,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        + u_probeIrradiance[base + 6].w * (0.315392 * (3.0 * d.z * d.z - 1.0))\n"
             "        + u_probeIrradiance[base + 7].w * (1.092548 * d.x * d.z)\n"
             "        + u_probeIrradiance[base + 8].w * (0.546274 * (d.x * d.x - d.y * d.y));\n"
+            "#ifdef ES_SURFACE_3D\n"
             "#ifndef MESH_LIGHTMAP\n"
             "    if (u_probeIrradiance[base].w > 1.5) v = probeGridIrradiance(d, g_probePos).a;\n"
+            "#endif\n"
             "#endif\n"
             "    return mix(1.0, clamp(v, 0.0, 1.0), step(0.5, u_probeIrradiance[base + 9].z));\n"
             "}\n"
@@ -3792,12 +3821,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp int base = probeRun();\n"
             "    highp float mode = u_probeIrradiance[base].w;\n"
             "    highp vec3 result;\n"
+            "#ifdef ES_SURFACE_3D\n"
             "#ifndef MESH_LIGHTMAP\n"
             "    if (mode > 1.5) {\n"
             "        highp vec4 grid = probeGridIrradiance(N, g_probePos);\n"
             "        highp float sky = step(0.5, u_probeIrradiance[base + 9].z);\n"
             "        result = max(grid.rgb, vec3(0.0)) * u_bakedTint.rgb + envIrradiance(N) * (clamp(grid.a, 0.0, 1.0) * sky);\n"
             "    } else\n"
+            "#endif\n"
             "#endif\n"
             "    if (mode > 0.5) {\n"
             "        highp vec4 sh[9];\n"

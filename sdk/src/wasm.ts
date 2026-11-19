@@ -371,6 +371,10 @@ export interface ESEngineModule {
      * carries, at points instead of once — which is what lights a thing that moves.
      */
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
+    probe_volume_createBricks?(resX: number, resY: number, resZ: number, brickCount: number, bricksPtr: number,
+                               shPtr: number): number;
+    probe_volume_getResolution?(volumeHandle: number, outPtr: number): boolean;
+    probe_volume_getBricks?(volumeHandle: number, outPtr: number, maxBricks: number): number;
     /** Release a probe volume. */
     probe_volume_release?(volumeHandle: number): void;
     /** Nine floats per probe of how much of the sky each sees (a bake with sky occlusion). */
@@ -521,6 +525,17 @@ export interface ESEngineModule {
                  r: number, g: number, b: number, a: number): void;
     draw_textureRotated(x: number, y: number, width: number, height: number, rotation: number,
                         textureId: number, r: number, g: number, b: number, a: number): void;
+    draw_triangles(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number,
+                   r: number, g: number, b: number, a: number,
+                   xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
+    /** A shape put on the GPU once; 0 when there is nothing to keep. Absent on an engine built before it. */
+    draw_createTriangleMesh?(positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): number;
+    draw_destroyTriangleMesh?(id: number): void;
+    /** A mesh from draw_createTriangleMesh, moved and tinted on the GPU: one instance record a copy. */
+    draw_triangleMesh?(id: number, r: number, g: number, b: number, a: number,
+               xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
+    /** `count` copies of a mesh in one call: 28-byte records at `recordsPtr`, six floats of affine then the tint packed r, g, b, a a byte each. */
+    draw_triangleMeshMany?(id: number, recordsPtr: number, count: number): void;
     draw_setLayer(layer: number): void;
     draw_setDepth(depth: number): void;
     draw_getDrawCallCount(): number;
@@ -759,6 +774,9 @@ export interface ESEngineModule {
     renderer_setShadow2DSoftSamples?(samples: number): void;
     /** Draw the opaque scene twice, depth alone first, so a pixel is shaded for the surface in front of it. */
     renderer_setDepthPrepass?(on: boolean): void;
+    renderer_setProbesPerPixel?(on: boolean): void;
+    renderer_getProbeAtlasBytes?(): number;
+    renderer_getProbeDraws?(perPixel: boolean): number;
     renderer_setLightingDirect?(on: boolean): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_getPendingShaders?(): number;

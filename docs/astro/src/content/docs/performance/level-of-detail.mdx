@@ -182,8 +182,12 @@ requires image comparison. It is off by default.
 
 Moving, deformed, billboard, blended, lightmapped, skinned and morphing surfaces
 are reported in `refused`. Keep those surfaces under their existing ownership.
-This is the geometry stage of HLOD: texture/emission baking, automatic cell
-proxy generation, distance selection and detail/proxy streaming handoff remain separate work.
+A streamed world uses the same grouping for its cells: tick **Far proxies** on
+`StreamedWorld` and each cell ships a baked stand-in that the streamer shows while
+the cell is not resident (see [World streaming](/docs/world/streaming/)). The proxy
+does not yet bake its own texture or emission, and there is no chain of coarser proxies
+further out. (Texture streaming, which holds textures at the size their views need, is a
+separate thing that exists: see [Quality levels](/docs/performance/quality-levels/).)
 
 ## What this is not
 
@@ -191,8 +195,8 @@ proxy generation, distance selection and detail/proxy streaming handoff remain s
 system: every level's mesh is resident, nothing is loaded or unloaded, and an
 object that is `cullSize`-small is simply not drawn rather than removed from the
 world. Combining distant objects into one merged proxy (HLOD) and loading a world
-in pieces are separate concerns. The static proxy baker above does not yet connect
-cell proxies to world streaming. Existing runtime choices are the far versions
+in pieces are separate concerns; a streamed world's cells get far proxies from the
+baker above. Existing runtime choices for content that is always resident are the far versions
 of plants (`Foliage`, `PlacedFoliage` — see [Foliage](/docs/graphics/foliage/)),
 the terrain's own distance-based quadtree
 ([Terrain](/docs/graphics/terrain/)), and [static batching](/docs/performance/static-batching/),

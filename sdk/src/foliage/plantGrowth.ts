@@ -69,6 +69,7 @@ export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind
     const owned: number[] = [];
     const scope = new AssetScope();
     const handles = new Map<string, number>();
+    const noted = new Set<string>();
     const load = async (type: 'mesh' | 'material' | 'texture', path: string): Promise<number> => {
         const key = `${type}:${path}`;
         const known = handles.get(key);
@@ -93,6 +94,13 @@ export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind
         return made;
     };
     const ready = async (part: PlacedPart, withLod: boolean): Promise<ReadyPart | null> => {
+        // Drawn on meshes, though no scene names them: their textures start small and stream, as a scene's mesh textures do.
+        // Asked only where the host says it: it saves memory, and a plant must grow without it. Once a surface, as loads are.
+        const surface = `${part.material ?? ''}|${part.texture ?? ''}`;
+        if (!noted.has(surface)) {
+            noted.add(surface);
+            assets.noteMeshSurface?.({ material: part.material || undefined, texture: part.texture || undefined });
+        }
         let mesh = 0;
         try { mesh = await handleOf(part.mesh, part.soft ?? 0); } catch { mesh = 0; }
         if (mesh === 0) { log.warn('foliage', `the geometry of ${part.mesh} cannot be read, so its plants are left out`); return null; }

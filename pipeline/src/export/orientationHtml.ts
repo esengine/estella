@@ -3,7 +3,7 @@
 /**
  * @file  orientationHtml.ts — the WEB export's orientation pin, for the ONE
  *        project-wide orientation (format.ts resolveOrientation): in the wrong device
- *        orientation the canvas is hidden and a "rotate your device" overlay shows;
+ *        orientation on a touch device the canvas is hidden and a "rotate your device" overlay shows;
  *        screen.orientation.lock() is attempted best-effort (it only takes in
  *        fullscreen / on some browsers, so the CSS overlay is the universal fallback).
  *
@@ -29,7 +29,9 @@ export function orientationCss(orientation: ScreenOrientation): string {
     "font:600 15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center;padding:24px;}" +
     '#rotate-hint .rotate-glyph{font-size:44px;animation:rotate-nudge 1.8s ease-in-out infinite;}' +
     '@keyframes rotate-nudge{0%,55%{transform:rotate(0)}75%,100%{transform:rotate(-90deg)}}' +
-    `@media (orientation:${wrong}){#canvas{display:none!important;}#rotate-hint{display:flex;}}`
+    // A touch screen only: a phone or tablet held the wrong way is what turning fixes. A computer's window cannot be turned, so a
+    // desktop browser always shows the game, letterboxed, and its developer tools are never covered.
+    `@media (orientation:${wrong}) and (pointer:coarse){#canvas{display:none!important;}#rotate-hint{display:flex;}}`
   );
 }
 

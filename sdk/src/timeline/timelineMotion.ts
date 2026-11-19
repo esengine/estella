@@ -19,7 +19,7 @@
  */
 
 import type {
-    MotionDriver, AnimatorClipMotion, MotionContext, MotionSpan, MotionEvent, RootMotionDelta,
+    MotionDriver, AnimatorClipMotion, MotionContext, MotionSpan, MotionEvent, MotionWindow, RootMotionDelta,
 } from '../animation/motion';
 import type { Pose } from '../animation/pose';
 import { getComponent } from '../ecs/component';
@@ -27,7 +27,7 @@ import {
     applyWrapMode, sampleTimelineIntoPose, isRootPlacementChannel,
     sampleRootPlacement, createRootPlacement, type SampleDeps, type SampleOptions,
 } from './TimelineEvaluator';
-import { playheadRuns, collectCustomEvents, forEachParticleEvent } from './timelineEvents';
+import { playheadRuns, collectCustomEvents, collectCustomWindows, forEachParticleEvent } from './timelineEvents';
 import { applyTimelineEvent, resolveChildEntity, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
 import type { ParticleAPI } from '../particle/ParticleAPI';
@@ -118,6 +118,15 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
                     applyTimelineEvent(ctx.world, null, TimelineEventType.ParticleAction, target, 0, 0, action, particle);
                 });
             }
+        },
+
+        /** Custom events with a duration that the span reached, in the clip's own time. */
+        windows(
+            _ctx: MotionContext, motion: AnimatorClipMotion, span: MotionSpan, out: MotionWindow[],
+        ): void {
+            const asset = timeline.getAsset(motion.clip);
+            if (!asset) return;
+            collectCustomWindows(asset, runsOf(asset, motion, span), out);
         },
 
         /**

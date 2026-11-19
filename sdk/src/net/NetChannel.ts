@@ -25,6 +25,20 @@ export interface NetTransport {
     send(data: string | ArrayBuffer): void;
     /** Subscribe to incoming frames. Returns an unsubscribe function. */
     on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void;
+    /**
+     * Optional. Holds what is sent from now on and returns the function that
+     * lets it go, so a burst of frames leaves in one write to the network
+     * instead of one write per frame. Order and framing are unchanged: only
+     * when the bytes reach the socket moves. The replication server opens one
+     * around each sample; a transport without it sends as before.
+     */
+    batch?(): () => void;
+    /**
+     * Optional. Close the link from this end. The replication server calls it
+     * when it lets a connection go on purpose (a newer login replaced it, or it
+     * was kicked); without it the server only stops talking to the link.
+     */
+    close?(code?: number, reason?: string): void;
 }
 
 /**
@@ -276,6 +290,23 @@ export class NetChannel {
         frame[0] = channel;
         frame.set(payload, 1);
         this.transport.send(frame.buffer);
+    }
+
+    /**
+     * {@link sendBinary} for a payload already laid out behind one spare leading
+     * byte: the channel id is written into that byte and the frame's buffer goes
+     * to the transport as it is, with no copy. The frame must be the whole of its
+     * buffer, and the caller hands it over — it is not to be written again.
+     *
+     * @internal
+     */
+    sendBinaryInPlace(channel: number, frame: Uint8Array): void {
+        if (channel === CONTROL_CHANNEL) throw new RangeError(`[net] binary channel ${CONTROL_CHANNEL} is reserved for control messages`);
+        if (frame.byteOffset !== 0 || frame.byteLength !== frame.buffer.byteLength || frame.byteLength < 1) {
+            throw new RangeError('[net] sendBinaryInPlace needs a frame that is its whole buffer, leading byte included');
+        }
+        frame[0] = channel;
+        this.transport.send(frame.buffer as ArrayBuffer);
     }
 
     /**

@@ -367,6 +367,14 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
             ES_PROFILE_COUNTER("render.draws.waitingForProgram", draw_list_.skippedForProgram());
             ES_PROFILE_COUNTER("render.programs.pending", device_.pendingProgramCount());
         }
+        // What the probe volumes cost the frame: draws that read the brick atlas per pixel, draws that read one value,
+        // and what the atlas holds on the GPU (0 while nothing reads it per pixel).
+        {
+            const ProbeStore& probes = context_.probes();
+            ES_PROFILE_COUNTER("render.probes.perPixelDraws", probes.perPixelDraws());
+            ES_PROFILE_COUNTER("render.probes.perObjectDraws", probes.perObjectDraws());
+            ES_PROFILE_COUNTER("render.probes.atlasBytes", probes.atlasTexture() != 0 ? probes.atlasBytes() : 0);
+        }
     }
 
     // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
@@ -1665,11 +1673,17 @@ void RenderFrame::collectProbes(ecs::Registry& registry) {
         probes.add(centre - half, centre + half, grid);
     }
 
-    // 2048 is the side WebGL2 guarantees; a grid past it keeps the per-object read rather than failing.
-    if (probes.layoutAtlas(2048) && probes.atlasWidth() > 0) {
+    // Per object only (a quality level for a weak GPU): no atlas is laid out or held, and every draw reads its one value.
+    if (!probes_per_pixel_) {
+        if (probe_atlas_) probe_atlas_.reset();
+        probes.forgetAtlas();
+        return;
+    }
+    // 256 is the 3D side WebGL2 guarantees; a grid past it keeps the per-object read rather than failing.
+    if (probes.layoutAtlas(256) && probes.atlasWidth() > 0) {
         probes.fillAtlas(probe_atlas_texels_);
-        probe_atlas_ = Texture::createRaw(device_, GfxContent::retained(), probes.atlasWidth(), probes.atlasHeight(),
-                                          probe_atlas_texels_.data(), TextureFormat::RGBA16F, false);
+        probe_atlas_ = Texture::createVolume(device_, GfxContent::retained(), probes.atlasWidth(), probes.atlasHeight(),
+                                             probes.atlasDepth(), probe_atlas_texels_.data(), TextureFormat::RGBA16F);
     }
     probes.setAtlasTexture(probes.atlasWidth() > 0 && probe_atlas_ ? probe_atlas_->getId() : 0);
 }

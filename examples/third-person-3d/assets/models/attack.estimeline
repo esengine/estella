@@ -167,12 +167,14 @@
         },
         {
           "time": 0.45,
-          "name": "hit",
+          "duration": 0.2,
+          "name": "attack-active",
           "payload": {}
         },
         {
-          "time": 0.6,
-          "name": "hit",
+          "time": 0.55,
+          "duration": 0.3,
+          "name": "combo",
           "payload": {}
         },
         {

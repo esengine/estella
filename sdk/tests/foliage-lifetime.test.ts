@@ -56,6 +56,9 @@ function assetFixture() {
     };
     const api = {
         acquireTyped: acquire, acquireTexture: (path: string) => acquire('texture', path),
+        noteMeshSurface: (surface: { material?: string; texture?: string }) => {
+            calls.push(`surface:${surface.material ?? ''}|${surface.texture ?? ''}`);
+        },
         readMeshData: async () => triangle(),
         createMesh: () => { const h = next++; generated.add(h); return h; },
         releaseBuiltMesh: (h: number) => { generated.delete(h); },
@@ -83,10 +86,17 @@ describe('owned asset receipts', () => {
 describe('foliage resource lifetime', () => {
     it('shares assets and softened geometry across tint variants, then returns every acquisition', async () => {
         const f=assetFixture(), ready=await prepareKinds(f.api,[kind,kind]);
-        expect(f.calls).toEqual(['mesh:leaf.mesh','material:leaf.material','texture:leaf.png']);
+        expect(f.calls).toEqual(['surface:leaf.material|leaf.png','mesh:leaf.mesh','material:leaf.material','texture:leaf.png']);
         expect(ready.kinds[0]![0]!.mesh).toBe(ready.kinds[1]![0]!.mesh);
         expect(f.generated.size).toBe(1); releaseKinds(ready);
         expect(f.receipts.size).toBe(0); expect(f.generated.size).toBe(0);
+    });
+    it('says the material and texture of a part are drawn on meshes before it loads them, so streaming starts them small', async () => {
+        const f=assetFixture(); await prepareKinds(f.api,[kind]);
+        const noted = f.calls.indexOf('surface:leaf.material|leaf.png');
+        expect(noted).toBeGreaterThanOrEqual(0);
+        expect(noted).toBeLessThan(f.calls.indexOf('material:leaf.material'));
+        expect(noted).toBeLessThan(f.calls.indexOf('texture:leaf.png'));
     });
     it('rolls back partial preparation, including composed meshes, if a material fails', async () => {
         const f=assetFixture(); f.fail('material');

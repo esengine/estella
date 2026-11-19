@@ -33,7 +33,7 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
-    type ReplComponentRemoveBatch,
+    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
@@ -134,6 +134,74 @@ export interface ReplicationClientOptions {
     interpolationDelayTicks?: number;
     /** Enable client-side prediction for the entities this connection owns. */
     prediction?: PredictionOptions;
+    /** Handed to the server's `authenticate` in every hello, the first and each reconnect. */
+    credentials?: unknown;
+    /**
+     * Redial when the link drops. Works over a platform socket (`GameSocket`,
+     * `createSocket`), which can be opened again; the client waits, reopens it,
+     * says hello with the same credentials and takes up its old connection id
+     * when the server still holds the player. Ghosts it already has stay the
+     * same entities. Off by default; `true` waits 0.5 s, doubling to 8 s.
+     * It stops for good when the server says this player was replaced by
+     * another login or kicked, or refuses the hello as final.
+     */
+    reconnect?: boolean | ReplicationReconnectOptions;
+    /**
+     * Open a transport to an address a server names when it transfers this
+     * client elsewhere (`server.transfer`, `esengine/zones`): typically
+     * `(url) => createSocket({ url })`. With it, a transfer drops every ghost
+     * from the old server and connects to the new one by itself, showing its
+     * ticket. Without it, a transfer ends the client (`closeReason`
+     * `'transfer'`, `transferTarget` says where).
+     */
+    dial?: (address: string) => ReliableOrderedTransport;
+    /**
+     * Ping the server every `intervalMs`; silent for `timeoutMs` and a link
+     * that can be reopened is closed, so `reconnect` redials it — a server
+     * that vanished without closing the socket is noticed. Default 5 s / 15 s
+     * over a platform socket, off otherwise; `false` turns it off.
+     */
+    heartbeat?: { intervalMs: number; timeoutMs: number } | false;
+    /**
+     * Where to log in again when the server this client was on cannot be
+     * reached for `entryAfterMs` — typically the address it first connected to,
+     * any zone that routes logins (`esengine/zones`). Needs `dial` and
+     * `reconnect`. Without it the client redials its own server for good.
+     */
+    entry?: string | readonly string[];
+    /**
+     * How long to keep redialing the lost server before going to `entry`, and
+     * how long to keep at one entry before trying the next of a list. Default 3 s.
+     */
+    entryAfterMs?: number;
+}
+
+export interface ReplicationReconnectOptions {
+    /** First wait after a drop. Default 500 ms. */
+    minDelayMs?: number;
+    /** Longest wait between attempts. Default 8000 ms. */
+    maxDelayMs?: number;
+}
+
+/**
+ * Where a client's link stands. `reconnecting` is a dropped link being
+ * redialed; `closed` is the end — `disconnect()`, a final refusal, or the
+ * server letting the player go (`closeReason` says which).
+ */
+export type ReplicationClientState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'transferring' | 'closed';
+
+/** What a platform socket adds to a transport: it can be reopened, and it says when it closes. */
+interface RedialableSocket extends ReliableOrderedTransport {
+    readyState: string;
+    connect(): void;
+    close(code?: number, reason?: string): void;
+    on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void;
+    on(event: 'open' | 'close', handler: () => void): () => void;
+}
+
+function isRedialable(t: ReliableOrderedTransport): t is RedialableSocket {
+    const s = t as Partial<RedialableSocket>;
+    return typeof s.connect === 'function' && typeof s.close === 'function' && typeof s.readyState === 'string';
 }
 
 /** One received message, tagged so the inbox can stay a single ordered queue. */
@@ -141,7 +209,9 @@ type PendingOp =
     | { kind: 'spawn'; batch: ReplSpawnBatch }
     | { kind: 'despawn'; batch: ReplDespawnBatch }
     | { kind: 'remove'; batch: ReplComponentRemoveBatch }
-    | { kind: 'state'; frame: Uint8Array };
+    | { kind: 'state'; frame: Uint8Array }
+    /** Everything held came from a server this client has left: drop it. */
+    | { kind: 'reset' };
 
 export class ReplicationClient {
     private readonly world_: World;
@@ -167,9 +237,49 @@ export class ReplicationClient {
      *  the live components); reconciliation rebuilds live = this ⊕ replay. */
     private readonly authority_ = new Map<number, Map<number, Record<string, unknown>>>();
     private fixedDelta_ = 1 / 60;
+    private readonly credentials_: unknown;
+    private readonly reconnect_: Required<ReplicationReconnectOptions> | null;
+    private playerId_: string | undefined;
+    private state_: ReplicationClientState = 'idle';
+    private readonly stateListeners_ = new Set<(state: ReplicationClientState, client: ReplicationClient) => void>();
+    private readonly messageHandlers_ = new Map<string, Set<(data: unknown) => void>>();
+    private closeReason_: ReplCloseReason | string | undefined;
+    /** The next initial batch reconciles against ghosts already held. */
+    private resyncing_ = false;
+    /** Undoes the redial wiring on the current socket. */
+    private offSocket_: (() => void) | null = null;
+    private redialTimer_: ReturnType<typeof setTimeout> | null = null;
+    private redialDelay_ = 0;
+    private readonly dial_: ((address: string) => ReliableOrderedTransport) | null;
+    private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
+    private readonly entries_: readonly string[];
+    /** Which entry the redials under way go to; -1 while redialing the lost server. */
+    private entryAt_ = -1;
+    /** When the current address started being redialed. */
+    private dialingSince_ = 0;
+    private readonly entryAfterMs_: number;
+    /** When the current run of failed redials began; 0 while connected. */
+    private lostSince_ = 0;
+    /** The server process this client is connected to (from the hello). */
+    private serverId_: string | undefined;
+    /** The server process the ghosts held came from (from the initial batch applied). */
+    private ghostsFrom_: string | undefined;
+    /** The ticket the next hello shows, while a transfer is under way. */
+    private transferTicket_: string | undefined;
+    private transferTarget_: { address: string; ticket: string } | undefined;
 
     constructor(world: World, options: ReplicationClientOptions = {}) {
         this.world_ = world;
+        this.credentials_ = options.credentials;
+        this.dial_ = options.dial ?? null;
+        this.entries_ = options.entry === undefined ? [] : typeof options.entry === 'string' ? [options.entry] : [...options.entry];
+        this.entryAfterMs_ = options.entryAfterMs ?? 3000;
+        this.heartbeat_ = options.heartbeat === false ? null : (options.heartbeat ?? { intervalMs: 5000, timeoutMs: 15000 });
+        const r = options.reconnect;
+        this.reconnect_ = r ? {
+            minDelayMs: (r === true ? undefined : r.minDelayMs) ?? 500,
+            maxDelayMs: (r === true ? undefined : r.maxDelayMs) ?? 8000,
+        } : null;
         const delay = options.interpolationDelayTicks ?? 2;
         this.interp_ = delay > 0 ? new InterpolationState(delay) : null;
         this.prediction_ = options.prediction ?? null;
@@ -192,6 +302,53 @@ export class ReplicationClient {
         return this.connectionId_;
     }
 
+    /** Who the server says this is, when it authenticates players. */
+    get playerId(): string | undefined {
+        return this.playerId_;
+    }
+
+    get state(): ReplicationClientState {
+        return this.state_;
+    }
+
+    /**
+     * The server process this client is connected to, or was last: a random id
+     * per process, so a change says the client is on another server now (a
+     * transfer, a reroute, a restart) even where the address is the same.
+     */
+    get serverId(): string | undefined {
+        return this.serverId_;
+    }
+
+    /**
+     * Hear every change of {@link state}, as it happens — a transfer or a
+     * reconnect can pass through several states between two frames, which
+     * polling `state` would miss. Read `serverId`, `closeReason` and
+     * `connectionId` from the client in the listener. Returns an unsubscribe.
+     */
+    onStateChange(listener: (state: ReplicationClientState, client: ReplicationClient) => void): () => void {
+        this.stateListeners_.add(listener);
+        return () => this.stateListeners_.delete(listener);
+    }
+
+    private setState_(state: ReplicationClientState): void {
+        if (this.state_ === state) return;
+        this.state_ = state;
+        for (const listener of [...this.stateListeners_]) {
+            try { listener(state, this); } catch (err) { log.warn('repl', 'a state listener threw', err); }
+        }
+    }
+
+    /** Where a transfer told this client to go, when it had no `dial` to go there itself. */
+    get transferTarget(): { address: string; ticket: string } | undefined {
+        return this.transferTarget_;
+    }
+
+    /** Why the link ended for good: the server's `replaced` / `kicked`, or a refusal's message. */
+    get closeReason(): ReplCloseReason | string | undefined {
+        return this.closeReason_;
+    }
+
     /** The tick stamped on the newest applied state (server time axis). */
     get serverTick(): number {
         return this.serverTick_;
@@ -207,7 +364,60 @@ export class ReplicationClient {
     /** Handshake over the transport; rejects (and detaches) on any mismatch. */
     async connect(transport: ReliableOrderedTransport): Promise<void> {
         if (this.channel_) throw new Error('[repl] client already connected');
-        const channel = new NetChannel(transport);
+        this.setState_('connecting');
+        let link = transport;
+        let res = await this.handshake_(link);
+        // A login routed elsewhere: follow it, a few hops at most.
+        for (let hops = 0; !res.ok && res.redirect && hops < 4; hops++) {
+            if (!this.dial_) {
+                this.disconnect();
+                throw new Error(`[repl] redirected to ${res.redirect.address}; connect with a dial to follow it`);
+            }
+            (this.channel_ as NetChannel | null)?.dispose();
+            this.channel_ = null;
+            if (isRedialable(link)) link.close(1000, 'redirected');
+            link = this.dial_(res.redirect.address);
+            if (isRedialable(link) && link.readyState === 'closed') link.connect();
+            this.transferTicket_ = res.redirect.ticket;
+            res = await this.handshake_(link);
+        }
+        if (!res.ok) {
+            this.disconnect();
+            throw new Error(`[repl] server refused connection: ${res.error}`);
+        }
+        this.watchSocket_(link);
+    }
+
+    /**
+     * Say hello again over a new link and carry on where the old one left off:
+     * the same connection id when the server still holds this player, and the
+     * ghosts already held reconciled in place against what the server sends.
+     * What `reconnect` does by itself; call it for a transport that cannot be
+     * reopened. Rejects when the server refuses.
+     */
+    async resume(transport: ReliableOrderedTransport): Promise<void> {
+        this.cancelRedial_();
+        this.offSocket_?.();
+        this.offSocket_ = null;
+        this.channel_?.dispose();
+        this.channel_ = null;
+        this.setState_('reconnecting');
+        const res = await this.handshake_(transport, true);
+        if (!res.ok) {
+            (this.channel_ as NetChannel | null)?.dispose();
+            this.channel_ = null;
+            throw new Error(`[repl] server refused connection: ${res.error}`);
+        }
+        this.watchSocket_(transport);
+    }
+
+    /** One hello over a fresh channel. Leaves the channel installed on success. */
+    private async handshake_(transport: ReliableOrderedTransport, resuming = false): Promise<ReplHelloResponse> {
+        const beat = this.heartbeat_ && isRedialable(transport) ? this.heartbeat_ : null;
+        const channel = new NetChannel(transport, beat ? {
+            // Closing the socket is what starts a redial; the channel only notices the silence.
+            heartbeat: { ...beat, onDead: () => { if (this.channel_ === channel) (transport as RedialableSocket).close(4001, 'heartbeat timeout'); } },
+        } : {});
         this.channel_ = channel;
 
         // Handlers first: the initial spawn batch may hit the wire before the
@@ -223,26 +433,236 @@ export class ReplicationClient {
             // Copy out: the payload view may alias a transport-owned buffer.
             this.inbox_.push({ kind: 'state', frame: payload.slice() });
         });
+        channel.on<ReplClosedMsg>(ReplMsg.closed, (msg) => this.closedByServer_(channel, msg));
+        channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
+            if (this.channel_ !== channel || typeof msg?.type !== 'string') return;
+            const handlers = this.messageHandlers_.get(msg.type);
+            if (!handlers) return;
+            for (const h of [...handlers]) {
+                try { h(msg.data); } catch (err) { log.warn('repl', `message handler for "${msg.type}" threw`, err); }
+            }
+        });
 
         const hello: ReplHelloRequest = {
             protocolVersion: REPLICATION_PROTOCOL_VERSION,
             abiHash: ABI_LAYOUT_HASH,
             components: tableSchemas(this.table),
+            ...(this.credentials_ !== undefined ? { credentials: this.credentials_ } : {}),
+            ...(this.transferTicket_ !== undefined ? { transfer: this.transferTicket_ } : {}),
         };
+        // A socket that closes before the answer (nothing listening there, the
+        // server gone mid-hello) fails the hello now, not at the request timeout.
+        const offClose = isRedialable(transport) ? transport.on('close', () => channel.dispose('link closed during hello')) : null;
         let res: ReplHelloResponse;
         try {
             res = await channel.request<ReplHelloResponse>(ReplMsg.hello, hello);
         } catch (err) {
-            this.disconnect();
+            if (!resuming) this.disconnect();
             throw err;
+        } finally {
+            offClose?.();
         }
+        if (this.channel_ !== channel) return { ok: false, error: 'superseded', fatal: false };
         if (!res.ok) {
-            this.disconnect();
-            throw new Error(`[repl] server refused connection: ${res.error}`);
+            if (res.fatal !== false) { this.closeReason_ = res.error; this.setState_('closed'); }
+            return res;
         }
+        if (resuming) {
+            // A new link is a new input stream on the server: what was in flight
+            // is gone or already applied, and the next acknowledgement says which.
+            this.pendingInputs_.length = 0;
+            this.ackedSeq_ = this.inputSeq_;
+            this.resyncing_ = true;
+        }
+        if (res.serverId !== undefined) this.serverId_ = res.serverId;
         this.connectionId_ = res.connectionId;
+        this.playerId_ = res.playerId;
         this.serverTick_ = res.tick;
         if (res.fixedDelta > 0) this.fixedDelta_ = res.fixedDelta;
+        this.setState_('ready');
+        this.closeReason_ = undefined;
+        this.redialDelay_ = 0;
+        this.lostSince_ = 0;
+        this.entryAt_ = -1;
+        this.dialingSince_ = 0;
+        // A ticket is good once; a later reconnect to this server is an ordinary one.
+        this.transferTicket_ = undefined;
+        return res;
+    }
+
+    /** The server let this link go on purpose: no redial; a transfer goes on elsewhere. */
+    private closedByServer_(channel: NetChannel, msg: ReplClosedMsg): void {
+        if (this.channel_ !== channel) return;
+        this.cancelRedial_();
+        this.offSocket_?.();
+        this.offSocket_ = null;
+        channel.dispose();
+        this.channel_ = null;
+        if (msg?.reason === 'transfer' && typeof msg.address === 'string' && typeof msg.ticket === 'string') {
+            this.beginTransfer_(msg.address, msg.ticket, typeof msg.fallback === 'string' ? msg.fallback : undefined);
+            return;
+        }
+        this.closeReason_ = msg?.reason ?? 'kicked';
+        this.setState_('closed');
+    }
+
+    /**
+     * Leave this server for another. Ghosts from here mean nothing there (netIds
+     * are per server), so they go — in order, ahead of anything the new server
+     * sends — and the client says hello there with the ticket.
+     */
+    private beginTransfer_(address: string, ticket: string | undefined, fallback?: string): void {
+        if (!this.dial_) {
+            this.transferTarget_ = { address, ticket: ticket ?? '' };
+            this.closeReason_ = 'transfer';
+            this.setState_('closed');
+            return;
+        }
+        this.inbox_.push({ kind: 'reset' });
+        this.pendingInputs_.length = 0;
+        this.ackedSeq_ = this.inputSeq_;
+        this.connectionId_ = 0;
+        this.transferTicket_ = ticket;
+        this.setState_('transferring');
+        const failed = (why: string): void => {
+            this.channel_?.dispose();
+            this.channel_ = null;
+            this.transferTicket_ = undefined;
+            if (fallback !== undefined && this.reconnect_) { this.goBack_(fallback); return; }
+            this.closeReason_ = `transfer failed: ${why}`;
+            this.setState_('closed');
+        };
+        let transport: ReliableOrderedTransport;
+        try {
+            transport = this.dial_(address);
+        } catch (err) {
+            failed(String((err as Error)?.message ?? err));
+            return;
+        }
+        // A platform socket queues the hello until it opens.
+        if (isRedialable(transport) && transport.readyState === 'closed') transport.connect();
+        void this.handshake_(transport, true).then((res) => {
+            if (res.ok) this.watchSocket_(transport);
+            else if (res.redirect && this.state_ !== 'closed') this.follow_(transport, res.redirect);
+            else if (this.state_ !== 'closed') failed(res.error);
+        }, (err) => {
+            if (isRedialable(transport)) transport.close(1000, 'transfer failed');
+            failed(String((err as Error)?.message ?? err));
+        });
+    }
+
+    /**
+     * The destination of a transfer could not be reached: log in again where
+     * the client came from, as an ordinary reconnect that keeps redialing. That
+     * server turns it away while the lease is still on its way to the dead
+     * zone, and takes it once the short arrival lease has run out.
+     */
+    private goBack_(address: string): void {
+        this.setState_('reconnecting');
+        let transport: ReliableOrderedTransport;
+        try {
+            transport = this.dial_!(address);
+        } catch (err) {
+            this.closeReason_ = `transfer failed and the way back too: ${(err as Error)?.message ?? err}`;
+            this.setState_('closed');
+            return;
+        }
+        if (isRedialable(transport)) {
+            // The socket's own open and close drive the hello and the redials.
+            this.watchSocket_(transport);
+            if (transport.readyState === 'closed') transport.connect();
+            return;
+        }
+        // A transport that cannot be reopened: dial again for each attempt.
+        const drop = (): void => { this.channel_?.dispose(); this.channel_ = null; };
+        void this.handshake_(transport, true).then((res) => {
+            if (res.ok || this.state_ === 'closed') return;
+            drop();
+            if (res.fatal !== false) { this.closeReason_ = res.error; this.setState_('closed'); return; }
+            this.retryBack_(address);
+        }, () => { drop(); if (this.state_ !== 'closed') this.retryBack_(address); });
+    }
+
+    private retryBack_(address: string): void {
+        const r = this.reconnect_!;
+        this.redialDelay_ = this.redialDelay_ === 0 ? r.minDelayMs : Math.min(r.maxDelayMs, this.redialDelay_ * 2);
+        this.redialTimer_ = setTimeout(() => {
+            this.redialTimer_ = null;
+            if (this.state_ === 'reconnecting' && !this.channel_) this.goBack_(address);
+        }, this.redialDelay_);
+    }
+
+    /** Drop every ghost and everything kept about them: they belonged to a server this client left. */
+    private resetWorld_(): void {
+        const all = this.netIds_.netIdList();
+        if (all.length > 0) this.applyDespawnBatch_({ tick: this.serverTick_, netIds: all });
+        this.authority_.clear();
+        this.serverTick_ = 0;
+    }
+
+    /** With `reconnect`, follow the socket so a drop starts a redial. */
+    private watchSocket_(transport: ReliableOrderedTransport): void {
+        if (!this.reconnect_ || !isRedialable(transport)) return;
+        const offClose = transport.on('close', () => this.linkLost_(transport));
+        const offOpen = transport.on('open', () => {
+            if (this.state_ !== 'reconnecting' || this.channel_) return;
+            void this.handshake_(transport, true).then((res) => {
+                if (res.ok || this.state_ === 'closed') return;
+                // Routed elsewhere (a login at an entry, sent on to its zone).
+                if (res.redirect && this.dial_) { this.follow_(transport, res.redirect); return; }
+                // A refusal that is not final: drop the link and let the close redial.
+                transport.close(1000, 'hello refused');
+            }, () => {
+                if (this.state_ !== 'closed') transport.close(1000, 'hello failed');
+            });
+        });
+        this.offSocket_ = () => { offClose(); offOpen(); };
+    }
+
+    private linkLost_(socket: RedialableSocket): void {
+        if (this.state_ === 'closed' || this.state_ === 'idle') return;
+        this.channel_?.dispose();
+        this.channel_ = null;
+        this.setState_('reconnecting');
+        this.lostSince_ ||= Date.now();
+        this.dialingSince_ ||= this.lostSince_;
+        if (this.redialTimer_) return;
+        const r = this.reconnect_!;
+        this.redialDelay_ = this.redialDelay_ === 0 ? r.minDelayMs : Math.min(r.maxDelayMs, this.redialDelay_ * 2);
+        this.redialTimer_ = setTimeout(() => {
+            this.redialTimer_ = null;
+            if (this.state_ !== 'reconnecting') return;
+            // The server this client was on has not come back: log in at the
+            // entry instead, which sends it where it belongs now.
+            // The address being redialed has not come back: log in at the next
+            // entry instead (the first after the lost server, then each in turn),
+            // which sends it where it belongs now.
+            if (this.entries_.length > 0 && this.dial_ && Date.now() - this.dialingSince_ >= this.entryAfterMs_) {
+                this.entryAt_ = (this.entryAt_ + 1) % this.entries_.length;
+                this.dialingSince_ = Date.now();
+                this.offSocket_?.();
+                this.offSocket_ = null;
+                this.goBack_(this.entries_[this.entryAt_]!);
+                return;
+            }
+            socket.connect();
+        }, this.redialDelay_);
+    }
+
+    /** A hello answered with "not here": leave this link and say hello where it says. */
+    private follow_(transport: ReliableOrderedTransport, redirect: { address: string; ticket?: string }): void {
+        this.channel_?.dispose();
+        this.channel_ = null;
+        this.offSocket_?.();
+        this.offSocket_ = null;
+        this.cancelRedial_();
+        if (isRedialable(transport)) transport.close(1000, 'redirected');
+        this.beginTransfer_(redirect.address, redirect.ticket, this.entries_[0]);
+    }
+
+    private cancelRedial_(): void {
+        if (this.redialTimer_) clearTimeout(this.redialTimer_);
+        this.redialTimer_ = null;
     }
 
     /** @internal Keep the replay dt in lockstep with the app (plugin-fed). */
@@ -272,9 +692,13 @@ export class ReplicationClient {
     }
 
     disconnect(): void {
+        this.cancelRedial_();
+        this.offSocket_?.();
+        this.offSocket_ = null;
         this.channel_?.dispose();
         this.channel_ = null;
         this.connectionId_ = 0;
+        this.setState_('closed');
         // Retire the despawn subscription and all accumulated state — otherwise
         // every Play→Stop / reconnect cycle leaks a closure that keeps this dead
         // client alive (and mutating it on future despawns), plus stale queues.
@@ -291,6 +715,28 @@ export class ReplicationClient {
      *  contract, since the server consumes one command per tick). The seq
      *  stamp makes stale deliveries harmless. With prediction the command also
      *  applies to the owned entities immediately. */
+    /**
+     * Send a game message to the server (`ReplicationServer.onMessage`). Returns
+     * false, and sends nothing, while not connected: a message is not queued
+     * across a reconnect.
+     */
+    message(type: string, data?: unknown): boolean {
+        if (!this.channel_ || this.state_ !== 'ready') return false;
+        this.channel_.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data });
+        return true;
+    }
+
+    /**
+     * Hear a game message from the server (`ReplicationServer.message`), as it
+     * arrives — not on the fixed step the state waits for. Returns an unsubscribe.
+     */
+    onMessage(type: string, handler: (data: unknown) => void): () => void {
+        let set = this.messageHandlers_.get(type);
+        if (!set) { set = new Set(); this.messageHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
+    }
+
     sendInput(actions: Record<string, unknown>): void {
         if (!this.channel_) return;
         const msg: ReplInputMsg = { seq: ++this.inputSeq_, actions };
@@ -324,6 +770,7 @@ export class ReplicationClient {
                 case 'despawn': this.applyDespawnBatch_(op.batch); break;
                 case 'remove': this.applyComponentRemoveBatch_(op.batch); break;
                 case 'state': this.applyStateFrame_(decodeStateFrame(op.frame, this.table, this.refs_)); break;
+                case 'reset': this.resetWorld_(); break;
             }
         }
         if (this.prediction_) {
@@ -446,6 +893,16 @@ export class ReplicationClient {
      * 0 for a forward reference and never revisits it.
      */
     private applySpawnBatch_(batch: ReplSpawnBatch): void {
+        // The first state from a server process. From another one than the
+        // ghosts held came from, its netIds are not theirs: drop them first.
+        if (batch.initial && batch.serverId !== undefined) {
+            if (this.ghostsFrom_ !== undefined && batch.serverId !== this.ghostsFrom_) this.resetWorld_();
+            this.ghostsFrom_ = batch.serverId;
+        }
+        if (batch.initial && this.resyncing_) {
+            this.resyncing_ = false;
+            this.reconcileHeld_(batch);
+        }
         const fresh: { spawn: ReplSpawnEntity; entity: Entity }[] = [];
         for (const spawn of batch.entities) {
             if (this.netIds_.entityOf(spawn.netId) !== undefined) continue; // duplicate delivery
@@ -488,6 +945,32 @@ export class ReplicationClient {
             if (spawn.parentNetId === 0) continue;
             const parent = this.netIds_.entityOf(spawn.parentNetId);
             if (parent !== undefined) this.world_.setParent(entity, parent);
+        }
+    }
+
+    /**
+     * After a reconnect: the initial batch is everything the server says this
+     * connection can see. A ghost it names stays the same entity and takes the
+     * new baseline; one it does not name is gone. What is new falls through to
+     * the ordinary spawn path, which skips the ones handled here.
+     */
+    private reconcileHeld_(batch: ReplSpawnBatch): void {
+        const named = new Map<number, ReplSpawnEntity>();
+        for (const spawn of batch.entities) named.set(spawn.netId, spawn);
+        const gone: number[] = [];
+        for (const netId of this.netIds_.netIdList()) if (!named.has(netId)) gone.push(netId);
+        if (gone.length > 0) this.applyDespawnBatch_({ tick: batch.tick, netIds: gone });
+        for (const spawn of batch.entities) {
+            const e = this.netIds_.entityOf(spawn.netId);
+            if (e === undefined || !this.world_.valid(e)) continue;
+            this.world_.insert(e, Replicated, { netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype });
+            this.interp_?.drop(spawn.netId);
+            this.authority_.delete(spawn.netId);
+            for (const comp of spawn.baseline) {
+                const data = this.remapEntityRefs_(comp.type, comp.data);
+                loadComponent(this.world_, e, { type: comp.type, data }, spawn.name);
+            }
+            this.seedAuthority_(spawn.netId, e);
         }
     }
 

@@ -23,6 +23,8 @@ const READINGS = [
   [],
   ['MESH', 'MESH_NORMALS', 'LIT', 'ES_RECEIVE_SHADOW', 'ES_ENV_MAP', 'ES_SURFACE_3D', 'ES_LINEAR', 'ES_GBUFFER', 'MESH_TANGENTS', 'MESH_LIGHTMAP'],
   ['SKINNED', 'MESH_NORMALS', 'LIT', 'ES_LIGHT_DIRECT', 'PARTICLE'],
+  // A resident 3D surface that reads no bake: the only variant that declares the probe atlas and reads it per pixel.
+  ['MESH', 'MESH_NORMALS', 'LIT', 'ES_RECEIVE_SHADOW', 'ES_SURFACE_3D'],
 ];
 
 function preprocess(text, defined) {

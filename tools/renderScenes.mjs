@@ -336,7 +336,18 @@ export const SCENES = [
   // ONE mesh across the same box. Read per object it would be the purple its centre stands in, end to end; read per
   // pixel (the grid through the frame's probe atlas) its left end is red and its right blue, as a merged building
   // spanning a shed and the yard is dark under the roof and lit outside.
-  { id: "probe-per-pixel", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
+  { id: "probe-per-pixel", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_COUNTERS_MIN": "{\"render.probes.perPixelDraws\":1,\"render.probes.atlasBytes\":1}", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
+  // The same mesh read PER OBJECT, as the low quality level reads probes (renderer_setProbesPerPixel false): one value
+  // where the mesh stands, the purple of the field's middle at both ends, no draw reading the atlas and no atlas held.
+  { id: "probe-per-object", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_PROBES_PER_OBJECT": "1", "ESTELLA_VERIFY_COUNTERS": "{\"render.probes.perPixelDraws\":0,\"render.probes.atlasBytes\":0}", "ESTELLA_VERIFY_COUNTERS_MIN": "{\"render.probes.perObjectDraws\":1}", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[126,0,126],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[118,0,118],\"tol\":20}]" } },
+  // The same mesh and field, the grid SPARSE: one brick of span 2 (version 3 file, bricks in the atlas). Read with the
+  // span the middle is the same mix; read without it the read lands two probes off and the mix moves.
+  { id: "probe-per-pixel-sparse", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel-sparse.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel-sparse.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
+  // WHERE A COARSE BRICK MEETS FINE ONES. Red everywhere but a blue bump on the fine side of the shared face that the
+  // coarse face cannot hold; the bake stitches the fine face to the coarse brick, so both sides of the seam are red.
+  // Unstitched, the fine side reads the bump and turns blue (31,0,205 at the seam). The volume stands at x 72 so the
+  // seam falls on the fixture's right triangle (screen x 0.58-0.66); the samples are 5 units either side of it.
+  { id: "probe-seam", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-seam.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-seam.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.6117,\"y\":0.5,\"rgb\":[236,0,0],\"tol\":20},{\"x\":0.6283,\"y\":0.5,\"rgb\":[236,0,0],\"tol\":20}]" } },
   // The same box, and a mesh whose ORIGIN is outside it (x -200) while its right end draws inside: an imported level's
   // walls keep the origin the file gave them. Chosen by its origin it is in no volume and black; by its box it reads the
   // grid where each pixel stands.

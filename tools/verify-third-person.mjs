@@ -342,8 +342,9 @@ const START = { y: 60, z: 120 };
 // what that does. Every reading is taken while the swing is still live, so the
 // attack instance itself is visible rather than inferred from the aftermath.
 {
-    // The clip's `hit` beats sit at 0.45s and 0.60s of a 1s attack; a press at
-    // frame 5 puts them around frames 32 and 41 at the rate this harness runs.
+    // The clip's `attack-active` window runs from 0.45s to 0.65s of a 1s attack; a
+    // press at frame 5 puts it around frames 32 to 44 at the rate this harness runs.
+    // The swing sweeps its anchor's path over every frame of it.
     const attacking = (extra = [], frames = 50) =>
         run(dir, { holds: [ATTACK(5), ...extra], frames });
 
@@ -372,11 +373,30 @@ const START = { y: 60, z: 120 };
           && (landed.particles?.HitSpark ?? 0) > 0,
           `sparks ${early.particles?.HitSpark}→${landed.particles?.HitSpark}`);
 
-    // D — the clip says `hit` twice, and the swing still lands once.
+    // D — the window spans several frames in reach, and the swing still lands once.
     const twice = run(dir, { holds: [ATTACK(5), ATTACK(80)], frames: 125 });
     check('a second swing may land on what the first one already hit',
           swing(twice).hitCount === 1 && health(twice, 'DummyA') === 50,
           `hits ${swing(twice).hitCount}, A ${health(twice, 'DummyA')}`);
+
+    // F — the combo. Attack1's `combo` window runs 0.55s to 0.85s of its clip, around
+    // frames 39 to 57 for a press at frame 5; the attack trigger buffers a press for
+    // 0.25s, 15 frames.
+    const chained = run(dir, { holds: [ATTACK(5), ATTACK(45)], frames: 80 });
+    check('a press inside the combo window chains the second attack',
+          swing(chained).state === 'Attack2', `state ${swing(chained).state}`);
+    // A press a little before the window, held by the buffer until it opens, is not asked here: these
+    // frames are the page's own, as long as the machine makes them, and a press that has to land within
+    // 0.25s of an opening lands on either side of it as the frame rate moves. The animator's own tests
+    // (sdk/tests/animator-combo.test.ts) step a fixed 1/60 through the real timeline driver for it.
+    // Pressed at 15, buffered to 30, and the window opens at 39: forgotten. Before
+    // the buffer, an attack trigger stayed set until something took it, and any
+    // state restarted Attack1 on it, so a mashed button restarted the swing.
+    // Read at 72: the swing pressed at 5 is over by about 65, while one restarted at
+    // 15 would still be playing until about 75.
+    const dropped = run(dir, { holds: [ATTACK(5), ATTACK(15)], frames: 72 });
+    check('a press long before the window is forgotten, and starts no swing of its own',
+          swing(dropped).state === 'Idle', `state ${swing(dropped).state}`);
 
     // A — the same swing where there is nothing to reach.
     const missed = run(dir, {

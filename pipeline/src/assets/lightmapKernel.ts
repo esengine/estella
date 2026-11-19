@@ -80,6 +80,12 @@ export class BakeKernelExecutor implements BakeExecutor {
             this.sky = packSky(scene.sky);
             this.scene = scene;
         }
+        if (job.kind === 'probes') {
+            // A grid of probes: the kernel gathers them on every core, as it does the lumels.
+            if (job.positions.length === 0) return;
+            this.kernel.probes(job.positions, job.atlas, scene.atlasSize, job.samples, this.sky, job.out, job.skyVisibility);
+            return;
+        }
         const out = job.out.subarray(0, scene.lumels.count * 3);
         if (job.kind === 'direct') this.kernel.direct(this.lights, scene.lights.length, out);
         else this.kernel.gather(job.atlas, scene.atlasSize, scene.samples, this.sky, out);

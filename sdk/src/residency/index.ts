@@ -6,7 +6,7 @@
  */
 
 export {
-    StreamedWorld, StreamPlane, WorldPersistent, WorldStreamingSource,
+    StreamedWorld, StreamPlane, WorldPersistent, WorldStreamingSource, ExcludeFromFarProxy,
     type StreamedWorldData, type WorldStreamingSourceData,
 } from './components';
 export {
@@ -14,8 +14,9 @@ export {
     type WorldCell, type WorldManifest, type ResidencySource, type ResidencyDecision,
 } from './cells';
 export {
-    WorldStreamer, WorldStreaming,
+    WorldStreamer, WorldStreaming, DEFAULT_STREAMING_POLICY,
     type CellResidency, type WorldStreamHost, type WorldStreamerStatus, type CellDelivery,
+    type StreamingPolicy, type SlowStreamingPolicy,
 } from './WorldStreamer';
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
 export { worldResidencyReport, type WorldResidencyReport } from './report';
@@ -29,6 +30,14 @@ export {
     prefabRootOf, resolvePrefabRoots, type CutWorld,
 } from './cutWorld';
 export { registryEntityFields } from './componentRefs';
+export {
+    RememberState, WorldMemory, WorldMemoryRes, type RememberStateData, type WorldMemoryData,
+} from './worldMemory';
+export {
+    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
+    type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
+    type AssembledFarProxy,
+} from './farProxy';
 export {
     ProceduralChunks, ProceduralChunksRes, chunksOf, streamingSourcesOf,
     type ChunkLayer, type ChunkSource, type ChunkState, type ChunkLayerStatus,

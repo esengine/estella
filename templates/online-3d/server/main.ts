@@ -23,11 +23,12 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
     loadEsengineModule, createHeadlessApp, runHeadless,
-    flushPendingRegistrations, type ReliableOrderedTransport,
+    flushPendingRegistrations,
 } from 'esengine/node';
 // Replication is a subpath on every entry, the headless one included: importing
 // it is what installs the authority this process exists to run.
-import { Net } from 'esengine/replication';
+// `webSocketTransport` adapts an accepted `ws` socket and lets a replication sample leave in one write per client.
+import { Net, webSocketTransport } from 'esengine/replication';
 import { online } from '../src/net';
 // Side-effect import: `src/main.ts` registers the game's systems at module
 // scope, exactly as it does in the browser. The server runs the project's real
@@ -41,37 +42,6 @@ interface ServerOptions {
     wasm: string;
     /** Simulation rate. The replication cadence follows the fixed timestep. */
     fps: number;
-}
-
-/**
- * One accepted `ws` connection, as the transport replication asks for: send a
- * frame, subscribe to frames, and a claim that the link loses and reorders
- * nothing. A WebSocket does neither, so the claim is honest here; a transport
- * that cannot make it is refused at compile time rather than desynchronizing.
- */
-function wsTransport(socket: WebSocket): ReliableOrderedTransport {
-    const handlers = new Set<(data: string | ArrayBuffer) => void>();
-    socket.on('message', (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
-        // Binary frames are the delta stream and must reach the channel as an
-        // ArrayBuffer; `ws` hands over a Buffer that is usually a VIEW into a
-        // larger pooled allocation, so the byte range has to be sliced out.
-        const frame = isBinary ? toArrayBuffer(data) : String(data);
-        for (const handler of [...handlers]) handler(frame);
-    });
-    return {
-        delivery: 'reliable-ordered',
-        send: (data) => socket.send(data),
-        on: (_event, handler) => {
-            handlers.add(handler);
-            return () => handlers.delete(handler);
-        },
-    };
-}
-
-function toArrayBuffer(data: Buffer | ArrayBuffer | Buffer[]): ArrayBuffer {
-    if (data instanceof ArrayBuffer) return data;
-    const buf = Array.isArray(data) ? Buffer.concat(data) : data;
-    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
 export async function startServer(options: ServerOptions): Promise<() => Promise<void>> {
@@ -94,9 +64,9 @@ export async function startServer(options: ServerOptions): Promise<() => Promise
     });
 
     wss.on('connection', (socket: WebSocket) => {
-        const id = server.attachConnection(wsTransport(socket));
+        const id = server.attachConnection(webSocketTransport(socket));
         console.log(`[server] connection ${id} attached`);
-        // Detaching is what makes the roster shrink: `clientIds` drops this id,
+        // Detaching is what makes the roster shrink: `presentIds` drops this id,
         // and ProvisionPawnsSystem retires the pawn on its next fixed tick.
         // Without it the world fills up with pawns nobody is steering.
         const drop = () => {

@@ -17,7 +17,7 @@ import {
 import { solveDirect, solveGather, type BakeLight, type HitLookup } from './solve';
 import { skyRadiance, type SkySpec } from './sky';
 import type { LumelField } from './atlas';
-import { solveProbes, type ProbeGrid } from './probes';
+import { planProbes, gatherBricks, stitchBricks, solveProbesAt, type ProbeGrid } from './probes';
 import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
 
@@ -58,6 +58,9 @@ export interface BakeOptions {
     /** Directions each probe gathers. Over the whole sphere, so this buys less
      *  per ray than a lumel's hemisphere does. */
     probeSamples?: number;
+    /** Sizes of brick a probe grid may use, where the grid does not say ({@link ProbeGrid.levels}): 1 solves every
+     *  probe; more leaves the air away from geometry at 2, 4... times the spacing, with far fewer probes. */
+    probeLevels?: number;
     /** Where reflections are captured from — a panorama each, solved in the same
      *  light field the probes are. The specular half of the same question. */
     reflectionProbes?: readonly (readonly [number, number, number])[];
@@ -81,11 +84,14 @@ export interface BakeResult {
     lumels: number;
     /** Per surface: the share of its texels its own lightmap UVs laid twice. */
     shared: Float32Array;
-    /** Nine RGB coefficients per probe, one array per requested grid, in grid
-     *  order with x varying fastest — what a `.esprobes` carries. */
+    /** Nine RGB coefficients per probe, one array per requested grid: in grid order with x varying fastest for a
+     *  dense grid (what a version 2 `.esprobes` carries), or brick after brick for a sparse one. */
     probes: Float32Array[];
+    /** Per grid: null for a dense grid, or its bricks, four ints each (first finest-brick cell x, y, z and the span
+     *  in those cells), whose BRICK_PROBES probes each `probes` then holds in turn. */
+    probeBricks: (Int32Array | null)[];
     /** With {@link BakeOptions.skyOcclusion}: nine coefficients per probe, one array per grid, of how
-     *  much of the sky each sees. Empty without it. */
+     *  much of the sky each sees, laid out as `probes` is. Empty without it. */
     probeSkyVisibility: Float32Array[];
     /** One captured sphere per {@link BakeOptions.reflectionProbes}, in the order
      *  they were given, for the caller to prefilter into an atlas column. */
@@ -107,6 +113,7 @@ export const BAKE_DEFAULTS = {
     dilate: 2,
     probeGrids: [] as readonly ProbeGrid[],
     probeSamples: 128,
+    probeLevels: 1,
     skyOcclusion: false,
     reflectionProbes: [] as readonly (readonly [number, number, number])[],
     reflectionWidth: 64,
@@ -305,24 +312,39 @@ export interface BakeScene {
     samples: number;
 }
 
-/** One pass over every lumel. Each writes only its own lumels' entries of `out`,
- *  so any split of the range gives the same result. */
+/** One pass over every lumel, or over a list of probes. Each writes only its own entries of `out`, so any split of
+ *  the range ({@link jobLength}) gives the same result. */
 export type BakeJob =
     | { kind: 'direct'; out: Float32Array }
-    | { kind: 'gather'; atlas: Float32Array; out: Float32Array };
+    | { kind: 'gather'; atlas: Float32Array; out: Float32Array }
+    /** Probes at `positions` (three doubles each) gathering the solved light field `atlas`: 27 coefficients each
+     *  into `out`, and with sky occlusion nine of how much sky each sees into `skyVisibility` (the sky then not
+     *  gathered). */
+    | { kind: 'probes'; atlas: Float32Array; positions: Float64Array; samples: number;
+        out: Float32Array; skyVisibility: Float32Array | null };
 
 export interface BakeStep {
     scene: BakeScene;
     job: BakeJob;
 }
 
-/** Runs jobs against one scene over any range of its lumels; one per thread. */
+/** The items a job runs over: lumels, or probes. A driver splits [0, jobLength) however it likes. */
+export function jobLength(step: BakeStep): number {
+    return step.job.kind === 'probes' ? step.job.positions.length / 3 : step.scene.lumels.count;
+}
+
+/** Runs jobs against one scene over any range of its lumels (or a probe job's probes); one per thread. */
 export function bakeRunner(scene: BakeScene): (job: BakeJob, from: number, to: number) => void {
     const bvh = new Bvh(scene.tris);
     const sky = typeof scene.sky === 'function' ? scene.sky : skyRadiance(scene.sky);
     return (job, from, to) => {
         if (job.kind === 'direct') solveDirect(scene.lumels, bvh, scene.lookup, scene.lights, job.out, from, to);
-        else solveGather(scene.lumels, bvh, scene.lookup, job.atlas, scene.atlasSize, scene.samples, sky, job.out, from, to);
+        else if (job.kind === 'gather') {
+            solveGather(scene.lumels, bvh, scene.lookup, job.atlas, scene.atlasSize, scene.samples, sky, job.out, from, to);
+        } else {
+            solveProbesAt(job.positions, from, to, bvh, scene.lookup, job.atlas, scene.atlasSize, job.samples, sky,
+                          job.out, job.skyVisibility);
+        }
     };
 }
 
@@ -342,7 +364,6 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
     const skyOf = options.sky ?? { kind: 'flat', rgb: opts.ambient };
     const scene: BakeScene = { lumels, tris: soup, lookup, lights, sky: skyOf,
                                atlasSize: size, samples: opts.samples };
-    const sky = typeof skyOf === 'function' ? skyOf : skyRadiance(skyOf);
 
     const direct = new Float32Array(lumels.count * 3);
     yield { scene, job: { kind: 'direct', out: direct } };
@@ -382,16 +403,33 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
     const pixels = encodeLightmap(stored, size * size);
 
     // The probes read the atlas as a gather does — after it holds everything the
-    // surfaces ended up giving off, and before it is quantised to eight bits.
+    // surfaces ended up giving off, and before it is quantised to eight bits. Each grid
+    // is planned first (where its bricks are fine is where geometry is), then solved as
+    // one job over its probes, which a driver may split across threads or hand to the kernel.
     let built: Bvh | null = null;
     const bvh = (): Bvh => (built ??= new Bvh(soup));
     const probeSkyVisibility: Float32Array[] = [];
-    const probes = opts.probeGrids.map((grid) => {
-        const visibility = opts.skyOcclusion
-            ? new Float32Array(Math.max(0, grid.resolution[0] * grid.resolution[1] * grid.resolution[2]) * 9) : undefined;
-        if (visibility) probeSkyVisibility.push(visibility);
-        return solveProbes(grid, bvh(), lookup, radiance, size, opts.probeSamples, sky, visibility);
-    });
+    const probes: Float32Array[] = [];
+    const probeBricks: (Int32Array | null)[] = [];
+    for (const grid of opts.probeGrids) {
+        const layout = planProbes({ ...grid, levels: grid.levels ?? opts.probeLevels },
+                                  (lo, hi) => bvh().overlaps(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]));
+        const count = layout.positions.length / 3;
+        const out = new Float32Array(count * 27);
+        const visibility = opts.skyOcclusion ? new Float32Array(count * 9) : null;
+        yield { scene, job: { kind: 'probes', atlas: radiance, positions: layout.positions, samples: opts.probeSamples,
+                              out, skyVisibility: visibility } };
+        const irradiance = gatherBricks(layout, out, 27);
+        const sky = visibility ? gatherBricks(layout, visibility, 9) : null;
+        // Where a fine brick meets a coarse one, its face takes the coarse one's light, so a read crossing it does not jump.
+        if (layout.bricks) {
+            stitchBricks(layout.resolution, layout.bricks, irradiance, 27);
+            if (sky) stitchBricks(layout.resolution, layout.bricks, sky, 9);
+        }
+        probes.push(irradiance);
+        probeBricks.push(layout.bricks ?? null);
+        if (sky) probeSkyVisibility.push(sky);
+    }
 
     // Captured from the same field, after the same bounces: a reflection of a
     // wall and the light that wall casts are then the same number.
@@ -407,6 +445,7 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
         lumels: lumels.count,
         shared: lumels.shared,
         probes,
+        probeBricks,
         probeSkyVisibility,
         reflections,
     };
@@ -421,6 +460,6 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
         const next = steps.next();
         if (next.done) return next.value;
         runner ??= bakeRunner(next.value.scene);
-        runner(next.value.job, 0, next.value.scene.lumels.count);
+        runner(next.value.job, 0, jobLength(next.value));
     }
 }

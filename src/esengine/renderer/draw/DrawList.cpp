@@ -610,9 +610,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             desc.albedo = false;
             desc.colorWrite = false;
         } else if (afterPrepass && takesPartInPrepass(cmd)) {
-            // Its depth is already in the buffer: it lands where it is level with it, and writes nothing there again.
+            // Its depth is already in the buffer: it lands where it is level with it. It goes on writing depth, the value that is there
+            // already, and is not switched to testing alone: what did not take the prepass (a cut-out the prepass has no program for)
+            // is drawn in this pass too and does write depth, and on ANGLE's D3D11 backend with a multisampled target a draw that
+            // writes depth after draws that only test it is lost whole: with the prepass on, a wood of cut-out trees was not drawn.
             desc.depthEqual = true;
-            desc.depthWrite = false;
         }
 
         // A program still compiling in the background: this draw waits for a later frame instead of making this one wait for it.

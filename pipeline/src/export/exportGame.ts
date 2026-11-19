@@ -1072,6 +1072,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   progress({ phase: 'Cutting worlds' });
   const world = await cookWorlds(opts.root, payloadDir, scenes);
   warnings.push(...world.warnings);
+  for (const far of world.farProxies) {
+    progress({ phase: 'Cutting worlds', detail: `${far.scene}: far proxies for ${far.cells} cell(s), `
+      + `${far.trianglesBefore} -> ${far.trianglesAfter} triangles` });
+  }
   // The flat manifest is a build-time intermediate: the addressable one above is
   // derived from it, and every runtime now reads only that. Dropping it keeps one
   // asset model in the package — the mini-game export has always done this.
@@ -1326,7 +1330,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !opts.developmentPreview && opts.splash?.ident !== false };
+    // A development preview is a page someone debugs, reloaded on every save: the start screen shows loading and nothing more, no
+    // logo and no minimum time, which a game holds back for only where a player sees it.
+    const authored = await splashLook(opts.root, opts.splash, warnings);
+    const look: SplashLook = opts.developmentPreview
+      ? { ...authored, logo: undefined, minMs: 0, engineMark: false }
+      : { ...authored, engineMark: opts.splash?.ident !== false };
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),

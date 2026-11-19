@@ -950,6 +950,33 @@ ProbeVolumeHandle ResourceManager::createProbeVolume(const glm::ivec3& resolutio
     return probeVolumes_.add(std::move(volume));
 }
 
+ProbeVolumeHandle ResourceManager::createProbeVolumeBricks(const glm::ivec3& resolution, ConstSpan<i32> bricks,
+                                                           ConstSpan<f32> irradiance) {
+    auto volume = std::make_unique<ProbeVolume>();
+    volume->resolution = resolution;
+    std::vector<glm::ivec4> list(bricks.size() / 4);
+    for (usize b = 0; b < list.size(); ++b) {
+        list[b] = {bricks[b * 4], bricks[b * 4 + 1], bricks[b * 4 + 2], bricks[b * 4 + 3]};
+    }
+    if (bricks.size() % 4 != 0 || !volume->setBricks(std::move(list))) {
+        ES_LOG_ERROR("createProbeVolumeBricks: {} brick ints do not tile a {}x{}x{} grid",
+                     bricks.size(), resolution.x, resolution.y, resolution.z);
+        return ProbeVolumeHandle();
+    }
+    const usize want = static_cast<usize>(volume->probeCount()) * 27;
+    if (irradiance.size() != want) {
+        ES_LOG_ERROR("createProbeVolumeBricks: {} bricks want {} coefficients, got {}",
+                     volume->bricks.size(), want, irradiance.size());
+        return ProbeVolumeHandle();
+    }
+    volume->irradiance.resize(want / 3);
+    for (usize i = 0; i < volume->irradiance.size(); ++i) {
+        volume->irradiance[i] = {irradiance[i * 3], irradiance[i * 3 + 1], irradiance[i * 3 + 2]};
+    }
+    volume->revision = ProbeVolume::nextRevision();
+    return probeVolumes_.add(std::move(volume));
+}
+
 ProbeVolume* ResourceManager::getProbeVolume(ProbeVolumeHandle handle) {
     return probeVolumes_.get(handle);
 }

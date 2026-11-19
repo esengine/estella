@@ -323,7 +323,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
   const options = {
     atlasSize: declared.atlasSize, texelsPerUnit: declared.texelsPerUnit,
     bounces: declared.bounces, samples: declared.samples,
-    probeSamples: declared.probeSamples,
+    probeSamples: declared.probeSamples, probeLevels: declared.probeLevels,
   };
   for (const k of Object.keys(options)) if (typeof options[k] !== 'number') delete options[k];
   if (declared.skyOcclusion === true) options.skyOcclusion = true;
@@ -492,7 +492,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
     if (!doc) return;
     const name = `${stem}_probes_${volumes[i].entity}.esprobes`;
     grids.set(volumes[i].entity, {
-      name, text: baker.probeDocumentText(doc), ref: refTo(path.join(sceneDir, name)),
+      name, bytes: baker.probeDocumentBytes(doc), ref: refTo(path.join(sceneDir, name)),
     });
   });
 
@@ -586,7 +586,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
     const staleScene = readText(sceneFile) !== document;
     const staleGrids = [...grids.values()].some((g) => {
       const file = path.join(sceneDir, g.name);
-      return !existsSync(file) || readText(file) !== g.text;
+      return !existsSync(file) || !Buffer.from(g.bytes).equals(readFileSync(file));
     });
     const staleReflections = reflectionText != null && (
       !existsSync(reflectionFile)
@@ -611,7 +611,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
 
   writeFileSync(atlasFile, result.atlasBytes);
   await baker.claimLightmapImage(atlasFile, result.size);
-  for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.text);
+  for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.bytes);
   if (reflectionText) {
     writeFileSync(reflectionFile, result.reflection.atlasBytes);
     writeFileSync(reflectionDocFile, reflectionText);

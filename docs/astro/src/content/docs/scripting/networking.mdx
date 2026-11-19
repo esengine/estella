@@ -98,7 +98,8 @@ serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
 serverApp.world.insert(e, Health, {});
 serverApp.world.insert(e, Replicated, { owner: connectionId });   // owned by that client
 const input = server.inputOf(connectionId);        // that client's latest input
-// server.clientIds — poll each tick to spawn/retire a pawn per connected player.
+// server.presentIds — poll each tick to spawn/retire a pawn per player (connected,
+// or dropped and still waited for; the same as server.clientIds without authenticate).
 
 // --- CLIENT app ---
 const clientNet = clientApp.getResource(Net);
@@ -141,11 +142,34 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   live entity sends its full state; removing one removes it from every ghost.
   Spawn → component add → updates → component remove → despawn all cross the
   wire, and arrive in the order the authority sent them.
+- **A server defends itself**: every connection has limits by default. A frame
+  over 256 KiB is dropped unread; control messages (the hello, input commands)
+  past 120 a second (240 at once) are refused; a connection that does either
+  more than 100 times a minute is kicked. A connection that has not said hello
+  in 10 s is closed, a second hello is refused, and `maxConnections` turns
+  newcomers away as "server full, try again". The server pings every 5 s and
+  closes a link silent for 15 s — a half-open TCP link says nothing by itself —
+  and an authenticated player then gets their reconnect grace as for any drop.
+  `webSocketTransport` closes a client more than 4 MiB behind on reading
+  (`maxBufferedBytes`) instead of buffering for it without end. All of it is
+  tunable on `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })`,
+  and `false` turns `limits` or `heartbeat` off. The client pings too (over a
+  platform socket, 5 s / 15 s), so a server that vanished without closing is
+  noticed and redialed.
 - **The link must be reliable and ordered**: the client applies what arrives in
   arrival order, because that is the authority's order. `startServer().attachConnection`
   and `Net.connect` take a `ReliableOrderedTransport` — every built-in socket is
   one; a transport you write yourself declares `delivery: 'reliable-ordered'`,
   and one that cannot make that promise is a compile error rather than a desync.
+- **Game messages**: beside the state stream, a server and its clients send
+  each other messages of the game's own types — chat, a notice, a request the
+  state does not carry. `server.message(id, 'notice', data)` and
+  `server.broadcastMessage(type, data, filter?)` reach clients, which hear them
+  with `client.onMessage(type, handler)` as they arrive; `client.message(type,
+  data)` reaches `server.onMessage(type, (connectionId, data) => …)`, from
+  connections that have said hello and under the same limits as everything
+  else. Types starting `repl:` are the protocol's. A message is not queued
+  across a reconnect: `client.message` returns false while not connected.
 - **Ownership**: `Replicated.owner` routes a connection's `sendInput` commands to
   its entities; `client.ownsEntity(e)` answers "is this ghost mine".
 - **Editor preview**: pick **2–4 Players** in the Play-mode dropdown — a listen
@@ -155,14 +179,49 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   Install what the project registered at module scope with
   `flushPendingRegistrations(app)`, the same door the shipped web runtime uses,
   and the authority runs the project's own systems rather than a copy of them.
-- **Reconnect is yours for now**: `Replicated.owner` is a *connection* id, and a
-  player who reconnects gets a new one. Nothing in the SDK carries an identity
-  across a dropped socket, so a stable player id, a session token and a grace
-  window belong to your game. (The request/reply [session layer](#asynchronous-online-games--sessions) below does redial and keep subscriptions across drops, but it is separate from replication.)
+  Hand each accepted `ws` socket over with
+  `server.attachConnection(webSocketTransport(socket))` (from `esengine/replication`):
+  everything one tick sends a client then leaves in one socket write rather than one
+  per message, which roughly halves a crowded server's tick.
+  For a server with hundreds of players, take the sockets off the simulation's
+  thread altogether: `startSocketWorker({ port })` (from `esengine/node`) listens on a worker
+  thread, writes each client's frames there and hands every connection over as
+  a transport, so `server.attachConnection(transport)` and
+  `transport.onClose(() => server.detachConnection(link))` are all the server
+  does. Measured with `tools/net-capacity-benchmark.mjs --worker`, the main
+  thread's tick roughly halved again, and an 800-player server kept 18–20 of
+  its 20 ticks a second where it kept about 10.
+- **Players and reconnects**: by default a connection is anonymous, and one
+  that drops and comes back is somebody new. Say who a player is and they keep
+  their id:
+
+  ```ts
+  // server: turn the hello's credentials into a player, or throw to refuse
+  const server = net.startServer({
+      authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+      reconnectGraceMs: 30_000,   // how long a dropped player stays present (default 30 s)
+  });
+  // client: the same credentials on every hello, and redial on a drop
+  const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+  ```
+
+  A player keeps one connection id for as long as the server remembers them, so
+  `Replicated.owner`, `tickInputOf` and everything keyed by them carry over. A
+  player who drops stays in `presentIds` (not in `clientIds`, and sending no
+  input) for the grace period; a redial inside it lands on the same id, and the
+  ghosts the client already holds stay the same entities, updated to what they
+  missed. A second login with the same `playerId` replaces the first, and
+  `server.kick(id)` ends a player's session at once; either way the old client
+  goes to `state === 'closed'` with `closeReason` `'replaced'` or `'kicked'` and
+  does not redial. Throwing `SessionRejected` (from `esengine/session`) with
+  `fatal: false` refuses a hello without stopping the client's redial.
+  `reconnect` works over a platform socket (`GameSocket`, `createSocket`); for
+  another transport, call `client.resume(newTransport)` yourself. What the
+  credentials are, and who issues and checks them, is the game's.
 
 See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines. Its `server/` directory is the dedicated-server half: the same project, headless, behind a real WebSocket.
 
-To start a game of your own on that pattern, create it from the **Online 3D** template (`estella create online-3d ./my-game`, or pick it in the editor's New project gallery): a lit 3D ground, a pawn per player that is predicted on its owner's screen and replicated to everyone else, a camera that follows your own, and a `server/` that runs the same code headless. The rules both ends must agree on (speed, the world's edge) sit in `src/shared/rules.ts`, apart from any system, so a server can refuse what they forbid. What it leaves to the game is written in its README: a stable player identity across reconnects, saving the world, and who sees what.
+To start a game of your own on that pattern, create it from the **Online 3D** template (`estella create online-3d ./my-game`, or pick it in the editor's New project gallery): a lit 3D ground, a pawn per player that is predicted on its owner's screen and replicated to everyone else, a camera that follows your own, and a `server/` that runs the same code headless. The rules both ends must agree on (speed, the world's edge) sit in `src/shared/rules.ts`, apart from any system, so a server can refuse what they forbid. What it leaves to the game is written in its README: who a player is (the identity above is one option away), saving the world, and who sees what.
 
 ### Interest management — who sees what
 
@@ -173,7 +232,7 @@ spawns, leaving ones despawn their client ghost, and delta frames carry only
 what's inside.
 
 ```typescript
-import { radiusInterest } from 'esengine';
+import { radiusInterest } from 'esengine/replication';
 
 // Each client sees entities within 800 units of any entity it owns.
 server.setInterestPolicy(radiusInterest(800));
@@ -200,7 +259,7 @@ reads once per connection. A *provider* prepares one spatial index per sample an
 answers every connection from it:
 
 ```typescript
-import { radiusInterestProvider } from 'esengine';
+import { radiusInterestProvider } from 'esengine/replication';
 
 server.setInterestProvider(radiusInterestProvider(800));
 ```
@@ -233,6 +292,97 @@ around by writing the reader differently:
 - Physics-driven and parent-driven movement both reach it, because both go
   through the same composition. A game that writes `worldPosition` itself does
   not — that field is the composition's output, not an input.
+
+#### When everyone moves: `setInterestRefresh`
+
+In a crowd where everybody moves, every view changes every sample, and querying
+and diffing every connection's view every sample is most of what a sample costs.
+A view does not have to be that fresh:
+
+```typescript
+server.setInterestRefresh(4); // each connection's view every 4th sample, staggered
+```
+
+Each sample recomputes a quarter of the views; between recomputes a connection
+keeps the view it has and is still sent every change to what is in it. The cost
+is at the edge only: an entity walking into range arrives up to three samples
+late, and one walking out keeps being sent as long. A despawn leaves every view
+in the sample it happens, a connection whose own entities change is recomputed
+at once, and so is everyone when the interest source is replaced. The default,
+`1`, recomputes every view every sample. Measured with
+`tools/net-sample-microbench.mjs --wasm --refresh 4` (800 players, about 30 in
+view each, all moving): a sample went from about 8.2 ms to 5.5 ms.
+
+#### When a crowd is too much: a bandwidth budget
+
+Interest decides *whether* a connection sees an entity. In a town square or
+around a world boss it sees hundreds, and sending every one of them every tick
+is more than a phone's link — or the server — can carry. A budget caps each
+connection's state stream and sends what matters most first:
+
+```ts
+server.setBandwidthBudget({
+    bytesPerSecond: 16_000,              // per connection
+    // optional; the default is distance to the nearest entity the connection owns
+    priority: ({ entity, owned }) => isBoss(entity) ? 5 : 1,
+});
+```
+
+Every sample, each entity a connection is owed an update for adds its priority
+to what it has already waited; the most urgent go out until the connection's
+allowance is spent, and the rest wait. Waiting is what raises them, so a low
+priority means *less often*, never *never*. A deferred entity is late, not
+wrong: the row it eventually gets carries every field that changed since its
+last one, at current values, and the client interpolates across the gap.
+
+Entities the connection owns always go out (prediction reconciles against
+every authoritative update), and so do spawns, despawns and component
+removals — the budget meters the state stream. Unused allowance carries over by
+at most one tick. `setBandwidthBudget(null)` lifts it, and what was still owed
+goes out on the next sample. It works with or without an interest source; for
+the default priority, `position` reads where an entity is when that is not
+`Transform`.
+
+The server records once when each field last changed, and each connection only
+when it was last sent each entity, so a change costs the same however many
+players see it. Measured with 200 players in one crowd at 20 Hz
+(`tools/net-capacity-benchmark.mjs --crowd --budget 16000`): each player's
+stream fell from about 52 KB/s to 17.6 KB/s and the server's from 10 MB/s to
+3.4 MB/s, at the same tick cost. Where nobody is over budget it costs a little
+(about 1.5 ms a tick for 200 players seeing 30 each), so turn it on where crowds
+happen.
+
+#### Fewer bytes a row: `quantizeReplicatedFields`
+
+A replicated number travels as a 32-bit float. Most of them do not need to:
+a position to the centimetre, an angle to a hundredth of a degree. Quantizing a
+field sends it as a whole number of steps, in one to three bytes instead of four:
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// At 100 units a metre: positions to 1 cm, angles to 0.01 degree.
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- The value that arrives is the nearest multiple of the step. A field holding
+  an object (`position`'s `x, y, z`) quantizes every number in it.
+- A field that moves less than a step is not sent: the movement adds up against
+  what was last sent and goes out when it crosses a step, so a client is never
+  more than half a step from the server.
+- Declare it at startup on **both** ends, before any connection. Each end builds
+  its table the first time it is used, and the handshake refuses a client whose
+  steps are not the server's.
+- Spawns still carry the exact value; only the per-tick deltas are quantized.
+  Interpolation and prediction smoothing treat a quantized field as the number
+  it is.
+
+The row header (which entity, which component, which fields) is variable-length
+as well, so a row costs a few bytes before its values instead of ten. Measured
+with `tools/net-sample-microbench.mjs --wasm --quant 1` (800 players moving 6
+units a second, positions to 1 unit): a row went from 22.4 bytes to 9.7, and
+because a position under a step is not sent, rows sent fell by about two
+thirds; the sample went from about 9 ms to about 6.5 ms.
 
 ### Client prediction — zero-latency input
 
@@ -283,6 +433,313 @@ never re-sends snap back. Owned entities bypass snapshot interpolation.
   corrections out (the visual error halves every `halfLife` seconds) instead
   of hard-snapping; add `maxError` so a genuine teleport still snaps. Purely
   presentational — the simulation state can't drift.
+
+## Keeping state across restarts — `esengine/persist`
+
+What a server holds dies with its process unless it is written somewhere.
+`esengine/persist` is the server side of that, in four layers you can use apart:
+
+- **A store.** `PersistStore` is a small asynchronous document store: a key, a
+  JSON value, and a version every write moves on by one. A write may name the
+  version it read (`expectVersion`, `0` for "must not exist") and is refused
+  with `PersistConflict` if someone wrote in between. `MemoryStore` is for tests;
+  `FileStore(dir)` keeps one file per key and replaces it atomically, for a
+  server that runs as one process. `transact(ops)` writes several keys all or
+  none (`FileStore` through a journal a crash cannot leave half-applied). For
+  several processes, put one store behind a `StoreHub` and give each process a
+  `RemoteStore` (below), or implement the methods over your database, with
+  `expectVersion` as a real compare-and-set.
+- **Records.** `RecordBook` writes each record with its schema version and
+  reads it back through `migrations` (`migrations[n]` upgrades n to n + 1), the
+  same contract the client-side `SaveManager` keeps.
+- **Entity snapshots.** `snapshotEntity(world, e, { include })` and
+  `restoreEntity(world, snapshot, into?)` save what a scene would save for one
+  entity — builtin and script components alike — as JSON. `Replicated` keeps
+  its archetype but not its netId or owner; references to other entities are
+  written as 0.
+- **Players and the world.** `PlayerPersistence` follows the players present:
+  call `track(playerIds)` every tick and it loads newcomers, saves and lets go
+  of leavers, and autosaves changed records (`autosaveMs`, default 60 s).
+  Writes to one player run in order, so a player who leaves and comes straight
+  back reads what they left with, and a write never overwrites a newer record
+  from another process — it fails and `onError` hears about it.
+  `WorldPersistence` keeps every entity marked `Persistent` (a `key`, made up on
+  first flush if empty): `restore(world)` at boot, `flush(world)` whenever you
+  like — it writes only entities that changed and deletes the ones that are gone.
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// each tick, with replication's player identity:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // the game's own
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// when a player leaves, before track() lets them go:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// on shutdown:
+await players.flush();
+await world.flush(app.world);
+```
+
+**Several players at once.** `players.saveTogether(['ana', 'bo'])` writes both
+records as one transaction, each against the version it was loaded at — a
+trade, a gift, anything that must not half-happen. If either was written
+meanwhile, neither is written and it rejects with `PersistConflict`.
+
+**One store for many processes.** `StoreHub` serves any store over WebSockets;
+each server process uses a `RemoteStore`, which is a store itself — so records,
+leases, tickets and transactions behave across processes as in one, because
+every versioned write runs where the store is:
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// the process that owns the data
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// every server process
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+A call made while the hub is out of reach waits for it (`timeoutMs`, 10 s); a
+call sent before a drop and not answered fails rather than being sent twice —
+a versioned write tells on a retry whether it had happened. The hub checks a
+shared secret and nothing finer: it is for a private network.
+
+What a record holds, when the world is flushed, and which database backs the
+store are the game's. Nothing here runs on the client.
+
+## One world, several servers — `esengine/zones`
+
+One server process holds a few hundred players at a time
+(`tools/net-capacity-benchmark.mjs` measures yours; `tools/net-sample-microbench.mjs
+--wasm --phases` times the replication sample alone, phase by phase, to compare
+two versions of the server). A larger world is split
+into **zones** — a map, a line of a map, an instance — each its own process,
+and players move between them. `esengine/zones` is the part of that every such
+game needs, over one `PersistStore` all zones share (a database adapter makes
+it span machines):
+
+- **`ZoneDirectory`** — every zone announces its id, the address clients dial,
+  a `kind` and how full it is, on a heartbeat; an entry not refreshed within
+  `ttlMs` is a zone that is gone. `pick(kind)` returns the one with most room,
+  for putting a newcomer on a line.
+- **`PlayerLeases`** — which zone a player is in, as one fact. A zone takes the
+  lease on login, renews it while the player stays, and frees or hands it on
+  when they leave; versioned writes mean two zones racing for one player cannot
+  both win, and a zone that crashes frees its players when their leases run out.
+- **`TransferTickets`** — one-use, expiring passes from one zone to another,
+  carrying whatever the arrival needs (a spawn point, a portal id).
+- **`ZoneHost`** runs one zone's side of all three over a replication server and
+  `PlayerPersistence`.
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // shared by every zone
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // a PlayerPersistence, optional
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// every tick
+zone.tick();
+// a pawn for each present player once players.isReady(playerId); where it
+// stands comes from zone.takeArrival(playerId) when they arrived by transfer
+
+// a portal: write what the record should hold, then send them
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+A transfer runs in an order that is its guarantee: the player's record is
+written, the lease is handed to the destination, a ticket is issued, and only
+then is the client told where to go — so the zone they arrive at loads the
+record just written, and no other zone writes it again.
+
+**Any zone takes a login, and sends the player where they belong.** The game's
+`authenticate` says who it is; then a player online in another zone is sent
+there, which replaces their older connection with this one (so one player is
+never in two zones, and a second login wins, across zones too); a player held
+by a zone that has stopped heartbeating is taken from it without waiting out
+the lease; and the route says where they go:
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // new players, and anyone with nowhere else
+    route: async (ctx) => {             // optional: what only the game knows
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // back where they logged out, else a live line of
+    },                                  // the same kind, else home, else here
+});
+```
+
+A routed player is handed on like a transfer (lease, ticket) and their hello is
+answered with a redirect, which a client with `dial` follows by itself —
+`net.connect` resolves once it is in the zone it was sent to.
+
+A zone that dies is found out fast. Zones heartbeat every second
+(`heartbeatMs`), and a transfer goes only to a zone heard from within three
+heartbeats — not within the directory's whole time to live. A player sent to a
+zone in the moment it dies comes back by themselves: the hand-over lease lasts
+only `arrivalLeaseMs` (3 s) until the destination takes it up, and the client
+returns to the zone it left (the transfer names it as a fallback) and logs in
+again there once that runs out. Measured with `tools/zones-benchmark.mjs
+--crash` (4 zones, 200 players, one killed): every such player was back within
+3.7 s with nothing done by the game, and every record matched.
+
+A player whose own zone dies finds another by itself when the client has
+`entry` — an address (or a list, tried in turn) to log in again at after
+`entryAfterMs` (3 s) of failed redials, typically a load-balanced address in
+front of the zones. The zone it reaches takes the player from the dead one and
+routes them like any login. In the same crash run, every player of the killed
+zone was in another within 5.4 s (p50 3 s), and a player sent to the dead zone
+as it died was taken straight back by the zone it left (p50 130 ms).
+
+On the client, `dial` opens a transport to an address a server names:
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // where to log in again if its zone is gone
+});
+client.onStateChange((state) => {       // every change, as it happens
+    if (state === 'reconnecting') showBanner('Reconnecting…');
+    if (state === 'ready') hideBanner(); // client.serverId says which server now
+});
+```
+
+When it is transferred, the client drops every ghost of the zone it left
+(netIds belong to one server), connects to the new one showing its ticket, and
+from then on reconnects there like any other drop (`state` is `'transferring'`
+in between). Without `dial`, a transfer ends the client with `closeReason`
+`'transfer'` and `transferTarget` saying where to go. `server.transfer(id, {
+address, ticket })` is the replication-level step `ZoneHost` uses, for a game
+with its own handoff.
+
+### Taking a zone down without dropping anyone
+
+For a rolling update, or to take a line away, drain the zone instead of
+stopping it:
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// keep calling zone.tick() until drain resolves
+```
+
+The zone is marked draining at once — `pick`, the default route and every
+transfer pass it by, and a login there is sent on — and every player it holds
+is transferred where the route says, with `reason: 'drain'` (by default
+another live zone of its kind, else `home`), a few at a time (`concurrency`).
+Anyone the route has nowhere for, or whose transfer keeps failing, is kicked at
+`deadlineMs` with their record written; then `stop()`. A new process can take
+the zone's id as soon as it is gone. With `tools/zones-benchmark.mjs --drain`
+(4 zones, 200 players, one zone updated halfway), the drain moved its 41–53
+players in about a second, kicked none, and no client had to log in again.
+
+### Messages between zones
+
+Zones talk over a **bus**: publish to a topic, and every process subscribed to
+it hears. Delivery is at most once, as on a Redis channel — what has to arrive
+however long it takes (mail, a trade's result) goes in the store, and the bus
+says "look now". `MemoryBus` serves zones in one process; across processes,
+host a `BusHub` (hand it each accepted `ws` socket) and give each zone a
+`RemoteBus`, which redials a lost hub and subscribes again. A Redis or NATS
+adapter is the two methods of `ZoneBus`.
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// one process hosts the hub
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// every zone
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// a whisper from a player here, to a player anywhere
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // wherever she is
+zone.broadcastZones('event', { name: 'double-xp' });   // every zone hears
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+`sendToPlayer` delivers to the player's client (`client.onMessage`) unless the
+zone that has them handles the type itself with `onPlayerMessage`. A player in
+the middle of a transfer is not missed: what arrives for them while they leave
+is sent after them, and the zone they are going to holds it (3 s, 32 messages)
+until they are connected. Measured with `tools/zones-benchmark.mjs` (4 zones,
+200 players each walking through a portal every ~3 s and whispering to a random
+other every ~2 s): 99.5% of whispers arrived, p50 5 ms, p95 14 ms; with a zone
+killed halfway, 97.5% — the rest were for its players in the seconds before
+they were in another zone.
+
+What is not here: a world that is seamless across zone borders (entities on
+both sides of a line seen from either).
+
+## Watching servers — `esengine/metrics`
+
+A server process reports about itself in the text format Prometheus scrapes
+(and as flat JSON). Collectors read totals the SDK's pieces already keep, at
+scrape time, so a registry costs a running server nothing until it is asked:
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // the game's own
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // scrape :9100/metrics
+```
+
+| Collector | Reports |
+|---|---|
+| `replicationMetrics` | connections, clients, players present and away, a histogram of replication sample time, state frames and bytes, delta rows sent and deferred by a budget, game messages in and out, connections closed for the limits / silence / no hello |
+| `zoneMetrics` | whether the zone is draining; transfers sent and failed; logins routed, online elsewhere, taken over, bounced back, refused; messages for players delivered, forwarded, held, dropped |
+| `playerPersistenceMetrics` | record loads and saves by outcome (ok, error, conflict), store operations pending |
+| `processMetrics` | resident memory, heap, uptime, event-loop utilization since the last scrape |
+
+Every name starts `estella_` (`prefix` changes it), and the registry's
+`labels` go on every series. `registry.snapshot()` gives the same as one flat
+record — a histogram as its count, sum and bucketed p50 / p99 — for a dashboard
+of the game's own or a log line. `tools/zones-benchmark.mjs` scrapes each zone's
+endpoint at the end of a run and prints them side by side.
 
 ## Asynchronous online games — sessions
 

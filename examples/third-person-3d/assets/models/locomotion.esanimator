@@ -17,7 +17,8 @@
     },
     {
       "name": "attack",
-      "type": "trigger"
+      "type": "trigger",
+      "buffer": 0.25
     },
     {
       "name": "jump",
@@ -34,6 +35,16 @@
         "loop": true
       },
       "transitions": [
+        {
+          "to": "Attack1",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            }
+          ],
+          "duration": 0.08
+        },
         {
           "to": "Locomotion",
           "conditions": [
@@ -73,6 +84,16 @@
       },
       "transitions": [
         {
+          "to": "Attack1",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            }
+          ],
+          "duration": 0.08
+        },
+        {
           "to": "Idle",
           "conditions": [
             {
@@ -95,6 +116,16 @@
       "rootMotion": true,
       "transitions": [
         {
+          "to": "Attack1",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            }
+          ],
+          "duration": 0.08
+        },
+        {
           "to": "Idle",
           "conditions": [],
           "hasExitTime": true,
@@ -108,6 +139,38 @@
         "kind": "timeline",
         "clip": "attack.estimeline",
         "loop": false
+      },
+      "rootMotion": true,
+      "transitions": [
+        {
+          "to": "Attack2",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            },
+            {
+              "param": "combo",
+              "op": "window"
+            }
+          ],
+          "duration": 0.08
+        },
+        {
+          "to": "Idle",
+          "conditions": [],
+          "hasExitTime": true,
+          "duration": 0.15
+        }
+      ]
+    },
+    {
+      "name": "Attack2",
+      "motion": {
+        "kind": "timeline",
+        "clip": "attack.estimeline",
+        "loop": false,
+        "speed": 1.15
       },
       "rootMotion": true,
       "transitions": [
@@ -128,6 +191,16 @@
       },
       "rootMotion": false,
       "transitions": [
+        {
+          "to": "Attack1",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            }
+          ],
+          "duration": 0.08
+        },
         {
           "to": "Locomotion",
           "conditions": [
@@ -169,16 +242,6 @@
       "conditions": [
         {
           "param": "dodge",
-          "op": "trigger"
-        }
-      ],
-      "duration": 0.08
-    },
-    {
-      "to": "Attack1",
-      "conditions": [
-        {
-          "param": "attack",
           "op": "trigger"
         }
       ],

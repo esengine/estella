@@ -1,0 +1,6 @@
+---
+section: Changed
+commits:
+  - perf(net): a replication sample leaves in one socket write per client - transports may hold their writes for a batch, the server opens one around each sample, and webSocketTransport from esengine/replication gives an accepted ws socket that batch, so a 400-player server keeps its tick rate where one write per frame lost half of it
+---
+**A dedicated server sends each client one socket write per tick, not one per message.** Everything a replication tick sends one client (spawns, despawns, the state delta, the input acknowledgement) used to go out as a socket write of its own, and those writes were nearly half of what a crowded server spent its time on. Hand accepted sockets over with `server.attachConnection(webSocketTransport(socket))` from `esengine/replication` and they leave together: measured with `tools/net-capacity-benchmark.mjs` at 20 Hz, a server's median tick drops by a third to a half, and at 400 players it keeps 17 to 20 of its 20 ticks a second where it kept 9 to 12. The `online-3d` template and the `multiplayer-arena` example use it; a server with its own transport adapter can add an optional `batch()` to it. Nothing on the wire changes.

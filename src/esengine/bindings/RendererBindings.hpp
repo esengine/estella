@@ -28,6 +28,12 @@ void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 p
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
 void renderer_setDepthPrepass(bool on);
+/** @brief Whether meshes read their probe volume per pixel (true, the default) or per object, holding no probe atlas. */
+void renderer_setProbesPerPixel(bool on);
+/** @brief What the frame's probe atlas takes on the GPU, in bytes (0 while nothing reads per pixel). */
+f64 renderer_getProbeAtlasBytes();
+/** @brief Draws that read a probe volume last frame: per pixel when `perPixel`, else per object. */
+u32 renderer_getProbeDraws(bool perPixel);
 void renderer_setLightingDirect(bool on);
 /**
  * Draws whose shader the browser is still compiling are left out, not waited for: a frame never stops for a compile, and what needs the shader
@@ -184,11 +190,22 @@ void renderer_setSkyEnvironment(u32 environmentHandle);
 /** @brief Registers a grid of baked irradiance: `x*y*z*27` floats, x fastest. */
 u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr);
 
+/** @brief Registers a sparse grid of baked irradiance: `brickCount` bricks of four ints (first finest-brick cell
+ *         x, y, z and span) at `bricksPtr`, and `brickCount*125*27` floats at `shPtr`, brick after brick. */
+u32 probe_volume_createBricks(i32 resX, i32 resY, i32 resZ, i32 brickCount, uintptr_t bricksPtr, uintptr_t shPtr);
+
 /** @brief Releases a probe volume. */
 void probe_volume_release(u32 volumeHandle);
 
-/** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in grid order
- *         (a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
+/** @brief The finest grid's probes along x, y and z, as three ints at `outPtr`. False for no such volume. */
+bool probe_volume_getResolution(u32 volumeHandle, uintptr_t outPtr);
+
+/** @brief A sparse volume's bricks, four ints each (first finest-brick cell x, y, z and span), up to `maxBricks` of
+ *         them at `outPtr`. Returns how many it has: 0 for a dense volume or none, more than `maxBricks` when cut short. */
+i32 probe_volume_getBricks(u32 volumeHandle, uintptr_t outPtr, i32 maxBricks);
+
+/** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in the order its
+ *         irradiance is (grid order, or brick after brick for a sparse grid; a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
  *         frame's sky is added through this. */
 void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr);
 /** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */

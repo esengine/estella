@@ -25,6 +25,7 @@ import {
     Children, MeshRenderer, RuntimeOnly, CompositeBatch, CompositeBatchingRes, StaticBatchingRes,
     HttpBackend, initRuntime, createRuntimeSceneConfig, WorldStreaming, worldResidencyReport,
     cutWorld, registryEntityFields, stableEntityId, persistentEntityRows,
+    assembleFarProxies, farProxySettings, farProxySceneName, decodeMesh, encodeMesh,
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
@@ -48,6 +49,7 @@ const outputTransform = requestedTransform === 'aces' || requestedTransform === 
 const msaaSamples = Number(params.get('msaa')) || undefined;
 /** The opaque scene drawn twice, depth alone first: the quality levels turn it on, and this host has none. */
 const depthPrepass = params.get('prepass') === '1';
+const probesPerObject = params.get('probesPerObject') === '1';
 const seedParam = params.get('seed');
 const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 const depthLayers = Number(params.get('depthLayers')) || undefined;
@@ -192,6 +194,7 @@ async function boot(): Promise<void> {
     // The editor's engine asks for edge buffers before its assets load; so does this host.
     module.renderer_setMeshEdgeBuffers?.(true);
     if (depthPrepass) module.renderer_setDepthPrepass?.(true);
+    if (probesPerObject) module.renderer_setProbesPerPixel?.(false);
     if (runtimeTextures) {
         app.getResource(Assets).getTextureLoader().setPixelDecoder(async (path) => {
             const res = await fetch(path);
@@ -482,8 +485,29 @@ const api = {
         if (!app || !module || streamedSource) throw new Error('loadStreamedWorld requires a fresh host');
         const cut = cutWorld(scene, name, { entityFieldsOf: registryEntityFields() });
         if (!cut || cut.errors.length > 0) throw new Error(`Cannot partition world: ${cut?.errors.join('; ')}`);
+        // Far proxies as Play makes them: assembled here, unsimplified, their meshes answered from memory.
+        const made = new Map<string, Uint8Array>();
+        const settings = farProxySettings(scene);
+        if (settings) {
+            for (const proxy of await assembleFarProxies(cut, settings, {
+                loadPrefab: async () => null,
+                readMesh: async (ref) => {
+                    const response = await fetch(ref);
+                    return response.ok ? decodeMesh(new Uint8Array(await response.arrayBuffer())) : null;
+                },
+            })) {
+                cut.documents.set(farProxySceneName(proxy.cell), proxy.document);
+                for (const { path, mesh } of proxy.meshes) made.set(path, encodeMesh(mesh));
+            }
+        }
+        class MadeBackend extends HttpBackend {
+            override async fetchBinary(path: string): Promise<ArrayBuffer> {
+                const bytes = made.get(path.replace(/^\/+/, ''));
+                return bytes ? bytes.slice().buffer : super.fetchBinary(path);
+            }
+        }
         streamedSource = {
-            backend: new HttpBackend({ baseUrl: '' }),
+            backend: new MadeBackend({ baseUrl: '' }),
             decodePixels: async path => {
                 const response = await fetch(path);
                 if (!response.ok) throw new Error(`Texture fetch failed: ${response.status} ${path}`);

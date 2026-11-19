@@ -130,6 +130,18 @@ collider contributes nothing until its asset has loaded, so the bake waits for i
 `buildNavMesh(verts, indices, options)` is callable directly if a game wants to bake
 on its own terms, and `collectNavGeometry(world, { min, max, layers? })` is what gathers the triangles.
 
+### In a streamed world
+
+In a [streamed world](/docs/world/streaming/) the volume is not baked once. It is baked a **tile per square** of the world's
+grid (the cook's `cellSize`), from the colliders in and just around that square: the persistent world's and the resident cells'.
+A square has a tile while its cell is resident, or always when no cell covers it (ground only the persistent world holds). When a
+cell arrives or leaves, the tiles it reaches are baked again, two a frame, and the tiles are joined into the one mesh agents walk:
+a wall in a cell is walked round once its cell is in, and a route crosses the seam between two tiles as if it were not there.
+
+Agents walk only where the world is. A square whose cell is not resident has no tile, so a route to it ends at the edge of what is
+loaded, even over persistent ground: the walls that cell would bring are not there to be walked round. For the same reason the
+volume is cut on the ground plane only, and only whole squares: a volume that reaches into a square bakes all of it.
+
 <Aside type="caution">
   **One agent size per mesh.** `agentRadius` is baked in, not applied per query: the
   mesh *is* the set of places a body that wide may stand. A `NavAgent` wider than

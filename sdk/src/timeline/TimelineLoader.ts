@@ -145,6 +145,8 @@ function parseTrack(raw: any): Track {
                     time: e.time ?? 0,
                     name: e.name ?? '',
                     payload: e.payload ?? {},
+                    // Only a stretch that is one: a negative or broken length is a moment.
+                    ...(Number.isFinite(e.duration) && e.duration > 0 ? { duration: e.duration } : {}),
                 })),
             } as CustomEventTrack;
 

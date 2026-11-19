@@ -174,6 +174,11 @@ export function radiusInterest(radius: number, options: RadiusInterestOptions = 
  * to the parent, so two children of different parents sharing an offset would
  * otherwise occupy the same point. The server composes before it samples.
  */
+/** @internal The world position the built-in policies read: `Transform.worldPosition`. */
+export function transformPosition(world: World, entity: Entity): InterestPoint | null {
+    return defaultPosition(world, entity);
+}
+
 function defaultPosition(world: World, entity: Entity): InterestPoint | null {
     const Transform = getComponent('Transform');
     if (!Transform || !world.has(entity, Transform)) return null;
@@ -223,6 +228,38 @@ export function radiusInterestProvider(
      * hand out a number a caller is still holding.
      */
     let generation = 0;
+    /**
+     * Each probed cell's neighbourhood — the 27 buckets around it, with their
+     * places laid out flat — gathered once per sample. Players crowd: a cell
+     * holds many of them, and each asking for its own neighbourhood repeated the
+     * 27 lookups and a map read per candidate. Cleared whenever the index
+     * changes, which is every prepare.
+     */
+    const hoods = new Map<string, { ents: Entity[]; xs: number[]; ys: number[]; zs: number[] }>();
+
+    function hood(cx: number, cy: number, cz: number) {
+        const k = `${cx},${cy},${cz}`;
+        let h = hoods.get(k);
+        if (h) return h;
+        h = { ents: [], xs: [], ys: [], zs: [] };
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    const bucket = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
+                    if (!bucket) continue;
+                    for (const e of bucket) {
+                        const p = at.get(e)!;
+                        h.ents.push(e);
+                        h.xs.push(p.x);
+                        h.ys.push(p.y);
+                        h.zs.push(p.z ?? 0);
+                    }
+                }
+            }
+        }
+        hoods.set(k, h);
+        return h;
+    }
 
     function place(world: World, e: Entity): void {
         const p = positionOf(world, e);
@@ -278,6 +315,7 @@ export function radiusInterestProvider(
     }
 
     function clear(): void {
+        hoods.clear();
         at.clear();
         placeless.clear();
         cells.clear();
@@ -328,26 +366,17 @@ export function radiusInterestProvider(
 
         const visible = new Set<Entity>(placeless);
         for (const a of anchors) {
-            const cx = Math.floor(a.x / cell);
-            const cy = Math.floor(a.y / cell);
-            const cz = Math.floor((a.z ?? 0) / cell);
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                    for (let dz = -1; dz <= 1; dz++) {
-                        const bucket = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
-                        if (!bucket) continue;
-                        for (const e of bucket) {
-                            if (visible.has(e)) continue;
-                            const p = at.get(e)!;
-                            // A cell is a box and the rule is a sphere: being
-                            // in the neighbourhood is not being in range.
-                            const ddx = p.x - a.x;
-                            const ddy = p.y - a.y;
-                            const ddz = (p.z ?? 0) - (a.z ?? 0);
-                            if (ddx * ddx + ddy * ddy + ddz * ddz <= r2) visible.add(e);
-                        }
-                    }
-                }
+            const { ents, xs, ys, zs } = hood(Math.floor(a.x / cell), Math.floor(a.y / cell), Math.floor((a.z ?? 0) / cell));
+            const ax = a.x;
+            const ay = a.y;
+            const az = a.z ?? 0;
+            for (let i = 0; i < ents.length; i++) {
+                // A cell is a box and the rule is a sphere: being in the
+                // neighbourhood is not being in range.
+                const ddx = xs[i] - ax;
+                const ddy = ys[i] - ay;
+                const ddz = zs[i] - az;
+                if (ddx * ddx + ddy * ddy + ddz * ddz <= r2) visible.add(ents[i]);
             }
         }
         return visible;
@@ -366,6 +395,7 @@ export function radiusInterestProvider(
     return {
         prepare(view): PreparedInterest {
             const { world, entities } = view;
+            hoods.clear();
             // An arbitrary reader has no invalidation the server can know about,
             // so it is rebuilt every sample and nothing is carried.
             if (custom) { seed(world, entities); return prepared; }

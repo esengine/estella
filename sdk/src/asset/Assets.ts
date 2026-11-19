@@ -494,6 +494,7 @@ export class Assets {
      * from, so the data itself is kept: a device loss puts it back from here.
      */
     private builtMeshes_ = new Map<number, MeshData>();
+    private builtTextures_ = new Set<number>();
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend && packedBackend(options.backend, () => this.manifestModel_);
@@ -575,6 +576,19 @@ export class Assets {
      * Load the textures meshes draw no larger than @p edge on a side to begin with (0 loads them whole): texture streaming grows each
      * to what its views need. A texture something else also draws is put back at its size by the streamer.
      */
+    /**
+     * Say that a material or texture will be drawn on meshes made at run time, before loading it. A scene's MeshRenderers
+     * are found when the scene loads; plants a world grows, and anything else built in code, are not in any scene, so
+     * their textures were loaded at their files' size even where texture streaming starts mesh textures small. Noted
+     * here, a material's textures and a texture start small and are streamed from there like a scene's.
+     *
+     * @experimental
+     */
+    noteMeshSurface(surface: { material?: string; texture?: string }): void {
+        if (surface.material) this.meshMaterials_.add(this.resolveLoadPath_(surface.material));
+        if (surface.texture) this.meshTextures_.add(this.resolveLoadPath_(surface.texture));
+    }
+
     setTextureStreamingStart(edge: number | (() => number)): void {
         this.streamingStartEdge_ = edge;
     }
@@ -730,6 +744,25 @@ export class Assets {
         if (!this.builtMeshes_.delete(handle)) return;
         const loader = this.getLoader<MeshResult>('mesh');
         if (loader instanceof MeshAssetLoader) loader.releaseData(handle);
+    }
+
+    /**
+     * A texture made here from pixels and not read from a file: RGBA, a byte a channel, rows from the top (`flipY` false keeps them as given, for
+     * a texture a shader reads by its own coordinates). `srgb` false says its texels are numbers and not colours (a map a shader looks values up
+     * in). Returns its handle, to give a material (`Material.setUniform(m, 'u_map', { textureId })`) or a `MeshRenderer.texture`; give it back with
+     * {@link releaseBuiltTexture}. A game that works something out as it runs (a map of a world it has just generated) has no file to load it from.
+     */
+    async createTexture(image: { width: number; height: number; pixels: Uint8Array }, options: { srgb?: boolean; flipY?: boolean } = {}): Promise<number> {
+        if (image.pixels.length !== image.width * image.height * 4) throw new Error(`createTexture: ${image.width} by ${image.height} is ${image.width * image.height * 4} bytes of RGBA, and ${image.pixels.length} were given`);
+        const made = await this.textureLoader_.loadFromPixels(image.width, image.height, image.pixels, options.flipY ?? true, TextureContent.Retained, options.srgb ?? true);
+        if (made.handle !== 0) this.builtTextures_.add(made.handle);
+        return made.handle;
+    }
+
+    /** Gives back a texture {@link createTexture} made. */
+    releaseBuiltTexture(handle: number): void {
+        if (!this.builtTextures_.delete(handle)) return;
+        requireResourceManager().releaseTexture(handle);
     }
 
     private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
@@ -1613,7 +1646,11 @@ export class Assets {
     async preloadSceneAssets(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean },
+        options?: {
+            readonly maxConcurrent?: number; readonly skipSpine?: boolean;
+            /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
+            readonly summary?: 'info' | 'debug';
+        },
     ): Promise<SceneAssetResult> {
         return this.preloadSceneAssets_(sceneData, onProgress, options);
     }
@@ -1621,7 +1658,11 @@ export class Assets {
     private async preloadSceneAssets_(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean },
+        options?: {
+            readonly maxConcurrent?: number; readonly skipSpine?: boolean;
+            /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
+            readonly summary?: 'info' | 'debug';
+        },
         recorder?: DependencyRecorder,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
@@ -1799,7 +1840,7 @@ export class Assets {
         if (totalCount > 0) {
             const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
                 .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
-            log.info('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+            log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
         }
 
         // `unresolved` refs warn above; a load that THREW only reached `missing`,

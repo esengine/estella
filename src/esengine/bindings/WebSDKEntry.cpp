@@ -484,6 +484,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("environment_release", &esengine::environment_release);
     emscripten::function("renderer_setSkyEnvironment", &esengine::renderer_setSkyEnvironment);
     emscripten::function("probe_volume_create", &esengine::probe_volume_create);
+    emscripten::function("probe_volume_createBricks", &esengine::probe_volume_createBricks);
+    emscripten::function("probe_volume_getResolution", &esengine::probe_volume_getResolution);
+    emscripten::function("probe_volume_getBricks", &esengine::probe_volume_getBricks);
     emscripten::function("probe_volume_release", &esengine::probe_volume_release);
     emscripten::function("probe_volume_setSkyVisibility", &esengine::probe_volume_setSkyVisibility);
     emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
@@ -512,6 +515,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("draw_circleOutline", &esengine::draw_circleOutline);
     emscripten::function("draw_texture", &esengine::draw_texture);
     emscripten::function("draw_textureRotated", &esengine::draw_textureRotated);
+    emscripten::function("draw_triangles", &esengine::draw_triangles);
+    emscripten::function("draw_createTriangleMesh", &esengine::draw_createTriangleMesh);
+    emscripten::function("draw_destroyTriangleMesh", &esengine::draw_destroyTriangleMesh);
+    emscripten::function("draw_triangleMesh", &esengine::draw_triangleMesh);
+    emscripten::function("draw_triangleMeshMany", &esengine::draw_triangleMeshMany);
     emscripten::function("draw_setLayer", &esengine::draw_setLayer);
     emscripten::function("draw_setDepth", &esengine::draw_setDepth);
     emscripten::function("draw_getDrawCallCount", &esengine::draw_getDrawCallCount);
@@ -747,6 +755,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setShadowDistance", &esengine::renderer_setShadowDistance);
     emscripten::function("renderer_setShadow2DSoftSamples", &esengine::renderer_setShadow2DSoftSamples);
     emscripten::function("renderer_setDepthPrepass", &esengine::renderer_setDepthPrepass);
+    emscripten::function("renderer_setProbesPerPixel", &esengine::renderer_setProbesPerPixel);
+    emscripten::function("renderer_getProbeAtlasBytes", &esengine::renderer_getProbeAtlasBytes);
+    emscripten::function("renderer_getProbeDraws", &esengine::renderer_getProbeDraws);
     emscripten::function("renderer_setLightingDirect", &esengine::renderer_setLightingDirect);
     emscripten::function("renderer_setAsyncShaderCompile", &esengine::renderer_setAsyncShaderCompile);
     emscripten::function("renderer_getPendingShaders", &esengine::renderer_getPendingShaders);

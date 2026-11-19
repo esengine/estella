@@ -13,6 +13,9 @@ export {
     type ReplComponentRemoveBatch,
     type ReplInputMsg,
     type ReplAckMsg,
+    type ReplClosedMsg,
+    type ReplGameMsg,
+    type ReplCloseReason,
 } from './protocol';
 export {
     buildReplicationTable,
@@ -26,6 +29,7 @@ export {
     ByteWriter,
     ByteReader,
     FrameWriter,
+    quantizeReplicatedFields,
     type FieldShape,
     type ReplicationTable,
     type ReplicationTableEntry,
@@ -48,11 +52,23 @@ export {
 } from './interest';
 export { registerReplicationArchetype, type ReplicationArchetype } from './archetype';
 export { NetIds } from './NetIds';
-export { ReplicationServer } from './server';
+export {
+    ReplicationServer,
+    ReplicationRedirect,
+    type ReplicationServerOptions,
+    type ReplicationPlayer,
+    type ReplicationBudgetOptions,
+    type ReplicationPriorityView,
+    type ReplicationHelloInfo,
+    type ReplicationTransferTarget,
+    type ReplicationLimits,
+} from './server';
 export {
     ReplicationClient,
     predictionReplays,
     type ReplicationClientOptions,
+    type ReplicationClientState,
+    type ReplicationReconnectOptions,
     type PredictionOptions,
     type PredictionSmoothing,
 } from './client';
@@ -73,3 +89,4 @@ export {
 } from '../NetChannel';
 export { MemoryTransport, createMemoryTransportPair } from '../MemoryTransport';
 export { MessagePortTransport, type MessagePortLike } from '../MessagePortTransport';
+export { webSocketTransport, type ServerWebSocketLike, type WebSocketTransportOptions } from '../webSocketTransport';

@@ -7,8 +7,11 @@
  */
 
 import type { App, Plugin } from '../app/app';
+import { setAppHostPaused } from '../app/hostPause';
+import { bakesOf } from '../runtime/bakes';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, WorldStreamer } from './WorldStreamer';
+import { WorldMemory, WorldMemoryRes } from './worldMemory';
 import { manifestPlane, planeSecond, type ResidencySource } from './cells';
 import { WorldStreamingSource, type WorldStreamingSourceData } from './components';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
@@ -28,6 +31,9 @@ export const worldResidencySystem = defineSystem(
     [Res(WorldStreaming), GetWorld()],
     (streamer: WorldStreamer, world: World) => {
         if (streamer.manifest === null) return;
+        // Through its own hold (an urgent cell, policy `wait`) it goes on, or it could never let go; through the game's
+        // pause it waits, as it always has.
+        if (streamer.pausedWithoutHold()) return;
         // A source parented to a rig has no position of its own, and the ask is
         // about where it IS. Composition is a no-op unless something invalidated it.
         world.ensureTransformsComposed();
@@ -50,6 +56,7 @@ export const worldResidencySystem = defineSystem(
     },
     {
         name: 'WorldResidencySystem',
+        runWhenPaused: true,
         touches: { reads: ['Transform', 'WorldStreamingSource'] },
     },
 );
@@ -69,7 +76,18 @@ export const worldResidencyPlugin: Plugin = {
     // than handing the streamer an undefined host.
     dependencies: [SceneManager],
     build(app: App): void {
-        app.insertResource(WorldStreaming, new WorldStreamer(app.getResource(SceneManager)));
+        const streamer = new WorldStreamer(app.getResource(SceneManager));
+        app.insertResource(WorldStreaming, streamer);
+        // Unreal's BlockOnSlowStreaming: the game stops while a cell its player is upon arrives, and the work that brings
+        // it in goes on being stepped through that stop.
+        streamer.setHoldHandler((held) => {
+            setAppHostPaused(app, streamer, held);
+            bakesOf(app).hold(streamer, held);
+        }, () => app.isPaused());
         app.addSystemToSchedule(Schedule.PostUpdate, worldResidencySystem, { runIf: playModeOnly });
+        // What a cell's RememberState entities were left as, and which were destroyed, read back when the cell returns.
+        const memory = new WorldMemory(app, () => app.getResource(WorldStreaming).manifest);
+        app.insertResource(WorldMemoryRes, memory);
+        app.world.onDespawn((entity) => memory.despawned(entity));
     },
 };

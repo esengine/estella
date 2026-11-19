@@ -20,7 +20,7 @@ import type { Vec3 } from '../../../types';
 import { NavMesh, type NavLinkSegment } from '../NavMesh';
 import {
     NavHeightfield, heightfieldColumns, rasterizeTriangles,
-    filterLowHangingWalkableObstacles, filterLedgeSpans, filterWalkableLowHeightSpans,
+    filterLowHangingWalkableObstacles, filterLedgeSpans, filterWalkableLowHeightSpans, NAV_AREA_NULL,
 } from './heightfield';
 import { log } from '../../../util/logger';
 import {
@@ -64,6 +64,12 @@ export interface BuildNavMeshOptions {
     obstacles?: readonly NavObstacleBox[];
     /** Ways between places the ground does not join — see `NavLink`. */
     links?: readonly NavLinkSegment[];
+    /**
+     * Cells along each side of the box that are baked only to be thrown away, for a tile: the ground beyond the tile is
+     * there while walls are eroded, so a wall just past the edge still keeps an agent off, and the open edge itself is not
+     * a wall. The polygons then stop exactly on the inner box, where the neighbouring tile's begin.
+     */
+    border?: number;
     /** Boxes of ground that cost more or less to cross — see `NavArea`. */
     areas?: readonly NavAreaBox[];
 }
@@ -104,7 +110,8 @@ export function buildNavMesh(
     // not erode anything and only ever writes over ground that is already walkable.
     if (opts.areas?.length) markAreas(chf, opts.areas);
     erodeWalkableArea(chf, walkableRadius);
-    buildRegionsMonotone(chf, minRegionArea);
+    if (opts.border) dropBorder(chf, opts.border);
+    buildRegionsMonotone(chf, minRegionArea, opts.border ?? 0);
 
     const contours = buildContours(chf, maxError, maxEdgeLen);
     const mesh = buildPolyMesh(contours, opts.maxVertsPerPoly ?? 6);
@@ -141,6 +148,19 @@ export function buildNavMesh(
  * and saying so beats a frozen editor and no explanation.
  */
 const MAX_COLUMNS = 1_000_000;
+
+/** Every span in the outer `border` cells of the field made unwalkable, once erosion has read them. */
+function dropBorder(chf: NavCompactField, border: number): void {
+    const { width: w, depth: d } = chf;
+    for (let z = 0; z < d; z++) {
+        for (let x = 0; x < w; x++) {
+            if (x >= border && x < w - border && z >= border && z < d - border) continue;
+            const c = x + z * w;
+            const start = chf.cellIndex[c]!;
+            for (let i = start; i < start + chf.cellCount[c]!; i++) chf.areas[i] = NAV_AREA_NULL;
+        }
+    }
+}
 
 function emptyMesh(agentRadius: number, cellSize: number): NavMesh {
     return new NavMesh({

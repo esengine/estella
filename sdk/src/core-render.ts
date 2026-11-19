@@ -30,7 +30,7 @@ export {
 // Graphics
 // =============================================================================
 
-export { Graphics } from './render/graphics';
+export { Graphics, GRAPHICS_COPY_STRIDE, type GraphicsLineOptions, type GraphicsDrawOptions } from './render/graphics';
 
 // =============================================================================
 // Texture
@@ -77,6 +77,9 @@ export {
     BlendMode,
     shutdownDrawAPI,
     type DrawAPI,
+    type DrawTriangles,
+    DRAW_COPY_STRIDE, type DrawTrianglesBuffer,
+    type DrawTrianglesOptions,
 } from './render/draw';
 
 // =============================================================================
@@ -381,6 +384,7 @@ export type {
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,
 } from './render/quality';
 export { Quality } from './render/qualityRuntime';
+export { probeVolumeLayout, type ProbeVolumeLayout } from './render/probeLayout';
 export { warmShaders, shadersCompiled, pendingShaders, holdShaderWarmup } from './render/shaderWarmup';
 export { RenderDemand } from './render/renderDemand';
 export { buildPathGeometry, mergeGeometry, cubicBezier, quadraticBezier, circlePoints } from './render/vectorPath';

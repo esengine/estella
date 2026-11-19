@@ -35,7 +35,8 @@ do what they look like. Nothing under `src/` is server-specific: the one line th
 
 ## What a game of your own has to add
 
-- **Who a player is.** A player who reconnects arrives as a new connection and gets a new pawn: ownership is keyed on the connection, and the SDK has no
-  identity that outlives a socket. A stable id, a session token and a reconnect window belong to the game.
+- **Who a player is.** Every connection here is anonymous, so a player who reconnects gets a new pawn. Pass `authenticate` to `startServer` (turning
+  the client's `credentials` into a `playerId`) and `reconnect: true` to `Net.connect`, and a player who drops keeps their connection id, and so their
+  pawn, for `reconnectGraceMs`. What the credentials are, and who checks them, is the game's.
 - **What persists.** Nothing is saved. A world that outlives its players needs a store on the server, written from the authority's state.
 - **Who may see what.** Every client sees every pawn. `esengine/replication` has interest management for a world too big for that.

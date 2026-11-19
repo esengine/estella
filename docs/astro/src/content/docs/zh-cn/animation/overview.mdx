@@ -414,6 +414,36 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 `trigger` 触发一次即被消费。没有单独的 int 类型——整数走 float 参数配合
 `eq` / `neq`。
 
+### 连招与输入缓冲
+
+连招是一条只能在剪辑的某一段里走的转移。把这一段在剪辑上声明成一个
+[窗口](#窗口持续一段时间的事件)（带 `duration` 的 `customEvent`，这里叫 `combo`），再给转移加一个
+`window` 条件，用 `param` 写窗口名：
+
+```json
+{ "to": "Attack2", "conditions": [
+  { "param": "attack", "op": "trigger" },
+  { "param": "combo", "op": "window" }
+] }
+```
+
+当正在离开的状态在这一步覆盖的时间里打开着这个窗口时，条件成立，所以比一帧还短的连招窗口
+也不会被跳过。
+
+trigger 会一直保持到某条转移用掉它。对攻击来说这两头都不对：比窗口稍早的按键应该还能接上，
+而起手时乱按的按键不应该在这一刀结束的瞬间又打出一刀。给 trigger 参数加上 `buffer`
+（动画器时间，秒），按键就只被记住这么久，过期就丢掉：
+
+```json
+{ "name": "attack", "type": "trigger", "buffer": 0.25 }
+```
+
+再按一次会重新开始计时。`buffer` 为 `0` 表示只在下一次更新里有效。在动画器编辑器里，buffer 是
+trigger 参数旁边的数字；运算选「窗口内」的条件，填的是窗口名而不是参数。
+
+从任意状态发出的转移会先于连招被检查。所以不要把攻击 trigger 放在任意状态转移里，而是放在
+允许起手的那些状态上。
+
 ### 混合树
 
 ![一维 blend 按 speed 阈值在 idle / walk / run 之间选择](@/assets/guides/blend-tree.svg)
@@ -617,6 +647,31 @@ const footsteps = defineSystem(
   不说——所以被闪避打断的攻击不会继续把伤害判定打出来。
 
 动画器不调用任何粒子、音频或玩法代码：它只陈述事件，由拥有这些东西的系统来回应。
+
+### 窗口：持续一段时间的事件
+
+有些节拍是一段而不是一刻：攻击的有效帧、一刀里可以接下一招的那一段、闪避的无敌时间。
+给 `customEvent` 加上 `duration`（剪辑时间，秒），它就是一个**窗口**，在
+`[time, time + duration)` 内打开。它仍然会在打开处往总线发一次事件；多出来的是一个
+玩法每帧都可以问的状态：
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+```typescript
+const animator = app.getResource(AnimatorController);
+const active = animator.openWindow(entity, 'attack-active'); // 关着时为 null
+for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
+```
+
+- 只要一步覆盖到窗口的任何一部分，这一帧就报告它打开，所以比一帧还短的窗口，在扫过它
+  的那一帧也是打开的。只碰到它结束边界的一步不会打开它。
+- 和事件一样，只有正在播放的状态持有窗口：窗口开着时离开这个剪辑（包括交叉淡化），它在
+  那一帧就关上。等一个「结束」事件的玩法逻辑，碰上被打断、永远到不了结尾的剪辑会卡住；
+  窗口不会。
+- 每次打开都有自己的 `id`，开着期间不变。窗口首尾相接的两次攻击是两次打开，循环剪辑的
+  每一圈也是。
 
 ### 状态速度跟随参数
 

@@ -129,6 +129,10 @@ public:
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
+    /** @brief Whether a mesh without lightmap UVs reads its probe volume per pixel (the grid through the frame's brick
+     *         atlas) or per object (one value where it stands). Off holds no atlas at all: a weak GPU's quality level. */
+    void setProbesPerPixel(bool on) { probes_per_pixel_ = on; }
+    bool probesPerPixel() const { return probes_per_pixel_; }
     /**
      * @brief The environment the sky lights the scene with (the Sky Atmosphere's, worked out by the SDK as the sky changes), or an
      *        invalid handle for none. An Ambient light that names no environment of its own lights with it.
@@ -1232,6 +1236,7 @@ private:
     glm::vec2 scene_jitter_{0.0f};
     /// Whether the opaque scene is drawn twice, depth alone first. See DrawList::DrawPass.
     bool depth_prepass_ = false;
+    bool probes_per_pixel_ = true;
     bool lighting_direct_ = false;
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.

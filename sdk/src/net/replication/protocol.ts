@@ -12,12 +12,22 @@
 import type { SceneComponentData } from '../../scene/scene';
 
 /**
+ * 6: a state-frame row's netId, component id and field mask are variable-length
+ * integers, and a number field may be declared quantized (a step, sent as a
+ * whole number of steps). A v5 endpoint would read the row header as fixed
+ * width and every row after the first as garbage.
+ *
+ * 5: a hello may carry credentials and the answer names the player; the first
+ * spawn batch of a connection is marked `initial` (it is sent even when empty),
+ * and the server can say why it is closing a connection. A v4 server would
+ * admit a client that sent credentials as nobody in particular.
+ *
  * 4: a spawn stopped being a scene snapshot. It now carries protocol identity,
  * a ghost-construction key, and a baseline of DECLARED replication fields only —
  * a v3 endpoint would read the same JSON and build a different world, which is
  * exactly what a version is for.
  */
-export const REPLICATION_PROTOCOL_VERSION = 4;
+export const REPLICATION_PROTOCOL_VERSION = 6;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
@@ -30,7 +40,20 @@ export const ReplMsg = {
     componentRemove: 'repl:crm',
     input: 'repl:input',
     ack: 'repl:ack',
+    closed: 'repl:closed',
+    message: 'repl:msg',
 } as const;
+
+/**
+ * A game's own message between a client and its server, beside the state
+ * stream: chat, a notice, a request the state does not carry. `type` is the
+ * game's; `data` is any JSON. Delivered once, in order with the rest of the
+ * connection's control messages, at most once across a reconnect.
+ */
+export interface ReplGameMsg {
+    type: string;
+    data?: unknown;
+}
 
 /**
  * One component's replication schema, as exchanged for handshake comparison.
@@ -51,6 +74,10 @@ export interface ReplHelloRequest {
     abiHash: string;
     /** The client's full replication table, for exact schema comparison. */
     components: ReplComponentSchema[];
+    /** Whatever the server's `authenticate` reads (a token, a ticket). Absent for an anonymous client. */
+    credentials?: unknown;
+    /** A transfer ticket another server handed this client on the way here (see `ReplClosedMsg`). */
+    transfer?: string;
 }
 
 export interface ReplHelloOk {
@@ -62,11 +89,30 @@ export interface ReplHelloOk {
     /** The server's fixed timestep in seconds (0 if it hasn't ticked yet) —
      *  the dt client prediction replays unacknowledged inputs with. */
     fixedDelta: number;
+    /**
+     * This server process, as a random id. netIds mean something only within
+     * one: a client whose hello lands on a different one (another zone, the
+     * same address after a restart) drops the ghosts it holds instead of
+     * matching them to the new server's entities by number.
+     */
+    serverId?: string;
+    /** Who the server says this is, when it authenticates players. The same
+     *  player always gets the same `connectionId` back while the server
+     *  remembers them, which is what makes a reconnect land on the same pawn. */
+    playerId?: string;
 }
 
 export interface ReplHelloError {
     ok: false;
     error: string;
+    /** True when trying again cannot help (bad credentials, a banned player);
+     *  a client that redials stops on it. */
+    fatal?: boolean;
+    /**
+     * Not here: say hello at `address` instead, showing `ticket` when there is
+     * one. What a login routed to another zone is answered with.
+     */
+    redirect?: { address: string; ticket?: string };
 }
 
 export type ReplHelloResponse = ReplHelloOk | ReplHelloError;
@@ -94,6 +140,18 @@ export interface ReplSpawnEntity {
 export interface ReplSpawnBatch {
     tick: number;
     entities: ReplSpawnEntity[];
+    /**
+     * The whole of what the connection can see, sent once right after the
+     * hello. A client that already holds ghosts (it reconnected) keeps the ones
+     * named here, updated in place, and drops the rest.
+     */
+    initial?: boolean;
+    /**
+     * With `initial`: the server process it comes from. A client that held
+     * ghosts of another drops them as it applies this batch — in order with
+     * everything else it applies, which is the only place that decision is safe.
+     */
+    serverId?: string;
 }
 
 export interface ReplDespawnBatch {
@@ -135,4 +193,22 @@ export interface ReplInputMsg {
 export interface ReplAckMsg {
     tick: number;
     seq: number;
+}
+
+/** Why the server is closing a connection, sent just before it lets go. */
+export type ReplCloseReason = 'replaced' | 'kicked' | 'transfer';
+
+/**
+ * Server → client: this connection is being closed on purpose. A client that
+ * redials stops on it — a player replaced by a newer login must not log back
+ * in and replace that one in turn.
+ */
+export interface ReplClosedMsg {
+    reason: ReplCloseReason;
+    message?: string;
+    /** With `transfer`: the server to go to, and the ticket to show it. */
+    address?: string;
+    ticket?: string;
+    /** With `transfer`: where to log in again if `address` cannot be reached. */
+    fallback?: string;
 }

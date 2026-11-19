@@ -16,7 +16,7 @@ const OUT = path.join(ROOT, 'build-tools', 'lightmap', 'lightmap-kernel.mjs');
 
 await ensureEmscriptenEnv();
 
-const EXPORTS = ['_lm_scene', '_lm_direct', '_lm_gather', '_lm_texture_stats',
+const EXPORTS = ['_lm_scene', '_lm_direct', '_lm_gather', '_lm_probes', '_lm_texture_stats',
   '_lm_cache_budget', '_lm_cache_bytes', '_lm_gather_resolved', '_malloc', '_free'];
 
 await runCommand('em++', [

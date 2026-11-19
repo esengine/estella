@@ -8,6 +8,7 @@
  *          this is only the seam between that socket and a session.
  */
 import type { AcceptedConnection, SessionHost, SessionContext } from './SessionHost';
+import { frameToArrayBuffer } from '../webSocketTransport';
 
 /** The part of a `ws` WebSocket this adapter uses. */
 export interface WebSocketLike {
@@ -49,7 +50,7 @@ export function acceptWebSocket<Ctx extends SessionContext>(
 
     socket.on('message', (data, isBinary) => {
         if (closed) return;
-        const frame = isBinary ? toArrayBuffer(data) : String(data);
+        const frame = isBinary ? frameToArrayBuffer(data) : String(data);
         for (const h of [...messageHandlers]) h(frame);
     });
     socket.on('close', finish);
@@ -84,24 +85,4 @@ export function acceptWebSocket<Ctx extends SessionContext>(
         },
     };
     host.accept(connection);
-}
-
-function toArrayBuffer(data: unknown): ArrayBuffer {
-    if (data instanceof ArrayBuffer) return data;
-    if (ArrayBuffer.isView(data)) {
-        const copy = new Uint8Array(data.byteLength);
-        copy.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
-        return copy.buffer;
-    }
-    if (Array.isArray(data)) {
-        const total = data.reduce((n: number, part: ArrayBufferView) => n + part.byteLength, 0);
-        const out = new Uint8Array(total);
-        let at = 0;
-        for (const part of data as ArrayBufferView[]) {
-            out.set(new Uint8Array(part.buffer, part.byteOffset, part.byteLength), at);
-            at += part.byteLength;
-        }
-        return out.buffer;
-    }
-    return new ArrayBuffer(0);
 }

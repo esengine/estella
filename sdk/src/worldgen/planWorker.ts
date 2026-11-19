@@ -38,6 +38,8 @@ export interface PlanSpec {
     seed: number;
     world: string;
     seaLevel: number;
+    /** How far apart the ground is read (`WorldGen.groundStep`); absent in a plan made before there was one. */
+    groundStep?: number;
     face: number;
     radius: number;
     centre: [number, number, number];
@@ -125,7 +127,7 @@ async function makeFor(spec: PlanSpec, load: ProviderLoader): Promise<Made> {
             return got;
         },
     };
-    const face = new PlanetFace(spec.face, () => facts);
+    const face = new PlanetFace(spec.face, () => facts, spec.groundStep);
     const zones = new Zones();
     for (const z of spec.zones) zones.set(z);
     return { face, ...makeFacePlan(face, {
@@ -134,16 +136,28 @@ async function makeFor(spec: PlanSpec, load: ProviderLoader): Promise<Made> {
     }) };
 }
 
-/** The plan for `key`: the one this worker kept, or one made from `spec`. */
+// The plans being made now. A plan on a planet waits for its provider to load, and the question after the one that brought its spec
+// arrives while it waits: it is answered from the plan being made, not told the plan is unknown.
+const making = new Map<string, Promise<Made>>();
+
+/** The plan for `key`: the one this worker kept, the one it is making, or one made from `spec`. */
 async function planFor(key: string, spec: PlanSpec | PlaneSpec | null | undefined, load: ProviderLoader): Promise<Made> {
-    let made = plans.get(key);
-    if (!made) {
+    const made = plans.get(key);
+    if (made) return made;
+    let p = making.get(key);
+    if (!p) {
         if (!spec) throw new Error(`the plan ${key} is not known to this worker`);
-        made = 'plane' in spec ? makePlane(spec) : await makeFor(spec, load);
-        plans.set(key, made);
-        if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+        p = (async () => {
+            const m = 'plane' in spec ? makePlane(spec) : await makeFor(spec, load);
+            plans.set(key, m);
+            if (plans.size > PLANS_KEPT) plans.delete(plans.keys().next().value!);
+            return m;
+        })();
+        making.set(key, p);
+        const done = (): void => { making.delete(key); };
+        p.then(done, done);
     }
-    return made;
+    return p;
 }
 
 /** The placements of a layer in a square, as the plan for `key` has them. @internal */

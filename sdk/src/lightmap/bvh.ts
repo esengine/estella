@@ -120,6 +120,40 @@ export class Bvh {
         return this.trace(ox, oy, oz, dx, dy, dz, far, epsilon, true) >= 0;
     }
 
+    /**
+     * Whether any triangle's bounds reach into the box. Conservative (a triangle's box, not the triangle), which is
+     * what deciding where light is worth sampling finely asks: near geometry, not exactly on it.
+     */
+    overlaps(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): boolean {
+        if (this.tris.count === 0) return false;
+        let sp = 0;
+        this.stack[sp++] = 0;
+        while (sp > 0) {
+            const node = this.stack[--sp];
+            const b = node * 6;
+            if (this.bounds[b] > maxX || this.bounds[b + 3] < minX || this.bounds[b + 1] > maxY
+                || this.bounds[b + 4] < minY || this.bounds[b + 2] > maxZ || this.bounds[b + 5] < minZ) continue;
+            const count = this.node[node * 2 + 1];
+            if (count === INNER) {
+                const left = this.node[node * 2];
+                this.stack[sp++] = left;
+                this.stack[sp++] = left + 1;
+                continue;
+            }
+            const first = this.node[node * 2];
+            for (let k = 0; k < count; k++) {
+                const at = this.order[first + k] * 9;
+                const p = this.tris.positions;
+                const lo = (axis: number) => Math.min(p[at + axis], p[at + 3 + axis], p[at + 6 + axis]);
+                const hi = (axis: number) => Math.max(p[at + axis], p[at + 3 + axis], p[at + 6 + axis]);
+                if (lo(0) <= maxX && hi(0) >= minX && lo(1) <= maxY && hi(1) >= minY && lo(2) <= maxZ && hi(2) >= minZ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** The nearest triangle along the ray, or -1. `hitDistance` holds how far. */
     hit(ox: number, oy: number, oz: number,
         dx: number, dy: number, dz: number, far: number, epsilon: number): number {

@@ -1,130 +1,208 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    graphics.ts
+ * @brief   Graphics: a retained vector drawing, tessellated once and drawn as often as asked.
+ *
+ * @details A Graphics records paths and shapes the way a 2D canvas is drawn (a line style, a fill, `moveTo`, `lineTo`, curves, arcs,
+ *          rectangles, circles, polygons) and turns them into triangles with the engine's path tessellator (`buildPathGeometry`):
+ *          fills of any outline, concave ones included, and strokes with a join at every corner and a cap at each open end. The
+ *          triangles are built once, the first time they are drawn after a change, and `flush()` draws them through `Draw.triangles`,
+ *          batched with the frame's other shapes. `flush({ x, y, rotation, scale, alpha })` draws the same drawing somewhere else,
+ *          turned, scaled or faded, so one shape stands for any number of copies on screen with nothing rebuilt and no texture made:
+ *          a hit flash fading out is one Graphics drawn with a falling alpha, not a drawing a frame.
+ *
+ *          A fill painted between `beginFill` and `endFill` covers every outline drawn in it, a path as much as a rectangle; the line
+ *          style strokes what is drawn while it is set. A path takes the style in force when it ends: a new `moveTo`, a change of
+ *          style, a shape, `closePath` or a draw ends it.
+ */
 import type { Color, Vec2 } from '../types';
-import { Draw } from './draw';
+import { Draw, DRAW_COPY_STRIDE, drawFrameNumber, type DrawTrianglesBuffer } from './draw';
+import { buildPathGeometry, mergeGeometry, type LineCap, type LineJoin, type PathStyle } from './vectorPath';
+import type { MeshRendererGeometry } from '../ecs/component';
 
 const DEFAULT_CURVE_SEGMENTS = 20;
+const TWO_PI = Math.PI * 2;
 
-interface LineCmd {
-    from: Vec2;
-    to: Vec2;
-    color: Color;
-    thickness: number;
+/** How a Graphics strokes, besides its width and colour. @experimental */
+export interface GraphicsLineOptions {
+    /** How two segments meet at a corner. Default `'miter'`. */
+    join?: LineJoin;
+    /** How an open path ends. Default `'butt'`. */
+    cap?: LineCap;
+    /** How far a miter may reach, as a multiple of half the width, before the corner is bevelled. Default 4. */
+    miterLimit?: number;
 }
 
-interface FillCmd {
-    type: 'rect' | 'circle' | 'polygon';
-    color: Color;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    radius?: number;
-    segments?: number;
+/**
+ * Numbers one copy takes in the array {@link Graphics.flushMany} reads: x, y, rotation (radians), scale, then the tint r, g, b and
+ * the alpha. @experimental
+ */
+export const GRAPHICS_COPY_STRIDE = 8;
+
+/** Where and how {@link Graphics.flush} draws. Every field is optional; none moves or fades anything. @experimental */
+export interface GraphicsDrawOptions {
+    /** Moves the drawing by this much, after it is turned and scaled about its own origin. */
+    x?: number;
+    y?: number;
+    /** Turns the drawing about its own origin, in radians. */
+    rotation?: number;
+    /** Scales the drawing about its own origin: one factor, or one each way. */
+    scale?: number | Vec2;
+    /** Multiplies every colour's alpha: 0 draws nothing, 1 the drawing as recorded. */
+    alpha?: number;
+    /** Multiplies every colour. */
+    tint?: Color;
 }
+
+/** One outline and the style it is drawn with. */
+interface Shape {
+    points: Vec2[];
+    style: PathStyle;
+}
+
+const WHITE: Color = { r: 1, g: 1, b: 1, a: 1 };
+
+/** What a Graphics' engine memory is reached through, so it can be given back when the Graphics is collected. */
+interface Holder {
+    buffer: DrawTrianglesBuffer | null;
+}
+
+/** A Graphics nobody disposed of gives its engine memory back when it is collected; one that was disposed of is unregistered. */
+interface Finalizer {
+    register(target: object, held: Holder, token: object): void;
+}
+/** Read off the global so a host without one (an older embedded engine) still runs: it then frees only on dispose(). */
+const FinalizerCtor = (globalThis as { FinalizationRegistry?: new (cleanup: (held: Holder) => void) => Finalizer }).FinalizationRegistry;
+const collected: Finalizer | null = FinalizerCtor
+    ? new FinalizerCtor((held) => { held.buffer?.release(); held.buffer = null; })
+    : null;
+const toPathColor = (c: Color): [number, number, number, number] => [c.r, c.g, c.b, c.a];
 
 export class Graphics {
-    private path_: Vec2[] = [];
-    private lineColor_: Color = { r: 1, g: 1, b: 1, a: 1 };
     private lineThickness_ = 1;
-    private fillColor_: Color = { r: 1, g: 1, b: 1, a: 1 };
+    private lineColor_: Color = { ...WHITE };
+    private lineOptions_: GraphicsLineOptions = {};
+    private fillColor_: Color = { ...WHITE };
     private filling_ = false;
+    /** The path being drawn, and whether closePath closed it. */
+    private path_: Vec2[] = [];
+    private closed_ = false;
+    private readonly shapes_: Shape[] = [];
+    private feather_ = 0;
+    /** The triangles of every shape, built the first time they are needed after a change; null when they must be built again. */
+    private built_: MeshRendererGeometry | null = null;
+    private drawn_ = { positions: new Float32Array(0), colors: new Float32Array(0), indices: new Uint32Array(0) };
+    /**
+     * The triangles in the engine's memory, put there on the first draw after a build and drawn by reference from then on:
+     * a flush copies nothing. Made again after a rebuild, and after the engine itself was started again.
+     */
+    private readonly resident_: Holder = { buffer: null };
+    /**
+     * The frame the triangles were built in. They go onto the GPU only once they have outlived it: a drawing rebuilt every
+     * frame is sent with the frame's other shapes instead, and never makes a GPU buffer it would throw away a frame later.
+     */
+    private builtFrame_ = -1;
+    /** The copies of a flushMany as Draw reads them; kept, so a steady frame allocates nothing. */
+    private many_ = new Float32Array(0);
 
-    lineCommands: LineCmd[] = [];
-    fillCommands: FillCmd[] = [];
+    constructor() {
+        collected?.register(this, this.resident_, this);
+    }
 
+    /**
+     * Width of a fade to transparent along every outer edge, in the drawing's units: anti-aliasing for a surface drawn without
+     * multisampling. 0 (default) draws hard edges.
+     */
+    get feather(): number {
+        return this.feather_;
+    }
+
+    set feather(value: number) {
+        const next = Math.max(0, value || 0);
+        if (next === this.feather_) return;
+        this.feather_ = next;
+        this.built_ = null;
+    }
+
+    /** How many points the path being drawn holds. */
     get pathLength(): number {
         return this.path_.length;
     }
 
-    lineStyle(thickness: number, color: Color): void {
+    /** How many outlines the drawing holds; the path being drawn counts once it ends. */
+    get shapeCount(): number {
+        return this.shapes_.length;
+    }
+
+    lineStyle(thickness: number, color: Color, options: GraphicsLineOptions = {}): void {
+        this.endPath_(true);
         this.lineThickness_ = thickness;
         this.lineColor_ = { ...color };
+        this.lineOptions_ = { ...options };
     }
 
     beginFill(color: Color): void {
+        this.endPath_(true);
         this.fillColor_ = { ...color };
         this.filling_ = true;
     }
 
     endFill(): void {
+        this.endPath_(true);
         this.filling_ = false;
     }
 
     moveTo(x: number, y: number): void {
+        this.endPath_(false);
         this.path_.push({ x, y });
     }
 
     lineTo(x: number, y: number): void {
-        const prev = this.path_.length > 0 ? this.path_[this.path_.length - 1] : { x: 0, y: 0 };
+        this.current_();
         this.path_.push({ x, y });
-        this.lineCommands.push({
-            from: { ...prev },
-            to: { x, y },
-            color: { ...this.lineColor_ },
-            thickness: this.lineThickness_,
-        });
     }
 
-    private addCurveSegments_(endX: number, endY: number, segments: number, interpolate: (s: number) => Vec2): void {
-        const c = { ...this.lineColor_ };
-        const t = this.lineThickness_;
-        let last = this.path_.length > 0 ? this.path_[this.path_.length - 1] : { x: 0, y: 0 };
-        for (let i = 1; i <= segments; i++) {
-            const pt = interpolate(i / segments);
-            this.lineCommands.push({ from: { ...last }, to: pt, color: c, thickness: t });
-            last = pt;
-        }
-        this.path_.push({ x: endX, y: endY });
+    /** Joins the path's last point back to its first, so a stroke turns that corner with no caps. Ends the path. */
+    closePath(): void {
+        if (this.path_.length === 0) return;
+        this.closed_ = true;
+        this.endPath_(false);
     }
 
     curveTo(cpx: number, cpy: number, x: number, y: number, segments = DEFAULT_CURVE_SEGMENTS): void {
-        const prev = this.path_.length > 0 ? this.path_[this.path_.length - 1] : { x: 0, y: 0 };
-        this.addCurveSegments_(x, y, segments, (s) => {
-            const invS = 1 - s;
-            return {
-                x: invS * invS * prev.x + 2 * invS * s * cpx + s * s * x,
-                y: invS * invS * prev.y + 2 * invS * s * cpy + s * s * y,
-            };
+        const p = this.current_();
+        this.addCurve_(segments, (s) => {
+            const u = 1 - s;
+            return { x: u * u * p.x + 2 * u * s * cpx + s * s * x, y: u * u * p.y + 2 * u * s * cpy + s * s * y };
         });
     }
 
     cubicCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number, segments = DEFAULT_CURVE_SEGMENTS): void {
-        const prev = this.path_.length > 0 ? this.path_[this.path_.length - 1] : { x: 0, y: 0 };
-        this.addCurveSegments_(x, y, segments, (s) => {
-            const invS = 1 - s;
+        const p = this.current_();
+        this.addCurve_(segments, (s) => {
+            const u = 1 - s;
             return {
-                x: invS * invS * invS * prev.x + 3 * invS * invS * s * cp1x + 3 * invS * s * s * cp2x + s * s * s * x,
-                y: invS * invS * invS * prev.y + 3 * invS * invS * s * cp1y + 3 * invS * s * s * cp2y + s * s * s * y,
+                x: u * u * u * p.x + 3 * u * u * s * cp1x + 3 * u * s * s * cp2x + s * s * s * x,
+                y: u * u * u * p.y + 3 * u * u * s * cp1y + 3 * u * s * s * cp2y + s * s * s * y,
             };
         });
     }
 
+    /** An arc about (cx, cy). The path goes on from its last point straight to where the arc begins. */
     arc(cx: number, cy: number, radius: number, startAngle: number, endAngle: number, anticlockwise = false, segments?: number): void {
         let sweep = endAngle - startAngle;
         if (anticlockwise) {
-            if (sweep > 0) sweep -= Math.PI * 2;
-        } else {
-            if (sweep < 0) sweep += Math.PI * 2;
+            if (sweep > 0) sweep -= TWO_PI;
+        } else if (sweep < 0) {
+            sweep += TWO_PI;
         }
-        const numSegments = segments ?? Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI * 2) * 32));
-        const c = { ...this.lineColor_ };
-        const t = this.lineThickness_;
-
-        const startPt = { x: cx + Math.cos(startAngle) * radius, y: cy + Math.sin(startAngle) * radius };
-        if (this.path_.length > 0) {
-            const prev = this.path_[this.path_.length - 1];
-            this.lineCommands.push({ from: { ...prev }, to: { ...startPt }, color: c, thickness: t });
+        const n = segments ?? Math.max(1, Math.ceil((Math.abs(sweep) / TWO_PI) * 32));
+        this.path_.push({ x: cx + Math.cos(startAngle) * radius, y: cy + Math.sin(startAngle) * radius });
+        for (let i = 1; i <= n; i++) {
+            const a = startAngle + sweep * (i / n);
+            this.path_.push({ x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius });
         }
-
-        let last = startPt;
-        for (let i = 1; i <= numSegments; i++) {
-            const angle = startAngle + sweep * (i / numSegments);
-            const pt = { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
-            this.lineCommands.push({ from: { ...last }, to: pt, color: c, thickness: t });
-            last = pt;
-        }
-        this.path_.push(last);
     }
 
     drawArc(cx: number, cy: number, radius: number, startAngle: number, endAngle: number, anticlockwise = false, segments?: number): void {
@@ -132,126 +210,201 @@ export class Graphics {
     }
 
     drawRect(x: number, y: number, width: number, height: number): void {
-        if (this.filling_) {
-            this.fillCommands.push({
-                type: 'rect', color: { ...this.fillColor_ },
-                x: x + width / 2, y: y + height / 2, width, height,
-            });
-        }
-        if (this.lineThickness_ > 0) {
-            const c = this.lineColor_;
-            const t = this.lineThickness_;
-            this.lineCommands.push(
-                { from: { x, y }, to: { x: x + width, y }, color: { ...c }, thickness: t },
-                { from: { x: x + width, y }, to: { x: x + width, y: y + height }, color: { ...c }, thickness: t },
-                { from: { x: x + width, y: y + height }, to: { x, y: y + height }, color: { ...c }, thickness: t },
-                { from: { x, y: y + height }, to: { x, y }, color: { ...c }, thickness: t },
-            );
-        }
+        this.shape_([{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }]);
     }
 
-    drawRoundRect(x: number, y: number, width: number, height: number, radius: number): void {
+    drawRoundRect(x: number, y: number, width: number, height: number, radius: number, cornerSegments = 8): void {
         const r = Math.min(radius, width / 2, height / 2);
-        if (r <= 0) {
+        if (!(r > 0)) {
             this.drawRect(x, y, width, height);
             return;
         }
-
-        const HALF_PI = Math.PI / 2;
-        const PI = Math.PI;
-        const cornerSegments = 8;
-
-        const right = x + width;
-        const bottom = y + height;
-
-        if (this.filling_) {
-            this.fillCommands.push({
-                type: 'rect', color: { ...this.fillColor_ },
-                x: x + width / 2, y: y + height / 2, width, height,
-            });
-        }
-
-        if (this.lineThickness_ > 0) {
-            const c = this.lineColor_;
-            const t = this.lineThickness_;
-
-            this.path_.push({ x: x + r, y });
-            this.lineTo(right - r, y);
-            this.arc(right - r, y + r, r, -HALF_PI, 0, false, cornerSegments);
-            this.lineTo(right, bottom - r);
-            this.arc(right - r, bottom - r, r, 0, HALF_PI, false, cornerSegments);
-            this.lineTo(x + r, bottom);
-            this.arc(x + r, bottom - r, r, HALF_PI, PI, false, cornerSegments);
-            this.lineTo(x, y + r);
-            this.arc(x + r, y + r, r, PI, PI + HALF_PI, false, cornerSegments);
-
-            // close path
-            const last = this.path_[this.path_.length - 1];
-            this.lineCommands.push({
-                from: { ...last }, to: { x: x + r, y },
-                color: { ...c }, thickness: t,
-            });
-        }
+        const points: Vec2[] = [];
+        const corner = (cx: number, cy: number, from: number): void => {
+            for (let i = 0; i <= cornerSegments; i++) {
+                const a = from + (Math.PI / 2) * (i / cornerSegments);
+                points.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+            }
+        };
+        corner(x + width - r, y + r, -Math.PI / 2);
+        corner(x + width - r, y + height - r, 0);
+        corner(x + r, y + height - r, Math.PI / 2);
+        corner(x + r, y + r, Math.PI);
+        this.shape_(points);
     }
 
     drawCircle(cx: number, cy: number, radius: number, segments = 32): void {
-        if (this.filling_) {
-            this.fillCommands.push({
-                type: 'circle', color: { ...this.fillColor_ },
-                x: cx, y: cy, width: radius, height: radius, radius, segments,
-            });
-        }
-        if (this.lineThickness_ > 0) {
-            const c = this.lineColor_;
-            const t = this.lineThickness_;
-            for (let i = 0; i < segments; i++) {
-                const a0 = (i / segments) * Math.PI * 2;
-                const a1 = ((i + 1) / segments) * Math.PI * 2;
-                this.lineCommands.push({
-                    from: { x: cx + Math.cos(a0) * radius, y: cy + Math.sin(a0) * radius },
-                    to: { x: cx + Math.cos(a1) * radius, y: cy + Math.sin(a1) * radius },
-                    color: { ...c }, thickness: t,
-                });
-            }
-        }
+        this.drawEllipse(cx, cy, radius, radius, segments);
     }
 
     drawEllipse(cx: number, cy: number, rw: number, rh: number, segments = 32): void {
-        if (this.lineThickness_ > 0) {
-            const c = this.lineColor_;
-            const t = this.lineThickness_;
-            for (let i = 0; i < segments; i++) {
-                const a0 = (i / segments) * Math.PI * 2;
-                const a1 = ((i + 1) / segments) * Math.PI * 2;
-                this.lineCommands.push({
-                    from: { x: cx + Math.cos(a0) * rw, y: cy + Math.sin(a0) * rh },
-                    to: { x: cx + Math.cos(a1) * rw, y: cy + Math.sin(a1) * rh },
-                    color: { ...c }, thickness: t,
-                });
-            }
+        const n = Math.max(3, Math.floor(segments));
+        const points: Vec2[] = [];
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * TWO_PI;
+            points.push({ x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rh });
         }
+        this.shape_(points);
+    }
+
+    /** A closed outline through `points`, filled while a fill is on and stroked with the line style: any polygon, concave too. */
+    drawPolygon(points: readonly Vec2[]): void {
+        this.shape_(points.map((p) => ({ x: p.x, y: p.y })));
     }
 
     clear(): void {
         this.path_ = [];
-        this.lineCommands = [];
-        this.fillCommands = [];
+        this.closed_ = false;
+        this.shapes_.length = 0;
         this.filling_ = false;
+        this.built_ = null;
     }
 
-    flush(): void {
-        for (const cmd of this.fillCommands) {
-            switch (cmd.type) {
-                case 'rect':
-                    Draw.rect({ x: cmd.x, y: cmd.y }, { x: cmd.width, y: cmd.height }, cmd.color, true);
-                    break;
-                case 'circle':
-                    Draw.circle({ x: cmd.x, y: cmd.y }, cmd.radius!, cmd.color, true, cmd.segments);
-                    break;
-            }
+    /** Gives the drawing's engine memory back now, rather than when the Graphics is collected. It can still be drawn: it is put back. */
+    dispose(): void {
+        this.resident_.buffer?.release();
+        this.resident_.buffer = null;
+    }
+
+    /** The drawing's triangles in its own coordinates: what {@link flush} draws, and what a MeshRenderer can be given to keep. */
+    geometry(): MeshRendererGeometry {
+        this.endPath_(true);
+        if (!this.built_) {
+            const built = mergeGeometry(this.shapes_.map((s) => buildPathGeometry(s.points, s.style)));
+            this.built_ = built;
+            this.builtFrame_ = drawFrameNumber();
+            this.drawn_ = {
+                positions: Float32Array.from(built.positions),
+                colors: Float32Array.from(built.colors ?? []),
+                indices: Uint32Array.from(built.indices),
+            };
+            // The old triangles are not these: their memory goes back, and the next draw puts these there.
+            this.dispose();
         }
-        for (const cmd of this.lineCommands) {
-            Draw.line(cmd.from, cmd.to, cmd.color, cmd.thickness);
+        return this.built_;
+    }
+
+    /** Draws the drawing (built first if it changed), moved, turned, scaled and faded as `options` say. */
+    flush(options: GraphicsDrawOptions = {}): void {
+        this.geometry();
+        if (this.drawn_.indices.length === 0) return;
+        const alpha = options.alpha ?? 1;
+        if (!(alpha > 0)) return;
+        const t = options.tint ?? WHITE;
+        const rotation = options.rotation ?? 0;
+        const scale = options.scale ?? 1;
+        const sx = typeof scale === 'number' ? scale : scale.x;
+        const sy = typeof scale === 'number' ? scale : scale.y;
+        const cos = Math.cos(rotation), sin = Math.sin(rotation);
+        Draw.triangles(this.source_(), {
+            tint: { r: t.r, g: t.g, b: t.b, a: t.a * alpha },
+            transform: [cos * sx, sin * sx, -sin * sy, cos * sy, options.x ?? 0, options.y ?? 0],
+        });
+    }
+
+    /**
+     * Draws `count` copies of the drawing in one call: {@link GRAPHICS_COPY_STRIDE} numbers a copy in `copies` (x, y, rotation,
+     * scale, r, g, b, alpha), in the order they are drawn. The same picture as a `flush()` a copy; for hundreds of copies a frame
+     * it spares a call into the engine a copy. Keep one `Float32Array` and fill it each frame.
+     *
+     * @param count Copies to draw; default, as many as `copies` holds.
+     */
+    flushMany(copies: ArrayLike<number>, count = Math.floor(copies.length / GRAPHICS_COPY_STRIDE)): void {
+        this.geometry();
+        const n = Math.min(count, Math.floor(copies.length / GRAPHICS_COPY_STRIDE));
+        if (this.drawn_.indices.length === 0 || !(n > 0)) return;
+        const source = this.source_();
+        if (this.many_.length < n * DRAW_COPY_STRIDE) this.many_ = new Float32Array(Math.max(n, this.many_.length / DRAW_COPY_STRIDE * 2) * DRAW_COPY_STRIDE);
+        const out = this.many_;
+        for (let i = 0, at = 0, to = 0; i < n; i++, at += GRAPHICS_COPY_STRIDE, to += DRAW_COPY_STRIDE) {
+            const rotation = copies[at + 2], scale = copies[at + 3];
+            const cos = rotation === 0 ? scale : Math.cos(rotation) * scale;
+            const sin = rotation === 0 ? 0 : Math.sin(rotation) * scale;
+            out[to] = cos;
+            out[to + 1] = sin;
+            out[to + 2] = -sin;
+            out[to + 3] = cos;
+            out[to + 4] = copies[at];
+            out[to + 5] = copies[at + 1];
+            out[to + 6] = copies[at + 4];
+            out[to + 7] = copies[at + 5];
+            out[to + 8] = copies[at + 6];
+            out[to + 9] = copies[at + 7];
         }
+        if (source !== this.drawn_) {
+            Draw.trianglesMany(source as DrawTrianglesBuffer, out, n);
+            return;
+        }
+        // Built this frame: not on the GPU yet, so each copy goes with the frame's other shapes.
+        for (let i = 0, at = 0; i < n; i++, at += DRAW_COPY_STRIDE) {
+            Draw.triangles(this.drawn_, {
+                tint: { r: out[at + 6], g: out[at + 7], b: out[at + 8], a: out[at + 9] },
+                transform: [out[at], out[at + 1], out[at + 2], out[at + 3], out[at + 4], out[at + 5]],
+            });
+        }
+    }
+
+    /** What a draw reads the triangles from: the GPU's copy once they have outlived the frame they were built in, the arrays until then. */
+    private source_(): DrawTrianglesBuffer | typeof this.drawn_ {
+        const held = this.resident_;
+        if (held.buffer?.live) return held.buffer;
+        if (drawFrameNumber() === this.builtFrame_) return this.drawn_;
+        held.buffer?.release();
+        held.buffer = Draw.createTriangles(this.drawn_);
+        return held.buffer;
+    }
+
+    private current_(): Vec2 {
+        if (this.path_.length === 0) this.path_.push({ x: 0, y: 0 });
+        return this.path_[this.path_.length - 1];
+    }
+
+    private addCurve_(segments: number, at: (s: number) => Vec2): void {
+        const n = Math.max(1, Math.floor(segments));
+        for (let i = 1; i <= n; i++) this.path_.push(at(i / n));
+    }
+
+    /** The style a shape drawn now takes: the fill if one is on, the stroke if the line has a width; null when it would draw nothing. */
+    private style_(closed: boolean): PathStyle | null {
+        const stroke = this.lineThickness_ > 0;
+        if (!this.filling_ && !stroke) return null;
+        return {
+            ...(this.filling_ ? { fill: { color: toPathColor(this.fillColor_) } } : {}),
+            ...(stroke ? {
+                stroke: {
+                    color: toPathColor(this.lineColor_),
+                    width: this.lineThickness_,
+                    join: this.lineOptions_.join ?? 'miter',
+                    cap: this.lineOptions_.cap ?? 'butt',
+                    ...(this.lineOptions_.miterLimit !== undefined ? { miterLimit: this.lineOptions_.miterLimit } : {}),
+                },
+            } : {}),
+            closed,
+            ...(this.feather_ > 0 ? { feather: this.feather_ } : {}),
+        };
+    }
+
+    private shape_(points: Vec2[]): void {
+        this.endPath_(true);
+        const style = this.style_(true);
+        if (!style || points.length < 2) return;
+        this.shapes_.push({ points, style });
+        this.built_ = null;
+    }
+
+    /**
+     * End the path being drawn as a shape in the style in force. `keepPen` starts the next path where this one stopped, so a change
+     * of style part-way along a line goes on from the same point.
+     */
+    private endPath_(keepPen: boolean): void {
+        const points = this.path_;
+        const closed = this.closed_;
+        this.path_ = keepPen && points.length > 0 && !closed ? [points[points.length - 1]] : [];
+        this.closed_ = false;
+        if (points.length < 2) return;
+        const style = this.style_(closed);
+        if (!style) return;
+        this.shapes_.push({ points, style });
+        this.built_ = null;
     }
 }

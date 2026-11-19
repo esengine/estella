@@ -40,11 +40,11 @@ import { faceOf } from '../terrain/sphere';
 import { farRulesOf, makeFacePlan } from './facePlan';
 import { makePlanePlan } from './planePlan';
 import type { WaterQueryData } from '../water/waterQuery';
-import type { JobPool } from '../runtime/jobs';
+import { workerLane, type JobPool } from '../runtime/jobs';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { GroundPageRequest, PlacementsRequest, PlanSpec, PlaneSpec } from './planWorker';
 import type { PageImage } from '../terrain/pages';
-import { FaceZones, faceHalf, planetFaces, type PlanetFace } from './planetSurface';
+import { FaceZones, faceHalf, planetFaces, type PlanetFace, GROUND_STEP } from './planetSurface';
 import { expandPlants, type PlantSet } from './plants';
 import { WorldPlan, type Placement } from './plan';
 import { worldRules, worldRulesRevision, type PlacementLayer, type RecipeMember, type WorldRules } from './rules';
@@ -68,6 +68,11 @@ export interface WorldGenData {
     surface: number;
     /** The height of the sea above a planet's radius: a point lower than this is under water. */
     seaLevel: number;
+    /**
+     * How far apart the ground is read for a world on a planet, in its units (default 1.5). A world of large things seen from far reads it further apart:
+     * what it costs to lay a square out falls with the square of this.
+     */
+    groundStep: number;
 }
 
 /** What a world is laid out on. */
@@ -79,7 +84,7 @@ export const WorldSurface = { Plane: 0, Planet: 1 } as const;
  * @experimental
  */
 export const WorldGen: ComponentDef<WorldGenData> = defineComponent<WorldGenData>('WorldGen', {
-    rules: '', version: 1, world: '', seed: 1, paintGround: true, surface: WorldSurface.Plane, seaLevel: 0,
+    rules: '', version: 1, world: '', seed: 1, paintGround: true, surface: WorldSurface.Plane, seaLevel: 0, groundStep: GROUND_STEP,
 }, {
     fields: {
         rules: { tooltip: 'The rules the world is laid out by: a .esworld file, or the id of rules the game registered with registerWorldRules.' },
@@ -89,6 +94,7 @@ export const WorldGen: ComponentDef<WorldGenData> = defineComponent<WorldGenData
         paintGround: { tooltip: 'Whether the biomes paint the terrain.' },
         surface: { enum: [{ label: 'Plane', value: WorldSurface.Plane }, { label: 'Planet', value: WorldSurface.Planet }], tooltip: 'Plane: laid out over a Terrain. Planet: this entity is also a Planet, and the world is laid out over its six faces.' },
         seaLevel: { shownWhen: { field: 'surface', values: [WorldSurface.Planet] }, tooltip: 'The height of the sea above the planet\'s radius: ground lower than this is under water.' },
+        groundStep: { min: 0.1, shownWhen: { field: 'surface', values: [WorldSurface.Planet] }, tooltip: 'How far apart the ground is read under what is placed, in the units of the planet. Larger is quicker to lay out and follows the ground less closely: several units for trees seen from the air, 1.5 for a world walked on foot.' },
     },
 });
 
@@ -552,7 +558,7 @@ export class WorldGenPlugin implements Plugin {
         const facts = (): PlanetFacts | null => registry.planets.get(entity) ?? null;
         if (!facts()) { built.waitingForPlanet = true; return; }
         const farRules = farRulesOf(rules);
-        built.faces = planetFaces(facts).map((face) => {
+        built.faces = planetFaces(facts, Math.max(data.groundStep || GROUND_STEP, 0.1)).map((face) => {
             const zones = new FaceZones(face);
             const { plan, farPlan } = makeFacePlan(face, {
                 rules, farRules, seed: data.seed, world: data.world, seaLevel: data.seaLevel,
@@ -743,7 +749,7 @@ export class WorldGenPlugin implements Plugin {
                 const worker = workerAt(x0 + origin.x, z0 + origin.z);
                 const first = firstSend(worker, key);
                 const request: GroundPageRequest = { id: 0, type: 'groundPage', key, x0, z0, size, paint: true, ...(first ? { spec: spec() } : {}) };
-                return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+                return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>, [], true).catch((e: unknown) => {
                     forgetSent(worker, key);
                     throw e;
                 });
@@ -771,7 +777,7 @@ export class WorldGenPlugin implements Plugin {
     private planSpec(built: BuiltWorld, unit: FaceUnit, facts: PlanetFacts): PlanSpec {
         const data = built.data;
         return {
-            rules: { ...built.rules!, fields: undefined, plants: undefined } as WorldRules, seed: data.seed, world: data.world, seaLevel: data.seaLevel,
+            rules: { ...built.rules!, fields: undefined, plants: undefined } as WorldRules, seed: data.seed, world: data.world, seaLevel: data.seaLevel, groundStep: unit.face.step,
             face: unit.face.face, radius: facts.radius, centre: facts.centre, layers: [...facts.layers], fieldNames: [...facts.fieldNames],
             zones: [...unit.zones.zones.all()], provider: facts.worker!,
         };
@@ -779,12 +785,18 @@ export class WorldGenPlugin implements Plugin {
 
     /** Asks the pool for a square of a face's plan: the plan is sent with the first question a worker is asked of it, and named after that. */
     private awayOf(pool: JobPool, built: BuiltWorld, unit: FaceUnit, facts: PlanetFacts): NonNullable<Unit['away']> {
-        const worker = unit.face.face % pool.size;
+        // The squares of a face are spread over the workers by where they are, as a plane's are, so neighbours share a worker and the ground it has
+        // read: a face on one worker laid a place out a square at a time while the others stood idle. A worker is sent the plan with the first square it
+        // is asked of it.
+        // Among the workers that are not the ground's: the planet's pages have the others to themselves (workerLane).
+        const workerAt = (x: number, z: number): number =>
+            workerLane(pool, (Math.floor(x / 2048) * 73856093) ^ (Math.floor(z / 2048) * 19349663) ^ (unit.face.face * 83492791), false);
         return (layer, far, x0, z0, x1, z1) => {
             const key = this.planKey(built, unit);
+            const worker = workerAt(x0, z0);
             const first = firstSend(worker, key);
             const request: PlacementsRequest = { id: 0, key, layer, far, x0, z0, x1, z1, ...(first ? { spec: this.planSpec(built, unit, facts) } : {}) };
-            return pool.run<Placement[]>(unit.face.face, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+            return pool.run<Placement[]>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
                 // A worker that does not know the plan (it was restarted) is sent it again with the next question.
                 forgetSent(worker, key);
                 throw e;

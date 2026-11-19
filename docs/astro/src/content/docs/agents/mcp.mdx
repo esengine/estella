@@ -145,6 +145,37 @@ groups the agent turns on with `enable_tools` when it needs them: `assets`, `pre
 makes the right tool harder to find; any tool can still be called by name without being listed. Add `--all-tools` for a client
 that cannot follow a change of the tool list. The table below names tools from every group.
 
+### Generating models with Tripo AI
+
+The `tripo` group generates a textured 3D model from a sentence or a picture with [Tripo AI](https://www.tripo3d.ai/) and imports
+it the way a dropped `.glb` is imported, so the answer names a prefab the agent can place, with Tripo's preview picture beside it.
+It needs a Tripo API key, which you add in **Settings > Tools and AI > AI Agents > Tripo API key** (keys are made at
+developers.tripo3d.ai). The key stays in this machine's keychain: it is never written into the project, and the editor window
+never reads it back. Every generation spends the account's credits; `tripo_balance` shows what is left.
+
+A generation takes two to five minutes, and the editor keeps it rather than the agent's call: `tripo_generate` answers at once
+with a task id, the editor polls Tripo and imports the model when it is ready whether or not the agent is still waiting, and
+`tripo_task` waits for a task and answers its prefab without spending again. While generations run, one notice in the corner
+shows them (a single one by name and percentage, several as a count with the list behind **Details**), and the Content Browser
+shows a placeholder with progress where each model will land. A generation still running when the editor closes is taken up again
+the next time the project opens. The import happens outside the agent's undo step, so Undo does not remove a generated model:
+delete it from the Content Browser.
+
+The rest of Tripo is in the same group. `tripo_process` works on a model that is already in the project and makes a new one
+beside it: retexture it, reduce it to a game's face count, unwrap its UVs, split it into parts and close them, check whether it
+can be rigged (free), rig it, put preset animations on the rig, or convert it to another format. A model Tripo made keeps the id of
+the task that made it in its `.meta`, so the next operation names that task instead of uploading the file; any other model is
+uploaded. `tripo_image` makes pictures from words or from other pictures, and the four sides of a thing, which `tripo_generate`
+takes as `images` for a model closer to what was meant than one picture gives. Every operation but the rig check spends credits,
+and each tool's description says how many.
+
+Nothing Tripo made is forgotten: the project keeps every job as history, with what was asked, where the result landed and what
+it cost, and `tripo_history` lets the agent look there before it pays for something again. It also lists the models in the
+project that Tripo made (from their `.meta`, so a cloned project has them), and with `remote_days: 31` what the Tripo account made
+anywhere in the last month. A listed result whose file is gone comes back with `tripo_task` without spending credits. The same
+group can smart-segment a model or a picture into named parts, and turn a picture into a Gaussian splat (a `.splat` file the
+engine does not draw yet).
+
 A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
 cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
 topics, named at the end of their descriptions with what each is for, and the agent reads the ones it needs with `tool_guide`

@@ -188,6 +188,7 @@ export class ChangeTracker {
      */
     private readonly writes_ = new ReaderOwnedJournal(true);
     private trackedComponents_ = new Set<symbol>();
+    private readonly trackedDefs_ = new Map<symbol, AnyComponentDef>();
     // The most recent worldTick at which ANY entity changed each component — an
     // O(1) "did anything change since tick T" gate (vs scanning the per-entity map).
     private componentLastChangedTick_ = new Map<symbol, number>();
@@ -203,6 +204,12 @@ export class ChangeTracker {
 
     enableChangeTracking(component: AnyComponentDef): void {
         this.trackedComponents_.add(component._id);
+        this.trackedDefs_.set(component._id, component);
+    }
+
+    /** The components something tracks the changes of: the only ones `restampAdded` has anything to say about. */
+    trackedDefinitions(): Iterable<AnyComponentDef> {
+        return this.trackedDefs_.values();
     }
 
     enableChangeSequenceTracking(component: AnyComponentDef, added: boolean): void {
@@ -440,6 +447,28 @@ export class ChangeTracker {
             this.topology_.record(component._id, entity, this.worldTick_);
         }
         if (!this.trackedComponents_.has(component._id)) return;
+        const sequences = this.componentAddedSequences_.get(component._id);
+        if (sequences) {
+            this.recordSequence_(sequences, entity);
+            return;
+        }
+        let map = this.componentAddedTicks_.get(component._id);
+        if (!map) {
+            map = new Map();
+            this.componentAddedTicks_.set(component._id, map);
+        }
+        map.set(entity, this.worldTick_);
+    }
+
+    /**
+     * Says, for `Added` filters alone, that `component` arrived on `entity` NOW. For content that was written while
+     * switched off and is switched on whole (a streamed cell published over several frames): a query that skips
+     * switched-off entities never saw it arrive, and the arrival a system cares about is the one it can see. The
+     * membership journal and the incarnation are left as they are, since the component did not arrive twice.
+     */
+    restampAdded(component: AnyComponentDef, entity: Entity): void {
+        if (!this.trackedComponents_.has(component._id)) return;
+        this.recordRevision_(component._id, true);
         const sequences = this.componentAddedSequences_.get(component._id);
         if (sequences) {
             this.recordSequence_(sequences, entity);

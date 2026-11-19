@@ -226,10 +226,12 @@ private:
     // target's own attachment must not stay bound to a sampler while it is drawn to.
     void evictSamplerBinding(u32 name);
 
-    /** GL_TEXTURE_2D_ARRAY for a name created as an array, GL_TEXTURE_2D otherwise. */
+    /** GL_TEXTURE_2D_ARRAY for a name created as an array, GL_TEXTURE_3D for a volume, GL_TEXTURE_2D otherwise. */
     u32 textureTarget(u32 name) const;
     /** The GL names of this generation's texture arrays: every bind and edit of one names its target. */
     std::unordered_set<u32> array_names_;
+    /** The names created as GL_TEXTURE_3D (TextureDesc::volume). */
+    std::unordered_set<u32> volume_names_;
 
     /** GL names by registry id for this generation; 0 = none. */
     std::vector<u32> buffer_names_;

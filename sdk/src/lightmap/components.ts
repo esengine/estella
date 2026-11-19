@@ -31,6 +31,9 @@ export interface BakedLightingData {
     /** Bake the probes without the sky and with how much of it each sees, so the sky the frame has
      *  (a live Sky Atmosphere, a weather) lights them through it: a room stays dark under any sky. */
     skyOcclusion: boolean;
+    /** Sizes of brick a probe volume may use. 1 solves a probe at every spacing; 2 to 4 keep the spacing only near
+     *  geometry and leave the air between at 2, 4 or 8 times it, as bricks the runtime reads the same way. */
+    probeLevels: number;
     /** What the last bake was OF. Empty until one has run; different from what
      *  the scene fingerprints to now means the light is out of date. The baker
      *  writes it — not `readonly`, which means "the engine computes this and the
@@ -56,6 +59,7 @@ export const BakedLighting: ComponentDef<BakedLightingData> = defineComponent<Ba
         samples: BAKE_DEFAULTS.samples,
         probeSamples: BAKE_DEFAULTS.probeSamples,
         skyOcclusion: BAKE_DEFAULTS.skyOcclusion,
+        probeLevels: BAKE_DEFAULTS.probeLevels,
         bakedFrom: '',
     },
     {
@@ -67,6 +71,7 @@ export const BakedLighting: ComponentDef<BakedLightingData> = defineComponent<Ba
             samples: { min: 1, tooltip: 'Rays each lumel gathers per bounce.' },
             probeSamples: { min: 1, tooltip: 'Directions each probe gathers, over the whole sphere.' },
             skyOcclusion: { tooltip: 'Probes keep how much sky they see, not the sky itself: the sky in play (a live Sky Atmosphere, a weather) lights them through it, so rooms stay dark.' },
+            probeLevels: { min: 1, max: 4, step: 1, tooltip: 'Brick sizes a probe volume may use. 1 = a probe at every spacing; more keeps that spacing near geometry only and samples the open air coarser, with far fewer probes.' },
             bakedFrom: { advanced: true, tooltip: 'Fingerprint of the inputs the last bake read.' },
         },
     },

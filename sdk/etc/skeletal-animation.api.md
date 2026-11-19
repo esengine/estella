@@ -21,6 +21,7 @@ getBool: (entity: Entity, name: string) => boolean
 getController: (name: string) => AnimatorControllerDef | undefined
 getFloat: (entity: Entity, name: string) => number
 hasMotionDriver: (kind: string) => boolean
+openWindow: (entity: Entity, name: string) => AnimatorWindow | null
 registerController: (name: string, def: AnimatorControllerDef) => void
 registerMotionDriver: <M extends AnimatorMotion>(kind: M["kind"], driver: MotionDriver<M>) => void
 removeEntity: (entity: Entity) => void
@@ -33,6 +34,7 @@ setTrigger: (entity: Entity, name: string) => void
 unregisterController: (name: string) => void
 update: (world: World, dt?: number, events?: AnimatorEventSink) => void
 useAssetAvatars: (source: (ref: string) => AnimatorAvatar | undefined) => void
+windowsOf: (entity: Entity) => readonly AnimatorWindow[]
 static new (): AnimatorControllerAPI
 static prototype: AnimatorControllerAPI
 ```

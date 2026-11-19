@@ -51,7 +51,7 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 /** Export for web and hand back the page plus whatever the build said about it. */
-async function page(splash?: ProjectPackaging['splash'], webChannel?: 'poki' | 'crazygames' | 'youtube', leaderboardEncryptionKey?: string): Promise<{ html: string; config: Record<string, unknown>; warnings: string[]; splashBytes?: number }> {
+async function page(splash?: ProjectPackaging['splash'], webChannel?: 'poki' | 'crazygames' | 'youtube', leaderboardEncryptionKey?: string, extra: Record<string, unknown> = {}): Promise<{ html: string; config: Record<string, unknown>; warnings: string[]; splashBytes?: number }> {
   const outDir = path.join(root, `dist-${Math.random().toString(36).slice(2)}`);
   const res = await exportGame({
     root,
@@ -64,12 +64,32 @@ async function page(splash?: ProjectPackaging['splash'], webChannel?: 'poki' | '
     platform: 'web', webChannel, leaderboardEncryptionKey,
     runtime: runtimeConfigOf({ designResolution: { width: 800, height: 600 } }),
     splash,
+    ...extra,
   });
   expect(res.ok, res.errors.join('\n')).toBe(true);
   return { html: readFileSync(path.join(outDir, 'index.html'), 'utf8'), config: JSON.parse(readFileSync(path.join(outDir, 'game.config.json'), 'utf8')), warnings: res.warnings, splashBytes: res.size?.splashBytes };
 }
 
 describe('the exported page’s start screen', () => {
+  it('shows loading and nothing more in a development preview: no logo, no minimum time', async () => {
+    const authored = { logo: 'assets/logo.png', minMs: 3000 };
+    const shipped = await page(authored);
+    expect(shipped.html).toContain('class="es-splash-logo"');
+    expect(shipped.html).toContain('data-min-ms="3000"');
+    const preview = await page(authored, undefined, undefined, { developmentPreview: true });
+    expect(preview.html).toContain('id="es-splash-bar"');
+    expect(preview.html).not.toContain('class="es-splash-logo"');
+    expect(preview.html).not.toContain('data-min-ms');
+    expect(preview.html).not.toContain('data-ident-ms');
+  }, 180_000);
+
+  it('asks to be turned only on a touch screen, so a desktop browser always shows the game', async () => {
+    const { html } = await page(undefined, undefined, undefined, { orientation: 'portrait' });
+    expect(html).toContain('id="rotate-hint"');
+    expect(html).toContain('@media (orientation:landscape) and (pointer:coarse){#canvas{display:none');
+    expect(html).not.toContain('@media (orientation:landscape){');
+  }, 180_000);
+
   it('has its own line in the size report, logo included', async () => {
     const plain = await page();
     const withLogo = await page({ logo: 'assets/logo.png' });

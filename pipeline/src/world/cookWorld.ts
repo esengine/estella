@@ -18,9 +18,10 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { SceneData } from 'esengine';
 import {
-    cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, WORLD_DIR,
+    cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, farProxySettings, WORLD_DIR,
 } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
+import { cookFarProxies, type FarProxyCookResult } from './farProxy';
 
 /** One streamed scene, as `game.config.json` names it. */
 export interface CookedWorld {
@@ -31,6 +32,8 @@ export interface CookedWorld {
 export interface CookWorldsResult {
     worlds: CookedWorld[];
     warnings: string[];
+    /** Per world that asked for far proxies, what baking them did. */
+    farProxies: Array<{ scene: string } & FarProxyCookResult>;
 }
 
 /**
@@ -82,6 +85,7 @@ export async function cookWorlds(
 ): Promise<CookWorldsResult> {
     const worlds: CookedWorld[] = [];
     const warnings: string[] = [];
+    const farProxies: CookWorldsResult['farProxies'] = [];
     let index: AssetIndex | null = null;
     let read: ((ref: string) => Promise<unknown | null>) | null = null;
 
@@ -117,6 +121,12 @@ export async function cookWorlds(
         warnings.push(...cut.warnings.map((w) => `${scene.name}: ${w}`));
 
         await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
+        const far = farProxySettings(document);
+        if (far !== null) {
+            const baked = await cookFarProxies(root, payloadDir, cut, far, index!, read);
+            warnings.push(...baked.warnings.map((w) => `${scene.name}: ${w}`));
+            farProxies.push({ scene: scene.name, ...baked });
+        }
         for (const cell of cut.manifest.cells) {
             await writeFile(
                 path.join(payloadDir, cell.path),
@@ -133,5 +143,5 @@ export async function cookWorlds(
         worlds.push({ scene: scene.name, manifest: manifestPath });
     }
 
-    return { worlds, warnings };
+    return { worlds, warnings, farProxies };
 }

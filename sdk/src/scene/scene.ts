@@ -12,7 +12,7 @@ import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
-import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
+import { getComponent, Name, Camera, RuntimeOnly, Disabled } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
 import { AssetScope } from '../asset/AssetLease';
 import type { PrefabResult } from '../asset/AssetLoader';
@@ -549,12 +549,30 @@ function checkLoadable(sceneData: SceneData): void {
     }
 }
 
-function spawnAndLoadEntities(
+/** What a staged spawn made: the entities by document id, and the roots it switched off until {@link revealStagedEntities}. */
+export interface StagedSpawn {
+    entities: Map<number, Entity>;
+    /** Roots switched off while the rest arrived. An entity the author switched off is not among them, and stays off. */
+    hidden: Entity[];
+}
+
+/**
+ * {@link spawnAndLoadEntities} as a job: it yields how far along it is after every entity, so a caller with frames to
+ * spread it over (a streamed cell, Unreal's AddToWorld under `s.LevelStreamingActorsUpdateTimeLimit`) stops wherever the
+ * frame's budget runs out and goes on the next.
+ *
+ * With `staged`, every root of the document is switched off (`Disabled`) the moment it exists, so no system and no draw
+ * sees a cell half arrived; {@link revealStagedEntities} switches it on whole. A root the author switched off is left
+ * as written.
+ */
+export function* spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink,
-): Map<number, Entity> {
+    onPhase?: ScenePhaseSink, staged = false,
+): Generator<number, StagedSpawn, void> {
     // One clock reading per component rather than two: the end of one write is
-    // the start of the next, so attribution costs a call and not a pair.
+    // the start of the next, so attribution costs a call and not a pair. The
+    // clock is reset after every pause, so a phase is charged its own work and
+    // never the frames it waited through.
     let mark = onPhase ? performance.now() : 0;
     const since = (): number => {
         const now = performance.now();
@@ -562,22 +580,45 @@ function spawnAndLoadEntities(
         mark = now;
         return elapsed;
     };
+    const resume = (): void => { if (onPhase) mark = performance.now(); };
     checkLoadable(sceneData);
     if (onPhase) onPhase('spawn.validate', since());
     const entityMap = new Map<number, Entity>();
+    const hidden: Entity[] = [];
+    const rows = sceneData.entities.filter((entityData) => entityData.visible !== false && !isPrefabEntry(entityData));
+    const total = Math.max(1, rows.length * 3);
+    let done = 0;
     try {
+        let skipped = 0;
         for (const entityData of sceneData.entities) {
             if (entityData.visible === false) continue;
             // A prefab-instance entry reaching here means the synchronous path was
             // used on an unexpanded prefab scene — it has no spawnable components.
             // Skip it (loadSceneWithAssets is the supported prefab-scene path).
-            if (isPrefabEntry(entityData)) {
-                log.warn('scene', 'Prefab-instance entry skipped in synchronous load; use loadSceneWithAssets to load prefab scenes');
-                continue;
-            }
+            if (isPrefabEntry(entityData)) { skipped++; continue; }
             const entity = world.spawn();
             entityMap.set(entityData.id, entity);
             world.insert(entity, Name, { value: entityData.name });
+            if (staged && entityData.parent === null && !entityData.components.some((c) => c.type === 'Disabled')) {
+                world.insert(entity, Disabled, {});
+                hidden.push(entity);
+            }
+            done++;
+            yield done / total;
+            resume();
+        }
+        if (skipped > 0) {
+            log.warn('scene', 'Prefab-instance entry skipped in synchronous load; use loadSceneWithAssets to load prefab scenes');
+        }
+        if (staged) {
+            // A child whose parent is not in this document (a cell parented to the persistent world) is a root here too.
+            for (const entityData of rows) {
+                if (entityData.parent === null || entityMap.has(entityData.parent)) continue;
+                if (entityData.components.some((c) => c.type === 'Disabled')) continue;
+                const entity = entityMap.get(entityData.id)!;
+                world.insert(entity, Disabled, {});
+                hidden.push(entity);
+            }
         }
         if (onPhase) onPhase('spawn.entities', since());
 
@@ -585,15 +626,16 @@ function spawnAndLoadEntities(
         // and not an answer: which writes reach a subsystem, and which are field
         // validation, is the difference between a mechanism and a number.
         const byType = onPhase ? new Map<string, number>() : null;
-        for (const entityData of sceneData.entities) {
-            if (entityData.visible === false) continue;
-            if (isPrefabEntry(entityData)) continue;
+        for (const entityData of rows) {
             const entity = entityMap.get(entityData.id)!;
             for (const compData of entityData.components) {
                 remapEntityFields(compData, entityMap, external);
                 loadComponent(world, entity, compData, entityData.name);
                 if (byType) byType.set(compData.type, (byType.get(compData.type) ?? 0) + since());
             }
+            done++;
+            yield done / total;
+            resume();
         }
         if (onPhase && byType) {
             let total = 0;
@@ -610,6 +652,9 @@ function spawnAndLoadEntities(
                 const parentEntity = entityMap.get(entityData.parent);
                 if (entity !== undefined && parentEntity !== undefined) {
                     world.setParent(entity, parentEntity);
+                    done++;
+                    yield done / total;
+                    resume();
                 }
             }
         }
@@ -621,7 +666,31 @@ function spawnAndLoadEntities(
         throw e;
     }
 
-    return entityMap;
+    return { entities: entityMap, hidden };
+}
+
+/**
+ * Switches on what a staged spawn switched off, whole, and tells every `Added` filter its components arrived now: the
+ * arrival a system can see is the one when it is switched on. The other half of {@link spawnAndLoadEntitiesJob}.
+ */
+export function revealStagedEntities(world: World, spawn: StagedSpawn): void {
+    for (const root of spawn.hidden) {
+        if (world.valid(root) && world.has(root, Disabled)) world.remove(root, Disabled);
+    }
+    for (const entity of spawn.entities.values()) {
+        if (world.valid(entity)) world.restampAdded(entity);
+    }
+}
+
+function spawnAndLoadEntities(
+    world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+    onPhase?: ScenePhaseSink,
+): Map<number, Entity> {
+    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false);
+    for (;;) {
+        const next = job.next();
+        if (next.done) return next.value.entities;
+    }
 }
 
 export function loadSceneData(
@@ -635,6 +704,20 @@ export function loadSceneData(
     // is paid at the door — after preparation already had the bytes in hand.
     if (onPhase) onPhase('spawn.migrate', performance.now() - began);
     return spawnAndLoadEntities(world, data, external, onPhase);
+}
+
+/**
+ * {@link loadSceneData} as a job that stages what it spawns (see {@link spawnAndLoadEntitiesJob}): for a caller that spreads
+ * it over frames and switches the result on whole with {@link revealStagedEntities}.
+ */
+export function* loadSceneDataJob(
+    world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
+    onPhase?: ScenePhaseSink,
+): Generator<number, StagedSpawn, void> {
+    const began = onPhase ? performance.now() : 0;
+    const { data } = migrateSceneData(sceneData);
+    if (onPhase) onPhase('spawn.migrate', performance.now() - began);
+    return yield* spawnAndLoadEntitiesJob(world, data, external, onPhase, true);
 }
 
 /**

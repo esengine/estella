@@ -193,6 +193,18 @@ describe('the C++ bake kernel', () => {
             const { worst } = worstTexel(cpp.atlasBytes, ts.atlasBytes);
             expect(worst).toBeLessThan(0.02);
             expect(cpp.probes.length).toBe(ts.probes.length);
+            // The probes are the kernel's now too: the same rays, the same sums held in floats.
+            let probeWorst = 0, probeLargest = 0;
+            cpp.probes.forEach((doc, i) => {
+                const want = ts.probes[i]!.irradiance;
+                expect(doc!.irradiance.length).toBe(want.length);
+                for (let k = 0; k < want.length; k++) {
+                    probeWorst = Math.max(probeWorst, Math.abs(doc!.irradiance[k]! - want[k]!));
+                    probeLargest = Math.max(probeLargest, Math.abs(want[k]!));
+                }
+            });
+            expect(probeLargest).toBeGreaterThan(0);
+            expect(probeWorst).toBeLessThan(probeLargest * 1e-4);
         });
     }
 

@@ -28,6 +28,7 @@ import { EditorView, editorViewpoint } from '../camera/EditorView';
 import { log } from '../util/logger';
 import { renderOrigin } from '../render/renderOrigin';
 import { bakesOf } from '../runtime/bakes';
+import { workerLane } from '../runtime/jobs';
 import type { Color, Entity } from '../types';
 import { PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from './pages';
 import { buildPatchMesh } from './patch';
@@ -74,6 +75,11 @@ export interface PlanetData {
     /** The sea's colour and how much of it there is over what is under it (0 to 1). */
     seaColor: Color;
     seaOpacity: number;
+    /** The longest of the sea's waves, crest to crest, in metres, and how steep they are (0 is a mirror). */
+    seaWaveLength: number;
+    seaWaveSteepness: number;
+    /** How deep the sea is before its bottom is lost to its colour, in metres: shallower it is clearer and paler, and it breaks white at the shore. */
+    seaShallowDepth: number;
     /** How hard the planet pulls what is on it, in metres a second squared at the surface; 0 pulls nothing. Bodies are pulled toward the centre of the nearest planet that pulls (physics3d/planetGravity.ts). */
     gravity: number;
     /** The terrain layers (`.esterrainlayer` files, up to four) the ground is drawn with, in the order the paint weighs them. Empty draws the four layer colours. */
@@ -95,7 +101,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
 export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Planet', {
     radius: 4000, provider: '', world: '', generatorVersion: 1, seed: 1, cellSize: 1.5, detail: 1.5,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
-    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, layers: [] as string[], tintLayers: false,
+    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, seaWaveLength: 30, seaWaveSteepness: 0.5, seaShallowDepth: 8, layers: [] as string[], tintLayers: false,
 }, {
     fields: {
         radius: { min: 1, category: 'Shape', tooltip: 'The planet\'s radius in metres. The planet stands at its entity, unrotated and unscaled.' },
@@ -115,6 +121,9 @@ export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Pla
         seaLevel: { category: 'Sea', tooltip: 'The height of the sea above the planet\'s radius, in metres.' },
         seaColor: { category: 'Sea' },
         seaOpacity: { min: 0, max: 1, step: 0.01, category: 'Sea', tooltip: 'How much of the sea there is over what is under it.' },
+        seaWaveLength: { min: 0.1, category: 'Sea', tooltip: 'The longest of the waves, crest to crest, in metres. Shorter trains ride on it.' },
+        seaWaveSteepness: { min: 0, max: 2, step: 0.01, category: 'Sea', tooltip: 'How steep the waves are: 0 is a mirror.' },
+        seaShallowDepth: { min: 0.01, category: 'Sea', tooltip: 'How deep the water is before its bottom is lost to its colour, in metres. Shallower, it is clearer and paler, and it breaks white along the shore.' },
         gravity: { min: 0, category: 'Physics', tooltip: 'How hard the planet pulls bodies toward its centre, in metres a second squared at the surface (9.81 is the Earth\'s). Needs 3D physics; the world\'s own gravity is taken off the bodies it pulls.' },
         layers: { category: 'Layers', tooltip: 'The terrain layers (.esterrainlayer, up to four) the ground is drawn with, in the order the paint weighs them, each read on the planes of the world\'s axes. Empty draws the four layer colours.' },
         tintLayers: { category: 'Layers', tooltip: 'Multiply the pictures of the layers by the four layer colours: for grey pictures of grain that take the colours of each planet. Off draws the layers in their own colours.' },
@@ -373,7 +382,7 @@ export class PlanetPlugin implements Plugin {
                 if (covered.has(sphereNodeKey(up))) { drawn.delete(key); break; }
             }
         }
-        this.makePages(app, entity, built, eye);
+        this.makePages(app, entity, built, eye, chosen.length);
         this.pack(app, built);
 
         const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
@@ -407,6 +416,10 @@ export class PlanetPlugin implements Plugin {
         const c = d.seaColor;
         Material.setUniform(sea.material, 'u_seaColor', { x: c.r, y: c.g, z: c.b, w: 1 });
         Material.setUniform(sea.material, 'u_seaOpacity', d.seaOpacity);
+        Material.setUniform(sea.material, 'u_seaRadius', r);
+        Material.setUniform(sea.material, 'u_waveLength', d.seaWaveLength);
+        Material.setUniform(sea.material, 'u_waveSteepness', d.seaWaveSteepness);
+        Material.setUniform(sea.material, 'u_shallowDepth', d.seaShallowDepth);
     }
 
     private seaPending_ = false;
@@ -478,30 +491,37 @@ export class PlanetPlugin implements Plugin {
         })();
     }
 
-    /** Makes the wanted pages, coarse and near first, for as long as the frame can spare. */
+    /** Whether a worker makes this planet's pages: its provider can be loaded in one, and so can whatever paints its ground. */
+    private pagesAway(app: App, entity: Entity, src: PlanetPageSource): boolean {
+        if (!planPool() || !src.provider.workerSource) return false;
+        const registry = app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null;
+        // A painter that only the main thread can run (a world with no plan a worker could make) keeps its pages here.
+        return !(registry?.paintOf(entity) && !registry.remotePaintOf(entity));
+    }
+
     /** One node's page: made by a worker when the planet's provider can be loaded in one, here when it cannot. */
     private pageOf(app: App, entity: Entity, src: PlanetPageSource, node: SphereNode): PageImage | Promise<PageImage> {
-        const pool = planPool();
+        if (!this.pagesAway(app, entity, src)) return makePlanetPage(src, node);
+        const pool = planPool()!;
         const provider = src.provider;
-        if (!pool || !provider.workerSource) return makePlanetPage(src, node);
-        const registry = app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null;
-        const remote = registry?.remotePaintOf(entity) ?? null;
-        // A painter that only the main thread can run (a world with no plan a worker could make) keeps its pages here.
-        if (registry?.paintOf(entity) && !remote) return makePlanetPage(src, node);
-        const worker = node.face % pool.size;
+        const remote = (app.hasResource(PlanetRegistryRes) ? app.getResource(PlanetRegistryRes) : null)?.remotePaintOf(entity) ?? null;
+        // A page can be made by any worker that makes the ground, so the pages under the eye (all on one face) are spread over them, and asked
+        // for as urgent: on the one worker its face named, in line behind the world's plants, the ground stayed at its coarsest.
+        const worker = workerLane(pool, (node.ix * 73856093) ^ (node.iz * 19349663) ^ (node.level * 83492791) ^ node.face, true);
         const keys = remote ? [...remote.keys] : null;
         const request: PageRequest = {
             id: 0, type: 'page', node, levels: src.levels, radius: src.radius, minHeight: src.minHeight, maxHeight: src.maxHeight,
-            provider: { source: provider.workerSource, seed: src.seed, version: src.version, world: src.world },
+            provider: { source: provider.workerSource!, seed: src.seed, version: src.version, world: src.world },
             paintKeys: keys, specs: keys ? keys.map((k, f) => (firstSend(worker, k) ? remote!.spec(f) as PageRequest['specs'][number] : null)) : [],
         };
-        return pool.run<PageImage>(node.face, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+        return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>, [], true).catch((e: unknown) => {
             if (keys) for (const k of keys) forgetSent(worker, k);
             throw e;
         });
     }
 
-    private makePages(app: App, entity: Entity, built: Built, eye: [number, number, number]): void {
+    /** Makes the wanted pages, coarse and near first, for as long as the frame can spare. */
+    private makePages(app: App, entity: Entity, built: Built, eye: [number, number, number], chosen: number): void {
         const bakes = bakesOf(app);
         if (built.wanted.size === 0) { bakes.mark(built, 'Building the planet', 1); return; }
         const src = built.source!;
@@ -520,12 +540,15 @@ export class PlanetPlugin implements Plugin {
             return true;
         };
         const epoch = built.epoch;
+        const away = this.pagesAway(app, entity, src);
         for (const node of order) {
             const key = sphereNodeKey(node);
             if (built.asked.has(key)) continue;
+            // Before the page is asked for, not after: asked first, a page was worked out and thrown away every frame the workers were full, which
+            // is every frame the ground is behind, and that kept them full.
+            if (away && built.asked.size >= PAGES_IN_FLIGHT) break;
             const image = this.pageOf(app, entity, src, node);
             if (image instanceof Promise) {
-                if (built.asked.size >= PAGES_IN_FLIGHT) break;
                 built.asked.add(key);
                 void image.then((img) => {
                     built.asked.delete(key);
@@ -542,7 +565,9 @@ export class PlanetPlugin implements Plugin {
             // The frame's one budget, shared with the bakes and the chunks of the world; at least one page a frame.
             if (!bakes.hasTime(built)) break;
         }
-        bakes.mark(built, 'Building the planet', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
+        // How much of what the eye wants is there. Pages made by a worker land between frames, so the ones made in this frame say nothing of it.
+        const wanting = [...built.wanted.keys()].filter((key) => !built.table.get(key)).length;
+        bakes.mark(built, 'Building the planet', away ? chosen / (chosen + wanting || 1) : made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
     }
 
     /** Puts a node entity on each node drawn (reusing the ones it had), and takes the rest away. */

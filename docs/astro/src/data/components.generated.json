@@ -256,6 +256,13 @@
           "doc": "Probes keep how much sky they see, not the sky itself: the sky in play (a live Sky Atmosphere, a weather) lights them through it, so rooms stay dark."
         },
         {
+          "key": "probeLevels",
+          "type": "number",
+          "default": "1",
+          "doc": "Brick sizes a probe volume may use. 1 = a probe at every spacing; more keeps that spacing near geometry only and samples the open air coarser, with far fewer probes.",
+          "range": "1–4, step 1"
+        },
+        {
           "key": "bakedFrom",
           "type": "string",
           "default": "empty",
@@ -268,7 +275,8 @@
         "texelsPerUnit",
         "bounces",
         "samples",
-        "probeSamples"
+        "probeSamples",
+        "probeLevels"
       ]
     },
     {
@@ -1953,6 +1961,12 @@
           "default": "empty"
         }
       ]
+    },
+    {
+      "name": "ExcludeFromFarProxy",
+      "source": "ts",
+      "fields": [],
+      "tag": true
     },
     {
       "name": "FirstPersonController",
@@ -5638,6 +5652,17 @@
       "tag": true
     },
     {
+      "name": "Persistent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "key",
+          "type": "string",
+          "default": "empty"
+        }
+      ]
+    },
+    {
       "name": "PlacedFoliage",
       "source": "ts",
       "fields": [
@@ -5928,6 +5953,27 @@
           "range": "0–1, step 0.01"
         },
         {
+          "key": "seaWaveLength",
+          "type": "number",
+          "default": "30",
+          "doc": "The longest of the waves, crest to crest, in metres. Shorter trains ride on it.",
+          "range": "≥ 0.1"
+        },
+        {
+          "key": "seaWaveSteepness",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How steep the waves are: 0 is a mirror.",
+          "range": "0–2, step 0.01"
+        },
+        {
+          "key": "seaShallowDepth",
+          "type": "number",
+          "default": "8",
+          "doc": "How deep the water is before its bottom is lost to its colour, in metres. Shallower, it is clearer and paler, and it breaks white along the shore.",
+          "range": "≥ 0.01"
+        },
+        {
           "key": "layers",
           "type": "array",
           "default": "empty",
@@ -5973,7 +6019,10 @@
         "seaColor.g",
         "seaColor.b",
         "seaColor.a",
-        "seaOpacity"
+        "seaOpacity",
+        "seaWaveLength",
+        "seaWaveSteepness",
+        "seaShallowDepth"
       ]
     },
     {
@@ -6632,6 +6681,18 @@
           "type": "boolean",
           "default": "true",
           "doc": "Off: what stands inside this box reflects the sky again."
+        }
+      ]
+    },
+    {
+      "name": "RememberState",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "keepTransform",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Keep where it stood as well, so something moved is found where it was left."
         }
       ]
     },
@@ -8074,11 +8135,41 @@
             "Ground (x, z)",
             "Screen (x, y)"
           ]
+        },
+        {
+          "key": "farProxies",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Bake each cell a merged, simplified stand-in of its static meshes, drawn while the cell is not loaded."
+        },
+        {
+          "key": "farDistance",
+          "type": "number",
+          "default": "8000",
+          "doc": "How far from a source an unloaded cell still shows its far proxy.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "proxyError",
+          "type": "number",
+          "default": "1",
+          "doc": "How far a far proxy surface may move from the original.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "proxyRatio",
+          "type": "number",
+          "default": "0.01",
+          "doc": "The fewest triangles a far proxy aims for, as a share of what the cell holds; proxyError keeps more where it must.",
+          "range": "0.001–1"
         }
       ],
       "animatable": [
         "cellSize",
-        "plane"
+        "plane",
+        "farDistance",
+        "proxyError",
+        "proxyRatio"
       ]
     },
     {
@@ -11405,13 +11496,21 @@
           "type": "number",
           "default": "0",
           "doc": "The height of the sea above the planet's radius: ground lower than this is under water."
+        },
+        {
+          "key": "groundStep",
+          "type": "number",
+          "default": "1.5",
+          "doc": "How far apart the ground is read under what is placed, in the units of the planet. Larger is quicker to lay out and follows the ground less closely: several units for trees seen from the air, 1.5 for a world walked on foot.",
+          "range": "≥ 0.1"
         }
       ],
       "animatable": [
         "version",
         "seed",
         "surface",
-        "seaLevel"
+        "seaLevel",
+        "groundStep"
       ]
     },
     {

@@ -1266,6 +1266,18 @@ export class World {
         return this.componentTypes_(entity);
     }
 
+    /**
+     * @internal Says to every `Added` filter that `entity`'s components arrived now: for content written while switched
+     * off and switched on whole (a streamed cell, see `ChangeTracker.restampAdded`). Free when nothing filters on `Added`.
+     */
+    restampAdded(entity: Entity): void {
+        // Over what is tracked (nearly always nothing), not over the entity's components: a cell of thousands of entities
+        // asks a few dozen types each, and that was milliseconds spent in the frame the cell appears.
+        for (const def of this.changes_.trackedDefinitions()) {
+            if (this.has(entity, def)) this.changes_.restampAdded(def, entity);
+        }
+    }
+
     /** @internal Inspect a group with one script catalogue index, preserving input order. */
     getComponentTypesBatch(entities: readonly Entity[]): string[][] {
         if (entities.length === 0) return [];

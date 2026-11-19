@@ -24,7 +24,7 @@ import type { Entity } from '../src/types';
 import type { CppRegistry } from '../src/wasm';
 import { ScreenScaling } from '../src/camera/ScreenScaling';
 import { Time } from '../src/ecs/resource';
-import { setAppHostPaused } from '../src/app/app';
+import { setAppHostPaused } from '../src/app/hostPause';
 import { setViewTarget, BlendCurve, shakeCamera } from '../src/camera/CameraDirector';
 
 /** Where a world point lands in clip space under a view-projection. */

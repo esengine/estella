@@ -259,6 +259,9 @@ sea: boolean
 seaColor: Color
 seaLevel: number
 seaOpacity: number
+seaShallowDepth: number
+seaWaveLength: number
+seaWaveSteepness: number
 seed: number
 tintLayers: boolean
 world: string

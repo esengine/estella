@@ -35,6 +35,9 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/ai': 'ai/index.js',
   'esengine/replication': 'net/replication/index.js',
   'esengine/session': 'net/session/index.js',
+  'esengine/persist': 'persist/index.js',
+  'esengine/zones': 'zones/index.js',
+  'esengine/metrics': 'metrics/index.js',
   'esengine/gameplay': 'gameplay/index.js',
   'esengine/dragonbones': 'dragonbones/index.js',
   'esengine/physics': 'physics/index.js',
@@ -51,11 +54,11 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
 
 /**
  * Subpaths that are not modules a project picks: the engine binary every target loads, a platform adapter an entry
- * chooses rather than content asking for it, the debug channel a development export adds, the session layer, which a
- * game's own code imports and nothing in a scene asks for, and the GLSL-to-WGSL transpiler, which the host loads when
- * the device it got is WebGPU. Named here so the pickable set is derived rather than written twice.
+ * chooses rather than content asking for it, the debug channel a development export adds, the session layer, the
+ * persistence, zone and metrics helpers, which a game's server code imports rather than a client's content, and
+ * the GLSL-to-WGSL transpiler, which the host loads when the device it got is WebGPU. Named here so the pickable set is derived rather than written twice.
  */
-export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/debug-channel', 'esengine/wgsl', 'esengine/session', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame', 'esengine/alipay', 'esengine/huawei', 'esengine/openpaas']);
+export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/debug-channel', 'esengine/wgsl', 'esengine/session', 'esengine/persist', 'esengine/zones', 'esengine/metrics', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame', 'esengine/alipay', 'esengine/huawei', 'esengine/openpaas']);
 
 /** The modules a project can force in or refuse, as `features.modules` keys it. */
 export const ENGINE_MODULES: readonly string[] =

@@ -541,7 +541,7 @@ export {
     type WebAppOptions,
     type RenderSurfaceSource,
 } from './app/app';
-export { frameStatsReport, type FrameStatsReport } from './runtime/frameStats';
+export { frameStatsReport, PROBE_READS_PER_LOOKUP, type FrameStatsReport } from './runtime/frameStats';
 export { forwardConsole, type ConsoleLevel } from './runtime/consoleForward';
 
 // =============================================================================

@@ -92,7 +92,10 @@ fraction of the memory; then, for every mesh a view draws, the renderer works ou
 texel to be about a pixel there, from the mesh's own UV density, its size and its distance, and four times a second the textures
 that are the wrong size are decoded again from their files at the next power of two above that and put behind the same handle. A
 texture grows as soon as it is needed bigger and shrinks only after it has been needed smaller for three seconds; one no view
-draws for five seconds goes down to 64 texels. It is on at Low and Medium and off at High; **Texture streaming budget** caps what
+draws for five seconds goes down to 64 texels. A mesh drawn as many placements (`MeshInstances`: the trees and
+rocks `PlacedFoliage` and a world's plants grow) asks for what its nearest drawn placement needs, so a forest's
+textures are as small as its closest tree allows; and the materials and textures of plants a world grows start small
+like a scene's, though no scene names them. It is on at Low and Medium and off at High; **Texture streaming budget** caps what
 the streamed textures take together (128 MB at Low, 256 MB at Medium, 0 is no cap), and past it they are held a level softer.
 
 Measured in the editor's Play at Low, in the `texture-streaming` editor check (the engine's own estimate of GPU memory):

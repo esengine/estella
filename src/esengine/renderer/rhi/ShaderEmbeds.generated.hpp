@@ -19,12 +19,24 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 
 #pragma feature PREMULTIPLIED_COLOR
 
+
+
+
+
+#pragma feature INSTANCED
+
 #pragma vertex
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
 layout(location = 4) in float a_sdfBias;
+#ifdef INSTANCED
+
+layout(location = 5) in vec4 a_xform;
+layout(location = 6) in vec2 a_offset;
+layout(location = 7) in vec4 a_tint;
+#endif
 
 out vec4 v_color;
 out vec2 v_texCoord;
@@ -37,12 +49,18 @@ out float v_sdfBias;
 #endif
 
 void main() {
-    gl_Position = u_projection * vec4(a_position, 1.0);
+#ifdef INSTANCED
+    vec3 position = vec3(a_xform.xy * a_position.x + a_xform.zw * a_position.y + a_offset, a_position.z);
+    v_color = a_color * a_tint;
+#else
+    vec3 position = a_position;
     v_color = a_color;
+#endif
+    gl_Position = u_projection * vec4(position, 1.0);
     v_texCoord = a_texCoord;
     v_texIndex = int(a_texIndex);
 #ifdef LIT
-    v_worldPos = a_position.xy;
+    v_worldPos = position.xy;
     v_lightLayer = a_sdfBias;
 #else
     v_sdfBias = a_sdfBias;
@@ -149,6 +167,11 @@ struct VSIn {
     @location(2) a_texCoord : vec2f,
     @location(3) a_texIndex : f32,
     @location(4) a_sdfBias : f32,
+#ifdef INSTANCED
+    @location(5) a_xform : vec4f,
+    @location(6) a_offset : vec2f,
+    @location(7) a_tint : vec4f,
+#endif
 };
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -165,12 +188,18 @@ struct VSOut {
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
     var out : VSOut;
-    out.pos = frame.projection * vec4f(v.a_position, 1.0);
+#ifdef INSTANCED
+    let position = vec3f(v.a_xform.xy * v.a_position.x + v.a_xform.zw * v.a_position.y + v.a_offset, v.a_position.z);
+    out.v_color = v.a_color * v.a_tint;
+#else
+    let position = v.a_position;
     out.v_color = v.a_color;
+#endif
+    out.pos = frame.projection * vec4f(position, 1.0);
     out.v_texCoord = v.a_texCoord;
     out.v_texIndex = v.a_texIndex;
 #ifdef LIT
-    out.v_worldPos = v.a_position.xy;
+    out.v_worldPos = position.xy;
     out.v_lightLayer = v.a_sdfBias;
 #else
     out.v_sdfBias = v.a_sdfBias;

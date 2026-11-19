@@ -233,10 +233,11 @@ paintAt: (x: number, z: number) => readonly number[] | null
 planeOf: (dx: number, dy: number, dz: number) => { x: number; z: number; } | null
 planet: () => PlanetFacts | null
 sourcesOnFace: (sources: Iterable<{ x: number; y?: number; z: number; }>, reach: number) => { x: number; z: number; }[]
+step: number
 world: (x: number, y: number, z: number) => [number, number, number]
 worldNormal: (normal: readonly [number, number, number], x: number, z: number) => [number, number, number]
 zoneOnFace: (zone: ZoneDef) => ZoneDef | null
-static new (face: number, planet: () => PlanetFacts | null): PlanetFace
+static new (face: number, planet: () => PlanetFacts | null, step?: number): PlanetFace
 static prototype: PlanetFace
 ```
 
@@ -335,6 +336,7 @@ ComponentDef<WorldGenData>
 
 ## WorldGenData — interface @experimental
 ```
+groundStep: number
 paintGround: boolean
 rules: string
 seaLevel: number
@@ -549,7 +551,7 @@ static prototype: Zones
 
 ## planetFaces — function @experimental
 ```
-(planet: () => PlanetFacts | null): PlanetFace[]
+(planet: () => PlanetFacts | null, step?: number): PlanetFace[]
 ```
 
 ## registerWorldRules — function @experimental

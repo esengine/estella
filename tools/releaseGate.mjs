@@ -240,6 +240,12 @@ export const CRITERIA = [
     needs: ['tools/verify-world-residency.mjs', 'examples/world-streaming-3d/project.esproject'],
   },
   {
+    id: 'far-proxies-stand-in',
+    says: 'along one flight over a streamed town, every cell within the far distance is drawn by itself or its proxy, the proxies look like the town fully loaded, and a lap leaves loaded what it found',
+    answeredBy: 'node tools/verify-far-proxy-town.mjs',
+    needs: ['tools/verify-far-proxy-town.mjs', 'examples/far-proxy-town/project.esproject'],
+  },
+  {
     id: 'old-projects-open',
     says: 'projects released by older versions still open, with nothing dropped',
     answeredBy: 'node tools/verify-legacy.mjs --tier release',

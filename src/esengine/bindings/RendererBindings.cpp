@@ -642,6 +642,19 @@ u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr) {
                                  ConstSpan<f32>(sh, static_cast<usize>(want))).id();
 }
 
+u32 probe_volume_createBricks(i32 resX, i32 resY, i32 resZ, i32 brickCount, uintptr_t bricksPtr, uintptr_t shPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return 0;
+    if (resX <= 0 || resY <= 0 || resZ <= 0 || brickCount <= 0) return 0;
+    const u64 ints = static_cast<u64>(brickCount) * 4u;
+    const u64 want = static_cast<u64>(brickCount) * static_cast<u64>(ProbeVolume::kBrickProbes) * 27u;
+    const i32* bricks = boundarySpan<i32>(bricksPtr, ints, "probe_volume_createBricks.bricks");
+    const f32* sh = boundarySpan<f32>(shPtr, want, "probe_volume_createBricks.irradiance");
+    if (!bricks || !sh) return 0;
+    return rm->createProbeVolumeBricks({resX, resY, resZ}, ConstSpan<i32>(bricks, static_cast<usize>(ints)),
+                                       ConstSpan<f32>(sh, static_cast<usize>(want))).id();
+}
+
 /** @brief Releases a probe volume. */
 void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
@@ -653,6 +666,35 @@ void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
     if (!v) return;
     grid->skyVisibility.assign(v, v + want);
     grid->revision = ProbeVolume::nextRevision();
+}
+
+bool probe_volume_getResolution(u32 volumeHandle, uintptr_t outPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    const ProbeVolume* grid = rm ? rm->getProbeVolume(resource::ProbeVolumeHandle(volumeHandle)) : nullptr;
+    if (!grid || !grid->isValid()) return false;
+    i32* out = boundarySpanMut<i32>(outPtr, 3, "probe_volume_getResolution.out");
+    if (!out) return false;
+    out[0] = grid->resolution.x;
+    out[1] = grid->resolution.y;
+    out[2] = grid->resolution.z;
+    return true;
+}
+
+i32 probe_volume_getBricks(u32 volumeHandle, uintptr_t outPtr, i32 maxBricks) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    const ProbeVolume* grid = rm ? rm->getProbeVolume(resource::ProbeVolumeHandle(volumeHandle)) : nullptr;
+    if (!grid || !grid->isValid() || !grid->sparse()) return 0;
+    const i32 count = static_cast<i32>(grid->bricks.size());
+    const i32 take = std::min(count, std::max(maxBricks, 0));
+    if (take > 0) {
+        i32* out = boundarySpanMut<i32>(outPtr, static_cast<u64>(take) * 4u, "probe_volume_getBricks.out");
+        if (!out) return 0;
+        for (i32 b = 0; b < take; ++b) {
+            const glm::ivec4 k = grid->bricks[static_cast<usize>(b)];
+            out[b * 4] = k.x; out[b * 4 + 1] = k.y; out[b * 4 + 2] = k.z; out[b * 4 + 3] = k.w;
+        }
+    }
+    return count;
 }
 
 void probe_volume_release(u32 volumeHandle) {
@@ -1348,6 +1390,24 @@ void renderer_setLightingDirect(bool on) {
 
 void renderer_setDepthPrepass(bool on) {
     if (g_renderFrame) g_renderFrame->setDepthPrepass(on);
+}
+
+void renderer_setProbesPerPixel(bool on) {
+    if (g_renderFrame) g_renderFrame->setProbesPerPixel(on);
+}
+
+f64 renderer_getProbeAtlasBytes() {
+    const auto* rc = ctx().tryGet<RenderContext>();
+    if (!rc) return 0.0;
+    const ProbeStore& probes = rc->probes();
+    return probes.atlasTexture() != 0 ? static_cast<f64>(probes.atlasBytes()) : 0.0;
+}
+
+u32 renderer_getProbeDraws(bool perPixel) {
+    const auto* rc = ctx().tryGet<RenderContext>();
+    if (!rc) return 0;
+    const ProbeStore& probes = rc->probes();
+    return perPixel ? probes.perPixelDraws() : probes.perObjectDraws();
 }
 
 void renderer_setAsyncShaderCompile(bool on) {

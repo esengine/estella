@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 namespace esengine {
@@ -43,6 +44,9 @@ constexpr glm::vec2 QUAD_UV[4] = {
 };
 
 constexpr f32 NEAR_CLIP_NUDGE = 1e-4f;
+
+/// Records the instance stream is first made for; it doubles from there.
+constexpr u32 INITIAL_INSTANCE_RECORDS = 4096;
 
 /** Cut a world segment against the canonical clip-space near plane (z >= -w). */
 bool clipLineToNearPlane(glm::vec3& from, glm::vec3& to, const glm::mat4& viewProjection) {
@@ -152,6 +156,22 @@ void ImmediateDraw::init() {
 
 void ImmediateDraw::shutdown() {
     if (!initialized_) return;
+    for (auto& mesh : meshes_) {
+        if (mesh.vbo != BufferHandle::Invalid) device_.deleteBuffer(mesh.vbo);
+        if (mesh.ebo != BufferHandle::Invalid) device_.deleteBuffer(mesh.ebo);
+    }
+    meshes_.clear();
+    freeMeshes_.clear();
+    doomedMeshes_.clear();
+    liveMeshes_ = 0;
+    if (instanceVbo_ != BufferHandle::Invalid) device_.deleteBuffer(instanceVbo_);
+    instanceVbo_ = BufferHandle::Invalid;
+    instanceCapacity_ = 0;
+    if (instanceLayout_ != VertexLayoutHandle::Invalid) device_.deleteVertexLayout(instanceLayout_);
+    instanceLayout_ = VertexLayoutHandle::Invalid;
+    instances_.clear();
+    instancesUploaded_ = 0;
+    pendingRun_ = {};
     pool_.shutdown();
     initialized_ = false;
     ES_LOG_INFO("ImmediateDraw shutdown");
@@ -182,6 +202,18 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection, i32 viewportWidth, i3
     pool_.beginFrame();
     deferredBatches_.clear();
     recordedIndices_ = 0;
+    instances_.clear();
+    instancesUploaded_ = 0;
+    pendingRun_ = {};
+    // Last frame's draws are behind us: what was destroyed during it can go now.
+    for (const u32 id : doomedMeshes_) {
+        ResidentMesh& mesh = meshes_[id - 1];
+        if (mesh.vbo != BufferHandle::Invalid) device_.deleteBuffer(mesh.vbo);
+        if (mesh.ebo != BufferHandle::Invalid) device_.deleteBuffer(mesh.ebo);
+        mesh = {};
+        freeMeshes_.push_back(id);
+    }
+    doomedMeshes_.clear();
     recording_ = false;
     deferredGeometry_ = false;
     currentTexture_ = white_texture_id_;
@@ -200,7 +232,7 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection, i32 viewportWidth, i3
 
 void ImmediateDraw::setBlendMode(BlendMode mode) {
     if (current_desc_.blend == mode) return;
-    if (pendingGeometry_) flush();
+    if (pendingGeometry_ || pendingRun_.count) flush();
     current_desc_.blend = mode;
     pipeline_ = device_.createPipeline(current_desc_);
 }
@@ -211,14 +243,16 @@ void ImmediateDraw::setDepthTest(bool enabled) {
 
 void ImmediateDraw::setDepthState(bool test, bool write) {
     if (current_desc_.depthTest == test && current_desc_.depthWrite == write) return;
-    if (pendingGeometry_) flush();
+    if (pendingGeometry_ || pendingRun_.count) flush();
     current_desc_.depthTest = test;
     current_desc_.depthWrite = write;
     pipeline_ = device_.createPipeline(current_desc_);
 }
 
 void ImmediateDraw::flush() {
-    if (!initialized_ || !inFrame_ || !pendingGeometry_) return;
+    if (!initialized_ || !inFrame_) return;
+    if (pendingRun_.count) flushRun();
+    if (!pendingGeometry_) return;
 
     if (recording_) {
         const u32 end = pool_.indicesUsed(LayoutId::Batch);
@@ -259,7 +293,7 @@ void ImmediateDraw::end() {
 void ImmediateDraw::deferEnd() {
     if (!inFrame_) return;
     if (recording_) flush();
-    deferredGeometry_ = pendingGeometry_ || !deferredBatches_.empty();
+    deferredGeometry_ = pendingGeometry_ || pendingRun_.count || !deferredBatches_.empty();
     recording_ = false;
     inFrame_ = false;
 }
@@ -272,8 +306,17 @@ void ImmediateDraw::flushDeferred(ShaderHandle program) {
     if (!deferredGeometry_) return;
     if (!deferredBatches_.empty()) {
         pool_.upload();
+        uploadInstances();
         device_.invalidatePipelineCache();
         for (const auto& batch : deferredBatches_) {
+            if (batch.mesh != 0) {
+                PipelineHandle pipeline = batch.pipeline;
+                if (program != ShaderHandle::Invalid) {
+                    if (const PipelineDesc* desc = device_.pipelineDesc(pipeline)) pipeline = instancedPipeline(*desc, true);
+                }
+                drawRun(pipeline, batch.mesh, batch.firstInstance, batch.instanceCount);
+                continue;
+            }
             PipelineHandle pipeline = batch.pipeline;
             if (program != ShaderHandle::Invalid) {
                 if (const PipelineDesc* desc = device_.pipelineDesc(pipeline)) {
@@ -290,6 +333,8 @@ void ImmediateDraw::flushDeferred(ShaderHandle program) {
         }
         deferredBatches_.clear();
         pool_.beginFrame();
+        instances_.clear();
+        instancesUploaded_ = 0;
         deferredGeometry_ = false;
         return;
     }
@@ -300,6 +345,8 @@ void ImmediateDraw::flushDeferred(ShaderHandle program) {
 }
 
 void ImmediateDraw::useTexture(u32 textureId) {
+    // Every batch primitive comes through here: a run of copies before it is drawn first, so the order holds.
+    if (pendingRun_.count) flush();
     if (textureId != currentTexture_) {
         if (pendingGeometry_) flush();
         currentTexture_ = textureId;
@@ -570,6 +617,216 @@ void ImmediateDraw::polygon(std::span<const glm::vec2> vertices, const glm::vec4
         emitTriangle(vertices[0], vertices[i], vertices[i + 1], color);
         ++primitiveCount_;
     }
+}
+
+void ImmediateDraw::triangles(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount,
+                              const glm::vec4& tint, const f32 xform[6]) {
+    if (!inFrame_ || !positions || !indices || vertexCount == 0 || indexCount < 3) return;
+    const u32 used = indexCount - indexCount % 3;
+    // Checked before anything is written: an index past the vertices would read whatever the batch holds there.
+    for (u32 i = 0; i < used; ++i) {
+        if (indices[i] >= vertexCount) return;
+    }
+    useTexture(white_texture_id_);
+
+    triangleVertices_.resize(vertexCount);
+    for (u32 v = 0; v < vertexCount; ++v) {
+        const f32 x = positions[v * 2], y = positions[v * 2 + 1];
+        const glm::vec4 colour = colors
+            ? glm::vec4(colors[v * 4], colors[v * 4 + 1], colors[v * 4 + 2], colors[v * 4 + 3]) * tint
+            : tint;
+        triangleVertices_[v] = BatchVertex{
+            {xform[0] * x + xform[2] * y + xform[4], xform[1] * x + xform[3] * y + xform[5], 0.0f},
+            packColor(colour),
+            {0.0f, 0.0f},
+        };
+    }
+    const u32 base = pool_.appendVertices(LayoutId::Batch, triangleVertices_.data(),
+                                          static_cast<u32>(sizeof(BatchVertex) * vertexCount)) / sizeof(BatchVertex);
+    triangleIndices_.resize(used);
+    for (u32 i = 0; i < used; ++i) triangleIndices_[i] = base + indices[i];
+    pool_.appendIndices(LayoutId::Batch, triangleIndices_.data(), used);
+    pendingGeometry_ = true;
+    primitiveCount_ += used / 3;
+}
+
+u32 ImmediateDraw::createShape(const f32* positions, u32 vertexCount, const f32* colors, const u32* indices, u32 indexCount) {
+    if (!initialized_ || !positions || !indices || vertexCount == 0 || indexCount < 3) return 0;
+    const u32 used = indexCount - indexCount % 3;
+    for (u32 i = 0; i < used; ++i) {
+        if (indices[i] >= vertexCount) return 0;
+    }
+    std::vector<BatchVertex> vertices(vertexCount);
+    for (u32 v = 0; v < vertexCount; ++v) {
+        const u32 colour = colors
+            ? packColor(colors[v * 4], colors[v * 4 + 1], colors[v * 4 + 2], colors[v * 4 + 3])
+            : 0xFFFFFFFFu;
+        vertices[v] = BatchVertex{{positions[v * 2], positions[v * 2 + 1], 0.0f}, colour, {0.0f, 0.0f}};
+    }
+    ResidentMesh mesh;
+    mesh.vbo = device_.createBuffer({GfxBufferUsage::Vertex, static_cast<u32>(sizeof(BatchVertex) * vertexCount), false},
+                                    GfxContent::retained(), vertices.data());
+    mesh.ebo = device_.createBuffer({GfxBufferUsage::Index, static_cast<u32>(sizeof(u32) * used), false},
+                                    GfxContent::retained(), indices);
+    if (mesh.vbo == BufferHandle::Invalid || mesh.ebo == BufferHandle::Invalid) {
+        if (mesh.vbo != BufferHandle::Invalid) device_.deleteBuffer(mesh.vbo);
+        if (mesh.ebo != BufferHandle::Invalid) device_.deleteBuffer(mesh.ebo);
+        return 0;
+    }
+    mesh.indexCount = used;
+    mesh.live = true;
+    u32 id;
+    if (!freeMeshes_.empty()) {
+        id = freeMeshes_.back();
+        freeMeshes_.pop_back();
+        meshes_[id - 1] = mesh;
+    } else {
+        meshes_.push_back(mesh);
+        id = static_cast<u32>(meshes_.size());
+    }
+    ++liveMeshes_;
+    return id;
+}
+
+void ImmediateDraw::destroyMesh(u32 id) {
+    if (id == 0 || id > meshes_.size() || !meshes_[id - 1].live) return;
+    meshes_[id - 1].live = false;
+    --liveMeshes_;
+    doomedMeshes_.push_back(id);
+}
+
+void ImmediateDraw::drawMesh(u32 id, const glm::vec4& tint, const f32 xform[6]) {
+    if (!inFrame_ || id == 0 || id > meshes_.size() || !meshes_[id - 1].live) return;
+    // What was drawn before keeps its place: the batch so far, or a run of another mesh, goes first.
+    if (pendingGeometry_ || (pendingRun_.count && pendingRun_.mesh != id)) flush();
+    if (pendingRun_.count == 0) pendingRun_ = {id, static_cast<u32>(instances_.size()), 0};
+    InstanceRecord record;
+    std::copy(xform, xform + 6, record.xform);
+    record.tint = packColor(tint);
+    instances_.push_back(record);
+    ++pendingRun_.count;
+    primitiveCount_ += meshes_[id - 1].indexCount / 3;
+}
+
+void ImmediateDraw::drawMeshMany(u32 id, const void* records, u32 count) {
+    if (!inFrame_ || !records || count == 0 || id == 0 || id > meshes_.size() || !meshes_[id - 1].live) return;
+    if (pendingGeometry_ || (pendingRun_.count && pendingRun_.mesh != id)) flush();
+    const usize first = instances_.size();
+    if (pendingRun_.count == 0) pendingRun_ = {id, static_cast<u32>(first), 0};
+    instances_.resize(first + count);
+    std::memcpy(instances_.data() + first, records, sizeof(InstanceRecord) * count);
+    pendingRun_.count += count;
+    primitiveCount_ += (meshes_[id - 1].indexCount / 3) * count;
+}
+
+void ImmediateDraw::flushRun() {
+    const Run run = pendingRun_;
+    pendingRun_ = {};
+    if (run.count == 0) return;
+    const PipelineHandle pipeline = instancedPipeline(current_desc_, false);
+    if (pipeline == PipelineHandle::Invalid) return;
+    if (recording_) {
+        deferredBatches_.push_back({pipeline, white_texture_id_, 0, 0, run.mesh, run.first, run.count});
+        return;
+    }
+    uploadInstances();
+    drawRun(pipeline, run.mesh, run.first, run.count);
+}
+
+void ImmediateDraw::uploadInstances() {
+    const u32 used = static_cast<u32>(instances_.size());
+    if (used == instancesUploaded_) return;
+    constexpr u32 stride = sizeof(InstanceRecord);
+    if (used > instanceCapacity_) {
+        // Doubling, as the batch stream grows; the whole frame goes up again, since the store is made anew.
+        instanceCapacity_ = std::max({used, instanceCapacity_ * 2, INITIAL_INSTANCE_RECORDS});
+        if (instanceVbo_ == BufferHandle::Invalid) {
+            instanceVbo_ = device_.createBuffer({GfxBufferUsage::Vertex, instanceCapacity_ * stride, true},
+                                                GfxContent::transient(), nullptr);
+        } else {
+            device_.resizeBuffer(instanceVbo_, instanceCapacity_ * stride, nullptr);
+        }
+        instancesUploaded_ = 0;
+    }
+    // Only what is new, at its own offset: a run already drawn keeps reading the records it was drawn with.
+    device_.updateBuffer(instanceVbo_, instancesUploaded_ * stride, instances_.data() + instancesUploaded_,
+                         (used - instancesUploaded_) * stride);
+    instancesUploaded_ = used;
+}
+
+void ImmediateDraw::drawRun(PipelineHandle pipeline, u32 id, u32 first, u32 count) {
+    if (pipeline == PipelineHandle::Invalid || id == 0 || id > meshes_.size() || instanceVbo_ == BufferHandle::Invalid) return;
+    const ResidentMesh& mesh = meshes_[id - 1];
+    if (mesh.vbo == BufferHandle::Invalid) return;
+    device_.setPipeline(pipeline);
+    device_.bindTexture(0, TextureHandle{white_texture_id_});
+    device_.setVertexBuffer(0, mesh.vbo, 0);
+    // GLES3 has no baseInstance: the run's first record is where the instance stream is bound from.
+    device_.setVertexBuffer(1, instanceVbo_, first * static_cast<u32>(sizeof(InstanceRecord)));
+    device_.setIndexBuffer(mesh.ebo);
+    device_.drawElementsInstanced(mesh.indexCount, GfxDataType::UnsignedInt, 0, count);
+    ++drawCallCount_;
+}
+
+resource::ShaderHandle ImmediateDraw::compileVariant(const std::vector<std::string>& features) {
+    const auto target = resource_manager_.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+    resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
+        {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}},
+        resource_manager_.preferredShaderLanguage());
+    Shader* shader = resource_manager_.getShader(handle);
+    if (!shader || !shader->isValid()) {
+        ES_LOG_ERROR("ImmediateDraw: failed to create the instanced batch shader");
+        return {};
+    }
+    if (shader->language() == GfxShaderLanguage::GLSL_ES300) shader->whenLinked([](Shader& s) {
+        s.bind();
+        for (i32 i = 0; i < 8; ++i) s.setUniform("u_textures[" + std::to_string(i) + "]", i);
+        s.unbind();
+    });
+    return handle;
+}
+
+PipelineHandle ImmediateDraw::instancedPipeline(const PipelineDesc& state, bool display) {
+    // A colour-space flip changes what the variants assemble to: compile them again for the new one.
+    const bool linear = resource::ShaderParser::linearColorSpace();
+    if (linear != instancedLinear_) {
+        instancedLinear_ = linear;
+        instancedCompiled_ = instancedDisplayCompiled_ = false;
+    }
+    if (!instancedCompiled_) {
+        instancedCompiled_ = true;
+        instancedShader_ = compileVariant({"INSTANCED"});
+    }
+    if (display && !instancedDisplayCompiled_) {
+        instancedDisplayCompiled_ = true;
+        instancedDisplayShader_ = compileVariant({"INSTANCED", "DISPLAY_OUTPUT"});
+    }
+    Shader* shader = resource_manager_.getShader(display ? instancedDisplayShader_ : instancedShader_);
+    if (!shader || !shader->isValid()) return PipelineHandle::Invalid;
+    if (instanceLayout_ == VertexLayoutHandle::Invalid) {
+        // Slot 0: the mesh's own BatchVertex vertices, read as the batch stream's are. Slot 1: one record a copy.
+        VertexLayoutDesc desc;
+        desc.attributeCount = 8;
+        desc.strides[0] = sizeof(BatchVertex);
+        desc.strides[1] = sizeof(InstanceRecord);
+        desc.instanceStep[1] = true;
+        desc.attributes[0] = {0, 3, GfxDataType::Float, false, 0, 0};
+        desc.attributes[1] = {1, 4, GfxDataType::UnsignedByte, true, 12, 0};
+        desc.attributes[2] = {2, 2, GfxDataType::Float, false, 16, 0};
+        desc.attributes[3] = {3, 1, GfxDataType::Float, false, 24, 0};
+        desc.attributes[4] = {4, 1, GfxDataType::Float, false, 28, 0};
+        desc.attributes[5] = {5, 4, GfxDataType::Float, false, 0, 1};
+        desc.attributes[6] = {6, 2, GfxDataType::Float, false, 16, 1};
+        desc.attributes[7] = {7, 4, GfxDataType::UnsignedByte, true, 24, 1};
+        instanceLayout_ = device_.createVertexLayout(desc);
+    }
+    PipelineDesc desc = state;
+    desc.program = shader->handle();
+    desc.vertexLayout = instanceLayout_;
+    return device_.createPipeline(desc);
 }
 
 void ImmediateDraw::texture(const glm::vec2& position, const glm::vec2& size,

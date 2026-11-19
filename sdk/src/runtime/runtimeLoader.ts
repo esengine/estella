@@ -5,8 +5,10 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { SceneOwner } from '../ecs/component';
-import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
+import { SceneOwner, Disabled, Parent } from '../ecs/component';
+import { bakesOf } from './bakes';
+import { loadSceneData, loadSceneDataJob, revealStagedEntities, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs,
+         type SceneData, type StagedSpawn } from '../scene/scene';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
@@ -34,6 +36,7 @@ import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
 import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
+import { WorldMemoryRes } from '../residency/worldMemory';
 import type { WorldManifest } from '../residency/cells';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
@@ -194,6 +197,16 @@ function applyTextureMetadata(
 // =============================================================================
 
 export interface LoadRuntimeSceneOptions {
+    /**
+     * Awaited between the pieces of a preparation (a streamed cell's): resolves when a frame has time for the next piece, so
+     * what runs after a fetch answers runs inside a frame's budget and not whenever the network answers. Absent: at once.
+     */
+    gate?: () => Promise<void>;
+    /**
+     * One of the many scenes a streamed world brings in (a cell, a far proxy): the line saying what its preload took is a
+     * debug line, since a world says it hundreds of times and the residency report (`delivery`) holds the same numbers.
+     */
+    streamedPiece?: boolean;
     /** Authored ids this scene may reference in ANOTHER document — the persistent
      *  rows a streamed cell names. See {@link SceneLoadOptions.externalEntities}. */
     externalEntities?: ReadonlyMap<number, Entity>;
@@ -346,6 +359,9 @@ export interface PreparedRuntimeScene {
  *
  * @experimental
  */
+/** Apps already told that physics is not installed (see prepareRuntimeScene). */
+const saidNoPhysics = new WeakSet<App>();
+
 export async function prepareRuntimeScene(
     options: LoadRuntimeSceneOptions,
 ): Promise<PreparedRuntimeScene> {
@@ -355,6 +371,14 @@ export async function prepareRuntimeScene(
         if (!onPhase) return run();
         const began = performance.now();
         try { return await run(); } finally { onPhase(phase, performance.now() - began); }
+    };
+    // Waiting for a turn is not work: a phase is charged its own time and not the frames it waited (`wait`).
+    const gate = options.gate;
+    const turn = async (): Promise<void> => {
+        if (!gate) return;
+        const began = onPhase ? performance.now() : 0;
+        await gate();
+        if (onPhase) onPhase('wait', performance.now() - began);
     };
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
@@ -378,6 +402,7 @@ export async function prepareRuntimeScene(
     // outgoing scene had just released, so a restarted scene drew its images white.
     let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
     if (sceneHasPrefabEntries(sceneData)) {
+        await turn();
         sceneData = await timed('prefab', () => expandScenePrefabs(sceneData, async (ref) => {
             try {
                 return ((await runtimeAssets.loadPrefab(ref))?.data as PrefabData) ?? null;
@@ -387,9 +412,13 @@ export async function prepareRuntimeScene(
             }
         }));
     }
+    // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything
+    // of it spawns.
+    if (app.hasResource(WorldMemoryRes)) sceneData = app.getResource(WorldMemoryRes).adapt(sceneName ?? '', sceneData);
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.
+    await turn();
     const discoverBegan = onPhase ? performance.now() : 0;
     const discovered = discoverSceneAssets(sceneData);
 
@@ -418,7 +447,10 @@ export async function prepareRuntimeScene(
     // what "asset discovery" sounds like it costs.
     if (onPhase) onPhase('discover', performance.now() - discoverBegan);
     const assetResult = await timed('assets',
-        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true }));
+        // A streamed cell's preload is one of hundreds, and its numbers are in the residency report (`delivery`): not a console
+        // line each.
+        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info' }));
+    await turn();
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
@@ -476,7 +508,11 @@ export async function prepareRuntimeScene(
     let physicsModule = options.physicsModule ?? null;
     const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
     if (!wantsPhysics) {
-        log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
+        // Once per game: said per scene, a streamed world said it for every cell it brought in.
+        if (!saidNoPhysics.has(app)) {
+            saidNoPhysics.add(app);
+            log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
+        }
     } else {
         await installOnce(app, 'physics', async () => {
         if (!physicsModule && app.sideModules) {
@@ -594,6 +630,12 @@ export async function publishRuntimeScene(
     // gone, the world may have switched, a generation may have moved. A prepared
     // scene holding a runtime handle would be holding a guess.
     now?: { externalEntities?: ReadonlyMap<number, Entity> },
+    /**
+     * Spread the spawn over frames (a streamed cell): handed the staged spawn as a job, it runs it under the frame's budget.
+     * The scene's roots stay switched off until the end of this call and are switched on whole, so nothing sees it half
+     * arrived — Unreal's AddToWorld, time-sliced, with the level visible only once it returns true.
+     */
+    spread?: (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>,
 ): Promise<void> {
     const { sceneData, assetResult, spineManager, spineAssetInfo,
             dragonBonesManager, dragonBonesAssetInfo, discovered } = prepared;
@@ -621,8 +663,11 @@ export async function publishRuntimeScene(
     };
     void discovered;
 
-    const entityMap = await timed('spawn',
-        () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
+    let staged: StagedSpawn | null = null;
+    const entityMap = spread
+        // Not timed as one phase: its own phases (spawn.*) are charged their work, and not the frames between.
+        ? (staged = await spread(loadSceneDataJob(app.world, sceneData, options.externalEntities, onPhase))).entities
+        : await timed('spawn', () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
@@ -670,6 +715,11 @@ export async function publishRuntimeScene(
         });
     }
 
+    // Last, once everything about it is in place: a staged scene is switched on whole.
+    if (staged) {
+        const whole = staged;
+        mark('reveal', () => revealStagedEntities(app.world, whole));
+    }
 }
 
 /**
@@ -681,11 +731,28 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 }
 
 
+/** A streamed cell's scene: brought in and taken out over frames, under the frame's budget (see `createRuntimeSceneConfig`). */
+export interface StreamedSceneOptions {
+    /** What the work is called where work in hand is shown (the editor's status bar, a loading screen). */
+    label?: string;
+}
+
+/** Despawns `doomed` one entity a step, yielding how far along it is. */
+function* despawnJob(world: App['world'], doomed: readonly Entity[]): Generator<number, void, void> {
+    for (let i = 0; i < doomed.length; i++) {
+        const entity = doomed[i]!;
+        if (world.valid(entity)) world.despawn(entity);
+        yield (i + 1) / doomed.length;
+    }
+}
+
 export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData | undefined,
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
     scenePath?: string,
+    /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
+    streamed?: StreamedSceneOptions,
 ): SceneConfig {
     // Built first and closed over, so whoever sets `externalEntities` / `onPhase`
     // on the CONFIG is honoured here too: declared in one place and read in
@@ -693,6 +760,33 @@ export function createRuntimeSceneConfig(
     // Held by the config, which IS the per-scene object: a prepared cell has one
     // place to live and one owner to release it.
     let prepared: PreparedRuntimeScene | null = null;
+    // A streamed cell's work over frames: the one job in hand (its arrival or its departure), and whether a player would
+    // see it missing. Urgency is said to the budget only while there is work for it to speed.
+    let spreading: { finish: () => void } | null = null;
+    let urgent = false;
+    // Rushed before its job began (the load still awaiting what comes before the spawn): the job is finished the moment
+    // it starts. Forgotten once the scene is no longer urgent.
+    let rushed = false;
+    const label = streamed?.label ?? name;
+    const overFrames = async <T>(what: string, job: Generator<number, T, void>): Promise<T> => {
+        const bakes = bakesOf(options.app);
+        const handle = bakes.run(`${what} ${label}`, job);
+        spreading = handle;
+        bakes.urge(config, urgent);
+        if (rushed) { rushed = false; handle.finish(); }
+        try {
+            return await handle.done;
+        } finally {
+            spreading = null;
+            bakes.urge(config, false);
+        }
+    };
+    // A streamed cell's preparation takes its pieces in a frame's turns (`Bakes.turn`); urgent, it is let through at once.
+    // Rushed (`rush`), it waits for no turn at all until it is no longer wanted at once: the frames may have stopped.
+    let hurried = false;
+    const gate = streamed
+        ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
+        : undefined;
     const readied = async (): Promise<PreparedRuntimeScene> => {
         let data = sceneData;
         if (!data) {
@@ -701,11 +795,20 @@ export function createRuntimeSceneConfig(
             // on WeChat — and only when something asks for the scene.
             if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
             const began = performance.now();
-            data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
+            const text = await options.app.getResource(AssetsResource).fetchText(scenePath);
             config.onPhase?.('fetch', performance.now() - began);
+            // Parsed in a frame's turn: a cell's document is the largest single piece of its preparation.
+            if (gate) {
+                const waited = performance.now();
+                await gate();
+                config.onPhase?.('wait', performance.now() - waited);
+            }
+            const parsed = performance.now();
+            data = JSON.parse(text) as SceneData;
+            config.onPhase?.('parse', performance.now() - parsed);
         }
         return prepareRuntimeScene({
-            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase,
+            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
         });
     };
     const config: SceneConfig = {
@@ -718,6 +821,8 @@ export function createRuntimeSceneConfig(
         // describe requirements for geometry nothing has acquired.
         async readyRenderPrograms() {
             if (prepared === null) return { applicable: false } as RenderReadiness;
+            if (gate) await gate();
+            if (prepared === null) return { applicable: false } as RenderReadiness;
             const readied = readyMeshPrograms(options.module, prepared.sceneData);
             // Queued compiles are not ready programs: where shaders compile in the background, the claim waits for them.
             if (readied.applicable) await shadersCompiled(options.module);
@@ -729,14 +834,44 @@ export function createRuntimeSceneConfig(
             const owed = prepared?.assetResult.scope.size ?? 0;
             prepared?.assetResult.scope.releaseAll();
             prepared = null;
+            hurried = false;
             return owed;
         },
         async setup() {
             const ready = prepared ?? await readied();
             prepared = null;
-            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() });
+            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() },
+                streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },
     };
+    if (streamed) {
+        // Hidden at once, every top of the doomed set switched off in this frame, then destroyed under the budget: Unreal's
+        // incremental unregistration (`s.LevelStreamingUnregisterComponentsTimeLimit`), with the place gone the moment it goes.
+        config.retire = async (doomed) => {
+            const world = options.app.world;
+            const going = new Set(doomed);
+            for (const entity of doomed) {
+                if (!world.valid(entity)) continue;
+                const parent = world.has(entity, Parent) ? (world.get(entity, Parent).entity as Entity) : null;
+                if (parent !== null && going.has(parent)) continue;
+                if (!world.has(entity, Disabled)) world.insert(entity, Disabled, {});
+            }
+            await overFrames('Taking out', despawnJob(world, doomed));
+        };
+        config.rush = () => {
+            // Its preparation waits for no more turns either: rushed is wanted now, or the frames have stopped.
+            hurried = true;
+            bakesOf(options.app).release(config);
+            if (spreading) spreading.finish();
+            else rushed = true;
+        };
+        config.urge = (now) => {
+            urgent = now;
+            if (!now) { rushed = false; hurried = false; }
+            if (now) bakesOf(options.app).release(config);
+            if (spreading) bakesOf(options.app).urge(config, now);
+        };
+    }
     return config;
 }
 
@@ -936,12 +1071,12 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
             // loads the cell closes over the object this returns, so a copy
             // carries the fields somewhere nothing reads them.
             const config = createRuntimeSceneConfig(
-                cell.name, documents?.get(cell.name), sceneOpts, cell.path,
+                cell.name, documents?.get(cell.name), { ...sceneOpts, streamedPiece: true }, cell.path, { label: cell.name },
             );
             config.externalEntities = () => persistentEntityRows(app, world);
             config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
             return config;
-        });
+        }, (_cell, scene, path) => createRuntimeSceneConfig(scene, documents?.get(scene), { ...sceneOpts, streamedPiece: true }, path));
         life.throwIfAborted();
     }
 

@@ -43,6 +43,11 @@ export interface FrameStatsReport {
     /** Per CompositeBatch root, what it draws now; absent while no root is in the scene. */
     compositeBatch?: { entity: number; parts: number; instanced: number; draws: number; drawsBefore: number; moving: number }[];
     quality?: QualityReport;
+    /**
+     * What the probe volumes cost: draws that read one per pixel and per object last frame, what the brick atlas takes on the GPU (0 when nothing
+     * reads per pixel), and the texture reads one per-pixel lookup makes. Absent on an engine that cannot say.
+     */
+    probes?: { perPixelDraws: number; perObjectDraws: number; atlasBytes: number; readsPerLookup: number };
     /** What texture streaming holds: how many textures, the megabytes they take and would at full size, and how many moves it has made. */
     textureStreaming?: { enabled: boolean; textures: number; streamedMB: number; fullMB: number; moves: number; failures: number; startedSmall: number };
 }
@@ -80,8 +85,17 @@ export function frameStatsReport(app: App): FrameStatsReport {
         quality: app.hasResource(Quality) ? app.getResource(Quality)?.report() : undefined,
         ...textureStreamingStats(app),
         ...compositeBatchStats(app),
+        ...(m?.renderer_getProbeDraws ? { probes: {
+            perPixelDraws: m.renderer_getProbeDraws(true),
+            perObjectDraws: m.renderer_getProbeDraws(false),
+            atlasBytes: m.renderer_getProbeAtlasBytes?.() ?? 0,
+            readsPerLookup: PROBE_READS_PER_LOOKUP,
+        } } : {}),
     };
 }
+
+/** The texture reads one per-pixel probe lookup makes: its indirection cell, then one filtered read per coefficient (ProbeStore::kReadsPerLookup). */
+export const PROBE_READS_PER_LOOKUP = 10;
 
 /** What each CompositeBatch root says it draws, as the pass last wrote it on the root. */
 function compositeBatchStats(app: App): Pick<FrameStatsReport, 'compositeBatch'> {

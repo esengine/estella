@@ -1,0 +1,480 @@
+{
+  "version": "2",
+  "name": "house-a",
+  "rootEntityId": "root",
+  "entities": [
+    {
+      "prefabEntityId": "root",
+      "name": "house-a",
+      "parent": null,
+      "children": [
+        "walls",
+        "roof",
+        "door",
+        "frame0",
+        "glass0",
+        "frame1",
+        "glass1",
+        "frame2",
+        "glass2",
+        "frame3",
+        "glass3",
+        "chimney"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "walls",
+      "name": "Walls",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/house-a-walls.esmesh",
+            "texture": "assets/textures/plaster.png",
+            "material": "assets/materials/masonry.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "roof",
+      "name": "Roof",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/house-a-roof.esmesh",
+            "texture": "assets/textures/roof-tiles.png",
+            "material": "assets/materials/roof.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "door",
+      "name": "Door",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 3.05
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/door.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "frame0",
+      "name": "Frame 0",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.6666666666666665,
+              "y": 1.8,
+              "z": -3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window-frame.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "glass0",
+      "name": "Window 0",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.6666666666666665,
+              "y": 1.8,
+              "z": -3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window.esmesh",
+            "texture": "",
+            "material": "assets/materials/glass.esmaterial",
+            "color": {
+              "r": 0.55,
+              "g": 0.7,
+              "b": 0.85,
+              "a": 0.45
+            },
+            "lit": true,
+            "opaque": false,
+            "castShadows": false,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "frame1",
+      "name": "Frame 1",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.6666666666666665,
+              "y": 1.8,
+              "z": -3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window-frame.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "glass1",
+      "name": "Window 1",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.6666666666666665,
+              "y": 1.8,
+              "z": -3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window.esmesh",
+            "texture": "",
+            "material": "assets/materials/glass.esmaterial",
+            "color": {
+              "r": 0.55,
+              "g": 0.7,
+              "b": 0.85,
+              "a": 0.45
+            },
+            "lit": true,
+            "opaque": false,
+            "castShadows": false,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "frame2",
+      "name": "Frame 2",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.6666666666666665,
+              "y": 1.8,
+              "z": 3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window-frame.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "glass2",
+      "name": "Window 2",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.6666666666666665,
+              "y": 1.8,
+              "z": 3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window.esmesh",
+            "texture": "",
+            "material": "assets/materials/glass.esmaterial",
+            "color": {
+              "r": 0.55,
+              "g": 0.7,
+              "b": 0.85,
+              "a": 0.45
+            },
+            "lit": true,
+            "opaque": false,
+            "castShadows": false,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "frame3",
+      "name": "Frame 3",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.6666666666666665,
+              "y": 1.8,
+              "z": 3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window-frame.esmesh",
+            "texture": "assets/textures/wood.png",
+            "material": "assets/materials/wood.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "glass3",
+      "name": "Window 3",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.6666666666666665,
+              "y": 1.8,
+              "z": 3.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/window.esmesh",
+            "texture": "",
+            "material": "assets/materials/glass.esmaterial",
+            "color": {
+              "r": 0.55,
+              "g": 0.7,
+              "b": 0.85,
+              "a": 0.45
+            },
+            "lit": true,
+            "opaque": false,
+            "castShadows": false,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "chimney",
+      "name": "Chimney",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2,
+              "y": 5.4,
+              "z": 1
+            }
+          }
+        }
+      ],
+      "nestedPrefab": {
+        "prefabPath": "assets/prefabs/chimney.esprefab",
+        "overrides": []
+      }
+    }
+  ]
+}

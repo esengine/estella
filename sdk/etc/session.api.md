@@ -137,6 +137,7 @@ static prototype: MemoryIdempotencyStore
 
 ## NetChannel — class @experimental
 ```
+@internal sendBinaryInPlace: (channel: number, frame: Uint8Array) => void
 dispose: (reason?: string) => void
 handle: <Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>, codec?: RequestCodec<Req, Res>) => () => void
 on: <T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>) => () => void
@@ -190,6 +191,8 @@ static prototype: NetRequestError
 
 ## NetTransport — interface @experimental
 ```
+batch: (() => () => void) | undefined
+close: ((code?: number, reason?: string) => void) | undefined
 on: (event: "message", handler: (data: string | ArrayBuffer) => void) => () => void
 send: (data: string | ArrayBuffer) => void
 ```
@@ -225,6 +228,8 @@ parse: (value: unknown, path?: string) => T
 
 ## ReliableOrderedTransport — interface @experimental
 ```
+batch: (() => () => void) | undefined
+close: ((code?: number, reason?: string) => void) | undefined
 delivery: "reliable-ordered"
 on: (event: "message", handler: (data: string | ArrayBuffer) => void) => () => void
 send: (data: string | ArrayBuffer) => void

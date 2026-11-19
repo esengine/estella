@@ -90,6 +90,8 @@ struct TextureSpecification {
     bool generateMips = true;
     /** @brief Above 1, a 2D texture array of this many layers (see TextureDesc::layers) */
     u32 layers = 1;
+    /** @brief A 3D texture `layers` deep (see TextureDesc::volume) */
+    bool volume = false;
 };
 
 // =============================================================================
@@ -267,6 +269,13 @@ public:
                                       const void* data,
                                       TextureFormat format = TextureFormat::RGBA8,
                                       bool flipY = false);
+
+    /**
+     * @brief A 3D texture, linearly filtered across all three axes and clamped at every edge.
+     * @param data Its slices back to back, slice 0 first: width * height * depth texels.
+     */
+    static Unique<Texture> createVolume(GfxDevice& device, GfxContent content, u32 width, u32 height, u32 depth,
+                                        const void* data, TextureFormat format);
 
     /**
      * @brief Creates a block-compressed texture (KTX2 → ETC2/ASTC/BC), uploading

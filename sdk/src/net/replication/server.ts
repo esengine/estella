@@ -27,19 +27,26 @@ import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
     type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
-    type ReplComponentRemoveBatch,
+    type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
-    type EntityRefMap, type ReplicationTable, type ReplicationTableEntry,
+    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, EncodedRows, FrameWriter,
+    type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
-import type { InterestPolicy, InterestProvider } from './interest';
+import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
+import { Histogram } from '../../metrics/histogram';
 
 interface Connection {
+    /** The public id: what `Replicated.owner` holds. For an authenticated
+     *  player it is the player's number, the same on every link they open. */
     id: number;
+    /** The id `attachConnection` returned for this link — what the host
+     *  detaches by. Equal to `id` until a returning player takes their number. */
+    linkId: number;
     channel: NetChannel;
+    transport: ReliableOrderedTransport;
     /** Handshake completed and the initial world spawn has been sent. */
     ready: boolean;
     /** Latest input command from this connection (stale seq never overwrites). */
@@ -66,6 +73,107 @@ interface Connection {
      * nothing certified it — the connection is queried.
      */
     provenance: VisibilityStamp | null;
+    /**
+     * The sample `interest` was last computed in, and the interest source and
+     * owned set it was computed against: under a refresh interval a view stands
+     * between recomputes only while those two are the same. -1: never computed.
+     */
+    viewedAt: number;
+    viewSource: number;
+    viewOwned: number;
+    /**
+     * Under a bandwidth budget: for each visible entity, the tick this
+     * connection was last brought up to date on it, and how long it has waited
+     * since. What it is owed is every field that changed after that tick — read
+     * off the server's one record of when each field changed, never kept per
+     * connection, so a change costs the same however many connections see it.
+     */
+    sent: Map<Entity, SentState>;
+    /** The tick its initial state was sent: nothing older is owed. */
+    readyTick: number;
+    /** Token bucket: bytes this connection may still be sent. */
+    tokens: number;
+    /** A hello has been answered (or is being): a second one is refused. */
+    helloed: boolean;
+    /** Closes the link if no hello arrives in time; cleared once one does. */
+    helloTimer: ReturnType<typeof setTimeout> | null;
+    /** Limit violations in the current minute, and when that minute began. */
+    violations: number;
+    violationWindow: number;
+}
+
+/** One connection's standing with one entity under a budget. */
+interface SentState {
+    /** The tick it was last sent (or spawned) at. */
+    tick: number;
+    /** Accumulated priority; reset when it is sent. */
+    urgency: number;
+}
+
+/** When each replicated field of one component last changed. */
+interface FieldChanges {
+    te: ReplicationTableEntry;
+    /** Per field, the tick it last changed at. */
+    at: Int32Array;
+}
+
+/** When anything on one entity last changed, and per component, per field. */
+interface EntityChanges {
+    at: number;
+    comps: FieldChanges[];
+}
+
+/** What a priority function is asked about: one entity, as one connection sees it. */
+export interface ReplicationPriorityView {
+    world: World;
+    entity: Entity;
+    connectionId: number;
+    /** The entities the connection owns: its anchors. */
+    owned: readonly Entity[];
+}
+
+export interface ReplicationBudgetOptions {
+    /** Bytes of state updates each connection may be sent per second. */
+    bytesPerSecond: number;
+    /**
+     * How much one entity matters to one connection this sample. It adds up
+     * while the entity waits and resets when it is sent, so a low number means
+     * "less often", never "never". Default: 1 within `nearDistance` of the
+     * nearest entity the connection owns, falling off as distance grows; 1 for
+     * anything without a position.
+     */
+    priority?: (view: ReplicationPriorityView) => number;
+    /** For the default priority: the distance within which everything is equally urgent. Default 10. */
+    nearDistance?: number;
+    /**
+     * For the default priority: where an entity is. Default `Transform`'s
+     * world position. Read once per entity per sample, whatever the number of
+     * connections. Null means "no place": such an entity ranks as near.
+     */
+    position?: (world: World, entity: Entity) => InterestPoint | null;
+}
+
+/**
+ * The k-th smallest of `a[0..n)`, in linear time on average, reordering `a`.
+ * The budget needs only where the head of a ranking ends, not the ranking.
+ */
+function selectKth(a: Float64Array, n: number, k: number): number {
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+        const pivot = a[(lo + hi) >>> 1]!;
+        let i = lo;
+        let j = hi;
+        while (i <= j) {
+            while (a[i]! < pivot) i++;
+            while (a[j]! > pivot) j--;
+            if (i <= j) { const t = a[i]!; a[i] = a[j]!; a[j] = t; i++; j--; }
+        }
+        if (k <= j) hi = j;
+        else if (k >= i) lo = i;
+        else return a[k]!;
+    }
+    return a[k]!;
 }
 
 /**
@@ -131,6 +239,35 @@ function sameVisibility(held: VisibilityStamp | null, now: VisibilityStamp): boo
         && held.snapshot === now.snapshot && held.owned === now.owned;
 }
 
+/** Whether a shape holds a quantized number anywhere. */
+function hasStep(shape: FieldShape): boolean {
+    if (shape.kind === 'f32') return shape.step !== undefined;
+    if (shape.kind === 'object') return shape.shapes.some(hasStep);
+    return false;
+}
+
+/**
+ * Whether two values of a quantized shape would arrive as the same value. The
+ * shadow holds what was last SENT, so movement under a step accumulates until
+ * it crosses one and is sent then: what a client holds is never more than half
+ * a step from the truth, and a field drifting by less does not cost a row a tick.
+ */
+function sameOnWire(shape: FieldShape, a: unknown, b: unknown): boolean {
+    if (shape.kind === 'f32' && shape.step !== undefined) {
+        if (typeof a !== 'number' || typeof b !== 'number') return a === b;
+        return Math.round(a / shape.step) === Math.round(b / shape.step);
+    }
+    if (shape.kind === 'object') {
+        if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b;
+        for (let i = 0; i < shape.keys.length; i++) {
+            const k = shape.keys[i]!;
+            if (!sameOnWire(shape.shapes[i]!, (a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
+        }
+        return true;
+    }
+    return fieldEqual(a, b);
+}
+
 function fieldEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
     if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
@@ -142,11 +279,160 @@ function fieldEqual(a: unknown, b: unknown): boolean {
     return true;
 }
 
+/** What else a hello carried, for `authenticate`. */
+export interface ReplicationHelloInfo {
+    /** The ticket another server issued when it transferred this player here. */
+    transfer?: string;
+}
+
+/** Where a transferred player goes, and what they show when they get there. */
+export interface ReplicationTransferTarget {
+    /** What the client dials: a WebSocket URL, or whatever its `dial` understands. */
+    address: string;
+    /** Handed to the destination's `authenticate` in the hello's `transfer`. */
+    ticket: string;
+    /**
+     * Where the client logs in again (an ordinary login, no ticket) if it
+     * cannot reach `address` — usually this server. Optional.
+     */
+    fallback?: string;
+}
+
+/** Who a player is, as the server's `authenticate` answers it. */
+export interface ReplicationPlayer {
+    playerId: string;
+}
+
+export interface ReplicationServerOptions {
+    /**
+     * Turn a hello's credentials into a player, or throw to refuse the
+     * connection (the error's message reaches the client; one named
+     * `SessionRejected` with `fatal: false` lets a redialing client try again).
+     * With it, a player keeps one connection id for as long as the server
+     * remembers them: a reconnect lands on the same id, so everything keyed by
+     * `Replicated.owner` carries over, and a second login replaces the first.
+     * Without it every connection is anonymous and new, as before.
+     */
+    authenticate?(credentials: unknown, hello: ReplicationHelloInfo): ReplicationPlayer | Promise<ReplicationPlayer>;
+    /**
+     * How long a player who dropped stays present (in `presentIds`, owning what
+     * they owned) waiting for a reconnect. Default 30 s; 0 lets them go at
+     * once. Only meaningful with `authenticate`.
+     */
+    reconnectGraceMs?: number;
+    /**
+     * What a client may send. A frame over `maxFrameBytes` is dropped unread;
+     * control messages (the hello, input commands) beyond `messagesPerSecond`
+     * are refused; a connection that does either more than
+     * `maxViolationsPerMinute` times is kicked. Defaults: 256 KiB, 120 a
+     * second with a burst of 240, 100 a minute. `false` turns all of it off.
+     */
+    limits?: ReplicationLimits | false;
+    /**
+     * Ping each client every `intervalMs`; one silent for `timeoutMs` (no
+     * frame of any kind, pongs included) is closed and detached — what a
+     * half-open TCP link never says by itself. Default 5 s / 15 s; `false`
+     * turns it off.
+     */
+    heartbeat?: { intervalMs: number; timeoutMs: number } | false;
+    /** A connection that has not said hello by now is closed. Default 10 s; 0 turns it off. */
+    helloTimeoutMs?: number;
+    /** Most connections at once; past it a hello is refused as "server full, try again". Default unlimited. */
+    maxConnections?: number;
+}
+
+export interface ReplicationLimits {
+    maxFrameBytes?: number;
+    messagesPerSecond?: number;
+    burst?: number;
+    maxViolationsPerMinute?: number;
+}
+
+/**
+ * Throw from `authenticate` to send the client elsewhere: its hello is answered
+ * with this address (and ticket), and a client with `dial` says hello there.
+ */
+export class ReplicationRedirect extends Error {
+    constructor(readonly address: string, readonly ticket?: string) {
+        super(`redirected to ${address}`);
+        this.name = 'ReplicationRedirect';
+    }
+}
+
+/** What the server answers a refused hello with, from whatever `authenticate` threw. */
+function refusal(err: unknown): ReplHelloResponse & { ok: false } {
+    if (err instanceof Error && err.name === 'ReplicationRedirect') {
+        const r = err as ReplicationRedirect;
+        return { ok: false, error: 'redirected', fatal: false, redirect: r.ticket !== undefined ? { address: r.address, ticket: r.ticket } : { address: r.address } };
+    }
+    if (err instanceof Error && err.name === 'SessionRejected') {
+        return { ok: false, error: err.message, fatal: (err as { fatal?: boolean }).fatal !== false };
+    }
+    if (err instanceof Error && err.message) return { ok: false, error: err.message, fatal: true };
+    return { ok: false, error: 'authentication failed', fatal: true };
+}
+
 export class ReplicationServer {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
+    /** Live connections by public id. */
     private readonly connections_ = new Map<number, Connection>();
+    /** Live connections by the id their link was attached under. */
+    private readonly links_ = new Map<number, Connection>();
     private nextConnectionId_ = 1;
+    /** This server process; a client that meets another one drops its ghosts (see `ReplHelloOk.serverId`). */
+    readonly instanceId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    private readonly authenticate_: ReplicationServerOptions['authenticate'] | null;
+    private readonly graceMs_: number;
+    private readonly limits_: Required<ReplicationLimits> | null;
+    private readonly heartbeat_: { intervalMs: number; timeoutMs: number } | null;
+    private readonly helloTimeoutMs_: number;
+    private readonly maxConnections_: number;
+    private readonly messageHandlers_ = new Map<string, Set<(connectionId: number, data: unknown) => void>>();
+    /** @internal Connections closed for breaking the limits, going silent, or never saying hello. */
+    readonly closedFor = { abuse: 0, silence: 0, noHello: 0 };
+    /**
+     * Running totals for monitoring (`esengine/metrics` reads them on a scrape):
+     * how long each sample took, the state stream's frames and bytes, and game
+     * messages each way. Additions only — nothing here costs a sample anything.
+     */
+    readonly stats = {
+        sampleMs: new Histogram(),
+        stateFrames: 0,
+        stateBytes: 0,
+        messagesIn: 0,
+        messagesOut: 0,
+    };
+    /** playerId -> the connection id that player holds. */
+    private readonly idOfPlayer_ = new Map<string, number>();
+    private readonly playerOfId_ = new Map<number, string>();
+    /** Players with no live link, by id -> when the server stops waiting (ms). */
+    private readonly away_ = new Map<number, number>();
+    private budget_: ReplicationBudgetOptions | null = null;
+    /** Some connection still owes rows from a budget that was lifted; drained next sample. */
+    private owing_ = false;
+    /** @internal Delta rows held back by the budget, summed over connections and samples. */
+    rowsDeferred = 0;
+    /**
+     * What the budgeted send reads about an entity, read once per sample and
+     * shared by every connection: N connections owed the same M entities is
+     * N x M questions with the same M answers, and a builtin component read
+     * converts out of the engine heap each time.
+     */
+    /** Under a budget: when each field of each replicated entity last changed. One record for every connection. */
+    private readonly changes_ = new Map<Entity, EntityChanges>();
+    /** The tick the budget started: every change before it went out in full. */
+    private budgetSince_ = 0;
+    /** Scratch for ranking, grown as needed and reused by every connection. */
+    private rankU_ = new Float64Array(256);
+    private rankSorted_ = new Float64Array(256);
+    /** Running mean of bytes per budgeted entity row, to guess how many fit. */
+    private bytesPerRow_ = 24;
+    private readonly sampleReads_ = {
+        position: new Map<Entity, InterestPoint | null>(),
+        owner: new Map<Entity, number>(),
+        data: new Map<Entity, Map<number, Record<string, unknown> | null>>(),
+    };
     private table_: ReplicationTable | null = null;
     /** Last broadcast value per entity × table entry: entity → componentId → field record. */
     private readonly shadow_ = new Map<Entity, Map<number, Record<string, unknown>>>();
@@ -176,6 +462,10 @@ export class ReplicationServer {
      * cannot be mistaken for it.
      */
     private interestEpoch_ = 0;
+    /** Recompute each connection's view every this many samples (1: every one). */
+    private interestRefresh_ = 1;
+    /** Samples taken with interest on: what the staggered refresh counts. */
+    private interestSample_ = 0;
     private tick_ = 0;
     private fixedDelta_ = 0;
     /** Removal-history claims, one per replicated component. */
@@ -275,9 +565,24 @@ export class ReplicationServer {
     /** @internal Delta rows that reached a connection, summed over connections:
      *  what the wire carried, against what routing considered. */
     deltaRowsSent = 0;
+    /** @internal Delta rows encoded: once per row per sample on the shared path,
+     *  however many connections it reached ({@link deltaRowsSent} counts those). */
+    rowsEncoded = 0;
 
-    constructor(world: World) {
+    constructor(world: World, options: ReplicationServerOptions = {}) {
         this.world_ = world;
+        this.authenticate_ = options.authenticate ?? null;
+        this.graceMs_ = Math.max(0, options.reconnectGraceMs ?? 30_000);
+        const l = options.limits;
+        this.limits_ = l === false ? null : {
+            maxFrameBytes: l?.maxFrameBytes ?? 256 * 1024,
+            messagesPerSecond: l?.messagesPerSecond ?? 120,
+            burst: l?.burst ?? 240,
+            maxViolationsPerMinute: l?.maxViolationsPerMinute ?? 100,
+        };
+        this.heartbeat_ = options.heartbeat === false ? null : (options.heartbeat ?? { intervalMs: 5000, timeoutMs: 15000 });
+        this.helloTimeoutMs_ = options.helloTimeoutMs ?? 10_000;
+        this.maxConnections_ = options.maxConnections ?? Infinity;
         this.offDespawn_ = world.onDespawn((e) => {
             // Sampling handles replicated despawns; this catches direct holes.
             this.netIds_.unregisterEntity(e);
@@ -345,7 +650,10 @@ export class ReplicationServer {
     dispose(): void {
         if (this.disposed_) return;
         this.disposed_ = true;
-        for (const id of [...this.connections_.keys()]) this.detachConnection(id);
+        for (const conn of [...this.links_.values()]) this.dropLink_(conn);
+        this.away_.clear();
+        this.idOfPlayer_.clear();
+        this.playerOfId_.clear();
         for (const o of this.observations_) {
             this.world_.disposeRemovedReader(o.def, o.readerId);
             this.world_.disposeWriteReader(o.def, o.writeReaderId);
@@ -379,6 +687,61 @@ export class ReplicationServer {
         return out;
     }
 
+    /**
+     * {@link clientIds} plus the players who dropped and are still waited for
+     * (see `reconnectGraceMs`). Provision and retire per-player entities from
+     * this one and a player who reconnects finds their pawn where they left it;
+     * with no `authenticate` it is the same list as `clientIds`.
+     */
+    get presentIds(): number[] {
+        const out = this.clientIds;
+        for (const id of this.away_.keys()) out.push(id);
+        return out;
+    }
+
+    /** The authenticated player holding this connection id, if any. */
+    playerIdOf(connectionId: number): string | undefined {
+        return this.playerOfId_.get(connectionId);
+    }
+
+    /** The connection id a player holds — live or waited for — if the server knows them. */
+    connectionIdOf(playerId: string): number | undefined {
+        return this.idOfPlayer_.get(playerId);
+    }
+
+    /** Whether this id belongs to a player who dropped and has not come back yet. */
+    isAway(connectionId: number): boolean {
+        return this.away_.has(connectionId);
+    }
+
+    /**
+     * Let a player go now: their link (if any) is told why and closed, and they
+     * leave `presentIds` without a grace period. Returns whether anyone held the id.
+     */
+    kick(connectionId: number, message?: string): boolean {
+        const conn = this.connections_.get(connectionId);
+        const known = conn !== undefined || this.away_.has(connectionId);
+        if (conn) this.release_(conn, 'kicked', message);
+        this.forgetPlayer_(connectionId);
+        return known;
+    }
+
+    /**
+     * Send a connected player to another server: the client is told where and
+     * with what ticket, its link is closed, and the player leaves this server
+     * at once with no grace period. A client with `dial` goes there by itself.
+     * Returns whether the id was connected. Saving the player first, and
+     * issuing a ticket the destination accepts, are the caller's (see
+     * `esengine/zones`, which does both in order).
+     */
+    transfer(connectionId: number, target: ReplicationTransferTarget, message?: string): boolean {
+        const conn = this.connections_.get(connectionId);
+        if (!conn) return false;
+        this.release_(conn, 'transfer', message, target);
+        this.forgetPlayer_(connectionId);
+        return true;
+    }
+
     private get refs_(): EntityRefMap {
         return {
             toWire: (entity) => this.netIds_.netIdOf(entity as Entity) ?? 0,
@@ -408,6 +771,27 @@ export class ReplicationServer {
      */
     setInterestProvider(provider: InterestProvider | null): void {
         this.setInterest_(provider ? { kind: 'provider', value: provider } : null);
+    }
+
+    /**
+     * Recompute each connection's view only every `samples` samples, staggered
+     * so a `1 / samples` share of the connections is recomputed each time. In a
+     * crowd where everyone moves, every view changes every sample, and asking
+     * the interest source and diffing the answer for every connection every
+     * sample is most of what a sample costs; between recomputes a connection
+     * keeps the view it has and is sent every change to what is in it.
+     *
+     * What it costs: an entity coming into range is spawned up to `samples - 1`
+     * samples late, and one going out of range keeps being sent as long. An
+     * entity that is despawned leaves every view at once, and a connection whose
+     * owned entities change, or a replaced interest source, is recomputed in
+     * that sample. `1` (the default) recomputes every view every sample.
+     */
+    setInterestRefresh(samples: number): void {
+        if (!Number.isInteger(samples) || samples < 1) {
+            throw new RangeError(`[repl] setInterestRefresh: samples must be a whole number of at least 1, got ${samples}`);
+        }
+        this.interestRefresh_ = samples;
     }
 
     private setInterest_(next: typeof this.interest_): void {
@@ -519,14 +903,51 @@ export class ReplicationServer {
     /** Accept a transport (server-side end of one client link). */
     attachConnection(transport: ReliableOrderedTransport): number {
         const id = this.nextConnectionId_++;
-        const channel = new NetChannel(transport);
-        const conn: Connection = {
-            id, channel, ready: false,
+        // The connection record exists before the channel, so the channel's
+        // callbacks can reach it.
+        const conn = {
+            id, linkId: id, transport, ready: false,
             input: null, queue: [], applied: null, ackedSeq: 0,
             lastSeq: 0, droppedInputs: 0,
-            interest: new Set(), provenance: null,
-        };
+            interest: new Set(), provenance: null, viewedAt: -1, viewSource: 0, viewOwned: 0,
+            sent: new Map(), readyTick: 0, tokens: 0,
+            helloed: false, helloTimer: null, violations: 0, violationWindow: Date.now(),
+        } as Omit<Connection, 'channel'> as Connection;
+        const limits = this.limits_;
+        conn.channel = new NetChannel(transport, {
+            ...(limits ? {
+                limits: {
+                    maxFrameBytes: limits.maxFrameBytes,
+                    messagesPerSecond: limits.messagesPerSecond,
+                    burst: limits.burst,
+                    onViolation: () => this.violation_(conn),
+                },
+            } : {}),
+            ...(this.heartbeat_ ? {
+                heartbeat: { ...this.heartbeat_, onDead: () => this.dropDead_(conn, 'silence', 4001, 'heartbeat timeout') },
+            } : {}),
+        });
+        const channel = conn.channel;
         this.connections_.set(id, conn);
+        this.links_.set(id, conn);
+        if (this.helloTimeoutMs_ > 0) {
+            conn.helloTimer = setTimeout(() => {
+                conn.helloTimer = null;
+                if (!conn.helloed) this.dropDead_(conn, 'noHello', 4002, 'no hello');
+            }, this.helloTimeoutMs_);
+            (conn.helloTimer as { unref?: () => void }).unref?.();
+        }
+
+        channel.on<ReplGameMsg>(ReplMsg.message, (msg) => {
+            // Only from a connection that has said hello and been let in.
+            if (!conn.ready || typeof msg?.type !== 'string') return;
+            this.stats.messagesIn++;
+            const handlers = this.messageHandlers_.get(msg.type);
+            if (!handlers) return;
+            for (const h of [...handlers]) {
+                try { h(conn.id, msg.data); } catch (err) { log.warn('repl', `message handler for "${msg.type}" threw`, err); }
+            }
+        });
 
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
             // Exactly-once starts here: a repeat or a rewind must not enter the
@@ -545,8 +966,14 @@ export class ReplicationServer {
             conn.queue.push(msg);
         });
 
-        channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, (req) => {
-            if (req.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
+        channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, async (req) => {
+            if (conn.helloed) return { ok: false, error: 'already said hello', fatal: true };
+            conn.helloed = true;
+            if (conn.helloTimer) { clearTimeout(conn.helloTimer); conn.helloTimer = null; }
+            if (this.connections_.size > this.maxConnections_) {
+                return { ok: false, error: 'server full; try again shortly', fatal: false };
+            }
+            if (req?.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
                 return { ok: false, error: `protocol v${req.protocolVersion}, server runs v${REPLICATION_PROTOCOL_VERSION}` };
             }
             if (req.abiHash !== ABI_LAYOUT_HASH) {
@@ -556,10 +983,28 @@ export class ReplicationServer {
             if (mismatch) {
                 return { ok: false, error: `replication schema mismatch: ${mismatch}` };
             }
+            let playerId: string | undefined;
+            if (this.authenticate_) {
+                try {
+                    const player = await this.authenticate_(req.credentials, req.transfer !== undefined ? { transfer: req.transfer } : {});
+                    if (typeof player?.playerId !== 'string' || player.playerId === '') {
+                        return { ok: false, error: 'authentication produced no player', fatal: true };
+                    }
+                    playerId = player.playerId;
+                } catch (err) {
+                    return refusal(err);
+                }
+                // The link may have gone while authenticate ran.
+                if (this.links_.get(conn.linkId) !== conn) return { ok: false, error: 'connection closed', fatal: false };
+                this.admitPlayer_(conn, playerId);
+            }
             // The initial world spawn goes out on the next microtask — after this
             // response is on the wire — and flips the connection hot.
             Promise.resolve().then(() => this.sendInitialState_(conn));
-            return { ok: true, connectionId: id, tick: this.tick_, fixedDelta: this.fixedDelta_ };
+            return {
+                ok: true, connectionId: conn.id, tick: this.tick_, fixedDelta: this.fixedDelta_, serverId: this.instanceId,
+                ...(playerId !== undefined ? { playerId } : {}),
+            };
         });
 
         return id;
@@ -574,14 +1019,145 @@ export class ReplicationServer {
         }
     }
 
-    detachConnection(id: number): void {
-        const conn = this.connections_.get(id);
+    /**
+     * The link `attachConnection` returned `linkId` for is gone. An anonymous
+     * connection leaves with it; an authenticated player stays present (in
+     * `presentIds`, owning what they owned, sending no input) for
+     * `reconnectGraceMs`, and a reconnect inside it takes the same id back.
+     */
+    detachConnection(linkId: number): void {
+        const conn = this.links_.get(linkId);
         if (!conn) return;
+        this.dropLink_(conn);
+        if (this.playerOfId_.has(conn.id) && this.graceMs_ > 0) {
+            this.away_.set(conn.id, Date.now() + this.graceMs_);
+        } else {
+            this.forgetPlayer_(conn.id);
+        }
+    }
+
+    /** One more limit broken; past the per-minute budget the connection is kicked. */
+    private violation_(conn: Connection): void {
+        const limits = this.limits_!;
+        const now = Date.now();
+        if (now - conn.violationWindow > 60_000) { conn.violationWindow = now; conn.violations = 0; }
+        if (++conn.violations <= limits.maxViolationsPerMinute) return;
+        if (this.links_.get(conn.linkId) !== conn) return;
+        this.closedFor.abuse++;
+        log.warn('repl', `connection ${conn.id}: over the message limits, kicked`);
+        if (this.connections_.get(conn.id) === conn) this.kick(conn.id, 'over the message limits');
+        else this.dropLink_(conn);
+    }
+
+    /**
+     * A link that went silent or never said hello: closed and detached like any
+     * dropped link, so an authenticated player still gets their grace period.
+     */
+    private dropDead_(conn: Connection, why: 'silence' | 'noHello', code: number, reason: string): void {
+        if (this.links_.get(conn.linkId) !== conn) return;
+        this.closedFor[why]++;
+        try { conn.transport.close?.(code, reason); } catch { /* already gone */ }
+        this.detachConnection(conn.linkId);
+    }
+
+    /** Take one link out of the live maps; who it belonged to is the caller's business. */
+    private dropLink_(conn: Connection): void {
+        if (conn.helloTimer) { clearTimeout(conn.helloTimer); conn.helloTimer = null; }
         this.forgetViewer_(conn);
         conn.channel.dispose();
-        this.connections_.delete(id);
-        // Ids are never reused, so this is the whole lifetime of the count.
+        if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);
+        this.links_.delete(conn.linkId);
+    }
+
+    /** The id is nobody's any more: no player, no wait, no owned-set history. */
+    private forgetPlayer_(id: number): void {
+        this.away_.delete(id);
+        // Ids are never handed to anyone else, so this is the whole lifetime of the count.
         this.ownedEpoch_.delete(id);
+        const playerId = this.playerOfId_.get(id);
+        if (playerId === undefined) return;
+        this.playerOfId_.delete(id);
+        if (this.idOfPlayer_.get(playerId) === id) this.idOfPlayer_.delete(playerId);
+    }
+
+    /** Say why, close the link, and stop serving it. The player's id is untouched. */
+    private release_(conn: Connection, reason: ReplCloseReason, message?: string, target?: ReplicationTransferTarget): void {
+        const msg: ReplClosedMsg = { reason };
+        if (message !== undefined) msg.message = message;
+        if (target) {
+            msg.address = target.address;
+            msg.ticket = target.ticket;
+            if (target.fallback !== undefined) msg.fallback = target.fallback;
+        }
+        try {
+            conn.channel.send<ReplClosedMsg>(ReplMsg.closed, msg);
+        } catch { /* a link that cannot be told is closed all the same */ }
+        try { conn.transport.close?.(4000, reason); } catch { /* already gone */ }
+        this.dropLink_(conn);
+    }
+
+    /**
+     * Give an authenticated link its player's id. A first login keeps the id
+     * its link was attached under; a returning player takes theirs back,
+     * replacing a link that still holds it.
+     */
+    private admitPlayer_(conn: Connection, playerId: string): void {
+        const held = this.idOfPlayer_.get(playerId);
+        if (held === undefined) {
+            this.idOfPlayer_.set(playerId, conn.id);
+            this.playerOfId_.set(conn.id, playerId);
+            return;
+        }
+        const holder = this.connections_.get(held);
+        if (holder && holder !== conn) this.release_(holder, 'replaced', 'signed in from another connection');
+        this.away_.delete(held);
+        if (conn.id === held) return;
+        // Not ready yet, so nothing is indexed under the provisional id.
+        if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);
+        conn.id = held;
+        this.connections_.set(held, conn);
+    }
+
+    /** Players whose grace ran out leave `presentIds`. */
+    private expireAway_(): void {
+        if (this.away_.size === 0) return;
+        const now = Date.now();
+        for (const [id, until] of [...this.away_]) {
+            if (until <= now) this.forgetPlayer_(id);
+        }
+    }
+
+    /**
+     * Send a game message to one connected client (see `ReplicationClient.onMessage`).
+     * Returns whether the connection was there to send to.
+     */
+    message(connectionId: number, type: string, data?: unknown): boolean {
+        const conn = this.connections_.get(connectionId);
+        if (!conn || !conn.ready) return false;
+        this.stats.messagesOut++;
+        return this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }));
+    }
+
+    /** Send a game message to every connected client, or those `filter` keeps. Returns how many. */
+    broadcastMessage(type: string, data?: unknown, filter?: (connectionId: number) => boolean): number {
+        let n = 0;
+        for (const conn of [...this.connections_.values()]) {
+            if (!conn.ready || (filter && !filter(conn.id))) continue;
+            if (this.sendTo_(conn, (c) => c.channel.send<ReplGameMsg>(ReplMsg.message, data === undefined ? { type } : { type, data }))) { n++; this.stats.messagesOut++; }
+        }
+        return n;
+    }
+
+    /**
+     * Hear a game message clients send (`ReplicationClient.message`), with the
+     * connection it came from. Only connections that have said hello are heard,
+     * under the connection limits. Returns an unsubscribe.
+     */
+    onMessage(type: string, handler: (connectionId: number, data: unknown) => void): () => void {
+        let set = this.messageHandlers_.get(type);
+        if (!set) { set = new Set(); this.messageHandlers_.set(type, set); }
+        set.add(handler);
+        return () => { set!.delete(handler); };
     }
 
     /** The latest input command a connection sent (null before the first).
@@ -611,6 +1187,7 @@ export class ReplicationServer {
      */
     beginTick(fixedDelta: number): void {
         if (fixedDelta > 0) this.fixedDelta_ = fixedDelta;
+        this.expireAway_();
         for (const conn of [...this.connections_.values()]) {
             const next = conn.queue.shift();
             if (next) conn.applied = next;
@@ -631,6 +1208,26 @@ export class ReplicationServer {
             return;
         }
 
+        const sampleStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        // Everything this sample sends one client (spawns, despawns, the delta,
+        // the ack) leaves in one write where the transport can hold writes:
+        // a write per frame was most of what a crowded server spent its time on.
+        const releases: (() => void)[] = [];
+        for (const conn of this.connections_.values()) {
+            const release = conn.transport.batch?.();
+            if (release) releases.push(release);
+        }
+        try {
+            this.sampleConnected_(tick);
+        } finally {
+            for (const release of releases) {
+                try { release(); } catch (err) { log.warn('repl', 'a transport failed to flush its batch', err); }
+            }
+            this.stats.sampleMs.observe((typeof performance !== 'undefined' ? performance.now() : Date.now()) - sampleStart);
+        }
+    }
+
+    private sampleConnected_(tick: number): void {
         const started = this.mark_();
         let at = started;
         const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();
@@ -647,7 +1244,7 @@ export class ReplicationServer {
         const sample = this.collectDirty_();
         this.since_('dirty discovery', at);
 
-        if (!this.interest_) {
+        if (!this.interest_ && !this.budget_ && !this.owing_) {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
         } else {
             this.sampleWithInterest_(tick, spawnedEntities, despawned, sample);
@@ -721,7 +1318,11 @@ export class ReplicationServer {
             const frame = new FrameWriter(tick);
             for (const d of dirty) frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
             const payload = frame.finish();
-            this.broadcast_((c) => c.channel.sendBinary(REPLICATION_CHANNEL, payload));
+            this.broadcast_((c) => {
+                c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+                this.stats.stateFrames++;
+                this.stats.stateBytes += payload.byteLength;
+            });
         }
     }
 
@@ -732,6 +1333,226 @@ export class ReplicationServer {
      *       connection's visibility settled first. A failed send is not rolled
      *       back — that connection is a dead participant (see sendTo_).
      */
+    /**
+     * Cap what each connection is sent per second, and send what matters most
+     * first. With a budget the server keeps, per connection, what each visible
+     * entity still owes it; every sample it adds each owed entity's priority to
+     * what it has waited, writes the most urgent rows until the connection's
+     * allowance is spent, and keeps the rest for later. A deferred entity is
+     * never lost — the next row it gets carries every field that changed since
+     * the last one — and nothing waits forever, since waiting is what raises it.
+     *
+     * Entities a connection owns always go out (prediction reconciles against
+     * every authoritative update), as do spawns, despawns and component
+     * removals; the budget meters the state stream. `null` lifts it, and what
+     * was still owed goes out on the next sample.
+     */
+    setBandwidthBudget(options: ReplicationBudgetOptions | null): void {
+        if (options && !(options.bytesPerSecond > 0)) throw new Error('[repl] bytesPerSecond must be positive');
+        if (!options && this.budget_) this.owing_ = true;
+        if (options && !this.budget_ && !this.owing_) {
+            // Everything up to now went out in full: nobody is owed anything older.
+            this.budgetSince_ = this.tick_;
+            this.changes_.clear();
+            for (const conn of this.connections_.values()) conn.sent.clear();
+        }
+        this.budget_ = options;
+    }
+
+    /** @internal Entities a connection is still owed rows for. */
+    owedCount(connectionId: number): number {
+        const c = this.connections_.get(connectionId);
+        if (!c || (!this.budget_ && !this.owing_)) return 0;
+        const base = Math.max(this.budgetSince_, c.readyTick);
+        let n = 0;
+        for (const e of c.interest) {
+            const ch = this.changes_.get(e);
+            if (ch && ch.at > (c.sent.get(e)?.tick ?? base)) n++;
+        }
+        return n;
+    }
+
+    /**
+     * Record this sample's changes once, for every connection: per entity the
+     * last tick anything changed, per field the tick it did. Removed components
+     * and despawned entities leave the record.
+     */
+    private recordChanges_(tick: number, dirty: DirtyEntry[], removals: RemovalEntry[], despawned: { entity: Entity }[]): void {
+        for (const d of despawned) this.changes_.delete(d.entity);
+        for (const r of removals) {
+            const ch = this.changes_.get(r.entity);
+            if (ch) ch.comps = ch.comps.filter((c) => c.te.id !== r.componentId);
+        }
+        for (const d of dirty) {
+            let ch = this.changes_.get(d.entity);
+            if (!ch) { ch = { at: 0, comps: [] }; this.changes_.set(d.entity, ch); }
+            let fc: FieldChanges | undefined;
+            for (let i = 0; i < ch.comps.length; i++) if (ch.comps[i]!.te === d.te) { fc = ch.comps[i]; break; }
+            if (!fc) { fc = { te: d.te, at: new Int32Array(d.te.fields.length) }; ch.comps.push(fc); }
+            for (let i = 0, m = d.mask; m !== 0; i++, m >>>= 1) if (m & 1) fc.at[i] = tick;
+            ch.at = tick;
+        }
+    }
+
+    /**
+     * One connection's delta frame under the budget: of the entities it sees,
+     * the ones that changed since it was last sent them are owed; owned ones go
+     * first, the rest by accumulated priority until the allowance is spent.
+     */
+    private sendBudgeted_(c: Connection, tick: number): void {
+        const reads = this.sampleReads_;
+        const ownerOf = (e: Entity): number => {
+            let o = reads.owner.get(e);
+            if (o === undefined) {
+                o = (this.world_.tryGet(e, Replicated) as ReplicatedData | null)?.owner ?? 0;
+                reads.owner.set(e, o);
+            }
+            return o;
+        };
+        const dataOf = (e: Entity, te: ReplicationTableEntry): Record<string, unknown> | null => {
+            let comps = reads.data.get(e);
+            if (!comps) { comps = new Map(); reads.data.set(e, comps); }
+            let d = comps.get(te.id);
+            if (d === undefined) {
+                d = this.world_.has(e, te.def) ? this.world_.tryGet(e, te.def) as Record<string, unknown> : null;
+                comps.set(te.id, d);
+            }
+            return d;
+        };
+
+        // Who is owed what: a compare of two ticks per visible entity.
+        const base = Math.max(this.budgetSince_, c.readyTick);
+        const owned: Entity[] = [];
+        const others: Entity[] = [];
+        const states: SentState[] = [];
+        for (const e of c.interest) {
+            const ch = this.changes_.get(e);
+            if (!ch) continue;
+            let st = c.sent.get(e);
+            if (ch.at <= (st ? st.tick : base)) continue;
+            if (!st) { st = { tick: base, urgency: 0 }; c.sent.set(e, st); }
+            if (ownerOf(e) === c.id) owned.push(e);
+            else { others.push(e); states.push(st); }
+        }
+        if (owned.length === 0 && others.length === 0) return;
+
+        const budget = this.budget_;
+        const dt = this.fixedDelta_ > 0 ? this.fixedDelta_ : 1 / 60;
+        if (budget) {
+            const perTick = budget.bytesPerSecond * dt;
+            // Unused allowance carries over, but only one tick's worth: a quiet
+            // second must not buy a burst that floods the link.
+            c.tokens = Math.min(c.tokens + perTick, perTick * 2);
+        }
+
+        const frame = new FrameWriter(tick);
+        const write = (e: Entity, st: SentState): void => {
+            const netId = this.knownNetIds_.get(e);
+            const ch = this.changes_.get(e);
+            if (netId !== undefined && ch) {
+                for (const fc of ch.comps) {
+                    let mask = 0;
+                    for (let i = 0; i < fc.at.length; i++) if (fc.at[i]! > st.tick) mask |= 1 << i;
+                    if (mask === 0) continue;
+                    const data = dataOf(e, fc.te);
+                    if (data) frame.entry(netId, fc.te, mask, data, this.refs_);
+                }
+            }
+            st.tick = tick;
+            st.urgency = 0;
+        };
+        for (const e of owned) write(e, c.sent.get(e)!);
+
+        let order = others.map((_, i) => i);
+        if (budget && others.length > 0) {
+            const n = others.length;
+            if (this.rankU_.length < n) { this.rankU_ = new Float64Array(n * 2); this.rankSorted_ = new Float64Array(n * 2); }
+            const u = this.rankU_;
+            const score = this.priorityFor_(c, budget, owned);
+            for (let i = 0; i < n; i++) {
+                const st = states[i]!;
+                st.urgency += score(others[i]!);
+                u[i] = st.urgency;
+            }
+            // Only the head of the ranking is ever sent. A native numeric sort of
+            // a copy finds where that head ends; only the entities above it are
+            // ranked exactly — a comparator sort of all of them cost more than
+            // everything else a connection does.
+            const fit = Math.ceil(Math.max(c.tokens - frame.byteLength, 0) / this.bytesPerRow_) + 2;
+            if (fit < n) {
+                const copy = this.rankSorted_;
+                copy.set(u.subarray(0, n));
+                const threshold = selectKth(copy, n, n - fit);
+                const head: number[] = [];
+                for (let i = 0; i < n; i++) if (u[i]! >= threshold) head.push(i);
+                order = head;
+            }
+            order.sort((a, b) => u[b]! - u[a]!);
+        }
+
+        let sentOthers = 0;
+        const before = frame.byteLength;
+        for (const i of order) {
+            // One row every sample whatever the allowance: what the owned rows
+            // cost, or one entity bigger than a tick's worth, must not stop the
+            // rest from moving at all.
+            if (budget && sentOthers > 0 && frame.byteLength >= c.tokens) break;
+            write(others[i]!, states[i]!);
+            sentOthers++;
+        }
+        if (sentOthers > 0) {
+            this.bytesPerRow_ = this.bytesPerRow_ * 0.9 + ((frame.byteLength - before) / sentOthers) * 0.1;
+        }
+        if (budget) {
+            c.tokens -= frame.byteLength;
+            this.rowsDeferred += others.length - sentOthers;
+        }
+        this.deltaRowsSent += frame.entryCount;
+        if (frame.entryCount > 0) {
+            const payload = frame.finish();
+            c.channel.sendBinary(REPLICATION_CHANNEL, payload);
+            this.stats.stateFrames++;
+            this.stats.stateBytes += payload.byteLength;
+        }
+    }
+
+
+    /** This sample's priority for one connection: the game's, or distance to its nearest owned entity. */
+    private priorityFor_(c: Connection, budget: ReplicationBudgetOptions, owned: Entity[]): (e: Entity) => number {
+        const anchors = this.ownedByConnection_?.get(c.id);
+        const ownedAll = anchors ? [...anchors] : owned;
+        if (budget.priority) {
+            const fn = budget.priority;
+            return (entity) => Math.max(0, fn({ world: this.world_, entity, connectionId: c.id, owned: ownedAll }) || 0);
+        }
+        const near = budget.nearDistance ?? 10;
+        const cache = this.sampleReads_.position;
+        const read = budget.position ?? transformPosition;
+        const positionOf = (e: Entity): InterestPoint | null => {
+            let p = cache.get(e);
+            if (p === undefined) { p = read(this.world_, e); cache.set(e, p); }
+            return p;
+        };
+        const points: InterestPoint[] = [];
+        for (const e of ownedAll) {
+            const p = positionOf(e);
+            if (p) points.push(p);
+        }
+        if (points.length === 0) return () => 1;
+        return (entity) => {
+            const p = positionOf(entity);
+            if (!p) return 1;
+            let best = Infinity;
+            for (const a of points) {
+                const dx = p.x - a.x, dy = p.y - a.y, dz = (p.z ?? 0) - (a.z ?? 0);
+                const d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 < best) best = d2;
+            }
+            const d = Math.sqrt(best);
+            return d <= near ? 1 : near / d;
+        };
+    }
+
     private sampleWithInterest_(
         tick: number,
         spawnedEntities: Entity[],
@@ -739,6 +1560,20 @@ export class ReplicationServer {
         { dirty, removals }: DirtySample,
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
+        const budgeted = this.budget_ !== null || this.owing_;
+        if (budgeted) {
+            this.recordChanges_(tick, dirty, removals, despawned);
+            const reads = this.sampleReads_;
+            reads.position.clear();
+            reads.owner.clear();
+            reads.data.clear();
+            // This sample's dirty rows already hold the live records.
+            for (const d of dirty) {
+                let comps = reads.data.get(d.entity);
+                if (!comps) { comps = new Map(); reads.data.set(d.entity, comps); }
+                comps.set(d.te.id, d.data);
+            }
+        }
         // One snapshot for every connection this sample: a provider prepares
         // here, and never on the per-connection path below.
         const visibility = this.resolveVisibility_({
@@ -755,12 +1590,28 @@ export class ReplicationServer {
             conn: Connection; visible: ReadonlySet<Entity>; enters: Entity[];
             leaveIds: number[]; entered: ReadonlySet<Entity>;
         }[] = [];
+        const sampleNo = ++this.interestSample_;
+        const every = this.interestRefresh_;
+        // Under a refresh interval, a view that is not recomputed this sample
+        // still loses what was despawned — by the reverse index, not a scan.
+        let gone: Map<number, Entity[]> | null = null;
+        if (every > 1 && despawned.length > 0 && this.viewersByEntity_) {
+            gone = new Map();
+            for (const d of despawned) {
+                for (const id of this.viewersByEntity_.get(d.entity) ?? []) {
+                    let list = gone.get(id);
+                    if (!list) { list = []; gone.set(id, list); }
+                    list.push(d.entity);
+                }
+            }
+        }
         for (const conn of [...this.connections_.values()]) {
             if (!conn.ready) continue;
+            const ownedNow = this.ownedEpoch_.get(conn.id) ?? 0;
             const stamp = visibility.snapshot === null ? null : {
                 source: this.interestEpoch_,
                 snapshot: visibility.snapshot,
-                owned: this.ownedEpoch_.get(conn.id) ?? 0,
+                owned: ownedNow,
             };
             // Nothing this answer is a function of moved: no query, no copy of
             // a result, neither scan over it. Routing needs no help — the
@@ -771,7 +1622,26 @@ export class ReplicationServer {
                 });
                 continue;
             }
+            if (every > 1 && conn.viewedAt >= 0 && conn.viewSource === this.interestEpoch_
+                && conn.viewOwned === ownedNow && (sampleNo + conn.id) % every !== 0) {
+                const leaveIds: number[] = [];
+                for (const e of gone?.get(conn.id) ?? []) {
+                    if (!conn.interest.delete(e)) continue;
+                    this.unwatch_(e, conn.id);
+                    conn.sent.delete(e);
+                    const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
+                    if (netId !== undefined) leaveIds.push(netId);
+                }
+                // Not proved against this sample's snapshot: a later sample whose
+                // snapshot matches must not take this view as its answer.
+                conn.provenance = null;
+                plans.push({ conn, visible: conn.interest, enters: [], leaveIds, entered: NOBODY });
+                continue;
+            }
             this.visibilityRecomputes++;
+            conn.viewedAt = sampleNo;
+            conn.viewSource = this.interestEpoch_;
+            conn.viewOwned = ownedNow;
             let at = this.mark_();
             const visible = visibility.visible(conn.id);
             this.since_('visibility query', at);
@@ -781,11 +1651,14 @@ export class ReplicationServer {
                 if (conn.interest.has(e)) continue;
                 enters.push(e);
                 this.watch_(e, conn.id);
+                // A spawn carries the current state: nothing older is owed.
+                if (budgeted) conn.sent.set(e, { tick, urgency: 0 });
             }
             const leaveIds: number[] = [];
             for (const e of conn.interest) {
                 if (visible.has(e)) continue;
                 this.unwatch_(e, conn.id);
+                conn.sent.delete(e);
                 const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
                 if (netId !== undefined) leaveIds.push(netId);
             }
@@ -797,7 +1670,9 @@ export class ReplicationServer {
 
         // Whose debt is whose.
         const routing = this.mark_();
-        const routed = this.route_(plans, dirty, removals);
+        // Under a budget the server's change record says who is owed which
+        // field; only removals, which ride the control plane, are routed.
+        const routed = this.route_(plans, budgeted ? [] : dirty, removals);
         this.since_('routing', routing);
 
         // The wire. Spawn payloads serialize once per entity per tick, however
@@ -814,6 +1689,9 @@ export class ReplicationServer {
             }
             return p;
         };
+        // A row's bytes are the same for every viewer: encoded once, copied per frame.
+        const encoded = new EncodedRows(budgeted ? 0 : dirty.length);
+        const refs = this.refs_;
         for (const { conn, enters, leaveIds } of plans) {
             const mine = routed.get(conn.id)!;
             this.entersSent += enters.length;
@@ -834,23 +1712,37 @@ export class ReplicationServer {
                         ReplMsg.componentRemove, removeBatch(tick, mine.removals.map((i) => removals[i]!)));
                 }
                 this.since_('control send', control);
+                if (budgeted) {
+                    this.sendBudgeted_(c, tick);
+                    return;
+                }
                 if (mine.dirty.length > 0) {
                     const encoding = this.mark_();
-                    const frame = new FrameWriter(tick);
                     for (const i of mine.dirty) {
+                        if (encoded.has(i)) continue;
                         const d = dirty[i]!;
-                        frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
+                        encoded.encode(i, d.netId, d.te, d.mask, d.data, refs);
+                        this.rowsEncoded++;
                     }
-                    this.deltaRowsSent += frame.entryCount;
-                    const payload = frame.entryCount > 0 ? frame.finish() : null;
+                    this.deltaRowsSent += mine.dirty.length;
+                    // One spare byte in front for the channel id, so the channel
+                    // sends this buffer instead of copying it behind one.
+                    const framed = encoded.frame(tick, mine.dirty, 1);
                     this.since_('frame encode', encoding);
-                    if (payload) {
-                        const sending = this.mark_();
-                        c.channel.sendBinary(REPLICATION_CHANNEL, payload);
-                        this.since_('transport send', sending);
-                    }
+                    const sending = this.mark_();
+                    c.channel.sendBinaryInPlace(REPLICATION_CHANNEL, framed);
+                    this.stats.stateFrames++;
+                    this.stats.stateBytes += framed.byteLength - 1;
+                    this.since_('transport send', sending);
                 }
             });
+        }
+        // A lifted budget drained everything owed above, to every connection:
+        // the shared path is safe again and the change record is not needed.
+        if (!this.budget_ && this.owing_) {
+            this.owing_ = false;
+            this.changes_.clear();
+            for (const conn of this.connections_.values()) conn.sent.clear();
         }
     }
 
@@ -914,12 +1806,12 @@ export class ReplicationServer {
                         for (const i of debt.dirty) mine.dirty.push(i);
                     }
                 }
-                // Back into the order the rows were discovered in: the frame a
-                // connection receives is the same one either way, and this costs
-                // only what is actually SENT.
+                // Removals back into discovery order. Delta rows are not sorted:
+                // each row is applied on its own, an entity's rows stay together
+                // and in order, and sorting every connection's rows cost three
+                // times what finding them did.
                 for (const mine of out.values()) {
-                    mine.removals.sort((a, b) => a - b);
-                    mine.dirty.sort((a, b) => a - b);
+                    if (mine.removals.length > 1) mine.removals.sort((a, b) => a - b);
                 }
                 return out;
             }
@@ -933,8 +1825,7 @@ export class ReplicationServer {
                 for (const i of debt.removals) mine.removals.push(i);
                 for (const i of debt.dirty) mine.dirty.push(i);
             }
-            mine.removals.sort((a, b) => a - b);
-            mine.dirty.sort((a, b) => a - b);
+            if (mine.removals.length > 1) mine.removals.sort((a, b) => a - b);
         }
         return out;
     }
@@ -1240,6 +2131,7 @@ export class ReplicationServer {
             for (const e of this.world_.getRemovedEntitiesSince(te.def, floor)) candidates.add(e);
 
             this.dirtyCandidates += candidates.size;
+            const quantized = te.shapes.map(hasStep);
             for (const e of candidates) {
                 const perComp = this.shadow_.get(e);
                 if (!perComp) continue;
@@ -1261,7 +2153,8 @@ export class ReplicationServer {
                 let mask = 0;
                 for (let i = 0; i < te.fields.length; i++) {
                     const f = te.fields[i];
-                    if (!(f in snap) || !fieldEqual(data[f], snap[f])) {
+                    if (!(f in snap) || !(quantized[i]
+                        ? sameOnWire(te.shapes[i]!, data[f], snap[f]) : fieldEqual(data[f], snap[f]))) {
                         mask |= 1 << i;
                         snap[f] = cloneValue(data[f]);
                     }
@@ -1275,7 +2168,7 @@ export class ReplicationServer {
     }
 
     private sendInitialState_(conn: Connection): void {
-        if (!this.connections_.has(conn.id)) return;
+        if (this.connections_.get(conn.id) !== conn) return;
         let anyReady = false;
         for (const c of this.connections_.values()) if (c.ready) { anyReady = true; break; }
         if (!anyReady) this.rebaseRegistry_();
@@ -1287,14 +2180,16 @@ export class ReplicationServer {
             const netId = this.knownNetIds_.get(e);
             if (netId !== undefined) entities.push(this.spawnPayload_(e, netId));
         }
-        if (entities.length > 0
-            && !this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
-                ReplMsg.spawn, { tick: this.tick_, entities }))) {
+        // Sent even when empty: it is how a client that reconnected learns which
+        // of the ghosts it still holds are gone.
+        if (!this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
+                ReplMsg.spawn, { tick: this.tick_, entities, initial: true, serverId: this.instanceId }))) {
             // Never told the world, so never a participant in the next delta.
             return;
         }
         conn.interest = visible;
         conn.ready = true;
+        conn.readyTick = this.tick_;
         // After the send, not before: a connection that never heard about the
         // world is not a viewer of it, and the early return above is the only
         // other way out of this function.
@@ -1320,7 +2215,7 @@ export class ReplicationServer {
             return true;
         } catch (err) {
             log.warn('repl', `connection ${conn.id} could not be sent to; detaching it`, err);
-            this.detachConnection(conn.id);
+            this.detachConnection(conn.linkId);
             return false;
         }
     }

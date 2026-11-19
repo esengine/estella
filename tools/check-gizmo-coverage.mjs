@@ -128,6 +128,8 @@ const DISPOSITION = {
   'BlobShadow.fadeHeight': ['no-place', 'a height above the ground at which the disc is gone, not a region of the entity'],
   'Planet.collisionDistance': ['no-place', 'how far round each moving body the ground is built for collision, not a region of the entity'],
   'Planet.cellSize': ['no-place', 'the finest cell of the ground\'s mesh near the eye, not a region of the entity'],
+  'Planet.seaShallowDepth': ['no-place', 'how deep the sea is before its bottom is lost to its colour, a shading input (u_shallowDepth) and not a region of the entity'],
+  'StreamedWorld.farDistance': ['no-place', 'how far from each streaming source an unloaded cell still shows its far proxy, measured from the sources (wantProxies_), not a region of the StreamedWorld entity'],
   'PlacedFoliage.sizeX': ['renders', 'the area the plants are placed over is the outline'],
   'PlacedFoliage.sizeZ': ['renders', 'the area the plants are placed over is the outline'],
   'CompositeBatch.cellSize': ['no-place', 'the side of the chunks a model\'s merged parts are cut into in its root\'s space, which decides what an edit re-merges; not a region of the entity'],

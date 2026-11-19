@@ -129,6 +129,26 @@ Unique<Texture> Texture::createRaw(GfxDevice& device, GfxContent content, u32 wi
     return texture;
 }
 
+Unique<Texture> Texture::createVolume(GfxDevice& device, GfxContent content, u32 width, u32 height, u32 depth,
+                                      const void* data, TextureFormat format) {
+    TextureSpecification spec;
+    spec.width = width;
+    spec.height = height;
+    spec.format = format;
+    spec.wrapS = TextureWrap::ClampToEdge;
+    spec.wrapT = TextureWrap::ClampToEdge;
+    spec.generateMips = false;
+    spec.layers = depth;
+    spec.volume = true;
+
+    auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
+    if (!texture->initialize(spec, content, data, false)) {
+        return nullptr;
+    }
+    return texture;
+}
+
 Unique<Texture> Texture::createCompressed(GfxDevice& device, GfxContent content, u32 width, u32 height,
                                           GfxCompressedFormat format, std::span<const u8> data,
                                           u32 mipLevels) {
@@ -211,6 +231,7 @@ bool Texture::initialize(const TextureSpecification& spec, GfxContent content, c
     desc.mipmaps = spec.generateMips;
     desc.flipY = flipY;
     desc.layers = spec.layers ? spec.layers : 1;
+    desc.volume = spec.volume;
 
     handle_ = device_->createTexture(desc, content, pixels);
     if (handle_ == TextureHandle::Invalid) {

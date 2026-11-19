@@ -393,6 +393,26 @@ A hit window is normally several `hit` beats, and leaning on "the event only
 fires once" instead breaks the first time a clip declares two — silently, as
 double damage, which reads as a balance problem rather than a bug.
 
+#### Active frames: a window, not beats
+
+A blade can move farther in one frame than its own reach. Checked only where the
+anchor stands on each beat, it passes through a target between two frames and
+nothing lands. Declare the frames the swing can land in as one
+`attack-active` window instead, a `customEvent` with a `duration`:
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+While it is open, the swing sweeps the path its anchor travelled since the last
+frame: spheres of `radius` along the line from where the anchor was to where it
+is, no farther apart than half the radius, so a fast arc still meets what it
+passed. The window opening is the swing beginning, and it ends when the window
+shuts or when the clip is left before it does (cancelled into a dodge, say). The
+swing lands on each target once however many frames it stays in reach, and two
+attacks of a combo are two swings even where their windows touch. A clip that
+says `attack-start` as well swings once, not twice.
+
 Nothing in the swing writes health. A landed blow is sent on the `Damage` bus and
 one system answers it, so `Health` has a single author and every rule that will
 ever sit between a hit and a health bar has one seam to sit in:

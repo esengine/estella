@@ -22,6 +22,7 @@ import { cellDocumentPath } from '../src/residency/cutWorld';
 import { defineComponent } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { SceneData } from '../src/scene/scene';
+import { decodeMesh, type MeshData } from '../src/asset/meshFormat';
 
 // A project's own component, which is the case only Play can catch: a cook loads
 // the engine's registry and never sees this one, so the cross-cell reference it
@@ -129,10 +130,11 @@ describe('the snapshot Play boots', () => {
 
 describe('what Play hands the shipping runtime', () => {
     /** The realm's boot, reduced to the one argument this is about. */
-    async function boot(data: SceneData): Promise<RuntimeInitConfig> {
+    async function boot(data: SceneData, extra: Partial<Parameters<typeof initPlayRealmRuntime>[0]> = {}): Promise<RuntimeInitConfig> {
         initRuntime.mockClear();
         vi.stubGlobal('fetch', refuseFetch);
         await initPlayRealmRuntime({
+            ...extra,
             app: { enableStats: vi.fn(), run: vi.fn(), signal: new AbortController().signal } as never,
             module: {} as never,
             canvas: { width: 800, height: 600 } as never,
@@ -163,6 +165,28 @@ describe('what Play hands the shipping runtime', () => {
         for (const cell of config.worlds![0].cells) {
             expect(config.cellDocuments?.get(cell.name)).toBeDefined();
         }
+    });
+
+    it('gives each cell with static meshes the far proxy a build would, made when first fetched and served from memory', async () => {
+        const cube: Component = { type: 'MeshRenderer', data: { mesh: 'builtin:cube', opaque: true } };
+        // The editor's simplifier, stood in for: what it hands back is what the proxy draws.
+        const simplify = vi.fn(async (mesh: MeshData) => ({ ...mesh, indices: mesh.indices.slice(0, 3) }));
+        const config = await boot(scene(
+            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, farProxies: true, farDistance: 4000 } }] }),
+            entity(1, 'Player', [10, 0, 10], { components: [{ type: 'WorldPersistent', data: {} }] }),
+            entity(2, 'RockA', [500, 0, 500], { components: [cube] }),
+            entity(3, 'RockB', [1500, 0, 500]),
+        ), { simplifyFarProxy: simplify });
+        const world = config.worlds![0];
+        expect(world.farDistance).toBe(4000);
+        expect(world.cells.map((c) => c.proxy)).toEqual(['world/main.cell_0_0.far.json', undefined]);
+        // Nothing simplified before the game starts: a large world would make it wait.
+        expect(simplify).not.toHaveBeenCalled();
+        // Fetching anything would throw: the proxy's document and mesh are the realm's own.
+        const proxy = JSON.parse(await config.source.backend.fetchText(world.cells[0]!.proxy!)) as SceneData;
+        expect(simplify).toHaveBeenCalledTimes(1);
+        const mesh = (proxy.entities[0]!.components.find((c) => c.type === 'MeshRenderer')!.data as { mesh: string }).mesh;
+        expect(decodeMesh(new Uint8Array(await config.source.backend.fetchBinary(mesh))).indices.length).toBe(3);
     });
 
     it('carries no world at all for a scene that is not one', async () => {

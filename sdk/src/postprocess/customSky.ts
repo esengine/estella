@@ -259,7 +259,8 @@ ${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
     vec4 src = texture(u_sceneTexture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
-    if (depth < 1.0 && src.a > 0.999) { fragColor = src; return; }
+    bool surfaceAround = abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(-1, 0), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, 1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5 && abs(texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)) + ivec2(0, -1), ivec2(0), size - ivec2(1)), 0).r - 0.5) < 0.5;
+    if (depth < 1.0 && (src.a > 0.999 || surfaceAround)) { fragColor = src; return; }
     vec3 entry = worldFromDepth(v_texCoord, 0.0);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
     vec2 beside = v_texCoord + vec2(1.0 / float(size.x), 0.0);
@@ -305,7 +306,8 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
     let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    if (depth < 1.0 && src.a > 0.999) { return src; }
+    let surfaceAround = abs(textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)) + vec2i(1, 0), vec2i(0), size - vec2i(1)), 0) - 0.5) < 0.5 && abs(textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)) + vec2i(-1, 0), vec2i(0), size - vec2i(1)), 0) - 0.5) < 0.5 && abs(textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)) + vec2i(0, 1), vec2i(0), size - vec2i(1)), 0) - 0.5) < 0.5 && abs(textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)) + vec2i(0, -1), vec2i(0), size - vec2i(1)), 0) - 0.5) < 0.5;
+    if (depth < 1.0 && (src.a > 0.999 || surfaceAround)) { return src; }
     let entry = worldFromDepth(v.v_texCoord, 0.0);
     let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
     let beside = v.v_texCoord + vec2f(1.0 / f32(size.x), 0.0);

@@ -62,6 +62,9 @@ cleared every frame, so call it each frame you want the shape visible:
 | `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | A circle (default `32` segments). |
 | `texture(pos, size, textureHandle, tint?)` | A textured quad. |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
+| `triangles(mesh, { tint?, transform? })` | Triangles with a colour a vertex (`positions` x, y pairs, `indices`, optional `colors`), moved by a 2D affine `[xx, xy, yx, yy, tx, ty]` and multiplied by `tint`, batched with the other primitives. What `Graphics.flush()` draws through. |
+| `createTriangles(mesh)` | Puts a mesh on the GPU once and returns a buffer `triangles()` draws by reference: each copy is moved and tinted on the GPU, so it costs one 28-byte record, and consecutive copies of one buffer are one instanced draw. `release()` it when it is no longer drawn. |
+| `trianglesMany(buffer, copies, count?)` | Many copies of one buffer in one call: 10 numbers a copy in `copies` (the affine `xx, xy, yx, yy, tx, ty`, then the tint `r, g, b, a`). The same picture as `triangles()` a copy, without a call into the engine a copy. |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A custom mesh by handle (see the `Geometry` API below). |
 | `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
 | `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
@@ -70,8 +73,9 @@ cleared every frame, so call it each frame you want the shape visible:
 
 ## Vector paths: `Graphics`
 
-For shapes built from paths — polylines, béziers, arcs, rounded rects —
-`Graphics` records a path and replays it through `Draw` when you `flush()`:
+For shapes built from paths — polygons, polylines, béziers, arcs, rounded rects —
+`Graphics` records them, turns them into triangles once, and draws those
+triangles through `Draw` when you `flush()`:
 
 ```typescript
 import { Graphics, registerDrawCallback } from 'esengine';
@@ -87,16 +91,82 @@ g.curveTo(50, 80, 100, 0);           // quadratic bézier
 registerDrawCallback('hud-shape', () => g.flush());
 ```
 
-Path methods: `moveTo` / `lineTo`, `curveTo` (quadratic) / `cubicCurveTo`,
-`arc`, `drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse`, `clear()`.
-`lineStyle(thickness, color)` sets the stroke; `beginFill(color)` / `endFill()`
-fill **rects and circles** (path outlines stay strokes). The path is retained —
-build it once, `flush()` it every frame.
+Path methods: `moveTo` / `lineTo` / `closePath`, `curveTo` (quadratic) /
+`cubicCurveTo`, `arc`, and the shapes `drawRect` / `drawRoundRect` /
+`drawCircle` / `drawEllipse` / `drawPolygon(points)`; `clear()` starts over.
+
+- `lineStyle(thickness, color, { join?, cap?, miterLimit? })` sets the stroke:
+  corners are joined (`'miter'` by default, or `'round'` / `'bevel'`) and open
+  ends capped (`'butt'`, `'round'`, `'square'`). A thickness of `0` draws no
+  stroke.
+- `beginFill(color)` / `endFill()` fill **everything drawn between them**: a
+  path from `moveTo` / `lineTo` as much as a shape, concave outlines included.
+- `feather` (a property, in the drawing's units) fades every outer edge to
+  transparent — anti-aliasing where the quality level draws without MSAA.
+
+A path takes the style in force when it ends: a new `moveTo`, a change of
+style, a shape, `closePath()` or a draw ends it, and a change of style part-way
+along a line goes on from the same point.
+
+The drawing is tessellated the first time it is drawn after a change, and
+`flush()` is then one `Draw.triangles` call. The triangles go onto the GPU on
+that first draw and stay there: a flush sends only where the copy is and how
+faint, the GPU moves every vertex, and copies flushed one after another are
+drawn together as one instanced draw. `dispose()` gives the GPU memory back
+early (a `Graphics` nobody disposes of gives it back when it is collected). `geometry()` returns those
+triangles, to hand to a `MeshRenderer` that should keep them.
+
+### One shape, drawn many times
+
+`flush({ x, y, rotation, scale, alpha, tint })` draws the same triangles moved,
+turned, scaled about the drawing's own origin and faded. Build a shape once
+and draw it wherever and however faint each copy should be: nothing is
+rebuilt, and no texture is made. A hit flash that pops and fades is one
+`Graphics`:
+
+```typescript
+const hexagon = new Graphics();
+hexagon.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+hexagon.beginFill({ r: 1, g: 0.85, b: 0.4, a: 0.6 });
+hexagon.drawPolygon(Array.from({ length: 6 }, (_, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2) * 26,
+  y: Math.sin((i / 6) * Math.PI * 2) * 26,
+})));
+hexagon.endFill();
+
+registerDrawCallback('hit-flashes', () => {
+  for (const hit of hits) {              // however many there are this frame
+    hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
+  }
+});
+```
+
+For hundreds of copies a frame, `flushMany(copies, count?)` draws them all in
+one call. `copies` holds `GRAPHICS_COPY_STRIDE` (8) numbers a copy: `x, y,
+rotation, scale, r, g, b, alpha`. The picture is the same as a `flush()` a
+copy; what it spares is a call into the engine a copy. Keep one array and fill
+it each frame:
+
+```typescript
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
+});
+```
+
+Do not bake opacity into a texture to fade a shape — drawing it to a canvas
+and uploading the result whenever its alpha changes makes a texture a frame,
+which is what a phone pays most for.
 
 ## Filled polygons and joined strokes: `setPath`
 
-`Graphics` draws immediately and fills only rects and circles. For a shape that lives in the scene (it sorts with the other renderables, batches, and a
-scene saves it), or that needs an arbitrary polygon fill or a stroke with real corners, build the path's geometry and let a `MeshRenderer` draw it:
+`Graphics` draws in a draw callback, over the scene. For a shape that lives in the scene (it sorts with the other renderables, batches, and a
+scene saves it), build the path's geometry and let a `MeshRenderer` draw it:
 
 ```typescript
 import { setPath, circlePoints, cubicBezier } from 'esengine';

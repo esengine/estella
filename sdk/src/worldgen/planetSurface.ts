@@ -30,9 +30,9 @@ export interface PlaneFrame {
 }
 
 /** Metres between the points of a tile, the cells along its side, and so its side; how many tiles a face keeps. */
-const TILE_STEP = 1.5;
+/** How far apart the ground is read for a world laid out on a planet, unless the world says (`WorldGen.groundStep`): metres, for a world a person walks. */
+export const GROUND_STEP = 1.5;
 const TILE_CELLS = 32;
-const TILE_SIDE = TILE_STEP * TILE_CELLS;
 const TILES_KEPT = 6000;
 
 /** A square of the planet's answer: its heights, its paint and its fields at a grid of points (one extra row and column each side). */
@@ -48,7 +48,14 @@ interface Tile {
 
 /** One face of a planet as a plane. */
 export class PlanetFace {
-    constructor(readonly face: number, readonly planet: () => PlanetFacts | null) {}
+    /**
+     * @param step How far apart the ground is read, in the planet's units. What is placed stands on the ground between the points read, and a slope is
+     *             taken over two of them: a world whose plants are tens of units across and seen from the air reads it several units apart, and pays a
+     *             sixteenth of what reading it every metre and a half costs for each doubling twice over.
+     */
+    constructor(readonly face: number, readonly planet: () => PlanetFacts | null, readonly step = GROUND_STEP) {}
+
+    private get side(): number { return this.step * TILE_CELLS; }
 
     private facts(): PlanetFacts | null { return this.planet(); }
 
@@ -88,6 +95,7 @@ export class PlanetFace {
 
     /** The tile of the plane that holds (x, z), read from the provider in one call for all its points; null while the provider answers later. */
     private tile(x: number, z: number): Tile | null {
+        const TILE_SIDE = this.side, TILE_STEP = this.step;
         const tx = Math.floor(x / TILE_SIDE), tz = Math.floor(z / TILE_SIDE), key = `${tx},${tz}`;
         const had = this.tiles_.get(key);
         if (had) { this.tiles_.delete(key); this.tiles_.set(key, had); return had; }
@@ -110,7 +118,7 @@ export class PlanetFace {
 
     /** The cell of a tile that holds (x, z), and where in it. */
     private cellOf(t: Tile, x: number, z: number): { i: number; j: number; fx: number; fz: number } {
-        const u = (x - t.x0) / TILE_STEP, v = (z - t.z0) / TILE_STEP;
+        const u = (x - t.x0) / this.step, v = (z - t.z0) / this.step;
         const i = Math.min(Math.max(Math.floor(u), 0), t.n - 2), j = Math.min(Math.max(Math.floor(v), 0), t.n - 2);
         return { i, j, fx: Math.min(Math.max(u - i, 0), 1), fz: Math.min(Math.max(v - j, 0), 1) };
     }
@@ -150,7 +158,7 @@ export class PlanetFace {
         const h = this.heightAt(x, z);
         if (h === null) return null;
         // The normal from the ground a step either way along the plane: the rise over the run (the curve of the planet itself is not a slope).
-        const step = TILE_STEP;
+        const step = this.step;
         const hx0 = this.heightAt(x - step, z), hx1 = this.heightAt(x + step, z), hz0 = this.heightAt(x, z - step), hz1 = this.heightAt(x, z + step);
         if (hx0 === null || hx1 === null || hz0 === null || hz1 === null) return { y: h, up: 1, normal: [0, 1, 0] };
         const run = 2 * step;
@@ -220,8 +228,8 @@ export class PlanetFace {
 }
 
 /** The six faces of a planet, as planes. */
-export function planetFaces(planet: () => PlanetFacts | null): PlanetFace[] {
-    return FACES.map((_f, i) => new PlanetFace(i, planet));
+export function planetFaces(planet: () => PlanetFacts | null, step = GROUND_STEP): PlanetFace[] {
+    return FACES.map((_f, i) => new PlanetFace(i, planet, step));
 }
 
 /** The zones of a world as each face has them: those over it, in its plane. Kept in step by `sync`. */

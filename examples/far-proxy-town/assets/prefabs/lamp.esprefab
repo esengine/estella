@@ -1,0 +1,105 @@
+{
+  "version": "2",
+  "name": "lamp",
+  "rootEntityId": "root",
+  "entities": [
+    {
+      "prefabEntityId": "root",
+      "name": "Lamp",
+      "parent": null,
+      "children": [
+        "pole",
+        "head"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "pole",
+      "name": "Pole",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/lamp-pole.esmesh",
+            "texture": "",
+            "material": "assets/materials/metal.esmaterial",
+            "color": {
+              "r": 0.18,
+              "g": 0.2,
+              "b": 0.22,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "head",
+      "name": "Head",
+      "parent": "root",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/meshes/lamp-head.esmesh",
+            "texture": "",
+            "material": "assets/materials/lamp-glow.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 0.9,
+              "b": 0.7,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "castShadows": false,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

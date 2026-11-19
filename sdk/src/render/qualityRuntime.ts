@@ -48,6 +48,8 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         // With no quality policy a soft 2D shadow is drawn with the sixteen samples it always was.
         api?.renderer_setShadow2DSoftSamples?.(enabled ? applied.shadowSoftSamples : 16);
         api?.renderer_setDepthPrepass?.(enabled && applied.depthPrepass);
+        // With no quality policy a volume is read per pixel, as it always was.
+        api?.renderer_setProbesPerPixel?.(!enabled || applied.probesPerPixel);
         setSkyStillWanted(enabled && applied.stillSky);
         api?.renderer_setLightingDirect?.(enabled && applied.lighting === 'direct');
         api?.renderer_setPlanarReflectionQuality?.(enabled ? applied.planarReflectionScale : 0.5,

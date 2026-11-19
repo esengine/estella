@@ -58,11 +58,15 @@ export {
     MeleeAttack,
     MeleeAttacks,
     resolveMeleeHits,
+    sweepMeleeWindows,
     COMBAT_ATTACK_START,
     COMBAT_HIT,
     COMBAT_ATTACK_END,
+    COMBAT_ATTACK_ACTIVE,
+    COMBAT_COMBO_WINDOW,
     type MeleeAttackData,
     type MeleeOverlapQuery,
+    type MeleeWindowSource,
 } from './MeleeAttack';
 
 export {

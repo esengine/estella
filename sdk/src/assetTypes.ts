@@ -100,7 +100,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esenv'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     // Baked probe grid: the same nine coefficients an `.esenv` carries, at every
     // point of a grid instead of once. No transitive dep — a volume names no image.
-    { extensions: ['esprobes'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
+    // Binary since version 2 (lightmap/probeFile); a version 1 grid is JSON and loads the same way, as bytes.
+    { extensions: ['esprobes'], contentType: 'binary', editorType: 'unknown', wechatPackInclude: true, hasTransitiveDeps: false },
 ];
 
 const MIME_MAP: Record<string, string> = {
@@ -140,7 +141,7 @@ const MIME_MAP: Record<string, string> = {
     esanimator: 'application/json',
     esbt: 'application/json',
     esenv: 'application/json',
-    esprobes: 'application/json',
+    esprobes: 'application/octet-stream',
     bmfont: 'application/json',
     fnt: 'text/plain',
 };

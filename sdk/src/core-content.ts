@@ -160,8 +160,18 @@ export {
     type ProbeGrid, bakeHoldsStill, type BakeMobility, BAKE_DEFAULTS,
     captureReflection, flatSky, type CapturedPanorama, type SkyRadiance,
     LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, lightmapImage,
-    bakeLightmapSteps, bakeRunner, type BakeScene, type BakeJob, type BakeStep,
+    bakeLightmapSteps, bakeRunner, jobLength, type BakeScene, type BakeJob, type BakeStep,
     skyRadiance, type SkySpec,
+} from './lightmap';
+/**
+ * The `.esprobes` file a probe bake writes and a LightProbeVolume loads: version 2 binary half floats, and version 1's
+ * JSON still read. One writer and one reader, so every bake door and the runtime agree on the bytes.
+ *
+ * @experimental Pre-1.0: a sparse grid will be a new version of this file.
+ */
+export {
+    encodeProbeFile, decodeProbeFile, isBinaryProbeFile, PROBE_FILE_VERSION, PROBE_FILE_SPARSE_VERSION, PROBES_PER_BRICK,
+    type ProbeVolumeDocument,
 } from './lightmap';
 /**
  * What a scene declares about its baked light: the knobs, and the fingerprint of
@@ -317,9 +327,14 @@ export {
     StreamedWorld,
     StreamPlane,
     WorldPersistent,
+    ExcludeFromFarProxy,
+    RememberState, WorldMemory, WorldMemoryRes, type RememberStateData, type WorldMemoryData,
     WorldStreamingSource,
     WorldStreamer,
     WorldStreaming,
+    DEFAULT_STREAMING_POLICY,
+    type StreamingPolicy,
+    type SlowStreamingPolicy,
     desiredResidency,
     distanceToCell,
     cellAt,
@@ -339,6 +354,9 @@ export {
     worldManifestPath,
     registryEntityFields,
     WORLD_DIR,
+    farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
+    type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
+    type AssembledFarProxy,
     type StreamedWorldData,
     type WorldStreamingSourceData,
     type WorldCell,
@@ -528,6 +546,7 @@ export {
     spriteMotionDriver,
     SPRITE_MOTION,
     SPINE_MOTION,
+    type AnimatorWindow,
     type AnimatorMotion,
     type AnimatorClipMotion,
     type AnimatorBlend1DMotion,
@@ -538,6 +557,7 @@ export {
     type MotionDriver,
     type MotionSpan,
     type MotionEvent,
+    type MotionWindow,
     type RootMotionDelta,
     AnimatorEvent,
     type AnimatorEventPayload,
@@ -996,6 +1016,8 @@ export {
     COMBAT_ATTACK_START,
     COMBAT_HIT,
     COMBAT_ATTACK_END,
+    COMBAT_ATTACK_ACTIVE,
+    COMBAT_COMBO_WINDOW,
 } from './gameplay/vocabulary';
 
 /** What a game says about its own run, for the observation seam a packaged game
