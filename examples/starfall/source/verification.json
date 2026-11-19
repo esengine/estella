@@ -1,17 +1,29 @@
 {
-  "recorded": "2026-11-19T09:26:26.889Z",
-  "sourceDigest": "785e00b855664ab3b2eb8509997b0eb0ffd3893725e0c262d167c27f5389fa11",
+  "recorded": "2026-11-19T09:50:10.506Z",
+  "sourceDigest": "a9967aa81946b0fac0212dc1bda9307e6afbd5049327bf772e326e225ff49c85",
   "files": {
+    "assets/audio/charge.wav": "90411fd92b79d9f33e09c070de9a8fdaaabd5f3febb7b78b9908cf86716c58cd",
+    "assets/audio/charge.wav.meta": "8b2073d5ca4d141abd60f8b8eef4f55b0a2c0c04fb1dbcaa45ce31268a1a8c63",
     "assets/audio/dash.wav": "8387d1ad388125384a1d86f1ffbbca8e107f56da4bf13dc1144aff185f02b487",
     "assets/audio/dash.wav.meta": "c599dbc820eacfc78cff8d439bf85059d8020fcf844e1d8c831d16705197d293",
-    "assets/audio/gate.wav": "74c9171d8d239a1a8ac412f54bfc0e908ad4d22d481190285cc95609f1dd7cc2",
+    "assets/audio/gate.wav": "f975f84294c55cce1a81ea2005e296fd65919bf4c7b4dc1af86f8b667da72c09",
     "assets/audio/gate.wav.meta": "adda3db67db4aad46c60a556e730049f5f05b942ce6373052fe5263523244079",
+    "assets/audio/impact.wav": "11770930b73b2a97f615506eb06f026be9e2e22a9998211b1eb41f7f2007d25f",
+    "assets/audio/impact.wav.meta": "469c17dc7e71dcdae4f62f49df5698985eece9167d3599cd80a4255b93b36acc",
     "assets/audio/nova.wav": "fb46ee188be3256f3b95aa832d10e3825b6f341f5005b930ca94837d0ad41b12",
     "assets/audio/nova.wav.meta": "367aa449ea5369e0d2fe38338815978956338f8af68f2939c3e545c8629b67ff",
     "assets/audio/slash.wav": "e4f6de1e1309320e744887d5cf09b38000802b2b2f9243c24e688f274bd98e20",
     "assets/audio/slash.wav.meta": "8040abbb7576dc2bcb6cba38daa965d54fa30e2ef90d57fa8e9df2cb05725dff",
-    "assets/scenes/main.esscene": "f7108a911ced79167d791e156c52405f98d23c0cadbc67ae0e732aa8af684aef",
+    "assets/materials/temple-light.esmaterial": "6b1d1ab4fdcc44ff43075f62ec5ae5c94376b94bbd67cf186024e3f91a83da23",
+    "assets/materials/temple-light.esmaterial.meta": "9f89b22f9286a31e49a95cb7717f26db0c1505e2bde6805aa618658eafa48044",
+    "assets/materials/temple-light.esshader": "36f28677c495d3184c0c68f8148d0af124fdfd8e511fceea5ec81da4d969ee01",
+    "assets/materials/temple-light.esshader.meta": "299b225dad9dee119ca057684054e153ded2b145b16fce35a7c91116d4cc2afc",
+    "assets/scenes/main.esscene": "4ec52ddb290f6e43c615501c9139c914be312d92f6400d6440000ff552b92252",
     "assets/scenes/main.esscene.meta": "3467c6ff07a82b0ef5c33907424eb732d06c92997ea0d70b1a8c81e99d9b43e4",
+    "assets/textures/knight-combat.png": "ee679e8a46262e1e122942976d59e3adffada45949f7178ac1eded314de73570",
+    "assets/textures/knight-combat.png.meta": "01ce7e2d8ea24ab77d90e59032a595c20b1995103e07013900a18c34a9627dac",
+    "assets/textures/knight-motion.png": "b844816cc918fac1e1173b2d02be1d16805fbbc86def850d08b14f5098341a6f",
+    "assets/textures/knight-motion.png.meta": "0dfd980c8b23af1e70975e344b951cfc7aaabbd0b8e438ee7a5d878a43ca2c4c",
     "assets/textures/knight.png": "d46fbd9a3307bfca2236c3f62495d773401340a94342a967dc20605bf04557af",
     "assets/textures/knight.png.meta": "764d4c77c1728ce760058f1cf224bfff8a94b3c6db61b7c76c4c6f7d7a2fe2a3",
     "assets/textures/sentinel.png": "7607abf5f50cfa7134aebe7d6d9db0cb075845405390f80613be8de0771574f7",
@@ -19,10 +31,11 @@
     "assets/textures/temple.png": "a0b36aa0cacbd9054863eebd772fe2e6a8f242e6a35221dbdc04e018721fba66",
     "assets/textures/temple.png.meta": "74dd1db46241a5a1911e00b60db6c4213a3eed62add502fcde6a3b6513b12248",
     "project.esproject": "cd3396a03e8a274eac2e7f4131e576a8dadb664e186627a43eaa0c08362f129f",
-    "src/effects.ts": "d7a949314dcd0b00600eb907566d1b826b78f94816c5e290741b112726fd4976",
-    "src/game.ts": "741be0881a4445dbc4693a8ad530e8db6e298cb7376ad8b3d1a35e988f2a7d33",
-    "src/main.ts": "4ee2dc852a8f05e44d391d30e8be94f75cbbeb983af10fe79a9ada45a4e0b89d",
-    "src/ui.ts": "41e56a4f0dcf411795e0807ff840723f3cc6e97a3750947fc1cd800b34d45df1"
+    "src/animation.ts": "f2f8d7343f6ad9db37d33ac210be2ffc9d8dd861c2e5c4b3b387158150b8baf1",
+    "src/effects.ts": "5f426270e0a01ef7655bef477e4b17e16e22330153165ac07b700fc5f411ce9d",
+    "src/game.ts": "b2ebbbcbd6d13a51b5e6b4101350b0cdc67ffa290c633abda0a38679fd5980d5",
+    "src/main.ts": "86a01881edfa869c4f8de987a25b8236bafe69ba75028b5f3a734723f80d31f3",
+    "src/ui.ts": "1155fe6926dcad52b75ad934bdd12f5d6e962b0ed1420ccd8006844547e22744"
   },
   "functional": {
     "status": "passed",
@@ -30,6 +43,7 @@
       "Native lobby, sound toggle and quality toggle respond to real pointer input",
       "The gate transitions from lobby to a playable trial without a scene reload",
       "Movement, jump/landing, dash, rapid keyboard tap and held attack work",
+      "Eight run poses, dash pose with bounded ghosts, distinct charge/release poses and skill-driven temple illumination",
       "Pause freezes the simulation; resume, return and new-round reset work",
       "A complete round reaches victory using real keys; the result screen can retry",
       "844×390 / DPR 2 touch layout, simultaneous joystick + attack, touch cancellation and nova tap"
@@ -38,26 +52,35 @@
     "warnings": [],
     "victory": {
       "ready": true,
-      "frame": 1923,
+      "frame": 1979,
       "phase": "won",
-      "x": 229.99999999999886,
+      "x": 83.0833333333339,
       "y": -126,
-      "health": 30,
+      "health": 90,
       "kills": 18,
-      "score": 6675,
-      "remaining": 40.50000000000111,
-      "attacks": 63,
+      "score": 4475,
+      "remaining": 40.6500000000011,
+      "attacks": 42,
       "dashes": 11,
       "novas": 5,
-      "hits": 32,
+      "hits": 27,
       "enemies": 0,
-      "bolts": 1,
+      "bolts": 0,
       "particles": 0,
       "particleCap": 160,
       "sound": true,
       "reduced": false,
       "fps": 60,
-      "simulationSteps": 1
+      "simulationSteps": 1,
+      "pose": "nova",
+      "poseFrame": 14,
+      "atlas": 1,
+      "ghosts": 0,
+      "charge": 0,
+      "light": 0.12,
+      "hitStop": 0.065,
+      "attackStage": 3,
+      "releases": 5
     }
   },
   "performance": {
@@ -83,27 +106,13 @@
             1688,
             780
           ],
-          "firstFrameMs": 3212,
-          "transferBytes": 5659834
+          "firstFrameMs": 3219,
+          "transferBytes": 6021762
         },
         "stages": [
           {
             "name": "lobby",
-            "frames": 421,
-            "fps": 60,
-            "medianMs": 16.7,
-            "p95Ms": 16.8,
-            "p99Ms": 16.8,
-            "worstMs": 16.8,
-            "over25Ms": 0,
-            "over50Ms": 0,
-            "drawCallsP95": 5,
-            "trianglesP95": 865,
-            "targetMet": true
-          },
-          {
-            "name": "first-entry",
-            "frames": 151,
+            "frames": 420,
             "fps": 60,
             "medianMs": 16.7,
             "p95Ms": 16.7,
@@ -111,22 +120,36 @@
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 1481,
+            "drawCallsP95": 6,
+            "trianglesP95": 963,
             "targetMet": true
           },
           {
-            "name": "combat-and-nova",
-            "frames": 392,
+            "name": "first-entry",
+            "frames": 150,
             "fps": 60,
             "medianMs": 16.7,
-            "p95Ms": 16.8,
+            "p95Ms": 16.7,
             "p99Ms": 16.8,
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 2051,
+            "drawCallsP95": 15,
+            "trianglesP95": 1487,
+            "targetMet": true
+          },
+          {
+            "name": "combat-and-nova",
+            "frames": 391,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 15,
+            "trianglesP95": 2451,
             "targetMet": true
           },
           {
@@ -139,8 +162,8 @@
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 2113,
+            "drawCallsP95": 15,
+            "trianglesP95": 2617,
             "targetMet": true
           },
           {
@@ -153,8 +176,8 @@
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 1973,
+            "drawCallsP95": 15,
+            "trianglesP95": 2519,
             "targetMet": true
           }
         ],
@@ -168,8 +191,8 @@
             1688,
             780
           ],
-          "firstFrameMs": 4527,
-          "transferBytes": 5659834
+          "firstFrameMs": 5018,
+          "transferBytes": 6021762
         },
         "stages": [
           {
@@ -182,40 +205,26 @@
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 5,
-            "trianglesP95": 865,
+            "drawCallsP95": 6,
+            "trianglesP95": 963,
             "targetMet": true
           },
           {
             "name": "first-entry",
-            "frames": 154,
-            "fps": 59.62,
+            "frames": 151,
+            "fps": 59.22,
             "medianMs": 16.7,
             "p95Ms": 16.8,
-            "p99Ms": 16.8,
+            "p99Ms": 33.2,
             "worstMs": 33.3,
-            "over25Ms": 1,
+            "over25Ms": 2,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 1481,
+            "drawCallsP95": 15,
+            "trianglesP95": 1585,
             "targetMet": true
           },
           {
             "name": "combat-and-nova",
-            "frames": 390,
-            "fps": 59.85,
-            "medianMs": 16.7,
-            "p95Ms": 16.7,
-            "p99Ms": 16.8,
-            "worstMs": 33.4,
-            "over25Ms": 1,
-            "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 2057,
-            "targetMet": true
-          },
-          {
-            "name": "combat-return",
             "frames": 391,
             "fps": 60,
             "medianMs": 16.7,
@@ -224,8 +233,22 @@
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 2117,
+            "drawCallsP95": 15,
+            "trianglesP95": 2447,
+            "targetMet": true
+          },
+          {
+            "name": "combat-return",
+            "frames": 392,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.8,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 15,
+            "trianglesP95": 2715,
             "targetMet": true
           },
           {
@@ -233,13 +256,13 @@
             "frames": 361,
             "fps": 60,
             "medianMs": 16.7,
-            "p95Ms": 16.7,
+            "p95Ms": 16.8,
             "p99Ms": 16.8,
             "worstMs": 16.8,
             "over25Ms": 0,
             "over50Ms": 0,
-            "drawCallsP95": 14,
-            "trianglesP95": 1973,
+            "drawCallsP95": 15,
+            "trianglesP95": 2479,
             "targetMet": true
           }
         ],
@@ -251,13 +274,13 @@
     "web": {
       "ok": true,
       "warnings": [],
-      "bytes": 5721967
+      "bytes": 6082995
     },
     "wechat": {
       "ok": true,
       "warnings": [],
-      "initialBytes": 2453963,
-      "totalBytes": 2939351,
+      "initialBytes": 2811323,
+      "totalBytes": 3296711,
       "verdicts": [
         {
           "budget": {
@@ -265,8 +288,8 @@
             "maxBytes": 4194304,
             "note": "WeChat caps a mini-game's main package at 4MB of packed bytes"
           },
-          "measuredBytes": 2453963,
-          "ratio": 0.5850703716278076,
+          "measuredBytes": 2811323,
+          "ratio": 0.670271635055542,
           "status": "ok"
         },
         {
@@ -275,8 +298,8 @@
             "maxBytes": 31457280,
             "note": "WeChat caps a mini-game at 30MB across the main package and all subpackages"
           },
-          "measuredBytes": 2939351,
-          "ratio": 0.09343945185343425,
+          "measuredBytes": 3296711,
+          "ratio": 0.1047996203104655,
           "status": "ok"
         }
       ]

@@ -67,6 +67,7 @@ export function makeUI(world: World, events: UIEventQueue, canvas: Entity, actio
     label(game, 'Objective', '净化星骸  0 / 18', 490, 78, 300, 30, 18, gold, 1);
     label(game, 'Score', '星辉  0', 408, 30, 150, 32, 18, teal, 0);
     label(game, 'Combo', '', 1040, 182, 184, 62, 32, gold, 2);
+    label(game, 'Action', '', 64, 124, 300, 38, 24, gold);
     button(game, 'Pause', '暂停', 1154, 88, 68, 38, actions.pause);
     const joystick = createVirtualJoystick({ world, parent: game, inputId: 'move', radius: 58, deadZone: .16,
         node: box(70, 546, 150, 150), baseVisual: { color: { ...ink, a: 0 } }, handleVisual: { color: { ...teal, a: 0 } } });
@@ -83,7 +84,7 @@ export function makeUI(world: World, events: UIEventQueue, canvas: Entity, actio
     control('Dash', '闪', 956, 626, 92, 62, 'dash', paper);
     control('Jump', '跃', 838, 626, 92, 62, 'jump', paper);
     label(game, 'NovaTime', '就绪', 958, 599, 90, 25, 16, gold, 1);
-    label(game, 'Guide', '拖动摇杆移动 · 长按「斩」连击\n闪避弹幕，星爆可清除附近弹幕', 340, 638, 470, 55, 17, muted, 1);
+    label(game, 'Guide', '拖动摇杆移动 · 长按「斩」三段连击\n点击星爆蓄力释放，清除附近弹幕', 340, 638, 470, 55, 17, muted, 1);
     label(game, 'Wave', '星门试炼', 465, 166, 350, 44, 28, paper, 1);
 
     const modal = group('Modal');

@@ -1,8 +1,9 @@
 import { addPlugin, defineSystem, GetWorld, Res, Input, Time, Transform, Sprite, Playthrough, UIEvents, Audio, AudioSource, Text, preloadGlyphs,
-    Quality, registerDrawCallback, unregisterDrawCallback, getPlatform, type Entity, type GlyphPreload } from 'esengine';
-import { Trial, STEP, LIMITS, type Controls } from './game';
+    Quality, Material, registerDrawCallback, unregisterDrawCallback, getPlatform, type Entity, type GlyphPreload } from 'esengine';
+import { Trial, STEP, LIMITS, CHARGE_TIME, type Controls } from './game';
 import { drawEffects } from './effects';
 import { makeUI } from './ui';
+import { samplePose, type Pose } from './animation';
 
 const cleanup = new WeakMap<object, () => void>();
 
@@ -12,12 +13,18 @@ addPlugin({
         const trial = new Trial();
         const facts = { ready: false, frame: 0, phase: 'lobby', x: 0, y: 0, health: 100, kills: 0, score: 0, remaining: 60,
             attacks: 0, dashes: 0, novas: 0, hits: 0, enemies: 0, bolts: 0, particles: 0, particleCap: 160,
-            sound: true, reduced: false, fps: 0, simulationSteps: 0 };
+            sound: true, reduced: false, fps: 0, simulationSteps: 0,
+            pose: 'idle', poseFrame: 0, atlas: 0, ghosts: 0, charge: 0, light: 0, hitStop: 0, attackStage: 0, releases: 0 };
         app.insertResource(Playthrough, { facts });
-        let ui: ReturnType<typeof makeUI> | null = null, hero: Entity, camera: Entity;
+        let ui: ReturnType<typeof makeUI> | null = null, hero: Entity, fighter: Entity, temple: Entity, camera: Entity;
         let accumulator = 0, uiClock = 0, lastPhase = '', reduced = false, effectsReduced = false, muted = false;
-        let attackSerial = 0, dashSerial = 0, novaSerial = 0, fpsTime = 0, fpsFrames = 0;
+        let attackSerial = 0, dashSerial = 0, novaSerial = 0, releaseSerial = 0, hitSerial = 0, fpsTime = 0, fpsFrames = 0;
         const sentinels: Entity[] = [];
+        const ghostEntities: Entity[] = [], textures: number[] = [];
+        const ghosts = Array.from({ length: 5 }, () => ({ life: 0, x: 0, y: 0, facing: 1, atlas: 0, frame: 0 }));
+        const pose: Pose = { atlas: 0, frame: 0, name: 'idle' };
+        const light = { x: 0, y: 0, z: 0, w: 0 };
+        let lastMotionTime = 0, ghostClock = 0, ghostNext = 0;
         const glyphJobs: GlyphPreload[] = [];
         const input: Controls = { move: 0, attack: false, dash: false, nova: false, jump: false };
         let lastDash = false, lastNova = false, lastJump = false;
@@ -28,14 +35,17 @@ addPlugin({
         app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input), Res(UIEvents), Res(Audio)], (world, time, keys, events, audio) => {
             if (!ui) {
                 const canvas = world.findEntityByName('Canvas');
-                const h = world.findEntityByName('Hero'); const cam = world.findEntityByName('Camera');
-                if (canvas === null || h === null || cam === null) return;
-                hero = h; camera = cam;
+                const h = world.findEntityByName('Hero'), f = world.findEntityByName('Fighter'), a = world.findEntityByName('CombatAtlas');
+                const cam = world.findEntityByName('Camera'), background = world.findEntityByName('Temple');
+                if (canvas === null || h === null || cam === null || f === null || a === null || background === null) return;
+                hero = h; fighter = f; camera = cam; temple = background;
+                textures.push(world.get(f, Sprite).texture, world.get(a, Sprite).texture);
+                for (let i = 0; i < ghosts.length; i++) { const e = world.findEntityByName('Ghost-' + i); if (e !== null) ghostEntities.push(e); }
                 for (let i = 0; i < LIMITS.enemies; i++) {
                     const sentinel = world.findEntityByName('Sentinel-' + i);
                     if (sentinel !== null) sentinels.push(sentinel);
                 }
-                for (const name of ['slash', 'dash', 'nova', 'gate']) {
+                for (const name of ['slash', 'dash', 'nova', 'gate', 'charge', 'impact']) {
                     const e = world.findEntityByName('Audio-' + name);
                     if (e !== null) clips[name] = world.get(e, AudioSource).clip;
                 }
@@ -52,6 +62,7 @@ addPlugin({
                 const future: Record<string, string> = {
                     Timer: '0123456789', Score: '星辉 0123456789', Objective: '净化星骸 0123456789 /',
                     Combo: '0123456789 连斩', NovaTime: '0123456789.s 就绪', Perf: '0123456789 FPS / 节能自适应',
+                    Action: '壹·流光贰·挑星叁·坠月星爆蓄力星渊觉醒',
                     Wave: '净化星骸 · 守住星门精英星骸已降临', ResultTitle: '星门已净化群星为你停留星光尚未熄灭',
                     ResultDetail: '星辉 击破 0123456789 / 试炼已暂停准备好，再向星渊出发。属于你的星辰，就在前方。再次出发，用闪避和星爆突破包围。',
                     ContinueLabel: '继续试炼再次挑战', SoundLabel: '声音：开启关闭', QualityLabel: '性能优先节能模式',
@@ -83,7 +94,9 @@ addPlugin({
             }
             if (trial.attackSerial !== attackSerial) { attackSerial = trial.attackSerial; audio.playSFX(clips.slash, { volume: .28 }); }
             if (trial.dashSerial !== dashSerial) { dashSerial = trial.dashSerial; audio.playSFX(clips.dash, { volume: .27 }); }
-            if (trial.novaSerial !== novaSerial) { novaSerial = trial.novaSerial; audio.playSFX(clips.nova, { volume: .45 }); }
+            if (trial.novaSerial !== novaSerial) { novaSerial = trial.novaSerial; audio.playSFX(clips.charge, { volume: .32 }); }
+            if (trial.novaReleaseSerial !== releaseSerial) { releaseSerial = trial.novaReleaseSerial; audio.playSFX(clips.nova, { volume: .5 }); }
+            if (trial.hitSerial !== hitSerial) { hitSerial = trial.hitSerial; audio.playSFX(clips.impact, { volume: .24 }); }
 
             const inLobby = trial.phase === 'lobby';
             const entering = trial.phase === 'entering';
@@ -91,24 +104,61 @@ addPlugin({
             const ease = u * u * (3 - 2 * u);
             const scale = 1 - ease * .6;
             const heroTransform = world.get(hero, Transform);
-            const bob = trial.phase === 'paused' ? 0 : Math.sin(trial.time * (trial.moving && !inLobby ? 16 : 2.1)) * (trial.moving && !inLobby ? 3 : 1.4);
+            const bob = Math.sin(trial.time * 2.1) * 1.4;
             heroTransform.position.x = 46 * (1 - ease) + trial.x * ease;
             heroTransform.position.y = 64 * (1 - ease) + (trial.y + 69 + bob) * ease;
-            heroTransform.scale.x = scale * (u < .7 ? 1 : trial.facing) * (trial.dash > 0 ? 1.12 : 1);
-            heroTransform.scale.y = scale * (trial.dash > 0 ? .92 : 1);
+            heroTransform.scale.x = scale; heroTransform.scale.y = scale;
             world.insert(hero, Transform, heroTransform);
+            const portrait = world.get(hero, Sprite), portraitAlpha = inLobby ? 1 : entering ? Math.max(0, 1 - (u - .56) / .13) : 0;
+            if (portrait.color.a !== portraitAlpha) world.insert(hero, Sprite, { ...portrait, color: { ...portrait.color, a: portraitAlpha } });
+
+            samplePose(trial, pose);
+            const visible = inLobby ? 0 : entering ? Math.max(0, Math.min(1, (u - .69) / .1)) : 1;
+            const alpha = visible * (trial.immune > 0 && trial.dash <= 0 && trial.nova <= 0 && trial.charge <= 0 ? .76 + Math.sin(trial.time * 30) * .24 : 1);
+            const fighterTransform = world.get(fighter, Transform);
+            fighterTransform.position.x = trial.x; fighterTransform.position.y = trial.y + 101;
+            fighterTransform.scale.x = trial.facing; fighterTransform.scale.y = 1;
+            world.insert(fighter, Transform, fighterTransform);
+            // Image rows count down from the top; Estella sprite UVs count up.
+            const sprite = world.get(fighter, Sprite), uvX = pose.frame % 4 * .25, uvY = .75 - Math.floor(pose.frame / 4) * .25;
+            const warmth = trial.charge > 0 ? .8 : 1;
+            if (sprite.texture !== textures[pose.atlas] || sprite.uvOffset.x !== uvX || sprite.uvOffset.y !== uvY || sprite.color.a !== alpha || sprite.color.b !== warmth)
+                world.insert(fighter, Sprite, { ...sprite, texture: textures[pose.atlas], uvOffset: { x: uvX, y: uvY }, color: { r: 1, g: 1, b: warmth, a: alpha } });
+
+            const animationDelta = Math.max(0, trial.motionTime - lastMotionTime); lastMotionTime = trial.motionTime;
+            ghostClock += animationDelta;
+            for (const ghost of ghosts) ghost.life = Math.max(0, ghost.life - animationDelta);
+            if (inLobby || entering) for (const ghost of ghosts) ghost.life = 0;
+            const trail = trial.dash > 0 || (trial.slash > 0 && trial.attackAge >= .1 && trial.attackAge < .24);
+            if (visible === 1 && trail && animationDelta > 0 && ghostClock >= (effectsReduced ? .065 : .035)) {
+                const ghost = ghosts[ghostNext]; ghostNext = (ghostNext + 1) % (effectsReduced ? 3 : 5); ghostClock = 0;
+                ghost.life = .23; ghost.x = trial.x; ghost.y = trial.y + 101; ghost.facing = trial.facing; ghost.frame = pose.frame; ghost.atlas = pose.atlas;
+            }
+            for (let i = 0; i < ghostEntities.length; i++) {
+                const ghost = ghosts[i], e = ghostEntities[i], s = world.get(e, Sprite), a = ghost.life / .23 * .3;
+                if (a > 0) {
+                    const tr = world.get(e, Transform); tr.position.x = ghost.x; tr.position.y = ghost.y; tr.scale.x = ghost.facing;
+                    world.insert(e, Transform, tr);
+                    world.insert(e, Sprite, { ...s, texture: textures[ghost.atlas], uvOffset: { x: ghost.frame % 4 * .25, y: .75 - Math.floor(ghost.frame / 4) * .25 }, color: { r: .24, g: .95, b: 1, a } });
+                } else if (s.color.a) world.insert(e, Sprite, { ...s, color: { ...s.color, a: 0 } });
+            }
+            light.x = trial.x; light.y = trial.y + 48;
+            light.z = inLobby || entering ? 0 : trial.light + (trial.charge > 0 ? (1 - trial.charge / CHARGE_TIME) * 1.3 : .12);
+            const material = world.get(temple, Sprite).material;
+            if (material) {
+                Material.setUniform(material, 'u_clock', trial.time);
+                Material.setUniform(material, 'u_light', light);
+                Material.setUniform(material, 'u_gate', entering ? Math.sin(u * Math.PI) * 2.5 : .3 + Math.sin(trial.time * .8) * .12);
+            }
             for (let i = 0; i < sentinels.length; i++) {
                 const e = trial.enemies[i], entity = sentinels[i], visual = world.get(entity, Sprite);
-                const a = e.active ? 1 : 0, green = e.hit > 0 ? .6 : 1;
+                const a = e.active ? 1 : e.death / .32, green = e.hit > 0 ? .6 : 1;
                 if (visual.color.a !== a || visual.color.g !== green) world.insert(entity, Sprite, { ...visual, color: { r: 1, g: green, b: e.hit > 0 ? .4 : 1, a } });
-                if (e.active) {
+                if (a > 0) {
                     const transform = world.get(entity, Transform); transform.position.x = e.x; transform.position.y = e.y;
-                    transform.scale.x = transform.scale.y = e.maxHp >= 6 ? 1.22 : 1; world.insert(entity, Transform, transform);
+                    transform.scale.x = transform.scale.y = (e.maxHp >= 6 ? 1.22 : 1) * (e.death > 0 ? 1 + (1 - e.death / .32) * .38 : 1 + e.hit * .28); world.insert(entity, Transform, transform);
                 }
             }
-            const sprite = world.get(hero, Sprite);
-            const alpha = trial.immune > 0 && trial.dash <= 0 && trial.nova <= 0 ? .65 + Math.sin(trial.time * 30) * .3 : 1;
-            if (Math.abs(sprite.color.a - alpha) > .01) world.insert(hero, Sprite, { ...sprite, color: { r: 1, g: 1, b: 1, a: alpha } });
             const cam = world.get(camera, Transform);
             cam.position.x = trial.shake > 0 && !effectsReduced ? Math.sin(trial.time * 67) * trial.shake * 14 : 0;
             cam.position.y = trial.shake > 0 && !effectsReduced ? Math.cos(trial.time * 53) * trial.shake * 8 : 0;
@@ -136,6 +186,7 @@ addPlugin({
                 ui.text('Timer', String(Math.ceil(trial.remaining)).padStart(2, '0'));
                 ui.text('Objective', `净化星骸  ${trial.kills} / ${LIMITS.kills}`); ui.text('Score', `星辉  ${trial.score}`);
                 ui.text('Combo', trial.combo >= 2 ? `${trial.combo} 连斩` : '');
+                ui.text('Action', trial.charge > 0 ? '星爆蓄力' : trial.nova > .45 ? '星渊觉醒' : trial.slash > 0 ? ['壹 · 流光', '贰 · 挑星', '叁 · 坠月'][trial.attackStage] : '');
                 ui.text('NovaTime', trial.novaCooldown > 0 ? trial.novaCooldown.toFixed(1) + 's' : '就绪');
                 ui.text('Wave', trial.phaseTime < 3 ? '净化星骸 · 守住星门' : trial.spawned >= 15 && trial.phaseTime % 9 < 2 ? '精英星骸已降临' : '');
                 ui.health(trial.health);
@@ -143,7 +194,9 @@ addPlugin({
             Object.assign(facts, { frame: facts.frame + 1, phase: trial.phase, x: trial.x, y: trial.y, health: trial.health, kills: trial.kills,
                 score: trial.score, remaining: trial.remaining, attacks: trial.attackSerial, dashes: trial.dashSerial, novas: trial.novaSerial,
                 hits: trial.hitSerial, enemies: trial.enemies.reduce((n, e) => n + Number(e.active), 0), bolts: trial.bolts.reduce((n, b) => n + Number(b.active), 0),
-                particles: trial.sparks.reduce((n, p) => n + Number(p.life > 0), 0), particleCap: trial.particleLimit, sound: !muted, reduced, simulationSteps: steps });
+                particles: trial.sparks.reduce((n, p) => n + Number(p.life > 0), 0), particleCap: trial.particleLimit, sound: !muted, reduced, simulationSteps: steps,
+                pose: pose.name, poseFrame: pose.frame, atlas: pose.atlas, ghosts: ghosts.reduce((n, g) => n + Number(g.life > 0), 0),
+                charge: trial.charge, light: light.z, hitStop: trial.hitStop, attackStage: trial.attackStage + 1, releases: trial.novaReleaseSerial });
         }, { name: 'StarfallTrial' }));
         cleanup.set(app, () => { unregisterDrawCallback('starfall-effects'); offHide?.(); for (const job of glyphJobs) job.release(); });
     },

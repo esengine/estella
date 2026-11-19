@@ -1,0 +1,14 @@
+{
+  "uuid": "c972ea15-93e7-46d0-abf1-7fc313bdbcf4",
+  "version": "2.0",
+  "type": "texture",
+  "importer": {
+    "maxSize": 1024,
+    "filterMode": "linear",
+    "wrapMode": "clamp",
+    "premultiplyAlpha": false,
+    "compress": "on",
+    "compressFormat": "etc1s",
+    "mipmaps": false
+  }
+}

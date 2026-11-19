@@ -25,12 +25,23 @@ try {
     await click(page, 1060, 500); assert.equal((await facts(page)).phase, 'entering'); await step(page, 25); await page.screenshot({ path: path.join(out, 'entering.png') }); await step(page, 60);
     assert.equal((await facts(page)).phase, 'playing'); checks.push('The gate transitions from lobby to a playable trial without a scene reload');
     const before = (await facts(page)).x; await key(page, 'd', 40); assert.ok((await facts(page)).x > before + 150);
+    await pause(page, false); await page.keyboard.down('a'); await observe(page); await pause(page, true);
+    const runFrames = new Set();
+    for (let i = 0; i < 12; i++) { await step(page, 3); const f = await facts(page); assert.equal(f.pose, 'run'); runFrames.add(f.poseFrame); }
+    assert.equal(runFrames.size, 8, 'running cycles through all eight authored poses');
+    await page.screenshot({ path: path.join(out, 'run.png') }); await page.keyboard.up('a'); await step(page, 2);
     await key(page, 'Space', 6); assert.ok((await facts(page)).y > -126); await step(page, 80); assert.equal((await facts(page)).y, -126);
-    await key(page, 'k', 6); assert.ok((await facts(page)).dashes > 0);
+    await key(page, 'k', 3); assert.ok((await facts(page)).dashes > 0); assert.equal((await facts(page)).pose, 'dash'); assert.ok((await facts(page)).ghosts > 0);
+    await page.screenshot({ path: path.join(out, 'dash.png') });
     // A tap whose down/up both occur between render frames must still cast.
     await pause(page, false); await page.keyboard.press('e'); await observe(page); await pause(page, true); assert.equal((await facts(page)).novas, 1);
-    await step(page, 10); await page.screenshot({ path: path.join(out, 'combat.png') });
+    await step(page, 10); assert.equal((await facts(page)).pose, 'charge'); assert.equal((await facts(page)).releases, 0);
+    await page.screenshot({ path: path.join(out, 'charge.png') });
+    await step(page, 17); assert.equal((await facts(page)).releases, 1); assert.ok((await facts(page)).light > 1);
+    await page.screenshot({ path: path.join(out, 'combat.png') });
     await key(page, 'j', 70); assert.ok((await facts(page)).attacks > 1); checks.push('Movement, jump/landing, dash, rapid keyboard tap and held attack work');
+    await page.screenshot({ path: path.join(out, 'slash.png') });
+    checks.push('Eight run poses, dash pose with bounded ghosts, distinct charge/release poses and skill-driven temple illumination');
     await click(page, 1182, 104); const frozen = await facts(page); assert.equal(frozen.phase, 'paused'); await step(page, 180); assert.equal((await facts(page)).remaining, frozen.remaining);
     await click(page, 640, 490); assert.equal((await facts(page)).phase, 'playing');
     await click(page, 1182, 104); await click(page, 640, 575); assert.equal((await facts(page)).phase, 'lobby');
@@ -58,6 +69,7 @@ try {
     await mobile.waitForTimeout(600); const moved = await facts(mobile); assert.ok(moved.x > initial.x + 80); assert.ok(moved.attacks > initial.attacks);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }); await mobile.waitForTimeout(100); const released = await facts(mobile); await mobile.waitForTimeout(200); assert.equal((await facts(mobile)).x, released.x);
     await mobile.touchscreen.tap(dx + 1003 * scale, 560 * scale); await mobile.waitForTimeout(180); assert.equal((await facts(mobile)).novas, 1);
+    assert.equal((await facts(mobile)).pose, 'charge'); await mobile.waitForTimeout(370); assert.equal((await facts(mobile)).releases, 1);
     await mobile.screenshot({ path: path.join(out, 'mobile-combat.png') });
     checks.push('844×390 / DPR 2 touch layout, simultaneous joystick + attack, touch cancellation and nova tap');
     assert.deepEqual(errors, []); assert.deepEqual(warnings, []);
