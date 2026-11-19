@@ -1,0 +1,393 @@
+{
+  "version": 4,
+  "name": "Starfall",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 360,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Temple",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/temple.png",
+            "size": {
+              "x": 1280,
+              "y": 720
+            },
+            "layer": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Hero",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 46,
+              "y": 64,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/knight.png",
+            "size": {
+              "x": 390,
+              "y": 420
+            },
+            "layer": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Sentinel-0",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Sentinel-1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Sentinel-2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Sentinel-3",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Sentinel-4",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Sentinel-5",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "assets/textures/sentinel.png",
+            "size": {
+              "x": 105,
+              "y": 105
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "layer": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Canvas",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1280,
+              "y": 720
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Audio-slash",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "AudioSource",
+          "data": {
+            "clip": "assets/audio/slash.wav",
+            "playing": false,
+            "volume": 0.5,
+            "loop": false,
+            "playOnAwake": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Audio-dash",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "AudioSource",
+          "data": {
+            "clip": "assets/audio/dash.wav",
+            "playing": false,
+            "volume": 0.5,
+            "loop": false,
+            "playOnAwake": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Audio-nova",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "AudioSource",
+          "data": {
+            "clip": "assets/audio/nova.wav",
+            "playing": false,
+            "volume": 0.5,
+            "loop": false,
+            "playOnAwake": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Audio-gate",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "AudioSource",
+          "data": {
+            "clip": "assets/audio/gate.wav",
+            "playing": false,
+            "volume": 0.5,
+            "loop": false,
+            "playOnAwake": false
+          }
+        }
+      ]
+    }
+  ]
+}

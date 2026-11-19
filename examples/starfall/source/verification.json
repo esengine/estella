@@ -1,0 +1,289 @@
+{
+  "recorded": "2026-11-19T09:26:26.889Z",
+  "sourceDigest": "785e00b855664ab3b2eb8509997b0eb0ffd3893725e0c262d167c27f5389fa11",
+  "files": {
+    "assets/audio/dash.wav": "8387d1ad388125384a1d86f1ffbbca8e107f56da4bf13dc1144aff185f02b487",
+    "assets/audio/dash.wav.meta": "c599dbc820eacfc78cff8d439bf85059d8020fcf844e1d8c831d16705197d293",
+    "assets/audio/gate.wav": "74c9171d8d239a1a8ac412f54bfc0e908ad4d22d481190285cc95609f1dd7cc2",
+    "assets/audio/gate.wav.meta": "adda3db67db4aad46c60a556e730049f5f05b942ce6373052fe5263523244079",
+    "assets/audio/nova.wav": "fb46ee188be3256f3b95aa832d10e3825b6f341f5005b930ca94837d0ad41b12",
+    "assets/audio/nova.wav.meta": "367aa449ea5369e0d2fe38338815978956338f8af68f2939c3e545c8629b67ff",
+    "assets/audio/slash.wav": "e4f6de1e1309320e744887d5cf09b38000802b2b2f9243c24e688f274bd98e20",
+    "assets/audio/slash.wav.meta": "8040abbb7576dc2bcb6cba38daa965d54fa30e2ef90d57fa8e9df2cb05725dff",
+    "assets/scenes/main.esscene": "f7108a911ced79167d791e156c52405f98d23c0cadbc67ae0e732aa8af684aef",
+    "assets/scenes/main.esscene.meta": "3467c6ff07a82b0ef5c33907424eb732d06c92997ea0d70b1a8c81e99d9b43e4",
+    "assets/textures/knight.png": "d46fbd9a3307bfca2236c3f62495d773401340a94342a967dc20605bf04557af",
+    "assets/textures/knight.png.meta": "764d4c77c1728ce760058f1cf224bfff8a94b3c6db61b7c76c4c6f7d7a2fe2a3",
+    "assets/textures/sentinel.png": "7607abf5f50cfa7134aebe7d6d9db0cb075845405390f80613be8de0771574f7",
+    "assets/textures/sentinel.png.meta": "876aa49b970178ddb1427985ef7ae10609ba6662ecaaf91fcb19b12104d517f7",
+    "assets/textures/temple.png": "a0b36aa0cacbd9054863eebd772fe2e6a8f242e6a35221dbdc04e018721fba66",
+    "assets/textures/temple.png.meta": "74dd1db46241a5a1911e00b60db6c4213a3eed62add502fcde6a3b6513b12248",
+    "project.esproject": "cd3396a03e8a274eac2e7f4131e576a8dadb664e186627a43eaa0c08362f129f",
+    "src/effects.ts": "d7a949314dcd0b00600eb907566d1b826b78f94816c5e290741b112726fd4976",
+    "src/game.ts": "741be0881a4445dbc4693a8ad530e8db6e298cb7376ad8b3d1a35e988f2a7d33",
+    "src/main.ts": "4ee2dc852a8f05e44d391d30e8be94f75cbbeb983af10fe79a9ada45a4e0b89d",
+    "src/ui.ts": "41e56a4f0dcf411795e0807ff840723f3cc6e97a3750947fc1cd800b34d45df1"
+  },
+  "functional": {
+    "status": "passed",
+    "checks": [
+      "Native lobby, sound toggle and quality toggle respond to real pointer input",
+      "The gate transitions from lobby to a playable trial without a scene reload",
+      "Movement, jump/landing, dash, rapid keyboard tap and held attack work",
+      "Pause freezes the simulation; resume, return and new-round reset work",
+      "A complete round reaches victory using real keys; the result screen can retry",
+      "844×390 / DPR 2 touch layout, simultaneous joystick + attack, touch cancellation and nova tap"
+    ],
+    "errors": [],
+    "warnings": [],
+    "victory": {
+      "ready": true,
+      "frame": 1923,
+      "phase": "won",
+      "x": 229.99999999999886,
+      "y": -126,
+      "health": 30,
+      "kills": 18,
+      "score": 6675,
+      "remaining": 40.50000000000111,
+      "attacks": 63,
+      "dashes": 11,
+      "novas": 5,
+      "hits": 32,
+      "enemies": 0,
+      "bolts": 1,
+      "particles": 0,
+      "particleCap": 160,
+      "sound": true,
+      "reduced": false,
+      "fps": 60,
+      "simulationSteps": 1
+    }
+  },
+  "performance": {
+    "scope": "Real rAF cadence in the shipping WebGL2 build, headless Chromium, 844×390 CSS / DPR 2. CDP CPU throttling is a synthetic stress test; the GPU remains the desktop GPU. Not a WeChat or physical midrange phone acceptance result.",
+    "machine": {
+      "platform": "win32",
+      "cpu": "Intel(R) Core(TM) i5-14600K",
+      "browser": "151.0.7922.34"
+    },
+    "limits": {
+      "fps": 58,
+      "p95Ms": 20,
+      "over50Ms": 0,
+      "drawCallsP95": 32
+    },
+    "errors": [],
+    "runs": [
+      {
+        "throttle": 1,
+        "device": {
+          "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+          "surface": [
+            1688,
+            780
+          ],
+          "firstFrameMs": 3212,
+          "transferBytes": 5659834
+        },
+        "stages": [
+          {
+            "name": "lobby",
+            "frames": 421,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.8,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 5,
+            "trianglesP95": 865,
+            "targetMet": true
+          },
+          {
+            "name": "first-entry",
+            "frames": 151,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 1481,
+            "targetMet": true
+          },
+          {
+            "name": "combat-and-nova",
+            "frames": 392,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.8,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 2051,
+            "targetMet": true
+          },
+          {
+            "name": "combat-return",
+            "frames": 390,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 2113,
+            "targetMet": true
+          },
+          {
+            "name": "economy",
+            "frames": 361,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 1973,
+            "targetMet": true
+          }
+        ],
+        "targetMet": true
+      },
+      {
+        "throttle": 4,
+        "device": {
+          "gpu": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+          "surface": [
+            1688,
+            780
+          ],
+          "firstFrameMs": 4527,
+          "transferBytes": 5659834
+        },
+        "stages": [
+          {
+            "name": "lobby",
+            "frames": 421,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 5,
+            "trianglesP95": 865,
+            "targetMet": true
+          },
+          {
+            "name": "first-entry",
+            "frames": 154,
+            "fps": 59.62,
+            "medianMs": 16.7,
+            "p95Ms": 16.8,
+            "p99Ms": 16.8,
+            "worstMs": 33.3,
+            "over25Ms": 1,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 1481,
+            "targetMet": true
+          },
+          {
+            "name": "combat-and-nova",
+            "frames": 390,
+            "fps": 59.85,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 33.4,
+            "over25Ms": 1,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 2057,
+            "targetMet": true
+          },
+          {
+            "name": "combat-return",
+            "frames": 391,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.8,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 2117,
+            "targetMet": true
+          },
+          {
+            "name": "economy",
+            "frames": 361,
+            "fps": 60,
+            "medianMs": 16.7,
+            "p95Ms": 16.7,
+            "p99Ms": 16.8,
+            "worstMs": 16.8,
+            "over25Ms": 0,
+            "over50Ms": 0,
+            "drawCallsP95": 14,
+            "trianglesP95": 1973,
+            "targetMet": true
+          }
+        ],
+        "targetMet": true
+      }
+    ]
+  },
+  "exports": {
+    "web": {
+      "ok": true,
+      "warnings": [],
+      "bytes": 5721967
+    },
+    "wechat": {
+      "ok": true,
+      "warnings": [],
+      "initialBytes": 2453963,
+      "totalBytes": 2939351,
+      "verdicts": [
+        {
+          "budget": {
+            "scope": "initial",
+            "maxBytes": 4194304,
+            "note": "WeChat caps a mini-game's main package at 4MB of packed bytes"
+          },
+          "measuredBytes": 2453963,
+          "ratio": 0.5850703716278076,
+          "status": "ok"
+        },
+        {
+          "budget": {
+            "scope": "total",
+            "maxBytes": 31457280,
+            "note": "WeChat caps a mini-game at 30MB across the main package and all subpackages"
+          },
+          "measuredBytes": 2939351,
+          "ratio": 0.09343945185343425,
+          "status": "ok"
+        }
+      ]
+    }
+  },
+  "physicalDeviceAcceptance": {
+    "status": "not-run",
+    "reason": "No connected Android device and no target phone model or WeChat AppID supplied. Browser CPU throttling retains the desktop GPU."
+  }
+}

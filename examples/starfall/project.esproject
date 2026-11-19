@@ -1,0 +1,32 @@
+{
+  "formatVersion": "1",
+  "name": "星渊 · STARFALL",
+  "description": "A painted 2D celestial action game: an animated lobby, seamless gate entry and a complete touch-controlled trial, built with Estella's 2D/3D engine.",
+  "tag": "2D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": { "width": 1280, "height": 720 },
+  "spineVersion": "none",
+  "scripts": { "main": "src/main.ts" },
+  "assetExclude": ["tools", "source"],
+  "features": {
+    "rendering": {
+      "cameraScaleMode": "expand",
+      "renderResolution": "design",
+      "quality": {
+        "mode": "auto", "targetFps": 60, "dynamicResolution": true,
+        "asyncShaderCompile": true, "prewarmShaders": true,
+        "profiles": {
+          "low": { "renderScale": 0.75, "minRenderScale": 0.6, "msaaSamples": 1, "antialiasing": "msaa", "postProcess": false, "ssao": false, "depthPrepass": false, "particleLimit": 96, "drawCallBudget": 32, "textureStreaming": false },
+          "medium": { "renderScale": 1, "minRenderScale": 0.65, "msaaSamples": 1, "antialiasing": "msaa", "postProcess": false, "ssao": false, "depthPrepass": false, "particleLimit": 160, "drawCallBudget": 32, "textureStreaming": false },
+          "high": { "renderScale": 1, "minRenderScale": 0.65, "msaaSamples": 1, "antialiasing": "msaa", "postProcess": false, "ssao": false, "depthPrepass": false, "particleLimit": 160, "drawCallBudget": 32, "textureStreaming": false }
+        }
+      }
+    }
+  },
+  "packaging": {
+    "platform": "wechat", "orientation": "landscape", "config": "shipping",
+    "minifyScripts": true, "sourceMaps": false,
+    "compressTextures": true, "compressWasm": true, "engineSubpackage": true
+  }
+}
