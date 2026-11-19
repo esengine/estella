@@ -113,8 +113,8 @@ Content Browser). Saving it re-imports the model.
 A sculpt, a scan or a generated model can carry a million triangles or more, far past what a game draws. Set
 **Max Triangles** in the model's import settings and the import cuts the model to at most that many, every mesh by the
 same share; 0, the default, leaves it as it is. The source file keeps every triangle, so the number can be raised
-later. Skinned meshes are cut too and keep their rig and animations; morphing meshes are left as they are. Models
-generated with the editor's Tripo tools are imported at 60,000 triangles unless you set another number.
+later. Skinned meshes are cut too and keep their rig and animations; morphing meshes are left as they are. A model
+generated with the editor's Tripo tools keeps every triangle Tripo made unless the agent asks for a budget (`max_triangles`).
 
 ## Generated levels of detail
 
