@@ -21,7 +21,7 @@ the main thread's time a frame, what it went on (systems, the renderer's native 
 GPU's time a frame, the draws, triangles, passes and shadow tiles, and the frame rate.`;
 
 const DEFAULT_SCENES = ['third-person-3d', 'physics-3d', 'lighting-3d', 'world-streaming-3d', 'enemy-ai-3d', 'terrain-water',
-  'planar-reflection', 'model-import', 'character-rig', 'cyber-rooftop', 'dusk-fort', 'bistro', 'space-frigate'];
+  'planar-reflection', 'model-import', 'character-rig', 'cyber-rooftop', 'dusk-fort', 'bistro'];
 
 const ARGS = toolArgs({
   scenes: '', rounds: '1', slow: null, quality: ['low', 'medium', 'high', 'scene'], frames: '300', w: '844', h: '390', dpr: '2.5',
@@ -55,7 +55,6 @@ const PHONE_UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (K
 const CHROME_ARGS = ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit', '--enable-unsafe-swiftshader'];
 
 const STORAGE = {
-  'space-frigate': (mode) => ({ 'space-frigate:graphics': JSON.stringify({ mode, off: [] }) }),
 };
 const projectDir = (scene) => path.resolve(PROJECTS[scene] ?? path.join(ROOT, 'examples', scene));
 const packageDir = (scene) => path.join(OUTROOT, 'pkg', scene);

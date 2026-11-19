@@ -1441,17 +1441,17 @@ export const SHIPPED = {
   "What texture recipes cost can be read.":
     { notCertifiable: "A measurement, which no frame holds. Covered by sdk/tests/texture-recipe.test.ts." },
   "The space frigate flies with a HUD, drawn from recipes.":
-    { notCertifiable: "An example, not a capability: looked at in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+    { notCertifiable: "An example, not a capability: looked at in a real web export through tools/hud-capture.mjs in the esengine/estella-space-frigate repository; no golden project is the frigate." },
   "Screen UI can stand in depth.":
     { notCertifiable: "Covered by the pr-tier render scenes ui-screen-3d and ui-screen-3d-camera-moved in tools/renderScenes.mjs on both backends and sdk/tests/screen-overlay.test.ts; no golden project sets a perspective." },
   "A Canvas can be drawn through a material, and UI can read the frame under it.":
     { notCertifiable: "Covered by the pr-tier render scenes ui-screen-effect and ui-screen-backdrop, each also in a linear project, in tools/renderScenes.mjs on both backends; no golden project carries a CanvasEffect." },
   "The space frigate mines its asteroids.":
-    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through tools/hud-capture.mjs in the esengine/estella-space-frigate repository; no golden project is the frigate." },
   "The space frigate can be flown.":
-    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through tools/hud-capture.mjs in the esengine/estella-space-frigate repository; no golden project is the frigate." },
   "The space frigate is steered by orders that hold.":
-    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through tools/hud-capture.mjs in the esengine/estella-space-frigate repository; no golden project is the frigate." },
   "An agent working in Estella is told how a task is done here and can prove it done: official skills and `verify`.":
     { notCertifiable: "Guidance an agent reads over the editor's MCP server, not game behaviour; no golden project is judged on how it was authored." },
   "A planet can tint its terrain layers by its own four layer colours.":
