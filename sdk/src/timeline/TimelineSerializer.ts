@@ -57,6 +57,8 @@ function serializeTrack(track: Track): Record<string, unknown> {
             return { ...base, childPath: '', clips: track.clips };
         case TrackType.Sequence:
             return { ...base, childPath: '', clips: track.clips };
+        case TrackType.Animation:
+            return { ...base, hold: track.hold, clips: track.clips };
         case TrackType.AnimFrames:
             // On-disk key is `animFrames` (matches the loader's read path).
             return { ...base, animFrames: track.frames };

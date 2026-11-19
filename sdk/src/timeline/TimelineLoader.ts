@@ -17,6 +17,7 @@ import {
     type AnimFramesTrack,
     type CameraTrack,
     type SequenceTrack,
+    type AnimationTrack,
 } from './TimelineTypes';
 import { log } from '../util/logger';
 
@@ -192,6 +193,23 @@ function parseTrack(raw: any): Track {
                 })),
             } as SequenceTrack;
 
+        case TrackType.Animation:
+            return {
+                ...base,
+                type: TrackType.Animation,
+                hold: raw.hold === true,
+                clips: (raw.clips ?? []).map((c: any) => ({
+                    start: finite(c.start, 0),
+                    duration: Math.max(0, finite(c.duration, 0)),
+                    clip: typeof c.clip === 'string' ? c.clip : '',
+                    clipIn: Math.max(0, finite(c.clipIn, 0)),
+                    speed: finite(c.speed, 1) || 1,
+                    loop: c.loop === true,
+                    easeIn: Math.max(0, finite(c.easeIn, 0)),
+                    easeOut: Math.max(0, finite(c.easeOut, 0)),
+                })),
+            } as AnimationTrack;
+
         default:
             log.warn('timeline', `Unknown track type: ${raw.type}, skipping`);
             return null as any;
@@ -236,6 +254,9 @@ export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPa
             }
         } else if (track.type === TrackType.Sequence) {
             for (const clip of track.clips) if (clip.timeline) timelines.add(clip.timeline);
+        } else if (track.type === TrackType.Animation) {
+            // An animation clip is a timeline of joint curves: loaded with the rest, as a nested sequence is.
+            for (const clip of track.clips) if (clip.clip) timelines.add(clip.clip);
         } else if (track.type === TrackType.AnimFrames) {
             for (const frame of track.frames) {
                 if (frame.texture) {

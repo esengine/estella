@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
+import { SystemLabel } from '../ecs/systemLabels';
 import { Res } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, type TimelineEventPayload } from './timelineEvents';
@@ -140,7 +141,9 @@ export class TimelinePlugin implements Plugin {
                 }
             },
             { name: 'TimelineSystem' },
-        ), { runIf: playModeOnly });
+        // After the Animator: an animation track blends over (or, at full weight, replaces) the pose it gave the rig
+        // this frame, and a property track has the last word on a field both animate, as in Unity's Timeline.
+        ), { runIf: playModeOnly, runAfter: [SystemLabel.Animator] });
     }
 
     clearHandles(): void {

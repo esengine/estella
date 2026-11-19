@@ -96,6 +96,28 @@ A timeline is a set of tracks evaluated together each frame:
 | Custom event | `CustomEvent` | Named events with a payload (and an optional window), sent as a `TimelineEvent` (see [below](#events-and-markers)). |
 | Camera | `Camera` | Which camera is the view, shot by shot (see [below](#cameras-and-sequences)). |
 | Sequence | `Sequence` | Another timeline, played inside a window of this one. |
+| Animation | `Animation` | Skeletal animation clips on a rig, eased and crossfaded over its own animation (see [below](#animation-tracks)). |
+
+### Animation tracks
+
+An animation track plays skeletal animation on a rig, as Unity's Animation Track and UE's Skeletal Animation track
+do. Each clip plays an animation (an `.estimeline` of joint curves, as importing a model writes them) on the track's
+entity:
+
+| Clip field | Default | Description |
+|---|---|---|
+| `clip` | `''` | The animation it plays, by asset ref. |
+| `start` / `duration` | | Where it sits on the track, in seconds. |
+| `clipIn` | `0` | Seconds into the animation it starts from. |
+| `speed` | `1` | Playback speed. |
+| `loop` | `false` | Repeat the animation to fill the clip instead of holding its last frame. |
+| `easeIn` / `easeOut` | `0` | Seconds to blend in from, and back out to, the rig's own animation. |
+
+Where two clips overlap, the overlap is a crossfade: the earlier fades out as the later fades in. Where a clip eases
+in or out, it blends with the rig's own pose: its `Animator`'s for that frame when it has one (the timeline runs
+after the Animator, so at full weight the track decides the pose), and otherwise its rest pose. Between clips the rig
+is its own again; set the track's `hold` to keep the last clip's final pose after it ends. The Sequencer draws the
+ease as a ramp at a bar's end and the crossfade as a hatch over the overlap, and its preview plays the blend.
 
 ### Activation ranges
 

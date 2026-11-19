@@ -12,6 +12,7 @@
  * turns; a folded sample time alone cannot preserve playback direction.
  */
 
+import { sampleAnimationTracks } from './timelineAnimation';
 import { applyWrapMode, sampleTimeline, type SampleDeps, type SampleOptions } from './TimelineEvaluator';
 import { applyTimelineEvent, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
@@ -224,6 +225,8 @@ export function advanceTimelineTS(
     state.phase = advanced;
 
     sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
+    // Skeletal clips on their rigs, blended over what the rig's Animator posed this frame.
+    if (ctx.lookup) sampleAnimationTracks(asset, state.time, root, ctx.deps, ctx.lookup);
     ctx.onPropertyApplied?.(root, asset);
 
     const segments = playheadRuns(phase, advanced, asset.duration, state.wrapMode, !state.started);
@@ -258,6 +261,7 @@ function advanceNested(asset: TimelineAsset, root: Entity, state: TimelineState,
     for (const layer of collectSequenceLayers(asset, state.time, root, ctx.deps.resolveChild, lookup)) {
         live.add(layer.key);
         sampleTimeline(layer.asset, layer.time, layer.root, ctx.deps, ctx.sampleOpts);
+        sampleAnimationTracks(layer.asset, layer.time, layer.root, ctx.deps, lookup);
         ctx.onPropertyApplied?.(layer.root, layer.asset);
         const before = state.nested[layer.key];
         const prev = before ? before.time : -1;

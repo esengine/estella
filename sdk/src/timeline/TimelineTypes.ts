@@ -58,6 +58,7 @@ export const TrackType = {
     AnimFrames: 'animFrames',
     Camera: 'camera',
     Sequence: 'sequence',
+    Animation: 'animation',
 } as const;
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
@@ -214,7 +215,39 @@ export interface SequenceTrack extends TrackBase {
     clips: SequenceClip[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack;
+/**
+ * One animation clip on an animation track: a skeletal animation (an `.estimeline` of joint curves, as a model import
+ * writes them) played on the track's rig from `start` for `duration` seconds.
+ */
+export interface AnimationClipItem {
+    start: number;
+    duration: number;
+    /** The animation it plays, by asset ref. */
+    clip: string;
+    /** Seconds into the animation the clip starts from (Unity's Clip In). */
+    clipIn: number;
+    speed: number;
+    /** Repeat the animation to fill the clip instead of holding its last frame. */
+    loop: boolean;
+    /** Seconds the clip takes to blend in from what the rig was doing, and to blend back out. Where two clips overlap,
+     *  the overlap is the crossfade instead. */
+    easeIn: number;
+    easeOut: number;
+}
+
+/**
+ * Skeletal animation over time on one rig (Unity's Animation Track, UE's Skeletal Animation track): clips that blend
+ * into each other where they overlap, and over the rig's own animation (its Animator) where they ease in or out. At full
+ * weight the track decides the pose.
+ */
+export interface AnimationTrack extends TrackBase {
+    type: typeof TrackType.Animation;
+    clips: AnimationClipItem[];
+    /** Keep the last clip's final pose after it ends (Unity's Post-Extrapolation Hold), instead of handing the rig back. */
+    hold: boolean;
+}
+
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack;
 
 export interface TimelineAsset {
     version: string;
@@ -241,7 +274,8 @@ export interface PublishedTimeline {
  */
 export function playableTimeline(asset: TimelineAsset): TimelineAsset {
     let any = false;
-    for (const t of asset.tracks) {
+    // A partial asset (a code registration without tracks) plays as it is.
+    for (const t of asset.tracks ?? []) {
         if (t.muted || (t.type === TrackType.Property && t.channels.some((c) => c.muted))) { any = true; break; }
     }
     if (!any) return asset;

@@ -24,6 +24,8 @@ export {
     type CameraTrack,
     type SequenceClip,
     type SequenceTrack,
+    type AnimationTrack,
+    type AnimationClipItem,
     type AnimFrame,
     type AnimFramesTrack,
     type Track,
@@ -62,6 +64,13 @@ export {
     type SampleOptions,
     type RootPlacement,
 } from './TimelineEvaluator';
+
+export {
+    sampleAnimationTracks,
+    animationClipWeights,
+    clipLocalTime,
+    type AnimationClipWeight,
+} from './timelineAnimation';
 
 export {
     playheadRuns,
