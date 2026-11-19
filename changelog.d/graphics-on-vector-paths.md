@@ -4,6 +4,7 @@ commits:
   - feat(render): Graphics fills any path and is tessellated once, and flush() draws it moved, turned, scaled and faded through a batched Draw.triangles
   - perf(render): Graphics keeps its triangles in the engine's memory and flush() draws them by reference - Draw.createTriangles copies a mesh in once, so drawing a shape copies nothing
   - perf(render): a Graphics' triangles live on the GPU and each copy is an instance record - the batch shader's INSTANCED variant moves and tints the shape there, and copies drawn one after another are one instanced draw
+  - perf(render): Graphics.flushMany and Draw.trianglesMany draw many copies of a shape in one call into the engine - the copies' instance records are written where the engine reads them
 ---
 **`Graphics` fills any outline, builds its triangles once, and draws one shape any number of times faded and moved.** It
 filled only rectangles and circles (a path from `moveTo` and `lineTo` stayed an outline, a rounded rectangle filled square
@@ -17,5 +18,9 @@ made. `geometry()` returns the triangles. `Draw.triangles(mesh, { tint, transfor
 triangle list with a colour a vertex, moved by a 2D affine and batched with the frame's other shapes. The triangles are put on the
 GPU once (`Draw.createTriangles`; `Graphics.dispose()` gives the memory back early) and each copy is a 28-byte instance
 record the GPU moves and tints the shape by, so copies drawn one after another are one instanced draw. Measured in the editor, 5000 hit flashes a frame cost the script 0.9 ms
-(3.4 ms when every flush copied and transformed its triangles on the CPU) and remain one draw call. The Custom Drawing
+(3.4 ms when every flush copied and transformed its triangles on the CPU) and remain one draw call.
+`flushMany(copies, count)` (and `Draw.trianglesMany` under it) draws many copies from one array in a single call into the
+engine: 5000 copies cost the script 0.2 ms, against 0.7 ms flushed one at a time. A drawing rebuilt every frame
+(cleared and drawn again, each shape in its own colour) goes with the frame's other shapes and makes no GPU buffer, which
+only a drawing kept from an earlier frame does: 200 hexagons outlined, filled and stroked anew every frame cost 0.6 ms. The Custom Drawing
 example fills its star and draws six fading hit flashes from one hexagon.

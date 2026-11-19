@@ -5,12 +5,12 @@
 # Estella
 
 **A 2D and 3D game engine whose editor is an MCP server.**<br/>
-Your AI agent builds the game with the same 167 tools the editor's own UI uses —
+Your AI agent builds the game with the same 181 tools the editor's own UI uses —
 then ships it to the web, mini-game platforms, playable ads, desktop and native mobile.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
-[![MCP](https://img.shields.io/badge/MCP-167_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
+[![MCP](https://img.shields.io/badge/MCP-181_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Mini--games%20%7C%20Playable%20ads%20%7C%20Desktop%20%7C%20Android%20%7C%20iOS-green.svg)](https://estellaengine.com/docs/publishing/overview/)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-1f6feb.svg)](https://deepwiki.com/esengine/estella)
 
@@ -48,6 +48,16 @@ you watch it happen in the window, and you can take the mouse back at any time. 
 editor starts **read-only**; an agent edits only after you allow it in
 *Window → Connect AI Tools…*, which also writes the client's MCP config for you.
 
+**The tools are not all loaded at once.** A session starts with the everyday ones
+only, about fifty: read and edit the scene, play and step the game, open and save,
+screenshots, logs, undo. The rest sit in the groups below, and the agent lists a group
+when the work calls for it (`enable_tools { groups: ["look"] }`), so a session does not
+pay thousands of tokens of tool descriptions for tools it never uses. Long tool guides
+work the same way: a description is the short form, and `tool_guide` reads the rest by
+topic. How a kind of task is done end to end (2D and 3D gameplay, UI, animation,
+multiplayer, performance, shipping) is a skill the agent reads with `skill_guide`
+before it starts.
+
 | Group | What the agent gets |
 |---|---|
 | core | scene tree, entities, components, play / step / input, screenshots, logs, undo |
@@ -55,7 +65,24 @@ editor starts **read-only**; an agent edits only after you allow it in
 | `look` · `render` | reference images beside the game, light and field sweeps, frame capture and replay, shadows, LOD, bakes |
 | `code` · `project` | scripts, symbol search, type-check, project settings, health, export |
 | `image` · `sound` · `modeling` | draw sprites and textures, compose sound and music, build 3D models from steps |
+| `terrain` · `tripo` | shape land from steps (ranges, rivers, roads, a coast) and place it in the scene; generate textured 3D models with Tripo AI (your own key and credits) |
 | `play` · `view` · `device` | gamepads, time scale, scripted playtests, editor view, and a game running on a connected phone |
+
+**How undo works.** Tools are sorted by how their effect is taken back, not by what
+they touch:
+
+| A call that… | is taken back by |
+|---|---|
+| reads (scene tree, screenshots, logs, stats) | nothing to take back |
+| plays, steps or sends input to the game | **Stop**: the game runs in its own copy of the world and never touches the scene you edit |
+| edits the scene or a prefab | **Undo**: the edit goes through the editor's own history, the one Ctrl+Z walks |
+| writes project files (a script, an asset, an image, a material) | **Undo** as well: the editor keeps each file as it was before the call and puts it back |
+| leaves the project or runs code nobody can enumerate (a new project, an export, an editor command, code evaluated in the running game) | not undoable, and marked so |
+
+One call is one step however much it did: a tool that adds six entities and writes two
+files is undone by a single Undo, by you with Ctrl+Z or by the agent with its `undo`
+tool. A save is not a step, so undoing never rolls a saved file back under an unchanged
+scene.
 
 → [Connecting an agent](https://estellaengine.com/docs/agents/mcp/)
 
@@ -64,7 +91,7 @@ editor starts **read-only**; an agent edits only after you allow it in
 An MCP server can be bolted onto any editor. What an agent can actually get done
 depends on what sits behind it.
 
-- <img src="docs/assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> **The protocol is the editor, not a plugin on it.** The 167 tools call the pipelines the
+- <img src="docs/assets/icons/plug.svg" width="20" height="20" align="absmiddle" alt="" /> **The protocol is the editor, not a plugin on it.** The 181 tools call the pipelines the
   editor's own menus, inspector and toolbar run, so an agent's edit is the edit a person
   would have made, and undoes the same way. Calls are schema-checked and permission-gated
   by the editor itself.

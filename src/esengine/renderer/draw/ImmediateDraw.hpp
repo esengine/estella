@@ -205,6 +205,14 @@ public:
      */
     void drawMesh(u32 id, const glm::vec4& tint, const f32 xform[6]);
 
+    /**
+     * @brief @p count copies of a mesh in one call: drawMesh for each, without a call a copy.
+     *
+     * @details @p records holds one 28-byte record a copy, as the instance stream is laid out: six floats (the affine, in
+     *          drawMesh's order) and the tint packed as packColor packs it. They are copied into the frame's stream whole.
+     */
+    void drawMeshMany(u32 id, const void* records, u32 count);
+
     u32 meshCount() const { return liveMeshes_; }
 
     // =========================================================================

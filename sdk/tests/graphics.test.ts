@@ -12,9 +12,14 @@ import type { MeshRendererGeometry } from '../src/ecs/component';
 
 /** A resident buffer as Draw makes one: the mesh it was made from, live until released. */
 interface FakeBuffer { mesh: { indices: ArrayLike<number> }; live: boolean; release: ReturnType<typeof vi.fn> }
+/** The frame Draw says it is. Tests draw a frame after they build unless they hold it still. */
+const clock = vi.hoisted(() => ({ frame: 0 }));
 vi.mock('../src/render/draw', () => ({
+    DRAW_COPY_STRIDE: 10,
+    drawFrameNumber: () => clock.frame,
     Draw: {
         triangles: vi.fn(),
+        trianglesMany: vi.fn(),
         createTriangles: vi.fn((mesh: { indices: ArrayLike<number> }) => {
             const buffer: FakeBuffer = { mesh, live: true, release: vi.fn(() => { buffer.live = false; }) };
             return buffer;
@@ -51,6 +56,7 @@ function hexagonPath(g: Graphics, cx: number, cy: number, r: number): void {
 beforeEach(() => {
     vi.mocked(Draw.triangles).mockClear();
     vi.mocked(Draw.createTriangles).mockClear();
+    vi.mocked(Draw.trianglesMany).mockClear();
 });
 
 const created = (): FakeBuffer[] => vi.mocked(Draw.createTriangles).mock.results.map((r) => r.value as FakeBuffer);
@@ -165,14 +171,50 @@ describe('Graphics shapes', () => {
 });
 
 describe('drawing a Graphics', () => {
+    /** A hexagon built a frame ago, as a shape kept between frames is. */
     const hexagon = (): Graphics => {
         const g = new Graphics();
         g.lineStyle(0, WHITE);
         g.beginFill(RED);
         hexagonPath(g, 0, 0, 10);
         g.endFill();
+        g.geometry();
+        clock.frame++;
         return g;
     };
+
+    it('sends a drawing built this frame with the frame, and keeps it on the GPU only once it has outlived the frame', () => {
+        const g = new Graphics();
+        g.lineStyle(0, WHITE);
+        g.beginFill(RED);
+        hexagonPath(g, 0, 0, 10);
+        g.endFill();
+        g.flush({ x: 1 });
+        g.flush({ x: 2 });
+        g.flushMany(new Float32Array([3, 0, 0, 1, 1, 1, 1, 1]));
+        // Three copies, none through a GPU buffer: rebuilt next frame, it would have been made for nothing.
+        expect(Draw.createTriangles).not.toHaveBeenCalled();
+        expect(Draw.trianglesMany).not.toHaveBeenCalled();
+        const calls = vi.mocked(Draw.triangles).mock.calls;
+        expect(calls.map(([mesh]) => (mesh as { indices: ArrayLike<number> }).indices.length)).toEqual([12, 12, 12]);
+        expect(calls.map(([, o]) => o!.transform![4])).toEqual([1, 2, 3]);
+
+        clock.frame++;
+        g.flush();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(Draw.triangles).mock.calls[3][0]).toBe(created()[0]);
+
+        // Rebuilt every frame, it never reaches the GPU.
+        for (let frame = 0; frame < 5; frame++) {
+            clock.frame++;
+            g.clear();
+            g.beginFill(RED);
+            hexagonPath(g, frame, 0, 10);
+            g.endFill();
+            g.flush();
+        }
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
+    });
 
     it('is one batched call, by reference to the triangles it put in the engine once', () => {
         hexagon().flush();
@@ -215,6 +257,7 @@ describe('drawing a Graphics', () => {
         expect(g.geometry()).not.toBe(first);
         // The old triangles' engine memory went back with the rebuild; the next draw puts the new ones there.
         expect(created()[0].release).toHaveBeenCalledTimes(1);
+        clock.frame++;
         g.flush();
         expect(Draw.createTriangles).toHaveBeenCalledTimes(2);
     });
@@ -226,6 +269,37 @@ describe('drawing a Graphics', () => {
         expect(created()[0].release).toHaveBeenCalledTimes(1);
         g.flush();
         expect(Draw.createTriangles).toHaveBeenCalledTimes(2);
+    });
+
+    it('draws many copies in one call, each where, how turned, how large and how faint its numbers say', () => {
+        const g = hexagon();
+        const copies = new Float32Array([
+            30, 40, 0, 1, 1, 1, 1, 1,
+            5, 6, Math.PI / 2, 2, 0.5, 1, 1, 0.25,
+            7, 7, 7, 7, 7, 7, 7, 7,
+        ]);
+        g.flushMany(copies, 2);
+        expect(Draw.triangles).not.toHaveBeenCalled();
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
+        expect(Draw.trianglesMany).toHaveBeenCalledTimes(1);
+        const [buffer, out, count] = vi.mocked(Draw.trianglesMany).mock.calls[0];
+        expect(buffer).toBe(created()[0]);
+        expect(count).toBe(2);
+        const rounded = (from: number) => Array.from(out as Float32Array).slice(from, from + 10).map((v) => Math.round(v * 1e5) / 1e5 + 0);
+        expect(rounded(0)).toEqual([1, 0, 0, 1, 30, 40, 1, 1, 1, 1]);
+        // The same affine and tint flush() hands Draw for these numbers.
+        expect(rounded(10)).toEqual([0, 2, -2, 0, 5, 6, 0.5, 1, 1, 0.25]);
+
+        // Every copy the array holds when no count is given; the engine's triangles are made once.
+        g.flushMany(copies);
+        expect(vi.mocked(Draw.trianglesMany).mock.calls[1][2]).toBe(3);
+        expect(Draw.createTriangles).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws nothing for no copies, or a drawing with nothing in it', () => {
+        hexagon().flushMany(new Float32Array(0));
+        new Graphics().flushMany(new Float32Array(8).fill(1));
+        expect(Draw.trianglesMany).not.toHaveBeenCalled();
     });
 
     it('puts its triangles back when the engine that held them is gone', () => {

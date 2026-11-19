@@ -534,6 +534,8 @@ export interface ESEngineModule {
     /** A mesh from draw_createTriangleMesh, moved and tinted on the GPU: one instance record a copy. */
     draw_triangleMesh?(id: number, r: number, g: number, b: number, a: number,
                xx: number, xy: number, yx: number, yy: number, tx: number, ty: number): void;
+    /** `count` copies of a mesh in one call: 28-byte records at `recordsPtr`, six floats of affine then the tint packed r, g, b, a a byte each. */
+    draw_triangleMeshMany?(id: number, recordsPtr: number, count: number): void;
     draw_setLayer(layer: number): void;
     draw_setDepth(depth: number): void;
     draw_getDrawCallCount(): number;
