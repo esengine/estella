@@ -13,7 +13,8 @@
  *            2. rotation  where it looks             LookAtTarget
  *            3. finalize  limits on the result       GroupFraming (size the shot to a CameraTargetGroup),
  *                                                   CameraDeoccluder (keep the target in sight), CameraBounds
- *            4. noise     drift on the drawn view    CameraNoise (CameraPlugin, on the view, before the blend)
+ *            4. noise     drift on the drawn view    CameraNoise, CameraImpulseListener (CameraPlugin, on the view,
+ *                                                   before the blend)
  *
  *          A stage decides in the world and writes through the camera's parent (cameraPlace.ts), the world value beside the
  *          local one, so a stage reads what the stages before it wrote this frame: a camera that follows and looks at one
@@ -32,6 +33,7 @@ import { lookAtUpdate } from './LookAtTarget';
 import { cameraBoundsUpdate } from './CameraBounds';
 import { deoccluderRestore, deoccluderUpdate, type CameraCollisionProbe } from './CameraDeoccluder';
 import { targetGroupUpdate, groupFramingRestore, groupFramingUpdate } from './CameraTargetGroup';
+import { impulseSourceUpdate } from './CameraImpulse';
 
 export interface CameraBrainData {
   /**
@@ -185,4 +187,6 @@ export function cameraRigUpdate(
   groupFramingUpdate(world, dt, screenAspect);
   deoccluderUpdate(world, dt, collision);
   cameraBoundsUpdate(world, screenAspect);
+  // Impulse sources asked to fire (their flag set by a timeline, a visual script or the inspector) go off where they are.
+  impulseSourceUpdate(world);
 }

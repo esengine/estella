@@ -478,6 +478,43 @@ const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, direc
 | `frequency` | `22` | Oscillations per second. |
 | `duration` | `0.4` | Seconds to decay to zero. |
 
+## Impulses: shakes from a place
+
+`shakeCamera` shakes the view wherever it is. An explosion is felt by where it happens: a camera beside it jolts, one
+across the level barely trembles. A `CameraImpulseSource` fires such a jolt, and each camera with a
+`CameraImpulseListener` feels it by its distance, as Cinemachine's Impulse Source and Impulse Listener do. Like noise,
+it moves only the drawn view, never the camera's `Transform`.
+
+```typescript
+import { CameraImpulseSource, CameraImpulseListener, fireImpulse } from 'esengine';
+
+cmds.entity(barrel).insert(CameraImpulseSource, { amplitude: 30, frequency: 8, decay: 0.6, radius: 300, dissipation: 2000 });
+cmds.entity(cameraEntity).insert(CameraImpulseListener, { gain: 1 });
+
+// When it blows:
+fireImpulse(world, barrel, 1.5);   // half again as strong as authored
+```
+
+| `CameraImpulseSource` | Type | Default | Description |
+|---|---|---|---|
+| `amplitude` | number | `20` | How far the view is thrown, in world units, at full strength. |
+| `rotation` | number | `1` | How far it is turned, in degrees. |
+| `frequency` | number | `8` | How fast it trembles, in Hz. |
+| `attack` / `sustain` / `decay` | number | `0.02` / `0.1` / `0.6` | Seconds to reach full strength, to hold it, and to die away. |
+| `radius` | number | `300` | Felt at full strength within this distance. |
+| `dissipation` | number | `2000` | Beyond the radius, the distance over which it fades to nothing. |
+| `propagationSpeed` | number | `0` | Units a second it travels at, so a far camera feels it later; `0` is everywhere at once. |
+| `channels` | bitmask | `1` | Which listeners feel it. |
+| `fire` | boolean | `false` | Set to fire from here (a timeline, a visual script, the inspector in play); cleared once fired. |
+
+| `CameraImpulseListener` | Type | Default | Description |
+|---|---|---|---|
+| `channels` | bitmask | `1` | Which impulses this camera feels. |
+| `gain` | number | `1` | How strongly. |
+| `use2DDistance` | boolean | `false` | Measure distance on the X/Y plane only, for a 2D camera standing off the plane it shows. |
+
+The Create menu's Impulse Source makes one; the Follow Camera 2D, Tracking Camera and group camera presets listen.
+
 ## Blending between cameras
 
 `setViewTarget` switches the active view to another camera entity, optionally

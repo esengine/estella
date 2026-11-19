@@ -18,6 +18,7 @@ import { CameraTargetGroup, GroupFraming } from './CameraTargetGroup';
 import { LookAtTarget } from './LookAtTarget';
 import { CameraBrain, cameraRigUpdate } from './CameraRig';
 import { applyCameraNoise } from './CameraNoise';
+import { applyCameraImpulses, CameraImpulseSource } from './CameraImpulse';
 import { CameraDolly } from './CameraDolly';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
@@ -604,7 +605,11 @@ function resolveCameras(
     if (povs.length === 0) return [];
     // Each camera's handheld drift, on the view it gives and not its Transform, before the director picks and blends: a blend
     // from a shaky camera to a still one settles. Play mode only, as the rest of the camera pipeline.
-    if (world && playModeOnly()) applyCameraNoise(world, povs, now);
+    if (world && playModeOnly()) {
+        applyCameraNoise(world, povs, now);
+        // Impulses fired somewhere, felt by each listening camera by its distance: on the drawn view, before the blend.
+        applyCameraImpulses(world, povs, now);
+    }
     const canvas = frameCanvas.fit;
     // A camera drawing into a texture is not a candidate for the screen: it does
     // not compete with the main view, and it renders BEFORE it, because what it
@@ -1055,7 +1060,7 @@ export function cameraPlugin(
                     cameraRigUpdate(app.world, time.delta, aspect, director, collision);
                 },
                 { name: 'CameraRigSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain] });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain, CameraImpulseSource] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

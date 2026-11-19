@@ -428,6 +428,40 @@ const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, direc
 | `frequency` | `22` | 每秒振荡次数。 |
 | `duration` | `0.4` | 衰减到零的秒数。 |
 
+## 冲击：来自某处的震动
+
+`shakeCamera` 不论画面在哪都同样震动。爆炸则取决于发生的位置：旁边的相机剧烈一震，关卡另一头的相机几乎感觉不到。`CameraImpulseSource` 发出这样的冲击，每台带 `CameraImpulseListener` 的相机按距离感受它，对应 Cinemachine 的 Impulse Source 和 Impulse Listener。和噪声一样，它只移动最终画面，从不改动相机的 `Transform`。
+
+```typescript
+import { CameraImpulseSource, CameraImpulseListener, fireImpulse } from 'esengine';
+
+cmds.entity(barrel).insert(CameraImpulseSource, { amplitude: 30, frequency: 8, decay: 0.6, radius: 300, dissipation: 2000 });
+cmds.entity(cameraEntity).insert(CameraImpulseListener, { gain: 1 });
+
+// 爆炸时：
+fireImpulse(world, barrel, 1.5);   // 比设定强一半
+```
+
+| `CameraImpulseSource` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `amplitude` | number | `20` | 满强度时画面被甩出的距离（世界单位）。 |
+| `rotation` | number | `1` | 被转动的角度（度）。 |
+| `frequency` | number | `8` | 抖动频率（Hz）。 |
+| `attack` / `sustain` / `decay` | number | `0.02` / `0.1` / `0.6` | 达到满强度、保持、衰减各需的秒数。 |
+| `radius` | number | `300` | 在此距离内以满强度感受到。 |
+| `dissipation` | number | `2000` | 超出半径后衰减到零的距离。 |
+| `propagationSpeed` | number | `0` | 传播速度（单位/秒），远处的相机稍后才感受到；`0` 为同时到达。 |
+| `channels` | bitmask | `1` | 哪些监听者能感受到。 |
+| `fire` | boolean | `false` | 设为 true 即从这里发出（时间轴、可视化脚本、运行时的 Inspector）；发出后自动清除。 |
+
+| `CameraImpulseListener` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `channels` | bitmask | `1` | 这台相机感受哪些冲击。 |
+| `gain` | number | `1` | 感受的强度。 |
+| `use2DDistance` | boolean | `false` | 只在 X/Y 平面上量距离，适合离开所拍平面的 2D 相机。 |
+
+创建菜单里的 Impulse Source 会创建一个冲击源；Follow Camera 2D、Tracking Camera 和组相机预设都带监听者。
+
 ## 相机间混合
 
 `setViewTarget` 把活动视图切到另一个相机实体,可选地在 `time` 秒里**混合**而非硬切——用于

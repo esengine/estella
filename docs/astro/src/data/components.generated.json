@@ -966,6 +966,130 @@
       ]
     },
     {
+      "name": "CameraImpulseListener",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "channels",
+          "type": "number",
+          "default": "1",
+          "doc": "Which impulses this camera feels: those sharing a channel."
+        },
+        {
+          "key": "gain",
+          "type": "number",
+          "default": "1",
+          "doc": "How strongly: 1 as fired, 0 not at all.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "use2DDistance",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Measure distance on the X/Y plane only, as a 2D camera stands off the plane it shows."
+        }
+      ],
+      "animatable": [
+        "channels",
+        "gain"
+      ]
+    },
+    {
+      "name": "CameraImpulseSource",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "amplitude",
+          "type": "number",
+          "default": "20",
+          "doc": "How far the view is thrown, in world units, at full strength.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "rotation",
+          "type": "number",
+          "default": "1",
+          "doc": "How far the view is turned at full strength.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "frequency",
+          "type": "number",
+          "default": "8",
+          "doc": "How fast it trembles: about 8 for a blast, 2 for a heavy footfall.",
+          "range": "≥ 0, step 0.5"
+        },
+        {
+          "key": "attack",
+          "type": "number",
+          "default": "0.02",
+          "doc": "Seconds to reach full strength.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "sustain",
+          "type": "number",
+          "default": "0.1",
+          "doc": "Seconds held at full strength.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "decay",
+          "type": "number",
+          "default": "0.6",
+          "doc": "Seconds to die away.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "300",
+          "doc": "Felt at full strength within this distance of the source.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "dissipation",
+          "type": "number",
+          "default": "2000",
+          "doc": "Beyond the radius, the distance over which it fades to nothing.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "propagationSpeed",
+          "type": "number",
+          "default": "0",
+          "doc": "World units a second it travels at; 0 is felt everywhere at once.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "channels",
+          "type": "number",
+          "default": "1",
+          "doc": "Which listeners feel it: those sharing a channel.",
+          "advanced": true
+        },
+        {
+          "key": "fire",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Set to fire an impulse from here (in play); cleared once fired."
+        }
+      ],
+      "animatable": [
+        "amplitude",
+        "rotation",
+        "frequency",
+        "attack",
+        "sustain",
+        "decay",
+        "radius",
+        "dissipation",
+        "propagationSpeed",
+        "channels"
+      ]
+    },
+    {
       "name": "CameraNoise",
       "source": "ts",
       "fields": [
