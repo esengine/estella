@@ -58,6 +58,8 @@ in the Details.
 | Dolly Camera with Track | `camera:dolly` | A `Spline` track and a camera on it (`CameraDolly`, Track Target) that looks at its target. |
 | Target Group Camera 2D | `camera:group-2d` | A `CameraTargetGroup` and an orthographic camera that frames it (`PositionComposer`, `GroupFraming` zoom). |
 | Target Group Camera | `camera:group-3d` | A `CameraTargetGroup` and a perspective camera that follows, looks at and frames it (`GroupFraming` dolly then zoom). |
+| State-Driven Camera | `camera:state-driven` | A `StateDrivenCamera`: which camera is live by an Animator's state. |
+| Impulse Source | `camera:impulse` | A `CameraImpulseSource` to fire a shake from a place. |
 | Camera Brain | `camera:brain` | The scene's `CameraBrain`, so a change of camera blends instead of cutting. |
 
 ## The `Camera` component
@@ -574,6 +576,36 @@ cmds.spawn().insert(CameraBrain, {
 If the live camera changes again in the middle of a blend, the new blend starts from where the view is, so it never
 jumps. A `setViewTarget` names its own blend time and is not affected by the brain. One brain per scene; a scene
 without one cuts, as before.
+
+## Cameras by animation state
+
+A character walking is seen by one camera, sprinting by a lower, wider one, aiming by one over its shoulder. A
+`StateDrivenCamera` watches an `Animator` and switches on the camera its state names, switching the others it names
+off, as Cinemachine's State-Driven Camera does; the brain blends into it like into any camera that goes live (its
+default or custom blend), and a `CameraEvent` says so.
+
+```typescript
+import { StateDrivenCamera } from 'esengine';
+
+cmds.spawn().insert(StateDrivenCamera, {
+  animator: hero,
+  defaultCamera: 'Walk Cam',
+  rules: [
+    { state: 'Run', camera: 'Run Cam', wait: 0.25, minDuration: 0 },  // a moment of running does not flick the view
+    { state: 'Aim', camera: 'Aim Cam', wait: 0, minDuration: 1 },     // aiming holds the shoulder camera a second
+  ],
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `animator` | Entity | `0` | The entity whose `Animator` is watched. |
+| `layer` | number | `0` | Which layer of its controller; `0` is the base. |
+| `rules` | records | `[]` | Per state (its full path, as the Animator reports it): the camera by name, seconds the state must last before the change (`wait`), and seconds the camera stays live at least (`minDuration`). |
+| `defaultCamera` | string | `''` | The camera for a state no rule names; empty leaves the view as it is. |
+
+Only the cameras it names are switched; others keep their own `isActive`. The Details edits the rules as a table, and
+the Create menu's State-Driven Camera makes one.
 
 ## The camera director
 

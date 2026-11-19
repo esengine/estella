@@ -145,6 +145,7 @@ const DISPOSITION = {
   GroupFraming: ['owed', 'it goes with the first CameraTargetGroup, on the camera of a local two-player example'],
   CameraImpulseSource: ['owed', 'no example sets off an explosion the camera feels yet; a blast in the physics-3d example is where the first one goes'],
   CameraImpulseListener: ['owed', 'it goes with the first CameraImpulseSource, on the camera of the physics-3d example'],
+  StateDrivenCamera: ['owed', 'no example switches cameras by a character’s animation state yet; third-person-3d, whose hero has an Animator, is where the first one goes'],
   PositionComposer: ['owed', 'no example frames its player with a composer yet; celestial-heights, whose cameras follow its player with a FollowTarget dead zone, is where the first one goes'],
   CameraDeoccluder: ['owed', 'no example has a follow camera among walls with 3D colliders yet (the ThirdPersonCamera of third-person-3d probes for itself); the first one goes on a tracking camera in a walled 3D example'],
   GripHolder: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],

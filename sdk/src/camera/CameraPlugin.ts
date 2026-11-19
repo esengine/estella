@@ -19,6 +19,7 @@ import { LookAtTarget } from './LookAtTarget';
 import { CameraBrain, cameraRigUpdate } from './CameraRig';
 import { applyCameraNoise } from './CameraNoise';
 import { applyCameraImpulses, CameraImpulseSource } from './CameraImpulse';
+import { StateDrivenCamera } from './StateDrivenCamera';
 import { CameraDolly } from './CameraDolly';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
@@ -1060,7 +1061,7 @@ export function cameraPlugin(
                     cameraRigUpdate(app.world, time.delta, aspect, director, collision);
                 },
                 { name: 'CameraRigSystem' },
-            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain, CameraImpulseSource] });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain, CameraImpulseSource, StateDrivenCamera] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

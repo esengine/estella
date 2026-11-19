@@ -8686,6 +8686,42 @@
       ]
     },
     {
+      "name": "StateDrivenCamera",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "animator",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity whose Animator is watched."
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "doc": "Which layer of its controller: 0 is the base.",
+          "range": "≥ 0, step 1",
+          "advanced": true
+        },
+        {
+          "key": "rules",
+          "type": "array",
+          "default": "empty",
+          "doc": "The camera live in each Animator state, by name. Wait delays the change; Hold keeps a camera live at least that long."
+        },
+        {
+          "key": "defaultCamera",
+          "type": "string",
+          "default": "empty",
+          "doc": "The camera for a state no rule names; empty leaves the view as it is."
+        }
+      ],
+      "animatable": [
+        "animator",
+        "layer"
+      ]
+    },
+    {
       "name": "StateMachineAgent",
       "source": "ts",
       "fields": [

@@ -52,6 +52,8 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 | Dolly Camera with Track | `camera:dolly` | 一条 `Spline` 轨道和轨道上的相机（`CameraDolly`，Track Target），并看向目标。 |
 | Target Group Camera 2D | `camera:group-2d` | 一个 `CameraTargetGroup` 和框住它的正交相机（`PositionComposer`、`GroupFraming` 缩放）。 |
 | Target Group Camera | `camera:group-3d` | 一个 `CameraTargetGroup` 和跟随、注视并框住它的透视相机（`GroupFraming` 先推拉再缩放）。 |
+| State-Driven Camera | `camera:state-driven` | 一个 `StateDrivenCamera`：按 Animator 状态决定活动相机。 |
+| Impulse Source | `camera:impulse` | 一个 `CameraImpulseSource`，从某处发出震动。 |
 | Camera Brain | `camera:brain` | 场景的 `CameraBrain`，换相机时混合而不是硬切。 |
 
 ## `Camera` 组件
@@ -514,6 +516,32 @@ cmds.spawn().insert(CameraBrain, {
 
 如果在混合途中活动相机又变了,新的混合从画面当前所在的位置开始,不会跳变。`setViewTarget` 自带混合时长,
 不受大脑影响。每个场景一个大脑;没有大脑的场景照旧硬切。
+
+## 按动画状态切换相机
+
+角色走路时用一台相机，冲刺时用更低更广的一台，瞄准时用越肩的一台。`StateDrivenCamera` 监视一个 `Animator`，打开当前状态对应的相机，并关闭它管理的其他相机，和 Cinemachine 的 State-Driven Camera 一样；大脑像对待任何新的活动相机一样混合过去（默认或自定义混合），并发出 `CameraEvent`。
+
+```typescript
+import { StateDrivenCamera } from 'esengine';
+
+cmds.spawn().insert(StateDrivenCamera, {
+  animator: hero,
+  defaultCamera: 'Walk Cam',
+  rules: [
+    { state: 'Run', camera: 'Run Cam', wait: 0.25, minDuration: 0 },  // 短暂跑动不会让画面来回切
+    { state: 'Aim', camera: 'Aim Cam', wait: 0, minDuration: 1 },     // 瞄准时越肩相机至少保持一秒
+  ],
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `animator` | Entity | `0` | 被监视 `Animator` 所在的实体。 |
+| `layer` | number | `0` | 控制器的哪一层；`0` 为基础层。 |
+| `rules` | records | `[]` | 每个状态（Animator 报告的完整路径）对应的相机名、切换前状态需持续的秒数（`wait`），以及相机至少保持的秒数（`minDuration`）。 |
+| `defaultCamera` | string | `''` | 没有规则命中时使用的相机；留空则保持画面不变。 |
+
+只有它点名的相机会被开关，其他相机保留各自的 `isActive`。Details 以表格编辑规则，创建菜单的 State-Driven Camera 会创建一个。
 
 ## 相机 director
 

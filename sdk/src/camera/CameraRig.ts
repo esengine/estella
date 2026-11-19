@@ -34,6 +34,7 @@ import { cameraBoundsUpdate } from './CameraBounds';
 import { deoccluderRestore, deoccluderUpdate, type CameraCollisionProbe } from './CameraDeoccluder';
 import { targetGroupUpdate, groupFramingRestore, groupFramingUpdate } from './CameraTargetGroup';
 import { impulseSourceUpdate } from './CameraImpulse';
+import { stateDrivenCameraUpdate } from './StateDrivenCamera';
 
 export interface CameraBrainData {
   /**
@@ -174,6 +175,8 @@ export function cameraRigUpdate(
   collision: CameraCollisionProbe | null = null,
 ): void {
   if (director) syncCameraBrain(world, director);
+  // Which cameras are on, by what an Animator is doing, before anything moves them: the director picks among them.
+  stateDrivenCameraUpdate(world, dt);
   // Last frame's corrections (the deoccluder's pull, the group framing's dolly) are theirs, not the rig's: taken back
   // first, in the reverse of the order they were made, so the stages work from where the rig wants each camera.
   deoccluderRestore(world);
