@@ -26,6 +26,8 @@ import { PROBE_CAPTURE_FACE, FULL_PROBE_CAPTURE } from '../src/postprocess/probe
 import { getEffectDef } from '../src/postprocess/effects';
 import { defaultQualityProfile, resolveQualityProfile } from '../src/render/quality';
 import { QUALITY_SETTINGS, parseQualitySetting, qualitySetting, type QualityNumberSetting, type QualitySetting } from '../src/render/qualitySettings/index';
+import { transpileFragment } from '../src/shaders/wgsl/transpile';
+import { ENGINE_SHADER_API } from '../src/shaders/wgsl/engineApi.generated';
 import type { ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 
@@ -57,13 +59,24 @@ describe('the loop counts a level sets in the GI and reflection shaders', () => 
     it('stop at the shader\'s compile-time bound, which is the setting\'s most, and default to it where no level is sent', () => {
         for (const loop of LOOPS) {
             const src = shaderOf(loop.make);
-            // A const where the shader is also drawn through WGSL (the translator takes no #define); a #define where it is GLSL only.
-            const bound = Number(new RegExp(`(?:#define ${loop.max} |const int ${loop.max} = )(\\d+)`).exec(src)?.[1]);
+            const bound = Number(new RegExp(`const int ${loop.max} = (\\d+)`).exec(src)?.[1]);
             const fallback = Number(new RegExp(`#pragma param ${loop.uniform} float default\\(([\\d.]+)\\)`).exec(src)?.[1]);
             expect(bound, loop.key).toBe(number(loop.key).max);
             expect(fallback, loop.key).toBe(number(loop.key).defaults.high);
             expect(number(loop.key).uniform?.name, loop.key).toBe(loop.uniform);
             expect(src, loop.key).toMatch(new RegExp(`for \\(int \\w+ = [^;]+; \\w+ <=? ${loop.max};`));
+        }
+    });
+
+    it('reach the WGSL a WebGPU device draws with: the bound a constant, the count read from the material block', () => {
+        for (const loop of LOOPS) {
+            sources.length = 0;
+            loop.make();
+            expect(sources.length, loop.key).toBeGreaterThan(0);
+            const wgsl = sources.map((source) => transpileFragment(source, ENGINE_SHADER_API)).join('\n');
+            expect(wgsl, loop.key).toContain(`const ${loop.max} : i32 = ${number(loop.key).max};`);
+            expect(wgsl, loop.key).toContain(`mc.${loop.uniform}`);
+            expect(wgsl, loop.key).toMatch(new RegExp(`for \\(var \\w+ : i32 = [^;]+; \\w+ <=? ${loop.max};`));
         }
     });
 

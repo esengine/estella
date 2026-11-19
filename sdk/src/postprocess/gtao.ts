@@ -35,8 +35,8 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-#define GTAO_SLICES_MAX 3
-#define GTAO_STEPS_MAX 6
+const int GTAO_SLICES_MAX = 3;
+const int GTAO_STEPS_MAX = 6;
 const float PI = 3.14159265359;
 const float HALF_PI = 1.57079632679;
 // How far a horizon falls back, at full thickness, each time what lies beyond the thing that raised it is lower again. A wall goes on standing and keeps it; a strand does not.

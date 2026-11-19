@@ -21,6 +21,9 @@ import { starfieldEffects } from '../src/postprocess/sources/starfield';
 import { agxEffects } from '../src/postprocess/sources/agx';
 import { fog2dEffects } from '../src/postprocess/sources/fog2d';
 import { rain2dEffects } from '../src/postprocess/sources/rain2d';
+import { gtaoPasses } from '../src/postprocess/gtao';
+import { subsurfacePasses } from '../src/postprocess/subsurface';
+import { voxelGIFallback } from '../src/postprocess/voxelGIFallback';
 
 // The filter modules export functions, not their sources — read the sources
 // from disk so the guard sees exactly what ships.
@@ -106,7 +109,7 @@ describe('the fullscreen passes the effect groups compile', () => {
         sources.set(/#pragma shader "([^"]+)"/.exec(s)?.[1] ?? s, s);
         return 1;
     };
-    const groups = [basicEffects, lensEffects, lightingEffects, atmosphereEffects, starfieldEffects, agxEffects, fog2dEffects, rain2dEffects];
+    const groups = [basicEffects, lensEffects, lightingEffects, atmosphereEffects, starfieldEffects, agxEffects, fog2dEffects, rain2dEffects, gtaoPasses, subsurfacePasses, voxelGIFallback];
     try {
         for (const group of groups) {
             for (const make of Object.values(group)) {

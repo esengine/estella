@@ -29,7 +29,7 @@ import { IGN_GLSL } from '../render/shaderLib';
 export { VOXEL_ATLAS } from './voxelAtlas';
 
 const COMMON = `
-#define VOXEL_BOUNCE_RAYS_MAX 2
+const int VOXEL_BOUNCE_RAYS_MAX = 2;
 const ivec3 DIMS = ivec3(128, 64, 128);
 const ivec2 META = ivec2(2047, 1023);
 ivec2 slotTexel(ivec3 s, int region) { return ivec2((s.z & 15) * 128 + s.x, region * 512 + (s.z >> 4) * 64 + s.y); }
