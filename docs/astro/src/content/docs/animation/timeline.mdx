@@ -259,6 +259,13 @@ curves and their tangent handles for eases the dope sheet can't express:
 
 *The curve editor: each keyframed channel becomes an editable curve (here `position.x` easing in, `position.y` bobbing), with per-key tangent handles.*
 
+### Zoom and markers
+
+**Ctrl+wheel** over the lanes zooms the time axis about the pointer (the time under it stays under it), the ruler
+growing finer ticks as it does; the lanes then scroll sideways, and the view keeps the playhead in sight while
+playing. **Fit** brings the whole timeline back. Every marker of a marker track is also drawn on the ruler by name;
+clicking one jumps the playhead to it, as UE's marked frames do.
+
 ### Tracks on an entity
 
 **Track** in the Sequencer's header adds any track the runtime plays: pick its kind
