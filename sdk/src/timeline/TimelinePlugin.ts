@@ -8,6 +8,7 @@ import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, TimelinePlayback, type TimelineEventPayload, type TimelinePlaybackPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
 import { resolveTimelinePath } from './timelineBindings';
+import { installTimeDilation } from './timeDilation';
 import { Time, type TimeData } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
@@ -91,6 +92,8 @@ export class TimelinePlugin implements Plugin {
         // clock + the shared evaluator (property tracks) + edge-detected event
         // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
         // land via world.set (the same path the editor preview uses).
+        // Slow motion a timeline keys (UE's Time Dilation track): a component, so a script can use it too.
+        installTimeDilation(app);
         app.addEvent(TimelineEvent);
         app.addEvent(TimelinePlayback);
         app.addSystemToSchedule(Schedule.Update, defineSystem(

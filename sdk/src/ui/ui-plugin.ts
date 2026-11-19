@@ -34,6 +34,7 @@ import { uiVisibilityPlugin } from './core/visibility';
 import { uiWorldAnchorPlugin } from './core/world-anchor';
 import { canvasEffectPlugin } from './core/canvas-effect';
 import { UICollections } from './collection/collection-host';
+import { installScreenFade } from './core/screen-fade';
 import { installTreeViews } from './widgets/tree-view';
 import { installColorPickers } from './behavior/color-picker-system';
 
@@ -74,7 +75,8 @@ export class UIPlugin implements Plugin {
         }
         const offTree = installTreeViews(app, app.getResource(UICollections));
         const offColor = installColorPickers(app);
-        this.widgetCleanups_.set(app, () => { offTree(); offColor(); });
+        const offFade = installScreenFade(app);
+        this.widgetCleanups_.set(app, () => { offTree(); offColor(); offFade(); });
     }
 
     // App.quit only reaches *installed* plugins — the composed sub-plugins'

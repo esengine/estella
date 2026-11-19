@@ -124,6 +124,20 @@ A timeline is a set of tracks evaluated together each frame:
 | Sequence | `Sequence` | Another timeline, played inside a window of this one. |
 | Animation | `Animation` | Skeletal animation clips on a rig, eased and crossfaded over its own animation (see [below](#animation-tracks)). |
 
+### Fade and time dilation
+
+UE's Fade and Time Dilation tracks are two components a timeline keys on ordinary property tracks, so a script can use
+them too. The Sequencer's **Track → Fade** and **Track → Time dilation** add the component to the root if it has none
+and a track with a key at the playhead.
+
+| Component | Field | Description |
+|---|---|---|
+| `ScreenFade` | `amount` | How far the screen is faded, 0 (clear) to 1 (the colour). The strongest fade there is is drawn over everything, 2D and 3D, its own UI canvas above the game's, and never takes the pointer. |
+| | `color` | The colour faded to. |
+| `TimeDilation` | `scale` | How fast the game runs while it is on: 0.25 is slow motion. Several multiply, and they multiply the game's own `Time.scale`, so a game paused at 0 stays paused and gets its own speed back when the dilation ends. |
+
+Both act in play; the Sequencer's preview shows the keyed values, not the fade or the slower clock.
+
 ### Audio clips
 
 An audio track's item is a **moment** until it has a length: the whole sound, fired once as the playhead crosses its

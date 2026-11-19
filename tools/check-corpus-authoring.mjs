@@ -141,6 +141,8 @@ const DISPOSITION = {
   Hitboxes: ['owed', 'no example scene authors a hitbox set yet; the first one goes in an example with melee combat'],
   WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
+  ScreenFade: ['owed', 'no example fades its screen yet; the camera-shots example, between its shots, is where the first one goes'],
+  TimeDilation: ['owed', 'no example has a slow-motion beat yet; a timeline in the camera-shots example is where the first one goes'],
   CameraTargetGroup: ['owed', 'no example frames two players in one shot yet; a local two-player example is where the first one goes'],
   GroupFraming: ['owed', 'it goes with the first CameraTargetGroup, on the camera of a local two-player example'],
   CameraImpulseSource: ['owed', 'no example sets off an explosion the camera feels yet; a blast in the physics-3d example is where the first one goes'],

@@ -65,6 +65,8 @@ export {
     type RootPlacement,
 } from './TimelineEvaluator';
 
+export { TimeDilation, type TimeDilationData } from './timeDilation';
+
 export {
     resolveTimelinePath,
     boundEntity,
