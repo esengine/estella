@@ -11,7 +11,7 @@ import { selectSphereNodes, levelsFor } from '../src/terrain/sphere';
 import { CAUSTICS_GLSL } from '../src/render/waterCaustics';
 import { waterReflectionGrowth } from '../src/water/waterShader';
 import { RUNTIME_BUILD_DEFAULTS, RuntimeConfig, applyBuildRuntimeConfig, parseRuntimeBuildConfig } from '../src/defaults';
-import { worldgenLimits, WORLDGEN_LIMIT_DEFAULTS } from '../src/worldgen/limits';
+import { worldgenLimits, WORLDGEN_LIMIT_DEFAULTS } from '../src/worldgenLimits';
 
 vi.mock('../src/platform', async (original) => ({
     ...(await original<typeof import('../src/platform')>()),

@@ -18,7 +18,7 @@
  *              placed twice.
  *            - Ids are made of the layer, the grid cell, the recipe and the member, with their versions: never a position in a list.
  */
-import { worldgenLimits } from './limits';
+import { worldgenLimits } from '../worldgenLimits';
 import { Environment, fbm, hash01, hashString, type FieldValues } from './fields';
 import { bandWeight, type BiomeDef, type PlacementLayer, type Recipe, type RecipeMember, type WorldRules } from './rules';
 import type { Zones } from './zones';

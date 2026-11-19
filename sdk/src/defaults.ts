@@ -3,7 +3,7 @@
 import { COMPONENT_META } from './ecs/component.generated';
 import { col } from './math/color';
 import { getResourceManager, setRetainedBudget, setTextureBudget } from './wasm/resourceManager';
-import { setWorldgenLimits, WORLDGEN_LIMIT_DEFAULTS } from './worldgen/limits';
+import { setWorldgenLimits, WORLDGEN_LIMIT_DEFAULTS } from './worldgenLimits';
 
 // Values with a C++ backing read the generated metadata (Canvas ctor defaults,
 // Sprite's editor_default annotation) so these constants cannot drift from the

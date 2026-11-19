@@ -10,7 +10,7 @@
  *          height is the ground's height above the radius. A world is laid out face by face, and a direction is laid out by the face it falls on, so
  *          a point is planned once. What is placed is taken from the plane to the planet here: its place, and which way is up.
  */
-import { worldgenLimits } from './limits';
+import { worldgenLimits } from '../worldgenLimits';
 import type { PlanetFacts } from '../terrain/planetQuery';
 import { FACES, direction, facePlace } from '../terrain/sphere';
 import { tangentFrame } from '../terrain/planetPages';

@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
+/**
+ * How much the world generator keeps: read by the generator, set from the runtime's configuration. It lives outside
+ * `worldgen/` because the configuration is in every package and the generator is not: imported from there, a blank package
+ * carried a piece of the generator along.
+ */
 export interface WorldgenLimits {
     tilesKept: number;
     cacheLimit: number;

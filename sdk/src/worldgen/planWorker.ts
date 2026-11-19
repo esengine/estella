@@ -12,7 +12,7 @@
  *          of it. The planet's provider is the game's own generator, handed over as the text of a self-contained module and loaded here, which is what lets
  *          the ground be read in the worker with no help from the main thread.
  */
-import { setWorldgenLimits, worldgenLimits, type WorldgenLimits } from './limits';
+import { setWorldgenLimits, worldgenLimits, type WorldgenLimits } from '../worldgenLimits';
 import type { Placement } from './plan';
 import type { WorldPlan } from './plan';
 import type { WorldRules } from './rules';

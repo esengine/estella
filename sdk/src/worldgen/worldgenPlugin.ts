@@ -17,7 +17,7 @@
  *
  *          A server without a renderer makes the plan and the interactive entities, and nothing that is only drawn.
  */
-import { worldgenLimits } from './limits';
+import { worldgenLimits } from '../worldgenLimits';
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
