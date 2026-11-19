@@ -342,7 +342,8 @@ with opt-in rewarded credits and explicit commercial opportunities. Initial
 loading, device-control buttons and returning from the background do not start
 gameplay. Export with `estella export examples/mobile-controls --profile poki`.
 The existing standalone profile keeps its original controls. The room requires
-landscape orientation and shows a rotate hint in portrait. CI checks these flows
+landscape orientation; in portrait it shows the game letterboxed, with no rotate
+notice. CI checks these flows
 in headless Chromium using SDK mocks and that commit's Web runtime; official
 Inspector and physical-device approval remain separate.
 

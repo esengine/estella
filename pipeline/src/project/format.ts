@@ -477,6 +477,7 @@ export interface ProjectPackaging {
        * in every package, so a project that needs it turns it on.
        */
       engineJs?: boolean;
+      rotateHint?: boolean;
     };
     wechat?: WeChatPackaging;
     douyin?: MiniGamePackaging;
@@ -1065,6 +1066,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
           if (connect.length) config.connect = connect;
         }
         if (typeof web.engineJs === 'boolean') config.engineJs = web.engineJs;
+        if (typeof web.rotateHint === 'boolean') config.rotateHint = web.rotateHint;
         if (Object.keys(config).length) platforms.web = config;
       }
       const wx = pl.wechat as Record<string, unknown> | undefined;

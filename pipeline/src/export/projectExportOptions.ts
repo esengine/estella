@@ -113,6 +113,7 @@ export async function projectExportOptions(
     // The page dials this server; a page served beside its server needs none (serverAddress uses its own host).
     ...((platform === 'web' || platform === 'desktop') && manifest.server?.url ? { serverUrl: manifest.server.url } : {}),
     ...(platform === 'web' && plat?.web?.engineJs === true ? { webEngineJs: true } : {}),
+    ...(platform === 'web' && plat?.web?.rotateHint === true ? { webRotateHint: true } : {}),
     ...(platform === 'web' && plat?.web?.channel === 'crazygames' && plat.web.leaderboardEncryptionKey
       ? { leaderboardEncryptionKey: plat.web.leaderboardEncryptionKey } : {}),
     desktopProductName: plat?.desktop?.productName,
