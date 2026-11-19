@@ -33,6 +33,24 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
     return qualityPassInStep(profile, passName);
 }
 
+/**
+ * Whether a quality level runs an effect, by the effect's type (`'ssao'`, `'bloom'`): the one answer a game's settings screen,
+ * a tool or the engine itself should read, rather than each looking through `skipEffects`. The list is not the whole rule:
+ * a level with post-processing off runs none, and one that smooths with temporal anti-aliasing runs TAA whatever it skips
+ * and never FXAA. An effect made of several passes runs when any of them does. `null` is no level in force: everything runs.
+ *
+ * @experimental
+ */
+export function qualityRunsEffect(profile: Readonly<QualityProfile> | null, effectType: string): boolean {
+    if (profile === null) return true;
+    const passes = effectPassNames(effectType);
+    if (passes.length > 0) return passes.some((pass) => qualityPassAllowed(profile, pass));
+    // An effect the registry does not know (its module is not in this build): the list by type, as it was written.
+    if (!profile.postProcess) return false;
+    const type = effectType.toLowerCase();
+    return !profile.skipEffects.some((skipped) => skipped.toLowerCase() === type);
+}
+
 function qualityPassInStep(profile: Readonly<QualityProfile>, passName: string): boolean {
     const effect = effectOfPass(passName);
     if (effect === undefined) return true;

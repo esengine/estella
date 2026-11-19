@@ -25,6 +25,7 @@ export {
     PostProcessPlugin,
     postProcessPlugin,
     defineSkyEffect,
+    qualityRunsEffect,
     type SkyEffectSource,
     registerWeatherPreset,
     weatherPresetId,

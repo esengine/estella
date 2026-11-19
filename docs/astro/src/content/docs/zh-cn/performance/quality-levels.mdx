@@ -150,6 +150,17 @@ import { Aside } from '@astrojs/starlight/components';
 环境光遮蔽跑不跑，只由这份清单决定。之前写的配置里可能有 `"ssao": false`，读进来等于清单里有 `ssao` 和 `gtao`；`"ssao": true`
 等于把 `ssao` 从清单里拿掉。下次在编辑器里勾选该档的效果时，写回的就是清单。玩家设置里的 `quality.setPreferences({ ssao: false })` 也这样读。
 
+要问当前档位跑不跑某个效果，调用 `qualityRunsEffect(quality.profile, 'ssao')`，不要自己去翻清单：清单不是全部规则
+（关了后处理的档位什么效果都不跑；用时间性抗锯齿的档位，TAA 不管清单里有没有都会跑，FXAA 一定不跑）。
+解析后的档位配置里不再有 `ssao` 字段，原来读 `quality.profile.ssao` 的代码改成问这个函数。
+
+```typescript
+import { Quality, qualityRunsEffect } from 'esengine';
+
+const quality = app.getResource(Quality);
+const ambientOcclusion = qualityRunsEffect(quality?.profile ?? null, 'ssao');
+```
+
 ## 效果分辨率
 
 有些效果本来就在画面一半的尺寸上算，再铺回画面，因为它们算出来的东西是平滑的。每个这样的效果都有自己的分辨率，放在效果所属的组里，

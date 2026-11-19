@@ -221,6 +221,25 @@ describe('what a quality level lets the chain run', () => {
         expect(qualityPassAllowed(profile, 'ssr'), 'ssr').toBe(true);
     });
 
+    it('answers whether a level runs an effect, by more than the list', async () => {
+        const { qualityRunsEffect } = await import('../src/postprocess/qualityFilter');
+        // By type, whatever the passes are called, and whatever the case it was written in.
+        expect(qualityRunsEffect(level(['SSAO']), 'ssao')).toBe(false);
+        expect(qualityRunsEffect(level(['ssao']), 'bloom')).toBe(true);
+        // A level with post-processing off runs none, though its list names nothing.
+        expect(qualityRunsEffect(level([], { postProcess: false }), 'bloom')).toBe(false);
+        // Temporal anti-aliasing runs TAA whatever the level skips, and never FXAA.
+        const temporal = level(['taa'], { antialiasing: 'temporal' });
+        expect(qualityRunsEffect(temporal, 'taa')).toBe(true);
+        expect(qualityRunsEffect(temporal, 'fxaa')).toBe(false);
+        // The switch an older project wrote is read into the same answer.
+        expect(qualityRunsEffect(level([], { ssao: false }), 'ssao')).toBe(false);
+        expect(qualityRunsEffect(level(['ssao'], { ssao: true }), 'ssao')).toBe(true);
+        // An effect this build does not know is answered from the list alone; no level in force runs everything.
+        expect(qualityRunsEffect(level(['myOwnEffect']), 'myowneffect')).toBe(false);
+        expect(qualityRunsEffect(null, 'ssao')).toBe(true);
+    });
+
     it('leaves the dynamic GI out of the low level and in the other two', async () => {
         const { qualityPassAllowed } = await import('../src/postprocess/qualityFilter');
         const { effectPassNames } = await import('../src/postprocess/effects');

@@ -213,6 +213,7 @@ export {
     type TimeOfDayState,
     defineSkyEffect,
     type SkyEffectSource,
+    qualityRunsEffect,
 } from './postprocess';
 
 // =============================================================================

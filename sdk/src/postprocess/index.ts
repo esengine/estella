@@ -6,6 +6,7 @@ export { PostProcess, PostProcessAPI, initPostProcessAPI, shutdownPostProcessAPI
 export { outputTransformCode } from './PostProcessAPI';
 export type { OutputTransform, HdrFormat } from './PostProcessAPI';
 export { postProcessEffects } from './effects';
+export { qualityRunsEffect } from './qualityFilter';
 export { POSTPROCESS_VERTEX } from './shaders';
 export {
     type EffectDef,

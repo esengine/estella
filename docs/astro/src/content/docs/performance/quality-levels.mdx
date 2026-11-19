@@ -245,6 +245,18 @@ This list is the only thing that says whether ambient occlusion runs. A profile 
 which is read as `ssao` and `gtao` in the list, or `"ssao": true`, which takes `ssao` off it; the editor writes the list
 instead the next time that level's effects are ticked. A player's `quality.setPreferences({ ssao: false })` reads the same way.
 
+To ask whether the level in force runs an effect, call `qualityRunsEffect(quality.profile, 'ssao')` rather than looking through
+the list: the list is not the whole rule (a level with post-processing off runs nothing, and one that smooths with temporal
+anti-aliasing runs TAA whatever it skips and never FXAA). The resolved profile holds no `ssao` field any more, so code that
+read `quality.profile.ssao` asks this instead.
+
+```typescript
+import { Quality, qualityRunsEffect } from 'esengine';
+
+const quality = app.getResource(Quality);
+const ambientOcclusion = qualityRunsEffect(quality?.profile ?? null, 'ssao');
+```
+
 ## Effect resolution
 
 Some effects already work at half the picture's size and are laid back over it, because what they work out is smooth. Each has
