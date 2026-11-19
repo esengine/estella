@@ -584,6 +584,30 @@ While the game runs in the editor, the Outliner marks the live camera **LIVE** (
 is one) and the camera a blend is leaving **OUT**, as a Cinemachine Brain's Live Camera and Live Blend do; in Inspect
 the game view names them too.
 
+### Camera events
+
+The director tells a game when the view changes cameras, as Cinemachine's Camera Activated and Blend Finished events
+do: read `CameraEvent` in a system to show a shot's HUD when its camera goes live, or hand control back once the blend
+into it is done. Events are sent as the frame is drawn, so a system reads them the next frame.
+
+```typescript
+import { defineSystem, EventReader, CameraEvent, CameraEventKind } from 'esengine';
+
+const onCameraChange = defineSystem([EventReader(CameraEvent)], (events) => {
+  for (const e of events) {
+    if (e.kind === CameraEventKind.Activated) console.log(`live: ${e.camera} (from ${e.previous}, ${e.blendTime}s)`);
+    if (e.kind === CameraEventKind.BlendFinished) console.log(`settled on ${e.camera}`);
+  }
+});
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | number | `CameraEventKind.Activated` when a camera goes live (cut to or blended into), `BlendFinished` when the blend into it ends. |
+| `camera` | Entity | The camera the view is, or goes to. |
+| `previous` | Entity | The camera it left; `0` for none, or a view caught part-way between two. |
+| `blendTime` | number | Seconds the blend into it takes; `0` for a cut. |
+
 ### `CameraPOV`
 
 A `CameraPOV` is a camera's *authored view parameters* as one plain snapshot —

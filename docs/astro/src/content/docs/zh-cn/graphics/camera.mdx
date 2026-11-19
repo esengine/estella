@@ -520,6 +520,28 @@ if (blend) console.log(`混合 ${blend.from} → ${blend.to}：${Math.round(blen
 
 在编辑器里运行游戏时，大纲视图会把当前相机标为**当前**（混合中显示进度），把混合正在离开的相机标为**淡出**，对应 Cinemachine Brain 的 Live Camera 和 Live Blend；在 Inspect 模式下游戏画面上也会显示。
 
+### 相机事件
+
+画面切换相机时，导演会通知游戏，对应 Cinemachine 的 Camera Activated 和 Blend Finished 事件：在系统里读取 `CameraEvent`，可以在某个镜头的相机成为活动相机时显示它的 HUD，或在混合结束后把控制权交回玩家。事件在绘制这一帧时发出，所以系统在下一帧读到。
+
+```typescript
+import { defineSystem, EventReader, CameraEvent, CameraEventKind } from 'esengine';
+
+const onCameraChange = defineSystem([EventReader(CameraEvent)], (events) => {
+  for (const e of events) {
+    if (e.kind === CameraEventKind.Activated) console.log(`当前相机：${e.camera}（来自 ${e.previous}，${e.blendTime} 秒）`);
+    if (e.kind === CameraEventKind.BlendFinished) console.log(`已停在 ${e.camera}`);
+  }
+});
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `kind` | number | 相机成为活动相机（硬切或混合进入）时为 `CameraEventKind.Activated`，混合进入结束时为 `BlendFinished`。 |
+| `camera` | Entity | 画面当前所在或将要到达的相机。 |
+| `previous` | Entity | 离开的相机；没有，或画面正处于两台相机之间时为 `0`。 |
+| `blendTime` | number | 混合进入它所需秒数；硬切为 `0`。 |
+
 ### `CameraPOV`
 
 `CameraPOV` 是相机*被作者的视图参数*的一个纯快照——director 混合的单位,也是

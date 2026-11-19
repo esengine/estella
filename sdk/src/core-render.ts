@@ -56,7 +56,7 @@ export type { ScreenScalingData } from './camera/ScreenScaling';
 export { EditorGrid, DEFAULT_EDITOR_GRID } from './camera/EditorGrid';
 export type { EditorGridData, GridColor } from './camera/EditorGrid';
 export { installEditorGrid } from './camera/editorGridRenderer';
-export { CameraDirector, setViewTarget, setTimelineShot, shakeCamera, BlendCurve, cameraDirectorReport } from './camera/CameraDirector';
+export { CameraDirector, setViewTarget, setTimelineShot, shakeCamera, BlendCurve, cameraDirectorReport, CameraEvent, CameraEventKind } from './camera/CameraDirector';
 export { FollowTarget } from './camera/FollowTarget';
 export type { FollowTargetData } from './camera/FollowTarget';
 export { LookAtTarget, aimStep, screenPointOf } from './camera/LookAtTarget';
@@ -75,7 +75,7 @@ export { CameraTargetGroup, GroupFraming, GroupCenter, FramingMode, FramingAdjus
 export type { CameraTargetGroupData, GroupFramingData } from './camera/CameraTargetGroup';
 export type { PositionComposerData } from './camera/PositionComposer';
 export type { CameraDeoccluderData, CameraCollisionProbe } from './camera/CameraDeoccluder';
-export type { CameraDirectorState, TimelineShot, CameraDirectorReport, CameraCandidateReport } from './camera/CameraDirector';
+export type { CameraDirectorState, TimelineShot, CameraDirectorReport, CameraCandidateReport, CameraEventPayload } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
 export { cameraFrustumCorners, renderCameraFrame, syncScreenCameras } from './camera/CameraPlugin';
 export type { CameraFields, CameraTransformFields } from './camera/CameraPlugin';

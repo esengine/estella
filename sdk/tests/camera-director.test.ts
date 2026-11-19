@@ -14,6 +14,7 @@ import {
   shakeCamera,
   cameraDirectorReport,
   blendFor,
+  CameraEventKind,
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
@@ -360,5 +361,43 @@ describe('custom blends', () => {
     const cut = resolveMainPOV(d, [A, { ...B, priority: 5 }, { ...C, priority: 9 }], 2.5, true)!;
     expect(cut.x).toBe(200);
     expect(d.blending).toBe(false);
+  });
+});
+
+describe('camera events', () => {
+  const A = mkPOV({ entity: 1, isActive: true, priority: 1, x: 0 });
+  const B = mkPOV({ entity: 2, isActive: true, priority: 0, x: 100 });
+
+  it('tells of the first live camera, of a cut, and of nothing while the view stays', () => {
+    const d = dir();
+    resolveMainPOV(d, [A, B], 0, true);
+    expect(d.pendingEvents).toEqual([{ kind: CameraEventKind.Activated, camera: 1, previous: 0, blendTime: 0 }]);
+    d.pendingEvents.length = 0;
+    resolveMainPOV(d, [A, B], 1, true);
+    expect(d.pendingEvents).toEqual([]);
+    resolveMainPOV(d, [A, { ...B, priority: 5 }], 2, true);
+    expect(d.pendingEvents).toEqual([{ kind: CameraEventKind.Activated, camera: 2, previous: 1, blendTime: 0 }]);
+  });
+
+  it('tells of a blend as it starts, with its length, and again once, when it finishes', () => {
+    const d = dir({ defaultBlend: 2 });
+    resolveMainPOV(d, [A, B], 0, true);
+    d.pendingEvents.length = 0;
+    resolveMainPOV(d, [A, { ...B, priority: 5 }], 1, true);
+    expect(d.pendingEvents).toEqual([{ kind: CameraEventKind.Activated, camera: 2, previous: 1, blendTime: 2 }]);
+    d.pendingEvents.length = 0;
+    resolveMainPOV(d, [A, { ...B, priority: 5 }], 2, true);
+    expect(d.pendingEvents).toEqual([]);
+    resolveMainPOV(d, [A, { ...B, priority: 5 }], 3, true);
+    expect(d.pendingEvents).toEqual([{ kind: CameraEventKind.BlendFinished, camera: 2, previous: 1, blendTime: 2 }]);
+    d.pendingEvents.length = 0;
+    resolveMainPOV(d, [A, { ...B, priority: 5 }], 4, true);
+    expect(d.pendingEvents).toEqual([]);
+  });
+
+  it('tells nothing from a peek', () => {
+    const d = dir();
+    resolveMainPOV(d, [A, B], 0, false);
+    expect(d.pendingEvents).toEqual([]);
   });
 });

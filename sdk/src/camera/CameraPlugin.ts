@@ -36,7 +36,8 @@ import type { ViewShading } from '../render/renderer';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewEye, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
 import { ScreenScaling, SCREEN_FIT_OFF } from './ScreenScaling';
 import { planPresent, viewportPixels, RenderResolution } from './presentPlan';
-import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
+import { CameraDirector, CameraEvent, createDirectorState, resolveMainPOV, type CameraDirectorState, type CameraEventPayload } from './CameraDirector';
+import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Input } from '../input/input';
 import { pendingShaders } from '../render/shaderWarmup';
 import { renderTargetSize } from '../render/renderTexture';
@@ -1058,6 +1059,18 @@ export function cameraPlugin(
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);
+            // What the director decided as the frame was drawn, onto the CameraEvent bus: a game's systems read it the
+            // next frame. After the render, which is where the view is resolved.
+            app.addEvent(CameraEvent);
+            app.addSystemToSchedule(Schedule.Last, defineSystem(
+                [Res(CameraDirector), EventWriter(CameraEvent)],
+                (director: CameraDirectorState, events: EventWriterInstance<CameraEventPayload>) => {
+                    if (director.pendingEvents.length === 0) return;
+                    for (const e of director.pendingEvents) events.send(e);
+                    director.pendingEvents.length = 0;
+                },
+                { name: 'CameraEventSystem' },
+            ));
         },
     };
 }

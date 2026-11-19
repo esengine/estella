@@ -12,6 +12,8 @@
  */
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
+import { defineEvent, type EventDef } from '../ecs/event';
+import type { Entity } from '../types';
 import { applyEasing, EasingType } from '../animation/Easing';
 import type { CameraPOV } from './CameraPlugin';
 
@@ -200,7 +202,39 @@ export interface CameraDirectorState {
    * blended from; otherwise the default blend.
    */
   customBlends: CustomBlend[];
+  /** The camera the last event said is live, so a change is told once; -1 before any. */
+  announced: number;
+  /** Events this resolve raised, until the camera plugin sends them on the {@link CameraEvent} bus. */
+  pendingEvents: CameraEventPayload[];
 }
+
+/** What happened to the view: {@link CameraEvent}'s `kind`. */
+export const CameraEventKind = {
+  /** A camera became the live one, cut to or blended into (Cinemachine's Camera Activated). */
+  Activated: 0,
+  /** A blend into the live camera finished: the view is that camera's alone (Cinemachine's Blend Finished). */
+  BlendFinished: 1,
+} as const;
+export type CameraEventKind = (typeof CameraEventKind)[keyof typeof CameraEventKind];
+
+export interface CameraEventPayload {
+  /** {@link CameraEventKind}. */
+  kind: number;
+  /** The camera the view is, or goes to. */
+  camera: Entity;
+  /** The camera it left: the one live before (Activated) or blended from (BlendFinished); 0 for none or a view part-way. */
+  previous: Entity;
+  /** Activated: seconds the blend into it takes, 0 for a cut. */
+  blendTime: number;
+}
+
+/**
+ * The view changing cameras, for a game to answer: a camera going live (to show its HUD, start its shot's audio) and a
+ * blend into it finishing (to hand control back). Sent as the frame is drawn, so a system reads them the next frame.
+ */
+export const CameraEvent: EventDef<CameraEventPayload> = defineEvent<CameraEventPayload>('CameraEvent', {
+  kind: 0, camera: 0 as Entity, previous: 0 as Entity, blendTime: 0,
+});
 
 /** A blend the brain gives one change of camera: `from` and `to` are entities, -1 any. */
 export interface CustomBlend {
@@ -243,11 +277,13 @@ export const DEFAULT_DIRECTOR: CameraDirectorState = {
   activation: new Map(),
   activationSeq: 0,
   customBlends: [],
+  announced: -1,
+  pendingEvents: [],
 };
 
 /** A fresh director state (own arrays) — use per App, not the shared default. */
 export function createDirectorState(): CameraDirectorState {
-  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [], candidates: [], activation: new Map(), customBlends: [] };
+  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [], candidates: [], activation: new Map(), customBlends: [], pendingEvents: [] };
 }
 
 export const CameraDirector = defineResource<CameraDirectorState>(
@@ -412,6 +448,18 @@ export function blendFor(dir: CameraDirectorState, from: number, to: number): { 
   return both ? { time: both.time, curve: both.curve } : { time: dir.defaultBlend, curve: dir.defaultCurve };
 }
 
+/** Tells of the live camera when it is a new one: who it is, who it follows, and how long the view takes to reach it. */
+function announce(dir: CameraDirectorState, live: number, previous: number, blendTime: number): void {
+  if (live === dir.announced) return;
+  dir.pendingEvents.push({
+    kind: CameraEventKind.Activated,
+    camera: live as Entity,
+    previous: (previous >= 0 ? previous : 0) as Entity,
+    blendTime,
+  });
+  dir.announced = live;
+}
+
 /**
  * Resolve the main POV for this frame from the full-frame camera candidates.
  * `advance` runs the state machine (consume a pending target, tick the blend);
@@ -461,6 +509,7 @@ export function resolveMainPOV(
   if (shot && shotTo) {
     const shotFrom = shot.from === null ? undefined : candidates.find((c) => c.entity === shot.from);
     const cut = shotFrom ? lerpPOV(shotFrom, shotTo, applyCurve(shot.curve, shot.weight)) : shotTo;
+    announce(dir, shotTo.entity, dir.announced, 0);
     dir.blending = false;
     dir.from = null;
     dir.currentMain = cut;
@@ -488,12 +537,20 @@ export function resolveMainPOV(
   }
   dir.lastLive = targetPOV.entity;
 
+  announce(dir, targetPOV.entity, dir.announced, dir.blending && dir.from ? dir.duration : 0);
+
   let main: CameraPOV;
   if (dir.blending && dir.from) {
     const elapsed = now - dir.startTime;
     if (dir.duration <= 0 || elapsed >= dir.duration) {
       dir.blending = false;
       dir.from = null;
+      dir.pendingEvents.push({
+        kind: CameraEventKind.BlendFinished,
+        camera: targetPOV.entity as Entity,
+        previous: (dir.blendFrom >= 0 ? dir.blendFrom : 0) as Entity,
+        blendTime: dir.duration,
+      });
       main = targetPOV;
     } else {
       main = lerpPOV(dir.from, targetPOV, applyCurve(dir.curve, elapsed / dir.duration));
