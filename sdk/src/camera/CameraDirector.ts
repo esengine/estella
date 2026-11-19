@@ -182,6 +182,11 @@ export interface CameraDirectorState {
   defaultCurve: number;
   /** The camera the last resolve settled on, to see the live camera change between two of them. -1 before the first. */
   lastLive: number;
+  /** The camera the blend under way leaves, or -1 when it left a view no one camera had (a blend cut into mid-way). */
+  blendFrom: number;
+  /** The cameras the last advancing resolve chose among, and when it ran: what {@link cameraDirectorReport} reads. */
+  candidates: readonly CameraPOV[];
+  lastNow: number;
 }
 
 /** A shot between two cameras, `weight` of the way from `from` (or none) to `to`. */
@@ -211,11 +216,14 @@ export const DEFAULT_DIRECTOR: CameraDirectorState = {
   defaultBlend: 0,
   defaultCurve: BlendCurve.EaseInOut,
   lastLive: -1,
+  blendFrom: -1,
+  candidates: [],
+  lastNow: 0,
 };
 
 /** A fresh director state (own arrays) — use per App, not the shared default. */
 export function createDirectorState(): CameraDirectorState {
-  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [] };
+  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [], candidates: [] };
 }
 
 export const CameraDirector = defineResource<CameraDirectorState>(
@@ -363,18 +371,24 @@ export function resolveMainPOV(
   advance: boolean,
 ): CameraPOV | null {
   if (candidates.length === 0) {
-    if (advance) dir.currentMain = null;
+    if (advance) {
+      dir.currentMain = null;
+      dir.candidates = [];
+    }
     return null;
   }
   if (!advance) {
     return dir.currentMain ?? pickActive(candidates);
   }
+  dir.candidates = candidates;
+  dir.lastNow = now;
 
   // Apply a pending setViewTarget — snapshot the current view as the blend start.
   const asked = dir.hasPending;
   if (dir.hasPending) {
     dir.hasPending = false;
     if (dir.pendingTime > 0 && dir.currentMain) {
+      dir.blendFrom = dir.blending ? -1 : dir.lastLive;
       dir.from = clonePOV(dir.currentMain);
       dir.blending = true;
       dir.startTime = now;
@@ -405,6 +419,7 @@ export function resolveMainPOV(
   // The live camera changed with nothing asking: blend into it by the brain's default, from wherever the view is now (a
   // blend under way included, so a second change mid-blend does not jump).
   if (!asked && dir.lastLive >= 0 && targetPOV.entity !== dir.lastLive && dir.defaultBlend > 0 && dir.currentMain) {
+    dir.blendFrom = dir.blending ? -1 : dir.lastLive;
     dir.from = clonePOV(dir.currentMain);
     dir.blending = true;
     dir.startTime = now;
@@ -431,4 +446,52 @@ export function resolveMainPOV(
   // shake is a render-only transient offset on top.
   dir.currentMain = main;
   return applyShakes(dir, main, now);
+}
+
+/** One camera the director chose among, as {@link cameraDirectorReport} lists it. */
+export interface CameraCandidateReport {
+  entity: number;
+  priority: number;
+  active: boolean;
+}
+
+/**
+ * What the director is doing, as of its last frame: the live camera, the blend under way, and the cameras it chose
+ * among. Cinemachine's Brain shows the same in its inspector (Live Camera, Live Blend); the editor shows it on the
+ * Outliner's camera rows and on the game view while playing.
+ */
+export interface CameraDirectorReport {
+  /** The camera the view is, or blends into; null with no camera. */
+  live: number | null;
+  /** The blend under way: from which camera (null when it left a blend part-way), and how far, 0 to 1. */
+  blend: { from: number | null; to: number; progress: number; duration: number } | null;
+  /** True while a timeline's camera track holds the view. */
+  timeline: boolean;
+  cameras: CameraCandidateReport[];
+}
+
+/** The director's state as a plain report, for an inspector or a test. */
+export function cameraDirectorReport(host: CameraDirectorHost): CameraDirectorReport {
+  const dir = directorOf(host);
+  const cameras = dir.candidates.map((c) => ({ entity: c.entity, priority: c.priority, active: c.isActive }));
+  const live = dir.currentMain ? dir.currentMain.entity : null;
+  const shot = dir.timelineShot;
+  if (shot && cameras.some((c) => c.entity === shot.to)) {
+    const blending = shot.from !== null && shot.weight < 1;
+    return {
+      live: shot.to,
+      blend: blending ? { from: shot.from, to: shot.to, progress: shot.weight, duration: 0 } : null,
+      timeline: true,
+      cameras,
+    };
+  }
+  const blend = dir.blending && dir.from && live !== null
+    ? {
+        from: dir.blendFrom >= 0 ? dir.blendFrom : null,
+        to: live,
+        progress: dir.duration > 0 ? Math.min(1, Math.max(0, (dir.lastNow - dir.startTime) / dir.duration)) : 1,
+        duration: dir.duration,
+      }
+    : null;
+  return { live, blend, timeline: false, cameras };
 }

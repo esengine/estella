@@ -43,6 +43,21 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 });
 ```
 
+### Camera rigs from the Create menu
+
+The editor's **Create** menu (and an agent's `create` op with a `template`) offers the rigs a scene is usually built
+from, as Cinemachine's create menu does. Each is a `Camera` with the pipeline stages already in place; pick its target
+in the Details.
+
+| Item | Template | What it is |
+|---|---|---|
+| Follow Camera 2D | `camera:follow-2d` | Orthographic camera with `FollowTarget` and a little give. |
+| Tracking Camera | `camera:tracking` | Perspective camera that stands behind and above its target (`FollowTarget`) and frames it (`LookAtTarget`). |
+| Look-At Camera | `camera:look-at` | A camera that stays where it is put and turns to its target. |
+| Handheld Camera | `camera:handheld` | A camera with mild `CameraNoise`, like one held by hand. |
+| Dolly Camera with Track | `camera:dolly` | A `Spline` track and a camera on it (`CameraDolly`, Track Target) that looks at its target. |
+| Camera Brain | `camera:brain` | The scene's `CameraBrain`, so a change of camera blends instead of cutting. |
+
 ## The `Camera` component
 
 The SDK defaults are tuned for 2D (Orthographic, active, `orthoSize` 540). Move
@@ -182,6 +197,12 @@ The camera turns about world up and its own right, so it never rolls. A camera u
 and its own rotation is worked out through the parent's. An orthographic camera is left alone: it draws a plane, and
 turning it would show the plane's edge. The screen point is measured on the view the camera actually draws, its
 `viewport` share of the screen, so a shot holds the same framing on a phone and on a wide monitor.
+
+### Composition guides
+
+Select a camera with a `LookAtTarget` and its preview in the viewport draws the composition over what it sees: the
+screen point the target is held at and the dead zone around it, as Cinemachine's Game Window Guides do. Drag the point
+to move `screenX`/`screenY`, or an edge of the dead zone to resize it about the point; each drag is one undo step.
 
 ## The camera pipeline
 
@@ -418,6 +439,20 @@ const watchDirector = defineSystem([Res(CameraDirector)], (director) => {
   if (pov) { /* pov.x, pov.y, pov.orthoSize, ... */ }
 });
 ```
+
+`cameraDirectorReport(app)` sums the director up for a tool or a test: the live camera, the blend under way (from which
+camera, how far, 0 to 1) and the cameras it chose among.
+
+```typescript
+import { cameraDirectorReport } from 'esengine';
+
+const { live, blend } = cameraDirectorReport(app);
+if (blend) console.log(`blending ${blend.from} → ${blend.to}: ${Math.round(blend.progress * 100)}%`);
+```
+
+While the game runs in the editor, the Outliner marks the live camera **LIVE** (with the blend's progress while there
+is one) and the camera a blend is leaving **OUT**, as a Cinemachine Brain's Live Camera and Live Blend do; in Inspect
+the game view names them too.
 
 ### `CameraPOV`
 

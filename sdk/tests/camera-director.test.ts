@@ -12,6 +12,7 @@ import {
   BlendCurve,
   createDirectorState,
   shakeCamera,
+  cameraDirectorReport,
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
@@ -263,5 +264,45 @@ describe('shaking a 3D camera', () => {
     // Still looking down -X, but turned about that axis: the orientation is not the one it started with.
     expect(forward(q).x).toBeCloseTo(-1, 5);
     expect(Math.abs(q.x - side.tilt!.x) + Math.abs(q.z - side.tilt!.z)).toBeGreaterThan(1e-3);
+  });
+});
+
+describe('cameraDirectorReport', () => {
+  const A = mkPOV({ entity: 1, isActive: true, priority: 1, x: 0 });
+  const B = mkPOV({ entity: 2, isActive: true, priority: 0, x: 100 });
+
+  it('names the live camera and the cameras it was chosen among', () => {
+    const d = dir();
+    resolveMainPOV(d, [A, B], 0, true);
+    const r = cameraDirectorReport(d);
+    expect(r.live).toBe(1);
+    expect(r.blend).toBeNull();
+    expect(r.cameras).toEqual([{ entity: 1, priority: 1, active: true }, { entity: 2, priority: 0, active: true }]);
+  });
+
+  it('reports a default blend from the camera it left, and how far it has got', () => {
+    const d = dir({ defaultBlend: 2, defaultCurve: BlendCurve.Linear });
+    resolveMainPOV(d, [A, B], 0, true);
+    const raised = { ...B, priority: 5 };
+    resolveMainPOV(d, [A, raised], 1, true);
+    resolveMainPOV(d, [A, raised], 1.5, true);
+    expect(cameraDirectorReport(d).blend).toEqual({ from: 1, to: 2, progress: 0.25, duration: 2 });
+    resolveMainPOV(d, [A, raised], 3, true);
+    expect(cameraDirectorReport(d)).toMatchObject({ live: 2, blend: null });
+  });
+
+  it('says a blend that left another blend part-way came from no one camera', () => {
+    const C = mkPOV({ entity: 3, isActive: true, priority: 0 });
+    const d = dir({ defaultBlend: 2 });
+    resolveMainPOV(d, [A, B, C], 0, true);
+    resolveMainPOV(d, [A, { ...B, priority: 5 }, C], 1, true);
+    resolveMainPOV(d, [A, { ...B, priority: 5 }, { ...C, priority: 9 }], 1.5, true);
+    expect(cameraDirectorReport(d).blend).toMatchObject({ from: null, to: 3 });
+  });
+
+  it('is empty with no camera', () => {
+    const d = dir();
+    resolveMainPOV(d, [], 0, true);
+    expect(cameraDirectorReport(d)).toEqual({ live: null, blend: null, timeline: false, cameras: [] });
   });
 });
