@@ -231,6 +231,23 @@ int main() {
     CHECK(looked.shadowHeldBuilds == audited.shadowHeldBuilds + 1, "a camera that moves rebuilds them");
     if (coverOn) CHECK(looked.coverBuilds == audited.coverBuilds + 1, "and the rain cover's, past a texel of its grid");
 
+    const glm::mat4 vpSettle = cameraAt(glm::vec3(0.0f, 8.0f, -1.0f));
+    for (int i = 0; i < 8; ++i) {
+        moveTo(registry, crate, glm::vec3(4.0f - 0.1f * static_cast<f32>(i), 1.0f, -20.0f));
+        drawFrame(frame, registry, vpSettle);
+    }
+    CHECK(counter("render.mesh.castMovers") == 1.0, "the caster that keeps moving is the one mover");
+    for (int i = 0; i < 60; ++i) drawFrame(frame, registry, vpSettle);
+    CHECK(counter("render.mesh.castMovers") == 1.0, "and it is still one a while after it stopped");
+    for (int i = 0; i < 120; ++i) drawFrame(frame, registry, vpSettle);
+    CHECK(counter("render.mesh.castMovers") == 0.0, "a mover that stands long enough is a mover no longer");
+    const auto rested = frame.casterCacheStats();
+    moveTo(registry, crate, glm::vec3(4.0f, 1.0f, -20.0f));
+    drawFrame(frame, registry, vpSettle);
+    const auto taken = frame.casterCacheStats();
+    CHECK(counter("render.mesh.castMovers") == 0.0, "moved once after that, it is not a mover again");
+    CHECK(taken.shadowHeldBuilds == rested.shadowHeldBuilds + 1, "it is a held caster: moving it rebuilds the held casters");
+
     CHECK(coverOn, "the rain cover was asked for, so its checks ran");
     FrameProfiler::get().setEnabled(false);
     frame.shutdown();
