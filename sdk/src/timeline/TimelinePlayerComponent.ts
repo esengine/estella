@@ -32,6 +32,15 @@ export interface TimelinePlayerData {
      */
     bindingNames: string[];
     bindings: number[];
+    /**
+     * The stretch of the timeline this player plays (UE's playback range): from `rangeStart` seconds to `rangeEnd`;
+     * 0 is the timeline's end. A once timeline finishes at the range's end, a looping one loops within it.
+     */
+    rangeStart: number;
+    rangeEnd: number;
+    /** Run on real time rather than the game's: a cutscene or menu animation that plays on while the game is paused
+     *  (Time.scale 0), as Unity's Unscaled Game Time. */
+    unscaledTime: boolean;
 }
 
 /**
@@ -51,6 +60,9 @@ export const TimelinePlayer = /* @__PURE__ */ defineComponent<TimelinePlayerData
     finished: false,
     bindingNames: [],
     bindings: [],
+    rangeStart: 0,
+    rangeEnd: 0,
+    unscaledTime: false,
 }, {
     assetFields: [{ field: 'timeline', type: 'timeline' }],
     // Remapped with the scene like any entity reference, so a binding names the entity the scene loads as.
@@ -59,5 +71,8 @@ export const TimelinePlayer = /* @__PURE__ */ defineComponent<TimelinePlayerData
         bindings: { rowLabelsFrom: 'bindingNames', tooltip: 'What each of the timeline’s bound tracks (a path starting @Name) animates on this player.' },
         wrapMode: { tooltip: "Override the clip's own wrap mode: once, loop or pingPong. Empty uses what the clip declares." },
         finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to replay.' },
+        rangeStart: { min: 0, step: 0.05, unit: 's', tooltip: 'Where this player starts in the timeline.' },
+        rangeEnd: { min: 0, step: 0.05, unit: 's', tooltip: 'Where it ends, or loops back from; 0 is the timeline’s end.' },
+        unscaledTime: { tooltip: 'Run on real time, on while the game is paused (Time.scale 0).' },
     },
 });

@@ -92,6 +92,8 @@ export {
     collectCustomEvents,
     collectSignals,
     TimelineEvent,
+    TimelinePlayback,
+    type TimelinePlaybackPayload,
     type PlayheadRun,
     type TimelineSignal,
     type TimelineEventPayload,

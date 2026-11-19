@@ -37,6 +37,14 @@ export interface TimelineState {
     spineClipIndices: Record<number, number>;
     /** The timelines playing inside this one, by `SequenceLayer.key`: where each was last step, for edge detection. */
     nested: Record<string, { time: number; spineClipIndices: Record<number, number> }>;
+    /**
+     * The stretch of the timeline played (UE's playback range): from `rangeStart`, ending (or looping) at `rangeEnd`;
+     * 0 is the timeline's own end. Absent, the whole timeline.
+     */
+    rangeStart?: number;
+    rangeEnd?: number;
+    /** How many times a looping or ping-pong timeline has come round, counted as it plays. */
+    laps?: number;
 }
 
 export function createTimelineState(wrapMode: WrapMode = WrapMode.Once, speed = 1): TimelineState {
@@ -216,22 +224,34 @@ export function advanceTimelineTS(
 ): boolean {
     if (!state.playing) return false;
 
-    let phase = state.phase ?? state.time;
+    // The range played: [from, to] of the timeline, the whole of it by default. The clock runs in the range's own
+    // time (`phase`), and `state.time` is where that is in the timeline.
+    const from = Math.min(Math.max(0, state.rangeStart ?? 0), asset.duration);
+    const to = (state.rangeEnd ?? 0) > from ? Math.min(state.rangeEnd!, asset.duration) : asset.duration;
+    const span = Math.max(0, to - from);
+    let phase = state.phase ?? state.time - from;
     // Preserve the existing writable `time` control surface for callers that seek
-    // through the state record rather than TimelineAPI.setTime.
-    if (applyWrapMode(phase, asset.duration, state.wrapMode).time !== state.time) phase = state.time;
+    // through the state record rather than TimelineAPI.setTime; a time outside the range starts it from its top.
+    if (state.time < from - 1e-9 || state.time > to + 1e-9) phase = 0;
+    else if (from + applyWrapMode(phase, span, state.wrapMode).time !== state.time) phase = state.time - from;
     state.prevTime = state.time;
     const advanced = phase + dt * state.speed;
-    const wrapped = applyWrapMode(advanced, asset.duration, state.wrapMode);
-    state.time = wrapped.time;
+    const wrapped = applyWrapMode(advanced, span, state.wrapMode);
+    state.time = from + wrapped.time;
     state.phase = advanced;
+    if (state.wrapMode !== WrapMode.Once && span > 0) {
+        const laps = Math.floor(advanced / span) - Math.floor(Math.max(0, phase) / span);
+        if (laps > 0) state.laps = (state.laps ?? 0) + laps;
+    }
 
     sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
     // Skeletal clips on their rigs, blended over what the rig's Animator posed this frame.
     if (ctx.lookup) sampleAnimationTracks(asset, state.time, root, ctx.deps, ctx.lookup);
     ctx.onPropertyApplied?.(root, asset);
 
-    const segments = playheadRuns(phase, advanced, asset.duration, state.wrapMode, !state.started);
+    // The stretches the playhead covered, in the timeline's own time.
+    const segments = from === 0 ? playheadRuns(phase, advanced, span, state.wrapMode, !state.started)
+        : playheadRuns(phase, advanced, span, state.wrapMode, !state.started).map((r) => ({ ...r, from: r.from + from, to: r.to + from }));
     state.started = true;
 
     for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {

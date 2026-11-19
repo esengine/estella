@@ -385,3 +385,46 @@ describe('signals: the events and markers a playhead crosses', () => {
         expect(heard.slice(1)).toEqual(['marker:beat@1.5::{}', 'event:open@0.5:Door:{"by":"key"}']);
     });
 });
+
+describe('a play range', () => {
+    const asset: TimelineAsset = {
+        version: '1.3', type: 'timeline', duration: 5, wrapMode: WrapMode.Once,
+        tracks: [{ type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0.5, name: 'before' }, { time: 2, name: 'inside' }, { time: 4, name: 'after' }] }],
+    };
+    const deps: SampleDeps = { world: {} as SampleDeps['world'], getComponent: () => undefined, resolveChild: () => 1 as never };
+    const run = (mode: WrapMode, steps: number[]) => {
+        const s = createTimelineState(mode);
+        s.playing = true;
+        s.rangeStart = 1;
+        s.rangeEnd = 3;
+        const heard: string[] = [];
+        let finished = false;
+        for (const dt of steps) finished = advanceTimelineTS(asset, 1 as never, s, dt, { deps, onSignals: (x) => { for (const m of x) heard.push(m.name); } }) || finished;
+        return { s, heard, finished };
+    };
+
+    it('starts at the range’s start, plays only what is inside it, and finishes at its end', () => {
+        const { s, heard, finished } = run(WrapMode.Once, [0.5, 0.5, 0.5, 0.5, 0.5]);
+        expect(heard).toEqual(['inside']);
+        expect(s.time).toBe(3);
+        expect(finished).toBe(true);
+    });
+
+    it('loops within the range and counts each lap', () => {
+        const { s, heard } = run(WrapMode.Loop, [0.5, 0.5, 0.5, 0.5, 0.5]);
+        expect(s.time).toBeCloseTo(1.5, 9);
+        expect(s.laps).toBe(1);
+        expect(heard).toEqual(['inside']);
+        const more = run(WrapMode.Loop, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+        expect(more.heard).toEqual(['inside', 'inside']);
+    });
+
+    it('plays the whole timeline with no range, as before', () => {
+        const s = createTimelineState(WrapMode.Once);
+        s.playing = true;
+        const heard: string[] = [];
+        advanceTimelineTS(asset, 1 as never, s, 6, { deps, onSignals: (x) => { for (const m of x) heard.push(m.name); } });
+        expect(heard).toEqual(['before', 'inside', 'after']);
+        expect(s.time).toBe(5);
+    });
+});

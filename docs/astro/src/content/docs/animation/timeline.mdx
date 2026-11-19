@@ -80,6 +80,32 @@ These methods write through to the `TimelinePlayer` flags — `timeline.play(e)`
   [AI — built-in names](/docs/gameplay/ai/overview/#built-in-names).
 </Aside>
 
+### Range, real time and playback events
+
+A `TimelinePlayer` can play a stretch of its timeline, as UE's playback range does: `rangeStart` to `rangeEnd` seconds
+(`0` is the timeline's end). It starts at the range's start, a once timeline finishes at its end, and a looping one loops
+within it. `unscaledTime` runs the player on real time, so a cutscene or a menu animation plays on while the game is
+paused with `Time.scale` at 0 (Unity's Unscaled Game Time).
+
+What a player does is sent as a `TimelinePlayback` event, read the next frame, as Unity's PlayableDirector played,
+paused and stopped events and UE's OnPlay, OnPause, OnStop and OnFinished are:
+
+```typescript
+import { defineSystem, EventReader, TimelinePlayback } from 'esengine';
+
+const onCutscene = defineSystem([EventReader(TimelinePlayback)], (events) => {
+  for (const e of events) if (e.kind === 'finished') giveControlBack(e.player);
+});
+```
+
+| `kind` | When |
+|---|---|
+| `played` | The player starts, or resumes from a pause. |
+| `paused` | It stops where it is (`Timeline.pause`, or `playing` lowered). |
+| `stopped` | It is stopped and rewound (`Timeline.stop`). |
+| `finished` | A once timeline reaches its end (or its range's). |
+| `looped` | A looping or ping-pong timeline comes round. |
+
 ## Track types
 
 A timeline is a set of tracks evaluated together each frame:

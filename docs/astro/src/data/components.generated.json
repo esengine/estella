@@ -10187,10 +10187,32 @@
           "type": "Entity",
           "default": "",
           "doc": "What each of the timeline’s bound tracks (a path starting @Name) animates on this player."
+        },
+        {
+          "key": "rangeStart",
+          "type": "number",
+          "default": "0",
+          "doc": "Where this player starts in the timeline.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "rangeEnd",
+          "type": "number",
+          "default": "0",
+          "doc": "Where it ends, or loops back from; 0 is the timeline’s end.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "unscaledTime",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Run on real time, on while the game is paused (Time.scale 0)."
         }
       ],
       "animatable": [
-        "speed"
+        "speed",
+        "rangeStart",
+        "rangeEnd"
       ]
     },
     {

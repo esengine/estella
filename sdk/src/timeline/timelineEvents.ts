@@ -221,6 +221,24 @@ export const TimelineEvent: EventDef<TimelineEventPayload> = defineEvent<Timelin
     kind: 'event', name: '', payload: {}, time: 0, player: 0 as Entity, target: 0 as Entity,
 });
 
+/** What a TimelinePlayer did: {@link TimelinePlayback}'s payload. */
+export interface TimelinePlaybackPayload {
+    /** `played` (started or resumed), `paused`, `stopped` (rewound), `finished` (a once timeline reached its end), or
+     *  `looped` (a looping or ping-pong timeline came round). */
+    kind: 'played' | 'paused' | 'stopped' | 'finished' | 'looped';
+    player: Entity;
+    /** Where the playhead is, in seconds. */
+    time: number;
+}
+
+/**
+ * A TimelinePlayer starting, pausing, stopping, finishing or looping: Unity's PlayableDirector played, paused and
+ * stopped, and UE's OnPlay, OnPause, OnStop and OnFinished. Read with `EventReader(TimelinePlayback)`, the next frame.
+ */
+export const TimelinePlayback: EventDef<TimelinePlaybackPayload> = defineEvent<TimelinePlaybackPayload>('TimelinePlayback', {
+    kind: 'played', player: 0 as Entity, time: 0,
+});
+
 /** A named moment a playhead crossed: an event (with its payload) or a marker, and where it is in the clip. */
 export interface TimelineSignal {
     kind: 'event' | 'marker';

@@ -76,6 +76,31 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
   [AI——内建名字](/docs/zh-cn/gameplay/ai/overview/#内建名字)。
 </Aside>
 
+### 播放范围、真实时间与播放事件
+
+`TimelinePlayer` 可以只播放时间轴的一段,对应 UE 的播放范围:从 `rangeStart` 秒到 `rangeEnd` 秒(`0` 表示时间轴结尾)。它从
+范围开头开始播放,单次播放的时间轴在范围结尾结束,循环的时间轴在范围内循环。`unscaledTime` 让播放器按真实时间运行,
+所以游戏用 `Time.scale` 为 0 暂停时,过场或菜单动画仍会继续播放(对应 Unity 的 Unscaled Game Time)。
+
+播放器的动作作为 `TimelinePlayback` 事件发出,下一帧读到,对应 Unity PlayableDirector 的 played、paused、stopped 事件和
+UE 的 OnPlay、OnPause、OnStop、OnFinished:
+
+```typescript
+import { defineSystem, EventReader, TimelinePlayback } from 'esengine';
+
+const onCutscene = defineSystem([EventReader(TimelinePlayback)], (events) => {
+  for (const e of events) if (e.kind === 'finished') giveControlBack(e.player);
+});
+```
+
+| `kind` | 时机 |
+|---|---|
+| `played` | 播放器开始播放,或从暂停恢复。 |
+| `paused` | 停在原处(`Timeline.pause`,或把 `playing` 关掉)。 |
+| `stopped` | 停止并回到开头(`Timeline.stop`)。 |
+| `finished` | 单次播放的时间轴到达结尾(或范围结尾)。 |
+| `looped` | 循环或往返的时间轴转回一圈。 |
+
 ## 轨道类型
 
 时间轴是一组每帧一起求值的轨道:

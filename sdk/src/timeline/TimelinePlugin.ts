@@ -5,7 +5,7 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { SystemLabel } from '../ecs/systemLabels';
 import { Res } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
-import { TimelineEvent, type TimelineEventPayload } from './timelineEvents';
+import { TimelineEvent, TimelinePlayback, type TimelineEventPayload, type TimelinePlaybackPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
 import { resolveTimelinePath } from './timelineBindings';
 import { Time, type TimeData } from '../ecs/resource';
@@ -38,6 +38,8 @@ export class TimelinePlugin implements Plugin {
 
     private animFramesStates_ = new Map<number, AnimFramesState>();
     private offDespawn_: (() => void) | null = null;
+    /** Each player's state as of last frame, to tell what it did this one. */
+    private readonly lastPlayback_ = new Map<Entity, { playing: boolean; laps: number }>();
     /** The audio clips each player is playing. */
     private readonly voices_ = new TimelineAudioVoices();
 
@@ -81,6 +83,7 @@ export class TimelinePlugin implements Plugin {
             app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
             this.voices_.stop(entity);
+            this.lastPlayback_.delete(entity);
             if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
         });
 
@@ -89,9 +92,10 @@ export class TimelinePlugin implements Plugin {
         // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
         // land via world.set (the same path the editor preview uses).
         app.addEvent(TimelineEvent);
+        app.addEvent(TimelinePlayback);
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time), EventWriter(TimelineEvent)],
-            (time: TimeData, events: EventWriterInstance<TimelineEventPayload>) => {
+            [Res(Time), EventWriter(TimelineEvent), EventWriter(TimelinePlayback)],
+            (time: TimeData, events: EventWriterInstance<TimelineEventPayload>, playback: EventWriterInstance<TimelinePlaybackPayload>) => {
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
                 const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
@@ -121,12 +125,17 @@ export class TimelinePlugin implements Plugin {
                     const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
                     state.speed = player.speed;
+                    state.rangeStart = player.rangeStart ?? 0;
+                    state.rangeEnd = player.rangeEnd ?? 0;
+                    const was = this.lastPlayback_.get(entity) ?? { playing: false, laps: state.laps ?? 0 };
                     state.wrapMode = wrapMode;
                     const rewound = applyPlayerFlags(player, state);
 
                     this.ensureAnimFrames(entity, asset);
 
-                    const justFinished = advanceTimelineTS(asset, entity, state, time.delta, {
+                    // Real time for a player that runs while the game is paused.
+                    const dt = player.unscaledTime ? time.unscaledDelta : time.delta;
+                    const justFinished = advanceTimelineTS(asset, entity, state, dt, {
                         particle: app.hasResource(Particle) ? app.getResource(Particle) : null,
                         deps, audio,
                         lookup: (ref) => tl.getAsset(ref),
@@ -144,6 +153,16 @@ export class TimelinePlugin implements Plugin {
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // A clip that ran out gives the view back; one that is only paused keeps it.
                     if (justFinished && director) setTimelineShot(director, entity, null);
+
+                    // What the player did this frame, for the game: started, paused, stopped, finished, came round.
+                    const laps = state.laps ?? 0;
+                    if (!was.playing && state.playing) playback.send({ kind: 'played', player: entity, time: state.time });
+                    if (laps > was.laps) playback.send({ kind: 'looped', player: entity, time: state.time });
+                    if (was.playing && !state.playing) {
+                        const kind = justFinished ? 'finished' : !state.started && state.time === 0 ? 'stopped' : 'paused';
+                        playback.send({ kind, player: entity, time: state.time });
+                    }
+                    this.lastPlayback_.set(entity, { playing: state.playing, laps });
 
                     if (latchPlayerFinish(player, state, justFinished) || rewound) {
                         world.insert(entity, TimelinePlayer, player);
