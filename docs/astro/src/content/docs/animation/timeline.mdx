@@ -136,7 +136,9 @@ and a track with a key at the playhead.
 | | `color` | The colour faded to. |
 | `TimeDilation` | `scale` | How fast the game runs while it is on: 0.25 is slow motion. Several multiply, and they multiply the game's own `Time.scale`, so a game paused at 0 stays paused and gets its own speed back when the dilation ends. |
 
-Both act in play; the Sequencer's preview shows the keyed values, not the fade or the slower clock.
+Both act in play. While the Sequencer previews a timeline, the fade at the playhead is drawn over the scene view and
+the camera preview too, as UE's viewport shows a Fade track, without changing the scene's own value; the slower clock
+is seen only in play.
 
 ### Audio clips
 
