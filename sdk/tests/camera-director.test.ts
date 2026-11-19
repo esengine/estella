@@ -13,6 +13,7 @@ import {
   createDirectorState,
   shakeCamera,
   cameraDirectorReport,
+  blendFor,
   type CameraDirectorState,
 } from '../src/camera/CameraDirector';
 import type { CameraPOV } from '../src/camera/CameraPlugin';
@@ -304,5 +305,60 @@ describe('cameraDirectorReport', () => {
     const d = dir();
     resolveMainPOV(d, [], 0, true);
     expect(cameraDirectorReport(d)).toEqual({ live: null, blend: null, timeline: false, cameras: [] });
+  });
+});
+
+describe('equal priority: the camera activated last', () => {
+  const A = mkPOV({ entity: 1, isActive: true, priority: 3, x: 0 });
+  const B = mkPOV({ entity: 2, isActive: true, priority: 3, x: 100 });
+
+  it('keeps the first of cameras there from the start, and goes to one switched on later', () => {
+    const d = dir();
+    expect(resolveMainPOV(d, [A, B], 0, true)?.entity).toBe(1);
+    // B switched off, then on again: activated last, so it wins the tie.
+    expect(resolveMainPOV(d, [A], 1, true)?.entity).toBe(1);
+    expect(resolveMainPOV(d, [A, B], 2, true)?.entity).toBe(2);
+    // And A, switched off and on after it, takes it back.
+    resolveMainPOV(d, [B], 3, true);
+    expect(resolveMainPOV(d, [A, B], 4, true)?.entity).toBe(1);
+  });
+
+  it('still lets a higher priority win over a camera activated later', () => {
+    const d = dir();
+    resolveMainPOV(d, [{ ...A, priority: 5 }], 0, true);
+    expect(resolveMainPOV(d, [{ ...A, priority: 5 }, B], 1, true)?.entity).toBe(1);
+  });
+});
+
+describe('custom blends', () => {
+  const A = mkPOV({ entity: 1, isActive: true, priority: 1, x: 0 });
+  const B = mkPOV({ entity: 2, isActive: true, priority: 0, x: 100 });
+  const C = mkPOV({ entity: 3, isActive: true, priority: 0, x: 200 });
+
+  it('picks the blend naming both ends, then the one naming where it goes, then where it leaves, then the default', () => {
+    const d = dir({
+      defaultBlend: 1, defaultCurve: BlendCurve.EaseInOut,
+      customBlends: [
+        { from: 1, to: -1, time: 3, curve: BlendCurve.Linear },
+        { from: -1, to: 2, time: 2, curve: BlendCurve.EaseIn },
+        { from: 1, to: 2, time: 0.5, curve: BlendCurve.EaseOut },
+      ],
+    });
+    expect(blendFor(d, 1, 2)).toEqual({ time: 0.5, curve: BlendCurve.EaseOut });
+    expect(blendFor(d, 3, 2)).toEqual({ time: 2, curve: BlendCurve.EaseIn });
+    expect(blendFor(d, 1, 3)).toEqual({ time: 3, curve: BlendCurve.Linear });
+    expect(blendFor(d, 3, 1)).toEqual({ time: 1, curve: BlendCurve.EaseInOut });
+  });
+
+  it('blends a change of live camera by its custom blend, and cuts where that says 0', () => {
+    const d = dir({ defaultBlend: 1, customBlends: [{ from: 1, to: 2, time: 4, curve: BlendCurve.Linear }, { from: 2, to: 3, time: 0, curve: 0 }] });
+    resolveMainPOV(d, [A, B, C], 0, true);
+    resolveMainPOV(d, [A, { ...B, priority: 5 }, C], 1, true);
+    expect(d.duration).toBe(4);
+    expect(resolveMainPOV(d, [A, { ...B, priority: 5 }, C], 2, true)!.x).toBeCloseTo(25, 6);
+    // Into C mid-blend with a cut: the view is C's at once.
+    const cut = resolveMainPOV(d, [A, { ...B, priority: 5 }, { ...C, priority: 9 }], 2.5, true)!;
+    expect(cut.x).toBe(200);
+    expect(d.blending).toBe(false);
   });
 });

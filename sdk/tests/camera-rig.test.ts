@@ -186,3 +186,32 @@ describe('lookAtUpdate on a world', () => {
     expect(writes).not.toHaveBeenCalled();
   });
 });
+
+describe('CameraBrain custom blends by name', () => {
+  it('turns camera names into entities, an empty name into any, and drops a blend naming no entity', async () => {
+    const { World } = await import('../src/ecs/world');
+    const { Name } = await import('../src/ecs/component');
+    const { resolveCustomBlends } = await import('../src/camera/CameraRig');
+    const { createMockModule } = await import('./mocks/wasm');
+    const world = new World();
+    const mod = createMockModule();
+    world.connectCpp(mod.getRegistry(), mod);
+    const wide = world.spawn('wide'); world.insert(wide, Name, { value: 'Wide' });
+    const close = world.spawn('close'); world.insert(close, Name, { value: 'Close' });
+    const blends = [
+      { from: 'Wide', to: 'Close', time: 2, curve: 0 },
+      { from: '', to: 'Wide', time: 0.5, curve: 3 },
+      { from: 'Nobody', to: 'Close', time: 9, curve: 0 },
+    ];
+    expect(resolveCustomBlends(world, blends)).toEqual([
+      { from: wide, to: close, time: 2, curve: 0 },
+      { from: -1, to: wide, time: 0.5, curve: 3 },
+    ]);
+    // A camera that takes the missing name later is found then.
+    const late = world.spawn('late'); world.insert(late, Name, { value: 'Nobody' });
+    expect(resolveCustomBlends(world, blends)).toContainEqual({ from: late, to: close, time: 9, curve: 0 });
+    // Renamed: looked up again, not answered from what it was.
+    world.insert(wide, Name, { value: 'Far' });
+    expect(resolveCustomBlends(world, blends).some((b) => b.from === wide || b.to === wide)).toBe(false);
+  });
+});

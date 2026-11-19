@@ -499,7 +499,8 @@ other's; discrete fields (projection, viewport) snap at the midpoint.
 
 ## Switching cameras by priority
 
-Among the active cameras that fill the screen, the one with the highest `priority` is live; on a tie, the first. Raise
+Among the active cameras that fill the screen, the one with the highest `priority` is live; on a tie, the one switched
+on most recently, as Cinemachine's Brain decides (cameras there when the scene loads keep the first of them). Raise
 a camera's priority, or turn a camera on or off, and a different one goes live. By default the view cuts to it. Add a
 `CameraBrain` to any entity of the scene and the view blends instead, the way a Cinemachine Brain's Default Blend does:
 
@@ -516,6 +517,22 @@ cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
 |---|---|---|---|
 | `defaultBlend` | number | `1` | Seconds the view takes to move to a camera that goes live without being asked for. `0` cuts. |
 | `blendCurve` | number | `EaseInOut` | Easing of that blend: `BlendCurve.Linear`, `EaseIn`, `EaseOut` or `EaseInOut`. |
+| `customBlends` | records | `[]` | Blends for particular changes of camera, by camera name (`from`, `to`; empty for any camera), each with its `time` and `curve`. |
+
+
+Custom blends are Cinemachine's Custom Blends: a cut from the wide shot to a close-up, a slow drift back out. The first
+that names both cameras wins, then one naming the camera blended to, then one naming the camera blended from; any other
+change takes the default. A `time` of `0` cuts. The Details edits them as a table:
+
+```typescript
+cmds.spawn().insert(CameraBrain, {
+  defaultBlend: 1,
+  customBlends: [
+    { from: 'Wide', to: 'Close', time: 0, curve: BlendCurve.Linear },   // cut in
+    { from: '', to: 'Wide', time: 2.5, curve: BlendCurve.EaseInOut },  // ease back out from anywhere
+  ],
+});
+```
 
 If the live camera changes again in the middle of a blend, the new blend starts from where the view is, so it never
 jumps. A `setViewTarget` names its own blend time and is not affected by the brain. One brain per scene; a scene

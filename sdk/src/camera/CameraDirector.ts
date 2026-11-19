@@ -187,6 +187,27 @@ export interface CameraDirectorState {
   /** The cameras the last advancing resolve chose among, and when it ran: what {@link cameraDirectorReport} reads. */
   candidates: readonly CameraPOV[];
   lastNow: number;
+  /**
+   * When each candidate became one, as a count: of two live-worthy cameras of one priority, the one activated last wins,
+   * as Cinemachine's Brain decides. Cameras there from the first frame share one count, so a scene as loaded keeps the
+   * first of them.
+   */
+  activation: Map<number, number>;
+  activationSeq: number;
+  /**
+   * Blends for particular changes of camera, from the scene's CameraBrain (CameraRig.ts): from one camera to another,
+   * by entity, -1 for any. The first that names both ends wins, then one naming the camera blended to, then the one
+   * blended from; otherwise the default blend.
+   */
+  customBlends: CustomBlend[];
+}
+
+/** A blend the brain gives one change of camera: `from` and `to` are entities, -1 any. */
+export interface CustomBlend {
+  from: number;
+  to: number;
+  time: number;
+  curve: number;
 }
 
 /** A shot between two cameras, `weight` of the way from `from` (or none) to `to`. */
@@ -219,15 +240,18 @@ export const DEFAULT_DIRECTOR: CameraDirectorState = {
   blendFrom: -1,
   candidates: [],
   lastNow: 0,
+  activation: new Map(),
+  activationSeq: 0,
+  customBlends: [],
 };
 
 /** A fresh director state (own arrays) — use per App, not the shared default. */
 export function createDirectorState(): CameraDirectorState {
-  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [], candidates: [] };
+  return { ...DEFAULT_DIRECTOR, from: null, currentMain: null, shakes: [], candidates: [], activation: new Map(), customBlends: [] };
 }
 
 export const CameraDirector = defineResource<CameraDirectorState>(
-  { ...DEFAULT_DIRECTOR },
+  createDirectorState(),
   'CameraDirector',
 );
 
@@ -345,17 +369,47 @@ function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): Cam
 
 /**
  * The live camera by policy: the highest priority among the active cameras, as Cinemachine picks among enabled virtual
- * cameras; among all of them when none is active. A tie keeps the first. The engine hands over only active cameras, so
- * taking the first active one, as this did, let priority choose nothing.
+ * cameras; among all of them when none is active. The engine hands over only active cameras, so taking the first active
+ * one, as this did, let priority choose nothing. A tie goes to the camera activated last (`activation`), then the first.
  */
-function pickActive(candidates: CameraPOV[]): CameraPOV {
+function pickActive(candidates: CameraPOV[], activation?: ReadonlyMap<number, number>): CameraPOV {
   const anyActive = candidates.some((c) => c.isActive);
+  const when = (c: CameraPOV) => activation?.get(c.entity) ?? 0;
   let best: CameraPOV | null = null;
   for (const c of candidates) {
     if (anyActive && !c.isActive) continue;
-    if (!best || c.priority > best.priority) best = c;
+    if (!best || c.priority > best.priority || (c.priority === best.priority && when(c) > when(best))) best = c;
   }
   return best ?? candidates[0];
+}
+
+/**
+ * Counts each camera that has become a candidate since the last frame: one that was not among them, or was there
+ * switched off. Cameras gone are forgotten, so one that comes back counts as activated anew. The first frame counts
+ * every camera at once.
+ */
+function noteActivations(dir: CameraDirectorState, candidates: readonly CameraPOV[]): void {
+  const first = dir.activation.size === 0 && dir.lastLive < 0;
+  const seen = new Set<number>();
+  let fresh = false;
+  for (const c of candidates) {
+    if (!c.isActive) continue;
+    seen.add(c.entity);
+    if (!dir.activation.has(c.entity)) {
+      if (!fresh && !first) dir.activationSeq++;
+      fresh = true;
+      dir.activation.set(c.entity, first ? 0 : dir.activationSeq);
+    }
+  }
+  for (const e of [...dir.activation.keys()]) if (!seen.has(e)) dir.activation.delete(e);
+}
+
+/** The blend the brain gives a change of camera from `from` to `to`: its custom one, else its default. */
+export function blendFor(dir: CameraDirectorState, from: number, to: number): { time: number; curve: number } {
+  const both = dir.customBlends.find((b) => b.from === from && b.to === to)
+    ?? dir.customBlends.find((b) => b.from < 0 && b.to === to)
+    ?? dir.customBlends.find((b) => b.from === from && b.to < 0);
+  return both ? { time: both.time, curve: both.curve } : { time: dir.defaultBlend, curve: dir.defaultCurve };
 }
 
 /**
@@ -378,10 +432,11 @@ export function resolveMainPOV(
     return null;
   }
   if (!advance) {
-    return dir.currentMain ?? pickActive(candidates);
+    return dir.currentMain ?? pickActive(candidates, dir.activation);
   }
   dir.candidates = candidates;
   dir.lastNow = now;
+  noteActivations(dir, candidates);
 
   // Apply a pending setViewTarget — snapshot the current view as the blend start.
   const asked = dir.hasPending;
@@ -414,17 +469,22 @@ export function resolveMainPOV(
 
   const targetPOV =
     (dir.target >= 0 ? candidates.find((c) => c.entity === dir.target) : undefined) ??
-    pickActive(candidates);
+    pickActive(candidates, dir.activation);
 
-  // The live camera changed with nothing asking: blend into it by the brain's default, from wherever the view is now (a
-  // blend under way included, so a second change mid-blend does not jump).
-  if (!asked && dir.lastLive >= 0 && targetPOV.entity !== dir.lastLive && dir.defaultBlend > 0 && dir.currentMain) {
+  // The live camera changed with nothing asking: blend into it as the brain says for this change (its custom blend, else
+  // its default), from wherever the view is now (a blend under way included, so a second change mid-blend does not jump).
+  const blend = !asked && dir.lastLive >= 0 && targetPOV.entity !== dir.lastLive ? blendFor(dir, dir.lastLive, targetPOV.entity) : null;
+  if (blend && blend.time > 0 && dir.currentMain) {
     dir.blendFrom = dir.blending ? -1 : dir.lastLive;
     dir.from = clonePOV(dir.currentMain);
     dir.blending = true;
     dir.startTime = now;
-    dir.duration = dir.defaultBlend;
-    dir.curve = dir.defaultCurve;
+    dir.duration = blend.time;
+    dir.curve = blend.curve;
+  } else if (blend) {
+    // A cut: a blend under way into the camera left behind ends here too.
+    dir.blending = false;
+    dir.from = null;
   }
   dir.lastLive = targetPOV.entity;
 

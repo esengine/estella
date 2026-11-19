@@ -447,7 +447,7 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 
 ## 按优先级切换相机
 
-在铺满屏幕的激活相机里,`priority` 最高的那台是活动相机;优先级相同时取第一台。提高某台相机的优先级,或者打开、
+在铺满屏幕的激活相机里,`priority` 最高的那台是活动相机;优先级相同时取最近打开的那台(和 Cinemachine Brain 一样;场景加载时就在的相机取第一台)。提高某台相机的优先级,或者打开、
 关闭某台相机,活动相机就会换成另一台。默认是直接切过去。在场景里任意实体上加一个 `CameraBrain`,就会改为平滑混合,
 相当于 Cinemachine Brain 的 Default Blend:
 
@@ -464,6 +464,19 @@ cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
 |---|---|---|---|
 | `defaultBlend` | number | `1` | 没有显式指定、活动相机自己变了时,画面过渡所用的秒数。`0` 为硬切。 |
 | `blendCurve` | number | `EaseInOut` | 过渡的缓动:`BlendCurve.Linear`、`EaseIn`、`EaseOut` 或 `EaseInOut`。 |
+| `customBlends` | records | `[]` | 针对特定相机切换的混合,按相机名(`from`、`to`;留空表示任意相机),各自带 `time` 和 `curve`。 |
+
+自定义混合对应 Cinemachine 的 Custom Blends:从全景硬切到特写、再慢慢退回。同时写明两台相机的条目优先,其次是写明目标相机的,再次是写明来源相机的;其余切换用默认混合。`time` 为 `0` 时硬切。Details 里以表格编辑:
+
+```typescript
+cmds.spawn().insert(CameraBrain, {
+  defaultBlend: 1,
+  customBlends: [
+    { from: 'Wide', to: 'Close', time: 0, curve: BlendCurve.Linear },   // 硬切进去
+    { from: '', to: 'Wide', time: 2.5, curve: BlendCurve.EaseInOut },  // 从任意相机慢慢退回
+  ],
+});
+```
 
 如果在混合途中活动相机又变了,新的混合从画面当前所在的位置开始,不会跳变。`setViewTarget` 自带混合时长,
 不受大脑影响。每个场景一个大脑;没有大脑的场景照旧硬切。

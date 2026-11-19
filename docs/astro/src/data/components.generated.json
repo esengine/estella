@@ -818,12 +818,27 @@
         {
           "key": "defaultBlend",
           "type": "number",
-          "default": "1"
+          "default": "1",
+          "doc": "Seconds the view takes to move to a camera that becomes live; 0 cuts.",
+          "range": "≥ 0, step 0.1"
         },
         {
           "key": "blendCurve",
-          "type": "number",
-          "default": "3"
+          "type": "enum",
+          "default": "Ease in and out",
+          "doc": "The easing of that blend.",
+          "values": [
+            "Linear",
+            "Ease in",
+            "Ease out",
+            "Ease in and out"
+          ]
+        },
+        {
+          "key": "customBlends",
+          "type": "array",
+          "default": "empty",
+          "doc": "Blends for particular changes of camera, by camera name; an empty name is any camera. Time 0 cuts."
         }
       ],
       "animatable": [

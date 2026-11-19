@@ -2218,6 +2218,7 @@ ComponentDef<CameraBrainData>
 ## CameraBrainData — interface @experimental
 ```
 blendCurve: number
+customBlends: CameraBrainBlend[]
 defaultBlend: number
 ```
 
@@ -2315,11 +2316,14 @@ timeline: boolean
 
 ## CameraDirectorState — interface @experimental
 ```
+activation: Map<number, number>
+activationSeq: number
 blendFrom: number
 blending: boolean
 candidates: readonly CameraPOV[]
 currentMain: CameraPOV | null
 curve: number
+customBlends: CustomBlend[]
 defaultBlend: number
 defaultCurve: number
 duration: number
@@ -4698,6 +4702,7 @@ map: boolean | undefined
 max: number | undefined
 min: number | undefined
 normalizedOf: string | undefined
+records: { columns: ReadonlyArray<{ key: string; label?: string; kind: "number" | "string"; enum?: ReadonlyArray<{ label: string; value: number; }>; placeholder?: string; min?: number; step?: number; }>; defaults: Readonly<Record<string, string | number>>; } | undefined
 shownWhen: { field: string; values: ReadonlyArray<number>; } | undefined
 slider: boolean | undefined
 step: number | undefined

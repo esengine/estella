@@ -99,6 +99,25 @@ export interface FieldMeta {
      *  effect the engine gains is authorable without touching the editor. */
     effectStack?: boolean;
     /**
+     * Render as a table of records (the field value is an array of flat objects): one row each, a column per key. An
+     * entry a component holds a list of, each of a few named numbers and strings (a brain's custom blends), which
+     * value-shape inference cannot edit. A new row starts as `defaults`.
+     */
+    records?: {
+        columns: ReadonlyArray<{
+            key: string;
+            label?: string;
+            /** `string` or `number`; with `enum`, a dropdown of those values. */
+            kind: 'string' | 'number';
+            enum?: ReadonlyArray<{ label: string; value: number }>;
+            /** What an empty string cell means, shown in it (`Any camera`). */
+            placeholder?: string;
+            min?: number;
+            step?: number;
+        }>;
+        defaults: Readonly<Record<string, string | number>>;
+    };
+    /**
      * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
      * collision layers from project settings) rather than fixed here. `bits` is the
      * count (default 32); `source` names the editor's label provider.
