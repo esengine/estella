@@ -5,6 +5,7 @@ commits:
   - perf(render): Graphics keeps its triangles in the engine's memory and flush() draws them by reference - Draw.createTriangles copies a mesh in once, so drawing a shape copies nothing
   - perf(render): a Graphics' triangles live on the GPU and each copy is an instance record - the batch shader's INSTANCED variant moves and tints the shape there, and copies drawn one after another are one instanced draw
   - perf(render): Graphics.flushMany and Draw.trianglesMany draw many copies of a shape in one call into the engine - the copies' instance records are written where the engine reads them
+  - fix(render): a Graphics counts frames by the app's, not by Draw.begin - a frame opens several of those, so a drawing rebuilt in a system each frame was taken for one kept between frames and made a GPU buffer it threw away a frame later
 ---
 **`Graphics` fills any outline, builds its triangles once, and draws one shape any number of times faded and moved.** It
 filled only rectangles and circles (a path from `moveTo` and `lineTo` stayed an outline, a rounded rectangle filled square
