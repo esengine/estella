@@ -10,7 +10,7 @@
     "mipmaps": true,
     "filterMode": "linear",
     "wrapMode": "repeat",
-    "sRGB": false,
+    "sRGB": true,
     "alphaIsTransparency": true,
     "mipCoverage": 0,
     "sliceBorder": {

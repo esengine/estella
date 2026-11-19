@@ -63,13 +63,27 @@ return min((i + smoothstep(0.5 - soft, 0.5 + soft, f)) / u_bands, 1.0);
 
 void main() {
 vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+
 #ifdef MESH_NORMALS
-highp vec2 g = v_worldXYZ.xz;
-float laneX = -3.0 + 5.0 * sin(g.y * .048 + .35);
-float grain = sin(g.x*31.0 + sin(g.y*19.0)) * sin(g.y*23.0 + g.x*9.0);
-float lane = exp(-pow(abs(g.x-laneX + grain*.09)/1.18,4.0));
-lane *= smoothstep(-54.0,-48.0,g.y) * (1.0-smoothstep(41.0,44.0,g.y));
-base.rgb = mix(base.rgb,vec3(.24,.20,.12) * (.94 + grain*.055 + sin(g.y*2.3)*.035),lane);
+    highp vec2 g=v_worldXYZ.xz;
+    float laneX=-3.0+5.0*sin(g.y*.048+.35);
+    float grain=sin(g.x*21.0+sin(g.y*13.0))*sin(g.y*17.0+g.x*5.0);
+    float lane=exp(-pow(abs(g.x-laneX+grain*.16)/1.34,4.0));
+    lane*=smoothstep(-22.,-17.,g.y)*(1.-smoothstep(43.,49.,g.y));
+    float swath=sin(g.x*.27+sin(g.y*.21))*.3+sin(g.y*.33+g.x*.13)*.22;
+    float detail=dot(base.rgb,vec3(.25,.6,.15));
+    vec3 grass=mix(vec3(.168,.419,.109),vec3(.302,.55,.145),clamp(.48+swath+detail*.35,0.,1.));
+    vec2 turf=g*vec2(3.1,2.65);
+    vec2 grid=floor(turf);
+    float tuft=fract(sin(dot(grid,vec2(57.3,113.1)))*5437.2);
+    vec2 cell=fract(turf)-.5;
+    float mark=(1.-smoothstep(.03,.21,abs(cell.x+.39*cell.y+(tuft-.5)*.55)))*(1.-smoothstep(.08,.44,abs(cell.y)));
+    grass*=.74+clamp(detail*2.28,0.,.49)+mark*(tuft-.52)*.24;
+    vec3 soil=mix(vec3(.34,.287,.159),vec3(.52,.433,.266),clamp(.35+detail+grain*.12,0.,1.));
+    float shade=smoothstep(.48,1.12,length((g-vec2(-10.,-32.))/vec2(28.,22.))+swath*.115);
+    vec3 shadeGrass=mix(vec3(.065,.141,.095),vec3(.110,.225,.126),clamp(.55+swath+detail*.3,0.,1.));
+    base.rgb=mix(shadeGrass,grass,shade);
+    base.rgb=mix(base.rgb,soil*mix(.56,1.,shade),lane);
 #endif
 float alpha = base.a;
 if (u_alphaCutoff > 0.0) {
@@ -149,10 +163,23 @@ fn es_main() {
 #ifdef MESH_NORMALS
     var g = es_v.v_worldXYZ.xz;
     let laneX = -3.0 + (5.0 * sin((g.y * 0.048) + 0.35));
-    let grain = sin((g.x * 31.0) + sin(g.y * 19.0)) * sin((g.y * 23.0) + (g.x * 9.0));
-    var lane = exp(-pow(abs((g.x - laneX) + (grain * 0.09)) / 1.18, 4.0));
-    lane *= smoothstep(-54.0, -48.0, g.y) * (1.0 - smoothstep(41.0, 44.0, g.y));
-    { let es_t0 = mix(base.rgb, vec3f(0.24, 0.20, 0.12) * ((0.94 + (grain * 0.055)) + (sin(g.y * 2.3) * 0.035)), lane); base.r = es_t0.x; base.g = es_t0.y; base.b = es_t0.z; }
+    let grain = sin((g.x * 21.0) + sin(g.y * 13.0)) * sin((g.y * 17.0) + (g.x * 5.0));
+    var lane = exp(-pow(abs((g.x - laneX) + (grain * 0.16)) / 1.34, 4.0));
+    lane *= smoothstep(-22.0, -17.0, g.y) * (1.0 - smoothstep(43.0, 49.0, g.y));
+    let swath = (sin((g.x * 0.27) + sin(g.y * 0.21)) * 0.3) + (sin((g.y * 0.33) + (g.x * 0.13)) * 0.22);
+    let detail = dot(base.rgb, vec3f(0.25, 0.6, 0.15));
+    var grass = mix(vec3f(0.168, 0.419, 0.109), vec3f(0.302, 0.55, 0.145), clamp((0.48 + swath) + (detail * 0.35), 0.0, 1.0));
+    let turf = g * vec2f(3.1, 2.65);
+    let grid = floor(turf);
+    let tuft = fract(sin(dot(grid, vec2f(57.3, 113.1))) * 5437.2);
+    let cell = fract(turf) - 0.5;
+    let mark = (1.0 - smoothstep(0.03, 0.21, abs((cell.x + (0.39 * cell.y)) + ((tuft - 0.5) * 0.55)))) * (1.0 - smoothstep(0.08, 0.44, abs(cell.y)));
+    grass *= (0.74 + clamp(detail * 2.28, 0.0, 0.49)) + ((mark * (tuft - 0.52)) * 0.24);
+    let soil = mix(vec3f(0.34, 0.287, 0.159), vec3f(0.52, 0.433, 0.266), clamp((0.35 + detail) + (grain * 0.12), 0.0, 1.0));
+    let shade = smoothstep(0.48, 1.12, length((g - vec2f(-10.0, -32.0)) / vec2f(28.0, 22.0)) + (swath * 0.115));
+    let shadeGrass = mix(vec3f(0.065, 0.141, 0.095), vec3f(0.110, 0.225, 0.126), clamp((0.55 + swath) + (detail * 0.3), 0.0, 1.0));
+    { let es_t0 = mix(shadeGrass, grass, shade); base.r = es_t0.x; base.g = es_t0.y; base.b = es_t0.z; }
+    { let es_t1 = mix(base.rgb, soil * mix(0.56, 1.0, shade), lane); base.r = es_t1.x; base.g = es_t1.y; base.b = es_t1.z; }
 #endif
     var alpha = base.a;
     if (mc.u_alphaCutoff > 0.0) {
@@ -186,7 +213,7 @@ fn es_main() {
         var l = vec3f(0.0);
         var g = vec3f(0.0);
         var x = vec3f(0.0);
-        { let es_t1 = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow, lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, true); l += es_t1.lit; g += es_t1.gloss; x += es_t1.extra; }
+        { let es_t2 = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow, lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, true); l += es_t2.lit; g += es_t2.gloss; x += es_t2.extra; }
         let level = max(l.r, max(l.g, l.b));
         if (level > 1e-4) {
             lit += l * (toonBand(level) / level);

@@ -1,14 +1,15 @@
 {
   "version": "2",
   "name": "lumine-final",
-  "rootEntityId": "n66",
+  "rootEntityId": "n67",
   "entities": [
     {
-      "prefabEntityId": "n66",
+      "prefabEntityId": "n67",
       "name": "Armature",
       "parent": null,
       "children": [
         "n65",
+        "n66",
         "n64"
       ],
       "visible": true,
@@ -39,8 +40,8 @@
     },
     {
       "prefabEntityId": "n65",
-      "name": "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a",
-      "parent": "n66",
+      "name": "Lumine shoulder ribbons",
+      "parent": "n67",
       "children": [],
       "visible": true,
       "components": [
@@ -51,10 +52,112 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/character/lumine-final.esmesh",
+            "mesh": "assets/character/lumine-final_0_0.esmesh",
             "lit": true,
-            "texture": "assets/character/lumine-final_1.jpg",
+            "texture": "assets/character/lumine-final_0.png",
             "material": "assets/character/lumine-final_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n64",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n63",
+              "n62",
+              "n61",
+              "n33",
+              "n32",
+              "n31",
+              "n30",
+              "n13",
+              "n12",
+              "n11",
+              "n10",
+              "n17",
+              "n16",
+              "n15",
+              "n14",
+              "n21",
+              "n20",
+              "n19",
+              "n18",
+              "n25",
+              "n24",
+              "n23",
+              "n22",
+              "n29",
+              "n28",
+              "n27",
+              "n26",
+              "n36",
+              "n35",
+              "n34",
+              "n60",
+              "n59",
+              "n58",
+              "n57",
+              "n40",
+              "n39",
+              "n38",
+              "n37",
+              "n44",
+              "n43",
+              "n42",
+              "n41",
+              "n48",
+              "n47",
+              "n46",
+              "n45",
+              "n52",
+              "n51",
+              "n50",
+              "n49",
+              "n56",
+              "n55",
+              "n54",
+              "n53"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n66",
+      "name": "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a",
+      "parent": "n67",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/character/lumine-final_1_0.esmesh",
+            "lit": true,
+            "texture": "assets/character/lumine-final_2.jpg",
+            "material": "assets/character/lumine-final_m1.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -142,7 +245,7 @@
     {
       "prefabEntityId": "n64",
       "name": "mixamorig:Hips",
-      "parent": "n66",
+      "parent": "n67",
       "children": [
         "n4",
         "n9",

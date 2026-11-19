@@ -11,9 +11,9 @@
   ],
   "gate": {
     "profile": "game",
-    "eps": 0.000188,
-    "tol": 0.003753,
-    "gap": 0.018767,
+    "eps": 0.000191,
+    "tol": 0.003813,
+    "gap": 0.019064,
     "pass": true,
     "errors": [],
     "warnings": [
@@ -21,14 +21,26 @@
     ],
     "per_object": {
       "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a": {
-        "tris": 24791,
-        "parts": 8,
+        "tris": 24439,
+        "parts": 6,
         "errors": [],
         "warnings": [
           "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a: 9 edges shared by 3 or more faces"
         ]
+      },
+      "Lumine shoulder ribbons": {
+        "tris": 2584,
+        "parts": 2,
+        "errors": [],
+        "warnings": []
       }
     },
     "skipped": []
-  }
+  },
+  "paintedVisibleVertices": {
+    "dress": 2546,
+    "back": 2020,
+    "face": 1355
+  },
+  "ribbonVertices": 1296
 }

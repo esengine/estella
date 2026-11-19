@@ -1,0 +1,248 @@
+#pragma shader "Meadow slate"
+#pragma version 300 es
+#pragma domain Lit
+#pragma param u_tint color default(1,1,1,1)
+
+#pragma param u_shadeColor color default(0.55,0.5,0.7,1)
+
+#pragma param u_bands float default(3) range(1,8) ui(slider)
+#pragma param u_bandSoftness float default(0.03) range(0,0.5) ui(slider)
+
+#pragma param u_specThreshold float default(0.6) range(0,1) ui(slider)
+#pragma param u_specSoftness float default(0.02) range(0,0.5) ui(slider)
+#pragma param u_specColor color default(1,1,1,1)
+#pragma param u_specSize float default(0.35) range(0,1) ui(slider)
+
+#pragma param u_rimColor color default(1,1,1,1)
+#pragma param u_rimWidth float default(0.35) range(0,1) ui(slider)
+#pragma param u_rimSoftness float default(0.05) range(0,0.5) ui(slider)
+#pragma param u_rimStrength float default(0) range(0,1) ui(slider)
+#pragma param u_occlusionMap texture default(white) texel(data)
+#pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
+#pragma param u_emissive color default(0,0,0,1)
+#pragma param u_emissiveMap texture default(white)
+#pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+#pragma coverage u_alphaCutoff
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
+
+uniform sampler2D u_textures[1];
+
+#ifdef ES_GBUFFER
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 fragSurface;
+
+layout(location = 2) out vec4 fragAlbedo;
+vec2 packNormal(vec3 n) {
+n /= (abs(n.x) + abs(n.y) + abs(n.z));
+vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
+return e * 0.5 + 0.5;
+}
+#else
+out vec4 fragColor;
+#endif
+
+
+float toonBand(float level) {
+float t = clamp(level, 0.0, 1.0) * u_bands;
+float i = floor(t);
+float f = t - i;
+float soft = max(u_bandSoftness, 1e-4);
+return min((i + smoothstep(0.5 - soft, 0.5 + soft, f)) / u_bands, 1.0);
+}
+
+void main() {
+vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+
+#ifdef MESH_NORMALS
+    vec3 p=v_worldXYZ;
+    float grit=sin(p.x*13.6+p.z*8.9)*sin(p.y*21.2+p.x*7.7)*sin(p.z*16.7-p.y*3.1);
+    float layers=sin(p.y*10.1+p.x*.59+p.z*.78+sin(p.x*1.7+p.z*.52));
+    float seam=smoothstep(.68,.97,layers)*smoothstep(-.28,.80,sin(p.x*1.2+p.z*.71));
+    base.rgb*=1.06+grit*.108-seam*.22+sin(p.x*2.9+p.z*3.4)*.043;
+#endif
+float alpha = base.a;
+if (u_alphaCutoff > 0.0) {
+alpha = cutoutCoverage(base.a, u_alphaCutoff, fwidth(base.a));
+if (alpha <= 0.0) discard;
+alpha = min(alpha, 1.0);
+}
+#ifdef MESH_NORMALS
+highp vec3 N = normalize(v_worldNormal);
+if (!gl_FrontFacing) N = -N;
+highp vec3 P = v_worldXYZ;
+#else
+highp vec3 N = vec3(0.0, 0.0, 1.0);
+highp vec3 P = vec3(v_worldPos, 0.0);
+#endif
+float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
+vec3 V = viewDirection(P);
+float NdotV = max(dot(N, V), 1e-4);
+
+float roughness = mix(0.7, 0.1, clamp(u_specSize, 0.0, 1.0));
+float a = max(roughness * roughness, 1e-3);
+vec3 F0 = vec3(0.04);
+SurfaceExt ext = surfaceExtNone(N);
+
+vec3 lit = vec3(0.0);
+float glossLevel = 0.0;
+vec3 glossTint = vec3(0.0);
+for (int i = 0; i < 16; ++i) {
+vec3 l = vec3(0.0), g = vec3(0.0), x = vec3(0.0);
+shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,
+u_lights[i].shadowMap, u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, l, g, x, true);
+float level = max(l.r, max(l.g, l.b));
+if (level > 1e-4) lit += l * (toonBand(level) / level);
+float gl = max(g.r, max(g.g, g.b));
+if (gl > glossLevel) { glossLevel = gl; glossTint = g / max(gl, 1e-4); }
+}
+float lightAmount = clamp(max(lit.r, max(lit.g, lit.b)), 0.0, 1.0);
+g_probePos = P;
+vec3 ambient = indirectIrradiance(N) * ao;
+
+vec3 colour = base.rgb * (ambient + lit + u_shadeColor.rgb * (1.0 - lightAmount));
+float spec = smoothstep(u_specThreshold - u_specSoftness, u_specThreshold + u_specSoftness, glossLevel);
+colour = mix(colour, u_specColor.rgb * glossTint, spec * u_specColor.a * float(u_specThreshold < 1.0));
+float rim = smoothstep(1.0 - u_rimWidth - u_rimSoftness, 1.0 - u_rimWidth + u_rimSoftness, 1.0 - NdotV);
+colour += u_rimColor.rgb * rim * lightAmount * u_rimStrength;
+fragColor = vec4(colour + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);
+#ifdef ES_GBUFFER
+fragSurface = vec4(packNormal(normalize(N)), roughness, 0.75);
+fragAlbedo = vec4(base.rgb, 1.0);
+#endif
+}
+#pragma end
+
+#pragma fragment wgsl
+var<private> fragColor : vec4f;
+var<private> fragSurface : vec4f;
+var<private> fragAlbedo : vec4f;
+#ifdef ES_GBUFFER
+fn packNormal(n_in : vec3f) -> vec2f {
+    var n = n_in;
+    n /= (abs(n.x) + abs(n.y)) + abs(n.z);
+    let sgn = vec2f(select(-1.0, 1.0, n.x >= 0.0), select(-1.0, 1.0, n.y >= 0.0));
+    let e = select((1.0 - abs(n.yx)) * sgn, n.xy, n.z >= 0.0);
+    return (e * 0.5) + 0.5;
+}
+#endif
+fn toonBand(level : f32) -> f32 {
+    let t = clamp(level, 0.0, 1.0) * mc.u_bands;
+    let i = floor(t);
+    let f = t - i;
+    let soft = max(mc.u_bandSoftness, 1e-4);
+    return min((i + smoothstep(0.5 - soft, 0.5 + soft, f)) / mc.u_bands, 1.0);
+}
+@diagnostic(off, derivative_uniformity)
+fn es_main() {
+    var base = (textureSample(t0, s0, es_v.v_texCoord) * es_v.v_color) * mc.u_tint;
+#ifdef MESH_NORMALS
+    let p = es_v.v_worldXYZ;
+    let grit = (sin((p.x * 13.6) + (p.z * 8.9)) * sin((p.y * 21.2) + (p.x * 7.7))) * sin((p.z * 16.7) - (p.y * 3.1));
+    let layers = sin((((p.y * 10.1) + (p.x * 0.59)) + (p.z * 0.78)) + sin((p.x * 1.7) + (p.z * 0.52)));
+    let seam = smoothstep(0.68, 0.97, layers) * smoothstep(-0.28, 0.80, sin((p.x * 1.2) + (p.z * 0.71)));
+    { let es_t0 = ((1.06 + (grit * 0.108)) - (seam * 0.22)) + (sin((p.x * 2.9) + (p.z * 3.4)) * 0.043); base.r *= es_t0; base.g *= es_t0; base.b *= es_t0; }
+#endif
+    var alpha = base.a;
+    if (mc.u_alphaCutoff > 0.0) {
+        alpha = cutoutCoverage(base.a, mc.u_alphaCutoff, fwidth(base.a));
+        if (alpha <= 0.0) {
+            discard;
+        }
+        alpha = min(alpha, 1.0);
+    }
+#ifdef MESH_NORMALS
+    var N = normalize(es_v.v_worldNormal);
+    if (!es_front) {
+        N = -N;
+    }
+    let P = es_v.v_worldXYZ;
+#else
+    var N = vec3f(0.0, 0.0, 1.0);
+    let P = vec3f(es_v.v_worldPos, 0.0);
+#endif
+    let ao = mix(1.0, textureSample(u_occlusionMap, u_occlusionMap_s, es_v.v_texCoord).r, mc.u_occlusionStrength);
+    let V = viewDirection(P);
+    let NdotV = max(dot(N, V), 1e-4);
+    let roughness = mix(0.7, 0.1, clamp(mc.u_specSize, 0.0, 1.0));
+    let a = max(roughness * roughness, 1e-3);
+    let F0 = vec3f(0.04);
+    let ext = surfaceExtNone(N);
+    var lit = vec3f(0.0);
+    var glossLevel = 0.0;
+    var glossTint = vec3f(0.0);
+    for (var i : i32 = 0; i < 16; i++) {
+        var l = vec3f(0.0);
+        var g = vec3f(0.0);
+        var x = vec3f(0.0);
+        { let es_t1 = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow, lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, P, a, F0, NdotV, 1.0, roughness, ext, true); l += es_t1.lit; g += es_t1.gloss; x += es_t1.extra; }
+        let level = max(l.r, max(l.g, l.b));
+        if (level > 1e-4) {
+            lit += l * (toonBand(level) / level);
+        }
+        let gl = max(g.r, max(g.g, g.b));
+        if (gl > glossLevel) {
+            glossLevel = gl;
+            glossTint = g / max(gl, 1e-4);
+        }
+    }
+    let lightAmount = clamp(max(lit.r, max(lit.g, lit.b)), 0.0, 1.0);
+    g_probePos = P;
+    let ambient = indirectIrradiance(N) * ao;
+    var colour = base.rgb * ((ambient + lit) + (mc.u_shadeColor.rgb * (1.0 - lightAmount)));
+    let spec = smoothstep(mc.u_specThreshold - mc.u_specSoftness, mc.u_specThreshold + mc.u_specSoftness, glossLevel);
+    colour = mix(colour, mc.u_specColor.rgb * glossTint, (spec * mc.u_specColor.a) * f32(mc.u_specThreshold < 1.0));
+    let rim = smoothstep((1.0 - mc.u_rimWidth) - mc.u_rimSoftness, (1.0 - mc.u_rimWidth) + mc.u_rimSoftness, 1.0 - NdotV);
+    colour += ((mc.u_rimColor.rgb * rim) * lightAmount) * mc.u_rimStrength;
+    fragColor = vec4f(colour + (mc.u_emissive.rgb * textureSample(u_emissiveMap, u_emissiveMap_s, es_v.v_texCoord).rgb), alpha);
+#ifdef ES_GBUFFER
+    fragSurface = vec4f(packNormal(normalize(N)), roughness, 0.75);
+    fragAlbedo = vec4f(base.rgb, 1.0);
+#endif
+}
+var<private> es_v : VSOut;
+var<private> es_front : bool;
+#if !defined(ES_GBUFFER)
+@fragment fn fs_main(es_in : VSOut, @builtin(front_facing) es_ff : bool) -> @location(0) vec4f {
+    es_v = es_in; es_front = es_ff;
+#ifdef MESH_TANGENTS
+    g_worldTangent = es_in.v_worldTangent;
+#endif
+#ifdef MESH_LIGHTMAP
+    g_lightmap = es_in.v_lightmap;
+#endif
+    g_probeSlot = es_in.v_probeSlot;
+    es_main();
+    return fragColor;
+}
+#endif
+#if defined(ES_GBUFFER)
+struct es_FragOut {
+    @location(0) fragColor : vec4f,
+    @location(1) fragSurface : vec4f,
+    @location(2) fragAlbedo : vec4f,
+};
+@fragment fn fs_main(es_in : VSOut, @builtin(front_facing) es_ff : bool) -> es_FragOut {
+    es_v = es_in; es_front = es_ff;
+#ifdef MESH_TANGENTS
+    g_worldTangent = es_in.v_worldTangent;
+#endif
+#ifdef MESH_LIGHTMAP
+    g_lightmap = es_in.v_lightmap;
+#endif
+    g_probeSlot = es_in.v_probeSlot;
+    es_main();
+    return es_FragOut(fragColor, fragSurface, fragAlbedo);
+}
+#endif
+#pragma end

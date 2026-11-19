@@ -7,26 +7,28 @@
   "depthWrite": true,
   "cull": 0,
   "properties": {
-    "u_albedo": "assets/textures/grass-tuft.png",
-    "u_useTexture": 1,
+    "u_useTexture": 0,
     "u_baseColor": {
-      "r": 0.55,
-      "g": 0.69,
-      "b": 0.4,
+      "r": 0.18,
+      "g": 0.34,
+      "b": 0.067,
       "a": 1
     },
     "u_tipColor": {
-      "r": 0.85,
-      "g": 0.93,
-      "b": 0.6,
+      "r": 0.36,
+      "g": 0.55,
+      "b": 0.103,
       "a": 1
     },
-    "u_windStrength": 0.12,
-    "u_windSpeed": 1.1,
-    "u_windDirection": 64,
-    "u_gustScale": 0.18,
-    "u_flutter": 0.025,
-    "u_translucency": 0.5,
-    "u_roughness": 0.96
+    "u_groundNormal": 0.88,
+    "u_specular": 0,
+    "u_tipFrom": 0.18,
+    "u_windStrength": 0.07,
+    "u_windSpeed": 0.85,
+    "u_windDirection": 78,
+    "u_gustScale": 0.12,
+    "u_flutter": 0.02,
+    "u_translucency": 0.2,
+    "u_roughness": 0.97
   }
 }

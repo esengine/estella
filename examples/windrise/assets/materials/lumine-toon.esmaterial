@@ -1,28 +1,22 @@
 {
   "version": "1.0",
   "type": "material",
-  "shader": "builtin:toon",
+  "shader": "lumine-toon.esshader",
   "blendMode": 9,
   "depthTest": true,
   "depthWrite": true,
   "cull": 0,
   "properties": {
-    "u_bands": 2,
-    "u_bandSoftness": 0.08,
-    "u_shadeColor": {
-      "r": 0.62,
-      "g": 0.56,
-      "b": 0.68,
-      "a": 1
-    },
+    "u_bands": 3,
+    "u_bandSoftness": 0.1,
     "u_specThreshold": 1,
     "u_rimColor": {
       "r": 1,
-      "g": 0.94,
-      "b": 0.77,
+      "g": 0.91,
+      "b": 0.72,
       "a": 1
     },
-    "u_rimStrength": 0.14,
-    "u_rimWidth": 0.2
+    "u_rimStrength": 0.03,
+    "u_rimWidth": 0.16
   }
 }

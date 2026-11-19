@@ -9,7 +9,12 @@
     {"path": "references/lumine-front.png", "role": "ImageGen reference-guided front A-pose used by Tripo"},
     {"path": "assets/textures/oak-leaves.png", "role": "ImageGen transparent oak leaf card"},
     {"path": "assets/textures/grass-tuft.png", "role": "ImageGen transparent grass tuft"},
-    {"path": "assets/textures/meadow.png", "role": "ImageGen painted tiling ground albedo"}
+    {"path": "assets/textures/meadow.png", "role": "ImageGen painted tiling ground albedo"},
+    {"path": "assets/textures/oak-tuft.png", "role": "Transparent broad-leaf cluster atlas on curved three-dimensional canopy cards"},
+    {"path": "source/paint/face.png", "role": "Registered paint of the face, hair and collar, based on the original bind mesh and default-outfit reference"},
+    {"path": "source/paint/dress.png", "role": "Registered front garment paint"},
+    {"path": "source/paint/back-body.png", "role": "Registered rear garment paint beneath the shoulder ribbons"},
+    {"path": "source/paint/back.png", "role": "Rear design and the UV source of the two modeled ribbons"}
   ],
   "tripo": {
     "integration": "Estella MCP, existing configured account",
@@ -26,12 +31,13 @@
   },
   "characterFinishing": {
     "tool": "Blender 5.2.1 LTS, background mode",
-    "changes": ["Weld duplicate seam vertices", "Bridge two severed ribbon spans with six faces", "Bind both ribbon spans to Spine2 instead of nearby hands", "Recalculate normals", "Retain five source actions and export glTF skin", "Compress linear timeline samples with maximum scalar error 0.0002"],
-    "meshTriangles":24791,
+    "changes": ["Weld duplicate seam vertices and repair the source bind pose", "Bake registered face, front and rear garment artwork to the body UV atlas using ray visibility", "Refine the nose bridge, lower jaw and rear hem", "Trace, fit and skin two continuous shoulder ribbons with their own UVs and shoulder attachment", "Retain five source actions and export glTF skins", "Compress linear timeline samples with maximum scalar error 0.0002"],
+    "meshTriangles":27023,
     "statueTriangles":24281,
     "source":"source/lumine.blend",
     "auditReports":["source/character-audit.json","source/statue-audit.json"]
   },
-  "environment": {"source":"tools/build.mjs","seed":129873,"editableFormats":["esscene","esmesh","esmaterial","esshader","esprefab","estimeline","esanimator"],"scale":"metres"},
+  "environment": {"source":"tools/build.mjs","seed":129873,"oak":"tools/grove.mjs","field":"tools/field.mjs","daylight":"src/sky.ts","editableFormats":["esscene","esmesh","esmaterial","esshader","esprefab","estimeline","esanimator"],"scale":"metres"},
+  "comparison": {"cameras":"src/referenceViews.ts","views":["oak","body","portrait","rear","profile"],"capture":"tools/photograph.mjs","layout":"tools/comparisons.mjs","sourceAlignment":"Visual landmarks, original camera metadata unavailable","estellaAlignment":"Same world camera, lens, bind pose, viewport and crop before and after","additionalTripoCredits":0},
   "limitations": ["Approximate geometry, face, clothing, landscape layout and lighting", "Generic Tripo movement clips, not original game animations", "No facial animation or cloth simulation", "Character has 9 non-manifold-edge warnings; statue has 2", "Verified on headless Chromium WebGL2; no mobile or WebGPU acceptance claim"]
 }

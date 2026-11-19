@@ -1174,7 +1174,7 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
@@ -1200,7 +1200,7 @@
           "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/Great oak trunk.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "material": "assets/materials/oak-bark.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1236,7 +1236,7 @@
           "type": "MeshRenderer",
           "data": {
             "mesh": "assets/models/Great oak crown.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "material": "assets/materials/oak-crown.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1247,14 +1247,14 @@
             "opaque": true,
             "cullBackfaces": false,
             "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "texture": "assets/textures/oak-tuft.png"
           }
         }
       ]
     },
     {
       "id": 34,
-      "name": "Tree trunk -61.9 -28.1",
+      "name": "Great oak outer sprays",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1272,8 +1272,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree trunk -61.9 -28.1.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Great oak outer sprays.esmesh",
+            "material": "assets/materials/oak-crown.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1283,14 +1283,15 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false,
+            "texture": "assets/textures/oak-leaves.png"
           }
         }
       ]
     },
     {
       "id": 35,
-      "name": "Tree crown -61.9 -28.1",
+      "name": "Valley woodland trunks",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1308,45 +1309,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown -61.9 -28.1.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 36,
-      "name": "Tree trunk 31.6 -68.7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 31.6 -68.7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Valley woodland trunks.esmesh",
+            "material": "assets/materials/oak-bark.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1362,8 +1326,8 @@
       ]
     },
     {
-      "id": 37,
-      "name": "Tree crown 31.6 -68.7",
+      "id": 36,
+      "name": "Valley woodland crowns",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1381,8 +1345,45 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown 31.6 -68.7.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "mesh": "assets/models/Valley woodland crowns.esmesh",
+            "material": "assets/materials/oak-crown.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": false,
+            "castShadows": false,
+            "texture": "assets/textures/oak-tuft.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "Shrubs along the path",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/Shrubs along the path.esmesh",
+            "material": "assets/materials/oak-crown.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1393,14 +1394,14 @@
             "opaque": true,
             "cullBackfaces": false,
             "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "texture": "assets/textures/oak-tuft.png"
           }
         }
       ]
     },
     {
       "id": 38,
-      "name": "Tree trunk 35.3 -124.1",
+      "name": "Weathered meadow stones",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1418,8 +1419,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree trunk 35.3 -124.1.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Weathered meadow stones.esmesh",
+            "material": "assets/materials/field-stone.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1436,7 +1437,7 @@
     },
     {
       "id": 39,
-      "name": "Tree crown 35.3 -124.1",
+      "name": "Shrine boundary stones",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1454,8 +1455,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown 35.3 -124.1.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "mesh": "assets/models/Shrine boundary stones.esmesh",
+            "material": "assets/materials/field-stone.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1465,15 +1466,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "castShadows": true
           }
         }
       ]
     },
     {
       "id": 40,
-      "name": "Tree trunk 38.5 -98.5",
+      "name": "Wind grass 0-0",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1491,8 +1491,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree trunk 38.5 -98.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Wind grass 0-0.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1502,14 +1502,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 41,
-      "name": "Tree crown 38.5 -98.5",
+      "name": "Wind grass 1-0",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1527,8 +1527,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown 38.5 -98.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "mesh": "assets/models/Wind grass 1-0.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1538,15 +1538,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 42,
-      "name": "Tree trunk -0.6 -98.5",
+      "name": "Wind grass 2-0",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1564,8 +1563,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree trunk -0.6 -98.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Wind grass 2-0.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1575,14 +1574,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 43,
-      "name": "Tree crown -0.6 -98.5",
+      "name": "Wind grass 3-0",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1600,8 +1599,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown -0.6 -98.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "mesh": "assets/models/Wind grass 3-0.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1611,15 +1610,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 44,
-      "name": "Tree trunk 89.0 -60.0",
+      "name": "Wind grass 4-0",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1637,8 +1635,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree trunk 89.0 -60.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
+            "mesh": "assets/models/Wind grass 4-0.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1648,14 +1646,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 45,
-      "name": "Tree crown 89.0 -60.0",
+      "name": "Wind grass 1-1",
       "parent": null,
       "children": [],
       "visible": true,
@@ -1673,8 +1671,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Tree crown 89.0 -60.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
+            "mesh": "assets/models/Wind grass 1-1.esmesh",
+            "material": "assets/materials/grass.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -1684,3299 +1682,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
+            "castShadows": false
           }
         }
       ]
     },
     {
       "id": 46,
-      "name": "Tree trunk 99.8 -70.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 99.8 -70.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 47,
-      "name": "Tree crown 99.8 -70.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 99.8 -70.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 48,
-      "name": "Tree trunk 23.7 -136.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 23.7 -136.1.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 49,
-      "name": "Tree crown 23.7 -136.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 23.7 -136.1.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 50,
-      "name": "Tree trunk 56.2 -84.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 56.2 -84.2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 51,
-      "name": "Tree crown 56.2 -84.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 56.2 -84.2.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 52,
-      "name": "Tree trunk 46.1 -76.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 46.1 -76.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 53,
-      "name": "Tree crown 46.1 -76.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 46.1 -76.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 54,
-      "name": "Tree trunk 63.6 -64.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 63.6 -64.4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 55,
-      "name": "Tree crown 63.6 -64.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 63.6 -64.4.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 56,
-      "name": "Tree trunk -100.1 -37.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -100.1 -37.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 57,
-      "name": "Tree crown -100.1 -37.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -100.1 -37.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 58,
-      "name": "Tree trunk 84.1 -68.7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 84.1 -68.7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 59,
-      "name": "Tree crown 84.1 -68.7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 84.1 -68.7.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 60,
-      "name": "Tree trunk 36.1 -42.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 36.1 -42.2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 61,
-      "name": "Tree crown 36.1 -42.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 36.1 -42.2.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 62,
-      "name": "Tree trunk -99.7 -95.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -99.7 -95.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 63,
-      "name": "Tree crown -99.7 -95.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -99.7 -95.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 64,
-      "name": "Tree trunk 83.3 -69.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 83.3 -69.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 65,
-      "name": "Tree crown 83.3 -69.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 83.3 -69.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 66,
-      "name": "Tree trunk 76.2 -40.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 76.2 -40.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 67,
-      "name": "Tree crown 76.2 -40.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 76.2 -40.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 68,
-      "name": "Tree trunk 84.7 -128.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 84.7 -128.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 69,
-      "name": "Tree crown 84.7 -128.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 84.7 -128.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 70,
-      "name": "Tree trunk 64.6 -131.7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 64.6 -131.7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 71,
-      "name": "Tree crown 64.6 -131.7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 64.6 -131.7.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 72,
-      "name": "Tree trunk 65.1 -116.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 65.1 -116.1.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 73,
-      "name": "Tree crown 65.1 -116.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 65.1 -116.1.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 74,
-      "name": "Tree trunk 63.2 -41.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 63.2 -41.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 75,
-      "name": "Tree crown 63.2 -41.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 63.2 -41.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 76,
-      "name": "Tree trunk 112.1 -90.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 112.1 -90.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 77,
-      "name": "Tree crown 112.1 -90.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 112.1 -90.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 78,
-      "name": "Tree trunk -82.6 -13.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -82.6 -13.4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 79,
-      "name": "Tree crown -82.6 -13.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -82.6 -13.4.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 80,
-      "name": "Tree trunk -6.0 -97.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -6.0 -97.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 81,
-      "name": "Tree crown -6.0 -97.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -6.0 -97.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 82,
-      "name": "Tree trunk 55.7 -71.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 55.7 -71.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 83,
-      "name": "Tree crown 55.7 -71.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 55.7 -71.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 84,
-      "name": "Tree trunk -13.4 -114.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -13.4 -114.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 85,
-      "name": "Tree crown -13.4 -114.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -13.4 -114.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 86,
-      "name": "Tree trunk 58.7 -83.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 58.7 -83.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 87,
-      "name": "Tree crown 58.7 -83.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 58.7 -83.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 88,
-      "name": "Tree trunk 45.5 -144.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 45.5 -144.4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 89,
-      "name": "Tree crown 45.5 -144.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 45.5 -144.4.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 90,
-      "name": "Tree trunk -73.4 -69.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -73.4 -69.2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 91,
-      "name": "Tree crown -73.4 -69.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -73.4 -69.2.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 92,
-      "name": "Tree trunk -55.9 -61.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -55.9 -61.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 93,
-      "name": "Tree crown -55.9 -61.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -55.9 -61.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 94,
-      "name": "Tree trunk 109.0 -65.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 109.0 -65.9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 95,
-      "name": "Tree crown 109.0 -65.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 109.0 -65.9.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 96,
-      "name": "Tree trunk 72.1 -125.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 72.1 -125.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 97,
-      "name": "Tree crown 72.1 -125.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 72.1 -125.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 98,
-      "name": "Tree trunk 89.0 -22.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 89.0 -22.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 99,
-      "name": "Tree crown 89.0 -22.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 89.0 -22.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 100,
-      "name": "Tree trunk -55.7 58.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -55.7 58.1.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 101,
-      "name": "Tree crown -55.7 58.1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -55.7 58.1.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 102,
-      "name": "Tree trunk -36.7 113.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -36.7 113.9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 103,
-      "name": "Tree crown -36.7 113.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -36.7 113.9.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 104,
-      "name": "Tree trunk -63.4 58.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -63.4 58.2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 105,
-      "name": "Tree crown -63.4 58.2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -63.4 58.2.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 106,
-      "name": "Tree trunk 38.9 68.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 38.9 68.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 107,
-      "name": "Tree crown 38.9 68.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 38.9 68.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 108,
-      "name": "Tree trunk -21.6 80.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -21.6 80.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 109,
-      "name": "Tree crown -21.6 80.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -21.6 80.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 110,
-      "name": "Tree trunk 12.6 111.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 12.6 111.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 111,
-      "name": "Tree crown 12.6 111.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 12.6 111.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 112,
-      "name": "Tree trunk 21.6 76.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 21.6 76.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 113,
-      "name": "Tree crown 21.6 76.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 21.6 76.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 114,
-      "name": "Tree trunk 94.9 70.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 94.9 70.4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 115,
-      "name": "Tree crown 94.9 70.4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 94.9 70.4.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 116,
-      "name": "Tree trunk -108.3 89.3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -108.3 89.3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 117,
-      "name": "Tree crown -108.3 89.3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -108.3 89.3.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 118,
-      "name": "Tree trunk -14.9 62.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -14.9 62.0.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 119,
-      "name": "Tree crown -14.9 62.0",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -14.9 62.0.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 120,
-      "name": "Tree trunk -41.7 58.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -41.7 58.9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 121,
-      "name": "Tree crown -41.7 58.9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -41.7 58.9.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 122,
-      "name": "Tree trunk -24.9 76.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -24.9 76.6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 123,
-      "name": "Tree crown -24.9 76.6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -24.9 76.6.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 124,
-      "name": "Tree trunk 81.4 86.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 81.4 86.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 125,
-      "name": "Tree crown 81.4 86.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 81.4 86.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 126,
-      "name": "Tree trunk -55.8 115.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -55.8 115.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 127,
-      "name": "Tree crown -55.8 115.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -55.8 115.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 128,
-      "name": "Tree trunk -17.4 103.3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -17.4 103.3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 129,
-      "name": "Tree crown -17.4 103.3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -17.4 103.3.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 130,
-      "name": "Tree trunk 45.5 74.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk 45.5 74.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 131,
-      "name": "Tree crown 45.5 74.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown 45.5 74.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 132,
-      "name": "Tree trunk -109.8 67.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -109.8 67.8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 133,
-      "name": "Tree crown -109.8 67.8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -109.8 67.8.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 134,
-      "name": "Tree trunk -62.8 99.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree trunk -62.8 99.5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 135,
-      "name": "Tree crown -62.8 99.5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Tree crown -62.8 99.5.esmesh",
-            "material": "assets/materials/oak.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true,
-            "texture": "assets/textures/oak-leaves.png"
-          }
-        }
-      ]
-    },
-    {
-      "id": 136,
       "name": "Wind grass 2-1",
       "parent": null,
       "children": [],
@@ -5006,13 +1718,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 137,
+      "id": 47,
       "name": "Wind grass 3-1",
       "parent": null,
       "children": [],
@@ -5042,13 +1754,85 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 138,
+      "id": 48,
+      "name": "Wind grass 4-1",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/Wind grass 4-1.esmesh",
+            "material": "assets/materials/grass.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": false,
+            "castShadows": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "Wind grass 0-2",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/Wind grass 0-2.esmesh",
+            "material": "assets/materials/grass.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": false,
+            "castShadows": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
       "name": "Wind grass 1-2",
       "parent": null,
       "children": [],
@@ -5078,49 +1862,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 139,
-      "name": "Wildflowers 1-2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 140,
+      "id": 51,
       "name": "Wind grass 2-2",
       "parent": null,
       "children": [],
@@ -5150,49 +1898,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 141,
-      "name": "Wildflowers 2-2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 142,
+      "id": 52,
       "name": "Wind grass 3-2",
       "parent": null,
       "children": [],
@@ -5222,49 +1934,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 143,
-      "name": "Wildflowers 3-2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 144,
+      "id": 53,
       "name": "Wind grass 4-2",
       "parent": null,
       "children": [],
@@ -5294,49 +1970,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 145,
-      "name": "Wildflowers 4-2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-2.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 146,
+      "id": 54,
       "name": "Wind grass 0-3",
       "parent": null,
       "children": [],
@@ -5366,49 +2006,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 147,
-      "name": "Wildflowers 0-3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 148,
+      "id": 55,
       "name": "Wind grass 1-3",
       "parent": null,
       "children": [],
@@ -5438,49 +2042,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 149,
-      "name": "Wildflowers 1-3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 150,
+      "id": 56,
       "name": "Wind grass 2-3",
       "parent": null,
       "children": [],
@@ -5510,49 +2078,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 151,
-      "name": "Wildflowers 2-3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 152,
+      "id": 57,
       "name": "Wind grass 3-3",
       "parent": null,
       "children": [],
@@ -5582,49 +2114,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 153,
-      "name": "Wildflowers 3-3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 154,
+      "id": 58,
       "name": "Wind grass 4-3",
       "parent": null,
       "children": [],
@@ -5654,49 +2150,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 155,
-      "name": "Wildflowers 4-3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-3.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 156,
+      "id": 59,
       "name": "Wind grass 0-4",
       "parent": null,
       "children": [],
@@ -5726,49 +2186,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 157,
-      "name": "Wildflowers 0-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 158,
+      "id": 60,
       "name": "Wind grass 1-4",
       "parent": null,
       "children": [],
@@ -5798,49 +2222,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 159,
-      "name": "Wildflowers 1-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 160,
+      "id": 61,
       "name": "Wind grass 2-4",
       "parent": null,
       "children": [],
@@ -5870,49 +2258,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 161,
-      "name": "Wildflowers 2-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 162,
+      "id": 62,
       "name": "Wind grass 3-4",
       "parent": null,
       "children": [],
@@ -5942,49 +2294,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 163,
-      "name": "Wildflowers 3-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 164,
+      "id": 63,
       "name": "Wind grass 4-4",
       "parent": null,
       "children": [],
@@ -6014,49 +2330,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 165,
-      "name": "Wildflowers 4-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 166,
+      "id": 64,
       "name": "Wind grass 5-4",
       "parent": null,
       "children": [],
@@ -6086,49 +2366,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 167,
-      "name": "Wildflowers 5-4",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-4.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 168,
+      "id": 65,
       "name": "Wind grass 0-5",
       "parent": null,
       "children": [],
@@ -6158,49 +2402,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 169,
-      "name": "Wildflowers 0-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 170,
+      "id": 66,
       "name": "Wind grass 1-5",
       "parent": null,
       "children": [],
@@ -6230,49 +2438,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 171,
-      "name": "Wildflowers 1-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 172,
+      "id": 67,
       "name": "Wind grass 2-5",
       "parent": null,
       "children": [],
@@ -6302,49 +2474,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 173,
-      "name": "Wildflowers 2-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 174,
+      "id": 68,
       "name": "Wind grass 3-5",
       "parent": null,
       "children": [],
@@ -6374,49 +2510,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 175,
-      "name": "Wildflowers 3-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 176,
+      "id": 69,
       "name": "Wind grass 4-5",
       "parent": null,
       "children": [],
@@ -6446,49 +2546,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 177,
-      "name": "Wildflowers 4-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 178,
+      "id": 70,
       "name": "Wind grass 5-5",
       "parent": null,
       "children": [],
@@ -6518,49 +2582,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 179,
-      "name": "Wildflowers 5-5",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-5.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 180,
+      "id": 71,
       "name": "Wind grass 0-6",
       "parent": null,
       "children": [],
@@ -6590,49 +2618,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 181,
-      "name": "Wildflowers 0-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 182,
+      "id": 72,
       "name": "Wind grass 1-6",
       "parent": null,
       "children": [],
@@ -6662,49 +2654,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 183,
-      "name": "Wildflowers 1-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 184,
+      "id": 73,
       "name": "Wind grass 2-6",
       "parent": null,
       "children": [],
@@ -6734,49 +2690,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 185,
-      "name": "Wildflowers 2-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 186,
+      "id": 74,
       "name": "Wind grass 3-6",
       "parent": null,
       "children": [],
@@ -6806,49 +2726,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 187,
-      "name": "Wildflowers 3-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 188,
+      "id": 75,
       "name": "Wind grass 4-6",
       "parent": null,
       "children": [],
@@ -6878,49 +2762,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 189,
-      "name": "Wildflowers 4-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 190,
+      "id": 76,
       "name": "Wind grass 5-6",
       "parent": null,
       "children": [],
@@ -6950,49 +2798,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 191,
-      "name": "Wildflowers 5-6",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-6.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 192,
+      "id": 77,
       "name": "Wind grass 0-7",
       "parent": null,
       "children": [],
@@ -7022,49 +2834,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 193,
-      "name": "Wildflowers 0-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 194,
+      "id": 78,
       "name": "Wind grass 1-7",
       "parent": null,
       "children": [],
@@ -7094,49 +2870,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 195,
-      "name": "Wildflowers 1-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 196,
+      "id": 79,
       "name": "Wind grass 2-7",
       "parent": null,
       "children": [],
@@ -7166,49 +2906,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 197,
-      "name": "Wildflowers 2-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 198,
+      "id": 80,
       "name": "Wind grass 3-7",
       "parent": null,
       "children": [],
@@ -7238,49 +2942,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 199,
-      "name": "Wildflowers 3-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 200,
+      "id": 81,
       "name": "Wind grass 4-7",
       "parent": null,
       "children": [],
@@ -7310,49 +2978,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 201,
-      "name": "Wildflowers 4-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 202,
+      "id": 82,
       "name": "Wind grass 5-7",
       "parent": null,
       "children": [],
@@ -7382,49 +3014,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 203,
-      "name": "Wildflowers 5-7",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-7.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 204,
+      "id": 83,
       "name": "Wind grass 0-8",
       "parent": null,
       "children": [],
@@ -7454,49 +3050,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 205,
-      "name": "Wildflowers 0-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 206,
+      "id": 84,
       "name": "Wind grass 1-8",
       "parent": null,
       "children": [],
@@ -7526,49 +3086,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 207,
-      "name": "Wildflowers 1-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 208,
+      "id": 85,
       "name": "Wind grass 2-8",
       "parent": null,
       "children": [],
@@ -7598,49 +3122,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 209,
-      "name": "Wildflowers 2-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 210,
+      "id": 86,
       "name": "Wind grass 3-8",
       "parent": null,
       "children": [],
@@ -7670,49 +3158,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 211,
-      "name": "Wildflowers 3-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 212,
+      "id": 87,
       "name": "Wind grass 4-8",
       "parent": null,
       "children": [],
@@ -7742,49 +3194,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 213,
-      "name": "Wildflowers 4-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 214,
+      "id": 88,
       "name": "Wind grass 5-8",
       "parent": null,
       "children": [],
@@ -7814,49 +3230,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 215,
-      "name": "Wildflowers 5-8",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-8.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 216,
+      "id": 89,
       "name": "Wind grass 0-9",
       "parent": null,
       "children": [],
@@ -7886,49 +3266,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 217,
-      "name": "Wildflowers 0-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 218,
+      "id": 90,
       "name": "Wind grass 1-9",
       "parent": null,
       "children": [],
@@ -7958,49 +3302,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 219,
-      "name": "Wildflowers 1-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 220,
+      "id": 91,
       "name": "Wind grass 2-9",
       "parent": null,
       "children": [],
@@ -8030,49 +3338,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 221,
-      "name": "Wildflowers 2-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 222,
+      "id": 92,
       "name": "Wind grass 3-9",
       "parent": null,
       "children": [],
@@ -8102,49 +3374,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 223,
-      "name": "Wildflowers 3-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 224,
+      "id": 93,
       "name": "Wind grass 4-9",
       "parent": null,
       "children": [],
@@ -8174,49 +3410,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 225,
-      "name": "Wildflowers 4-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 226,
+      "id": 94,
       "name": "Wind grass 5-9",
       "parent": null,
       "children": [],
@@ -8246,49 +3446,13 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 227,
-      "name": "Wildflowers 5-9",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-9.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 228,
+      "id": 95,
       "name": "Wind grass 6-9",
       "parent": null,
       "children": [],
@@ -8318,14 +3482,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 229,
-      "name": "Wildflowers 6-9",
+      "id": 96,
+      "name": "Meadow wildflower patches",
       "parent": null,
       "children": [],
       "visible": true,
@@ -8343,7 +3507,7 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Wildflowers 6-9.esmesh",
+            "mesh": "assets/models/Meadow wildflower patches.esmesh",
             "material": "assets/materials/landscape.esmaterial",
             "color": {
               "r": 1,
@@ -8354,14 +3518,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false
           }
         }
       ]
     },
     {
-      "id": 230,
-      "name": "Wind grass 0-10",
+      "id": 97,
+      "name": "Fine meadow grass",
       "parent": null,
       "children": [],
       "visible": true,
@@ -8379,8 +3543,8 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/models/Wind grass 0-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
+            "mesh": "assets/models/Fine meadow grass.esmesh",
+            "material": "assets/materials/meadow-sprigs.esmaterial",
             "color": {
               "r": 1,
               "g": 1,
@@ -8390,517 +3554,14 @@
             "lit": true,
             "opaque": true,
             "cullBackfaces": false,
-            "castShadows": true
+            "castShadows": false,
+            "texture": "assets/textures/grass-tuft.png"
           }
         }
       ]
     },
     {
-      "id": 231,
-      "name": "Wildflowers 0-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 0-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 232,
-      "name": "Wind grass 1-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 1-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 233,
-      "name": "Wildflowers 1-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 1-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 234,
-      "name": "Wind grass 2-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 2-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 235,
-      "name": "Wildflowers 2-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 2-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 236,
-      "name": "Wind grass 3-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 3-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 237,
-      "name": "Wildflowers 3-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 3-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 238,
-      "name": "Wind grass 4-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 4-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 239,
-      "name": "Wildflowers 4-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 4-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 240,
-      "name": "Wind grass 5-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 5-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 241,
-      "name": "Wildflowers 5-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 5-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 242,
-      "name": "Wind grass 6-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wind grass 6-10.esmesh",
-            "material": "assets/materials/grass.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 243,
-      "name": "Wildflowers 6-10",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Wildflowers 6-10.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 244,
-      "name": "Weathered meadow stones",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "MeshRenderer",
-          "data": {
-            "mesh": "assets/models/Weathered meadow stones.esmesh",
-            "material": "assets/materials/landscape.esmaterial",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "lit": true,
-            "opaque": true,
-            "cullBackfaces": false,
-            "castShadows": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 245,
+      "id": 98,
       "name": "Cider stream",
       "parent": null,
       "children": [],
@@ -8936,7 +3597,7 @@
       ]
     },
     {
-      "id": 246,
+      "id": 99,
       "name": "Statue of the wind",
       "parent": null,
       "children": [],
@@ -8947,7 +3608,7 @@
           "data": {
             "position": {
               "x": -7,
-              "y": 2.9174682177190663,
+              "y": 3.6497920700473028,
               "z": -19
             },
             "scale": {
@@ -8984,7 +3645,7 @@
       ]
     },
     {
-      "id": 247,
+      "id": 100,
       "name": "Anemo shrine glow",
       "parent": null,
       "children": [],
@@ -9020,7 +3681,7 @@
       ]
     },
     {
-      "id": 248,
+      "id": 101,
       "name": "Anemo beacon",
       "parent": null,
       "children": [],
@@ -9056,11 +3717,11 @@
       ]
     },
     {
-      "id": 249,
+      "id": 102,
       "name": "Traveler",
       "parent": null,
       "children": [
-        251
+        104
       ],
       "visible": true,
       "components": [
@@ -9069,7 +3730,7 @@
           "data": {
             "position": {
               "x": 0,
-              "y": 0.5404074987690163,
+              "y": 0.5523832536910036,
               "z": 28
             },
             "rotation": {
@@ -9083,7 +3744,7 @@
       ]
     },
     {
-      "id": 250,
+      "id": 103,
       "name": "Wind burst",
       "parent": null,
       "children": [],
@@ -9120,11 +3781,11 @@
       ]
     },
     {
-      "id": 251,
+      "id": 104,
       "name": "Lumine Visual",
-      "parent": 249,
+      "parent": 102,
       "children": [
-        252
+        105
       ],
       "visible": true,
       "components": [
@@ -9153,10 +3814,11 @@
     },
     {
       "name": "Armature",
-      "parent": 251,
+      "parent": 104,
       "children": [
-        253,
-        254
+        106,
+        107,
+        108
       ],
       "visible": true,
       "components": [
@@ -9182,11 +3844,11 @@
           }
         }
       ],
-      "id": 252
+      "id": 105
     },
     {
-      "name": "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a",
-      "parent": 252,
+      "name": "Lumine shoulder ribbons",
+      "parent": 105,
       "children": [],
       "visible": true,
       "components": [
@@ -9197,9 +3859,9 @@
         {
           "type": "MeshRenderer",
           "data": {
-            "mesh": "assets/character/lumine-final.esmesh",
+            "mesh": "assets/character/lumine-final_0_0.esmesh",
             "lit": true,
-            "texture": "assets/character/lumine-final_1.jpg",
+            "texture": "assets/character/lumine-final_0.png",
             "material": "assets/materials/lumine-toon.esmaterial",
             "color": {
               "r": 1,
@@ -9216,84 +3878,187 @@
           "type": "MeshSkin",
           "data": {
             "joints": [
-              254,
-              255,
-              256,
-              257,
-              258,
-              259,
-              260,
-              261,
-              262,
-              263,
-              264,
-              265,
-              266,
-              267,
-              268,
-              269,
-              270,
-              271,
-              272,
-              273,
-              274,
-              275,
-              276,
-              277,
-              278,
-              279,
-              280,
-              281,
-              282,
-              283,
-              284,
-              285,
-              286,
-              287,
-              288,
-              289,
-              290,
-              291,
-              292,
-              293,
-              294,
-              295,
-              296,
-              297,
-              298,
-              299,
-              300,
-              301,
-              302,
-              303,
-              304,
-              305,
-              306,
-              307,
-              308,
-              309,
-              310,
-              311,
-              312,
-              313,
-              314,
-              315,
-              316,
-              317,
-              318
+              108,
+              109,
+              110,
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              141,
+              142,
+              143,
+              144,
+              145,
+              146,
+              147,
+              148,
+              149,
+              150,
+              151,
+              152,
+              153,
+              154,
+              155,
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163,
+              164,
+              165,
+              166,
+              167,
+              168,
+              169,
+              170,
+              171,
+              172
             ]
           }
         }
       ],
-      "id": 253
+      "id": 106
+    },
+    {
+      "name": "tripo_node_46c7ac47-144c-4e48-8a8f-d29de4b7f30a",
+      "parent": 105,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/character/lumine-final_1_0.esmesh",
+            "lit": true,
+            "texture": "assets/character/lumine-final_2.jpg",
+            "material": "assets/materials/lumine-toon.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true,
+            "castShadows": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              108,
+              109,
+              110,
+              111,
+              112,
+              113,
+              114,
+              115,
+              116,
+              117,
+              118,
+              119,
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              141,
+              142,
+              143,
+              144,
+              145,
+              146,
+              147,
+              148,
+              149,
+              150,
+              151,
+              152,
+              153,
+              154,
+              155,
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163,
+              164,
+              165,
+              166,
+              167,
+              168,
+              169,
+              170,
+              171,
+              172
+            ]
+          }
+        }
+      ],
+      "id": 107
     },
     {
       "name": "mixamorig:Hips",
-      "parent": 252,
+      "parent": 105,
       "children": [
-        255,
-        260,
-        265
+        109,
+        114,
+        119
       ],
       "visible": true,
       "components": [
@@ -9319,13 +4084,13 @@
           }
         }
       ],
-      "id": 254
+      "id": 108
     },
     {
       "name": "mixamorig:LeftUpLeg",
-      "parent": 254,
+      "parent": 108,
       "children": [
-        256
+        110
       ],
       "visible": true,
       "components": [
@@ -9351,13 +4116,13 @@
           }
         }
       ],
-      "id": 255
+      "id": 109
     },
     {
       "name": "mixamorig:LeftLeg",
-      "parent": 255,
+      "parent": 109,
       "children": [
-        257
+        111
       ],
       "visible": true,
       "components": [
@@ -9378,13 +4143,13 @@
           }
         }
       ],
-      "id": 256
+      "id": 110
     },
     {
       "name": "mixamorig:LeftFoot",
-      "parent": 256,
+      "parent": 110,
       "children": [
-        258
+        112
       ],
       "visible": true,
       "components": [
@@ -9405,13 +4170,13 @@
           }
         }
       ],
-      "id": 257
+      "id": 111
     },
     {
       "name": "mixamorig:LeftToeBase",
-      "parent": 257,
+      "parent": 111,
       "children": [
-        259
+        113
       ],
       "visible": true,
       "components": [
@@ -9437,11 +4202,11 @@
           }
         }
       ],
-      "id": 258
+      "id": 112
     },
     {
       "name": "mixamorig:LeftToe_End",
-      "parent": 258,
+      "parent": 112,
       "children": [],
       "visible": true,
       "components": [
@@ -9462,13 +4227,13 @@
           }
         }
       ],
-      "id": 259
+      "id": 113
     },
     {
       "name": "mixamorig:RightUpLeg",
-      "parent": 254,
+      "parent": 108,
       "children": [
-        261
+        115
       ],
       "visible": true,
       "components": [
@@ -9494,13 +4259,13 @@
           }
         }
       ],
-      "id": 260
+      "id": 114
     },
     {
       "name": "mixamorig:RightLeg",
-      "parent": 260,
+      "parent": 114,
       "children": [
-        262
+        116
       ],
       "visible": true,
       "components": [
@@ -9526,13 +4291,13 @@
           }
         }
       ],
-      "id": 261
+      "id": 115
     },
     {
       "name": "mixamorig:RightFoot",
-      "parent": 261,
+      "parent": 115,
       "children": [
-        263
+        117
       ],
       "visible": true,
       "components": [
@@ -9558,13 +4323,13 @@
           }
         }
       ],
-      "id": 262
+      "id": 116
     },
     {
       "name": "mixamorig:RightToeBase",
-      "parent": 262,
+      "parent": 116,
       "children": [
-        264
+        118
       ],
       "visible": true,
       "components": [
@@ -9590,11 +4355,11 @@
           }
         }
       ],
-      "id": 263
+      "id": 117
     },
     {
       "name": "mixamorig:RightToe_End",
-      "parent": 263,
+      "parent": 117,
       "children": [],
       "visible": true,
       "components": [
@@ -9615,13 +4380,13 @@
           }
         }
       ],
-      "id": 264
+      "id": 118
     },
     {
       "name": "mixamorig:Spine",
-      "parent": 254,
+      "parent": 108,
       "children": [
-        266
+        120
       ],
       "visible": true,
       "components": [
@@ -9642,13 +4407,13 @@
           }
         }
       ],
-      "id": 265
+      "id": 119
     },
     {
       "name": "mixamorig:Spine1",
-      "parent": 265,
+      "parent": 119,
       "children": [
-        267
+        121
       ],
       "visible": true,
       "components": [
@@ -9669,15 +4434,15 @@
           }
         }
       ],
-      "id": 266
+      "id": 120
     },
     {
       "name": "mixamorig:Spine2",
-      "parent": 266,
+      "parent": 120,
       "children": [
-        268,
-        292,
-        295
+        122,
+        146,
+        149
       ],
       "visible": true,
       "components": [
@@ -9698,13 +4463,13 @@
           }
         }
       ],
-      "id": 267
+      "id": 121
     },
     {
       "name": "mixamorig:LeftShoulder",
-      "parent": 267,
+      "parent": 121,
       "children": [
-        269
+        123
       ],
       "visible": true,
       "components": [
@@ -9730,13 +4495,13 @@
           }
         }
       ],
-      "id": 268
+      "id": 122
     },
     {
       "name": "mixamorig:LeftArm",
-      "parent": 268,
+      "parent": 122,
       "children": [
-        270
+        124
       ],
       "visible": true,
       "components": [
@@ -9762,13 +4527,13 @@
           }
         }
       ],
-      "id": 269
+      "id": 123
     },
     {
       "name": "mixamorig:LeftForeArm",
-      "parent": 269,
+      "parent": 123,
       "children": [
-        271
+        125
       ],
       "visible": true,
       "components": [
@@ -9794,17 +4559,17 @@
           }
         }
       ],
-      "id": 270
+      "id": 124
     },
     {
       "name": "mixamorig:LeftHand",
-      "parent": 270,
+      "parent": 124,
       "children": [
-        272,
-        276,
-        280,
-        284,
-        288
+        126,
+        130,
+        134,
+        138,
+        142
       ],
       "visible": true,
       "components": [
@@ -9830,13 +4595,13 @@
           }
         }
       ],
-      "id": 271
+      "id": 125
     },
     {
       "name": "mixamorig:LeftHandIndex1",
-      "parent": 271,
+      "parent": 125,
       "children": [
-        273
+        127
       ],
       "visible": true,
       "components": [
@@ -9862,13 +4627,13 @@
           }
         }
       ],
-      "id": 272
+      "id": 126
     },
     {
       "name": "mixamorig:LeftHandIndex2",
-      "parent": 272,
+      "parent": 126,
       "children": [
-        274
+        128
       ],
       "visible": true,
       "components": [
@@ -9894,13 +4659,13 @@
           }
         }
       ],
-      "id": 273
+      "id": 127
     },
     {
       "name": "mixamorig:LeftHandIndex3",
-      "parent": 273,
+      "parent": 127,
       "children": [
-        275
+        129
       ],
       "visible": true,
       "components": [
@@ -9926,11 +4691,11 @@
           }
         }
       ],
-      "id": 274
+      "id": 128
     },
     {
       "name": "mixamorig:LeftHandIndex4",
-      "parent": 274,
+      "parent": 128,
       "children": [],
       "visible": true,
       "components": [
@@ -9956,13 +4721,13 @@
           }
         }
       ],
-      "id": 275
+      "id": 129
     },
     {
       "name": "mixamorig:LeftHandMiddle1",
-      "parent": 271,
+      "parent": 125,
       "children": [
-        277
+        131
       ],
       "visible": true,
       "components": [
@@ -9988,13 +4753,13 @@
           }
         }
       ],
-      "id": 276
+      "id": 130
     },
     {
       "name": "mixamorig:LeftHandMiddle2",
-      "parent": 276,
+      "parent": 130,
       "children": [
-        278
+        132
       ],
       "visible": true,
       "components": [
@@ -10020,13 +4785,13 @@
           }
         }
       ],
-      "id": 277
+      "id": 131
     },
     {
       "name": "mixamorig:LeftHandMiddle3",
-      "parent": 277,
+      "parent": 131,
       "children": [
-        279
+        133
       ],
       "visible": true,
       "components": [
@@ -10047,11 +4812,11 @@
           }
         }
       ],
-      "id": 278
+      "id": 132
     },
     {
       "name": "mixamorig:LeftHandMiddle4",
-      "parent": 278,
+      "parent": 132,
       "children": [],
       "visible": true,
       "components": [
@@ -10077,13 +4842,13 @@
           }
         }
       ],
-      "id": 279
+      "id": 133
     },
     {
       "name": "mixamorig:LeftHandPinky1",
-      "parent": 271,
+      "parent": 125,
       "children": [
-        281
+        135
       ],
       "visible": true,
       "components": [
@@ -10109,13 +4874,13 @@
           }
         }
       ],
-      "id": 280
+      "id": 134
     },
     {
       "name": "mixamorig:LeftHandPinky2",
-      "parent": 280,
+      "parent": 134,
       "children": [
-        282
+        136
       ],
       "visible": true,
       "components": [
@@ -10136,13 +4901,13 @@
           }
         }
       ],
-      "id": 281
+      "id": 135
     },
     {
       "name": "mixamorig:LeftHandPinky3",
-      "parent": 281,
+      "parent": 135,
       "children": [
-        283
+        137
       ],
       "visible": true,
       "components": [
@@ -10168,11 +4933,11 @@
           }
         }
       ],
-      "id": 282
+      "id": 136
     },
     {
       "name": "mixamorig:LeftHandPinky4",
-      "parent": 282,
+      "parent": 136,
       "children": [],
       "visible": true,
       "components": [
@@ -10198,13 +4963,13 @@
           }
         }
       ],
-      "id": 283
+      "id": 137
     },
     {
       "name": "mixamorig:LeftHandRing1",
-      "parent": 271,
+      "parent": 125,
       "children": [
-        285
+        139
       ],
       "visible": true,
       "components": [
@@ -10230,13 +4995,13 @@
           }
         }
       ],
-      "id": 284
+      "id": 138
     },
     {
       "name": "mixamorig:LeftHandRing2",
-      "parent": 284,
+      "parent": 138,
       "children": [
-        286
+        140
       ],
       "visible": true,
       "components": [
@@ -10262,13 +5027,13 @@
           }
         }
       ],
-      "id": 285
+      "id": 139
     },
     {
       "name": "mixamorig:LeftHandRing3",
-      "parent": 285,
+      "parent": 139,
       "children": [
-        287
+        141
       ],
       "visible": true,
       "components": [
@@ -10294,11 +5059,11 @@
           }
         }
       ],
-      "id": 286
+      "id": 140
     },
     {
       "name": "mixamorig:LeftHandRing4",
-      "parent": 286,
+      "parent": 140,
       "children": [],
       "visible": true,
       "components": [
@@ -10324,13 +5089,13 @@
           }
         }
       ],
-      "id": 287
+      "id": 141
     },
     {
       "name": "mixamorig:LeftHandThumb1",
-      "parent": 271,
+      "parent": 125,
       "children": [
-        289
+        143
       ],
       "visible": true,
       "components": [
@@ -10356,13 +5121,13 @@
           }
         }
       ],
-      "id": 288
+      "id": 142
     },
     {
       "name": "mixamorig:LeftHandThumb2",
-      "parent": 288,
+      "parent": 142,
       "children": [
-        290
+        144
       ],
       "visible": true,
       "components": [
@@ -10388,13 +5153,13 @@
           }
         }
       ],
-      "id": 289
+      "id": 143
     },
     {
       "name": "mixamorig:LeftHandThumb3",
-      "parent": 289,
+      "parent": 143,
       "children": [
-        291
+        145
       ],
       "visible": true,
       "components": [
@@ -10420,11 +5185,11 @@
           }
         }
       ],
-      "id": 290
+      "id": 144
     },
     {
       "name": "mixamorig:LeftHandThumb4",
-      "parent": 290,
+      "parent": 144,
       "children": [],
       "visible": true,
       "components": [
@@ -10450,13 +5215,13 @@
           }
         }
       ],
-      "id": 291
+      "id": 145
     },
     {
       "name": "mixamorig:Neck",
-      "parent": 267,
+      "parent": 121,
       "children": [
-        293
+        147
       ],
       "visible": true,
       "components": [
@@ -10482,13 +5247,13 @@
           }
         }
       ],
-      "id": 292
+      "id": 146
     },
     {
       "name": "mixamorig:Head",
-      "parent": 292,
+      "parent": 146,
       "children": [
-        294
+        148
       ],
       "visible": true,
       "components": [
@@ -10509,11 +5274,11 @@
           }
         }
       ],
-      "id": 293
+      "id": 147
     },
     {
       "name": "mixamorig:HeadTop_End",
-      "parent": 293,
+      "parent": 147,
       "children": [],
       "visible": true,
       "components": [
@@ -10534,13 +5299,13 @@
           }
         }
       ],
-      "id": 294
+      "id": 148
     },
     {
       "name": "mixamorig:RightShoulder",
-      "parent": 267,
+      "parent": 121,
       "children": [
-        296
+        150
       ],
       "visible": true,
       "components": [
@@ -10566,13 +5331,13 @@
           }
         }
       ],
-      "id": 295
+      "id": 149
     },
     {
       "name": "mixamorig:RightArm",
-      "parent": 295,
+      "parent": 149,
       "children": [
-        297
+        151
       ],
       "visible": true,
       "components": [
@@ -10598,13 +5363,13 @@
           }
         }
       ],
-      "id": 296
+      "id": 150
     },
     {
       "name": "mixamorig:RightForeArm",
-      "parent": 296,
+      "parent": 150,
       "children": [
-        298
+        152
       ],
       "visible": true,
       "components": [
@@ -10630,17 +5395,17 @@
           }
         }
       ],
-      "id": 297
+      "id": 151
     },
     {
       "name": "mixamorig:RightHand",
-      "parent": 297,
+      "parent": 151,
       "children": [
-        299,
-        303,
-        307,
-        311,
-        315
+        153,
+        157,
+        161,
+        165,
+        169
       ],
       "visible": true,
       "components": [
@@ -10666,13 +5431,13 @@
           }
         }
       ],
-      "id": 298
+      "id": 152
     },
     {
       "name": "mixamorig:RightHandIndex1",
-      "parent": 298,
+      "parent": 152,
       "children": [
-        300
+        154
       ],
       "visible": true,
       "components": [
@@ -10698,13 +5463,13 @@
           }
         }
       ],
-      "id": 299
+      "id": 153
     },
     {
       "name": "mixamorig:RightHandIndex2",
-      "parent": 299,
+      "parent": 153,
       "children": [
-        301
+        155
       ],
       "visible": true,
       "components": [
@@ -10730,13 +5495,13 @@
           }
         }
       ],
-      "id": 300
+      "id": 154
     },
     {
       "name": "mixamorig:RightHandIndex3",
-      "parent": 300,
+      "parent": 154,
       "children": [
-        302
+        156
       ],
       "visible": true,
       "components": [
@@ -10762,11 +5527,11 @@
           }
         }
       ],
-      "id": 301
+      "id": 155
     },
     {
       "name": "mixamorig:RightHandIndex4",
-      "parent": 301,
+      "parent": 155,
       "children": [],
       "visible": true,
       "components": [
@@ -10792,13 +5557,13 @@
           }
         }
       ],
-      "id": 302
+      "id": 156
     },
     {
       "name": "mixamorig:RightHandMiddle1",
-      "parent": 298,
+      "parent": 152,
       "children": [
-        304
+        158
       ],
       "visible": true,
       "components": [
@@ -10824,13 +5589,13 @@
           }
         }
       ],
-      "id": 303
+      "id": 157
     },
     {
       "name": "mixamorig:RightHandMiddle2",
-      "parent": 303,
+      "parent": 157,
       "children": [
-        305
+        159
       ],
       "visible": true,
       "components": [
@@ -10856,13 +5621,13 @@
           }
         }
       ],
-      "id": 304
+      "id": 158
     },
     {
       "name": "mixamorig:RightHandMiddle3",
-      "parent": 304,
+      "parent": 158,
       "children": [
-        306
+        160
       ],
       "visible": true,
       "components": [
@@ -10888,11 +5653,11 @@
           }
         }
       ],
-      "id": 305
+      "id": 159
     },
     {
       "name": "mixamorig:RightHandMiddle4",
-      "parent": 305,
+      "parent": 159,
       "children": [],
       "visible": true,
       "components": [
@@ -10918,13 +5683,13 @@
           }
         }
       ],
-      "id": 306
+      "id": 160
     },
     {
       "name": "mixamorig:RightHandPinky1",
-      "parent": 298,
+      "parent": 152,
       "children": [
-        308
+        162
       ],
       "visible": true,
       "components": [
@@ -10950,13 +5715,13 @@
           }
         }
       ],
-      "id": 307
+      "id": 161
     },
     {
       "name": "mixamorig:RightHandPinky2",
-      "parent": 307,
+      "parent": 161,
       "children": [
-        309
+        163
       ],
       "visible": true,
       "components": [
@@ -10982,13 +5747,13 @@
           }
         }
       ],
-      "id": 308
+      "id": 162
     },
     {
       "name": "mixamorig:RightHandPinky3",
-      "parent": 308,
+      "parent": 162,
       "children": [
-        310
+        164
       ],
       "visible": true,
       "components": [
@@ -11014,11 +5779,11 @@
           }
         }
       ],
-      "id": 309
+      "id": 163
     },
     {
       "name": "mixamorig:RightHandPinky4",
-      "parent": 309,
+      "parent": 163,
       "children": [],
       "visible": true,
       "components": [
@@ -11039,13 +5804,13 @@
           }
         }
       ],
-      "id": 310
+      "id": 164
     },
     {
       "name": "mixamorig:RightHandRing1",
-      "parent": 298,
+      "parent": 152,
       "children": [
-        312
+        166
       ],
       "visible": true,
       "components": [
@@ -11071,13 +5836,13 @@
           }
         }
       ],
-      "id": 311
+      "id": 165
     },
     {
       "name": "mixamorig:RightHandRing2",
-      "parent": 311,
+      "parent": 165,
       "children": [
-        313
+        167
       ],
       "visible": true,
       "components": [
@@ -11103,13 +5868,13 @@
           }
         }
       ],
-      "id": 312
+      "id": 166
     },
     {
       "name": "mixamorig:RightHandRing3",
-      "parent": 312,
+      "parent": 166,
       "children": [
-        314
+        168
       ],
       "visible": true,
       "components": [
@@ -11135,11 +5900,11 @@
           }
         }
       ],
-      "id": 313
+      "id": 167
     },
     {
       "name": "mixamorig:RightHandRing4",
-      "parent": 313,
+      "parent": 167,
       "children": [],
       "visible": true,
       "components": [
@@ -11165,13 +5930,13 @@
           }
         }
       ],
-      "id": 314
+      "id": 168
     },
     {
       "name": "mixamorig:RightHandThumb1",
-      "parent": 298,
+      "parent": 152,
       "children": [
-        316
+        170
       ],
       "visible": true,
       "components": [
@@ -11197,13 +5962,13 @@
           }
         }
       ],
-      "id": 315
+      "id": 169
     },
     {
       "name": "mixamorig:RightHandThumb2",
-      "parent": 315,
+      "parent": 169,
       "children": [
-        317
+        171
       ],
       "visible": true,
       "components": [
@@ -11229,13 +5994,13 @@
           }
         }
       ],
-      "id": 316
+      "id": 170
     },
     {
       "name": "mixamorig:RightHandThumb3",
-      "parent": 316,
+      "parent": 170,
       "children": [
-        318
+        172
       ],
       "visible": true,
       "components": [
@@ -11261,11 +6026,11 @@
           }
         }
       ],
-      "id": 317
+      "id": 171
     },
     {
       "name": "mixamorig:RightHandThumb4",
-      "parent": 317,
+      "parent": 171,
       "children": [],
       "visible": true,
       "components": [
@@ -11286,10 +6051,10 @@
           }
         }
       ],
-      "id": 318
+      "id": 172
     },
     {
-      "id": 319,
+      "id": 173,
       "name": "Camera",
       "parent": null,
       "children": [],
@@ -11331,36 +6096,31 @@
             "weight": 1,
             "effects": [
               {
-                "type": "skyAtmosphere",
+                "type": "windriseDaylight",
                 "enabled": true,
                 "uniforms": {
-                  "u_intensity": 0.85,
-                  "u_haze": 0.5,
-                  "u_sunBrightness": 12,
-                  "u_clouds": 0.45,
-                  "u_cloudShadow": 0.15,
-                  "u_unitsPerKm": 1000,
-                  "u_windSpeed": 0.025
+                  "u_intensity": 1,
+                  "u_lightScene": 0
                 }
               },
               {
                 "type": "heightFog",
                 "enabled": true,
                 "uniforms": {
-                  "u_density": 0.0018,
-                  "u_heightFalloff": 0.018,
+                  "u_density": 0.0038,
+                  "u_heightFalloff": 0.009,
                   "u_baseHeight": 0,
-                  "u_startDistance": 60,
-                  "u_maxOpacity": 0.7,
+                  "u_startDistance": 43,
+                  "u_maxOpacity": 0.77,
                   "u_inscatter": 0.15,
                   "u_skyFog": 0.1,
                   "u_volumetric": 0
                 },
                 "colors": {
                   "u_fogColor": {
-                    "r": 0.49,
-                    "g": 0.69,
-                    "b": 0.8,
+                    "r": 0.3,
+                    "g": 0.56,
+                    "b": 0.71,
                     "a": 1
                   },
                   "u_sunColor": {
@@ -11376,8 +6136,8 @@
                 "enabled": true,
                 "uniforms": {
                   "u_radius": 0.55,
-                  "u_intensity": 0.5,
-                  "u_bias": 0.035,
+                  "u_intensity": 0.68,
+                  "u_bias": 0.028,
                   "u_power": 1.1
                 }
               },
@@ -11411,7 +6171,7 @@
       ]
     },
     {
-      "id": 320,
+      "id": 174,
       "name": "Sun",
       "parent": null,
       "children": [],
@@ -11426,10 +6186,10 @@
               "z": 0
             },
             "rotation": {
-              "x": -0.36903257496804603,
-              "y": -0.2941028676953037,
-              "z": -0.12434469807302119,
-              "w": 0.8728441200391863
+              "x": -0.43169733703002605,
+              "y": -0.38171816775934775,
+              "z": -0.20853358546554138,
+              "w": 0.7902166749294249
             }
           }
         },
@@ -11443,18 +6203,18 @@
               "b": 0.88,
               "a": 1
             },
-            "intensity": 1.35,
+            "intensity": 1.12,
             "enabled": true,
             "meshShadows": true,
-            "shadowExtent": 90,
-            "shadowStrength": 0.78,
+            "shadowExtent": 88,
+            "shadowStrength": 0.68,
             "sourceAngle": 1.5
           }
         }
       ]
     },
     {
-      "id": 321,
+      "id": 175,
       "name": "Blue sky fill",
       "parent": null,
       "children": [],
@@ -11475,36 +6235,36 @@
           "data": {
             "type": 2,
             "color": {
-              "r": 0.62,
-              "g": 0.76,
+              "r": 0.67,
+              "g": 0.79,
               "b": 1,
               "a": 1
             },
-            "intensity": 0.4,
+            "intensity": 0.47,
             "enabled": true
           }
         }
       ]
     },
     {
-      "id": 322,
+      "id": 176,
       "name": "HUD",
       "parent": null,
       "children": [
-        323,
-        324,
-        325,
-        326,
-        327,
-        328,
-        329,
-        330,
-        331,
-        332,
-        333,
-        334,
-        335,
-        336
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190
       ],
       "visible": true,
       "components": [
@@ -11541,9 +6301,9 @@
       ]
     },
     {
-      "id": 323,
+      "id": 177,
       "name": "Location",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11600,9 +6360,9 @@
       ]
     },
     {
-      "id": 324,
+      "id": 178,
       "name": "Region",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11659,9 +6419,9 @@
       ]
     },
     {
-      "id": 325,
+      "id": 179,
       "name": "Quest",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11718,9 +6478,9 @@
       ]
     },
     {
-      "id": 326,
+      "id": 180,
       "name": "Objective",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11777,9 +6537,9 @@
       ]
     },
     {
-      "id": 327,
+      "id": 181,
       "name": "Compass",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11836,9 +6596,9 @@
       ]
     },
     {
-      "id": 328,
+      "id": 182,
       "name": "Character name",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11895,9 +6655,9 @@
       ]
     },
     {
-      "id": 329,
+      "id": 183,
       "name": "Health",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -11954,9 +6714,9 @@
       ]
     },
     {
-      "id": 330,
+      "id": 184,
       "name": "Stamina",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12013,9 +6773,9 @@
       ]
     },
     {
-      "id": 331,
+      "id": 185,
       "name": "Controls",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12072,9 +6832,9 @@
       ]
     },
     {
-      "id": 332,
+      "id": 186,
       "name": "View controls",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12131,9 +6891,9 @@
       ]
     },
     {
-      "id": 333,
+      "id": 187,
       "name": "Skill",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12190,9 +6950,9 @@
       ]
     },
     {
-      "id": 334,
+      "id": 188,
       "name": "Skill name",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12249,9 +7009,9 @@
       ]
     },
     {
-      "id": 335,
+      "id": 189,
       "name": "Interact",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [
@@ -12308,9 +7068,9 @@
       ]
     },
     {
-      "id": 336,
+      "id": 190,
       "name": "Status",
-      "parent": 322,
+      "parent": 176,
       "children": [],
       "visible": true,
       "components": [

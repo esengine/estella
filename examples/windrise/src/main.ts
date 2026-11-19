@@ -1,15 +1,22 @@
-import {addPlugin,defineSystem,GetWorld,Res,Query,Input,Time,Transform,Text,UINode,UIDisplay,MeshRenderer,Playthrough,AnimatorController,Animator} from 'esengine';
+import {addPlugin,defineSystem,GetWorld,Res,Query,Input,Time,Transform,Text,UINode,UIDisplay,MeshRenderer,Playthrough,AnimatorController,Animator,Camera} from 'esengine';
 import type {Entity,World} from 'esengine';
 import {groundHeight,home,shrine} from './world';
+import {referenceView,viewNames,type ViewName} from './referenceViews';
+import {installWindriseSky} from './sky';
+import {referencePose} from './referencePose';
 
 const quaternion=(yaw:number,pitch=0)=>({x:Math.cos(yaw/2)*Math.sin(pitch/2),y:Math.sin(yaw/2)*Math.cos(pitch/2),z:-Math.sin(yaw/2)*Math.sin(pitch/2),w:Math.cos(yaw/2)*Math.cos(pitch/2)});
 const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
 addPlugin({name:'windrise',build(app){
+    installWindriseSky();
     let yaw=home.yaw,pitch=home.pitch,distance=home.distance,elapsed=0,stamina=100,vertical=0,lift=0;
     let photo=false,front=false,activated=false,toast=0,skill=0,cooldown=0,travel=0;
     let lastMouse:{x:number;y:number}|null=null;
+    const requested = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('view') as ViewName | null;
+    let fixedView = requested && viewNames.includes(requested) ? requested : null;
+    let preparedView = false;
     const ids=new Map<string,Entity>();
-    const facts={ready:false,frame:0,x:home.x,y:0,z:home.z,stamina,grounded:true,photo,front,activated,skill:0,travel:0,animation:'',handX:0,handY:0,handZ:0,handW:1};
+    const facts={ready:false,frame:0,x:home.x,y:0,z:home.z,stamina,grounded:true,photo,front,activated,skill:0,travel:0,animation:'',handX:0,handY:0,handZ:0,handW:1,viewYaw:0,viewPitch:0,viewFov:54};
     app.insertResource(Playthrough,{facts});
     const get=(w:World,name:string)=>{let id=ids.get(name);if(id===undefined){const e=w.findEntityByName(name);if(e===null)throw new Error(`Missing Windrise entity: ${name}`);id=e;ids.set(name,e);}return id;};
     const label=(w:World,name:string,content:string)=>{const e=get(w,name),t=w.get(e,Text);if(t.content!==content)w.insert(e,Text,{...t,content});};
@@ -17,17 +24,40 @@ addPlugin({name:'windrise',build(app){
         if(w.findEntityByName('Traveler')===null)return;
         const dt=Math.min(time.delta,.05);elapsed+=dt;facts.frame++;cooldown=Math.max(0,cooldown-dt);
         const player=get(w,'Traveler'),t=w.get(player,Transform);
+        if (fixedView && !preparedView) {
+            photo = true;
+            const hud = get(w, 'HUD');
+            w.insert(hud, UINode, {...w.get(hud,UINode), display: UIDisplay.None});
+            if (fixedView !== 'oak') {
+                for (const [rig, data] of rigs) w.insert(rig,Animator,{...data,enabled:false});
+            }
+            preparedView = true;
+        }
+        if (fixedView && fixedView !== 'oak' && facts.frame <= 12) {
+            for(const [name,x,y,z,qx,qy,qz,qw] of referencePose){
+                const joint=get(w,name), transform=w.get(joint,Transform);
+                w.insert(joint,Transform,{...transform,position:{x,y,z},rotation:{x:qx,y:qy,z:qz,w:qw}});
+            }
+        }
         if(input.isKeyPressed('Home')){t.position={x:home.x,y:groundHeight(home.x,home.z),z:home.z};yaw=home.yaw;pitch=home.pitch;front=false;lift=0;vertical=0;stamina=100;distance=home.distance;}
         if(input.isKeyPressed('KeyV'))front=!front;
-        if(input.isKeyPressed('KeyP')){photo=!photo;const e=get(w,'HUD'),ui=w.get(e,UINode);w.insert(e,UINode,{...ui,display:photo?UIDisplay.None:UIDisplay.Flex});}
+        if(input.isKeyPressed('KeyP')){
+            if (fixedView) {
+                fixedView = null;
+                const camera = get(w,'Camera');
+                w.insert(camera,Camera,{...w.get(camera,Camera),fov:54});
+                for(const [rig,data] of rigs) w.insert(rig,Animator,{...data,enabled:true});
+            }
+            photo=!photo;const e=get(w,'HUD'),ui=w.get(e,UINode);w.insert(e,UINode,{...ui,display:photo?UIDisplay.None:UIDisplay.Flex});
+        }
         const mouse=input.getMousePosition();
         distance=clamp(distance+input.getScrollDelta().y*.006,2.3,10);
         if(input.isMouseButtonDown(2)&&lastMouse){yaw-=(mouse.x-lastMouse.x)*.003;pitch=clamp(pitch-(mouse.y-lastMouse.y)*.002,-.65,.32);}
         lastMouse={...mouse};
         yaw+=(Number(input.isKeyDown('ArrowLeft'))-Number(input.isKeyDown('ArrowRight')))*dt;
         pitch=clamp(pitch+(Number(input.isKeyDown('ArrowUp'))-Number(input.isKeyDown('ArrowDown')))*dt*.5,-.65,.32);
-        const forward=Number(input.isKeyDown('KeyW'))-Number(input.isKeyDown('KeyS'));
-        const right=Number(input.isKeyDown('KeyD'))-Number(input.isKeyDown('KeyA'));
+        const forward=fixedView?0:Number(input.isKeyDown('KeyW'))-Number(input.isKeyDown('KeyS'));
+        const right=fixedView?0:Number(input.isKeyDown('KeyD'))-Number(input.isKeyDown('KeyA'));
         const moving=forward!==0||right!==0,sprint=moving&&input.isKeyDown('ShiftLeft')&&stamina>2;
         const speed=sprint?5.7:2.65;
         stamina=clamp(stamina+(sprint?-23:14)*dt,0,100);
@@ -42,7 +72,7 @@ addPlugin({name:'windrise',build(app){
             if(!wet&&!oak&&!shrineBody){travel+=Math.hypot(x-t.position.x,z-t.position.z);t.position.x=x;t.position.z=z;}
             t.rotation=quaternion(Math.atan2(dx,dz));
         }
-        if(input.isKeyPressed('Space')&&lift===0){vertical=5.1;}
+        if(!fixedView&&input.isKeyPressed('Space')&&lift===0){vertical=5.1;}
         vertical-=12.8*dt;lift=Math.max(0,lift+vertical*dt);if(lift===0)vertical=0;
         t.position.y=groundHeight(t.position.x,t.position.z)+lift;w.insert(player,Transform,t);
         // Every imported Animator is driven by the same movement state, including blended idle/walk/run.
@@ -53,11 +83,19 @@ addPlugin({name:'windrise',build(app){
         const focusY=t.position.y+1.1;
         c.position={x:t.position.x+Math.sin(a)*distance*Math.cos(pitch),y:focusY-Math.sin(pitch)*distance,z:t.position.z+Math.cos(a)*distance*Math.cos(pitch)};
         c.position.y=Math.max(c.position.y,groundHeight(c.position.x,c.position.z)+.35);
-        c.rotation=quaternion(a,pitch);w.insert(camera,Transform,c);
+        c.rotation=quaternion(a,pitch);
+        if(fixedView){
+            const view=referenceView(fixedView);
+            c.position=view.position;c.rotation=quaternion(view.yaw,view.pitch);
+            Object.assign(facts,{viewYaw:view.yaw,viewPitch:view.pitch,viewFov:view.fov});
+            const lens=w.get(camera,Camera);
+            if(lens.fov!==view.fov)w.insert(camera,Camera,{...lens,fov:view.fov});
+        }
+        w.insert(camera,Transform,c);
         const near=Math.hypot(t.position.x-shrine.x,t.position.z-shrine.z)<4;
         label(w,'Interact',near?(activated?'F  感受风的流动':'F  与七天神像共鸣'):'');
         if(near&&input.isKeyPressed('KeyF')){activated=true;stamina=100;toast=4;label(w,'Status','风与牧歌之城 · 已与风元素共鸣');label(w,'Objective','已抵达七天神像 · 自由探索风起地');}
-        if(input.isKeyPressed('KeyE')&&cooldown===0){skill=.85;cooldown=3;toast=1.4;label(w,'Status','风涡剑');for(const [e] of rigs)anim.setTrigger(e,'attack');}
+        if(!fixedView&&input.isKeyPressed('KeyE')&&cooldown===0){skill=.85;cooldown=3;toast=1.4;label(w,'Status','风涡剑');for(const [e] of rigs)anim.setTrigger(e,'attack');}
         skill=Math.max(0,skill-dt);
         const burst=w.findEntityByName('Wind burst');
         if(burst!==null){const bt=w.get(burst,Transform),bm=w.get(burst,MeshRenderer);const s=1+(.85-skill)*5;bt.position={x:t.position.x,y:t.position.y+.85,z:t.position.z};bt.scale={x:s,y:s,z:s};bt.rotation=quaternion(elapsed*3);w.insert(burst,Transform,bt);if(bm.enabled!==(skill>0))w.insert(burst,MeshRenderer,{...bm,enabled:skill>0});}

@@ -7,9 +7,7 @@
   "depthWrite": true,
   "cull": 0,
   "properties": {
-    "u_normalMap": "lumine-final_0.png",
-    "u_metallicRoughnessMap": "lumine-final_2.jpg",
-    "u_metallic": 1,
-    "u_roughness": 1
+    "u_metallic": 0,
+    "u_roughness": 0.8299999833106995
   }
 }

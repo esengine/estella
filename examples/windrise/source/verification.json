@@ -13,9 +13,9 @@
   "warnings": [],
   "facts": {
     "ready": true,
-    "frame": 1751,
+    "frame": 1750,
     "x": 0,
-    "y": 0.5404074987690163,
+    "y": 0.5523832536910036,
     "z": 28,
     "stamina": 100,
     "grounded": true,
@@ -23,12 +23,15 @@
     "front": false,
     "activated": true,
     "skill": 0,
-    "travel": 61.23775833367884,
+    "travel": 61.27281333314485,
     "animation": "Locomotion",
     "handX": 0.05699193850159645,
-    "handY": 0.0526009127497673,
+    "handY": 0.0526009164750576,
     "handZ": 0.035603828728199005,
-    "handW": 0.9963520765304565
+    "handW": 0.9963520765304565,
+    "viewYaw": 0,
+    "viewPitch": 0,
+    "viewFov": 54
   },
   "renderer": "Headless Chromium / WebGL2",
   "visualAcceptance": "Visual study; no pixel-identical or original-game-quality claim."

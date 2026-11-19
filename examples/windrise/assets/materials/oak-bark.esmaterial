@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "oak-bark.esshader",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {}
+}
