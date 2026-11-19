@@ -897,7 +897,7 @@ const api = {
 
     /** How the editor view shades its meshes: 'shaded', 'clay' or 'albedo'. View state,
      *  like the lighting above, so it wakes the editor eye the frame is drawn through. */
-    setViewShading(mode: 'shaded' | 'clay' | 'albedo'): void {
+    setViewShading(mode: 'shaded' | 'clay' | 'albedo' | 'clusters'): void {
         if (!app) throw new Error('set_view_shading before boot');
         const view = app.getResource(EditorView);
         if (!view.active) { seedEditorViewFromScene(); view.active = true; }

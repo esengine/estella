@@ -276,12 +276,33 @@ void applyShading(ecs::MeshRenderer& mesh, ShadingMode mode) {
         mesh.color = kWireFill;
         mesh.lit = false;
         mesh.opaque = true;
-    } else if (shadesAsClay(mode)) {
+    } else if (shadesAsClay(mode) || mode == ShadingMode::Clusters) {
         mesh.texture = {};
         mesh.color = glm::vec4(0.74f, 0.74f, 0.76f, 1.0f);
         mesh.lit = true;
     } else {
         mesh.lit = false;
+    }
+}
+
+/**
+ * @brief The colour the cluster view gives cluster @p id: a hue from its number, so neighbours differ and a cluster keeps
+ *        its colour from frame to frame.
+ */
+glm::vec4 clusterInk(u32 id) {
+    u32 h = id * 0x9E3779B1u;
+    h ^= h >> 15;
+    const f32 hue = static_cast<f32>(h & 0xFFFFu) / 65536.0f * 6.0f;
+    const f32 rise = hue - std::floor(hue);
+    const f32 low = 0.28f, high = 0.95f;
+    const f32 up = low + (high - low) * rise, down = high - (high - low) * rise;
+    switch (static_cast<u32>(hue) % 6u) {
+        case 0: return {high, up, low, 1.0f};
+        case 1: return {down, high, low, 1.0f};
+        case 2: return {low, high, up, 1.0f};
+        case 3: return {low, down, high, 1.0f};
+        case 4: return {up, low, high, 1.0f};
+        default: return {high, low, down, 1.0f};
     }
 }
 
@@ -1171,6 +1192,7 @@ const MeshPlugin::ClusterCut* MeshPlugin::clusterCut(RenderCollectContext& colle
         cut.signature = signature;
         cut.indexCount = indexCount;
         cut.clusters = static_cast<u32>(cluster_picked_.size());
+        cut.ids = cluster_picked_;
         ++cluster_rebuilt_;
     }
     cut.mesh = &mesh;
@@ -1836,6 +1858,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.vertexLayout = resident->layout;
                 // A clustered mesh, one entity's own: through the clusters the scene's eye picks. The wireframe view draws
                 // the mesh's own edges, which are level 0's, over level 0.
+                bool inked = false;
                 if (resident->clusters && !wire) {
                     if (const ClusterCut* cut = clusterCut(collect_ctx, entity, *resident, position, rotation, scale)) {
                         cutBuffer = cut->buffer;
@@ -1846,9 +1869,28 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                             cluster_triangles_ += cut->indexCount / 3;
                             cluster_source_triangles_ += resident->indexCount / 3;
                         }
+                        if (shading == ShadingMode::Clusters) {
+                            // One draw a cluster, each a copy of the entity's record with a colour of its own: a view for
+                            // looking at the cut, where a draw a cluster is what is being shown.
+                            const lod::ClusterHierarchy& hierarchy = *resident->clusters;
+                            u32 first = 0;
+                            for (const u32 id : cut->ids) {
+                                const u32 count = hierarchy.clusters[id].indexCount;
+                                const u32 offset = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE);
+                                auto* records = buffers.vertexData(LayoutId::MeshInstance);
+                                std::memcpy(records + offset, records + instOffset, MESH_INSTANCE_STRIDE);
+                                const glm::vec4 ink = clusterInk(id);
+                                std::memcpy(records + offset + MESH_INSTANCE_TEXEL_TINT * 16, &ink, 16);
+                                BatchDrawKey drawn = key;
+                                drawn.indexBuffer = cut->buffer;
+                                pushBatchDraw(draw_list, clips, offset, 0, first, count, drawn);
+                                first += count;
+                            }
+                            inked = true;
+                        }
                     }
                 }
-                emit(*resident, instOffset, 1);
+                if (!inked) emit(*resident, instOffset, 1);
                 // The edges, as a second draw of the same instance with its own ink: same
                 // vertices, the mesh's line list, tested against the surface just drawn.
                 if (wire && resident->hasEdges()) {

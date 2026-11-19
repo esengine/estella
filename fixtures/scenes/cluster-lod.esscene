@@ -66,6 +66,43 @@
           }
         }
       ]
+    },
+    {
+      "id": 2,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "direction": {
+              "x": -0.4142135624,
+              "y": 0
+            },
+            "directionZ": -1
+          }
+        }
+      ]
     }
   ]
 }

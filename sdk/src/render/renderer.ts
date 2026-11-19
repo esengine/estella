@@ -157,12 +157,14 @@ export interface LightStatus {
  * beside this one would be free to disagree with the picture on screen.
  */
 /** How a view shades its meshes. @experimental */
-/** `directLighting` / `indirectLighting`: clay lit by the lights alone, or by everything that is not a light (ambient,
+/** `clusters`: clay with each cluster of a Cluster LOD mesh in a colour of its own, so the level of detail every part of
+ *  a surface is drawn at can be seen; a mesh without clusters is plain clay.
+ *  `directLighting` / `indirectLighting`: clay lit by the lights alone, or by everything that is not a light (ambient,
  *  sky, reflections, probes, bakes) — Unreal's lighting components, for asking where a shadow's fill comes from. */
-export type ViewShading = 'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting';
+export type ViewShading = 'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting' | 'clusters';
 
 const VIEW_SHADING_CODE: Record<ViewShading, number> = {
-    shaded: 0, clay: 1, albedo: 2, wireframe: 3, directLighting: 4, indirectLighting: 5,
+    shaded: 0, clay: 1, albedo: 2, wireframe: 3, directLighting: 4, indirectLighting: 5, clusters: 6,
 };
 
 export interface LodDecision {

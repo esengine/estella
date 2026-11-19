@@ -34,9 +34,12 @@ enum class ShadingMode : u8 {
     /// Clay lit by what is NOT a light: the ambient, the environment and sky, reflections, probe volumes and
     /// bakes. What fills a shadow, on its own.
     IndirectLighting = 5,
+    /// Clay, with every cluster of a clustered mesh in a colour of its own: which level of detail each part of a
+    /// surface is drawn at, and where one level meets the next. A mesh without clusters is plain clay.
+    Clusters = 6,
 };
 
-inline constexpr u8 kShadingModeCount = 6;
+inline constexpr u8 kShadingModeCount = 7;
 
 /// Whether a mode draws meshes as clay (the lit neutral surface).
 inline bool shadesAsClay(ShadingMode mode) {

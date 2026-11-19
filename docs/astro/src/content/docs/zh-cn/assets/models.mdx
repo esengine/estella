@@ -112,7 +112,8 @@ Transform 给，和导入的模型一样。
 还是该用三角形预算。开了 Cluster LOD 的网格不再生成 Generate LODs 的各级。
 
 帧计数器里能看到它做了什么:`render.cluster.triangles` 是场景实际画的三角形数,`render.cluster.sourceTriangles`
-是这些网格原本的三角形数,`render.cluster.rebuilt` 是这一帧重写了索引缓冲的网格数。
+是这些网格原本的三角形数,`render.cluster.rebuilt` 是这一帧重写了索引缓冲的网格数。想直接看,在视口的着色菜单里选 **簇**:每个簇画成一种颜色,
+色块的大小就说明了表面每一处用的是哪一级。
 
 ## 自动生成 LOD
 

@@ -162,6 +162,8 @@ private:
         u64 meshRevision = 0;
         u64 deviceGeneration = 0;
         lod::ClusterEye eye;
+        /// The clusters the buffer holds, in the order it holds them: what the cluster view colours one by one.
+        std::vector<u32> ids;
         bool picked = false;
         /// The collect that last drew through it (cluster_serial_): one not drawn for a while gives its buffer back.
         u64 usedAt = 0;

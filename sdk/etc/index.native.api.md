@@ -14310,7 +14310,7 @@ volume: number | undefined
 
 ## ViewShading — type @experimental
 ```
-'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting'
+'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting' | 'clusters'
 ```
 
 ## Viewport — interface @experimental

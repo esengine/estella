@@ -32,6 +32,7 @@
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_STUDIO    the editor view's studio lighting and exposure (JSON: see the block)
  *   ESTELLA_VERIFY_SHADING   the editor view's clay and albedo shading (any non-empty value; see the block)
+ *   ESTELLA_VERIFY_CLUSTER_VIEW  the editor view's cluster shading against clay (JSON {minHues}; see the block)
  *   ESTELLA_VERIFY_LIGHTING_SPLIT  the editor view's direct-only and indirect-only lighting against clay (see the block)
  *   ESTELLA_VERIFY_SKIN_WEIGHTS  colour a skinned entity by joint weights (JSON {id, joints}; see the block)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
@@ -242,7 +243,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) && (result.nineSlice?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) && (result.studio?.ok ?? true) && (result.shading?.ok ?? true) && (result.skinWeights?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.gpuFrame?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.clusterView?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.gpuFrame?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -1273,6 +1274,58 @@ app.whenReady().then(async () => {
           && L.chroma > 12 && L.spread < A.spread && dAlbedo.differing > 200
           && W.chroma < 6 && W.litShare > 0.003 && W.litShare < 0.2 && dWire.differing > 500 && back.max === 0 };
     }
+    // ESTELLA_VERIFY_CLUSTER_VIEW: clay C, clusters K, authored again. Over the pixels clay lights, C has no colour and K
+    // has many: each cluster of a clustered mesh is drawn in a hue of its own, so the hues counted are clusters seen. The
+    // two cover the same pixels, the cluster view being the same triangles, and the authored frame comes back as it was.
+    // ESTELLA_VERIFY_CLUSTER_VIEW_OUT=<file.png> writes K, to be looked at.
+    let clusterView = null;
+    if (process.env.ESTELLA_VERIFY_CLUSTER_VIEW) {
+      const spec = JSON.parse(process.env.ESTELLA_VERIFY_CLUSTER_VIEW);
+      const api = (call) => exec(`(async () => { const api = window.__estellaHeadless.api; ${call}; await api.step(2, 1 / 60); })()`);
+      await api(`api.setViewShading('shaded')`);
+      await readFrame(`window.__cluster = { A: px.slice() }; return 0;`);
+      await api(`api.setViewShading('clay')`);
+      await readFrame(`window.__cluster.C = px.slice(); return 0;`);
+      await api(`api.setViewShading('clusters')`);
+      await readFrame(`window.__cluster.K = px.slice(); return 0;`);
+      await api(`api.setViewShading('shaded')`);
+      if (process.env.ESTELLA_VERIFY_CLUSTER_VIEW_OUT) {
+        const url = await readFrame(`
+          const P = window.__cluster.K;
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d'); const img = ctx.createImageData(w, h);
+          for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(P.subarray(sy, sy + w * 4), y * w * 4); }
+          ctx.putImageData(img, 0, 0);
+          return cv.toDataURL('image/png');
+        `);
+        await writeFile(process.env.ESTELLA_VERIFY_CLUSTER_VIEW_OUT, Buffer.from(url.split(',')[1], 'base64'));
+      }
+      clusterView = await readFrame(`
+        const { A, C, K } = window.__cluster;
+        const lum = (P, i) => 0.2126 * P[i] + 0.7152 * P[i + 1] + 0.0722 * P[i + 2];
+        const chromaAt = (P, i) => Math.max(P[i], P[i + 1], P[i + 2]) - Math.min(P[i], P[i + 1], P[i + 2]);
+        const hues = new Set();
+        let pixels = 0, clay = 0, inked = 0, uncovered = 0, back = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          for (let k = 0; k < 4; k++) back = Math.max(back, Math.abs(px[i + k] - A[i + k]));
+          if (lum(C, i) <= 30) continue;
+          pixels++;
+          clay += chromaAt(C, i);
+          // Covered is drawn at all: a cluster's hue under dim light can sit below the brightness clay is counted by.
+          if (Math.max(K[i], K[i + 1], K[i + 2]) <= 8) { uncovered++; continue; }
+          const c = chromaAt(K, i);
+          inked += c;
+          if (c < 60) continue;
+          const r = K[i], g = K[i + 1], b = K[i + 2], top = Math.max(r, g, b);
+          const hue = top === r ? ((g - b) / c + 6) % 6 : top === g ? (b - r) / c + 2 : (r - g) / c + 4;
+          hues.add(Math.floor(hue * 4));
+        }
+        return { pixels, clayChroma: pixels ? clay / pixels : 0, inkChroma: pixels ? inked / pixels : 0, hues: hues.size, uncovered, back };
+      `);
+      clusterView.ok = clusterView.pixels > 500 && clusterView.clayChroma < 6 && clusterView.inkChroma > 40
+        && clusterView.hues >= (spec.minHues ?? 6) && clusterView.uncovered <= clusterView.pixels * 0.01 && clusterView.back === 0;
+      console.log('cluster view', JSON.stringify(clusterView));
+    }
     // ESTELLA_VERIFY_LIGHTING_SPLIT: clay C, direct-only D, indirect-only I, authored again. Over the pixels clay lights (the
     // meshes), I keeps the fill and loses the sun, so it is flatter than C and still above black; D keeps the sun and loses
     // the fill, so its dark end sits a fill below C's; and the two halves add up to C (a gamma frame adds as it stores).
@@ -1359,7 +1412,7 @@ app.whenReady().then(async () => {
       skinWeights = { H0, H1, dA, dJoints, back,
         ok: H0.hot > 20 && H1.hot > 20 && dA.differing > 300 && dJoints.differing > 300 && back.max === 0 };
     }
-    finish({ ok: true, studio, shading, lightingSplit, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, gpuFrame, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, studio, shading, lightingSplit, clusterView, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, gpuFrame, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
