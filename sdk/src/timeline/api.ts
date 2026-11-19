@@ -16,7 +16,7 @@ export {
     serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
     TrackType, InterpType, WrapMode, TIMELINE_FORMAT_VERSION, playableTimeline,
     isRootPlacementChannel, sampleRootPlacement, createRootPlacement,
-    playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent, sampleAnimationTracks, animationClipWeights,
+    playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent, sampleAnimationTracks, animationClipWeights, TimelineAudioVoices, audioClipGain,
     type RootPlacement, type PlayheadRun, type TimelineSignal, type TimelineEventPayload,
     type CustomEvent, type CustomEventTrack,
     type SampleWorld, type SampleDeps, type SampleOptions,

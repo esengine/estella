@@ -113,6 +113,8 @@ export function detectTimelineEvents(
             case TrackType.Audio: {
                 for (const run of runs) {
                     for (const e of track.events) {
+                        // A clip is a voice kept while the playhead is inside it (timelineAudio.ts), not a one-shot.
+                        if ((e.duration ?? 0) > 0) continue;
                         if (runCrosses(run, e.time)) {
                             out.push({ kind: TimelineEventType.AudioPlay, entity: target, intParam: 0, floatParam: e.volume, str: e.clip });
                         }

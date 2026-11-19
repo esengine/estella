@@ -119,10 +119,25 @@ export interface ParticleTrack extends TrackBase {
     events: { time: number; action: 'play' | 'stop' | 'reset' }[];
 }
 
+/**
+ * A sound on an audio track. Without a `duration` it is a moment: the whole sound, fired once as the playhead crosses
+ * `time`. With one it is a clip (Unity's audio clip, UE's audio section): heard while the playhead is inside it, from
+ * `clipIn` seconds into the sound, faded in and out, looped to fill it if asked, paused with the timeline and stopped
+ * at its end, and joined at the right place when the playhead lands inside it.
+ */
 export interface AudioEvent {
     time: number;
     clip: string;
     volume: number;
+    /** Seconds it is heard for; absent or 0, the whole sound once. */
+    duration?: number;
+    /** Seconds into the sound it starts from. */
+    clipIn?: number;
+    /** Seconds to rise from silence, and to fall back to it. */
+    fadeIn?: number;
+    fadeOut?: number;
+    /** Repeat the sound to fill the clip. */
+    loop?: boolean;
 }
 
 export interface AudioTrack extends TrackBase {

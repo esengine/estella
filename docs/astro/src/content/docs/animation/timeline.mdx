@@ -89,7 +89,7 @@ A timeline is a set of tracks evaluated together each frame:
 | Property | `Property` | Keyframed component fields — position / rotation / scale and any numeric dot-path. |
 | Sprite frames | `AnimFrames` | Swap sprite-sheet frames over time. |
 | Sprite clip | `SpriteAnim` | Start a named `anim-clip` at a time. |
-| Audio | `Audio` | Fire one-shot sounds at keyframes. |
+| Audio | `Audio` | Sounds: a moment fires the whole sound once; a clip with a length is heard over its span (see [below](#audio-clips)). |
 | Activation | `Activation` | Switch an entity on and off over ranges, its children with it; `UINode.display` on a UI node (see [below](#activation-ranges)). |
 | Spine | `Spine` | Play Spine animations as clips. |
 | Marker | `Marker` | Named time markers, sent to the game as a `TimelineEvent` when crossed. |
@@ -97,6 +97,22 @@ A timeline is a set of tracks evaluated together each frame:
 | Camera | `Camera` | Which camera is the view, shot by shot (see [below](#cameras-and-sequences)). |
 | Sequence | `Sequence` | Another timeline, played inside a window of this one. |
 | Animation | `Animation` | Skeletal animation clips on a rig, eased and crossfaded over its own animation (see [below](#animation-tracks)). |
+
+### Audio clips
+
+An audio track's item is a **moment** until it has a length: the whole sound, fired once as the playhead crosses its
+time. Give it a `duration` and it is a **clip**, as in Unity's Timeline and UE's Sequencer: heard only while the
+playhead is inside it, from `clipIn` seconds into the sound, rising over `fadeIn` and falling over `fadeOut`, repeated to
+fill it with `loop`. A paused timeline pauses it; a playhead that lands inside it (a seek, a loop back) starts it where
+the playhead is, so the rest of a line of dialogue is heard rather than its start; it stops at its end. The Sequencer
+draws a clip as a bar with its fades as ramps, and plays its clips while it plays, and a moment of them where the
+playhead is scrubbed to.
+
+```json
+{ "type": "audio", "childPath": "", "events": [
+  { "time": 1, "clip": "@uuid:…", "volume": 0.8, "duration": 4, "clipIn": 0.5, "fadeIn": 0.5, "fadeOut": 1 }
+] }
+```
 
 ### Animation tracks
 

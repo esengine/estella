@@ -6,6 +6,7 @@ import { SystemLabel } from '../ecs/systemLabels';
 import { Res } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, type TimelineEventPayload } from './timelineEvents';
+import { TimelineAudioVoices } from './timelineAudio';
 import { Time, type TimeData } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
@@ -37,6 +38,8 @@ export class TimelinePlugin implements Plugin {
 
     private animFramesStates_ = new Map<number, AnimFramesState>();
     private offDespawn_: (() => void) | null = null;
+    /** The audio clips each player is playing. */
+    private readonly voices_ = new TimelineAudioVoices();
 
     build(app: App): void {
         const world = app.world;
@@ -77,6 +80,7 @@ export class TimelinePlugin implements Plugin {
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
+            this.voices_.stop(entity);
             if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
         });
 
@@ -100,12 +104,13 @@ export class TimelinePlugin implements Plugin {
 
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
-                    if (!player.timeline) continue;
+                    // A player with no timeline (or one that cannot be found) is not heard either.
+                    if (!player.timeline) { this.voices_.stop(entity); continue; }
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
                     const asset = tl.getAsset(player.timeline);
-                    if (!asset) continue;
+                    if (!asset) { this.voices_.stop(entity); continue; }
                     const published = assets?.resolveRegistryAsset<PublishedTimeline>(
                         'timeline', player.timeline,
                     );
@@ -132,6 +137,8 @@ export class TimelinePlugin implements Plugin {
                         },
                     });
                     this.processAnimFrames(world, entity, state.time, published?.textureHandles);
+                    // Audio clips: kept while the playhead is inside them, paused with the timeline.
+                    this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // A clip that ran out gives the view back; one that is only paused keeps it.
                     if (justFinished && director) setTimelineShot(director, entity, null);
 
@@ -153,6 +160,7 @@ export class TimelinePlugin implements Plugin {
     cleanup(): void {
         this.offDespawn_?.();
         this.offDespawn_ = null;
+        this.voices_.stopAll();
         this.animFramesStates_.clear();
     }
 

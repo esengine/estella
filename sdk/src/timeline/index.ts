@@ -66,6 +66,13 @@ export {
 } from './TimelineEvaluator';
 
 export {
+    TimelineAudioVoices,
+    audioClipGain,
+    audioClipOffset,
+    isAudioClip,
+} from './timelineAudio';
+
+export {
     sampleAnimationTracks,
     animationClipWeights,
     clipLocalTime,

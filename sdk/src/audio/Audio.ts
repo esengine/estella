@@ -660,6 +660,31 @@ export class AudioAPI {
     }
 
     /**
+     * A clip played as a timeline plays one: from `startOffset` seconds in, looping or not, on `bus` (`sfx` by
+     * default), and kept by its handle to be faded, paused and stopped. `url` is a ref or a path, as for
+     * {@link playSFX}; a clip still loading starts when it has loaded, `startedAt` (performance.now() of the request)
+     * moving its offset on by the time the load took, so it is where it would have been.
+     */
+    playClip(url: string, config: PlayConfig = {}, startedAt?: number): AudioHandle {
+        const epoch = this.playbackEpoch_;
+        const playConfig: PlayConfig = { bus: 'sfx', priority: 0, ...config };
+        const buffer = this.lookupBuffer_(url);
+        if (!buffer) {
+            const pending = this.createDeferredHandle_(playConfig.volume ?? 1);
+            void this.loadThenPlay_(url, 'audio', buf => {
+                if (epoch !== this.playbackEpoch_ || pending.cancelled) return;
+                const late = startedAt !== undefined && typeof performance !== 'undefined'
+                    ? Math.max(0, (performance.now() - startedAt) / 1000) * (playConfig.playbackRate ?? 1) : 0;
+                pending.resolve(overrides => this.playVoice_(buf, {
+                    ...playConfig, ...overrides, startOffset: (playConfig.startOffset ?? 0) + late,
+                }));
+            });
+            return pending;
+        }
+        return this.playVoice_(buffer, playConfig);
+    }
+
+    /**
      * Background music: one piece at a time, round and round. `fadeIn` brings it up over that many seconds and
      * `crossFade` brings it up as the piece before goes down. `loopStart` is for a piece with an introduction:
      * the file plays from its top once, and each time it reaches its end it comes back to that many seconds in,

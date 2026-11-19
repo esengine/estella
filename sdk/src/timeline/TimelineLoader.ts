@@ -120,7 +120,17 @@ function parseTrack(raw: any): Track {
             return {
                 ...base,
                 type: TrackType.Audio,
-                events: raw.events ?? [],
+                events: (raw.events ?? []).map((e: any) => ({
+                    time: finite(e.time, 0),
+                    clip: typeof e.clip === 'string' ? e.clip : '',
+                    volume: finite(e.volume, 1),
+                    // A clip's fields only where it is one, so a moment reads and writes as it always did.
+                    ...(finite(e.duration, 0) > 0 ? { duration: finite(e.duration, 0) } : {}),
+                    ...(finite(e.clipIn, 0) > 0 ? { clipIn: finite(e.clipIn, 0) } : {}),
+                    ...(finite(e.fadeIn, 0) > 0 ? { fadeIn: finite(e.fadeIn, 0) } : {}),
+                    ...(finite(e.fadeOut, 0) > 0 ? { fadeOut: finite(e.fadeOut, 0) } : {}),
+                    ...(e.loop === true ? { loop: true } : {}),
+                })),
             } as AudioTrack;
 
         case TrackType.Activation:
