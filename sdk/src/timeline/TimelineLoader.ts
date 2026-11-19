@@ -74,6 +74,9 @@ function parseTrack(raw: any): Track {
     const base = {
         name: raw.name ?? '',
         childPath: raw.childPath ?? '',
+        ...(raw.muted === true ? { muted: true } : {}),
+        ...(raw.locked === true ? { locked: true } : {}),
+        ...(typeof raw.group === 'string' && raw.group ? { group: raw.group } : {}),
     };
 
     switch (raw.type) {
@@ -84,6 +87,7 @@ function parseTrack(raw: any): Track {
                 component: raw.component ?? '',
                 channels: (raw.channels ?? []).map((ch: any) => ({
                     property: ch.property,
+                    ...(ch.muted === true ? { muted: true } : {}),
                     // Default missing tangents to 0: a hand-authored keyframe without
                     // them hits the Hermite evaluator path where `undefined * dt` is
                     // NaN, poisoning the animated field.

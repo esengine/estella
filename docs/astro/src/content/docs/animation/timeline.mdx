@@ -175,6 +175,16 @@ event with a window) are bars, dragged by their body and resized by their edges;
 sound's asset and volume, a particle action, a Spine animation's name, loop and speed, an
 event's name, window and payload. Delete removes it; every edit is one undo step.
 
+### Mute, lock and folders
+
+Each track row has a **mute** (the eye) and a **lock**, as in Unity's Timeline and UE's Sequencer. Both are saved with
+the timeline. A muted track, or a muted property channel, is left out wherever the timeline plays: in the game, in an
+Animator state that plays it, in a nested sequence and in the Sequencer's preview. A locked track cannot be edited
+until it is unlocked; its items can still be selected, and it can still be muted. Right-click a track for its menu:
+mute, lock, **Move to group** (into an existing folder or a new one), rename and delete. Folders (Unity's Track Groups)
+collapse like any row; double-click a folder or a track's name to rename it. In the file they are `muted`, `locked` and
+`group` on a track and `muted` on a channel, written only when set.
+
 ### Cameras and sequences
 
 A **camera track** holds shots: each bar is one camera that is the view for its span.

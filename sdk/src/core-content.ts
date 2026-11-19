@@ -1045,7 +1045,7 @@ export {
 export {
     sampleTimeline, sampleTimelineInWorld, evaluateChannel, applyWrapMode,
     serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
-    TrackType, InterpType, WrapMode, TIMELINE_FORMAT_VERSION,
+    TrackType, InterpType, WrapMode, TIMELINE_FORMAT_VERSION, playableTimeline,
     isRootPlacementChannel, sampleRootPlacement, createRootPlacement,
     playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent,
     type RootPlacement, type PlayheadRun, type TimelineSignal, type TimelineEventPayload,

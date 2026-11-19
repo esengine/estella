@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export {
     TIMELINE_FORMAT_VERSION,
+    playableTimeline,
     WrapMode,
     TrackType,
     InterpType,

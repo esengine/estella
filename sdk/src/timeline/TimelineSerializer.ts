@@ -15,7 +15,13 @@
 import { wrapModeToName, TrackType, TIMELINE_FORMAT_VERSION, type TimelineAsset, type Track } from './TimelineTypes';
 
 function serializeTrack(track: Track): Record<string, unknown> {
-    const base = { type: track.type, name: track.name, childPath: track.childPath };
+    const base = {
+        type: track.type, name: track.name, childPath: track.childPath,
+        // Written only when set, so a timeline that uses none of them reads as it always did.
+        ...(track.muted ? { muted: true } : {}),
+        ...(track.locked ? { locked: true } : {}),
+        ...(track.group ? { group: track.group } : {}),
+    };
 
     switch (track.type) {
         case TrackType.Property:
@@ -24,6 +30,7 @@ function serializeTrack(track: Track): Record<string, unknown> {
                 component: track.component,
                 channels: track.channels.map(ch => ({
                     property: ch.property,
+                    ...(ch.muted ? { muted: true } : {}),
                     keyframes: ch.keyframes.map(kf => ({
                         time: kf.time,
                         value: kf.value,

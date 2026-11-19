@@ -71,12 +71,20 @@ export { InterpType, type Keyframe };
 export interface PropertyChannel {
     property: string;
     keyframes: Keyframe[];
+    /** Left out of playback, as a muted track is. */
+    muted?: boolean;
 }
 
 export interface TrackBase {
     type: TrackType;
     name: string;
     childPath: string;
+    /** Left out of playback everywhere (the game, an animator state, the editor's preview), as Unity's and UE's mute. */
+    muted?: boolean;
+    /** Not editable in the Sequencer until unlocked. Playback ignores it. */
+    locked?: boolean;
+    /** The folder the Sequencer shows the track in (Unity's Track Group, UE's folder); empty for none. */
+    group?: string;
 }
 
 export interface PropertyTrack extends TrackBase {
@@ -224,4 +232,28 @@ export interface TimelineAsset {
 export interface PublishedTimeline {
     asset: TimelineAsset;
     textureHandles: Map<string, number>;
+}
+
+/**
+ * The timeline as it plays: without its muted tracks and muted property channels. Every player reads a timeline
+ * through this (a TimelinePlayer, an animator state, a nested sequence, the editor's preview), so a mute is honoured
+ * wherever the timeline plays. The asset itself when nothing is muted.
+ */
+export function playableTimeline(asset: TimelineAsset): TimelineAsset {
+    let any = false;
+    for (const t of asset.tracks) {
+        if (t.muted || (t.type === TrackType.Property && t.channels.some((c) => c.muted))) { any = true; break; }
+    }
+    if (!any) return asset;
+    const tracks: Track[] = [];
+    for (const t of asset.tracks) {
+        if (t.muted) continue;
+        if (t.type === TrackType.Property && t.channels.some((c) => c.muted)) {
+            const channels = t.channels.filter((c) => !c.muted);
+            if (channels.length) tracks.push({ ...t, channels });
+            continue;
+        }
+        tracks.push(t);
+    }
+    return { ...asset, tracks };
 }
