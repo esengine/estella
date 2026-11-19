@@ -18,9 +18,6 @@ permissions:
   contents: read
 
 on:
-  schedule:
-    # 04:00 UTC, after the day's pushes have settled.
-    - cron: '0 4 * * *'
   push:
     tags:
       - 'v*'
