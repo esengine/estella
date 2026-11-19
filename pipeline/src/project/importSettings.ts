@@ -237,6 +237,13 @@ const MODEL: ImporterFieldSpec[] = [
       + 'one, and a model that already carries the channel keeps its own.',
   },
   {
+    key: 'maxTriangles', label: 'Max Triangles', type: 'number', default: 0, min: 0, step: 1000,
+    category: 'Import',
+    tooltip: 'Cut the model to at most this many triangles when it is imported, every mesh by the same share; '
+      + '0 leaves it as it is. For a model far denser than a game draws, such as a generated one of a million '
+      + 'triangles. Skinned meshes are cut too and keep their rig; morphing ones are left as they are.',
+  },
+  {
     key: 'lodLevels', label: 'Generate LODs', type: 'enum', default: 0, category: 'Import',
     options: [{ label: 'Off', value: 0 }, { label: '1 level', value: 1 },
               { label: '2 levels', value: 2 }, { label: '3 levels', value: 3 }],

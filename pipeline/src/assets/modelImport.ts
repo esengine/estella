@@ -16,7 +16,7 @@ import {
     type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
 } from 'esengine';
-import { canSimplify, simplifyMesh, type SimplifierFlag } from './meshSimplify';
+import { canSimplify, simplifyMesh, type SimplifierFlag, canReduce, reduceMesh } from './meshSimplify';
 import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
 import type { CompoundColliderPart3D } from 'esengine/physics3d';
 
@@ -529,6 +529,33 @@ export interface LodOptions {
 /** The file a mesh's level `n` is written to, by product name (no extension). */
 export function lodName(mesh: Pick<ImportedMesh, 'name'>, level: number): string {
     return `${mesh.name}_lod${level}`;
+}
+
+/**
+ * Cuts a model to at most `maxTriangles` in all, every mesh by the same share, and says what it did. Mutates in place,
+ * before anything else is derived from the meshes. Skinned meshes are cut too; morphing ones are left as they are.
+ */
+export async function capTriangles(meshes: ImportedMesh[], maxTriangles: number): Promise<string[]> {
+    const warnings: string[] = [];
+    const total = meshes.reduce((n, m) => n + m.triangleCount, 0);
+    if (!(maxTriangles > 0) || total <= maxTriangles) return warnings;
+    const ratio = maxTriangles / total;
+    let after = 0;
+    for (const mesh of meshes) {
+        const made = canReduce(mesh.data) ? await reduceMesh(mesh.data, ratio) : null;
+        if (made) {
+            mesh.data = made.data;
+            mesh.vertexCount = made.data.vertexCount;
+            mesh.triangleCount = made.triangles;
+        } else if (mesh.data.morph) {
+            warnings.push(`${mesh.name}: morphing, so Max Triangles left its ${mesh.triangleCount} triangles as they are`);
+        }
+        after += mesh.triangleCount;
+    }
+    if (after > maxTriangles * 1.5) {
+        warnings.push(`Max Triangles asked for ${maxTriangles} and the model kept ${after}: its shape allows no fewer without tearing`);
+    }
+    return warnings;
 }
 
 /**

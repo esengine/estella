@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
 import { canSimplify, simplifyMesh } from '../src/assets/meshSimplify';
-import { assembleModelPrefab, generateLods, lodName, type ImportedMesh } from '../src/assets/modelImport';
+import { assembleModelPrefab, capTriangles, generateLods, lodName, type ImportedMesh } from '../src/assets/modelImport';
 
 /** A UV sphere: position, normal, one UV set, and a packed colour — the channels a real mesh carries. */
 function sphere(rings: number, segments: number): MeshData {
@@ -191,5 +191,60 @@ describe('generateLods', () => {
         expect(small.lods).toBeUndefined();
         const prefab = assembleModelPrefab('pebble', [small]);
         expect(prefab.entities.flatMap((e) => e.components).some((c) => c.type === 'LODGroup')).toBe(false);
+    });
+});
+
+describe('capTriangles (the Max Triangles import setting)', () => {
+    /** The sphere with joints and weights on every vertex, each bound to the joint its vertex index names. */
+    function skinnedSphere(): MeshData {
+        const base = sphere(64, 96);
+        const stride = base.vertexStride + 8 + 16;
+        const vertices = new Uint8Array(base.vertexCount * stride);
+        const view = new DataView(vertices.buffer);
+        for (let v = 0; v < base.vertexCount; v++) {
+            vertices.set(base.vertices.subarray(v * base.vertexStride, (v + 1) * base.vertexStride), v * stride);
+            view.setUint16(v * stride + base.vertexStride, v % 7, true);
+            view.setFloat32(v * stride + base.vertexStride + 8, 1, true);
+        }
+        return {
+            ...base, vertexStride: stride, vertices,
+            channels: [...base.channels,
+                { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16, offset: base.vertexStride },
+                { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32, offset: base.vertexStride + 8 }],
+            inverseBindMatrices: new Float32Array(7 * 16),
+        } as MeshData;
+    }
+    const imported = (name: string, data: MeshData): ImportedMesh =>
+        ({ name, data, vertexCount: data.vertexCount, triangleCount: data.indices.length / 3 });
+
+    it('cuts a model to its budget, each mesh by the same share, and leaves a small one alone', async () => {
+        const meshes = [imported('a', sphere(64, 96)), imported('b', sphere(32, 48))];
+        const before = meshes.map((m) => m.triangleCount);
+        expect(await capTriangles(meshes, 3000)).toEqual([]);
+        const after = meshes.map((m) => m.triangleCount);
+        expect(after[0] + after[1]).toBeLessThanOrEqual(3000 * 1.25);
+        expect(after[0] / before[0]).toBeCloseTo(after[1] / before[1], 1);
+        expect(meshes[0].vertexCount).toBe(meshes[0].data.vertexCount);
+
+        const small = [imported('c', sphere(8, 12))];
+        await capTriangles(small, 3000);
+        expect(small[0].triangleCount).toBe(8 * 12 * 2);
+    });
+
+    it('cuts a skinned mesh too, every kept vertex with the joints it had', async () => {
+        const data = skinnedSphere();
+        expect(canSimplify(data)).toBe(false);
+        const meshes = [imported('hero', data)];
+        await capTriangles(meshes, 2000);
+        const out = meshes[0].data;
+        expect(meshes[0].triangleCount).toBeLessThanOrEqual(2500);
+        expect(out.inverseBindMatrices).toBe(data.inverseBindMatrices);
+        const joints = out.channels.find((c) => c.semantic === MeshChannel.Joints)!;
+        const weights = out.channels.find((c) => c.semantic === MeshChannel.Weights)!;
+        const view = new DataView(out.vertices.buffer, out.vertices.byteOffset);
+        for (let v = 0; v < out.vertexCount; v++) {
+            expect(view.getUint16(v * out.vertexStride + joints.offset, true)).toBeLessThan(7);
+            expect(view.getFloat32(v * out.vertexStride + weights.offset, true)).toBe(1);
+        }
     });
 });

@@ -51,6 +51,34 @@ export function canSimplify(data: MeshData): boolean {
  */
 export async function simplifyMesh(data: MeshData, options: SimplifyOptions): Promise<Simplified | null> {
     if (!canSimplify(data)) return null;
+    return collapse(data, options);
+}
+
+/**
+ * Whether a mesh can be cut to a triangle budget (@ref reduceMesh). A skinned one can: a collapse keeps whole vertices,
+ * each with the joints and weights it had, and bones are addressed by joint, not by vertex. A morphing one cannot: its
+ * deltas are addressed by vertex index.
+ */
+export function canReduce(data: MeshData): boolean {
+    if (data.morph) return false;
+    return !!floatChannel(data, MeshChannel.Position, 3) && data.indices.length >= 3;
+}
+
+/**
+ * `data` cut to about `ratio` of its triangles, the budget deciding rather than an error limit: what an import does to
+ * a mesh far denser than a game draws (a generated model of a million triangles). Seams are kept where that still
+ * reaches the budget, and crossed where it does not. Null where nothing was taken out.
+ */
+export async function reduceMesh(data: MeshData, ratio: number): Promise<Simplified | null> {
+    if (!canReduce(data) || ratio >= 1) return null;
+    const target = data.indices.length / 3 * ratio;
+    const kept = await collapse(data, { ratio, maxError: 1, flags: [] });
+    if (kept && kept.triangles <= target * 1.25) return kept;
+    const crossed = await collapse(data, { ratio, maxError: 1, flags: ['Permissive'] });
+    return crossed && (!kept || crossed.triangles < kept.triangles) ? crossed : kept;
+}
+
+async function collapse(data: MeshData, options: SimplifyOptions): Promise<Simplified | null> {
     await MeshoptSimplifier.ready;
 
     const { vertexCount, vertexStride } = data;

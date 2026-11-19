@@ -16,7 +16,7 @@ import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
 import { adoptOrphan } from './assetMeta';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
-    generateLods, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
+    capTriangles, generateLods, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
     type ImportedMesh, type ImportedNode, type SpecularMapReading,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
@@ -31,6 +31,8 @@ export interface ModelImportSettings {
     specularMap: SpecularMapReading;
     lodLevels: number;
     lodMinTriangles: number;
+    /** Cut the model to at most this many triangles on import; 0 leaves it as it is. */
+    maxTriangles: number;
     characters: boolean;
     springBones: boolean;
     /** Bake what the dynamic GI reads of each mesh: its distance field (`<name>.esmeshsdf`) and its surface cards (`<name>.esmeshcards`). */
@@ -68,7 +70,7 @@ export interface ImportModelOptions {
 }
 
 const DEFAULTS: ModelImportSettings = {
-    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, characters: false, springBones: false, dynamicGI: false,
+    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, maxTriangles: 0, characters: false, springBones: false, dynamicGI: false,
 };
 
 /** What a model's `.meta` asks of the import; the schema's defaults where it is silent or unreadable. One read, because two would be two chances to disagree. */
@@ -76,7 +78,7 @@ export function modelSettings(absSource: string): ModelImportSettings {
     try {
         const meta = JSON.parse(readFileSync(`${absSource}.meta`, 'utf8')) as
             { importer?: { scale?: unknown; lightmapUV?: unknown; specularMap?: unknown;
-                lodLevels?: unknown; lodMinTriangles?: unknown; characterMaterials?: unknown; springBones?: unknown; dynamicGI?: unknown } };
+                lodLevels?: unknown; lodMinTriangles?: unknown; maxTriangles?: unknown; characterMaterials?: unknown; springBones?: unknown; dynamicGI?: unknown } };
         const imp = meta.importer;
         const scale = imp?.scale;
         const levels = imp?.lodLevels;
@@ -87,6 +89,7 @@ export function modelSettings(absSource: string): ModelImportSettings {
             specularMap: imp?.specularMap === 'orm' ? 'orm' : 'color',
             lodLevels: typeof levels === 'number' ? Math.min(3, Math.max(0, Math.floor(levels))) : 0,
             lodMinTriangles: typeof minTriangles === 'number' && minTriangles >= 0 ? minTriangles : 256,
+            maxTriangles: typeof imp?.maxTriangles === 'number' && imp.maxTriangles > 0 ? Math.floor(imp.maxTriangles) : 0,
             characters: imp?.characterMaterials === 'auto',
             springBones: imp?.springBones === 'auto',
             dynamicGI: imp?.dynamicGI === true,
@@ -129,7 +132,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const sourceDir = opts.originDir ?? path.dirname(absSource);
     const stem = modelStem(absSource);
     const projectRef = (abs: string): string => path.relative(path.resolve(root), abs).split(path.sep).join('/');
-    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, characters, springBones, dynamicGI } = { ...modelSettings(absSource), ...opts.settings };
+    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, maxTriangles, characters, springBones, dynamicGI } = { ...modelSettings(absSource), ...opts.settings };
 
     const { meshes, textures, nodes, animations, externalFiles, warnings } = await readModelSource(
         new Uint8Array(readFileSync(absSource)), stem,
@@ -165,6 +168,8 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         }
     }
 
+    // First of all: the unwrap, the levels and every product below are made from what the budget leaves.
+    warnings.push(...await capTriangles(meshes, maxTriangles));
     // Before anything is written, because it splits vertices: every product below is built from the mesh data this leaves behind.
     if (lightmapUV) warnings.push(...applyLightmapUV(meshes));
     // After it, because a level is a collapse of the mesh as it will be written.

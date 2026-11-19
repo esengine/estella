@@ -124,6 +124,12 @@ depends on what sits behind it.
   <sub><i><a href="https://github.com/esengine/estella-space-frigate">Space Frigate</a>, a game made with Estella and recorded frame by frame as it runs: flying on thrusters, gunnery, and a jump through a gate to another star system. Every model, texture and sound in it is generated from a recipe.</i></sub>
 </div>
 
+<div align="center">
+  <img src="docs/assets/tripo-fight-85323505.webp" alt="A knight runs at a stone golem among desert ruins at dusk, lands a slash that throws sparks, then a second that bursts into fire and smoke and fells it, while the camera turns around them" width="900" />
+  <br/>
+  <sub><i>A fight scene an AI agent built in the editor through MCP, recorded frame by frame as it runs. Both characters, their rigs and animations, the columns, the braziers and the floor texture were generated with <a href="https://www.tripo3d.ai/">Tripo AI</a> by the editor's <code>tripo</code> tools.</i></sub>
+</div>
+
 ## <img src="docs/assets/icons/layers.svg" width="26" height="26" align="absmiddle" alt="" /> What's inside
 
 Estella is a C++ engine with a TypeScript SDK. The core runs as WebAssembly on the web
