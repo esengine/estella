@@ -42,6 +42,10 @@ import { makePlanetPage, type PlanetPageSource } from './planetPages';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { PageRequest } from '../worldgen/planWorker';
 import type { PlanetSamples } from './planetProvider';
+import { qualityProfileOf } from '../render/qualityRuntime';
+import { defaultQualityProfile, type QualityProfile } from '../render/quality';
+import { MOST_PLANET_LEVELS } from '../render/qualitySettings/terrain';
+import { RuntimeConfig } from '../defaults';
 import { levelsFor, nodePoint, selectSphereNodes, sphereNodeKey, type SphereNode, type SphereTreeParams } from './sphere';
 
 /** The fields of the `Planet` component. @experimental */
@@ -134,12 +138,6 @@ export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Pla
     },
 });
 
-/** The side of the atlases the pages are kept in, in texels. */
-const ATLAS_SIZE = 2048;
-/** Most levels a planet's tree may have: a node's place on its face is packed in a float, ix * 2048 + iz, which holds eleven levels' worth. */
-const MAX_LEVELS = 12;
-/** Pages asked at once of a provider that answers later. */
-const PAGES_IN_FLIGHT = 16;
 /** The most layers a planet draws: one paint atlas of four weights. */
 const MAX_LAYERS = 4;
 
@@ -151,6 +149,7 @@ interface Built {
     source: PlanetPageSource | null;
     tree: SphereTreeParams | null;
     epoch: number;
+    draws: number;
     table: PageTable;
     heights: number;
     paint: number;
@@ -196,6 +195,7 @@ export class PlanetPlugin implements Plugin {
 
     private stock_ = 0;
     private planets_: Planets | null = null;
+    private quality_: Readonly<QualityProfile> = defaultQualityProfile('high');
 
     build(app: App): void {
         const planets = new Planets();
@@ -204,6 +204,7 @@ export class PlanetPlugin implements Plugin {
         app.insertResource(PlanetRegistryRes, registry);
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             if (!app.hasResource(Assets)) return;
+            this.quality_ = qualityProfileOf(app);
             // A planet whose entity has gone is let go.
             for (const [entity, built] of planets.built_) {
                 if (app.world.valid(entity) && app.world.has(entity, Planet)) continue;
@@ -223,6 +224,15 @@ export class PlanetPlugin implements Plugin {
                 }
                 built.data = { ...data };
                 if (built.failure || !built.source || !built.tree) continue;
+                if (built.table.atlasSize !== this.quality_.terrainAtlasSize && !built.pending) {
+                    this.releaseDraw(app, built);
+                    built.table = new PageTable(this.quality_.terrainAtlasSize);
+                }
+                const range0 = built.tree.leafSize * 2.5 * Math.max(data.detail, 0.25) * this.quality_.detailScale;
+                if (range0 !== built.tree.range0) {
+                    built.tree = { ...built.tree, range0 };
+                    if (built.instance) Material.setUniform(built.instance, 'u_lodRange0', range0);
+                }
                 const at = (app.world.get(entity, Transform) as TransformData).worldPosition;
                 const source = built.source;
                 source.paint = () => registry.paintOf(entity);
@@ -263,7 +273,7 @@ export class PlanetPlugin implements Plugin {
     /** What a planet is made against, from its fields: its provider, and the cut its tree is made with. */
     private make(signature: string, data: PlanetData, epoch: number): Built {
         const built: Built = {
-            signature, data: { ...data }, provider: null, source: null, tree: null, epoch, table: new PageTable(ATLAS_SIZE),
+            signature, data: { ...data }, provider: null, source: null, tree: null, epoch, draws: 0, table: new PageTable(this.quality_.terrainAtlasSize),
             heights: 0, paint: 0, mesh: 0, instance: 0, nodes: new Map(), spare: [], wanted: new Map(), asked: new Set(), pending: false, failure: null, arrays: [], packed: '', packing: false,
             providers: planetProvidersRevision(), painted: 0, sea: null,
         };
@@ -279,8 +289,8 @@ export class PlanetPlugin implements Plugin {
         const [minHeight, maxHeight] = provider.range(data.seed, data.generatorVersion, data.radius);
         const leafSize = PATCH_CELLS * Math.max(data.cellSize, 1e-3);
         const levels = levelsFor(data.radius, leafSize);
-        if (levels > MAX_LEVELS) {
-            built.failure = `a planet of radius ${data.radius} m with ${data.cellSize} m cells needs ${levels} levels of tree; ${MAX_LEVELS} is the most (raise cellSize)`;
+        if (levels > MOST_PLANET_LEVELS) {
+            built.failure = `a planet of radius ${data.radius} m with ${data.cellSize} m cells needs ${levels} levels of tree; ${MOST_PLANET_LEVELS} is the most (raise cellSize)`;
             return built;
         }
         built.provider = provider;
@@ -304,13 +314,13 @@ export class PlanetPlugin implements Plugin {
 
     private async prepare(app: App, built: Built): Promise<void> {
         built.pending = true;
-        const epoch = built.epoch;
+        const epoch = built.epoch, draws = built.draws;
         try {
             const material = await this.stock(app);
-            if (built.epoch !== epoch) return;
+            if (built.epoch !== epoch || built.draws !== draws) return;
             const assets = app.getResource(Assets);
             built.mesh = assets.createMesh(buildPatchMesh(PATCH_CELLS, true));
-            [built.heights = 0, built.paint = 0] = createPageAtlases(app, 2, ATLAS_SIZE, () => built.table.clear());
+            [built.heights = 0, built.paint = 0] = createPageAtlases(app, 2, built.table.atlasSize, () => built.table.clear());
             built.instance = Material.createInstance(material);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
                 built.failure = 'the engine refused the planet\'s mesh, atlases or material';
@@ -321,7 +331,7 @@ export class PlanetPlugin implements Plugin {
             set('u_heightPages', Material.tex(built.heights));
             set('u_paintPages', Material.tex(built.paint));
             set('u_planetPages', 1);
-            set('u_atlasTexels', ATLAS_SIZE);
+            set('u_atlasTexels', built.table.atlasSize);
             set('u_pageTexels', PAGE_TEXELS);
             set('u_patchCells', PATCH_CELLS);
             set('u_planetRadius', built.data.radius);
@@ -354,7 +364,7 @@ export class PlanetPlugin implements Plugin {
         const tree = built.tree!, src = built.source!;
         const t = app.world.get(entity, Transform) as TransformData;
         const eye = this.eye(app, t) ?? [0, tree.radius + tree.maxHeight * 2, 0];
-        const chosen = selectSphereNodes(tree, eye[0], eye[1], eye[2], src.levels);
+        const chosen = selectSphereNodes(tree, eye[0], eye[1], eye[2], src.levels, Math.max(0, src.levels - this.quality_.planetDrawLevels));
         const table = built.table;
         table.tick();
 
@@ -473,10 +483,10 @@ export class PlanetPlugin implements Plugin {
         const wanted = JSON.stringify(refs);
         if (wanted === built.packed) return;
         built.packing = true;
-        const epoch = built.epoch;
+        const epoch = built.epoch, draws = built.draws;
         void (async () => {
             try {
-                const still = (): boolean => built.epoch === epoch && !!built.instance;
+                const still = (): boolean => built.epoch === epoch && built.draws === draws && !!built.instance;
                 const got = await loadLayersInto(app, built.instance, refs, MAX_LAYERS, still);
                 if (!still()) { if (got) releaseLayerArrays(got); return; }
                 if (!got) { log.warn('planet', 'the engine refused the planet layers\' texture arrays'); return; }
@@ -539,20 +549,20 @@ export class PlanetPlugin implements Plugin {
             updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, image.paint);
             return true;
         };
-        const epoch = built.epoch;
+        const epoch = built.epoch, draws = built.draws;
         const away = this.pagesAway(app, entity, src);
         for (const node of order) {
             const key = sphereNodeKey(node);
             if (built.asked.has(key)) continue;
             // Before the page is asked for, not after: asked first, a page was worked out and thrown away every frame the workers were full, which
             // is every frame the ground is behind, and that kept them full.
-            if (away && built.asked.size >= PAGES_IN_FLIGHT) break;
+            if (away && built.asked.size >= RuntimeConfig.terrainPagesInFlight) break;
             const image = this.pageOf(app, entity, src, node);
             if (image instanceof Promise) {
                 built.asked.add(key);
                 void image.then((img) => {
                     built.asked.delete(key);
-                    if (built.epoch === epoch && built.heights) store(key, img);
+                    if (built.epoch === epoch && built.draws === draws && built.heights) store(key, img);
                 }, (e) => {
                     built.asked.delete(key);
                     log.warn('planet', `the provider failed a page (${key})`, e);
@@ -597,7 +607,7 @@ export class PlanetPlugin implements Plugin {
             }
             const [ox, oy] = built.table.origin(page.slot);
             // The tint names the page, the level and the face, and the node's place on its face (see the Planet shader's hook).
-            const color = { r: (ox + 0.5) / ATLAS_SIZE, g: (oy + 0.5) / ATLAS_SIZE, b: n.level + 1 + 16 * n.face, a: n.ix * 2048 + n.iz + 1 };
+            const color = { r: (ox + 0.5) / built.table.atlasSize, g: (oy + 0.5) / built.table.atlasSize, b: n.level + 1 + 16 * n.face, a: n.ix * 2048 + n.iz + 1 };
             // The node's box in the planet's space, which is all culling reads: the corners, the edges' middles and the middle, at its least and most height.
             const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
             for (let j = 0; j <= 4; j++) for (let i = 0; i <= 4; i++) for (const h of [page.min, page.max]) {
@@ -622,6 +632,12 @@ export class PlanetPlugin implements Plugin {
     private destroy(app: App, built: Built): void {
         built.epoch++;
         this.dropSea(app, built);
+        this.releaseDraw(app, built);
+    }
+
+    private releaseDraw(app: App, built: Built): void {
+        built.draws++;
+        built.asked.clear();
         bakesOf(app).clear(built);
         const world = app.world;
         for (const e of [...built.nodes.values(), ...built.spare]) if (world.valid(e)) world.despawn(e);

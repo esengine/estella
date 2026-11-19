@@ -165,19 +165,20 @@ export const sphereRange = (p: Pick<SphereTreeParams, 'range0'>, level: number):
  * The nodes to draw for an eye at (ex, ey, ez) in the planet's space, coarse to fine. Every point of the planet is covered by exactly one node: a node
  * nearer the eye than the level below's range is split into its four children, and the six faces' top nodes are where it begins.
  */
-export function selectSphereNodes(p: SphereTreeParams, ex: number, ey: number, ez: number, levels = levelsFor(p.radius, p.leafSize)): SphereNode[] {
+export function selectSphereNodes(p: SphereTreeParams, ex: number, ey: number, ez: number, levels = levelsFor(p.radius, p.leafSize), finest = 0): SphereNode[] {
     const out: SphereNode[] = [];
-    for (let face = 0; face < 6; face++) visit(p, levels, { face, level: levels - 1, ix: 0, iz: 0 }, ex, ey, ez, out);
+    const floor = Math.min(Math.max(finest, 0), levels - 1);
+    for (let face = 0; face < 6; face++) visit(p, levels, floor, { face, level: levels - 1, ix: 0, iz: 0 }, ex, ey, ez, out);
     return out;
 }
 
-function visit(p: SphereTreeParams, levels: number, node: SphereNode, ex: number, ey: number, ez: number, out: SphereNode[]): void {
-    if (node.level === 0 || nodeDistance(p, levels, node, ex, ey, ez) > sphereRange(p, node.level - 1)) {
+function visit(p: SphereTreeParams, levels: number, finest: number, node: SphereNode, ex: number, ey: number, ez: number, out: SphereNode[]): void {
+    if (node.level <= finest || nodeDistance(p, levels, node, ex, ey, ez) > sphereRange(p, node.level - 1)) {
         out.push(node);
         return;
     }
     for (let dz = 0; dz < 2; dz++) for (let dx = 0; dx < 2; dx++) {
-        visit(p, levels, { face: node.face, level: node.level - 1, ix: node.ix * 2 + dx, iz: node.iz * 2 + dz }, ex, ey, ez, out);
+        visit(p, levels, finest, { face: node.face, level: node.level - 1, ix: node.ix * 2 + dx, iz: node.iz * 2 + dz }, ex, ey, ez, out);
     }
 }
 

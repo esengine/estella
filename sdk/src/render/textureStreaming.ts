@@ -28,6 +28,7 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import { getTextureDimensions } from '../wasm/resourceManager';
 import { platformNow } from '../platform';
 import { Quality } from './qualityRuntime';
+import type { QualityProfile } from './quality';
 import { nextPowerOf2 } from '../math/scalar';
 
 /** What the streamer keeps of one texture. @experimental */
@@ -60,6 +61,19 @@ export interface TextureStreamingOptions {
 
 /** @experimental */
 export const TEXTURE_STREAMING_DEFAULTS: TextureStreamingOptions = { minEdge: 64, budgetBytes: 0, shrinkAfter: 3000, unseenAfter: 5000 };
+
+const TEXTURE_STREAMING_INTERVAL_MS = 250;
+const TEXTURE_STREAMING_IN_FLIGHT = 4;
+
+/** @experimental */
+export function textureStreamingOptionsOf(profile: Readonly<QualityProfile>): TextureStreamingOptions {
+    return {
+        minEdge: profile.textureStreamingMinEdge,
+        budgetBytes: Math.max(0, profile.textureStreamingBudget) * 1024 * 1024,
+        shrinkAfter: profile.textureStreamingShrinkMs,
+        unseenAfter: profile.textureStreamingUnseenMs,
+    };
+}
 
 
 /** The longer side a texture should be held at: the next power of two above what is wanted, between `minEdge` and the file. @experimental */
@@ -175,14 +189,11 @@ export class TextureStreamingPlugin implements Plugin {
         const world = app.world;
         let last = 0, lastHeld = -Infinity, owed = false, seenSmall = 0;
         const moving = new Set<number>();
-        const MAX_IN_FLIGHT = 4;
-        /** The edge a mesh texture starts at while streaming is on. */
-        const START_EDGE = 256;
         // Asked as each texture loads, not first in the frame loop: a scene may start loading before the first frame does, and the
         // quality level may be settled after this plugin is built.
         const startEdge = (): number => {
             const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
-            return quality?.profile.textureStreaming && engineApi(app)?.renderer_takeTextureWants ? START_EDGE : 0;
+            return quality?.profile.textureStreaming && engineApi(app)?.renderer_takeTextureWants ? quality.profile.textureStreamingStartEdge : 0;
         };
         setTextureStreamingStartProvider(startEdge);
 
@@ -215,8 +226,10 @@ export class TextureStreamingPlugin implements Plugin {
             const api = engineApi(app);
             if (!api?.renderer_takeTextureWants || !app.hasResource(Assets)) return;
             const now = platformNow();
-            if (now - last < 250) return;
+            const interval = profile?.textureStreaming ? profile.textureStreamingIntervalMs : TEXTURE_STREAMING_INTERVAL_MS;
+            if (now - last < interval) return;
             last = now;
+            const inFlight = profile?.textureStreaming ? profile.textureStreamingInFlight : TEXTURE_STREAMING_IN_FLIGHT;
 
             const assets = app.getResource(Assets);
             const loader = assets.getTextureLoader();
@@ -239,11 +252,11 @@ export class TextureStreamingPlugin implements Plugin {
                 }
                 const back = planRestore(held, state.restoring);
                 if (back.length === 0 && state.restoring.size === 0) owed = false;
-                for (const handle of back.slice(0, Math.max(0, MAX_IN_FLIGHT - state.inFlight))) putBack(handle);
+                for (const handle of back.slice(0, Math.max(0, inFlight - state.inFlight))) putBack(handle);
                 return;
             }
             owed = true;
-            if (now - lastHeld > 2000) { refreshHeld(); lastHeld = now; }
+            if (now - lastHeld > interval * 8) { refreshHeld(); lastHeld = now; }
 
             for (const [handle, side] of parse(api.renderer_takeTextureWants())) {
                 if (state.held.has(handle)) { state.textures.delete(handle); continue; }
@@ -267,15 +280,12 @@ export class TextureStreamingPlugin implements Plugin {
             for (const handle of state.held) {
                 state.textures.delete(handle);
                 const full = assets.textureFullSize(handle), now_ = getTextureDimensions(handle);
-                if (full && now_ && (now_.width < full.width || now_.height < full.height) && state.inFlight < MAX_IN_FLIGHT && !state.restoring.has(handle)) putBack(handle);
+                if (full && now_ && (now_.width < full.width || now_.height < full.height) && state.inFlight < inFlight && !state.restoring.has(handle)) putBack(handle);
             }
 
-            const options: TextureStreamingOptions = {
-                ...TEXTURE_STREAMING_DEFAULTS,
-                budgetBytes: Math.max(0, profile!.textureStreamingBudget) * 1024 * 1024,
-            };
+            const options = textureStreamingOptionsOf(profile!);
             for (const move of planStreaming([...state.textures.values()].filter((e) => !moving.has(e.handle)), now, options)) {
-                if (state.inFlight >= MAX_IN_FLIGHT) break;
+                if (state.inFlight >= inFlight) break;
                 const entry = state.textures.get(move.handle)!;
                 const full = Math.max(entry.fullWidth, entry.fullHeight);
                 state.inFlight++;

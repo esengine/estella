@@ -5,7 +5,7 @@ import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { getPlatform, platformNow, platformOnAppHide, platformOnAppShow } from '../platform';
-import { QualityController, type QualityConfig, type QualityProfile } from './quality';
+import { QualityController, defaultQualityProfile, type QualityConfig, type QualityProfile } from './quality';
 import { qualityMaterialConstants } from './qualitySettings/index';
 import { getDeviceIdentity } from './renderer';
 import { decidePower } from './power';
@@ -15,6 +15,13 @@ import { qualityEngineValues } from './qualitySettings/index';
 
 /** @experimental */
 export const Quality = defineResource<QualityController | null>(null, 'Quality');
+
+const UNMANAGED = defaultQualityProfile('high');
+
+export function qualityProfileOf(app: App): Readonly<QualityProfile> {
+    const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
+    return quality?.enabled ? quality.profile : UNMANAGED;
+}
 
 export function installQuality(app: App, config: QualityConfig, authoredMsaa: number): void {
     const platform = getPlatform();
@@ -64,6 +71,10 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         api?.renderer_setParticleDepthGrid?.(enabled ? applied.particleDepthGrid : 640);
         const material = enabled ? qualityMaterialConstants(applied) : [0, 0, 0, 0];
         api?.renderer_setQualityConstants?.(material[0]!, material[1]!, material[2]!, material[3]!);
+        const values = enabled ? applied : UNMANAGED;
+        api?.renderer_setLodDistanceScale?.(values.lodDistanceScale);
+        api?.renderer_setOcclusionGridSize?.(values.occlusionGridSize);
+        api?.renderer_setTargetPoolIdleBudget?.(values.renderTargetIdleMB);
     };
     app.pipeline?.setQuality(quality, apply);
     apply();

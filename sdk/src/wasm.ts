@@ -779,6 +779,9 @@ export interface ESEngineModule {
     renderer_getProbeAtlasBytes?(): number;
     renderer_getProbeDraws?(perPixel: boolean): number;
     renderer_setLightingDirect?(on: boolean): void;
+    renderer_setLodDistanceScale?(scale: number): void;
+    renderer_setOcclusionGridSize?(size: number): void;
+    renderer_setTargetPoolIdleBudget?(megabytes: number): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_getPendingShaders?(): number;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean): void;

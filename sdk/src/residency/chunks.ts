@@ -19,6 +19,7 @@
  *              provider still working on the planet just left) is thrown away, never published.
  *            - A chunk whose making throws is failed until the generation changes, and says why.
  */
+import { RuntimeConfig } from '../defaults';
 import { createAbort, type AbortHandle } from '../util/abort';
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
@@ -117,8 +118,6 @@ interface Layer<T> {
  */
 const WALK_SLACK = 1 / 16;
 
-/** At most this many chunks of a layer are answered later at once. */
-const MAX_IN_FLIGHT = 16;
 
 const keyOf = (cx: number, cz: number): string => `${cx},${cz}`;
 
@@ -283,7 +282,7 @@ export class ProceduralChunks {
                 if (w.dist <= Math.max(w.layer.def.sizeX, w.layer.def.sizeZ)) nearLeft = true;
                 continue;
             }
-            if ((inFlight.get(w.layer) ?? 0) >= MAX_IN_FLIGHT) continue;
+            if ((inFlight.get(w.layer) ?? 0) >= RuntimeConfig.chunksInFlight) continue;
             if (this.make(w.layer, w.cx, w.cz)) inFlight.set(w.layer, (inFlight.get(w.layer) ?? 0) + 1);
         }
         return nearLeft;

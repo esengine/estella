@@ -5,7 +5,7 @@ Symbols: 115 public · 172 beta · 2271 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"a7d308843175abab"
+"bf937027e22ea446"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5938,7 +5938,6 @@ BuiltinComponentDef<LightData>
 ```
 aimFollowedSun: boolean
 bakedTint: Color
-cascadeSplit: number
 color: Color
 cookie: number
 cookieSize: Vec2
@@ -5963,10 +5962,8 @@ outerAngle: number
 radius: number
 reflectionSaturation: number
 reflectionScale: number
-shadowBias: number
 shadowDistance: number
 shadowExtent: number
-shadowSlopeFloor: number
 shadowSoftness: number
 shadowStrength: number
 sourceAngle: number
@@ -7271,8 +7268,6 @@ ResourceDef<ParticleAPI>
 ## ParticleAPI — class @experimental
 ```
 @internal collisionContacts: readonly ParticleCollisionEventPayload[]
-@internal setLevelCollisionBudget: (budget: ParticleCollisionBudget | null) => void
-collisionBudget: Readonly<ParticleCollisionBudget>
 collisionError: string | null
 collisionEvents: readonly ParticleCollisionEventPayload[]
 collisionStats: readonly ParticleCollisionStats[]
@@ -8932,7 +8927,6 @@ ResourceDef<QualityController | null>
 ```
 defaults: Readonly<Record<QualityLevel, boolean>>
 description: QualitySettingText
-engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -8946,11 +8940,9 @@ uniform: QualityEffectUniform | undefined
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
-engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
-materialSlot: 0 | 2 | 3 | 1 | undefined
 optionLabels: Readonly<Record<number, QualitySettingText>> | undefined
 options: readonly number[]
 preference: boolean
@@ -9000,7 +8992,6 @@ name: string
 ```
 defaults: Readonly<Record<QualityLevel, string>>
 description: QualitySettingText
-engine: string | undefined
 group: QualitySettingGroup
 key: string
 label: QualitySettingText
@@ -9025,12 +9016,10 @@ type: "enum"
 ```
 defaults: Readonly<Record<QualityLevel, number>>
 description: QualitySettingText
-engine: string | undefined
 group: QualitySettingGroup
 integer: boolean | undefined
 key: string
 label: QualitySettingText
-materialSlot: 0 | 2 | 3 | 1 | undefined
 max: number
 min: number
 preference: boolean
@@ -9058,60 +9047,58 @@ voxelGIResolution: number | undefined
 ```
 antialiasing: "msaa" | "temporal"
 aoResolution: number
-bloomLevels: number
-cloudShadowSamples: number
-cloudSteps: number
-cloudUpperSteps: number
-contactShadowSteps: number
+batchScanFrames: number
 depthPrepass: boolean
 detailScale: number
-dofSamples: number
 drawCallBudget: number
 dynamicGIReduced: boolean
-fogCloudSamples: number
 fogResolution: number
-fogVolumeSteps: number
 lensFlareResolution: number
-lightShaftSamples: number
 lighting: "direct" | "full"
-loopLights: number
+lodDistanceScale: number
 minRenderScale: number
-motionBlurSamples: number
 msaaSamples: 2 | 1 | 4 | 8
-particleCollisionEvents: number
-particleCollisionQueries: number
-particleDepthGrid: number
+occlusionGridSize: 16 | 32 | 64
 particleLimit: number
 planarReflectionMaxSize: number
 planarReflectionScale: number
 planarReflectionUpdatesPerSecond: number
+planetDrawLevels: number
+plantInteractionActive: number
+plantInteractionPerFrame: number
 postProcess: boolean
-refractionSamples: number
 renderScale: number
+renderTargetIdleMB: number
 shadowAtlasSize: 512 | 1024 | 4096 | 2048
-shadowBlockerSamples: 8 | 16
 shadowCascades: number
 shadowCellSize: 512 | 1024 | 128 | 256
 shadowDistance: number
-shadowFilterSamples: 8 | 16 | 32
-shadowSearchRadius: number
 shadowSoftSamples: number
-shadowTiles: number
 shelterMaskSize: number
 skipEffects: readonly string[]
-skyLightDepthSteps: number
-skyScatterSteps: number
 ssgiResolution: number
 stillSky: boolean
-subsurfaceSamples: number
+terrainAtlasSize: 512 | 1024 | 2048
+terrainSurfaceTexels: 64 | 128 | 256
+terrainSurfacesPerFrame: number
+terrainTileBudgetMB: number
 textureStreaming: boolean
 textureStreamingBudget: number
-tiledLights: number
+textureStreamingInFlight: number
+textureStreamingIntervalMs: number
+textureStreamingMinEdge: 16 | 32 | 64 | 128 | 256
+textureStreamingShrinkMs: number
+textureStreamingStartEdge: 512 | 64 | 128 | 256
+textureStreamingUnseenMs: number
 voxelGIResolution: number
+voxelRebuildBudgetMs: number
+waterCausticLayers: number
 waterCaustics: boolean
 waterDisplacement: boolean
 waterMirror: boolean
+waterReflectionSteps: number
 waterRippleCells: number
+waterShaftSteps: number
 waterWaves: number
 ```
 
@@ -9870,20 +9857,26 @@ textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined
 assetFailureCooldown: number | undefined
 assetLoadTimeout: number | undefined
 audioCacheBudget: number | undefined
+chunksInFlight: number | undefined
 defaultFontFamily: string | undefined
 maxDeltaTime: number | undefined
 maxFixedSteps: number | undefined
 multiTouch: boolean | undefined
+planetTilesKept: number | undefined
+preloadConcurrency: number | undefined
 retainedBudget: number | undefined
 sceneTransitionColor: string | undefined
 sceneTransitionDuration: number | undefined
+terrainPagesInFlight: number | undefined
 textCanvasSize: number | undefined
 textureCacheBudget: number | undefined
+worldPlanCacheLimit: number | undefined
+worldPlansKept: number | undefined
 ```
 
 ## RuntimeConfig — const @experimental
 ```
-{ sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
+{ chunksInFlight: number; preloadConcurrency: number; terrainPagesInFlight: number; planetTilesKept: number; worldPlanCacheLimit: number; worldPlansKept: number; sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
 ```
 
 ## RuntimeInitConfig — interface @experimental
@@ -18620,7 +18613,7 @@ Plugin
 
 ## selectSphereNodes — function @experimental
 ```
-(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number): SphereNode[]
+(p: SphereTreeParams, ex: number, ey: number, ez: number, levels?: number, finest?: number): SphereNode[]
 ```
 
 ## serializeAnimClip — function @experimental

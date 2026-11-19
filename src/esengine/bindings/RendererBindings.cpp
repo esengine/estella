@@ -1431,6 +1431,18 @@ u32 renderer_getProbeDraws(bool perPixel) {
     return perPixel ? probes.perPixelDraws() : probes.perObjectDraws();
 }
 
+void renderer_setLodDistanceScale(f32 scale) {
+    if (g_renderFrame) g_renderFrame->setLodDistanceScale(scale);
+}
+
+void renderer_setOcclusionGridSize(u32 size) {
+    if (g_renderFrame) g_renderFrame->setOcclusionGridSize(size);
+}
+
+void renderer_setTargetPoolIdleBudget(u32 megabytes) {
+    if (g_renderFrame) g_renderFrame->setTargetPoolIdleBudget(static_cast<u64>(megabytes) * 1024 * 1024);
+}
+
 void renderer_setAsyncShaderCompile(bool on) {
     if (auto* device = g_device) device->setSkipPendingPrograms(on);
 }

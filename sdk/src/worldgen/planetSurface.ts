@@ -10,6 +10,7 @@
  *          height is the ground's height above the radius. A world is laid out face by face, and a direction is laid out by the face it falls on, so
  *          a point is planned once. What is placed is taken from the plane to the planet here: its place, and which way is up.
  */
+import { worldgenLimits } from './limits';
 import type { PlanetFacts } from '../terrain/planetQuery';
 import { FACES, direction, facePlace } from '../terrain/sphere';
 import { tangentFrame } from '../terrain/planetPages';
@@ -33,7 +34,6 @@ export interface PlaneFrame {
 /** How far apart the ground is read for a world laid out on a planet, unless the world says (`WorldGen.groundStep`): metres, for a world a person walks. */
 export const GROUND_STEP = 1.5;
 const TILE_CELLS = 32;
-const TILES_KEPT = 6000;
 
 /** A square of the planet's answer: its heights, its paint and its fields at a grid of points (one extra row and column each side). */
 interface Tile {
@@ -112,7 +112,7 @@ export class PlanetFace {
         if (!got) return null;
         const tile: Tile = { x0: tx * TILE_SIDE - TILE_STEP, z0: tz * TILE_SIDE - TILE_STEP, n, heights: got.heights, paint: got.paint, fields: got.fields, fieldCount: f.fieldNames.length };
         this.tiles_.set(key, tile);
-        if (this.tiles_.size > TILES_KEPT) this.tiles_.delete(this.tiles_.keys().next().value!);
+        if (this.tiles_.size > worldgenLimits().tilesKept) this.tiles_.delete(this.tiles_.keys().next().value!);
         return tile;
     }
 

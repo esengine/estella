@@ -68,6 +68,18 @@ public:
      *         exactly the ones a conservative answer must refuse. */
     static constexpr f32 kMinW = 1e-4f;
 
+    void setSize(u32 size) {
+        u32 side = 1;
+        while (side * 2 <= std::min(std::max(size, 1u), kSize)) side *= 2;
+        if (side == size_) return;
+        size_ = side;
+        levels_ = 1;
+        while ((side >>= 1) > 0) ++levels_;
+        boxes_ = 0;
+    }
+
+    u32 size() const { return size_; }
+
     /** @brief Opens a view looking through @p viewProjection. Nothing is blocked
      *         until a box is taken, which is what a scene declaring no occluder
      *         (every 2D one) pays: one comparison per renderable. */
@@ -92,7 +104,7 @@ public:
         // Grid coordinates, where a texel is one unit and its centre a half — the
         // edge bias and the depth slope below are both read in texels, and two
         // spaces would put the rounding in one of them only.
-        glm::vec2 lo(static_cast<f32>(kSize)), hi(0.0f);
+        glm::vec2 lo(static_cast<f32>(size_)), hi(0.0f);
         for (const glm::vec3& c : corners) {
             lo = glm::min(lo, glm::vec2(c));
             hi = glm::max(hi, glm::vec2(c));
@@ -102,8 +114,8 @@ public:
         // reaches, and the test and the scan must agree on which texels exist.
         const i32 x0 = std::max(0, static_cast<i32>(std::floor(lo.x)));
         const i32 y0 = std::max(0, static_cast<i32>(std::floor(lo.y)));
-        const i32 x1 = std::min(static_cast<i32>(kSize) - 1, static_cast<i32>(std::floor(hi.x)));
-        const i32 y1 = std::min(static_cast<i32>(kSize) - 1, static_cast<i32>(std::floor(hi.y)));
+        const i32 x1 = std::min(static_cast<i32>(size_) - 1, static_cast<i32>(std::floor(hi.x)));
+        const i32 y1 = std::min(static_cast<i32>(size_) - 1, static_cast<i32>(std::floor(hi.y)));
         // Off screen entirely: what is outside the view hides nothing inside it,
         // and the frustum has already answered for anything out there.
         if (x1 < x0 || y1 < y0) return false;
@@ -133,7 +145,7 @@ public:
                     blocked = std::min(blocked, face.maxDepthOver(p));
                 }
                 if (blocked < kOpen) {
-                    f32& cell = base_[static_cast<usize>(y) * kSize + static_cast<usize>(x)];
+                    f32& cell = base_[static_cast<usize>(y) * size_ + static_cast<usize>(x)];
                     // Nearest wins: whatever is in front blocks most, and which box
                     // it came from cannot change the answer — so the order the
                     // registry hands them over in cannot either.
@@ -150,9 +162,9 @@ public:
      *         of them is what keeps a region that is only partly blocked drawn. */
     void finish() {
         if (boxes_ == 0) return;
-        for (u32 level = 1; level < kLevels; ++level) {
-            const u32 size = kSize >> level;
-            const u32 src = kSize >> (level - 1);
+        for (u32 level = 1; level < levels_; ++level) {
+            const u32 size = size_ >> level;
+            const u32 src = size_ >> (level - 1);
             f32* out = levelData(level);
             const f32* in = levelData(level - 1);
             for (u32 y = 0; y < size; ++y) {
@@ -175,7 +187,7 @@ public:
         glm::vec3 corners[8];
         if (!projectBox(centre, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), half, corners)) return false;
 
-        glm::vec2 lo(static_cast<f32>(kSize)), hi(0.0f);
+        glm::vec2 lo(static_cast<f32>(size_)), hi(0.0f);
         f32 nearest = kOpen;
         for (const glm::vec3& c : corners) {
             lo = glm::min(lo, glm::vec2(c));
@@ -188,20 +200,20 @@ public:
         // off screen, which is the frustum's answer to give, not this one's.
         const i32 x0 = std::max(0, static_cast<i32>(std::floor(lo.x)));
         const i32 y0 = std::max(0, static_cast<i32>(std::floor(lo.y)));
-        const i32 x1 = std::min(static_cast<i32>(kSize) - 1, static_cast<i32>(std::floor(hi.x)));
-        const i32 y1 = std::min(static_cast<i32>(kSize) - 1, static_cast<i32>(std::floor(hi.y)));
+        const i32 x1 = std::min(static_cast<i32>(size_) - 1, static_cast<i32>(std::floor(hi.x)));
+        const i32 y1 = std::min(static_cast<i32>(size_) - 1, static_cast<i32>(std::floor(hi.y)));
         if (x1 < x0 || y1 < y0) return false;
 
         // FOUR texels a side, not two: a level's texels align to the grid and not to
         // this rectangle, so at two the overhang is the object's own width again —
         // measured, six of nine cubes squarely behind a wall went uncalled.
         u32 level = 0;
-        while (level + 1 < kLevels
+        while (level + 1 < levels_
                && ((x1 >> level) - (x0 >> level) >= static_cast<i32>(kTestSpan)
                    || (y1 >> level) - (y0 >> level) >= static_cast<i32>(kTestSpan))) {
             ++level;
         }
-        const u32 size = kSize >> level;
+        const u32 size = size_ >> level;
         const f32* cells = levelData(level);
         f32 farthest = -kOpen;
         for (i32 y = y0 >> level; y <= (y1 >> level); ++y) {
@@ -274,8 +286,8 @@ private:
             // is built in (near = -1). A depth-zero-to-one projection simply never
             // trips it, which costs culling and never correctness.
             if (ndc.z < -1.0f) return false;
-            out[i] = {(ndc.x + 1.0f) * 0.5f * static_cast<f32>(kSize),
-                      (ndc.y + 1.0f) * 0.5f * static_cast<f32>(kSize), ndc.z};
+            out[i] = {(ndc.x + 1.0f) * 0.5f * static_cast<f32>(size_),
+                      (ndc.y + 1.0f) * 0.5f * static_cast<f32>(size_), ndc.z};
         }
         return true;
     }
@@ -326,15 +338,17 @@ private:
     f32* levelData(u32 level) { return base_.data() + offsetOf(level); }
     const f32* levelData(u32 level) const { return base_.data() + offsetOf(level); }
 
-    static constexpr usize offsetOf(u32 level) {
+    usize offsetOf(u32 level) const {
         usize offset = 0;
-        for (u32 i = 0; i < level; ++i) offset += static_cast<usize>(kSize >> i) * (kSize >> i);
+        for (u32 i = 0; i < level; ++i) offset += static_cast<usize>(size_ >> i) * (size_ >> i);
         return offset;
     }
 
     glm::mat4 view_projection_{1.0f};
     std::array<f32, kCells> base_{};
     u32 boxes_ = 0;
+    u32 size_ = kSize;
+    u32 levels_ = kLevels;
 };
 
 }  // namespace esengine

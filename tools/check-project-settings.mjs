@@ -293,6 +293,7 @@ const BLOCKS = [
     keys: Object.fromEntries([
       'sceneTransitionDuration', 'sceneTransitionColor', 'defaultFontFamily', 'maxDeltaTime', 'maxFixedSteps', 'textCanvasSize',
       'assetLoadTimeout', 'assetFailureCooldown', 'textureCacheBudget', 'audioCacheBudget', 'retainedBudget', 'multiTouch',
+      'chunksInFlight', 'preloadConcurrency', 'terrainPagesInFlight', 'planetTilesKept', 'worldPlanCacheLimit', 'worldPlansKept',
     ].map((k) => [k, { ui: `project.runtime.${k}` }])),
   },
 ];

@@ -18,6 +18,7 @@ vi.mock('../src/ecs/bridge/engineApi', async (original) => ({
 
 const { TextureStreamingPlugin, TextureStreamingRes } = await import('../src/render/textureStreaming');
 const { Quality } = await import('../src/render/qualityRuntime');
+const { defaultQualityProfile } = await import('../src/render/quality');
 const { Assets } = await import('../src/asset/AssetPlugin');
 
 const FILES = new Map<number, number>([[1, 2048], [2, 1024], [3, 512]]);
@@ -25,7 +26,7 @@ const DECODES_AT_MOST = new Map<number, number>();
 const KNOWN_FULL = new Map<number, number>();
 
 function harness(startedSmall = 0) {
-    const profile = { textureStreaming: true, textureStreamingBudget: 0 };
+    const profile = { ...defaultQualityProfile('high'), textureStreaming: true, textureStreamingBudget: 0 };
     const resized: [number, number][] = [];
     const loader = {
         startedSmall,

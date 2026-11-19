@@ -134,6 +134,10 @@ public:
      *         atlas) or per object (one value where it stands). Off holds no atlas at all: a weak GPU's quality level. */
     void setProbesPerPixel(bool on) { probes_per_pixel_ = on; }
     bool probesPerPixel() const { return probes_per_pixel_; }
+    void setLodDistanceScale(f32 scale) { lod_distance_scale_ = scale > 0.0f ? scale : 1.0f; }
+    f32 lodDistanceScale() const { return lod_distance_scale_; }
+    void setOcclusionGridSize(u32 size) { occlusion_.setSize(size); }
+    void setTargetPoolIdleBudget(u64 bytes) { target_pool_.setIdleByteBudget(bytes); }
     /**
      * @brief The environment the sky lights the scene with (the Sky Atmosphere's, worked out by the SDK as the sky changes), or an
      *        invalid handle for none. An Ambient light that names no environment of its own lights with it.
@@ -1243,6 +1247,7 @@ private:
     bool depth_prepass_ = false;
     bool probes_per_pixel_ = true;
     bool lighting_direct_ = false;
+    f32 lod_distance_scale_ = 1.0f;
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.
     std::vector<DrawList> shadow_view_lists_;

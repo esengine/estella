@@ -3,6 +3,7 @@
 import { COMPONENT_META } from './ecs/component.generated';
 import { col } from './math/color';
 import { getResourceManager, setRetainedBudget, setTextureBudget } from './wasm/resourceManager';
+import { setWorldgenLimits, WORLDGEN_LIMIT_DEFAULTS } from './worldgen/limits';
 
 // Values with a C++ backing read the generated metadata (Canvas ctor defaults,
 // Sprite's editor_default annotation) so these constants cannot drift from the
@@ -26,6 +27,15 @@ export const DEFAULT_FALLBACK_DT = 1 / 60;
 export const DEFAULT_GRAVITY = { x: 0, y: -9.81 };
 export const DEFAULT_FIXED_TIMESTEP = 1 / 60;
 export const DEFAULT_SPINE_SKIN = 'default';
+
+const LOADING_DEFAULTS = {
+    chunksInFlight: 16,
+    preloadConcurrency: 6,
+    terrainPagesInFlight: 16,
+    planetTilesKept: WORLDGEN_LIMIT_DEFAULTS.tilesKept,
+    worldPlanCacheLimit: WORLDGEN_LIMIT_DEFAULTS.cacheLimit,
+    worldPlansKept: WORLDGEN_LIMIT_DEFAULTS.plansKept,
+};
 
 export const RuntimeConfig = {
     sceneTransitionDuration: 0.3,
@@ -60,6 +70,7 @@ export const RuntimeConfig = {
      * of its own; this is one 2048×2048 image. 0 never warns.
      */
     retainedBudget: 16 * 1024 * 1024,
+    ...LOADING_DEFAULTS,
 };
 
 // =============================================================================
@@ -80,6 +91,12 @@ export interface RuntimeBuildConfig {
     retainedBudget?: number;
     /** Handle several fingers at once (the default), or one at a time; `Input.setMultiTouch` changes it while the game runs. */
     multiTouch?: boolean;
+    chunksInFlight?: number;
+    preloadConcurrency?: number;
+    terrainPagesInFlight?: number;
+    planetTilesKept?: number;
+    worldPlanCacheLimit?: number;
+    worldPlansKept?: number;
 }
 
 /**
@@ -99,6 +116,7 @@ export const RUNTIME_BUILD_DEFAULTS: Readonly<Required<RuntimeBuildConfig>> = {
     audioCacheBudget: 32 * 1024 * 1024,
     retainedBudget: 16 * 1024 * 1024,
     multiTouch: true,
+    ...LOADING_DEFAULTS,
 };
 
 const RUNTIME_BUILD_LIMITS = {
@@ -111,6 +129,12 @@ const RUNTIME_BUILD_LIMITS = {
     textureCacheBudget: [0, 4096 * 1024 * 1024, true],
     audioCacheBudget: [0, 1024 * 1024 * 1024, true],
     retainedBudget: [0, 1024 * 1024 * 1024, true],
+    chunksInFlight: [1, 256, true],
+    preloadConcurrency: [1, 64, true],
+    terrainPagesInFlight: [1, 256, true],
+    planetTilesKept: [64, 1000000, true],
+    worldPlanCacheLimit: [1000, 10000000, true],
+    worldPlansKept: [1, 1024, true],
 } as const satisfies Record<string, readonly [min: number, max: number, integer: boolean]>;
 
 /**
@@ -182,4 +206,6 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         // AudioAPI reads this live at every budget check — no push needed.
         RuntimeConfig.audioCacheBudget = config.audioCacheBudget;
     }
+    for (const key of Object.keys(LOADING_DEFAULTS) as (keyof typeof LOADING_DEFAULTS)[]) RuntimeConfig[key] = config[key] ?? LOADING_DEFAULTS[key];
+    setWorldgenLimits({ tilesKept: RuntimeConfig.planetTilesKept, cacheLimit: RuntimeConfig.worldPlanCacheLimit, plansKept: RuntimeConfig.worldPlansKept });
 }

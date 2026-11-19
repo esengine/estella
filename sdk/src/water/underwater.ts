@@ -27,6 +27,7 @@ import { setUnderwaterState, lensReach } from '../postprocess/underwater';
 import { WatersRes } from './waterPlugin';
 import { IGN_GLSL, PHASE_HG_GLSL } from '../render/shaderLib';
 import { RAY_START_GLSL } from '../postprocess/sources/shared';
+import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_SHAFT_STEPS } from '../render/qualitySettings/water';
 
 const SOURCE = `#pragma shader "PP Underwater"
 #pragma version 300 es
@@ -48,6 +49,8 @@ const SOURCE = `#pragma shader "PP Underwater"
 #pragma param u_causticSpeed float default(0.35) range(0,4)
 #pragma param u_shaftStrength float default(0.5) range(0,4)
 #pragma param u_shaftRange float default(2000) range(10,100000)
+#pragma param u_shaftSteps float default(${MOST_WATER_SHAFT_STEPS}) range(1,${MOST_WATER_SHAFT_STEPS})
+#pragma param u_causticLayers float default(${MOST_WATER_CAUSTIC_LAYERS}) range(1,${MOST_WATER_CAUSTIC_LAYERS})
 #pragma lights
 
 #pragma fragment
@@ -58,7 +61,7 @@ uniform sampler2D u_texture;
 uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
-const int SHAFT_STEPS = 24;
+const int SHAFT_STEPS = ${MOST_WATER_SHAFT_STEPS};
 
 ${CAUSTICS_GLSL}
 /// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
@@ -104,7 +107,7 @@ void main() {
         if (dot(normal, dir) > 0.0) normal = -normal;
         float below = max(u_planeD - dot(up, target), 0.0);
         vec3 onSurface = target + sunDir.xyz * (below / slant);
-        float web = causticPattern(onSurface.xz / u_causticScale, clock);
+        float web = causticPattern(onSurface.xz / u_causticScale, clock, u_causticLayers);
         float reach = exp(-extinction * below / slant);
         colour *= 1.0 + u_causticStrength * web * max(dot(normal, sunDir.xyz), 0.0) * sunVisibility(target, tiles.x, tiles.y) * reach * min(sunColor.a, 2.0) * 0.5;
     }
@@ -120,16 +123,18 @@ void main() {
     // Shafts: the sun scattered toward the eye by the water along the ray, wherever the shadow map says it gets in and in the pattern the waves throw.
     if (sunny && u_shaftStrength > 0.0) {
         float span = min(len, u_shaftRange);
-        float ds = span / float(SHAFT_STEPS);
+        float steps = clamp(floor(u_shaftSteps + 0.5), 1.0, float(SHAFT_STEPS));
+        float ds = span / steps;
         float jitter = ign(gl_FragCoord.xy);
         float through = 1.0;
         float lit = 0.0;
         for (int i = 0; i < SHAFT_STEPS; ++i) {
+            if (float(i) >= steps) break;
             vec3 p = entry + dir * ((float(i) + jitter) * ds);
             float below = u_planeD - dot(up, p);
             if (below > 0.0) {
                 vec3 onSurface = p + sunDir.xyz * (below / slant);
-                float shaft = mix(1.0, min(causticPattern(onSurface.xz / u_causticScale, clock) * 1.6, 1.0), 0.7);
+                float shaft = mix(1.0, min(causticPattern(onSurface.xz / u_causticScale, clock, u_causticLayers) * 1.6, 1.0), 0.7);
                 lit += through * ds * sunVisibility(p, tiles.x, tiles.y) * exp(-extinction * below / slant) * shaft;
             }
             through *= exp(-extinction * ds);
