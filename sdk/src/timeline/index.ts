@@ -30,6 +30,8 @@ export {
     type AnimationTrackBlend,
     type SpawnClip,
     type SpawnTrack,
+    type CameraShakeItem,
+    type CameraShakeTrack,
     type AnimFrame,
     type AnimFramesTrack,
     type Track,

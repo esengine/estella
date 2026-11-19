@@ -25,7 +25,8 @@ import { AnimatorController } from '../animation/Animator';
 import { TIMELINE_MOTION, createTimelineMotionDriver } from './timelineMotion';
 import { Particle } from '../particle/ParticleAPI';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
-import { CameraDirector, setTimelineShot } from '../camera/CameraDirector';
+import { CameraDirector, setTimelineShot, shakeCamera } from '../camera/CameraDirector';
+import { fireImpulse } from '../camera/CameraImpulse';
 import type { SampleDeps } from './TimelineEvaluator';
 import type { Entity } from '../types';
 
@@ -162,6 +163,11 @@ export class TimelinePlugin implements Plugin {
                         deps, audio,
                         lookup: (ref) => tl.getAsset(ref),
                         onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,
+                        // A shake: an impulse from where the track's entity is, or the view shaken where it is.
+                        onShake: (from, force) => {
+                            if (force <= 0 || fireImpulse(world, from, force)) return;
+                            if (director) shakeCamera(director, { amplitude: 12 * force, rotation: 0.5 * force, frequency: 22, duration: 0.4 });
+                        },
                         // What the playhead crossed, for the game: each about the entity its track names.
                         onSignals: (signals) => {
                             for (const s of signals) {

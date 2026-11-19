@@ -60,6 +60,7 @@ export const TrackType = {
     Sequence: 'sequence',
     Animation: 'animation',
     Spawn: 'spawn',
+    CameraShake: 'cameraShake',
 } as const;
 
 export type TrackType = (typeof TrackType)[keyof typeof TrackType];
@@ -309,7 +310,24 @@ export interface SpawnTrack extends TrackBase {
     clips: SpawnClip[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack | SpawnTrack;
+/** One shake of a camera shake track: a moment, and how hard. */
+export interface CameraShakeItem {
+    time: number;
+    /** How hard, as a multiple of the impulse source's strength (or of the default shake): 1 as authored. */
+    force: number;
+}
+
+/**
+ * Camera shakes at moments (UE's Camera Shake track, Cinemachine's impulse fired from a timeline): as the playhead
+ * crosses one, an impulse is fired from the track's entity when it has a CameraImpulseSource, felt by the listening
+ * cameras by their distance; otherwise the view in use is shaken where it is.
+ */
+export interface CameraShakeTrack extends TrackBase {
+    type: typeof TrackType.CameraShake;
+    shakes: CameraShakeItem[];
+}
+
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack | SpawnTrack | CameraShakeTrack;
 
 export interface TimelineAsset {
     version: string;

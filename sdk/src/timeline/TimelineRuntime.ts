@@ -24,6 +24,8 @@ export const TimelineEventType = {
     AudioPlay: 3,
     ActivationSet: 4,
     ParticleAction: 5,
+    /** A camera shake: `floatParam` is its force, handed to the drive's `onShake`. */
+    CameraShake: 6,
 } as const;
 
 export { resolveChildEntity } from '../ecs/childPath';

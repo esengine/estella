@@ -19,6 +19,7 @@ import {
     type SequenceTrack,
     type AnimationTrack,
     type SpawnTrack,
+    type CameraShakeTrack,
 } from './TimelineTypes';
 import { log } from '../util/logger';
 
@@ -241,6 +242,13 @@ function parseTrack(raw: any): Track {
                     name: typeof c.name === 'string' ? c.name : '',
                 })),
             } as SpawnTrack;
+
+        case TrackType.CameraShake:
+            return {
+                ...base,
+                type: TrackType.CameraShake,
+                shakes: (raw.shakes ?? []).map((s: any) => ({ time: finite(s.time, 0), force: Math.max(0, finite(s.force, 1)) })),
+            } as CameraShakeTrack;
 
         default:
             log.warn('timeline', `Unknown track type: ${raw.type}, skipping`);

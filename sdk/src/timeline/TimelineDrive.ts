@@ -109,6 +109,14 @@ export function detectTimelineEvents(
                 }
                 break;
             }
+            case TrackType.CameraShake: {
+                for (const run of runs) {
+                    for (const s of track.shakes) {
+                        if (runCrosses(run, s.time)) out.push({ kind: TimelineEventType.CameraShake, entity: target, intParam: 0, floatParam: s.force, str: '' });
+                    }
+                }
+                break;
+            }
             case TrackType.SpriteAnim: {
                 for (const run of runs) {
                     if (runCrosses(run, track.startTime)) {
@@ -157,6 +165,14 @@ export interface AdvanceContext {
     onShot?: (shot: ActiveShot | null) => void;
     /** The events and markers this step's playhead crossed, for the game (TimelinePlugin sends them as TimelineEvent). */
     onSignals?: (signals: TimelineSignal[]) => void;
+    /** A camera shake the playhead crossed: from `entity`, at `force` (TimelinePlugin fires it). */
+    onShake?: (entity: Entity, force: number) => void;
+}
+
+/** Applies one detected event: a camera shake to the context's handler, the rest as the runtime applies them. */
+function applyEvent(ctx: AdvanceContext, e: FiredEvent): void {
+    if (e.kind === TimelineEventType.CameraShake) { ctx.onShake?.(e.entity, e.floatParam); return; }
+    applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +271,7 @@ export function advanceTimelineTS(
     state.started = true;
 
     for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
-        applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
+        applyEvent(ctx, e);
     }
     if (ctx.onSignals) {
         const signals: TimelineSignal[] = [];
@@ -294,7 +310,7 @@ function advanceNested(asset: TimelineAsset, root: Entity, state: TimelineState,
         const segments: ReadonlyArray<readonly [number, number]> = layer.time < prev
             ? [[prev, layer.asset.duration], [0, layer.time]] : [[prev, layer.time]];
         for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
-            applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
+            applyEvent(ctx, e);
         }
         state.nested[layer.key] = { time: layer.time, spineClipIndices: child.spineClipIndices };
     }

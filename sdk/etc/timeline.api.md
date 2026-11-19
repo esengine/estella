@@ -375,7 +375,7 @@ time: number
 
 ## Track — type @experimental
 ```
-PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack | SpawnTrack
+PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack | AnimationTrack | SpawnTrack | CameraShakeTrack
 ```
 
 ## TrackType — type @experimental

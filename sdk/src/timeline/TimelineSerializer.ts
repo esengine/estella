@@ -65,6 +65,8 @@ function serializeTrack(track: Track): Record<string, unknown> {
                 ...(track.mask ? { mask: track.mask } : {}),
                 clips: track.clips,
             };
+        case TrackType.CameraShake:
+            return { ...base, shakes: track.shakes };
         case TrackType.Spawn:
             return { ...base, clips: track.clips };
         case TrackType.AnimFrames:
