@@ -4,6 +4,7 @@ commits:
   - feat(render): the GI and reflection loop counts, grids and bakes take their size from the quality level
   - feat(render): a level holds a planar reflection's own values under its own, GTAO keeps two slices, and the docs measure the GI and reflection rows
   - feat(render): screen-space GI denoises in a 3 x 3 square at Medium, measured on screen against 5 x 5
+  - fix(render): the merged quality groups build and test as one - the GI and reflection shaders declare their loop bounds as constants the WGSL translator takes, Light's new shadow fields join the field-metadata snapshot, and the API reports, native surface and AOT fixture are regenerated over the merge
 ---
 **Global Illumination & Occlusion and Reflections hold the samples, steps, grids and bakes those effects spend.** What the
 shaders and the engine had written in is now a row of the level's table, with High at the value it always had: SSAO samples,

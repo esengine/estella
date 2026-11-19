@@ -153,8 +153,8 @@ void main() {
      */
     createSsr(): ShaderHandle {
         const GLSL = `
-#define SSR_STEPS_MAX 48
-#define SSR_REFINE_MAX 6
+const int SSR_STEPS_MAX = 48;
+const int SSR_REFINE_MAX = 6;
 
 /// Interleaved gradient noise: a different start offset per pixel, so the stepping
 /// bands dissolve into noise that a temporal pass then averages away.
@@ -363,8 +363,8 @@ void main() {
      */
     createSsgiGather(): ShaderHandle {
         const GLSL = `
-#define SSGI_RAYS_MAX 8
-#define SSGI_STEPS_MAX 6
+const int SSGI_RAYS_MAX = 8;
+const int SSGI_STEPS_MAX = 6;
 ${IGN_GLSL}
 /// A direction over the hemisphere of N, cosine weighted, from two numbers in [0, 1).
 vec3 cosineDirection(vec3 N, float u, float v) {
@@ -1065,7 +1065,7 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-#define SSAO_SAMPLES_MAX 12
+const int SSAO_SAMPLES_MAX = 12;
 const float TAU = 6.28318530718;
 
 void main() {
@@ -1181,7 +1181,7 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-#define AO_BLUR_RADIUS_MAX 3
+const int AO_BLUR_RADIUS_MAX = 3;
 /// A tap whose view-ray gap exceeds this many texel-widths is another surface.
 const float SLOPE = 4.0;
 

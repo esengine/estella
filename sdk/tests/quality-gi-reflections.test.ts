@@ -57,7 +57,8 @@ describe('the loop counts a level sets in the GI and reflection shaders', () => 
     it('stop at the shader\'s compile-time bound, which is the setting\'s most, and default to it where no level is sent', () => {
         for (const loop of LOOPS) {
             const src = shaderOf(loop.make);
-            const bound = Number(new RegExp(`#define ${loop.max} (\\d+)`).exec(src)?.[1]);
+            // A const where the shader is also drawn through WGSL (the translator takes no #define); a #define where it is GLSL only.
+            const bound = Number(new RegExp(`(?:#define ${loop.max} |const int ${loop.max} = )(\\d+)`).exec(src)?.[1]);
             const fallback = Number(new RegExp(`#pragma param ${loop.uniform} float default\\(([\\d.]+)\\)`).exec(src)?.[1]);
             expect(bound, loop.key).toBe(number(loop.key).max);
             expect(fallback, loop.key).toBe(number(loop.key).defaults.high);

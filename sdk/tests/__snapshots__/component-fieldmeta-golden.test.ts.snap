@@ -285,6 +285,19 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "tooltip": "Multiply baked indirect light (lightmaps, probe volumes) by this colour (1 = as baked).",
     },
+    "cascadeSplit": {
+      "advanced": true,
+      "max": 1,
+      "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          1,
+        ],
+      },
+      "slider": true,
+      "tooltip": "Where a sun's cascades are cut: 0 = evenly along the view, 1 = each cascade a fixed multiple farther (sharpest near the camera).",
+    },
     "cookie": {
       "shownWhen": {
         "field": "type",
@@ -514,6 +527,20 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "tooltip": "Scale what baked reflection probes show (1 = as baked).",
     },
+    "shadowBias": {
+      "advanced": true,
+      "max": 16,
+      "min": 0,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "tooltip": "Shadow map texels a surface is moved toward the light and off itself before it is tested: more removes acne, too much lifts the shadow off its caster.",
+    },
     "shadowDistance": {
       "advanced": true,
       "min": 0,
@@ -535,6 +562,20 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
         ],
       },
       "tooltip": "Shadow map coverage radius; 0 = fit the view.",
+    },
+    "shadowSlopeFloor": {
+      "advanced": true,
+      "max": 1,
+      "min": 0.01,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "tooltip": "The least light a grazed surface is treated as facing, which caps the extra bias it gets: lower clears acne on walls the light skims, higher keeps their shadows attached.",
     },
     "shadowSoftness": {
       "min": 0,
