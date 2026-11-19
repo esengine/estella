@@ -17,7 +17,7 @@
  *          style, a shape, `closePath` or a draw ends it.
  */
 import type { Color, Vec2 } from '../types';
-import { Draw, type DrawTrianglesBuffer } from './draw';
+import { Draw, DRAW_COPY_STRIDE, drawFrameNumber, type DrawTrianglesBuffer } from './draw';
 import { buildPathGeometry, mergeGeometry, type LineCap, type LineJoin, type PathStyle } from './vectorPath';
 import type { MeshRendererGeometry } from '../ecs/component';
 
@@ -33,6 +33,12 @@ export interface GraphicsLineOptions {
     /** How far a miter may reach, as a multiple of half the width, before the corner is bevelled. Default 4. */
     miterLimit?: number;
 }
+
+/**
+ * Numbers one copy takes in the array {@link Graphics.flushMany} reads: x, y, rotation (radians), scale, then the tint r, g, b and
+ * the alpha. @experimental
+ */
+export const GRAPHICS_COPY_STRIDE = 8;
 
 /** Where and how {@link Graphics.flush} draws. Every field is optional; none moves or fades anything. @experimental */
 export interface GraphicsDrawOptions {
@@ -92,6 +98,13 @@ export class Graphics {
      * a flush copies nothing. Made again after a rebuild, and after the engine itself was started again.
      */
     private readonly resident_: Holder = { buffer: null };
+    /**
+     * The frame the triangles were built in. They go onto the GPU only once they have outlived it: a drawing rebuilt every
+     * frame is sent with the frame's other shapes instead, and never makes a GPU buffer it would throw away a frame later.
+     */
+    private builtFrame_ = -1;
+    /** The copies of a flushMany as Draw reads them; kept, so a steady frame allocates nothing. */
+    private many_ = new Float32Array(0);
 
     constructor() {
         collected?.register(this, this.resident_, this);
@@ -259,6 +272,7 @@ export class Graphics {
         if (!this.built_) {
             const built = mergeGeometry(this.shapes_.map((s) => buildPathGeometry(s.points, s.style)));
             this.built_ = built;
+            this.builtFrame_ = drawFrameNumber();
             this.drawn_ = {
                 positions: Float32Array.from(built.positions),
                 colors: Float32Array.from(built.colors ?? []),
@@ -282,15 +296,62 @@ export class Graphics {
         const sx = typeof scale === 'number' ? scale : scale.x;
         const sy = typeof scale === 'number' ? scale : scale.y;
         const cos = Math.cos(rotation), sin = Math.sin(rotation);
-        const held = this.resident_;
-        if (!held.buffer?.live) {
-            held.buffer?.release();
-            held.buffer = Draw.createTriangles(this.drawn_);
-        }
-        Draw.triangles(held.buffer, {
+        Draw.triangles(this.source_(), {
             tint: { r: t.r, g: t.g, b: t.b, a: t.a * alpha },
             transform: [cos * sx, sin * sx, -sin * sy, cos * sy, options.x ?? 0, options.y ?? 0],
         });
+    }
+
+    /**
+     * Draws `count` copies of the drawing in one call: {@link GRAPHICS_COPY_STRIDE} numbers a copy in `copies` (x, y, rotation,
+     * scale, r, g, b, alpha), in the order they are drawn. The same picture as a `flush()` a copy; for hundreds of copies a frame
+     * it spares a call into the engine a copy. Keep one `Float32Array` and fill it each frame.
+     *
+     * @param count Copies to draw; default, as many as `copies` holds.
+     */
+    flushMany(copies: ArrayLike<number>, count = Math.floor(copies.length / GRAPHICS_COPY_STRIDE)): void {
+        this.geometry();
+        const n = Math.min(count, Math.floor(copies.length / GRAPHICS_COPY_STRIDE));
+        if (this.drawn_.indices.length === 0 || !(n > 0)) return;
+        const source = this.source_();
+        if (this.many_.length < n * DRAW_COPY_STRIDE) this.many_ = new Float32Array(Math.max(n, this.many_.length / DRAW_COPY_STRIDE * 2) * DRAW_COPY_STRIDE);
+        const out = this.many_;
+        for (let i = 0, at = 0, to = 0; i < n; i++, at += GRAPHICS_COPY_STRIDE, to += DRAW_COPY_STRIDE) {
+            const rotation = copies[at + 2], scale = copies[at + 3];
+            const cos = rotation === 0 ? scale : Math.cos(rotation) * scale;
+            const sin = rotation === 0 ? 0 : Math.sin(rotation) * scale;
+            out[to] = cos;
+            out[to + 1] = sin;
+            out[to + 2] = -sin;
+            out[to + 3] = cos;
+            out[to + 4] = copies[at];
+            out[to + 5] = copies[at + 1];
+            out[to + 6] = copies[at + 4];
+            out[to + 7] = copies[at + 5];
+            out[to + 8] = copies[at + 6];
+            out[to + 9] = copies[at + 7];
+        }
+        if (source !== this.drawn_) {
+            Draw.trianglesMany(source as DrawTrianglesBuffer, out, n);
+            return;
+        }
+        // Built this frame: not on the GPU yet, so each copy goes with the frame's other shapes.
+        for (let i = 0, at = 0; i < n; i++, at += DRAW_COPY_STRIDE) {
+            Draw.triangles(this.drawn_, {
+                tint: { r: out[at + 6], g: out[at + 7], b: out[at + 8], a: out[at + 9] },
+                transform: [out[at], out[at + 1], out[at + 2], out[at + 3], out[at + 4], out[at + 5]],
+            });
+        }
+    }
+
+    /** What a draw reads the triangles from: the GPU's copy once they have outlived the frame they were built in, the arrays until then. */
+    private source_(): DrawTrianglesBuffer | typeof this.drawn_ {
+        const held = this.resident_;
+        if (held.buffer?.live) return held.buffer;
+        if (drawFrameNumber() === this.builtFrame_) return this.drawn_;
+        held.buffer?.release();
+        held.buffer = Draw.createTriangles(this.drawn_);
+        return held.buffer;
     }
 
     private current_(): Vec2 {

@@ -64,6 +64,7 @@ cleared every frame, so call it each frame you want the shape visible:
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
 | `triangles(mesh, { tint?, transform? })` | Triangles with a colour a vertex (`positions` x, y pairs, `indices`, optional `colors`), moved by a 2D affine `[xx, xy, yx, yy, tx, ty]` and multiplied by `tint`, batched with the other primitives. What `Graphics.flush()` draws through. |
 | `createTriangles(mesh)` | Puts a mesh on the GPU once and returns a buffer `triangles()` draws by reference: each copy is moved and tinted on the GPU, so it costs one 28-byte record, and consecutive copies of one buffer are one instanced draw. `release()` it when it is no longer drawn. |
+| `trianglesMany(buffer, copies, count?)` | Many copies of one buffer in one call: 10 numbers a copy in `copies` (the affine `xx, xy, yx, yy, tx, ty`, then the tint `r, g, b, a`). The same picture as `triangles()` a copy, without a call into the engine a copy. |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A custom mesh by handle (see the `Geometry` API below). |
 | `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
 | `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
@@ -137,6 +138,24 @@ registerDrawCallback('hit-flashes', () => {
   for (const hit of hits) {              // however many there are this frame
     hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
   }
+});
+```
+
+For hundreds of copies a frame, `flushMany(copies, count?)` draws them all in
+one call. `copies` holds `GRAPHICS_COPY_STRIDE` (8) numbers a copy: `x, y,
+rotation, scale, r, g, b, alpha`. The picture is the same as a `flush()` a
+copy; what it spares is a call into the engine a copy. Keep one array and fill
+it each frame:
+
+```typescript
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
 });
 ```
 

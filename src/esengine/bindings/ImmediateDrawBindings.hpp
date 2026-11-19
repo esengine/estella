@@ -37,6 +37,7 @@ void draw_triangles(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr
 u32 draw_createTriangleMesh(uintptr_t positionsPtr, u32 vertexCount, uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount);
 void draw_destroyTriangleMesh(u32 id);
 void draw_triangleMesh(u32 id, f32 r, f32 g, f32 b, f32 a, f32 xx, f32 xy, f32 yx, f32 yy, f32 tx, f32 ty);
+void draw_triangleMeshMany(u32 id, uintptr_t recordsPtr, u32 count);
 void draw_setLayer(i32 layer);
 void draw_setDepth(f32 depth);
 u32 draw_getDrawCallCount();

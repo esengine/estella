@@ -60,6 +60,7 @@ registerDrawCallback('debug-overlay', (elapsed) => {
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | 同上,带旋转(弧度)。 |
 | `triangles(mesh, { tint?, transform? })` | 每个顶点带颜色的三角形(`positions` 为 x、y 坐标对,`indices`,可选 `colors`),按二维仿射 `[xx, xy, yx, yy, tx, ty]` 变换并乘上 `tint`,和其他图元一起合批。`Graphics.flush()` 就是通过它绘制的。 |
 | `createTriangles(mesh)` | 把网格一次性放上 GPU,返回一个 `triangles()` 按引用绘制的缓冲:每个副本在 GPU 上平移和着色,只花一条 28 字节的记录,同一缓冲连续画的副本合成一次实例化绘制。不再绘制时调用 `release()`。 |
+| `trianglesMany(buffer, copies, count?)` | 一次调用画同一缓冲的许多副本:`copies` 里每个副本 10 个数(仿射 `xx, xy, yx, yy, tx, ty`,然后着色 `r, g, b, a`)。画面和每个副本调一次 `triangles()` 相同,但不必每个副本进一次引擎。 |
 | `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | 按句柄绘制自定义网格(见下面的 `Geometry` API)。 |
 | `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
 | `setBlendMode(mode)` / `setDepthTest(on)` | 后续命令的混合 / 深度状态。 |
@@ -120,6 +121,22 @@ registerDrawCallback('hit-flashes', () => {
   for (const hit of hits) {              // 这一帧有多少个都行
     hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
   }
+});
+```
+
+一帧要画几百个副本时,`flushMany(copies, count?)` 一次调用全部画出。`copies` 里每个副本占
+`GRAPHICS_COPY_STRIDE`(8)个数:`x, y, rotation, scale, r, g, b, alpha`。画面和每个副本 `flush()` 一次相同,
+省掉的是每个副本进一次引擎的调用。留一个数组,每帧填它:
+
+```typescript
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
 });
 ```
 

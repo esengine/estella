@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 namespace esengine {
@@ -705,6 +706,17 @@ void ImmediateDraw::drawMesh(u32 id, const glm::vec4& tint, const f32 xform[6]) 
     instances_.push_back(record);
     ++pendingRun_.count;
     primitiveCount_ += meshes_[id - 1].indexCount / 3;
+}
+
+void ImmediateDraw::drawMeshMany(u32 id, const void* records, u32 count) {
+    if (!inFrame_ || !records || count == 0 || id == 0 || id > meshes_.size() || !meshes_[id - 1].live) return;
+    if (pendingGeometry_ || (pendingRun_.count && pendingRun_.mesh != id)) flush();
+    const usize first = instances_.size();
+    if (pendingRun_.count == 0) pendingRun_ = {id, static_cast<u32>(first), 0};
+    instances_.resize(first + count);
+    std::memcpy(instances_.data() + first, records, sizeof(InstanceRecord) * count);
+    pendingRun_.count += count;
+    primitiveCount_ += (meshes_[id - 1].indexCount / 3) * count;
 }
 
 void ImmediateDraw::flushRun() {

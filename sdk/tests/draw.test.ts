@@ -179,6 +179,52 @@ describe('Draw API', () => {
             expect(gpu.draw_destroyTriangleMesh).toHaveBeenCalledTimes(1);
         });
 
+        it('draws many copies in one call, as the records the engine reads: the affine, then the tint a byte a channel', () => {
+            const gpu = Object.assign(withGpuMeshes(), { draw_triangleMeshMany: vi.fn() });
+            const buffer = Draw.createTriangles(square);
+            const copies = new Float32Array([
+                1, 0, 0, 1, 10, 20, 1, 0.5, 0, 1,
+                0, 2, -2, 0, 30, 40, 2, -1, 1, 0.25,
+                9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+            ]);
+            Draw.trianglesMany(buffer, copies, 2);
+            expect(gpu.draw_triangleMesh).not.toHaveBeenCalled();
+            expect(gpu.draw_triangleMeshMany).toHaveBeenCalledTimes(1);
+            const [id, at, count] = gpu.draw_triangleMeshMany.mock.calls[0] as number[];
+            expect([id, count]).toEqual([7, 2]);
+            expect([...mock.HEAPF32.subarray(at / 4, at / 4 + 6)]).toEqual([1, 0, 0, 1, 10, 20]);
+            expect(mock.HEAPU32[at / 4 + 6]).toBe((255 | (128 << 8) | (0 << 16) | (255 << 24)) >>> 0);
+            expect([...mock.HEAPF32.subarray(at / 4 + 7, at / 4 + 13)]).toEqual([0, 2, -2, 0, 30, 40]);
+            // Out of range is clamped, as the engine clamps a colour it packs itself.
+            expect(mock.HEAPU32[at / 4 + 13]).toBe((255 | (0 << 8) | (255 << 16) | (64 << 24)) >>> 0);
+
+            // Every copy the array holds when no count is given; one kept block however often it is drawn.
+            const allocated = mock._malloc.mock.calls.length;
+            for (let i = 0; i < 10; i++) Draw.trianglesMany(buffer, copies);
+            expect(gpu.draw_triangleMeshMany.mock.calls[10][2]).toBe(3);
+            expect(mock._malloc.mock.calls.length).toBe(allocated);
+        });
+
+        it('draws many copies a call each on an engine without the one call, and nothing from a released buffer', () => {
+            const gpu = withGpuMeshes();
+            const buffer = Draw.createTriangles(square);
+            Draw.trianglesMany(buffer, [1, 0, 0, 1, 10, 20, 1, 0.5, 0, 1, 0, 2, -2, 0, 30, 40, 1, 1, 1, 0.25]);
+            expect(gpu.draw_triangleMesh.mock.calls).toEqual([
+                [7, 1, 0.5, 0, 1, 1, 0, 0, 1, 10, 20],
+                [7, 1, 1, 1, 0.25, 0, 2, -2, 0, 30, 40],
+            ]);
+            buffer.release();
+            Draw.trianglesMany(buffer, [1, 0, 0, 1, 0, 0, 1, 1, 1, 1]);
+            expect(gpu.draw_triangleMesh).toHaveBeenCalledTimes(2);
+        });
+
+        it('draws many copies of a mesh kept in engine memory through draw_triangles', () => {
+            const buffer = Draw.createTriangles(square);
+            Draw.trianglesMany(buffer, [1, 0, 0, 1, 10, 20, 1, 0.5, 0, 1, 0, 2, -2, 0, 30, 40, 1, 1, 1, 0.25]);
+            expect(mock.draw_triangles).toHaveBeenCalledTimes(2);
+            expect((mock.draw_triangles.mock.calls[1] as number[]).slice(5)).toEqual([1, 1, 1, 0.25, 0, 2, -2, 0, 30, 40]);
+        });
+
         it('keeps a mesh in engine memory when the engine will not put it on the GPU', () => {
             const gpu = withGpuMeshes();
             gpu.draw_createTriangleMesh.mockReturnValue(0);

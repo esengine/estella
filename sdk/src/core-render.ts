@@ -30,7 +30,7 @@ export {
 // Graphics
 // =============================================================================
 
-export { Graphics, type GraphicsLineOptions, type GraphicsDrawOptions } from './render/graphics';
+export { Graphics, GRAPHICS_COPY_STRIDE, type GraphicsLineOptions, type GraphicsDrawOptions } from './render/graphics';
 
 // =============================================================================
 // Texture
@@ -78,7 +78,7 @@ export {
     shutdownDrawAPI,
     type DrawAPI,
     type DrawTriangles,
-    type DrawTrianglesBuffer,
+    DRAW_COPY_STRIDE, type DrawTrianglesBuffer,
     type DrawTrianglesOptions,
 } from './render/draw';
 

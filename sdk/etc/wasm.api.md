@@ -358,6 +358,7 @@ draw_setLayer: (layer: number) => void
 draw_texture: (x: number, y: number, width: number, height: number, textureId: number, r: number, g: number, b: number, a: number) => void
 draw_textureRotated: (x: number, y: number, width: number, height: number, rotation: number, textureId: number, r: number, g: number, b: number, a: number) => void
 draw_triangleMesh: ((id: number, r: number, g: number, b: number, a: number, xx: number, xy: number, yx: number, yy: number, tx: number, ty: number) => void) | undefined
+draw_triangleMeshMany: ((id: number, recordsPtr: number, count: number) => void) | undefined
 draw_triangles: (positionsPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number, r: number, g: number, b: number, a: number, xx: number, xy: number, yx: number, yy: number, tx: number, ty: number) => void
 engine_getCounters: (() => string) | undefined
 engine_getCpuScopes: (() => string) | undefined
