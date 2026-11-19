@@ -43,12 +43,20 @@ function trianglesBlock(m: ESEngineModule, bytes: number): number {
     return trianglesPtr;
 }
 
-/** Frames begun so far: what tells a drawing kept from an earlier frame from one built in this one. */
+/** App frames so far: what tells a drawing kept from an earlier frame from one built in this one. */
 let frameNumber = 0;
 
-/** @internal The number of the frame being drawn, counted from the first `Draw.begin`. */
+/**
+ * @internal The number of the frame being run. A frame is the app's, not a `Draw.begin`: a frame opens several of those (before the
+ * scene, after it, over the screen, once a camera), and a drawing built in a system is drawn in the same frame's callbacks.
+ */
 export function drawFrameNumber(): number {
     return frameNumber;
+}
+
+/** @internal The app began a frame. */
+export function noteDrawFrame(): void {
+    frameNumber++;
 }
 
 /** The heap block Draw.trianglesMany lays its copies' records out in, grown to the most copies drawn at once and kept. */
@@ -431,7 +439,6 @@ const IDENTITY_2D = [1, 0, 0, 1, 0, 0] as const;
 export const Draw: DrawAPI = {
     begin(viewProjection: Float32Array, viewportWidth = 0, viewportHeight = 0): void {
         const m = getModule();
-        frameNumber++;
         try {
             m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
             m.draw_begin(viewProjectionPtr, viewportWidth, viewportHeight);
