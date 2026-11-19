@@ -10176,6 +10176,17 @@
           "default": "false",
           "doc": "Clip completed (runtime, read-only). Raise Playing to replay.",
           "advanced": true
+        },
+        {
+          "key": "bindingNames",
+          "type": "array",
+          "default": "empty"
+        },
+        {
+          "key": "bindings",
+          "type": "Entity",
+          "default": "",
+          "doc": "What each of the timeline’s bound tracks (a path starting @Name) animates on this player."
         }
       ],
       "animatable": [

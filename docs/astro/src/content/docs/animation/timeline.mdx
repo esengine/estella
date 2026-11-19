@@ -153,6 +153,24 @@ What it writes depends on what the target is:
 Either way the write only happens when the state actually flips, so a track that is
 not moving does not dirty change detection every frame.
 
+### Bindings
+
+A track names its target by a path below the entity that plays the timeline. A path that starts `@Name` goes through a
+**binding** instead: the entity the playing `TimelinePlayer` binds `Name` to, anywhere in the scene, with the rest of the
+path below it (`@Hero/Arm`). That is Unity's PlayableDirector binding and UE's possessable: a cutscene moves things that
+are not its children, and one timeline played by two players drives two different characters.
+
+| `TimelinePlayer` field | Description |
+|---|---|
+| `bindingNames` | The names of the player's bindings. |
+| `bindings` | The entity each name is bound to, in the same order; carried to the loaded entities like any entity reference. |
+
+In the Sequencer, **Track → (kind) → Bound entity…** lists the scene entities outside the root and binds a new track to
+the one picked: the player gains the binding (or reuses the one it has for that entity) and the track's path becomes
+`@Name`, in one undo step. The player's Details lists its bindings by name, each with its entity to change. Every kind of
+track can be bound, and bound paths work in the preview, in play and in nested sequences; a binding the player does not
+have resolves to nothing, and its track does nothing.
+
 ### Events and markers
 
 Event and marker tracks tell the game what the timeline is doing, as Unity's Signals and

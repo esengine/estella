@@ -66,6 +66,13 @@ export {
 } from './TimelineEvaluator';
 
 export {
+    resolveTimelinePath,
+    boundEntity,
+    isBoundPath,
+    splitBoundPath,
+} from './timelineBindings';
+
+export {
     TimelineAudioVoices,
     audioClipGain,
     audioClipOffset,

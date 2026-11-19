@@ -99,6 +99,11 @@ export interface FieldMeta {
      *  effect the engine gains is authorable without touching the editor. */
     effectStack?: boolean;
     /**
+     * For a list field (an entity list): the sibling field holding one label per row, in the same order. The rows are
+     * then fixed, shown by those labels, and edited in place (a player's bindings, named by `bindingNames`).
+     */
+    rowLabelsFrom?: string;
+    /**
      * Render as a table of records (the field value is an array of flat objects): one row each, a column per key. An
      * entry a component holds a list of, each of a few named numbers and strings (a brain's custom blends), which
      * value-shape inference cannot edit. A new row starts as `defaults`.

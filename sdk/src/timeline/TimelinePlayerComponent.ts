@@ -25,6 +25,13 @@ export interface TimelinePlayerData {
      * again (which replays from the top). Runtime-observable — don't author it.
      */
     finished: boolean;
+    /**
+     * The names of this player's bindings, and in `bindings` (same order) the entity each is bound to: what a track
+     * whose path starts `@Name` animates (Unity's PlayableDirector bindings, UE's possessables). One timeline played by
+     * two players can drive two different characters.
+     */
+    bindingNames: string[];
+    bindings: number[];
 }
 
 /**
@@ -42,9 +49,14 @@ export const TimelinePlayer = /* @__PURE__ */ defineComponent<TimelinePlayerData
     speed: 1.0,
     wrapMode: '',
     finished: false,
+    bindingNames: [],
+    bindings: [],
 }, {
     assetFields: [{ field: 'timeline', type: 'timeline' }],
+    // Remapped with the scene like any entity reference, so a binding names the entity the scene loads as.
+    entityFields: ['bindings'],
     fields: {
+        bindings: { rowLabelsFrom: 'bindingNames', tooltip: 'What each of the timeline’s bound tracks (a path starting @Name) animates on this player.' },
         wrapMode: { tooltip: "Override the clip's own wrap mode: once, loop or pingPong. Empty uses what the clip declares." },
         finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to replay.' },
     },

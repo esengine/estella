@@ -7,6 +7,7 @@ import { Res } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, type TimelineEventPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
+import { resolveTimelinePath } from './timelineBindings';
 import { Time, type TimeData } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
@@ -18,7 +19,6 @@ import { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './Time
 import { Timeline, TimelineAPI } from './TimelineControl';
 import { AnimatorController } from '../animation/Animator';
 import { TIMELINE_MOTION, createTimelineMotionDriver } from './timelineMotion';
-import { resolveChildEntity } from './TimelineRuntime';
 import { Particle } from '../particle/ParticleAPI';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import { CameraDirector, setTimelineShot } from '../camera/CameraDirector';
@@ -96,14 +96,17 @@ export class TimelinePlugin implements Plugin {
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
                 const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
                 const director = app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
+                // Paths resolve below their root, or through the playing player's bindings (`@Name`).
+                let current = 0 as Entity;
                 const deps: SampleDeps = {
                     world,
                     getComponent,
-                    resolveChild: (root, childPath) => resolveChildEntity(world, root, childPath),
+                    resolveChild: (root, childPath) => resolveTimelinePath(world, current, root, childPath),
                 };
 
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
+                    current = entity;
                     // A player with no timeline (or one that cannot be found) is not heard either.
                     if (!player.timeline) { this.voices_.stop(entity); continue; }
                     // A code registration first, then this app's realm — by the
@@ -131,7 +134,7 @@ export class TimelinePlugin implements Plugin {
                         // What the playhead crossed, for the game: each about the entity its track names.
                         onSignals: (signals) => {
                             for (const s of signals) {
-                                const target = resolveChildEntity(world, entity, s.childPath) ?? entity;
+                                const target = resolveTimelinePath(world, entity, entity, s.childPath) ?? entity;
                                 events.send({ kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, target });
                             }
                         },
