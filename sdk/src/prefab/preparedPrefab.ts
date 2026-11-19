@@ -81,7 +81,7 @@ export async function preparePrefabFromSource(
     await preloadNestedPrefabs(normalized, async (path) =>
         migratePrefabData((await assets.loadPrefab(path)).data as PrefabData).data, cache);
 
-    let nextId = 0;
+    let nextId = 1;  // 0 is no entity: a reference field mapped to it names nothing.
     const ctx: FlattenContext = {
         allocateId: () => nextId++,
         loadPrefab: (path: string) => cache.get(path) ?? null,

@@ -267,7 +267,7 @@ function collapseBaseline(
         for (const e of prefab.entities) parentOf.set(e.prefabEntityId, e.parent);
         return { entities: prefab.entities, parentOf };
     }
-    let nid = 0;
+    let nid = 1;  // 0 is no entity: a reference field mapped to it names nothing.
     const flat = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab }).entities;
     const addrById = new Map(flat.map((e) => [e.id, e.prefabEntityId]));
     const parentOf = new Map<PrefabEntityId, PrefabEntityId | null>();

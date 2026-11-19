@@ -244,6 +244,7 @@ export {
     findEntityByName,
     serializeScene,
     migrateSceneData,
+    renumberEntityZero,
     RETIRED_COMPONENT_TYPES,
     RENAMED_COMPONENT_TYPES,
     SCENE_FORMAT_VERSION,

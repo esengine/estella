@@ -87,7 +87,7 @@ export async function instantiatePrefab(
         );
     }
 
-    let nextId = 0;
+    let nextId = 1;  // 0 is no entity: a reference field mapped to it names nothing.
     const deferred: DeferredRecord[] = [];
 
     const ctx: FlattenContext = {

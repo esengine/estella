@@ -19,8 +19,9 @@ export function mapEntityRefField(value: unknown, one: (ref: unknown) => unknown
  * The mapping is keyed by `PrefabEntityId` (string) → runtime entity (number),
  * matching what flatten built. A component field whose value is a string —
  * the authored prefab-local reference — gets resolved through the mapping;
- * a numeric value is treated as already a runtime id (or zero/INVALID) and
- * left alone, so partially-instantiated/mutated components round-trip.
+ * so does a number naming a prefab entity (the numeric-id format). Any other
+ * number is treated as already a runtime id (or zero/INVALID) and left
+ * alone, so partially-instantiated/mutated components round-trip.
  */
 export function remapComponentEntityRefs(
     components: ComponentData[],
@@ -35,10 +36,12 @@ export function remapComponentEntityRefs(
             return mapped !== undefined ? mapped : INVALID_ENTITY;
         }
         if (typeof value === 'number' && value !== INVALID_ENTITY) {
-            // Already a numeric id; if a caller authored components with
-            // numeric refs, fall back to numeric→numeric mapping for
-            // legacy compatibility (no-op when the id isn't in the map).
-            const mapped = (idMapping as Map<unknown, number>).get(value);
+            // A number is a reference written in the numeric-id format, which names the entity whose prefab-local id is
+            // that number: the migration turns those ids into their strings and leaves the components' references as
+            // numbers. Found by the string first. It used to reach the right entity only because ids were handed out
+            // from 0 in file order, so the number was its own allocated id; from 1 (0 is no entity) it would name the
+            // next one. A number that names no prefab entity is a runtime id a caller passed, and is left alone.
+            const mapped = idMapping.get(String(value)) ?? (idMapping as Map<unknown, number>).get(value);
             if (mapped !== undefined) return mapped;
         }
         return value;

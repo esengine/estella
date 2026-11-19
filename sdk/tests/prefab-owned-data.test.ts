@@ -51,8 +51,10 @@ describe.skipIf(!HAS_WASM)('owned prefab records retain scene-loader behavior', 
         try {
             const first = await instantiatePrefab(world, prefab, { overrides });
             const second = await instantiatePrefab(world, prefab, { overrides });
-            expect(world.get(first.root, Payload).target).toBe(first.entities.get(1));
-            expect(world.get(second.root, Payload).target).toBe(second.entities.get(1));
+            // The child is the entity besides the root; the map's keys are the loader's own numbering, not the prefab's.
+            const childOf = (placed: { root: number; entities: Map<number, number> }) => [...placed.entities.values()].find((e) => e !== placed.root);
+            expect(world.get(first.root, Payload).target).toBe(childOf(first));
+            expect(world.get(second.root, Payload).target).toBe(childOf(second));
             expect(world.get(first.root, Transform).position.x).toBe(7);
             world.update(first.root, Payload, data => { data.payload.values.push(12); });
             expect(world.get(second.root, Payload).payload.values).toEqual([3, 4]);

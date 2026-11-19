@@ -144,7 +144,8 @@ const prefabStep: ChurnStep = {
         // The prefab loader resolves components BY NAME and merely warns when it
         // cannot, so an unregistered one leaves this step churning Transform
         // alone while still looking busy. Checked every cycle, not once.
-        const child = a.entities.get(1);
+        // The first entity the prefab brought besides its root: what the map is keyed by is the loader's own numbering.
+        const child = [...a.entities.values()].find((e) => e !== a.root);
         if (child === undefined || !app.world.has(child, Marker)) {
             throw new Error('prefab instantiate dropped SoakMarker — this step is not churning what it claims');
         }

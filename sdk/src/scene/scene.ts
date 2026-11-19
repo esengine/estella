@@ -508,6 +508,35 @@ function checkSceneFormat(raw: SceneData): number {
     return fromVersion;
 }
 
+/**
+ * Gives an entity numbered 0 the next id past the highest, and its parent and children the new id too, in place. Returns
+ * whether it did.
+ *
+ * 0 is the "no entity" of every reference field (INVALID_ENTITY), so a field naming entity 0 named nothing: the loader
+ * leaves 0 as 0, and the inspector writes 0 for both. A field that holds 0 is left as none, which is what it has always
+ * loaded as; the entity can be named from now on. Only the hierarchy is renumbered, because nothing else could reach it.
+ *
+ * For an authoring tool opening a document, not for a loader: a caller that loads a scene keeps its own copy of the data
+ * and looks entities up by the ids in it, so renumbering inside a load would lose entity 0 to every such lookup. The
+ * editor renumbers what it opens; what it saves then holds no entity 0.
+ *
+ * @experimental
+ */
+export function renumberEntityZero(data: SceneData): boolean {
+    const entries = data.entities as SceneEntry[];
+    if (!entries.some((e) => e.id === 0)) return false;
+    let highest = 0;
+    for (const e of entries) if (e.id > highest) highest = e.id;
+    const id = highest + 1;
+    for (const e of entries) {
+        if (e.id === 0) e.id = id;
+        if (e.parent === 0) e.parent = id;
+        const children = (e as SceneEntityData).children;
+        if (Array.isArray(children)) for (let i = 0; i < children.length; i++) if (children[i] === 0) children[i] = id;
+    }
+    return true;
+}
+
 function migrateOwnedSceneData(data: SceneData, fromVersion = checkSceneFormat(data)): SceneMigrationResult {
     let migrated = false;
     const retired = new Set<string>();
