@@ -120,7 +120,8 @@ export {
     type TextureRef,
 } from './render/material';
 
-export { renderMeshPreview } from './render/assetPreview';
+export { renderMeshPreview, DEFAULT_PREVIEW_ORBIT } from './render/assetPreview';
+export type { PreviewOrbit } from './render/assetPreview';
 export { SkeletalPreview } from './render/skeletalPreview';
 export type { SkeletalPreviewBatch } from './render/skeletalPreview';
 

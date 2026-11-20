@@ -9,7 +9,7 @@
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { requireResourceManager } from '../wasm/resourceManager';
-import { drawPreview, previewCore } from './assetPreview';
+import { aimPreview, drawPreview, previewCore, type PreviewOrbit } from './assetPreview';
 import type { Vec2, Vec3, Vec4 } from '../types';
 import { BlendMode } from './blend';
 import { reflectEsshader } from './shaderReflect';
@@ -757,7 +757,7 @@ export const Material = {
      * a flat quad. Null if the engine isn't ready or the readback fails.
      */
     async renderPreview(material: MaterialHandle, w: number, h: number,
-                        shape: { mesh?: number; texture?: number } = {}): Promise<ImageData | null> {
+                        shape: { mesh?: number; texture?: number; orbit?: PreviewOrbit } = {}): Promise<ImageData | null> {
         const connected = module;
         const m = previewCore(connected);
         const data = materials.get(material);
@@ -776,6 +776,7 @@ export const Material = {
                     }
                     handle = materials.get(handle)?.parent;
                 }
+                aimPreview(m, shape.orbit);
                 return m.renderer_renderMaterialPreview(material, w, h, shape.mesh ?? 0, shape.texture ?? 0);
             });
         } finally { releaseTextures(held); }

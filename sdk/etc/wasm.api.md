@@ -591,6 +591,7 @@ renderer_setOcclusionGridSize: ((size: number) => void) | undefined
 renderer_setOrigin: ((x: number, y: number, z: number) => void) | undefined
 renderer_setParticleDepthGrid: ((texels: number) => void) | undefined
 renderer_setPlanarReflectionQuality: ((scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean) => void) | undefined
+renderer_setPreviewOrbit: ((yawDegrees: number, pitchDegrees: number) => void) | undefined
 renderer_setProbeVolumeOverride: ((entity: number, volumeHandle: number) => void) | undefined
 renderer_setProbeVolumeReflection: ((entity: number, environmentHandle: number, slot: number) => void) | undefined
 renderer_setProbesPerPixel: ((on: boolean) => void) | undefined

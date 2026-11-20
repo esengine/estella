@@ -2030,8 +2030,37 @@ void renderer_destroySkeletalPreview(u32 preview) {
     if (g_renderFrame) g_renderFrame->destroySkeletalPreview(preview);
 }
 
+namespace {
+// The angle previews are seen from: off-axis, above and to the right, unless an inspector is turning one. Degrees.
+f32 g_previewYaw = 30.96f;
+f32 g_previewPitch = 21.10f;
+glm::vec3 previewEyeDirection() {
+    const f32 yaw = glm::radians(g_previewYaw), pitch = glm::radians(glm::clamp(g_previewPitch, -89.0f, 89.0f));
+    return glm::vec3(std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch));
+}
+
+// A preview is one picture, read back once: a program still compiling in the background would leave it empty, and the
+// next one asks for a freshly loaded material whose program is compiling again. So a preview waits for its programs.
+struct WaitForPrograms {
+    GfxDevice* device;
+    bool was;
+    WaitForPrograms() : device(g_device), was(g_device && g_device->skipPendingPrograms()) {
+        if (device) device->setSkipPendingPrograms(false);
+    }
+    ~WaitForPrograms() { if (device) device->setSkipPendingPrograms(was); }
+    WaitForPrograms(const WaitForPrograms&) = delete;
+    WaitForPrograms& operator=(const WaitForPrograms&) = delete;
+};
+}  // namespace
+
+void renderer_setPreviewOrbit(f32 yawDegrees, f32 pitchDegrees) {
+    g_previewYaw = std::isfinite(yawDegrees) ? yawDegrees : 30.96f;
+    g_previewPitch = std::isfinite(pitchDegrees) ? pitchDegrees : 21.10f;
+}
+
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h, u32 meshId, u32 textureId) {
     if (!g_renderFrame || w <= 0 || h <= 0) return;
+    const WaitForPrograms wait;
 
     ecs::Registry reg;
     auto light = reg.create();
@@ -2059,7 +2088,7 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h, u32 meshId, u3
 
         const glm::vec3 centre = (res->localMin + res->localMax) * 0.5f;
         const f32 radius = std::max(glm::length(res->localMax - res->localMin) * 0.5f, 1e-4f);
-        const glm::vec3 eye = centre + glm::normalize(glm::vec3(0.6f, 0.45f, 1.0f)) * (radius * 4.0f);
+        const glm::vec3 eye = centre + previewEyeDirection() * (radius * 4.0f);
         const glm::mat4 view = glm::lookAt(eye, centre, glm::vec3(0.0f, 1.0f, 0.0f));
         f32 half = 1e-4f;
         for (i32 corner = 0; corner < 8; ++corner) {
@@ -2103,6 +2132,7 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h, u32 meshId, u3
  */
 void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
     if (!g_renderFrame || w <= 0 || h <= 0) return;
+    const WaitForPrograms wait;
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     const Mesh* res = rm ? rm->getMesh(resource::MeshHandle{meshId}) : nullptr;
     if (!res) return;
@@ -2129,7 +2159,7 @@ void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
     // source used, so a fixed box would show one model whole and another as a dot.
     const glm::vec3 centre = (res->localMin + res->localMax) * 0.5f;
     const f32 radius = std::max(glm::length(res->localMax - res->localMin) * 0.5f, 1e-4f);
-    const glm::vec3 eye = centre + glm::normalize(glm::vec3(0.6f, 0.45f, 1.0f)) * (radius * 4.0f);
+    const glm::vec3 eye = centre + previewEyeDirection() * (radius * 4.0f);
     const glm::mat4 view = glm::lookAt(eye, centre, glm::vec3(0.0f, 1.0f, 0.0f));
 
     // The box is measured AFTER the turn: a flat model seen off-axis is much

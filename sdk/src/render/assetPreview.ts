@@ -15,9 +15,21 @@ import { awaitReadback, READBACK_READY } from './readback';
  * native wrapper, so a host without it is checked for at the call.
  */
 export type PreviewCore = Pick<ESEngineModule,
-    'renderer_renderMaterialPreview' | 'renderer_renderMeshPreview' | 'renderer_pollPreviewReadback'
+    'renderer_renderMaterialPreview' | 'renderer_renderMeshPreview' | 'renderer_setPreviewOrbit' | 'renderer_pollPreviewReadback'
     | 'renderer_getPreviewSize' | 'renderer_getPreviewWidth'
     | 'renderer_getPreviewHeight' | 'renderer_getPreviewPtr' | 'HEAPU8'>;
+
+/** Where a preview is seen from, degrees: yaw about up, pitch above the horizon. @experimental */
+export interface PreviewOrbit { yaw: number; pitch: number }
+
+/** The angle a preview is seen from unless one is given: off-axis, above and to the right. @experimental */
+export const DEFAULT_PREVIEW_ORBIT: PreviewOrbit = { yaw: 30.96, pitch: 21.1 };
+
+/** Set the angle the preview about to be drawn is seen from: every draw sets it, so one turned preview leaves no other turned. */
+export function aimPreview(m: PreviewCore, orbit: PreviewOrbit | undefined): void {
+    const o = orbit ?? DEFAULT_PREVIEW_ORBIT;
+    m.renderer_setPreviewOrbit?.(o.yaw, o.pitch);
+}
 
 /** The connected core, when it answers the preview surface; null otherwise. */
 export function previewCore(m: unknown): PreviewCore | null {
@@ -63,14 +75,14 @@ async function readPreview(m: PreviewCore, draw: () => void): Promise<ImageData 
 }
 
 /**
- * A thumbnail of a loaded `.esmesh`, seen from off-axis and framed to its own
+ * A thumbnail of a loaded `.esmesh`, seen from off-axis (or from `orbit`) and framed to its own
  * bounds — a mesh is authored at whatever scale its source used, and head-on it
  * is a silhouette. Null if the engine isn't ready or the mesh isn't loaded.
  */
 export async function renderMeshPreview(
-    module: unknown, mesh: number, w: number, h: number,
+    module: unknown, mesh: number, w: number, h: number, orbit?: PreviewOrbit,
 ): Promise<ImageData | null> {
     const m = previewCore(module);
     if (!m || typeof m.renderer_renderMeshPreview !== 'function' || !mesh) return null;
-    return drawPreview(m, () => m.renderer_renderMeshPreview(mesh, w, h));
+    return drawPreview(m, () => { aimPreview(m, orbit); return m.renderer_renderMeshPreview(mesh, w, h); });
 }

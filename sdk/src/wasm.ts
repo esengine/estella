@@ -885,6 +885,7 @@ export interface ESEngineModule {
     renderer_getSkeletalPreviewHeight(preview: number): number;
     renderer_destroySkeletalPreview(preview: number): void;
     renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
+    renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
     /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */
     renderer_pollPreviewReadback(): number;
     renderer_getPreviewPtr(): number;

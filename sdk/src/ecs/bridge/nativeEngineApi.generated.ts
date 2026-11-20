@@ -259,6 +259,7 @@ export interface NativeEngineApi {
     renderer_setOrigin?(x: number, y: number, z: number): void;
     renderer_setParticleDepthGrid?(texels: number): void;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean): void;
+    renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     renderer_setProbesPerPixel?(on: boolean): void;
@@ -647,6 +648,7 @@ export function createNativeEngineApi(
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
     bind('renderer_setParticleDepthGrid', 'es_renderer_setParticleDepthGrid', false);
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
+    bind('renderer_setPreviewOrbit', 'es_renderer_setPreviewOrbit', false);
     bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
     bind('renderer_setProbeVolumeReflection', 'es_renderer_setProbeVolumeReflection', false);
     bind('renderer_setProbesPerPixel', 'es_renderer_setProbesPerPixel', false);

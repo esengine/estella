@@ -499,6 +499,9 @@ void renderer_destroySkeletalPreview(u32 preview);
 
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h, u32 meshId, u32 textureId);
 void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h);
+
+/** @brief The angle the next mesh or material preview is seen from, degrees: yaw about up, pitch above the horizon. */
+void renderer_setPreviewOrbit(f32 yawDegrees, f32 pitchDegrees);
 i32 renderer_pollPreviewReadback();
 uintptr_t renderer_getPreviewPtr();
 u32 renderer_getPreviewSize();
