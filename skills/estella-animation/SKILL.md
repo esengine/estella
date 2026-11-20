@@ -13,7 +13,8 @@ One picture cannot show motion. Whatever you build here is checked with `motion_
 |---|---|
 | A one-off change: a button pop, a fade, a slide | a tween: `Res(Tween)`, `tween.to(entity, TweenTarget.PositionX, from, to, seconds, { easing })` |
 | Looping frame art (a walk cycle on a sprite sheet) | `SpriteAnimator` playing an `animclip` asset |
-| Keyed fields over time: a door, a cutscene, a camera move, a UI flourish | a timeline (`.estimeline`) on a `TimelinePlayer` |
+| Keyed fields over time: a door, a cutscene, a UI flourish | a timeline (`.estimeline`) on a `TimelinePlayer` |
+| A camera that follows, frames or cuts between shots | a camera rig, not keys (`estella-camera`) |
 | A character whose clip depends on gameplay (idle, run, jump) | an `Animator` state machine over any of the above |
 | A 2D character that bends | a 2D rig (`.esrig`): bones are entities, keyed in a timeline |
 | A Spine or DragonBones export | `SpineAnimation` / `DragonBonesAnimation` |
@@ -25,8 +26,13 @@ A UI button's look per state is not animation code either: that is a controller 
 ## Clips and timelines
 
 - `create_asset { type: "animclip" }` makes a sprite clip and `type: "animation"` a timeline; `open_asset` opens its
-  editor, `get_asset_document` reads it and `edit_asset_document` writes it (`frames.0.duration`,
-  `tracks.2.keys.5.value`). Read the document, not the file: the file is stale while the editor has edits.
+  editor, and `get_asset_document` reads it. Read the document, not the file: the file is stale while the editor has
+  edits. Open a timeline from the entity whose `TimelinePlayer` plays it, so the targets you name are checked.
+- A timeline is built with the `timeline` tools: `timeline_add_track` (any track type, on an entity by id or name path),
+  `timeline_add_items` (clips, sounds, spawns, markers, events, camera shots), `timeline_set_keys` (keys of an animatable
+  field, making its property track). `edit_asset_document` only changes a value that is already there
+  (`frames.0.duration`, `tracks.0.channels.0.keyframes.1.value`); `save_asset_document` writes the file. A cutscene's
+  cameras are in `estella-camera`.
 - `SpriteAnimator`: set `clip`, `speed`, `playing`, `loop`; `finished` latches when a one-shot ends.
 - `TimelinePlayer`: `timeline`, `playing`, `speed`, `wrapMode` (`once`, `loop`, `pingPong`). The flags are the control:
   raise `playing` to play, and raising it on a finished clip replays it. `Res(Timeline)` seeks (`setTime`). A timeline

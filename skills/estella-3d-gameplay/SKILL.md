@@ -32,10 +32,11 @@ the `Transform` rotation in the same system.
 
 ## Camera
 
-The template's `src/systems/camera.ts` eases the camera toward the character plus an offset, in `Schedule.PostUpdate`
-so it is smooth at the display's rate. A `FollowTarget` on the camera (`target`, `offsetX`/`offsetY`/`offsetZ`,
-`damping`, `deadzone`) does the same without code, but only with `followZ` on: it is off by default, for flat scenes,
-and a 3D camera without it never moves forward or back with the character.
+The template's `src/systems/camera.ts` eases every camera toward the character plus an offset. For more than that, use a
+rig and delete that file and its line in `src/main.ts`, or it drags the rig too: `camera:tracking` (from
+`apply_scene_ops` `create`) stands behind and above the character, frames it and is drawn in by walls; set its
+`FollowTarget.target` and `LookAtTarget.target` to the character. A `FollowTarget` alone needs `followZ` on, or the
+camera never moves forward or back with the character. Several cameras, shakes and cutscenes are in `estella-camera`.
 
 ## A world that looks finished
 

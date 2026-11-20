@@ -27,8 +27,11 @@ A top-down mover, or anything with rules of its own, is a script: a component fo
 
 ## Camera
 
-A `FollowTarget` on the camera with `target` the player's entity follows it, with `damping` and a `deadzone`; a
-`CameraBounds` keeps it inside the level.
+Use a rig, not a script: `apply_scene_ops { ops: [{ op: "create", template: "camera:follow-2d" }] }` and its
+`PositionComposer.target` set to the player holds the player at a screen point with a dead zone it may wander in, and a
+`CameraBounds` on it keeps the view inside the level. The top-down and pixel-rpg templates follow in
+`src/systems/follow.ts`, which moves every camera: delete it (and its line in `src/main.ts`) when adding a rig. Several
+cameras, shakes and cutscenes are in `estella-camera`.
 
 ## Scripts
 
