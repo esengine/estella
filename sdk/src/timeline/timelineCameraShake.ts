@@ -25,7 +25,7 @@ import { Transform } from '../ecs/component';
  * The view shake a shake track gives at force 1 on an entity with no CameraImpulseSource: how far it throws the view,
  * how much it rolls it (radians), how fast it trembles and how long it lasts.
  */
-export const TIMELINE_VIEW_SHAKE = { amplitude: 12, rotation: 0.008726646259971648 /* π / 360: half a degree */, frequency: 22, duration: 0.4 } as const;
+export const TIMELINE_VIEW_SHAKE = { amplitude: 12, rotation: 0.008726646259971648 /* π / 360: half a degree */ as number, frequency: 22, duration: 0.4 } as const;
 
 /** What the shakes are worked out from: the world, the timeline's root, and how its tracks' paths resolve. */
 export interface TimelineShakeDeps {
