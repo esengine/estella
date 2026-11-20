@@ -28,6 +28,7 @@ export {
 
 export {
     describeNode,
+    eventPayloadPorts,
     sequenceCount,
     BUILTIN_NODE_KINDS,
     spawnPrefabRef,

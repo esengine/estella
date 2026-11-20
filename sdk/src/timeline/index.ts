@@ -162,5 +162,6 @@ export {
     createTimelineMotionDriver,
     type TimelineMotionEffects,
 } from './timelineMotion';
-export { TimelineSpawns, spawnClipActive, type TimelineSpawner } from './timelineSpawns';
+export { TimelineSpawns, spawnClipActive, type TimelineSpawner, type PreparedTimelineSpawn } from './timelineSpawns';
+export { timelineShakenPOV, TIMELINE_VIEW_SHAKE, type TimelineShakeDeps } from './timelineCameraShake';
 export { rootPlacementAt, clipRootTravel, composePlacement, invertPlacement, blendPlacements } from './timelineRootMotion';

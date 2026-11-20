@@ -451,7 +451,7 @@ export {
     type ExternalEntityRef,
 } from './prefab/index';
 
-export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin, type SpawnOverride } from './prefab/prefabServer';
+export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin, type SpawnOverride, type PreparedSpawnable } from './prefab/prefabServer';
 export { Breakable, BreakablePlugin, breakablePlugin, Broke, burstVelocity, setBodyPusher, type BreakableData, type BodyPusher, type BrokePayload } from './breakable/breakable';
 
 // =============================================================================
@@ -1049,7 +1049,7 @@ export {
     serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
     TrackType, InterpType, WrapMode, TIMELINE_FORMAT_VERSION, playableTimeline,
     isRootPlacementChannel, sampleRootPlacement, createRootPlacement,
-    playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent, TimelinePlayback, TimeDilation, sampleAnimationTracks, animationClipWeights, extrapolatedTime, forgetAnimationRests, rootPlacementAt, TimelineAudioVoices, audioClipGain, TimelineSpawns, spawnClipActive, type TimelineSpawner, resolveTimelinePath, isBoundPath, splitBoundPath,
+    playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent, TimelinePlayback, TimeDilation, sampleAnimationTracks, animationClipWeights, extrapolatedTime, forgetAnimationRests, rootPlacementAt, TimelineAudioVoices, audioClipGain, TimelineSpawns, spawnClipActive, type TimelineSpawner, type PreparedTimelineSpawn, timelineShakenPOV, TIMELINE_VIEW_SHAKE, type TimelineShakeDeps, resolveTimelinePath, isBoundPath, splitBoundPath,
     type RootPlacement, type PlayheadRun, type TimelineSignal, type TimelineEventPayload, type TimelinePlaybackPayload,
     type CustomEvent, type CustomEventTrack,
     type SampleWorld, type SampleDeps, type SampleOptions,

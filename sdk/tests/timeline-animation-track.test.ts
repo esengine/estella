@@ -260,6 +260,41 @@ describe('root motion', () => {
         expect(rigX()).toBeCloseTo(10 + 225, 6);
     });
 
+    it('starts off slowly over an ease in and comes to a stop over an ease out, staying where it got to', () => {
+        // Weight ramps 0 to 1 over the first half second at 100 a second: 25 by then, then 50 more at full weight.
+        const easedIn = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk', easeIn: 0.5 })] });
+        sampleAnimationTracks(easedIn, 0.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 25, 6);
+        sampleAnimationTracks(easedIn, 1, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 75, 6);
+        forgetAnimationRests(world);
+        world.insert(rig, Transform, { position: { x: 10, y: 0, z: 0 } });
+        const easedOut = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk', easeOut: 0.5 })] });
+        sampleAnimationTracks(easedOut, 1, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 75, 6);
+        // Not slid back to where it started once the clip has faded out.
+        sampleAnimationTracks(easedOut, 3, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 75, 6);
+    });
+
+    it('blends the steps of a crossfade, neither losing nor doubling the walk', () => {
+        const t = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk' }), clip({ start: 0.5, duration: 1, clip: 'walk' })] });
+        sampleAnimationTracks(t, 1.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 150, 6);
+    });
+
+    it('walks back and forth on ping-pong, and keeps walking on a looped post-extrapolation', () => {
+        const pp = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk', postExtrapolation: 'pingPong' })] });
+        sampleAnimationTracks(pp, 1.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 50, 6);
+        sampleAnimationTracks(pp, 2, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10, 6);
+        forgetAnimationRests(world);
+        const looped = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk', postExtrapolation: 'loop' })] });
+        sampleAnimationTracks(looped, 2.5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(10 + 250, 6);
+    });
+
     it('poses the root like any joint with root motion off', () => {
         sampleAnimationTracks(tl({ clips: [clip({ start: 0, duration: 1, clip: 'walk' })] }), 0.5, rig, deps(), lookup);
         expect(rigX()).toBeCloseTo(50, 6);

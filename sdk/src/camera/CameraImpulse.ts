@@ -155,6 +155,30 @@ export function impulseAttenuation(distance: number, radius: number, dissipation
 }
 
 /**
+ * `pov` as an impulse (fired from `origin` with `def` at `force`, its noise `seed`) jolts it `elapsed` seconds after it
+ * was fired, for a camera that listens as `listener` says: by its channels and gain, its distance from the origin, and
+ * the time the impulse takes to get there. Worked out at once, so the runtime and a scrubbing preview (the
+ * Sequencer's) show the same jolt for the same time.
+ */
+export function impulsedPOV(
+  pov: CameraPOV,
+  impulse: { origin: Vec3; def: CameraImpulseSourceData; force: number; seed: number },
+  listener: CameraImpulseListenerData,
+  elapsed: number,
+): CameraPOV {
+  const d = impulse.def;
+  if ((d.channels & listener.channels) === 0 || !(listener.gain > 0)) return pov;
+  const dx = pov.x - impulse.origin.x, dy = pov.y - impulse.origin.y, dz = listener.use2DDistance ? 0 : pov.z - impulse.origin.z;
+  const distance = Math.hypot(dx, dy, dz);
+  const delay = d.propagationSpeed > 0 ? distance / d.propagationSpeed : 0;
+  const t = elapsed - delay;
+  const strength = impulse.force * listener.gain * impulseEnvelope(t, d.attack, d.sustain, d.decay)
+    * impulseAttenuation(distance, d.radius, d.dissipation);
+  if (!(strength > 0)) return pov;
+  return noisyPOV(pov, { amplitude: d.amplitude * strength, rotation: d.rotation * strength, frequency: d.frequency, seed: impulse.seed }, impulse.seed, t);
+}
+
+/**
  * Jolts each listening camera's drawn view by the impulses it feels at time `now`, and forgets impulses that have died
  * away everywhere. Run beside the noise, on the per-camera views before the director blends them.
  */
@@ -168,18 +192,7 @@ export function applyCameraImpulses(world: World, povs: CameraPOV[], now: number
     const listener = world.tryGet(pov.entity as never, CameraImpulseListener) as CameraImpulseListenerData | null;
     if (!listener || !(listener.gain > 0)) continue;
     let view = pov;
-    for (const imp of list) {
-      const d = imp.def;
-      if ((d.channels & listener.channels) === 0) continue;
-      const dx = pov.x - imp.origin.x, dy = pov.y - imp.origin.y, dz = listener.use2DDistance ? 0 : pov.z - imp.origin.z;
-      const distance = Math.hypot(dx, dy, dz);
-      const delay = d.propagationSpeed > 0 ? distance / d.propagationSpeed : 0;
-      const t = now - imp.start - delay;
-      const strength = imp.force * listener.gain * impulseEnvelope(t, d.attack, d.sustain, d.decay)
-        * impulseAttenuation(distance, d.radius, d.dissipation);
-      if (!(strength > 0)) continue;
-      view = noisyPOV(view, { amplitude: d.amplitude * strength, rotation: d.rotation * strength, frequency: d.frequency, seed: imp.seed }, imp.seed, t);
-    }
+    for (const imp of list) view = impulsedPOV(view, imp, listener, now - imp.start);
     povs[i] = view;
   }
   // Gone once it has died away at the farthest place it reaches.

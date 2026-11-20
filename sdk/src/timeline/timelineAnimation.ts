@@ -232,7 +232,7 @@ function moveRoot(world: PoseWorld, rig: Entity, track: AnimationTrack, time: nu
     if (!byRig) rootRests.set(world as object, (byRig = new Map()));
     let base = byRig.get(rig);
     if (!base) byRig.set(rig, (base = { position: { ...now.position }, rotation: { ...now.rotation } }));
-    const at = rootPlacementAt(track, time, base, lookup, animationClipWeights);
+    const at = rootPlacementAt(track, time, base, lookup, animationClipWeights, extrapolatedTime);
     world.set(rig, def, { ...now, position: at.position, rotation: at.rotation });
 }
 

@@ -1,0 +1,6 @@
+---
+section: Added
+commits:
+  - feat(timeline): shakes in the scrubbed preview, joint-tree masks, payload pins and same-frame spawns
+---
+**Timelines preview camera shakes, pick masks from the rig, hand event payloads to visual scripts and spawn on the frame a clip starts.** The Sequencer's preview now shows a camera shake track as you scrub, as UE's viewport does: the shot's camera is moved as the shakes leave it at the playhead, the same noise play uses, and put back afterwards. An animation track's mask, and an Animator layer's, is picked from the rig's joints as a tree, a ticked joint taking its branch, as Unity's Avatar Mask is. A visual script's On Event node declares the payload fields it hands on (`amount:number`), each a typed pin, as a Unity signal receiver's parameter or UE's event payload. Root motion follows clip weights as Unity does, so an ease in starts the rig off slowly, an ease out brings it to a stop where it got to, and ping-pong extrapolation walks back. A spawn track's prefab is prepared while its timeline waits to play and its instance is made on the frame the clip starts, as a UE spawnable is; `Prefabs.prepare` now answers a synchronous `spawn`. Before, shakes showed only in play, masks were typed as paths, an event's payload never reached a graph, eases did not slow root motion, and a spawned instance arrived a few frames late.

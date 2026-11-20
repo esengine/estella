@@ -8,6 +8,7 @@ import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, TimelinePlayback, type TimelineEventPayload, type TimelinePlaybackPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
 import { TimelineSpawns, type TimelineSpawner } from './timelineSpawns';
+import { TIMELINE_VIEW_SHAKE } from './timelineCameraShake';
 import { Prefabs } from '../prefab/prefabServer';
 import { Name } from '../ecs/component';
 import { ensureEntityEvents } from '../ecs/entityEvents';
@@ -97,14 +98,26 @@ export class TimelinePlugin implements Plugin {
                 return made.root;
             },
             despawn: (entity) => { if (world.valid(entity)) world.despawn(entity); },
-            prepare: (prefab) => (app.hasResource(Prefabs) ? app.getResource(Prefabs).prepare(prefab) : Promise.resolve({ release() {} })),
+            // Prepared ahead, so a clip's instance is made on the frame it starts.
+            prepare: async (prefab) => {
+                if (!app.hasResource(Prefabs)) return { release() {} };
+                const prepared = await app.getResource(Prefabs).prepare(prefab);
+                return {
+                    release: () => prepared.release(),
+                    spawn: (parent, name) => {
+                        const made = prepared.spawn(parent !== null && world.valid(parent) ? { parent } : undefined);
+                        if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
+                        return made.root;
+                    },
+                };
+            },
         };
 
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
             this.voices_.stop(entity);
-            this.spawns_.stop(entity, this.spawner_);
+            this.spawns_.forget(entity, this.spawner_);
             this.lastPlayback_.delete(entity);
             if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
         });
@@ -139,12 +152,12 @@ export class TimelinePlugin implements Plugin {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     current = entity;
                     // A player with no timeline (or one that cannot be found) is not heard either.
-                    if (!player.timeline) { this.voices_.stop(entity); this.spawns_.stop(entity, this.spawner_); continue; }
+                    if (!player.timeline) { this.voices_.stop(entity); this.spawns_.forget(entity, this.spawner_); continue; }
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
                     const asset = tl.getAsset(player.timeline);
-                    if (!asset) { this.voices_.stop(entity); this.spawns_.stop(entity, this.spawner_); continue; }
+                    if (!asset) { this.voices_.stop(entity); this.spawns_.forget(entity, this.spawner_); continue; }
                     const published = assets?.resolveRegistryAsset<PublishedTimeline>(
                         'timeline', player.timeline,
                     );
@@ -170,7 +183,7 @@ export class TimelinePlugin implements Plugin {
                         // A shake: an impulse from where the track's entity is, or the view shaken where it is.
                         onShake: (from, force) => {
                             if (force <= 0 || fireImpulse(world, from, force)) return;
-                            if (director) shakeCamera(director, { amplitude: 12 * force, rotation: 0.5 * force, frequency: 22, duration: 0.4 });
+                            if (director) shakeCamera(director, { amplitude: TIMELINE_VIEW_SHAKE.amplitude * force, rotation: TIMELINE_VIEW_SHAKE.rotation * force, frequency: TIMELINE_VIEW_SHAKE.frequency, duration: TIMELINE_VIEW_SHAKE.duration });
                         },
                         // What the playhead crossed, for the game: each about the entity its track names.
                         onSignals: (signals) => {
@@ -190,8 +203,11 @@ export class TimelinePlugin implements Plugin {
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // Spawned entities: there while the playhead is inside their clip, gone once the timeline is stopped.
                     const owner = entity;
-                    if (!state.playing && !state.started && state.time === 0) this.spawns_.stop(entity, this.spawner_);
-                    else if (this.spawner_) this.spawns_.sync(entity, asset, state.time, this.spawner_, (p) => resolveTimelinePath(world, owner, owner, p));
+                    if (!state.playing && !state.started && state.time === 0) {
+                        this.spawns_.stop(entity, this.spawner_);
+                        // Loaded while it waits to play, so its first spawn is made on the spot.
+                        if (this.spawner_) this.spawns_.prepare(entity, asset, this.spawner_);
+                    } else if (this.spawner_) this.spawns_.sync(entity, asset, state.time, this.spawner_, (p) => resolveTimelinePath(world, owner, owner, p));
                     // A clip that ran out gives the view back; one that is only paused keeps it.
                     if (justFinished && director) setTimelineShot(director, entity, null);
 

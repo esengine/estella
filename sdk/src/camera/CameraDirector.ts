@@ -378,14 +378,31 @@ function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): Cam
     if (s.startTime < 0) s.startTime = now;
     const e = now - s.startTime;
     if (e >= s.duration || s.duration <= 0) continue; // expired → dropped
-    const decay = 1 - e / s.duration;
-    const phase = 2 * Math.PI * s.frequency * e;
-    ox += s.amplitude * decay * shakeNoise(phase, s.seed);
-    oy += s.amplitude * decay * shakeNoise(phase, s.seed + 11);
-    orot += s.rotation * decay * shakeNoise(phase, s.seed + 23);
+    const o = shakeOffset(s, e);
+    ox += o.x; oy += o.y; orot += o.roll;
     alive.push(s);
   }
   dir.shakes = alive;
+  return offsetPOV(pov, ox, oy, orot);
+}
+
+/** What a view shake is: how far and how much it turns the view (radians), how fast, how long, and its noise. */
+export interface ViewShake { amplitude: number; rotation: number; frequency: number; duration: number; seed: number }
+
+/** How far `s` has thrown the view (across the screen, and rolled) `e` seconds after it began: none once it is over. */
+function shakeOffset(s: ViewShake, e: number): { x: number; y: number; roll: number } {
+  if (e < 0 || e >= s.duration || s.duration <= 0) return { x: 0, y: 0, roll: 0 };
+  const decay = 1 - e / s.duration;
+  const phase = 2 * Math.PI * s.frequency * e;
+  return {
+    x: s.amplitude * decay * shakeNoise(phase, s.seed),
+    y: s.amplitude * decay * shakeNoise(phase, s.seed + 11),
+    roll: s.rotation * decay * shakeNoise(phase, s.seed + 23),
+  };
+}
+
+/** `pov` thrown across its screen by (ox, oy) and rolled by `orot`. */
+function offsetPOV(pov: CameraPOV, ox: number, oy: number, orot: number): CameraPOV {
   if (ox === 0 && oy === 0 && orot === 0) return pov;
   if (!pov.tilt) return { ...pov, x: pov.x + ox, y: pov.y + oy, rotation: pov.rotation + orot };
   // A turned camera shakes in its own frame: across its screen, and rolled about where it looks. In world x and y a
@@ -401,6 +418,15 @@ function applyShakes(dir: CameraDirectorState, pov: CameraPOV, now: number): Cam
     rotation: pov.rotation + orot,
     tilt: roll,
   };
+}
+
+/**
+ * `pov` as `shake` leaves it `elapsed` seconds after it began, worked out at once rather than aged frame by frame: what
+ * a preview that scrubs (the Sequencer's) shows of a {@link shakeCamera}.
+ */
+export function shakenPOV(pov: CameraPOV, shake: ViewShake, elapsed: number): CameraPOV {
+  const o = shakeOffset(shake, elapsed);
+  return offsetPOV(pov, o.x, o.y, o.roll);
 }
 
 /**

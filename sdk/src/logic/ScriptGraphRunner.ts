@@ -293,7 +293,9 @@ export function destroyScriptGraph<Ctx>(
 /**
  * Light the `event.on` nodes listening for `type`. `target` and `other` are
  * published on the entry's ports, so a wire can carry who the event came from
- * and who else it named.
+ * and who else it named; so is each payload field a node declares, read from
+ * `payload` and turned to the type it declares (its zero where the event has
+ * no such field, or one that is not a plain value).
  */
 export function fireScriptGraphEvent<Ctx>(
     compiled: CompiledScriptGraph,
@@ -302,13 +304,22 @@ export function fireScriptGraphEvent<Ctx>(
     type: string,
     target: number,
     other = 0,
+    payload?: Readonly<Record<string, unknown>>,
 ): void {
     if (run.halted) return;
     const listeners = compiled.events.get(type);
     if (!listeners) return;
     const walk = newWalk();
     for (const id of listeners) {
-        run.produced.set(id, { target, other });
+        const produced: Record<string, ScriptValue> = {};
+        for (const port of compiled.shapes.get(id)?.outputs ?? []) {
+            const raw = payload?.[port.name];
+            const plain = typeof raw === 'number' || typeof raw === 'boolean' || typeof raw === 'string';
+            produced[port.name] = plain ? coerceValue(raw, port.type) : defaultForType(port.type);
+        }
+        produced.target = target;
+        produced.other = other;
+        run.produced.set(id, produced);
         ignite(compiled, run, run, tick, walk, id);
     }
 }

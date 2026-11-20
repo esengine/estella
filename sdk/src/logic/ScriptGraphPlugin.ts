@@ -189,8 +189,12 @@ function createEventBridge(
         if (!st?.compiled || !st.run) return;
         // The payload's `other` when it has one — physics names the contact's
         // partner there, and that is the entity a game reacts to.
-        const other = Number((event.data as { other?: number } | undefined)?.other ?? 0);
-        fireScriptGraphEvent(st.compiled, st.run, tickOf(self, st), event.type, event.target as number, other);
+        const data = event.data as { other?: number; payload?: unknown } | undefined;
+        const other = Number(data?.other ?? 0);
+        // The fields a node's payload pins read: the event's own, and those of its `payload` (a timeline marker's).
+        const inner = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : null;
+        const fields = data && typeof data === 'object' ? { ...(data as Record<string, unknown>), ...inner } : undefined;
+        fireScriptGraphEvent(st.compiled, st.run, tickOf(self, st), event.type, event.target as number, other, fields);
     };
 
     return {

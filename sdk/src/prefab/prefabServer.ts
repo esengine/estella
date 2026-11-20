@@ -13,6 +13,7 @@ import {
     type PrefabOverride,
     type InstantiatePrefabResult,
 } from '../prefab';
+import { spawnPrepared } from './preparedPrefab';
 
 /**
  * An override as written at a SPAWN: the entity id may be left out, and then it
@@ -21,6 +22,19 @@ import {
  * @beta
  */
 export type SpawnOverride = Omit<PrefabOverride, 'prefabEntityId'> & { prefabEntityId?: string };
+
+/**
+ * A prefab {@link PrefabServer.prepare} has loaded: held until released, and
+ * spawned synchronously while it is.
+ *
+ * @beta
+ */
+export interface PreparedSpawnable {
+    /** Lets go of what the preparation loaded; a spawn after this throws. */
+    release(): void;
+    /** Spawns it now, under `parent` when given; `scene: false` keeps it out of the active scene. */
+    spawn(options?: { parent?: Entity; scene?: boolean }): { root: Entity; entities: Map<number, Entity> };
+}
 
 /**
  * Prefab instantiation, as `Res(Prefabs)` hands it over.
@@ -82,11 +96,24 @@ export class PrefabServer {
      * and its entities appear on the frame they are asked for rather than when
      * their files arrive. Release what it answers when they are no longer
      * wanted.
+     *
+     * What it answers also spawns the prefab on the spot, with nothing left to
+     * wait for: `spawn` is synchronous, so the entities exist on the line that
+     * asked for them (as a Unity `Instantiate` or a UE spawnable does), until
+     * it is released.
      */
-    async prepare(pathOrAddress: string): Promise<{ release(): void }> {
+    async prepare(pathOrAddress: string): Promise<PreparedSpawnable> {
         const prepared = await this.getAssets_().preparePrefab(pathOrAddress);
         let held = true;
-        return { release: () => { if (held) { held = false; prepared.release(); } } };
+        return {
+            release: () => { if (held) { held = false; prepared.release(); } },
+            spawn: (options) => {
+                if (!held) throw new Error(`prefab "${pathOrAddress}" was released before this spawn`);
+                const made = spawnPrepared(this.world_, prepared, options?.parent !== undefined ? { parent: options.parent } : undefined);
+                if (options?.scene !== false) this.adoptIntoActiveScene_(made);
+                return made;
+            },
+        };
     }
 
     /**
@@ -94,7 +121,7 @@ export class PrefabServer {
      * the time the entities exist — adopting into whatever is active now is the
      * only owner that is real, and a switch that already happened takes it.
      */
-    private adoptIntoActiveScene_(result: InstantiatePrefabResult): void {
+    private adoptIntoActiveScene_(result: { entities: ReadonlyMap<number, Entity> }): void {
         const scenes = this.getScenes_();
         const active = scenes?.getActive();
         const ctx = active ? scenes?.getScene(active) : null;

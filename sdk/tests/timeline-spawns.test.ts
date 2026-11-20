@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Spawn tracks: an instance while the playhead is inside a clip, taken away when it leaves, one that arrives
- *        after its clip ended thrown away, every one gone when the player stops; saved and loaded as written.
+ *        after its clip ended thrown away, every one gone when the player stops; once prepared, made on the frame its
+ *        clip starts; saved and loaded as written.
  */
 import { describe, it, expect } from 'vitest';
 import { TimelineSpawns, spawnClipActive, type TimelineSpawner } from '../src/timeline/timelineSpawns';
@@ -82,7 +83,7 @@ describe('spawn tracks', () => {
         expect(spawns.instancesOf(player)).toEqual([]);
     });
 
-    it('takes everything away and lets go of what it prepared when the player stops', async () => {
+    it('takes everything away when the player stops, and lets go of what it prepared when the player goes', async () => {
         const f = fakeSpawner();
         const spawns = new TimelineSpawns();
         spawns.sync(player, asset([clip, { ...clip, start: 1.5, name: 'Rider' }]), 2, f.spawner, () => player);
@@ -90,7 +91,42 @@ describe('spawn tracks', () => {
         expect(f.alive.size).toBe(2);
         spawns.stop(player, f.spawner);
         expect(f.alive.size).toBe(0);
+        // Kept for when it plays again.
+        expect(f.released()).toBe(0);
+        spawns.forget(player, f.spawner);
         expect(f.released()).toBe(1);
+    });
+
+    it('makes a prepared prefab on the frame its clip starts, preparing before the timeline plays', async () => {
+        const made: { parent: Entity | null; name: string }[] = [];
+        let released = 0;
+        let prepares = 0;
+        const spawner: TimelineSpawner = {
+            spawn: () => Promise.reject(new Error('the prepared spawn should be used')),
+            despawn: () => {},
+            prepare: async (prefab) => {
+                prepares++;
+                return {
+                    release: () => { released++; },
+                    spawn: (parent, name) => { made.push({ parent, name }); return (200 + made.length) as Entity; },
+                };
+            },
+        };
+        const spawns = new TimelineSpawns();
+        // Waiting to play: loading starts, nothing made.
+        spawns.prepare(player, asset([clip]), spawner);
+        spawns.prepare(player, asset([clip]), spawner);
+        await flush();
+        expect(prepares).toBe(1);
+        expect(made).toEqual([]);
+        // The clip starts: there at once, before any await.
+        spawns.sync(player, asset([clip]), 1, spawner, () => player);
+        expect(spawns.instancesOf(player)).toEqual([201 as Entity]);
+        expect(made).toEqual([{ parent: player, name: 'Dragon' }]);
+        // A timeline that no longer spawns it lets it go.
+        spawns.sync(player, asset([]), 1, spawner, () => player);
+        expect(released).toBe(1);
+        expect(spawns.instancesOf(player)).toEqual([]);
     });
 
     it('makes nothing where the track’s entity is not there, nor for a clip with no prefab', async () => {

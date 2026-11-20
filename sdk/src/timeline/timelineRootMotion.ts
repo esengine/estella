@@ -8,18 +8,21 @@
  * @details Unity's Animation track with root motion, UE's root motion on a skeletal animation section. A clip's root
  *          track (its `Transform` position and rotation at the clip's own root) says where the character goes, not
  *          where it stands: with the track's `rootMotion` on, that track is left out of the pose and the rig is moved
- *          by how far the clip's root has gone since the clip began. Clips follow on: each one starts where the track
- *          had brought the rig by its start, so two walk clips in a row walk twice as far, and a looping clip goes on
- *          travelling lap after lap. Where clips crossfade, their placements blend by their weights; after the last
- *          clip the rig stays where it got to.
+ *          by how far the clip's root has gone since the clip began. As in Unity, what moves the rig is each clip's
+ *          motion scaled by its weight: two walk clips in a row walk twice as far, a looping clip goes on travelling
+ *          lap after lap, a clip easing in starts the rig off slowly and one easing out brings it to a stop where it
+ *          got to, a crossfade blends the two clips' steps, and after the last clip the rig stays where it got to.
+ *          A clip's post-extrapolation carries on its motion: a loop keeps walking, ping-pong walks back and forth,
+ *          continue plays on in its animation, hold stands still.
  *
  *          The placement is worked out from the clips alone at every time asked (never accumulated frame by frame), so
- *          scrubbing, seeking and looping the timeline put the rig in the same place every time. It starts from the
- *          rig's own placement before the track first moved it.
+ *          scrubbing, seeking and looping the timeline put the rig in the same place every time: the stretches where
+ *          one clip plays at full weight are taken in one step, and only eases and crossfades are summed in short
+ *          steps. It starts from the rig's own placement before the track first moved it.
  */
-import type { AnimationClipItem, AnimationTrack, TimelineAsset } from './TimelineTypes';
+import type { AnimationClipItem, AnimationExtrapolation, AnimationTrack, TimelineAsset } from './TimelineTypes';
 import { createRootPlacement, sampleRootPlacement, type RootPlacement } from './TimelineEvaluator';
-import type { animationClipWeights } from './timelineAnimation';
+import type { animationClipWeights, extrapolatedTime } from './timelineAnimation';
 
 type Vec3 = { x: number; y: number; z: number };
 type Quat = { w: number; x: number; y: number; z: number };
@@ -107,51 +110,86 @@ export function clipRootTravel(clip: AnimationClipItem, anim: TimelineAsset, u: 
     return composePlacement(invertPlacement(at(clip.clipIn)), at(u));
 }
 
-/** Animation time (unwrapped) of `clip` at track time `t`: held at its start before it, and at its end after it unless it goes on. */
-function rootTime(clip: AnimationClipItem, t: number, hold: boolean): number {
+/** Steps per second over eases and crossfades, where weights change and the motion is summed. */
+const BLEND_STEPS_PER_SECOND = 60;
+
+/**
+ * How far `clip` has carried its root by track time `t`, from where it was at the clip's start: its own motion inside
+ * the clip, and after it what its post-extrapolation does (a loop repeats the clip's travel, ping-pong plays it back,
+ * continue goes on in its animation, hold and none stand at the end).
+ */
+function clipTravelAt(
+    clip: AnimationClipItem, anim: TimelineAsset, t: number, post: AnimationExtrapolation,
+    wrap: typeof extrapolatedTime,
+): RootPlacement {
     const end = clip.start + clip.duration;
-    const post = clip.postExtrapolation ?? (hold ? 'hold' : 'none');
-    let tt = Math.max(t, clip.start);
-    if (tt > end && post !== 'continue' && post !== 'loop') tt = end;
-    return clip.clipIn + (tt - clip.start) * clip.speed;
+    const at = (trackTime: number) => clipRootTravel(clip, anim, clip.clipIn + (trackTime - clip.start) * clip.speed);
+    if (t <= clip.start || clip.duration <= 0) return IDENTITY();
+    if (t <= end) return at(t);
+    switch (post) {
+        case 'continue': return at(t);
+        case 'pingPong': return at(wrap(clip, t, 'pingPong'));
+        case 'loop': {
+            const off = t - clip.start;
+            const laps = Math.floor(off / clip.duration);
+            const lap = at(end);
+            let acc = IDENTITY();
+            for (let i = 0; i < laps; i++) acc = composePlacement(acc, lap);
+            return composePlacement(acc, at(clip.start + (off - laps * clip.duration)));
+        }
+        default: return at(end);
+    }
 }
 
 /**
- * Where the rig of `track` is at track time `time`, starting from `base`: each clip moved on from where the clips
- * before it had brought the rig at its start. `lookup` finds a clip's animation; `weights` is which clips count when
- * ({@link animationClipWeights}, passed in so the two modules do not import each other).
+ * Where the rig of `track` is at track time `time`, starting from `base`: each clip's motion, scaled by its weight
+ * ({@link animationClipWeights}, passed in with {@link extrapolatedTime} so the two modules do not import each other),
+ * added up from the first clip. `lookup` finds a clip's animation.
  */
 export function rootPlacementAt(
     track: AnimationTrack, time: number, base: RootPlacement,
     lookup: (ref: string) => TimelineAsset | undefined,
     weights: typeof animationClipWeights,
+    wrap: typeof extrapolatedTime,
 ): RootPlacement {
-    const starts = new Map<number, RootPlacement>();
+    const clips = track.clips;
+    const anims = clips.map((c) => (c.clip ? lookup(c.clip) : undefined));
     const lengthOf = (c: AnimationClipItem) => (c.clip ? lookup(c.clip)?.duration ?? 0 : 0);
+    const posts = clips.map((c) => c.postExtrapolation ?? (track.hold ? 'hold' : 'none'));
     const travel = (i: number, t: number): RootPlacement => {
-        const c = track.clips[i]!;
-        const anim = c.clip ? lookup(c.clip) : undefined;
-        return anim ? clipRootTravel(c, anim, rootTime(c, t, track.hold)) : IDENTITY();
+        const anim = anims[i];
+        return anim ? clipTravelAt(clips[i]!, anim, t, posts[i]!, wrap) : IDENTITY();
     };
-    // Where the clips before `upto` have the rig at `t`.
-    const placement = (upto: number, t: number): RootPlacement => {
-        if (upto === 0) return base;
-        const clips = track.clips.slice(0, upto);
-        const counted = weights({ ...track, clips }, t, lengthOf);
-        if (counted.length > 0) {
-            return blendPlacements(counted.map(({ index, weight }) => ({ placement: composePlacement(startOf(index), travel(index, t)), weight })));
+    const step = (i: number, a: number, b: number) => composePlacement(invertPlacement(travel(i, a)), travel(i, b));
+
+    // Where weights can change: each clip's ends and the ends of its eases (crossfades lie between two clips' ends).
+    const marks = new Set<number>([time]);
+    for (const c of clips) {
+        if (c.duration <= 0) continue;
+        const end = c.start + c.duration;
+        for (const m of [c.start, end, c.start + c.easeIn, end - c.easeOut]) if (m < time) marks.add(m);
+    }
+    const first = Math.min(...clips.filter((c) => c.duration > 0).map((c) => c.start));
+    const points = [...marks].filter((m) => m >= first).sort((x, y) => x - y);
+
+    let at = base;
+    for (let k = 0; k + 1 < points.length; k++) {
+        const a = points[k]!, b = points[k + 1]!;
+        if (b <= a) continue;
+        const mid = weights(track, (a + b) / 2, lengthOf);
+        if (mid.length === 0) continue;
+        // One clip at full weight: its whole stretch in one step.
+        if (mid.length === 1 && mid[0]!.weight >= 1 - 1e-9) { at = composePlacement(at, step(mid[0]!.index, a, b)); continue; }
+        // An ease or a crossfade: each clip's step scaled by its weight, summed in short steps.
+        const n = Math.min(4096, Math.max(1, Math.ceil((b - a) * BLEND_STEPS_PER_SECOND)));
+        for (let j = 0; j < n; j++) {
+            const t0 = a + ((b - a) * j) / n, t1 = a + ((b - a) * (j + 1)) / n;
+            const counted = weights(track, (t0 + t1) / 2, lengthOf);
+            let total = 0;
+            const parts = counted.map(({ index, weight }) => { total += weight; return { placement: step(index, t0, t1), weight }; });
+            if (total < 1) parts.push({ placement: IDENTITY(), weight: 1 - total });
+            at = composePlacement(at, blendPlacements(parts));
         }
-        // Between or after them: where the latest that has ended left the rig; before them, the base.
-        let last = -1;
-        for (let i = 0; i < clips.length; i++) if (clips[i]!.start + clips[i]!.duration <= t) last = i;
-        if (last < 0) return base;
-        const c = clips[last]!;
-        return composePlacement(startOf(last), travel(last, c.start + c.duration));
-    };
-    const startOf = (i: number): RootPlacement => {
-        let s = starts.get(i);
-        if (!s) starts.set(i, (s = placement(i, track.clips[i]!.start)));
-        return s;
-    };
-    return placement(track.clips.length, time);
+    }
+    return at;
 }

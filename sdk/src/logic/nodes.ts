@@ -110,6 +110,30 @@ function entry(outputs: readonly ScriptPort[], occasion: ScriptNodeShape['entry'
     return { execIn: false, execOut: [THEN], inputs: NO_PORTS, outputs, pure: false, entry: occasion };
 }
 
+const PAYLOAD_TYPES = new Set<ScriptValueType>(['number', 'bool', 'string', 'entity', 'any']);
+const PAYLOAD_RESERVED = new Set(['target', 'other']);
+
+/**
+ * The payload fields an `event.on` node declares, as its output pins: its
+ * `payload` literal, `name:type` pairs separated by commas (`amount:number,
+ * who:entity`). A field with no type is `any`; an unknown type, a repeated
+ * name, or `target`/`other` (pins the node already has) is left out.
+ */
+export function eventPayloadPorts(node: ScriptGraphNode): ScriptPort[] {
+    if (node.kind !== 'event.on') return [];
+    const raw = node.literals?.payload;
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    const ports: ScriptPort[] = [];
+    const seen = new Set<string>();
+    for (const part of raw.split(',')) {
+        const [name = '', type = 'any'] = part.split(':').map((s) => s.trim());
+        if (!name || seen.has(name) || PAYLOAD_RESERVED.has(name) || !PAYLOAD_TYPES.has(type as ScriptValueType)) continue;
+        seen.add(name);
+        ports.push({ name, type: type as ScriptValueType });
+    }
+    return ports;
+}
+
 /** Literal-valued node kinds → the type they carry. */
 const LITERAL_KINDS: Record<string, ScriptValueType> = {
     'lit.number': 'number',
@@ -153,11 +177,13 @@ export function describeNode(
             return entry(NO_PORTS, 'destroy');
         case 'event.on':
             // `other` is who ELSE the event named — the contact's partner on a
-            // physics event, 0 where the event names nobody. It is the only
-            // payload field a wire can carry, and the one a game acts on.
+            // physics event, 0 where the event names nobody. The fields the node
+            // declares in its `payload` literal follow, one typed pin each: the
+            // parameters of UE's event payload, of a Unity signal's receiver.
             return entry([
                 { name: 'target', type: 'entity' },
                 { name: 'other', type: 'entity' },
+                ...eventPayloadPorts(node),
             ], 'event');
 
         case 'flow.branch':

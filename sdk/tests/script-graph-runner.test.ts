@@ -16,7 +16,7 @@ import {
     fireScriptGraphEvent, type ScriptTickContext,
 } from '../src/logic/ScriptGraphRunner';
 import { SCRIPT_GRAPH_VERSION, type ScriptGraph, type ScriptGraphEdge, type ScriptGraphNode } from '../src/logic/types';
-import { scriptCatalog, scriptGraphPrefabRefs } from '../src/logic/nodes';
+import { eventPayloadPorts, scriptCatalog, scriptGraphPrefabRefs } from '../src/logic/nodes';
 
 interface TestCtx { log: string[]; }
 
@@ -67,7 +67,7 @@ interface Run {
     problems: string[];
     tick(dt?: number): void;
     destroy(): void;
-    fire(type: string, target?: number, other?: number): void;
+    fire(type: string, target?: number, other?: number, payload?: Record<string, unknown>): void;
     halted(): boolean;
 }
 
@@ -86,7 +86,7 @@ function run(graph: ScriptGraph, reg: AiRegistry<TestCtx>, budget?: number): Run
         problems,
         tick: (dt = 1 / 60) => stepScriptGraph(compiled, state, tickCtx(dt)),
         destroy: () => destroyScriptGraph(compiled, state, tickCtx(0)),
-        fire: (type, target = 7, other = 0) => fireScriptGraphEvent(compiled, state, tickCtx(0), type, target, other),
+        fire: (type, target = 7, other = 0, payload) => fireScriptGraphEvent(compiled, state, tickCtx(0), type, target, other, payload),
         halted: () => state.halted,
     };
 }
@@ -256,6 +256,26 @@ describe('data is pulled', () => {
         expect(r.log).toEqual([]);
         r.fire('click', 12);
         expect(r.log).toEqual(['12']);
+    });
+});
+
+describe('event payload pins', () => {
+    it('declares typed pins from its payload literal, leaving out the bad ones', () => {
+        const ports = eventPayloadPorts(node('on', 'event.on', { literals: { type: 'hit', payload: 'amount:number, who:entity, note, target:number, bad:vec, amount:string' } }));
+        expect(ports).toEqual([{ name: 'amount', type: 'number' }, { name: 'who', type: 'entity' }, { name: 'note', type: 'any' }]);
+    });
+
+    it('carries each declared field of the event, turned to its type, and the zero where it is missing', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('on', 'event.on', { literals: { type: 'hit', payload: 'amount:number, label:string' } }),
+            node('a', 'call', { ref: 'test.say' }),
+            node('b', 'call', { ref: 'test.say' }),
+        ], [edge('on', 'then', 'a', ''), edge('a', 'then', 'b', ''), edge('on', 'amount', 'a', 'text'), edge('on', 'label', 'b', 'text')]);
+        const r = run(g, reg);
+        r.fire('hit', 3, 0, { amount: '12', label: 'boom' });
+        r.fire('hit', 3, 0, { amount: { not: 'plain' } });
+        expect(r.log).toEqual(['12', 'boom', '0', '']);
     });
 });
 
