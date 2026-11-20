@@ -177,6 +177,8 @@ private:
     f32 cluster_scale_ = 0.0f;
     bool cluster_flat_ = false;
     u32 cluster_meshes_ = 0, cluster_triangles_ = 0, cluster_source_triangles_ = 0, cluster_rebuilt_ = 0, cluster_drawn_ = 0;
+    /// Draws this collect gave the mesh's own program because their material's was still compiling.
+    u32 waiting_materials_ = 0;
     /**
      * @brief The cut @p entity draws @p mesh through this frame, or null where it is drawn whole (the device refused a buffer).
      */

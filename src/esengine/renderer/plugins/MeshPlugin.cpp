@@ -1239,6 +1239,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         cluster_scale_ = glm::length(glm::vec3(vp[0][1], vp[1][1], vp[2][1])) * 0.5f * (ctx.frame ? ctx.frame->viewHeightPx() : 1080.0f);
         cluster_flat_ = glm::length(glm::vec3(vp[0][3], vp[1][3], vp[2][3])) < 1e-12f;
         cluster_meshes_ = cluster_triangles_ = cluster_source_triangles_ = cluster_rebuilt_ = cluster_drawn_ = 0;
+        waiting_materials_ = 0;
         if (cluster_serial_ % 256 == 0 && !cluster_cuts_.empty()) {
             GfxDevice& device = buffers.device();
             for (auto it = cluster_cuts_.begin(); it != cluster_cuts_.end();) {
@@ -1809,6 +1810,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                 }
                 key.shaderId = materialProgram != 0 ? materialProgram : residentShader;
+                // A material whose program is still compiling in the background: drawn with the mesh's own program meanwhile, its
+                // default surface, rather than left out until the compile ends. A scene opens with its shapes all there and each
+                // material takes over the frame its program is ready. Before the prepass choice below, which then takes the
+                // mesh's own depth program too: a prepass left out under a colour draw that tests depth for equality is no draw.
+                if (materialProgram != 0 && key.shaderId == materialProgram && residentShader != 0) {
+                    GfxDevice& device = buffers.device();
+                    if (device.skipPendingPrograms() && !device.programReady(ShaderHandle{materialProgram})
+                        && device.programReady(ShaderHandle{residentShader})) {
+                        key.shaderId = residentShader;
+                        key.materialId = 0;
+                        ES_PROFILE_COUNTER("render.mesh.waitingForMaterial", ++waiting_materials_);
+                    }
+                }
                 // A caster whose material bends it casts the bent shape, and one whose alpha is coverage casts
                 // only where it is opaque: the depth program gets the material's hook and cutoff, and the draw
                 // keeps the material so its params are bound.
