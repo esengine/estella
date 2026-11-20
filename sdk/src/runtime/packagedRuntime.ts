@@ -14,6 +14,7 @@
 
 import type { QualityConfig } from '../render/quality';
 import type { RuntimeBuildConfig } from '../defaults';
+import type { SkinCacheConfig } from '../render/skinCache';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
@@ -71,6 +72,8 @@ export interface PackagedGameConfig {
     /** Scene-target multisampling the project asked for; absent ⇒ 4. Clamped by
      *  the device, which answers capability and never policy. */
     msaaSamples?: number;
+    /** The compute skin cache; absent ⇒ on, every mesh, 128 MB. */
+    skinCache?: SkinCacheConfig;
     quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
@@ -216,13 +219,14 @@ export function glContextAttributes(preserveDrawingBuffer = false): WebGLContext
 export function packagedAppOptions(
     config: Pick<PackagedGameConfig,
         'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'
-        | 'msaaSamples' | 'quality'>,
+        | 'msaaSamples' | 'quality' | 'skinCache'>,
 ): {
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     outputTransform?: 'none' | 'aces' | 'neutral';
     msaaSamples?: number;
+    skinCache?: SkinCacheConfig;
     quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
@@ -235,6 +239,7 @@ export function packagedAppOptions(
         colorSpace: config.colorSpace,
         outputTransform: config.outputTransform,
         msaaSamples: config.msaaSamples,
+        ...(config.skinCache ? { skinCache: config.skinCache } : {}),
         quality: config.quality,
         screenFit: config.screenFit,
     };

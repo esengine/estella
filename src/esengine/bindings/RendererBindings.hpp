@@ -343,6 +343,13 @@ void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);
+/**
+ * @brief The project's skin cache: on or off, which meshes go through it when their MeshSkin says Auto (0 every one, 1 only those
+ *        that say Enabled), and the memory it may hold in megabytes. A device without compute poses every skin in the vertex stage.
+ */
+void renderer_setSkinCache(i32 enabled, i32 behavior, f32 maxMegabytes);
+/** @brief The skin cache's state: 0 active, 1 meshes held, 2 bytes held, 3 refused this frame by the budget, 4 posed this frame, 5 draws this frame that read a posed copy. */
+f64 renderer_getSkinCacheStat(i32 which);
 void renderer_setTreeSortLayers(u32 mask);
 /** 2.5D opt-in: bit i ⇒ layer i resolves by real depth. Same shape as y-sort. */
 void renderer_setDepthLayers(u32 mask);

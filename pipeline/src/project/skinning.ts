@@ -10,6 +10,9 @@
 import { MESH_MAX_BONES } from '../../../sdk/src/asset/meshFormat';
 import { MIN_BONES_PER_CHUNK, SKIN_INFLUENCES } from '../../../sdk/src/asset/skinChunks';
 import type { ExportPlatform } from './platforms';
+import { SKIN_CACHE_DEFAULTS, isDefaultSkinCache, type SkinCacheConfig } from '../../../sdk/src/render/skinCache';
+
+export { isDefaultSkinCache };
 
 export interface SkinningConfig {
     /** Bones one draw of a skinned mesh may carry, for every platform: at most 256 (16KB of matrices, WebGL2's block). */
@@ -23,6 +26,12 @@ export interface SkinningConfig {
     boneInfluenceLimit?: number;
     /** Keep skin weights at 16 bits rather than 8. */
     highPrecisionWeights?: boolean;
+    /** Off turns the compute skin cache off for the project: every skinned mesh is posed in each draw's vertex stage. Absent is on. */
+    computeSkinCache?: false;
+    /** Which meshes the cache poses when their MeshSkin says Auto: `exclusive` only those that say Enabled. Absent is every one. */
+    skinCacheBehavior?: 'exclusive';
+    /** The memory the skin cache may hold per world, in megabytes; absent is {@link SKIN_CACHE_DEFAULTS}. */
+    skinCacheMaxMegabytes?: number;
 }
 
 /** The platforms the `mobile` group covers: what runs on a phone's GPU. */
@@ -50,7 +59,22 @@ export function parseSkinningConfig(raw: unknown): SkinningConfig {
         out.boneInfluenceLimit = r.boneInfluenceLimit;
     }
     if (r.highPrecisionWeights === true) out.highPrecisionWeights = true;
+    if (r.computeSkinCache === false) out.computeSkinCache = false;
+    if (r.skinCacheBehavior === 'exclusive') out.skinCacheBehavior = 'exclusive';
+    if (typeof r.skinCacheMaxMegabytes === 'number' && Number.isFinite(r.skinCacheMaxMegabytes)) {
+        const mb = Math.min(4096, Math.max(0, Math.round(r.skinCacheMaxMegabytes)));
+        if (mb !== SKIN_CACHE_DEFAULTS.maxMegabytes) out.skinCacheMaxMegabytes = mb;
+    }
     return out;
+}
+
+/** The skin cache the runtime runs with, every field stated. */
+export function skinCacheOf(config: SkinningConfig | undefined): SkinCacheConfig {
+    return {
+        enabled: config?.computeSkinCache !== false,
+        behavior: config?.skinCacheBehavior ?? SKIN_CACHE_DEFAULTS.behavior,
+        maxMegabytes: config?.skinCacheMaxMegabytes ?? SKIN_CACHE_DEFAULTS.maxMegabytes,
+    };
 }
 
 /** The bone budget a build for `platform` is made with; every platform's when none is named. */

@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "SkinCache.hpp"
 #include "../../core/Types.hpp"
 #include "../draw/RenderItem.hpp"
 #include "../rhi/RenderTarget.hpp"
@@ -700,6 +701,8 @@ public:
 #ifdef ES_ENABLE_GPU_PARTICLES
     /** Where emitters that simulate on the GPU queue their step, and find the buffer to draw (null before init). */
     GpuParticles* gpuParticles() { return gpu_particles_.get(); }
+    /** The skin cache (SkinCache.hpp): what a skinned draw asks for the vertices this frame posed for it. */
+    SkinCache* skinCache() { return skin_cache_.get(); }
 #endif
 
 private:
@@ -714,6 +717,10 @@ private:
 #ifdef ES_ENABLE_GPU_PARTICLES
     /// The compute-simulated particles' buffers live here, across frames: their state is the point of them.
     Unique<GpuParticles> gpu_particles_;
+    Unique<SkinCache> skin_cache_;
+    /// The frame whose skins were scheduled: once a frame, by its first collect.
+    u64 skin_cache_frame_ = ~0ull;
+    void declareSkinCache(ecs::Registry& registry);
 #endif
     RenderTargetManager target_manager_;
     struct MaterialBake { u32 ticket; u32 material; u32 shader; u32 target; u32 x, y, w, h; glm::vec4 a, b; };

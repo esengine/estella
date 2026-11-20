@@ -349,6 +349,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'mesh', type: 'u32', offset: 48 },
         ],
     },
+    MeshSkin: {
+        fields: [
+            { name: 'skinCache', type: 'i32', offset: 12 },
+        ],
+    },
     Occluder: {
         ptrFn: 'getOccluderPtr',
         fields: [

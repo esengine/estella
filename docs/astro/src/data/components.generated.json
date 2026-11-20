@@ -4953,6 +4953,17 @@
           "type": "Entity",
           "default": "",
           "doc": "Joint entities, in the order the mesh's bind matrices are in."
+        },
+        {
+          "key": "skinCache",
+          "type": "enum",
+          "default": "Auto",
+          "doc": "Auto follows the project's Default Skin Cache Behavior. Disabled poses it in each draw's vertex stage. Enabled asks for the skin cache even when the project leaves meshes out by default.",
+          "values": [
+            "Auto",
+            "Disabled",
+            "Enabled"
+          ]
         }
       ]
     },

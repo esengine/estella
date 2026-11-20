@@ -303,6 +303,17 @@ export enum SimulationSpace {
     Local = 1,
 }
 
+/**
+ * The engine's `SkinCacheMode`, generated from the C++ enum.
+ *
+ * @beta
+ */
+export enum SkinCacheMode {
+    Auto = 0,
+    Disabled = 1,
+    Enabled = 2,
+}
+
 export enum SpringBoneShape {
     Sphere = 0,
     Capsule = 1,
@@ -770,6 +781,7 @@ export interface MeshRenderer {
 
 export interface MeshSkin {
     joints: VectorEntity;
+    skinCache: number;
 }
 
 export interface Occluder {

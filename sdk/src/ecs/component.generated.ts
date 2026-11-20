@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleColliderShape, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleColliderShape, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SkinCacheMode, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'a7d308843175abab';
+export const ABI_LAYOUT_HASH = 'd7ed397eaf20f509';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -720,6 +720,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     MeshSkin: {
         defaults: {
             joints: [],
+            skinCache: 0,
         },
         assetFields: [],
         entityFields: ['joints'],
@@ -727,6 +728,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             joints: { tooltip: "Joint entities, in the order the mesh's bind matrices are in." },
+            skinCache: { enum: [{ label: 'Auto', value: 0 }, { label: 'Disabled', value: 1 }, { label: 'Enabled', value: 2 }], label: "Skin Cache Usage", tooltip: "Auto follows the project's Default Skin Cache Behavior. Disabled poses it in each draw's vertex stage. Enabled asks for the skin cache even when the project leaves meshes out by default." },
         },
     },
     Occluder: {
@@ -1832,6 +1834,7 @@ export interface MeshRendererData {
 
 export interface MeshSkinData {
     joints: Entity[];
+    skinCache?: SkinCacheMode;
 }
 
 /**

@@ -10,6 +10,7 @@
 #include "../store/MorphConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../frame/RenderFrame.hpp"
+#include "../frame/SkinCache.hpp"
 #include "../frame/RenderContext.hpp"
 #include "../rhi/Texture.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
@@ -393,6 +394,25 @@ u32 ruledOutChangedAt(const ecs::Registry& registry) {
     return latest;
 }
 }  // namespace
+
+void MeshPlugin::scheduleSkins(RenderFrameContext& ctx, ecs::Registry& registry, SkinCache& cache) {
+    // Every skinned mesh the cache is asked for: a mesh not drawn this frame costs one dispatch, which is cheaper than finding
+    // which views will draw it.
+    for (const Entity entity : registry.view<ecs::MeshRenderer, ecs::MeshSkin>()) {
+        const auto& skin = registry.get<ecs::MeshSkin>(entity);
+        const auto usage = static_cast<SkinCacheUsage>(std::clamp(skin.skinCache, 0, 2));
+        if (!cache.wants(usage)) continue;
+        const auto& renderer = registry.get<ecs::MeshRenderer>(entity);
+        if (!renderer.enabled || !renderer.mesh.isValid()) continue;
+        const Mesh* resident = ctx.resources.getMesh(renderer.mesh);
+        if (!resident || !resident->isDrawable()) continue;
+        // A mesh being reshaped by its morph targets is posed in the vertex stage, where the shapes are applied first.
+        if (registry.has<ecs::MeshMorph>(entity) && resident->morphTexture != TextureHandle::Invalid) continue;
+        const u32 joints = skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
+        if (joints == 0) continue;
+        cache.schedule(entity, *resident, pose_scratch_.data(), joints);
+    }
+}
 
 void MeshPlugin::init(RenderFrameContext& ctx) {
     // A renderer initialized again runs this on a cache that compiled before. The
@@ -1654,14 +1674,25 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // world-space, so the entity's own transform is not read — which is
             // what glTF requires of a skinned mesh.
             const u32 poseSize = kept ? 0u : skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
-            const bool skinned = poseSize > 0;
+            // Posed already this frame by the skin cache: the draw reads the posed copy as unskinned geometry in world space,
+            // through the program a static mesh has. The motion pass poses in its vertex stage still, with last frame's pose beside it.
+            BufferHandle cachedSkin = BufferHandle::Invalid;
+            if (poseSize > 0 && !motion && !placements && ctx.frame) {
+                if (SkinCache* cache = ctx.frame->skinCache()) {
+                    cachedSkin = cache->bufferFor(entity);
+                    if (cachedSkin != BufferHandle::Invalid) cache->noteDraw();
+                }
+            }
+            const bool cached = cachedSkin != BufferHandle::Invalid;
+            const bool skinned = poseSize > 0 && !cached;
+            const u32 drawVariant = cached ? (keys.variant & ~8u) : keys.variant;
 
             // `lit` is the draw's own word and is honoured either way: geometry
             // with normals can be drawn unlit, and geometry without them takes
             // light off the constant normal a 2D surface has.
             tick(4);
             ++programAsks;
-            const u32 residentShader = meshProgram(ctx, keys.variant);
+            const u32 residentShader = meshProgram(ctx, drawVariant);
             tick(3);
             if (resident->isDrawable() && residentShader != 0) {
                 // The shape the mesh was REALIZED in, not a second derivation:
@@ -1704,7 +1735,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                         key.skinCount = poseSize;
                     }
                 } else {
-                const glm::mat4 model = kept ? kept->model
+                const glm::mat4 model = cached ? glm::mat4(1.0f)
+                                      : kept ? kept->model
                                       : glm::translate(glm::mat4(1.0f), position)
                                       * glm::mat4_cast(rotation)
                                       * glm::scale(glm::mat4(1.0f), scale);
@@ -1717,7 +1749,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (resident->hasNormals) {
                     // Written per object rather than derived per vertex: this is
                     // the transform a normal takes under a non-uniform scale.
-                    const glm::mat3 nrm = kept ? kept->normalRows : glm::transpose(glm::inverse(glm::mat3(model)));
+                    const glm::mat3 nrm = cached ? glm::mat3(1.0f)
+                                        : kept ? kept->normalRows : glm::transpose(glm::inverse(glm::mat3(model)));
                     for (u32 row = 0; row < 3; ++row) {
                         std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &nrm[row][0], 12);
                     }
@@ -1774,12 +1807,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                 } else if (ctx.track_motion && !shadowDepth) {
                     trackPose(*poseOf(ctx, entity, kept, true), ctx,
-                              skinned ? glm::mat4(1.0f)
+                              poseSize > 0 ? glm::mat4(1.0f)
                               : kept  ? kept->model
                                       : glm::translate(glm::mat4(1.0f), position)
                                             * glm::mat4_cast(rotation)
                                             * glm::scale(glm::mat4(1.0f), scale),
-                              skinned ? &pose_scratch_ : nullptr);
+                              poseSize > 0 ? &pose_scratch_ : nullptr);
                 }
 
                 // A draw reading its own atlas does not ask for IRRADIANCE, and asks
@@ -1830,7 +1863,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (!depthPass && !motion && key.shaderId != 0) {
                     GfxDevice& device = buffers.device();
                     if (device.skipPendingPrograms() && !device.programReady(ShaderHandle{key.shaderId})) {
-                        const u32 preview = previewProgram(ctx, keys.variant);
+                        const u32 preview = previewProgram(ctx, drawVariant);
                         if (preview != 0 && device.programReady(ShaderHandle{preview})) {
                             key.shaderId = preview;
                             key.materialId = 0;
@@ -1871,8 +1904,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                                                                               resident->hasTangents);
                             if (key.depthShaderId != 0) ++prepassTaken; else ++prepassBent;
                         } else {
-                            const u32 depthVariant = kept ? meshDrawFrom(ctx, entity, kept->facts, true).variant
-                                                          : meshDrawFor(ctx, registry, entity, mesh, resident, true, warned_bones_).variant;
+                            u32 depthVariant = kept ? meshDrawFrom(ctx, entity, kept->facts, true).variant
+                                                    : meshDrawFor(ctx, registry, entity, mesh, resident, true, warned_bones_).variant;
+                            if (cached) depthVariant &= ~8u;
                             key.depthShaderId = meshProgram(ctx, depthVariant);
                             if (key.depthShaderId != 0) ++prepassTaken; else ++prepassNoProgram;
                         }
@@ -1893,7 +1927,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 const auto emitRange = [&](const Mesh& geo, u32 offset, u32 count, u32 firstIndex, u32 indexCount) {
                     BatchDrawKey drawn = key;
                     drawn.instanceCount = count;
-                    drawn.vertexBuffer = geo.vertexBuffer;
+                    drawn.vertexBuffer = cached && &geo == resident ? cachedSkin : geo.vertexBuffer;
                     drawn.indexBuffer = cutBuffer != BufferHandle::Invalid ? cutBuffer : geo.indexBuffer;
                     drawn.vertexLayout = geo.layout;
                     pushBatchDraw(draw_list, clips, offset, 0, firstIndex, indexCount, drawn);
@@ -1929,7 +1963,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     wantTexturesOf(ctx, mesh, material, std::max(fineSide, coarseSide));
                     continue;
                 }
-                key.vertexBuffer = resident->vertexBuffer;
+                key.vertexBuffer = cached ? cachedSkin : resident->vertexBuffer;
                 key.indexBuffer = resident->indexBuffer;
                 key.vertexLayout = resident->layout;
                 // A clustered mesh, one entity's own: through the clusters the scene's eye picks. The wireframe view draws

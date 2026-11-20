@@ -14,6 +14,7 @@
 #include "../renderer/frame/RenderFrame.hpp"
 #ifdef ES_ENABLE_GPU_PARTICLES
 #include "../renderer/frame/GpuParticles.hpp"
+#include "../renderer/frame/SkinCache.hpp"
 #endif
 #include "../renderer/lod/LodSelection.hpp"
 #include "../renderer/store/LightPlan.hpp"
@@ -1377,6 +1378,31 @@ void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
 
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
     g_device->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
+}
+
+void renderer_setSkinCache(i32 enabled, i32 behavior, f32 maxMegabytes) {
+    auto* frame = g_renderFrame;
+    if (!frame || !frame->skinCache()) return;
+    SkinCacheSettings settings;
+    settings.enabled = enabled != 0;
+    settings.behavior = behavior == 1 ? SkinCacheBehavior::Exclusive : SkinCacheBehavior::Inclusive;
+    settings.maxMegabytes = std::max(0.0f, maxMegabytes);
+    frame->skinCache()->setSettings(settings);
+}
+
+f64 renderer_getSkinCacheStat(i32 which) {
+    auto* frame = g_renderFrame;
+    SkinCache* cache = frame ? frame->skinCache() : nullptr;
+    if (!cache) return 0.0;
+    switch (which) {
+        case 0: return cache->active() ? 1.0 : 0.0;
+        case 1: return static_cast<f64>(cache->entryCount());
+        case 2: return static_cast<f64>(cache->bytesUsed());
+        case 3: return static_cast<f64>(cache->refusedThisFrame());
+        case 4: return static_cast<f64>(cache->scheduledThisFrame());
+        case 5: return static_cast<f64>(cache->drawsThisFrame());
+        default: return 0.0;
+    }
 }
 
 void renderer_setYSortLayers(u32 mask) {

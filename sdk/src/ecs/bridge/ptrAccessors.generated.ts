@@ -1305,6 +1305,30 @@ export function createMeshRendererData(): MeshRendererPtrData {
     };
 }
 
+export interface MeshSkinPtrData {
+    skinCache: number;
+}
+
+export function fillMeshSkin(
+    _f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
+    ptr: number, out: MeshSkinPtrData,
+): void {
+    out.skinCache = u32[(ptr + 12) >> 2] | 0;
+}
+
+export function writeMeshSkin(
+    _f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
+    ptr: number, data: MeshSkinPtrData,
+): void {
+    u32[(ptr + 12) >> 2] = data.skinCache | 0;
+}
+
+export function createMeshSkinData(): MeshSkinPtrData {
+    return {
+        skinCache: 0,
+    };
+}
+
 export interface OccluderPtrData {
     halfExtents: Vec3;
     enabled: boolean;
@@ -2997,6 +3021,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     MeshInstances: { fill: fillMeshInstances, write: writeMeshInstances, create: createMeshInstancesData },
     MeshLightmap: { fill: fillMeshLightmap, write: writeMeshLightmap, create: createMeshLightmapData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
+    MeshSkin: { fill: fillMeshSkin, write: writeMeshSkin, create: createMeshSkinData },
     Occluder: { fill: fillOccluder, write: writeOccluder, create: createOccluderData },
     ParticleCollider: { fill: fillParticleCollider, write: writeParticleCollider, create: createParticleColliderData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },

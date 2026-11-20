@@ -289,6 +289,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
 
+    enum_<esengine::ecs::SkinCacheMode>("SkinCacheMode")
+        .value("Auto", esengine::ecs::SkinCacheMode::Auto)
+        .value("Disabled", esengine::ecs::SkinCacheMode::Disabled)
+        .value("Enabled", esengine::ecs::SkinCacheMode::Enabled);
+
     enum_<esengine::ecs::SpringBoneShape>("SpringBoneShape")
         .value("Sphere", esengine::ecs::SpringBoneShape::Sphere)
         .value("Capsule", esengine::ecs::SpringBoneShape::Capsule);
@@ -953,12 +958,14 @@ MeshRendererJS meshrendererToJS(const esengine::ecs::MeshRenderer& c) {
 
 struct MeshSkinJS {
     std::vector<u32> joints;
+    i32 skinCache;
 };
 
 void meshskinApplyJS(esengine::ecs::MeshSkin& c, const MeshSkinJS& js) {
     c.joints.clear();
     c.joints.reserve(js.joints.size());
     for (auto v : js.joints) c.joints.push_back(Entity(v));
+    c.skinCache = js.skinCache;
 }
 
 esengine::ecs::MeshSkin meshskinFromJS(const MeshSkinJS& js) {
@@ -971,6 +978,7 @@ MeshSkinJS meshskinToJS(const esengine::ecs::MeshSkin& c) {
     MeshSkinJS js;
     js.joints.reserve(c.joints.size());
     for (auto e : c.joints) js.joints.push_back(static_cast<u32>(e));
+    js.skinCache = c.skinCache;
     return js;
 }
 
@@ -2156,7 +2164,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("mesh", &MeshRendererJS::mesh);
 
     value_object<MeshSkinJS>("MeshSkin")
-        .field("joints", &MeshSkinJS::joints);
+        .field("joints", &MeshSkinJS::joints)
+        .field("skinCache", &MeshSkinJS::skinCache);
 
     value_object<esengine::ecs::Occluder>("Occluder")
         .field("halfExtents", &esengine::ecs::Occluder::halfExtents)
@@ -4438,6 +4447,7 @@ static_assert(offsetof(esengine::ecs::MeshRenderer, parallax) == 32, "ABI offset
 static_assert(offsetof(esengine::ecs::MeshRenderer, material) == 40, "ABI offset drift: esengine::ecs::MeshRenderer.material (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, enabled) == 44, "ABI offset drift: esengine::ecs::MeshRenderer.enabled (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, mesh) == 48, "ABI offset drift: esengine::ecs::MeshRenderer.mesh (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::MeshSkin, skinCache) == 12, "ABI offset drift: esengine::ecs::MeshSkin.skinCache (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::Occluder, halfExtents) == 0, "ABI offset drift: esengine::ecs::Occluder.halfExtents (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Occluder, enabled) == 12, "ABI offset drift: esengine::ecs::Occluder.enabled (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ParticleCollider, shape) == 0, "ABI offset drift: esengine::ecs::ParticleCollider.shape (EHT expected 0)");
@@ -4724,7 +4734,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "a7d308843175abab";
+static const char* kEsAbiLayoutHash = "d7ed397eaf20f509";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

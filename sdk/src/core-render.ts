@@ -393,6 +393,7 @@ export {
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
 } from './render/customDraw';
+export { SKIN_CACHE_DEFAULTS, isDefaultSkinCache, type SkinCacheConfig } from './render/skinCache';
 export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode, MOST_WATER_WAVES } from './render/quality';
 export { QUALITY_SETTINGS, QUALITY_SETTING_GROUPS, qualitySetting, qualitySettingDefaults, parseQualitySetting, qualitySettingRequirementsMet } from './render/qualitySettings/index';
 export type {

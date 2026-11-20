@@ -109,6 +109,10 @@ if(ES_ENABLE_WEBGPU AND ES_ENABLE_PARTICLES)
     list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/frame/GpuParticles.cpp)
 endif()
 
+# Skinned meshes posed once a frame by a compute shader. Built everywhere (the renderer asks it on every device); it poses
+# only where the device computes.
+list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/frame/SkinCache.cpp)
+
 if(ES_ENABLE_POSTPROCESS)
     list(APPEND ESENGINE_SOURCES
         ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp

@@ -78,6 +78,7 @@ private:
      * as its default material until a shader is ready. 0 where it could not be built.
      */
     u32 previewProgram(RenderFrameContext& ctx, u32 variant);
+    void scheduleSkins(RenderFrameContext& ctx, ecs::Registry& registry, SkinCache& cache) override;
 
     /// Where one mesh stood the last two times a view drew it: the motion between them is what a temporal
     /// effect follows. Per view and entity, kept only while a temporal effect asks for it.

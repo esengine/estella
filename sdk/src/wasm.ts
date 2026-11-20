@@ -894,6 +894,10 @@ export interface ESEngineModule {
     renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
     /** Scene draws the last frame left out because a program they use was still compiling. */
     renderer_getDrawsWaitingForProgram?(): number;
+    /** The project's skin cache: on (1) or off, behaviour (0 inclusive, 1 exclusive), memory in megabytes. */
+    renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
+    /** 0 active, 1 meshes held, 2 bytes held, 3 refused this frame, 4 posed this frame, 5 draws this frame that read a posed copy. */
+    renderer_getSkinCacheStat?(which: number): number;
     /** The programs compiling in the background, one per line: id and what each was made for. */
     renderer_getPendingProgramLabels?(): string;
     /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */

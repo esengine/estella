@@ -728,6 +728,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
     emscripten::function("renderer_getGpuDrawCalls", &esengine::renderer_getGpuDrawCalls);
     emscripten::function("renderer_getDrawsWaitingForProgram", &esengine::renderer_getDrawsWaitingForProgram);
+    emscripten::function("renderer_setSkinCache", &esengine::renderer_setSkinCache);
+    emscripten::function("renderer_getSkinCacheStat", &esengine::renderer_getSkinCacheStat);
     emscripten::function("renderer_getPendingProgramLabels", &esengine::renderer_getPendingProgramLabels);
     emscripten::function("renderer_getLiveObjects", &esengine::renderer_getLiveObjects);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);

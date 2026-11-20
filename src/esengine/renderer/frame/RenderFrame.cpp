@@ -188,6 +188,7 @@ void RenderFrame::init(u32 width, u32 height) {
 #ifdef ES_ENABLE_GPU_PARTICLES
     gpu_particles_ = makeUnique<GpuParticles>(device_);
 #endif
+    if (!skin_cache_) skin_cache_ = makeUnique<SkinCache>(device_);
     pool_.init();
     shadow_pool_.init();
     velocity_pool_.init();
@@ -401,6 +402,7 @@ void RenderFrame::releaseFrameTargets() {
 
 void RenderFrame::beginFrame() {
     ++planar_frame_;
+    if (skin_cache_) skin_cache_->beginFrame(planar_frame_);
     // An overlay left open by a host that never closed it gives the frame its pool and list back.
     swapOverlayOut();
     overlay_active_ = false;
@@ -3305,6 +3307,31 @@ RenderPrewarmResult RenderFrame::prewarmDocument(const MeshDocumentRecord* rows,
     return out;
 }
 
+void RenderFrame::declareSkinCache(ecs::Registry& registry) {
+    if (!skin_cache_ || !skin_cache_->active() || skin_cache_frame_ == planar_frame_) return;
+    skin_cache_frame_ = planar_frame_;
+    auto ctx = makeContext();
+    for (auto& plugin : plugins_) plugin->scheduleSkins(ctx, registry, *skin_cache_);
+    ES_PROFILE_COUNTER("render.skinCache.meshes", skin_cache_->entryCount());
+    ES_PROFILE_COUNTER("render.skinCache.refused", skin_cache_->refusedThisFrame());
+    if (!skin_cache_->hasWork()) return;
+    // A compute pass, kept, its own token target: what it writes are vertex buffers the graph does not track, and the passes
+    // after it in the frame read them.
+    rg::TargetDesc token;
+    token.width = 1;
+    token.height = 1;
+    token.format = GfxPixelFormat::RGBA8;
+    token.storage = true;
+    token.linearFilter = false;
+    rg::PassDesc pass;
+    pass.name = "skin-cache";
+    pass.compute = true;
+    pass.keep = true;
+    pass.write = graph_.createTarget(token);
+    pass.execute = [this](const rg::PassContext&) { skin_cache_->run(); };
+    graph_.addPass(std::move(pass));
+}
+
 void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     ES_PROFILE_SCOPE("render.collect");
     // Split because "collect is expensive" names no mechanism: planning shadows,
@@ -3333,6 +3360,8 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws
     // between them, and a pass opened here would swallow them.
+    // Before the shadows: every pass of the frame draws the skins one dispatch posed.
+    { ES_PROFILE_SCOPE("render.collect.skinCache"); declareSkinCache(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
     declareMaterialBakes();

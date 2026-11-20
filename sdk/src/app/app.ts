@@ -7,7 +7,7 @@
 
 import { World } from '../ecs/world';
 
-import { applyAppOptions, applyColorSpace, applyFrameOptions } from './renderOptions';
+import { applyAppOptions, applyColorSpace, applyFrameOptions, type SkinCacheConfig } from './renderOptions';
 import type { QualityConfig } from '../render/quality';
 import { Schedule, type SystemDef, SystemRunner, type SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, declaredResource, ResourceStorage, Time, type ResourceDef } from '../ecs/resource';
@@ -2177,6 +2177,8 @@ export interface WebAppOptions {
      * device clamps it, so this is what the project WANTS, not what it gets.
      */
     msaaSamples?: number;
+    /** The compute skin cache (Project Settings > Rendering > Skinning); absent is on, every mesh, 128 MB. */
+    skinCache?: SkinCacheConfig;
     quality?: QualityConfig;
     /**
      * Seed the engine's randomness so this run reproduces — a replay, a bug

@@ -44,6 +44,22 @@ struct MeshMorphSource {
 };
 
 /**
+ * @brief Where a skinned mesh's vertex holds what the skin cache reads and writes: byte offsets in one vertex, -1 for a
+ *        channel it does not have. Positions, normals and tangents are floats; joints a byte or two, weights a normalized
+ *        byte (0), a normalized short (1) or a float (2).
+ */
+struct MeshSkinLayout {
+    u32 stride = 0;
+    i32 position = -1;
+    i32 normal = -1;
+    i32 tangent = -1;
+    i32 joints = -1;
+    i32 weights = -1;
+    u32 jointBytes = 1;
+    u32 weightKind = 0;
+};
+
+/**
  * @brief One piece a skinned mesh is drawn in, when its bones are more than one draw can carry.
  *
  * @details A run of the mesh's own indices whose vertices are moved only by the chunk's bones: its vertices' joint `k` is
@@ -160,6 +176,12 @@ public:
      * indices and its bones these bind matrices.
      */
     std::vector<MeshSkinChunk> skinChunks;
+    /** A skinned mesh's vertices as uploaded, which the skin cache skins into a copy of its own each frame; with where its
+     *  channels sit. Null for a mesh nothing skins. Shared, so a cache entry holds it past a reload of the mesh. */
+    std::shared_ptr<const std::vector<u8>> skinSource;
+    /** Its indices, with it: which vertices a chunk's run of triangles names. */
+    std::shared_ptr<const std::vector<u32>> skinIndices;
+    MeshSkinLayout skinLayout;
     std::vector<u16> skinChunkBones;
     bool isChunked() const { return !skinChunks.empty(); }
 

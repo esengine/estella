@@ -32,6 +32,8 @@ import type {
 } from 'esengine';
 import { parseProjectQuality, resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging, type WebpImages } from './format';
 import type { ExportPlatform } from './platforms';
+import { skinCacheOf, isDefaultSkinCache } from './skinning';
+import type { SkinCacheConfig } from '../../../sdk/src/render/skinCache';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
 export interface RuntimeScreenFit {
@@ -84,6 +86,8 @@ export interface RuntimeProjectConfig {
   /** Scene-target multisampling the project asks for; 4 is the default. The
    *  device clamps it — this is the policy half, never the capability. */
   msaaSamples: number;
+  /** The compute skin cache (Project Settings > Rendering > Skinning). */
+  skinCache: SkinCacheConfig;
   /** The shader compilation default depends on the export platform. An explicit boolean takes precedence. */
   quality: QualityConfig;
   /** Whether the project names a level, `off` among them. One that names none takes the device's default (see `defaultQualityMode`). */
@@ -175,6 +179,7 @@ export function runtimeConfigOf(
     outputTransform: f?.rendering?.outputTransform === 'aces' ? 'aces'
       : f?.rendering?.outputTransform === 'neutral' ? 'neutral' : 'none',
     msaaSamples: msaaOf(f?.rendering?.msaa),
+    skinCache: skinCacheOf(f?.rendering?.skinning),
     quality: { ...quality, mode: quality.mode ?? 'off' },
     qualityModeNamed: quality.mode !== undefined,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
@@ -200,7 +205,7 @@ export function withAudioLoadTypes(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
-  | 'msaaSamples' | 'quality'
+  | 'msaaSamples' | 'quality' | 'skinCache'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
 >;
@@ -223,6 +228,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig, platform?: Expor
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
     ...(rc.outputTransform !== 'none' ? { outputTransform: rc.outputTransform } : {}),
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
+    ...(isDefaultSkinCache(rc.skinCache) ? {} : { skinCache: rc.skinCache }),
     ...(quality ? { quality } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design

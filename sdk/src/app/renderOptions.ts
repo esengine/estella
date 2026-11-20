@@ -16,6 +16,9 @@ import { RenderResolution } from '../camera/presentPlan';
 import { defaultQualityMode, type QualityConfig } from '../render/quality';
 import { getPlatform } from '../platform';
 import type { App } from './app';
+import { SKIN_CACHE_DEFAULTS, type SkinCacheConfig } from '../render/skinCache';
+
+export { SKIN_CACHE_DEFAULTS, isDefaultSkinCache, type SkinCacheConfig } from '../render/skinCache';
 
 /** The engine entry points these reach, by the names the wasm module and the native host's API share. */
 export interface RenderOptionsApi {
@@ -24,6 +27,13 @@ export interface RenderOptionsApi {
     renderer_setDepthLayers?(layers: number): void;
     postprocess_setOutputTransform?(code: number): void;
     postprocess_setMsaaSamples?(samples: number): void;
+    renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
+}
+
+/** Hands a skin cache config to the engine; absent is the defaults. */
+export function applySkinCache(api: RenderOptionsApi, config: SkinCacheConfig | undefined): void {
+    const c = config ?? SKIN_CACHE_DEFAULTS;
+    api.renderer_setSkinCache?.(c.enabled ? 1 : 0, c.behavior === 'exclusive' ? 1 : 0, c.maxMegabytes);
 }
 
 export interface RenderOptions {
@@ -32,6 +42,7 @@ export interface RenderOptions {
     depthLayers?: number;
     outputTransform?: OutputTransform;
     msaaSamples?: number;
+    skinCache?: SkinCacheConfig;
     screenFit?: ScreenScalingData;
     quality?: QualityConfig;
 }
@@ -54,6 +65,7 @@ export function applyFrameOptions(api: RenderOptionsApi, options: RenderOptions 
     api.renderer_setDepthLayers?.((options?.depthLayers ?? 0) >>> 0);
     api.postprocess_setOutputTransform?.(outputTransformCode(options?.outputTransform));
     api.postprocess_setMsaaSamples?.((options?.msaaSamples ?? 4) >>> 0);
+    applySkinCache(api, options?.skinCache);
 }
 
 /** Once the App's plugins are in: what the options install as resources on it. */

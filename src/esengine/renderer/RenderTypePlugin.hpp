@@ -38,6 +38,7 @@ namespace esengine {
 class RenderContext;
 class MaterialStore;
 class RenderFrame;
+class SkinCache;
 
 /**
  * @brief What a collect is FOR — the phase, not a feature the geometry has.
@@ -553,6 +554,14 @@ public:
      *          `shadowPasses` says whether this scene also renders depth, which
      *          needs its own variant. The default readies nothing.
      */
+    /**
+     * @brief Puts this type's skinned renderables that go through the skin cache into this frame's schedule: once a frame,
+     *        before any view collects, so every pass of the frame draws what one dispatch posed. The default has none.
+     */
+    virtual void scheduleSkins(RenderFrameContext& ctx, ecs::Registry& registry, SkinCache& cache) {
+        (void)ctx; (void)registry; (void)cache;
+    }
+
     virtual RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
                                         const Entity* entities, u32 count, bool shadowPasses) {
         (void)ctx; (void)registry; (void)entities; (void)count; (void)shadowPasses;

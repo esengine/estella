@@ -212,6 +212,7 @@ export interface NativeEngineApi {
     renderer_getSkeletalPreviewHeight?(preview: number): number;
     renderer_getSkeletalPreviewSize?(preview: number): number;
     renderer_getSkeletalPreviewWidth?(preview: number): number;
+    renderer_getSkinCacheStat?(which: number): number;
     renderer_getSnapshotHeight?(): number;
     renderer_getSnapshotSize?(): number;
     renderer_getSnapshotWidth?(): number;
@@ -273,6 +274,7 @@ export interface NativeEngineApi {
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
+    renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
     renderer_setSkyEnvironment?(environmentHandle: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTargetPoolIdleBudget?(megabytes: number): void;
@@ -604,6 +606,7 @@ export function createNativeEngineApi(
     bind('renderer_getSkeletalPreviewHeight', 'es_renderer_getSkeletalPreviewHeight', false);
     bind('renderer_getSkeletalPreviewSize', 'es_renderer_getSkeletalPreviewSize', false);
     bind('renderer_getSkeletalPreviewWidth', 'es_renderer_getSkeletalPreviewWidth', false);
+    bind('renderer_getSkinCacheStat', 'es_renderer_getSkinCacheStat', false);
     bind('renderer_getSnapshotHeight', 'es_renderer_getSnapshotHeight', false);
     bind('renderer_getSnapshotSize', 'es_renderer_getSnapshotSize', false);
     bind('renderer_getSnapshotWidth', 'es_renderer_getSnapshotWidth', false);
@@ -665,6 +668,7 @@ export function createNativeEngineApi(
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
+    bind('renderer_setSkinCache', 'es_renderer_setSkinCache', false);
     bind('renderer_setSkyEnvironment', 'es_renderer_setSkyEnvironment', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTargetPoolIdleBudget', 'es_renderer_setTargetPoolIdleBudget', false);

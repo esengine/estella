@@ -640,7 +640,9 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     const bool morphs = morph.targetCount > 0 && !morph.deltas.empty();
     MeshArena::Slot slot;
     MeshArena::Binding shared;
-    const bool placed = mesh.recovery == MeshRecovery::SourceReplayable && !morphs
+    // Not a skinned one either: the skin cache draws it from a copy of its own vertices alone, which a page's numbering
+    // would not index.
+    const bool placed = mesh.recovery == MeshRecovery::SourceReplayable && !morphs && !skinned
         && meshArena_.place(layout, content, vertexBytes, vertexStride, indices, slot, shared);
 
     VertexBufferHandle vertices;
@@ -726,6 +728,32 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
         std::memcpy(mesh.inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
     }
     mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
+    // What the skin cache skins (SkinCache.hpp): the vertices as uploaded, and where in one each channel it reads sits.
+    mesh.skinSource.reset();
+    mesh.skinIndices.reset();
+    mesh.skinLayout = MeshSkinLayout{};
+    if (skinned) {
+        mesh.skinSource = std::make_shared<const std::vector<u8>>(vertexBytes.data(), vertexBytes.data() + vertexBytes.size());
+        mesh.skinIndices = std::make_shared<const std::vector<u32>>(indices.data(), indices.data() + indices.size());
+        mesh.skinLayout.stride = vertexStride;
+        for (const GfxVertexAttribute& c : channels) {
+            const auto at = static_cast<i32>(c.offset);
+            switch (static_cast<MeshChannel>(c.location)) {
+            case MeshChannel::Position: if (c.type == GfxDataType::Float && c.components >= 3) mesh.skinLayout.position = at; break;
+            case MeshChannel::Normal:   if (c.type == GfxDataType::Float && c.components >= 3) mesh.skinLayout.normal = at; break;
+            case MeshChannel::Tangent:  if (c.type == GfxDataType::Float && c.components >= 4) mesh.skinLayout.tangent = at; break;
+            case MeshChannel::Joints:
+                mesh.skinLayout.joints = at;
+                mesh.skinLayout.jointBytes = c.type == GfxDataType::UnsignedByte ? 1 : 2;
+                break;
+            case MeshChannel::Weights:
+                mesh.skinLayout.weights = at;
+                mesh.skinLayout.weightKind = c.type == GfxDataType::Float ? 2 : c.type == GfxDataType::UnsignedShort ? 1 : 0;
+                break;
+            default: break;
+            }
+        }
+    }
     mesh.clusters.reset();
     mesh.skinChunks.clear();
     mesh.skinChunkBones.clear();

@@ -134,6 +134,16 @@ struct MeshRenderer {
 // MeshSkin Component
 // =============================================================================
 
+/// Whether a skinned mesh is posed by the skin cache, a compute pass that poses it once a frame for every pass that draws it.
+/// Auto follows the project's Default Skin Cache Behavior; Disabled always poses it in the vertex stage of each draw; Enabled asks for the
+/// cache even when the project's default leaves meshes out. The project's memory budget has the last word either way.
+ES_ENUM(stability=beta)
+enum class SkinCacheMode : i32 {
+    Auto = 0,
+    Disabled = 1,
+    Enabled = 2,
+};
+
 /**
  * @brief What deforms a @ref MeshRenderer: the entities its Joints channel indexes.
  *
@@ -147,6 +157,11 @@ struct MeshSkin {
     /** @brief Joint entities, in the order the mesh's bind matrices are stored. */
     ES_PROPERTY(entity_ref, tooltip="Joint entities, in the order the mesh's bind matrices are in.")
     std::vector<Entity> joints;
+
+    /** @brief Whether the skin cache poses this mesh (SkinCacheMode). */
+    ES_PROPERTY(enum=SkinCacheMode, optional, label="Skin Cache Usage",
+                tooltip="Auto follows the project's Default Skin Cache Behavior. Disabled poses it in each draw's vertex stage. Enabled asks for the skin cache even when the project leaves meshes out by default.")
+    i32 skinCache{static_cast<i32>(SkinCacheMode::Auto)};
 
     MeshSkin() = default;
 

@@ -13,6 +13,7 @@ import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapsh
 import { acquireWebGPUDevice } from './webgpuBoot';
 import { ATLAS_REFUSAL, LIGHT_REFUSAL } from './refusals';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
+import { SKIN_CACHE_DEFAULTS, type SkinCacheConfig } from './skinCache';
 
 export enum RenderStage {
     Background = 0,
@@ -87,6 +88,8 @@ export interface RendererBackend {
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
+    setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
+    skinCacheStat?(which: number): number;
     setDepthLayers(mask: number): void;
     setTreeSortLayers(mask: number): void;
     setCullingMask(mask: number): void;
@@ -305,6 +308,8 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setStage: (stage) => m.renderer_setStage(stage),
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
+        setSkinCache: (enabled, behavior, maxMegabytes) => m.renderer_setSkinCache?.(enabled, behavior, maxMegabytes),
+        skinCacheStat: (which) => m.renderer_getSkinCacheStat?.(which) ?? 0,
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
         setTreeSortLayers: (mask) => m.renderer_setTreeSortLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
@@ -783,6 +788,21 @@ export const Renderer = {
     /** Layers (bits 0..31) that sort by world Y within the layer — top-down occlusion. */
     setYSortLayers(mask: number): void {
         backend?.setYSortLayers(mask);
+    },
+
+    /** The project's compute skin cache (see {@link SkinCacheConfig}); absent is the defaults. */
+    setSkinCache(config: SkinCacheConfig | undefined): void {
+        const c = config ?? SKIN_CACHE_DEFAULTS;
+        backend?.setSkinCache?.(c.enabled ? 1 : 0, c.behavior === 'exclusive' ? 1 : 0, c.maxMegabytes);
+    },
+
+    /**
+     * What the skin cache holds: whether it runs on this device (it needs compute), the meshes and bytes it holds, and this frame's
+     * meshes it posed, the ones its budget refused, and the draws that read a posed copy. Zeroes where the core has none.
+     */
+    skinCacheStats(): { active: boolean; meshes: number; bytes: number; refused: number; posed: number; draws: number } {
+        const stat = (i: number): number => backend?.skinCacheStat?.(i) ?? 0;
+        return { active: stat(0) > 0, meshes: stat(1), bytes: stat(2), refused: stat(3), posed: stat(4), draws: stat(5) };
     },
 
     /**

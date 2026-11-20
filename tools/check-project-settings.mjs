@@ -132,6 +132,7 @@ const PARSE_KEY = {
   renderBackend: 'r.backend',
   screenFit: 'r.cameraScaleMode',
   msaaSamples: 'r.msaa',
+  skinCache: 'r.skinning',
   quality: 'r.quality',
 };
 
@@ -157,6 +158,7 @@ const AUTHORING = {
   colorSpace: { ui: 'project.rendering.colorSpace' },
   outputTransform: { ui: 'project.rendering.outputTransform' },
   msaaSamples: { ui: 'project.rendering.msaa' },
+  skinCache: { ui: 'project.rendering.skinning.computeSkinCache' },
   quality: { ui: 'project.rendering.quality' },
   renderBackend: { ui: 'project.rendering.backend' },
   screenFit: { ui: 'project.display.cameraFit' },
