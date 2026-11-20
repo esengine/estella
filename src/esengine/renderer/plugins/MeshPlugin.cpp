@@ -1675,9 +1675,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // what glTF requires of a skinned mesh.
             const u32 poseSize = kept ? 0u : skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
             // Posed already this frame by the skin cache: the draw reads the posed copy as unskinned geometry in world space,
-            // through the program a static mesh has. The motion pass poses in its vertex stage still, with last frame's pose beside it.
+            // through the program a static mesh has. The motion pass poses in its vertex stage still, with last frame's pose beside it,
+            // and so does the weight view, which colours by the joints the posed copy no longer carries to the program.
             BufferHandle cachedSkin = BufferHandle::Invalid;
-            if (poseSize > 0 && !motion && !placements && ctx.frame) {
+            if (poseSize > 0 && !motion && !heated && !placements && ctx.frame) {
                 if (SkinCache* cache = ctx.frame->skinCache()) {
                     cachedSkin = cache->bufferFor(entity);
                     if (cachedSkin != BufferHandle::Invalid) cache->noteDraw();

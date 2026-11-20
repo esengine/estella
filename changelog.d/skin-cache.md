@@ -4,6 +4,7 @@ commits:
   - feat(render): a compute skin cache poses each skinned mesh once a frame for every pass that draws it
   - feat(editor): skin cache settings in Project Settings, and Skin Cache Usage on MeshSkin
   - fix(render): the skin cache builds where GPU particles are not compiled in
+  - fix(render): the skin weights view poses its mesh in the vertex stage, not through the skin cache
 ---
 **Skinned meshes are posed once a frame, not once per pass.** On WebGPU, a compute pass now poses each skinned mesh once, before the frame's passes. Its shadow cascades, depth prepass and colour pass then draw the posed vertices as plain geometry instead of each posing them again, and a mesh split into bone chunks is drawn in one draw. WebGL2 has no compute shaders, so it poses skins in each draw as before. Morph-target meshes and the motion-vector pass also still pose in the vertex stage.
 
