@@ -2446,6 +2446,11 @@ void WebGPUDevice::flushBindGroup() {
                 const bool isArray = !rec->volume && rec->layers > 1;
                 const TextureRec* src = rec;
                 if (wantsDepth && !isDepthFormat(src->format)) src = depthDummy;
+                // And the other way: a colour declaration handed a depth texture. The scene's depth stays bound on its unit
+                // after the post chain reads it, and the next program that declares that unit as a colour texture (the
+                // sprite batch, a mesh, the sky) would take it, which WebGPU refuses with the frame's whole command buffer.
+                // GL samples it as a number and nothing reads it; here it is the dummy, as an unbound unit is.
+                else if (!wantsDepth && isDepthFormat(src->format)) src = dummy;
                 else if (wantsVolume) src = rec->volume ? rec : volumeDummy;
                 else if (wantsArray && !isArray) src = arrayDummy;
                 else if (!wantsArray && (isArray || rec->volume)) src = dummy;
