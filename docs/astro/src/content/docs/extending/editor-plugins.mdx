@@ -54,6 +54,12 @@ The editor writes a plugin that already runs, and loads it:
 }
 ```
 
+Four more fields decide how the plugin looks in the Plugins window, as an Unreal
+`.uplugin`'s do: `category` files it in the tree ("Importers", "Audio"; Other when
+absent), `icon` is a square picture inside the plugin folder (PNG, JPEG, WebP or
+SVG, Unreal's `Resources/Icon128.png`), `docsUrl` adds a Documentation link, and
+`"beta": true` marks it Beta. `publisher` is shown under the version.
+
 ```ts title="src/editor.ts"
 import { definePlugin, type PluginContext } from '@estella/editor-api';
 
@@ -105,24 +111,24 @@ exercise them, rather than all at once by a version number.
 
 ## Seeing what a plugin contributed
 
-Every running plugin has a **Contributes** row in the Plugins panel. Expand it for
+Open a running plugin's **Details** in the Plugins window for its **Contributes**:
 everything it has registered right now — commands, panels, settings, tools, gizmos,
 inspector sections, asset types, entity templates, menu items — each with its id.
 
 "Why isn't my panel showing up?" is usually answered here: either it isn't in the
 list (`activate` never reached that line), or it is, under an id you didn't expect.
 
-![The Plugins panel with the built-in Audio Mixer plugin selected, showing what it declares and contributes](@/assets/guides/en/plugins-panel.png)
+![The Plugins window: a tree of groups and categories with counts on the left, the plugins as cards on the right](@/assets/guides/en/plugins-panel.png)
 
-*The Plugins panel: New plugin, Import and Refresh across the top, the plugins on the left, and on the right what the selected one **declares** and **contributes**.*
+*The Plugins window, as Unreal's Plugins browser: **Add** (a new plugin, or one from a package), Refresh and search across the top; on the left All Plugins, anything that needs attention, then Project, Installed and Built-in by category, each with its count; on the right a card per plugin with its enable box, icon, version, publisher, and Edit, Package, Show in Folder, Reload and Details.*
 
 ## Sharing a plugin
 
-**Export** in the Plugins panel packs one plugin into a single `.esplugin` file —
+**Package** on a plugin's card packs it into a single `.esplugin` file —
 a ZIP, so renaming it to `.zip` opens it anywhere. `node_modules`, `dist`, and the
 generated typings are left out.
 
-The other side installs it with **Import**, which first lists what is inside — the
+The other side installs it with **Add ▸ Install from Package…**, which first lists what is inside — the
 manifest, the declared capabilities, every file — without unpacking or writing
 anything. Only after that does it land on disk, and **installing is not running**:
 it arrives needing trust, so loading it stays a separate decision.
