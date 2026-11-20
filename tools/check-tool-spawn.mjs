@@ -11,7 +11,8 @@
  * editor never produced a play frame. That is the shape this forbids: the launch
  * failure has one spelling, in lib/runTool.mjs, and it says which it was.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib/repo.mjs';
 
@@ -23,19 +24,19 @@ const SHIMS = ['pnpm', 'npx', 'npm', 'yarn'];
 const SPAWNS = new RegExp(String.raw`\b(?:spawnSync|spawn|execFileSync|execFile)\(\s*['"\`](${SHIMS.join('|')})['"\`]`, 'g');
 const SHELLS = /(?<=[{,]\s*)shell\s*(?::\s*(?!false\b)[^\s,}]+|(?=\s*[,}]))/g;
 
-function scripts(dir, into = []) {
-  for (const name of readdirSync(dir)) {
-    if (name === 'node_modules') continue;
-    const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) scripts(full, into);
-    else if (/\.(mjs|js|cjs|ts)$/.test(name) && !name.endsWith('.d.ts')) into.push(full);
-  }
-  return into;
+/**
+ * The project's own scripts under `dir`: what git tracks there, and files not yet added that it does not ignore. A walk of
+ * the disk also read what is installed there and ignored, such as the emsdk unpacked into tools/emsdk, and failed every
+ * machine that had one on code the project neither wrote nor runs this way; CI, with none, never saw it.
+ */
+function scripts(dir) {
+  const listed = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', dir], { cwd: ROOT, encoding: 'utf8' });
+  return listed.split('\0').filter((rel) => /\.(mjs|js|cjs|ts)$/.test(rel) && !rel.endsWith('.d.ts')).map((rel) => path.join(ROOT, rel));
 }
 
 const violations = [];
 for (const dir of SCANNED) {
-  for (const file of scripts(path.join(ROOT, dir))) {
+  for (const file of scripts(dir)) {
     const rel = path.relative(ROOT, file).split(path.sep).join('/');
     if (rel === HELPER) continue;
     const text = readFileSync(file, 'utf8');
