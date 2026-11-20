@@ -20,7 +20,7 @@ export interface TimeDilationData {
     scale: number;
 }
 
-export const TimeDilation = defineComponent<TimeDilationData>('TimeDilation', { scale: 1 }, {
+export const TimeDilation = /* @__PURE__ */ defineComponent<TimeDilationData>('TimeDilation', { scale: 1 }, {
     fields: {
         scale: { min: 0, max: 4, step: 0.05, tooltip: 'How fast the game runs while this is on: 0.25 is slow motion. Key it on a timeline for a slow-motion beat.' },
     },

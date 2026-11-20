@@ -23,7 +23,8 @@ import { q } from '../math/quat';
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 
-const RAD2DEG = 180 / Math.PI;
+/** 180 / π, written out: `Math.PI` is a global read a bundler keeps in a package that never evaluates a timeline. */
+const RAD2DEG = 57.29577951308232;
 
 /** Evaluate a single property channel at `time` (seconds). Endpoints clamp. */
 export function evaluateChannel(channel: PropertyChannel, time: number): number {

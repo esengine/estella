@@ -217,7 +217,7 @@ export interface TimelineEventPayload {
  * The events and markers a TimelinePlayer's playhead crosses, sent as the frame plays them: Unity's Signals and UE's
  * event tracks. Read it with `EventReader(TimelineEvent)`; a system reads them the next frame.
  */
-export const TimelineEvent: EventDef<TimelineEventPayload> = defineEvent<TimelineEventPayload>('TimelineEvent', {
+export const TimelineEvent: EventDef<TimelineEventPayload> = /* @__PURE__ */ defineEvent<TimelineEventPayload>('TimelineEvent', {
     kind: 'event', name: '', payload: {}, time: 0, player: 0 as Entity, target: 0 as Entity,
 });
 
@@ -235,7 +235,7 @@ export interface TimelinePlaybackPayload {
  * A TimelinePlayer starting, pausing, stopping, finishing or looping: Unity's PlayableDirector played, paused and
  * stopped, and UE's OnPlay, OnPause, OnStop and OnFinished. Read with `EventReader(TimelinePlayback)`, the next frame.
  */
-export const TimelinePlayback: EventDef<TimelinePlaybackPayload> = defineEvent<TimelinePlaybackPayload>('TimelinePlayback', {
+export const TimelinePlayback: EventDef<TimelinePlaybackPayload> = /* @__PURE__ */ defineEvent<TimelinePlaybackPayload>('TimelinePlayback', {
     kind: 'played', player: 0 as Entity, time: 0,
 });
 

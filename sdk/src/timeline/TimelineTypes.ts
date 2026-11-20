@@ -16,18 +16,12 @@ export const WrapMode = {
 export type WrapMode = (typeof WrapMode)[keyof typeof WrapMode];
 
 // Single source for the wrapMode ↔ on-disk-string mapping, shared by the loader,
-// the plugin, and the serializer so the three can't drift.
-const WRAP_MODE_BY_NAME: Record<string, WrapMode> = {
-    once: WrapMode.Once,
-    loop: WrapMode.Loop,
-    pingPong: WrapMode.PingPong,
-};
+// the plugin, and the serializer so the three can't drift. Written as literals (the
+// values of WrapMode above): a member read or a computed key keeps the table in a
+// package that never plays a timeline, as a bundler cannot tell it is pure.
+const WRAP_MODE_BY_NAME: Record<string, WrapMode> = { once: 0, loop: 1, pingPong: 2 };
 
-const WRAP_MODE_NAMES: Record<WrapMode, string> = {
-    [WrapMode.Once]: 'once',
-    [WrapMode.Loop]: 'loop',
-    [WrapMode.PingPong]: 'pingPong',
-};
+const WRAP_MODE_NAMES: Record<WrapMode, string> = { 0: 'once', 1: 'loop', 2: 'pingPong' };
 
 /** Decode a serialized wrapMode string; unknown / missing → `Once`. */
 export function wrapModeFromName(value: string | undefined): WrapMode {
