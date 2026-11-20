@@ -647,8 +647,9 @@ written once. Layers compose in order, so swapping two is a different character.
 
 A `mask` is a set of the same `childPath`s a clip already uses to name what it
 animates. No mask writes the whole rig; an empty `paths` list writes nothing. In the editor a layer's
-**Restrict to a mask** shows the joints of a rig in the open scene that plays the controller as a tree to tick, a ticked
-joint bringing its whole branch, as Unity's Avatar Mask does; with no such rig, the paths are typed. Root
+**Restrict to a mask** lists the paths as an array, as Unreal's Details lists a blend mask's branches: each element is
+a joint picked from the rig in the open scene that plays the controller, and brings its whole branch; with no such rig,
+the paths are typed. Root
 motion belongs to the base layer alone, and a trigger is one event every layer is told
 about. The editor's layer rail picks which machine the canvas edits.
 

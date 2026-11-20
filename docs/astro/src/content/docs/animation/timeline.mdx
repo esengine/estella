@@ -198,8 +198,10 @@ Animator's layers are. The first meets the rig's own pose; each later track is s
 | `rootMotion` | `false` | Move the rig by its clips' root motion (see below). |
 
 So a wave on the upper body over a walk is a second track masked to `Spine`, and a breath is an additive track at a low
-weight. In the Details these are **Track blend**, **Track weight** and **Mask**: the rig's joints as a tree, where a
-ticked joint brings its whole branch, as Unity's Avatar Mask is ticked.
+weight. They are the track's, not a clip's: click the track's row in the Sequencer and the Details shows them under
+**Blending**, beside the track's name, mute and lock, as Unreal shows a track's properties. **Mask** is an array, as
+Unreal lists a blend mask's branches: each element is a joint picked from the rig, and brings its whole branch. A
+clip's own Details are in sections too: **Section** (when it plays), **Animation**, **Easing** and **Extrapolation**.
 
 **Root motion.** A clip's root track (the `Transform` position and rotation at the animation's own root) normally poses
 the rig like any joint, so a walk plays on the spot it was made at. Turn on the track's `rootMotion` (**Root motion** in
@@ -320,9 +322,9 @@ timeline.
 **In a visual script.** Each named one is also sent as the entity event `timeline:<name>` (a marker named `boom`
 is `timeline:boom`), to the entity its track is about and then up to the player, as Unity's Signal Receiver hears a
 signal on the bound object. A visual script's **On Event** node with that type reacts to it: its `target` is the
-track's entity and its `other` the player. The node hands on the fields of the event's payload that it declares in its
-**payload** row, as `name:type` pairs (`amount:number, who:entity`), each a typed pin: the parameters of a Unity
-signal's receiver, UE's event payload. The event's own `time` and `name` can be declared the same way. A graph on a door hears the events of the door's own track; a graph on the
+track's entity and its `other` the player. The node hands on the fields of the event's payload that it declares as
+its **Inputs** (select it and they are in the Details, a name and a type each, as a UE Custom Event's are), each a
+typed pin: the parameters of a Unity signal's receiver, UE's event payload. The event's own `time` and `name` can be declared the same way. A graph on a door hears the events of the door's own track; a graph on the
 entity playing the timeline hears all of them. The same event reaches an event binding or a state machine on those
 entities, and `timelineSignalType(name)` spells the type in code.
 
