@@ -99,6 +99,12 @@ an imported asset's source). A product folds under that model while the two are 
 before this was recorded folds by the names the import gives (`<stem>.esprefab` and the meshes, materials, clips and
 baked data named `<stem>_…`); an image beside the model is the artist's and never folds by its name.
 
+A model dropped on an asset slot in **Details** (or given to it with **Use Selected Asset**) puts in the product the slot
+takes: a mesh slot gets the model's mesh, a material slot its material, a prefab slot its prefab. Where several fit (the
+meshes of a many-part model), a menu at the drop asks which, as Unreal does; where none does, the slot stays as it was and
+says so. The Content Browser keeps its selection, greyed, while an entity is selected, so **Use Selected Asset** still has
+something to use.
+
 ## Tangents
 
 A mesh that has normals and UVs is written with a **tangent** at each vertex, so a normal map is read against the frame it was
