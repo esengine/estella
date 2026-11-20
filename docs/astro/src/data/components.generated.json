@@ -4919,7 +4919,7 @@
           "key": "material",
           "type": "Asset<material>",
           "default": "none",
-          "advanced": true
+          "doc": "The material it is drawn with; none draws it with the built-in look (texture and colour above)."
         },
         {
           "key": "enabled",
@@ -8605,7 +8605,7 @@
           "key": "material",
           "type": "Asset<material>",
           "default": "none",
-          "advanced": true
+          "doc": "The material it is drawn with; none draws it with the built-in sprite look."
         },
         {
           "key": "enabled",
