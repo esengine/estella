@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-push: the one gate a push itself decides. Work goes straight to master, and CI reads it only after it is there,
+# so a user-facing commit with no release note turned master red for everyone after it (twice in one week). The
+# check reads only git history, under a second; every other gate stays in CI and in run-gates.
+if [ ! -f desktop/package.json ]; then
+  echo 'pre-push: changelog-covers skipped — no editor checkout at desktop/, whose commits it also reads.'
+  exit 0
+fi
+if ! node tools/check-changelog-covers.mjs; then
+  echo ''
+  echo '✗ push blocked: a user-facing commit reaches no release note.'
+  echo '  Name it under `commits:` in a file of changelog.d/ (changelog.d/README.md has the format): the note it belongs to,'
+  echo '  or `internal:` with why no one using Estella can see it. Commit that, and push again.'
+  exit 1
+fi
