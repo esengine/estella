@@ -394,8 +394,10 @@ export interface DrawAPI {
     setDepthTest(enabled: boolean): void;
 
     /** Runs synchronous drawing with scoped depth state, restored even on throw.
-     * Returns false without drawing on older cores without scoped depth support. */
-    withDepthState(state: { test: boolean; write: boolean }, draw: () => void): boolean;
+     * `dither` draws one half (0 or 1) of a checkerboard at full colour, as Unreal draws a handle behind geometry: the
+     * two halves drawn in turn cover every pixel once (immediate lines, triangles and quads; not a retained mesh). Returns false without drawing on older cores
+     * without scoped depth support. */
+    withDepthState(state: { test: boolean; write: boolean; dither?: 0 | 1 }, draw: () => void): boolean;
 
     /**
      * Draws a custom mesh with a shader.
@@ -701,11 +703,12 @@ export const Draw: DrawAPI = {
         getModule().draw_setDepthTest(enabled);
     },
 
-    withDepthState(state: { test: boolean; write: boolean }, draw: () => void): boolean {
+    withDepthState(state: { test: boolean; write: boolean; dither?: 0 | 1 }, draw: () => void): boolean {
         const m = getModule();
         if (!m.draw_getDepthState || !m.draw_setDepthState) return false;
         const previous = m.draw_getDepthState();
-        m.draw_setDepthState((state.test ? 1 : 0) | (state.write ? 2 : 0));
+        m.draw_setDepthState((state.test ? 1 : 0) | (state.write ? 2 : 0)
+            | (state.dither === undefined ? 0 : 4 | (state.dither ? 8 : 0)));
         try {
             draw();
         } finally {

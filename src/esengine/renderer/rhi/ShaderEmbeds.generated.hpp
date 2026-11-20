@@ -91,6 +91,9 @@ uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
 void main() {
+
+
+    if ((v_texIndex & 256) != 0 && ((int(gl_FragCoord.x) + int(gl_FragCoord.y)) & 1) != ((v_texIndex >> 9) & 1)) discard;
     int slot = v_texIndex & 7;
     vec4 texColor;
     if (slot == 0) texColor = texture(u_textures[0], v_texCoord);
@@ -115,7 +118,7 @@ void main() {
     vec4 base = texColor * tint;
     fragColor = vec4(applyLighting2DLayer(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos, v_lightLayer), base.a);
 #else
-    int mode = v_texIndex >> 3;
+    int mode = (v_texIndex >> 3) & 31;
     vec2 duvx = dFdx(v_texCoord);
     vec2 duvy = dFdy(v_texCoord);
     float distWidth = fwidth(texColor.a);
@@ -243,6 +246,8 @@ struct VSOut {
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let idx = i32(v.v_texIndex + 0.5);
+
+    if ((idx & 256) != 0 && ((i32(v.pos.x) + i32(v.pos.y)) & 1) != ((idx >> 9u) & 1)) { discard; }
     let slot = idx & 7;
     let duvx = dpdx(v.v_texCoord);
     let duvy = dpdy(v.v_texCoord);
@@ -267,7 +272,7 @@ struct VSOut {
     let base = texColor * tint;
     let shown = vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
 #else
-    let mode = idx >> 3u;
+    let mode = (idx >> 3u) & 31;
     let distWidth = fwidth(texColor.a);
     var shown : vec4f;
     if (mode == 1) {

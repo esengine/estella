@@ -224,10 +224,20 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection, i32 viewportWidth, i3
 
     // Each session starts from the base state; a prior session's blend/depth
     // overrides do not leak across frames.
+    dither_ = false;
+    ditherPhase_ = false;
     if (!(current_desc_ == base_desc_)) {
         current_desc_ = base_desc_;
         pipeline_ = device_.createPipeline(current_desc_);
     }
+}
+
+u32 ImmediateDraw::appendBatch(const BatchVertex* vertices, usize count) {
+    if (!dither_) return pool_.appendVertices(LayoutId::Batch, vertices, static_cast<u32>(sizeof(BatchVertex) * count));
+    ditherScratch_.assign(vertices, vertices + count);
+    const i32 bits = BATCH_DITHER_BIT | (ditherPhase_ ? BATCH_DITHER_PHASE_BIT : 0);
+    for (BatchVertex& v : ditherScratch_) v.texIndex = static_cast<f32>(static_cast<i32>(v.texIndex) | bits);
+    return pool_.appendVertices(LayoutId::Batch, ditherScratch_.data(), static_cast<u32>(sizeof(BatchVertex) * count));
 }
 
 void ImmediateDraw::setBlendMode(BlendMode mode) {
@@ -375,7 +385,7 @@ void ImmediateDraw::emitQuad(const glm::vec2& center, const glm::vec2& size, f32
         verts[i].texCoord = QUAD_UV[i] * uvScale + uvOffset;
     }
 
-    u32 base = pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+    u32 base = appendBatch(verts.data(), verts.size()) / sizeof(BatchVertex);
     u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };
     pool_.appendIndices(LayoutId::Batch, idx, 6);
     pendingGeometry_ = true;
@@ -392,7 +402,7 @@ void ImmediateDraw::emitTriangle(const glm::vec2& p0, const glm::vec2& p1, const
         BatchVertex{ {p2, 0.0f}, packed, {1.0f, 1.0f} },
     };
 
-    u32 base = pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+    u32 base = appendBatch(verts.data(), verts.size()) / sizeof(BatchVertex);
     u32 idx[3] = { base + 0, base + 1, base + 2 };
     pool_.appendIndices(LayoutId::Batch, idx, 3);
     pendingGeometry_ = true;
@@ -447,7 +457,7 @@ void ImmediateDraw::line3D(const glm::vec3& from, const glm::vec3& to,
         BatchVertex{ clippedTo - side, packed, {0.0f, 1.0f} },
     };
     const u32 base =
-        pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+        appendBatch(verts.data(), verts.size()) / sizeof(BatchVertex);
     const u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };
     pool_.appendIndices(LayoutId::Batch, idx, 6);
     pendingGeometry_ = true;
@@ -508,7 +518,7 @@ void ImmediateDraw::line3DScreen(const glm::vec3& from, const glm::vec3& to,
 
     useTexture(white_texture_id_);
     const u32 base =
-        pool_.appendVertices(LayoutId::Batch, verts.data(), sizeof(verts)) / sizeof(BatchVertex);
+        appendBatch(verts.data(), verts.size()) / sizeof(BatchVertex);
     const u32 idx[6] = { base + 0, base + 1, base + 2, base + 2, base + 3, base + 0 };
     pool_.appendIndices(LayoutId::Batch, idx, 6);
     pendingGeometry_ = true;
@@ -641,8 +651,7 @@ void ImmediateDraw::triangles(const f32* positions, u32 vertexCount, const f32* 
             {0.0f, 0.0f},
         };
     }
-    const u32 base = pool_.appendVertices(LayoutId::Batch, triangleVertices_.data(),
-                                          static_cast<u32>(sizeof(BatchVertex) * vertexCount)) / sizeof(BatchVertex);
+    const u32 base = appendBatch(triangleVertices_.data(), vertexCount) / sizeof(BatchVertex);
     triangleIndices_.resize(used);
     for (u32 i = 0; i < used; ++i) triangleIndices_[i] = base + indices[i];
     pool_.appendIndices(LayoutId::Batch, triangleIndices_.data(), used);

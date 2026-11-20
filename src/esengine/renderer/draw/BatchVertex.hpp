@@ -9,6 +9,10 @@
 namespace esengine {
 
 inline constexpr i32 BATCH_SLOT_BITS = 3;
+/// texIndex bits: draw every other pixel in a checkerboard, at full colour (ImmediateDraw::setDither), and which half —
+/// the two halves together cover every pixel once. Above the glyph modes.
+inline constexpr i32 BATCH_DITHER_BIT = 1 << 8;
+inline constexpr i32 BATCH_DITHER_PHASE_BIT = 1 << 9;
 
 inline i32 batchGlyphModeBits(TextGlyphMode mode) {
     return static_cast<i32>(mode) << BATCH_SLOT_BITS;

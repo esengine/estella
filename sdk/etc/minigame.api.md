@@ -4167,7 +4167,7 @@ texture: (position: Vec2, size: Vec2, textureHandle: number, tint?: Color) => vo
 textureRotated: (position: Vec2, size: Vec2, rotation: number, textureHandle: number, tint?: Color) => void
 triangles: (mesh: DrawTriangles | DrawTrianglesBuffer, options?: DrawTrianglesOptions) => void
 trianglesMany: (buffer: DrawTrianglesBuffer, copies: ArrayLike<number>, count?: number) => void
-withDepthState: (state: { test: boolean; write: boolean; }, draw: () => void) => boolean
+withDepthState: (state: { test: boolean; write: boolean; dither?: 0 | 1; }, draw: () => void) => boolean
 ```
 
 ## DrawBudgetReport — interface @experimental

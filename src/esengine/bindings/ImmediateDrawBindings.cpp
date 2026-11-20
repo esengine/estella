@@ -263,12 +263,15 @@ void draw_setDepthTest(bool enabled) {
 u32 draw_getDepthState() {
     if (!g_immediateDraw) return 0;
     return (g_immediateDraw->depthTest() ? 1u : 0u)
-        | (g_immediateDraw->depthWrite() ? 2u : 0u);
+        | (g_immediateDraw->depthWrite() ? 2u : 0u)
+        | (g_immediateDraw->dither() ? 4u : 0u)
+        | (g_immediateDraw->ditherPhase() ? 8u : 0u);
 }
 
 void draw_setDepthState(u32 flags) {
     if (!g_immediateDraw) return;
     g_immediateDraw->setDepthState((flags & 1u) != 0, (flags & 2u) != 0);
+    g_immediateDraw->setDither((flags & 4u) != 0, (flags & 8u) != 0);
 }
 
 }  // namespace esengine

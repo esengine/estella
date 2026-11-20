@@ -244,6 +244,14 @@ public:
     BlendMode blendMode() const { return current_desc_.blend; }
     bool depthTest() const { return current_desc_.depthTest; }
     bool depthWrite() const { return current_desc_.depthWrite; }
+    /**
+     * @brief Draw what follows dithered: one half of a checkerboard (`phase` 0 or 1), at full colour; the two halves drawn
+     *        in turn cover every pixel once. Per vertex, so it batches with everything else; it applies to the immediate
+     *        geometry (lines, triangles, quads), not to a retained mesh's runs.
+     */
+    void setDither(bool on, bool phase = false) { dither_ = on; ditherPhase_ = phase; }
+    bool dither() const { return dither_; }
+    bool ditherPhase() const { return ditherPhase_; }
     /** Collects all following primitive batches for the owning scene pass. */
     void deferBegin() { recording_ = true; }
 
@@ -286,6 +294,11 @@ private:
     ShaderHandle batch_shader_ = ShaderHandle::Invalid;
     PipelineDesc base_desc_{};
     PipelineDesc current_desc_{};
+    bool dither_ = false;
+    bool ditherPhase_ = false;
+    std::vector<BatchVertex> ditherScratch_;
+    /// Appends batch vertices, with the dither bit on each while setDither is on. Answers the byte offset, as the pool does.
+    u32 appendBatch(const BatchVertex* vertices, usize count);
     PipelineHandle pipeline_ = PipelineHandle::Invalid;
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;
