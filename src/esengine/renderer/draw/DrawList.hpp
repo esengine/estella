@@ -299,6 +299,9 @@ public:
 private:
     std::function<void(const char*)> shader_run_sink_;
     u32 skipped_for_program_ = 0;
+    /// Which merged draws the last depth prepass left out (their depth program still compiling): the colour pass after it draws
+    /// those with an ordinary depth test, since nothing of theirs is in the buffer to be level with.
+    std::vector<u8> prepass_skipped_;
     bool defer_screen_color_ = false;
     bool layer_alpha_ = false;
     bool layerless_visible_ = true;

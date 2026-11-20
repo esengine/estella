@@ -482,7 +482,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
         handle = ctx.resources.createShaderWithBindings(
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
-            {}, ctx.resources.preferredShaderLanguage(), ctx.resources.deferLinks());
+            {}, ctx.resources.preferredShaderLanguage(), ctx.resources.deferLinks() && !compile_in_place_);
         Shader* shader = ctx.resources.getShader(handle);
         if (!shader || !shader->isValid()) return 0;
         if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
@@ -502,6 +502,18 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     // Said to the store the draw list asks, so the pipeline of a draw on this program declares the second output.
     if (gbuffer && mesh_programs_[variant] != 0 && ctx.materials) ctx.materials->markGBufferProgram(mesh_programs_[variant], /*albedo=*/true);
     return mesh_programs_[variant];
+}
+
+u32 MeshPlugin::previewProgram(RenderFrameContext& ctx, u32 variant) {
+    // What the vertex source and the pass's outputs need, and nothing that shades: normals (1), skinning (8), the bake (64)
+    // and the surface record (256) stay; lighting (2), normal maps (4), reflections (32), tangents (1024) and direct light
+    // (2048) go. A depth or motion variant is never previewed.
+    const u32 preview = variant & (1u | 8u | 64u | 256u);
+    if (mesh_compiled_[preview]) return mesh_programs_[preview];
+    compile_in_place_ = true;
+    const u32 program = meshProgram(ctx, preview);
+    compile_in_place_ = false;
+    return program;
 }
 
 RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
@@ -1810,17 +1822,21 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                 }
                 key.shaderId = materialProgram != 0 ? materialProgram : residentShader;
-                // A material whose program is still compiling in the background: drawn with the mesh's own program meanwhile, its
-                // default surface, rather than left out until the compile ends. A scene opens with its shapes all there and each
-                // material takes over the frame its program is ready. Before the prepass choice below, which then takes the
-                // mesh's own depth program too: a prepass left out under a colour draw that tests depth for equality is no draw.
-                if (materialProgram != 0 && key.shaderId == materialProgram && residentShader != 0) {
+                // A program still compiling in the background, the material's or the mesh's own: the draw takes the preview
+                // program meanwhile (texture, colour and bake, compiled in place), rather than being left out until the compile
+                // ends. A scene opens with every shape there, lit by its bake, and each surface takes its own shading the frame its
+                // program is ready. It takes no prepass: a prepass left out while its colour draw tests depth for equality is no draw.
+                bool previewing = false;
+                if (!depthPass && !motion && key.shaderId != 0) {
                     GfxDevice& device = buffers.device();
-                    if (device.skipPendingPrograms() && !device.programReady(ShaderHandle{materialProgram})
-                        && device.programReady(ShaderHandle{residentShader})) {
-                        key.shaderId = residentShader;
-                        key.materialId = 0;
-                        ES_PROFILE_COUNTER("render.mesh.waitingForMaterial", ++waiting_materials_);
+                    if (device.skipPendingPrograms() && !device.programReady(ShaderHandle{key.shaderId})) {
+                        const u32 preview = previewProgram(ctx, keys.variant);
+                        if (preview != 0 && device.programReady(ShaderHandle{preview})) {
+                            key.shaderId = preview;
+                            key.materialId = 0;
+                            previewing = true;
+                            ES_PROFILE_COUNTER("render.mesh.previewing", ++waiting_materials_);
+                        }
                     }
                 }
                 // A caster whose material bends it casts the bent shape, and one whose alpha is coverage casts
@@ -1838,7 +1854,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // The scene's depth prepass: an opaque, unblended, depth-writing surface has its depth drawn first by a program on its own vertex stage,
                 // and is shaded only where that depth is the nearest. Not what reads the picture behind it, and not the views that change what a
                 // surface is drawn as.
-                if (!depthPass && !motion && ctx.purpose == RenderPurpose::Scene && mesh.opaque && key.stage == RenderStage::Opaque
+                if (!depthPass && !motion && !previewing && ctx.purpose == RenderPurpose::Scene && mesh.opaque && key.stage == RenderStage::Opaque
                     && key.blend == BlendMode::None && key.depthTest && key.depthWrite && shading == ShadingMode::Shaded && !heated) {
                     const bool refracts = key.materialId != 0 && ctx.materials && ctx.materials->usesSceneColor(key.materialId);
                     const bool cutout = key.materialId != 0 && ctx.materials && ctx.materials->alphaIsCoverage(key.materialId);

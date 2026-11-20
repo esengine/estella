@@ -406,6 +406,12 @@ void main() {
 #else
     fragColor = base;
 #endif
+#ifdef ES_GBUFFER
+    // A surface record like any other, so the effects that read it see a surface here and not a hole: the plain rough
+    // dielectric, facing up (an unlit surface carries no normal of its own), and its colour as written.
+    fragSurface = vec4(packNormal(vec3(0.0, 1.0, 0.0)), 1.0, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
+#endif
 #endif
 #endif
 }
@@ -774,9 +780,19 @@ fn packNormal(n : vec3f) -> vec2f {
 #else
 #ifdef MESH_LIGHTMAP
     // Unlit AND lightmapped: the bake is the whole of this surface's light.
-    return vec4f(base.rgb * mix(vec3f(1.0), bakedIrradiance(), vec3f(v.v_lightmap.z)), base.a);
+    let unlit = vec4f(base.rgb * mix(vec3f(1.0), bakedIrradiance(), vec3f(v.v_lightmap.z)), base.a);
 #else
-    return base;
+    let unlit = base;
+#endif
+#ifdef ES_GBUFFER
+    // A surface record like any other (see the GLSL twin).
+    var frag : FragOut;
+    frag.color = unlit;
+    frag.surface = vec4f(packNormal(vec3f(0.0, 1.0, 0.0)), 1.0, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
+    return frag;
+#else
+    return unlit;
 #endif
 #endif
 #endif

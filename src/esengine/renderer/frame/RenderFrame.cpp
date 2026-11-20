@@ -372,6 +372,7 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
         draw_list_.setGBufferPass(false);
         if (device_.skipPendingPrograms()) {
             ES_PROFILE_COUNTER("render.draws.waitingForProgram", draw_list_.skippedForProgram());
+            stats_.waiting_for_program = draw_list_.skippedForProgram();
             ES_PROFILE_COUNTER("render.programs.pending", device_.pendingProgramCount());
         }
         // What the probe volumes cost the frame: draws that read the brick atlas per pixel, draws that read one value,

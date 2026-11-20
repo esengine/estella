@@ -293,6 +293,12 @@ i32 renderer_materialBakeState(u32 ticket);
 u32 renderer_getDrawCalls();
 /// Every draw the GPU was asked for in the last frame, every pass included (shadows, prepass, reflections, post-processing).
 u32 renderer_getGpuDrawCalls();
+
+/** @brief Scene draws the last frame left out because a program they use was still compiling in the background. */
+u32 renderer_getDrawsWaitingForProgram();
+
+/** @brief What each program still compiling in the background is, one per line: its id and what it was made for. */
+std::string renderer_getPendingProgramLabels();
 #ifdef __EMSCRIPTEN__
 /// GPU objects the device has not destroyed, for the resource census. Null when
 /// no device is initialized — absent counters, not zeroed ones.

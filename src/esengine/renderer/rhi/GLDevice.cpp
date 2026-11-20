@@ -881,6 +881,15 @@ u32 GLDevice::backendPendingProgramCount() {
     return compiling;
 }
 
+std::string GLDevice::backendPendingProgramLabels() {
+    std::string out;
+    for (const auto& [id, shaders] : pending_programs_) {
+        if (failed_programs_.count(id)) continue;
+        out += std::to_string(id) + ' ' + shaders.label + '\n';
+    }
+    return out;
+}
+
 bool GLDevice::backendProgramReady(u32 id) {
     if (failed_programs_.count(id)) return false;
     if (!pending_programs_.count(id)) return true;

@@ -71,6 +71,13 @@ private:
     /// One entity's bone matrices while they are being built; reused per draw.
     std::vector<glm::mat4> pose_scratch_;
     u32 meshProgram(RenderFrameContext& ctx, u32 variant);
+    /**
+     * The program a mesh draws with while its own is still compiling in the background: the mesh shader unlit, so the
+     * texture, the vertex colour and the bake and nothing else, for the same vertex source and the same outputs. Small, and
+     * compiled in place the first time it is asked for, so it is ready the frame a scene first draws: what an engine shows
+     * as its default material until a shader is ready. 0 where it could not be built.
+     */
+    u32 previewProgram(RenderFrameContext& ctx, u32 variant);
 
     /// Where one mesh stood the last two times a view drew it: the motion between them is what a temporal
     /// effect follows. Per view and entity, kept only while a temporal effect asks for it.
@@ -177,8 +184,10 @@ private:
     f32 cluster_scale_ = 0.0f;
     bool cluster_flat_ = false;
     u32 cluster_meshes_ = 0, cluster_triangles_ = 0, cluster_source_triangles_ = 0, cluster_rebuilt_ = 0, cluster_drawn_ = 0;
-    /// Draws this collect gave the mesh's own program because their material's was still compiling.
+    /// Draws this collect gave the preview program because their own was still compiling.
     u32 waiting_materials_ = 0;
+    /// Set while previewProgram builds a variant: its link is not deferred, whatever the device does for others.
+    bool compile_in_place_ = false;
     /**
      * @brief The cut @p entity draws @p mesh through this frame, or null where it is drawn whole (the device refused a buffer).
      */

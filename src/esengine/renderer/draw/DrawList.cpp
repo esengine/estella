@@ -534,6 +534,8 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
     // as one call, and not while a capture records or replays draw by draw.
     const bool capturing = capture && (capture->isCapturing() || capture->isReplaying());
     if (!afterPrepass) stageBlocks(blocks, device.supportsMultiDraw() && !capturing);
+    if (prepass) prepass_skipped_.assign(merged_draw_calls_, 0u);
+    else if (!afterPrepass) prepass_skipped_.clear();
     if (run_length_.size() != merged_draw_calls_) run_length_.assign(merged_draw_calls_, 1u);
     u32 runCalls = 0;
 
@@ -610,7 +612,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             desc.gbuffer = false;
             desc.albedo = false;
             desc.colorWrite = false;
-        } else if (afterPrepass && takesPartInPrepass(cmd)) {
+        } else if (afterPrepass && takesPartInPrepass(cmd) && !(i < prepass_skipped_.size() && prepass_skipped_[i])) {
             // Its depth is already in the buffer: it lands where it is level with it. It goes on writing depth, the value that is there
             // already, and is not switched to testing alone: what did not take the prepass (a cut-out the prepass has no program for)
             // is drawn in this pass too and does write depth, and on ANGLE's D3D11 backend with a multisampled target a draw that
@@ -621,6 +623,8 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // A program still compiling in the background: this draw waits for a later frame instead of making this one wait for it.
         if (skipUnready && desc.program != ShaderHandle::Invalid && !device.programReady(desc.program)) {
             ++skipped_for_program_;
+            // Its depth is not in the buffer: the colour pass must not look for it there (see prepass_skipped_).
+            if (prepass && i < prepass_skipped_.size()) prepass_skipped_[i] = 1u;
             continue;
         }
 

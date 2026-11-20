@@ -1115,6 +1115,12 @@ void main() {
 #else
     fragColor = base;
 #endif
+#ifdef ES_GBUFFER
+
+
+    fragSurface = vec4(packNormal(vec3(0.0, 1.0, 0.0)), 1.0, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
+#endif
 #endif
 #endif
 }
@@ -1260,11 +1266,11 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         let chosen = u32(esInstanceTint().x);
         let own = vec4f(v.a_joints == vec4u(chosen));
         let heat = dot(own, v.a_weights);
-        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
+)esshader"
+    R"esshader(        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
                                    vec3f(0.1), heat < 0.01), 1.0);
     }
-)esshader"
-    R"esshader(#endif
+#endif
 #endif
 #ifdef MESH_LIGHTMAP
     let lmRect = esInstanceLightmapRect();
@@ -1484,9 +1490,19 @@ fn packNormal(n : vec3f) -> vec2f {
 #else
 #ifdef MESH_LIGHTMAP
 
-    return vec4f(base.rgb * mix(vec3f(1.0), bakedIrradiance(), vec3f(v.v_lightmap.z)), base.a);
+    let unlit = vec4f(base.rgb * mix(vec3f(1.0), bakedIrradiance(), vec3f(v.v_lightmap.z)), base.a);
 #else
-    return base;
+    let unlit = base;
+#endif
+#ifdef ES_GBUFFER
+
+    var frag : FragOut;
+    frag.color = unlit;
+    frag.surface = vec4f(packNormal(vec3f(0.0, 1.0, 0.0)), 1.0, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
+    return frag;
+#else
+    return unlit;
 #endif
 #endif
 #endif

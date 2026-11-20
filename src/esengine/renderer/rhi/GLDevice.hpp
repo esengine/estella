@@ -155,6 +155,7 @@ protected:
     bool framePending() override;
     bool backendProgramReady(u32 id) override;
     u32 backendPendingProgramCount() override;
+    std::string backendPendingProgramLabels() override;
 
     bool backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) override;
     void backendDeleteFramebuffer(u32 id) override;

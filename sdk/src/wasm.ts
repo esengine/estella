@@ -892,6 +892,10 @@ export interface ESEngineModule {
     renderer_destroySkeletalPreview(preview: number): void;
     renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
     renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
+    /** Scene draws the last frame left out because a program they use was still compiling. */
+    renderer_getDrawsWaitingForProgram?(): number;
+    /** The programs compiling in the background, one per line: id and what each was made for. */
+    renderer_getPendingProgramLabels?(): string;
     /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */
     renderer_pollPreviewReadback(): number;
     renderer_getPreviewPtr(): number;

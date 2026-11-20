@@ -97,6 +97,8 @@ public:
         u32 draw_calls = 0;
         /// Every draw the GPU was asked for in the frame, every pass included; `draw_calls` is the scene's and the overlay's lists only.
         u32 gpu_draws = 0;
+        /// Scene draws left out of the frame because a program they use was still compiling in the background.
+        u32 waiting_for_program = 0;
         u32 triangles = 0;
         u32 sprites = 0;
         u32 skeletal = 0;

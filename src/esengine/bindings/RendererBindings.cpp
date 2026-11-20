@@ -1139,6 +1139,16 @@ u32 renderer_getDrawCalls() {
     return g_renderFrame->stats().draw_calls;
 }
 
+std::string renderer_getPendingProgramLabels() {
+    auto* device = g_device;
+    return device ? device->pendingProgramLabels() : std::string();
+}
+
+u32 renderer_getDrawsWaitingForProgram() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->stats().waiting_for_program;
+}
+
 u32 renderer_getGpuDrawCalls() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->stats().gpu_draws;
