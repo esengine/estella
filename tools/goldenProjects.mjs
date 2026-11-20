@@ -1525,6 +1525,76 @@ export const SHIPPED = {
     { notCertifiable: "Several server processes sharing one world; no golden project has a server. Covered by sdk/tests/zones.test.ts, zones-bus.test.ts and zones-ws.test.ts, and run across real processes by tools/zones-benchmark.mjs." },
   "A model's import settings take a triangle budget.":
     { notCertifiable: "An import setting that cuts a model to a triangle count; no golden project sets one. Covered by pipeline/tests/mesh-simplify.test.ts." },
+  "Cameras are authored where they are seen.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-composer-guides.mjs, desktop/scripts/editor-checks/camera-live-status.mjs, desktop/scripts/editor-checks/camera-presets.mjs, desktop/tests/play-overlay-quiet.test.tsx, desktop/tests/ui-debugger-picking.test.tsx, sdk/tests/camera-director.test.ts." },
+  "Each change of camera can have its own blend.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-custom-blends.mjs, sdk/tests/camera-director.test.ts, sdk/tests/camera-rig.test.ts." },
+  "A camera keeps its target in sight, and a 2D camera frames l":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-deoccluder.mjs, desktop/scripts/editor-checks/camera-position-composer.mjs, desktop/scripts/editor-checks/camera-presets.mjs, sdk/tests/camera-deoccluder.test.ts, sdk/tests/camera-position-composer.test.ts." },
+  "A camera can ride a track and drift like one held by hand.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/camera-bounds.test.ts, sdk/tests/camera-dolly-noise.test.ts." },
+  "A game can answer the view changing cameras.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-events.mjs, sdk/tests/camera-director.test.ts." },
+  "A shake happens somewhere.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-impulse.mjs, sdk/tests/camera-impulse.test.ts." },
+  "Cameras now work like Cinemachine: the highest-priority came":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/camera-director.test.ts, sdk/tests/camera-rig.test.ts." },
+  "A Camera Shots example puts the camera pipeline together wit":
+    { notCertifiable: "An example project, not a capability: no golden project is built from it, and no check plays it. What it puts together is covered on its own by sdk/tests/camera-director.test.ts and camera-dolly-noise.test.ts." },
+  "An agent working through the editor's MCP now has a camera skill.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/timeline-mcp-authoring.mjs, desktop/tests/timeline-agent-ops.test.ts." },
+  "The camera follows what a character is doing.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-state-driven.mjs, sdk/tests/camera-state-driven.test.ts." },
+  "One camera frames several targets.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-target-group.mjs, desktop/tests/create-one-undo.test.ts, desktop/tests/third-person-character.test.ts, sdk/tests/camera-target-group.test.ts." },
+  "The viewport says what a Cluster LOD mesh draws.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/cluster-lod-readout.mjs." },
+  "A dense static model can keep every triangle and be drawn wi":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by pipeline/tests/cluster-lod.test.ts, sdk/tests/mesh-format-clusters.test.ts, tests/renderer/test_cluster_selection.cpp." },
+  "The viewport can show which level of detail each part of a C":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by tests/renderer/test_view_shading.cpp." },
+  "The Content Browser folds a model's imported assets under the model.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/content-browser-fold.mjs, desktop/tests/asset-folding.test.ts, pipeline/tests/model-import-source.test.ts." },
+  "A camera impulse source shows its reach in the viewport.":
+    { notCertifiable: "An editor viewport drawing; nothing a package holds. tools/check-gizmo-coverage.mjs holds CameraImpulseSource.radius as a drawn extent; no test asserts the spheres themselves." },
+  "A model dropped on a Details asset slot puts in the product":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/content-browser-fold.mjs, desktop/tests/asset-slot-model.test.ts." },
+  "The Sequencer edits many things at once.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/sequencer-batch-edit.mjs, desktop/tests/timeline-batch.test.ts." },
+  "A timeline's fade shows while it is authored.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/sequencer-fade-preview.mjs." },
+  "The Sequencer zooms.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/sequencer-zoom.mjs." },
+  "Animation tracks extrapolate and layer.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/timeline-animation-track.test.ts." },
+  "Timelines animate 3D characters.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/sequencer-animation-track.mjs, sdk/tests/timeline-animation-track.test.ts." },
+  "Timeline sounds are clips.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/sequencer-audio-clips.mjs, sdk/tests/timeline-audio-clips.test.ts." },
+  "A timeline drives what its player binds.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/sequencer-bindings.mjs, sdk/tests/timeline-bindings.test.ts." },
+  "Timelines shake the camera.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/timeline-camera-shake.test.ts." },
+  "Every timeline track is authored in the Sequencer, and its e":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/sequencer-item-tracks.mjs, desktop/tests/timeline-item-tracks.test.ts, sdk/tests/timeline-drive.test.ts, sdk/tests/timeline-runtime.test.ts." },
+  "A cutscene fades to black and slows time.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/timeline-fade-time.mjs, sdk/tests/screen-fade.test.ts." },
+  "An agent can build a cutscene on a timeline.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/timeline-mcp-authoring.mjs, desktop/tests/timeline-agent-ops.test.ts." },
+  "Timeline tracks are muted, locked and grouped as in Unity and UE.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/sequencer-mute-lock-group.mjs, desktop/tests/timeline-mute-lock-group.test.ts, sdk/tests/timeline-mute-lock-group.test.ts." },
+  "A timeline player is controlled like Unity's and UE's.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/timeline-playback-controls.mjs, sdk/tests/timeline-drive.test.ts." },
+  "A timeline renders to a video.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/sequencer-render.mjs." },
+  "Animation tracks have root motion.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/timeline-animation-track.test.ts." },
+  "Visual scripts hear a timeline.":
+    { notCertifiable: "An editor tool; nothing a package holds, so no game act can decide it. Covered by desktop/scripts/editor-checks/timeline-signals-script.mjs." },
+  "Timelines spawn entities.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/timeline-spawns.test.ts." },
+  "Timelines preview camera shakes, pick masks from the rig, ha":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/script-graph-runner.test.ts, sdk/tests/timeline-animation-track.test.ts, sdk/tests/timeline-camera-shake.test.ts, sdk/tests/timeline-spawns.test.ts." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

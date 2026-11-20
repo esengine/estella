@@ -5684,4 +5684,164 @@ export const NOTED = {
     { internal: "The wait a verification launcher makes before it reads a streamed world; nothing a project can call, draw or author changes." },
   "feat(editor): tripo_generate makes a game asset unless asked otherwise - smart low-poly is on by default, clean topology under 20,000 triangles for 10 credits more where Tripo's own is about 1.4 million; smart_low_poly false asks for the full topology, and detailed geometry, separable parts, a face limit past what it makes, v2.5 and the P series leave it off":
     { note: "AI agents can generate 3D models with Tripo AI." },
+  "feat(editor): asset slots, colours and material parameters as Unreal's Details shows them":
+    { note: "Asset fields, colours and material parameters in the Details look and work as Unreal's do." },
+  "feat(camera): cameraDirectorReport names the live camera, the blend under way and the cameras chosen among":
+    { note: "Cameras are authored where they are seen." },
+  "feat(editor): composition guides over a camera's preview, live camera status while playing, and camera rigs in the Create menu":
+    { note: "Cameras are authored where they are seen." },
+  "fix(camera): a blend between 3D cameras turns the view from one to the other, and a shake moves a 3D camera across its own screen":
+    { note: "A camera blend between two 3D cameras turns the view instead of snapping it to face -Z." },
+  "feat(camera): CameraBrain takes custom blends for particular changes of camera, and a tie in priority goes to the camera switched on last":
+    { note: "Each change of camera can have its own blend." },
+  "feat(editor): the Details edits a list of records as cards and grows and shrinks an entity list":
+    { note: "Each change of camera can have its own blend." },
+  "feat(camera): CameraDeoccluder keeps a target in sight and PositionComposer frames one by moving the camera, in 2D and 3D":
+    { note: "A camera keeps its target in sight, and a 2D camera frames like Cinemachine's." },
+  "feat(editor): the camera presets keep a tracking camera's target in sight and frame a 2D camera with a PositionComposer":
+    { note: "A camera keeps its target in sight, and a 2D camera frames like Cinemachine's." },
+  "docs(editor): the inspector links CameraDeoccluder and PositionComposer to their documentation":
+    { note: "A camera keeps its target in sight, and a 2D camera frames like Cinemachine's." },
+  "feat(camera): CameraDolly rides a camera on a Spline track and CameraNoise drifts its view like a handheld camera":
+    { note: "A camera can ride a track and drift like one held by hand." },
+  "feat(editor): the inspector links CameraDolly and CameraNoise to their documentation":
+    { note: "A camera can ride a track and drift like one held by hand." },
+  "feat(camera): CameraEvent tells a game when a camera goes live and when the blend into it finishes":
+    { note: "A game can answer the view changing cameras." },
+  "test(editor): an editor check hears the view's camera events from a game system in play":
+    { note: "A game can answer the view changing cameras." },
+  "feat(camera): CameraImpulseSource fires a jolt from a place and CameraImpulseListener cameras feel it by their distance":
+    { note: "A shake happens somewhere." },
+  "feat(editor): an Impulse Source in the Create menu, and the follow, tracking and group camera presets listen for impulses":
+    { note: "A shake happens somewhere." },
+  "feat(camera): virtual cameras switch by priority with a CameraBrain blend, and LookAtTarget frames a 3D shot, in one camera pipeline":
+    { note: "Cameras now work like Cinemachine: the highest-priority camera is live, a `CameraBrain` blends into it, and `LookAtTarget` frames a target on screen." },
+  "feat(editor): the inspector links LookAtTarget and CameraBrain to their documentation":
+    { note: "Cameras now work like Cinemachine: the highest-priority camera is live, a `CameraBrain` blends into it, and `LookAtTarget` frames a target on screen." },
+  "feat(examples): a Camera Shots example films a runner with a tracking rail, a crane orbit and a wide shot, with no camera code":
+    { note: "A Camera Shots example puts the camera pipeline together with no camera code." },
+  "feat(editor): the example gallery describes Camera Shots in Chinese":
+    { note: "A Camera Shots example puts the camera pipeline together with no camera code." },
+  "docs(skills): estella-camera teaches an agent camera rigs, blends, shakes and cutscenes":
+    { note: "An agent working through the editor's MCP now has a camera skill." },
+  "fix(editor): timeline_add_items keeps a shot's length so overlapping shots blend, and warns of a switched-off camera":
+    { note: "An agent working through the editor's MCP now has a camera skill." },
+  "feat(camera): StateDrivenCamera picks the live camera by what an Animator is doing":
+    { note: "The camera follows what a character is doing." },
+  "feat(editor): a State-Driven Camera in the Create menu, its rules edited as a table":
+    { note: "The camera follows what a character is doing." },
+  "feat(camera): CameraTargetGroup frames several entities as one target and GroupFraming sizes a shot to them by zoom or dolly":
+    { note: "One camera frames several targets." },
+  "feat(editor): Target Group Camera presets, and an agent's create op makes everything a template makes":
+    { note: "One camera frames several targets." },
+  "feat(render): Renderer.clusterInspect answers what the last frames drew of an entity's Cluster LOD mesh":
+    { note: "The viewport says what a Cluster LOD mesh draws." },
+  "feat(editor): the selection readout says how many of a Cluster LOD mesh's triangles the view drew":
+    { note: "The viewport says what a Cluster LOD mesh draws." },
+  "feat(render): Cluster LOD keeps every triangle of a dense static mesh and draws the clusters a view can tell apart":
+    { note: "A dense static model can keep every triangle and be drawn with only the ones a view can tell apart." },
+  "fix(pipeline): Cluster LOD groups up to sixteen clusters and keeps the larger error, not the sum - a generated 1.4M-triangle model now draws 84 triangles at 19 pixels tall where it drew 30,000":
+    { note: "A dense static model can keep every triangle and be drawn with only the ones a view can tell apart." },
+  "feat(render): the Clusters view shading colours each cluster of a Cluster LOD mesh, so the level every part of a surface is drawn at can be seen":
+    { note: "The viewport can show which level of detail each part of a Cluster LOD mesh is drawn at." },
+  "feat(editor): the viewport's shading menu offers Clusters":
+    { note: "The viewport can show which level of detail each part of a Cluster LOD mesh is drawn at." },
+  "feat(editor): the Content Browser folds a model's products under the model":
+    { note: "The Content Browser folds a model's imported assets under the model." },
+  "feat(pipeline): a model import records in each product's .meta the model it came from":
+    { note: "The Content Browser folds a model's imported assets under the model." },
+  "feat(editor): lay out Details choices, ranges, arrays and Sequencer properties as Unreal does":
+    { note: "The Details panel lays out choices, ranges, lists and Sequencer properties as Unreal's does." },
+  "fix(editor): the viewport compresses textures only when the Build dialog's box is ticked":
+    { note: "The editor draws textures compressed only when the build will compress them." },
+  "fix(scene): an entity numbered 0 can be named by a reference field, and a prefab reference to its own root reaches it":
+    { note: "A reference field can name a scene's first entity and a prefab's own root." },
+  "fix(editor): a scene opened in the editor gives an entity numbered 0 a new id, and a new scene's camera starts at 1":
+    { note: "A reference field can name a scene's first entity and a prefab's own root." },
+  "feat(editor): the viewport draws a camera impulse source's reach":
+    { note: "A camera impulse source shows its reach in the viewport." },
+  "perf(timeline): a blank package leaves out the timeline's events, time dilation and constants":
+    { internal: "A package that never plays a timeline no longer carries the timeline's event, slow-motion and constant tables; nothing a project can call or draw changes." },
+  "feat(editor): a model given to an asset slot takes its fitting product, or offers a menu of several":
+    { note: "A model dropped on a Details asset slot puts in the product the slot takes." },
+  "fix(build): SDL and Dawn are configured fresh - their build directories are cached between runs and a CMakeCache names its compiler by full path, so when a build machine's MSVC toolset moved the configure failed on a cl.exe that was gone":
+    { internal: "How the engine's own build configures SDL and Dawn on a build machine; nothing a project can call, draw or author changes." },
+  "feat(editor): the Sequencer selects, moves, copies, pastes and splits many keys and clips at once":
+    { note: "The Sequencer edits many things at once." },
+  "feat(editor): the Sequencer previews a timeline's screen fade over the scene view":
+    { note: "A timeline's fade shows while it is authored." },
+  "feat(editor): the Sequencer zooms and scrolls its time axis and shows markers on its ruler":
+    { note: "The Sequencer zooms." },
+  "refactor(examples): the space frigate is no longer a submodule of the engine repository":
+    { note: "The Space Frigate example is no longer part of the engine repository." },
+  "refactor(editor): the template gallery no longer names the space frigate, which leaves the engine repository":
+    { note: "The Space Frigate example is no longer part of the engine repository." },
+  "feat(examples): add the Starfall mobile 2D action showcase":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "feat(examples): animate Starfall combat and illuminate skills":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "feat(timeline): animation clips extrapolate past their ends and animation tracks layer with masks":
+    { note: "Animation tracks extrapolate and layer." },
+  "feat(timeline): an animation track plays skeletal clips on a rig, easing them in and out and crossfading where they overlap":
+    { note: "Timelines animate 3D characters." },
+  "feat(editor): the Sequencer adds animation tracks, draws their eases and crossfades, and previews the blend":
+    { note: "Timelines animate 3D characters." },
+  "feat(timeline): an audio item with a length is a clip, heard while the playhead is inside it, faded, looped and paused with the timeline":
+    { note: "Timeline sounds are clips." },
+  "feat(editor): the Sequencer edits audio clips as bars with their fades, and plays and scrubs their sound":
+    { note: "Timeline sounds are clips." },
+  "feat(timeline): a track path @Name animates what the playing TimelinePlayer binds that name to, anywhere in the scene":
+    { note: "A timeline drives what its player binds." },
+  "feat(editor): the Sequencer binds a track to any scene entity through the player, and the player's Details lists its bindings by name":
+    { note: "A timeline drives what its player binds." },
+  "feat(timeline): camera shake tracks fire impulses or shake the view at moments":
+    { note: "Timelines shake the camera." },
+  "feat(timeline): a TimelinePlayer sends the events and markers it crosses as TimelineEvent, and an activation track switches an entity whole":
+    { note: "Every timeline track is authored in the Sequencer, and its events reach the game." },
+  "feat(editor): the Sequencer authors every track the runtime plays, as bars and pins edited in the Details":
+    { note: "Every timeline track is authored in the Sequencer, and its events reach the game." },
+  "feat(timeline): ScreenFade fades the screen to a colour and TimeDilation slows the game, components a timeline keys like UE's Fade and Time Dilation tracks":
+    { note: "A cutscene fades to black and slows time." },
+  "feat(editor): the Sequencer adds Fade and Time dilation tracks":
+    { note: "A cutscene fades to black and slows time." },
+  "feat(editor): MCP tools that add timeline tracks, items and keys as the Sequencer does":
+    { note: "An agent can build a cutscene on a timeline." },
+  "feat(timeline): a track's mute, lock and group are saved with the timeline, and a muted track or channel plays nowhere":
+    { note: "Timeline tracks are muted, locked and grouped as in Unity and UE." },
+  "feat(editor): Sequencer tracks are muted, locked, filed in folders and renamed from their rows":
+    { note: "Timeline tracks are muted, locked and grouped as in Unity and UE." },
+  "feat(timeline): a TimelinePlayer plays a range of its timeline, can run on real time, and sends played, paused, stopped, finished and looped events":
+    { note: "A timeline player is controlled like Unity's and UE's." },
+  "test(editor): an editor check plays a ranged loop, a real-time player under a paused game and the playback events in play":
+    { note: "A timeline player is controlled like Unity's and UE's." },
+  "feat(editor): the Sequencer renders a timeline to PNG frames and an MP4 or WebM by stepping the game a frame at a time":
+    { note: "A timeline renders to a video." },
+  "feat(timeline): animation tracks move their rig by its clips' root motion":
+    { note: "Animation tracks have root motion." },
+  "feat(timeline): timeline markers and events reach visual scripts as timeline:<name>":
+    { note: "Visual scripts hear a timeline." },
+  "feat(timeline): spawn tracks bring in an entity from a prefab for the span of a clip":
+    { note: "Timelines spawn entities." },
+  "feat(timeline): shakes in the scrubbed preview, joint-tree masks, payload pins and same-frame spawns":
+    { note: "Timelines preview camera shakes, pick masks from the rig, hand event payloads to visual scripts and spawn on the frame a clip starts." },
+  "fix(timeline): the default view shake's roll stays typed as a number":
+    { internal: "The default view shake's roll keeps its public type; nothing a project can call or draw changes." },
+  "fix(editor): Add Origin in the Web packaging page adds a row to type into":
+    { note: "Add Origin on the Package Project dialog's Web page works." },
+  "feat(export): enable background shader compilation by default for Web builds":
+    { note: "Web exports compile shaders in the background by default." },
+  "feat(editor): expose the platform default for shader compilation":
+    { note: "Web exports compile shaders in the background by default." },
+  "feat(examples): add an explorable Windrise character and landscape study":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "feat(examples): refine the Windrise oak and Lumine costume against fixed views":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "fix(editor): the Chinese template gallery has text for the Windrise example":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "fix(examples): allow the Windrise first view to finish warming under load":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "perf(examples): shorten Windrise startup and reduce meadow rendering cost":
+    { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
+  "fix(editor-checks): timeline-mcp-authoring's describes line parses again":
+    { internal: "An editor check's description string that would not parse; the checks run again, and nothing a project can see changes." },
 };
