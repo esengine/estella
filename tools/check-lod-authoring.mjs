@@ -31,6 +31,8 @@ const EDITOR = path.join(ROOT, 'desktop', 'src');
 const SNAPSHOT = path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 const TOOLS = path.join(ROOT, 'desktop', 'shared', 'toolCatalog.mjs');
 const DECORATORS = path.join(EDITOR, 'panels', 'inspector', 'componentDecorators.tsx');
+/** The LODGroup inspector the decorator mounts: where the level is read back. */
+const LOD_PANEL = path.join(EDITOR, 'panels', 'inspector', 'LodGroupInspector.tsx');
 const VIEW_STATE = path.join(ROOT, 'src', 'esengine', 'renderer', 'lod', 'LodViewState.hpp');
 
 // The editor is an optional submodule and two of the three claims live in it.
@@ -65,7 +67,7 @@ for (const file of editorSources()) {
       + " lod::selectLevel's, and a copy here is a second selector free to disagree with the picture");
   }
 }
-if (!/Renderer\.lodInspect\(/.test(read(DECORATORS))) {
+if (!existsSync(LOD_PANEL) || !/Renderer\.lodInspect\(/.test(read(LOD_PANEL))) {
   problems.push('the LODGroup panel no longer reads the level back from the frame that drew it'
     + ' (Renderer.lodInspect) — whatever it shows now is its own opinion of the viewport');
 }

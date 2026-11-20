@@ -42,7 +42,7 @@ export const DECISIONS = [
     kind: 'view-dependent',
     owner: { path: 'src/esengine/renderer/lod/LodSelection.hpp', probe: /inline u8 selectLevel/ },
     runtime: { has: true, cite: { path: 'src/esengine/renderer/lod/LodViewState.hpp', probe: /unbiased/ } },
-    editor: { has: true, cite: { path: 'desktop/src/panels/inspector/componentDecorators.tsx', probe: /Renderer\.lodInspect\(/ } },
+    editor: { has: true, cite: { path: 'desktop/src/panels/inspector/LodGroupInspector.tsx', probe: /Renderer\.lodInspect\(/ } },
     agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_lod_decision'/ } },
   },
   {
