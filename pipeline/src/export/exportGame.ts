@@ -388,7 +388,7 @@ function indexHtml(
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false)}
+      ${look.shown === false ? '' : splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false)}
       ${orientation && rotateHint ? orientationCss(orientation) : ''}
     </style>
   </head>
@@ -1328,13 +1328,13 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    // A development preview is a page someone debugs, reloaded on every save: the start screen shows loading and nothing more, no
-    // logo and no minimum time, which a game holds back for only where a player sees it.
+    // A development preview is the project's own page, opened in a browser to debug and reloaded on every save: it carries
+    // no start screen at all, as nothing the project did not make belongs on it. A shipped page carries the one it was given.
     const authored = await splashLook(opts.root, opts.splash, warnings);
     const look: SplashLook = opts.developmentPreview
-      ? { ...authored, logo: undefined, minMs: 0, engineMark: false }
+      ? { shown: false, engineMark: false }
       : { ...authored, engineMark: opts.splash?.ident !== false };
-    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
+    splashBytes = look.shown === false ? 0 : Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
       indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined, opts.serverUrl, platform === 'web' && opts.webRotateHint === true),

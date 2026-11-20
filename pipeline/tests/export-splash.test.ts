@@ -74,13 +74,13 @@ async function page(splash?: ProjectPackaging['splash'], webChannel?: 'poki' | '
 }
 
 describe('the exported page’s start screen', () => {
-  it('shows loading and nothing more in a development preview: no logo, no minimum time', async () => {
+  it('carries no start screen in a development preview: no title, bar, logo or minimum time the project did not make', async () => {
     const authored = { logo: 'assets/logo.png', minMs: 3000 };
     const shipped = await page(authored);
     expect(shipped.html).toContain('class="es-splash-logo"');
     expect(shipped.html).toContain('data-min-ms="3000"');
     const preview = await page(authored, undefined, undefined, { developmentPreview: true });
-    expect(preview.html).toContain('id="es-splash-bar"');
+    expect(preview.html).not.toContain('es-splash');
     expect(preview.html).not.toContain('class="es-splash-logo"');
     expect(preview.html).not.toContain('data-min-ms');
     expect(preview.html).not.toContain('data-ident-ms');

@@ -47,6 +47,11 @@ export interface SplashLook {
   background?: string;
   engineMark?: boolean;
   scriptElsewhere?: boolean;
+  /**
+   * False: the page carries no start screen at all, no title, bar or label. A development preview is the project's own
+   * page and nothing else: what the project did not make, the preview does not add.
+   */
+  shown?: boolean;
 }
 
 /**
@@ -96,6 +101,7 @@ export function splashCss(background: string, engineMark = true): string {
 /** The start screen's markup — no script of its own, so the page adds no CSP hash.
  *  `minMs` rides on a data attribute for the same reason. */
 export function splashHtml(title: string, look: SplashLook = {}): string {
+  if (look.shown === false) return '';
   const marked = look.engineMark !== false;
   const safe = title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
   const hold = (look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '') + (marked ? ` data-ident-ms="${IDENT_SECONDS * 1000}"` : '');
