@@ -21,3 +21,13 @@ sdk/src/runtime/planWorkerBundle.generated.ts text eol=lf
 
 # Git runs the hooks with sh, which reads a CRLF line as a command ending in a carriage return: pin them to LF on every checkout.
 .githooks/* text eol=lf
+
+# Every file a generator writes: the SDK and engine bindings, layouts and worker bundles the web build and the gates
+# rewrite, and the AOT conformance output. Generators write LF; left unpinned these check out as CRLF on Windows, so
+# each build or gate run leaves a dozen files "modified" with nothing in them, which a later commit can sweep up.
+*.generated.ts text eol=lf
+*.generated.cpp text eol=lf
+*.generated.hpp text eol=lf
+*.generated.h text eol=lf
+*.generated.json text eol=lf
+tests/aot/generated/** text eol=lf
