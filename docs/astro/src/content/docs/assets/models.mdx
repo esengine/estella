@@ -153,7 +153,9 @@ limit, as in a mini-game, a triangle budget is still the tool. A mesh with Clust
 The frame counters say what it did: `render.cluster.triangles` is what the scene drew of the
 `render.cluster.sourceTriangles` its clustered meshes have, and `render.cluster.rebuilt` is how many of them had their
 index buffer rewritten this frame. To see it, pick **Clusters** in the viewport's shading menu: every cluster is drawn
-in a colour of its own, so the size of the patches says which level each part of a surface is drawn at.
+in a colour of its own, so the size of the patches says which level each part of a surface is drawn at. Select one
+such mesh and the viewport's selection readout says what the view drew of it, such as **8,512 of 9,216 tris drawn ·
+67 clusters**, and follows the camera as it moves; a mesh without clusters shows its own count.
 
 ## Generated levels of detail
 
