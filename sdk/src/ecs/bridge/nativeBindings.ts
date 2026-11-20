@@ -208,6 +208,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
      *  to look at instead. An editor's questions — a host that binds neither runs
      *  no editor, and the game it does run is unaffected either way. */
     lodInspect: 'es_renderer_lodInspect',
+    /** What a frame drew of one entity's Cluster LOD mesh: the editor's selection readout. */
+    clusterInspect: 'es_renderer_clusterInspect',
     setLodPreview: 'es_renderer_setLodPreview',
     /** How a view shades its meshes — clay, albedo or as authored. An editor's view mode. */
     setViewShading: 'es_renderer_setViewShading',

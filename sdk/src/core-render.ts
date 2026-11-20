@@ -245,6 +245,7 @@ export {
     type RenderTargetHandle,
     type RenderStats,
     type LodDecision,
+    type ClusterDraw,
     type ViewShading,
     type LightStatus,
     type ShadowStatus,

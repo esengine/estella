@@ -348,6 +348,9 @@ void renderer_setViewId(u32 view);
  *          entity, which is not level 0 and must not be shown as one.
  */
 i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
+/** @brief What the last frames drew of `entity`'s Cluster LOD mesh: triangles and clusters, two u32 at `outPtr`; 0 when
+ *         it has none drawn lately. */
+i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr);
 
 /**
  * @brief Draw @p level for @p entity in @p view instead of the chosen one; a

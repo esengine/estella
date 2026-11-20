@@ -1477,6 +1477,14 @@ void renderer_setViewId(u32 view) {
     if (auto* frame = g_renderFrame) frame->setViewId(view);
 }
 
+i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr) {
+    auto* out = boundarySpanMut<u32>(outPtr, 2, "renderer_clusterInspect.out");
+    if (!out) return 0;
+    out[0] = out[1] = 0;
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->clusterInspect(Entity::fromRaw(entity), out[0], out[1]) ? 1 : 0;
+}
+
 i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     auto* out = boundarySpanMut<f32>(outPtr, 4, "renderer_lodInspect.out");
     if (!out) return 0;

@@ -574,6 +574,15 @@ public:
      *          rather than folded into a neighbour, whose cost it would become.
      */
     virtual const char* collectScope() const { return "render.collect.other"; }
+
+    /**
+     * @brief What the last frames drew of the Cluster LOD mesh of the entity `entityId`.
+     *
+     * @details Its triangles and its clusters, as the cut picked for the scene view; false from a plugin that draws no
+     *          such mesh, and for an entity it has not drawn lately. The editor's selection readout says it beside the
+     *          mesh's own count, which a clustered mesh does not draw.
+     */
+    virtual bool clusterInspect(u32 /*entityId*/, u32& /*triangles*/, u32& /*clusters*/) const { return false; }
 };
 
 }  // namespace esengine

@@ -799,6 +799,7 @@ export interface ESEngineModule {
     renderer_setCullingMask?(mask: number): void;
     renderer_setViewId?(view: number): void;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
+    renderer_clusterInspect?(entity: number, outPtr: number): number;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setViewShading?(view: number, mode: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;

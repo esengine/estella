@@ -1127,6 +1127,19 @@ void emitKeptPlacements(const RenderFrameContext& ctx, RenderCollectContext& col
 constexpr f32 kClusterPixelError = 1.0f;
 /** @brief Collects a cut may go undrawn before its buffer is given back. A frame has several: the scene's, each shadow map's. */
 constexpr u64 kClusterCutIdleCollects = 2048;
+/// How many collects back a cut still says what an entity is drawn with: a few frames of every pass. Older, it was not
+/// drawn lately (off screen, hidden), and its count would describe a view that is gone.
+constexpr u64 kClusterCutFreshCollects = 64;
+
+bool MeshPlugin::clusterInspect(u32 entityId, u32& triangles, u32& clusters) const {
+    const auto it = cluster_cuts_.find(entityId);
+    if (it == cluster_cuts_.end() || !it->second.picked || it->second.usedAt + kClusterCutFreshCollects < cluster_serial_) {
+        return false;
+    }
+    triangles = it->second.indexCount / 3;
+    clusters = it->second.clusters;
+    return true;
+}
 
 const MeshPlugin::ClusterCut* MeshPlugin::clusterCut(RenderCollectContext& collect, Entity entity, const Mesh& mesh,
                                                      const glm::vec3& position, const glm::quat& rotation, const glm::vec3& scale) {

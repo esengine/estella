@@ -169,6 +169,15 @@ export function createNativeRendererBackend(
                 screenSize: f[i + 3]!,
             };
         },
+        clusterInspect: (entity) => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.clusterInspect];
+            const heap = lodHeap();
+            if (typeof fn !== 'function' || !heap) return null;
+            if (!(fn as (e: number, p: number) => number)(entity >>> 0, heap.ptr)) return null;
+            const u = heap.heap.HEAPU32;
+            const i = heap.ptr >> 2;
+            return { triangles: u[i]!, clusters: u[i + 1]! };
+        },
         shadowStatus: (entity) => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.shadowStatus];
             const heap = lodHeap();

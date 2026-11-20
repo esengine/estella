@@ -500,6 +500,7 @@ renderer_beginScreenOverlay: ((projectionPtr: number, vpX: number, vpY: number, 
 renderer_captureFrame: ((w: number, h: number) => number) | undefined
 renderer_captureNextFrame: () => void
 renderer_captureTarget: ((target: number, w: number, h: number) => number) | undefined
+renderer_clusterInspect: ((entity: number, outPtr: number) => number) | undefined
 renderer_createSkeletalPreview: (w: number, h: number) => number
 renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_destroySkeletalPreview: (preview: number) => void

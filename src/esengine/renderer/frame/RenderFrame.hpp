@@ -427,6 +427,14 @@ public:
      *          explaining a level has to agree with the frame that drew it, and
      *          the only way to be sure is to not compute it twice.
      */
+    /** @brief What the last frames drew of `entity`'s Cluster LOD mesh (see RenderTypePlugin::clusterInspect). */
+    bool clusterInspect(Entity entity, u32& outTriangles, u32& outClusters) const {
+        for (const auto& plugin : plugins_) {
+            if (plugin->clusterInspect(entity.id(), outTriangles, outClusters)) return true;
+        }
+        return false;
+    }
+
     bool lodInspect(u32 view, Entity entity, u8& outLevel, u8& outUnbiased,
                     u8& outLevels, f32& outSize) const {
         return lod_view_state_.inspect(view, entity, outLevel, outUnbiased, outLevels, outSize);

@@ -92,6 +92,7 @@ export interface RendererBackend {
     setCullingMask(mask: number): void;
     setViewId(view: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
+    clusterInspect?(entity: number): ClusterDraw | null;
     setLodPreview(view: number, entity: number, level: number | null): void;
     setViewShading(view: number, mode: number): void;
     setMeshEdgeBuffers(enabled: boolean): void;
@@ -177,6 +178,14 @@ export interface LodDecision {
     levels: number;
     /** Fraction of the viewport HEIGHT the object covered when it was measured. */
     screenSize: number;
+}
+
+/** What the last frames drew of one entity's Cluster LOD mesh. */
+export interface ClusterDraw {
+    /** Triangles drawn: the clusters picked for the view, of every level they come from. */
+    triangles: number;
+    /** Clusters drawn. */
+    clusters: number;
 }
 
 const NO_STATS: RenderStats = { drawCalls: 0, gpuDraws: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 };
@@ -307,6 +316,13 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 levels: f[2]!,
                 screenSize: f[3]!,
             };
+        },
+        clusterInspect: (entity) => {
+            // The LOD scratch is large enough for its two counts, and the two are never read at once.
+            if (!m.renderer_clusterInspect || !lodInspectPtr) return null;
+            if (!m.renderer_clusterInspect(entity >>> 0, lodInspectPtr)) return null;
+            const u = m.HEAPU32.subarray(lodInspectPtr >> 2, (lodInspectPtr >> 2) + 2);
+            return { triangles: u[0]!, clusters: u[1]! };
         },
         setLodPreview: (view, entity, level) =>
             m.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1),
@@ -804,6 +820,14 @@ export const Renderer = {
      */
     lodInspect(view: number, entity: number): LodDecision | null {
         return backend?.lodInspect(view, entity) ?? null;
+    },
+
+    /**
+     * What the last frames drew of `entity`'s Cluster LOD mesh, picked for the scene view: its triangles and clusters.
+     * Null for a mesh without clusters, and for an entity not drawn lately (off screen, hidden). @experimental
+     */
+    clusterInspect(entity: number): ClusterDraw | null {
+        return backend?.clusterInspect?.(entity) ?? null;
     },
 
     /**

@@ -171,6 +171,7 @@ export interface NativeEngineApi {
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
     renderer_captureTarget?(target: number, w: number, h: number): number;
+    renderer_clusterInspect?(entity: number, outPtr: number): number;
     renderer_copyCapturedEntities?(dest: number, destSize: number): boolean;
     renderer_copyCapturedRecords?(dest: number, destSize: number): boolean;
     renderer_copyCapturedTextures?(dest: number, destSize: number): boolean;
@@ -556,6 +557,7 @@ export function createNativeEngineApi(
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
     bind('renderer_captureTarget', 'es_renderer_captureTarget', false);
+    bind('renderer_clusterInspect', 'es_renderer_clusterInspect', false);
     bind('renderer_copyCapturedEntities', 'es_renderer_copyCapturedEntities', false);
     bind('renderer_copyCapturedRecords', 'es_renderer_copyCapturedRecords', false);
     bind('renderer_copyCapturedTextures', 'es_renderer_copyCapturedTextures', false);

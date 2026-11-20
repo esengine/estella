@@ -51,6 +51,7 @@ public:
     RenderPrewarmResult prewarmDocument(RenderFrameContext& ctx, const MeshDocumentRecord* rows,
                                         u32 count, bool shadowPasses) override;
     const char* collectScope() const override { return "render.collect.mesh"; }
+    bool clusterInspect(u32 entityId, u32& triangles, u32& clusters) const override;
 
 private:
     /** Shader variants compiled during the current collect — see meshProgram. */
