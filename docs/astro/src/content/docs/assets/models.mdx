@@ -86,6 +86,19 @@ Re-importing replaces every product. Edits made to a generated `.esprefab` are l
 place an instance in a scene and edit that instead.
 </Aside>
 
+### Folded under the model
+
+In the Content Browser a model's products are folded under it, as Unity folds a model's sub-assets: the model is one
+entry with an arrow at its thumbnail's edge (at the start of its row in the list), and its meshes, materials, clips and
+prefab show right after it, on one darker band, while it is open. A search lists everything it finds, unfolded, and
+**Browse to Asset** on a folded product opens its model and selects it. Folding moves nothing: the products are the
+same files beside the model, referenced by uuid as before.
+
+Each product's `.meta` says which model it came from: `source`, the model's uuid, written by the import (as Unreal keeps
+an imported asset's source). A product folds under that model while the two are in the same folder. A project imported
+before this was recorded folds by the names the import gives (`<stem>.esprefab` and the meshes, materials, clips and
+baked data named `<stem>_…`); an image beside the model is the artist's and never folds by its name.
+
 ## Tangents
 
 A mesh that has normals and UVs is written with a **tangent** at each vertex, so a normal map is read against the frame it was
