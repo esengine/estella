@@ -221,7 +221,7 @@ A camera shake track fires shakes at moments, as UE's Camera Shake track does an
 from a Unity timeline. Each item is a `time` and a `force` (1 as authored). What a shake does depends on the track's
 entity:
 
-- **With a `CameraImpulseSource`** (see [Cameras](/graphics/camera/)) it fires an impulse from where that entity is,
+- **With a `CameraImpulseSource`** (see [Cameras](/docs/graphics/camera/)) it fires an impulse from where that entity is,
   at `force` times the source's strength: every camera with a `CameraImpulseListener` feels it by its distance, so a
   blast beside the camera jolts it and one across the level barely trembles.
 - **Without one** (a track on the root, say) the view in use is shaken where it is, `force` times a default shake.

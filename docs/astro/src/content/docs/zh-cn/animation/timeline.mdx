@@ -203,7 +203,7 @@ UE 的 Fade 和 Time Dilation 轨道在这里是两个组件,由时间轴用普�
 相机震动轨道在某些时刻触发震动,对应 UE 的 Camera Shake 轨道,以及在 Unity 时间轴上触发 Cinemachine 冲击。每个条目是一个
 `time` 和一个 `force`(1 为原样强度)。震动的效果取决于轨道对应的实体:
 
-- **带有 `CameraImpulseSource`**(见[相机](/zh-cn/graphics/camera/))时,从该实体所在位置发出冲击,强度为源强度的 `force`
+- **带有 `CameraImpulseSource`**(见[相机](/docs/zh-cn/graphics/camera/))时,从该实体所在位置发出冲击,强度为源强度的 `force`
   倍:每个带 `CameraImpulseListener` 的相机按距离感受到它,所以身边的爆炸会让相机剧烈晃动,关卡另一头的只会轻微颤动。
 - **没有该组件**(例如根上的轨道)时,直接震动当前使用的视图,强度为默认震动的 `force` 倍。
 
