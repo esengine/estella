@@ -47,6 +47,8 @@ export interface AssetEntry {
   path: string;
   type: string;
   importer?: Record<string, unknown>;
+  /** The uuid of the asset an import made this from (a model's mesh, material, clip, prefab): `source` in its `.meta`. */
+  source?: string;
 }
 
 /**
@@ -557,7 +559,7 @@ export async function scanAssetDatabase(
   for await (const metaRel of walkMeta(root, '', exclude)) metaRels.push(metaRel);
   type WalkResult = { entry?: AssetEntry; warning?: string };
   const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, async (metaRel): Promise<WalkResult> => {
-    let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
+    let meta: { uuid?: unknown; type?: unknown; importer?: unknown; source?: unknown };
     try {
       meta = JSON.parse(await readTextInRoot(path.join(root, metaRel)));
     } catch (err) {
@@ -572,6 +574,7 @@ export async function scanAssetDatabase(
         path: metaRel.replace(/\.meta$/, ''),
         type: canonicalMetaType(meta.type),
         importer: (meta.importer as Record<string, unknown>) ?? {},
+        ...(typeof meta.source === 'string' ? { source: meta.source.toLowerCase() } : {}),
       },
     };
   });
@@ -700,7 +703,7 @@ export async function updateAssetIndex(
       if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
       else { drop(before, content); continue; }
     }
-    let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
+    let meta: { uuid?: unknown; type?: unknown; importer?: unknown; source?: unknown };
     try {
       meta = JSON.parse(await readTextInRoot(abs + META_EXT));
     } catch {
@@ -712,8 +715,9 @@ export async function updateAssetIndex(
       path: content,
       type: meta.type,
       importer: (meta.importer as Record<string, unknown>) ?? {},
+      ...(typeof meta.source === 'string' ? { source: meta.source.toLowerCase() } : {}),
     };
-    if (!before || before.uuid !== entry.uuid || before.type !== entry.type) resolutionChanged = true;
+    if (!before || before.uuid !== entry.uuid || before.type !== entry.type || before.source !== entry.source) resolutionChanged = true;
     byPath.set(content, entry);
   }
 

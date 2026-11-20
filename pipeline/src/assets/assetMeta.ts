@@ -10,7 +10,7 @@
  *        shared verbatim with the CLI `tools/asset-meta.js`, so the two mint
  *        doors can never disagree on a file's `.meta` type.
  */
-import { writeFile, open } from 'node:fs/promises';
+import { readFile, writeFile, open } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { META_EXT } from './contentPolicy';
@@ -126,4 +126,32 @@ export async function adoptOrphan(absFile: string,
     throw err;
   }
   return 'adopted';
+}
+
+/** The uuid `<absFile>.meta` holds, or null where it has none (or none that reads). */
+export async function metaUuidOf(absFile: string): Promise<string | null> {
+  try {
+    const meta = JSON.parse(await readFile(absFile + META_EXT, 'utf8')) as { uuid?: unknown };
+    return typeof meta.uuid === 'string' ? meta.uuid.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Says in `<absProduct>.meta` which asset an import made it from: `source`, that asset's uuid, as Unreal keeps an
+ * imported asset's source in its import data and Unity keeps a model's sub-assets under the model. The Content Browser
+ * folds a product under its source by it, and a re-import that rewrites the product keeps it. Written only where it
+ * changes, so a re-import of an unchanged model touches no `.meta`.
+ */
+export async function recordImportSource(absProduct: string, sourceUuid: string): Promise<void> {
+  let meta: Record<string, unknown>;
+  try {
+    meta = JSON.parse(await readFile(absProduct + META_EXT, 'utf8')) as Record<string, unknown>;
+  } catch {
+    return; // no sidecar to say it in (a file of a type the project does not index)
+  }
+  if (meta.source === sourceUuid) return;
+  meta.source = sourceUuid;
+  await writeFile(absProduct + META_EXT, JSON.stringify(meta, null, 2) + '\n', 'utf8');
 }

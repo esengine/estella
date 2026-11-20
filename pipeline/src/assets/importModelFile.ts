@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
-import { adoptOrphan } from './assetMeta';
+import { adoptOrphan, metaUuidOf, recordImportSource } from './assetMeta';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
     capTriangles, clusterMeshes, generateLods, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
@@ -186,6 +186,13 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const imageSettings = new Map<string, Record<string, unknown>>(
         [...importedImageSettings(meshes)].map(([file, { settings }]) => [file, { ...settings }]));
 
+    // The model a product is made from, by its uuid: each product says so in its `.meta` (`source`), which is what the
+    // Content Browser folds it under the model by. A model inside the project is given its `.meta` first if it has none
+    // yet; one read from outside (a source being taken over) has no asset to fold under.
+    const sourceInProject = isInsideRoot(root, absSource);
+    if (sourceInProject) await adoptOrphan(absSource);
+    const sourceUuid = sourceInProject ? await metaUuidOf(absSource) : null;
+
     const products: string[] = [];
     const write = async (name: string, bytes: Uint8Array | string): Promise<string> => {
         const rel = destDir ? `${destDir}/${name}` : name;
@@ -193,6 +200,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         await writeFile(path.join(absDir, name), bytes);
         // keeps the uuid a re-import must not change
         await adoptOrphan(path.join(absDir, name), imageSettings.get(name));
+        if (sourceUuid) await recordImportSource(path.join(absDir, name), sourceUuid);
         products.push(rel);
         return rel;
     };
