@@ -18,6 +18,7 @@ import { createMockModule } from './mocks/wasm';
 const pov = (entity: number, x: number): CameraPOV => ({
   entity, isActive: true, x, y: 0, z: 10, rotation: 0, projection: ProjectionType.Orthographic, orthoSize: 100, fov: 0,
   near: 0, far: 1000, viewport: { x: 0, y: 0, z: 1, w: 1 }, clearFlags: ClearFlags.ColorAndDepth, priority: 0,
+  pixelPerfect: false, cullingMask: 0xFFFFFFFF, renderTarget: 0,
 });
 const moved = (a: CameraPOV, b: CameraPOV) => Math.hypot(a.x - b.x, a.y - b.y);
 
