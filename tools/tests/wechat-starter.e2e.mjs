@@ -26,9 +26,10 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`h
 const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader','--mute-audio']});
 try {
  const context=await browser.newContext({viewport:{width:360,height:640},hasTouch:true}),page=await context.newPage();
- page.on('pageerror',error=>report.errors.push(String(error)));page.on('console',message=>{if(message.type()==='error')report.errors.push(message.text());});
+ const consoleLines=[];page.on('console',message=>consoleLines.push(message.type()+': '+message.text().slice(0,300)));page.on('pageerror',error=>report.errors.push(String(error)));page.on('console',message=>{if(message.type()==='error')report.errors.push(message.text());});
  await context.route('**/*',route=>{if(route.request().url().startsWith(origin+'/'))return route.continue();report.unexpectedRequests.push(route.request().url());return route.abort();});
- await page.goto(origin+'/');await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true,{},{timeout:30000});
+ await page.goto(origin+'/');// Polled on a clock, not on the page's animation frames: the condition is three globals, and a page busy loading can starve the frames a wait rides on. A miss says which one never came true, and what the page said.
+ await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true,{},{timeout:30000,polling:100}).catch(async error=>{const state=await page.evaluate(()=>({probe:typeof globalThis.__wxStarterProbe,loading:globalThis.__estellaLoading===undefined?'undefined':JSON.stringify(globalThis.__estellaLoading),identDone:globalThis.__estellaIdentDone})).catch(e=>String(e));throw Error(`starter never became ready: ${JSON.stringify(state)}; errors ${JSON.stringify(report.errors)}; console ${JSON.stringify(consoleLines.slice(-20))}`,{cause:error});});
  report.sceneInitializedMs=await page.evaluate(()=>performance.now());
  report.timingScope='Local contract-host scene initialization after the loading indicator clears. Not real-device cold startup or official time-to-interactive certification.';
  const state=()=>page.evaluate(()=>__wxStarterProbe());const tap=async(x,y)=>{await page.touchscreen.tap(360*x,640*y);};
