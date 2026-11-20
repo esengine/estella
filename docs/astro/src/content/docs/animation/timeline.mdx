@@ -437,6 +437,15 @@ and nothing selected there is nothing to animate: the button reads **Unbound**, 
 link button binds it to your selection — which is how you author a new clip onto an
 entity that does not play it yet.
 
+### Through an agent
+
+An agent driving the editor over [MCP](/docs/agents/mcp/) builds a timeline with the Sequencer's own commands, in the
+`timeline` tool group: `timeline_add_track` adds a track of any type on an entity (named by id or by its name path below
+the player), `timeline_add_items` puts shots, clips, sounds, spawns, markers and events on it with their fields named as
+the file stores them, and `timeline_set_keys` keys an animatable field, making its property track. Each call is one undo
+step, and a wrong name (a field the track does not have, an entity not under the player, a field that cannot be
+animated) is refused with the right ones. `save_asset_document` writes the file.
+
 ## Timelines from code
 
 An `.estimeline` document is plain data — the `TimelineAsset` type plus the
