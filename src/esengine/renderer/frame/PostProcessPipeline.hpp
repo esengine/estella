@@ -246,6 +246,12 @@ public:
     /** The graph resource the scene is captured into, for the frame to declare
      *  its scene pass against. kNoResource when no capture is open. */
     rg::ResourceId sceneResource() const { return inFrame_ ? sceneResource_ : rg::kNoResource; }
+    /** @brief The editor's selection mask for this chain (RenderFrame::declareSelectionMask): outlined after the last pass. */
+    void setSelectionMask(rg::ResourceId mask) { selectionMask_ = mask; }
+    /** @brief The selection's outline over what the bound target holds, from its `mask`. Blended over; the caller sets the viewport. */
+    void drawSelectionOutline(TextureHandle mask);
+    /** @brief The selection mask's ground, into the bound mask target: the scene's `depth` in g, nothing covered. */
+    void drawSelectionGround(TextureHandle depth);
 
     /** Declares this camera's chain onto the frame's graph. The frame runs it. */
     void declareChain();
@@ -409,7 +415,7 @@ public:
                                 || output_transform_ != OutputTransform::None
                                 || displayLutActive()
                                 || view_exposure_ != 0.0f
-                                || presentScales() || present_required_ || compute_needs_depth_);
+                                || presentScales() || present_required_ || compute_needs_depth_ || selection_wanted_);
     }
 
     /**
@@ -436,6 +442,8 @@ public:
     /// A compute pass reads the scene's depth, which only a scene drawn into a target of the graph's has.
     void setComputeNeedsDepth(bool needs) { compute_needs_depth_ = needs; }
     void setPresentRequired(bool required) { present_required_ = required; }
+    /** @brief An editor selection is outlined this frame: a screen effect, so the scene is drawn where its depth can be read. */
+    void setSelectionWanted(bool wanted) { selection_wanted_ = wanted; }
 
     /**
      * @brief This camera keeps the colour under it: its present composites over the target by coverage.
@@ -727,6 +735,10 @@ private:
     /// The copy that keeps alpha (grabScene(false)): the opaque scene kept aside and put back around the blended draws.
     resource::ShaderHandle exactCopyShader_;
     resource::ShaderHandle copyDepthShader_;
+    /// The selection outline, and the scene depth its mask is laid on.
+    resource::ShaderHandle outlineShader_;
+    resource::ShaderHandle outlineGroundShader_;
+    rg::ResourceId selectionMask_ = rg::kNoResource;
 
     std::vector<PostProcessPass> passes_;
     u32 width_ = 0;
@@ -760,6 +772,7 @@ private:
     bool present_over_ = false;
     bool background_sky_ = false;
     bool compute_needs_depth_ = false;
+    bool selection_wanted_ = false;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;
 

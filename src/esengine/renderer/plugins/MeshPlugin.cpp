@@ -1311,8 +1311,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
     const bool split = collect_ctx.casters != CasterSplit::All;
     const bool wantMovers = collect_ctx.casters == CasterSplit::Movers;
+    // The editor's selection mask (a motion collect with a selection): the selected meshes, as they stand.
+    const bool selecting = motion && collect_ctx.selection != nullptr;
     for (auto entity : meshView) {
         if (split && isMover(entity) != wantMovers) continue;
+        if (selecting && !collect_ctx.selection->count(entity.id())) continue;
         ++walked;
         const auto& authored = meshView.get<ecs::MeshRenderer>(entity);
         const ecs::MeshRenderer* described = &authored;
@@ -1341,7 +1344,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         if (kept) {
             // The motion pass draws what moved since the view's last frame, and only what is opaque. A kept draw that did not
             // is passed over here rather than after its cull, which is all the work the walk would have done to reach the same answer.
-            if (motion) {
+            if (selecting && kept->placed) continue;
+            if (motion && !selecting) {
                 if (kept->placed) continue;
                 const Pose* pose = poseOf(ctx, entity, kept, false);
                 if (!mesh.opaque || !pose || pose->frame != ctx.motion_frame || pose->previous == pose->current) continue;
@@ -1385,7 +1389,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         if (shadowDepth && !mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
         // Only a surface that draws opaque and unblended has a motion worth writing: what is blended over
         // something has two, and the picture can follow one.
-        if (motion && !mesh.opaque) continue;
+        if (motion && !selecting && !mesh.opaque) continue;
 
         // A collect with no LOD memory must not select: a shadow map's own screen
         // size means nothing to a player, and borrowing a camera's answer would
@@ -1529,7 +1533,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
         MeshDrawKeys keys{};
-        if (motion) {
+        if (selecting) {
+            // The mask's coverage, through the motion program with no movement in it. A skinned mesh is placed by bones
+            // the motion records take from last frame's pose, which a still selection has none of: the editor outlines it itself.
+            const MeshProgramFacts facts =
+                kept ? kept->facts : meshFactsFromEntity(ctx, registry, entity, mesh, resident, warned_bones_);
+            if (facts.skinned || !resident) continue;
+            keys = { meshVariant(facts.hasNormals, false, false, false, false, false, false, false, false, true, facts.tangents), 0 };
+        } else if (motion) {
             // What was drawn last frame and what is drawn now, for THIS view. Nothing known, or nothing changed,
             // means the camera's own motion says it all and the temporal pass already has that.
             const Pose* pose = poseOf(ctx, entity, kept, false);
@@ -1705,7 +1716,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     std::memcpy(dst + MESH_INSTANCE_TEXEL_LIGHTMAP * 16, &rect, 16);
                 }
                 }
-                if (motion) {
+                if (selecting) {
+                    // No movement: "last frame" is this frame's camera times where the mesh stands now, so the program
+                    // writes zero motion, the depth, and full coverage.
+                    const glm::vec4 still{0.0f};
+                    std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &still, 16);
+                    const glm::mat4 model = kept ? kept->model
+                        : glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
+                    const glm::mat4 now = ctx.motion_prev_view_projection * model;
+                    for (u32 row = 0; row < 4; ++row) {
+                        const glm::vec4 r{now[0][row], now[1][row], now[2][row], now[3][row]};
+                        std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &r, 16);
+                    }
+                } else if (motion) {
                     // This record is the motion pass's own, so the texels a lit draw keeps its tint, normal
                     // matrix and bake in are free: last frame's shift in the tint's, and last frame's
                     // view-projection times last frame's model — as rows, so the shader dots them with the local position.

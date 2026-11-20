@@ -512,6 +512,7 @@ renderer_endFrame: (() => void) | undefined
 renderer_endScreenOverlay: ((targetHandle: number) => void) | undefined
 renderer_entityVisibleToCamera: ((registry: CppRegistry, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number) => void) | undefined
 renderer_flush: () => void
+renderer_framePending: (() => number) | undefined
 renderer_getCapturedEntities: () => number
 renderer_getCapturedEntityCount: () => number
 renderer_getCapturedFrameData: () => number
@@ -607,6 +608,7 @@ renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: num
 renderer_setTreeSortLayers: ((mask: number) => void) | undefined
 renderer_setViewId: ((view: number) => void) | undefined
 renderer_setViewLighting: ((mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean) => void) | undefined
+renderer_setViewSelection: ((view: number, idsPtr: number, count: number) => void) | undefined
 renderer_setViewShading: ((view: number, mode: number) => void) | undefined
 renderer_setViewSkinWeights: ((view: number, entity: number, joint: number) => void) | undefined
 renderer_setViewport: (x: number, y: number, w: number, h: number) => void

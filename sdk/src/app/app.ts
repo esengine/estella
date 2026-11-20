@@ -52,7 +52,7 @@ import { Physics2DRuntime } from '../physics/Physics2DRuntime';
 import { SubsystemRegistry } from './subsystems';
 import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
 import type { SideModuleHost } from '../sideModules/host';
-import { watchWebGPUDeviceLoss } from '../render/renderer';
+import { watchWebGPUDeviceLoss, Renderer } from '../render/renderer';
 import { noteDrawFrame } from '../render/draw';
 import { log } from '../util/logger';
 import { createAbort, type AbortHandle } from '../util/abort';
@@ -177,6 +177,11 @@ function describeSchedule(value: unknown): string {
 
 /** How early a capped frame may land and still count as on time: vsync jitter. */
 const CAP_JITTER_MS = 1;
+/**
+ * The longest a frame waits for the GPU to finish the one before (see the loop): past it the frame runs anyway, so a device
+ * whose answer never comes (a lost fence, a driver that does not say) slows a game to four frames a second, never stops it.
+ */
+const GPU_WAIT_MAX_MS = 250;
 export class App {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
@@ -217,6 +222,8 @@ export class App {
     private fixedStepBudgetMs_ = 8;
     private targetFrameInterval_ = 0;
     private nextCapFrameAt_ = 0;
+    /** When the loop began waiting for the GPU to finish the last frame; null while it is not waiting. */
+    private gpuWaitSince_: number | null = null;
 
     private module_: ESEngineModule | null = null;
     private ownedCppRegistry_: CppRegistry | null = null;
@@ -1474,6 +1481,18 @@ export class App {
         // callback entry, whose jitter would enter delta twice and judder motion.
         // A host that passes no timestamp keeps the old measurement.
         const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
+
+        // One frame in flight: while the GPU is still on the last frame, starting another only queues it behind, and the
+        // picture shows input that much later (a camera let go of goes on moving for every frame queued). UE keeps the game
+        // a frame ahead of the GPU at most for the same reason. The time is not taken, so the frame that runs covers the wait.
+        if (Renderer.framePending()) {
+            this.gpuWaitSince_ ??= currentTime;
+            if (currentTime - this.gpuWaitSince_ < GPU_WAIT_MAX_MS) {
+                this.queueLoopFrame_();
+                return;
+            }
+        }
+        this.gpuWaitSince_ = null;
         const deltaMs = currentTime - this.lastTime_;
 
         // A cadence, not a minimum gap: a cap of two vsyncs measured frame to frame

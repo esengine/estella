@@ -464,6 +464,16 @@ public:
      */
     void setViewShading(u32 view, ShadingMode mode) { view_shading_.set(view, mode); }
     /**
+     * @brief The editor's selection in `view`, outlined on screen (by Entity::id()); empty clears it.
+     * @details Unreal's selection outline: the selected meshes are drawn once more into a coverage mask, and a screen pass
+     *          rings what the mask covers, brighter where the selection is in sight than where something stands in front of
+     *          it. Its cost is the selection's draws and one screen pass, whatever the meshes' detail.
+     */
+    void setViewSelection(u32 view, const u32* ids, u32 count) {
+        if (count == 0) { view_selection_.erase(view); return; }
+        view_selection_[view] = std::unordered_set<u32>(ids, ids + count);
+    }
+    /**
      * @brief Capture the scene around @p position (world) into six @p face-pixel faces, one a frame, and read them back:
      *        a probe volume filled at run time (RenderFrameProbeCapture.cpp). A request replaces one in flight.
      */
@@ -1249,6 +1259,16 @@ private:
      */
     TransientBufferPool velocity_pool_;
     DrawList velocity_list_;
+    /// The editor's selection by view (setViewSelection), and this view's mask draws and target.
+    std::unordered_map<u32, std::unordered_set<u32>> view_selection_;
+    TransientBufferPool selection_pool_;
+    DrawList selection_list_;
+    Unique<Framebuffer> selection_fbo_;
+    /// Collects the selected meshes of this view into selection_list_ (see setViewSelection).
+    void collectSelection(ecs::Registry& registry);
+    void executeSelectionPass();
+    /// The mask target, imported into this frame's graph, or kNoResource when there is nothing to outline.
+    rg::ResourceId declareSelectionMask();
     /// This frame's shift, kept from the collect so the pass draws through the camera the scene did.
     glm::vec2 velocity_jitter_{0.0f};
     /// Collects the meshes that moved by themselves since the last frame into velocity_list_.

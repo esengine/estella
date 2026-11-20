@@ -334,6 +334,7 @@ public:
     ReadbackHandle captureNextFrame(u32 w, u32 h) override;
 
     void endFrame() override;
+    bool framePending() override;
 
 private:
     /** Match the backbuffer's depth-stencil companion to @p width x @p height. */
@@ -761,6 +762,9 @@ private:
     std::unordered_map<std::string, WGPUPipelineLayout> compute_pipeline_layouts_;
     std::unordered_map<u32, PipelineRec> pipelines_;
     std::vector<std::string> stub_logged_;
+    /// The frames ended and the one the queue last said it finished (onSubmittedWorkDone): pending while they differ.
+    u64 frames_ended_ = 0;
+    u64 frames_done_ = 0;
 };
 
 }  // namespace esengine

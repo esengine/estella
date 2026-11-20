@@ -800,8 +800,10 @@ export interface ESEngineModule {
     renderer_setViewId?(view: number): void;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_clusterInspect?(entity: number, outPtr: number): number;
+    renderer_framePending?(): number;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setViewShading?(view: number, mode: number): void;
+    renderer_setViewSelection?(view: number, idsPtr: number, count: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setViewSkinWeights?(view: number, entity: number, joint: number): void;
     renderer_lightStatus?(entity: number, outPtr: number): number;

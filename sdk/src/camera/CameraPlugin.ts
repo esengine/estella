@@ -33,7 +33,7 @@ import { Camera, ProjectionType, SceneOwner, ClearFlags, Transform } from '../ec
 import { canvasRootEntities } from '../ui/core/canvas-roots';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorViewLighting, DEFAULT_EDITOR_VIEW_LIGHTING, pushEditorViewLighting } from './EditorViewLighting';
-import { EditorViewShading, DEFAULT_EDITOR_VIEW_SHADING, pushEditorViewShading, pushEditorViewWeights } from './EditorViewShading';
+import { EditorViewShading, DEFAULT_EDITOR_VIEW_SHADING, pushEditorViewShading, pushEditorViewWeights, pushEditorViewSelection } from './EditorViewShading';
 import type { ViewShading } from '../render/renderer';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewEye, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
 import { ScreenScaling, SCREEN_FIT_OFF } from './ScreenScaling';
@@ -864,6 +864,7 @@ export function cameraPlugin(
             app.insertResource(EditorViewShading, { ...DEFAULT_EDITOR_VIEW_SHADING });
             let lastViewShading: ViewShading | null = null;
             let lastViewWeights = '';
+            let lastViewSelection = '';
             // The camera director: by default it just tracks the active camera;
             // games call setViewTarget(app, entity, {time, curve}) to blend, or
             // shakeCamera(app, {...}) to shake. Fresh state (own arrays) per App.
@@ -949,6 +950,10 @@ export function cameraPlugin(
                         app.getResource(EditorViewShading),
                         app.hasResource(EditorView) && app.getResource(EditorView).active,
                         lastViewWeights);
+                    lastViewSelection = pushEditorViewSelection(
+                        app.getResource(EditorViewShading),
+                        app.hasResource(EditorView) && app.getResource(EditorView).active,
+                        lastViewSelection);
                     pipeline.beginFrame(elapsed);
                     app.measureFrameScope('render.updateTransforms', () =>
                         Renderer.updateTransforms({ _cpp: cppRegistry }));

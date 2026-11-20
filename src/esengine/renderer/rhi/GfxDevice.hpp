@@ -757,6 +757,14 @@ public:
     virtual void endFrame() {}
 
     /**
+     * @brief Whether the GPU is still working on the frame last ended (see endFrame).
+     * @details A frame loop that asks before starting the next keeps one frame in flight, so what is drawn shows input at
+     *          most a frame late; a browser left to itself queues two or three behind a GPU-bound frame, and a camera let go
+     *          of goes on moving for those frames. Asks without waiting. Default: never (a device that cannot tell).
+     */
+    virtual bool framePending() { return false; }
+
+    /**
      * @brief Resizes the default backbuffer to the viewport size.
      * @details GL tracks the canvas drawing buffer implicitly (default no-op);
      *          WebGPU swapchains are fixed-size, so its backend reconfigures

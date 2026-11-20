@@ -265,6 +265,10 @@ void PostProcessPipeline::shutdown() {
         resourceManager_.releaseShader(copyDepthShader_);
         copyDepthShader_ = resource::ShaderHandle{};
     }
+    for (auto* outline : {&outlineShader_, &outlineGroundShader_}) {
+        if (outline->isValid()) resourceManager_.releaseShader(*outline);
+        *outline = resource::ShaderHandle{};
+    }
     for (auto& [key, shader] : blitVariants_) {
         if (shader.isValid()) resourceManager_.releaseShader(shader);
     }
@@ -1332,6 +1336,47 @@ bool PostProcessPipeline::canGrabDepth() {
     return device_.supportsFloatTargets();
 }
 
+namespace {
+// The top unit: the post header gives units 0-6 a sampler and the material's textures start at 8. A unit read by texel
+// alone is unfilterable, as the RGBA32F mask needs.
+constexpr u32 kSelectionMaskUnit = 15;
+}  // namespace
+
+void PostProcessPipeline::drawSelectionOutline(TextureHandle mask) {
+    if (mask == TextureHandle::Invalid) return;
+    if (!outlineShader_.isValid()) {
+        outlineShader_ = compileBlit({"ES_SELECTION_OUTLINE"});
+        if (!outlineShader_.isValid()) return;
+    }
+    Shader* shader = resourceManager_.getShader(outlineShader_);
+    if (!shader) return;
+    applyPassPipeline(*shader, /*over=*/true);
+    if (shader->hasUniform("u_selectionMask")) shader->setUniform("u_selectionMask", static_cast<i32>(kSelectionMaskUnit));
+    shader->commitParams();
+    // After the blit's own inputs, which bind a default to every sampler the variant declares.
+    bindBlitInputs(outlineShader_);
+    device_.bindTexture(kSelectionMaskUnit, mask);
+    drawScreenQuad();
+    device_.bindTexture(kSelectionMaskUnit, TextureHandle::Invalid);
+}
+
+void PostProcessPipeline::drawSelectionGround(TextureHandle depth) {
+    if (depth == TextureHandle::Invalid) return;
+    if (!outlineGroundShader_.isValid()) {
+        outlineGroundShader_ = compileBlit({"ES_SELECTION_SCENE_DEPTH"});
+        if (!outlineGroundShader_.isValid()) return;
+    }
+    Shader* shader = resourceManager_.getShader(outlineGroundShader_);
+    if (!shader) return;
+    applyPassPipeline(*shader);
+    if (shader->hasUniform("u_sceneDepth")) shader->setUniform("u_sceneDepth", static_cast<i32>(kSceneDepthUnit));
+    shader->commitParams();
+    bindBlitInputs(outlineGroundShader_);
+    device_.bindTexture(kSceneDepthUnit, depth);
+    drawScreenQuad();
+    device_.bindTexture(kSceneDepthUnit, TextureHandle::Invalid);
+}
+
 void PostProcessPipeline::grabDepth() {
     if (!copyDepthShader_.isValid()) {
         copyDepthShader_ = compileBlit({"ES_COPY_DEPTH"});
@@ -1629,6 +1674,21 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     blit.write = out;
     blit.execute = [this](const rg::PassContext&) { blitPass(); };
     graph_->addPass(std::move(blit));
+
+    // The editor's selection, ringed over the finished picture: after the look, so the outline keeps its colour.
+    if (selectionMask_ != rg::kNoResource) {
+        const rg::ResourceId mask = selectionMask_;
+        rg::PassDesc outline;
+        outline.name = "selection-outline";
+        outline.reads = {mask};
+        outline.write = out;
+        outline.execute = [this, mask](const rg::PassContext&) {
+            if (output_vp_w_ > 0 && output_vp_h_ > 0) device_.setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
+            drawSelectionOutline(graph_->textureOf(mask));
+        };
+        graph_->addPass(std::move(outline));
+    }
+    selectionMask_ = rg::kNoResource;
 }
 
 void PostProcessPipeline::ensureScreenFBO() {

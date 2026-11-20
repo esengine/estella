@@ -775,10 +775,12 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setViewId", &esengine::renderer_setViewId);
     emscripten::function("renderer_lodInspect", &esengine::renderer_lodInspect);
     emscripten::function("renderer_clusterInspect", &esengine::renderer_clusterInspect);
+    emscripten::function("renderer_framePending", &esengine::renderer_framePending);
     emscripten::function("renderer_setLodPreview", &esengine::renderer_setLodPreview);
     emscripten::function("renderer_setImpostorAtlas", &esengine::renderer_setImpostorAtlas);
     emscripten::function("renderer_takeTextureWants", &esengine::renderer_takeTextureWants);
     emscripten::function("renderer_setViewShading", &esengine::renderer_setViewShading);
+    emscripten::function("renderer_setViewSelection", &esengine::renderer_setViewSelection);
     emscripten::function("renderer_setWorldUnitsPerMeter", &esengine::renderer_setWorldUnitsPerMeter);
     emscripten::function("renderer_requestProbeCapture", &esengine::renderer_requestProbeCapture);
     emscripten::function("renderer_pollProbeCapture", &esengine::renderer_pollProbeCapture);

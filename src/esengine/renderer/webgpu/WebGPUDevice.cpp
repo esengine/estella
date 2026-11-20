@@ -2820,9 +2820,29 @@ void WebGPUDevice::endRenderPass() {
 
 /** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
  *  A frame may have opened several passes on it, so no single pass may do this. */
+bool WebGPUDevice::framePending() {
+    if (frames_done_ >= frames_ended_) return false;
+    if (instance_) wgpuInstanceProcessEvents(instance_);
+    return frames_done_ < frames_ended_;
+}
+
 void WebGPUDevice::endFrame() {
     ++bind_group_frame_;
     presentSurfaceProxy();
+    // Told when the queue has finished everything submitted so far: this frame and all before it.
+    if (queue_) {
+        const u64 frame = ++frames_ended_;
+        WGPUQueueWorkDoneCallbackInfo done = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
+        done.mode = WGPUCallbackMode_AllowSpontaneous;
+        done.callback = [](WGPUQueueWorkDoneStatus, WGPUStringView, void* self, void* which) {
+            auto* device = static_cast<WebGPUDevice*>(self);
+            const u64 finished = static_cast<u64>(reinterpret_cast<uintptr_t>(which));
+            if (finished > device->frames_done_) device->frames_done_ = finished;
+        };
+        done.userdata1 = this;
+        done.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(frame));
+        wgpuQueueOnSubmittedWorkDone(queue_, done);
+    }
     // A capture is served HERE and nowhere else: this is the last instant at which
     // the frame is both finished and still ours. Asking from outside cannot work —
     // whoever could ask runs after the renderer has already given the image back.

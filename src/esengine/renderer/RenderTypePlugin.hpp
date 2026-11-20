@@ -14,6 +14,7 @@
 #include "./frame/FrameConstants.hpp"
 #include "./draw/RenderItem.hpp"
 #include "./draw/DrawCommand.hpp"
+#include <unordered_set>
 #include "./draw/DrawList.hpp"
 #include "./draw/ClipState.hpp"
 #include "./rhi/TransientBufferPool.hpp"
@@ -287,6 +288,12 @@ struct RenderCollectContext {
      */
     const OcclusionView* occlusion = nullptr;
     Entity excluded = INVALID_ENTITY;
+    /**
+     * @brief A motion collect that draws the editor's selection mask instead (RenderFrame::collectSelection): only these
+     *        entities (by Entity::id()), opaque or not, each at where it stands now, so the motion program writes coverage
+     *        and depth and no movement. Null for every other collect.
+     */
+    const std::unordered_set<u32>* selection = nullptr;
     CasterSplit casters = CasterSplit::All;
 
     /**

@@ -329,8 +329,13 @@ precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-#ifdef ES_COPY_DEPTH
+#if defined(ES_COPY_DEPTH) || defined(ES_SELECTION_SCENE_DEPTH)
 uniform highp sampler2D u_sceneDepth;
+#endif
+#ifdef ES_SELECTION_OUTLINE
+
+
+uniform highp sampler2D u_selectionMask;
 #endif
 out vec4 fragColor;
 
@@ -384,6 +389,45 @@ vec3 displayLookup(vec3 c) {
 #endif
 
 void main() {
+#ifdef ES_SELECTION_OUTLINE
+
+
+
+
+    ivec2 maskSize = textureSize(u_selectionMask, 0);
+    ivec2 at = clamp(ivec2(v_texCoord * vec2(maskSize)), ivec2(0), maskSize - ivec2(1));
+    vec4 here = texelFetch(u_selectionMask, at, 0);
+    if (here.a > 0.5) discard;
+    bool ring = false;
+    bool seen = false;
+    for (int y = -2; y <= 2; ++y) {
+        for (int x = -2; x <= 2; ++x) {
+            if (x * x + y * y > 5) continue;
+            ivec2 q = clamp(at + ivec2(x, y), ivec2(0), maskSize - ivec2(1));
+            vec4 m = texelFetch(u_selectionMask, q, 0);
+            if (m.a < 0.5) continue;
+            ring = true;
+            vec3 selected = worldFromDepth(v_texCoord, m.z);
+            float selectedDistance = u_camera.w > 0.5 ? length(selected - u_camera.xyz) : -dot(selected, u_camera.xyz);
+            if (here.g >= selectedDistance * 0.97) seen = true;
+        }
+    }
+    if (!ring) discard;
+
+    float strength = seen ? 1.0 : 0.4;
+    fragColor = vec4(vec3(0.961, 0.533, 0.122) * strength, strength);
+    return;
+#endif
+#ifdef ES_SELECTION_SCENE_DEPTH
+
+
+    ivec2 sceneSize = textureSize(u_sceneDepth, 0);
+    float sceneZ = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(sceneSize)), ivec2(0), sceneSize - ivec2(1)), 0).r;
+    vec3 scenePoint = worldFromDepth(v_texCoord, sceneZ);
+    float sceneDistance = u_camera.w > 0.5 ? length(scenePoint - u_camera.xyz) : -dot(scenePoint, u_camera.xyz);
+    fragColor = vec4(0.0, sceneZ >= 1.0 ? 1e30 : sceneDistance, 0.0, 0.0);
+    return;
+#endif
 #ifdef ES_COPY_DEPTH
 
 
@@ -500,6 +544,39 @@ fn displayLookup(c : vec3f) -> vec3f {
 #endif
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+#ifdef ES_SELECTION_OUTLINE
+
+    let maskSize = vec2i(textureDimensions(t15, 0));
+    let at = clamp(vec2i(v.v_texCoord * vec2f(maskSize)), vec2i(0), maskSize - vec2i(1));
+    let here = textureLoad(t15, at, 0);
+    if (here.a > 0.5) { discard; }
+    var ring = false;
+    var seen = false;
+    for (var y = -2; y <= 2; y++) {
+        for (var x = -2; x <= 2; x++) {
+            if (x * x + y * y > 5) { continue; }
+            let q = clamp(at + vec2i(x, y), vec2i(0), maskSize - vec2i(1));
+            let m = textureLoad(t15, q, 0);
+            if (m.a < 0.5) { continue; }
+            ring = true;
+            let selected = worldFromDepth(v.v_texCoord, m.z);
+            var selectedDistance = -dot(selected, frame.camera.xyz);
+            if (frame.camera.w > 0.5) { selectedDistance = length(selected - frame.camera.xyz); }
+            if (here.g >= selectedDistance * 0.97) { seen = true; }
+        }
+    }
+    if (!ring) { discard; }
+    let strength = select(0.4, 1.0, seen);
+    return vec4f(vec3f(0.961, 0.533, 0.122) * strength, strength);
+#endif
+#ifdef ES_SELECTION_SCENE_DEPTH
+    let sceneSize = vec2i(textureDimensions(t7, 0));
+    let sceneZ = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(sceneSize)), vec2i(0), sceneSize - vec2i(1)), 0);
+    let scenePoint = worldFromDepth(v.v_texCoord, sceneZ);
+    var sceneDistance = -dot(scenePoint, frame.camera.xyz);
+    if (frame.camera.w > 0.5) { sceneDistance = length(scenePoint - frame.camera.xyz); }
+    return vec4f(0.0, select(sceneDistance, 1e30, sceneZ >= 1.0), 0.0, 0.0);
+#endif
 #ifdef ES_COPY_DEPTH
     let depthSize = vec2i(textureDimensions(t7, 0));
     let rawDepth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(depthSize)), vec2i(0), depthSize - vec2i(1)), 0);

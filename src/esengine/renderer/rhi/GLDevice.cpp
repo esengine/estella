@@ -1833,7 +1833,25 @@ void GLDevice::discardLeftDepth() {
     glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &depth);
 }
 
+bool GLDevice::framePending() {
+    if (!frame_fence_) return false;
+    if (!isDeviceUsable()) { frame_fence_ = nullptr; return false; }
+    // A timeout of 0 asks without waiting (WebGL allows no other); the answer moves on between tasks.
+    const GLenum state = glClientWaitSync(static_cast<GLsync>(frame_fence_), 0, 0);
+    if (state == GL_TIMEOUT_EXPIRED) return true;
+    glDeleteSync(static_cast<GLsync>(frame_fence_));
+    frame_fence_ = nullptr;
+    return false;
+}
+
 void GLDevice::endFrame() {
+    // Fenced first, before anything below may return: the frame's work is all submitted, whatever framebuffer is bound.
+    if (isDeviceUsable()) {
+        if (frame_fence_) glDeleteSync(static_cast<GLsync>(frame_fence_));
+        frame_fence_ = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        // The fence only passes once the GPU has been handed what is before it.
+        glFlush();
+    }
     // The default framebuffer's depth and stencil are never read after the frame, which the page shows by its colour: a tile-based GPU that is told so
     // does not write them out. Only with that framebuffer bound, so nothing is rebound under whoever draws next.
     if (current_framebuffer_ != 0) return;

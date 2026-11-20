@@ -154,6 +154,7 @@ RenderFrame::RenderFrame(GfxDevice& device, RenderContext& context,
     , graph_(device, target_pool_)
     , shadow_pool_(device)
     , velocity_pool_(device)
+    , selection_pool_(device)
     , cover_pool_(device) {
     target_manager_.setDevice(device);
 }
@@ -190,6 +191,7 @@ void RenderFrame::init(u32 width, u32 height) {
     pool_.init();
     shadow_pool_.init();
     velocity_pool_.init();
+    selection_pool_.init();
     cover_pool_.init();
     shadow_mover_pool_.init();
     cover_mover_pool_.init();
@@ -226,6 +228,7 @@ void RenderFrame::shutdown() {
     pool_.shutdown();
     shadow_pool_.shutdown();
     velocity_pool_.shutdown();
+    selection_pool_.shutdown();
     cover_pool_.shutdown();
     shadow_mover_pool_.shutdown();
     cover_mover_pool_.shutdown();
@@ -456,8 +459,11 @@ void RenderFrame::applySceneDepthNeed() {
     computeNeedsDepth = gpu_particles_ && gpu_particles_->wantsDepth();
 #endif
     post_process_->setComputeNeedsDepth(computeNeedsDepth || scene_picture_seen_);
+    // An editor selection is outlined over the scene's depth (declareSelectionMask), so it engages the chain and keeps that depth readable.
+    const bool outlining = !view_selection_.empty() && device_.supportsFloatTargets();
+    post_process_->setSelectionWanted(outlining);
     post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_ || computeNeedsDepth || scene_picture_seen_
-                                      || draw_list_.depthMask() != 0);
+                                      || draw_list_.depthMask() != 0 || outlining);
 #endif
 }
 
@@ -1059,6 +1065,14 @@ void RenderFrame::end() {
     }
 #endif
 
+#ifdef ES_ENABLE_POSTPROCESS
+    // The editor's selection outline (setViewSelection): the mask now, the ring after the chain's last pass. A selection
+    // engages the chain (applySceneDepthNeed), so the scene's depth is a texture the mask can be laid on.
+    if (usePostProcess && scene_resource_ != rg::kNoResource) {
+        const rg::ResourceId selectionMask = declareSelectionMask();
+        if (selectionMask != rg::kNoResource) post_process_->setSelectionMask(selectionMask);
+    }
+#endif
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
         post_process_->setShadowAtlas(shadow_texture_id_, shadow_resource_);
@@ -3376,9 +3390,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     stats_.lightsSpared += collectCtx.lightsSpared;
 
     velocity_list_.clear();
+    selection_list_.clear();
     cover_wanted_ = false;
 #ifdef ES_ENABLE_POSTPROCESS
     if (followMotion) collectMotion(registry);
+    // The editor's selection, for its outline: only a view that has one, on a device with float targets for the mask's depth.
+    if (view_selection_.count(view_id_) && device_.supportsFloatTargets()) collectSelection(registry);
     if (sceneGBuffer && post_process_ && post_process_->isEngaged() && post_process_->coverWanted()) collectCover(registry);
 #endif
 
@@ -3388,6 +3405,82 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     frame_collected_ = true;
     frame_depth_seen_ = frame_depth_seen_ || draw_list_.needsDepth();
     frame_scene_picture_seen_ = frame_scene_picture_seen_ || draw_list_.anyNeedsScenePicture(context_.materials());
+}
+
+void RenderFrame::collectSelection(ecs::Registry& registry) {
+    ES_PROFILE_SCOPE("render.collect.selection");
+#ifdef ES_ENABLE_POSTPROCESS
+    selection_pool_.beginFrame();
+    auto ctx = makeContext();
+    // The motion program with no movement: "last frame" is this frame's camera, so it writes depth and coverage only.
+    ctx.purpose = RenderPurpose::Motion;
+    ctx.motion_key = static_cast<u64>(current_target_);
+    ctx.motion_frame = planar_frame_;
+    ctx.motion_prev_view_projection = ctx.view_projection;
+    ctx.motion_prev_jitter = glm::vec2(0.0f);
+    RenderCollectContext collectCtx{registry, frustum_, clip_state_, selection_pool_, selection_list_, ctx,
+                                    computeCameraView(ctx.view_projection)};
+    collectCtx.screen_ui = screen_domain_;
+    collectCtx.ui_tree_layers = ui_tree_layers_;
+    collectCtx.lod = {view_id_, &lod_view_state_, nullptr};
+    collectCtx.selection = &view_selection_[view_id_];
+    for (auto& plugin : plugins_) {
+        if (plugin->drawsMotion()) plugin->collect(collectCtx);
+    }
+    selection_list_.finalize(selection_pool_);
+#else
+    (void)registry;
+#endif
+}
+
+rg::ResourceId RenderFrame::declareSelectionMask() {
+    if (selection_list_.commandCount() == 0 || scene_viewport_.w <= 0 || scene_viewport_.h <= 0) return rg::kNoResource;
+    const u32 w = static_cast<u32>(scene_viewport_.w), h = static_cast<u32>(scene_viewport_.h);
+    if (!selection_fbo_ || selection_fbo_->getWidth() != w || selection_fbo_->getHeight() != h) {
+        FramebufferSpec spec;
+        spec.width = w;
+        spec.height = h;
+        // Depth in a 32-bit float, compared with the scene's to tell the selection in sight from the selection behind something.
+        spec.colorFormat = GfxPixelFormat::RGBA32F;
+        spec.depthStencil = true;
+        spec.linearFilter = false;
+        selection_fbo_ = Framebuffer::create(device_, spec);
+        if (!selection_fbo_) return rg::kNoResource;
+    }
+    const rg::ResourceId mask = graph_.importTarget(selection_fbo_->handle(), w, h, /*output=*/false,
+                                                    selection_fbo_->getColorAttachment());
+    rg::PassDesc pass;
+    pass.name = "selection-mask";
+    // The scene's depth is the mask's ground (see executeSelectionPass), so the scene is drawn first. Named, not read: a read
+    // is bound at a unit as a colour, and the ground binds the depth itself.
+    pass.dependencies = {scene_resource_};
+    pass.write = mask;
+    pass.clear = true;
+    pass.clearDepth = true;
+    // Alpha 0 is nothing selected there; g is the scene's distance from the eye, as far as a float goes where it has none to give.
+    pass.clearColor[0] = pass.clearColor[2] = pass.clearColor[3] = 0.0f;
+    pass.clearColor[1] = 1e30f;
+    pass.execute = [this](const rg::PassContext&) { executeSelectionPass(); };
+    graph_.addPass(std::move(pass));
+    return mask;
+}
+
+void RenderFrame::executeSelectionPass() {
+    if (selection_list_.commandCount() == 0) return;
+    ES_PROFILE_SCOPE("render.selection");
+#ifdef ES_ENABLE_POSTPROCESS
+    // The scene's depth where nothing selected covers: the outline tells at each of its pixels whether the scene stands in
+    // front of the selection there. Read here, into the mask, because the pass that draws the ring may be drawing on the
+    // very target that holds that depth.
+    if (post_process_) post_process_->drawSelectionGround(graph_.depthTextureOf(scene_resource_));
+#endif
+    selection_pool_.upload();
+    context_.updateCameraConstants(view_projection_, glm::vec2(0.0f));
+    // The program is still a Lit shader and still declares the light block (see executeMotionPass).
+    context_.lights().uploadAndBind();
+    selection_list_.execute(device_, selection_pool_, context_.materials(), context_.getWhiteTextureId(),
+                            nullptr, context_.perDrawBlocks());
+    device_.invalidatePipelineCache();
 }
 
 void RenderFrame::collectMotion(ecs::Registry& registry) {

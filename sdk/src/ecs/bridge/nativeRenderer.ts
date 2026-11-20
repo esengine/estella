@@ -169,6 +169,10 @@ export function createNativeRendererBackend(
                 screenSize: f[i + 3]!,
             };
         },
+        framePending: (): boolean => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.framePending];
+            return typeof fn === 'function' ? (fn as () => number)() !== 0 : false;
+        },
         clusterInspect: (entity) => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.clusterInspect];
             const heap = lodHeap();

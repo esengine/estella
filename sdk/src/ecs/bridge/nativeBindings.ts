@@ -210,6 +210,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     lodInspect: 'es_renderer_lodInspect',
     /** What a frame drew of one entity's Cluster LOD mesh: the editor's selection readout. */
     clusterInspect: 'es_renderer_clusterInspect',
+    /** Whether the GPU is still on the last frame: the app's loop keeps one frame in flight by it. */
+    framePending: 'es_renderer_framePending',
     setLodPreview: 'es_renderer_setLodPreview',
     /** How a view shades its meshes — clay, albedo or as authored. An editor's view mode. */
     setViewShading: 'es_renderer_setViewShading',

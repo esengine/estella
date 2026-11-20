@@ -187,6 +187,7 @@ export interface NativeEngineApi {
     renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_entityVisibleToCamera?(registry: unknown, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
     renderer_flush?(): void;
+    renderer_framePending?(): number;
     renderer_getCapturedEntityCount?(): number;
     renderer_getCapturedFrameSize?(): number;
     renderer_getCapturedPassCount?(): number;
@@ -275,6 +276,7 @@ export interface NativeEngineApi {
     renderer_setTreeSortLayers?(mask: number): void;
     renderer_setViewId?(view: number): void;
     renderer_setViewLighting?(mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean): void;
+    renderer_setViewSelection?(view: number, idsPtr: number, count: number): void;
     renderer_setViewShading?(view: number, mode: number): void;
     renderer_setViewSkinWeights?(view: number, entity: number, joint: number): void;
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
@@ -573,6 +575,7 @@ export function createNativeEngineApi(
     bind('renderer_endScreenOverlay', 'es_renderer_endScreenOverlay', false);
     bind('renderer_entityVisibleToCamera', 'es_renderer_entityVisibleToCamera', true);
     bind('renderer_flush', 'es_renderer_flush', false);
+    bind('renderer_framePending', 'es_renderer_framePending', false);
     bind('renderer_getCapturedEntityCount', 'es_renderer_getCapturedEntityCount', false);
     bind('renderer_getCapturedFrameSize', 'es_renderer_getCapturedFrameSize', false);
     bind('renderer_getCapturedPassCount', 'es_renderer_getCapturedPassCount', false);
@@ -661,6 +664,7 @@ export function createNativeEngineApi(
     bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);
     bind('renderer_setViewLighting', 'es_renderer_setViewLighting', false);
+    bind('renderer_setViewSelection', 'es_renderer_setViewSelection', false);
     bind('renderer_setViewShading', 'es_renderer_setViewShading', false);
     bind('renderer_setViewSkinWeights', 'es_renderer_setViewSkinWeights', false);
     bind('renderer_setViewport', 'es_renderer_setViewport', false);

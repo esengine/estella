@@ -18,9 +18,11 @@ export interface EditorViewShadingData {
     mode: ViewShading;
     /** The one skinned entity to colour by a joint's weights, and the joint (an index into its bind matrices). */
     weights: { entity: number; joint: number } | null;
+    /** The entities the view outlines as selected (Renderer.setViewSelection). */
+    selection?: readonly number[];
 }
 
-export const DEFAULT_EDITOR_VIEW_SHADING: EditorViewShadingData = { mode: 'shaded', weights: null };
+export const DEFAULT_EDITOR_VIEW_SHADING: EditorViewShadingData = { mode: 'shaded', weights: null, selection: [] };
 
 export const EditorViewShading = defineResource<EditorViewShadingData>(
     { ...DEFAULT_EDITOR_VIEW_SHADING }, 'EditorViewShading');
@@ -44,6 +46,19 @@ export function pushEditorViewWeights(data: EditorViewShadingData, viewActive: b
     if (key === lastKey) return lastKey;
     const target = viewActive ? data.weights : null;
     Renderer.setViewSkinWeights(EDITOR_VIEW_ENTITY >>> 0, target ? target.entity : null, target?.joint ?? 0);
+    return key;
+}
+
+/**
+ * Pushes the view's selection outline to the engine, once per change and before the frame draws it; returns the key it
+ * pushed. Pushed from anywhere later in the frame, a change would show a frame late, and a viewport drawn on demand
+ * would keep the old outline until something else asked for a frame.
+ */
+export function pushEditorViewSelection(data: EditorViewShadingData, viewActive: boolean, lastKey: string): string {
+    const ids = viewActive ? data.selection ?? [] : [];
+    const key = ids.join(',');
+    if (key === lastKey) return lastKey;
+    Renderer.setViewSelection(EDITOR_VIEW_ENTITY >>> 0, ids);
     return key;
 }
 

@@ -1477,6 +1477,10 @@ void renderer_setViewId(u32 view) {
     if (auto* frame = g_renderFrame) frame->setViewId(view);
 }
 
+i32 renderer_framePending() {
+    return g_device && g_device->framePending() ? 1 : 0;
+}
+
 i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr) {
     auto* out = boundarySpanMut<u32>(outPtr, 2, "renderer_clusterInspect.out");
     if (!out) return 0;
@@ -1555,6 +1559,12 @@ void renderer_setViewShading(u32 view, i32 mode) {
     const ShadingMode known = (mode > 0 && mode < static_cast<i32>(kShadingModeCount))
         ? static_cast<ShadingMode>(mode) : ShadingMode::Shaded;
     g_renderFrame->setViewShading(view, known);
+}
+
+void renderer_setViewSelection(u32 view, uintptr_t idsPtr, u32 count) {
+    if (!g_renderFrame) return;
+    const u32* ids = count > 0 ? boundarySpan<u32>(idsPtr, count, "renderer_setViewSelection.ids") : nullptr;
+    g_renderFrame->setViewSelection(view, ids, ids ? count : 0);
 }
 
 void renderer_setViewSkinWeights(u32 view, u32 entity, i32 joint) {

@@ -93,8 +93,11 @@ export interface RendererBackend {
     setViewId(view: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
     clusterInspect?(entity: number): ClusterDraw | null;
+    framePending?(): boolean;
     setLodPreview(view: number, entity: number, level: number | null): void;
     setViewShading(view: number, mode: number): void;
+    setViewSelection?(view: number, entities: readonly number[]): void;
+    outlinesSelection?(): boolean;
     setMeshEdgeBuffers(enabled: boolean): void;
     setViewSkinWeights(view: number, entity: number, joint: number): void;
     lightStatus(entity: number): LightStatus | null;
@@ -317,6 +320,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 screenSize: f[3]!,
             };
         },
+        framePending: () => (m.renderer_framePending ? m.renderer_framePending() !== 0 : false),
         clusterInspect: (entity) => {
             // The LOD scratch is large enough for its two counts, and the two are never read at once.
             if (!m.renderer_clusterInspect || !lodInspectPtr) return null;
@@ -327,6 +331,15 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setLodPreview: (view, entity, level) =>
             m.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1),
         setViewShading: (view, mode) => m.renderer_setViewShading?.(view >>> 0, mode),
+        setViewSelection: (view, entities) => {
+            if (!m.renderer_setViewSelection) return;
+            if (entities.length === 0) { m.renderer_setViewSelection(view >>> 0, 0, 0); return; }
+            const ptr = m._malloc(entities.length * 4);
+            m.HEAPU32.set(entities.map((e) => e >>> 0), ptr >> 2);
+            m.renderer_setViewSelection(view >>> 0, ptr, entities.length);
+            m._free(ptr);
+        },
+        outlinesSelection: () => typeof m.renderer_setViewSelection === 'function',
         setMeshEdgeBuffers: (enabled) => m.renderer_setMeshEdgeBuffers?.(enabled),
         setViewSkinWeights: (view, entity, joint) => m.renderer_setViewSkinWeights?.(view >>> 0, entity >>> 0, joint),
         shadowStatus: (entity) => {
@@ -831,6 +844,14 @@ export const Renderer = {
     },
 
     /**
+     * Whether the GPU is still working on the frame last drawn. Asks without waiting; false where the device cannot tell.
+     * The app's loop starts no frame while it is, so one frame at most is in flight. @experimental
+     */
+    framePending(): boolean {
+        return backend?.framePending?.() ?? false;
+    },
+
+    /**
      * Show `level` for `entity` in `view` instead of the level that view chose;
      * `null` goes back to choosing. @experimental
      *
@@ -851,6 +872,23 @@ export const Renderer = {
      */
     setViewShading(view: number, mode: ViewShading): void {
         backend?.setViewShading(view, VIEW_SHADING_CODE[mode]);
+    },
+
+    /**
+     * Outline `entities` in `view`, as an editor shows its selection; an empty list clears it. @experimental
+     *
+     * Unreal's selection outline, drawn by the engine: the selected meshes once more into a mask, and one screen pass
+     * that rings it, faint where something stands in front. Its cost does not grow with the meshes' detail. Skinned
+     * meshes are not outlined, nor is anything on a device without float targets. An editor sets it through
+     * EditorViewShading.selection, which reaches the engine before the frame draws.
+     */
+    setViewSelection(view: number, entities: readonly number[]): void {
+        backend?.setViewSelection?.(view, entities);
+    },
+
+    /** Whether this host outlines a selection itself (setViewSelection); where not, an editor draws its own. @experimental */
+    outlinesSelection(): boolean {
+        return backend?.outlinesSelection?.() ?? false;
     },
 
     /**

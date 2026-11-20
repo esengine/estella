@@ -351,6 +351,8 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
 /** @brief What the last frames drew of `entity`'s Cluster LOD mesh: triangles and clusters, two u32 at `outPtr`; 0 when
  *         it has none drawn lately. */
 i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr);
+/** @brief 1 while the GPU is still working on the frame last ended (GfxDevice::framePending); asks without waiting. */
+i32 renderer_framePending();
 
 /**
  * @brief Draw @p level for @p entity in @p view instead of the chosen one; a
@@ -392,6 +394,9 @@ void renderer_setWorldUnitsPerMeter(f32 units);
  *          another view keeps its own look. Out-of-range modes mean authored.
  */
 void renderer_setViewShading(u32 view, i32 mode);
+
+/** @brief The editor's selection in `view`, outlined on screen: `count` entity ids at `idsPtr`; zero clears it. */
+void renderer_setViewSelection(u32 view, uintptr_t idsPtr, u32 count);
 
 /**
  * @brief Give meshes realized from now on an edge buffer, for a wireframe view.

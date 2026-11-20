@@ -63,10 +63,10 @@ function realmAnswer() {
     const text = strip(read(REALM));
     const at = text.indexOf('async function spineDiagnostics(');
     if (at < 0) return null;
-    // To the next top-level declaration — enough of the body to judge.
+    // To the function's own closing brace, at the start of a line: its body and nothing after it.
     const rest = text.slice(at);
-    const end = rest.indexOf('\nwindow.addEventListener');
-    return end < 0 ? rest : rest.slice(0, end);
+    const end = rest.indexOf('\n}');
+    return end < 0 ? rest : rest.slice(0, end + 2);
 }
 
 const MEASURING = [

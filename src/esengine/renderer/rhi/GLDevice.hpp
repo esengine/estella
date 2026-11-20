@@ -152,6 +152,7 @@ protected:
     bool backendProgramPending(u32 id) const override { return pending_programs_.count(id) != 0; }
     bool backendFinishProgram(u32 id) override;
     void endFrame() override;
+    bool framePending() override;
     bool backendProgramReady(u32 id) override;
     u32 backendPendingProgramCount() override;
 
@@ -394,6 +395,8 @@ private:
     // 0 = unprobed, 1 = timer queries available, 2 = unavailable.
     int timer_query_state_ = 0;
     bool timer_disjoint_pending_ = false;
+    /// The fence after the last frame's work (endFrame); null once it has passed. A GLsync, held untyped as the readbacks hold theirs.
+    void* frame_fence_ = nullptr;
 };
 
 }  // namespace esengine
