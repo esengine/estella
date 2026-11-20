@@ -27,6 +27,7 @@ import path from 'node:path';
 import { SCOPES, GATES, gatesFor, owedSuites, relatedRun } from './gates.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
 import { ROOT } from './lib/repo.mjs';
+import { installDrift } from './lib/installDrift.mjs';
 
 const ARGS = toolArgs({ scope: 'local', suites: 'all', jobs: '1', matrix: null, only: null, where: null, 'no-suites': false, complete: false, 'keep-going': false, plan: false });
 
@@ -126,6 +127,15 @@ const GAPS = [
 ];
 const declared = GAPS.filter((g) => process.env[g.env] === g.value);
 /**
+ * An install that is not the lockfile's: said before the first gate and again in the summary, so a compile or test red it
+ * causes is read as the install and not chased through code CI passes.
+ */
+const DRIFT = installDrift(ROOT);
+if (DRIFT.length) {
+  console.log('installed dependencies do not match pnpm-lock.yaml — tsc and test reds here may be the install, not the code (`pnpm install`):');
+  for (const line of DRIFT) console.log(`  ${line}`);
+}
+/**
  * How many gates run at once. The list is cut at every `exclusive` gate (a build): the gates between two cuts share the pool, a cut
  * gate runs alone. Verdicts are still read in list order, so the first red is a serial run's; the other reds are named with it.
  */
@@ -217,6 +227,7 @@ function reportSuites() {
   // A declared profile narrows what a suite covered, and the summary is where
   // that has to be said — otherwise "green" quietly means "green minus 300".
   for (const g of declared) console.log(`  ${g.env}=${g.value} — ${g.says}`);
+  for (const line of DRIFT) console.log(`  install: ${line} — a tsc or test red may be the install, not the code`);
   const unrun = noEditor.filter((g) => g.covers?.length);
   if (unrun.length) {
     console.log(`  test suites NOT run: ${unrun.map((g) => g.id).join(', ')} — no editor checkout`);

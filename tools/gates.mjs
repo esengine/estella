@@ -189,6 +189,8 @@ export const GATES = [
   { id: 'workflows', run: 'node tools/check-workflows.mjs' },
   { id: 'tool-spawn', run: 'node tools/check-tool-spawn.mjs' },
   { id: 'tool-calls', run: 'node tools/check-tool-calls.mjs', needs: 'editor' },
+  // Editor checks run on a machine with the editor, never in CI: this is the one place a check file that does not parse is seen.
+  { id: 'editor-checks-load', run: 'node tools/check-editor-checks-load.mjs', needs: 'editor' },
   { id: 'capabilities', run: 'node tools/check-capabilities.mjs', needs: 'editor' },
   { id: 'inspector-door', run: 'node tools/check-inspector-door.mjs', needs: 'editor' },
   { id: 'component-fields', run: 'node tools/check-component-fields.mjs' },
