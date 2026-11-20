@@ -160,6 +160,10 @@ Switching re-runs shader reflection: the parameter list below rebuilds from the 
 parameters no longer apply, **switching clears the material's parameter values** — re-tune
 them for the new effect.
 
+A material instance (`instanceOf` another material) shows a box before each parameter, as a Material Instance does in
+Unreal: ticked, the instance sets that parameter; clear, it takes its parent's value, shown greyed and closed to edits.
+Ticking keeps the parameter at the value it showed until you change it, even where that is the parent's.
+
 - **Share one shader across materials.** An `.esshader` is a first-class asset (badge
   **SHD**). Point several materials at the *same* `.esshader` file and they share one
   compiled shader — edit the source once and every material that references it updates. That
@@ -254,6 +258,10 @@ says which one found no unit.
 
 Params live in an engine-generated std140 block, initialized from their `default(…)`
 values — a material that never sets a param still draws correctly.
+
+`group(Name)` puts a param in a group, as Unreal groups a material's parameters: the inspector shows each group as a
+section of its own (the built-in Model shader's are Base, UV, Normal, Emissive, Occlusion, Wetness and Detail), and
+params with no group under **Parameters**. Names read as words there: `u_uvTiling` is **UV Tiling**.
 
 A param that is a distance in the world says so with `unit(length)`, and one that is a rate per distance (a fog or water density) with
 `unit(perLength)`. Its default and range are then written at the engine's reference of 100 world units a metre, and follow the project's

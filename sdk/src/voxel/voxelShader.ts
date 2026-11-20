@@ -62,7 +62,7 @@ function swap(source: string, from: string | RegExp, to: string): string {
 export function deriveVoxelGround(model: string): string {
     let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
-    s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
+    s = swap(s, '#pragma param u_emissiveMap texture default(white) group(Emissive)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
     s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);

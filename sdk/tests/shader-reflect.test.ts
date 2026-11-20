@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { reflectEsshader, paramDefaultValue } from '../src/render/shaderReflect';
-import { BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate } from '../src/render/builtinShaders';
+import { BUILTIN_SHADER_TEMPLATES, builtinShaderTemplate, MODEL } from '../src/render/builtinShaders';
 
 const SRC = `
 #pragma shader "ParamTest"
@@ -42,6 +42,18 @@ describe('reflectEsshader', () => {
     expect(p.range).toEqual({ min: 0, max: 4 });
     expect(p.ui).toBe('slider');
     expect(p.displayName).toBe('Strength'); // u_ stripped + capitalized
+  });
+
+  it('reads a parameter group, and none where it names none', () => {
+    const r = reflectEsshader(['#pragma shader "G"', '#pragma param u_a float default(1) group(Base)', '#pragma param u_b float', ''].join('\n'));
+    expect(r.params.map((p) => p.group)).toEqual(['Base', undefined]);
+  });
+
+  it('groups the Model shader parameters as Unreal groups a material', () => {
+    const byName = new Map(reflectEsshader(MODEL).params.map((p) => [p.name, p.group]));
+    expect(byName.get('u_normalMap')).toBe('Normal');
+    expect(byName.get('u_detailBump')).toBe('Detail');
+    expect(byName.get('u_clearcoat')).toBeUndefined();
   });
 
   it('parses a color default as 4 components', () => {

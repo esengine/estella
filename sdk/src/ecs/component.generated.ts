@@ -714,7 +714,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             lit: { tooltip: "Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this." },
             castShadows: { tooltip: "Cast shadows: whether this mesh blocks the light. Water and other surfaces light passes through say no." },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
-            material: { advanced: true },
+            material: { tooltip: "The material it is drawn with; none draws it with the built-in look (texture and colour above).", category: "Materials" },
         },
     },
     MeshSkin: {
@@ -1264,7 +1264,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
-            material: { advanced: true },
+            material: { tooltip: "The material it is drawn with; none draws it with the built-in sprite look.", category: "Materials" },
         },
     },
     SpriteMask: {

@@ -688,7 +688,8 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Receive 2D lights: Light entities light this mesh (flat normal). A custom material overrides this.",
     },
     "material": {
-      "advanced": true,
+      "category": "Materials",
+      "tooltip": "The material it is drawn with; none draws it with the built-in look (texture and colour above).",
     },
     "normalMap": {
       "tooltip": "Normal map (tangent space). Needs a mesh with normals.",
@@ -1767,7 +1768,8 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Whether a SpriteMask drawn before this sprite clips it, and which side survives.",
     },
     "material": {
-      "advanced": true,
+      "category": "Materials",
+      "tooltip": "The material it is drawn with; none draws it with the built-in sprite look.",
     },
     "order": {
       "max": 127,

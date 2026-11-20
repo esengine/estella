@@ -522,26 +522,26 @@ export const MODEL = `#pragma shader "Model"
 #pragma version 300 es
 #pragma domain Lit
 #pragma switch ES_SPECULAR_GLOSSINESS
-#pragma param u_tint color default(1,1,1,1)
+#pragma param u_tint color default(1,1,1,1) group(Base)
 // Where every map is read: the mesh's UV scaled, then turned, then moved (glTF's KHR_texture_transform, Unity's Tiling and Offset).
-#pragma param u_uvTiling vec2 default(1,1)
-#pragma param u_uvOffset vec2 default(0,0)
-#pragma param u_uvRotation float default(0) range(-3.1416,3.1416) ui(slider)
-#pragma param u_normalMap texture default(flatnormal) texel(data)
-#pragma param u_normalScale float default(1) range(-4,4) ui(slider)
-#pragma param u_emissive color default(0,0,0,1)
-#pragma param u_emissiveMap texture default(white)
-#pragma param u_occlusionMap texture default(white) texel(data)
-#pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
-#pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+#pragma param u_uvTiling vec2 default(1,1) group(UV)
+#pragma param u_uvOffset vec2 default(0,0) group(UV)
+#pragma param u_uvRotation float default(0) range(-3.1416,3.1416) ui(slider) group(UV)
+#pragma param u_normalMap texture default(flatnormal) texel(data) group(Normal)
+#pragma param u_normalScale float default(1) range(-4,4) ui(slider) group(Normal)
+#pragma param u_emissive color default(0,0,0,1) group(Emissive)
+#pragma param u_emissiveMap texture default(white) group(Emissive)
+#pragma param u_occlusionMap texture default(white) texel(data) group(Occlusion)
+#pragma param u_occlusionStrength float default(1) range(0,1) ui(slider) group(Occlusion)
+#pragma param u_alphaCutoff float default(0) range(0,1) ui(slider) group(Base)
 #pragma coverage u_alphaCutoff
-#pragma param u_metallic float default(0) range(0,1) ui(slider)
-#pragma param u_roughness float default(1) range(0,1) ui(slider)
-#pragma param u_metallicRoughnessMap texture default(white) texel(data)
+#pragma param u_metallic float default(0) range(0,1) ui(slider) group(Base)
+#pragma param u_roughness float default(1) range(0,1) ui(slider) group(Base)
+#pragma param u_metallicRoughnessMap texture default(white) texel(data) group(Base)
 // The same packed-map unit serves either workflow; the specular/glossiness permutation
 // reads sRGB specular from RGB and linear gloss from A, without adding a sampler.
-#pragma param u_specularColor color default(1,1,1,1)
-#pragma param u_glossiness float default(1) range(0,1) ui(slider)
+#pragma param u_specularColor color default(1,1,1,1) group(Base)
+#pragma param u_glossiness float default(1) range(0,1) ui(slider) group(Base)
 // What a surface has beyond a metal/rough pair. Every one is zero (or glTF's own default) for a surface that has none of it,
 // and the lighting skips a layer whose strength is zero, so a plain material pays nothing for these.
 #pragma param u_ior float default(1.5) range(1,3) ui(slider)
@@ -572,12 +572,12 @@ export const MODEL = `#pragma shader "Model"
 // (0 dry to 1 a puddle), green dampness; where it reads above zero the surface darkens, grows smoother and, in a puddle, goes flat and
 // mirror-like, which a Planar Reflection on the same mesh then shows. Wetness is the master amount: 0 leaves the surface alone and
 // pays one comparison. The map starts at Origin, in world X and Z, and is Size wide and deep; outside it the ground is dry.
-#pragma param u_wetness float default(0) range(0,1) ui(slider)
-#pragma param u_wetMask texture default(black) texel(data)
-#pragma param u_wetOrigin vec2 default(0,0)
-#pragma param u_wetSize vec2 default(0,0)
-#pragma param u_wetDarken float default(0.4) range(0,1) ui(slider)
-#pragma param u_wetRoughness float default(0.3) range(0,1) ui(slider)
+#pragma param u_wetness float default(0) range(0,1) ui(slider) group(Wetness)
+#pragma param u_wetMask texture default(black) texel(data) group(Wetness)
+#pragma param u_wetOrigin vec2 default(0,0) group(Wetness)
+#pragma param u_wetSize vec2 default(0,0) group(Wetness)
+#pragma param u_wetDarken float default(0.4) range(0,1) ui(slider) group(Wetness)
+#pragma param u_wetRoughness float default(0.3) range(0,1) ui(slider) group(Wetness)
 // <detail>
 // Detail that repeats: a rock the size of a house has one picture of its own, a few centimetres to the texel, and seen from beside it
 // that is a blur. u_detailMap is a grey picture of a surface (its red: 0.5 changes nothing, lighter and darker are the grain) laid over
@@ -585,10 +585,10 @@ export const MODEL = `#pragma shader "Model"
 // needed. It varies the colour by u_detailStrength and, read as a height, tilts the light by u_detailBump. It fades out where a tile
 // is smaller than a few pixels, so at a distance the model's own picture is all there is and nothing shimmers. Size 0 is off and costs
 // one comparison. It is laid by where the surface is in the world: for what stands still.
-#pragma param u_detailMap texture default(flatnormal) texel(data)
-#pragma param u_detailSize float default(0) range(0,100000) unit(length)
-#pragma param u_detailStrength float default(0.5) range(0,1) ui(slider)
-#pragma param u_detailBump float default(0.5) range(0,2) ui(slider)
+#pragma param u_detailMap texture default(flatnormal) texel(data) group(Detail)
+#pragma param u_detailSize float default(0) range(0,100000) unit(length) group(Detail)
+#pragma param u_detailStrength float default(0.5) range(0,1) ui(slider) group(Detail)
+#pragma param u_detailBump float default(0.5) range(0,2) ui(slider) group(Detail)
 // </detail>
 
 #pragma fragment

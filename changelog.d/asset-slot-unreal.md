@@ -1,0 +1,6 @@
+---
+section: Changed
+commits:
+  - feat(editor): asset slots, colours and material parameters as Unreal's Details shows them
+---
+**Asset fields, colours and material parameters in the Details look and work as Unreal's do.** An asset field (a texture, a mesh, a material) is a thumbnail edged in its type's colour, a combo box naming the asset that opens the picker, and buttons that use the asset selected in the Content Browser and find this one there; double-clicking the thumbnail opens the asset. Materials and meshes show their rendered thumbnail. The picker lists the assets with their thumbnails and folders (or as tiles) under Edit, Copy, Paste and Clear for the current one. A colour is one block across the row, opaque on the left and with its alpha on the right; its hex is typed in its picker. A material's parameters are in the shader's groups (Base, UV, Normal, Emissive…; `group(Name)` on a `#pragma param`) with names in words, and a material instance has a box before each parameter that says whether it sets it or takes its parent's. A mesh's or sprite's Material is under Materials rather than folded away in Advanced. Before, an asset field was one line with a 16 px icon, a lens that opened the picker and a × that cleared it, and a colour was a small swatch beside its hex.

@@ -10957,6 +10957,7 @@ number
 default: number[]
 defaultTexture: string | undefined
 displayName: string
+group: string | undefined
 layered: true | undefined
 name: string
 range: { min: number; max: number; } | undefined

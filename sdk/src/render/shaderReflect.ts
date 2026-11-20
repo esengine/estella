@@ -17,7 +17,7 @@
  *          otherwise drop without a word.
  *
  *          Grammar (matches ShaderParser):
- *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)] [texel(data)] [unit(length|perLength)]
+ *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)] [texel(data)] [unit(length|perLength)] [group(Name)]
  *            (<type> `textureArray` reads as a `texture` param with `layered` set)
  *            #pragma domain <Unlit|Lit|PostProcess|UI>
  */
@@ -39,6 +39,11 @@ export interface ShaderParam {
     range?: { min: number; max: number };
     /** Optional UI hint from `ui(...)`, e.g. "slider". */
     ui?: string;
+    /**
+     * `group(Name)`: the parameter group an inspector shows it under, as Unreal groups a material's parameters (Base,
+     * Normal, Emissive…). Absent: no group. A clause the engine's own parser does not read, so it changes nothing drawn.
+     */
+    group?: string;
     /**
      * `texel(data)`: a texture whose texels this shader reads as numbers (a normal,
      * packed roughness), which sRGB decode would bend. Absent means colour.
@@ -131,6 +136,8 @@ function parseParam(arg: string): ShaderParam | null {
 
     const ui = clause(arg, 'ui');
     if (ui !== undefined) param.ui = ui;
+    const group = clause(arg, 'group');
+    if (group) param.group = group;
 
     if (type === 'texture' && clause(arg, 'texel') === 'data') param.texel = 'data';
     const unit = clause(arg, 'unit');

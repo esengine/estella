@@ -92,7 +92,7 @@ struct MeshRenderer {
     glm::vec2 parallax{1.0f, 1.0f};
 
     /** @brief Custom material ID (0 = use default batch shader) */
-    ES_PROPERTY(asset = material, advanced)
+    ES_PROPERTY(asset = material, category=Materials, tooltip="The material it is drawn with; none draws it with the built-in look (texture and colour above).")
     u32 material{0};
 
     ES_PROPERTY()
