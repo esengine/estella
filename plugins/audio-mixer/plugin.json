@@ -7,6 +7,7 @@
     "zh-CN": "每条音频总线一条推子：音量、静音、插入效果和闪避。"
   },
   "publisher": "estella",
+  "category": "Audio",
   "engines": { "editor": ">=0.51" },
   "main": { "editor": "src/editor.tsx" },
   "capabilities": ["fs:project"]
