@@ -40,6 +40,7 @@ import {
   editorViewStandoff, editorViewGridPlane, worldAxisVector,
 } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
+import { linearColorSpace } from '../ecs/env';
 
 /** The grid's dual-language material shader (exported for the twins structure guard). */
 export const GRID_ESSHADER = `#pragma shader "EditorGrid"
@@ -282,14 +283,18 @@ export function installEditorGrid(app: App): void {
              basis.forward.z * reach, perspective);
     setParam('u_gridParams', grid.spacing, grid.majorEvery, 0, 0);
 
+    // A line blended over a dark viewport in linear light is seen at about alpha^(1/2.2) once the picture is encoded: 0.05
+    // reads as a quarter. The grid's alphas say how a line should LOOK, so a linear session blends with the alpha that looks
+    // that way (exact over black, close over the viewport's dark greys).
+    const seen = linearColorSpace() ? (a: number) => Math.pow(a, 2.2) : (a: number) => a;
     const minor = grid.color;
     const major = grid.majorColor;
     const axisU = grid.axisColors[plane.u];
     const axisV = grid.axisColors[plane.v];
-    setParam('u_minorColor', minor[0], minor[1], minor[2], minor[3]);
-    setParam('u_majorColor', major[0], major[1], major[2], major[3]);
-    setParam('u_axisUColor', axisU[0], axisU[1], axisU[2], axisU[3]);
-    setParam('u_axisVColor', axisV[0], axisV[1], axisV[2], axisV[3]);
+    setParam('u_minorColor', minor[0], minor[1], minor[2], seen(minor[3]));
+    setParam('u_majorColor', major[0], major[1], major[2], seen(major[3]));
+    setParam('u_axisUColor', axisU[0], axisU[1], axisU[2], seen(axisU[3]));
+    setParam('u_axisVColor', axisV[0], axisV[1], axisV[2], seen(axisV[3]));
 
     Draw.drawMeshWithMaterial(quad_, material_);
   });

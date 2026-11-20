@@ -12,7 +12,9 @@
  * pass — so it pans / zooms with the view and is occluded by scene entities,
  * exactly like a UE5 / Unity scene grid.
  *
- * Colors are straight-alpha RGBA in 0..1. `spacing` is the minor line spacing in
+ * Colors are straight-alpha RGBA in 0..1, the alpha the opacity a line is SEEN at over the dark viewport: the renderer
+ * turns it into the alpha that looks that way in the session's colour space, so a linear project's grid is no brighter
+ * than a gamma one's. `spacing` is the minor line spacing in
  * world units; every `majorEvery`-th line is a heavier major line. The two world
  * axes that run in the plane are drawn in their own colors, so the origin and
  * which way the axes point read at a glance.
