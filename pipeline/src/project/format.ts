@@ -18,6 +18,7 @@
  * into workspace.json.
  */
 
+import { parseSkinningConfig, type SkinningConfig } from './skinning';
 import {
   parseAudioProjectConfig, parseQualityConfig, parseRuntimeBuildConfig, physics3DPluginConfigOf, THEME_COLOR_ROLES,
   type AudioProjectConfig, type Physics3DWorldConfig, type QualityConfig, type RuntimeBuildConfig,
@@ -215,6 +216,8 @@ export interface ProjectFeatures {
      *  height whatever produced it. Absent/'surface' ⇒ straight to the surface,
      *  the zero-regression default. See {@link renderResolutionValue}. */
     renderResolution?: RenderResolutionMode;
+    /** Skinned meshes: bones per draw (per platform), the influence limit, weight precision (skinning.ts). */
+    skinning?: SkinningConfig;
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
@@ -927,6 +930,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
       // Same shape again: only the opt-in persists, 'surface' is absence.
       if (r.renderResolution === 'design' || r.renderResolution === 'integer') {
         rendering.renderResolution = r.renderResolution;
+      }
+      if (r.skinning && typeof r.skinning === 'object') {
+        const skinning = parseSkinningConfig(r.skinning);
+        if (Object.keys(skinning).length > 0) rendering.skinning = skinning;
       }
       if (Object.keys(rendering).length > 0) features.rendering = rendering;
     }

@@ -136,8 +136,18 @@ export { setTextureBudget, setRetainedBudget, getResourceStats, trimTextureCache
 export {
     MeshChannel, MeshChannelType, MESH_MAX_BONES, packChannels, encodeMesh, decodeMesh,
     encodeChannelTable, MESH_CLUSTER_BOUNDS_FLOATS, type MeshChannelDesc, type MeshData, type MeshMorphTargets,
-    type MeshClusters,
+    type MeshClusters, type MeshSkinChunks,
 } from './asset/meshFormat';
+/**
+ * A skinned mesh made ready for the GPU skinning path: the influence limit, chunks for a skin past one draw's bones, and
+ * a byte per joint index and weight. What an importer runs before writing a skinned `.esmesh`. `@beta`.
+ *
+ * @beta
+ */
+export {
+    buildSkinnedMesh, fitSkinToBudget, SKIN_INFLUENCES, MIN_BONES_PER_CHUNK,
+    type SkinBuildOptions, type SkinBuildReport,
+} from './asset/skinChunks';
 export type { MeshResult } from './asset/loaders/MeshAssetLoader';
 /**
  * Gives a mesh the second UV set a baked lightmap is read through — no two

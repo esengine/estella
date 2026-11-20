@@ -13,7 +13,7 @@
  * arrays — rather than a heap this side would walk. @ref tools/ufbx-wasm/bridge.c
  * is the other half of that contract.
  */
-import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels } from 'esengine';
+import { MeshChannel, MeshChannelType, packChannels } from 'esengine';
 import { generateTangents } from './meshTangents';
 import {
     alignQuaternionSigns, animationProductName, ANIMATED_PATHS, disambiguateNodes,
@@ -471,15 +471,9 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
     // decays to, once ufbx clamps the bad index and returns zeroes.
     const colors = part.colors ? dropInvisibleColors(floats(payload, part.colors),
                                                      part.vertexCount, name, warnings) : null;
-    // A pose the renderer cannot hold is not a pose — see the same read in the
-    // glTF importer. Static, and it says why, rather than joints indexing a
-    // matrix that was never uploaded.
+    // Any number of joints: a skin past one draw's bones is split into chunks when the model is built (buildSkins).
     const bones = part.skinJoints?.length ?? 0;
-    if (bones > MESH_MAX_BONES) {
-        warnings.push(`${name}: the skin binds ${bones} joints and one draw can be posed by`
-            + ` ${MESH_MAX_BONES} — imported static`);
-    }
-    const skinned = !!(joints && weights && bones > 0 && bones <= MESH_MAX_BONES);
+    const skinned = !!(joints && weights && bones > 0);
 
     // The frame the normal map was baked in, from the UVs as stored.
     const tangents = normals && uvs ? generateTangents(positions, normals, uvs, indices) : null;

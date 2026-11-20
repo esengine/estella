@@ -57,6 +57,9 @@ import { makeStreamTail, type StreamTail } from './streamTail';
 import { matchScriptAssetRefs, scanScriptAssetRefs, unregisteredScriptRefs } from './scriptAssetRefs';
 import { metaTypeFor } from './assetMeta';
 import { META_EXT } from './contentPolicy';
+import { maxBonesFor } from '../project/skinning';
+import { MESH_MAX_BONES } from '../../../sdk/src/asset/meshFormat';
+import { fitSkinToBudget } from '../../../sdk/src/asset/skinChunks';
 import { readManifest } from '../project/readProject';
 import { resolveScripts } from '../project/format';
 
@@ -542,6 +545,9 @@ export async function cookAssets(
   const compressAudio = opts.compressAudio ?? false;
   const transcodeVideo = opts.transcodeVideo ?? false;
   const platform = opts.platform;
+  // The bones one draw may carry on this platform (Project Settings, Rendering, Skinning): a skinned mesh built for more
+  // is split again for it.
+  const skinBudget = await readManifest(root).then((m) => maxBonesFor(m.features?.rendering?.skinning, platform)).catch(() => MESH_MAX_BONES);
   const streamTails = opts.streamTails ?? false;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const recipeProducts = new Map<string, { model: string; role: ModelProductRole }>();
@@ -931,6 +937,14 @@ export async function cookAssets(
           videoAudio = res.audio;
         } else {
           throw new Error('video transcode failed — the original video cannot play on this target\'s WASM decoder');
+        }
+      }
+      if (ext.toLowerCase() === '.esmesh' && skinBudget < MESH_MAX_BONES) {
+        try {
+          const fitted = fitSkinToBudget(data, skinBudget);
+          if (fitted) data = fitted;
+        } catch (err) {
+          warnings.push(`${entry.path}: not split for ${skinBudget} bones a draw — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Materials: relative refs → logical project paths (see rewriteMaterialRefs).

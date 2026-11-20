@@ -330,6 +330,12 @@ export interface ESEngineModule {
     mesh_setClusters?(meshHandle: number, clustersPtr: number, clusterCount: number,
                       indexPtr: number, indexCount: number): number;
     /**
+     * Give a skinned mesh the chunks it is drawn in: `chunkCount` records of three u32 (first index, index count, bones
+     * named) and every chunk's bones as u16. Returns 1, or 0 where the engine refused them. Optional: an older wasm build
+     * has no chunks, and a mesh past one draw's bones is drawn static there.
+     */
+    mesh_setSkinChunks?(meshHandle: number, chunksPtr: number, chunkCount: number, bonesPtr: number, boneCount: number): number;
+    /**
      * The renderer's program-readiness epoch. Advanced whenever programs that
      * WERE ready go cold, so a readiness record carrying an older one is naming
      * programs that may no longer exist and has to be re-derived.

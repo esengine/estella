@@ -727,6 +727,8 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     }
     mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
     mesh.clusters.reset();
+    mesh.skinChunks.clear();
+    mesh.skinChunkBones.clear();
     mesh.revision = nextRevision();
     meshes_revision_ = mesh.revision;
 
@@ -838,6 +840,42 @@ bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexB
                      target.id());
         return false;
     }
+    return true;
+}
+
+bool ResourceManager::setMeshSkinChunks(MeshHandle target, std::vector<MeshSkinChunk> chunks, std::vector<u16> bones) {
+    Mesh* mesh = meshes_.get(target);
+    if (!mesh || !mesh->isSkinned()) {
+        ES_LOG_ERROR("setMeshSkinChunks: handle {} names no live skinned mesh", target.id());
+        return false;
+    }
+    u32 next = 0;
+    for (const MeshSkinChunk& chunk : chunks) {
+        const bool ok = chunk.firstIndex == next && chunk.indexCount > 0 && chunk.indexCount % 3 == 0
+            && chunk.boneCount > 0 && chunk.boneCount <= MESH_MAX_BONES
+            && static_cast<usize>(chunk.boneOffset) + chunk.boneCount <= bones.size();
+        if (!ok) {
+            ES_LOG_ERROR("setMeshSkinChunks: mesh {} was given a chunk at index {} of {} indices and {} bones; drawn as before",
+                         target.id(), chunk.firstIndex, chunk.indexCount, chunk.boneCount);
+            return false;
+        }
+        next += chunk.indexCount;
+    }
+    if (next != mesh->indexCount) {
+        ES_LOG_ERROR("setMeshSkinChunks: mesh {}'s chunks cover {} of its {} indices; drawn as before", target.id(), next, mesh->indexCount);
+        return false;
+    }
+    for (const u16 bone : bones) {
+        if (bone >= mesh->inverseBind.size()) {
+            ES_LOG_ERROR("setMeshSkinChunks: mesh {} has {} joints and a chunk names joint {}; drawn as before",
+                         target.id(), mesh->inverseBind.size(), bone);
+            return false;
+        }
+    }
+    mesh->skinChunks = std::move(chunks);
+    mesh->skinChunkBones = std::move(bones);
+    mesh->revision = nextRevision();
+    meshes_revision_ = mesh->revision;
     return true;
 }
 

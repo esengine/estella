@@ -8,6 +8,7 @@
  * same thing, so the writing is here and each caller says only where the source is, where the products go and what to do just before
  * a file is written (the editor journals it for undo).
  */
+import { maxBonesFor, type SkinningConfig } from '../project/skinning';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -16,7 +17,7 @@ import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
 import { adoptOrphan, metaUuidOf, recordImportSource } from './assetMeta';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
-    capTriangles, clusterMeshes, generateLods, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
+    capTriangles, clusterMeshes, generateLods, buildSkins, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
     type ImportedMesh, type ImportedNode, type SpecularMapReading,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
@@ -39,6 +40,10 @@ export interface ModelImportSettings {
     springBones: boolean;
     /** Bake what the dynamic GI reads of each mesh: its distance field (`<name>.esmeshsdf`) and its surface cards (`<name>.esmeshcards`). */
     dynamicGI: boolean;
+    /** Joints one skinned vertex may be moved by, 1..4; 0 takes the project's (Project Settings, Rendering, Skinning). */
+    boneInfluenceLimit: number;
+    /** Skin weights at 16 bits; null takes the project's. */
+    highPrecisionSkinWeights: boolean | null;
 }
 
 export interface ImportedModel {
@@ -73,6 +78,7 @@ export interface ImportModelOptions {
 
 const DEFAULTS: ModelImportSettings = {
     scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, maxTriangles: 0, clusterLod: false, characters: false, springBones: false, dynamicGI: false,
+    boneInfluenceLimit: 0, highPrecisionSkinWeights: null,
 };
 
 /** What a model's `.meta` asks of the import; the schema's defaults where it is silent or unreadable. One read, because two would be two chances to disagree. */
@@ -80,7 +86,8 @@ export function modelSettings(absSource: string): ModelImportSettings {
     try {
         const meta = JSON.parse(readFileSync(`${absSource}.meta`, 'utf8')) as
             { importer?: { scale?: unknown; lightmapUV?: unknown; specularMap?: unknown;
-                lodLevels?: unknown; lodMinTriangles?: unknown; maxTriangles?: unknown; clusterLod?: unknown; characterMaterials?: unknown; springBones?: unknown; dynamicGI?: unknown } };
+                lodLevels?: unknown; lodMinTriangles?: unknown; maxTriangles?: unknown; clusterLod?: unknown; characterMaterials?: unknown; springBones?: unknown; dynamicGI?: unknown;
+                boneInfluenceLimit?: unknown; highPrecisionSkinWeights?: unknown } };
         const imp = meta.importer;
         const scale = imp?.scale;
         const levels = imp?.lodLevels;
@@ -96,6 +103,9 @@ export function modelSettings(absSource: string): ModelImportSettings {
             characters: imp?.characterMaterials === 'auto',
             springBones: imp?.springBones === 'auto',
             dynamicGI: imp?.dynamicGI === true,
+            boneInfluenceLimit: typeof imp?.boneInfluenceLimit === 'number' && imp.boneInfluenceLimit >= 1 && imp.boneInfluenceLimit <= 4
+                ? Math.floor(imp.boneInfluenceLimit) : 0,
+            highPrecisionSkinWeights: imp?.highPrecisionSkinWeights === 'on' ? true : imp?.highPrecisionSkinWeights === 'off' ? false : null,
         };
     } catch {
         return { ...DEFAULTS };
@@ -116,6 +126,18 @@ function collectNodeMeshes(nodes: ImportedNode[], meshFiles: string[], out: Map<
  * Import `absSource` into `destDir` of the project at `root`, writing the meshes, the images it carries, the materials, the clips and the
  * prefab that assembles them.
  */
+/** The project's skinning settings (`features.rendering.skinning`), or none when it states none or is no project. */
+function projectSkinning(root: string): SkinningConfig | undefined {
+  try {
+    const file = path.join(root, 'project.esproject');
+    if (!existsSync(file)) return undefined;
+    const text = readFileSync(file, 'utf8');
+    return parseManifest(JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)).features?.rendering?.skinning;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The project's units per metre (`features.physics.world3d.unitsPerMeter`), or the engine's 100 when it states none or is no project. */
 function projectUnitsPerMeter(root: string): number {
   try {
@@ -135,7 +157,8 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const sourceDir = opts.originDir ?? path.dirname(absSource);
     const stem = modelStem(absSource);
     const projectRef = (abs: string): string => path.relative(path.resolve(root), abs).split(path.sep).join('/');
-    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, maxTriangles, clusterLod, characters, springBones, dynamicGI } = { ...modelSettings(absSource), ...opts.settings };
+    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, maxTriangles, clusterLod, characters, springBones, dynamicGI,
+        boneInfluenceLimit, highPrecisionSkinWeights } = { ...modelSettings(absSource), ...opts.settings };
 
     const { meshes, textures, nodes, animations, externalFiles, warnings } = await readModelSource(
         new Uint8Array(readFileSync(absSource)), stem,
@@ -181,6 +204,14 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     // After it, because a level is a collapse of the mesh as it will be written.
     warnings.push(...await generateLods(meshes, { levels: lodLevels, minTriangles: lodMinTriangles }));
     if (characters) orderHairTriangles(meshes);
+    // Last of the geometry: a chunk is a run of the triangles in the order they are written. Every platform's bone budget;
+    // an export for a platform with a smaller one splits again (cookAssets).
+    const skinning = projectSkinning(root);
+    warnings.push(...buildSkins(meshes, {
+        maxBonesPerChunk: maxBonesFor(skinning),
+        influenceLimit: boneInfluenceLimit || skinning?.boneInfluenceLimit || 0,
+        highPrecisionWeights: highPrecisionSkinWeights ?? skinning?.highPrecisionWeights ?? false,
+    }));
 
     // What each image's sampler asked for, by product name — applied when its `.meta` is first minted and never after: the file's settings are the user's.
     const imageSettings = new Map<string, Record<string, unknown>>(

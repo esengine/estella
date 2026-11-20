@@ -284,6 +284,20 @@ const MODEL: ImporterFieldSpec[] = [
       + 'SBC_Capsule_<name>_r<cm>_h<cm> a collider. Sizes are in metres, as the model has them. A name is a convention, so check what it found.',
   },
   {
+    key: 'boneInfluenceLimit', label: 'Bone Influence Limit', type: 'enum', default: 0, category: 'Skinning',
+    options: [{ label: 'Project Default', value: 0 }, { label: '1', value: 1 }, { label: '2', value: 2 },
+              { label: '3', value: 3 }, { label: '4', value: 4 }],
+    tooltip: 'Most joints one vertex of this model\u0027s skinned meshes is moved by; the heaviest are kept and their weights '
+      + 'made whole again. Fewer is cheaper to skin and to store. Project Default takes Project Settings, Rendering, Skinning.',
+  },
+  {
+    key: 'highPrecisionSkinWeights', label: 'High Precision Skin Weights', type: 'enum', default: 'project', category: 'Skinning',
+    advanced: true,
+    options: [{ label: 'Project Default', value: 'project' }, { label: 'On', value: 'on' }, { label: 'Off', value: 'off' }],
+    tooltip: 'Store skin weights at 16 bits rather than 8, for a rig whose small weights move a vertex visibly when rounded '
+      + '(a face). Twice the weight bytes.',
+  },
+  {
     key: 'specularMap', label: 'Specular Map', type: 'enum', default: 'color',
     category: 'Import', advanced: true,
     options: [{ label: 'Specular Color', value: 'color' }, { label: 'Packed ORM', value: 'orm' }],

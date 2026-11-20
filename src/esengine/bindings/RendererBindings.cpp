@@ -462,8 +462,10 @@ bool marshalMeshChannels(MeshUpload& out, const char* who,
     // device's — the boundary the format crosses as bytes.
     auto channelType = [](u8 code) {
         switch (static_cast<MeshChannelType>(code)) {
-        case MeshChannelType::UNorm8: return GfxDataType::UnsignedByte;
-        case MeshChannelType::UInt16: return GfxDataType::UnsignedShort;
+        case MeshChannelType::UNorm8:
+        case MeshChannelType::UInt8:   return GfxDataType::UnsignedByte;
+        case MeshChannelType::UInt16:
+        case MeshChannelType::UNorm16: return GfxDataType::UnsignedShort;
         default:                      return GfxDataType::Float;
         }
     };
@@ -557,6 +559,22 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
                                  up.vertexStride, up.localMin, up.localMax, up.bindSpan(),
                                  up.morph)
         ? targetHandle : 0;
+}
+
+u32 mesh_setSkinChunks(u32 meshHandle, uintptr_t chunksPtr, u32 chunkCount, uintptr_t bonesPtr, u32 boneCount) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm || chunkCount == 0 || boneCount == 0) return 0;
+    const u32* records = boundarySpan<u32>(chunksPtr, static_cast<u64>(chunkCount) * 3, "mesh_setSkinChunks");
+    const u16* bones = boundarySpan<u16>(bonesPtr, boneCount, "mesh_setSkinChunks");
+    if (!records || !bones) return 0;
+    std::vector<MeshSkinChunk> chunks(chunkCount);
+    u32 boneOffset = 0;
+    for (u32 c = 0; c < chunkCount; ++c) {
+        chunks[c] = MeshSkinChunk{records[c * 3], records[c * 3 + 1], boneOffset, records[c * 3 + 2]};
+        boneOffset += records[c * 3 + 2];
+    }
+    return rm->setMeshSkinChunks(resource::MeshHandle(meshHandle), std::move(chunks),
+                                 std::vector<u16>(bones, bones + boneCount)) ? 1 : 0;
 }
 
 /** @brief Releases a mesh and the buffers it owns. */

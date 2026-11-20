@@ -76,8 +76,9 @@ u32 skinnedBy(const Mesh& mesh, usize joints, bool& warnedBones) {
     if (!mesh.isSkinned() || joints != mesh.inverseBind.size()) return 0;
     // Posing the first MESH_MAX_BONES leaves the rest indexing a matrix this
     // draw never uploads — the wrong-matrix read the count check above already
-    // rejects, so it takes the same answer. For files no importer here wrote.
-    if (joints > MESH_MAX_BONES) {
+    // rejects, so it takes the same answer. A chunked skin is drawn a chunk at a
+    // time, each with at most that many, so it may have any number.
+    if (joints > MESH_MAX_BONES && !mesh.isChunked()) {
         if (!warnedBones) {
             warnedBones = true;
             ES_LOG_WARN("MeshSkin: {} joints exceeds the {} one draw can be posed by; drawing the"
@@ -1656,7 +1657,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 const bool lightmapped = resident->hasLightmapUV && !motion;
                 // A skinned motion draw carries last frame's palette in the records right behind its own: three
                 // texels a bone from texel 8 on, which the shader reaches by index like any other texel.
-                const u32 paletteRecords = motion && skinned ? (3 * poseSize + MESH_INSTANCE_TEXELS - 1) / MESH_INSTANCE_TEXELS : 0;
+                // A chunked skin writes each chunk's palette into a record of the chunk's own as it is drawn (below).
+                const bool chunked = skinned && resident->isChunked();
+                const u32 paletteRecords = motion && skinned && !chunked
+                    ? (3 * poseSize + MESH_INSTANCE_TEXELS - 1) / MESH_INSTANCE_TEXELS : 0;
                 static thread_local std::vector<u8> unplaced;
                 u32 instOffset = 0;
                 u8* dst = nullptr;
@@ -1681,8 +1685,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 }
                 std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &mesh.color, 16);
                 if (skinned) {
-                    key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);
-                    key.skinCount = poseSize;
+                    // A chunked skin uploads each chunk's bones with the chunk's draw instead (below).
+                    if (!chunked) {
+                        key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);
+                        key.skinCount = poseSize;
+                    }
                 } else {
                 const glm::mat4 model = kept ? kept->model
                                       : glm::translate(glm::mat4(1.0f), position)
@@ -1743,7 +1750,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                         const glm::vec4 r{before[0][row], before[1][row], before[2][row], before[3][row]};
                         std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &r, 16);
                     }
-                    if (skinned) {
+                    if (skinned && !chunked) {
                         for (u32 bone = 0; bone < poseSize; ++bone) {
                             const glm::mat4& m = pose.bonesPrevious[bone];
                             for (u32 row = 0; row < 3; ++row) {
@@ -1852,14 +1859,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // The indices a draw of `geo` reads: its own, or the cut a clustered mesh is drawn through.
                 BufferHandle cutBuffer = BufferHandle::Invalid;
                 u32 cutIndexCount = 0;
-                const auto emit = [&](const Mesh& geo, u32 offset, u32 count) {
+                // One draw of the run `firstIndex`, `indexCount` of what `emit` would draw: the whole of it, or a skin chunk.
+                const auto emitRange = [&](const Mesh& geo, u32 offset, u32 count, u32 firstIndex, u32 indexCount) {
                     BatchDrawKey drawn = key;
                     drawn.instanceCount = count;
                     drawn.vertexBuffer = geo.vertexBuffer;
                     drawn.indexBuffer = cutBuffer != BufferHandle::Invalid ? cutBuffer : geo.indexBuffer;
                     drawn.vertexLayout = geo.layout;
-                    const u32 firstIndex = cutBuffer != BufferHandle::Invalid ? 0 : geo.firstIndex;
-                    const u32 indexCount = cutBuffer != BufferHandle::Invalid ? cutIndexCount : geo.indexCount;
                     pushBatchDraw(draw_list, clips, offset, 0, firstIndex, indexCount, drawn);
                     if (!depthPass && !wire && key.materialId != 0 && ctx.materials && ctx.materials->hasTipPass(key.materialId)) {
                         const u32 tipProgram = ctx.materials->meshProgram(key.materialId, ctx.resources, geo.hasNormals, skinned,
@@ -1874,6 +1880,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                             pushBatchDraw(draw_list, clips, offset, 0, firstIndex, indexCount, tips);
                         }
                     }
+                };
+                const auto emit = [&](const Mesh& geo, u32 offset, u32 count) {
+                    emitRange(geo, offset, count, cutBuffer != BufferHandle::Invalid ? 0 : geo.firstIndex,
+                              cutBuffer != BufferHandle::Invalid ? cutIndexCount : geo.indexCount);
                 };
                 if (placements) {
                     PlacementReach reach;
@@ -1926,7 +1936,39 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                         }
                     }
                 }
-                if (!inked) emit(*resident, instOffset, 1);
+                if (!inked && chunked && cutBuffer == BufferHandle::Invalid) {
+                    // A skin past one draw's bones, a chunk at a time: each chunk's bones
+                    // posed and uploaded alone, its vertices' joints indexing them. A motion draw's record carries last
+                    // frame's palette, so each chunk gets a copy of the record with that chunk's bones behind it.
+                    static thread_local std::vector<glm::mat4> chunkPose;
+                    for (const MeshSkinChunk& chunk : resident->skinChunks) {
+                        chunkPose.resize(chunk.boneCount);
+                        for (u32 k = 0; k < chunk.boneCount; ++k) {
+                            chunkPose[k] = pose_scratch_[resident->skinChunkBones[chunk.boneOffset + k]];
+                        }
+                        u32 record = instOffset;
+                        if (motion) {
+                            const u32 palette = (3 * chunk.boneCount + MESH_INSTANCE_TEXELS - 1) / MESH_INSTANCE_TEXELS;
+                            record = buffers.allocVertices(LayoutId::MeshInstance, MESH_INSTANCE_STRIDE * (1 + palette));
+                            u8* records = buffers.vertexData(LayoutId::MeshInstance);
+                            std::memcpy(records + record, records + instOffset, MESH_INSTANCE_STRIDE);
+                            std::memset(records + record + MESH_INSTANCE_STRIDE, 0, MESH_INSTANCE_STRIDE * palette);
+                            const Pose& pose = *poseOf(ctx, entity, kept, false);
+                            for (u32 k = 0; k < chunk.boneCount; ++k) {
+                                const glm::mat4& m = pose.bonesPrevious[resident->skinChunkBones[chunk.boneOffset + k]];
+                                for (u32 row = 0; row < 3; ++row) {
+                                    const glm::vec4 r{m[0][row], m[1][row], m[2][row], m[3][row]};
+                                    std::memcpy(records + record + (MESH_INSTANCE_TEXELS + k * 3 + row) * 16, &r, 16);
+                                }
+                            }
+                        }
+                        key.skinOffset = draw_list.addSkinMatrices(chunkPose.data(), chunk.boneCount);
+                        key.skinCount = chunk.boneCount;
+                        emitRange(*resident, record, 1, resident->firstIndex + chunk.firstIndex, chunk.indexCount);
+                    }
+                } else if (!inked) {
+                    emit(*resident, instOffset, 1);
+                }
                 // The edges, as a second draw of the same instance with its own ink: same
                 // vertices, the mesh's line list, tested against the surface just drawn.
                 if (wire && resident->hasEdges()) {

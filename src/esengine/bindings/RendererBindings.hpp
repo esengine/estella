@@ -180,6 +180,13 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
  */
 u32 mesh_setClusters(u32 meshHandle, uintptr_t clustersPtr, u32 clusterCount, uintptr_t indexPtr, u32 indexCount);
 
+/**
+ * @brief Gives a skinned mesh the chunks it is drawn in: `chunkCount` records of three u32 (first index, index count, bones
+ *        named) and every chunk's bones in turn as u16 indices into the bind matrices. Returns 1, or 0 where the engine
+ *        refused them and a mesh bound to more joints than one draw carries is drawn static.
+ */
+u32 mesh_setSkinChunks(u32 meshHandle, uintptr_t chunksPtr, u32 chunkCount, uintptr_t bonesPtr, u32 boneCount);
+
 void mesh_release(u32 meshHandle);
 
 /** @brief Registers a baked environment (27 irradiance floats + a reflection atlas,

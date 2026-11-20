@@ -512,6 +512,13 @@ public:
      */
     bool setMeshClusters(MeshHandle target, lod::ClusterHierarchy hierarchy);
 
+    /**
+     * @brief Gives a realized skinned mesh the chunks it is drawn in (Mesh::skinChunks).
+     * @return False, and the mesh is drawn as before, when the handle names no skinned mesh or the chunks do not tile its
+     *         indices in order, name more bones than one draw carries, or name a joint it has no bind matrix for.
+     */
+    bool setMeshSkinChunks(MeshHandle target, std::vector<MeshSkinChunk> chunks, std::vector<u16> bones);
+
     MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                           const glm::vec3& localMin, const glm::vec3& localMax,

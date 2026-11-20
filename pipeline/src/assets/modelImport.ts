@@ -10,6 +10,7 @@
  *        written here, once. A second format that wrote its own would be a
  *        second set of rules for what a model IS in this engine.
  */
+import { buildSkinnedMesh, type SkinBuildOptions } from '../../../sdk/src/asset/skinChunks';
 import {
     MeshChannel, MeshChannelType, encodeMesh, unwrapLightmapUV, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION,
     MATERIAL_FORMAT_VERSION, BlendMode, CullMode,
@@ -607,6 +608,29 @@ export async function generateLods(meshes: ImportedMesh[], options: LodOptions):
         if (out.length > 0) mesh.lods = out;
     }
     return warnings;
+}
+
+/**
+ * Builds every skinned mesh's GPU form (skinChunks.ts): the influence limit, chunks of at most `maxBonesPerChunk` bones
+ * for a skin one draw cannot pose whole, and a byte per joint index and weight. Mutates in place, last before writing:
+ * a chunk is a run of the triangles in the order they will be written. Says what it did where a person would want to know.
+ */
+export function buildSkins(meshes: ImportedMesh[], options: SkinBuildOptions): string[] {
+    const notes: string[] = [];
+    for (const mesh of meshes) {
+        if (!mesh.skinJoints?.length) continue;
+        const { mesh: built, report } = buildSkinnedMesh(mesh.data, options);
+        mesh.data = built;
+        if (report.chunks > 1) {
+            notes.push(`${mesh.name}: ${mesh.skinJoints.length} joints, drawn in ${report.chunks} chunks of at most `
+                + `${report.maxBonesInChunk} bones (${report.duplicatedVertices} vertices shared between chunks)`);
+        }
+        if (report.limitedVertices > 0) {
+            notes.push(`${mesh.name}: ${report.limitedVertices} vertices kept their ${options.influenceLimit} heaviest joints`);
+        }
+        if (report.droppedClusters) notes.push(`${mesh.name}: chunked, so its cluster LOD was dropped`);
+    }
+    return notes;
 }
 
 /** The bytes to write for a generated level. */

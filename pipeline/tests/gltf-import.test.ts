@@ -10,10 +10,10 @@
 import { describe, it, expect } from 'vitest';
 import { importGltfMeshes } from '../src/assets/gltfImport';
 import {
-  assembleModelPrefab, materialProducts,
+  assembleModelPrefab, buildSkins, materialProducts,
   type ImportedMesh, type PrefabAssembly, type ProductRefs,
 } from '../src/assets/modelImport';
-import { BlendMode, CullMode, MESH_MAX_BONES, MeshChannel } from 'esengine';
+import { BlendMode, CullMode, MESH_MAX_BONES, MeshChannel, MeshChannelType } from 'esengine';
 import { plainTriangle, meshoptTriangle, dracoTriangle } from './fixtures/gltfFixtures.mjs';
 
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -1040,18 +1040,19 @@ describe('glTF skinning import', () => {
     }
   });
 
-  it('imports static, and says the budget, when a skin binds more joints than a draw can pose', async () => {
-    // The joint indices in the vertices index the SKIN's list, so a list longer
-    // than the pose block means indices no uploaded matrix answers to. Drawn
-    // wrong, the vertices go somewhere arbitrary; this is the file saying so.
+  it('keeps a skin of more joints than a draw can pose, and the build draws it in chunks', async () => {
+    // The joint indices in the vertices index the SKIN's list, longer than the pose block: kept, and split when the
+    // model is built into chunks whose own bones one draw can carry.
     const over = MESH_MAX_BONES + 1;
     const { meshes, warnings } = await importGltfMeshes(
       skinnedGltf({ extraJoints: over - 2 }), 'rig');
-    expect(meshes[0]!.data.channels.some((c) => c.semantic === MeshChannel.Joints)).toBe(false);
-    expect(meshes[0]!.data.inverseBindMatrices).toBeUndefined();
-    expect(meshes[0]!.skinJoints).toBeUndefined();
-    expect(warnings.some((w) => w.includes(`binds ${over} joints`)
-      && w.includes(`${MESH_MAX_BONES}`) && /imported static/.test(w))).toBe(true);
+    expect(meshes[0]!.skinJoints).toHaveLength(over);
+    expect(warnings.some((w) => /imported static/.test(w))).toBe(false);
+    buildSkins(meshes, { maxBonesPerChunk: MESH_MAX_BONES });
+    const data = meshes[0]!.data;
+    expect(data.skinChunks).toBeDefined();
+    expect([...data.skinChunks!.boneCounts].every((n) => n <= MESH_MAX_BONES)).toBe(true);
+    expect(data.channels.find((c) => c.semantic === MeshChannel.Joints)!.type).toBe(MeshChannelType.UInt8);
   });
 
   it('poses a skin that fills the budget exactly', async () => {

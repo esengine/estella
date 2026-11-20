@@ -11,7 +11,7 @@
  *        the cook then ships them as the engine format they already are.
  */
 /// <reference path="./draco3dgltf.d.ts" />
-import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels,
+import { MeshChannel, MeshChannelType, packChannels,
          type MeshMorphTargets } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import { generateTangents } from './meshTangents';
@@ -953,11 +953,7 @@ function skinAttributes(src: GltfBytes, prim: GltfPrimitive,
                         label: string, warnings: string[]): SkinWeights | null {
     const names = Object.keys(prim.attributes).filter(n => /^(JOINTS|WEIGHTS)_/.test(n));
     const jointCount = skin?.joints?.length ?? 0;
-    if (jointCount > MESH_MAX_BONES) {
-        warnings.push(`${label}: the skin binds ${jointCount} joints and one`
-            + ` draw can be posed by ${MESH_MAX_BONES} — imported static`);
-        return null;
-    }
+    // Any number of joints: a skin past one draw's bones is split into chunks when the model is built (buildSkins).
     if (!jointCount || prim.attributes.WEIGHTS_0 === undefined) {
         if (names.length) warnings.push(`${label}: JOINTS_0 without ${!jointCount
             ? 'a skin naming joints on any node drawing it' : 'WEIGHTS_0'} — imported static`);

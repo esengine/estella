@@ -4,7 +4,7 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
-import { decodeMesh, encodeChannelTable, MESH_CLUSTER_BOUNDS_FLOATS, type MeshClusters, type MeshData } from '../meshFormat';
+import { decodeMesh, encodeChannelTable, MESH_CLUSTER_BOUNDS_FLOATS, type MeshClusters, type MeshData, type MeshSkinChunks } from '../meshFormat';
 import { builtinMeshTemplate, isBuiltinMeshRef } from '../builtinMeshes';
 import { extractPositions, registerMeshCollision, releaseMeshCollision } from '../meshCollision';
 
@@ -131,6 +131,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                     mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2],
                     bindPtr, bind?.length ?? 0, ...shapes);
             if (handle && mesh.clusters) this.uploadClusters_(m!, alloc, handle, mesh, mesh.clusters);
+            if (handle && mesh.skinChunks) this.uploadSkinChunks_(m!, alloc, handle, mesh.skinChunks);
             return handle;
         });
     }
@@ -162,6 +163,27 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
         m.HEAPU8.set(new Uint8Array(clusters.coarseIndices.buffer, clusters.coarseIndices.byteOffset,
                                     clusters.coarseIndices.byteLength), indexPtr + mesh.indices.byteLength);
         m.mesh_setClusters(handle, recordPtr, count, indexPtr, indexCount);
+    }
+
+    /**
+     * Hands a realized skinned mesh the chunks it is drawn in. After the geometry, and again whenever it is realized again:
+     * the engine drops them with the indices they name. An engine without the call draws a skin past one draw's bones static.
+     */
+    private uploadSkinChunks_(m: NonNullable<ReturnType<typeof marshallingCore>>, alloc: (bytes: number) => number,
+                              handle: number, chunks: MeshSkinChunks): void {
+        if (!m.mesh_setSkinChunks) return;
+        const count = chunks.boneCounts.length;
+        const records = new Uint32Array(count * 3);
+        for (let c = 0; c < count; c++) {
+            records[c * 3] = chunks.ranges[c * 2]!;
+            records[c * 3 + 1] = chunks.ranges[c * 2 + 1]!;
+            records[c * 3 + 2] = chunks.boneCounts[c]!;
+        }
+        const recordPtr = alloc(records.byteLength);
+        const bonePtr = alloc(chunks.bones.byteLength);
+        m.HEAPU8.set(new Uint8Array(records.buffer), recordPtr);
+        m.HEAPU8.set(new Uint8Array(chunks.bones.buffer, chunks.bones.byteOffset, chunks.bones.byteLength), bonePtr);
+        m.mesh_setSkinChunks(handle, recordPtr, count, bonePtr, chunks.bones.length);
     }
 
     /** Gives back a handle {@link uploadData} minted. */

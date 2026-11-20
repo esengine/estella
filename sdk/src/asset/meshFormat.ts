@@ -12,7 +12,7 @@
 
 /** Magic 'ESMH', little-endian. */
 const MAGIC = 0x484d5345;
-const VERSION = 5;
+const VERSION = 6;
 /** The last version whose indices are always 32-bit. */
 const VERSION_U32_INDICES = 3;
 /** Flag bits at header offset 50, beside the morph-normals bit. */
@@ -24,6 +24,12 @@ const FLAG_U16_INDICES = 2;
 const FLAG_CLUSTERS = 4;
 /** The last version without one: what a mesh that carries none is still written as. */
 const VERSION_NO_CLUSTERS = 4;
+/** v6: a skin chunk table follows the clusters (@ref MeshSkinChunks). */
+const FLAG_SKIN_CHUNKS = 8;
+/** The last version without one. */
+const VERSION_NO_SKIN_CHUNKS = 5;
+/** One chunk on disk: its first index, its index count, and how many bones it names. */
+const SKIN_CHUNK_BYTES = 12;
 /** One cluster on disk: its first index and index count, then the ten floats of its bounds. */
 const CLUSTER_BYTES = 48;
 /** Floats of bounds one cluster has: centre, radius and error of the cluster, then of the group that replaces it. */
@@ -48,8 +54,8 @@ const MATRIX_BYTES = 64;
 /**
  * Joints one draw can be posed by — what the RENDERER holds (256 mat4 is 16KB,
  * exactly WebGL2's guaranteed block), not what the format carries. A mesh bound
- * to more is drawn in its bind pose: a joint index no uploaded matrix answers
- * moves the vertex nowhere in particular. Mirrors GfxEnums.hpp.
+ * to more is split into chunks of at most this many at import (skinChunks.ts),
+ * one draw each. Mirrors GfxEnums.hpp.
  */
 export const MESH_MAX_BONES = 256;
 
@@ -82,9 +88,17 @@ const CHANNEL_SEMANTICS: ReadonlySet<number> = new Set(Object.values(MeshChannel
 export const MeshChannelType = {
     Float32: 0,
     UNorm8: 1,
-    /** Joint indices: glTF writes them as u8 or u16, and u16 loses neither. */
+    /** Joint indices over a skin of more than 256 joints that is not chunked. */
     UInt16: 2,
+    /** Joint indices of a skin, or of a chunk, of at most 256 joints: a quarter of a float's bytes. */
+    UInt8: 3,
+    /** Skin weights at high precision: 0..65535 for 0..1. */
+    UNorm16: 4,
 } as const;
+
+/** Whether a channel type is read as 0..1 rather than as the integer stored. */
+export const isNormalizedChannelType = (type: number): boolean =>
+    type === MeshChannelType.UNorm8 || type === MeshChannelType.UNorm16;
 
 export interface MeshChannelDesc {
     /** One of {@link MeshChannel}; also the attribute location. */
@@ -157,12 +171,31 @@ export interface MeshData {
     morph?: MeshMorphTargets;
     /** The levels of detail a view picks clusters from. Absent for a mesh drawn whole. */
     clusters?: MeshClusters;
+    /**
+     * The skin split into chunks, each drawn on its own with the bones it names: absent when one draw can pose the whole
+     * skin. With chunks, the `Joints` channel indexes the vertex's chunk's bones, not the bind matrices.
+     */
+    skinChunks?: MeshSkinChunks;
+}
+
+/**
+ * The pieces a skinned mesh is drawn in, when its bones are more than one draw can carry. Each
+ * is a run of the mesh's indices whose vertices are moved only by the chunk's bones, at most {@link MESH_MAX_BONES} of
+ * them; a vertex two chunks share is written once in each.
+ */
+export interface MeshSkinChunks {
+    /** Two per chunk: its first index and how many indices it has. Together they cover the indices in order. */
+    ranges: Uint32Array;
+    /** How many bones each chunk names. */
+    boneCounts: Uint16Array;
+    /** Each chunk's bones in turn, as indices into the bind matrices: a vertex's joint `k` is its chunk's `k`-th bone. */
+    bones: Uint16Array;
 }
 
 /** Bytes one component of a channel type occupies. */
-function componentBytes(type: number): number {
-    if (type === MeshChannelType.UNorm8) return 1;
-    if (type === MeshChannelType.UInt16) return 2;
+export function componentBytes(type: number): number {
+    if (type === MeshChannelType.UNorm8 || type === MeshChannelType.UInt8) return 1;
+    if (type === MeshChannelType.UInt16 || type === MeshChannelType.UNorm16) return 2;
     return 4;
 }
 
@@ -205,14 +238,18 @@ export function encodeMesh(data: MeshData): Uint8Array {
     const clusters = data.clusters;
     const clusterCount = clusters ? clusters.ranges.length / 2 : 0;
     const clusterBytes = clusters ? 8 + clusterCount * CLUSTER_BYTES + clusters.coarseIndices.length * 4 : 0;
+    const chunks = data.skinChunks;
+    const chunkCount = chunks ? chunks.boneCounts.length : 0;
+    const chunkBytes = chunks ? 8 + chunkCount * SKIN_CHUNK_BYTES + ((chunks.bones.length * 2 + 3) & ~3) : 0;
     const size = HEADER_BYTES + data.channels.length * CHANNEL_BYTES
         + data.vertexCount * data.vertexStride + data.indices.length * indexBytes
-        + jointCount * MATRIX_BYTES + nameBytes + deltaFloats * 4 + clusterBytes;
+        + jointCount * MATRIX_BYTES + nameBytes + deltaFloats * 4 + clusterBytes + chunkBytes;
     const out = new Uint8Array(size);
     const view = new DataView(out.buffer);
 
     view.setUint32(0, MAGIC, true);
-    view.setUint16(4, clusters ? VERSION : narrow ? VERSION_NO_CLUSTERS : VERSION_U32_INDICES, true);
+    // The oldest version that can say what this mesh carries, so a reader that predates a section reads a mesh without one.
+    view.setUint16(4, chunks ? VERSION : clusters ? VERSION_NO_SKIN_CHUNKS : narrow ? VERSION_NO_CLUSTERS : VERSION_U32_INDICES, true);
     view.setUint16(6, data.channels.length, true);
     view.setUint32(8, data.vertexStride, true);
     view.setUint32(12, data.vertexCount, true);
@@ -224,7 +261,7 @@ export function encodeMesh(data: MeshData): Uint8Array {
     view.setUint32(44, jointCount, true);
     view.setUint16(48, names.length, true);
     view.setUint16(50, (data.morph?.hasNormals ? FLAG_MORPH_NORMALS : 0) | (narrow ? FLAG_U16_INDICES : 0)
-        | (clusters ? FLAG_CLUSTERS : 0), true);
+        | (clusters ? FLAG_CLUSTERS : 0) | (chunks ? FLAG_SKIN_CHUNKS : 0), true);
     view.setUint32(52, nameBytes, true);
 
     let at = HEADER_BYTES;
@@ -232,7 +269,7 @@ export function encodeMesh(data: MeshData): Uint8Array {
         view.setUint8(at, c.semantic);
         view.setUint8(at + 1, c.components);
         view.setUint8(at + 2, c.type);
-        view.setUint8(at + 3, c.type === MeshChannelType.UNorm8 ? 1 : 0);
+        view.setUint8(at + 3, isNormalizedChannelType(c.type) ? 1 : 0);
         view.setUint32(at + 4, c.offset, true);
         at += CHANNEL_BYTES;
     }
@@ -278,6 +315,18 @@ export function encodeMesh(data: MeshData): Uint8Array {
             }
         }
         for (let i = 0; i < clusters.coarseIndices.length; i++) view.setUint32(at + i * 4, clusters.coarseIndices[i]!, true);
+        at += clusters.coarseIndices.length * 4;
+    }
+    if (chunks) {
+        view.setUint32(at, chunkCount, true);
+        view.setUint32(at + 4, chunks.bones.length, true);
+        at += 8;
+        for (let c = 0; c < chunkCount; c++, at += SKIN_CHUNK_BYTES) {
+            view.setUint32(at, chunks.ranges[c * 2]!, true);
+            view.setUint32(at + 4, chunks.ranges[c * 2 + 1]!, true);
+            view.setUint32(at + 8, chunks.boneCounts[c]!, true);
+        }
+        for (let i = 0; i < chunks.bones.length; i++) view.setUint16(at + i * 2, chunks.bones[i]!, true);
     }
     return out;
 }
@@ -384,6 +433,8 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
         for (let i = 0; i < deltas.length; i++) deltas[i] = view.getFloat32(deltaBase + i * 4, true);
         out.morph = { names, hasNormals: morphNormals, deltas };
     }
+    // Where the next optional section starts: past the clusters when there are any.
+    let tailAt = expected;
     if (version > VERSION_NO_CLUSTERS && (flags & FLAG_CLUSTERS) !== 0) {
         let clusterAt = expected;
         if (bytes.byteLength < clusterAt + 8) throw new Error('.esmesh is truncated: its cluster section has no header');
@@ -411,8 +462,47 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
         const coarseIndices = new Uint32Array(coarseCount);
         for (let i = 0; i < coarseCount; i++) coarseIndices[i] = view.getUint32(clusterAt + i * 4, true);
         out.clusters = { coarseIndices, ranges, bounds };
+        tailAt = clusterAt + coarseCount * 4;
+    }
+    if (version > VERSION_NO_SKIN_CHUNKS && (flags & FLAG_SKIN_CHUNKS) !== 0) {
+        out.skinChunks = readSkinChunks(view, tailAt, indexCount, jointCount);
     }
     return out;
+}
+
+/** The chunk table at `at`, checked against the indices and bones it names. */
+function readSkinChunks(view: DataView, at: number, indexCount: number, jointCount: number): MeshSkinChunks {
+    if (view.byteLength < at + 8) throw new Error('.esmesh is truncated: its skin chunk section has no header');
+    const count = view.getUint32(at, true);
+    const boneTotal = view.getUint32(at + 4, true);
+    at += 8;
+    if (view.byteLength < at + count * SKIN_CHUNK_BYTES + boneTotal * 2) {
+        throw new Error(`.esmesh is truncated: ${count} skin chunks and ${boneTotal} bones do not fit in it`);
+    }
+    const ranges = new Uint32Array(count * 2);
+    const boneCounts = new Uint16Array(count);
+    let next = 0, bones = 0;
+    for (let c = 0; c < count; c++, at += SKIN_CHUNK_BYTES) {
+        const first = view.getUint32(at, true), length = view.getUint32(at + 4, true), named = view.getUint32(at + 8, true);
+        // Runs that tile the indices in order, each a whole number of triangles, each a set of bones one draw can carry.
+        if (first !== next || length === 0 || length % 3 !== 0 || named === 0 || named > MESH_MAX_BONES) {
+            throw new Error(`.esmesh skin chunk ${c} names indices ${first}..${first + length} and ${named} bones`);
+        }
+        ranges[c * 2] = first;
+        ranges[c * 2 + 1] = length;
+        boneCounts[c] = named;
+        next = first + length;
+        bones += named;
+    }
+    if (next !== indexCount || bones !== boneTotal) {
+        throw new Error(`.esmesh skin chunks cover ${next} of ${indexCount} indices and ${bones} of ${boneTotal} bones`);
+    }
+    const out = new Uint16Array(boneTotal);
+    for (let i = 0; i < boneTotal; i++) {
+        out[i] = view.getUint16(at + i * 2, true);
+        if (out[i]! >= jointCount) throw new Error(`.esmesh skin chunk bone ${out[i]} is past the ${jointCount} joints`);
+    }
+    return { ranges, boneCounts, bones: out };
 }
 
 /** The channel table as the engine takes it: one 8-byte record per channel. */
@@ -424,7 +514,7 @@ export function encodeChannelTable(channels: MeshChannelDesc[]): Uint8Array {
         view.setUint8(at, c.semantic);
         view.setUint8(at + 1, c.components);
         view.setUint8(at + 2, c.type);
-        view.setUint8(at + 3, c.type === MeshChannelType.UNorm8 ? 1 : 0);
+        view.setUint8(at + 3, isNormalizedChannelType(c.type) ? 1 : 0);
         view.setUint32(at + 4, c.offset, true);
         at += CHANNEL_BYTES;
     }

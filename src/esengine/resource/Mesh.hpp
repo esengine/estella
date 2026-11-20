@@ -44,6 +44,21 @@ struct MeshMorphSource {
 };
 
 /**
+ * @brief One piece a skinned mesh is drawn in, when its bones are more than one draw can carry.
+ *
+ * @details A run of the mesh's own indices whose vertices are moved only by the chunk's bones: its vertices' joint `k` is
+ *          the chunk's `k`-th bone, an index into the bind matrices kept in Mesh::skinChunkBones.
+ */
+struct MeshSkinChunk {
+    /** First index of the run, from the mesh's own first. */
+    u32 firstIndex = 0;
+    u32 indexCount = 0;
+    /** Where the chunk's bones start in Mesh::skinChunkBones, and how many. At most MESH_MAX_BONES. */
+    u32 boneOffset = 0;
+    u32 boneCount = 0;
+};
+
+/**
  * @brief Buffers, the layout that describes them, and the bounds culling reads.
  *
  * @details One record because the three are inseparable: a buffer without its
@@ -138,6 +153,15 @@ public:
      * Given after the geometry is realized and dropped when it is realized again: the indices in it name these vertices.
      */
     std::shared_ptr<const lod::ClusterHierarchy> clusters;
+
+    /**
+     * The chunks a skin of more bones than one draw carries is drawn in, one draw each; empty for a mesh drawn in one.
+     * Given after the geometry is realized and dropped when it is realized again, like the clusters: its runs name these
+     * indices and its bones these bind matrices.
+     */
+    std::vector<MeshSkinChunk> skinChunks;
+    std::vector<u16> skinChunkBones;
+    bool isChunked() const { return !skinChunks.empty(); }
 
     /** Changes whenever this mesh's geometry does (it is realized again: a reload, a recovery): see core/Revision.hpp. */
     u64 revision = 0;
