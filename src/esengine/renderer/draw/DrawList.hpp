@@ -330,16 +330,23 @@ private:
     std::vector<glm::vec4> probe_run_;
     /// Each merged draw's per-draw blocks, staged for the pass before it draws.
     struct StagedBlocks {
-        PerDrawBlocks::Range skin, morph, probe, instance, planar;
+        PerDrawBlocks::Range skin, probe, instance, planar;
     };
     std::vector<StagedBlocks> staged_;
-    /// Per merged draw: how many draws the run it heads holds (drawn as one call, see stageBlocks), 0 for a draw inside a run.
+    /// Per merged draw: how many draws the run it heads holds (drawn as one call where the device can), 0 for a draw inside a run.
     std::vector<u32> run_length_;
+    /// Per merged draw: the texel of the record texture its entry is (see InstanceConstants.hpp), 0 for a draw that reads no records.
+    std::vector<u32> entry_texel_;
     std::vector<u32> run_counts_, run_offsets_, run_instances_;
-    std::vector<InstanceConstants> run_entries_;
     /** Whether @p next can be drawn in the same call as @p prev: everything but its geometry's range and its records the same. */
     static bool joinsRun(const DrawCommand& prev, const DrawCommand& next);
-    void stageBlocks(const PerDrawBlockSet& blocks, bool runs);
+    /** Whether @p cmd is placed by records, and so reads an entry. */
+    static bool readsRecords(const DrawCommand& cmd);
+    /** Whether any instance of @p cmd stands in a probe volume. */
+    bool probeLitAt(const DrawCommand& cmd) const;
+    /** The runs, then every record-reading draw's entry and every morphed one's shapes, into the pool's record texture. */
+    void writeEntries(TransientBufferPool& pool);
+    void stageBlocks(const PerDrawBlockSet& blocks, bool drawRuns);
     /// The sorted order of the last finalize and the keys, in emit order, it was sorted from. The order is a function of the keys alone (ties break on
     /// emit index), and in 2D the key holds no position, so a frame of moving sprites has the keys of the frame before it.
     std::vector<SortEntry> sort_entries_;

@@ -166,7 +166,6 @@ private:
  */
 struct PerDrawBlockSet {
     PerDrawBlocks* skin = nullptr;
-    PerDrawBlocks* morph = nullptr;
     PerDrawBlocks* probe = nullptr;
     PerDrawBlocks* instance = nullptr;
     PerDrawBlocks* planar = nullptr;

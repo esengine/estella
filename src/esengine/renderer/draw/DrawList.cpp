@@ -115,6 +115,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
     if (count == 0) {
         merged_draw_calls_ = 0;
         merged_away_ = 0;
+        run_length_.clear();
+        entry_texel_.clear();
         std::fill(std::begin(breaks_), std::end(breaks_), 0u);
         return;
     }
@@ -298,6 +300,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
     merged_away_ = count - merged_draw_calls_;
     std::copy(std::begin(breaks), std::end(breaks), std::begin(breaks_));
+    // Before the pool uploads: the entries are texels of the same record texture the records are.
+    writeEntries(pool);
 }
 
 std::span<const Entity> DrawList::runEntities(u32 index) const {
@@ -306,6 +310,10 @@ std::span<const Entity> DrawList::runEntities(u32 index) const {
     const u32 end = index + 1 < run_first_.size() ? run_first_[index + 1]
                                                   : static_cast<u32>(run_entities_.size());
     return {run_entities_.data() + first, end - first};
+}
+
+bool DrawList::readsRecords(const DrawCommand& d) {
+    return d.hasPersistentGeometry() && d.instance_count != 0;
 }
 
 bool DrawList::joinsRun(const DrawCommand& p, const DrawCommand& c) {
@@ -325,20 +333,22 @@ bool DrawList::joinsRun(const DrawCommand& p, const DrawCommand& c) {
         && p.texture_count == c.texture_count && std::equal(p.texture_ids, p.texture_ids + p.texture_count, c.texture_ids);
 }
 
-void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
-    staged_.assign(merged_draw_calls_, StagedBlocks{});
+bool DrawList::probeLitAt(const DrawCommand& cmd) const {
+    const u32 n = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u, PROBE_MAX_INSTANCES);
+    for (u32 k = 0; k < n; ++k) {
+        const size_t at = static_cast<size_t>(cmd.probe_base) + k;
+        if (at < probe_slots_.size() && probe_slots_[at] != 0) return true;
+    }
+    return false;
+}
+
+void DrawList::writeEntries(TransientBufferPool& pool) {
     run_length_.assign(merged_draw_calls_, 1u);
-    const auto probeLitAt = [&](const DrawCommand& cmd) {
-        const u32 n = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u, PROBE_MAX_INSTANCES);
-        for (u32 k = 0; k < n; ++k) {
-            const size_t at = static_cast<size_t>(cmd.probe_base) + k;
-            if (at < probe_slots_.size() && probe_slots_[at] != 0) return true;
-        }
-        return false;
-    };
+    entry_texel_.assign(merged_draw_calls_, 0u);
     // The runs: draws that differ only by their geometry's range and their records, drawn by one call where the device can. Their
-    // instances share the run's probe block, so a run that carries light holds no more instances than the block does.
-    if (runs && blocks.instance && blocks.probe) {
+    // instances share the run's probe block, so a run that carries light holds no more instances than the block does. Decided here,
+    // with the entries, because an entry says where its draw's instances start in that block.
+    if (pool.device().supportsMultiDraw()) {
         u32 head = 0, instances = 0;
         bool lit = false;
         for (u32 i = 0; i < merged_draw_calls_; ++i) {
@@ -357,25 +367,73 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
             lit = cmdLit;
         }
     }
+
+    // One texel per draw that reads records, in draw order so a run's entries follow its head's; then each morphed draw's shapes.
+    u32 entries = 0, shapeTexels = 0;
+    for (u32 i = 0; i < merged_draw_calls_; ++i) {
+        const DrawCommand& cmd = commands_[i];
+        if (!readsRecords(cmd)) continue;
+        ++entries;
+        if (cmd.morph_index > 0) shapeTexels += 1u + static_cast<u32>(morph_shapes_[cmd.morph_index - 1].info.x);
+    }
+    if (entries == 0) return;
+    // Whole records, so the records written after these still start on one.
+    const u32 bytes = (entries + shapeTexels) * 16u;
+    const u32 padded = (bytes + MESH_INSTANCE_STRIDE - 1) / MESH_INSTANCE_STRIDE * MESH_INSTANCE_STRIDE;
+    const u32 offset = pool.allocVertices(LayoutId::MeshInstance, padded);
+    u8* base = pool.vertexData(LayoutId::MeshInstance);
+    if (!base) return;
+    std::memset(base + offset, 0, padded);
+    auto* texels = reinterpret_cast<glm::vec4*>(base + offset);
+    const u32 first = offset / 16u;
+    u32 entry = 0, shapes = entries;
+    for (u32 i = 0; i < merged_draw_calls_;) {
+        const u32 length = std::max(run_length_[i], 1u);
+        u32 runInstance = 0;
+        for (u32 k = 0; k < length; ++k) {
+            const DrawCommand& cmd = commands_[i + k];
+            if (!readsRecords(cmd)) continue;
+            entry_texel_[i + k] = first + entry;
+            glm::vec4& e = texels[entry++];
+            e.x = static_cast<f32>(cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE);
+            e.y = static_cast<f32>(runInstance);
+            runInstance += cmd.instance_count;
+            if (cmd.morph_index > 0) {
+                const MorphConstants& shaped = morph_shapes_[cmd.morph_index - 1];
+                const u32 live = static_cast<u32>(shaped.info.x);
+                e.z = static_cast<f32>(first + shapes);
+                texels[shapes] = shaped.info;
+                std::memcpy(&texels[shapes + 1], shaped.shape, live * sizeof(glm::vec4));
+                shapes += 1u + live;
+            }
+        }
+        i += length;
+    }
+}
+
+void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool drawRuns) {
+    staged_.assign(merged_draw_calls_, StagedBlocks{});
+    if (run_length_.size() != merged_draw_calls_) run_length_.assign(merged_draw_calls_, 1u);
+    if (entry_texel_.size() != merged_draw_calls_) entry_texel_.assign(merged_draw_calls_, 0u);
+    const auto stageEntry = [&](u32 i) {
+        if (!blocks.instance || !readsRecords(commands_[i])) return;
+        const InstanceConstants at{entry_texel_[i], {}};
+        staged_[i].instance = blocks.instance->stage(&at, sizeof(at));
+    };
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
         StagedBlocks& staged = staged_[i];
         const u32 length = run_length_[i];
         if (length == 0) continue;  // inside a run: its head staged for it
         if (length > 1) {
-            // One probe block for the run, its draws' instances one after another, and an entry per draw saying where its records
-            // and its instances begin.
-            run_entries_.assign(length, InstanceConstants{});
+            // One probe block for the run, its draws' instances one after another as their entries count them.
             bool anyLit = false;
             u32 instances = 0;
             for (u32 k = 0; k < length; ++k) {
-                const DrawCommand& member = commands_[i + k];
-                run_entries_[k].base = member.vertex_byte_offset / MESH_INSTANCE_STRIDE;
-                run_entries_[k].pad[0] = instances;
-                instances += member.instance_count;
-                anyLit = anyLit || probeLitAt(member);
+                instances += commands_[i + k].instance_count;
+                anyLit = anyLit || probeLitAt(commands_[i + k]);
             }
-            if (anyLit) {
+            if (anyLit && blocks.probe) {
                 probe_run_.assign(static_cast<size_t>(instances) * PROBE_TEXELS, glm::vec4(0.0f));
                 u32 at = 0;
                 for (u32 k = 0; k < length; ++k) {
@@ -389,7 +447,15 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
                 }
                 staged.probe = blocks.probe->stage(probe_run_.data(), static_cast<u32>(probe_run_.size() * sizeof(glm::vec4)));
             }
-            staged.instance = blocks.instance->stage(run_entries_.data(), static_cast<u32>(length * sizeof(InstanceConstants)));
+            // The head's entry starts the run; gl_DrawID counts through the rest. Drawn one by one instead (a capture records draw by
+            // draw), each member names its own entry and reads the run's probe block, which its entry's place in it refers to.
+            stageEntry(i);
+            if (!drawRuns) {
+                for (u32 k = 1; k < length; ++k) {
+                    stageEntry(i + k);
+                    staged_[i + k].probe = staged.probe;
+                }
+            }
             continue;
         }
 
@@ -404,29 +470,12 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
                                              cmd.skin_count * static_cast<u32>(sizeof(glm::mat4)));
         }
 
-        // The shapes, the same way — and a draw with none binds the zeroed block
-        // rather than erasing the last one's, so "unshaped" is an object instead
-        // of an erasure someone has to remember to perform.
-        if (blocks.morph && cmd.morph_index > 0) {
-            // Only the shapes that are live: the shader reads no further, and the pool lets the next draw start here.
-            const MorphConstants& shapes = morph_shapes_[cmd.morph_index - 1];
-            staged.morph = blocks.morph->stage(&shapes, static_cast<u32>(sizeof(glm::vec4)) * (1u + static_cast<u32>(shapes.info.x)));
-        }
-
         // WHERE this draw's instances read their irradiance, not what it is: the
         // coefficients are in the frame's texture, one run per instance, so a
         // merged draw holding objects in many places still says one thing here.
         // A run no probe lights reads the zero block, which says the same thing, rather than zeroes of its own: staging
         // them filled and uploaded up to sixteen kilobytes a draw, and gave every draw a range of its own to bind.
-        bool probeLit = false;
-        if (blocks.probe) {
-            const u32 runs = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u, PROBE_MAX_INSTANCES);
-            for (u32 n = 0; n < runs && !probeLit; ++n) {
-                const size_t at = static_cast<size_t>(cmd.probe_base) + n;
-                probeLit = at < probe_slots_.size() && probe_slots_[at] != 0;
-            }
-        }
-        if (blocks.probe && probeLit) {
+        if (blocks.probe && probeLitAt(cmd)) {
             // Every instance of this run, in the order it draws them, capped at
             // what the block holds — a longer run carries no irradiance at all,
             // so its tail reads zeroes and takes the environment.
@@ -444,14 +493,10 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
                 probe_run_.data(), static_cast<u32>(probe_run_.size() * sizeof(glm::vec4)));
         }
 
-        // gl_InstanceID restarts at zero every draw while the frame's records are
-        // one continuous run, so a draw has to say where its own run begins in them.
-        if (blocks.instance && cmd.hasPersistentGeometry() && cmd.instance_count != 0) {
-            const InstanceConstants at{cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE, {}};
-            staged.instance = blocks.instance->stage(&at, sizeof(at));
-        }
+        // Where this draw's entry is: its records, and its shapes when it has any (see InstanceConstants.hpp).
+        stageEntry(i);
     }
-    for (PerDrawBlocks* pool : {blocks.skin, blocks.morph, blocks.probe, blocks.instance, blocks.planar}) {
+    for (PerDrawBlocks* pool : {blocks.skin, blocks.probe, blocks.instance, blocks.planar}) {
         if (pool) pool->upload();
     }
 }
@@ -533,16 +578,18 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
     // The colour pass after a prepass is the same list the prepass staged the per-draw blocks for. Runs where the device draws them
     // as one call, and not while a capture records or replays draw by draw.
     const bool capturing = capture && (capture->isCapturing() || capture->isReplaying());
-    if (!afterPrepass) stageBlocks(blocks, device.supportsMultiDraw() && !capturing);
+    const bool drawRuns = device.supportsMultiDraw() && !capturing;
+    if (!afterPrepass) stageBlocks(blocks, drawRuns);
     if (prepass) prepass_skipped_.assign(merged_draw_calls_, 0u);
     else if (!afterPrepass) prepass_skipped_.clear();
     if (run_length_.size() != merged_draw_calls_) run_length_.assign(merged_draw_calls_, 1u);
     u32 runCalls = 0;
 
     for (u32 i = 0, next = 0; i < merged_draw_calls_; i = next) {
-        // A run is taken or passed over whole: its draws agree on everything a pass or a phase asks of them.
-        next = i + std::max(run_length_[i], 1u);
-        const u32 runLength = std::max(run_length_[i], 1u);
+        // A run is taken or passed over whole: its draws agree on everything a pass or a phase asks of them. Drawn one by one, a
+        // run's members are draws of their own, each with its own entry staged.
+        const u32 runLength = drawRuns ? std::max(run_length_[i], 1u) : 1u;
+        next = i + runLength;
         const auto& cmd = commands_[i];
         const StagedBlocks& staged = staged_[i];
         if (prepass && !takesPartInPrepass(cmd)) continue;
@@ -638,9 +685,6 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
 
         if (cmd.skin_count > 0 && blocks.skin) {
             blocks.skin->bind(SKIN_CONSTANTS_BINDING, staged.skin);
-        }
-        if (blocks.morph) {
-            blocks.morph->bind(MORPH_CONSTANTS_BINDING, staged.morph);
         }
         if (blocks.probe) {
             blocks.probe->bind(PROBE_CONSTANTS_BINDING, staged.probe);

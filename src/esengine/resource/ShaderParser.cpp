@@ -85,13 +85,25 @@ private:
 };
 
 /**
- * @brief How a vertex stage reaches its own object's record.
+ * @brief How a vertex stage reaches its own object's record, and its draw's entry.
  *
  * @details Built from the layout constants rather than written out, so the texel
  *          a shader reads and the texel the packer writes cannot drift apart.
  *          `esInstance*` is the name a stage reaches for; a stage that names one
- *          gets this header, the way a stage that names `tN` gets that unit.
+ *          (or `esApplyMorph`, which reads the same texture) gets this header, the
+ *          way a stage that names `tN` gets that unit.
+ *
+ *          Everything a draw says about itself beyond its uniforms is a texel of the
+ *          frame's record texture (see InstanceConstants.hpp): the block holds only where
+ *          that entry is. A table a vertex stage would index by a number it does not
+ *          know until it runs (gl_DrawID, a morph's loop counter) is read with a
+ *          texel fetch, never as a uniform array: Adreno 6xx drivers fail to link a
+ *          vertex stage that indexes a uniform array that way.
  */
+bool namesRecords(const std::string& stageText) {
+    return stageText.find("esInstance") != std::string::npos || stageText.find("esApplyMorph") != std::string::npos;
+}
+
 /** @brief The same record, for a WGSL vertex stage. @see instanceRecordGLSLDecls */
 std::string instanceRecordWGSL() {
     const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
@@ -104,9 +116,13 @@ std::string instanceRecordWGSL() {
         // vs_main's instance_index, put where the helpers can reach it — WGSL has
         // no global for it the way GLSL has gl_InstanceID.
         "var<private> g_instanceId : i32 = 0;\n"
+        "fn esFrameTexel(texel : i32) -> vec4f {\n"
+        "    return textureLoad(t" + unit + ", vec2i(texel % " + width + ", texel / " + width + "), 0);\n"
+        "}\n"
+        // WebGPU draws one draw a call, so its entry is the block's own.
+        "fn esDrawEntry() -> vec4f { return esFrameTexel(i32(inst.base.x)); }\n"
         "fn esInstanceTexel(texel : i32) -> vec4f {\n"
-        "    let at = (i32(inst.base.x) + g_instanceId) * " + texels + " + texel;\n"
-        "    return textureLoad(t" + unit + ", vec2i(at % " + width + ", at / " + width + "), 0);\n"
+        "    return esFrameTexel((i32(esDrawEntry().x) + g_instanceId) * " + texels + " + texel);\n"
         "}\n"
         "fn esInstanceModel() -> mat4x4f {\n"
         "    let r0 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL) + ");\n"
@@ -131,42 +147,33 @@ std::string instanceRecordWGSL() {
  * @details ANGLE on D3D11 caches input layouts by vertex format and puts SV_InstanceID
  *          where gl_InstanceID first appears, so naming it before the attributes shifts
  *          them for every program sharing the layout.
+ *
+ *          Where the device draws runs (glslMultiDraw) a run's entries lie one after another and gl_DrawID counts through them; a
+ *          draw on its own is a run of one. Not under VULKAN, where the twin generator compiles this and gl_DrawID is not GLSL's.
  */
 std::string instanceRecordGLSLDecls() {
-    // Where the device draws runs (glslMultiDraw), the block is an entry per draw of the run, read by gl_DrawID: x the draw's first
-    // record, y its first instance in the run's probe block, which is what the probe slot (ES_INSTANCE_ID) then counts from. Not
-    // under VULKAN, where the twin generator compiles this and gl_DrawID is not GLSL's.
-    if (glslMultiDraw()) {
-        return
-            "#ifndef VULKAN\n"
-            "layout(std140) uniform InstanceConstants {\n"
-            "    highp uvec4 u_drawEntry[" + std::to_string(MULTI_DRAW_MAX) + "];\n"
-            "};\n"
-            "#define ES_DRAW_RECORD int(u_drawEntry[gl_DrawID].x)\n"
-            "#undef ES_INSTANCE_ID\n"
-            "#define ES_INSTANCE_ID (gl_InstanceID + int(u_drawEntry[gl_DrawID].y))\n"
-            "#define ES_RECORD_ID gl_InstanceID\n"
-            "#else\n"
-            "layout(std140) uniform InstanceConstants {\n"
-            "    highp uvec4 u_instanceBase;\n"
-            "};\n"
-            "#define ES_DRAW_RECORD int(u_instanceBase.x)\n"
-            "#define ES_RECORD_ID ES_INSTANCE_ID\n"
-            "#endif\n"
-            "uniform highp sampler2D u_instanceData;\n"
-            "highp vec4 esInstanceTexel(int texel);\n"
-            "highp mat4 esInstanceModel();\n"
-            "highp mat3 esInstanceNormalMatrix();\n"
-            "highp vec4 esInstanceTint();\n"
-            "highp vec4 esInstanceLightmapRect();\n";
-    }
     return
         "layout(std140) uniform InstanceConstants {\n"
         "    highp uvec4 u_instanceBase;\n"
         "};\n"
-        "#define ES_DRAW_RECORD int(u_instanceBase.x)\n"
-        "#define ES_RECORD_ID ES_INSTANCE_ID\n"
+        + std::string(glslMultiDraw() ? "#ifndef VULKAN\n"
+                                        "#define ES_DRAW_ID gl_DrawID\n"
+                                        "#else\n"
+                                        "#define ES_DRAW_ID 0\n"
+                                        "#endif\n"
+                                      : "#define ES_DRAW_ID 0\n") +
+        "#ifdef VULKAN\n"
+        "#define ES_RECORD_ID gl_InstanceIndex\n"
+        "#else\n"
+        "#define ES_RECORD_ID gl_InstanceID\n"
+        "#endif\n"
+        "#define ES_DRAW_RECORD int(esDrawEntry().x)\n"
+        // The instance's place in its run's probe block, which the probe slot counts from.
+        "#undef ES_INSTANCE_ID\n"
+        "#define ES_INSTANCE_ID (ES_RECORD_ID + int(esDrawEntry().y))\n"
         "uniform highp sampler2D u_instanceData;\n"
+        "highp vec4 esFrameTexel(int texel);\n"
+        "highp vec4 esDrawEntry();\n"
         "highp vec4 esInstanceTexel(int texel);\n"
         "highp mat4 esInstanceModel();\n"
         "highp mat3 esInstanceNormalMatrix();\n"
@@ -178,9 +185,12 @@ std::string instanceRecordGLSLBodies() {
     const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
     const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
     return
+        "highp vec4 esFrameTexel(int texel) {\n"
+        "    return texelFetch(u_instanceData, ivec2(texel % " + width + ", texel / " + width + "), 0);\n"
+        "}\n"
+        "highp vec4 esDrawEntry() { return esFrameTexel(int(u_instanceBase.x) + ES_DRAW_ID); }\n"
         "highp vec4 esInstanceTexel(int texel) {\n"
-        "    int at = (ES_DRAW_RECORD + ES_RECORD_ID) * " + texels + " + texel;\n"
-        "    return texelFetch(u_instanceData, ivec2(at % " + width + ", at / " + width + "), 0);\n"
+        "    return esFrameTexel((ES_DRAW_RECORD + ES_RECORD_ID) * " + texels + " + texel);\n"
         "}\n"
         "highp mat4 esInstanceModel() {\n"
         "    highp vec4 r0 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL) + ");\n"
@@ -198,6 +208,63 @@ std::string instanceRecordGLSLBodies() {
             + std::to_string(MESH_INSTANCE_TEXEL_TINT) + "); }\n"
         "highp vec4 esInstanceLightmapRect() { return esInstanceTexel("
             + std::to_string(MESH_INSTANCE_TEXEL_LIGHTMAP) + "); }\n";
+}
+
+/**
+ * @brief The shapes a resident mesh is blended towards, for a GLSL vertex stage: `esApplyMorph(local, localNormal)`.
+ *
+ * @details One author for every stage that deforms a mesh (mesh.esshader through `@@ES_MORPH@@`, a material's mesh variant inside
+ *          its MESH block), so the two deform the same geometry the same way. The weights are the draw's own texels of the record
+ *          texture (see InstanceConstants.hpp: the entry's z names the head, 0 for none); the deltas are the mesh's texture on the morph unit.
+ *          Before the pose, never after: a target was authored against the mesh at rest, so the offset it states is a local one.
+ */
+std::string morphHelpersGLSL() {
+    return
+        "uniform highp sampler2D u_morphDeltas;\n"
+        "vec3 esMorphDelta(highp float index, highp float width) {\n"
+        "    return texelFetch(u_morphDeltas, ivec2(int(mod(index, width)), int(index / width)), 0).xyz;\n"
+        "}\n"
+        "void esApplyMorph(inout vec3 position, inout vec3 normal) {\n"
+        "    int head = int(esDrawEntry().z);\n"
+        "    if (head == 0) return;\n"
+        "    highp vec4 info = esFrameTexel(head);\n"
+        "    int live = int(info.x);\n"
+        "    for (int i = 0; i < " + std::to_string(MESH_MAX_ACTIVE_MORPHS) + "; i++) {\n"
+        "        if (i >= live) break;\n"
+        "        highp vec4 shape = esFrameTexel(head + 1 + i);\n"
+        "        highp float at = (shape.x * info.y + float(gl_VertexID)) * info.z;\n"
+        "        position += shape.y * esMorphDelta(at, info.w);\n"
+        "        if (info.z > 1.5) normal += shape.y * esMorphDelta(at + 1.0, info.w);\n"
+        "    }\n"
+        "}\n";
+}
+
+/**
+ * @brief The same, for a WGSL vertex stage: `esApplyMorph(&local, &localNormal, v.vertexIndex)`.
+ * @details The deltas' texture is declared HERE, in the vertex stage, which is what tells the backend that unit 4 has to be visible
+ *          to it — group-1 textures are fragment-only otherwise.
+ */
+std::string morphHelpersWGSL() {
+    return
+        "@group(1) @binding(" + std::to_string(MORPH_DELTA_TEXTURE_UNIT) + ") var t" + std::to_string(MORPH_DELTA_TEXTURE_UNIT)
+            + " : texture_2d<f32>;\n"
+        "fn esMorphDelta(index : f32, width : f32) -> vec3f {\n"
+        "    return textureLoad(t" + std::to_string(MORPH_DELTA_TEXTURE_UNIT)
+            + ", vec2i(i32(index % width), i32(index / width)), 0).xyz;\n"
+        "}\n"
+        "fn esApplyMorph(position : ptr<function, vec3f>, normal : ptr<function, vec3f>, vertexIndex : u32) {\n"
+        "    let head = i32(esDrawEntry().z);\n"
+        "    if (head == 0) { return; }\n"
+        "    let info = esFrameTexel(head);\n"
+        "    let live = i32(info.x);\n"
+        "    for (var i = 0; i < " + std::to_string(MESH_MAX_ACTIVE_MORPHS) + "; i = i + 1) {\n"
+        "        if (i >= live) { break; }\n"
+        "        let shape = esFrameTexel(head + 1 + i);\n"
+        "        let at = (shape.x * info.y + f32(vertexIndex)) * info.z;\n"
+        "        *position = *position + shape.y * esMorphDelta(at, info.w);\n"
+        "        if (info.z > 1.5) { *normal = *normal + shape.y * esMorphDelta(at + 1.0, info.w); }\n"
+        "    }\n"
+        "}\n";
 }
 
 
@@ -341,15 +408,8 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "@group(0) @binding(5) var<uniform> skin : SkinConstants;\n"
         "#endif\n"
         "#ifdef MESH\n"
-        // The GLSL twin's morph block. Declaring the texture in the VERTEX stage
-        // is what earns it vertex visibility in the bind-group layout.
-        "struct MorphConstants { info : vec4f, shape : array<vec4f, 8> };\n"
-        "@group(0) @binding(6) var<uniform> morph : MorphConstants;\n"
-        "@group(1) @binding(4) var t4 : texture_2d<f32>;\n"
-        "fn morphDelta(index : f32) -> vec3f {\n"
-        "    let width = morph.info.w;\n"
-        "    return textureLoad(t4, vec2i(i32(index % width), i32(index / width)), 0).xyz;\n"
-        "}\n"
+        // The shapes, as mesh.esshader's vertex stage reads them: one author for both (morphHelpersWGSL).
+        + morphHelpersWGSL() +
         "#endif\n"
         "\n"
         "struct VSIn {\n"
@@ -404,15 +464,7 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    var localNormal = vec3f(0.0, 0.0, 1.0);\n"
         "#endif\n"
         // Before the pose: a target was authored against the mesh at rest.
-        "    let live = i32(morph.info.x);\n"
-        "    for (var i = 0; i < 8; i = i + 1) {\n"
-        "        if (i >= live) { break; }\n"
-        "        let at = (morph.shape[i].x * morph.info.y + f32(v.vertexIndex)) * morph.info.z;\n"
-        "        local = local + morph.shape[i].y * morphDelta(at);\n"
-        "        if (morph.info.z > 1.5) {\n"
-        "            localNormal = localNormal + morph.shape[i].y * morphDelta(at + 1.0);\n"
-        "        }\n"
-        "    }\n"
+        "    esApplyMorph(&local, &localNormal, v.vertexIndex);\n"
         "@@WGSL_CALL@@"
         "#endif\n"
         // A particle faces the viewer wherever it is seen from; head-on and
@@ -603,28 +655,9 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#endif\n"
         "#endif\n"
         "#ifdef MESH\n"
-        // The shapes a resident mesh is blended towards. See mesh.esshader, whose
-        // vertex stage says the same thing to the same blocks: a material's mesh
-        // variant deforms the same geometry, so it must deform it the same way.
-        "layout(std140) uniform MorphConstants {\n"
-        "    vec4 u_morphInfo;\n"
-        "    vec4 u_morphShape[8];\n"
-        "};\n"
-        "uniform highp sampler2D u_morphDeltas;\n"
-        "vec3 morphDelta(float index) {\n"
-        "    float width = u_morphInfo.w;\n"
-        "    return texelFetch(u_morphDeltas, ivec2(int(mod(index, width)), int(index / width)), 0).xyz;\n"
-        "}\n"
-        "void applyMorph(inout vec3 position, inout vec3 normal) {\n"
-        "    int live = int(u_morphInfo.x);\n"
-        "    float perVertex = u_morphInfo.z;\n"
-        "    for (int i = 0; i < 8; i++) {\n"
-        "        if (i >= live) break;\n"
-        "        float at = (u_morphShape[i].x * u_morphInfo.y + float(gl_VertexID)) * perVertex;\n"
-        "        position += u_morphShape[i].y * morphDelta(at);\n"
-        "        if (perVertex > 1.5) normal += u_morphShape[i].y * morphDelta(at + 1.0);\n"
-        "    }\n"
-        "}\n"
+        // The shapes a resident mesh is blended towards, as mesh.esshader's vertex stage reads them: one author for both
+        // (morphHelpersGLSL), so a material's mesh variant deforms the same geometry the same way.
+        + morphHelpersGLSL() +
         "#endif\n"
         "\n"
         // A material's depth prepass draws with mesh.esshader's vertex stage and its colour pass with this one, landing on that depth by an
@@ -671,7 +704,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    vec3 localNormal = vec3(0.0, 0.0, 1.0);\n"
         "#endif\n"
         // Before the pose: a target was authored against the mesh at rest.
-        "    applyMorph(local, localNormal);\n"
+        "    esApplyMorph(local, localNormal);\n"
         "@@GLSL_CALL@@"
         "#endif\n"
         // A particle faces the viewer wherever it is seen from; head-on and
@@ -2938,6 +2971,8 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         inject(block);
     }
     std::string bodyText = bodyIt->second;
+    // A hand-written vertex stage says where the shared morph helpers go (see morphHelpersWGSL).
+    if (stage == ShaderStage::Vertex) fillHook(bodyText, "@@ES_MORPH@@", morphHelpersWGSL());
     if (stage == ShaderStage::Vertex && !parsed.wgslVertexHook.empty()) {
         fillHook(bodyText, "@@ES_VERTEX_HOOK@@", parsed.wgslVertexHook);
         // A material's vertex hook may read its textures too (a height field the surface is lifted by): the ones it names are declared
@@ -2953,7 +2988,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     // The records, for a stage that names them — the same question, and the same
     // answer, as the GLSL side. Before the texture completion below, so the unit
     // this reaches for is one of the ones it sees.
-    if (stage == ShaderStage::Vertex && bodyIt->second.find("esInstance") != std::string::npos) {
+    if (stage == ShaderStage::Vertex && namesRecords(bodyIt->second)) {
         inject(instanceRecordWGSL());
     }
     // Last, so it sees every declaration made above as well as the body's own. Read with this variant's features
@@ -3031,7 +3066,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // gl_DrawID, for a vertex stage that reads a record (see instanceRecordGLSLDecls).
     if (glslMultiDraw() && stage == ShaderStage::Vertex) {
         const auto named = parsed.stages.find(stage);
-        if (named != parsed.stages.end() && named->second.find("esInstance") != std::string::npos) {
+        if (named != parsed.stages.end() && namesRecords(named->second)) {
             assembled << "#ifndef VULKAN\n#extension GL_ANGLE_multi_draw : require\n#endif\n";
             headerLines += 3;
         }
@@ -3169,7 +3204,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         // The records themselves, for a stage that names them. Reached-not-declared
         // is how wgslReachedTextureDecls decides the same question: one author for
         // the declaration, rather than a copy in every shader that reads a record.
-        if (stageIt->second.find("esInstance") != std::string::npos) {
+        if (namesRecords(stageIt->second)) {
             const std::string decl = instanceRecordGLSLDecls();
             assembled << decl;
             headerLines += static_cast<u32>(std::count(decl.begin(), decl.end(), '\n'));
@@ -4566,8 +4601,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     if (stage == ShaderStage::Vertex && !parsed.vertexHook.empty()) {
         fillHook(bodyText, "@@ES_VERTEX_HOOK@@", parsed.vertexHook);
     }
+    // A hand-written vertex stage says where the shared morph helpers go (see morphHelpersGLSL).
+    if (stage == ShaderStage::Vertex) fillHook(bodyText, "@@ES_MORPH@@", morphHelpersGLSL());
     assembled << blankUniformBlock(bodyText, "FrameConstants");
-    if (stage == ShaderStage::Vertex && stageIt->second.find("esInstance") != std::string::npos) {
+    if (stage == ShaderStage::Vertex && namesRecords(stageIt->second)) {
         assembled << instanceRecordGLSLBodies();
     }
 

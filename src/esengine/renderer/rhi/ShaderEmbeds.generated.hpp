@@ -806,33 +806,8 @@ layout(std140) uniform SkinConstants {
 
 
 
-layout(std140) uniform MorphConstants {
 
-    vec4 u_morphInfo;
-    vec4 u_morphShape[64];
-};
-
-
-
-uniform highp sampler2D u_morphDeltas;
-
-vec3 morphDelta(float index) {
-    float width = u_morphInfo.w;
-    return texelFetch(u_morphDeltas, ivec2(int(mod(index, width)), int(index / width)), 0).xyz;
-}
-
-
-
-void applyMorph(inout vec3 position, inout vec3 normal) {
-    int live = int(u_morphInfo.x);
-    float perVertex = u_morphInfo.z;
-    for (int i = 0; i < 64; i++) {
-        if (i >= live) break;
-        float at = (u_morphShape[i].x * u_morphInfo.y + float(gl_VertexID)) * perVertex;
-        position += u_morphShape[i].y * morphDelta(at);
-        if (perVertex > 1.5) normal += u_morphShape[i].y * morphDelta(at + 1.0);
-    }
-}
+@@ES_MORPH@@
 
 
 
@@ -907,7 +882,7 @@ void main() {
 #else
     vec3 localNormal = vec3(0.0, 0.0, 1.0);
 #endif
-    applyMorph(local, localNormal);
+    esApplyMorph(local, localNormal);
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = a_color;
 #ifdef MESH_LIGHTMAP
@@ -1133,17 +1108,7 @@ struct SkinConstants { bones : array<mat4x4f, 256> };
 #endif
 
 
-
-
-
-struct MorphConstants { info : vec4f, shape : array<vec4f, 64> };
-@group(0) @binding(6) var<uniform> morph : MorphConstants;
-@group(1) @binding(4) var t4 : texture_2d<f32>;
-
-fn morphDelta(index : f32) -> vec3f {
-    let width = morph.info.w;
-    return textureLoad(t4, vec2i(i32(index % width), i32(index / width)), 0).xyz;
-}
+@@ES_MORPH@@
 
 struct VSIn {
     @location(0) a_position : vec3f,
@@ -1222,15 +1187,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
 #endif
 
 
-    let live = i32(morph.info.x);
-    for (var i = 0; i < 64; i = i + 1) {
-        if (i >= live) { break; }
-        let at = (morph.shape[i].x * morph.info.y + f32(v.vertexIndex)) * morph.info.z;
-        local = local + morph.shape[i].y * morphDelta(at);
-        if (morph.info.z > 1.5) {
-            localNormal = localNormal + morph.shape[i].y * morphDelta(at + 1.0);
-        }
-    }
+    esApplyMorph(&local, &localNormal, v.vertexIndex);
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = v.a_color;
 #ifdef MESH_LIGHTMAP
@@ -1266,8 +1223,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         let chosen = u32(esInstanceTint().x);
         let own = vec4f(v.a_joints == vec4u(chosen));
         let heat = dot(own, v.a_weights);
-)esshader"
-    R"esshader(        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
+        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
                                    vec3f(0.1), heat < 0.01), 1.0);
     }
 #endif
@@ -1309,7 +1265,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
 #endif
 #else
 
-    out.v_worldNormal = vec3f(0.0, 0.0, 1.0);
+)esshader"
+    R"esshader(    out.v_worldNormal = vec3f(0.0, 0.0, 1.0);
 #endif
     out.v_worldPos = world.xyz;
 #ifdef MESH_TANGENTS

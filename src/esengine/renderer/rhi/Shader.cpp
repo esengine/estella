@@ -21,7 +21,6 @@
 #include "../store/SkinConstants.hpp"
 #include "../store/LightConstants.hpp"
 #include "../store/InstanceConstants.hpp"
-#include "../store/MorphConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../store/PlanarConstants.hpp"
 #include "../../core/Log.hpp"
@@ -265,13 +264,6 @@ void Shader::finishLink() {
     u32 skinBlock = device_->getUniformBlockIndex(program_, SKIN_CONSTANTS_BLOCK);
     if (skinBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(program_, skinBlock, SKIN_CONSTANTS_BINDING);
-    }
-
-    // And the per-draw shape weights, which every mesh vertex stage declares —
-    // whether a draw HAS shapes is a number in the block, not a variant.
-    u32 morphBlock = device_->getUniformBlockIndex(program_, MORPH_CONSTANTS_BLOCK);
-    if (morphBlock != GFX_INVALID_UNIFORM_BLOCK) {
-        device_->uniformBlockBinding(program_, morphBlock, MORPH_CONSTANTS_BINDING);
     }
 
     // And the indirect light where this draw stands, which DrawList rewrites per

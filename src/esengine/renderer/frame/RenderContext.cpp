@@ -18,7 +18,6 @@
 #include "../RenderOrigin.hpp"
 #include "../draw/DrawParams.hpp"
 #include "../store/SkinConstants.hpp"
-#include "../store/MorphConstants.hpp"
 #include "../store/PlanarConstants.hpp"
 #include "../store/InstanceConstants.hpp"
 #include "../store/ProbeConstants.hpp"
@@ -84,7 +83,6 @@ void RenderContext::shutdown() {
         drawParamsFallback_ = BufferHandle::Invalid;
     }
     skinBlocks_.shutdown();
-    morphBlocks_.shutdown();
     probeBlocks_.shutdown();
     instanceBlocks_.shutdown();
     planarBlocks_.shutdown();
@@ -184,22 +182,19 @@ void RenderContext::initFrameUbo() {
         GfxContent::retained(), zeros.data());
     device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
 
-    // A pose, a set of shapes, and the indirect light where a draw stands. A POOL
+    // A pose, the indirect light where a draw stands, and where its entry is. A POOL
     // each and not one buffer each, because a block rewritten between two draws of
-    // one pass is read by both — see PerDrawBlocks.
+    // one pass is read by both — see PerDrawBlocks. A draw's shapes are not one: they
+    // are texels of the record texture its entry names (InstanceConstants.hpp).
     skinBlocks_.init(device_, static_cast<u32>(sizeof(SkinConstants)));
-    morphBlocks_.init(device_, static_cast<u32>(sizeof(MorphConstants)));
     // A run per instance, not one for the draw: the block is what a merged draw
     // says about every object in it, and GL wants the whole declared block bound.
     probeBlocks_.init(device_, PROBE_BLOCK_BYTES);
-    // An entry per draw of a run where the device draws runs: GL wants the whole declared block bound, and the programs declare
-    // the array exactly when the device enabled them (glslMultiDraw).
-    instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants))
-                                      * (device_.supportsMultiDraw() && glslMultiDraw() ? MULTI_DRAW_MAX : 1u));
+    // Where the draw's entry is, one texel of the record texture; a run's entries follow its head's, read by gl_DrawID.
+    instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants)));
     planarBlocks_.init(device_, static_cast<u32>(sizeof(PlanarConstants)));
-    // What a draw with no shapes and no volume reads. A pose has no zero: geometry
+    // What a draw with no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.
-    morphBlocks_.bindZero(MORPH_CONSTANTS_BINDING);
     probeBlocks_.bindZero(PROBE_CONSTANTS_BINDING);
     instanceBlocks_.bindZero(INSTANCE_CONSTANTS_BINDING);
     planarBlocks_.bindZero(PLANAR_CONSTANTS_BINDING);

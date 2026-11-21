@@ -253,11 +253,10 @@ private:
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
-    /// A block each per skinned draw, per morphed one, per draw standing in a
-    /// volume, and per draw reading the record texture. One buffer EACH and not
-    /// one shared: see PerDrawBlocks.
+    /// A block each per skinned draw, per draw standing in a volume, and per
+    /// draw reading the record texture. One buffer EACH and not one shared: see
+    /// PerDrawBlocks.
     PerDrawBlocks skinBlocks_;
-    PerDrawBlocks morphBlocks_;
     PerDrawBlocks probeBlocks_;
     PerDrawBlocks instanceBlocks_;
     PerDrawBlocks planarBlocks_;
@@ -265,12 +264,11 @@ private:
 public:
     /** @brief The blocks the draw loop rewrites before each draw. */
     PerDrawBlockSet perDrawBlocks() {
-        return {&skinBlocks_, &morphBlocks_, &probeBlocks_, &instanceBlocks_, &planarBlocks_};
+        return {&skinBlocks_, &probeBlocks_, &instanceBlocks_, &planarBlocks_};
     }
     /** @brief Hand every one of them back at the top of a frame. */
     void beginPerDrawBlocks() {
         skinBlocks_.beginFrame();
-        morphBlocks_.beginFrame();
         probeBlocks_.beginFrame();
         instanceBlocks_.beginFrame();
         planarBlocks_.beginFrame();
