@@ -18,6 +18,7 @@ import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
 import { islandModifier, lakeFloorModifier, type OutlineSpace } from './landShape';
+import { Footprint } from './footprint';
 import type { TerrainModifier } from '../terrain/source';
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
@@ -58,9 +59,10 @@ import { isMiniGame } from '../platform';
 
 /**
  * What a body of water is. A river follows the `Spline` on its own entity; an island is land, raised out of the water inside its outline; an
- * exclusion is a box kept out of the water, as dry inside as above it.
+ * exclusion is a box kept out of the water, as dry inside as above it; a custom body is the shape of a mesh seen from above, its water at the
+ * mesh's top.
  */
-export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3, Exclusion: 4 } as const;
+export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3, Exclusion: 4, Custom: 5 } as const;
 
 /** The fields of the `WaterBody` component. @experimental */
 export interface WaterBodyData {
@@ -73,6 +75,8 @@ export interface WaterBodyData {
     sizeZ: number;
     /** An exclusion's height, centred on its entity: water whose surface lies within it is kept out of its outline. */
     sizeY: number;
+    /** A custom body's shape: the mesh whose triangles, seen from above, are its water, which stands at the mesh's top. Only a shape: nothing draws it. */
+    shapeMesh: number;
     /** A lake's outline: three points or more round it on its own xz plane (x, y is x, z). Empty is the rectangle of `sizeX` by `sizeZ`. */
     boundary: Point2[];
     /** How far in from the shore, and how deep, the waves take to come to full height; 0 leaves them whole to the edge. */
@@ -102,27 +106,29 @@ export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
-    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
+    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
     underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
     underwaterDensity: 0.12, underwaterCaustics: 0.6,
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
+    assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
     fields: {
-        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water.' },
+        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }, { label: 'Custom', value: WaterForm.Custom }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
         bodyId: { category: 'Shape', tooltip: 'What the game calls this body, the same in every session: what a query names the water by. Empty is named by its entity.' },
         sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
         sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
+        shapeMesh: { category: 'Shape', tooltip: 'The mesh a custom body is the shape of: its triangles seen from above are the water, and the water stands at its top. Only a shape; nothing draws it.', shownWhen: { field: 'form', values: [WaterForm.Custom] } },
         sizeY: { min: 0.01, category: 'Shape', tooltip: 'The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.', shownWhen: { field: 'form', values: [WaterForm.Exclusion] } },
         boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
-        shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
+        shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island, WaterForm.Custom] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
         bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
-        underwaterLook: { enum: [{ label: 'Zone Material', value: UnderwaterLook.Zone }, { label: 'Own', value: UnderwaterLook.Own }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
+        underwaterLook: { enum: [{ label: 'Zone Material', value: UnderwaterLook.Zone }, { label: 'Own', value: UnderwaterLook.Own }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
         underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
-        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
+        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
     },
 });
 
@@ -466,6 +472,8 @@ export class WaterPlugin implements Plugin {
     private baking_: { key: string; cancel: () => void } | null = null;
     /** The beds cut into the terrain, by river: what they were cut from, and the ids of their modifiers. */
     private beds_ = new Map<number, { signature: string; ids: string[] }>();
+    /** Custom bodies' shapes, by mesh handle: read once, the geometry being asked for the first time it is named (null: it has no shape to give). */
+    private footprints_ = new Map<number, Footprint | null | 'reading'>();
 
     build(app: App): void {
         const waters = new Waters();
@@ -593,6 +601,18 @@ export class WaterPlugin implements Plugin {
                 const space = outlineSpace(t, outline, scale);
                 beds.push({ key, signature: JSON.stringify(['island', outline, top, falloff, t.worldPosition, t.worldRotation, scale]),
                     make: (prefix) => [islandModifier(`${prefix}island`, space, top, falloff)] });
+            } else if (d.form === WaterForm.Custom) {
+                const shape = this.footprintOf(app, d.shapeMesh);
+                // Not read yet: named in the key, so the water is baked again once it is.
+                if (!shape) { keyParts.push([key, d.form, d.shapeMesh, this.footprints_.get(d.shapeMesh) ?? null]); continue; }
+                const level = fromLocal(t, 0, shape.top, 0, scale)[1];
+                bodies.push({
+                    kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull,
+                    toLocal: (x, z) => { const q = toLocal(t, x, level, z, scale); return [q[0], q[2]]; },
+                    toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
+                    inside: (x, z) => shape.sdf(x, z),
+                });
+                keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
             } else if (d.form === WaterForm.Exclusion) {
                 const outline = outlineOf(d), half = (d.sizeY * scale) / 2, y = t.worldPosition.y;
                 exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale) });
@@ -653,6 +673,19 @@ export class WaterPlugin implements Plugin {
             if (terrains) for (const id of had.ids) terrains.deleteModifier(id);
             this.beds_.delete(key);
         }
+    }
+
+    /** A mesh's shape from above, once its geometry has been read; null while it is read or where there is none. */
+    private footprintOf(app: App, mesh: number): Footprint | null {
+        if (!mesh) return null;
+        const had = this.footprints_.get(mesh);
+        if (had !== undefined) return had === 'reading' ? null : had;
+        if (!app.hasResource(Assets)) return null;
+        this.footprints_.set(mesh, 'reading');
+        void app.getResource(Assets).readMeshData(mesh)
+            .then((data) => { this.footprints_.set(mesh, data ? Footprint.ofMesh(data) : null); })
+            .catch(() => { this.footprints_.set(mesh, null); });
+        return null;
     }
 
     /** The world height of the ground, where a terrain is built. */

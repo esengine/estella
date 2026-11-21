@@ -15014,6 +15014,7 @@ bodyId: string
 boundary: Point2[]
 flowSpeed: number
 form: number
+shapeMesh: number
 shoreWidth: number
 sizeX: number
 sizeY: number
@@ -15056,7 +15057,7 @@ static prototype: WaterField
 
 ## WaterForm — const @experimental
 ```
-{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; readonly Island: 3; readonly Exclusion: 4; }
+{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; readonly Island: 3; readonly Exclusion: 4; readonly Custom: 5; }
 ```
 
 ## WaterPlugin — class @experimental

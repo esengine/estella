@@ -11692,13 +11692,14 @@
           "key": "form",
           "type": "enum",
           "default": "Lake",
-          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water.",
+          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.",
           "values": [
             "Ocean",
             "Lake",
             "River",
             "Island",
-            "Exclusion Volume"
+            "Exclusion Volume",
+            "Custom"
           ]
         },
         {
@@ -11727,6 +11728,12 @@
           "default": "10000",
           "doc": "The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.",
           "range": "≥ 0.01"
+        },
+        {
+          "key": "shapeMesh",
+          "type": "Asset<mesh>",
+          "default": "none",
+          "doc": "The mesh a custom body is the shape of: its triangles seen from above are the water, and the water stands at its top. Only a shape; nothing draws it."
         },
         {
           "key": "boundary",
@@ -11804,6 +11811,7 @@
         "sizeX",
         "sizeZ",
         "sizeY",
+        "shapeMesh",
         "shoreWidth",
         "flowSpeed",
         "waveHeight",

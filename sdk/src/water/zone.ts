@@ -105,6 +105,11 @@ export interface ZoneLake {
     /** A world (x, z) in the outline's own space, and back. */
     toLocal(x: number, z: number): [number, number];
     toWorld(x: number, z: number): [number, number];
+    /**
+     * How far inside the water a point of the outline's space is (negative outside), where the shape is more than the outline: a custom
+     * body's mesh seen from above, whose outline is only the hull round it. Absent, the outline is the shape.
+     */
+    inside?(x: number, z: number): number;
 }
 
 /** A point along a river, in the world: where its middle is, its surface's height, half its width, its heading and how fast it runs there. */
@@ -461,7 +466,7 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
         // The depth as a distance across the ground to where the water meets it (the ground's slope there sets how far that is).
         const depth = g === null ? DEEP : body.level - g;
         // Water only where its outline is and its surface is over the ground: land inside the outline, above the water, is land.
-        const shore = Math.min(polygonSdf(body.outline, lx, lz), depth / slope);
+        const shore = Math.min(body.inside ? body.inside(lx, lz) : polygonSdf(body.outline, lx, lz), depth / slope);
         // The waves calm toward the shore and as the water shallows, which on a flat shelf far from any shore is the depth alone.
         const calm = shoreDamp(Math.min(shore, depth), body.shoreWidth);
         return { height: body.level, shore, amp: body.waveHeight * calm, calm, fx: 0, fz: 0, half: 0, grade: 0 };
