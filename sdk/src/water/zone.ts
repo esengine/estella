@@ -161,6 +161,8 @@ export type ZoneBody = ZoneOcean | ZoneLake | ZoneRiver;
  */
 export interface ZoneExclusion {
     key: number;
+    /** The bodies it keeps out (their keys); every body whose water overlaps it when absent. */
+    only?: ReadonlySet<number>;
     outline: readonly Point2[];
     toLocal(x: number, z: number): [number, number];
     toWorld(x: number, z: number): [number, number];
@@ -177,7 +179,8 @@ export function exclusionInside(e: ZoneExclusion, x: number, z: number): number 
 }
 
 /** Whether the world point is inside the exclusion: within its outline and between its bottom and top. */
-export function inExclusion(e: ZoneExclusion, x: number, y: number, z: number): boolean {
+export function inExclusion(e: ZoneExclusion, x: number, y: number, z: number, body?: number): boolean {
+    if (e.only && (body === undefined || !e.only.has(body))) return false;
     return y >= e.bottom && y <= e.top && exclusionInside(e, x, z) > 0;
 }
 
@@ -306,6 +309,17 @@ export class WaterField {
             for (const p of e.outline) { const [x, z] = e.toWorld(p.x, p.y); x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
             return [x0, z0, x1, z1] as const;
         });
+        // Volumes that keep only the bodies they list out: each listed body's water stops at their outline, the others' runs on through.
+        const targeted = exclusions.flatMap((e, i) => (e.only ? [i] : []));
+        const keptOut = (body: number, level: number, shore: number, x: number, z: number): number => {
+            for (const i of targeted) {
+                const ex = exclusions[i]!, box = kept[i]!;
+                if (!ex.only!.has(body) || level < ex.bottom || level > ex.top) continue;
+                if (x < box[0] - blend || x > box[2] + blend || z < box[1] - blend || z > box[3] + blend) continue;
+                shore = Math.min(shore, -exclusionInside(ex, x, z));
+            }
+            return shore;
+        };
         const grounds = new Float64Array(grid.nx * grid.nz).fill(Number.NaN);
         // How much of each texel's water is a river's: the surf takes it for land.
         const rivers = new Float32Array(grid.nx * grid.nz);
@@ -348,6 +362,7 @@ export class WaterField {
                     if (x < box[0] - blend || x > box[2] + blend || z < box[1] - blend || z > box[3] + blend) continue;
                     const say = sayOf(bounded[b]!, x, z, g, slope);
                     if (!say) continue;
+                    if (targeted.length) say.shore = keptOut(bounded[b]!.key, say.height, say.shore, x, z);
                     best = Math.max(best, say.shore);
                     const inside = smooth(-blend, blend, say.shore);
                     // A river gives way to the lake or the sea it runs into over half its width past their shore, its current fading
@@ -369,7 +384,7 @@ export class WaterField {
                     if (weight > ownerW) { ownerW = weight; owner = bounded[b]!.key; }
                 }
                 if (ocean) {
-                    const deep = seaDeep;
+                    const deep = targeted.length ? keptOut(ocean.key, ocean.level, seaDeep, x, z) : seaDeep;
                     best = Math.max(best, deep);
                     const weight = smooth(-blend, blend, deep) * (1 - held);
                     if (weight > 0) {
@@ -386,6 +401,7 @@ export class WaterField {
                     const level = h / w;
                     for (let e = 0; e < exclusions.length; e++) {
                         const ex = exclusions[e]!, box = kept[e]!;
+                        if (ex.only) continue;
                         if (level < ex.bottom || level > ex.top || x < box[0] - blend || x > box[2] + blend || z < box[1] - blend || z > box[3] + blend) continue;
                         best = Math.min(best, -exclusionInside(ex, x, z));
                     }

@@ -15037,6 +15037,8 @@ curlTiling1: number
 curlTiling2: number
 curveRampWidth: number
 elevationCurve: Curve
+excludeAllOverlapping: boolean
+excludeBodies: number[]
 falloffAngle: number
 falloffEdgeOffset: number
 falloffMode: number

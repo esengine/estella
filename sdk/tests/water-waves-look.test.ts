@@ -5,7 +5,7 @@
  *        another, and its look from under its water laid over another body's by priority, blend weight and blend radius.
  */
 import { describe, expect, it } from 'vitest';
-import { WaterField, WaterZone, insideBody, type ZoneGrid, type ZoneLake, type ZoneOcean, type ZoneRiver } from '../src/water/zone';
+import { WaterField, WaterZone, inExclusion, insideBody, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean, type ZoneRiver } from '../src/water/zone';
 import type { Point2 } from '../src/water/shore';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
@@ -65,6 +65,33 @@ describe('the colour where two bodies overlap', () => {
         const [r, , b] = colourAt(WaterField.bake(grid, [red, { ...blue, priority: 1 }]), 0);
         expect(b).toBeCloseTo(1, 3);
         expect(r).toBeCloseTo(0, 3);
+    });
+});
+
+describe('an exclusion volume that names its bodies', () => {
+    // Two lakes side by side, at the same level, a box across the line between them.
+    const west = lakeAt(-20, 20, { key: 1 }), east = lakeAt(20, 20, { key: 2 });
+    const box = (only?: ReadonlySet<number>): ZoneExclusion => ({ key: 9, outline: square(8), toLocal: (x, z) => [x, z], toWorld: (x, z) => [x, z],
+        scale: 1, bottom: -2, top: 2, ...(only ? { only } : {}) });
+
+    it('keeps out every body overlapping it by default', () => {
+        const field = WaterField.bake(grid, [west, east], undefined, 0, [box()]);
+        expect(field.sample(-4, 0)).toBeNull();
+        expect(field.sample(4, 0)).toBeNull();
+    });
+
+    it('keeps out only the bodies it lists, the others running on through it', () => {
+        const field = WaterField.bake(grid, [west, east], undefined, 0, [box(new Set([1]))]);
+        expect(field.sample(-4, 0)).toBeNull();
+        expect(field.sample(4, 0)?.key).toBe(2);
+        expect(field.sample(-30, 0)?.key).toBe(1);
+    });
+
+    it('says a point inside it is in none of a listed body’s water and in an unlisted one’s', () => {
+        const only = box(new Set([1]));
+        expect(inExclusion(only, 0, 0, 0, 1)).toBe(true);
+        expect(inExclusion(only, 0, 0, 0, 2)).toBe(false);
+        expect(inExclusion(box(), 0, 0, 0, 2)).toBe(true);
     });
 });
 

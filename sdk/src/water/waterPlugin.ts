@@ -17,7 +17,7 @@
 import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
-import { ChannelBlend, ChannelFalloff, islandModifier, lakeChannelModifier, lakeFloorModifier, type ChannelSettings, type OutlineSpace } from './landShape';
+import { BLEND_ADDITIVE, BLEND_ALPHA, BLEND_MAX, BLEND_MIN, ChannelFalloff, FALLOFF_ANGLE, FALLOFF_WIDTH, islandModifier, lakeChannelModifier, lakeFloorModifier, type ChannelSettings, type OutlineSpace } from './landShape';
 import { InterpType, sampleKeyframes, type Curve } from '../math/keyframes';
 import { Footprint } from './footprint';
 import type { TerrainModifier } from '../terrain/source';
@@ -62,7 +62,11 @@ import { isMiniGame } from '../platform';
  * exclusion is a box kept out of the water, as dry inside as above it; a custom body is the shape of a mesh seen from above, its water at the
  * mesh's top.
  */
-export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3, Exclusion: 4, Custom: 5 } as const;
+// Each kind's value as a plain constant, which the WaterBody definition names: a bundler drops a definition no one uses only when nothing in
+// it could have an effect, and reading an object's property could (a getter), so one `WaterForm.Lake` in it kept the whole definition, all
+// its tooltips, in every package with no water (check-lean-bundle).
+const OCEAN = 0, LAKE = 1, RIVER = 2, ISLAND = 3, EXCLUSION = 4, CUSTOM = 5;
+export const WaterForm = { Ocean: OCEAN, Lake: LAKE, River: RIVER, Island: ISLAND, Exclusion: EXCLUSION, Custom: CUSTOM } as const;
 
 /** The fields of the `WaterBody` component. @experimental */
 export interface WaterBodyData {
@@ -134,22 +138,31 @@ export interface WaterBodyData {
     underwaterPriority: number;
     underwaterBlendRadius: number;
     underwaterBlendWeight: number;
+    /** An exclusion volume: whether it keeps out every body whose water overlaps it, or only those in `excludeBodies`. */
+    excludeAllOverlapping: boolean;
+    excludeBodies: number[];
 }
 
 /** How a lake or a river cuts the terrain: its built-in profile, or the Curve Channel its Terrain settings describe. */
-export const ChannelShape = { BuiltIn: 0, Curve: 1 } as const;
+const SHAPE_BUILT_IN = 0, SHAPE_CURVE = 1;
+export const ChannelShape = { BuiltIn: SHAPE_BUILT_IN, Curve: SHAPE_CURVE } as const;
 
 /** The elevation curve a Curve Channel starts with: an S from the curve's start (0) to the full depth (1). */
+// The interpolation is written out, not read off InterpType: a read of another chunk's object is a statement a bundler must keep, and it
+// would keep this component's whole definition in a package that has no water (check-lean-bundle).
+const EASE_IN_OUT: InterpType = 'easeInOut';
 const S_CURVE: Curve = { keys: [
-    { time: 0, value: 0, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseInOut },
-    { time: 1, value: 1, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseInOut },
+    { time: 0, value: 0, inTangent: 0, outTangent: 0, interpolation: EASE_IN_OUT },
+    { time: 1, value: 1, inTangent: 0, outTangent: 0, interpolation: EASE_IN_OUT },
 ] };
 
 /** Where a body's surface colour comes from: the zone's water material, or the body's own Water Color. */
-export const SurfaceLook = { Zone: 0, Own: 1 } as const;
+const SURFACE_ZONE = 0, SURFACE_OWN = 1;
+export const SurfaceLook = { Zone: SURFACE_ZONE, Own: SURFACE_OWN } as const;
 
 /** Where a body's underwater look comes from: the zone's water material, as the surface is drawn, or the body's own settings. */
-export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
+const UNDER_ZONE = 0, UNDER_OWN = 1;
+export const UnderwaterLook = { Zone: UNDER_ZONE, Own: UNDER_OWN } as const;
 
 /**
  * A body of water. Presence is the opt-in; it is drawn as part of its zone's surface.
@@ -158,68 +171,72 @@ export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
-    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
-    surfaceLook: SurfaceLook.Zone, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
-    underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
+    form: LAKE, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
+    surfaceLook: SURFACE_ZONE, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
+    underwaterLook: UNDER_ZONE, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
     underwaterDensity: 0.12, underwaterCaustics: 0.6,
-    affectsTerrain: true, channelShape: ChannelShape.BuiltIn, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
-    terrainBlend: ChannelBlend.AlphaBlend, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
-    falloffMode: ChannelFalloff.Width, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
+    affectsTerrain: true, channelShape: SHAPE_BUILT_IN, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
+    terrainBlend: BLEND_ALPHA, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
+    falloffMode: FALLOFF_WIDTH, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
     curlTiling2: 500, innerSmoothDistance: 0, outerSmoothDistance: 0, terraceMaskLength: 0, terraceMaskStartOffset: 0,
     waveAttenuationDepth: 300, overlapPriority: 0, shapeDilation: 0,
     underwaterEnabled: true, underwaterPriority: 0, underwaterBlendRadius: 0, underwaterBlendWeight: 1,
+    excludeAllOverlapping: true, excludeBodies: [] as number[],
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset', 'waveAttenuationDepth', 'shapeDilation', 'underwaterBlendRadius'],
     assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
+    entityFields: ['excludeBodies'],
     fields: {
-        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }, { label: 'Custom', value: WaterForm.Custom }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
+        form: { enum: [{ label: 'Ocean', value: OCEAN }, { label: 'Lake', value: LAKE }, { label: 'River', value: RIVER }, { label: 'Island', value: ISLAND }, { label: 'Exclusion Volume', value: EXCLUSION }, { label: 'Custom', value: CUSTOM }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
         bodyId: { category: 'Shape', tooltip: 'What the game calls this body, the same in every session: what a query names the water by. Empty is named by its entity.' },
-        sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
-        sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
-        shapeMesh: { category: 'Shape', tooltip: 'The mesh a custom body is the shape of: its triangles seen from above are the water, and the water stands at its top. Only a shape; nothing draws it.', shownWhen: { field: 'form', values: [WaterForm.Custom] } },
-        sizeY: { min: 0.01, category: 'Shape', tooltip: 'The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.', shownWhen: { field: 'form', values: [WaterForm.Exclusion] } },
-        boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
-        shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island, WaterForm.Custom] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
-        flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
-        bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
-        surfaceLook: { enum: [{ label: 'Zone Material', value: SurfaceLook.Zone }, { label: 'Own', value: SurfaceLook.Own }], category: 'Look', tooltip: 'The colour of this body\u2019s water: the zone water material\u2019s, or its own Water Color. Where a body with its own colour meets another (a river running into a lake), the two colours run into each other across the junction.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
-        waterColor: { category: 'Look', tooltip: 'The colour of this body\u2019s shallow water. Deep water darkens it the way the zone material\u2019s deep colour darkens its shallow one.', shownWhen: { field: 'surfaceLook', values: [SurfaceLook.Own] } },
-        underwaterLook: { enum: [{ label: 'Zone Material', value: UnderwaterLook.Zone }, { label: 'Own', value: UnderwaterLook.Own }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
-        underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
-        underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
-        underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
-        affectsTerrain: { category: 'Terrain', tooltip: 'Whether this body changes the terrain under and round it: a lake cutting its floor, a river its bed, an island raising its ground. Off, the terrain is left as it is and the water lies over it.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River, WaterForm.Island] } },
-        channelShape: { enum: [{ label: 'Built In', value: ChannelShape.BuiltIn }, { label: 'Curve Channel', value: ChannelShape.Curve }], category: 'Terrain', tooltip: 'How the bed is cut: the built-in profile (a lake\u2019s floor sloping in from its shore, a river\u2019s rounded trough), or the Curve Channel below: an elevation curve across a ramp from the shore, laid over the ground as its blend mode says, with terraces if asked.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River] } },
-        elevationCurve: { curve: true, category: 'Terrain', tooltip: 'The bed\u2019s profile across the ramp: from the curve\u2019s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river\u2019s points) is the depth reached.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        channelEdgeOffset: { category: 'Terrain', tooltip: 'How far in from the shore the curve starts, in world units. Negative starts it out on the bank, which widens the cut past the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        curveRampWidth: { min: 0.01, category: 'Terrain', tooltip: 'How wide the curve ramps from its start to the full depth, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terrainBlend: { enum: [{ label: 'Min', value: ChannelBlend.Min }, { label: 'Max', value: ChannelBlend.Max }, { label: 'Alpha Blend', value: ChannelBlend.AlphaBlend }, { label: 'Additive', value: ChannelBlend.Additive }], category: 'Terrain', tooltip: 'How the channel is laid over the terrain. Alpha Blend lays the profile either way, cutting ground that is higher and raising ground that is lower, so the water always has ground at its level: what most bodies want. Min only cuts (ground already lower stays): for a river running into a lake, so it does not raise the lake’s floor. Max only raises. Additive adds onto the ground the cut a flat ground at the water’s level would get, keeping the ground’s own detail and slope, but not placing the bed at exact heights.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        falloffWidth: { min: 0, category: 'Terrain', tooltip: 'Width falloff: past the flat edge, how far out the bank runs back into the terrain, in world units. Angle falloff: the farthest the bank runs out looking for the ground.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        falloffMode: { enum: [{ label: 'Width', value: ChannelFalloff.Width }, { label: 'Angle', value: ChannelFalloff.Angle }], category: 'Terrain', tooltip: 'How the bank meets the ground round the water. Width gives it back over Falloff Width whether or not it met the ground. Angle runs it out at Falloff Angle until it meets the ground, cutting into a hill or building up from a hollow, Falloff Width the farthest it goes.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        falloffAngle: { min: 1, max: 89, unit: '°', category: 'Terrain', tooltip: 'Angle falloff: the slope of the bank, in degrees from level.', shownWhen: { field: 'falloffMode', values: [ChannelFalloff.Angle] } },
-        falloffEdgeOffset: { min: 0, category: 'Terrain', tooltip: 'A flat edge round the water at its level before the falloff starts, in world units: a level bank along a river even where it cuts through a hill.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terrainZOffset: { category: 'Terrain', tooltip: 'Raises (or, negative, lowers) the whole cut against the water\u2019s surface, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terraceAlpha: { min: 0, max: 1, category: 'Terrain', tooltip: 'Terraces laid over the cut: 0 none, 1 fully stepped.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terraceSpacing: { min: 0.01, category: 'Terrain', tooltip: 'The rise of each terrace, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terraceSmoothness: { min: 0, max: 1, category: 'Terrain', tooltip: 'How round the terraces\u2019 edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terraceMaskLength: { min: 0, category: 'Terrain', tooltip: 'Terraces only within this span of distance out from the water’s edge, in world units; 0 for terraces everywhere the body reaches.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terraceMaskStartOffset: { min: 0, category: 'Terrain', tooltip: 'How far out from the water’s edge the terraces’ span starts, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        blurRadius: { min: 0, category: 'Terrain', tooltip: 'Averages the cut over this radius, in world units, softening its edges and corners all round. 0 for none: the outline’s distance is exact, so it needs no blur to hide steps.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        curlAmount1: { min: 0, category: 'Terrain', tooltip: 'Curl noise bending the cut’s outline, first octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        curlTiling1: { min: 0.01, category: 'Terrain', tooltip: 'The size of the first octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        curlAmount2: { min: 0, category: 'Terrain', tooltip: 'Curl noise, second octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        curlTiling2: { min: 0.01, category: 'Terrain', tooltip: 'The size of the second octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        innerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the inner edge, where the bed leaves the bank, over this width in world units: an easier way in and out of the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        outerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the outer edge, where the bank meets the ground, over this height in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        underwaterEnabled: { category: 'Underwater', tooltip: 'Whether the camera under this body\u2019s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [LAKE, ISLAND, EXCLUSION] } },
+        sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [LAKE, ISLAND, EXCLUSION] } },
+        shapeMesh: { category: 'Shape', tooltip: 'The mesh a custom body is the shape of: its triangles seen from above are the water, and the water stands at its top. Only a shape; nothing draws it.', shownWhen: { field: 'form', values: [CUSTOM] } },
+        sizeY: { min: 0.01, category: 'Shape', tooltip: 'The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.', shownWhen: { field: 'form', values: [EXCLUSION] } },
+        excludeAllOverlapping: { label: 'Exclude All Overlapping Water Bodies', category: 'Water', tooltip: 'Keeps every body whose water overlaps this volume out of it: none drawn inside it, and a point inside it is in no water, so a base or a tunnel under the sea is dry. Off, it keeps out only the bodies listed below.', shownWhen: { field: 'form', values: [EXCLUSION] } },
+        excludeBodies: { label: 'Water Bodies to Exclude', category: 'Water', tooltip: 'The bodies this volume keeps out when it does not keep out all of them: inside it their water is not drawn and a point is in none of it, while any other body runs on through.', shownWhen: { field: 'excludeAllOverlapping', values: [0] } },
+        boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [LAKE, ISLAND, EXCLUSION] } },
+        shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, ISLAND, CUSTOM] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
+        flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [RIVER] } },
+        bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [RIVER, LAKE] } },
+        surfaceLook: { enum: [{ label: 'Zone Material', value: SURFACE_ZONE }, { label: 'Own', value: SURFACE_OWN }], category: 'Look', tooltip: 'The colour of this body\u2019s water: the zone water material\u2019s, or its own Water Color. Where a body with its own colour meets another (a river running into a lake), the two colours run into each other across the junction.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        waterColor: { category: 'Look', tooltip: 'The colour of this body\u2019s shallow water. Deep water darkens it the way the zone material\u2019s deep colour darkens its shallow one.', shownWhen: { field: 'surfaceLook', values: [SURFACE_OWN] } },
+        underwaterLook: { enum: [{ label: 'Zone Material', value: UNDER_ZONE }, { label: 'Own', value: UNDER_OWN }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        affectsTerrain: { category: 'Terrain', tooltip: 'Whether this body changes the terrain under and round it: a lake cutting its floor, a river its bed, an island raising its ground. Off, the terrain is left as it is and the water lies over it.', shownWhen: { field: 'form', values: [LAKE, RIVER, ISLAND] } },
+        channelShape: { enum: [{ label: 'Built In', value: SHAPE_BUILT_IN }, { label: 'Curve Channel', value: SHAPE_CURVE }], category: 'Terrain', tooltip: 'How the bed is cut: the built-in profile (a lake\u2019s floor sloping in from its shore, a river\u2019s rounded trough), or the Curve Channel below: an elevation curve across a ramp from the shore, laid over the ground as its blend mode says, with terraces if asked.', shownWhen: { field: 'form', values: [LAKE, RIVER] } },
+        elevationCurve: { curve: true, category: 'Terrain', tooltip: 'The bed\u2019s profile across the ramp: from the curve\u2019s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river\u2019s points) is the depth reached.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        channelEdgeOffset: { category: 'Terrain', tooltip: 'How far in from the shore the curve starts, in world units. Negative starts it out on the bank, which widens the cut past the water.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        curveRampWidth: { min: 0.01, category: 'Terrain', tooltip: 'How wide the curve ramps from its start to the full depth, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terrainBlend: { enum: [{ label: 'Min', value: BLEND_MIN }, { label: 'Max', value: BLEND_MAX }, { label: 'Alpha Blend', value: BLEND_ALPHA }, { label: 'Additive', value: BLEND_ADDITIVE }], category: 'Terrain', tooltip: 'How the channel is laid over the terrain. Alpha Blend lays the profile either way, cutting ground that is higher and raising ground that is lower, so the water always has ground at its level: what most bodies want. Min only cuts (ground already lower stays): for a river running into a lake, so it does not raise the lake’s floor. Max only raises. Additive adds onto the ground the cut a flat ground at the water’s level would get, keeping the ground’s own detail and slope, but not placing the bed at exact heights.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        falloffWidth: { min: 0, category: 'Terrain', tooltip: 'Width falloff: past the flat edge, how far out the bank runs back into the terrain, in world units. Angle falloff: the farthest the bank runs out looking for the ground.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        falloffMode: { enum: [{ label: 'Width', value: FALLOFF_WIDTH }, { label: 'Angle', value: FALLOFF_ANGLE }], category: 'Terrain', tooltip: 'How the bank meets the ground round the water. Width gives it back over Falloff Width whether or not it met the ground. Angle runs it out at Falloff Angle until it meets the ground, cutting into a hill or building up from a hollow, Falloff Width the farthest it goes.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        falloffAngle: { min: 1, max: 89, unit: '°', category: 'Terrain', tooltip: 'Angle falloff: the slope of the bank, in degrees from level.', shownWhen: { field: 'falloffMode', values: [FALLOFF_ANGLE] } },
+        falloffEdgeOffset: { min: 0, category: 'Terrain', tooltip: 'A flat edge round the water at its level before the falloff starts, in world units: a level bank along a river even where it cuts through a hill.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terrainZOffset: { category: 'Terrain', tooltip: 'Raises (or, negative, lowers) the whole cut against the water\u2019s surface, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terraceAlpha: { min: 0, max: 1, category: 'Terrain', tooltip: 'Terraces laid over the cut: 0 none, 1 fully stepped.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terraceSpacing: { min: 0.01, category: 'Terrain', tooltip: 'The rise of each terrace, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terraceSmoothness: { min: 0, max: 1, category: 'Terrain', tooltip: 'How round the terraces\u2019 edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terraceMaskLength: { min: 0, category: 'Terrain', tooltip: 'Terraces only within this span of distance out from the water’s edge, in world units; 0 for terraces everywhere the body reaches.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        terraceMaskStartOffset: { min: 0, category: 'Terrain', tooltip: 'How far out from the water’s edge the terraces’ span starts, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        blurRadius: { min: 0, category: 'Terrain', tooltip: 'Averages the cut over this radius, in world units, softening its edges and corners all round. 0 for none: the outline’s distance is exact, so it needs no blur to hide steps.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        curlAmount1: { min: 0, category: 'Terrain', tooltip: 'Curl noise bending the cut’s outline, first octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        curlTiling1: { min: 0.01, category: 'Terrain', tooltip: 'The size of the first octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        curlAmount2: { min: 0, category: 'Terrain', tooltip: 'Curl noise, second octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        curlTiling2: { min: 0.01, category: 'Terrain', tooltip: 'The size of the second octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        innerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the inner edge, where the bed leaves the bank, over this width in world units: an easier way in and out of the water.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        outerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the outer edge, where the bank meets the ground, over this height in world units.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },
+        underwaterEnabled: { category: 'Underwater', tooltip: 'Whether the camera under this body\u2019s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
         underwaterPriority: { min: -8192, max: 8191, step: 1, category: 'Underwater', tooltip: 'Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority\u2019s underwater look is laid over the lower one\u2019s, by its Blend Weight. Equal ones are laid in no set order.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
         underwaterBlendRadius: { min: 0, category: 'Underwater', tooltip: 'How far out past the body\u2019s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
         underwaterBlendWeight: { min: 0, max: 1, category: 'Underwater', tooltip: 'How much of this body\u2019s underwater look there is: 1 all of it, 0 none.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
-        underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
-        waveAttenuationDepth: { min: 0, category: 'Waves', tooltip: 'How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water\u2019s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
-        overlapPriority: { min: -8192, max: 8191, step: 1, category: 'Look', tooltip: 'Where this body\u2019s water overlaps another\u2019s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
-        shapeDilation: { min: 0, category: 'Shape', tooltip: 'How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
-        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        waveAttenuationDepth: { min: 0, category: 'Waves', tooltip: 'How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water\u2019s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        overlapPriority: { min: -8192, max: 8191, step: 1, category: 'Look', tooltip: 'Where this body\u2019s water overlaps another\u2019s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        shapeDilation: { min: 0, category: 'Shape', tooltip: 'How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.', shownWhen: { field: 'form', values: [LAKE, RIVER, CUSTOM] } },
+        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
     },
 });
 
@@ -354,9 +371,9 @@ export class Waters {
         const field = this.field_;
         if (!field || !this.app_) return null;
         // Inside a place kept out of the water nothing is under it, though the sea's surface stands above.
-        for (const e of this.exclusions_) if (inExclusion(e, x, y, z)) return null;
         const s = field.sample(x, z);
         if (!s) return null;
+        for (const e of this.exclusions_) if (inExclusion(e, x, y, z, s.key)) return null;
         const time = this.app_.getResource(Time).elapsed;
         const params = this.waves(s.amp, s.exposure);
         const zone = this.zone_;
@@ -791,8 +808,9 @@ export class WaterPlugin implements Plugin {
                 keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
             } else if (d.form === WaterForm.Exclusion) {
                 const outline = outlineOf(d), half = (d.sizeY * scale) / 2, y = t.worldPosition.y;
-                exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale) });
-                keyParts.push([key, d.form, outline, d.sizeY, t.worldPosition, t.worldRotation, scale]);
+                const only = d.excludeAllOverlapping === false ? new Set((d.excludeBodies ?? []).map(Number)) : undefined;
+                exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale), ...(only ? { only } : {}) });
+                keyParts.push([key, d.form, outline, d.sizeY, t.worldPosition, t.worldRotation, scale, only ? [...only] : 'all']);
             } else if (d.form === WaterForm.River) {
                 const spline = app.world.tryGet(entity, Spline) as SplineData | null;
                 if (!spline || spline.points.length < 2) continue;
@@ -815,20 +833,22 @@ export class WaterPlugin implements Plugin {
         const bodyBoxes = bodies.map((b) => ({ key: b.key, box: b.kind === 'ocean' ? null
             : b.kind === 'river' ? boxOf(b.stations.map((s) => [s.x, s.z] as [number, number]), Math.max(...b.stations.map((s) => s.half)))
             : boxOf(b.outline.map((p) => b.toWorld(p.x, p.y))) }));
-        const actors: Array<{ entity: number; kind: 'islands' | 'exclusions'; box: [number, number, number, number] }> = [];
+        const actors: Array<{ entity: number; kind: 'islands' | 'exclusions'; box: [number, number, number, number]; only?: ReadonlySet<number> }> = [];
         for (const entity of app.world.getEntitiesWithComponents([WaterBody, Transform])) {
             const d = app.world.get(entity, WaterBody) as WaterBodyData;
             if (d.form !== WaterForm.Island && d.form !== WaterForm.Exclusion) continue;
             const t = app.world.get(entity, Transform) as TransformData;
             const scale = t.worldScale.y || 1;
             const pts = outlineOf(d).map((p) => { const w = fromLocal(t, p.x, 0, p.y, scale); return [w[0], w[2]] as [number, number]; });
-            actors.push({ entity: entity as number, kind: d.form === WaterForm.Island ? 'islands' : 'exclusions', box: boxOf(pts, d.form === WaterForm.Island ? d.shoreWidth * scale : 0) });
+            const only = d.form === WaterForm.Exclusion && d.excludeAllOverlapping === false ? new Set((d.excludeBodies ?? []).map(Number)) : undefined;
+            actors.push({ entity: entity as number, kind: d.form === WaterForm.Island ? 'islands' : 'exclusions', box: boxOf(pts, d.form === WaterForm.Island ? d.shoreWidth * scale : 0), only });
         }
         const influences = new Map<number, { islands: number[]; exclusions: number[] }>();
         for (const { key: bodyKey, box } of bodyBoxes) {
             const got = { islands: [] as number[], exclusions: [] as number[] };
             for (const a of actors) {
                 if (box && (a.box[0] > box[2] || a.box[2] < box[0] || a.box[1] > box[3] || a.box[3] < box[1])) continue;
+                if (a.only && !a.only.has(bodyKey)) continue;
                 got[a.kind].push(a.entity);
             }
             influences.set(bodyKey, got);

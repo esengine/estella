@@ -12036,6 +12036,18 @@
           "default": "1",
           "doc": "How much of this body’s underwater look there is: 1 all of it, 0 none.",
           "range": "0–1"
+        },
+        {
+          "key": "excludeAllOverlapping",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Keeps every body whose water overlaps this volume out of it: none drawn inside it, and a point inside it is in no water, so a base or a tunnel under the sea is dry. Off, it keeps out only the bodies listed below."
+        },
+        {
+          "key": "excludeBodies",
+          "type": "Entity",
+          "default": "",
+          "doc": "The bodies this volume keeps out when it does not keep out all of them: inside it their water is not drawn and a point is in none of it, while any other body runs on through."
         }
       ],
       "animatable": [

@@ -107,10 +107,12 @@ export interface ChannelSettings {
  * How a channel is laid over the ground: only cutting (Min), only raising (Max), to its profile either way (Alpha Blend), or added onto
  * the ground as it is (Additive: the cut a flat ground at the water's level would get, added to the ground's own height, its detail kept).
  */
-export const ChannelBlend = { Min: 0, Max: 1, AlphaBlend: 2, Additive: 3 } as const;
+export const BLEND_MIN = 0, BLEND_MAX = 1, BLEND_ALPHA = 2, BLEND_ADDITIVE = 3;
+export const ChannelBlend = { Min: BLEND_MIN, Max: BLEND_MAX, AlphaBlend: BLEND_ALPHA, Additive: BLEND_ADDITIVE } as const;
 
 /** How a channel's bank meets the ground: given back over a fixed width, or run out at an angle until it meets the ground. */
-export const ChannelFalloff = { Width: 0, Angle: 1 } as const;
+export const FALLOFF_WIDTH = 0, FALLOFF_ANGLE = 1;
+export const ChannelFalloff = { Width: FALLOFF_WIDTH, Angle: FALLOFF_ANGLE } as const;
 
 const clamp01 = (t: number): number => Math.min(Math.max(t, 0), 1);
 
