@@ -742,16 +742,6 @@ jobs:
 
     - uses: ./.github/actions/editor-host
 
-    - name: Check Landscape brush Details in the editor
-      if: matrix.shard == 1
-      timeout-minutes: 6
-      working-directory: desktop
-      run: |
-        sandbox=$(node -p "require('node:path').join(require('node:path').dirname(require('electron')), 'chrome-sandbox')")
-        sudo chown root:root "$sandbox"
-        sudo chmod 4755 "$sandbox"
-        xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
-
     # A golden project marks a system @compiled, so packaging one now runs the
     # AOT step — and a promise the build cannot keep fails the export rather
     # than falling back. This job packages, so this job needs the toolchain.
@@ -1044,13 +1034,23 @@ jobs:
       - name: A game packaged from it renders
         run: node tools/verify-desktop-render.mjs --tier pr
 
+  landscape-brush:
+    if: github.event_name != 'pull_request'
+    needs: build-emscripten
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/landscape-brush.yml
+    secrets:
+      EDITOR_SSH_KEY: ${{ secrets.EDITOR_SSH_KEY }}
+
   # The one check master's branch protection requires: every job above, so a job added or renamed
   # needs no change to the protection. A skipped job is not a failure; a cancelled one is.
   build-passed:
     name: Build passed
     if: always()
     needs: [playable-runtime, build-emscripten, cpp-tests, sanitizers, test, test-engine, scale, verify-render,
-            verify-golden, verify-render-webgpu, desktop-linux, desktop-windows]
+            verify-golden, verify-render-webgpu, desktop-linux, desktop-windows, landscape-brush]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped

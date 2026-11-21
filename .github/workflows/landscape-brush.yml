@@ -1,0 +1,65 @@
+name: Landscape brush acceptance
+
+on:
+  workflow_call:
+    secrets:
+      EDITOR_SSH_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Master Build run with the Web runtime to test
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  editor:
+    name: Landscape brush in the editor
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      # A replay uses the exact source and editor pin that produced the chosen runtime.
+      - name: Identify the recorded build
+        if: inputs.build_run
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: |
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq 'select(.path == ".github/workflows/build.yml" and .head_branch == "master" and .event == "push") | .head_sha')
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.build.outputs.sha || github.sha }}
+      - uses: ./.github/actions/editor-checkout
+        with:
+          ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v8
+        with:
+          name: wasm-web
+          path: build/wasm/web
+          run-id: ${{ inputs.build_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Build the editor with the recorded runtime
+        run: |
+          pnpm --filter ./sdk build
+          mkdir -p desktop/public/wasm
+          cp build/wasm/web/* desktop/public/wasm/
+          pnpm --dir desktop exec vite build
+      - name: Check Landscape brush Details in the editor
+        timeout-minutes: 6
+        working-directory: desktop
+        run: |
+          # On a clean install the first require downloads Electron and prints its progress.
+          node -e "require('electron')"
+          sandbox=node_modules/electron/dist/chrome-sandbox
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+          xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
