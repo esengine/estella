@@ -742,6 +742,12 @@ jobs:
 
     - uses: ./.github/actions/editor-host
 
+    - name: Check Landscape brush Details in the editor
+      if: matrix.shard == 1
+      timeout-minutes: 6
+      working-directory: desktop
+      run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
+
     # A golden project marks a system @compiled, so packaging one now runs the
     # AOT step — and a promise the build cannot keep fails the export rather
     # than falling back. This job packages, so this job needs the toolchain.

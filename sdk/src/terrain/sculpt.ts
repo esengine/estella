@@ -20,8 +20,22 @@ export type BrushCurve = 'smooth' | 'linear' | 'spherical' | 'tip';
 
 /** Omitted options keep the original round, smooth brush. */
 export interface BrushProfile {
+    /** Project a single RGBA channel. UV offsets are at the dab centre, so tile edit windows can rebase the brush without changing its mask. */
+    mask?: BrushMask;
+    /** Half extents of one clipped terrain patch. Shared edge samples belong to both patches. */
+    component?: { halfX: number; halfZ: number };
     shape?: BrushShape;
     curve?: BrushCurve;
+}
+
+/** A texture projection in cycles per world unit, evaluated relative to the centre of each dab. */
+export interface BrushMask {
+    image: Splat;
+    channel: 0 | 1 | 2 | 3;
+    repeat: boolean;
+    axisU: { x: number; z: number };
+    axisV: { x: number; z: number };
+    u: number; v: number;
 }
 
 /** A brush at (x, z) in the terrain's space. */
@@ -56,7 +70,29 @@ export function brushWeight(d: number, radius: number, falloff: number, curve: B
 }
 
 function weightAt(b: Brush, x: number, z: number): number {
-    return brushWeight(brushDistance(x - b.x, z - b.z, b.shape), b.radius, b.falloff, b.curve);
+    const dx = x - b.x, dz = z - b.z;
+    if (b.component) return Math.abs(dx) <= b.component.halfX && Math.abs(dz) <= b.component.halfZ ? 1 : 0;
+    const m = b.mask;
+    const envelope = m && !m.repeat ? 1 : brushWeight(brushDistance(dx, dz, b.shape), b.radius, b.falloff, b.curve);
+    if (!m || !envelope) return envelope;
+    const u = m.u + dx * m.axisU.x + dz * m.axisU.z, v = m.v + dx * m.axisV.x + dz * m.axisV.z;
+    if (!m.repeat && (u < 0 || v < 0 || u > 1 || v > 1)) return 0;
+    const { width, height, pixels } = m.image;
+    const sx = (m.repeat ? u - Math.floor(u) : u) * width - 0.5;
+    const sy = (m.repeat ? v - Math.floor(v) : v) * height - 0.5;
+    const ix = Math.floor(sx), iy = Math.floor(sy), fx = sx - ix, fy = sy - iy;
+    const x0 = maskIndex(ix, width, m.repeat), x1 = maskIndex(ix + 1, width, m.repeat);
+    const y0 = maskIndex(iy, height, m.repeat) * width, y1 = maskIndex(iy + 1, height, m.repeat) * width;
+    const c = m.channel;
+    const top = pixels[(y0 + x0) * 4 + c]! * (1 - fx) + pixels[(y0 + x1) * 4 + c]! * fx;
+    const bottom = pixels[(y1 + x0) * 4 + c]! * (1 - fx) + pixels[(y1 + x1) * 4 + c]! * fx;
+    return envelope * (top * (1 - fy) + bottom * fy) / 255;
+}
+
+function maskIndex(i: number, size: number, repeat: boolean): number {
+    if (i < 0) return repeat ? size - 1 : 0;
+    if (i >= size) return repeat ? 0 : size - 1;
+    return i;
 }
 
 /** The texel span of a brush over a grid `width` by `height` laid across `sizeX` by `sizeZ`, or null when it reaches none. */

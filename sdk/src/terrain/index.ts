@@ -34,4 +34,4 @@ export {
 export { GroundEdit, type GroundPatch } from './groundEdit';
 export { TiledGroundEdit, type TiledGroundPatch, type TiledGroundImage } from './tiledGroundEdit';
 export { imagePixelsAt as readTerrainImage } from './layerArrays';
-export { SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField, unionDirty, type Brush, type BrushShape, type BrushCurve, type BrushProfile, type Dirty, type PaintDab, type SculptDab } from './sculpt';
+export { SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField, unionDirty, type Brush, type BrushMask, type BrushShape, type BrushCurve, type BrushProfile, type Dirty, type PaintDab, type SculptDab } from './sculpt';

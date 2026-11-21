@@ -13126,6 +13126,7 @@ static prototype: TerrainUnavailable
 @internal modifiers_: Map<string, TerrainModifier>
 @internal pager_: TerrainPager | null
 @internal paint_: Repaint | null
+@internal releasePreview_: () => void
 @internal remake_: (b: readonly [number, number, number, number]) => void
 @internal revision_: number
 areaBounds: () => [number, number, number, number] | null

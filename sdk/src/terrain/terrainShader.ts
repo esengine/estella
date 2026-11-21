@@ -540,7 +540,7 @@ const TERRAIN_LAYERS_PARAMS = `${layerParams({ sharpness: 1.6, heightBlend: 0.8,
 #pragma param u_terrainPages float default(0) range(0,1) ui(slider)
 #pragma param u_heightPages texture default(white) texel(data)
 #pragma param u_paintPages texture default(white) texel(data)
-#pragma param u_paintPages2 texture default(black) texel(data)
+#pragma param u_pairedPaint float default(0)
 #pragma param u_atlasTexels float default(2048) range(1,16384) ui(slider)
 #pragma param u_pageTexels float default(64) range(1,1024) ui(slider)
 #pragma param u_patchCells float default(32) range(1,512) ui(slider)
@@ -666,8 +666,12 @@ void main() {
     if (u_terrainPages > 0.5) {
         vec2 lp = Pw.xz - u_terrainOrigin.xz;
         if (lp.x < u_terrainBounds.x || lp.y < u_terrainBounds.y || lp.x > u_terrainBounds.z || lp.y > u_terrainBounds.w) discard;
-        paintA = texture(u_paintPages, v_color.xy);
-        paintB = texture(u_paintPages2, v_color.xy);
+        vec2 paintUV = v_color.xy;
+        if (u_pairedPaint > 0.5) {
+            paintUV.y *= 0.5;
+            paintB = textureLod(u_paintPages, paintUV + vec2(0.0, 0.5), 0.0);
+        }
+        paintA = textureLod(u_paintPages, paintUV, 0.0);
         vec2 nxz = texture(u_heightPages, v_color.xy).ba * 2.0 - 1.0;
         N = normalize(vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y));
     }
@@ -708,7 +712,8 @@ void main() {
 const TERRAIN_SURFACE_BAKE = `#pragma shader "Terrain Surface Bake"
 #pragma version 300 es
 #pragma domain PostProcess
-${TERRAIN_LAYERS_PARAMS}#pragma param u_bakeA vec4 default(0,0,1,0)
+${TERRAIN_LAYERS_PARAMS}#pragma param u_paintPages2 texture default(black) texel(data)
+#pragma param u_bakeA vec4 default(0,0,1,0)
 #pragma param u_bakeB vec4 default(0,0,0,256)
 
 #pragma fragment
@@ -740,7 +745,16 @@ void main() {
     vec3 Pw = vec3(lp.x + u_terrainOrigin.x, tnBakeHeight(texel), lp.y + u_terrainOrigin.z);
     vec2 nxz = textureLod(u_heightPages, uv, 0.0).ba * 2.0 - 1.0;
     vec3 N = normalize(vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y));
-    vec4 paintA = textureLod(u_paintPages, uv, 0.0), paintB = textureLod(u_paintPages2, uv, 0.0);
+    vec2 paintUV = uv;
+    vec4 paintB;
+    if (u_pairedPaint > 0.5) {
+        paintUV.y *= 0.5;
+        paintB = textureLod(u_paintPages, paintUV + vec2(0.0, 0.5), 0.0);
+    } else {
+        // Authored materials with separate weight maps can use the same bake.
+        paintB = textureLod(u_paintPages2, uv, 0.0);
+    }
+    vec4 paintA = textureLod(u_paintPages, paintUV, 0.0);
     // The layers are read as far off as the node's level is drawn: without repeat close in, with the wider tile mixed in further out.
     float eye = u_lodRange0 * exp2(u_bakeB.z) * 0.75;
     TnGround g = tnGround(Pw, N, paintA, paintB, dFdx(Pw), dFdy(Pw), eye);

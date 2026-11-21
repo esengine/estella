@@ -14,12 +14,15 @@ import { TextureContent } from '../wasm';
  * The device keeps no copy: a page is made from the source whenever it is wanted, so after a loss `forget` drops them all and they are
  * made again. That leaves the atlases the blank storage they come back with, which is their content, and pays the device for them.
  */
-export function createPageAtlases(app: App, count: number, size: number, forget: () => void): number[] {
+export function createPageAtlases(app: App, count: number, size: number, forget: () => void, pairedPaint = false): number[] {
     const blank = new Uint8Array(size * size * 4);
     const params = { filterMode: 'linear', wrapMode: 'clamp', srgb: false } as const;
     const atlases: number[] = [];
     for (let i = 0; i < count; i++) {
-        const handle = createTextureFromPixels(app.wasmModule, { width: size, height: size, pixels: blank }, TextureContent.Composed, false, params);
+        // Stock layered ground keeps both four-channel weight maps in one sampler.
+        const height = pairedPaint && i === 1 ? 2 * size : size;
+        const pixels = height === size ? blank : new Uint8Array(size * height * 4);
+        const handle = createTextureFromPixels(app.wasmModule, { width: size, height, pixels }, TextureContent.Composed, false, params);
         if (handle) provideTextureContent(handle, () => { forget(); getResourceManager()?.restoreTextureContent?.(handle); return true; });
         atlases.push(handle);
     }

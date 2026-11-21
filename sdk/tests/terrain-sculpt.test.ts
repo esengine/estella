@@ -9,7 +9,7 @@ import { GroundEdit } from '../src/terrain/groundEdit';
 import { Terrains } from '../src/terrain/terrainPlugin';
 import { FieldSource, ModifiedSource, type Splat } from '../src/terrain/source';
 import type { Heightfield } from '../src/terrain/heightfield';
-import { SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField } from '../src/terrain/sculpt';
+import { type BrushMask, SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField } from '../src/terrain/sculpt';
 
 const flat = (n: number, v = 0.5): Heightfield => ({ width: n, height: n, data: new Float32Array(n * n).fill(v) });
 const at = (f: Heightfield, i: number, j: number): number => f.data[j * f.width + i]!;
@@ -58,6 +58,39 @@ describe('brush profiles', () => {
                 expect(splat.pixels[(j * 33 + i) * 4 + 1]).toBe(Math.round(weight * 255));
             }
         }
+    });
+
+    it('samples every stamp channel as linear data with the same orientation for heights and paint', () => {
+        // Distinct non-opaque data at each corner also catches a vertical flip or premultiplied RGB.
+        const image = { width: 2, height: 2, pixels: Uint8Array.of(0, 200, 30, 150, 64, 100, 90, 25, 128, 50, 0, 200, 255, 0, 180, 85) };
+        for (const channel of [0, 1, 2, 3] as const) {
+            const mask: BrushMask = { image, channel, axisU: { x: 0.25, z: 0 }, axisV: { x: 0, z: 0.25 }, u: 0.5, v: 0.5, repeat: false };
+            const brush = { x: 0, z: 0, radius: 2, falloff: 0, mask };
+            const f = flat(9, 0), splat = { width: 9, height: 9, pixels: new Uint8Array(9 * 9 * 4) };
+            for (let i = 0; i < 81; i++) splat.pixels[i * 4] = 255;
+            sculptField(f, 8, 8, { mode: SculptMode.Raise, brush, amount: 1 });
+            paintSplat(splat, null, 8, 8, { brush, layer: 1, strength: 1 });
+            for (const [i, j, p] of [[3, 3, 0], [5, 3, 4], [3, 5, 8], [5, 5, 12]] as const) {
+                const value = image.pixels[p + channel]!;
+                expect(at(f, i, j)).toBeCloseTo(value / 255);
+                expect(splat.pixels[(j * 9 + i) * 4 + 1]).toBe(value);
+            }
+            expect(at(f, 4, 4)).toBeCloseTo([0, 4, 8, 12].reduce((v, p) => v + image.pixels[p + channel]!, 0) / (4 * 255));
+            expect(at(f, 1, 4)).toBe(0);
+        }
+    });
+
+    it('wraps bilinearly across the pattern seam and clips component interiors to their rectangle', () => {
+        const image = { width: 2, height: 1, pixels: Uint8Array.of(0, 0, 0, 255, 255, 0, 0, 255) };
+        const mask: BrushMask = { image, channel: 0, axisU: { x: 0.25, z: 0 }, axisV: { x: 0, z: 0.25 }, u: 0, v: 0, repeat: true };
+        const f = flat(17, 0);
+        sculptField(f, 16, 16, { mode: SculptMode.Raise, amount: 1, brush: { x: 0, z: 0, radius: 7, falloff: 0, mask } });
+        expect(Array.from(f.data.slice(8 * 17 + 4, 8 * 17 + 12))).toEqual([0.5, 0, 0.5, 1, 0.5, 0, 0.5, 1]);
+        f.data.fill(0);
+        sculptField(f, 16, 16, { mode: SculptMode.Raise, amount: 1,
+            brush: { x: 0, z: 0, radius: 4, falloff: 0, component: { halfX: 4, halfZ: 2 } } });
+        for (let j = 0; j < 17; j++) for (let i = 0; i < 17; i++)
+            expect(at(f, i, j)).toBe(Math.abs(i - 8) <= 4 && Math.abs(j - 8) <= 2 ? 1 : 0);
     });
 
     it('builds clay along a slope, fills a hollow before raising a crest, and carves in reverse', () => {

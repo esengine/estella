@@ -60,7 +60,11 @@ describe('the ground\'s layers are one piece of shader code', () => {
         expect(bake).toContain('#pragma domain PostProcess');
         const params = (src: string): string[] => src.split(/\r?\n/).filter((l) => l.startsWith('#pragma param ')).map((l) => l.split(' ')[2]!);
         const theirs = new Set(params(lit));
-        for (const name of params(bake).filter((n) => !n.startsWith('u_bake'))) expect(theirs.has(name)).toBe(true);
+        // Older authored layer materials bind their upper four weights separately; the bake accepts both layouts.
+        for (const name of params(bake).filter((n) => !n.startsWith('u_bake') && n !== 'u_paintPages2')) expect(theirs.has(name)).toBe(true);
+        expect(theirs.has('u_pairedPaint')).toBe(true);
+        expect(theirs.has('u_paintPages2')).toBe(false);
+        expect(params(bake)).toContain('u_paintPages2');
         // A texture drawn into and bound to be read in one pass is refused on WebGPU.
         expect(params(bake)).not.toContain('u_surfacePages');
         expect(params(lit)).toContain('u_surfacePages');

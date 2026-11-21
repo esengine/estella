@@ -27,7 +27,7 @@ import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetL
 import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
 import { holdShaderWarmup } from '../render/shaderWarmup';
-import { createTextureArrayFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
+import { createTextureFromPixels, createTextureArrayFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { EditorView, editorViewpoint } from '../camera/EditorView';
@@ -59,7 +59,7 @@ import { RuntimeConfig } from '../defaults';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
 import { TiledGroundEdit } from './tiledGroundEdit';
-import type { Brush } from './sculpt';
+import type { Brush, BrushMask } from './sculpt';
 import { brushShapeId, brushCurveId } from './brushPreview';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
@@ -275,6 +275,7 @@ interface Built {
     edits: number;
     /** The atlas of layers 5 to 8's paint, with layers. */
     paint2: number;
+    pairedPaint: boolean;
     /** The layers packed (albedo, normal and mask arrays), what they were packed from, and whether a packing is in hand. */
     arrays: number[];
     packed: string;
@@ -304,6 +305,17 @@ export class Terrains {
 
     private previewMaterial_ = 0;
     private canPreview_ = false;
+    private previewImage_: BrushMask['image'] | null = null;
+    private previewTexture_ = 0;
+    private boundMask_ = 0;
+
+    /** @internal Releases the retained, linear-data brush texture when the terrain plugin stops. */
+    releasePreview_(): void {
+        this.previewBrush(null, null);
+        if (this.previewTexture_) getResourceManager()?.releaseTexture(this.previewTexture_);
+        this.previewTexture_ = 0;
+        this.previewImage_ = null;
+    }
 
     /** Project a brush on one terrain for the current view. Passing null clears the last
      * footprint. Returns false for a material without brush support so a tool can draw its outline. */
@@ -311,10 +323,35 @@ export class Terrains {
         const material = entity !== null && brush ? this.built_.get(entity)?.instance ?? 0 : 0;
         if (material !== this.previewMaterial_) {
             if (this.canPreview_) Material.setUniform(this.previewMaterial_, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+            if (this.boundMask_) Material.setUniform(this.previewMaterial_, 'u_sculptMask', Material.tex(0));
+            this.boundMask_ = 0;
             this.previewMaterial_ = material;
             this.canPreview_ = material !== 0 && Material.materialsDeclaring('u_sculptBrush').includes(material);
         }
         if (!this.canPreview_ || !brush) return false;
+        const { mask, component } = brush;
+        if (mask && !this.app_) return false;
+        if (mask && this.previewImage_ !== mask.image) {
+            const next = createTextureFromPixels(this.app_!.wasmModule, mask.image, TextureContent.Retained, false,
+                { srgb: false, filterMode: 'linear', wrapMode: 'repeat' });
+            if (!next) { this.previewBrush(null, null); return false; }
+            if (this.previewTexture_) getResourceManager()?.releaseTexture(this.previewTexture_);
+            this.previewTexture_ = next;
+            this.previewImage_ = mask.image;
+        }
+        const handle = mask ? this.previewTexture_ : 0;
+        if (handle !== this.boundMask_) {
+            Material.setUniform(material, 'u_sculptMask', Material.tex(handle));
+            this.boundMask_ = handle;
+        }
+        if (mask) {
+            Material.setUniform(material, 'u_sculptMapping', { x: mask.axisU.x, y: mask.axisU.z, z: mask.axisV.x, w: mask.axisV.z });
+            Material.setUniform(material, 'u_sculptUV', { x: mask.u, y: mask.v });
+        }
+        Material.setUniform(material, 'u_sculptDetail', {
+            x: component ? 3 : mask ? (mask.repeat ? 2 : 1) : 0, y: mask?.channel ?? 0,
+            z: component?.halfX ?? (mask ? 0.5 / mask.image.width : 0), w: component?.halfZ ?? (mask ? 0.5 / mask.image.height : 0),
+        });
         Material.setUniform(material, 'u_sculptBrush', { x: brush.x, y: brush.z, z: brush.radius, w: Math.max(0, Math.min(1, brush.falloff)) });
         Material.setUniform(material, 'u_sculptProfile', { x: brushShapeId[brush.shape ?? 'circle'], y: brushCurveId[brush.curve ?? 'smooth'] });
         return true;
@@ -761,7 +798,7 @@ export class TerrainPlugin implements Plugin {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
                         table: new PageTable(this.quality_.terrainAtlasSize), heights: 0, paint: 0, mesh: 0, instance: 0,
                         nodes: new Map(), spare: [], wanted: new Map(), fit: 1, asked: new Set(), pending: false, failure: null, edits: 0,
-                        paint2: 0, arrays: [], packed: '', packing: false, washed: false, shaded: false,
+                        paint2: 0, pairedPaint: false, arrays: [], packed: '', packing: false, washed: false, shaded: false,
                         baked: null, surfaceOn: false, pageMade: new Map(), pageSerial: 0, surfaceGen: 0,
                     };
                     terrains.built_.set(entity, built);
@@ -794,6 +831,7 @@ export class TerrainPlugin implements Plugin {
     cleanup(app?: App): void {
         if (!app?.hasResource(TerrainsRes)) return;
         const terrains = app.getResource(TerrainsRes);
+        terrains.releasePreview_();
         for (const [entity, built] of terrains.built_) {
             if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(collisionLayerOf(entity));
             if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(collisionLayerOf(entity));
@@ -952,8 +990,15 @@ export class TerrainPlugin implements Plugin {
             if (built.epoch !== epoch) return;
             const assets = app.getResource(Assets);
             built.mesh = assets.createMesh(buildPatchMesh(PATCH_CELLS));
-            [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered ? 3 : 2, built.table.atlasSize, () => built.table.clear());
             built.instance = Material.createInstance(material);
+            built.pairedPaint = layered && Material.materialsDeclaring('u_pairedPaint').includes(built.instance);
+            // A paired map is twice as tall. WebGL2 also runs on devices with a 2048 texture limit.
+            if (built.pairedPaint && built.table.atlasSize > 1024) {
+                const gl = app.wasmModule?.GL?.currentContext?.GLctx;
+                if (gl && gl.getParameter(gl.MAX_TEXTURE_SIZE) < built.table.atlasSize * 2) built.table = new PageTable(1024);
+            }
+            [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered && !built.pairedPaint ? 3 : 2,
+                built.table.atlasSize, () => built.table.clear(), built.pairedPaint);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
                 built.failure = 'the engine refused the terrain\'s mesh, atlases or material';
                 log.warn('terrain', built.failure);
@@ -962,8 +1007,9 @@ export class TerrainPlugin implements Plugin {
             const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
             set('u_heightPages', Material.tex(built.heights));
             set('u_paintPages', Material.tex(built.paint));
-            if (built.paint2) {
-                set('u_paintPages2', Material.tex(built.paint2));
+            if (layered) {
+                if (built.pairedPaint) set('u_pairedPaint', 1);
+                else set('u_paintPages2', Material.tex(built.paint2));
                 // Until the layers are packed the ground is one plain layer: an array left unset reads black on some devices.
                 const one = (rgba: number[], srgb: boolean): number => createTextureArrayFromPixels(app.wasmModule,
                     { width: 1, height: 1, layers: [new Uint8Array(rgba)] }, TextureContent.Retained, { filterMode: 'linear', wrapMode: 'repeat', srgb });
@@ -1235,9 +1281,7 @@ export class TerrainPlugin implements Plugin {
                     if (!page) return;
                     built.pageMade.set(key, ++built.pageSerial);
                     const [ox, oy] = built.table.origin(page.slot);
-                    updateTextureSubregion(app.wasmModule, built.heights, ox, oy, PAGE_SIDE, PAGE_SIDE, img.heights);
-                    updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, img.paint);
-                    if (built.paint2) updateTextureSubregion(app.wasmModule, built.paint2, ox, oy, PAGE_SIDE, PAGE_SIDE, img.paint2);
+                    this.uploadPage(app, built, ox, oy, img);
                 }, (e) => {
                     built.asked.delete(key);
                     // A worker that cannot make this ground's pages will not make the next one either: the terrain makes its own from here.
@@ -1260,9 +1304,7 @@ export class TerrainPlugin implements Plugin {
             if (!page) return false;
             built.pageMade.set(key, ++built.pageSerial);
             const [ox, oy] = built.table.origin(page.slot);
-            updateTextureSubregion(app.wasmModule, built.heights, ox, oy, PAGE_SIDE, PAGE_SIDE, image.heights);
-            updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, image.paint);
-            if (built.paint2) updateTextureSubregion(app.wasmModule, built.paint2, ox, oy, PAGE_SIDE, PAGE_SIDE, image.paint2);
+            this.uploadPage(app, built, ox, oy, image);
             return true;
         };
         const epoch = built.epoch, edits = built.edits;
@@ -1313,6 +1355,15 @@ export class TerrainPlugin implements Plugin {
             if (!bakes.hasTime(built)) break;
         }
         bakes.mark(built, 'Building the terrain', progress());
+    }
+
+    private uploadPage(app: App, built: Built, x: number, y: number, image: PageImage): void {
+        const put = (handle: number, row: number, bytes: Uint8Array) =>
+            updateTextureSubregion(app.wasmModule, handle, x, row, PAGE_SIDE, PAGE_SIDE, bytes);
+        put(built.heights, y, image.heights);
+        put(built.paint, y, image.paint);
+        if (built.pairedPaint) put(built.paint, y + built.table.atlasSize, image.paint2);
+        else if (built.paint2) put(built.paint2, y, image.paint2);
     }
 
     /** Puts a node entity on each node drawn (reusing the ones it had), and takes the rest away. */

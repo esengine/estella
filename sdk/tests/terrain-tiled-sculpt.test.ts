@@ -81,6 +81,27 @@ describe('brushes on ground kept as tiles', () => {
         });
     }
 
+    it('preserves a rotated pattern across tile windows and undo', async () => {
+        const t = tiled(), w = whole();
+        await loadAll(t.source);
+        const before = stitched(t.source);
+        t.edit.begin();
+        const image = { width: 2, height: 1, pixels: Uint8Array.of(0, 255, 0, 0, 255, 0, 0, 255) };
+        for (const x of [seam - 11, seam + 17]) {
+            const a = 0.013, b = 0.009;
+            const mask = { image, channel: 1 as const, axisU: { x: a, z: b }, axisV: { x: -b, z: a }, u: x * a + seam * b, v: -x * b + seam * a, repeat: true };
+            for (const edit of [t.edit, w.edit]) edit.sculpt(SculptMode.Clay, x, seam, 55, 0.4, 8, undefined, { mask });
+        }
+        const patch = t.edit.end()!;
+        const after = stitched(t.source);
+        expect(patch).toBeTruthy();
+        for (let i = 0; i < after.length; i++) expect(after[i]).toBeCloseTo(w.field.data[i]!, 6);
+        t.edit.apply(patch, 'before');
+        expect(stitched(t.source)).toEqual(before);
+        t.edit.apply(patch, 'after');
+        expect(stitched(t.source)).toEqual(after);
+    });
+
     it('skips a dab over a tile not in memory, and reads it for the next', async () => {
         const t = tiled();
         await t.source.readTile(0, 0);
