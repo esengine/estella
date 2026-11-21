@@ -5844,4 +5844,100 @@ export const NOTED = {
     { internal: "An example that was added and then taken out again before any release; nothing a project can use or see changes." },
   "fix(editor-checks): timeline-mcp-authoring's describes line parses again":
     { internal: "An editor check's description string that would not parse; the checks run again, and nothing a project can see changes." },
+  "fix(editor): the AI tools endpoint keeps its port across launches":
+    { note: "Connect AI Tools keeps the same address from one launch to the next." },
+  "feat(editor): the selection outline is the engine's, drawn on the GPU":
+    { note: "A selected mesh is outlined by the engine, and selecting no longer slows the viewport." },
+  "perf(render): a frame waits for the GPU to finish the last, and the engine outlines the editor's selection":
+    { note: "A selected mesh is outlined by the engine, and selecting no longer slows the viewport." },
+  "perf(render): a frame waits for the GPU to finish the last, and the engine outlines the editor's selection":
+    { note: "A character no longer keeps moving after its key is let go." },
+  "feat(editor): a transform handle behind geometry is a full-colour stipple, as Unreal draws it":
+    { note: "A transform handle behind an object is drawn as a stipple in its own colour." },
+  "feat(render): immediate draws can be dithered, one half of a checkerboard at a time":
+    { note: "A transform handle behind an object is drawn as a stipple in its own colour." },
+  "refactor(editor): the grid's linear-light alpha is set where its colour is":
+    { internal: "The editor grid's linear-light alpha correction moved from the SDK grid renderer to the editor, which already sets the grid's colour; the grid looks the same." },
+  "refactor(render): the editor grid renderer reads no colour space":
+    { internal: "The editor grid's linear-light alpha correction moved from the SDK grid renderer to the editor, which already sets the grid's colour; the grid looks the same." },
+  "feat(editor): the grid's colour and opacity are viewport settings":
+    { note: "The viewport grid's colour and opacity can be set, and the grid is no longer glaring in linear projects." },
+  "fix(render): the editor grid looks the same in a linear project as in a gamma one":
+    { note: "The viewport grid's colour and opacity can be set, and the grid is no longer glaring in linear projects." },
+  "fix(editor): the overlay reads the HLOD sphere from a module of its own":
+    { internal: "The overlay reads the HLOD cluster sphere from a small module of its own instead of the HLOD model, which kept an editor test from loading; nothing a user sees changes." },
+  "feat(editor): an HLOD tab in the World panel, as Unreal's Hierarchical LOD Outliner":
+    { note: "An HLOD view of a streamed world's far-proxy clusters." },
+  "fix(editor): the live-camera label is drawn over the game only in Inspect":
+    { note: "The live-camera label no longer covers a running game." },
+  "feat(editor): the LOD Group inspector is a bar of its levels, as Unity's is":
+    { note: "The LOD Group inspector shows its levels as a bar, as Unity's does." },
+  "feat(render): a mesh whose material is still compiling draws with its default surface meanwhile":
+    { note: "A scene shows all its meshes while their materials compile." },
+  "fix(editor): nothing is drawn over a running game outside Inspect":
+    { note: "A game running in the viewport is no longer covered by editor labels." },
+  "feat(editor): Standalone Game runs Play in a process of its own, multiplayer included":
+    { note: "Starting Play no longer covers the viewport with a loading card." },
+  "fix(editor): while a game runs, a tool edits what the Details panel would":
+    { note: "An AI agent no longer changes the saved scene behind a running game." },
+  "feat(editor): the Plugins window lists plugins as Unreal's Plugins browser does":
+    { note: "The Plugins window is a browser with a category tree." },
+  "feat(plugins): built-in plugins name their category":
+    { note: "The Plugins window is a browser with a category tree." },
+  "fix(editor): preferences are kept in a file in the user's profile, not the page's origin":
+    { note: "The editor no longer forgets its preferences after an update." },
+  "fix(export): a development preview carries no start screen of its own":
+    { note: "A browser or device preview opens on the game alone." },
+  "feat(render): previews take the angle they are seen from":
+    { note: "Turn a mesh or material preview by dragging it." },
+  "feat(editor): turn the Details mesh and material previews by dragging":
+    { note: "Turn a mesh or material preview by dragging it." },
+  "fix(render): a draw whose program is compiling draws with the preview program, and a prepass it missed does not hide it":
+    { note: "A large scene opens whole instead of filling in for seconds." },
+  "fix(editor): open progress names the programs compiling and the draws waiting for them":
+    { note: "A large scene opens whole instead of filling in for seconds." },
+  "fix(editor): a set op in the wrong shape says the shape it takes":
+    { note: "apply_scene_ops explains a set written in the wrong shape." },
+  "refactor(editor): the Advanced fold is the shared Button, flattened":
+    { internal: "The Settings fold is drawn by the shared Button and the row padding sits on the 2px grid; nothing a user sees changes." },
+  "feat(editor): Settings is laid out as Unreal's Editor Preferences, and a colour picker in it closes on a press or Enter":
+    { note: "Settings has titled pages and folding groups, and its colour pickers close properly." },
+  "feat(render): a compute skin cache poses each skinned mesh once a frame for every pass that draws it":
+    { note: "Skinned meshes are posed once a frame, not once per pass." },
+  "feat(editor): skin cache settings in Project Settings, and Skin Cache Usage on MeshSkin":
+    { note: "Skinned meshes are posed once a frame, not once per pass." },
+  "fix(render): the skin cache builds where GPU particles are not compiled in":
+    { note: "Skinned meshes are posed once a frame, not once per pass." },
+  "fix(render): the skin weights view poses its mesh in the vertex stage, not through the skin cache":
+    { note: "Skinned meshes are posed once a frame, not once per pass." },
+  "feat(render): skinned meshes past 256 bones are drawn in chunks, with byte-sized skin channels":
+    { note: "Skinned meshes with any number of bones, at a third of the skin memory." },
+  "feat(editor): Skinning in Project Settings, and a model's own bone influence limit":
+    { note: "Skinned meshes with any number of bones, at a third of the skin memory." },
+  "feat(editor): Standalone Game runs Play in a process of its own, multiplayer included":
+    { note: "Play can run the game in a process of its own (Standalone Game), multiplayer included." },
+  "feat(editor): Details, the Outliner, Add Component and asset tiles as Unreal lays them out":
+    { note: "Details shows components as a tree, and the Outliner, Add Component and the Content Browser tiles are reworked." },
+  "feat(editor): move to Details, Outliner and asset tiles laid out as Unreal's":
+    { note: "Details shows components as a tree, and the Outliner, Add Component and the Content Browser tiles are reworked." },
+  "fix(editor): viewport settings survive a restart, and Settings reads as Unreal's preferences":
+    { note: "Grid size, snapping, grid and gizmo visibility are remembered after the editor is closed." },
+  "fix(editor): the project watcher reports a file only when it changed, so opening a scene loads its assets once":
+    { note: "Opening a large scene no longer loads every asset twice." },
+  "fix(editor): opening a scene no longer loads every asset twice on Windows":
+    { note: "Opening a large scene no longer loads every asset twice." },
+  "fix(webgpu): a colour texture unit is never handed the scene's depth":
+    { note: "WebGPU no longer drops frames after a depth-reading effect." },
+  "fix(editor-checks): a check file that does not load fails itself, not the whole run":
+    { internal: "How the repository is checked on a developer's machine; nothing a project can use or see changes." },
+  "fix(tools): generated files check out as LF, so a build or gate run leaves none modified":
+    { internal: "How the repository is checked on a developer's machine; nothing a project can use or see changes." },
+  "fix(tools): tool-spawn reads the project's scripts, not what is installed beside them":
+    { internal: "How the repository is checked on a developer's machine; nothing a project can use or see changes." },
+  "feat(tools): run-gates says when the install is not the lockfile's, and a gate parses every editor check":
+    { internal: "How the repository is checked on a developer's machine; nothing a project can use or see changes." },
+  "feat(editor): the World panel opens on a World Partition map, as Unreal's does":
+    { note: "The World panel shows a streamed world as a map." },
+  "feat(editor): World Settings, as Unreal's: Enable Streaming and the world's partition settings beside Details":
+    { note: "World Settings, a tab for the open scene's world-wide settings." },
 };

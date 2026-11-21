@@ -1525,6 +1525,22 @@ export const SHIPPED = {
     { notCertifiable: "Several server processes sharing one world; no golden project has a server. Covered by sdk/tests/zones.test.ts, zones-bus.test.ts and zones-ws.test.ts, and run across real processes by tools/zones-benchmark.mjs." },
   "A model's import settings take a triangle budget.":
     { notCertifiable: "An import setting that cuts a model to a triangle count; no golden project sets one. Covered by pipeline/tests/mesh-simplify.test.ts." },
+  "The viewport grid's colour and opacity can be set":
+    { notCertifiable: "An editor feature with no game act to decide it. No test in the repo holds it: the settings rows and the linear-light blend were checked by hand in the editor (desktop src/settings/editorSettings.ts, sdk/src/camera/editorGridRenderer.ts)." },
+  "An HLOD view of a streamed world's far-proxy clusters.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/hlod-outliner.mjs." },
+  "Turn a mesh or material preview by dragging it.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/preview-orbit.mjs." },
+  "Skinned meshes are posed once a frame, not once per pass.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/skin-cache.mjs (pixels match the vertex-stage pose on WebGPU, and Exclusive, Enabled, Disabled and a 0 MB budget each counted) and the skinned scenes of the WebGPU render verify." },
+  "Skinned meshes with any number of bones, at a third of the skin memory.":
+    { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/skin-chunks.mjs, pipeline/tests/gltf-import.test.ts, pipeline/tests/skinning-settings.test.ts, sdk/tests/skin-chunks.test.ts." },
+  "Play can run the game in a process of its own (Standalone Game)":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/standalone-play.mjs, desktop/scripts/editor-checks/device-preview.mjs, desktop/tests/play-realm-warm.test.ts, desktop/tests/realm-wire.test.ts." },
+  "The World panel shows a streamed world as a map.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/world-partition-map.mjs." },
+  "World Settings, a tab for the open scene's world-wide settings.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/world-settings.mjs." },
   "Cameras are authored where they are seen.":
     { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by desktop/scripts/editor-checks/camera-composer-guides.mjs, desktop/scripts/editor-checks/camera-live-status.mjs, desktop/scripts/editor-checks/camera-presets.mjs, desktop/tests/play-overlay-quiet.test.tsx, desktop/tests/ui-debugger-picking.test.tsx, sdk/tests/camera-director.test.ts." },
   "Each change of camera can have its own blend.":
