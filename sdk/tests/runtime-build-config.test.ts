@@ -4,7 +4,7 @@
  * @file  The runtime tuning a project can declare: what the parser keeps, and that the defaults it compares against are the engine's own.
  */
 import { describe, it, expect } from 'vitest';
-import { RUNTIME_BUILD_DEFAULTS, RuntimeConfig, parseRuntimeBuildConfig } from '../src/defaults';
+import { RUNTIME_BUILD_DEFAULTS, RuntimeConfig, applyBuildRuntimeConfig, parseRuntimeBuildConfig } from '../src/defaults';
 import { packagedRuntimeInit } from '../src/runtime/packagedRuntime';
 
 describe('packagedRuntimeInit', () => {
@@ -63,5 +63,30 @@ describe('parseRuntimeBuildConfig', () => {
         expect(parseRuntimeBuildConfig({ defaultFontFamily: '  ' })).toEqual({});
         expect(parseRuntimeBuildConfig({ defaultFontFamily: 'x'.repeat(201) })).toEqual({});
         expect(parseRuntimeBuildConfig({ defaultFontFamily: 'Arial' })).toEqual({});
+    });
+});
+
+describe('maxFrameRate', () => {
+    it('is a whole number from 0 (follow the display) to 240', () => {
+        expect(parseRuntimeBuildConfig({ maxFrameRate: 60 })).toEqual({ maxFrameRate: 60 });
+        expect(parseRuntimeBuildConfig({ maxFrameRate: 29.6 })).toEqual({ maxFrameRate: 30 });
+        expect(parseRuntimeBuildConfig({ maxFrameRate: 1000 })).toEqual({ maxFrameRate: 240 });
+        expect(parseRuntimeBuildConfig({ maxFrameRate: -5 })).toEqual({});
+        expect(parseRuntimeBuildConfig({ maxFrameRate: 0 })).toEqual({});
+    });
+
+    it('caps the App the game boots, and leaves an undeclared cap alone', () => {
+        const caps: number[] = [];
+        const app = { setMaxDeltaTime() {}, setMaxFixedSteps() {}, setTargetFrameRate(fps: number) { caps.push(fps); } };
+        try {
+            applyBuildRuntimeConfig(app, { maxFrameRate: 60 });
+            expect(caps).toEqual([60]);
+            expect(RuntimeConfig.maxFrameRate).toBe(60);
+            applyBuildRuntimeConfig(app, {});
+            expect(caps).toEqual([60]);
+            expect(RuntimeConfig.maxFrameRate).toBe(0);
+        } finally {
+            applyBuildRuntimeConfig(app, {});
+        }
     });
 });

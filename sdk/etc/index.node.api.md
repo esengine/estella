@@ -10290,6 +10290,7 @@ chunksInFlight: number | undefined
 defaultFontFamily: string | undefined
 maxDeltaTime: number | undefined
 maxFixedSteps: number | undefined
+maxFrameRate: number | undefined
 multiTouch: boolean | undefined
 planetTilesKept: number | undefined
 preloadConcurrency: number | undefined
@@ -10305,7 +10306,7 @@ worldPlansKept: number | undefined
 
 ## RuntimeConfig — const @experimental
 ```
-{ chunksInFlight: number; preloadConcurrency: number; terrainPagesInFlight: number; planetTilesKept: number; worldPlanCacheLimit: number; worldPlansKept: number; sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
+{ chunksInFlight: number; preloadConcurrency: number; terrainPagesInFlight: number; planetTilesKept: number; worldPlanCacheLimit: number; worldPlansKept: number; sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; maxFrameRate: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
 ```
 
 ## RuntimeInitConfig — interface @experimental
@@ -16153,7 +16154,7 @@ AnimationPlugin
 
 ## applyBuildRuntimeConfig — function @experimental
 ```
-(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void; }, config: RuntimeBuildConfig): void
+(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void; setTargetFrameRate?(fps: number): void; }, config: RuntimeBuildConfig): void
 ```
 
 ## applyDeltaToSource — function @experimental

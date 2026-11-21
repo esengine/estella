@@ -44,6 +44,8 @@ export const RuntimeConfig = {
     defaultFontFamily: DEFAULT_FONT_FAMILY,
     maxDeltaTime: 0.25,
     maxFixedSteps: 8,
+    /** The frame-rate cap the project declared (0 = none); the live cap is the App's, which a game or the power policy may move. */
+    maxFrameRate: 0,
     textCanvasSize: 512,
     assetLoadTimeout: 30000,
     assetFailureCooldown: 5000,
@@ -83,6 +85,11 @@ export interface RuntimeBuildConfig {
     defaultFontFamily?: string;
     maxDeltaTime?: number;
     maxFixedSteps?: number;
+    /**
+     * The most frames a second the game draws, as `App.setTargetFrameRate` takes it; 0 (the default) follows the display, which on a
+     * 120 or 165 Hz phone is that many frames and that much heat.
+     */
+    maxFrameRate?: number;
     textCanvasSize?: number;
     assetLoadTimeout?: number;
     assetFailureCooldown?: number;
@@ -109,6 +116,7 @@ export const RUNTIME_BUILD_DEFAULTS: Readonly<Required<RuntimeBuildConfig>> = {
     defaultFontFamily: DEFAULT_FONT_FAMILY,
     maxDeltaTime: 0.25,
     maxFixedSteps: 8,
+    maxFrameRate: 0,
     textCanvasSize: 512,
     assetLoadTimeout: 30000,
     assetFailureCooldown: 5000,
@@ -123,6 +131,7 @@ const RUNTIME_BUILD_LIMITS = {
     sceneTransitionDuration: [0, 10, false],
     maxDeltaTime: [0.01, 5, false],
     maxFixedSteps: [1, 64, true],
+    maxFrameRate: [0, 240, true],
     textCanvasSize: [64, 4096, true],
     assetLoadTimeout: [1000, 600000, true],
     assetFailureCooldown: [0, 600000, true],
@@ -163,7 +172,10 @@ export function parseRuntimeBuildConfig(value: unknown): RuntimeBuildConfig {
     return config;
 }
 
-export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
+export function applyBuildRuntimeConfig(
+    app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void; setTargetFrameRate?(fps: number): void },
+    config: RuntimeBuildConfig,
+): void {
     if (config.maxDeltaTime !== undefined) {
         RuntimeConfig.maxDeltaTime = config.maxDeltaTime;
         app.setMaxDeltaTime(config.maxDeltaTime);
@@ -172,6 +184,9 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         RuntimeConfig.maxFixedSteps = config.maxFixedSteps;
         app.setMaxFixedSteps(config.maxFixedSteps);
     }
+    // Only a cap the project set: absence leaves whatever the game or a host asked for before boot.
+    RuntimeConfig.maxFrameRate = config.maxFrameRate ?? 0;
+    if (config.maxFrameRate !== undefined) app.setTargetFrameRate?.(config.maxFrameRate);
     if (config.textCanvasSize !== undefined) {
         RuntimeConfig.textCanvasSize = config.textCanvasSize;
     }

@@ -293,7 +293,7 @@ const BLOCKS = [
   {
     name: 'RuntimeBuildConfig', file: 'sdk/src/defaults.ts',
     keys: Object.fromEntries([
-      'sceneTransitionDuration', 'sceneTransitionColor', 'defaultFontFamily', 'maxDeltaTime', 'maxFixedSteps', 'textCanvasSize',
+      'sceneTransitionDuration', 'sceneTransitionColor', 'defaultFontFamily', 'maxDeltaTime', 'maxFixedSteps', 'maxFrameRate', 'textCanvasSize',
       'assetLoadTimeout', 'assetFailureCooldown', 'textureCacheBudget', 'audioCacheBudget', 'retainedBudget', 'multiTouch',
       'chunksInFlight', 'preloadConcurrency', 'terrainPagesInFlight', 'planetTilesKept', 'worldPlanCacheLimit', 'worldPlansKept',
     ].map((k) => [k, { ui: `project.runtime.${k}` }])),
