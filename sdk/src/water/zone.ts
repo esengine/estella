@@ -50,6 +50,15 @@ export interface WaterZoneData {
     rippleSpeed: number;
     rippleDamping: number;
     foamFade: number;
+    /**
+     * The far distance mesh: past the rings, a flat sea out to `farDistanceExtent` from the camera, so an ocean reaches the horizon and does not
+     * end in a straight line where the rings do. Drawn with `farDistanceMaterial` (empty: the zone's own water), and only where the zone has an
+     * ocean unless `farMeshWithoutOcean`.
+     */
+    farDistance: boolean;
+    farDistanceExtent: number;
+    farDistanceMaterial: number;
+    farMeshWithoutOcean: boolean;
 }
 
 /**
@@ -64,9 +73,11 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
     waveLength: 1400, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 800,
     cellSize: 100, cells: 64, rings: 5,
     ripples: 0, rippleSize: 6400, rippleSpeed: 600, rippleDamping: 0.8, foamFade: 0.4,
+    // 80 km: further than a camera a kilometre up can see.
+    farDistance: true, farDistanceExtent: 8000000, farDistanceMaterial: 0, farMeshWithoutOcean: false,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'waveLength', 'surfLength', 'cellSize', 'rippleSize', 'rippleSpeed'],
-    assetFields: [{ field: 'material', type: 'material' }],
+    worldUnitFields: ['sizeX', 'sizeZ', 'waveLength', 'surfLength', 'cellSize', 'rippleSize', 'rippleSpeed', 'farDistanceExtent'],
+    assetFields: [{ field: 'material', type: 'material' }, { field: 'farDistanceMaterial', type: 'material' }],
     fields: {
         sizeX: { min: 1, category: 'Region', tooltip: 'The region baked along x, centred on the entity. Water outside it is not drawn; an ocean goes on past it.' },
         sizeZ: { min: 1, category: 'Region', tooltip: 'The region baked along z, centred on the entity.' },
@@ -85,6 +96,10 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
         rippleSpeed: { min: 0.1, max: 4000, category: 'Ripples', tooltip: 'How fast a ripple spreads, in world units a second.' },
         rippleDamping: { min: 0, max: 10, category: 'Ripples', tooltip: 'How much of its height a ripple loses each second.' },
         foamFade: { min: 0, max: 10, category: 'Ripples', tooltip: 'How fast the foam a disturbance leaves fades, a second.' },
+        farDistance: { category: 'Far Distance', tooltip: 'Past the rings, draw a flat sea out to the far distance extent, so an ocean reaches the horizon instead of ending in a straight line where the rings stop. It has no waves of its own: it is the open sea at its level, seen from far away.' },
+        farDistanceExtent: { min: 1, category: 'Far Distance', tooltip: 'How far from the camera the far distance mesh reaches, in world units. Large enough to fill the gap between the rings and the horizon from every height the camera goes to.' },
+        farDistanceMaterial: { category: 'Far Distance', tooltip: 'The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty draws it with the zone water material.' },
+        farMeshWithoutOcean: { category: 'Far Distance', tooltip: 'Draw the far distance mesh when the zone has no ocean too. Off, a zone of lakes and rivers alone has none.' },
     },
 });
 

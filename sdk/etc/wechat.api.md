@@ -15082,6 +15082,10 @@ ComponentDef<WaterZoneData>
 ```
 cellSize: number
 cells: number
+farDistance: boolean
+farDistanceExtent: number
+farDistanceMaterial: number
+farMeshWithoutOcean: boolean
 foamFade: number
 material: number
 resolution: number
@@ -15150,6 +15154,7 @@ z: number
 @internal instance_: number
 @internal revision_: number
 @internal ripples_: RippleField | null
+@internal zoneLevel_: number
 @internal zone_: WaterZoneData
 baking: boolean
 bodyAt: (x: number, z: number) => { entity: Entity; bodyId: string; form: number; level: number; } | null

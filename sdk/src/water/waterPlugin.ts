@@ -39,9 +39,8 @@ import { log } from '../util/logger';
 import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
 import { surfHeight, waveHeight, waveSlope, WAVE_SET_SIZE, type WaveParams } from './waves';
-import { buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
+import { buildFarMesh, buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
 import { installWaterfalls } from './waterfall';
-import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
@@ -198,6 +197,8 @@ export class Waters {
     /** @internal */ zone_: WaterZoneData = zoneDefaults();
     /** The places kept out of the water, as the scene says now. @internal */
     exclusions_: readonly ZoneExclusion[] = [];
+    /** The zone entity's world height, for the far distance mesh of a zone with no ocean. @internal */
+    zoneLevel_ = 0;
     /** The ripples the zone keeps, where it asks for them. @internal */
     ripples_: RippleField | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
@@ -429,6 +430,8 @@ interface Bed { key: number; signature: string; make(prefix: string): TerrainMod
 interface Inputs {
     beds: Bed[];
     exclusions: ZoneExclusion[];
+    /** The world height of the zone's entity (0 without one): where the far distance mesh lies when the zone has no ocean to lay it at. */
+    zoneLevel: number;
     bodies: ZoneBody[];
     grid: ZoneGrid;
     zone: WaterZoneData;
@@ -442,6 +445,10 @@ interface Surface {
     mesh: number;
     meshKey: string;
     instance: number;
+    /** The far distance mesh past the rings, and the instance of its own material when the zone names one (0: it is drawn with `instance`). */
+    farEntity: Entity;
+    farMesh: number;
+    farInstance: number;
     material: number;
     heights: number;
     field: number;
@@ -491,6 +498,7 @@ export class WaterPlugin implements Plugin {
             this.carve(app, inputs.beds);
             waters.zone_ = inputs.zone;
             waters.exclusions_ = inputs.exclusions;
+            waters.zoneLevel_ = inputs.zoneLevel;
             if (inputs.bodies.length === 0) {
                 this.baking_?.cancel();
                 this.baking_ = null;
@@ -521,7 +529,7 @@ export class WaterPlugin implements Plugin {
             const eye = this.eye(app);
             this.ripple(app, inputs.zone, eye, app.getResource(Time).delta);
             if (!app.hasResource(Assets)) return;
-            const surface = this.surface(app, inputs.zone);
+            const surface = this.surface(app, inputs.zone, inputs.bodies.some((b) => b.kind === 'ocean'));
             if (surface.instance && surface.entity) this.update(app, surface, inputs.zone, eye ?? this.middle(inputs.grid));
         }, { name: 'WaterSystem' }));
     }
@@ -632,10 +640,12 @@ export class WaterPlugin implements Plugin {
         }
         let zone = zoneDefaults();
         let grid: ZoneGrid | null = null;
+        let zoneLevel = 0;
         for (const entity of app.world.getEntitiesWithComponents([WaterZone, Transform])) {
             zone = app.world.get(entity, WaterZone) as WaterZoneData;
             const t = app.world.get(entity, Transform) as TransformData;
             grid = gridOver(t.worldPosition.x - zone.sizeX / 2, t.worldPosition.z - zone.sizeZ / 2, zone.sizeX, zone.sizeZ, zone.resolution);
+            zoneLevel = t.worldPosition.y;
             break;
         }
         if (!grid) {
@@ -647,7 +657,7 @@ export class WaterPlugin implements Plugin {
         for (const b of bodies) b.exposure = exposureOf(b, zone.waveLength);
         const terrain = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const ground = terrain && terrain.built_.size > 0 ? terrain.revision_ : -1;
-        return { bodies, beds, exclusions, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
+        return { bodies, beds, exclusions, zoneLevel, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
     }
 
     /**
@@ -711,28 +721,29 @@ export class WaterPlugin implements Plugin {
     }
 
     /** The surface, made (or remade, where its mesh or its material changed) as the zone asks. */
-    private surface(app: App, zone: WaterZoneData): Surface {
-        const meshKey = JSON.stringify([zone.cells, zone.rings, zone.cellSize]);
+    private surface(app: App, zone: WaterZoneData, ocean: boolean): Surface {
+        const far = farOf(zone, ocean);
+        const meshKey = JSON.stringify([zone.cells, zone.rings, zone.cellSize, far]);
         let s = this.surface_;
         if (s && (s.meshKey !== meshKey || s.material !== zone.material)) { this.dropSurface(app); s = null; }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
-        if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone);
+        if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone, far);
         return s;
     }
 
-    private async build_(app: App, s: Surface, zone: WaterZoneData): Promise<void> {
+    private async build_(app: App, s: Surface, zone: WaterZoneData, far: FarMesh | null): Promise<void> {
         s.pending = true;
         const epoch = s.epoch;
         try {
             const source = zone.material || await this.stock(app);
             if (s.epoch !== epoch || this.surface_ !== s) return;
             const assets = app.getResource(Assets);
-            // The rings are where the waves are; past them a flat apron carries the sea to the horizon (80 km, further than a camera a
-            // kilometre up can see), so an ocean does not end in a straight line where its mesh does.
-            const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize, 80000 * worldUnitsPerMeter()));
+            // The rings are where the waves are; past them the far distance mesh carries the sea to the horizon (see farOf), drawn apart so
+            // it can take a cheaper material of its own.
+            const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize));
             if (mesh === 0) { s.failure = 'the engine refused the water geometry'; log.warn('water', s.failure); return; }
             const instance = Material.createInstance(source);
             if (instance === 0) { assets.releaseBuiltMesh(mesh); s.failure = 'the water material could not be instanced'; log.warn('water', s.failure); return; }
@@ -746,6 +757,24 @@ export class WaterPlugin implements Plugin {
                 mesh, material: instance, lit: true, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
             } as Partial<MeshRendererData>);
             s.entity = entity;
+            const farData = far ? buildFarMesh(zone.cells, zone.rings, zone.cellSize, far.extent) : null;
+            if (far && farData) {
+                const farMesh = assets.createMesh(farData);
+                // An instance of its own, of its own material or the rings': one instance drawn by two meshes drew neither with the Water shader.
+                const farInstance = Material.createInstance(far.material || source);
+                if (farMesh !== 0) {
+                    s.farMesh = farMesh;
+                    s.farInstance = farInstance;
+                    const farEntity = app.world.spawn('Water Far');
+                    app.world.insert(farEntity, Transform, { position: { x: 0, y: 0, z: 0 } });
+                    app.world.insert(farEntity, MeshRenderer, {
+                        mesh: farMesh, material: farInstance || instance, lit: true, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
+                    } as Partial<MeshRendererData>);
+                    s.farEntity = farEntity;
+                } else if (farInstance) {
+                    Material.release(farInstance);
+                }
+            }
         } catch (e) {
             if (s.epoch === epoch) s.failure = e instanceof Error ? e.message : String(e);
             log.error('water', 'building the water failed', e);
@@ -769,7 +798,7 @@ export class WaterPlugin implements Plugin {
         s.exposure = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).fill(255) : exposure }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         s.baked = field;
-        const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(s.instance, name, value); };
+        const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
         set('u_zoneHeights', Material.tex(s.heights));
         set('u_zoneField', Material.tex(s.field));
         set('u_zoneExposure', Material.tex(s.exposure));
@@ -789,7 +818,11 @@ export class WaterPlugin implements Plugin {
         const ox = Math.round(eye[0] / snap) * snap, oz = Math.round(eye[2] / snap) * snap;
         const t = app.world.get(s.entity, Transform) as TransformData;
         if (t.position.x !== ox || t.position.z !== oz) app.world.insert(s.entity, Transform, { ...t, position: { x: ox, y: 0, z: oz } });
-        const set = (name: string, value: number | { x: number; y: number }): void => { Material.setUniform(s.instance, name, value); };
+        if (s.farEntity && app.world.valid(s.farEntity)) {
+            const f = app.world.get(s.farEntity, Transform) as TransformData;
+            if (f.position.x !== ox || f.position.z !== oz) app.world.insert(s.farEntity, Transform, { ...f, position: { x: ox, y: 0, z: oz } });
+        }
+        const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
         const q = this.waters_.quality;
         const ocean = field.ocean;
         const waves = waveParamsOf(zone);
@@ -811,6 +844,13 @@ export class WaterPlugin implements Plugin {
         set('u_oceanOn', ocean ? 1 : 0);
         set('u_oceanLevel', ocean ? ocean.level : 0);
         set('u_oceanWaves', ocean ? ocean.waveHeight : 0);
+        // A zone with no ocean that asks for the far distance mesh: that mesh alone takes the open sea past the region, flat, at the zone's
+        // own height, while the rings keep to the lakes and rivers baked in it.
+        if (!ocean && s.farInstance) {
+            Material.setUniform(s.farInstance, 'u_oceanOn', 1);
+            Material.setUniform(s.farInstance, 'u_oceanLevel', this.waters_.zoneLevel_);
+            Material.setUniform(s.farInstance, 'u_oceanWaves', 0);
+        }
         set('u_surfHeight', zone.surf);
         set('u_surfLength', zone.surfLength);
         set('u_surfSpeed', zone.waveSpeed);
@@ -851,11 +891,11 @@ export class WaterPlugin implements Plugin {
                 updateTextureSubregion(app.wasmModule, handle, 0, 0, n, n, s.rippleBytes);
                 return true;
             });
-            Material.setUniform(s.instance, 'u_rippleMap', Material.tex(handle));
+            for (const i of drawnWith(s)) Material.setUniform(i, 'u_rippleMap', Material.tex(handle));
         } else {
             updateTextureSubregion(app.wasmModule, s.ripple, 0, 0, n, n, bytes);
         }
-        const set = (name: string, value: number | { x: number; y: number }): void => { Material.setUniform(s.instance, name, value); };
+        const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
         set('u_rippleOn', 1);
         set('u_rippleOrigin', { x: field.originX, y: field.originZ });
         set('u_rippleSize', field.size);
@@ -872,7 +912,7 @@ export class WaterPlugin implements Plugin {
         if (s) {
             s.ripple = 0;
             s.rippleBytes = null;
-            if (s.instance) Material.setUniform(s.instance, 'u_rippleOn', 0);
+            for (const i of drawnWith(s)) Material.setUniform(i, 'u_rippleOn', 0);
         }
         this.waters_.ripples_ = null;
     }
@@ -894,6 +934,9 @@ export class WaterPlugin implements Plugin {
         s.epoch = ++this.epoch_;
         this.surface_ = null;
         if (s.entity && app.world.valid(s.entity)) app.world.despawn(s.entity);
+        if (s.farEntity && app.world.valid(s.farEntity)) app.world.despawn(s.farEntity);
+        if (s.farInstance) Material.release(s.farInstance);
+        if (s.farMesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(s.farMesh);
         if (s.ripple) { withdrawTextureContent(s.ripple); getResourceManager()?.releaseTexture(s.ripple); }
         this.waters_.ripples_ = null;
         this.dropFieldTextures(s);
@@ -901,6 +944,20 @@ export class WaterPlugin implements Plugin {
         if (s.mesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(s.mesh);
         this.waters_.instance_ = 0;
     }
+}
+
+/** The far distance mesh a zone asks for: how far it reaches and the material it is drawn with (0: the zone's water). */
+interface FarMesh { extent: number; material: number }
+
+/** The far distance mesh the zone draws, or null: off, or a zone with no ocean that does not ask for one without. */
+function farOf(zone: WaterZoneData, ocean: boolean): FarMesh | null {
+    if (!zone.farDistance || !(ocean || zone.farMeshWithoutOcean)) return null;
+    return { extent: zone.farDistanceExtent, material: zone.farDistanceMaterial };
+}
+
+/** The material instances the surface is drawn with: the rings', and the far mesh's own where it has one. Both take every uniform the plugin writes. */
+function drawnWith(s: Surface): number[] {
+    return [s.instance, s.farInstance].filter((i) => i !== 0);
 }
 
 /** A region from (minX, minZ), `sizeX` by `sizeZ`, with `resolution` texels along its longer side. */

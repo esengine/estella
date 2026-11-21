@@ -76,6 +76,20 @@ export function buildOceanMesh(cells: number, rings: number, cellSize: number, s
     return pack(positions, colors, indices);
 }
 
+/**
+ * The far distance mesh alone: the apron {@link buildOceanMesh} lays with `skirt`, from the outermost ring's edge (the same vertices, so the two
+ * meet without a crack) out to `extent`, for drawing with a material of its own. Null where the extent does not reach past the rings.
+ */
+export function buildFarMesh(cells: number, rings: number, cellSize: number, extent: number): MeshData | null {
+    const whole = buildOceanMesh(cells, rings, cellSize, extent);
+    const inner = buildOceanMesh(cells, rings, cellSize, 0);
+    if (whole.indices.length === inner.indices.length) return null;
+    // The apron's vertices and triangles follow the rings' in the whole: take them, numbered from zero.
+    const first = inner.vertexCount, stride = whole.vertexStride;
+    const indices = whole.indices.slice(inner.indices.length).map((i) => i - first);
+    return { ...whole, vertexCount: whole.vertexCount - first, vertices: whole.vertices.slice(first * stride), indices: Uint32Array.from(indices) };
+}
+
 /** The outer half-extent of an ocean built with these numbers. */
 export function oceanReach(cells: number, rings: number, cellSize: number): number {
     const n = Math.max(4, Math.round(cells / 4) * 4);

@@ -11950,6 +11950,31 @@
           "default": "0.4",
           "doc": "How fast the foam a disturbance leaves fades, a second.",
           "range": "0–10"
+        },
+        {
+          "key": "farDistance",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Past the rings, draw a flat sea out to the far distance extent, so an ocean reaches the horizon instead of ending in a straight line where the rings stop. It has no waves of its own: it is the open sea at its level, seen from far away."
+        },
+        {
+          "key": "farDistanceExtent",
+          "type": "number",
+          "default": "8000000",
+          "doc": "How far from the camera the far distance mesh reaches, in world units. Large enough to fill the gap between the rings and the horizon from every height the camera goes to.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "farDistanceMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty draws it with the zone water material."
+        },
+        {
+          "key": "farMeshWithoutOcean",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Draw the far distance mesh when the zone has no ocean too. Off, a zone of lakes and rivers alone has none."
         }
       ],
       "animatable": [
@@ -11969,7 +11994,9 @@
         "rippleSize",
         "rippleSpeed",
         "rippleDamping",
-        "foamFade"
+        "foamFade",
+        "farDistanceExtent",
+        "farDistanceMaterial"
       ]
     },
     {
