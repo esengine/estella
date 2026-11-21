@@ -228,7 +228,9 @@ describe.skipIf(!HAS_WASM)('ground that is a volume', () => {
             const before = new Map(drawnOf(s).map((e) => [e, (s.world.get(e, MeshRenderer) as { mesh: number }).mesh]));
             const dug = s.terrains.carve(s.volume, { kind: 'sphere', center: { x: 6, y: -3, z: 6 }, radius: 2 })!;
             expect(dug.removed[2]!).toBeGreaterThan(20);
-            await s.tick(1);
+            // Rebuilds share a time budget a frame (voxelRebuildBudgetMs): on a slow machine the chunks an edit reached take more than
+            // one frame, so step until none waits, and then count which were made again.
+            for (let i = 0; i < 60 && (i === 0 || s.terrains.status(s.volume)!.waitingChunks > 0); i++) await s.tick(1);
             const changed = drawnOf(s).filter((e) => before.get(e) !== (s.world.get(e, MeshRenderer) as { mesh: number }).mesh).length;
             expect(changed).toBeGreaterThan(0);
             expect(changed).toBeLessThanOrEqual(dug.chunks);
