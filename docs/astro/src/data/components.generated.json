@@ -11859,19 +11859,20 @@
         {
           "key": "terrainBlend",
           "type": "enum",
-          "default": "Min",
-          "doc": "How the channel is laid over the terrain: Min only cuts it (ground already lower stays), Max only raises it, Alpha Blend lays the profile either way.",
+          "default": "Alpha Blend",
+          "doc": "How the channel is laid over the terrain. Alpha Blend lays the profile either way, cutting ground that is higher and raising ground that is lower, so the water always has ground at its level: what most bodies want. Min only cuts (ground already lower stays): for a river running into a lake, so it does not raise the lake’s floor. Max only raises. Additive adds onto the ground the cut a flat ground at the water’s level would get, keeping the ground’s own detail and slope, but not placing the bed at exact heights.",
           "values": [
             "Min",
             "Max",
-            "Alpha Blend"
+            "Alpha Blend",
+            "Additive"
           ]
         },
         {
           "key": "falloffWidth",
           "type": "number",
           "default": "300",
-          "doc": "Past where the curve starts, how far out the bank runs back into the terrain, in world units.",
+          "doc": "Width falloff: past the flat edge, how far out the bank runs back into the terrain, in world units. Angle falloff: the farthest the bank runs out looking for the ground.",
           "range": "≥ 0"
         },
         {
@@ -11900,6 +11901,93 @@
           "default": "0",
           "doc": "How round the terraces’ edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.",
           "range": "0–1"
+        },
+        {
+          "key": "falloffMode",
+          "type": "enum",
+          "default": "Width",
+          "doc": "How the bank meets the ground round the water. Width gives it back over Falloff Width whether or not it met the ground. Angle runs it out at Falloff Angle until it meets the ground, cutting into a hill or building up from a hollow, Falloff Width the farthest it goes.",
+          "values": [
+            "Width",
+            "Angle"
+          ]
+        },
+        {
+          "key": "falloffAngle",
+          "type": "number",
+          "default": "45",
+          "doc": "Angle falloff: the slope of the bank, in degrees from level.",
+          "range": "1–89"
+        },
+        {
+          "key": "falloffEdgeOffset",
+          "type": "number",
+          "default": "0",
+          "doc": "A flat edge round the water at its level before the falloff starts, in world units: a level bank along a river even where it cuts through a hill.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "blurRadius",
+          "type": "number",
+          "default": "0",
+          "doc": "Averages the cut over this radius, in world units, softening its edges and corners all round. 0 for none: the outline’s distance is exact, so it needs no blur to hide steps.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "curlAmount1",
+          "type": "number",
+          "default": "0",
+          "doc": "Curl noise bending the cut’s outline, first octave: how far it moves the edge, in world units. 0 for none.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "curlTiling1",
+          "type": "number",
+          "default": "2000",
+          "doc": "The size of the first octave’s swirls, in world units.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "curlAmount2",
+          "type": "number",
+          "default": "0",
+          "doc": "Curl noise, second octave: how far it moves the edge, in world units. 0 for none.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "curlTiling2",
+          "type": "number",
+          "default": "500",
+          "doc": "The size of the second octave’s swirls, in world units.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "innerSmoothDistance",
+          "type": "number",
+          "default": "0",
+          "doc": "Rounds the inner edge, where the bed leaves the bank, over this width in world units: an easier way in and out of the water.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "outerSmoothDistance",
+          "type": "number",
+          "default": "0",
+          "doc": "Rounds the outer edge, where the bank meets the ground, over this height in world units.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "terraceMaskLength",
+          "type": "number",
+          "default": "0",
+          "doc": "Terraces only within this span of distance out from the water’s edge, in world units; 0 for terraces everywhere the body reaches.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "terraceMaskStartOffset",
+          "type": "number",
+          "default": "0",
+          "doc": "How far out from the water’s edge the terraces’ span starts, in world units.",
+          "range": "≥ 0"
         }
       ],
       "animatable": [
@@ -11936,7 +12024,19 @@
         "terrainZOffset",
         "terraceAlpha",
         "terraceSpacing",
-        "terraceSmoothness"
+        "terraceSmoothness",
+        "falloffMode",
+        "falloffAngle",
+        "falloffEdgeOffset",
+        "blurRadius",
+        "curlAmount1",
+        "curlTiling1",
+        "curlAmount2",
+        "curlTiling2",
+        "innerSmoothDistance",
+        "outerSmoothDistance",
+        "terraceMaskLength",
+        "terraceMaskStartOffset"
       ]
     },
     {

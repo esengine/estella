@@ -557,6 +557,7 @@ apply: (x: number, z: number, h: number) => number
 bounds: readonly [number, number, number, number]
 heights: readonly [number, number] | undefined
 id: string
+shifts: readonly [number, number] | undefined
 ```
 
 ## TerrainNode — interface @experimental

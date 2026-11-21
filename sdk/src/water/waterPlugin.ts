@@ -17,7 +17,7 @@
 import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
-import { ChannelBlend, islandModifier, lakeChannelModifier, lakeFloorModifier, type ChannelSettings, type OutlineSpace } from './landShape';
+import { ChannelBlend, ChannelFalloff, islandModifier, lakeChannelModifier, lakeFloorModifier, type ChannelSettings, type OutlineSpace } from './landShape';
 import { InterpType, sampleKeyframes, type Curve } from '../math/keyframes';
 import { Footprint } from './footprint';
 import type { TerrainModifier } from '../terrain/source';
@@ -110,6 +110,19 @@ export interface WaterBodyData {
     terraceAlpha: number;
     terraceSpacing: number;
     terraceSmoothness: number;
+    /** {@link ChannelFalloff}: the bank given back over Falloff Width, or run out at Falloff Angle until it meets the ground. */
+    falloffMode: number;
+    falloffAngle: number;
+    falloffEdgeOffset: number;
+    blurRadius: number;
+    curlAmount1: number;
+    curlTiling1: number;
+    curlAmount2: number;
+    curlTiling2: number;
+    innerSmoothDistance: number;
+    outerSmoothDistance: number;
+    terraceMaskLength: number;
+    terraceMaskStartOffset: number;
 }
 
 /** How a lake or a river cuts the terrain: its built-in profile, or the Curve Channel its Terrain settings describe. */
@@ -139,9 +152,11 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
     underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
     underwaterDensity: 0.12, underwaterCaustics: 0.6,
     affectsTerrain: true, channelShape: ChannelShape.BuiltIn, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
-    terrainBlend: ChannelBlend.Min, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
+    terrainBlend: ChannelBlend.AlphaBlend, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
+    falloffMode: ChannelFalloff.Width, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
+    curlTiling2: 500, innerSmoothDistance: 0, outerSmoothDistance: 0, terraceMaskLength: 0, terraceMaskStartOffset: 0,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing'],
+    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset'],
     assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
     fields: {
         form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }, { label: 'Custom', value: WaterForm.Custom }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
@@ -165,12 +180,24 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         elevationCurve: { curve: true, category: 'Terrain', tooltip: 'The bed\u2019s profile across the ramp: from the curve\u2019s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river\u2019s points) is the depth reached.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         channelEdgeOffset: { category: 'Terrain', tooltip: 'How far in from the shore the curve starts, in world units. Negative starts it out on the bank, which widens the cut past the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         curveRampWidth: { min: 0.01, category: 'Terrain', tooltip: 'How wide the curve ramps from its start to the full depth, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        terrainBlend: { enum: [{ label: 'Min', value: ChannelBlend.Min }, { label: 'Max', value: ChannelBlend.Max }, { label: 'Alpha Blend', value: ChannelBlend.AlphaBlend }], category: 'Terrain', tooltip: 'How the channel is laid over the terrain: Min only cuts it (ground already lower stays), Max only raises it, Alpha Blend lays the profile either way.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
-        falloffWidth: { min: 0, category: 'Terrain', tooltip: 'Past where the curve starts, how far out the bank runs back into the terrain, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terrainBlend: { enum: [{ label: 'Min', value: ChannelBlend.Min }, { label: 'Max', value: ChannelBlend.Max }, { label: 'Alpha Blend', value: ChannelBlend.AlphaBlend }, { label: 'Additive', value: ChannelBlend.Additive }], category: 'Terrain', tooltip: 'How the channel is laid over the terrain. Alpha Blend lays the profile either way, cutting ground that is higher and raising ground that is lower, so the water always has ground at its level: what most bodies want. Min only cuts (ground already lower stays): for a river running into a lake, so it does not raise the lake’s floor. Max only raises. Additive adds onto the ground the cut a flat ground at the water’s level would get, keeping the ground’s own detail and slope, but not placing the bed at exact heights.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        falloffWidth: { min: 0, category: 'Terrain', tooltip: 'Width falloff: past the flat edge, how far out the bank runs back into the terrain, in world units. Angle falloff: the farthest the bank runs out looking for the ground.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        falloffMode: { enum: [{ label: 'Width', value: ChannelFalloff.Width }, { label: 'Angle', value: ChannelFalloff.Angle }], category: 'Terrain', tooltip: 'How the bank meets the ground round the water. Width gives it back over Falloff Width whether or not it met the ground. Angle runs it out at Falloff Angle until it meets the ground, cutting into a hill or building up from a hollow, Falloff Width the farthest it goes.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        falloffAngle: { min: 1, max: 89, unit: '°', category: 'Terrain', tooltip: 'Angle falloff: the slope of the bank, in degrees from level.', shownWhen: { field: 'falloffMode', values: [ChannelFalloff.Angle] } },
+        falloffEdgeOffset: { min: 0, category: 'Terrain', tooltip: 'A flat edge round the water at its level before the falloff starts, in world units: a level bank along a river even where it cuts through a hill.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         terrainZOffset: { category: 'Terrain', tooltip: 'Raises (or, negative, lowers) the whole cut against the water\u2019s surface, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         terraceAlpha: { min: 0, max: 1, category: 'Terrain', tooltip: 'Terraces laid over the cut: 0 none, 1 fully stepped.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         terraceSpacing: { min: 0.01, category: 'Terrain', tooltip: 'The rise of each terrace, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         terraceSmoothness: { min: 0, max: 1, category: 'Terrain', tooltip: 'How round the terraces\u2019 edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terraceMaskLength: { min: 0, category: 'Terrain', tooltip: 'Terraces only within this span of distance out from the water’s edge, in world units; 0 for terraces everywhere the body reaches.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terraceMaskStartOffset: { min: 0, category: 'Terrain', tooltip: 'How far out from the water’s edge the terraces’ span starts, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        blurRadius: { min: 0, category: 'Terrain', tooltip: 'Averages the cut over this radius, in world units, softening its edges and corners all round. 0 for none: the outline’s distance is exact, so it needs no blur to hide steps.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        curlAmount1: { min: 0, category: 'Terrain', tooltip: 'Curl noise bending the cut’s outline, first octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        curlTiling1: { min: 0.01, category: 'Terrain', tooltip: 'The size of the first octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        curlAmount2: { min: 0, category: 'Terrain', tooltip: 'Curl noise, second octave: how far it moves the edge, in world units. 0 for none.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        curlTiling2: { min: 0.01, category: 'Terrain', tooltip: 'The size of the second octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        innerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the inner edge, where the bed leaves the bank, over this width in world units: an easier way in and out of the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        outerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the outer edge, where the bank meets the ground, over this height in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
     },
@@ -444,12 +471,18 @@ function channelOf(d: WaterBodyData, scale: number): ChannelSettings | null {
         curve: keys.length > 0 ? (u) => sampleKeyframes(keys, u) : (u) => u * u * (3 - 2 * u),
         edgeOffset: d.channelEdgeOffset * scale, ramp: d.curveRampWidth * scale, blend: d.terrainBlend, falloff: d.falloffWidth * scale,
         zOffset: d.terrainZOffset * scale, terraceAlpha: d.terraceAlpha, terraceSpacing: d.terraceSpacing * scale, terraceSmoothness: d.terraceSmoothness,
+        falloffMode: d.falloffMode, falloffAngle: d.falloffAngle, bankEdge: d.falloffEdgeOffset * scale, blurRadius: d.blurRadius * scale,
+        curlAmount1: d.curlAmount1 * scale, curlTiling1: d.curlTiling1 * scale, curlAmount2: d.curlAmount2 * scale, curlTiling2: d.curlTiling2 * scale,
+        innerSmooth: d.innerSmoothDistance * scale, outerSmooth: d.outerSmoothDistance * scale,
+        terraceMaskLength: d.terraceMaskLength * scale, terraceMaskStart: d.terraceMaskStartOffset * scale,
     };
 }
 
 /** What a Curve Channel is cut from, for knowing when to cut it again. */
 function channelKey(d: WaterBodyData): unknown[] {
-    return [d.elevationCurve, d.channelEdgeOffset, d.curveRampWidth, d.terrainBlend, d.falloffWidth, d.terrainZOffset, d.terraceAlpha, d.terraceSpacing, d.terraceSmoothness];
+    return [d.elevationCurve, d.channelEdgeOffset, d.curveRampWidth, d.terrainBlend, d.falloffWidth, d.terrainZOffset, d.terraceAlpha, d.terraceSpacing, d.terraceSmoothness,
+        d.falloffMode, d.falloffAngle, d.falloffEdgeOffset, d.blurRadius, d.curlAmount1, d.curlTiling1, d.curlAmount2, d.curlTiling2, d.innerSmoothDistance,
+        d.outerSmoothDistance, d.terraceMaskLength, d.terraceMaskStartOffset];
 }
 
 /** A body's outline with the way into and out of its plane, for what it does to the ground. */

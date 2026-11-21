@@ -12715,6 +12715,7 @@ apply: (x: number, z: number, h: number) => number
 bounds: readonly [number, number, number, number]
 heights: readonly [number, number] | undefined
 id: string
+shifts: readonly [number, number] | undefined
 ```
 
 ## TerrainNode — interface @experimental
@@ -15025,15 +15026,25 @@ ComponentDef<WaterBodyData>
 ```
 affectsTerrain: boolean
 bedDepth: number
+blurRadius: number
 bodyId: string
 boundary: Point2[]
 channelEdgeOffset: number
 channelShape: number
+curlAmount1: number
+curlAmount2: number
+curlTiling1: number
+curlTiling2: number
 curveRampWidth: number
 elevationCurve: Curve
+falloffAngle: number
+falloffEdgeOffset: number
+falloffMode: number
 falloffWidth: number
 flowSpeed: number
 form: number
+innerSmoothDistance: number
+outerSmoothDistance: number
 shapeMesh: number
 shoreWidth: number
 sizeX: number
@@ -15041,6 +15052,8 @@ sizeY: number
 sizeZ: number
 surfaceLook: number
 terraceAlpha: number
+terraceMaskLength: number
+terraceMaskStartOffset: number
 terraceSmoothness: number
 terraceSpacing: number
 terrainBlend: number

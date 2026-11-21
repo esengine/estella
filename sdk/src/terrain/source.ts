@@ -298,6 +298,11 @@ export interface TerrainModifier {
      * a lake's floor cut under the lowest valley. The ground's range grows to hold them; without it a height past the range is held at its edge.
      */
     readonly heights?: readonly [number, number];
+    /**
+     * How far it can move the ground from the ground's own height, [down, up] (down negative): for a change made relative to the ground
+     * (a channel added onto it, keeping its detail), whose heights follow the ground's own range rather than any of their own.
+     */
+    readonly shifts?: readonly [number, number];
 }
 
 /** A source with the modifiers laid over it: what the pages, the queries and collision all read. */
@@ -317,14 +322,22 @@ export class ModifiedSource implements TerrainSource {
     /** The lowest height the ground can have: its own, or lower where a modifier cuts under it (in the terrain's space). */
     get minHeight(): number {
         let lo = this.base.minHeight;
-        for (const m of this.modifiers()) if (m.heights) lo = Math.min(lo, m.heights[0] - this.origin.y);
+        const own = lo;
+        for (const m of this.modifiers()) {
+            if (m.heights) lo = Math.min(lo, m.heights[0] - this.origin.y);
+            if (m.shifts) lo = Math.min(lo, own + m.shifts[0]);
+        }
         return lo;
     }
 
     /** The highest height the ground can have: its own, or higher where a modifier raises it over that. */
     get maxHeight(): number {
         let hi = this.base.maxHeight;
-        for (const m of this.modifiers()) if (m.heights) hi = Math.max(hi, m.heights[1] - this.origin.y);
+        const own = hi;
+        for (const m of this.modifiers()) {
+            if (m.heights) hi = Math.max(hi, m.heights[1] - this.origin.y);
+            if (m.shifts) hi = Math.max(hi, own + m.shifts[1]);
+        }
         return hi;
     }
 

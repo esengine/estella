@@ -6,7 +6,7 @@
  *        it; and the islands, exclusion volumes and zone a body answers as acting on it.
  */
 import { describe, expect, it } from 'vitest';
-import { ChannelBlend, channelHeight, lakeChannelModifier, type ChannelSettings, type OutlineSpace } from '../src/water/landShape';
+import { ChannelBlend, ChannelFalloff, channelAt, channelHeight, channelHeights, lakeChannelModifier, type ChannelSettings, type OutlineSpace } from '../src/water/landShape';
 import { riverBedModifiers } from '../src/water/riverBed';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
@@ -55,6 +55,68 @@ describe('a channel’s profile', () => {
         expect(channelHeight(10, 4, 6, 10, settings({ zOffset: -1 }))).toBeCloseTo(-3, 6);
         const stepped = channelHeight(5.5, 4, 6, 10, settings({ terraceAlpha: 1, terraceSpacing: 1 }));
         expect(stepped).toBe(Math.floor(stepped));
+    });
+});
+
+describe('a channel’s bank, effects and terrace mask', () => {
+    it('adds the cut onto the ground with Additive, keeping its slope', () => {
+        const s = settings({ blend: ChannelBlend.Additive });
+        expect(channelHeight(20, 4, 6, 10, s)).toBeCloseTo(4, 6);
+        expect(channelHeight(20, 4, 6, 20, s)).toBeCloseTo(14, 6);
+        expect(channelHeight(-2, 4, 6, 20, s)).toBeCloseTo(20, 6);
+        expect(channelHeights(-2, 4, s).shifts![0]).toBeLessThanOrEqual(-6);
+    });
+
+    it('runs the bank out at its angle until it meets the ground, cutting a hill and filling a hollow with Alpha Blend', () => {
+        const s = settings({ falloffMode: ChannelFalloff.Angle, falloffAngle: 45, falloff: 100, blend: ChannelBlend.AlphaBlend });
+        expect(channelHeight(-3, 4, 6, 10, s)).toBeCloseTo(7, 6);
+        expect(channelHeight(-8, 4, 6, 10, s)).toBeCloseTo(10, 6);
+        expect(channelHeight(-3, 4, 6, -5, s)).toBeCloseTo(1, 6);
+        expect(channelHeight(-3, 4, 6, -5, settings({ falloffMode: ChannelFalloff.Angle, falloffAngle: 45, falloff: 100 }))).toBe(-5);
+    });
+
+    it('keeps a flat edge at the water’s level before the falloff', () => {
+        const s = settings({ bankEdge: 3, blend: ChannelBlend.AlphaBlend });
+        expect(channelHeight(-2.5, 4, 6, 10, s)).toBeCloseTo(4, 6);
+        expect(channelHeight(-3 - 5, 4, 6, 10, s)).toBe(10);
+        expect(channelHeight(-3 - 2.5, 4, 6, 10, s)).toBeGreaterThan(4);
+    });
+
+    it('rounds the outer edge where the bank meets the ground, and leaves the ground exact past the rounding', () => {
+        const angle = { falloffMode: ChannelFalloff.Angle, falloffAngle: 45, falloff: 100, blend: ChannelBlend.AlphaBlend };
+        const hard = channelHeight(-6, 4, 6, 10, settings(angle)), soft = channelHeight(-6, 4, 6, 10, settings({ ...angle, outerSmooth: 2 }));
+        expect(hard).toBeCloseTo(10, 6);
+        expect(soft).toBeLessThan(hard);
+        expect(channelHeight(-9, 4, 6, 10, settings({ ...angle, outerSmooth: 2 }))).toBeCloseTo(10, 6);
+    });
+
+    it('rounds the inner edge where the bed leaves the bank', () => {
+        const s = settings({ blend: ChannelBlend.AlphaBlend });
+        // The bank is level and the bed falls away from it: rounded, the bank's last stretch begins to fall before the edge.
+        const hard = channelHeight(-0.5, 4, 6, 4, s), soft = channelHeight(-0.5, 4, 6, 4, settings({ blend: ChannelBlend.AlphaBlend, innerSmooth: 4 }));
+        expect(hard).toBeCloseTo(4, 6);
+        expect(soft).toBeLessThan(hard);
+        expect(channelHeight(30, 4, 6, 4, settings({ blend: ChannelBlend.AlphaBlend, innerSmooth: 4 }))).toBeCloseTo(-2, 6);
+    });
+
+    it('steps only inside the terrace mask’s span out from the edge', () => {
+        const angle = { falloffMode: ChannelFalloff.Angle, falloffAngle: 45, falloff: 100, blend: ChannelBlend.AlphaBlend, terraceAlpha: 1, terraceSpacing: 1 };
+        const masked = settings({ ...angle, terraceMaskStart: 4, terraceMaskLength: 3 });
+        expect(channelHeight(-2.5, 4, 6, 20, masked)).toBeCloseTo(6.5, 6);
+        const inside = channelHeight(-5.5, 4, 6, 20, masked);
+        expect(inside).toBe(Math.floor(inside));
+    });
+
+    it('bends the edge by its curl noise and softens it by its blur, leaving the deep middle as it was', () => {
+        const edge = (x: number): { d: number; surface: number; depth: number } => ({ d: x, surface: 4, depth: 6 });
+        const plain = settings({ blend: ChannelBlend.AlphaBlend });
+        const curled = settings({ blend: ChannelBlend.AlphaBlend, curlAmount1: 3, curlTiling1: 10 });
+        let moved = 0;
+        for (let z = 0; z < 40; z += 1) moved = Math.max(moved, Math.abs(channelAt((x) => edge(x), 3, z, 10, curled) - channelAt((x) => edge(x), 3, z, 10, plain)));
+        expect(moved).toBeGreaterThan(0.1);
+        const blurred = settings({ blend: ChannelBlend.AlphaBlend, blurRadius: 3 });
+        expect(channelAt((x) => edge(x), 0, 0, 10, blurred)).not.toBeCloseTo(channelAt((x) => edge(x), 0, 0, 10, plain), 3);
+        expect(channelAt((x) => edge(x), 30, 0, 10, blurred)).toBeCloseTo(-2, 6);
     });
 });
 
