@@ -74,6 +74,17 @@ describe('a lake', () => {
     });
 });
 
+describe('how deep the water is', () => {
+    it('is the surface at rest down to the ground under it, which a sample in a running app hands on as waterDepth', () => {
+        // A bowl: 8 under the lake's surface at its middle, rising to the shore.
+        const bowl = (x: number, z: number): number => -6 + Math.hypot(x, z) * 0.1;
+        const field = WaterField.bake(grid, [lakeAt(0, 0, 60, 2)], bowl);
+        expect(field.sample(0, 0)!.depth).toBeCloseTo(8, 1);
+        expect(field.sample(30, 0)!.depth).toBeCloseTo(5, 1);
+        expect(field.sample(30, 0)!.depth).toBeLessThan(field.sample(0, 0)!.depth);
+    });
+});
+
 describe('a river that runs into a lake', () => {
     it('is the lake\'s water inside the lake, at the lake\'s level, and its own outside it', () => {
         const stations = [];
@@ -143,6 +154,8 @@ describe('the water in a running app with no renderer', () => {
         expect(waters.bodyAt(0, 0)).toMatchObject({ entity: lake, bodyId: 'mirror-lake', form: WaterForm.Lake });
         expect(waters.bodyAt(0, 0)!.level).toBeCloseTo(2, 3);
         expect(waters.sample(0, 0, 0)?.bodyId).toBe('mirror-lake');
+        // No terrain under it: the depth of water nothing is known of.
+        expect(waters.sample(0, 0, 0)!.waterDepth).toBeGreaterThan(1e5);
         expect(waters.bodyAt(90, 90)).toBeNull();
         // How far from the water's edge: across the dry ground beside it, and in from the shore on it.
         expect(waters.shoreAt(45, 0)).toBeCloseTo(15, -0.5);

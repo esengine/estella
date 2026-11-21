@@ -114,6 +114,11 @@ export interface WaterSample {
     flow: [number, number, number];
     /** The world position of the surface above or below the point. */
     surface: [number, number, number];
+    /**
+     * How deep the water is there: from its surface at rest down to the ground under it (a river's bed, a lake's floor), in world units. What wading, swimming
+     * and a boat running aground are decided by. Open sea with no ground known under it, and sea past the zone, answer 1e6.
+     */
+    waterDepth: number;
     /** Whether the point is over water: always, for an answer that is not null. */
     inside: boolean;
 }
@@ -207,7 +212,8 @@ export class Waters {
         const [sx, sz] = waveSlope(params, x, z, time);
         const len = Math.hypot(sx, 1, sz);
         return {
-            entity: s.key as Entity, bodyId: this.bodyIdOf(s.key as Entity), depth: y - h, normal: [-sx / len, 1 / len, -sz / len], flow: [s.flowX, 0, s.flowZ], surface: [x, h, z], inside: true,
+            entity: s.key as Entity, bodyId: this.bodyIdOf(s.key as Entity), depth: y - h, normal: [-sx / len, 1 / len, -sz / len], flow: [s.flowX, 0, s.flowZ], surface: [x, h, z],
+            waterDepth: s.depth, inside: true,
         };
     }
 

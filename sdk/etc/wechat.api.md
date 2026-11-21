@@ -15062,6 +15062,7 @@ flow: [number, number, number]
 inside: boolean
 normal: [number, number, number]
 surface: [number, number, number]
+waterDepth: number
 ```
 
 ## WaterZone — const @experimental
