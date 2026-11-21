@@ -961,6 +961,17 @@ export interface RuntimeInitConfig {
     debugChannel?: DebugChannelConfig;
 }
 
+/**
+ * Sets the app's FixedUpdate step to the project's, whether or not physics is installed: a game that steps its own logic at a fixed rate
+ * sets it in the same place (Project Settings > Physics > Fixed timestep). Before, only the physics plugins handed it to the app, so
+ * without physics it stayed 1/60 whatever the project said. A missing or unusable step leaves the app's own.
+ * @internal
+ */
+export function applyFixedTimestep(app: Pick<App, 'setFixedTimestep'>, physics: { fixedTimestep?: number } | undefined): void {
+    const step = physics?.fixedTimestep;
+    if (typeof step === 'number' && Number.isFinite(step) && step > 0) app.setFixedTimestep(step);
+}
+
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
     // The App this bring-up is for. Quit while it awaits, it stops at the next step instead of
@@ -971,6 +982,8 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
 
     // Before any scene: what a component's default fills in is in the project's units (ecs/worldUnits.ts).
     setWorldUnitsPerMeter(config.physics3dWorld?.unitsPerMeter ?? REFERENCE_UNITS_PER_METER);
+
+    applyFixedTimestep(app, config.physicsConfig);
 
     // First: the asset timeouts and cache budgets are read by the very first load below.
     if (config.runtime) applyBuildRuntimeConfig(app, config.runtime);
