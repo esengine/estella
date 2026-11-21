@@ -371,7 +371,9 @@ function indexHtml(
     // media-src: a long clip streams through an <audio> element over a blob: URL of its
     // compressed bytes (WebAudioBackend), and `default-src 'self'` alone refuses that
     // source — the music of every exported web game past 30 s stayed silent.
-    : `default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:${connect}; worker-src 'self' blob:;`;
+    // font-src: a font the page's CSS embeds as a data: URL (a game's own @font-face, or one a browser adds) is refused by
+    // `default-src 'self'` and logged as an error on every load.
+    : `default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:${connect}; worker-src 'self' blob:;`;
   return `<!doctype html>
 <html lang="en" data-web-channel="${webChannel === 'poki' ? 'poki' : webChannel === 'crazygames' ? 'crazygames' : webChannel === 'youtube' ? 'youtube' : 'standalone'}">
   <head>

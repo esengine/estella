@@ -253,5 +253,6 @@ describe('Poki host page', () => {
     expect(html).not.toContain('crazygames-sdk');
     expect(html).not.toContain('frame-src https:');
     expect(html).toContain("default-src 'self';");
+    expect(html).toContain("font-src 'self' data: blob:;");
   });
 });
