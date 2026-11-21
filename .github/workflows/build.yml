@@ -746,7 +746,11 @@ jobs:
       if: matrix.shard == 1
       timeout-minutes: 6
       working-directory: desktop
-      run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
+      run: |
+        sandbox=$(node -p "require('node:path').join(require('node:path').dirname(require('electron')), 'chrome-sandbox')")
+        sudo chown root:root "$sandbox"
+        sudo chmod 4755 "$sandbox"
+        xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
 
     # A golden project marks a system @compiled, so packaging one now runs the
     # AOT step — and a promise the build cannot keep fails the export rather
