@@ -9,6 +9,7 @@
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { layerParams, LAYER_SURFACE_GLSL, TN_NOISE_GLSL, TN_NOISE_WGSL, TN_HASH2_GLSL, TN_HASH2_WGSL } from './layerSurfaceShader';
 import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
+import { BRUSH_PARAMS, BRUSH_GLSL, BRUSH_WGSL } from './brushPreview';
 
 
 // The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
@@ -176,7 +177,7 @@ const TERRAIN = `#pragma shader "Terrain"
 #pragma param u_terrainEye vec4 default(0,0,0,0)
 #pragma param u_terrainBounds vec4 default(-1000000000,-1000000000,1000000000,1000000000)
 
-${terrainVertex(false)}#pragma fragment
+${BRUSH_PARAMS}${terrainVertex(false)}#pragma fragment
 precision highp float;
 
 in vec4 v_color;
@@ -198,6 +199,7 @@ ${PACK_NORMAL_GLSL}
 out vec4 fragColor;
 #endif
 
+${BRUSH_GLSL}
 float tnHash(vec2 p) {
     p = fract(p * vec2(0.1031, 0.1030));
     p += dot(p, p.yx + 33.33);
@@ -335,7 +337,7 @@ void main() {
         if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, vec2(under.x, 1.0 - under.y), 0.0).r, u_occlusionStrength);
     }
     vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, open, ext);
-    fragColor = vec4(lit, 1.0);
+    fragColor = vec4(tnBrush(lit, Pw.xz), 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
     fragAlbedo = vec4(albedo, 1.0);
@@ -344,6 +346,7 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
+${BRUSH_WGSL}
 fn tnHash(p0 : vec2f) -> f32 {
     var p = fract(p0 * vec2f(0.1031, 0.1030));
     p = p + dot(p, p.yx + 33.33);
@@ -491,7 +494,7 @@ ${PACK_NORMAL_WGSL}
         let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
         if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, vec2f(under.x, 1.0 - under.y), 0.0).r, mc.u_occlusionStrength); }
     }
-    let lit = applyLightingSurface(albedo, Ns, P, viewDir, 0.0, roughness, 0.5, open, ext);
+    let lit = tnBrush(applyLightingSurface(albedo, Ns, P, viewDir, 0.0, roughness, 0.5, open, ext), Pw.xz);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);
@@ -622,7 +625,7 @@ vec3 tnOctDecode(vec2 e) {
 const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 #pragma version 300 es
 #pragma domain Lit
-${TERRAIN_LAYERS_PARAMS}${TERRAIN_SURFACE_PARAMS}
+${TERRAIN_LAYERS_PARAMS}${TERRAIN_SURFACE_PARAMS}${BRUSH_PARAMS}
 ${terrainVertex(true)}#pragma fragment
 precision highp float;
 precision highp sampler2DArray;
@@ -648,6 +651,7 @@ out vec4 fragColor;
 
 ${LAYER_SURFACE_GLSL}
 ${TERRAIN_GROUND_GLSL}
+${BRUSH_GLSL}
 void main() {
 #ifdef MESH_NORMALS
     highp vec3 P = v_worldXYZ;
@@ -685,7 +689,7 @@ void main() {
     SurfaceExt ext = surfaceExtNone(g.N);
     vec3 viewDir = viewDirection(P);
     vec3 lit = applyLightingSurface(g.colour, g.N, P, viewDir, 0.0, g.roughness, 0.5, g.ao, ext);
-    fragColor = vec4(lit, 1.0);
+    fragColor = vec4(tnBrush(lit, Pw.xz), 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(g.N), g.roughness, 0.75);
     fragAlbedo = vec4(g.colour, 1.0);

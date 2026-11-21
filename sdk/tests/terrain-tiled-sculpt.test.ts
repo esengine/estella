@@ -63,13 +63,14 @@ function stitched(source: TiledSource): Float32Array {
 const seam = -SIZE / 2 + (T - 1) * SIZE / (N - 1);
 
 describe('brushes on ground kept as tiles', () => {
-    for (const [name, mode, amount] of [['raise', SculptMode.Raise, 12], ['smooth', SculptMode.Smooth, 0.8], ['flatten', SculptMode.Flatten, 0.6]] as const) {
+    for (const [name, mode, amount] of [['raise', SculptMode.Raise, 12], ['clay', SculptMode.Clay, 12], ['carve', SculptMode.Clay, -12], ['smooth', SculptMode.Smooth, 0.8], ['flatten', SculptMode.Flatten, 0.6]] as const) {
         it(`${name} across a seam leaves the same ground as on one heightfield, and the seam one height`, async () => {
             const t = tiled(), w = whole();
             await loadAll(t.source);
+            const profile = mode === SculptMode.Clay ? { shape: 'square', curve: 'spherical' } as const : undefined;
             for (const [x, z] of [[seam, seam], [seam + 7, seam - 11], [-200, 150]]) {
-                t.edit.sculpt(mode, x!, z!, 40, 0.5, amount, 60);
-                w.edit.sculpt(mode, x!, z!, 40, 0.5, amount, 60);
+                t.edit.sculpt(mode, x!, z!, 40, 0.5, amount, 60, profile);
+                w.edit.sculpt(mode, x!, z!, 40, 0.5, amount, 60, profile);
             }
             const got = stitched(t.source);
             let worst = 0;

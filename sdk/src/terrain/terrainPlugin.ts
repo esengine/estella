@@ -59,6 +59,8 @@ import { RuntimeConfig } from '../defaults';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
 import { TiledGroundEdit } from './tiledGroundEdit';
+import type { Brush } from './sculpt';
+import { brushShapeId, brushCurveId } from './brushPreview';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
 export const NOISE_PROVIDER = 'estella:noise';
@@ -300,15 +302,33 @@ export class Terrains {
     /** @internal */ readonly built_ = new Map<Entity, Built>();
     /** @internal */ app_: App | null = null;
 
+    private previewMaterial_ = 0;
+    private canPreview_ = false;
+
+    /** Project a brush on one terrain for the current view. Passing null clears the last
+     * footprint. Returns false for a material without brush support so a tool can draw its outline. */
+    previewBrush(entity: Entity | null, brush: Brush | null): boolean {
+        const material = entity !== null && brush ? this.built_.get(entity)?.instance ?? 0 : 0;
+        if (material !== this.previewMaterial_) {
+            if (this.canPreview_) Material.setUniform(this.previewMaterial_, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+            this.previewMaterial_ = material;
+            this.canPreview_ = material !== 0 && Material.materialsDeclaring('u_sculptBrush').includes(material);
+        }
+        if (!this.canPreview_ || !brush) return false;
+        Material.setUniform(material, 'u_sculptBrush', { x: brush.x, y: brush.z, z: brush.radius, w: Math.max(0, Math.min(1, brush.falloff)) });
+        Material.setUniform(material, 'u_sculptProfile', { x: brushShapeId[brush.shape ?? 'circle'], y: brushCurveId[brush.curve ?? 'smooth'] });
+        return true;
+    }
+
     /**
      * The world height of the ground at (x, z), or null where no terrain is. The terrain's own position is taken into account; its
-     * rotation and scale are not (a terrain is laid flat at its own size).
+     * rotation and scale are not (a terrain is laid flat at its own size). Pass an entity to sample just that terrain.
      */
-    heightAt(x: number, z: number): number | null {
+    heightAt(x: number, z: number, only?: Entity): number | null {
         const world = this.app_?.world;
         if (!world) return null;
         for (const [entity, built] of this.built_) {
-            if (!built.surface || !world.valid(entity)) continue;
+            if ((only !== undefined && only !== entity) || !built.surface || !world.valid(entity)) continue;
             const t = world.tryGet(entity, Transform) as TransformData | null;
             if (!t) continue;
             const h = groundHeightAt(built.surface, t.worldPosition, x, z);

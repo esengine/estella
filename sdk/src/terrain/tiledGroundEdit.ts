@@ -10,7 +10,7 @@
  *          seam two tiles share stays one height. Where a tile under the brush is not in memory yet, it is read and that dab is skipped,
  *          as only loaded ground can be edited.
  */
-import { encodeHeightmap, paintSplat, reach, sculptField, unionDirty, type Brush, type Dirty } from './sculpt';
+import { encodeHeightmap, paintSplat, reach, sculptField, SculptMode, unionDirty, type Brush, type BrushProfile, type Dirty } from './sculpt';
 import { BeforeTiles, put, type Piece } from './groundEdit';
 import type { ModifiedSource, Splat } from './source';
 import type { Heightfield } from './heightfield';
@@ -63,19 +63,19 @@ export class TiledGroundEdit {
         if (!this.open_) this.open_ = { tiles: new Map(), overview: kept(), bounds: null };
     }
 
-    sculpt(mode: number, x: number, z: number, radius: number, falloff: number, amount: number, target?: number): void {
+    sculpt(mode: number, x: number, z: number, radius: number, falloff: number, amount: number, target?: number, profile?: BrushProfile): void {
         const span = this.span;
-        this.dab({ x, z, radius, falloff }, (win, sx, sz, brush) => {
+        this.dab({ ...profile, x, z, radius, falloff }, (win, sx, sz, brush) => {
             const field: Heightfield = { width: win.w, height: win.h, data: this.readWindow(win, (t) => t.field.data, 1) };
-            const hit = sculptField(field, sx, sz, { mode, brush, amount: mode <= 1 ? amount / span : amount,
+            const hit = sculptField(field, sx, sz, { mode, brush, amount: mode <= SculptMode.Lower || mode === SculptMode.Clay ? amount / span : amount,
                 target: target === undefined ? undefined : (target - this.minHeight) / span });
             if (hit) this.writeWindow(win, hit, field.data, 1, 'heights');
             return hit;
         });
     }
 
-    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false): void {
-        this.dab({ x, z, radius, falloff }, (win, sx, sz, brush) => {
+    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile): void {
+        this.dab({ ...profile, x, z, radius, falloff }, (win, sx, sz, brush) => {
             const second = layer > 3 || win.tiles.some(({ tile }) => tile.splat2);
             for (const { tile, tx, tz } of win.tiles) this.source.ensureTileSplats(tile, tx, tz, second);
             const a: Splat = { width: win.w, height: win.h, pixels: this.readWindow(win, (t) => t.splat!.pixels, 4) };

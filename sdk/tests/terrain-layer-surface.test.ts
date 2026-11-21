@@ -1,12 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
+import { TERRAIN_SHADER_TEMPLATE, TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
 import { PLANET_SHADER_TEMPLATE } from '../src/terrain/planetShader';
 import { LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from '../src/terrain/layerSurfaceShader';
 import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 describe('the ground\'s layers are one piece of shader code', () => {
+    it('projects the brush on the lit ground in both shader languages and leaves baked surface pages clean', () => {
+        for (const shader of [TERRAIN_SHADER_TEMPLATE, TERRAIN_LAYERS_SHADER_TEMPLATE]) {
+            const code = withWgslTwin(shader.source);
+            expect(code).toContain('vec3 tnBrush(');
+            expect(code).toContain('fn tnBrush(');
+            expect(code).toMatch(/tnBrush\([^;]+Pw\.xz\)/);
+            expect(code.split('#pragma fragment wgsl')[1]).toMatch(/tnBrush\([^;]+Pw\.xz\)/);
+        }
+        expect(TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE.source).not.toContain('u_sculptBrush');
+    });
+
     it('Terrain Layers and Planet both draw their layers with it, in both languages', () => {
         for (const source of [TERRAIN_LAYERS_SHADER_TEMPLATE.source, PLANET_SHADER_TEMPLATE.source]) {
             expect(source).toContain(LAYER_SURFACE_GLSL);

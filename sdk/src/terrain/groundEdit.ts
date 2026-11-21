@@ -13,7 +13,7 @@
 import type { Heightfield } from './heightfield';
 import type { FieldSource, Splat } from './source';
 import type { ModifiedSource } from './source';
-import { encodeHeightmap, paintSplat, reach, sculptField, unionDirty, type Dirty } from './sculpt';
+import { encodeHeightmap, paintSplat, reach, sculptField, SculptMode, unionDirty, type BrushProfile, type Dirty } from './sculpt';
 
 type Texels = Float32Array | Uint8Array;
 
@@ -101,12 +101,12 @@ export class GroundEdit {
     }
 
     /**
-     * One dab of height. `amount` is in world units for raise and lower (how far the brush's core moves the ground) and 0 to 1 for smooth
+     * One dab of height. `amount` is in world units for raise, lower and clay (signed for clay) and 0 to 1 for smooth
      * and flatten (how much of the way they go); `target` is flatten's world height. At the world position (x, z).
      */
-    sculpt(mode: number, x: number, z: number, radius: number, falloff: number, amount: number, target?: number): void {
+    sculpt(mode: number, x: number, z: number, radius: number, falloff: number, amount: number, target?: number, profile?: BrushProfile): void {
         const o = this.modified.origin;
-        const dab = { mode, brush: { x: x - o.x, z: z - o.z, radius, falloff }, amount: mode <= 1 ? amount / this.span : amount,
+        const dab = { mode, brush: { ...profile, x: x - o.x, z: z - o.z, radius, falloff }, amount: mode <= SculptMode.Lower || mode === SculptMode.Clay ? amount / this.span : amount,
             target: target === undefined ? undefined : (target - this.minHeight) / this.span };
         const span = reach(this.field.width, this.field.height, this.sizeX, this.sizeZ, dab.brush);
         if (this.open_ && span) this.open_.heights.keep(this.field.data, span);
@@ -117,10 +117,10 @@ export class GroundEdit {
     }
 
     /** One dab of paint at the world position (x, z). Layers 5 to 8 make the second splatmap if there is none. */
-    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false): void {
+    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile): void {
         const o = this.modified.origin;
         const { a, b } = this.source.ensureSplats(layer > 3);
-        const brush = { x: x - o.x, z: z - o.z, radius, falloff };
+        const brush = { ...profile, x: x - o.x, z: z - o.z, radius, falloff };
         const span = reach(a.width, a.height, this.sizeX, this.sizeZ, brush);
         if (this.open_ && span) {
             (this.open_.splat ??= new BeforeTiles(a.width, a.height, 4)).keep(a.pixels, span);

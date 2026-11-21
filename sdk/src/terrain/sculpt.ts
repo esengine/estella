@@ -13,27 +13,50 @@ import type { Heightfield } from './heightfield';
 import type { Splat } from './source';
 
 /** What a brush does to heights. @experimental */
-export const SculptMode = { Raise: 0, Lower: 1, Smooth: 2, Flatten: 3 } as const;
+export const SculptMode = { Raise: 0, Lower: 1, Smooth: 2, Flatten: 3, Clay: 4 } as const;
+
+export type BrushShape = 'circle' | 'square' | 'diamond';
+export type BrushCurve = 'smooth' | 'linear' | 'spherical' | 'tip';
+
+/** Omitted options keep the original round, smooth brush. */
+export interface BrushProfile {
+    shape?: BrushShape;
+    curve?: BrushCurve;
+}
 
 /** A brush at (x, z) in the terrain's space. */
-export interface Brush {
+export interface Brush extends BrushProfile {
     x: number;
     z: number;
     radius: number;
-    /** 0 to 1: how much of the brush's edge eases away. 0 is a hard disc, 1 a cone. */
+    /** Fraction of the radius over which the weight fades. Zero gives a hard edge. */
     falloff: number;
 }
 
 /** The texels a stroke changed, both corners included. */
 export interface Dirty { i0: number; j0: number; i1: number; j1: number }
 
-/** The brush's weight at `d` from its centre, 1 over its core, easing (smoothstep) to 0 at its edge. */
-export function brushWeight(d: number, radius: number, falloff: number): number {
+/** Distance from the centre in the footprint's own metric. Radius is half its width along X or Z. */
+export function brushDistance(dx: number, dz: number, shape: BrushShape = 'circle'): number {
+    if (shape === 'square') return Math.max(Math.abs(dx), Math.abs(dz));
+    if (shape === 'diamond') return Math.abs(dx) + Math.abs(dz);
+    return Math.hypot(dx, dz);
+}
+
+/** The brush has full weight in the core; its curve determines how weight fades to the edge. */
+export function brushWeight(d: number, radius: number, falloff: number, curve: BrushCurve = 'smooth'): number {
     if (d >= radius) return 0;
     const core = radius * (1 - Math.min(Math.max(falloff, 0), 1));
     if (d <= core) return 1;
-    const t = 1 - (d - core) / Math.max(radius - core, 1e-9);
+    const t = (radius - d) / (radius - core);
+    if (curve === 'linear') return t;
+    if (curve === 'spherical') return Math.sqrt(t * (2 - t));
+    if (curve === 'tip') return 1 - Math.sqrt(1 - t * t);
     return t * t * (3 - 2 * t);
+}
+
+function weightAt(b: Brush, x: number, z: number): number {
+    return brushWeight(brushDistance(x - b.x, z - b.z, b.shape), b.radius, b.falloff, b.curve);
 }
 
 /** The texel span of a brush over a grid `width` by `height` laid across `sizeX` by `sizeZ`, or null when it reaches none. */
@@ -57,7 +80,7 @@ export interface SculptDab {
     mode: number;
     brush: Brush;
     /**
-     * Raise and lower: how far the brush's core moves the ground, in the field's 0 to 1. Smooth and flatten: how much of the way to
+     * Raise, lower and clay: how far the brush's core moves the ground, in the field's 0 to 1 (negative clay carves). Smooth and flatten: how much of the way to
      * the average or to `target` it goes, 0 to 1.
      */
     amount: number;
@@ -69,23 +92,32 @@ export interface SculptDab {
  * Applies one dab to `field` and says which texels it touched (null when the brush is off the area). Heights stay between 0 and 1.
  */
 export function sculptField(field: Heightfield, sizeX: number, sizeZ: number, dab: SculptDab): Dirty | null {
+    if (!dab.amount) return null;
     const span = reach(field.width, field.height, sizeX, sizeZ, dab.brush);
     if (!span) return null;
     const { width, data } = field, b = dab.brush;
     // Smoothing reads the ground as it was before the dab, or the first texels it softens would feed the ones after.
     const before = dab.mode === SculptMode.Smooth ? sliceOf(field, span) : null;
+    const plane = dab.mode === SculptMode.Clay ? clayPlane(field, sizeX, sizeZ, b, span) : null;
+    let changed = false;
     const w = span.i1 - span.i0 + 1;
     for (let j = span.j0; j <= span.j1; j++) {
         for (let i = span.i0; i <= span.i1; i++) {
             const x = (i / (field.width - 1) - 0.5) * sizeX, z = (j / (field.height - 1) - 0.5) * sizeZ;
-            const k = brushWeight(Math.hypot(x - b.x, z - b.z), b.radius, b.falloff);
+            const k = weightAt(b, x, z);
             if (k <= 0) continue;
             const at = j * width + i;
             const h = data[at]!;
             let next = h;
             if (dab.mode === SculptMode.Raise) next = h + dab.amount * k;
             else if (dab.mode === SculptMode.Lower) next = h - dab.amount * k;
-            else if (dab.mode === SculptMode.Flatten) next = h + ((dab.target ?? h) - h) * Math.min(dab.amount * k, 1);
+            else if (plane) {
+                // Lay one thin layer against the local slope. Raising fills hollows before
+                // touching a ridge; carving does the reverse. A second pass adds another layer.
+                const toLayer = plane(x, z) + dab.amount - h;
+                const step = Math.max(Math.min(0, dab.amount), Math.min(Math.max(0, dab.amount), toLayer));
+                next = h + step * k;
+            } else if (dab.mode === SculptMode.Flatten) next = h + ((dab.target ?? h) - h) * Math.min(dab.amount * k, 1);
             else if (before) {
                 let sum = 0, n = 0;
                 for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
@@ -98,9 +130,33 @@ export function sculptField(field: Heightfield, sizeX: number, sizeZ: number, da
                 next = h + (sum / n - h) * Math.min(dab.amount * k, 1);
             }
             data[at] = Math.min(Math.max(next, 0), 1);
+            if (data[at] !== h) changed = true;
         }
     }
-    return span;
+    return changed ? span : null;
+}
+
+/** Weighted tangent plane of the footprint before this dab. The one-sample halo in a tiled
+ * edit supplies the same slopes on either side of a tile seam as on a single heightfield. */
+function clayPlane(field: Heightfield, sizeX: number, sizeZ: number, b: Brush, span: Dirty): (x: number, z: number) => number {
+    const { width, height, data } = field;
+    const dx = sizeX / (width - 1), dz = sizeZ / (height - 1);
+    let mass = 0, cx = 0, cz = 0, mean = 0, slopeX = 0, slopeZ = 0;
+    for (let j = span.j0; j <= span.j1; j++) for (let i = span.i0; i <= span.i1; i++) {
+        const x = (i / (width - 1) - 0.5) * sizeX, z = (j / (height - 1) - 0.5) * sizeZ;
+        const k = weightAt(b, x, z);
+        if (k <= 0) continue;
+        const left = Math.max(0, i - 1), right = Math.min(width - 1, i + 1);
+        const back = Math.max(0, j - 1), front = Math.min(height - 1, j + 1);
+        mass += k;
+        cx += x * k; cz += z * k; mean += data[j * width + i]! * k;
+        slopeX += k * (data[j * width + right]! - data[j * width + left]!) / ((right - left) * dx);
+        slopeZ += k * (data[front * width + i]! - data[back * width + i]!) / ((front - back) * dz);
+    }
+    if (mass > 0) {
+        cx /= mass; cz /= mass; mean /= mass; slopeX /= mass; slopeZ /= mass;
+    }
+    return (x, z) => mean + slopeX * (x - cx) + slopeZ * (z - cz);
 }
 
 function sliceOf(field: Heightfield, s: Dirty): Float32Array {
@@ -134,14 +190,15 @@ function readWeights(a: Splat, b: Splat | null, at: number, out: Float32Array): 
  * erasing one gives its share back to them (to layer 1 where there is nothing else).
  */
 export function paintSplat(a: Splat, b: Splat | null, sizeX: number, sizeZ: number, dab: PaintDab): Dirty | null {
-    if (dab.layer < 0 || dab.layer > 7 || (dab.layer > 3 && !b)) return null;
+    if (dab.strength <= 0 || dab.layer < 0 || dab.layer > 7 || (dab.layer > 3 && !b)) return null;
     const span = reach(a.width, a.height, sizeX, sizeZ, dab.brush);
     if (!span) return null;
     const bb = dab.brush, w = new Float32Array(8);
+    let changed = false;
     for (let j = span.j0; j <= span.j1; j++) {
         for (let i = span.i0; i <= span.i1; i++) {
             const x = (i / (a.width - 1) - 0.5) * sizeX, z = (j / (a.height - 1) - 0.5) * sizeZ;
-            const k = brushWeight(Math.hypot(x - bb.x, z - bb.z), bb.radius, bb.falloff) * dab.strength;
+            const k = weightAt(bb, x, z) * dab.strength;
             if (k <= 0) continue;
             const at = j * a.width + i;
             readWeights(a, b, at, w);
@@ -154,12 +211,19 @@ export function paintSplat(a: Splat, b: Splat | null, sizeX: number, sizeZ: numb
             else if (dab.erase) w[dab.layer === 0 ? 1 : 0] = rest;
             w[dab.layer] = now;
             for (let c = 0; c < 4; c++) {
-                a.pixels[at * 4 + c] = Math.round(w[c]! * 255);
-                if (b) b.pixels[at * 4 + c] = Math.round(w[4 + c]! * 255);
+                const offset = at * 4 + c;
+                const value = Math.round(w[c]! * 255);
+                if (a.pixels[offset] !== value) changed = true;
+                a.pixels[offset] = value;
+                if (b) {
+                    const value2 = Math.round(w[4 + c]! * 255);
+                    if (b.pixels[offset] !== value2) changed = true;
+                    b.pixels[offset] = value2;
+                }
             }
         }
     }
-    return span;
+    return changed ? span : null;
 }
 
 /** A height field as the red-and-green 16-bit image a heightmap is saved as (red the high byte): `RGBA` pixels, opaque. */

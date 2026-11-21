@@ -90,15 +90,28 @@ export class TerrainSurface {
         const len = Math.hypot(dx, dy, dz);
         if (len <= 0) return null;
         dx /= len; dy /= len; dz /= len;
+        // A cursor may be kilometres outside an area. Walk only the part of the ray
+        // that can meet its terrain, even when the camera starts far beyond the terrain bounds.
+        let entry = 0, exit = maxDistance;
+        const clip = (origin: number, direction: number, lo: number, hi: number): boolean => {
+            if (direction === 0) return origin >= lo && origin <= hi;
+            const a = (lo - origin) / direction, b = (hi - origin) / direction;
+            entry = Math.max(entry, Math.min(a, b));
+            exit = Math.min(exit, Math.max(a, b));
+            return entry <= exit;
+        };
+        const bounds = this.source.bounds;
+        if (!clip(oy, dy, this.source.minHeight, this.source.maxHeight)) return null;
+        if (bounds && (!clip(ox, dx, bounds[0], bounds[2]) || !clip(oz, dz, bounds[1], bounds[3]))) return null;
         const c = this.cell;
         // Over the cells the ray's shadow on the ground crosses, in order (Amanatides and Woo).
-        let i = Math.floor(ox / c), k = Math.floor(oz / c);
+        let i = Math.floor((ox + entry * dx) / c), k = Math.floor((oz + entry * dz) / c);
         const si = dx > 0 ? 1 : -1, sk = dz > 0 ? 1 : -1;
         const tdi = dx !== 0 ? Math.abs(c / dx) : Infinity, tdk = dz !== 0 ? Math.abs(c / dz) : Infinity;
         let ti = dx !== 0 ? ((dx > 0 ? (i + 1) * c : i * c) - ox) / dx : Infinity;
         let tk = dz !== 0 ? ((dz > 0 ? (k + 1) * c : k * c) - oz) / dz : Infinity;
-        let t = 0;
-        for (let steps = 0; steps < 1_000_000 && t <= maxDistance; steps++) {
+        let t = entry;
+        for (let steps = 0; steps < 1_000_000 && t <= exit; steps++) {
             const a = this.node(i, k), b = this.node(i + 1, k), cc = this.node(i, k + 1), d = this.node(i + 1, k + 1);
             if (a === null || b === null || cc === null || d === null) return null;
             const x0 = i * c, z0 = k * c;

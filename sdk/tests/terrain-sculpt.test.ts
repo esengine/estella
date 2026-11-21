@@ -4,11 +4,12 @@
  * @file  Brushes on an area's ground: what each one does to a field and to the splatmaps, and that a stroke can be taken back.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { Material } from '../src/render/material';
 import { GroundEdit } from '../src/terrain/groundEdit';
 import { Terrains } from '../src/terrain/terrainPlugin';
 import { FieldSource, ModifiedSource, type Splat } from '../src/terrain/source';
 import type { Heightfield } from '../src/terrain/heightfield';
-import { SculptMode, brushWeight, encodeHeightmap, paintSplat, sculptField } from '../src/terrain/sculpt';
+import { SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField } from '../src/terrain/sculpt';
 
 const flat = (n: number, v = 0.5): Heightfield => ({ width: n, height: n, data: new Float32Array(n * n).fill(v) });
 const at = (f: Heightfield, i: number, j: number): number => f.data[j * f.width + i]!;
@@ -23,6 +24,59 @@ describe('brushWeight', () => {
         expect(mid).toBeGreaterThan(0.4);
         expect(mid).toBeLessThan(0.6);
         expect(brushWeight(9.99, 10, 0)).toBe(1);
+    });
+});
+
+describe('brush profiles', () => {
+    it('keeps the same core and rim for every curve, including hard and fully soft edges', () => {
+        for (const curve of ['smooth', 'linear', 'spherical', 'tip'] as const) {
+            expect(brushWeight(9.999, 10, 0, curve)).toBe(1);
+            expect(brushWeight(5, 10, 0.5, curve)).toBe(1);
+            expect(brushWeight(10, 10, 0.5, curve)).toBe(0);
+            expect(brushWeight(0, 10, 1, curve)).toBe(1);
+            expect(brushWeight(0.1, 10, 1, curve)).toBeLessThan(1);
+        }
+        const w = (curve: 'smooth' | 'linear' | 'spherical' | 'tip') => brushWeight(9, 10, 0.4, curve);
+        expect(w('smooth')).toBeCloseTo(0.15625);
+        expect(w('linear')).toBeCloseTo(0.25);
+        expect(w('spherical')).toBeCloseTo(Math.sqrt(7) / 4);
+        expect(w('tip')).toBeCloseTo(1 - Math.sqrt(15) / 4);
+    });
+
+    it('gives sculpt and paint the same footprint and falloff on a rectangular world area', () => {
+        for (const shape of ['circle', 'diamond', 'square'] as const) {
+            const brush = { x: 0, z: 0, radius: 10, falloff: 0.8, shape, curve: 'linear' as const };
+            const f = flat(33, 0);
+            const splat = { width: 33, height: 33, pixels: new Uint8Array(33 * 33 * 4) };
+            for (let i = 0; i < 33 * 33; i++) splat.pixels[i * 4] = 255;
+            sculptField(f, 32, 64, { mode: SculptMode.Raise, brush, amount: 1 });
+            paintSplat(splat, null, 32, 64, { layer: 1, brush, strength: 1 });
+            expect(brushDistance(3, -4, shape)).toBe({ circle: 5, square: 4, diamond: 7 }[shape]);
+            for (let j = 0; j < 33; j++) for (let i = 0; i < 33; i++) {
+                const weight = brushWeight(brushDistance(i - 16, (j - 16) * 2, shape), 10, 0.8, 'linear');
+                expect(at(f, i, j)).toBeCloseTo(weight);
+                expect(splat.pixels[(j * 33 + i) * 4 + 1]).toBe(Math.round(weight * 255));
+            }
+        }
+    });
+
+    it('builds clay along a slope, fills a hollow before raising a crest, and carves in reverse', () => {
+        const brush = { x: 0, z: 0, radius: 5, falloff: 0.4 };
+        for (const sign of [-1, 1]) {
+            const f = flat(17);
+            for (let j = 0; j < 17; j++) for (let i = 0; i < 17; i++) f.data[j * 17 + i] = 0.35 + 0.02 * i;
+            const centre = 8 * 17 + 8;
+            f.data[centre - 1] = 0.5 - 0.25 * sign;
+            f.data[centre + 1] = 0.5 + 0.25 * sign;
+            const before = f.data.slice();
+            for (let i = 0; i < 2; i++) sculptField(f, 16, 16, { mode: SculptMode.Clay, brush, amount: 0.04 * sign });
+            expect(f.data[centre - 1]).toBeCloseTo(before[centre - 1]! + 0.08 * sign);
+            expect(f.data[centre + 1]).toBe(before[centre + 1]);
+            const slopeChange = (at(f, 8, 6) - before[6 * 17 + 8]!) * sign;
+            expect(slopeChange).toBeGreaterThan(0.04);
+            expect(slopeChange).toBeLessThanOrEqual(0.081);
+            expect(at(f, 0, 0)).toBe(before[0]);
+        }
     });
 });
 
@@ -109,6 +163,28 @@ describe('paintSplat', () => {
     });
 });
 
+it('clears the previous terrain when the preview moves to a custom material or leaves the view', () => {
+    const terrains = new Terrains();
+    terrains.built_.set(1 as never, { instance: 11 } as never);
+    terrains.built_.set(2 as never, { instance: 12 } as never);
+    const brush = { x: 1, z: 2, radius: 10, falloff: 0.5, shape: 'square', curve: 'tip' } as const;
+    const declaring = vi.spyOn(Material, 'materialsDeclaring').mockReturnValue([11]);
+    const uniform = vi.spyOn(Material, 'setUniform').mockImplementation(() => {});
+    try {
+        expect(terrains.previewBrush(1 as never, brush)).toBe(true);
+        expect(uniform).toHaveBeenCalledWith(11, 'u_sculptBrush', { x: 1, y: 2, z: 10, w: 0.5 });
+        expect(uniform).toHaveBeenCalledWith(11, 'u_sculptProfile', { x: 1, y: 3 });
+        expect(terrains.previewBrush(2 as never, brush)).toBe(false);
+        expect(uniform).toHaveBeenLastCalledWith(11, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+        expect(terrains.previewBrush(1 as never, brush)).toBe(true);
+        expect(terrains.previewBrush(null, null)).toBe(false);
+        expect(uniform).toHaveBeenLastCalledWith(11, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+    } finally {
+        declaring.mockRestore();
+        uniform.mockRestore();
+    }
+});
+
 describe('Terrains.load', () => {
     it('counts what is still loading and the ground and paint held in memory', () => {
         const terrains = new Terrains();
@@ -143,11 +219,11 @@ describe('GroundEdit', () => {
         expect(z1).toBeLessThan(20);
     });
 
-    it('takes a stroke back and puts it again', () => {
+    it.each([SculptMode.Raise, SculptMode.Clay])('undoes and redoes a full stroke in sculpt mode %i', mode => {
         const { edit, field } = make();
         edit.begin();
-        edit.sculpt(SculptMode.Raise, 0, 0, 10, 0.5, 5);
-        edit.sculpt(SculptMode.Raise, 12, 0, 10, 0.5, 5);
+        edit.sculpt(mode, 0, 0, 10, 0.5, 5);
+        edit.sculpt(mode, 12, 0, 10, 0.5, 5);
         const patch = edit.end();
         expect(patch).not.toBeNull();
         const peak = Float32Array.from(field.data);

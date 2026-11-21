@@ -3,7 +3,7 @@
 /**
  * @file  The ground is one set of triangles: what is drawn near the eye, what bodies collide with and what heightAt answers.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
@@ -62,6 +62,20 @@ describe('ground without end', () => {
 
 describe('the surface', () => {
     const surface = new TerrainSurface(new NoiseSource(params), 2);
+
+    it('picks a distant finite area without sampling empty space or the sky', () => {
+        const sample = vi.fn(() => 0);
+        const area = new TerrainSurface({ infinite: false, bounds: [-10, -10, 10, 10],
+            minHeight: 0, maxHeight: 0, height: sample, normal: () => [0, 1, 0], paint: () => [1, 0, 0, 0] }, 1);
+        const hit = area.raycast(-100000, 100000, 0, 1, -1, 0, 200000);
+        expect(hit?.point[0]).toBeCloseTo(0, 6);
+        expect(hit?.point[1]).toBeCloseTo(0, 6);
+        expect(sample.mock.calls.length).toBeLessThanOrEqual(8);
+        sample.mockClear();
+        expect(area.raycast(0, 100, 0, 0, 1, 0, Infinity)).toBeNull();
+        expect(area.raycast(40, 30, 0, 0, -1, 0, Infinity)).toBeNull();
+        expect(sample).not.toHaveBeenCalled();
+    });
 
     it('is the source at every lattice node, and flat across each triangle', () => {
         const source = new NoiseSource(params);

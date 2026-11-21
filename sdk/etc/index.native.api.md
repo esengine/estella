@@ -13071,7 +13071,7 @@ findPath: (from: { x: number; z: number; }, to: { x: number; z: number; }, optio
 groundData: () => GroundData | null
 groundEdit: (entity: Entity) => GroundEdit | TiledGroundEdit | null
 groundKnownAt: (x: number, z: number) => boolean
-heightAt: (x: number, z: number) => number | null
+heightAt: (x: number, z: number, only?: Entity) => number | null
 heightBeneathAt: (x: number, z: number) => number | null
 layerNames: () => string[]
 load: () => TerrainLoad
@@ -13080,6 +13080,7 @@ normalAt: (x: number, z: number) => [number, number, number] | null
 paintAt: (x: number, z: number) => readonly number[] | null
 pending: number
 preparing: boolean
+previewBrush: (entity: Entity | null, brush: Brush | null) => boolean
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, maxDistance: number) => { distance: number; point: { x: number; y: number; z: number; }; normal: { x: number; y: number; z: number; }; entity: Entity; } | null
 repaint: () => void
 setModifier: (modifier: TerrainModifier) => void
