@@ -329,6 +329,9 @@ if (JOBS > 1) {
   }
 }
 
+/** Resolves once stdout and stderr have handed on everything written to them. */
+const flushed = () => Promise.all([process.stdout, process.stderr].map((s) => new Promise((done) => s.write('', done))));
+
 for (const gate of gates) {
   const began = Date.now();
   if (SCAN) process.stdout.write(`\n=== ${gate.id}\n    ${gate.run}\n`);
@@ -447,6 +450,9 @@ if (SCAN) {
   }
   // A survey that could not answer some of the list has not said the list is
   // green; 2 rather than 1, because the fix is the runner's and not the engine's.
+  // Exit once what was written has left: into a pipe (CI's log) stdout is async, and exiting with it still queued dropped
+  // every gate after a long suite's output, the verdicts and this summary with them, so a red run showed no red.
+  await flushed();
   process.exit(red.length ? 1 : blank.length ? CANNOT_ANSWER : 0);
 }
 
