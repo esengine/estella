@@ -1,0 +1,6 @@
+---
+section: Added
+commits:
+  - feat(water): a body's waves calm by the depth of its water, its colour wins an overlap by priority, its shape can be grown past its outline, and its look from under the water is laid over another body's by priority, blend weight and blend radius
+---
+**More of a body of water's own settings.** A WaterBody's **Wave Attenuation Depth** calms its waves where its water is shallower than that depth, flat at the water's edge (0 calms them by no depth; the Shore Width still calms them toward the shore). Its **Overlap Priority** decides whose colour the water takes where two bodies overlap: the higher priority's, blending only across its own edge, while equal priorities blend as before. **Shape Dilation** grows its water past its outline, holding a stream or a pond narrower than a few of the zone's texels together. Under the water, **Underwater Enabled** turns its underwater look off for water a game never goes under, and where the camera is under two bodies at once, the higher **Underwater Priority** is laid over the lower by its **Underwater Blend Weight**, fading in across its **Underwater Blend Radius** past its outline. `Waters.bodiesAt(x, z)` lists the bodies a point is in.

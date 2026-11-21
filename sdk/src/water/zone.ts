@@ -107,7 +107,20 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
  * An ocean, as the zone takes it: at `level` wherever the ground is below it and joined to the open sea, which is past the region's
  * edge. A basin below the sea's level that no low ground joins to the edge is dry land, not sea.
  */
-export interface ZoneOcean {
+/**
+ * What every body can say beside its shape: how shallow its water must be for its waves to calm (absent, they calm with its shore
+ * width), how far its shape is grown out past its outline, and its priority where its look overlaps another's.
+ */
+export interface ZoneBodyCommon {
+    /** The depth under which its waves calm, shallower water calming them more; 0 calms them by no depth at all. Its shore width when absent. */
+    attenuationDepth?: number;
+    /** How far its water reaches past its outline (a lake's or a river's), in world units: holds a small body against the zone's texels. */
+    dilation?: number;
+    /** Where its water overlaps another body's, the one of higher priority gives the colour; equal ones blend. 0 when absent. */
+    priority?: number;
+}
+
+export interface ZoneOcean extends ZoneBodyCommon {
     kind: 'ocean'; key: number; level: number; waveHeight: number; shoreWidth: number;
     /** How open the water is to the wind, 0 to 1 (its fetch): how far the weather raises its waves. Open sea, 1 when absent. */
     exposure?: number;
@@ -116,7 +129,7 @@ export interface ZoneOcean {
 }
 
 /** A lake: its outline on its own plane at world height `level`, and how a world point is put into the outline's space. */
-export interface ZoneLake {
+export interface ZoneLake extends ZoneBodyCommon {
     kind: 'lake'; key: number; level: number; waveHeight: number; shoreWidth: number; exposure?: number; color?: readonly [number, number, number];
     outline: readonly Point2[];
     /** A world (x, z) in the outline's own space, and back. */
@@ -138,7 +151,7 @@ export interface RiverStation {
 }
 
 /** A river, as the stations along it (a few to a width), in order downstream. */
-export interface ZoneRiver { kind: 'river'; key: number; waveHeight: number; shoreWidth: number; exposure?: number; color?: readonly [number, number, number]; stations: readonly RiverStation[] }
+export interface ZoneRiver extends ZoneBodyCommon { kind: 'river'; key: number; waveHeight: number; shoreWidth: number; exposure?: number; color?: readonly [number, number, number]; stations: readonly RiverStation[] }
 
 export type ZoneBody = ZoneOcean | ZoneLake | ZoneRiver;
 
@@ -297,6 +310,8 @@ export class WaterField {
         // How much of each texel's water is a river's: the surf takes it for land.
         const rivers = new Float32Array(grid.nx * grid.nz);
         const rows = rowsAStep(grid.nx, CELLS_A_STEP);
+        // Each texel's bodies, as their weight, priority and colour (NaN red for none), for laying their colours by priority.
+        const looks: number[] = [];
         for (let j = 0; j < grid.nz; j++) {
             if (j % rows === 0) yield 0.3 * (j / grid.nz);
             for (let i = 0; i < grid.nx; i++) {
@@ -324,7 +339,8 @@ export class WaterField {
                 const g = Number.isNaN(grounds[k]!) ? null : grounds[k]!;
                 const slope = g === null ? MIN_SLOPE : slopeAt(i, j);
                 field.steep[k] = smooth(STEEP_FROM, STEEP_TO, slope);
-                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, lr = 0, lg = 0, lb = 0, lw = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
+                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
+                looks.length = 0;
                 // Ground below the sea's level that the open sea does not reach is a dry basin: as far above the sea as a texel.
                 const seaDeep = !ocean ? -DEEP : g === null ? DEEP : g < ocean.level && !sea![k] ? -texel : (ocean.level - g) / slope;
                 for (let b = 0; b < bounded.length; b++) {
@@ -348,7 +364,7 @@ export class WaterField {
                     if (bounded[b]!.kind === 'river') riverW += weight;
                     w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight; au += say.audio * weight;
                     const own = bounded[b]!.color;
-                    if (own) { lr += own[0] * weight; lg += own[1] * weight; lb += own[2] * weight; lw += weight; }
+                    looks.push(weight, bounded[b]!.priority ?? 0, own ? own[0] : Number.NaN, own?.[1] ?? 0, own?.[2] ?? 0);
                     ex += (bounded[b]!.exposure ?? 1) * weight;
                     if (weight > ownerW) { ownerW = weight; owner = bounded[b]!.key; }
                 }
@@ -357,9 +373,9 @@ export class WaterField {
                     best = Math.max(best, deep);
                     const weight = smooth(-blend, blend, deep) * (1 - held);
                     if (weight > 0) {
-                        const calm = shoreDamp(g === null ? deep : Math.min(deep, ocean.level - g), ocean.shoreWidth);
+                        const calm = Math.min(shoreDamp(deep, ocean.shoreWidth), shoreDamp(g === null ? deep : ocean.level - g, ocean.attenuationDepth ?? ocean.shoreWidth));
                         w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight; au += weight;
-                        if (ocean.color) { lr += ocean.color[0] * weight; lg += ocean.color[1] * weight; lb += ocean.color[2] * weight; lw += weight; }
+                        looks.push(weight, ocean.priority ?? 0, ocean.color ? ocean.color[0] : Number.NaN, ocean.color?.[1] ?? 0, ocean.color?.[2] ?? 0);
                         ex += (ocean.exposure ?? 1) * weight;
                         if (weight > ownerW) { ownerW = weight; owner = ocean.key; }
                     }
@@ -385,7 +401,16 @@ export class WaterField {
                     field.flowX[k] = fx / w;
                     field.flowZ[k] = fz / w;
                     field.audio[k] = au / w;
-                    if (lw > 0) { field.look[k * 3] = lr / lw; field.look[k * 3 + 1] = lg / lw; field.look[k * 3 + 2] = lb / lw; field.lookShare[k] = lw / w; }
+                    // Each body's colour as much as no body of higher priority covers it: equal priorities blend by weight as before.
+                    let lr = 0, lg = 0, lb = 0, lw = 0, all = 0;
+                    for (let q = 0; q < looks.length; q += 5) {
+                        let share = looks[q]!;
+                        for (let o = 0; o < looks.length; o += 5) if (looks[o + 1]! > looks[q + 1]!) share *= 1 - Math.min(looks[o]!, 1);
+                        all += share;
+                        if (Number.isNaN(looks[q + 2]!)) continue;
+                        lr += looks[q + 2]! * share; lg += looks[q + 3]! * share; lb += looks[q + 4]! * share; lw += share;
+                    }
+                    if (lw > 0) { field.look[k * 3] = lr / lw; field.look[k * 3 + 1] = lg / lw; field.look[k * 3 + 2] = lb / lw; field.lookShare[k] = lw / Math.max(all, 1e-9); }
                     rivers[k] = riverW / w;
                 } else {
                     field.height[k] = Number.NaN;
@@ -511,9 +536,9 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
         // The depth as a distance across the ground to where the water meets it (the ground's slope there sets how far that is).
         const depth = g === null ? DEEP : body.level - g;
         // Water only where its outline is and its surface is over the ground: land inside the outline, above the water, is land.
-        const shore = Math.min(body.inside ? body.inside(lx, lz) : polygonSdf(body.outline, lx, lz), depth / slope);
+        const shore = Math.min((body.inside ? body.inside(lx, lz) : polygonSdf(body.outline, lx, lz)) + (body.dilation ?? 0), depth / slope);
         // The waves calm toward the shore and as the water shallows, which on a flat shelf far from any shore is the depth alone.
-        const calm = shoreDamp(Math.min(shore, depth), body.shoreWidth);
+        const calm = Math.min(shoreDamp(shore, body.shoreWidth), shoreDamp(depth, body.attenuationDepth ?? body.shoreWidth));
         return { height: body.level, shore, amp: body.waveHeight * calm, calm, fx: 0, fz: 0, half: 0, grade: 0, audio: 1 };
     }
     const st = body.stations;
@@ -536,12 +561,12 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
     dx /= len; dz /= len;
     const depth = g === null ? DEEP : y - g;
     // Within its banks and over its bed: a bank inside the river's width that stands above its surface is dry.
-    const shore = Math.min(half - best, depth / slope);
+    const shore = Math.min(half - best + (body.dilation ?? 0), depth / slope);
     // The current fades in over a width from the spring and out over a width into whatever it runs into.
     const along = (at + t) / (st.length - 1);
     const length = st.reduce((n, p, i) => (i ? n + Math.hypot(p.x - st[i - 1]!.x, p.z - st[i - 1]!.z) : 0), 0);
     const run = smooth(0, 2 * half, along * length) * smooth(0, 2 * half, (1 - along) * length);
-    const calm = shoreDamp(Math.min(shore, depth), body.shoreWidth);
+    const calm = Math.min(shoreDamp(shore, body.shoreWidth), shoreDamp(depth, body.attenuationDepth ?? body.shoreWidth));
     return { height: y, shore, amp: body.waveHeight * calm, calm, fx: dx * speed * run, fz: dz * speed * run, half, grade: Math.abs(b.y - a.y) / Math.max(Math.hypot(b.x - a.x, b.z - a.z), 1e-6), audio };
 }
 
@@ -571,19 +596,45 @@ function* openSea(grid: ZoneGrid, grounds: Float64Array, level: number, at: numb
 /** A body's box on the world's xz plane, [minX, minZ, maxX, maxZ]. */
 function boundsOf(body: ZoneLake | ZoneRiver): [number, number, number, number] {
     let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    const grow = Math.max(body.dilation ?? 0, 0);
     if (body.kind === 'river') {
         for (const s of body.stations) {
             minX = Math.min(minX, s.x - s.half); maxX = Math.max(maxX, s.x + s.half);
             minZ = Math.min(minZ, s.z - s.half); maxZ = Math.max(maxZ, s.z + s.half);
         }
-        return [minX, minZ, maxX, maxZ];
+        return [minX - grow, minZ - grow, maxX + grow, maxZ + grow];
     }
     for (const p of body.outline) {
         const [x, z] = body.toWorld(p.x, p.y);
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
     }
-    return [minX, minZ, maxX, maxZ];
+    return [minX - grow, minZ - grow, maxX + grow, maxZ + grow];
+}
+
+/**
+ * How far inside a body's outline a world point is (negative outside; an ocean has every point inside), and its surface's height there:
+ * for telling which bodies a camera under the water is under, where their looks under water are laid by priority.
+ */
+export function insideBody(body: ZoneBody, x: number, z: number): { inside: number; level: number } | null {
+    if (body.kind === 'ocean') return { inside: DEEP, level: body.level };
+    if (body.kind === 'lake') {
+        const [lx, lz] = body.toLocal(x, z);
+        return { inside: (body.inside ? body.inside(lx, lz) : polygonSdf(body.outline, lx, lz)) + (body.dilation ?? 0), level: body.level };
+    }
+    const st = body.stations;
+    if (st.length < 2) return null;
+    let best = Infinity, out = { inside: -Infinity, level: 0 };
+    for (let s = 0; s + 1 < st.length; s++) {
+        const a = st[s]!, b = st[s + 1]!;
+        const ex = b.x - a.x, ez = b.z - a.z, len2 = ex * ex + ez * ez;
+        const u = len2 > 0 ? Math.min(Math.max(((x - a.x) * ex + (z - a.z) * ez) / len2, 0), 1) : 0;
+        const d = Math.hypot(x - (a.x + u * ex), z - (a.z + u * ez));
+        if (d >= best) continue;
+        best = d;
+        out = { inside: a.half + (b.half - a.half) * u - d + (body.dilation ?? 0), level: a.y + (b.y - a.y) * u };
+    }
+    return out;
 }
 
 /**

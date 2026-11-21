@@ -20,6 +20,7 @@
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Camera, Transform, type CameraData, type TransformData } from '../ecs/component';
+import type { Entity } from '../types';
 import { Material } from '../render/material';
 import { CAUSTICS_GLSL } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
@@ -212,6 +213,34 @@ function single(instance: number, name: string, fallback: number): number {
     return typeof v === 'number' ? v : fallback;
 }
 
+/** What the world looks like from under one body's water. */
+interface UnderLook { absorption: [number, number, number]; density: number; shallow: [number, number, number]; deep: [number, number, number]; caustics: number }
+
+/** A body's look from under its water: its own, or the zone material's, as its surface is drawn. */
+function lookOf(body: WaterBodyData | null, instance: number): UnderLook {
+    const own = body && body.underwaterLook === UnderwaterLook.Own ? body : null;
+    if (!own) {
+        return { absorption: triple(instance, 'u_absorption', [0.45, 0.09, 0.05]), density: single(instance, 'u_density', 0.12),
+            shallow: triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]), deep: triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]),
+            caustics: single(instance, 'u_causticStrength', 0.6) };
+    }
+    const shallow: [number, number, number] = [own.underwaterColor.r, own.underwaterColor.g, own.underwaterColor.b];
+    return { absorption: [own.underwaterAbsorption.r, own.underwaterAbsorption.g, own.underwaterAbsorption.b], density: own.underwaterDensity,
+        shallow, deep: [shallow[0] * 0.15, shallow[1] * 0.3, shallow[2] * 0.45], caustics: own.underwaterCaustics };
+}
+
+/** One look laid over another by `t`. */
+function mixLook(a: UnderLook, b: UnderLook, t: number): UnderLook {
+    const m = (p: number, q: number): number => p + (q - p) * t;
+    const m3 = (p: [number, number, number], q: [number, number, number]): [number, number, number] => [m(p[0], q[0]), m(p[1], q[1]), m(p[2], q[2])];
+    return { absorption: m3(a.absorption, b.absorption), density: m(a.density, b.density), shallow: m3(a.shallow, b.shallow), deep: m3(a.deep, b.deep), caustics: m(a.caustics, b.caustics) };
+}
+
+function smoothstep(t: number): number {
+    const c = Math.min(Math.max(t, 0), 1);
+    return c * c * (3 - 2 * c);
+}
+
 /** The plugin that keeps the post-process volume system told whether the camera is under water. */
 export class UnderwaterPlugin implements Plugin {
     name = 'underwater';
@@ -234,25 +263,41 @@ export class UnderwaterPlugin implements Plugin {
             if (!sample || !(sample.depth < lensReach(near))) { setUnderwaterState(null); return; }
             const instance = waters.instance_;
             const depth = Math.max(-sample.depth, 0);
-            // The body the camera is in may have a look of its own; else the zone's material says it, as its surface is drawn.
-            const body = app.world.valid(sample.entity) && app.world.has(sample.entity, WaterBody) ? app.world.get(sample.entity, WaterBody) as WaterBodyData : null;
-            const own = body && body.underwaterLook === UnderwaterLook.Own ? body : null;
-            const rgb = (c: { r: number; g: number; b: number }): [number, number, number] => [c.r, c.g, c.b];
-            const density = own ? own.underwaterDensity : single(instance, 'u_density', 0.12);
-            const shallow = own ? rgb(own.underwaterColor) : triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]);
-            const deep = own ? [shallow[0] * 0.15, shallow[1] * 0.3, shallow[2] * 0.45] as [number, number, number] : triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]);
+            const bodyOf = (e: Entity): WaterBodyData | null =>
+                app.world.valid(e) && app.world.has(e, WaterBody) ? app.world.get(e, WaterBody) as WaterBodyData : null;
+            // Every body the camera is under (within its blend radius of its outline), lowest priority first, each laid over the ones
+            // before by its blend weight. The body the water there is drawn from goes last among equals, so one body alone is as it was.
+            const under = waters.bodiesAt(eye![0], eye![2], (e) => bodyOf(e)?.underwaterBlendRadius ?? 0)
+                .filter((b) => eye![1] < b.level + lensReach(near));
+            if (!under.some((b) => b.entity === sample.entity)) under.push({ entity: sample.entity, inside: 0, level: sample.surface[1] });
+            const layers = under.map((b) => {
+                const body = bodyOf(b.entity);
+                if (body && body.underwaterEnabled === false) return null;
+                const radius = body?.underwaterBlendRadius ?? 0;
+                const fade = b.inside >= 0 ? 1 : radius > 0 ? smoothstep(1 + b.inside / radius) : 0;
+                return { look: lookOf(body, instance), weight: Math.min(Math.max(body?.underwaterBlendWeight ?? 1, 0), 1) * fade,
+                    priority: body?.underwaterPriority ?? 0, last: b.entity === sample.entity ? 1 : 0 };
+            }).filter((l): l is NonNullable<typeof l> => l !== null && l.weight > 0)
+                .sort((p, q) => p.priority - q.priority || p.last - q.last);
+            if (layers.length === 0) { setUnderwaterState(null); return; }
+            let look = layers[0]!.look, amount = layers[0]!.weight;
+            for (let i = 1; i < layers.length; i++) {
+                look = mixLook(look, layers[i]!.look, layers[i]!.weight);
+                amount += (1 - amount) * layers[i]!.weight;
+            }
+            const { density, shallow, deep } = look;
             // Deeper, the water gives back more of its deep colour: the same blend the surface draws.
             const toDeep = 1 - Math.exp(-depth * density * 0.5);
             const n = sample.normal;
             setUnderwaterState({
-                amount: 1,
+                amount,
                 depth,
-                absorption: own ? rgb(own.underwaterAbsorption) : triple(instance, 'u_absorption', [0.45, 0.09, 0.05]),
+                absorption: look.absorption,
                 density,
                 scatter: [shallow[0] + (deep[0] - shallow[0]) * toDeep, shallow[1] + (deep[1] - shallow[1]) * toDeep, shallow[2] + (deep[2] - shallow[2]) * toDeep],
                 plane: [n[0], n[1], n[2], n[0] * sample.surface[0] + n[1] * sample.surface[1] + n[2] * sample.surface[2]],
                 band: Math.max(near * 0.08, 0.05),
-                causticStrength: own ? own.underwaterCaustics : single(instance, 'u_causticStrength', 0.6),
+                causticStrength: look.caustics,
                 causticScale: single(instance, 'u_causticScale', 2),
                 causticSpeed: single(instance, 'u_causticSpeed', 0.35),
                 light: waters.quality.caustics });

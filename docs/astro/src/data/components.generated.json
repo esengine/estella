@@ -11988,6 +11988,54 @@
           "default": "0",
           "doc": "How far out from the water’s edge the terraces’ span starts, in world units.",
           "range": "≥ 0"
+        },
+        {
+          "key": "waveAttenuationDepth",
+          "type": "number",
+          "default": "300",
+          "doc": "How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water’s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "overlapPriority",
+          "type": "number",
+          "default": "0",
+          "doc": "Where this body’s water overlaps another’s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.",
+          "range": "-8192–8191, step 1"
+        },
+        {
+          "key": "shapeDilation",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "underwaterEnabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether the camera under this body’s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it."
+        },
+        {
+          "key": "underwaterPriority",
+          "type": "number",
+          "default": "0",
+          "doc": "Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority’s underwater look is laid over the lower one’s, by its Blend Weight. Equal ones are laid in no set order.",
+          "range": "-8192–8191, step 1"
+        },
+        {
+          "key": "underwaterBlendRadius",
+          "type": "number",
+          "default": "0",
+          "doc": "How far out past the body’s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "underwaterBlendWeight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of this body’s underwater look there is: 1 all of it, 0 none.",
+          "range": "0–1"
         }
       ],
       "animatable": [
@@ -12036,7 +12084,13 @@
         "innerSmoothDistance",
         "outerSmoothDistance",
         "terraceMaskLength",
-        "terraceMaskStartOffset"
+        "terraceMaskStartOffset",
+        "waveAttenuationDepth",
+        "overlapPriority",
+        "shapeDilation",
+        "underwaterPriority",
+        "underwaterBlendRadius",
+        "underwaterBlendWeight"
       ]
     },
     {

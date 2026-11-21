@@ -15272,6 +15272,8 @@ flowSpeed: number
 form: number
 innerSmoothDistance: number
 outerSmoothDistance: number
+overlapPriority: number
+shapeDilation: number
 shapeMesh: number
 shoreWidth: number
 sizeX: number
@@ -15286,11 +15288,16 @@ terraceSpacing: number
 terrainBlend: number
 terrainZOffset: number
 underwaterAbsorption: { r: number; g: number; b: number; a: number; }
+underwaterBlendRadius: number
+underwaterBlendWeight: number
 underwaterCaustics: number
 underwaterColor: { r: number; g: number; b: number; a: number; }
 underwaterDensity: number
+underwaterEnabled: boolean
 underwaterLook: number
+underwaterPriority: number
 waterColor: { r: number; g: number; b: number; a: number; }
+waveAttenuationDepth: number
 waveHeight: number
 ```
 
@@ -15429,6 +15436,7 @@ z: number
 ## Waters — class @experimental
 ```
 @internal app_: App | null
+@internal bodies_: readonly ZoneBody[]
 @internal exclusions_: readonly ZoneExclusion[]
 @internal field_: WaterField | null
 @internal influences_: Map<number, { islands: number[]; exclusions: number[]; }>
@@ -15439,6 +15447,7 @@ z: number
 @internal zoneLevel_: number
 @internal zone_: WaterZoneData
 baking: boolean
+bodiesAt: (x: number, z: number, reach?: (entity: Entity) => number) => Array<{ entity: Entity; inside: number; level: number; }>
 bodyAt: (x: number, z: number) => { entity: Entity; bodyId: string; form: number; level: number; } | null
 depthAt: (x: number, z: number, y: number) => number | null
 disturb: (x: number, y: number, z: number, radius: number, strength: number) => boolean

@@ -47,8 +47,8 @@ import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
 import { RippleField } from './ripples';
 import {
-    WaterField, WaterZone, currentShare, inExclusion,
-    type RiverStation, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
+    WaterField, WaterZone, currentShare, inExclusion, insideBody,
+    type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
@@ -123,6 +123,17 @@ export interface WaterBodyData {
     outerSmoothDistance: number;
     terraceMaskLength: number;
     terraceMaskStartOffset: number;
+    /** The depth under which the waves calm, shallower water calming them more; 0 calms them by no depth at all. */
+    waveAttenuationDepth: number;
+    /** Where this body's water overlaps another's, the higher priority gives the colour; equal ones blend. */
+    overlapPriority: number;
+    /** How far the water reaches past the outline, in world units. */
+    shapeDilation: number;
+    /** Whether the camera under this body's water sees the underwater look, its priority over another body's it is also under, how far round the body it blends in, and how much of it there is. */
+    underwaterEnabled: boolean;
+    underwaterPriority: number;
+    underwaterBlendRadius: number;
+    underwaterBlendWeight: number;
 }
 
 /** How a lake or a river cuts the terrain: its built-in profile, or the Curve Channel its Terrain settings describe. */
@@ -155,8 +166,10 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
     terrainBlend: ChannelBlend.AlphaBlend, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
     falloffMode: ChannelFalloff.Width, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
     curlTiling2: 500, innerSmoothDistance: 0, outerSmoothDistance: 0, terraceMaskLength: 0, terraceMaskStartOffset: 0,
+    waveAttenuationDepth: 300, overlapPriority: 0, shapeDilation: 0,
+    underwaterEnabled: true, underwaterPriority: 0, underwaterBlendRadius: 0, underwaterBlendWeight: 1,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset'],
+    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset', 'waveAttenuationDepth', 'shapeDilation', 'underwaterBlendRadius'],
     assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
     fields: {
         form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }, { label: 'Custom', value: WaterForm.Custom }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
@@ -198,7 +211,14 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         curlTiling2: { min: 0.01, category: 'Terrain', tooltip: 'The size of the second octave’s swirls, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         innerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the inner edge, where the bed leaves the bank, over this width in world units: an easier way in and out of the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         outerSmoothDistance: { min: 0, category: 'Terrain', tooltip: 'Rounds the outer edge, where the bank meets the ground, over this height in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        underwaterEnabled: { category: 'Underwater', tooltip: 'Whether the camera under this body\u2019s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        underwaterPriority: { min: -8192, max: 8191, step: 1, category: 'Underwater', tooltip: 'Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority\u2019s underwater look is laid over the lower one\u2019s, by its Blend Weight. Equal ones are laid in no set order.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
+        underwaterBlendRadius: { min: 0, category: 'Underwater', tooltip: 'How far out past the body\u2019s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
+        underwaterBlendWeight: { min: 0, max: 1, category: 'Underwater', tooltip: 'How much of this body\u2019s underwater look there is: 1 all of it, 0 none.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
         underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
+        waveAttenuationDepth: { min: 0, category: 'Waves', tooltip: 'How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water\u2019s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        overlapPriority: { min: -8192, max: 8191, step: 1, category: 'Look', tooltip: 'Where this body\u2019s water overlaps another\u2019s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        shapeDilation: { min: 0, category: 'Shape', tooltip: 'How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
         waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
     },
 });
@@ -274,6 +294,20 @@ export class Waters {
     /** The zone entity's world height, for the far distance mesh of a zone with no ocean. @internal */
     zoneLevel_ = 0;
     /** @internal */ influences_ = new Map<number, { islands: number[]; exclusions: number[] }>();
+    /** @internal The bodies the zone was last baked from, as it took them. */ bodies_: readonly ZoneBody[] = [];
+
+    /**
+     * The bodies whose outline a world point (x, z) is inside or within `reach` of, with how far inside it is (negative outside) and the
+     * height of their surface there: an ocean has every point.
+     */
+    bodiesAt(x: number, z: number, reach: (entity: Entity) => number = () => 0): Array<{ entity: Entity; inside: number; level: number }> {
+        const out: Array<{ entity: Entity; inside: number; level: number }> = [];
+        for (const body of this.bodies_) {
+            const at = insideBody(body, x, z);
+            if (at && at.inside >= -Math.max(reach(body.key as Entity), 0)) out.push({ entity: body.key as Entity, ...at });
+        }
+        return out;
+    }
     /** @internal */ zoneEntity_: number | null = null;
 
     /**
@@ -463,6 +497,16 @@ function rotate(q: Quat, vx: number, vy: number, vz: number): [number, number, n
     return [vx + q.w * tx + (q.y * tz - q.z * ty), vy + q.w * ty + (q.z * tx - q.x * tz), vz + q.w * tz + (q.x * ty - q.y * tx)];
 }
 
+/** What every body tells the zone beside its shape: its waves' calming depth, how far its water is grown out, and its colour's priority. */
+function commonOf(d: WaterBodyData, scale: number): ZoneBodyCommon {
+    return { attenuationDepth: (d.waveAttenuationDepth ?? d.shoreWidth) * scale, dilation: (d.shapeDilation ?? 0) * scale, priority: d.overlapPriority ?? 0 };
+}
+
+/** What the zone is baked from of {@link commonOf}, for knowing when to bake it again. */
+function commonKey(d: WaterBodyData): unknown[] {
+    return [d.waveAttenuationDepth, d.shapeDilation, d.overlapPriority];
+}
+
 /** A lake's or a river's Curve Channel, in world units, or null where it keeps the built-in cut. */
 function channelOf(d: WaterBodyData, scale: number): ChannelSettings | null {
     if (d.channelShape !== ChannelShape.Curve) return null;
@@ -620,6 +664,7 @@ export class WaterPlugin implements Plugin {
             waters.exclusions_ = inputs.exclusions;
             waters.zoneLevel_ = inputs.zoneLevel;
             waters.influences_ = inputs.influences;
+            waters.bodies_ = inputs.bodies;
             waters.zoneEntity_ = inputs.zoneEntity;
             if (inputs.bodies.length === 0) {
                 this.baking_?.cancel();
@@ -710,16 +755,16 @@ export class WaterPlugin implements Plugin {
             const scale = t.worldScale.y || 1;
             const key = entity as number;
             if (d.form === WaterForm.Ocean) {
-                bodies.push({ kind: 'ocean', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
-                keyParts.push([key, d.form, t.worldPosition.y, d.waveHeight, d.shoreWidth, d.surfaceLook, d.waterColor]);
+                bodies.push({ kind: 'ocean', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth, ...commonOf(d, 1), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
+                keyParts.push([key, d.form, t.worldPosition.y, d.waveHeight, d.shoreWidth, d.surfaceLook, d.waterColor, commonKey(d)]);
             } else if (d.form === WaterForm.Lake) {
                 const outline = outlineOf(d);
                 bodies.push({
-                    kind: 'lake', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
+                    kind: 'lake', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline, ...commonOf(d, scale), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
                     toLocal: (x, z) => { const q = toLocal(t, x, t.worldPosition.y, z, scale); return [q[0], q[2]]; },
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                 });
-                keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
+                keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
                 if (d.affectsTerrain !== false && d.bedDepth > 0) {
                     const level = t.worldPosition.y, depth = d.bedDepth * scale, ramp = Math.max(d.shoreWidth * scale, depth * 3);
                     const space = outlineSpace(t, outline, scale), channel = channelOf(d, scale);
@@ -738,12 +783,12 @@ export class WaterPlugin implements Plugin {
                 if (!shape) { keyParts.push([key, d.form, d.shapeMesh, this.footprints_.get(d.shapeMesh) ?? null]); continue; }
                 const level = fromLocal(t, 0, shape.top, 0, scale)[1];
                 bodies.push({
-                    kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
+                    kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull, ...commonOf(d, scale), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
                     toLocal: (x, z) => { const q = toLocal(t, x, level, z, scale); return [q[0], q[2]]; },
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                     inside: (x, z) => shape.sdf(x, z),
                 });
-                keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
+                keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
             } else if (d.form === WaterForm.Exclusion) {
                 const outline = outlineOf(d), half = (d.sizeY * scale) / 2, y = t.worldPosition.y;
                 exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale) });
@@ -753,12 +798,12 @@ export class WaterPlugin implements Plugin {
                 if (!spline || spline.points.length < 2) continue;
                 const curve = new SplineCurve(spline.points, spline.closed);
                 const stations = riverStations(curve, d.flowSpeed, (x, y, z) => fromLocal(t, x, y, z, scale), (x, y, z) => rotate(t.worldRotation, x, y, z), scale);
-                bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
+                bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations, ...commonOf(d, scale), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
                 if (d.affectsTerrain !== false && (d.bedDepth > 0 || stations.some((s) => (s.depth ?? 0) > 0))) {
                     const depth = d.bedDepth * scale, channel = channelOf(d, scale);
                     beds.push({ key, signature: JSON.stringify(['river', depth, stations, channel ? channelKey(d) : null]), make: (prefix) => riverBedModifiers(prefix, stations, depth, channel ?? undefined) });
                 }
-                keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
+                keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
             }
         }
         // Which islands and exclusion volumes act on which body: those whose ground (their outline, grown by an island's slope) overlaps it.
