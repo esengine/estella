@@ -116,7 +116,7 @@ describe('RippleField', () => {
 
 describe('wakeStrength', () => {
     const floating: FloatingData = { buoyancy: 1, drag: 0, radius: 50, points: [], wake: 1 };
-    const sample = (depth: number): WaterSample => ({ entity: 1 as never, depth, normal: [0, 1, 0], flow: [0, 0, 0], surface: [0, 0, 0], waterDepth: 1e6, bodyId: "", inside: true });
+    const sample = (depth: number): WaterSample => ({ entity: 1 as never, depth, normal: [0, 1, 0], flow: [0, 0, 0], surface: [0, 0, 0], waterDepth: 1e6, audioIntensity: 1, bodyId: "", inside: true });
 
     it('is a dip for what goes down into the water, and a bump for what comes up', () => {
         expect(wakeStrength(sample(-10), [0, -300, 0], floating, 1 / 60)).toBeLessThan(0);

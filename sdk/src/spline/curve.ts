@@ -9,8 +9,17 @@
  *          they are far. That is what a river's width and speed, a road's banking or a rail's pace are written against. The points are
  *          in the curve's own space; where it is in the world is its entity's Transform.
  *
- *          Each point carries a width, interpolated along the curve (a river narrows at a rapid, a road widens at a junction).
+ *          Each point carries a width, interpolated along the curve (a river narrows at a rapid, a road widens at a junction), and may
+ *          carry what a river reads there: its depth, its velocity (negative runs back toward the start) and how loud it sounds.
+ *
+ *          How the curve runs from a point to the next is the point's `type`: `curve` (the default, the Catmull-Rom above), `customTangent`
+ *          (a cubic that leaves along the point's `leaveTangent` and arrives at the next along its `arriveTangent`, the next point's own
+ *          when it has them and the curve's otherwise), `linear` (straight) or `constant` (it holds at the point and steps to the next).
  */
+
+/** How a curve runs from a point to the next. */
+export type SplinePointType = 'curve' | 'customTangent' | 'linear' | 'constant';
+export const SPLINE_POINT_TYPES: readonly SplinePointType[] = ['curve', 'customTangent', 'linear', 'constant'];
 
 /** A point of a curve: where it is, and how wide the thing along it is there. */
 export interface SplinePoint {
@@ -18,7 +27,19 @@ export interface SplinePoint {
     y: number;
     z: number;
     width: number;
+    /** How the curve runs from here to the next point; absent is `curve`. */
+    type?: SplinePointType;
+    /** With `customTangent`: the direction and pull the curve arrives here with, and leaves with, in the curve's own space. */
+    arriveTangent?: { x: number; y: number; z: number };
+    leaveTangent?: { x: number; y: number; z: number };
+    /** What a river reads here, eased along the curve like the width; absent takes the river's own (WaterBody bedDepth and flowSpeed, loudness 1). */
+    depth?: number;
+    velocity?: number;
+    audioIntensity?: number;
 }
+
+/** A value a point may carry, read along a curve. */
+export type SplinePointValue = 'depth' | 'velocity' | 'audioIntensity';
 
 /** Where on a curve a point is nearest, and how far from it. */
 export interface SplineNearest {
@@ -40,6 +61,8 @@ export class SplineCurve {
     private readonly pz: Float64Array;
     private readonly pw: Float64Array;
     private readonly ps: Float64Array;
+    /** depth, velocity and audioIntensity at each piece, NaN where no point carries them. */
+    private readonly pv: Record<SplinePointValue, Float64Array>;
     readonly count: number;
     /** The length of the curve. */
     readonly length: number;
@@ -54,7 +77,22 @@ export class SplineCurve {
         this.count = count;
         this.px = new Float64Array(count); this.py = new Float64Array(count); this.pz = new Float64Array(count);
         this.pw = new Float64Array(count); this.ps = new Float64Array(count);
-        if (n === 1) { this.px[0] = points[0]!.x; this.py[0] = points[0]!.y; this.pz[0] = points[0]!.z; this.pw[0] = points[0]!.width; }
+        this.pv = { depth: new Float64Array(count).fill(NaN), velocity: new Float64Array(count).fill(NaN), audioIntensity: new Float64Array(count).fill(NaN) };
+        const carried = (key: SplinePointValue): boolean => points.some((p) => typeof p[key] === 'number' && Number.isFinite(p[key]));
+        const keys = (['depth', 'velocity', 'audioIntensity'] as const).filter(carried);
+        // A point that does not carry a value another point does takes the nearest one before it that does (or after, at the start).
+        const filled = new Map<SplinePointValue, number[]>();
+        for (const key of keys) {
+            const out: number[] = [];
+            let last = NaN;
+            for (const p of points) { const v = p[key]; if (typeof v === 'number' && Number.isFinite(v)) last = v; out.push(last); }
+            const first = out.find((v) => !Number.isNaN(v))!;
+            filled.set(key, out.map((v) => (Number.isNaN(v) ? first : v)));
+        }
+        if (n === 1) {
+            this.px[0] = points[0]!.x; this.py[0] = points[0]!.y; this.pz[0] = points[0]!.z; this.pw[0] = points[0]!.width;
+            for (const key of keys) this.pv[key][0] = filled.get(key)![0]!;
+        }
         // Past either end of an open curve the points go on in the line the last two make, which keeps the curve's end from curling back.
         const at = (i: number): SplinePoint => {
             if (this.closed) return points[((i % n) + n) % n]!;
@@ -68,12 +106,17 @@ export class SplineCurve {
             const last = !this.closed && seg === segments - 1;
             for (let j = 0; j < SAMPLES_PER_SEGMENT + (last ? 1 : 0); j++) {
                 const t = j / SAMPLES_PER_SEGMENT;
-                const at3 = centripetal(p0, p1, p2, p3, t);
+                const at3 = segmentAt(p0, p1, p2, p3, t);
                 this.px[k] = at3[0];
                 this.py[k] = at3[1];
                 this.pz[k] = at3[2];
                 // Widths blend along the segment: a smooth ease, so a width does not turn a corner at a point.
-                this.pw[k] = p1.width + (p2.width - p1.width) * (t * t * (3 - 2 * t));
+                const ease = t * t * (3 - 2 * t);
+                this.pw[k] = p1.width + (p2.width - p1.width) * ease;
+                for (const key of keys) {
+                    const v = filled.get(key)!, a = v[seg % n]!, b = v[(seg + 1) % n]!;
+                    this.pv[key][k] = a + (b - a) * ease;
+                }
                 k++;
             }
         }
@@ -131,6 +174,15 @@ export class SplineCurve {
         return lerp(this.pw[i]!, this.pw[this.next(i)]!, t);
     }
 
+    /** A value the points carry (depth, velocity, audioIntensity) at distance `s`, eased between them; null where no point carries it. */
+    value(key: SplinePointValue, s: number): number | null {
+        if (this.count === 0) return null;
+        const v = this.pv[key];
+        if (Number.isNaN(v[0]!)) return null;
+        const [i, t] = this.locate(s);
+        return lerp(v[i]!, v[this.next(i)]!, t);
+    }
+
     /** Where on the curve (x, z) is nearest, measured in the xz plane. */
     nearest(x: number, z: number): SplineNearest {
         let bestD2 = Infinity, bestS = 0, bestSide = 0;
@@ -176,6 +228,23 @@ export class SplineCurve {
 }
 
 function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }
+
+/** The curve from p1 to p2 (`t` 0 to 1), as p1's type says: through p0 and p3 for a curve, along tangents, straight, or held. */
+function segmentAt(p0: SplinePoint, p1: SplinePoint, p2: SplinePoint, p3: SplinePoint, t: number): [number, number, number] {
+    switch (p1.type) {
+        case 'linear': return [lerp(p1.x, p2.x, t), lerp(p1.y, p2.y, t), lerp(p1.z, p2.z, t)];
+        case 'constant': return t < 1 ? [p1.x, p1.y, p1.z] : [p2.x, p2.y, p2.z];
+        case 'customTangent': {
+            // Where a side has no tangent of its own it takes the curve's: half the step from the point before to the point after.
+            const out = p1.leaveTangent ?? { x: (p2.x - p0.x) / 2, y: (p2.y - p0.y) / 2, z: (p2.z - p0.z) / 2 };
+            const into = p2.type === 'customTangent' && p2.arriveTangent ? p2.arriveTangent : { x: (p3.x - p1.x) / 2, y: (p3.y - p1.y) / 2, z: (p3.z - p1.z) / 2 };
+            const t2 = t * t, t3 = t2 * t;
+            const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+            return [h00 * p1.x + h10 * out.x + h01 * p2.x + h11 * into.x, h00 * p1.y + h10 * out.y + h01 * p2.y + h11 * into.y, h00 * p1.z + h10 * out.z + h01 * p2.z + h11 * into.z];
+        }
+        default: return centripetal(p0, p1, p2, p3, t);
+    }
+}
 
 /**
  * The centripetal Catmull-Rom curve between p1 and p2 (`t` 0 to 1), through p0 and p3: its knots are spaced by the square root of the distance

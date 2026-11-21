@@ -36,9 +36,11 @@ function bedAt(stations: readonly RiverStation[], from: number, to: number, dept
         const reach = half * (1 + BANK);
         if (d >= reach) continue;
         const surface = a.y + (b.y - a.y) * t;
+        // The depth the spline's points carry here, eased like the surface; the river's own where they carry none.
+        const deep = (a.depth ?? depth) + ((b.depth ?? depth) - (a.depth ?? depth)) * t;
         const u = d / half;
         // Inside, a trough; outside, the bank goes on at the slope the trough meets it with, so there is no crease at the edge.
-        const target = u < 1 ? surface - depth * (1 - u * u) : surface + (2 * depth / half) * (d - half);
+        const target = u < 1 ? surface - deep * (1 - u * u) : surface + (2 * deep / half) * (d - half);
         height = Math.min(height, target);
         weight = Math.max(weight, 1 - smoothstep(half * BANK, reach, d));
     }
@@ -50,14 +52,14 @@ function bedAt(stations: readonly RiverStation[], from: number, to: number, dept
  * @experimental
  */
 export function riverBedModifiers(prefix: string, stations: readonly RiverStation[], depth: number): TerrainModifier[] {
-    if (stations.length < 2 || !(depth > 0)) return [];
+    if (stations.length < 2 || !(depth > 0 || stations.some((s) => (s.depth ?? 0) > 0))) return [];
     const out: TerrainModifier[] = [];
     for (let from = 0; from < stations.length - 1; from += STRETCH) {
         const to = Math.min(from + STRETCH, stations.length - 1);
         let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, lowest = Infinity;
         for (let i = from; i <= to; i++) {
             const s = stations[i]!, r = s.half * (1 + BANK);
-            lowest = Math.min(lowest, s.y - depth);
+            lowest = Math.min(lowest, s.y - (s.depth ?? depth));
             minX = Math.min(minX, s.x - r); maxX = Math.max(maxX, s.x + r);
             minZ = Math.min(minZ, s.z - r); maxZ = Math.max(maxZ, s.z + r);
         }

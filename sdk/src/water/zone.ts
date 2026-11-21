@@ -128,7 +128,12 @@ export interface ZoneLake {
 }
 
 /** A point along a river, in the world: where its middle is, its surface's height, half its width, its heading and how fast it runs there. */
-export interface RiverStation { x: number; z: number; y: number; half: number; dx: number; dz: number; speed: number }
+export interface RiverStation {
+    x: number; z: number; y: number; half: number; dx: number; dz: number; speed: number;
+    /** The bed's depth here where the spline's points carry one (else the river's bedDepth), and how loud the river sounds here (1 absent). */
+    depth?: number;
+    audio?: number;
+}
 
 /** A river, as the stations along it (a few to a width), in order downstream. */
 export interface ZoneRiver { kind: 'river'; key: number; waveHeight: number; shoreWidth: number; exposure?: number; stations: readonly RiverStation[] }
@@ -182,6 +187,8 @@ export interface FieldSample {
     swell: number;
     flowX: number;
     flowZ: number;
+    /** How loud the water sounds there: a river's audio intensity, 1 for still water. */
+    audio: number;
     /** The signed distance to the nearest shore (positive on the water) and how deep the water is over the ground. */
     shore: number;
     depth: number;
@@ -215,6 +222,8 @@ export class WaterField {
     readonly swell: Float32Array;
     readonly flowX: Float32Array;
     readonly flowZ: Float32Array;
+    /** How loud the water sounds: a river's audio intensity along it, 1 for still water. */
+    readonly audio: Float32Array;
     readonly depth: Float32Array;
     /** The distance the surf runs in by (see {@link FieldSample.surf}). */
     readonly surf: Float32Array;
@@ -239,6 +248,7 @@ export class WaterField {
         this.swell = new Float32Array(n);
         this.flowX = new Float32Array(n);
         this.flowZ = new Float32Array(n);
+        this.audio = new Float32Array(n).fill(1);
         this.depth = new Float32Array(n);
         this.surf = new Float32Array(n);
         this.still = new Float32Array(n).fill(1);
@@ -306,7 +316,7 @@ export class WaterField {
                 const g = Number.isNaN(grounds[k]!) ? null : grounds[k]!;
                 const slope = g === null ? MIN_SLOPE : slopeAt(i, j);
                 field.steep[k] = smooth(STEEP_FROM, STEEP_TO, slope);
-                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
+                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
                 // Ground below the sea's level that the open sea does not reach is a dry basin: as far above the sea as a texel.
                 const seaDeep = !ocean ? -DEEP : g === null ? DEEP : g < ocean.level && !sea![k] ? -texel : (ocean.level - g) / slope;
                 for (let b = 0; b < bounded.length; b++) {
@@ -328,7 +338,7 @@ export class WaterField {
                     if (weight <= 0) continue;
                     held = Math.max(held, weight);
                     if (bounded[b]!.kind === 'river') riverW += weight;
-                    w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight;
+                    w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight; au += say.audio * weight;
                     ex += (bounded[b]!.exposure ?? 1) * weight;
                     if (weight > ownerW) { ownerW = weight; owner = bounded[b]!.key; }
                 }
@@ -338,7 +348,7 @@ export class WaterField {
                     const weight = smooth(-blend, blend, deep) * (1 - held);
                     if (weight > 0) {
                         const calm = shoreDamp(g === null ? deep : Math.min(deep, ocean.level - g), ocean.shoreWidth);
-                        w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight;
+                        w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight; au += weight;
                         ex += (ocean.exposure ?? 1) * weight;
                         if (weight > ownerW) { ownerW = weight; owner = ocean.key; }
                     }
@@ -363,6 +373,7 @@ export class WaterField {
                     field.exposure[k] = ex / w;
                     field.flowX[k] = fx / w;
                     field.flowZ[k] = fz / w;
+                    field.audio[k] = au / w;
                     rivers[k] = riverW / w;
                 } else {
                     field.height[k] = Number.NaN;
@@ -395,7 +406,7 @@ export class WaterField {
         };
         const near = (j + (tz > 0.5 ? 1 : 0)) * nx + i + (tx > 0.5 ? 1 : 0);
         return {
-            key: this.owner[near]!, height: lerp2(this.height), amp: lerp2(this.amp), calm: lerp2(this.calm), swell: lerp2(this.swell), flowX: lerp2(this.flowX), flowZ: lerp2(this.flowZ),
+            key: this.owner[near]!, height: lerp2(this.height), amp: lerp2(this.amp), calm: lerp2(this.calm), swell: lerp2(this.swell), flowX: lerp2(this.flowX), flowZ: lerp2(this.flowZ), audio: lerp2(this.audio),
             shore: lerp2(this.shore), depth: lerp2(this.depth), surf: lerp2(this.surf), still: lerp2(this.still), exposure: lerp2(this.exposure),
         };
     }
@@ -409,7 +420,7 @@ export class WaterField {
         if (inside) return inside.shore > 0 ? inside : null;
         const o = this.ocean;
         if (!o) return null;
-        return { key: o.key, height: o.level, amp: o.waveHeight, calm: 1, swell: o.waveHeight, flowX: 0, flowZ: 0, shore: DEEP, depth: DEEP, surf: DEEP, still: 1, exposure: o.exposure ?? 1 };
+        return { key: o.key, height: o.level, amp: o.waveHeight, calm: 1, swell: o.waveHeight, flowX: 0, flowZ: 0, audio: 1, shore: DEEP, depth: DEEP, surf: DEEP, still: 1, exposure: o.exposure ?? 1 };
     }
 
     /** The part of the field a world is laid out by (how deep water stands over a height, how far a point is from the shore), as a query over this field's own arrays. */
@@ -475,7 +486,7 @@ export class WaterField {
 
 /** What one body says about a point: its height there, how far inside it the point is, its waves and its current. Null where it says nothing. */
 function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | null, slope: number):
-    { height: number; shore: number; amp: number; calm: number; fx: number; fz: number; half: number; grade: number } | null {
+    { height: number; shore: number; amp: number; calm: number; fx: number; fz: number; half: number; grade: number; audio: number } | null {
     if (body.kind === 'lake') {
         const [lx, lz] = body.toLocal(x, z);
         // The depth as a distance across the ground to where the water meets it (the ground's slope there sets how far that is).
@@ -484,7 +495,7 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
         const shore = Math.min(body.inside ? body.inside(lx, lz) : polygonSdf(body.outline, lx, lz), depth / slope);
         // The waves calm toward the shore and as the water shallows, which on a flat shelf far from any shore is the depth alone.
         const calm = shoreDamp(Math.min(shore, depth), body.shoreWidth);
-        return { height: body.level, shore, amp: body.waveHeight * calm, calm, fx: 0, fz: 0, half: 0, grade: 0 };
+        return { height: body.level, shore, amp: body.waveHeight * calm, calm, fx: 0, fz: 0, half: 0, grade: 0, audio: 1 };
     }
     const st = body.stations;
     if (st.length < 2) return null;
@@ -500,7 +511,7 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
     }
     const a = st[at]!, b = st[at + 1]!;
     const mix = (p: number, q: number): number => p + (q - p) * t;
-    const half = mix(a.half, b.half), y = mix(a.y, b.y), speed = mix(a.speed, b.speed);
+    const half = mix(a.half, b.half), y = mix(a.y, b.y), speed = mix(a.speed, b.speed), audio = mix(a.audio ?? 1, b.audio ?? 1);
     let dx = mix(a.dx, b.dx), dz = mix(a.dz, b.dz);
     const len = Math.hypot(dx, dz) || 1;
     dx /= len; dz /= len;
@@ -512,7 +523,7 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
     const length = st.reduce((n, p, i) => (i ? n + Math.hypot(p.x - st[i - 1]!.x, p.z - st[i - 1]!.z) : 0), 0);
     const run = smooth(0, 2 * half, along * length) * smooth(0, 2 * half, (1 - along) * length);
     const calm = shoreDamp(Math.min(shore, depth), body.shoreWidth);
-    return { height: y, shore, amp: body.waveHeight * calm, calm, fx: dx * speed * run, fz: dz * speed * run, half, grade: Math.abs(b.y - a.y) / Math.max(Math.hypot(b.x - a.x, b.z - a.z), 1e-6) };
+    return { height: y, shore, amp: body.waveHeight * calm, calm, fx: dx * speed * run, fz: dz * speed * run, half, grade: Math.abs(b.y - a.y) / Math.max(Math.hypot(b.x - a.x, b.z - a.z), 1e-6), audio };
 }
 
 /**

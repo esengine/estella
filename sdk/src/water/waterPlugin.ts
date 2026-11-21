@@ -144,6 +144,8 @@ export interface WaterSample {
     flow: [number, number, number];
     /** The world position of the surface above or below the point. */
     surface: [number, number, number];
+    /** How loud the water sounds there, for what plays its sound: a river's audio intensity along its spline (its points' Audio Intensity), 1 for still water. */
+    audioIntensity: number;
     /**
      * How deep the water is there: from its surface at rest down to the ground under it (a river's bed, a lake's floor), in world units. What wading, swimming
      * and a boat running aground are decided by. Open sea with no ground known under it, and sea past the zone, answer 1e6.
@@ -249,7 +251,7 @@ export class Waters {
         const len = Math.hypot(sx, 1, sz);
         return {
             entity: s.key as Entity, bodyId: this.bodyIdOf(s.key as Entity), depth: y - h, normal: [-sx / len, 1 / len, -sz / len], flow: [s.flowX, 0, s.flowZ], surface: [x, h, z],
-            waterDepth: s.depth, inside: true,
+            waterDepth: s.depth, audioIntensity: s.audio, inside: true,
         };
     }
 
@@ -417,7 +419,14 @@ export function riverStations(curve: SplineCurve, flowSpeed: number, toWorld: (x
         const [tx, , tz] = turn(tangent[0], 0, tangent[2]);
         const run = Math.hypot(tx, tz) || 1;
         const width = curve.width(s);
-        stations.push({ x, y, z, half: (width / 2) * scale, dx: tx / run, dz: tz / run, speed: flowSpeed * currentShare(width, widest) * 2 * scale });
+        // A velocity the spline's points carry is the current there, and runs back toward the start where it is negative; without one, the
+        // river's flowSpeed, quicker where it narrows.
+        const velocity = curve.value('velocity', s), depth = curve.value('depth', s), audio = curve.value('audioIntensity', s);
+        stations.push({
+            x, y, z, half: (width / 2) * scale, dx: tx / run, dz: tz / run,
+            speed: velocity !== null ? velocity * scale : flowSpeed * currentShare(width, widest) * 2 * scale,
+            ...(depth !== null ? { depth: depth * scale } : {}), ...(audio !== null ? { audio } : {}),
+        });
     }
     return stations;
 }
@@ -631,7 +640,7 @@ export class WaterPlugin implements Plugin {
                 const curve = new SplineCurve(spline.points, spline.closed);
                 const stations = riverStations(curve, d.flowSpeed, (x, y, z) => fromLocal(t, x, y, z, scale), (x, y, z) => rotate(t.worldRotation, x, y, z), scale);
                 bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations });
-                if (d.bedDepth > 0) {
+                if (d.bedDepth > 0 || stations.some((s) => (s.depth ?? 0) > 0)) {
                     const depth = d.bedDepth * scale;
                     beds.push({ key, signature: JSON.stringify(['river', depth, stations]), make: (prefix) => riverBedModifiers(prefix, stations, depth) });
                 }

@@ -918,7 +918,7 @@ export { Bakes, BakesRes, bakesOf, finish, type WorkJob, type BakeProgress } fro
 export { CollisionGeometry, CollisionGeometryRes, collisionGeometryOf, type CollisionPiece } from './runtime/collisionGeometry';
 export { Spline, SplinePlugin, splinePlugin, PathFollower, PathMode, PathOrient, pathPlace, type SplineData, type PathFollowerData } from './spline/splinePlugin';
 export { TerrainBand2D, buildTerrainBand, type TerrainBand2DData, type TerrainBandBuild } from './spline/terrainBand2D';
-export { SplineCurve, type SplinePoint, type SplineNearest } from './spline/curve';
+export { SplineCurve, SPLINE_POINT_TYPES, type SplinePoint, type SplineNearest, type SplinePointType, type SplinePointValue } from './spline/curve';
 export {
     WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample,
 } from './water/waterPlugin';

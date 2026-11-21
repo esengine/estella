@@ -34,6 +34,7 @@ seaLevel: number | undefined
 ## FieldSample — interface @experimental
 ```
 amp: number
+audio: number
 calm: number
 depth: number
 exposure: number
@@ -156,6 +157,7 @@ waveHeight: number
 ```
 amp: Float32Array<ArrayBufferLike>
 at: (x: number, z: number) => FieldSample | null
+audio: Float32Array<ArrayBufferLike>
 calm: Float32Array<ArrayBufferLike>
 depth: Float32Array<ArrayBufferLike>
 encode: (r: ZoneRanges) => { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array; }
@@ -197,6 +199,7 @@ static prototype: WaterPlugin
 
 ## WaterSample — interface @experimental
 ```
+audioIntensity: number
 bodyId: string
 depth: number
 entity: number
