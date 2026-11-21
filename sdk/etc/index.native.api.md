@@ -15234,6 +15234,7 @@ flowSpeed: number
 form: number
 shoreWidth: number
 sizeX: number
+sizeY: number
 sizeZ: number
 waveHeight: number
 ```
@@ -15260,15 +15261,15 @@ steep: Float32Array<ArrayBufferLike>
 still: Float32Array<ArrayBufferLike>
 surf: Float32Array<ArrayBufferLike>
 swell: Float32Array<ArrayBufferLike>
-static bake: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number) => WaterField
-static baking: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number) => Generator<number, WaterField, void>
+static bake: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number, exclusions?: readonly ZoneExclusion[]) => WaterField
+static baking: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number, exclusions?: readonly ZoneExclusion[]) => Generator<number, WaterField, void>
 static new (grid: ZoneGrid, ocean: ZoneOcean | null): WaterField
 static prototype: WaterField
 ```
 
 ## WaterForm — const @experimental
 ```
-{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; readonly Island: 3; }
+{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; readonly Island: 3; readonly Exclusion: 4; }
 ```
 
 ## WaterPlugin — class @experimental
@@ -15365,6 +15366,7 @@ z: number
 ## Waters — class @experimental
 ```
 @internal app_: App | null
+@internal exclusions_: readonly ZoneExclusion[]
 @internal field_: WaterField | null
 @internal instance_: number
 @internal revision_: number

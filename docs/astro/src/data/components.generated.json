@@ -11692,12 +11692,13 @@
           "key": "form",
           "type": "enum",
           "default": "Lake",
-          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it.",
+          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water.",
           "values": [
             "Ocean",
             "Lake",
             "River",
-            "Island"
+            "Island",
+            "Exclusion Volume"
           ]
         },
         {
@@ -11719,6 +11720,13 @@
           "default": "10000",
           "doc": "The size of a lake or an island along z.",
           "range": "≥ 1"
+        },
+        {
+          "key": "sizeY",
+          "type": "number",
+          "default": "10000",
+          "doc": "The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.",
+          "range": "≥ 0.01"
         },
         {
           "key": "boundary",
@@ -11759,6 +11767,7 @@
         "form",
         "sizeX",
         "sizeZ",
+        "sizeY",
         "shoreWidth",
         "flowSpeed",
         "waveHeight",

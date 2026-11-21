@@ -5,7 +5,7 @@
  *        and the basins and drainage a game decides its lakes and rivers by.
  */
 import { describe, expect, it } from 'vitest';
-import { WaterField, type ZoneGrid, type ZoneLake, type ZoneOcean } from '../src/water/zone';
+import { WaterField, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean } from '../src/water/zone';
 import { drainPath, findBasins } from '../src/water/basins';
 import type { Point2 } from '../src/water/shore';
 import { App } from '../src/app/app';
@@ -85,6 +85,26 @@ describe('how deep the water is', () => {
     });
 });
 
+describe('a place kept out of the water', () => {
+    const box = (bottom: number, top: number): ZoneExclusion => ({
+        key: 9, outline: square(15), toLocal: (x, z) => [x, z], toWorld: (x, z) => [x, z], scale: 1, bottom, top,
+    });
+    const deep = (): number => -20;
+
+    it('takes the surface away over its outline where the surface lies between its bottom and top, and nowhere else', () => {
+        const field = WaterField.bake(grid, [ocean], deep, 0, [box(-5, 5)]);
+        expect(field.sample(0, 0)).toBeNull();
+        expect(field.sample(10, 10)).toBeNull();
+        expect(field.sample(30, 0)?.key).toBe(3);
+        expect(field.sample(-60, 40)?.key).toBe(3);
+    });
+
+    it('leaves the surface above it where it lies wholly under the water: a room under the sea', () => {
+        const field = WaterField.bake(grid, [ocean], deep, 0, [box(-15, -5)]);
+        expect(field.sample(0, 0)?.key).toBe(3);
+    });
+});
+
 describe('a river that runs into a lake', () => {
     it('is the lake\'s water inside the lake, at the lake\'s level, and its own outside it', () => {
         const stations = [];
@@ -156,6 +176,14 @@ describe('the water in a running app with no renderer', () => {
         expect(waters.sample(0, 0, 0)?.bodyId).toBe('mirror-lake');
         // No terrain under it: the depth of water nothing is known of.
         expect(waters.sample(0, 0, 0)!.waterDepth).toBeGreaterThan(1e5);
+        // A room kept out of the lake under its surface: dry inside, water above it and beside it.
+        const room = app.world.spawn();
+        app.world.insert(room, Transform, { position: { x: 0, y: -3, z: 0 }, worldPosition: { x: 0, y: -3, z: 0 } });
+        app.world.insert(room, WaterBody, { ...WaterBody._default, form: WaterForm.Exclusion, sizeX: 10, sizeZ: 10, sizeY: 4 });
+        for (let i = 0; i < 10; i++) { app.tick(1 / 60); await new Promise((r) => setTimeout(r, 0)); }
+        expect(waters.sample(0, -3, 0)).toBeNull();
+        expect(waters.sample(0, 0, 0)?.bodyId).toBe('mirror-lake');
+        expect(waters.sample(8, -3, 0)?.bodyId).toBe('mirror-lake');
         expect(waters.bodyAt(90, 90)).toBeNull();
         // How far from the water's edge: across the dry ground beside it, and in from the shore on it.
         expect(waters.shoreAt(45, 0)).toBeCloseTo(15, -0.5);

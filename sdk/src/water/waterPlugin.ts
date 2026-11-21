@@ -46,8 +46,8 @@ import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
 import { RippleField } from './ripples';
 import {
-    WaterField, WaterZone, currentShare,
-    type RiverStation, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
+    WaterField, WaterZone, currentShare, inExclusion,
+    type RiverStation, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
@@ -56,8 +56,11 @@ import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postproces
 import { defaultQualityProfile, type QualityProfile } from '../render/quality';
 import { isMiniGame } from '../platform';
 
-/** What a body of water is. A river follows the `Spline` on its own entity; an island is land, raised out of the water inside its outline. */
-export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3 } as const;
+/**
+ * What a body of water is. A river follows the `Spline` on its own entity; an island is land, raised out of the water inside its outline; an
+ * exclusion is a box kept out of the water, as dry inside as above it.
+ */
+export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3, Exclusion: 4 } as const;
 
 /** The fields of the `WaterBody` component. @experimental */
 export interface WaterBodyData {
@@ -68,6 +71,8 @@ export interface WaterBodyData {
     /** A lake's extent along x and z, centred on its entity, when it has no outline of its own. An ocean has none: it goes on past the zone. */
     sizeX: number;
     sizeZ: number;
+    /** An exclusion's height, centred on its entity: water whose surface lies within it is kept out of its outline. */
+    sizeY: number;
     /** A lake's outline: three points or more round it on its own xz plane (x, y is x, z). Empty is the rectangle of `sizeX` by `sizeZ`. */
     boundary: Point2[];
     /** How far in from the shore, and how deep, the waves take to come to full height; 0 leaves them whole to the edge. */
@@ -87,16 +92,17 @@ export interface WaterBodyData {
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
-    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
+    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
+    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
     fields: {
-        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it.' },
+        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water.' },
         bodyId: { category: 'Shape', tooltip: 'What the game calls this body, the same in every session: what a query names the water by. Empty is named by its entity.' },
-        sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
-        sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
-        boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
-        shoreWidth: { min: 0, category: 'Shape', tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
+        sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
+        sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
+        sizeY: { min: 0.01, category: 'Shape', tooltip: 'The height of the exclusion volume, centred on its entity. Water whose surface lies within it is kept out of its outline; a point inside it is not in water.', shownWhen: { field: 'form', values: [WaterForm.Exclusion] } },
+        boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island, WaterForm.Exclusion] } },
+        shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
         bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
         waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
@@ -167,6 +173,8 @@ export class Waters {
     /** The baked water, and the zone it was baked by. @internal */
     field_: WaterField | null = null;
     /** @internal */ zone_: WaterZoneData = zoneDefaults();
+    /** The places kept out of the water, as the scene says now. @internal */
+    exclusions_: readonly ZoneExclusion[] = [];
     /** The ripples the zone keeps, where it asks for them. @internal */
     ripples_: RippleField | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
@@ -201,6 +209,8 @@ export class Waters {
     sample(x: number, y: number, z: number): WaterSample | null {
         const field = this.field_;
         if (!field || !this.app_) return null;
+        // Inside a place kept out of the water nothing is under it, though the sea's surface stands above.
+        for (const e of this.exclusions_) if (inExclusion(e, x, y, z)) return null;
         const s = field.sample(x, z);
         if (!s) return null;
         const time = this.app_.getResource(Time).elapsed;
@@ -395,6 +405,7 @@ interface Bed { key: number; signature: string; make(prefix: string): TerrainMod
 /** Everything the zone is baked from, as the scene says it now. */
 interface Inputs {
     beds: Bed[];
+    exclusions: ZoneExclusion[];
     bodies: ZoneBody[];
     grid: ZoneGrid;
     zone: WaterZoneData;
@@ -454,6 +465,7 @@ export class WaterPlugin implements Plugin {
             const inputs = this.gather(app);
             this.carve(app, inputs.beds);
             waters.zone_ = inputs.zone;
+            waters.exclusions_ = inputs.exclusions;
             if (inputs.bodies.length === 0) {
                 this.baking_?.cancel();
                 this.baking_ = null;
@@ -468,7 +480,7 @@ export class WaterPlugin implements Plugin {
                 // A big zone is a second or more of work: it is spread over frames and shown while it runs.
                 this.baking_?.cancel();
                 const key = inputs.key;
-                const job = bakesOf(app).run('Baking the water', WaterField.baking(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength));
+                const job = bakesOf(app).run('Baking the water', WaterField.baking(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength, inputs.exclusions));
                 this.baking_ = { key, cancel: job.cancel };
                 waters.baking = true;
                 void job.done.then((field) => {
@@ -535,6 +547,7 @@ export class WaterPlugin implements Plugin {
     private gather(app: App): Inputs {
         const bodies: ZoneBody[] = [];
         const beds: Bed[] = [];
+        const exclusions: ZoneExclusion[] = [];
         const keyParts: unknown[] = [];
         for (const entity of app.world.getEntitiesWithComponents([WaterBody, Transform])) {
             const d = app.world.get(entity, WaterBody) as WaterBodyData;
@@ -563,6 +576,10 @@ export class WaterPlugin implements Plugin {
                 const space = outlineSpace(t, outline, scale);
                 beds.push({ key, signature: JSON.stringify(['island', outline, top, falloff, t.worldPosition, t.worldRotation, scale]),
                     make: (prefix) => [islandModifier(`${prefix}island`, space, top, falloff)] });
+            } else if (d.form === WaterForm.Exclusion) {
+                const outline = outlineOf(d), half = (d.sizeY * scale) / 2, y = t.worldPosition.y;
+                exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale) });
+                keyParts.push([key, d.form, outline, d.sizeY, t.worldPosition, t.worldRotation, scale]);
             } else if (d.form === WaterForm.River) {
                 const spline = app.world.tryGet(entity, Spline) as SplineData | null;
                 if (!spline || spline.points.length < 2) continue;
@@ -593,7 +610,7 @@ export class WaterPlugin implements Plugin {
         for (const b of bodies) b.exposure = exposureOf(b, zone.waveLength);
         const terrain = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const ground = terrain && terrain.built_.size > 0 ? terrain.revision_ : -1;
-        return { bodies, beds, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
+        return { bodies, beds, exclusions, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
     }
 
     /**

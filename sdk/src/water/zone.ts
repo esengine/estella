@@ -115,6 +115,32 @@ export interface ZoneRiver { kind: 'river'; key: number; waveHeight: number; sho
 
 export type ZoneBody = ZoneOcean | ZoneLake | ZoneRiver;
 
+/**
+ * A place kept out of the water: an outline on its own plane and the heights it spans. Water whose surface lies between `bottom` and `top`
+ * is not there over the outline (a dry room under the sea, a boat's hold, a cave mouth), and a point inside it is not in water.
+ */
+export interface ZoneExclusion {
+    key: number;
+    outline: readonly Point2[];
+    toLocal(x: number, z: number): [number, number];
+    toWorld(x: number, z: number): [number, number];
+    /** A distance on its plane, in world units. */
+    scale: number;
+    bottom: number;
+    top: number;
+}
+
+/** How far inside the exclusion's outline a world (x, z) is, in world units (negative outside). */
+export function exclusionInside(e: ZoneExclusion, x: number, z: number): number {
+    const [lx, lz] = e.toLocal(x, z);
+    return polygonSdf(e.outline, lx, lz) * e.scale;
+}
+
+/** Whether the world point is inside the exclusion: within its outline and between its bottom and top. */
+export function inExclusion(e: ZoneExclusion, x: number, y: number, z: number): boolean {
+    return y >= e.bottom && y <= e.top && exclusionInside(e, x, z) > 0;
+}
+
 /** The ground's world height at (x, z), or null where none is known. */
 export type ZoneGround = (x: number, z: number) => number | null;
 
@@ -207,8 +233,8 @@ export class WaterField {
      * The lakes come first, then the rivers have what they leave (a river runs into a lake and is the lake there), and the ocean what both leave. A texel no body holds keeps the height of the nearest water, so the
      * surface's vertices there (which the shore cuts away) do not pull the water's edge down to nothing.
      */
-    static bake(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0): WaterField {
-        const job = WaterField.baking(grid, bodies, ground, surfLength);
+    static bake(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = []): WaterField {
+        const job = WaterField.baking(grid, bodies, ground, surfLength, exclusions);
         for (;;) {
             const next = job.next();
             if (next.done) return next.value;
@@ -216,7 +242,7 @@ export class WaterField {
     }
 
     /** {@link WaterField.bake} as a job that yields its progress (0 to 1) every few rows, for spreading over frames. */
-    static *baking(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0): Generator<number, WaterField, void> {
+    static *baking(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = []): Generator<number, WaterField, void> {
         const ocean = (bodies.find((b) => b.kind === 'ocean') as ZoneOcean | undefined) ?? null;
         const field = new WaterField(grid, ocean);
         const texel = Math.max(grid.sizeX / Math.max(grid.nx - 1, 1), grid.sizeZ / Math.max(grid.nz - 1, 1));
@@ -224,6 +250,11 @@ export class WaterField {
         // Lakes before rivers: a river that runs into a lake is the lake's there, as both are the ocean's betters.
         const bounded = [...bodies.filter((b) => b.kind === 'lake'), ...bodies.filter((b) => b.kind === 'river')] as (ZoneLake | ZoneRiver)[];
         const boxes = bounded.map((b) => boundsOf(b));
+        const kept = exclusions.map((e) => {
+            let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+            for (const p of e.outline) { const [x, z] = e.toWorld(p.x, p.y); x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+            return [x0, z0, x1, z1] as const;
+        });
         const grounds = new Float64Array(grid.nx * grid.nz).fill(Number.NaN);
         // How much of each texel's water is a river's: the surf takes it for land.
         const rivers = new Float32Array(grid.nx * grid.nz);
@@ -290,6 +321,16 @@ export class WaterField {
                         w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight;
                         ex += (ocean.exposure ?? 1) * weight;
                         if (weight > ownerW) { ownerW = weight; owner = ocean.key; }
+                    }
+                }
+                // A place kept out of the water is shore inside it, where the water's surface lies between its bottom and top: the surface
+                // stops at its outline and a point there is not water.
+                if (w > 0) {
+                    const level = h / w;
+                    for (let e = 0; e < exclusions.length; e++) {
+                        const ex = exclusions[e]!, box = kept[e]!;
+                        if (level < ex.bottom || level > ex.top || x < box[0] - blend || x > box[2] + blend || z < box[1] - blend || z > box[3] + blend) continue;
+                        best = Math.min(best, -exclusionInside(ex, x, z));
                     }
                 }
                 field.shore[k] = best === -Infinity ? -DEEP : best;
