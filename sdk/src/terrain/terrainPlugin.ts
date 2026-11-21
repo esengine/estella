@@ -236,6 +236,8 @@ function surfaceTexelsOf(app: App): number {
 /** What the plugin knows about one terrain it has built. */
 interface Built {
     signature: string;
+    /** The height range its pages were last made against (see `remake_`). */
+    range?: string;
     data: TerrainData;
     source: TerrainSource | null;
     /** The triangles of the finest level, which queries and collision read. */
@@ -560,6 +562,15 @@ export class Terrains {
             const source = built.source;
             if (!(source instanceof ModifiedSource)) continue;
             const o = source.origin, leaf = PATCH_CELLS * Math.max(built.data.cellSize, 1e-3);
+            // A page holds its heights against the range they span: where a modifier widens it, every page is made again, not only those it reaches.
+            const range = `${source.minHeight}:${source.maxHeight}`;
+            if (built.range !== undefined && built.range !== range) {
+                built.range = range;
+                built.table.markStale(() => true);
+                built.edits++;
+                continue;
+            }
+            built.range = range;
             built.table.markStale((key) => {
                 const [level, ix, iz] = key.split(':').map(Number) as [number, number, number];
                 const size = leaf * 2 ** level, x0 = ix * size + o.x, z0 = iz * size + o.z;

@@ -11692,11 +11692,12 @@
           "key": "form",
           "type": "enum",
           "default": "Lake",
-          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity.",
+          "doc": "An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it.",
           "values": [
             "Ocean",
             "Lake",
-            "River"
+            "River",
+            "Island"
           ]
         },
         {
@@ -11709,27 +11710,27 @@
           "key": "sizeX",
           "type": "number",
           "default": "10000",
-          "doc": "A lake's size along x.",
+          "doc": "The size of a lake or an island along x.",
           "range": "≥ 1"
         },
         {
           "key": "sizeZ",
           "type": "number",
           "default": "10000",
-          "doc": "A lake's size along z.",
+          "doc": "The size of a lake or an island along z.",
           "range": "≥ 1"
         },
         {
           "key": "boundary",
           "type": "array",
           "default": "empty",
-          "doc": "The outline of a lake: points round it on its own xz plane. Empty is the rectangle of its size."
+          "doc": "The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size."
         },
         {
           "key": "shoreWidth",
           "type": "number",
           "default": "300",
-          "doc": "How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge.",
+          "doc": "How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.",
           "range": "≥ 0"
         },
         {
@@ -11750,7 +11751,7 @@
           "key": "bedDepth",
           "type": "number",
           "default": "0",
-          "doc": "How deep the river cuts its bed into the terrain under its surface, at its middle, its banks blending back into the ground. 0 leaves the ground as it is.",
+          "doc": "How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.",
           "range": "≥ 0"
         }
       ],

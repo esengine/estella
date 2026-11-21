@@ -12981,6 +12981,7 @@ tint: [number, number, number]
 ```
 apply: (x: number, z: number, h: number) => number
 bounds: readonly [number, number, number, number]
+heights: readonly [number, number] | undefined
 id: string
 ```
 
@@ -15337,7 +15338,7 @@ static prototype: WaterField
 
 ## WaterForm — const @experimental
 ```
-{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; }
+{ readonly Ocean: 0; readonly Lake: 1; readonly River: 2; readonly Island: 3; }
 ```
 
 ## WaterPlugin — class @experimental

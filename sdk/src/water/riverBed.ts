@@ -54,9 +54,10 @@ export function riverBedModifiers(prefix: string, stations: readonly RiverStatio
     const out: TerrainModifier[] = [];
     for (let from = 0; from < stations.length - 1; from += STRETCH) {
         const to = Math.min(from + STRETCH, stations.length - 1);
-        let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+        let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, lowest = Infinity;
         for (let i = from; i <= to; i++) {
             const s = stations[i]!, r = s.half * (1 + BANK);
+            lowest = Math.min(lowest, s.y - depth);
             minX = Math.min(minX, s.x - r); maxX = Math.max(maxX, s.x + r);
             minZ = Math.min(minZ, s.z - r); maxZ = Math.max(maxZ, s.z + r);
         }
@@ -68,6 +69,8 @@ export function riverBedModifiers(prefix: string, stations: readonly RiverStatio
                 if (bed.weight <= 0 || bed.height >= h) return h;
                 return h + (bed.height - h) * bed.weight;
             },
+            // Only cuts: its lowest is the bed under the lowest station of its stretch.
+            heights: [lowest, lowest],
         });
     }
     return out;

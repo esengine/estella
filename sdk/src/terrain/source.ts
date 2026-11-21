@@ -293,14 +293,17 @@ export interface TerrainModifier {
     readonly bounds: readonly [number, number, number, number];
     /** The world height at world (x, z), given the height the ground has there. */
     apply(x: number, z: number, h: number): number;
+    /**
+     * The world heights it can make, [lowest, highest], where they may lie past the ground's own: an island raised over the highest hill,
+     * a lake's floor cut under the lowest valley. The ground's range grows to hold them; without it a height past the range is held at its edge.
+     */
+    readonly heights?: readonly [number, number];
 }
 
 /** A source with the modifiers laid over it: what the pages, the queries and collision all read. */
 export class ModifiedSource implements TerrainSource {
     readonly infinite: boolean;
     readonly bounds: TerrainSource['bounds'];
-    readonly minHeight: number;
-    readonly maxHeight: number;
     /** The terrain's world position: its space is this far from the world's. Kept current by the terrain. */
     origin: { x: number; y: number; z: number };
 
@@ -308,9 +311,21 @@ export class ModifiedSource implements TerrainSource {
                 origin: { x: number; y: number; z: number }, private readonly step: number) {
         this.infinite = base.infinite;
         this.bounds = base.bounds;
-        this.minHeight = base.minHeight;
-        this.maxHeight = base.maxHeight;
         this.origin = { ...origin };
+    }
+
+    /** The lowest height the ground can have: its own, or lower where a modifier cuts under it (in the terrain's space). */
+    get minHeight(): number {
+        let lo = this.base.minHeight;
+        for (const m of this.modifiers()) if (m.heights) lo = Math.min(lo, m.heights[0] - this.origin.y);
+        return lo;
+    }
+
+    /** The highest height the ground can have: its own, or higher where a modifier raises it over that. */
+    get maxHeight(): number {
+        let hi = this.base.maxHeight;
+        for (const m of this.modifiers()) if (m.heights) hi = Math.max(hi, m.heights[1] - this.origin.y);
+        return hi;
     }
 
     height(x: number, z: number): number | null {

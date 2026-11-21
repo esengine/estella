@@ -17,6 +17,8 @@
 import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
+import { islandModifier, lakeFloorModifier, type OutlineSpace } from './landShape';
+import type { TerrainModifier } from '../terrain/source';
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource, Time } from '../ecs/resource';
@@ -54,8 +56,8 @@ import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postproces
 import { defaultQualityProfile, type QualityProfile } from '../render/quality';
 import { isMiniGame } from '../platform';
 
-/** What a body of water is. A river follows the `Spline` on its own entity. */
-export const WaterForm = { Ocean: 0, Lake: 1, River: 2 } as const;
+/** What a body of water is. A river follows the `Spline` on its own entity; an island is land, raised out of the water inside its outline. */
+export const WaterForm = { Ocean: 0, Lake: 1, River: 2, Island: 3 } as const;
 
 /** The fields of the `WaterBody` component. @experimental */
 export interface WaterBodyData {
@@ -74,7 +76,7 @@ export interface WaterBodyData {
     flowSpeed: number;
     /** The height of the tallest wave, in world units. Their length, speed and heading are the zone's, which every body shares. */
     waveHeight: number;
-    /** How deep a river cuts its bed into the terrain under its surface, at its middle; 0 leaves the ground as it is. */
+    /** How deep a river cuts its bed into the terrain under its surface at its middle, or a lake its floor under its outline; 0 leaves the ground as it is. */
     bedDepth: number;
 }
 
@@ -89,15 +91,15 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
     fields: {
-        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity.' },
+        form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it.' },
         bodyId: { category: 'Shape', tooltip: 'What the game calls this body, the same in every session: what a query names the water by. Empty is named by its entity.' },
-        sizeX: { min: 1, category: 'Shape', tooltip: 'A lake\'s size along x.', shownWhen: { field: 'form', values: [WaterForm.Lake] } },
-        sizeZ: { min: 1, category: 'Shape', tooltip: 'A lake\'s size along z.', shownWhen: { field: 'form', values: [WaterForm.Lake] } },
-        boundary: { category: 'Shape', tooltip: 'The outline of a lake: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake] } },
-        shoreWidth: { min: 0, category: 'Shape', tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge.' },
+        sizeX: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along x.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
+        sizeZ: { min: 1, category: 'Shape', tooltip: 'The size of a lake or an island along z.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
+        boundary: { category: 'Shape', tooltip: 'The outline of a lake or an island: points round it on its own xz plane. Empty is the rectangle of its size.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.Island] } },
+        shoreWidth: { min: 0, category: 'Shape', tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
-        bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the river cuts its bed into the terrain under its surface, at its middle, its banks blending back into the ground. 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River] } },
-        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.' },
+        bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
+        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
     },
 });
 
@@ -341,6 +343,15 @@ function rotate(q: Quat, vx: number, vy: number, vz: number): [number, number, n
     return [vx + q.w * tx + (q.y * tz - q.z * ty), vy + q.w * ty + (q.z * tx - q.x * tz), vz + q.w * tz + (q.x * ty - q.y * tx)];
 }
 
+/** A body's outline with the way into and out of its plane, for what it does to the ground. */
+function outlineSpace(t: TransformData, outline: readonly Point2[], scale: number): OutlineSpace {
+    return {
+        outline, scale,
+        toLocal: (x, z) => { const q = toLocal(t, x, t.worldPosition.y, z, scale); return [q[0], q[2]]; },
+        toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
+    };
+}
+
 function toLocal(t: TransformData, x: number, y: number, z: number, scale: number): [number, number, number] {
     const inv = { x: -t.worldRotation.x, y: -t.worldRotation.y, z: -t.worldRotation.z, w: t.worldRotation.w };
     const r = rotate(inv, x - t.worldPosition.x, y - t.worldPosition.y, z - t.worldPosition.z);
@@ -378,7 +389,8 @@ export function riverStations(curve: SplineCurve, flowSpeed: number, toWorld: (x
 }
 
 /** A river whose bed is cut into the terrain. */
-interface Bed { key: number; stations: readonly RiverStation[]; depth: number }
+/** What one body does to the ground under it: a river's bed, a lake's floor, an island; laid again only when its signature changes. */
+interface Bed { key: number; signature: string; make(prefix: string): TerrainModifier[] }
 
 /** Everything the zone is baked from, as the scene says it now. */
 interface Inputs {
@@ -540,13 +552,27 @@ export class WaterPlugin implements Plugin {
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                 });
                 keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
+                if (d.bedDepth > 0) {
+                    const level = t.worldPosition.y, depth = d.bedDepth * scale, ramp = Math.max(d.shoreWidth * scale, depth * 3);
+                    const space = outlineSpace(t, outline, scale);
+                    beds.push({ key, signature: JSON.stringify(['lake', outline, level, depth, ramp, t.worldPosition, t.worldRotation, scale]),
+                        make: (prefix) => [lakeFloorModifier(`${prefix}floor`, space, level, depth, ramp)] });
+                }
+            } else if (d.form === WaterForm.Island) {
+                const outline = outlineOf(d), top = t.worldPosition.y, falloff = d.shoreWidth * scale;
+                const space = outlineSpace(t, outline, scale);
+                beds.push({ key, signature: JSON.stringify(['island', outline, top, falloff, t.worldPosition, t.worldRotation, scale]),
+                    make: (prefix) => [islandModifier(`${prefix}island`, space, top, falloff)] });
             } else if (d.form === WaterForm.River) {
                 const spline = app.world.tryGet(entity, Spline) as SplineData | null;
                 if (!spline || spline.points.length < 2) continue;
                 const curve = new SplineCurve(spline.points, spline.closed);
                 const stations = riverStations(curve, d.flowSpeed, (x, y, z) => fromLocal(t, x, y, z, scale), (x, y, z) => rotate(t.worldRotation, x, y, z), scale);
                 bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations });
-                if (d.bedDepth > 0) beds.push({ key, stations, depth: d.bedDepth * scale });
+                if (d.bedDepth > 0) {
+                    const depth = d.bedDepth * scale;
+                    beds.push({ key, signature: JSON.stringify(['river', depth, stations]), make: (prefix) => riverBedModifiers(prefix, stations, depth) });
+                }
                 keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
             }
         }
@@ -580,11 +606,11 @@ export class WaterPlugin implements Plugin {
         const seen = new Set<number>();
         for (const bed of beds) {
             seen.add(bed.key);
-            const signature = JSON.stringify([bed.depth, bed.stations]);
+            const signature = bed.signature;
             const had = this.beds_.get(bed.key);
             if (had?.signature === signature || !terrains) continue;
             for (const id of had?.ids ?? []) terrains.deleteModifier(id);
-            const modifiers = riverBedModifiers(`river-bed:${bed.key}:`, bed.stations, bed.depth);
+            const modifiers = bed.make(`water-ground:${bed.key}:`);
             for (const m of modifiers) terrains.setModifier(m);
             this.beds_.set(bed.key, { signature, ids: modifiers.map((m) => m.id) });
         }
