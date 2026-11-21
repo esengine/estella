@@ -15260,11 +15260,13 @@ shoreWidth: number
 sizeX: number
 sizeY: number
 sizeZ: number
+surfaceLook: number
 underwaterAbsorption: { r: number; g: number; b: number; a: number; }
 underwaterCaustics: number
 underwaterColor: { r: number; g: number; b: number; a: number; }
 underwaterDensity: number
 underwaterLook: number
+waterColor: { r: number; g: number; b: number; a: number; }
 waveHeight: number
 ```
 
@@ -15275,12 +15277,14 @@ at: (x: number, z: number) => FieldSample | null
 audio: Float32Array<ArrayBufferLike>
 calm: Float32Array<ArrayBufferLike>
 depth: Float32Array<ArrayBufferLike>
-encode: (r: ZoneRanges) => { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array; }
+encode: (r: ZoneRanges) => { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array; look: Uint8Array; }
 exposure: Float32Array<ArrayBufferLike>
 flowX: Float32Array<ArrayBufferLike>
 flowZ: Float32Array<ArrayBufferLike>
 grid: ZoneGrid
 height: Float32Array<ArrayBufferLike>
+look: Float32Array<ArrayBufferLike>
+lookShare: Float32Array<ArrayBufferLike>
 ocean: ZoneOcean | null
 owner: Int32Array<ArrayBufferLike>
 query: () => WaterQuery

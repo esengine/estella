@@ -11770,6 +11770,22 @@
           "range": "≥ 0"
         },
         {
+          "key": "surfaceLook",
+          "type": "enum",
+          "default": "Zone Material",
+          "doc": "The colour of this body’s water: the zone water material’s, or its own Water Color. Where a body with its own colour meets another (a river running into a lake), the two colours run into each other across the junction.",
+          "values": [
+            "Zone Material",
+            "Own"
+          ]
+        },
+        {
+          "key": "waterColor",
+          "type": "Color",
+          "default": "#1a6b75",
+          "doc": "The colour of this body’s shallow water. Deep water darkens it the way the zone material’s deep colour darkens its shallow one."
+        },
+        {
           "key": "underwaterLook",
           "type": "enum",
           "default": "Zone Material",
@@ -11816,6 +11832,11 @@
         "flowSpeed",
         "waveHeight",
         "bedDepth",
+        "surfaceLook",
+        "waterColor.r",
+        "waterColor.g",
+        "waterColor.b",
+        "waterColor.a",
         "underwaterLook",
         "underwaterColor.r",
         "underwaterColor.g",

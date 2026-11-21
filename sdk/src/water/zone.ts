@@ -111,11 +111,13 @@ export interface ZoneOcean {
     kind: 'ocean'; key: number; level: number; waveHeight: number; shoreWidth: number;
     /** How open the water is to the wind, 0 to 1 (its fetch): how far the weather raises its waves. Open sea, 1 when absent. */
     exposure?: number;
+    /** The body's own water colour (linear rgb), where it has one; absent takes the zone material's. */
+    color?: readonly [number, number, number];
 }
 
 /** A lake: its outline on its own plane at world height `level`, and how a world point is put into the outline's space. */
 export interface ZoneLake {
-    kind: 'lake'; key: number; level: number; waveHeight: number; shoreWidth: number; exposure?: number;
+    kind: 'lake'; key: number; level: number; waveHeight: number; shoreWidth: number; exposure?: number; color?: readonly [number, number, number];
     outline: readonly Point2[];
     /** A world (x, z) in the outline's own space, and back. */
     toLocal(x: number, z: number): [number, number];
@@ -136,7 +138,7 @@ export interface RiverStation {
 }
 
 /** A river, as the stations along it (a few to a width), in order downstream. */
-export interface ZoneRiver { kind: 'river'; key: number; waveHeight: number; shoreWidth: number; exposure?: number; stations: readonly RiverStation[] }
+export interface ZoneRiver { kind: 'river'; key: number; waveHeight: number; shoreWidth: number; exposure?: number; color?: readonly [number, number, number]; stations: readonly RiverStation[] }
 
 export type ZoneBody = ZoneOcean | ZoneLake | ZoneRiver;
 
@@ -224,6 +226,10 @@ export class WaterField {
     readonly flowZ: Float32Array;
     /** How loud the water sounds: a river's audio intensity along it, 1 for still water. */
     readonly audio: Float32Array;
+    /** The bodies' own colours, weighed by how much of each texel's water is theirs (rgb, three a texel), and that share: where two bodies
+     *  meet, one colour runs into the other; where none has its own, the share is 0 and the material's colour holds. */
+    readonly look: Float32Array;
+    readonly lookShare: Float32Array;
     readonly depth: Float32Array;
     /** The distance the surf runs in by (see {@link FieldSample.surf}). */
     readonly surf: Float32Array;
@@ -249,6 +255,8 @@ export class WaterField {
         this.flowX = new Float32Array(n);
         this.flowZ = new Float32Array(n);
         this.audio = new Float32Array(n).fill(1);
+        this.look = new Float32Array(n * 3);
+        this.lookShare = new Float32Array(n);
         this.depth = new Float32Array(n);
         this.surf = new Float32Array(n);
         this.still = new Float32Array(n).fill(1);
@@ -316,7 +324,7 @@ export class WaterField {
                 const g = Number.isNaN(grounds[k]!) ? null : grounds[k]!;
                 const slope = g === null ? MIN_SLOPE : slopeAt(i, j);
                 field.steep[k] = smooth(STEEP_FROM, STEEP_TO, slope);
-                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
+                let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, lr = 0, lg = 0, lb = 0, lw = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
                 // Ground below the sea's level that the open sea does not reach is a dry basin: as far above the sea as a texel.
                 const seaDeep = !ocean ? -DEEP : g === null ? DEEP : g < ocean.level && !sea![k] ? -texel : (ocean.level - g) / slope;
                 for (let b = 0; b < bounded.length; b++) {
@@ -339,6 +347,8 @@ export class WaterField {
                     held = Math.max(held, weight);
                     if (bounded[b]!.kind === 'river') riverW += weight;
                     w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight; au += say.audio * weight;
+                    const own = bounded[b]!.color;
+                    if (own) { lr += own[0] * weight; lg += own[1] * weight; lb += own[2] * weight; lw += weight; }
                     ex += (bounded[b]!.exposure ?? 1) * weight;
                     if (weight > ownerW) { ownerW = weight; owner = bounded[b]!.key; }
                 }
@@ -349,6 +359,7 @@ export class WaterField {
                     if (weight > 0) {
                         const calm = shoreDamp(g === null ? deep : Math.min(deep, ocean.level - g), ocean.shoreWidth);
                         w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight; au += weight;
+                        if (ocean.color) { lr += ocean.color[0] * weight; lg += ocean.color[1] * weight; lb += ocean.color[2] * weight; lw += weight; }
                         ex += (ocean.exposure ?? 1) * weight;
                         if (weight > ownerW) { ownerW = weight; owner = ocean.key; }
                     }
@@ -374,6 +385,7 @@ export class WaterField {
                     field.flowX[k] = fx / w;
                     field.flowZ[k] = fz / w;
                     field.audio[k] = au / w;
+                    if (lw > 0) { field.look[k * 3] = lr / lw; field.look[k * 3 + 1] = lg / lw; field.look[k * 3 + 2] = lb / lw; field.lookShare[k] = lw / w; }
                     rivers[k] = riverW / w;
                 } else {
                     field.height[k] = Number.NaN;
@@ -457,9 +469,9 @@ export class WaterField {
      * first; b the depth, as its square root (fine where the water is shallow, where the shore is drawn by it); a the swell (the body's waves' height). field (filtered): r the shore distance (0.5 at it, a signed square root); gb the current (0.5 still); a the calm.
      * exposure (filtered): r how open the water is to the wind; g the distance the surf runs in by; b how much surf a current leaves; a how steep the shore is. Each over its range in `r`.
      */
-    encode(r: ZoneRanges): { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array } {
+    encode(r: ZoneRanges): { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array; look: Uint8Array } {
         const n = this.height.length;
-        const heights = new Uint8Array(n * 4), field = new Uint8Array(n * 4), exposure = new Uint8Array(n * 4);
+        const heights = new Uint8Array(n * 4), field = new Uint8Array(n * 4), exposure = new Uint8Array(n * 4), look = new Uint8Array(n * 4);
         const byte = (v: number): number => Math.round(Math.min(Math.max(v, 0), 1) * 255);
         for (let k = 0; k < n; k++) {
             const h = Math.round(Math.min(Math.max((this.height[k]! - r.heightMin) / r.heightSpan, 0), 1) * 65535);
@@ -479,8 +491,15 @@ export class WaterField {
             exposure[k * 4 + 1] = byte(Math.sign(surf) * Math.sqrt(Math.abs(surf)) / 2 + 0.5);
             exposure[k * 4 + 2] = byte(this.still[k]!);
             exposure[k * 4 + 3] = byte(this.steep[k]!);
+            // look (filtered): rgb the body's own colour times its share, a one less the share, so a filtered texel between two bodies
+            // divides back to their blend, and an unbound map (black, alpha 1) is no share at all.
+            const share = this.lookShare[k]!;
+            look[k * 4] = byte(this.look[k * 3]! * share);
+            look[k * 4 + 1] = byte(this.look[k * 3 + 1]! * share);
+            look[k * 4 + 2] = byte(this.look[k * 3 + 2]! * share);
+            look[k * 4 + 3] = byte(1 - share);
         }
-        return { heights, field, exposure };
+        return { heights, field, exposure, look };
     }
 }
 

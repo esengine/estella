@@ -86,6 +86,9 @@ export interface WaterBodyData {
     waveHeight: number;
     /** How deep a river cuts its bed into the terrain under its surface at its middle, or a lake its floor under its outline; 0 leaves the ground as it is. */
     bedDepth: number;
+    /** {@link SurfaceLook}: whether the body's water is the zone material's colour or its own `waterColor`, blended into its neighbours where they meet. */
+    surfaceLook: number;
+    waterColor: { r: number; g: number; b: number; a: number };
     /** {@link UnderwaterLook}: whether seeing from under this body takes the zone material's look or its own, below. */
     underwaterLook: number;
     /** Its own look from under it: the colour the water gives back, what it takes out of the light colour by colour, how thick it is, and the web of sunlight on what is under it. */
@@ -94,6 +97,9 @@ export interface WaterBodyData {
     underwaterDensity: number;
     underwaterCaustics: number;
 }
+
+/** Where a body's surface colour comes from: the zone's water material, or the body's own Water Color. */
+export const SurfaceLook = { Zone: 0, Own: 1 } as const;
 
 /** Where a body's underwater look comes from: the zone's water material, as the surface is drawn, or the body's own settings. */
 export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
@@ -106,6 +112,7 @@ export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
     form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
+    surfaceLook: SurfaceLook.Zone, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
     underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
     underwaterDensity: 0.12, underwaterCaustics: 0.6,
 }, {
@@ -122,6 +129,8 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island, WaterForm.Custom] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
         bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
+        surfaceLook: { enum: [{ label: 'Zone Material', value: SurfaceLook.Zone }, { label: 'Own', value: SurfaceLook.Own }], category: 'Look', tooltip: 'The colour of this body\u2019s water: the zone water material\u2019s, or its own Water Color. Where a body with its own colour meets another (a river running into a lake), the two colours run into each other across the junction.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
+        waterColor: { category: 'Look', tooltip: 'The colour of this body\u2019s shallow water. Deep water darkens it the way the zone material\u2019s deep colour darkens its shallow one.', shownWhen: { field: 'surfaceLook', values: [SurfaceLook.Own] } },
         underwaterLook: { enum: [{ label: 'Zone Material', value: UnderwaterLook.Zone }, { label: 'Own', value: UnderwaterLook.Own }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
         underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
@@ -462,6 +471,8 @@ interface Surface {
     heights: number;
     field: number;
     exposure: number;
+    /** The bodies' own colours, blended where they meet (see WaterField.look). */
+    look: number;
     /** Which bake the textures hold. */
     baked: WaterField | null;
     ripple: number;
@@ -597,16 +608,16 @@ export class WaterPlugin implements Plugin {
             const scale = t.worldScale.y || 1;
             const key = entity as number;
             if (d.form === WaterForm.Ocean) {
-                bodies.push({ kind: 'ocean', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth });
-                keyParts.push([key, d.form, t.worldPosition.y, d.waveHeight, d.shoreWidth]);
+                bodies.push({ kind: 'ocean', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
+                keyParts.push([key, d.form, t.worldPosition.y, d.waveHeight, d.shoreWidth, d.surfaceLook, d.waterColor]);
             } else if (d.form === WaterForm.Lake) {
                 const outline = outlineOf(d);
                 bodies.push({
-                    kind: 'lake', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline,
+                    kind: 'lake', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
                     toLocal: (x, z) => { const q = toLocal(t, x, t.worldPosition.y, z, scale); return [q[0], q[2]]; },
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                 });
-                keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
+                keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
                 if (d.bedDepth > 0) {
                     const level = t.worldPosition.y, depth = d.bedDepth * scale, ramp = Math.max(d.shoreWidth * scale, depth * 3);
                     const space = outlineSpace(t, outline, scale);
@@ -624,12 +635,12 @@ export class WaterPlugin implements Plugin {
                 if (!shape) { keyParts.push([key, d.form, d.shapeMesh, this.footprints_.get(d.shapeMesh) ?? null]); continue; }
                 const level = fromLocal(t, 0, shape.top, 0, scale)[1];
                 bodies.push({
-                    kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull,
+                    kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
                     toLocal: (x, z) => { const q = toLocal(t, x, level, z, scale); return [q[0], q[2]]; },
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                     inside: (x, z) => shape.sdf(x, z),
                 });
-                keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
+                keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
             } else if (d.form === WaterForm.Exclusion) {
                 const outline = outlineOf(d), half = (d.sizeY * scale) / 2, y = t.worldPosition.y;
                 exclusions.push({ key, bottom: y - half, top: y + half, ...outlineSpace(t, outline, scale) });
@@ -639,12 +650,12 @@ export class WaterPlugin implements Plugin {
                 if (!spline || spline.points.length < 2) continue;
                 const curve = new SplineCurve(spline.points, spline.closed);
                 const stations = riverStations(curve, d.flowSpeed, (x, y, z) => fromLocal(t, x, y, z, scale), (x, y, z) => rotate(t.worldRotation, x, y, z), scale);
-                bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations });
+                bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
                 if (d.bedDepth > 0 || stations.some((s) => (s.depth ?? 0) > 0)) {
                     const depth = d.bedDepth * scale;
                     beds.push({ key, signature: JSON.stringify(['river', depth, stations]), make: (prefix) => riverBedModifiers(prefix, stations, depth) });
                 }
-                keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
+                keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
             }
         }
         let zone = zoneDefaults();
@@ -736,7 +747,7 @@ export class WaterPlugin implements Plugin {
         let s = this.surface_;
         if (s && (s.meshKey !== meshKey || s.material !== zone.material)) { this.dropSurface(app); s = null; }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
         if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone, far);
@@ -796,7 +807,7 @@ export class WaterPlugin implements Plugin {
     private upload(app: App, s: Surface, field: WaterField): void {
         this.dropFieldTextures(s);
         const ranges = field.ranges(this.waters_.zone_.surfLength * 4);
-        const { heights, field: rest, exposure } = field.encode(ranges);
+        const { heights, field: rest, exposure, look } = field.encode(ranges);
         const { nx, nz, minX, minZ, sizeX, sizeZ } = field.grid;
         const empty = nx < 2 || nz < 2;
         const w = empty ? 2 : nx, h = empty ? 2 : nz;
@@ -806,8 +817,11 @@ export class WaterPlugin implements Plugin {
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         s.exposure = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).fill(255) : exposure }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
+        s.look = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).map((_, i) => (i % 4 === 3 ? 255 : 0)) : look }, TextureContent.Retained, false,
+            { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         s.baked = field;
         const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
+        set('u_zoneLook', Material.tex(s.look));
         set('u_zoneHeights', Material.tex(s.heights));
         set('u_zoneField', Material.tex(s.field));
         set('u_zoneExposure', Material.tex(s.exposure));
@@ -853,6 +867,9 @@ export class WaterPlugin implements Plugin {
         set('u_oceanOn', ocean ? 1 : 0);
         set('u_oceanLevel', ocean ? ocean.level : 0);
         set('u_oceanWaves', ocean ? ocean.waveHeight : 0);
+        // Past the region the ocean's own colour, where it has one.
+        const oceanLook = ocean?.color ? { x: ocean.color[0], y: ocean.color[1], z: ocean.color[2], w: 1 } : { x: 0, y: 0, z: 0, w: 0 };
+        for (const i of drawnWith(s)) Material.setUniform(i, 'u_oceanLook', oceanLook);
         // A zone with no ocean that asks for the far distance mesh: that mesh alone takes the open sea past the region, flat, at the zone's
         // own height, while the rings keep to the lakes and rivers baked in it.
         if (!ocean && s.farInstance) {
@@ -931,6 +948,8 @@ export class WaterPlugin implements Plugin {
         if (s.heights) rm?.releaseTexture(s.heights);
         if (s.field) rm?.releaseTexture(s.field);
         if (s.exposure) rm?.releaseTexture(s.exposure);
+        if (s.look) rm?.releaseTexture(s.look);
+        s.look = 0;
         s.heights = 0;
         s.field = 0;
         s.exposure = 0;

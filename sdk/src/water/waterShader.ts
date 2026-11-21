@@ -259,6 +259,10 @@ const WATER = `#pragma shader "Water"
 #pragma param u_oceanOn float default(0) range(0,1) ui(slider)
 #pragma param u_oceanLevel float default(0) range(-100000,100000) ui(slider)
 #pragma param u_oceanWaves float default(1) range(0,100) ui(slider)
+// Each body's own colour where it has one (rgb times its share, alpha one less the share), filtered, so bodies blend where they meet;
+// past the region the ocean's own (rgb, a its share: 0 for none).
+#pragma param u_zoneLook texture default(black) texel(data)
+#pragma param u_oceanLook vec4 default(0,0,0,0)
 // The surf (the WaterZone writes these): how high a breaker stands against its body's waves (with the weather in), how long the surf's waves
 // are, and a multiplier on their speed. 0 draws none.
 #pragma param u_surfHeight float default(0) range(0,4) ui(slider)
@@ -663,6 +667,13 @@ void main() {
     float calm = !zoneOn ? 1.0 : zoneIn ? zoneTex.a : 1.0;
     float damp = zoneOn ? zone.z * calm : 1.0;
     vec2 flow = zoneOn && zoneIn ? (zoneTex.gb - 0.5) * 2.0 * u_zoneRange.z : vec2(0.0);
+    // The water's colour: the body's own where it has one (a river browner than the lake it runs into), blended by its share where bodies
+    // meet; the material's elsewhere. Deep water darkens the body's colour as the material's deep colour darkens its shallow one.
+    vec4 lookTex = zoneOn && zoneIn ? textureLod(u_zoneLook, clamp(zoneUv, vec2(0.0), vec2(1.0)), 0.0) : vec4(u_oceanLook.rgb * u_oceanLook.a, 1.0 - u_oceanLook.a);
+    float lookOwn = clamp(1.0 - lookTex.a, 0.0, 1.0);
+    vec3 lookColor = lookOwn > 1e-3 ? lookTex.rgb / lookOwn : u_shallowColor.rgb;
+    vec3 shallowColor = mix(u_shallowColor.rgb, lookColor, lookOwn);
+    vec3 deepColor = mix(u_deepColor.rgb, lookColor * u_deepColor.rgb / max(u_shallowColor.rgb, vec3(1e-3)), lookOwn);
     // The surf: its height across the shore distance gives its slope along the way to the shore, and where it breaks it is white.
     float still = zoneRead ? waterZoneStill(wp) : 1.0;
     float surfH = zoneOn ? u_surfHeight * u_waveHeight * zone.z * zone.w * still : 0.0;
@@ -802,7 +813,7 @@ void main() {
     // From below the water between the eye and the surface is the camera's own medium (the underwater effect fogs it), not a column behind the surface.
     if (below) transmit = vec3(1.0);
     float murk = 1.0 - dot(transmit, vec3(1.0 / 3.0));
-    vec3 scatterColor = mix(u_shallowColor.rgb, u_deepColor.rgb, 1.0 - exp(-water * u_density * u_deepening));
+    vec3 scatterColor = mix(shallowColor, deepColor, 1.0 - exp(-water * u_density * u_deepening));
 
     // Foam: along the shore, where the water is shallow, broken by noise that moves; and on the crests of the waves.
     float vertical = column * max(abs(viewDir.y), 0.15);
@@ -869,7 +880,7 @@ void main() {
     vec3 mirror = vec3(0.0);
     if (below && fresnel > 0.02 && haveColor && haveDepth && u_mirror > 0.5) {
         vec4 met = waterReflect(P, reflect(-viewDir, N), waterDist);
-        mirror = mix(mix(u_shallowColor.rgb, u_deepColor.rgb, 0.5) * 0.25, met.rgb, met.a);
+        mirror = mix(mix(shallowColor, deepColor, 0.5) * 0.25, met.rgb, met.a);
     }
     seen += mirror * fresnel * (1.0 - foam);
     vec3 color = lit + seen;

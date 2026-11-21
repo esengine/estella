@@ -5,7 +5,7 @@
  *        and the basins and drainage a game decides its lakes and rivers by.
  */
 import { describe, expect, it } from 'vitest';
-import { WaterField, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean } from '../src/water/zone';
+import { WaterField, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean, type ZoneRiver } from '../src/water/zone';
 import { drainPath, findBasins } from '../src/water/basins';
 import type { Point2 } from '../src/water/shore';
 import { App } from '../src/app/app';
@@ -104,6 +104,31 @@ describe('a place kept out of the water', () => {
     it('leaves the surface above it where it lies wholly under the water: a room under the sea', () => {
         const field = WaterField.bake(grid, [ocean], deep, 0, [box(-15, -5)]);
         expect(field.sample(0, 0)?.key).toBe(3);
+    });
+});
+
+describe('each body’s own colour', () => {
+    it('is baked where the body is, runs into its neighbour’s across their junction, and is no share where a body has none', () => {
+        const red = { ...lakeAt(30, 0, 25, 0, 1), color: [1, 0, 0] as const };
+        const plain = lakeAt(-60, 60, 15, 0, 3);
+        const river: ZoneRiver = { kind: 'river', key: 2, waveHeight: 0, shoreWidth: 0, color: [0, 1, 0],
+            stations: Array.from({ length: 21 }, (_, i) => ({ x: -60 + i * 4, z: 0, y: 0, half: 4, dx: 1, dz: 0, speed: 1 })) };
+        const field = WaterField.bake(grid, [red, river, plain], () => -5);
+        const at = (x: number, z: number): { rgb: number[]; share: number } => {
+            const i = Math.round((x - grid.minX) / grid.sizeX * (grid.nx - 1)), j = Math.round((z - grid.minZ) / grid.sizeZ * (grid.nz - 1));
+            const k = j * grid.nx + i;
+            return { rgb: [field.look[k * 3]!, field.look[k * 3 + 1]!, field.look[k * 3 + 2]!], share: field.lookShare[k]! };
+        };
+        expect(at(40, 0)).toEqual({ rgb: [1, 0, 0], share: 1 });
+        expect(at(-40, 0).rgb).toEqual([0, 1, 0]);
+        expect(at(-60, 60).share).toBe(0);
+        // The river's mouth: part river green, part lake red.
+        const mouth = at(5, 0);
+        expect(mouth.rgb[0]).toBeGreaterThan(0.05);
+        expect(mouth.rgb[1]).toBeGreaterThan(0.05);
+        const encoded = field.encode(field.ranges()).look;
+        const k = Math.round((-60 - grid.minZ) / grid.sizeZ * (grid.nz - 1)) * grid.nx + Math.round((-60 - grid.minX) / grid.sizeX * (grid.nx - 1));
+        expect(encoded[k * 4 + 3]).toBe(255);
     });
 });
 
