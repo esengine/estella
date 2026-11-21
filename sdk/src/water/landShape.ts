@@ -159,7 +159,8 @@ function laidAt(d: number, surface: number, depth: number, g: number, s: Channel
         if (!(fade > 0)) return g;
         const rise = Math.tan(Math.min(Math.max(s.falloffAngle ?? 45, 1), 89) * Math.PI / 180) * e;
         const up = terraced(top + rise, s, alpha), down = terraced(top - rise, s, alpha);
-        const met = blend === ChannelBlend.Min ? smin(g, up, k) : blend === ChannelBlend.Max ? smax(g, down, k) : smax(smin(g, up, k), down, k);
+        // Rounded only against the ground: up and down meet at the edge, and rounding them against each other would raise a ridge there.
+        const met = blend === ChannelBlend.Min ? smin(g, up, k) : blend === ChannelBlend.Max ? smax(g, down, k) : g >= top ? smin(g, up, k) : smax(g, down, k);
         return g + (met - g) * fade;
     }
     if (!(s.falloff > 0) ? e > 0 : e >= s.falloff) return g;
@@ -186,8 +187,13 @@ export function channelHeight(d: number, surface: number, depth: number, h: numb
     return additive ? h + (laid - surface) : laid;
 }
 
-const SMOOTH_TAPS = [-0.5, -0.25, 0, 0.25, 0.5];
-const SMOOTH_WEIGHTS = [1 / 9, 2 / 9, 3 / 9, 2 / 9, 1 / 9];
+// A raised-cosine window over the smoothing's width, sampled finely enough that the kinks between its taps do not show as rings.
+const SMOOTH_TAPS = Array.from({ length: 17 }, (_, i) => i / 16 - 0.5);
+const SMOOTH_WEIGHTS = ((): number[] => {
+    const w = SMOOTH_TAPS.map((t) => 1 + Math.cos(t * 2 * Math.PI));
+    const sum = w.reduce((a, b) => a + b, 0);
+    return w.map((v) => v / sum);
+})();
 
 /** Where a point is against a body's edge: how far in (negative out), the water's surface there and its depth. */
 export interface ChannelSample { d: number; surface: number; depth: number }

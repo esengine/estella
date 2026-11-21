@@ -90,6 +90,14 @@ describe('a channel’s bank, effects and terrace mask', () => {
         expect(channelHeight(-9, 4, 6, 10, settings({ ...angle, outerSmooth: 2 }))).toBeCloseTo(10, 6);
     });
 
+    it('raises no ridge where the bank starts, with the ground far from the water either way', () => {
+        const angle = { falloffMode: ChannelFalloff.Angle, falloffAngle: 45, falloff: 100, blend: ChannelBlend.AlphaBlend, bankEdge: 2, outerSmooth: 8 };
+        for (const ground of [30, -30]) {
+            expect(channelHeight(-2, 4, 6, ground, settings(angle))).toBeCloseTo(4, 6);
+            expect(channelHeight(-1, 4, 6, ground, settings(angle))).toBeCloseTo(4, 6);
+        }
+    });
+
     it('rounds the inner edge where the bed leaves the bank', () => {
         const s = settings({ blend: ChannelBlend.AlphaBlend });
         // The bank is level and the bed falls away from it: rounded, the bank's last stretch begins to fall before the edge.
