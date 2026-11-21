@@ -305,6 +305,7 @@ export class Terrains {
 
     private previewMaterial_ = 0;
     private canPreview_ = false;
+    private canPreviewTypes_ = false;
     private previewImage_: BrushMask['image'] | null = null;
     private previewTexture_ = 0;
     private boundMask_ = 0;
@@ -327,9 +328,15 @@ export class Terrains {
             this.boundMask_ = 0;
             this.previewMaterial_ = material;
             this.canPreview_ = material !== 0 && Material.materialsDeclaring('u_sculptBrush').includes(material);
+            this.canPreviewTypes_ = this.canPreview_ && Material.materialsDeclaring('u_sculptDetail').includes(material);
         }
         if (!this.canPreview_ || !brush) return false;
         const { mask, component } = brush;
+        if ((mask || component) && !this.canPreviewTypes_) {
+            // A material authored against the older geometric brush can still draw those brushes.
+            Material.setUniform(material, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+            return false;
+        }
         if (mask && !this.app_) return false;
         if (mask && this.previewImage_ !== mask.image) {
             const next = createTextureFromPixels(this.app_!.wasmModule, mask.image, TextureContent.Retained, false,
@@ -348,11 +355,12 @@ export class Terrains {
             Material.setUniform(material, 'u_sculptMapping', { x: mask.axisU.x, y: mask.axisU.z, z: mask.axisV.x, w: mask.axisV.z });
             Material.setUniform(material, 'u_sculptUV', { x: mask.u, y: mask.v });
         }
-        Material.setUniform(material, 'u_sculptDetail', {
+        if (this.canPreviewTypes_) Material.setUniform(material, 'u_sculptDetail', {
             x: component ? 3 : mask ? (mask.repeat ? 2 : 1) : 0, y: mask?.channel ?? 0,
             z: component?.halfX ?? (mask ? 0.5 / mask.image.width : 0), w: component?.halfZ ?? (mask ? 0.5 / mask.image.height : 0),
         });
-        Material.setUniform(material, 'u_sculptBrush', { x: brush.x, y: brush.z, z: brush.radius, w: Math.max(0, Math.min(1, brush.falloff)) });
+        const falloff = component || (mask && !mask.repeat) ? 0 : Math.max(0, Math.min(1, brush.falloff));
+        Material.setUniform(material, 'u_sculptBrush', { x: brush.x, y: brush.z, z: brush.radius, w: falloff });
         Material.setUniform(material, 'u_sculptProfile', { x: brushShapeId[brush.shape ?? 'circle'], y: brushCurveId[brush.curve ?? 'smooth'] });
         return true;
     }

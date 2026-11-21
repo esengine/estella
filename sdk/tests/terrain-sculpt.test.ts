@@ -87,8 +87,9 @@ describe('brush profiles', () => {
         sculptField(f, 16, 16, { mode: SculptMode.Raise, amount: 1, brush: { x: 0, z: 0, radius: 7, falloff: 0, mask } });
         expect(Array.from(f.data.slice(8 * 17 + 4, 8 * 17 + 12))).toEqual([0.5, 0, 0.5, 1, 0.5, 0, 0.5, 1]);
         f.data.fill(0);
-        sculptField(f, 16, 16, { mode: SculptMode.Raise, amount: 1,
+        const dirty = sculptField(f, 16, 16, { mode: SculptMode.Raise, amount: 1,
             brush: { x: 0, z: 0, radius: 4, falloff: 0, component: { halfX: 4, halfZ: 2 } } });
+        expect(dirty).toEqual({ i0: 4, i1: 12, j0: 6, j1: 10 });
         for (let j = 0; j < 17; j++) for (let i = 0; i < 17; i++)
             expect(at(f, i, j)).toBe(Math.abs(i - 8) <= 4 && Math.abs(j - 8) <= 2 ? 1 : 0);
     });
@@ -201,17 +202,22 @@ it('clears the previous terrain when the preview moves to a custom material or l
     terrains.built_.set(1 as never, { instance: 11 } as never);
     terrains.built_.set(2 as never, { instance: 12 } as never);
     const brush = { x: 1, z: 2, radius: 10, falloff: 0.5, shape: 'square', curve: 'tip' } as const;
-    const declaring = vi.spyOn(Material, 'materialsDeclaring').mockReturnValue([11]);
+    const declaring = vi.spyOn(Material, 'materialsDeclaring').mockImplementation(name => name === 'u_sculptBrush' ? [11] : []);
     const uniform = vi.spyOn(Material, 'setUniform').mockImplementation(() => {});
     try {
         expect(terrains.previewBrush(1 as never, brush)).toBe(true);
         expect(uniform).toHaveBeenCalledWith(11, 'u_sculptBrush', { x: 1, y: 2, z: 10, w: 0.5 });
         expect(uniform).toHaveBeenCalledWith(11, 'u_sculptProfile', { x: 1, y: 3 });
+        expect(terrains.previewBrush(1 as never, { ...brush, component: { halfX: 4, halfZ: 2 } })).toBe(false);
+        expect(uniform).toHaveBeenLastCalledWith(11, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
         expect(terrains.previewBrush(2 as never, brush)).toBe(false);
         expect(uniform).toHaveBeenLastCalledWith(11, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
         expect(terrains.previewBrush(1 as never, brush)).toBe(true);
         expect(terrains.previewBrush(null, null)).toBe(false);
         expect(uniform).toHaveBeenLastCalledWith(11, 'u_sculptBrush', { x: 0, y: 0, z: 0, w: 0 });
+        declaring.mockReturnValue([11]);
+        expect(terrains.previewBrush(1 as never, { ...brush, component: { halfX: 4, halfZ: 2 } })).toBe(true);
+        expect(uniform).toHaveBeenCalledWith(11, 'u_sculptBrush', { x: 1, y: 2, z: 10, w: 0 });
     } finally {
         declaring.mockRestore();
         uniform.mockRestore();

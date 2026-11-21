@@ -97,8 +97,9 @@ function maskIndex(i: number, size: number, repeat: boolean): number {
 
 /** The texel span of a brush over a grid `width` by `height` laid across `sizeX` by `sizeZ`, or null when it reaches none. */
 export function reach(width: number, height: number, sizeX: number, sizeZ: number, b: Brush): Dirty | null {
-    const u0 = (b.x - b.radius) / sizeX + 0.5, u1 = (b.x + b.radius) / sizeX + 0.5;
-    const v0 = (b.z - b.radius) / sizeZ + 0.5, v1 = (b.z + b.radius) / sizeZ + 0.5;
+    const halfX = b.component?.halfX ?? b.radius, halfZ = b.component?.halfZ ?? b.radius;
+    const u0 = (b.x - halfX) / sizeX + 0.5, u1 = (b.x + halfX) / sizeX + 0.5;
+    const v0 = (b.z - halfZ) / sizeZ + 0.5, v1 = (b.z + halfZ) / sizeZ + 0.5;
     const i0 = Math.max(Math.ceil(u0 * (width - 1)), 0), i1 = Math.min(Math.floor(u1 * (width - 1)), width - 1);
     const j0 = Math.max(Math.ceil(v0 * (height - 1)), 0), j1 = Math.min(Math.floor(v1 * (height - 1)), height - 1);
     return i0 > i1 || j0 > j1 ? null : { i0, j0, i1, j1 };
