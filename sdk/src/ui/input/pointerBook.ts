@@ -62,13 +62,16 @@ export const MOUSE_POINTER = -1;
  */
 export function uiPointersOf(input: InputState): UiPointerSample[] {
     const pointers: UiPointerSample[] = [];
-    if (input.touches.size > 0 || input.touchesEnded.size > 0) {
+    if (input.touches.size > 0 || input.touchesEnded.size > 0 || input.touchesEndedBefore.length > 0) {
         const pushEnded = (t: { id: number; x: number; y: number }): void => {
             pointers.push({
                 id: t.id, x: t.x, y: t.y, down: false,
                 pressed: touchEndPressed(t, input.touchesStarted.has(t.id)), released: true, hovers: false,
             });
         };
+        // Taps that a later gesture of the same id followed within this frame, in
+        // the order they happened, each a press and a release of its own.
+        for (const t of input.touchesEndedBefore) pushEnded(t);
         for (const t of input.touches.values()) {
             // A recycled id still owes the previous gesture its release before
             // this gesture captures a control.

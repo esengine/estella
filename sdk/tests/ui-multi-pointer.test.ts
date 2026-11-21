@@ -196,5 +196,16 @@ describe('the pointer set a frame of input makes', () => {
         expect(kinds(events, BUTTON_A)).toEqual(['press', 'release', 'click']);
         expect(kinds(events, BUTTON_B)).toEqual(['hoverEnter', 'press']);
         expect(book.pressedByPointer(3)).toBe(BUTTON_B);
+    });    it('clicks every tap of a reused id that lands and lifts within one frame', () => {
+        const input = new InputState(), callbacks = inputEventCallbacks(input), book = new UiPointerBook();
+        // Three whole taps on one id before the frame samples them: a slow frame on a phone, or a test host.
+        callbacks.onTouchStart!(0, 10, 0); callbacks.onTouchEnd!(0);
+        callbacks.onTouchStart!(0, 150, 0); callbacks.onTouchEnd!(0);
+        callbacks.onTouchStart!(0, 20, 0); callbacks.onTouchEnd!(0);
+        const events = book.step(uiPointersOf(input), screen, () => true);
+        expect(events.filter((e) => e.kind === 'click').map((e) => e.entity)).toEqual([BUTTON_A, BUTTON_B, BUTTON_A]);
+        expect(book.pressedByPointer(0)).toBeNull();
+        input.clearFrameState();
+        expect(uiPointersOf(input).filter((p) => p.id === 0)).toEqual([]);
     });
 });

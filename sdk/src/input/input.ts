@@ -102,6 +102,10 @@ export class InputState {
     /** Fingers lifted this frame, at the position they lifted AT — a release is
      *  hit-tested where it happened, and the live `touches` no longer hold it. */
     touchesEnded = new Map<number, TouchPoint>();
+    /** @internal Earlier taps of a reused id that also ended this frame, oldest
+     *  first. `touchesEnded` keeps only the last gesture per id, so without these
+     *  a second tap within one frame overwrote the first and its click was lost. */
+    touchesEndedBefore: TouchPoint[] = [];
 
     // — Fixed-timestep edge mirrors —
     // The render edges above are cleared once per rendered frame (Schedule.Last),
@@ -224,6 +228,8 @@ export class InputState {
         const point = this.touches.get(id) ?? { id, x: 0, y: 0 };
         recordTouchEnd(point, this.touchesStarted.has(id));
         this.touches.delete(id);
+        const earlier = this.touchesEnded.get(id);
+        if (earlier) this.touchesEndedBefore.push(earlier);
         this.touchesEnded.set(id, point);
     }
 
@@ -466,6 +472,7 @@ export class InputState {
         this.mouseDeltaY = 0;
         this.touchesStarted.clear();
         this.touchesEnded.clear();
+        this.touchesEndedBefore.length = 0;
     }
 
     /** Enter a fixed-timestep step: keyboard/mouse edge queries now read the fixed

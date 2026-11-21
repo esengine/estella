@@ -6092,6 +6092,7 @@ static prototype: InputRouter
 @internal cancelVirtualSources: () => void
 @internal forgetTouches: () => void
 @internal touchIgnored: (id: number, retiring?: boolean) => boolean
+@internal touchesEndedBefore: TouchPoint[]
 beginFixedStep: () => void
 clearFrameState: () => void
 clearVirtual: () => void
