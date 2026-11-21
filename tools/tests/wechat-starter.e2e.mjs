@@ -32,15 +32,17 @@ try {
  await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true,{},{timeout:30000,polling:100}).catch(async error=>{const state=await page.evaluate(()=>({probe:typeof globalThis.__wxStarterProbe,loading:globalThis.__estellaLoading===undefined?'undefined':JSON.stringify(globalThis.__estellaLoading),identDone:globalThis.__estellaIdentDone})).catch(e=>String(e));throw Error(`starter never became ready: ${JSON.stringify(state)}; errors ${JSON.stringify(report.errors)}; console ${JSON.stringify(consoleLines.slice(-20))}`,{cause:error});});
  report.sceneInitializedMs=await page.evaluate(()=>performance.now());
  report.timingScope='Local contract-host scene initialization after the loading indicator clears. Not real-device cold startup or official time-to-interactive certification.';
- const state=()=>page.evaluate(()=>__wxStarterProbe());const tap=async(x,y)=>{await page.touchscreen.tap(360*x,640*y);};
- for(const x of [.2,.5,.8])await tap(x,.45);await page.waitForFunction(()=>__wxStarterProbe().selected===3);
- await tap(.5,.96);await page.waitForFunction(()=>__wxStarterProbe().selected===0);
- await tap(.19,.81);await page.waitForFunction(()=>__wxStarterProbe().message.includes('connect your server'));assert.equal(await page.evaluate(()=>__calls.login),1);
- await tap(.5,.81);await page.waitForFunction(()=>__wxStarterProbe().message.includes('cannot be confirmed'));assert.equal((await state()).credits,0);
- const watch=async ended=>{await tap(.81,.81);await page.waitForFunction(()=>__wxStarterProbe().busy&&typeof __finishReward==='function');await page.evaluate(value=>__finishReward(value),ended);await page.waitForFunction(()=>!__wxStarterProbe().busy);};
+ const state=()=>page.evaluate(()=>__wxStarterProbe());
+ // Every wait after start polls on a clock too, and a miss names the condition, the starter's state, a screenshot and the page's last lines, so a timeout on CI says which step stalled and where.
+ const until=(condition,arg)=>page.waitForFunction(condition,arg,{timeout:30000,polling:100}).catch(async error=>{const now=await page.evaluate(()=>globalThis.__wxStarterProbe?.()).catch(e=>String(e));await page.screenshot({path:path.join(out,'timeout.png')}).catch(()=>{});throw Error(`timed out waiting for ${condition}: starter ${JSON.stringify(now)}; errors ${JSON.stringify(report.errors)}; console ${JSON.stringify(consoleLines.slice(-20))}`,{cause:error});});const tap=async(x,y)=>{await page.touchscreen.tap(360*x,640*y);};
+ for(const x of [.2,.5,.8])await tap(x,.45);await until(()=>__wxStarterProbe().selected===3);
+ await tap(.5,.96);await until(()=>__wxStarterProbe().selected===0);
+ await tap(.19,.81);await until(()=>__wxStarterProbe().message.includes('connect your server'));assert.equal(await page.evaluate(()=>__calls.login),1);
+ await tap(.5,.81);await until(()=>__wxStarterProbe().message.includes('cannot be confirmed'));assert.equal((await state()).credits,0);
+ const watch=async ended=>{await tap(.81,.81);await until(()=>__wxStarterProbe().busy&&typeof __finishReward==='function');await page.evaluate(value=>__finishReward(value),ended);await until(()=>!__wxStarterProbe().busy);};
  await watch(false);assert.equal((await state()).credits,0);await watch(true);assert.equal((await state()).credits,1);
- await page.evaluate(()=>{globalThis.__failReward=2});await tap(.81,.81);await page.waitForFunction(()=>__wxStarterProbe().message.includes('video failed'));assert.equal((await state()).credits,1);
- await page.reload();await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true);assert.equal((await state()).credits,1);
+ await page.evaluate(()=>{globalThis.__failReward=2});await tap(.81,.81);await until(()=>__wxStarterProbe().message.includes('video failed'));assert.equal((await state()).credits,1);
+ await page.reload();await until(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true);assert.equal((await state()).credits,1);
  report.restored=await state();const file='restored.png';await page.screenshot({path:path.join(out,file)});report.screenshot={file,sha256:sha(path.join(out,file))};
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.unexpectedRequests,[]);report.status='checks-passed';await context.close();
 }finally{fs.writeFileSync(path.join(out,'runtime-check.json'),JSON.stringify(report,null,2));await browser.close();await new Promise(resolve=>server.close(resolve));}
