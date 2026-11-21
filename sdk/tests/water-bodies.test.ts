@@ -11,9 +11,11 @@ import type { Point2 } from '../src/water/shore';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
-import { Transform } from '../src/ecs/component';
+import { Camera, Transform } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
-import { WaterBody, WaterForm, WaterPlugin, WatersRes } from '../src/water/waterPlugin';
+import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin, WatersRes } from '../src/water/waterPlugin';
+import { UnderwaterPlugin } from '../src/water/underwater';
+import { currentUnderwater } from '../src/postprocess/underwater';
 import { WaterZone } from '../src/water/zone';
 
 const grid: ZoneGrid = { minX: -100, minZ: -100, sizeX: 200, sizeZ: 200, nx: 201, nz: 201 };
@@ -163,6 +165,7 @@ describe('the water in a running app with no renderer', () => {
         const module = createMockModule();
         app.connectCpp(module.getRegistry(), module);
         app.addPlugin(new WaterPlugin());
+        app.addPlugin(new UnderwaterPlugin());
         const zone = app.world.spawn();
         app.world.insert(zone, Transform, { position: { x: 0, y: 0, z: 0 }, worldPosition: { x: 0, y: 0, z: 0 } });
         app.world.insert(zone, WaterZone, { ...WaterZone._default, sizeX: 200, sizeZ: 200 });
@@ -184,6 +187,22 @@ describe('the water in a running app with no renderer', () => {
         expect(waters.sample(0, -3, 0)).toBeNull();
         expect(waters.sample(0, 0, 0)?.bodyId).toBe('mirror-lake');
         expect(waters.sample(8, -3, 0)?.bodyId).toBe('mirror-lake');
+        // Seen from under the lake: the zone material's look, until the lake has its own.
+        const eye = app.world.spawn();
+        app.world.insert(eye, Transform, { position: { x: 20, y: 0, z: 0 }, worldPosition: { x: 20, y: 0, z: 0 } });
+        app.world.insert(eye, Camera, { isActive: true, nearPlane: 0.1 });
+        const step = async (): Promise<void> => { app.tick(1 / 60); await new Promise((r) => setTimeout(r, 0)); };
+        await step();
+        expect(currentUnderwater()?.absorption).toEqual([0.45, 0.09, 0.05]);
+        app.world.insert(lake, WaterBody, { ...app.world.get(lake, WaterBody), underwaterLook: UnderwaterLook.Own,
+            underwaterColor: { r: 0.4, g: 0.3, b: 0.1, a: 1 }, underwaterAbsorption: { r: 0.1, g: 0.2, b: 0.9, a: 1 }, underwaterDensity: 2, underwaterCaustics: 0 });
+        await step();
+        const own = currentUnderwater()!;
+        expect(own.absorption).toEqual([0.1, 0.2, 0.9]);
+        expect(own.density).toBe(2);
+        expect(own.causticStrength).toBe(0);
+        expect(own.scatter[0]).toBeGreaterThan(own.scatter[2]);
+        app.world.despawn(eye);
         expect(waters.bodyAt(90, 90)).toBeNull();
         // How far from the water's edge: across the dry ground beside it, and in from the shore on it.
         expect(waters.shoreAt(45, 0)).toBeCloseTo(15, -0.5);

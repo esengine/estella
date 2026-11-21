@@ -83,7 +83,17 @@ export interface WaterBodyData {
     waveHeight: number;
     /** How deep a river cuts its bed into the terrain under its surface at its middle, or a lake its floor under its outline; 0 leaves the ground as it is. */
     bedDepth: number;
+    /** {@link UnderwaterLook}: whether seeing from under this body takes the zone material's look or its own, below. */
+    underwaterLook: number;
+    /** Its own look from under it: the colour the water gives back, what it takes out of the light colour by colour, how thick it is, and the web of sunlight on what is under it. */
+    underwaterColor: { r: number; g: number; b: number; a: number };
+    underwaterAbsorption: { r: number; g: number; b: number; a: number };
+    underwaterDensity: number;
+    underwaterCaustics: number;
 }
+
+/** Where a body's underwater look comes from: the zone's water material, as the surface is drawn, or the body's own settings. */
+export const UnderwaterLook = { Zone: 0, Own: 1 } as const;
 
 /**
  * A body of water. Presence is the opt-in; it is drawn as part of its zone's surface.
@@ -93,6 +103,8 @@ export interface WaterBodyData {
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
     form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
+    underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
+    underwaterDensity: 0.12, underwaterCaustics: 0.6,
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
     fields: {
@@ -105,6 +117,11 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Island] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [WaterForm.River] } },
         bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [WaterForm.River, WaterForm.Lake] } },
+        underwaterLook: { enum: [{ label: 'Zone Material', value: UnderwaterLook.Zone }, { label: 'Own', value: UnderwaterLook.Own }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
+        underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
+        underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
+        underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
+        underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River] } },
     },
 });

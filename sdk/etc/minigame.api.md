@@ -15306,6 +15306,11 @@ shoreWidth: number
 sizeX: number
 sizeY: number
 sizeZ: number
+underwaterAbsorption: { r: number; g: number; b: number; a: number; }
+underwaterCaustics: number
+underwaterColor: { r: number; g: number; b: number; a: number; }
+underwaterDensity: number
+underwaterLook: number
 waveHeight: number
 ```
 

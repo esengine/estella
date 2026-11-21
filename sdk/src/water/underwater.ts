@@ -24,7 +24,7 @@ import { Material } from '../render/material';
 import { CAUSTICS_GLSL } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
 import { setUnderwaterState, lensReach } from '../postprocess/underwater';
-import { WatersRes } from './waterPlugin';
+import { UnderwaterLook, WaterBody, WatersRes, type WaterBodyData } from './waterPlugin';
 import { IGN_GLSL, PHASE_HG_GLSL } from '../render/shaderLib';
 import { RAY_START_GLSL } from '../postprocess/sources/shared';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_SHAFT_STEPS } from '../render/qualitySettings/water';
@@ -234,21 +234,25 @@ export class UnderwaterPlugin implements Plugin {
             if (!sample || !(sample.depth < lensReach(near))) { setUnderwaterState(null); return; }
             const instance = waters.instance_;
             const depth = Math.max(-sample.depth, 0);
-            const density = single(instance, 'u_density', 0.12);
-            const shallow = triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]);
-            const deep = triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]);
+            // The body the camera is in may have a look of its own; else the zone's material says it, as its surface is drawn.
+            const body = app.world.valid(sample.entity) && app.world.has(sample.entity, WaterBody) ? app.world.get(sample.entity, WaterBody) as WaterBodyData : null;
+            const own = body && body.underwaterLook === UnderwaterLook.Own ? body : null;
+            const rgb = (c: { r: number; g: number; b: number }): [number, number, number] => [c.r, c.g, c.b];
+            const density = own ? own.underwaterDensity : single(instance, 'u_density', 0.12);
+            const shallow = own ? rgb(own.underwaterColor) : triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]);
+            const deep = own ? [shallow[0] * 0.15, shallow[1] * 0.3, shallow[2] * 0.45] as [number, number, number] : triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]);
             // Deeper, the water gives back more of its deep colour: the same blend the surface draws.
             const toDeep = 1 - Math.exp(-depth * density * 0.5);
             const n = sample.normal;
             setUnderwaterState({
                 amount: 1,
                 depth,
-                absorption: triple(instance, 'u_absorption', [0.45, 0.09, 0.05]),
+                absorption: own ? rgb(own.underwaterAbsorption) : triple(instance, 'u_absorption', [0.45, 0.09, 0.05]),
                 density,
                 scatter: [shallow[0] + (deep[0] - shallow[0]) * toDeep, shallow[1] + (deep[1] - shallow[1]) * toDeep, shallow[2] + (deep[2] - shallow[2]) * toDeep],
                 plane: [n[0], n[1], n[2], n[0] * sample.surface[0] + n[1] * sample.surface[1] + n[2] * sample.surface[2]],
                 band: Math.max(near * 0.08, 0.05),
-                causticStrength: single(instance, 'u_causticStrength', 0.6),
+                causticStrength: own ? own.underwaterCaustics : single(instance, 'u_causticStrength', 0.6),
                 causticScale: single(instance, 'u_causticScale', 2),
                 causticSpeed: single(instance, 'u_causticSpeed', 0.35),
                 light: waters.quality.caustics });

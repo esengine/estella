@@ -11761,6 +11761,42 @@
           "default": "0",
           "doc": "How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.",
           "range": "≥ 0"
+        },
+        {
+          "key": "underwaterLook",
+          "type": "enum",
+          "default": "Zone Material",
+          "doc": "What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.",
+          "values": [
+            "Zone Material",
+            "Own"
+          ]
+        },
+        {
+          "key": "underwaterColor",
+          "type": "Color",
+          "default": "#083347",
+          "doc": "The colour the water gives back from under it, deepening with the depth of the camera."
+        },
+        {
+          "key": "underwaterAbsorption",
+          "type": "Color",
+          "default": "#73170d",
+          "doc": "What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water."
+        },
+        {
+          "key": "underwaterDensity",
+          "type": "number",
+          "default": "0.12",
+          "doc": "How thick the water is: how soon what is seen through it fades into its colour.",
+          "range": "0–4"
+        },
+        {
+          "key": "underwaterCaustics",
+          "type": "number",
+          "default": "0.6",
+          "doc": "How bright the web of sunlight through the waves is on what is under the water. 0 draws none.",
+          "range": "0–4"
         }
       ],
       "animatable": [
@@ -11771,7 +11807,18 @@
         "shoreWidth",
         "flowSpeed",
         "waveHeight",
-        "bedDepth"
+        "bedDepth",
+        "underwaterLook",
+        "underwaterColor.r",
+        "underwaterColor.g",
+        "underwaterColor.b",
+        "underwaterColor.a",
+        "underwaterAbsorption.r",
+        "underwaterAbsorption.g",
+        "underwaterAbsorption.b",
+        "underwaterAbsorption.a",
+        "underwaterDensity",
+        "underwaterCaustics"
       ]
     },
     {
