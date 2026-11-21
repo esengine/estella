@@ -261,6 +261,7 @@ export interface NativeEngineApi {
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOcclusionGridSize?(size: number): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
+    renderer_setParallaxAnchor?(set: boolean, x: number, y: number): void;
     renderer_setParticleDepthGrid?(texels: number): void;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean): void;
     renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
@@ -655,6 +656,7 @@ export function createNativeEngineApi(
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
     bind('renderer_setOcclusionGridSize', 'es_renderer_setOcclusionGridSize', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
+    bind('renderer_setParallaxAnchor', 'es_renderer_setParallaxAnchor', false);
     bind('renderer_setParticleDepthGrid', 'es_renderer_setParticleDepthGrid', false);
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
     bind('renderer_setPreviewOrbit', 'es_renderer_setPreviewOrbit', false);

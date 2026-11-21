@@ -641,6 +641,7 @@ export interface ESEngineModule {
     renderer_resize(width: number, height: number): void;
     renderer_beginFrame(elapsedSec: number): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
+    renderer_setParallaxAnchor?(set: boolean, x: number, y: number): void;
     renderer_updateTransforms(registry: CppRegistry): void;
     /** Address of the transform composition's staleness counter, so a producer
      *  stores into linear memory rather than calling across it. */

@@ -59,6 +59,8 @@ export interface RendererBackend {
     beginFrame(elapsedSec: number): void;
     /** The point the frames are drawn relative to (render/renderOrigin.ts). A host predating it draws relative to zero. */
     setOrigin?(x: number, y: number, z: number): void;
+    /** Where parallax layers are measured from (the editor's view); unset, the drawing camera. A host predating it uses the camera. */
+    setParallaxAnchor?(set: boolean, x: number, y: number): void;
     updateTransforms(registry: CppRegistry): void;
     begin(viewProjection: Float32Array, target: number, clearFlags: number,
           r: number, g: number, b: number, a: number,
@@ -219,6 +221,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         resize: (width, height) => m.renderer_resize(width, height),
         beginFrame: (elapsedSec) => m.renderer_beginFrame(elapsedSec),
         setOrigin: (x, y, z) => { m.renderer_setOrigin?.(x, y, z); },
+        setParallaxAnchor: (set, x, y) => { m.renderer_setParallaxAnchor?.(set, x, y); },
         updateTransforms: (registry) => {
             try {
                 m.renderer_updateTransforms(registry);
@@ -647,6 +650,14 @@ export const Renderer = {
 
     setOrigin(x: number, y: number, z: number): void {
         backend?.setOrigin?.(x, y, z);
+    },
+
+    /**
+     * Measures parallax layers from a world point instead of the camera drawing the frame — the editor's view,
+     * which shows layers where the game's camera would put them. `set = false` hands it back to the camera.
+     */
+    setParallaxAnchor(set: boolean, x = 0, y = 0): void {
+        backend?.setParallaxAnchor?.(set, x, y);
     },
 
     updateTransforms(registry: { _cpp: CppRegistry }): void {

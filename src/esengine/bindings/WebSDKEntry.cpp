@@ -628,6 +628,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_resize", &esengine::renderer_resize);
     emscripten::function("renderer_beginFrame", &esengine::renderer_beginFrame);
     emscripten::function("renderer_setOrigin", &esengine::renderer_setOrigin);
+    emscripten::function("renderer_setParallaxAnchor", &esengine::renderer_setParallaxAnchor);
     emscripten::function("renderer_begin", &esengine::renderer_begin);
     emscripten::function("renderer_flush", &esengine::renderer_flush);
     emscripten::function("renderer_end", &esengine::renderer_end);

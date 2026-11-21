@@ -62,10 +62,16 @@ export interface EditorViewData {
    * Editor-only; scene cameras (shipped games) ignore it. See uiLayoutRect.
    */
   uiPreviewAspect: number;
+  /**
+   * Where parallax layers sit in this view. `true` (default) places them as the scene's game camera would: panning
+   * or zooming the view leaves them still, and moving the game camera moves them as play will. `false` shows them
+   * where they were authored, as if that camera stood at the world origin. Either way the view's own eye has no say.
+   */
+  parallaxPreview: boolean;
 }
 
 export const DEFAULT_EDITOR_VIEW: EditorViewData = {
-  active: false, x: 0, y: 0, z: 0, orthoSize: 360, uiPreviewAspect: 0,
+  active: false, x: 0, y: 0, z: 0, orthoSize: 360, uiPreviewAspect: 0, parallaxPreview: true,
   // Off by default: an existing project opens on exactly the view it always had.
   perspective: false, fov: 60, distance: 1000, yaw: 0, pitch: 0,
 };

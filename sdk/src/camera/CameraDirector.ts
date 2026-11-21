@@ -432,7 +432,7 @@ export function shakenPOV(pov: CameraPOV, shake: ViewShake, elapsed: number): Ca
  * among all of them when none is active. The engine hands over only active cameras, so taking the first active
  * one, as this did, let priority choose nothing. A tie goes to the camera activated last (`activation`), then the first.
  */
-function pickActive(candidates: CameraPOV[], activation?: ReadonlyMap<number, number>): CameraPOV {
+export function pickActive(candidates: CameraPOV[], activation?: ReadonlyMap<number, number>): CameraPOV {
   const anyActive = candidates.some((c) => c.isActive);
   const when = (c: CameraPOV) => activation?.get(c.entity) ?? 0;
   let best: CameraPOV | null = null;

@@ -316,8 +316,8 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec4 finalColor(tint.r, tint.g, tint.b, tint.a * opacity);
         u32 packedColor = packColor(finalColor);
 
-        f32 parallaxOffsetX = cam.center.x * (1.0f - parallax.x);
-        f32 parallaxOffsetY = cam.center.y * (1.0f - parallax.y);
+        f32 parallaxOffsetX = cam.parallaxCenter.x * (1.0f - parallax.x);
+        f32 parallaxOffsetY = cam.parallaxCenter.y * (1.0f - parallax.y);
         // The layer's own offset rides here rather than in the chunk vertices:
         // those are cached, and this is read every frame, so moving the grid is
         // live in the editor and costs no rebuild.

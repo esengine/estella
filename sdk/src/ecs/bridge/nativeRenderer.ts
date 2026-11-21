@@ -83,6 +83,9 @@ export function createNativeRendererBackend(
         setOrigin: (x, y, z): void => {
             optional(scope, RENDERER_OPTIONAL_BINDINGS.setOrigin)?.(x, y, z);
         },
+        setParallaxAnchor: (set, x, y): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.setParallaxAnchor)?.(set, x, y);
+        },
         updateTransforms: (_registry: CppRegistry): void => {
             hostCall(scope, RENDERER_BINDINGS.updateTransforms, []);
         },

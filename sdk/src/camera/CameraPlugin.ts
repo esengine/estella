@@ -38,7 +38,7 @@ import type { ViewShading } from '../render/renderer';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewEye, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
 import { ScreenScaling, SCREEN_FIT_OFF } from './ScreenScaling';
 import { planPresent, viewportPixels, RenderResolution } from './presentPlan';
-import { CameraDirector, CameraEvent, createDirectorState, resolveMainPOV, type CameraDirectorState, type CameraEventPayload } from './CameraDirector';
+import { CameraDirector, CameraEvent, createDirectorState, pickActive, resolveMainPOV, type CameraDirectorState, type CameraEventPayload } from './CameraDirector';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Input } from '../input/input';
 import { pendingShaders } from '../render/shaderWarmup';
@@ -643,6 +643,34 @@ function resolveCameras(
     return out;
 }
 
+/**
+ * Where the editor's view measures parallax from, or null when the drawing camera should (a game, or play mode).
+ * Parallax is the GAME camera's effect: measured from the editor's own eye, layers slid as the view panned or
+ * zoomed and stood still while the game camera moved. With the preview on, the anchor is the scene camera the
+ * game would open on (the active one, then the highest priority, as the director picks at rest); with it off, or
+ * with no camera in the scene, it is the world origin, where every layer sits as authored.
+ */
+export function editorParallaxAnchor(
+    app: App,
+    module: ESEngineModule | null,
+    cppRegistry: CppRegistry,
+    width: number,
+    height: number,
+    world: World | undefined,
+    activeScenes: Set<string> | undefined,
+): { x: number; y: number } | null {
+    if (!app.hasResource(EditorView)) return null;
+    const view = app.getResource(EditorView);
+    if (!view.active) return null;
+    if (!view.parallaxPreview) return { x: 0, y: 0 };
+    const onScreen = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes)
+        .filter((p) => p.renderTarget === 0);
+    const { fullFrame } = splitOnScreenCameras(onScreen);
+    if (fullFrame.length === 0) return { x: 0, y: 0 };
+    const main = pickActive(fullFrame);
+    return { x: main.x, y: main.y };
+}
+
 // =============================================================================
 // UICameraInfo Sync
 // =============================================================================
@@ -865,6 +893,8 @@ export function cameraPlugin(
             let lastViewShading: ViewShading | null = null;
             let lastViewWeights = '';
             let lastViewSelection = '';
+            // Where the engine measures parallax from: '' is the drawing camera, as a fresh engine starts.
+            let lastParallaxAnchor = '';
             // The camera director: by default it just tracks the active camera;
             // games call setViewTarget(app, entity, {time, curve}) to blend, or
             // shakeCamera(app, {...}) to shake. Fresh state (own arrays) per App.
@@ -963,6 +993,14 @@ export function cameraPlugin(
                         resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, elapsed, true));
 
                     pushRenderOrigin((x, y, z) => { Renderer.setOrigin(x, y, z); });
+
+                    // Parallax in the editor's view follows the game camera, not the view's eye. Pushed only on change.
+                    const anchor = editorParallaxAnchor(app, module, cppRegistry, width, height, app.world, activeScenes);
+                    const anchorKey = anchor ? `${anchor.x},${anchor.y}` : '';
+                    if (anchorKey !== lastParallaxAnchor) {
+                        Renderer.setParallaxAnchor(anchor !== null, anchor?.x ?? 0, anchor?.y ?? 0);
+                        lastParallaxAnchor = anchorKey;
+                    }
 
                     app.measureFrameScope('render.uiCameraSync', () =>
                         syncUICameraInfo(app, frameCanvas, width, height, cameras));

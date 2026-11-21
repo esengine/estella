@@ -108,6 +108,9 @@ struct RenderFrameContext {
 struct CameraView {
     f32 left = 0.0f, bottom = 0.0f, right = 0.0f, top = 0.0f;
     glm::vec2 center{0.0f};
+    /// The point parallax layers are offset by, from the render origin: the view's own centre, unless a
+    /// ParallaxAnchor stands in for it (the editor's view, which shows layers where the GAME camera puts them).
+    glm::vec2 parallaxCenter{0.0f};
 
     /// Where the frame is seen from, in FrameConstants::camera's convention: the
     /// eye's world position when w = 1, or the unit direction pointing at the
@@ -126,6 +129,24 @@ struct CameraView {
     }
 };
 
+/**
+ * @brief Where parallax is measured from, when it is not the camera drawing the frame.
+ * @details A parallax layer is placed by where the camera is, which is the game's camera in a game. The
+ *          editor draws the scene through its own eye, and measuring from that made layers slide whenever
+ *          the view panned or zoomed, while moving the game's camera moved nothing. The editor sets this to
+ *          the game camera's centre (or to the world origin, where layers sit as authored); a game leaves it
+ *          unset. World units; one anchor serves every collect of the frame, so it is set between frames.
+ */
+struct ParallaxAnchor {
+    bool set = false;
+    glm::dvec2 at{0.0};
+};
+
+inline ParallaxAnchor& parallaxAnchor() {
+    static ParallaxAnchor anchor;
+    return anchor;
+}
+
 inline CameraView computeCameraView(const glm::mat4& viewProjection) {
     glm::mat4 invVP = glm::inverse(viewProjection);
     glm::vec4 bl = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
@@ -136,6 +157,11 @@ inline CameraView computeCameraView(const glm::mat4& viewProjection) {
     view.right  = tr.x / tr.w;
     view.top    = tr.y / tr.w;
     view.center = { (view.left + view.right) * 0.5f, (view.bottom + view.top) * 0.5f };
+    // The centre above is from the render origin, as the view-projection is; the anchor is a world point.
+    const ParallaxAnchor& anchor = parallaxAnchor();
+    view.parallaxCenter = anchor.set
+        ? glm::vec2(anchor.at - glm::dvec2(renderOrigin()))
+        : view.center;
     view.eye    = cameraFromViewProjection(viewProjection);
     return view;
 }
@@ -456,8 +482,8 @@ inline glm::vec3 parallaxedWorldPosition(ecs::Transform& transform, const glm::v
                                          const CameraView& camera) {
     transform.ensureDecomposed();
     glm::vec3 position = rebased(transform.worldPosition);
-    position.x += camera.center.x * (1.0f - parallax.x);
-    position.y += camera.center.y * (1.0f - parallax.y);
+    position.x += camera.parallaxCenter.x * (1.0f - parallax.x);
+    position.y += camera.parallaxCenter.y * (1.0f - parallax.y);
     return position;
 }
 

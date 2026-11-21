@@ -182,6 +182,8 @@ export const HOST_FLAGS = {
 export const RENDERER_OPTIONAL_BINDINGS = {
     /** The render origin (render/renderOrigin.ts); a host predating it draws relative to zero. */
     setOrigin: 'es_renderer_setOrigin',
+    /** Where parallax is measured from (the editor's view); a host predating it measures from the camera. */
+    setParallaxAnchor: 'es_renderer_setParallaxAnchor',
     /** 2.5D depth layers; hosts predating the feature simply stay painter-ordered. */
     setDepthLayers: 'es_renderer_setDepthLayers',
     /** Layers painted in hierarchy order (cocos compat); hosts predating it paint them as before. */

@@ -825,6 +825,12 @@ void renderer_setOrigin(f64 x, f64 y, f64 z) {
     setRenderOrigin(glm::dvec3(x, y, z));
 }
 
+/// Where parallax layers are measured from in the next frames (RenderTypePlugin.hpp's ParallaxAnchor): a world point when
+/// `set`, or the drawing camera's own centre when not, which is what a game wants. The editor's view sets it.
+void renderer_setParallaxAnchor(bool set, f64 x, f64 y) {
+    parallaxAnchor() = ParallaxAnchor{set, glm::dvec2(x, y)};
+}
+
 void renderer_beginFrame(f32 elapsedSec) {
     // A render frame is not a mutation: composition is invalidated by the
     // producers that write transform inputs. A server has no frames, and one

@@ -1449,7 +1449,7 @@ TEST_CASE("bitmap text: world geometry follows affine transforms and parallax") 
         frustum.extractFromMatrix(projection);
         RenderFrameContext frameContext{context, resources};
         RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-        collect.camera.center = {10, 20};
+        collect.camera.center = collect.camera.parallaxCenter = {10, 20};
         TextPlugin plugin;
         plugin.init(frameContext);
         plugin.collect(collect);
@@ -1469,6 +1469,37 @@ TEST_CASE("bitmap text: world geometry follows affine transforms and parallax") 
         }
         resources.shutdown();
     }
+}
+
+TEST_CASE("parallax: measured from the drawing camera, or from the anchor the editor's view sets") {
+    // The editor's eye looks at (300, -40) through a 200 x 100 box; the game camera stands at (50, 10).
+    const glm::mat4 editorEye = glm::ortho(200.0f, 400.0f, -90.0f, 10.0f);
+    struct Restore { ~Restore() { parallaxAnchor() = {}; setRenderOrigin(glm::dvec3(0.0)); } } restore;
+
+    // A game sets no anchor: parallax follows the camera drawing the frame.
+    CameraView view = computeCameraView(editorEye);
+    CHECK(view.parallaxCenter.x == doctest::Approx(300.0f));
+    CHECK(view.parallaxCenter.y == doctest::Approx(-40.0f));
+
+    // The editor anchors it to the game camera: panning or zooming its own eye no longer moves a layer.
+    parallaxAnchor() = ParallaxAnchor{true, glm::dvec2(50.0, 10.0)};
+    for (const glm::mat4& eye : {editorEye, glm::ortho(-1000.0f, 1000.0f, -500.0f, 500.0f)}) {
+        view = computeCameraView(eye);
+        CHECK(view.parallaxCenter.x == doctest::Approx(50.0f));
+        CHECK(view.parallaxCenter.y == doctest::Approx(10.0f));
+    }
+    ecs::Transform transform;
+    transform.worldPosition = {100, 0, 0};
+    transform.decomposed_ = true;
+    const glm::vec3 placed = parallaxedWorldPosition(transform, {0.5f, 0.5f}, view);
+    CHECK(placed.x == doctest::Approx(125.0f));
+    CHECK(placed.y == doctest::Approx(5.0f));
+
+    // Positions reach the GPU from the render origin; the anchor, a world point, is taken from it the same way.
+    setRenderOrigin(glm::dvec3(1000.0, 0.0, 0.0));
+    view = computeCameraView(editorEye);
+    CHECK(view.parallaxCenter.x == doctest::Approx(-950.0f));
+    CHECK(view.parallaxCenter.y == doctest::Approx(10.0f));
 }
 
 TEST_CASE("bitmap text: UTF-8 strings retain every glyph beyond 64 KiB") {
