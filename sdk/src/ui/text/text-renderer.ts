@@ -389,7 +389,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     const emitGlyphs = (glyphs: readonly LaidGlyph[], color: RGBA): void => emitChunks(pageChunks(glyphs), color, 0, 0);
 
     // A label's shadow and outline belong to it: they fade with its own alpha, so
-    // a text faded out by its colour leaves no shadow behind (Unity's rule; CSS
+    // a text faded out by its colour leaves no shadow behind (CSS
     // keeps the shadow, which every fade then had to undo by hand).
     const fillAlpha = Math.max(0, Math.min(1, p.color[3]));
     const decoration = (c: RGBA): RGBA => [c[0], c[1], c[2], c[3] * fillAlpha];

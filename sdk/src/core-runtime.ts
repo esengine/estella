@@ -335,7 +335,7 @@ export {
 export { GestureDetector, type SwipeDirection } from './input/gesture';
 
 // =============================================================================
-// Input Map (named actions — UE Enhanced Input / Unity Input System analog)
+// Input Map (named actions bound to keys, buttons and axes)
 // =============================================================================
 
 export {

@@ -51,7 +51,7 @@ function boundsOf(geo: { verts: Float32Array }): { min: number[]; max: number[] 
 }
 
 describe('collectNavGeometry', () => {
-    // An imported level is a MeshCollider3D on each mesh and no RigidBody3D: static, as in Unity and as the solver
+    // An imported level is a MeshCollider3D on each mesh and no RigidBody3D: static, as the solver
     // builds it. It baked to no ground, and an agent in an imported yard had nowhere to walk.
     it('takes a collider with no RigidBody3D as ground, at its world pose', () => {
         const world = testWorld();

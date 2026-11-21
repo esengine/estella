@@ -6,8 +6,8 @@
  *
  * @details A track names what it animates by a name path below the entity playing the timeline. A path that starts
  *          `@Name` names a BINDING instead: the entity the playing `TimelinePlayer` binds `Name` to, anywhere in the
- *          scene, with the rest of the path (`@Hero/Arm`) below it. That is Unity's PlayableDirector binding and UE's
- *          possessable: one timeline, played by two players, drives two different characters, and a cutscene can move
+ *          scene, with the rest of the path (`@Hero/Arm`) below it. So
+ *          one timeline, played by two players, drives two different characters, and a cutscene can move
  *          things that are not its children. Every track resolves its target through here, so every kind of track
  *          can be bound.
  */

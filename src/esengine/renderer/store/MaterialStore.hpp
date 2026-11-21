@@ -544,8 +544,7 @@ public:
     void bindForDraw(u32 materialId, u32 samplerUnits = 0xFFFFFFFFu);
 
     /**
-     * @brief Binds a material's values for a draw through another shader: what a pass that draws a material's surface somewhere else
-     *        (a bake into a texture) reads, as Unreal draws a material to a render target.
+     * @brief Binds a material's values for a draw through another shader (a bake into a texture, a material drawn to a render target).
      * @details Matched by NAME, so the two need not lay their params out alike: each param of @p shader takes the material's value of
      *          the param of the same name (else its own default), each texture the material's texture of the same name (else its
      *          default). @p overrides then replace vec4 params for this draw alone. The block goes into scratch buffer @p scratch, one

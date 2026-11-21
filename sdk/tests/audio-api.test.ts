@@ -298,12 +298,12 @@ describe('AudioAPI', () => {
             expect(audio.getBusVolume('sfx')).toBe(0.25);
         });
 
-        it('reports unity volume for an unknown bus', () => {
+        it('reports full volume for an unknown bus', () => {
             (mixer.getBus as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
             expect(audio.getBusVolume('nope')).toBe(1);
         });
 
-        it('reports unity volume and unmuted without a mixer', () => {
+        it('reports full volume and unmuted without a mixer', () => {
             const bare = new AudioAPI(createMockBackend(), null);
             expect(bare.getMasterVolume()).toBe(1);
             expect(bare.getMusicVolume()).toBe(1);

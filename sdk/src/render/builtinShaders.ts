@@ -523,7 +523,7 @@ export const MODEL = `#pragma shader "Model"
 #pragma domain Lit
 #pragma switch ES_SPECULAR_GLOSSINESS
 #pragma param u_tint color default(1,1,1,1) group(Base)
-// Where every map is read: the mesh's UV scaled, then turned, then moved (glTF's KHR_texture_transform, Unity's Tiling and Offset).
+// Where every map is read: the mesh's UV scaled, then turned, then moved (glTF's KHR_texture_transform).
 #pragma param u_uvTiling vec2 default(1,1) group(UV)
 #pragma param u_uvOffset vec2 default(0,0) group(UV)
 #pragma param u_uvRotation float default(0) range(-3.1416,3.1416) ui(slider) group(UV)

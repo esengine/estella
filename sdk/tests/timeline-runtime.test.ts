@@ -60,7 +60,7 @@ describe('applyTimelineEvent — ActivationSet', () => {
         expect(world.writes.get(UINode)).toBe(1);
     });
 
-    it('switches anything else off whole, its children with it, as Unity’s Activation Track does', () => {
+    it('switches anything else off whole, its children with it, as an activation track does', () => {
         const world = new World();
         const mod = createMockModule();
         world.connectCpp(mod.getRegistry(), mod);

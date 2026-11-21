@@ -78,7 +78,7 @@ export const worldResidencyPlugin: Plugin = {
     build(app: App): void {
         const streamer = new WorldStreamer(app.getResource(SceneManager));
         app.insertResource(WorldStreaming, streamer);
-        // Unreal's BlockOnSlowStreaming: the game stops while a cell its player is upon arrives, and the work that brings
+        // Block on slow streaming: the game stops while a cell its player is upon arrives, and the work that brings
         // it in goes on being stepped through that stop.
         streamer.setHoldHandler((held) => {
             setAppHostPaused(app, streamer, held);

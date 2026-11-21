@@ -38,7 +38,7 @@ export interface TimelineState {
     /** The timelines playing inside this one, by `SequenceLayer.key`: where each was last step, for edge detection. */
     nested: Record<string, { time: number; spineClipIndices: Record<number, number> }>;
     /**
-     * The stretch of the timeline played (UE's playback range): from `rangeStart`, ending (or looping) at `rangeEnd`;
+     * The stretch of the timeline played (its playback range): from `rangeStart`, ending (or looping) at `rangeEnd`;
      * 0 is the timeline's own end. Absent, the whole timeline.
      */
     rangeStart?: number;

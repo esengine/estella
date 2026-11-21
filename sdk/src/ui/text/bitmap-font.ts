@@ -12,7 +12,7 @@
  * font exactly as it does on a system one.
  *
  * Metrics stay in the font's own pixels, and the layout scales them by `fontSize / font.size` — the scale a
- * bitmap-font label has always had in Cocos and Unity.
+ * bitmap-font label has always had in Cocos.
  *
  * This file holds no component and touches no engine: the parser is pure and the registry is a map.
  */

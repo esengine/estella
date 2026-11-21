@@ -237,7 +237,7 @@ check('and it did not climb the wall', blocked.y < climbed.y + 0.3,
 // the strength to move it — and `mass` alone never was that.
 const CRATE_STRONG = 12, CRATE_WEAK = 13;
 // Taller than the 0.4 step the heroes walk with: a crate a character can step onto
-// is climbed rather than pushed (PhysX's controller, Unity's, climbs it).
+// is climbed rather than pushed (PhysX's controller climbs it).
 const strongCrate = m._physics3d_addBox(CRATE_STRONG, 0.3, 0.3, 0.3, -38.5, 0.3, 10,
                                         ...IDENTITY, ...FREE(DYNAMIC), 0.2, 0, 0);
 const weakCrate = m._physics3d_addBox(CRATE_WEAK, 0.3, 0.3, 0.3, -38.5, 0.3, 20,
@@ -382,11 +382,9 @@ for (let i = 0; i < 240 && !entered; i++) {
 }
 check('a sensor reports its visitor', entered != null && entered[1] === VISITOR,
       JSON.stringify(entered));
-// It carries on to the floor below (top at 0, so a 0.5 sphere rests at 0.5). A
-// sensor that stopped it would hold it on its own top face at 2.5 instead.
-// It comes to rest INSIDE the field (the floor is too), so the exit is made to
-// happen: carried out of the volume. Jolt also reports one when the body falls
-// asleep in it; PhysX, as in Unity, does not, and a sleeping visitor is still in.
+// It carries on to the floor below (a 0.5 sphere rests at 0.5; a sensor that stopped it would hold it at 2.5) and
+// rests INSIDE the field, so the exit is made by carrying it out: Jolt also reports one when the body falls asleep
+// in it; PhysX does not, and a sleeping visitor is still in.
 const settled = collect(sensorExits, 180).find((e) => e[0] === FIELD) ?? null;
 check('and does not stop it', near(bodyState(visitorId).y, 0.5, 0.1),
       `visitor y=${bodyState(visitorId)?.y?.toFixed(4)} want 0.5 (through it, onto the floor)`);

@@ -5,7 +5,7 @@
  * @brief   Per-agent key/value context + one-shot event triggers.
  *
  * The shared data plane for the AI layer: FSM guards and BT conditions read it,
- * actions write it, game code seeds it. Triggers are edge events (Unity-style):
+ * actions write it, game code seeds it. Triggers are edge events:
  * fired once, consumed by the transition that takes them.
  */
 

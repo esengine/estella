@@ -4,13 +4,13 @@
  * @file    CameraDeoccluder.ts
  * @brief   Keeps what a camera frames in sight: when something solid comes between them, the camera moves up to it.
  *
- * @details Cinemachine's Deoccluder (Pull Camera Forward) and the probe of UE's spring arm. A sphere is swept from the
+ * @details A deoccluder that pulls the camera forward past what blocks it. A sphere is swept from the
  *          point the camera looks at back to where the rig put the camera; when it meets something, the camera is drawn
  *          in along that line to just short of it, so the wall is behind the camera and the target in front. Along that
  *          line the target stays where the composition held it.
  *
- *          The correction is the stage's own and is taken back before the next frame's stages run, as Cinemachine keeps
- *          its extension's offset apart from the camera's state: the position stages work from where the rig wants the
+ *          The correction is the stage's own and is taken back before the next frame's stages run, an offset kept
+ *          apart from the camera's state: the position stages work from where the rig wants the
  *          camera, not from where the wall pushed it, so the camera comes back out when the wall is gone. It is eased:
  *          in at `dampingWhenOccluded` (0, at once, so the wall is never seen through) and back out at `damping`.
  *

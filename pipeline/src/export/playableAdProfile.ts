@@ -171,7 +171,7 @@ export const unityPlayableProfile: PlayableAdProfile = {
     id: 'unity',
     label: 'Unity Ads',
     maxBytes: 5 * 1024 * 1024,
-    limitNote: 'Unity requires a single inlined index.html under 5MB',
+    limitNote: 'Unity Ads requires a single inlined index.html under 5MB',
     emitBridge: mraidBridge,
 };
 

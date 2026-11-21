@@ -5,9 +5,8 @@
  * @brief   The camera pipeline: what moves each camera this frame, in a fixed order, and the brain that picks the view.
  *
  * @details Every Camera entity is a virtual camera: a view the scene describes. One of them is drawn, the live one, chosen
- *          and blended into by the director (CameraDirector.ts). Unity's Cinemachine Brain and UE's PlayerCameraManager
- *          are that director; this file is the procedural half each camera runs before it, in the stages Cinemachine
- *          names and UE's camera rigs order the same way:
+ *          and blended into by the director (CameraDirector.ts). This file is the procedural half
+ *          each camera runs before it, in these stages:
  *
  *            1. position  where the camera stands    FollowTarget, CameraDolly, PositionComposer (a camera uses one)
  *            2. rotation  where it looks             LookAtTarget
@@ -18,8 +17,8 @@
  *
  *          A stage decides in the world and writes through the camera's parent (cameraPlace.ts), the world value beside the
  *          local one, so a stage reads what the stages before it wrote this frame: a camera that follows and looks at one
- *          target aims from where it stands now. Noise and shake move what is drawn and never the camera's Transform, as
- *          Cinemachine's noise and Impulse and a UE camera shake do: noise per camera before the director blends, shake on
+ *          target aims from where it stands now. Noise and shake move what is drawn and never the camera's Transform:
+ *          noise per camera before the director blends, shake on
  *          the blended view after it.
  */
 import { defineComponent, Name } from '../ecs/component';
@@ -45,7 +44,7 @@ export interface CameraBrainData {
   /** The easing of that blend (BlendCurve: 0 linear, 1 ease in, 2 ease out, 3 ease in and out). */
   blendCurve: number;
   /**
-   * Blends for particular changes of camera, as Cinemachine's Custom Blends: from a camera to another, by their names,
+   * Blends for particular changes of camera: from a camera to another, by their names,
    * an empty name for any camera. The first naming both ends wins, then one naming the camera blended to, then the one
    * blended from; any other change takes the default.
    */
@@ -68,7 +67,7 @@ const CURVES = [
 ];
 
 /**
- * How the view changes cameras, for the scene it is in: Cinemachine's Brain, and the blend UE's PlayerCameraManager gives
+ * How the view changes cameras, for the scene it is in: which camera is live, and the blend it gives
  * a new view target. One per scene, on any entity; a scene without one cuts, as every scene did before it existed.
  */
 export const CameraBrain = defineComponent<CameraBrainData>('CameraBrain', {

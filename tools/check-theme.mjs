@@ -43,7 +43,7 @@ const contrast = (a, b) => {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 };
 
-/** Body text, per WCAG AA and Unity's own editor accessibility page. */
+/** Body text, per WCAG AA. */
 const FLOOR = 4.5;
 /**
  * The surfaces text is READ on: the panel body and the raised strip above it.
@@ -254,7 +254,7 @@ const offGridByFile = () => {
         const v = Number(px[1]);
         // 1px is not a step of the grid but a seam: the hairline between joined
         // segments (`gap: 1px` showing the groove through), a border's overlap
-        // (`margin: -1px`), a tag's optical inset. Unreal draws its seams the same.
+        // (`margin: -1px`), a tag's optical inset.
         if (v === 1) continue;
         if (v !== 0 && v % GRID !== 0) n++;
       }

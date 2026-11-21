@@ -3,7 +3,7 @@
 /**
  * @file    FollowTarget.ts
  * @brief   Per-camera follow behaviour — the procedural half of the camera
- *          modifier layer (Cinemachine's vcam Body). A camera with a FollowTarget
+ *          modifier layer. A camera with a FollowTarget
  *          component damps its Transform toward a target each frame, with a dead
  *          zone (the target can roam within it without the camera moving) and
  *          frame-rate-independent damping. State lives in the camera's Transform

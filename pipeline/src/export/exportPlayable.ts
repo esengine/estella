@@ -115,22 +115,10 @@ function pack(bytes: Uint8Array | Buffer): PackedBytes {
 }
 
 /**
- * The playable page. Deliberately WITHOUT the web export's rotate-to-fit overlay:
- * inside an ad SDK the container's size is the SDK's business, so `@media
- * (orientation:portrait)` reports the container's aspect and not the device's —
- * turning the phone need not change it. An overlay keyed on that hides the canvas
- * and never comes back, which is a playable that cannot be played. Every network
- * asks for a responsive creative instead (Unity spells out both orientations), and
- * the host already resizes the canvas to whatever container it is given.
- *
- * `orientation` therefore only reaches the network profile, which may still DECLARE
- * it (Google wants an `ad.orientation` meta tag) — a declaration to the platform, not
- * a demand on the player.
- *
- * `network` is what the chosen profile contributes: markup for `<head>` and the
- * bridge that gives `playableCta()` somewhere to go. The bridge runs BEFORE the game
- * bundle, so a CTA fired during boot still resolves.
- *
+ * The playable page, WITHOUT the web export's rotate-to-fit overlay: in an ad SDK `@media (orientation)` reports the
+ * container, not the device, so the overlay could hide the canvas for good; networks want a responsive creative.
+ * `orientation` only reaches the network profile, which may DECLARE it (Google's `ad.orientation` meta tag). `network`
+ * adds `<head>` markup and the bridge behind `playableCta()`, run BEFORE the game bundle so a boot-time CTA resolves.
  */
 function indexHtml(
   title: string,

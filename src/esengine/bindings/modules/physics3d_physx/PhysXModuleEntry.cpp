@@ -6,7 +6,7 @@
  * @details Every entry point here answers what its Jolt twin answers, in the
  *          same buffer layouts (Physics3DBindings.hpp is included so a
  *          signature that drifts is a compile error). Where the two engines
- *          genuinely differ the choice follows Unity, which runs this same
+ *          genuinely differ the choice follows the usual defaults of this
  *          solver: trigger volumes report character controllers, and a
  *          character stops rising when it hits a ceiling.
  *
@@ -39,10 +39,10 @@ PxPhysics* gPhysics = nullptr;
 
 World& g() { return px3::world(); }
 
-// Unity's defaults for the same solver (Project Settings > Physics, Rigidbody).
+// The usual defaults for this solver (world settings and per body).
 constexpr float CONTACT_OFFSET = 0.01f;
 constexpr float SLEEP_THRESHOLD = 0.005f;
-/// Unity's Default Max Angular Speed since 2021.2 (it was 7 before).
+/// The usual default max angular speed, in rad/s.
 constexpr float MAX_ANGULAR_VELOCITY = 50.0f;
 constexpr float MAX_DEPENETRATION_VELOCITY = 10.0f;
 constexpr uint32_t POSITION_ITERATIONS = 6;
@@ -64,7 +64,7 @@ PxMaterial* material(float friction, float restitution) {
     const uint64_t key = (static_cast<uint64_t>(f) << 32) | r;
     auto found = g().materials.find(key);
     if (found != g().materials.end()) return found->second;
-    // One friction for both, as the SDK authors one; Average is Unity's default
+    // One friction for both, as the SDK authors one; Average is the usual default
     // combine for both friction and bounce.
     PxMaterial* m = gPhysics->createMaterial(friction, friction, restitution);
     m->setFrictionCombineMode(PxCombineMode::eAVERAGE);
@@ -84,7 +84,7 @@ PxFilterData filterData(uint32_t layer, uint32_t kind) {
  * Who meets whom. Layers are read from the live matrix, as the Jolt backend
  * reads its own. Characters push and are pushed but report no contacts — a
  * Jolt character is not a body and reports none either — while a trigger does
- * report them, which is what Unity's OnTriggerEnter on a player relies on.
+ * report them, which a trigger-enter callback on a player relies on.
  */
 PxFilterFlags filterShader(PxFilterObjectAttributes a0, PxFilterData d0,
                            PxFilterObjectAttributes a1, PxFilterData d1,
@@ -233,7 +233,7 @@ uint32_t addBody(uint32_t entity, const PxGeometry& geometry, const PxTransform&
     }
     if (actor == nullptr) return 0;
 
-    // A trigger is still found by queries: Unity's queriesHitTriggers is on by default.
+    // A trigger is still found by queries: queries hit triggers by default.
     const PxShapeFlags shapeFlags = isSensor != 0
         ? PxShapeFlags(PxShapeFlag::eTRIGGER_SHAPE | PxShapeFlag::eSCENE_QUERY_SHAPE)
         : PxShapeFlags(PxShapeFlag::eSIMULATION_SHAPE | PxShapeFlag::eSCENE_QUERY_SHAPE);
@@ -603,7 +603,7 @@ uint32_t physics3d_addConvexBody(uint32_t entity, uintptr_t vertexPtr, uint32_t 
     desc.points.count = vertexCount;
     desc.points.stride = sizeof(float) * 3;
     desc.points.data = positions;
-    // PhysX keeps at most 255 hull vertices, Unity's limit as well.
+    // PhysX keeps at most 255 hull vertices.
     desc.flags = PxConvexFlag::eCOMPUTE_CONVEX;
     const PxCookingParams params(gPhysics->getTolerancesScale());
     PxConvexMesh* mesh = PxCreateConvexMesh(params, desc, gPhysics->getPhysicsInsertionCallback());

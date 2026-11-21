@@ -21,12 +21,9 @@ struct UIMask {
     MaskMode mode{MaskMode::Scissor};
 
     /**
-     * Stencil mode only: clip to the SHAPE this node draws rather than to its
-     * box. 0 (default) keeps the box — the mask's whole quad writes stencil,
-     * which is what a plain rounded panel wants and what earlier scenes relied
-     * on. Above 0, fragments whose alpha falls below the cutoff stop writing
-     * stencil, so a circular sprite masks a circle (the Unity `Mask` behaviour
-     * an avatar frame needs).
+     * Stencil mode only: clip to the SHAPE this node draws rather than its box. 0 (default) keeps the box, as a
+     * plain rounded panel wants; above 0, fragments whose alpha is below the cutoff write no stencil, so a circular
+     * sprite masks a circle, as an avatar frame needs.
      */
     ES_PROPERTY(tooltip="Stencil only: above 0, clip to the mask sprite's shape instead of its box.")
     f32 alphaCutoff{0.0f};

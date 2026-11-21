@@ -10,7 +10,7 @@
  * and Snap controls; the grid renderer (installEditorGrid) draws an infinite
  * world-space grid through the editor camera's view-projection in the pre-scene
  * pass — so it pans / zooms with the view and is occluded by scene entities,
- * exactly like a UE5 / Unity scene grid.
+ * exactly like a scene grid in an editor.
  *
  * Colors are straight-alpha RGBA in 0..1. `spacing` is the minor line spacing in
  * world units; every `majorEvery`-th line is a heavier major line. The two world

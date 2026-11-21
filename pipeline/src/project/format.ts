@@ -123,11 +123,9 @@ export interface ProjectScripts {
 }
 
 /**
- * Engine features (subsystems) the project enables — the UE5 `.uproject`
- * "Plugins" analog. Declaring physics here installs it in the play realm /
- * exported game even when the static scene carries no bodies (e.g. a project
- * that spawns RigidBodies from a script at runtime). Absence ⇒ off; physics also
- * auto-installs when a scene actually uses physics components.
+ * Engine features (subsystems) the project enables. Declaring physics here installs it in the play realm /
+ * exported game even with no bodies in the static scene (a project spawning RigidBodies at runtime).
+ * Absence ⇒ off; physics also auto-installs when a scene uses physics components.
  */
 /**
  * What a project says about one engine module, against what the build detects.
@@ -162,12 +160,12 @@ export interface ProjectFeatures {
     gravity?: { x: number; y: number };
     /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
     collisionLayers?: string[];
-    /** The solver behind 3D physics: Jolt (default) or PhysX, the one Unity runs. */
+    /** The solver behind 3D physics: Jolt (default) or PhysX. */
     backend3d?: 'jolt' | 'physx';
     /** The 3D world (Project Settings → Physics → 3D): units per metre, gravity, solver. Only what differs from
      *  the engine's own values is written; the fixed step and the collision matrix are the ones above, shared with 2D. */
     world3d?: Partial<Physics3DWorldConfig>;
-    /** Per-layer collision masks (the UE/Unity collision matrix): masks[i] bit j set ⇒
+    /** Per-layer collision masks (the collision matrix): masks[i] bit j set ⇒
      *  layer i collides with layer j. 16 entries; absent ⇒ all-collide. */
     collisionLayerMasks?: number[];
     /** World solver tuning (Project Settings → Physics); absent ⇒ engine defaults. */
@@ -369,7 +367,7 @@ export interface PlayablePackaging { network?: string; ready?: PlayableReady; }
  *  lives, and re-exported here because the manifest is what persists it. */
 export type { ExportPlatform } from './platforms';
 
-/** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
+/** Persisted Package Project settings —
  *  committed with the project so the build dialog restores the last target/config
  *  and the export reads per-platform config. */
 export interface ProjectPackaging {

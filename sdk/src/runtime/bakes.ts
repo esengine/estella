@@ -132,7 +132,7 @@ export class Bakes {
 
     /**
      * Holds the game while `owner`'s work finishes: the App is paused for it and the jobs go on being stepped through the
-     * pause, as a world that cannot keep up with its player stops the game rather than showing a hole (Unreal's
+     * pause, as a world that cannot keep up with its player stops the game rather than showing a hole
      * `wp.Runtime.BlockOnSlowStreaming`). Say false when the work is done. A pause the game itself asked for does not step
      * the jobs; only a hold does.
      */

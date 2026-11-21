@@ -442,7 +442,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     authoredPoses.set(bodies, poses);
     app.world.ensureTransformsComposed();
     const live = new Set<Entity>();
-    // A collider with no RigidBody3D is a static body, as in Unity: an imported level is collided against with a
+    // A collider with no RigidBody3D is a static body: an imported level is collided against with a
     // MeshCollider3D on each mesh and nothing else. Its own `layer` (a mesh collider has one) is the body's.
     const bodied: Array<[Entity, RigidBody3DData]> = [];
     for (const entity of app.world.queryEntities([RigidBody3D])) {

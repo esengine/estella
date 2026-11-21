@@ -7,8 +7,8 @@
  * @details The engine ships as ONE prebuilt runtime template that every desktop
  *          game is assembled around. Linking steam_api would put Valve code in
  *          that template, and every user of the engine — including everyone who
- *          never ships to Steam — would inherit its licensing. Unreal can link it
- *          because its users compile the engine; we cannot, because ours do not.
+ *          never ships to Steam — would inherit its licensing. An engine its users
+ *          compile could link it; ours is shipped prebuilt.
  *
  *          So: the declarations below are OURS, written from the flat API's
  *          signatures, and the library is opened only if it is beside the

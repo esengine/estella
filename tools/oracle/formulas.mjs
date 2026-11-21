@@ -4,7 +4,7 @@
  * @file  formulas.mjs — the closed-form answers the oracle scenes are checked against.
  *
  * Every function here is written from the published definition (Lambert's cosine law, the IEC 61966-2-1 sRGB curve, Narkowicz's
- * ACES fit, Khronos PBR Neutral, UE4's windowed inverse-square), never read back from a frame. A number that came from the engine
+ * ACES fit, Khronos PBR Neutral, Karis's windowed inverse-square), never read back from a frame. A number that came from the engine
  * would make the check agree with the engine by construction; these come from the maths, so a disagreement is a finding.
  */
 
@@ -78,7 +78,7 @@ export function linearFalloff(dist, reach, inner = 0, falloff = 1) {
 }
 /**
  * An inverse-square lamp: 1/d² with d in metres (`unitsPerMetre` world units), windowed to zero at `reach` by
- * (1 - (d/reach)^4)² — the smooth window of Karis, "Real Shading in Unreal Engine 4".
+ * (1 - (d/reach)^4)² — the smooth window of Karis (SIGGRAPH 2013 shading course).
  */
 export function inverseSquare(dist, reach, unitsPerMetre = 100) {
   const metres = dist / unitsPerMetre, q = dist / reach;

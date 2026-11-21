@@ -75,7 +75,7 @@ describe('exportGame (douyin)', () => {
     expect(res.platform).toBe('douyin');
 
     // The vendor's contract, not this exporter's habit: Douyin's own CLI and its
-    // Godot adaptation doc both name `project.config.json`, and nothing
+    // adaptation doc both name `project.config.json`, and nothing
     // published names `project.tt.json`.
     expect(existsSync(path.join(out, 'project.config.json'))).toBe(true);
     expect(existsSync(path.join(out, 'project.tt.json'))).toBe(false);

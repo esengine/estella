@@ -107,16 +107,9 @@ export class InputState {
      *  a second tap within one frame overwrote the first and its click was lost. */
     touchesEndedBefore: TouchPoint[] = [];
 
-    // — Fixed-timestep edge mirrors —
-    // The render edges above are cleared once per rendered frame (Schedule.Last),
-    // but FixedUpdate runs a variable number of steps per frame (0 on a frame
-    // shorter than the timestep, 2+ when catching up). Reading a render edge from
-    // a fixed system therefore drops presses on sub-timestep frames and doubles
-    // them on catch-up frames. These mirrors are populated alongside the render
-    // edges but cleared per *step* (see endFixedStep), so a press/release reaches
-    // exactly one fixed step — the first one at or after it arrived. While a fixed
-    // step is running, the keyboard/mouse edge queries read these instead.
-    // (Godot's idle- vs physics-frame `just_pressed` split.)
+    // Fixed-timestep edge mirrors: render edges clear once per frame, but FixedUpdate runs 0..n steps a frame, so a
+    // fixed system reading them drops or doubles presses. These fill with the render edges and clear per step
+    // (endFixedStep): a press reaches exactly one fixed step, and edge queries read these while a step runs.
     keysPressedFixed = new Set<string>();
     keysReleasedFixed = new Set<string>();
     mouseButtonsPressedFixed = new Set<number>();
@@ -408,7 +401,7 @@ export class InputState {
     /** True when the pointer is over an interactive UI element this frame (set each
      *  frame by the UI interaction system). Gameplay checks this to ignore input
      *  the UI handled — e.g. don't fire a weapon when clicking a HUD button.
-     *  Unity's `EventSystem.IsPointerOverGameObject()` analog. */
+     *  True while the pointer is over a UI node that takes it. */
     pointerOverUI = false;
 
     isPointerOverUI(): boolean {

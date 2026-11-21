@@ -16,7 +16,7 @@
  *   - the bodies that settle (stacked crates, the chain, the lift, the jointed
  *     arm) end where both solvers agree they rest;
  *   - the character does NOT agree: PhysX keeps a skin of a tenth of its radius
- *     (Unity's), Jolt none, so the PhysX hero stands higher. That difference is
+ *     (its default), Jolt none, so the PhysX hero stands higher. That difference is
  *     the proof the second run was PhysX and not Jolt answering under its name.
  *
  *   node tools/verify-native-physx.mjs

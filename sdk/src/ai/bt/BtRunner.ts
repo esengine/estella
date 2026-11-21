@@ -5,7 +5,7 @@
  * @brief   The behavior-tree interpreter — pure, generic, unit-testable.
  *
  * One `tickBt` per frame walks the tree; each node returns a {@link Status}.
- * Composites are reactive (UE-style): each tick re-evaluates children from the
+ * Composites are reactive: each tick re-evaluates children from the
  * start, so a higher-priority branch whose condition just became true preempts a
  * lower-priority branch that was Running. Only decorators with intrinsic timing
  * (`wait`/`repeater`) keep per-node state, keyed by node path ("0.1.2"). `dt` is

@@ -8,7 +8,7 @@
  *          post-process effect that draws it where nothing else was drawn, as Sky Atmosphere does, and that can draw the
  *          same function as a small panorama for the engine to read back: that panorama is made into the scene's
  *          environment (its diffuse light and its reflections) exactly as Sky Atmosphere's is, at most once a second. So a
- *          stylised sky lights the scene with the light it shows, as Unreal's sky material does under a real-time Sky Light.
+ *          stylised sky lights the scene with the light it shows, under a real-time Sky Light.
  *
  *          The function is `skyRadiance(dir, sun, sunColor, env)`: `dir` and `sun` unit world directions (the sun is the
  *          first directional light, or straight up without one), `sunColor` that light's colour times intensity, and `env`

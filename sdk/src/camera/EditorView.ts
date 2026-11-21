@@ -33,16 +33,10 @@ export interface EditorViewData {
   /** Half-height of the view in world units (zoom; smaller = more zoomed in). */
   orthoSize: number;
   /**
-   * `false` (default) is the 2D view: an orthographic projection where zoom is
-   * `orthoSize` and depth cannot be seen. `true` previews the scene the way a
-   * perspective game camera would — the only way to look at 2.5D content while
-   * authoring it.
-   *
-   * The view keeps its OWN projection rather than following the scene's camera,
-   * which is the same choice UE and Unity make: an orthographic view of a
-   * perspective scene is a working mode (a top-down or side elevation), not a
-   * mismatch to be corrected. What the game will look like is the Game view's
-   * job; this is the editor's own eye.
+   * `false` (default) is the 2D view: orthographic, zoom is `orthoSize`, depth unseen. `true` previews the scene as
+   * a perspective game camera would, the only way to see 2.5D content while authoring it. The view keeps its OWN
+   * projection rather than following the scene's camera: an orthographic view of a perspective scene is a working
+   * mode (a top-down or side elevation); what the game will look like is the Game view's job.
    */
   perspective: boolean;
   /** Vertical field of view in degrees, used only when `perspective`. */

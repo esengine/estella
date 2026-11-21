@@ -7,7 +7,7 @@
  * @details The engine draws the scene from the volume's centre into six small faces, one a frame, packs them as RGBM and
  *          reads them back (RenderFrameProbeCapture.cpp). Here they are turned into a panorama — a pixel nothing was drawn
  *          on is the sky, taken from the sky the scene is lit with — projected to nine irradiance coefficients like any
- *          environment, and handed to the engine as a one-point grid the volume reads in place of its bake. Unreal's
+ *          environment, and handed to the engine as a one-point grid the volume reads in place of its bake: a
  *          real-time Sky Light / Reflection Capture; the "interior environment" a hand-built renderer captures in a shed.
  */
 

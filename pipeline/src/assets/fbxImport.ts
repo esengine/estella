@@ -322,7 +322,7 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
         ? 1 - scalar(source.glossiness, 0)
         : scalar(source.roughness, 1);
 
-    // A specular map read as ORM (the Falcor/Lumberyard packing) IS glTF's layout
+    // A specular map read as ORM (the Falcor packing) IS glTF's layout
     // with occlusion in red, so it binds to both slots and the factors step aside.
     const orm = ctx.specularMap === 'orm' && source.specularColor?.texture
         ? readTexture(ctx, source.specularColor.texture, label) : null;
@@ -369,7 +369,7 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
         // FBX has no alpha mode: a material is transparent when it says it is
         // less than fully opaque, and opaque otherwise.
         opaque: opacity >= 1,
-        // Lumberyard-era exports (Bistro) say double-sided in the material's name.
+        // Some exports (Bistro) say double-sided in the material's name.
         cullBackfaces: !source.twoSided && !/\.DoubleSided$/.test(source.name),
         ...(baseTexture ? { baseColorTexture: baseTexture } : {}),
         ...(normalTexture ? { normalTexture } : {}),

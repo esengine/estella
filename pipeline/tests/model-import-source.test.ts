@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Every product a model import makes says, in its `.meta`, which model it came from (`source`, the model's uuid), as
- *        Unreal keeps an imported asset's source and Unity keeps a model's sub-assets under it; a re-import keeps it without
+ * @file  Every product a model import makes says, in its `.meta`, which model it came from (`source`, the model's uuid), so
+ *        a product knows its source and folds under it; a re-import keeps it without
  *        rewriting an unchanged `.meta`; a file the model only names is not a product of it; and the asset index carries it.
  */
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';

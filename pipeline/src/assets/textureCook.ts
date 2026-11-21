@@ -286,13 +286,9 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   // A cutout (one that asks for its coverage kept) has the colour of its solid texels carried into its clear ones, as a model's cutouts do: what a
   // painter leaves under alpha 0 is a mip's, and a filter's, to average in with the leaf, and the edge of every leaf shows it as a halo.
   const cutout = raster && tex.mipmaps && tex.mipCoverage > 0;
-  // Any other colour image with clear texels gets the same treatment, held to
-  // those texels alone (Unity's "alpha is transparency"): the RGB an editor leaves
-  // under alpha 0 is usually black, and a bilinear sample or a mip at the edge of a
-  // rounded panel averages it in as a dark fringe. A partly clear texel keeps its
-  // colour — on a straight-alpha image it is the colour that is seen.
-  // The importer can say no (`alphaIsTransparency: false`): an image whose RGB under
-  // alpha 0 a shader reads as data.
+  // Any other colour image with clear texels gets the same, held to those texels ("alpha is transparency"): RGB under
+  // alpha 0 is usually black, and a bilinear sample or mip averages it in as a dark fringe; partly clear texels keep their
+  // colour. `alphaIsTransparency: false` opts out, for an image whose RGB under alpha 0 a shader reads as data.
   const clearBleed = raster && !cutout && fillsClearTexels(input.importer, platform) && pngMayHaveAlpha(data);
   const bled = (image: { rgba: Uint8Array; width: number; height: number }) => {
     if (cutout) return { ...image, rgba: bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }) };

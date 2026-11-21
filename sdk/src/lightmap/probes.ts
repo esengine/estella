@@ -229,14 +229,9 @@ function readBrick(bricks: Int32Array, data: Float32Array, stride: number, b: nu
 /**
  * Makes a sparse grid's light continuous where bricks of different sizes meet, in place.
  *
- * A coarse brick's face is a blend of probes two or more finest cells apart; the fine brick across it holds a probe at
- * every one, so the two disagree at the points between and a read crossing the face jumps. Each probe on a brick's
- * boundary is set to what the coarsest brick touching that point holds there — as Unreal's volumetric lightmap
- * stitches its bricks. Bricks are settled coarsest first, so a span-2 face matching a span-4 brick is final before a
- * span-1 face reads it. A blend of a bilinear face sampled at finer points and blended again is the same face, so
- * after this a read is continuous across every face, edge and corner.
- *
- * `data` holds BRICK_PROBES probes a brick, `stride` numbers each (27 for the irradiance, 9 for sky visibility).
+ * Each boundary probe takes what the coarsest brick touching that point holds there, settled coarsest first (a span-2
+ * face is final before a span-1 face reads it), so a read is continuous across every face, edge and corner. `data`
+ * holds BRICK_PROBES probes a brick, `stride` numbers each (27 for the irradiance, 9 for sky visibility).
  */
 export function stitchBricks(resolution: readonly [number, number, number], bricks: Int32Array, data: Float32Array,
                              stride: number): void {

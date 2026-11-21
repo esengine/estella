@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    world-streaming-policy.test.ts
- * @brief   How much a world streams at once and what it does when it falls behind (Unreal's level-streaming budget,
+ * @brief   How much a world streams at once and what it does when it falls behind (the level-streaming budget,
  *          MaxLoadingStreamingCells and BlockOnSlowStreaming), and a cell that arrives over frames without being seen
  *          half arrived.
  */
@@ -71,7 +71,7 @@ function heldHost() {
 }
 
 describe('streaming policy', () => {
-    it('defaults to Unreal\'s numbers', () => {
+    it('defaults to the documented streaming budget', () => {
         expect(DEFAULT_STREAMING_POLICY).toEqual({
             maxLoadingCells: 4, maxPublishingCells: 1, slowStreaming: 'wait', slowStreamingRatio: 0.25,
         });

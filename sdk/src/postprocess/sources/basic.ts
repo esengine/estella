@@ -65,8 +65,8 @@ void main() {
 /**
  * An upsample of bloom's pyramid: the smaller level (the chain's input) through a 3x3 tent of its own texels, mixed with
  * `from`, the level of this size the way down wrote. Radius widens the tent (in the smaller level's texels) and tips the
- * mix a little toward the wide light: at 1 each level keeps 0.6 of the one below it, about the weights Unreal's six
- * bloom sizes default to, so a bigger radius makes the whole glow wider rather than piling it into the flattest level.
+ * mix a little toward the wide light: at 1 each level keeps 0.6 of the one below it, about the usual weights of six
+ * bloom sizes, so a bigger radius makes the whole glow wider rather than piling it into the flattest level.
  */
 function bloomUpSource(name: string, from: string): string {
     const tex = `u_pass_${from}`;

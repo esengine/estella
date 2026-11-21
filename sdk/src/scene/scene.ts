@@ -588,13 +588,11 @@ export interface StagedSpawn {
 }
 
 /**
- * {@link spawnAndLoadEntities} as a job: it yields how far along it is after every entity, so a caller with frames to
- * spread it over (a streamed cell, Unreal's AddToWorld under `s.LevelStreamingActorsUpdateTimeLimit`) stops wherever the
- * frame's budget runs out and goes on the next.
+ * {@link spawnAndLoadEntities} as a job: it yields how far along it is after every entity, so a caller with a per-frame
+ * budget (a streamed cell) stops wherever the budget runs out and goes on the next frame.
  *
- * With `staged`, every root of the document is switched off (`Disabled`) the moment it exists, so no system and no draw
- * sees a cell half arrived; {@link revealStagedEntities} switches it on whole. A root the author switched off is left
- * as written.
+ * With `staged`, every root is switched off (`Disabled`) the moment it exists, so nothing sees a cell half arrived;
+ * {@link revealStagedEntities} switches it on whole. A root the author switched off is left as written.
  */
 export function* spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,

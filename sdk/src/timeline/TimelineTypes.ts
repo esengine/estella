@@ -76,11 +76,11 @@ export interface TrackBase {
     type: TrackType;
     name: string;
     childPath: string;
-    /** Left out of playback everywhere (the game, an animator state, the editor's preview), as Unity's and UE's mute. */
+    /** Left out of playback everywhere (the game, an animator state, the editor's preview). */
     muted?: boolean;
     /** Not editable in the Sequencer until unlocked. Playback ignores it. */
     locked?: boolean;
-    /** The folder the Sequencer shows the track in (Unity's Track Group, UE's folder); empty for none. */
+    /** The folder the Sequencer shows the track in; empty for none. */
     group?: string;
 }
 
@@ -117,7 +117,7 @@ export interface ParticleTrack extends TrackBase {
 
 /**
  * A sound on an audio track. Without a `duration` it is a moment: the whole sound, fired once as the playhead crosses
- * `time`. With one it is a clip (Unity's audio clip, UE's audio section): heard while the playhead is inside it, from
+ * `time`. With one it is a clip: heard while the playhead is inside it, from
  * `clipIn` seconds into the sound, faded in and out, looped to fill it if asked, paused with the timeline and stopped
  * at its end, and joined at the right place when the playhead lands inside it.
  */
@@ -235,7 +235,7 @@ export interface AnimationClipItem {
     duration: number;
     /** The animation it plays, by asset ref. */
     clip: string;
-    /** Seconds into the animation the clip starts from (Unity's Clip In). */
+    /** Seconds into the animation the clip starts from. */
     clipIn: number;
     speed: number;
     /** Repeat the animation to fill the clip instead of holding its last frame. */
@@ -244,31 +244,31 @@ export interface AnimationClipItem {
      *  the overlap is the crossfade instead. */
     easeIn: number;
     easeOut: number;
-    /** What the clip plays before it starts, when it is the track's first (Unity's Pre-Extrapolate); absent is none. */
+    /** What the clip plays before it starts, when it is the track's first; absent is none. */
     preExtrapolation?: AnimationExtrapolation;
-    /** What the clip plays after it ends, until the next clip (Unity's Post-Extrapolate); absent is none. */
+    /** What the clip plays after it ends, until the next clip; absent is none. */
     postExtrapolation?: AnimationExtrapolation;
 }
 
 /**
- * How a clip fills time outside itself, as Unity's clip extrapolation does: `none` leaves the rig to its own animation,
+ * How a clip fills time outside itself: `none` leaves the rig to its own animation,
  * `hold` keeps the clip's end frame, `loop` and `pingPong` repeat the clip's span forwards or back and forth, and
  * `continue` keeps playing its animation on (looping it or holding its last frame as the clip's Loop says).
  */
 export type AnimationExtrapolation = 'none' | 'hold' | 'loop' | 'pingPong' | 'continue';
 
-/** How an animation track meets the tracks before it on the same rig (Unity's override track, an additive layer). */
+/** How an animation track meets the tracks before it on the same rig: replacing their pose, or added as a layer. */
 export type AnimationTrackBlend = 'override' | 'additive';
 
 /**
- * Skeletal animation over time on one rig (Unity's Animation Track, UE's Skeletal Animation track): clips that blend
+ * Skeletal animation over time on one rig: clips that blend
  * into each other where they overlap, and over the rig's own animation (its Animator) where they ease in or out. At full
  * weight the track decides the pose.
  */
 export interface AnimationTrack extends TrackBase {
     type: typeof TrackType.Animation;
     clips: AnimationClipItem[];
-    /** Keep the last clip's final pose after it ends (Unity's Post-Extrapolation Hold), instead of handing the rig back. */
+    /** Keep the last clip's final pose after it ends, instead of handing the rig back. */
     hold: boolean;
     /**
      * How this track meets the animation tracks before it on the same rig: `override` (the default) leans their pose
@@ -279,13 +279,13 @@ export interface AnimationTrack extends TrackBase {
     /** How much of the track there is, 0 to 1; absent is 1. */
     weight?: number;
     /**
-     * Move the rig by its clips' root motion (Unity's Apply Root Motion on a track): each clip's root track says how far
+     * Move the rig by its clips' root motion: each clip's root track says how far
      * the character travels, from where the clip before left it, instead of where it stands. Off, a clip's root track
      * poses the rig like any joint.
      */
     rootMotion?: boolean;
     /**
-     * The parts of the rig the track may move (Unity's Avatar Mask on a track): paths below the rig, each the subtree
+     * The parts of the rig the track may move (a mask): paths below the rig, each the subtree
      * under it, '' the whole rig. Absent moves all of it; an empty list moves nothing.
      */
     mask?: string[];
@@ -302,7 +302,7 @@ export interface SpawnClip {
 }
 
 /**
- * Entities a timeline brings in for a while (UE's spawnables, the prefab of Unity's Control track): each clip makes its
+ * Entities a timeline brings in for a while: each clip makes its
  * prefab under the track's entity when the playhead enters it and takes it away when the playhead leaves.
  */
 export interface SpawnTrack extends TrackBase {
@@ -318,7 +318,7 @@ export interface CameraShakeItem {
 }
 
 /**
- * Camera shakes at moments (UE's Camera Shake track, Cinemachine's impulse fired from a timeline): as the playhead
+ * Camera shakes at moments (a camera impulse fired from a timeline): as the playhead
  * crosses one, an impulse is fired from the track's entity when it has a CameraImpulseSource, felt by the listening
  * cameras by their distance; otherwise the view in use is shaken where it is.
  */

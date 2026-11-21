@@ -28,7 +28,7 @@ enum class ShadingMode : u8 {
     Albedo = 2,
     /// A dark surface with every triangle edge drawn on it, hidden edges hidden.
     Wireframe = 3,
-    /// Clay lit by the lights alone: no ambient, environment, reflection, probe or bake. Unreal's lighting
+    /// Clay lit by the lights alone: no ambient, environment, reflection, probe or bake: the lighting
     /// components with Indirect off; with IndirectLighting it splits what Clay shows into the two halves.
     DirectLighting = 4,
     /// Clay lit by what is NOT a light: the ambient, the environment and sky, reflections, probe volumes and

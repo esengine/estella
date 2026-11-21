@@ -10,7 +10,7 @@
  * kind is what plays it, so the graph is the same whether the entity is a sprite
  * sheet or a skinned model, and a new kind of animation is a registration rather
  * than another branch through here. Parameters/triggers drive transitions,
- * mirroring the Unity Animator's SetFloat/SetBool/SetTrigger model.
+ * set with SetFloat/SetBool/SetTrigger.
  *
  * The transition evaluator ({@link evaluateAnimatorTransitions}) is pure — no
  * World, no side effects — so it is fully unit-testable.

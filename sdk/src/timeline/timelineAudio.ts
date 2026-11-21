@@ -4,7 +4,7 @@
  * @file    timelineAudio.ts
  * @brief   Audio clips on a timeline: heard while the playhead is inside them, faded, paused and joined in the middle.
  *
- * @details A sound with a `duration` (see AudioEvent) is a clip, as in Unity's Timeline and UE's Sequencer, and is not
+ * @details A sound with a `duration` (see AudioEvent) is a clip, and is not
  *          fired once like a moment: it is a voice kept for as long as the playhead is inside it. Each frame the voices
  *          a player should have are compared with the ones it has. One that should start does, from where the playhead
  *          is in it (so landing in the middle of a line of dialogue plays the rest of it); one whose clip the playhead

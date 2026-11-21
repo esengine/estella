@@ -76,7 +76,7 @@ export class ParticleAPI {
 
     /**
      * Spawn `count` of `entity`'s particles at a world point, now — an impact's sparks, a muzzle's flash — without moving
-     * the emitter or replaying it (Unity's `ParticleSystem.Emit`). The emitter's own settings make them; its shape's +Y (a
+     * the emitter or replaying it. The emitter's own settings make them; its shape's +Y (a
      * cone's or hemisphere's axis) points along `options.normal` when given, else as the entity is turned, and
      * `options.velocity` is added to each. CPU-simulated emitters only. Returns how many were spawned.
      */

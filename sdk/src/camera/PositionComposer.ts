@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    PositionComposer.ts
- * @brief   Moves a camera, without turning it, so its target sits at a chosen point of the screen: Cinemachine's
- *          Position Composer, for a 2D camera and a 3D one alike.
+ * @brief   Moves a camera, without turning it, so its target sits at a chosen point of the screen,
+ *          for a 2D camera and a 3D one alike.
  *
  * @details The composition is said on the screen, as LookAtTarget's is, and with the same field names, so the editor's
  *          guides draw and drag either: a screen point, a dead zone around it the target may wander in with the camera

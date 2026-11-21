@@ -72,7 +72,7 @@ vec3 displayLookup(vec3 c) {
 
 void main() {
 #ifdef ES_SELECTION_OUTLINE
-    // Unreal's selection outline: a ring two pixels wide round what the mask covers, drawn over the finished picture. Full
+    // The selection outline: a ring two pixels wide round what the mask covers, drawn over the finished picture. Full
     // strength where the selection is in sight, faint where something stands in front of it; nothing inside, so the
     // selection itself is seen as it is. In front is told at the ring's own pixel: the scene there clearly nearer the eye than
     // the selection beside it. Clearly: the ground a mesh stands on meets it at the same distance, and must not dim its edge.

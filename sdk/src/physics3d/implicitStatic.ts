@@ -12,7 +12,7 @@ import type { Entity } from '../types';
 import { RigidBody3D, CharacterController3D } from './Physics3DComponents';
 
 /**
- * A collider with no RigidBody3D is a static body, as in Unity: an imported level collides with a MeshCollider3D on
+ * A collider with no RigidBody3D is a static body: an imported level collides with a MeshCollider3D on
  * each mesh and nothing else. Not when a character controller owns the entity, and not under a RigidBody3D, whose
  * child colliders belong to that body.
  */

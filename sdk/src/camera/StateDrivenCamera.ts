@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    StateDrivenCamera.ts
- * @brief   Which camera is live, by what an Animator is doing: Cinemachine's State-Driven Camera.
+ * @brief   Which camera is live, by what an Animator is doing: a state-driven camera.
  *
  * @details A character walking is seen by one camera, sprinting by a lower, wider one, aiming by one over its shoulder.
  *          A `StateDrivenCamera` names the Animator to watch and, per state, the camera that goes with it. The cameras it

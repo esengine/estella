@@ -5,10 +5,10 @@
  * @brief   Root motion on an animation track: the rig travels as its clips walk, each clip going on from where the one
  *          before left it.
  *
- * @details Unity's Animation track with root motion, UE's root motion on a skeletal animation section. A clip's root
+ * @details An animation track with root motion. A clip's root
  *          track (its `Transform` position and rotation at the clip's own root) says where the character goes, not
  *          where it stands: with the track's `rootMotion` on, that track is left out of the pose and the rig is moved
- *          by how far the clip's root has gone since the clip began. As in Unity, what moves the rig is each clip's
+ *          by how far the clip's root has gone since the clip began. What moves the rig is each clip's
  *          motion scaled by its weight: two walk clips in a row walk twice as far, a looping clip goes on travelling
  *          lap after lap, a clip easing in starts the rig off slowly and one easing out brings it to a stop where it
  *          got to, a crossfade blends the two clips' steps, and after the last clip the rig stays where it got to.

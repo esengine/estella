@@ -13,8 +13,8 @@
  *          - Absolute: its insets (and the margins that would fight them) move by
  *            the drag, each side in its own unit, as {@link uiAbsoluteMove} says.
  *          - Flow (Relative): the flow owns its position, so a drag picks its slot
- *            among the siblings it flows with, as Unreal's designer and Figma's
- *            auto layout reorder a child dragged within its box. {@link uiFlowSlot}.
+ *            among the siblings it flows with, as an auto
+ *            layout reorders a child dragged within its box. {@link uiFlowSlot}.
  *
  *          The two pure functions take boxes and fields and return a slot or a
  *          patch, so the editor's document and a running world apply the same

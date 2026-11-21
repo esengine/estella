@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  A project chooses the solver behind its 3D world: Jolt by default, or
- *        PhysX, the one Unity runs. The choice is read from the project, carried
+ *        PhysX. The choice is read from the project, carried
  *        into every packaged build, and decides the ONE module the package ships.
  */
 import { describe, it, expect } from 'vitest';

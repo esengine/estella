@@ -4,15 +4,15 @@
  * @file    timelineAnimation.ts
  * @brief   Animation tracks: skeletal clips on a rig, blended into each other and over the rig's own animation.
  *
- * @details Unity's Animation Track and UE's Skeletal Animation track. A clip plays an animation (an `.estimeline` of joint
+ * @details A clip plays an animation (an `.estimeline` of joint
  *          curves) on the track's rig. Where two clips overlap, the overlap is a crossfade: the earlier fades out as the
  *          later fades in, their weights summing to one. Where a clip has nothing before or after it, its ease in and
  *          out blend it with what the rig is doing anyway (its Animator), and at full weight the track decides the pose.
  *
- *          Outside its span a clip can go on (Unity's clip extrapolation): before the first clip and after each one,
+ *          Outside its span a clip can go on (extrapolation): before the first clip and after each one,
  *          until the next, it holds, loops, ping-pongs or continues its animation where asked.
  *
- *          Several tracks on one rig are layers, in track order (Unity's override tracks, the Animator's layers): the
+ *          Several tracks on one rig are layers, in track order (as the Animator's layers are): the
  *          first meets the rig's own pose, each later one leans what is under it toward its own pose (override) or adds
  *          what its clips move beyond their first frame (additive), by its weight, and only on the joints its mask
  *          admits. Each clip is sampled into a pose, never written directly; the layers are composed and the result

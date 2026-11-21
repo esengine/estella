@@ -122,14 +122,12 @@ export class TimelinePlugin implements Plugin {
             if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
         });
 
-        // The timeline runs entirely in TS: a per-entity
-        // clock + the shared evaluator (property tracks) + edge-detected event
-        // dispatch — no wasm timeline, no upload, no per-frame poll. Property writes
-        // land via world.set (the same path the editor preview uses).
-        // Slow motion a timeline keys (UE's Time Dilation track): a component, so a script can use it too.
+        // The timeline runs entirely in TS: a per-entity clock, the shared evaluator and edge-detected event dispatch;
+        // property writes land via world.set (the editor preview's path). Slow motion a timeline keys (a Time Dilation
+        // track) is a component, so a script can use it too.
         installTimeDilation(app);
         // Signals reach the entity events too, so a visual script, a state machine or an event binding on the track's
-        // entity (or on the player, where they bubble to) reacts to `timeline:<name>`: Unity's Signal Receiver.
+        // entity (or on the player, where they bubble to) reacts to `timeline:<name>`.
         const entityEvents = ensureEntityEvents(app);
         app.addEvent(TimelineEvent);
         app.addEvent(TimelinePlayback);
@@ -228,7 +226,7 @@ export class TimelinePlugin implements Plugin {
             },
             { name: 'TimelineSystem' },
         // After the Animator: an animation track blends over (or, at full weight, replaces) the pose it gave the rig
-        // this frame, and a property track has the last word on a field both animate, as in Unity's Timeline.
+        // this frame, and a property track has the last word on a field both animate.
         ), { runIf: playModeOnly, runAfter: [SystemLabel.Animator] });
     }
 

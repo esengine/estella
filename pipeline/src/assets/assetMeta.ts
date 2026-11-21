@@ -139,8 +139,8 @@ export async function metaUuidOf(absFile: string): Promise<string | null> {
 }
 
 /**
- * Says in `<absProduct>.meta` which asset an import made it from: `source`, that asset's uuid, as Unreal keeps an
- * imported asset's source in its import data and Unity keeps a model's sub-assets under the model. The Content Browser
+ * Says in `<absProduct>.meta` which asset an import made it from: `source`, that asset's uuid, so a model's
+ * sub-assets stay under the model. The Content Browser
  * folds a product under its source by it, and a re-import that rewrites the product keeps it. Written only where it
  * changes, so a re-import of an unchanged model touches no `.meta`.
  */

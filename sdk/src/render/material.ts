@@ -110,7 +110,7 @@ export interface MaterialAssetData {
     cull?: number;
     depthBias?: number;
     /**
-     * Parent material asset ref — present on a material instance (UE MaterialInstanceConstant).
+     * Parent material asset ref — present on a material instance.
      * The shader and any non-overridden render state are inherited from the parent; `shader`
      * is then ignored and `properties` carries only the overridden parameters (the diff).
      */
@@ -133,7 +133,7 @@ export interface MaterialData {
     /** Enabled static switches (the shader permutation was chosen for these at compile time). */
     switches: Record<string, boolean>;
     /**
-     * Instance parenting (UE MaterialInstanceConstant): when set, this material inherits the
+     * Instance parenting: when set, this material inherits the
      * parent's shader + render state + params, and only its own diffs are stored — `uniforms`
      * holds just the overridden params, and `overrides` names the overridden render-state
      * fields. Undefined on a base material.
@@ -821,7 +821,7 @@ export const Material = {
     },
 
     /**
-     * Creates a material instance (UE MaterialInstanceConstant): it inherits @p source's
+     * Creates a material instance: it inherits @p source's
      * shader, render state and parameters, and stores only the diffs you later set on it.
      * Editing the parent propagates to every non-overriding instance. Use this for cheap
      * variants ("the same material, but red") instead of duplicating the whole material.

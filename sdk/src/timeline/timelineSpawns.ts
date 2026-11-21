@@ -4,7 +4,7 @@
  * @file    timelineSpawns.ts
  * @brief   Spawn tracks: entities a timeline makes from a prefab for as long as the playhead is inside a clip.
  *
- * @details UE's spawnables and the prefab of Unity's Control track. A spawn clip names a prefab and what to call what
+ * @details A spawn clip names a prefab and what to call what
  *          it makes; while the playhead is inside the clip an instance exists, under the entity the track names, and
  *          when the playhead leaves it (or the timeline is stopped, or its player goes) the instance is taken away. The
  *          instance is named, so the timeline's other tracks address it by that name like any child: a dragon a cut
@@ -13,7 +13,7 @@
  *          Each frame the instances a player should have are compared with the ones it has, as audio clips are. The
  *          prefabs a timeline spawns are prepared as soon as its player has the timeline, playing or not, and once a
  *          prefab is prepared its instance is made on the spot: it exists on the frame its clip starts, for the tracks
- *          that address it that same frame, as a UE spawnable or a Unity Control track's prefab does. A clip that starts
+ *          that address it that same frame. A clip that starts
  *          before its prefab is prepared asks for its instance asynchronously instead, and keeps it when it arrives only
  *          if the playhead is still inside the clip.
  */

@@ -8,8 +8,8 @@
  *          them frame by frame. A preview that scrubs cannot age anything, so this works out the same view from the
  *          shakes alone: every shake at or before the time, `time - shake.time` seconds into it, from where its track's
  *          entity is. As in play, a track on an entity with a CameraImpulseSource jolts a camera that has a
- *          CameraImpulseListener by its distance, and one on any other entity shakes the view where it is. This is how
- *          UE's Sequencer shows a Camera Shake section in the viewport while it is scrubbed.
+ *          CameraImpulseListener by its distance, and one on any other entity shakes the view where it is. So a Camera Shake
+ *          section shows in the viewport while it is scrubbed.
  */
 import { TrackType, type TimelineAsset } from './TimelineTypes';
 import type { Entity } from '../types';

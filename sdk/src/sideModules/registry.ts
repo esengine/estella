@@ -56,7 +56,7 @@ export const SIDE_MODULES: Record<BuiltinSideModuleId, SideModuleDescriptor> = {
     // The 3D world (Jolt). A separate module from the 2D one on purpose: the two
     // never share a solver, and a 2D project should not carry a 3D one's weight.
     physics3d: { file: 'physics3d', globalName: 'ESPhysics3DModule' },
-    // The same 3D surface over PhysX, the solver Unity runs: same entry points,
+    // The same 3D surface over PhysX, the second 3D solver: same entry points,
     // same factory name. A project picks one backend and ships one.
     'physics3d:physx': { file: 'physics3d-physx', globalName: 'ESPhysics3DModule' },
     // Basis Universal KTX2 transcoder — compressed textures decode to a

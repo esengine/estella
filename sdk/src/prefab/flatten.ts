@@ -306,7 +306,7 @@ function mergeVariantEntities(base: PrefabData, variant: PrefabData): PrefabData
         const existing = mergedById.get(ve.prefabEntityId);
         if (existing) {
             // Variant entry replaces base authored data wholesale (matching
-            // Unity behaviour where editing inside the variant becomes the
+            // editing inside the variant, which becomes the
             // new authored state for that entity within this variant).
             const replaced: PrefabEntityData = {
                 ...ve,

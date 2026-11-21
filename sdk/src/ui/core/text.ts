@@ -141,7 +141,7 @@ export interface TextData {
     boxHeight?: number;
     /**
      * Where the entity origin sits inside the box, as a fraction from its left and bottom edges: (0.5, 0.5) is
-     * the centre, (0, 1) the top-left corner. It is the anchor point of a Cocos or Unity rect transform.
+     * the centre, (0, 1) the top-left corner. It is the anchor point of a Cocos rect transform.
      */
     boxPivot?: Vec2;
     /** Render toggle — the editor's eye and runtime hiding both flip this. */

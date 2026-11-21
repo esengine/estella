@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 //
-// The .xcodeproj an iOS export ships, written directly.
+// @file  The .xcodeproj an iOS export ships, written directly.
 //
-// An export has to be something a user can double-click, the way Unity and Godot
-// hand back a complete Xcode project — not a content folder plus instructions to
-// install xcodegen and run it. The project's shape is fixed (one app target, one
+// An export has to be something a user can double-click: a complete Xcode
+// project — not a content folder plus instructions to install xcodegen and run it. The project's shape is fixed (one app target, one
 // xcframework, the export's own files as resources), so generating the pbxproj is
 // a template, and templating it here is what removes the external tool from the
 // path between "Build" and "Run".

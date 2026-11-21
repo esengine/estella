@@ -3,7 +3,7 @@
 /**
  * @file    CameraImpulse.ts
  * @brief   Shakes that happen somewhere: an impulse fired at a place, felt by the cameras that listen, more the nearer
- *          they are. Cinemachine's Impulse Source and Impulse Listener.
+ *          they are. An impulse source and its listeners.
  *
  * @details `shakeCamera` shakes the drawn view wherever it is. An explosion is not like that: a camera beside it jolts, one
  *          across the level barely trembles, and with a propagation speed the far one feels it a moment later. A

@@ -10,7 +10,7 @@
  * intersects that pixel's world ray with the plane the view is about
  * (`editorViewGridPlane` — the ground in a 3D view, the 2D plane in a flat one,
  * at every angle) and paints minor / major / axis lines there. Because it runs in
- * the pre-scene pass, scene entities draw over it (UE5 / Unity behaviour).
+ * the pre-scene pass, scene entities draw over it.
  *
  * The ray is built from the view's own basis rather than from a matrix inverse:
  * four vec4 params carry the eye, the two screen axes scaled to what the view

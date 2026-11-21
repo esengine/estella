@@ -46,7 +46,7 @@ int physics3d_raycastAll(float ox, float oy, float oz, float dx, float dy, float
 int physics3d_raycastWith(float ox, float oy, float oz, float dx, float dy, float dz,
                           uint32_t layerMask, uint32_t flags);
 /// The project's solver settings. Each value <= 0 keeps the backend's own default
-/// (Jolt's for Jolt, Unity's for PhysX); allowSleep is 0 or 1. After init, before bodies.
+/// (Jolt's for Jolt, the usual ones for PhysX); allowSleep is 0 or 1. After init, before bodies.
 void physics3d_setSolver(int velocityIterations, int positionIterations, int allowSleep,
                          float bounceThreshold);
 

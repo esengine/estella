@@ -214,8 +214,8 @@ export interface TimelineEventPayload {
 }
 
 /**
- * The events and markers a TimelinePlayer's playhead crosses, sent as the frame plays them: Unity's Signals and UE's
- * event tracks. Read it with `EventReader(TimelineEvent)`; a system reads them the next frame.
+ * The events and markers a TimelinePlayer's playhead crosses, sent as the frame plays them.
+ * Read it with `EventReader(TimelineEvent)`; a system reads them the next frame.
  */
 export const TimelineEvent: EventDef<TimelineEventPayload> = /* @__PURE__ */ defineEvent<TimelineEventPayload>('TimelineEvent', {
     kind: 'event', name: '', payload: {}, time: 0, player: 0 as Entity, target: 0 as Entity,
@@ -232,8 +232,8 @@ export interface TimelinePlaybackPayload {
 }
 
 /**
- * A TimelinePlayer starting, pausing, stopping, finishing or looping: Unity's PlayableDirector played, paused and
- * stopped, and UE's OnPlay, OnPause, OnStop and OnFinished. Read with `EventReader(TimelinePlayback)`, the next frame.
+ * A TimelinePlayer starting, pausing, stopping, finishing or looping.
+ * Read with `EventReader(TimelinePlayback)`, the next frame.
  */
 export const TimelinePlayback: EventDef<TimelinePlaybackPayload> = /* @__PURE__ */ defineEvent<TimelinePlaybackPayload>('TimelinePlayback', {
     kind: 'played', player: 0 as Entity, time: 0,
@@ -251,7 +251,7 @@ export interface TimelineSignal {
 
 /**
  * Every custom event and marker `runs` crossed, in playhead order (run by run, then as the clip declares them): what a
- * timeline tells the game it played, as Unity's Signals and UE's event tracks do.
+ * timeline tells the game it played.
  */
 export function collectSignals(asset: TimelineAsset, runs: readonly PlayheadRun[], out: TimelineSignal[]): void {
     for (const run of runs) {

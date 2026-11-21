@@ -394,7 +394,7 @@ export interface DrawAPI {
     setDepthTest(enabled: boolean): void;
 
     /** Runs synchronous drawing with scoped depth state, restored even on throw.
-     * `dither` draws one half (0 or 1) of a checkerboard at full colour, as Unreal draws a handle behind geometry: the
+     * `dither` draws one half (0 or 1) of a checkerboard at full colour, for a handle behind geometry: the
      * two halves drawn in turn cover every pixel once (immediate lines, triangles and quads; not a retained mesh). Returns false without drawing on older cores
      * without scoped depth support. */
     withDepthState(state: { test: boolean; write: boolean; dither?: 0 | 1 }, draw: () => void): boolean;

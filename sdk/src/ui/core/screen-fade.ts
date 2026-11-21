@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    screen-fade.ts
- * @brief   The screen faded to a colour: UE's Fade track and a cutscene's fade to black.
+ * @brief   The screen faded to a colour: a Fade track and a cutscene's fade to black.
  *
  * @details A `ScreenFade` on any entity says how far the screen is faded (`amount`, 0 to 1) and to what `color`. A
  *          timeline fades in or out by keying `amount` on an ordinary property track; a script sets it. The strongest

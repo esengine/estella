@@ -130,8 +130,8 @@ describe('stepPerception', () => {
   });
 });
 
-// Hearing: machines come to a gunshot within 45 m, through the containers between. Unreal's hearing sense is
-// the same shape: a noise of some loudness, heard within hearingRange * loudness, walls or not.
+// Hearing: machines come to a gunshot within 45 m, through the containers between. Hearing
+// is this shape: a noise of some loudness, heard within hearingRange * loudness, walls or not.
 describe('stepPerception hearing', () => {
   const noise = (x: number, y: number, loudness = 1, source = 0 as Entity) => ({ x, y, z: 0, loudness, source });
   const listener = (w: FakeWorld, x: number, hearingRange: number) =>

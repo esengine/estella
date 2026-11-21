@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    timeDilation.ts
- * @brief   Slow motion and fast forward, kept as a component: UE's Time Dilation track.
+ * @brief   Slow motion and fast forward, kept as a component a Time Dilation track keys.
  *
  * @details A `TimeDilation` on any entity scales how fast the game's time runs (`Time.scale`); a timeline keys its
  *          `scale` on an ordinary property track for a slow-motion beat, a script sets it for a bullet-time power. Several

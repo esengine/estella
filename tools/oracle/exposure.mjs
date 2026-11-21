@@ -44,7 +44,7 @@ function vignette({ id, colorSpace = 'linear', colour, intensity, softness }) {
 
 /**
  * The soft-knee threshold of the pyramid's prefilter: how much of a colour's light is over the threshold, as a share of it. The
- * brightness it thresholds is the colour's PEAK channel (as Unity's bloom does), not its luminance: a saturated colour blooms by its
+ * brightness it thresholds is the colour's PEAK channel, not its luminance: a saturated colour blooms by its
  * strongest channel. (The effect's older one-pass extract shader thresholds luminance; the pyramid does not use it.)
  */
 function bloomContrib(colour, threshold) {

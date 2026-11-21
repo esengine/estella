@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Export progress events. The export pipelines emit a `phase` per major
- *        step so the Package Project dialog can show a live build log (UE-style)
+ *        step so the Package Project dialog can show a live build log
  *        instead of a single spinner line. The IPC handler forwards these to the
  *        renderer over `project:exportProgress`.
  */

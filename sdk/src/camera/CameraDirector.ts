@@ -3,9 +3,7 @@
 /**
  * @file    CameraDirector.ts
  * @brief   The camera director — picks the active view target among the scene's
- *          cameras and BLENDS smoothly between targets over time, the way UE's
- *          APlayerCameraManager (SetViewTargetWithBlend) and Unity Cinemachine's
- *          Brain do. It resolves ONE main point-of-view per frame (the previous
+ *          cameras and BLENDS smoothly between targets over time. It resolves ONE main point-of-view per frame (the previous
  *          target's POV lerped toward the new target's), which the camera plugin
  *          builds into the rendered view. Cameras stay declarative view defs; the
  *          director is the runtime that selects + transitions between them.
@@ -138,7 +136,7 @@ function clonePOV(p: CameraPOV): CameraPOV {
   return { ...p, viewport: { ...p.viewport } };
 }
 
-/** A transient camera shake — a decaying view-space perturbation (UE modifier). */
+/** A transient camera shake — a decaying view-space perturbation. */
 export interface ActiveShake {
   amplitude: number; // positional, world units
   rotation: number; // rotational, radians
@@ -178,7 +176,7 @@ export interface CameraDirectorState {
   /**
    * The blend a change of the live camera gets when nothing asked for it: a higher priority, a camera turned on or off,
    * isActive moved. Seconds; 0 cuts, which is what a scene without a CameraBrain does. Set from the scene's CameraBrain
-   * each frame (CameraRig.ts), as Cinemachine's Brain holds its Default Blend.
+   * each frame (CameraRig.ts).
    */
   defaultBlend: number;
   defaultCurve: number;
@@ -190,8 +188,8 @@ export interface CameraDirectorState {
   candidates: readonly CameraPOV[];
   lastNow: number;
   /**
-   * When each candidate became one, as a count: of two live-worthy cameras of one priority, the one activated last wins,
-   * as Cinemachine's Brain decides. Cameras there from the first frame share one count, so a scene as loaded keeps the
+   * When each candidate became one, as a count: of two live-worthy cameras of one priority, the one activated last wins.
+   * Cameras there from the first frame share one count, so a scene as loaded keeps the
    * first of them.
    */
   activation: Map<number, number>;
@@ -210,9 +208,9 @@ export interface CameraDirectorState {
 
 /** What happened to the view: {@link CameraEvent}'s `kind`. */
 export const CameraEventKind = {
-  /** A camera became the live one, cut to or blended into (Cinemachine's Camera Activated). */
+  /** A camera became the live one, cut to or blended into. */
   Activated: 0,
-  /** A blend into the live camera finished: the view is that camera's alone (Cinemachine's Blend Finished). */
+  /** A blend into the live camera finished: the view is that camera's alone. */
   BlendFinished: 1,
 } as const;
 export type CameraEventKind = (typeof CameraEventKind)[keyof typeof CameraEventKind];
@@ -340,7 +338,7 @@ export function setTimelineShot(host: CameraDirectorHost, owner: number, shot: T
 /**
  * Trigger a transient camera shake on the active view — a decaying perturbation
  * applied to the rendered POV only (never to a camera's Transform, so it always
- * recovers and never dirties the scene). The UE `StartCameraShake` analog.
+ * recovers and never dirties the scene).
  * Pass the App from host code, or the `Res(CameraDirector)` state from a system.
  */
 export function shakeCamera(
@@ -430,8 +428,8 @@ export function shakenPOV(pov: CameraPOV, shake: ViewShake, elapsed: number): Ca
 }
 
 /**
- * The live camera by policy: the highest priority among the active cameras, as Cinemachine picks among enabled virtual
- * cameras; among all of them when none is active. The engine hands over only active cameras, so taking the first active
+ * The live camera by policy: the highest priority among the active cameras;
+ * among all of them when none is active. The engine hands over only active cameras, so taking the first active
  * one, as this did, let priority choose nothing. A tie goes to the camera activated last (`activation`), then the first.
  */
 function pickActive(candidates: CameraPOV[], activation?: ReadonlyMap<number, number>): CameraPOV {
@@ -600,7 +598,7 @@ export interface CameraCandidateReport {
 
 /**
  * What the director is doing, as of its last frame: the live camera, the blend under way, and the cameras it chose
- * among. Cinemachine's Brain shows the same in its inspector (Live Camera, Live Blend); the editor shows it on the
+ * among. The editor shows it on the
  * Outliner's camera rows and on the game view while playing.
  */
 export interface CameraDirectorReport {

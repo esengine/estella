@@ -100,8 +100,8 @@ export function applyTimelineEvent(
                 }
                 break;
             }
-            // Anything else is switched on and off whole, its subtree with it, as Unity's Activation Track sets a
-            // GameObject active: a mesh, a light, a character and its sword, not only a 2D renderer's own flag.
+            // Anything else is switched on and off whole, its subtree with it, as an
+            // activation track does: a mesh, a light, a character and its sword, not only a 2D renderer's own flag.
             if (typeof world.valid === 'function' && world.valid(entity) && isEntityActive(world, entity) !== active) {
                 setEntityActive(world, entity, active);
             }

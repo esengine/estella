@@ -7,8 +7,8 @@
  *          and both bodies get the same frame, so every limit's zero is the
  *          authored pose — the same rule the Jolt module follows. A slider is a
  *          D6 joint here rather than a prismatic one, because a prismatic joint
- *          has no motor; swing-twist and six-axis joints are D6 as in Unity's
- *          ConfigurableJoint.
+ *          has no motor; swing-twist and six-axis joints are D6, a
+ *          configurable joint.
  *
  *          "Do not collide connected" is PhysX's own default for every joint,
  *          so the assemblies the Jolt module keeps are not needed.

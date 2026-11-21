@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    CameraTargetGroup.ts
- * @brief   Several targets framed as one: Cinemachine's Target Group and its Group Framing.
+ * @brief   Several targets framed as one: a target group and its framing.
  *
  * @details A `CameraTargetGroup` stands where its members are: each frame its entity is put at their centre, so any
  *          stage that takes one target (FollowTarget, LookAtTarget, PositionComposer, CameraDolly) frames the group by

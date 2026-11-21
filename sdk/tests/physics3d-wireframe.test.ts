@@ -209,7 +209,7 @@ describe('what a 3D collider looks like', () => {
             releaseMeshCollision(555);
         });
 
-        // Unity's rule, and how an imported level collides: a MeshCollider3D on each mesh and nothing else.
+        // How an imported level collides: a MeshCollider3D on each mesh and nothing else.
         it('reports a collider with no rigid body as a static body, and the world builds it', () => {
             const e = spawn(false);
             world.insert(e, BoxCollider3D);

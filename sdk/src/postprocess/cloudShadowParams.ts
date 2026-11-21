@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cloudShadowParams.ts
- * @brief   The params by which a sky draws the sun's cloud shadow map, as Unreal's atmosphere sun reads its clouds' shadow.
+ * @brief   The params by which a sky draws the sun's cloud shadow map, as the atmosphere's sun reads its clouds' shadow.
  *
  * @details A sky that declares them is asked by the engine, before the scene, for what of the sun is left under its clouds across a
  *          square round the camera (`u_cloudShadowPass` 1, where the square's tile lies in the target, and the matrix from the square

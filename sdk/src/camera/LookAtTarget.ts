@@ -5,7 +5,7 @@
  * @brief   Per-camera aim: turn a 3D camera so a target sits where the shot puts it on screen.
  *
  * @details The rotation stage of a camera rig (CameraRig.ts), after its position stage: FollowTarget says where a camera
- *          stands, this says where it looks. Unity Cinemachine's Rotation Composer and the look-at of UE's camera rigs:
+ *          stands, this says where it looks:
  *          the target is held at a point of the screen, may drift inside a dead zone around it without the camera
  *          turning, and is caught up to with a damping time. The camera is turned about world up and its own right, so
  *          it never rolls. A perspective camera only: an orthographic one draws a plane, and turning it shows its edge.

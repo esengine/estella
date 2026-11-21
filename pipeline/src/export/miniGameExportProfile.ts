@@ -515,7 +515,7 @@ export const douyinExportProfile: MiniGameExportProfile = {
             compileType: 'game',
         };
         // `project.config.json`, the same name WeChat uses: the vendor's own CLI
-        // (tt-minigame-ide-cli) and its Godot adaptation doc both name that file,
+        // (tt-minigame-ide-cli) and its adaptation doc both name that file,
         // and nothing published names `project.tt.json`.
         return [
             { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
@@ -553,7 +553,7 @@ export const kuaishouExportProfile: MiniGameExportProfile = {
     nativeSuffixes: new Set(['.js', '.json']),
     // No published upload whitelist, so nothing is restaged — see Douyin's note.
     packerSuffixes: null,
-    // The docs show `.wasm.br` only as the Unity converter's output; not claimed
+    // The docs show `.wasm.br` only as another engine's converter output; not claimed
     // for an engine that loads its own binary.
     wasmBrotli: false,
     subpackageDir: 'subpackages',

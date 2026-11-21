@@ -27,19 +27,19 @@ export interface TimelinePlayerData {
     finished: boolean;
     /**
      * The names of this player's bindings, and in `bindings` (same order) the entity each is bound to: what a track
-     * whose path starts `@Name` animates (Unity's PlayableDirector bindings, UE's possessables). One timeline played by
+     * whose path starts `@Name` animates. One timeline played by
      * two players can drive two different characters.
      */
     bindingNames: string[];
     bindings: number[];
     /**
-     * The stretch of the timeline this player plays (UE's playback range): from `rangeStart` seconds to `rangeEnd`;
+     * The stretch of the timeline this player plays (its playback range): from `rangeStart` seconds to `rangeEnd`;
      * 0 is the timeline's end. A once timeline finishes at the range's end, a looping one loops within it.
      */
     rangeStart: number;
     rangeEnd: number;
     /** Run on real time rather than the game's: a cutscene or menu animation that plays on while the game is paused
-     *  (Time.scale 0), as Unity's Unscaled Game Time. */
+     *  (Time.scale 0). */
     unscaledTime: boolean;
 }
 

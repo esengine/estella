@@ -4,8 +4,8 @@
  * @file    CameraDolly.ts
  * @brief   Per-camera dolly: the camera stands on a Spline, at a place it is given, that tracks a target, or that runs at a speed.
  *
- * @details A position stage of the camera pipeline (CameraRig.ts), as FollowTarget is, and a camera uses one of the two: Unity
- *          Cinemachine's Spline Dolly, a track laid in the scene the camera rides. Where it looks is the rotation stage's
+ * @details A position stage of the camera pipeline (CameraRig.ts), as FollowTarget is, and a camera uses one of the two: a
+ *          spline dolly, a track laid in the scene the camera rides. Where it looks is the rotation stage's
  *          (LookAtTarget), so a dolly that tracks a runner and looks at it is two components. The place on the track is written
  *          back to `position`, in world units from the start, so the inspector shows where the camera is and a script can read it.
  */

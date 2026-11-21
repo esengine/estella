@@ -1,7 +1,7 @@
-// Camera Follow — a tour of the camera director:
+// @file  Camera Follow — a tour of the camera director:
 //
 //   • FollowTarget   — the scene camera damps toward the WASD player with a
-//     dead zone, so small moves don't drag the view (Cinemachine-style Body).
+//     dead zone, so small moves don't drag the view.
 //   • shakeCamera    — Space triggers a decaying render-only shake that never
 //     dirties the camera's Transform.
 //   • setViewTarget  — keys 1/2 blend the view between the follow camera and a

@@ -958,7 +958,7 @@ export class AudioAPI {
         this.setSoftBus_('ui', { volume });
     }
 
-    /** Mixerless backends (WeChat/Null) report unity volume and unmuted —
+    /** Mixerless backends (WeChat/Null) report full volume and unmuted —
      *  the read-side mirror of the volume setters' silent no-op there. */
     getMasterVolume(): number {
         return this.mixer_?.master.volume ?? 1;
@@ -976,7 +976,7 @@ export class AudioAPI {
         return this.mixer_?.ui.volume ?? 1;
     }
 
-    /** Unity (1) for an unknown bus. */
+    /** 1 (full volume) for an unknown bus. */
     getBusVolume(busName: string): number {
         if (this.mixer_) return this.mixer_.getBus(busName)?.volume ?? 1;
         return this.softBuses_.get(busName)?.volume ?? 1;

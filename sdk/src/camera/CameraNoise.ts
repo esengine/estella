@@ -4,9 +4,9 @@
  * @file    CameraNoise.ts
  * @brief   Per-camera noise: the drift of a camera held by hand, or the slow sway of one on a boat, as smooth random motion.
  *
- * @details Unity Cinemachine's Basic Multi-Channel Perlin. Six channels of 1D gradient (Perlin) noise, each its own: three move the
+ * @details Six channels of 1D gradient (Perlin) noise, each its own: three move the
  *          view across, up and along itself, three turn it about the same axes, so the camera drifts and nods rather than buzzing. It
- *          moves what is drawn and never the camera's Transform, as Cinemachine's noise and a UE camera shake do: the pipeline
+ *          moves what is drawn and never the camera's Transform, as a camera shake does: the pipeline
  *          (CameraRig.ts) aims and follows from where the camera really is, and nothing builds up from one frame to the next. It is
  *          applied to each camera before the director blends between them, so a blend from a shaky camera to a still one settles.
  */

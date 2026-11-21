@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    CharacterController2D.ts
- * @brief   Kinematic character controller (Godot CharacterBody2D semantics) on top
+ * @brief   Kinematic character controller on top
  *          of Box2D v3's native kinematic mover.
  *
  * The controller reads the entity's own collider, derives a capsule mover from it,
@@ -203,8 +203,7 @@ const EPS = 1e-6;
 /**
  * Resolve one move: advance toward the first contact, classify the surface, then
  * project the leftover motion (and velocity) onto it and repeat. Velocity is slid
- * by the same projections so a grounded body's downward gravity doesn't accumulate
- * — the contract matches Godot's `move_and_slide`.
+ * by the same projections so a grounded body's downward gravity doesn't accumulate.
  */
 export function moveAndSlide(p: MoveAndSlideParams, cast: SlideCast): MoveAndSlideResult {
     let x = p.startX, y = p.startY;

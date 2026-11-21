@@ -27,7 +27,7 @@ export const TN_HASH2_WGSL = `fn tnHash2(p : vec2f) -> vec2f {
  * What a pixel of ground is made of, from its paint: each layer's weight (broken up by noise of its own and sharpened), the layers read
  * without repeat near the eye and on a wider tile far off, projected on the planes the ground faces, then blended by the layers' heights.
  * Only the four layers with the most weight at a pixel are read: past four the rest are a sliver of the blend, and reading all eight cost
- * every pixel of ground the textures of all eight, as Unreal's landscape caps the layers a component weighs.
+ * every pixel of ground the textures of all eight.
  *
  * A shader that uses it declares the params `layerParams` writes (its own defaults keep its own look), puts `LAYER_SURFACE_GLSL` /
  * `LAYER_SURFACE_WGSL` in its fragment, and calls `tnLayers`. The vertex stage and the lighting stay the shader's own.

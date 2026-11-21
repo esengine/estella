@@ -971,14 +971,9 @@ export class App {
     }
 
     /**
-     * Keep simulating while the page is hidden — a window behind others, a
-     * minimized one, or one never shown (an editor driven by automation).
-     *
-     * A browser stops `requestAnimationFrame` for a hidden document, so without
-     * this the game holds still there: what a shipped game wants, since nobody is
-     * watching and the battery is. An editor's Play wants the opposite; Unity
-     * calls the same switch `Application.runInBackground`. While hidden the loop
-     * runs on a timer at the frame cap (60 fps when uncapped).
+     * Keep simulating while the page is hidden (behind other windows, minimized, or never shown, as an editor
+     * driven by automation). A browser stops `requestAnimationFrame` for a hidden document: a shipped game wants
+     * that, an editor's Play does not. While hidden the loop runs on a timer at the frame cap (60 fps when uncapped).
      */
     setRunInBackground(on: boolean): void {
         this.runInBackground_ = on;
@@ -1483,8 +1478,8 @@ export class App {
         const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
 
         // One frame in flight: while the GPU is still on the last frame, starting another only queues it behind, and the
-        // picture shows input that much later (a camera let go of goes on moving for every frame queued). UE keeps the game
-        // a frame ahead of the GPU at most for the same reason. The time is not taken, so the frame that runs covers the wait.
+        // picture shows input that much later (a camera let go of goes on moving for every frame queued). So the game stays
+        // a frame ahead of the GPU at most. The time is not taken, so the frame that runs covers the wait.
         if (Renderer.framePending()) {
             this.gpuWaitSince_ ??= currentTime;
             if (currentTime - this.gpuWaitSince_ < GPU_WAIT_MAX_MS) {

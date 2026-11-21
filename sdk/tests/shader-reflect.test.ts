@@ -49,7 +49,7 @@ describe('reflectEsshader', () => {
     expect(r.params.map((p) => p.group)).toEqual(['Base', undefined]);
   });
 
-  it('groups the Model shader parameters as Unreal groups a material', () => {
+  it('groups the Model shader parameters into material groups', () => {
     const byName = new Map(reflectEsshader(MODEL).params.map((p) => [p.name, p.group]));
     expect(byName.get('u_normalMap')).toBe('Normal');
     expect(byName.get('u_detailBump')).toBe('Detail');

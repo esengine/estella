@@ -633,7 +633,7 @@ export async function publishRuntimeScene(
     /**
      * Spread the spawn over frames (a streamed cell): handed the staged spawn as a job, it runs it under the frame's budget.
      * The scene's roots stay switched off until the end of this call and are switched on whole, so nothing sees it half
-     * arrived — Unreal's AddToWorld, time-sliced, with the level visible only once it returns true.
+     * arrived — time-sliced, with the level visible only once it returns true.
      */
     spread?: (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>,
 ): Promise<void> {
@@ -845,7 +845,7 @@ export function createRuntimeSceneConfig(
         },
     };
     if (streamed) {
-        // Hidden at once, every top of the doomed set switched off in this frame, then destroyed under the budget: Unreal's
+        // Hidden at once, every top of the doomed set switched off in this frame, then destroyed under the budget:
         // incremental unregistration (`s.LevelStreamingUnregisterComponentsTimeLimit`), with the place gone the moment it goes.
         config.retire = async (doomed) => {
             const world = options.app.world;

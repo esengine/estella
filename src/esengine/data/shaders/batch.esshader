@@ -88,7 +88,7 @@ out vec4 fragColor;
 
 void main() {
     // Dithered (BATCH_DITHER_BIT): one half of a checkerboard, the half BATCH_DITHER_PHASE_BIT names, at full colour —
-    // how Unreal draws a handle behind geometry, readable over any background where a faded one is lost.
+    // a handle behind geometry, readable over any background where a faded one is lost.
     if ((v_texIndex & 256) != 0 && ((int(gl_FragCoord.x) + int(gl_FragCoord.y)) & 1) != ((v_texIndex >> 9) & 1)) discard;
     int slot = v_texIndex & 7;
     vec4 texColor;

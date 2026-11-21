@@ -29,7 +29,7 @@ export interface PerceiverData {
     losLayers: number;
     /**
      * How far a {@link Noise} of loudness 1 is heard, in world units; 0 = deaf. A noise is heard within
-     * `hearingRange * loudness`, through walls, as Unreal's hearing sense is.
+     * `hearingRange * loudness`, through walls.
      */
     hearingRange: number;
 }

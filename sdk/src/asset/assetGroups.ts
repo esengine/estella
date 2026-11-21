@@ -30,17 +30,10 @@ export interface AssetGroupDef {
     folder: string;
     mode: AssetGroupMode;
     /**
-     * Ship every asset in this folder whether or not a scene references it.
+     * Ship every asset in this folder whether or not a scene references it: a build cooks only what the entry
+     * scenes REACH, blind to a path built at runtime, a texture in rich-text markup or a clip picked by id.
      *
-     * A build cooks what it can REACH from the entry scenes, which is right for
-     * anything a scene names — and blind to anything named only in code: a path
-     * built at runtime, a texture in rich-text markup, a clip picked by id. This
-     * is where a project says so, rather than discovering at run time on a device
-     * that the file was culled. (Unity's Resources folder and Unreal's additional
-     * cook directories are the same declaration.)
-     *
-     * Off by default: reachability is what keeps a build from shipping the whole
-     * project.
+     * Off by default: reachability is what keeps a build from shipping the whole project.
      */
     alwaysInclude?: boolean;
 }

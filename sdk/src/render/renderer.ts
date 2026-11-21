@@ -167,7 +167,7 @@ export interface LightStatus {
 /** `clusters`: clay with each cluster of a Cluster LOD mesh in a colour of its own, so the level of detail every part of
  *  a surface is drawn at can be seen; a mesh without clusters is plain clay.
  *  `directLighting` / `indirectLighting`: clay lit by the lights alone, or by everything that is not a light (ambient,
- *  sky, reflections, probes, bakes) — Unreal's lighting components, for asking where a shadow's fill comes from. */
+ *  sky, reflections, probes, bakes) — for asking where a shadow's fill comes from. */
 export type ViewShading = 'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting' | 'clusters';
 
 const VIEW_SHADING_CODE: Record<ViewShading, number> = {
@@ -757,7 +757,7 @@ export const Renderer = {
 
     /**
      * Draws `material` through `shader` (a PostProcess-domain shader, compiled) into the rect `x, y, w, h` of render target `target`,
-     * before the next frame's scene: a surface baked into a texture, as Unreal draws a material to a render target. The shader takes the
+     * before the next frame's scene: a surface baked into a texture. The shader takes the
      * material's values by name (params and textures it shares with the material's own shader), and `a` and `b` as its params `u_bakeA`
      * and `u_bakeB`. Returns a ticket for {@link Renderer.bakeState}, 0 without a renderer that bakes.
      * @experimental
@@ -897,7 +897,7 @@ export const Renderer = {
     /**
      * Outline `entities` in `view`, as an editor shows its selection; an empty list clears it. @experimental
      *
-     * Unreal's selection outline, drawn by the engine: the selected meshes once more into a mask, and one screen pass
+     * A selection outline drawn by the engine: the selected meshes once more into a mask, and one screen pass
      * that rings it, faint where something stands in front. Its cost does not grow with the meshes' detail. Skinned
      * meshes are not outlined, nor is anything on a device without float targets. An editor sets it through
      * EditorViewShading.selection, which reaches the engine before the frame draws.

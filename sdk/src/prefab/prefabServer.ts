@@ -91,16 +91,9 @@ export class PrefabServer {
     }
 
     /**
-     * Load a prefab and everything its entities use - meshes, materials,
-     * textures - and hold them, so that an instantiate later finds them loaded
-     * and its entities appear on the frame they are asked for rather than when
-     * their files arrive. Release what it answers when they are no longer
-     * wanted.
-     *
-     * What it answers also spawns the prefab on the spot, with nothing left to
-     * wait for: `spawn` is synchronous, so the entities exist on the line that
-     * asked for them (as a Unity `Instantiate` or a UE spawnable does), until
-     * it is released.
+     * Load a prefab and everything its entities use (meshes, materials, textures) and hold it until released, so a
+     * later instantiate's entities appear on the frame they are asked for, not when their files arrive. What it
+     * answers spawns synchronously: the entities exist on the line that asked for them.
      */
     async prepare(pathOrAddress: string): Promise<PreparedSpawnable> {
         const prepared = await this.getAssets_().preparePrefab(pathOrAddress);

@@ -87,8 +87,8 @@ struct Light {
                 tooltip="Falloff shape: 1 = linear, higher pools near the light, lower reaches further.")
     f32 falloff{1.0f};
 
-    /** @brief Falls off as the inverse square of the distance, in metres, as a real light does (Unreal's Use Inverse
-     *         Squared Falloff, glTF's and three.js's point lights): `intensity` is then what reaches a surface one metre
+    /** @brief Falls off as the inverse square of the distance, in metres, as a real light does (glTF's and
+     *         three.js's point lights): `intensity` is then what reaches a surface one metre
      *         away, and @ref radius is only where it is let go — the last of it eased to nothing over the far end — so
      *         a lamp pools under itself rather than washing a room evenly. Off, the light ramps from @ref innerRadius to
      *         @ref radius by @ref falloff. Point and Spot only. */
@@ -248,7 +248,7 @@ struct Light {
 
     /** @brief What the light this Ambient light's environment gives a surface (its diffuse half, the sky's
      *         irradiance) is multiplied by, apart from what a surface reflects of it: a scene can be lit warmer
-     *         or brighter than its sky looks, as Unreal's sky light is through its own colour. 1 = as the sky gives
+     *         or brighter than its sky looks. 1 = as the sky gives
      *         it. A flat or Hemisphere ambient light has nothing to reflect apart from its Color, so this is its
      *         environment's alone. */
     ES_PROPERTY(min=0, animatable, shown_when=type:Ambient,
@@ -310,7 +310,7 @@ struct LightProbeVolume {
     resource::ProbeVolumeHandle probes;
 
     /** @brief Fill the box at run time from what a camera at its centre sees, all round: the walls as the lights light
-     *         them now, the sky through the openings — Unreal's real-time Sky Light / Reflection Capture, and the interior
+     *         them now, the sky through the openings — a real-time sky light / reflection capture, and the interior
      *         capture a hand-built renderer takes. One grid point for the whole box, read in place of @ref probes. */
     ES_PROPERTY(tooltip="Fill this box at run time from a capture at its centre (the room as lit now), not from a bake.")
     bool capture{false};

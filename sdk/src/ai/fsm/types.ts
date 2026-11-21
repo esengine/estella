@@ -29,7 +29,7 @@ export interface BlackboardGuard {
  */
 export interface FsmTransition {
     to: string;
-    /** Event name (Unity-style trigger) that must be fired; consumed when taken. */
+    /** Event name (a trigger) that must be fired; consumed when taken. */
     trigger?: string;
     /** Named condition resolved from the registry. */
     condition?: string;

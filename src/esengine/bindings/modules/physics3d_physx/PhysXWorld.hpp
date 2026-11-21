@@ -5,12 +5,11 @@
  * @brief   The one 3D world the PhysX backend steps.
  * @details The second implementation of Physics3DBindings.hpp, beside the Jolt
  *          one. The SDK cannot tell them apart by their entry points; what
- *          differs is the solver, which here is set up the way Unity sets up
- *          the same PhysX: projected Gauss-Seidel, patch friction, Average
+ *          differs is the solver, which here is set up as
+ *          follows: projected Gauss-Seidel, patch friction, Average
  *          combine, a 0.01 m contact offset, a 2 m/s bounce threshold, a 0.005
  *          sleep energy, six position and one velocity iterations, and a
- *          maximum angular velocity of 50 rad/s. A scene authored against
- *          Unity's defaults lands on the same numbers.
+ *          maximum angular velocity of 50 rad/s.
  *
  *          Bodies are named by small integers the module hands out, the way
  *          Jolt's BodyIDs are; a PhysX actor pointer never crosses to the SDK.
@@ -105,7 +104,7 @@ struct World {
 
     std::unordered_map<uint32_t, Joint> joints;
     /// Materials keyed by (friction, restitution): a scene of a thousand crates
-    /// shares one, as a Unity scene shares its default material.
+    /// shares one.
     std::unordered_map<uint64_t, physx::PxMaterial*> materials;
 
     std::vector<float> transformBuffer;
@@ -137,7 +136,7 @@ struct World {
 
 World& world();
 physx::PxPhysics& physics();
-/// Friction 0.6, no bounce: Unity's default physics material.
+/// Friction 0.6, no bounce: the default physics material.
 physx::PxMaterial* defaultMaterial();
 
 /// The entity an actor speaks for, or 0.

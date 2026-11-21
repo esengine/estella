@@ -65,11 +65,8 @@ export interface WorldStreamHost {
 }
 
 /**
- * What the streamer does when a world cannot keep up with a source that is upon it. Unreal's `wp.Runtime.BlockOnSlowStreaming`
- * is the first, and its default.
- *
- * - `wait`: an urgent cell's publication is finished in the frame it became urgent, and the game is held (paused, the
- *   streaming going on through the pause) until every urgent cell is in. A hitch and a stop, never a hole.
+ * What the streamer does when a world cannot keep up with a source that is upon it (default `wait`):
+ * - `wait`: an urgent cell is published the frame it turns urgent, the game held (streaming on) till all are in: never a hole.
  * - `publish`: the same finishing, and no hold: a cell still being fetched is missing until it arrives.
  * - `budget`: nothing is ever finished outside the frame's budget; an urgent cell only gets the budget's priority extra.
  *
@@ -78,23 +75,23 @@ export interface WorldStreamHost {
 export type SlowStreamingPolicy = 'wait' | 'publish' | 'budget';
 
 /**
- * How much a world streams at once, and what it does when it falls behind. The defaults are Unreal's.
+ * How much a world streams at once, and what it does when it falls behind.
  *
  * @experimental
  */
 export interface StreamingPolicy {
     /**
      * Cells being prepared (fetched, decoded, their assets acquired) at once; an urgent cell is not held back by it.
-     * Unreal: `wp.Runtime.MaxLoadingStreamingCells`, 4.
+     * Default 4.
      */
     maxLoadingCells: number;
-    /** Cells being published (spawned over frames) at once. Unreal makes one level visible at a time. */
+    /** Cells being published (spawned over frames) at once. Default 1: one at a time. */
     maxPublishingCells: number;
-    /** See {@link SlowStreamingPolicy}. Unreal: `wp.Runtime.BlockOnSlowStreaming`, on. */
+    /** See {@link SlowStreamingPolicy}. Default `wait`. */
     slowStreaming: SlowStreamingPolicy;
     /**
      * A cell a source needs is URGENT when it is not in and the source is within this share of its `loadRadius` of it:
-     * distance to the cell over load radius. Unreal: `wp.Runtime.BlockOnSlowStreamingRatio`, 0.25.
+     * distance to the cell over load radius. Default 0.25.
      */
     slowStreamingRatio: number;
 }
@@ -467,8 +464,8 @@ export class WorldStreamer {
     }
 
     /**
-     * Which cells a source is upon while they are not in: within `slowStreamingRatio` of the source's load radius (Unreal's
-     * DistanceToCell / LoadingRange). An urgent cell's work may take the budget's priority extra; under `wait` and `publish`
+     * Which cells a source is upon while they are not in: within `slowStreamingRatio` of the source's load radius
+     * (distance to the cell over load radius). An urgent cell's work may take the budget's priority extra; under `wait` and `publish`
      * its publication is finished at once.
      */
     private judgeUrgency_(sources: readonly ResidencySource[]): void {
@@ -705,7 +702,7 @@ export class WorldStreamer {
             if (!state.urgent && this.count_('preparing') >= this.policy_.maxLoadingCells) return;
             this.beginPrepare_(name, state);
         } else if (state.residency === 'prepared' && state.desired) {
-            // One cell made visible at a time, as Unreal does; an urgent cell does not wait behind one that is not.
+            // One cell made visible at a time; an urgent cell does not wait behind one that is not.
             if (!state.urgent && this.count_('publishing') >= this.policy_.maxPublishingCells) return;
             this.publishWhenReady_(name, state);
         } else if (state.residency === 'prepared' && !state.speculated) {

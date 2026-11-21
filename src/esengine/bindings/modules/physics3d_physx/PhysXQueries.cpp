@@ -4,8 +4,8 @@
  * @file    PhysXQueries.cpp
  * @brief   Characters and scene queries for the PhysX backend.
  * @details A character is a PhysX capsule controller: swept, not solved, like
- *          Jolt's CharacterVirtual and like Unity's CharacterController, which
- *          is this same controller. The query layouts are the Jolt module's.
+ *          Jolt's CharacterVirtual.
+ *          The query layouts are the Jolt module's.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -201,10 +201,8 @@ bool movableAhead(PxController& controller, uint32_t layer, const PxVec3& horizo
                             PxHitFlag::eDEFAULT, data, &filter) && hit.hasBlock;
 }
 
-/// A character slides off a body that moves rather than standing on it: PhysX
-/// applies the slope limit to static geometry only, so without this every crate
-/// edge is a slope it can walk up — the "CharacterController climbs rigidbodies"
-/// Unity projects work around. A crate is pushed, as in the Jolt backend.
+/// A character slides off a body that moves rather than standing on it: PhysX applies the slope limit to static
+/// geometry only, so without this every crate edge is a slope it can walk up. A crate is pushed, as in the Jolt backend.
 class Behavior final : public PxControllerBehaviorCallback {
 public:
     PxControllerBehaviorFlags getBehaviorFlags(const PxShape&, const PxActor& actor) override {
@@ -269,7 +267,7 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
     desc.upDirection = PxVec3(0.0f, 1.0f, 0.0f);
     desc.slopeLimit = std::cos(std::clamp(maxSlope, 0.0f, PxHalfPi));
     desc.stepOffset = 0.0f;  // set per move, from the caller's step height
-    // Unity's guidance for skin width: a tenth of the radius.
+    // Skin width: a tenth of the radius.
     desc.contactOffset = std::max(0.1f * radius, 1.0e-3f);
     desc.material = px3::defaultMaterial();
     desc.climbingMode = PxCapsuleClimbingMode::eCONSTRAINED;
@@ -352,7 +350,7 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
         if (probe & PxControllerCollisionFlag::eCOLLISION_DOWN) grounded = true;
         else controller.setPosition(before);
     }
-    // A ceiling ends a jump, as it does for Unity's CharacterController.
+    // A ceiling ends a jump.
     if ((flags & PxControllerCollisionFlag::eCOLLISION_UP) && vertical > 0.0f) vertical = 0.0f;
     report.moving = nullptr;
     noteCharacterMeetings(c, report.met, PxVec3(vx, vertical, vz));

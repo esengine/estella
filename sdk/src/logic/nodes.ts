@@ -176,10 +176,8 @@ export function describeNode(
         case 'event.destroy':
             return entry(NO_PORTS, 'destroy');
         case 'event.on':
-            // `other` is who ELSE the event named — the contact's partner on a
-            // physics event, 0 where the event names nobody. The fields the node
-            // declares in its `payload` literal follow, one typed pin each: the
-            // parameters of UE's event payload, of a Unity signal's receiver.
+            // `other` is who ELSE the event named (the contact's partner on a physics event, 0 for nobody); then
+            // one typed pin per field the node declares in its `payload` literal: what the event carries.
             return entry([
                 { name: 'target', type: 'entity' },
                 { name: 'other', type: 'entity' },

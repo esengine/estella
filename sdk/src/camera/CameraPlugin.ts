@@ -1043,11 +1043,9 @@ export function cameraPlugin(
                 },
             };
 
-            // Every camera's pipeline (CameraRig.ts): position, rotation, then the limits on both, in that order, and the
-            // brain's blend handed to the director. After Update, as Cinemachine's Brain runs in LateUpdate: a target the
-            // game moves this frame is framed where it is now, not where it was, which in Update put a fast target a
-            // frame past the soft zone a composer never lets it leave. Before camera collection, so the director picks and
-            // blends cameras that have already moved this frame. Play mode only (gameplay).
+            // Every camera's pipeline (CameraRig.ts): position, rotation, their limits, then the brain's blend to the
+            // director. After Update, so a target moved this frame is framed where it is now (in Update a fast one runs
+            // past the soft zone); before camera collection, so the director blends moved cameras. Play mode only.
             app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
                 [Res(Time)],
                 (time: TimeData) => {

@@ -127,7 +127,7 @@ export default {
         'physics3d-physx': {
             buildDir: 'build/cmake/physics3d-physx',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_PHYSX=ON', '-DES_PHYSICS_ESM=ON'],
-            // The 3D world over PhysX, for a project that asks for Unity's solver.
+            // The 3D world over PhysX, for a project that picks the PhysX solver.
             // Same entry points and factory as physics3d; only the file differs.
             targets: ['physics3d_physx_module_esm'],
             outputs: {

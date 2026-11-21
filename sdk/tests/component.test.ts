@@ -321,7 +321,7 @@ describe('Field metadata (editor presentation policy)', () => {
         // Numeric range/unit policy rides the same channel.
         expect(meta.fov).toMatchObject({ min: 1, max: 179, unit: '°' });
         expect(meta.orthoSize).toMatchObject({ min: 0 });
-        // Tooltips (UE ToolTip) ride the same metadata channel as range/unit.
+        // Tooltips ride the same metadata channel as range/unit.
         expect(typeof meta.orthoSize?.tooltip).toBe('string');
         // An unannotated field carries no metadata at all.
         expect(meta.isActive).toBeUndefined();

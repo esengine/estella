@@ -221,8 +221,8 @@ export interface ImportedSpringCollider {
 }
 
 /**
- * A light as a source states it. Intensity is carried over as it is, the way
- * Godot's glTF import does: the engine's is a multiplier with no photometric unit.
+ * A light as a source states it. Intensity is carried over as it is, with no
+ * conversion: the engine's is a multiplier with no photometric unit.
  */
 export interface ImportedLight {
     type: 'point' | 'directional' | 'spot';
@@ -1082,7 +1082,7 @@ function transformComponent(trs?: Trs, scale?: number): ComponentData {
     } };
 }
 
-/** An unbounded light's reach, as Godot clamps one: far enough to be no reach at all. */
+/** An unbounded light's reach, clamped: far enough to be no reach at all. */
 const UNBOUNDED_LIGHT_RANGE = 4096;
 const LIGHT_TYPE = { point: 0, directional: 1, spot: 3 } as const;
 

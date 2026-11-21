@@ -385,7 +385,7 @@ public:
 
     /**
      * @brief Draws material @p material through @p shader (a PostProcess-domain shader) into the rect (x, y, w, h) of render target
-     *        @p target, before the next frame's scene: a surface baked into a texture, as Unreal draws a material to a render target.
+     *        @p target, before the next frame's scene: a surface baked into a texture, a material drawn to a render target.
      * @details The shader takes the material's values by name (MaterialStore::bindThrough), with @p a and @p b as its params
      *          `u_bakeA` and `u_bakeB`: what this one draw is of. A bake whose program is still compiling waits for it.
      * @return A ticket for materialBakeState.
@@ -468,7 +468,7 @@ public:
     void setViewShading(u32 view, ShadingMode mode) { view_shading_.set(view, mode); }
     /**
      * @brief The editor's selection in `view`, outlined on screen (by Entity::id()); empty clears it.
-     * @details Unreal's selection outline: the selected meshes are drawn once more into a coverage mask, and a screen pass
+     * @details The selected meshes are drawn once more into a coverage mask, and a screen pass
      *          rings what the mask covers, brighter where the selection is in sight than where something stands in front of
      *          it. Its cost is the selection's draws and one screen pass, whatever the meshes' detail.
      */
@@ -1126,7 +1126,7 @@ private:
     i32 cloud_sun_slot_ = -1;
     glm::vec3 cloud_sun_aim_{0.0f, -1.0f, 0.0f};
     /// The atlas tile the sky draws the sun's cloud shadow into this frame, or -1, and the matrix it is drawn and read through:
-    /// along the sun's rays, round the camera, as Unreal's cloud shadow map is.
+    /// along the sun's rays, round the camera, as a cloud shadow map.
     i32 cloud_tile_ = -1;
     glm::mat4 cloud_matrix_{1.0f};
     /// The frame's render targets, borrowed by shape and given back when the

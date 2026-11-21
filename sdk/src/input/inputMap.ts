@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    inputMap.ts
- * @brief   defineInputMap — named input actions over raw input (UE5 Enhanced
- *          Input / Unity Input System analog).
+ * @brief   defineInputMap — named input actions over raw input.
  *
  * Decouples gameplay from physical keys: declare named actions ("Jump", "Move")
  * with one or more device-agnostic bindings (keyboard / mouse / gamepad, plus
