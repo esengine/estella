@@ -5940,4 +5940,92 @@ export const NOTED = {
     { note: "The World panel shows a streamed world as a map." },
   "feat(editor): World Settings, as Unreal's: Enable Streaming and the world's partition settings beside Details":
     { note: "World Settings, a tab for the open scene's world-wide settings." },
+  "fix(render): a mesh draws on Adreno 6xx phones - a draw's entry and its shapes' weights are texels of the frame's record texture, so no vertex stage indexes a uniform array by gl_DrawID or a loop counter":
+    { note: "A mesh draws on Adreno 6xx phones." },
+  "fix(editor): every Content Browser tile is one height, so a row of images no longer runs into the row below":
+    { note: "Content Browser tiles no longer overlap the row below." },
+  "feat(editor): Content Browser filters stand in a bar, collections group assets, and the browser gets the height to show them":
+    { note: "Content Browser filters and collections." },
+  "chore(editor): move the editor to Content Browser filters, collections and the taller browser":
+    { note: "Content Browser filters and collections." },
+  "chore(editor): move the editor to the Content Browser's navigation bar, Settings menu and three views":
+    { note: "The Content Browser has a navigation bar, a Settings menu and three views." },
+  "feat(editor): Content Browser has a navigation bar, a Settings menu and Tiles / List / Columns views":
+    { note: "The Content Browser has a navigation bar, a Settings menu and three views." },
+  "fix(editor): a delete the Recycle Bin refuses tries again a moment later, and then names the file or folder something holds open instead of the system's bare error":
+    { note: "Deleting an asset another program has open says which and why." },
+  "feat(editor): Settings can draw WebGL through OpenGL on Windows, which compiles shaders several times faster than Direct3D 11, from the next start":
+    { note: "OpenGL on Windows, for faster shader compiles." },
+  "fix(render): parallax in the editor's view is measured from the scene camera, not from the view's own eye":
+    { note: "Parallax layers stay put while you pan or zoom the editor viewport, and move when you move the scene camera." },
+  "feat(editor): parallax layers in the viewport follow the scene camera, not the view's eye":
+    { note: "Parallax layers stay put while you pan or zoom the editor viewport, and move when you move the scene camera." },
+  "feat(editor): an exclusion volume is drawn as the box it is, its height included":
+    { note: "An exclusion volume is drawn as a box." },
+  "fix(export): a web export's page lets in fonts embedded as data: URLs":
+    { note: "A web export's page lets in fonts embedded as data: URLs." },
+  "fix(runtime): the project fixed timestep sets the FixedUpdate step without physics too":
+    { note: "The fixed timestep applies without physics." },
+  "fix(editor): the fixed timestep setting says it is the FixedUpdate step, physics or not":
+    { note: "The fixed timestep applies without physics." },
+  "feat(runtime): a project can cap the frame rate its game boots with":
+    { note: "A project can cap its frame rate." },
+  "feat(editor): Project Settings has a frame rate cap":
+    { note: "A project can cap its frame rate." },
+  "feat(editor): AI agents can connect from the first launch, and can only read until allowed to change the project":
+    { note: "AI agents can connect from the first launch." },
+  "fix(editor): an agent can write a whole list of records a component has no Details row for, such as a Spline's points":
+    { note: "An AI agent can set a Spline's points." },
+  "fix(editor): the active tab's white is the --text-max token, and an editor check for islands and lake floors":
+    { note: "Panel tabs read as cards." },
+  "feat(editor): panel tabs are rounded cards with the close button at their end and a 1px focus line that fades to both ends":
+    { note: "Panel tabs read as cards." },
+  "fix(editor): a screenshot during Play waits for the game's shaders to compile, so its first frames are not taken without them":
+    { note: "A screenshot taken during Play waits for the game's shaders." },
+  "fix(editor): an entity created or moved inside a prefab instance is part of it, so Apply writes it into the prefab and a save keeps it":
+    { note: "An entity added inside a prefab instance is applied and saved with it." },
+  "fix(water): ripples step in substeps of one length, so uneven frames no longer make the water shake":
+    { note: "Water no longer starts shaking wildly after a stutter." },
+  "feat(editor): a spline point's right-click menu, and a river's current, width and depth shown and dragged in the viewport":
+    { note: "River visualization and a spline point's right-click menu." },
+  "fix(ui): taps that land and lift within one frame are each a click":
+    { note: "Quick taps on a slow frame are no longer lost." },
+  "feat(spline): a spline point has a type and tangents, and carries a river's depth, velocity and audio intensity":
+    { note: "Spline points with types, tangents and river values, edited in Selected Points." },
+  "feat(editor): Selected Points in Details steps through a spline's points and edits each, with a river's depth, velocity and audio intensity":
+    { note: "Spline points with types, tangents and river values, edited in Selected Points." },
+  "fix(editor): show the standalone game window on Windows":
+    { note: "Standalone Game opens its game window on Windows." },
+  "fix(editor): the viewport marks the spline point Details picks, at once":
+    { note: "The viewport follows the spline point Details picks." },
+  "feat(water): each body of water can have its own colour, blended into its neighbour's where they meet":
+    { note: "Each body of water can have its own colour." },
+  "feat(water): a Curve Channel's bank can run out at an angle from a flat edge, add onto the ground, and take blur, curl noise, smoothing and a terrace mask":
+    { note: "More ways a body of water meets the ground." },
+  "fix(water): a Curve Channel's outer smoothing no longer raises a ridge where an angled bank starts, nor rings from the inner smoothing":
+    { note: "More ways a body of water meets the ground." },
+  "feat(editor): the Create menu places each kind of water body, and islands and exclusion volumes take their outline like a lake":
+    { note: "Every kind of water body in the Create menu." },
+  "feat(water): a custom body of water is the shape of a mesh seen from above":
+    { note: "Custom water bodies take the shape of a mesh." },
+  "feat(editor): Water Body Custom in the Create menu, and a check that a custom body is the shape of its mesh":
+    { note: "Custom water bodies take the shape of a mesh." },
+  "feat(water): a water sample says how deep the water is down to the ground under it":
+    { note: "A water sample says how deep the water is." },
+  "feat(water): an exclusion volume keeps out every body overlapping it or only those it lists, and a package with no water no longer carries the water body's definition":
+    { note: "Exclusion volumes that name their bodies." },
+  "feat(water): an exclusion volume keeps the water out of a box":
+    { note: "Exclusion volumes keep the water out of a box." },
+  "feat(water): the far distance mesh past a zone's rings has its own extent, material and switch":
+    { note: "Far distance settings on the Water Zone." },
+  "feat(water): an island raises the terrain out of the water, and a lake cuts its floor into it":
+    { note: "Islands, and lakes that cut their floor." },
+  "feat(water): a lake or a river cuts the terrain along a Curve Channel of its own":
+    { note: "Terrain settings on a body of water." },
+  "feat(editor): Details lists the islands, exclusion volumes and zone acting on a body of water":
+    { note: "Terrain settings on a body of water." },
+  "feat(water): each body of water can have its own underwater look":
+    { note: "Each body of water can look its own from under it." },
+  "feat(water): a body's waves calm by the depth of its water, its colour wins an overlap by priority, its shape can be grown past its outline, and its look from under the water is laid over another body's by priority, blend weight and blend radius":
+    { note: "More of a body of water's own settings." },
 };

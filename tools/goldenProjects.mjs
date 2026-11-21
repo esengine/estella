@@ -1611,6 +1611,42 @@ export const SHIPPED = {
     { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/timeline-spawns.test.ts." },
   "Timelines preview camera shakes, pick masks from the rig, ha":
     { notCertifiable: "A runtime feature no golden project uses yet, so no game act decides it. Covered by sdk/tests/script-graph-runner.test.ts, sdk/tests/timeline-animation-track.test.ts, sdk/tests/timeline-camera-shake.test.ts, sdk/tests/timeline-spawns.test.ts." },
+  "Content Browser filters and collections.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/content-browser-filters.mjs, desktop/tests/asset-filter.test.ts, desktop/tests/asset-collections.test.ts." },
+  "The Content Browser has a navigation bar, a Settings menu and three views.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/content-browser-views.mjs (the history arrows, the three views, sorting by size both ways, a hidden column, a 300 px and a 150 px panel), desktop/scripts/editor-checks/content-browser-rows.mjs, desktop/tests/asset-filter.test.ts." },
+  "OpenGL on Windows, for faster shader compiles.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/angle-backend.mjs; the compile times it saves were measured by hand on this Windows host." },
+  "A project can cap its frame rate.":
+    { notCertifiable: "A setting no golden project sets, so no game act decides it. Covered by sdk/tests/runtime-build-config.test.ts and desktop/tests/play-frame-rate.test.ts." },
+  "River visualization and a spline point's right-click menu.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/river-visualization.mjs." },
+  "Spline points with types, tangents and river values, edited in Selected Points.":
+    { notCertifiable: "An editor feature with no game act to decide it. Covered by desktop/scripts/editor-checks/spline-selected-points.mjs and sdk/tests/spline-point-types.test.ts." },
+  "Each body of water can have its own colour.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-bodies.test.ts and desktop/scripts/editor-checks/water-body-colors.mjs." },
+  "More ways a body of water meets the ground.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-channel.test.ts." },
+  "Every kind of water body in the Create menu.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-bodies.test.ts." },
+  "Custom water bodies take the shape of a mesh.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-footprint.test.ts." },
+  "A water sample says how deep the water is.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-bodies.test.ts." },
+  "Exclusion volumes that name their bodies.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-waves-look.test.ts." },
+  "Exclusion volumes keep the water out of a box.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-bodies.test.ts." },
+  "Far distance settings on the Water Zone.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-far-mesh.test.ts and desktop/scripts/editor-checks/water-far-distance.mjs." },
+  "Islands, and lakes that cut their floor.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-land-shape.test.ts." },
+  "Terrain settings on a body of water.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-channel.test.ts and desktop/scripts/editor-checks/water-terrain-channel.mjs." },
+  "Each body of water can look its own from under it.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-underwater.test.ts; the look under the water was judged by hand (the on-demand water-under check is not run by CI)." },
+  "More of a body of water's own settings.":
+    { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-waves-look.test.ts and sdk/tests/water-bodies.test.ts." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
