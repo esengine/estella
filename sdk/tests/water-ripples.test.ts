@@ -8,6 +8,24 @@ import type { WaterSample } from '../src/water/waterPlugin';
 const field = (): RippleField => new RippleField(64, 64);
 
 describe('RippleField', () => {
+    it('dies away the same whether frames are even or a hitch comes every few', () => {
+        // Each step used to read the last one's height change as a velocity under its own length, so a long frame after short ones multiplied
+        // every wave: a 0.1 s hitch every fourth frame took this ripple past 1e29 in twelve seconds, and the water shook.
+        const settle = (dts: number[]): number => {
+            const f = new RippleField(128, 256);
+            f.disturb(128, 128, 6, 1);
+            for (let t = 0, i = 0; t < 12; i++) { const dt = dts[i % dts.length]!; f.step(dt, 12, 0.3, 1); t += dt; }
+            return f.peak();
+        };
+        const even = settle([1 / 60]);
+        expect(even).toBeLessThan(0.01);
+        for (const uneven of [[0.004, 1 / 30], [1 / 120, 1 / 120, 1 / 120, 0.1]]) {
+            const peak = settle(uneven);
+            expect(Number.isFinite(peak)).toBe(true);
+            expect(peak).toBeLessThan(even * 2);
+        }
+    });
+
     it('is still until something disturbs it', () => {
         const f = field();
         f.step(0.1, 6, 0.5, 0.4);

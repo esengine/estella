@@ -13,7 +13,10 @@
  *          (it is re-centred in whole cells and the contents shift with it), so a lake or an ocean of any size has ripples where they are seen, for the
  *          price of one grid. The Water shader reads it as a texture (`encode`) for the slope it adds to the waves' and for the foam.
  *
- *          The wave equation is stepped in as many substeps as keep the wave from crossing more than half a cell in one: past that it would not be stable.
+ *          The wave equation is stepped in substeps of one fixed length, short enough that the wave crosses at most half a cell in one (past that it would
+ *          not be stable), and what is left of a frame carries to the next. The length must not change from one step to the next: the scheme reads the last
+ *          step's height as a velocity, so a long step after a short one multiplies every wave by their ratio, and frames of uneven length grew a ripple
+ *          without bound (a hitch every few frames took one past 1e29 in twelve seconds).
  */
 
 /** A ripple grid over a square window of a body's own xz plane. */
@@ -33,6 +36,8 @@ export class RippleField {
     private previous: Float32Array;
     private next: Float32Array;
     private foam: Float32Array;
+    /** Time stepped by no substep yet: the part of a frame shorter than one. */
+    private carry = 0;
 
     constructor(n: number, size: number) {
         this.n = Math.max(8, Math.floor(n));
@@ -112,10 +117,13 @@ export class RippleField {
      * The window's edge lets waves out (the heights there are held at rest) rather than reflecting them.
      */
     step(dt: number, speed: number, damping: number, foamFade: number): void {
-        if (dt <= 0) return;
+        if (!(dt > 0)) return;
         const n = this.n;
-        const substeps = Math.max(1, Math.ceil((speed * dt) / (0.5 * this.cell)));
-        const h = dt / substeps;
+        const h = Math.min((0.5 * this.cell) / Math.max(speed, 1e-6), 1 / 60);
+        this.carry += dt;
+        // A frame longer than a quarter second steps a quarter second: the rest is dropped rather than paid for in one frame.
+        const substeps = Math.min(Math.floor(this.carry / h), Math.ceil(0.25 / h));
+        this.carry = Math.min(this.carry - substeps * h, h);
         const k = (speed * h / this.cell) ** 2;
         const keep = Math.max(1 - damping * h, 0);
         for (let s = 0; s < substeps; s++) {
