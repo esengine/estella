@@ -12,6 +12,7 @@
  */
 import type { TerrainModifier } from '../terrain/source';
 import type { RiverStation } from './zone';
+import { channelHeight, channelReach, type ChannelSettings } from './landShape';
 
 /** Stations to a modifier: a stretch a few widths long. */
 const STRETCH = 24;
@@ -51,8 +52,9 @@ function bedAt(stations: readonly RiverStation[], from: number, to: number, dept
  * The modifiers that cut a river's bed `depth` under its surface, a stretch of it each, their ids starting with `prefix`.
  * @experimental
  */
-export function riverBedModifiers(prefix: string, stations: readonly RiverStation[], depth: number): TerrainModifier[] {
+export function riverBedModifiers(prefix: string, stations: readonly RiverStation[], depth: number, channel?: ChannelSettings): TerrainModifier[] {
     if (stations.length < 2 || !(depth > 0 || stations.some((s) => (s.depth ?? 0) > 0))) return [];
+    if (channel) return riverChannelModifiers(prefix, stations, depth, channel);
     const out: TerrainModifier[] = [];
     for (let from = 0; from < stations.length - 1; from += STRETCH) {
         const to = Math.min(from + STRETCH, stations.length - 1);
@@ -73,6 +75,47 @@ export function riverBedModifiers(prefix: string, stations: readonly RiverStatio
             },
             // Only cuts: its lowest is the bed under the lowest station of its stretch.
             heights: [lowest, lowest],
+        });
+    }
+    return out;
+}
+
+/**
+ * A river's bed laid by its Curve Channel: across it, the profile from its edge in (the distance from its middle, against half its width
+ * there), to the depth its points carry, a stretch of stations each.
+ */
+function riverChannelModifiers(prefix: string, stations: readonly RiverStation[], depth: number, channel: ChannelSettings): TerrainModifier[] {
+    const out: TerrainModifier[] = [];
+    const reach = channelReach(channel);
+    for (let from = 0; from < stations.length - 1; from += STRETCH) {
+        const to = Math.min(from + STRETCH, stations.length - 1);
+        let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, lowest = Infinity, highest = -Infinity;
+        for (let i = from; i <= to; i++) {
+            const s = stations[i]!, r = s.half + reach;
+            lowest = Math.min(lowest, s.y + channel.zOffset - (s.depth ?? depth));
+            highest = Math.max(highest, s.y + channel.zOffset);
+            minX = Math.min(minX, s.x - r); maxX = Math.max(maxX, s.x + r);
+            minZ = Math.min(minZ, s.z - r); maxZ = Math.max(maxZ, s.z + r);
+        }
+        out.push({
+            id: `${prefix}${from / STRETCH}`,
+            bounds: [minX, minZ, maxX, maxZ],
+            apply(x, z, h) {
+                // The station pair nearest across: the deepest profile any of them lays (where two overlap at a bend, the channel is whole).
+                let best = Infinity, at = { d: -Infinity, surface: 0, deep: depth };
+                for (let i = from; i < to; i++) {
+                    const a = stations[i]!, b = stations[i + 1]!;
+                    const ex = b.x - a.x, ez = b.z - a.z, len2 = ex * ex + ez * ez;
+                    const t = len2 > 0 ? Math.min(Math.max(((x - a.x) * ex + (z - a.z) * ez) / len2, 0), 1) : 0;
+                    const dist = Math.hypot(x - (a.x + ex * t), z - (a.z + ez * t));
+                    if (dist >= best) continue;
+                    best = dist;
+                    const half = a.half + (b.half - a.half) * t;
+                    at = { d: half - dist, surface: a.y + (b.y - a.y) * t, deep: (a.depth ?? depth) + ((b.depth ?? depth) - (a.depth ?? depth)) * t };
+                }
+                return at.d === -Infinity ? h : channelHeight(at.d, at.surface, at.deep, h, channel);
+            },
+            heights: [lowest, highest],
         });
     }
     return out;

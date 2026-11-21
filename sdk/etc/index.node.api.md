@@ -15032,9 +15032,15 @@ ComponentDef<WaterBodyData>
 
 ## WaterBodyData — interface @experimental
 ```
+affectsTerrain: boolean
 bedDepth: number
 bodyId: string
 boundary: Point2[]
+channelEdgeOffset: number
+channelShape: number
+curveRampWidth: number
+elevationCurve: Curve
+falloffWidth: number
 flowSpeed: number
 form: number
 shapeMesh: number
@@ -15043,6 +15049,11 @@ sizeX: number
 sizeY: number
 sizeZ: number
 surfaceLook: number
+terraceAlpha: number
+terraceSmoothness: number
+terraceSpacing: number
+terrainBlend: number
+terrainZOffset: number
 underwaterAbsorption: { r: number; g: number; b: number; a: number; }
 underwaterCaustics: number
 underwaterColor: { r: number; g: number; b: number; a: number; }
@@ -15189,9 +15200,11 @@ z: number
 @internal app_: App | null
 @internal exclusions_: readonly ZoneExclusion[]
 @internal field_: WaterField | null
+@internal influences_: Map<number, { islands: number[]; exclusions: number[]; }>
 @internal instance_: number
 @internal revision_: number
 @internal ripples_: RippleField | null
+@internal zoneEntity_: number | null
 @internal zoneLevel_: number
 @internal zone_: WaterZoneData
 baking: boolean
@@ -15200,6 +15213,7 @@ depthAt: (x: number, z: number, y: number) => number | null
 disturb: (x: number, y: number, z: number, radius: number, strength: number) => boolean
 empty: boolean
 heightAt: (x: number, z: number) => number | null
+influencesOf: (entity: Entity) => { islands: Entity[]; exclusions: Entity[]; zone: Entity | null; }
 quality: WaterQuality
 queryData: () => WaterQueryData | null
 rippleAt: (x: number, _y: number, z: number) => number

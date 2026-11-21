@@ -195,6 +195,8 @@ const DISPOSITION = {
   'Waterfall.width': ['renders', 'the sheet of water the component draws is this wide where it leaves the lip'],
   'WaterBody.waveHeight': ['no-place', 'the height of the tallest wave, not a region of the entity'],
   'WaterBody.bedDepth': ['renders', 'a river\'s bed is cut into the terrain, which draws it'],
+  'WaterBody.curveRampWidth': ['renders', 'how wide a Curve Channel ramps to its depth: it is cut into the terrain, which draws it'],
+  'WaterBody.falloffWidth': ['renders', 'how far a Curve Channel bank runs back into the ground: it is cut into the terrain, which draws it'],
   'SpringBone.radius': ['no-place', 'the thickness of the strand, kept clear of the colliders; a margin on each bone, not a region of the root'],
   'FirstPersonController.eyeHeight': ['no-place', 'where the camera sits above the character\'s centre; the camera child is the place, and it is selected and drawn as a camera'],
   'FirstPersonController.crouchEyeHeight': ['no-place', 'where the camera sits above the centre when crouched; the camera child is the place'],

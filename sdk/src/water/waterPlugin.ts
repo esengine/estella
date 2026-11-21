@@ -17,7 +17,8 @@
 import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
-import { islandModifier, lakeFloorModifier, type OutlineSpace } from './landShape';
+import { ChannelBlend, islandModifier, lakeChannelModifier, lakeFloorModifier, type ChannelSettings, type OutlineSpace } from './landShape';
+import { InterpType, sampleKeyframes, type Curve } from '../math/keyframes';
 import { Footprint } from './footprint';
 import type { TerrainModifier } from '../terrain/source';
 import type { App, Plugin } from '../app/app';
@@ -96,7 +97,29 @@ export interface WaterBodyData {
     underwaterAbsorption: { r: number; g: number; b: number; a: number };
     underwaterDensity: number;
     underwaterCaustics: number;
+    /** Whether the body changes the terrain at all: a lake's floor, a river's bed, an island. */
+    affectsTerrain: boolean;
+    /** {@link ChannelShape}: the built-in cut, or the Curve Channel below (an elevation curve over a ramp, laid as its blend says). */
+    channelShape: number;
+    elevationCurve: Curve;
+    channelEdgeOffset: number;
+    curveRampWidth: number;
+    terrainBlend: number;
+    falloffWidth: number;
+    terrainZOffset: number;
+    terraceAlpha: number;
+    terraceSpacing: number;
+    terraceSmoothness: number;
 }
+
+/** How a lake or a river cuts the terrain: its built-in profile, or the Curve Channel its Terrain settings describe. */
+export const ChannelShape = { BuiltIn: 0, Curve: 1 } as const;
+
+/** The elevation curve a Curve Channel starts with: an S from the curve's start (0) to the full depth (1). */
+const S_CURVE: Curve = { keys: [
+    { time: 0, value: 0, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseInOut },
+    { time: 1, value: 1, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseInOut },
+] };
 
 /** Where a body's surface colour comes from: the zone's water material, or the body's own Water Color. */
 export const SurfaceLook = { Zone: 0, Own: 1 } as const;
@@ -115,8 +138,10 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
     surfaceLook: SurfaceLook.Zone, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
     underwaterLook: UnderwaterLook.Zone, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
     underwaterDensity: 0.12, underwaterCaustics: 0.6,
+    affectsTerrain: true, channelShape: ChannelShape.BuiltIn, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
+    terrainBlend: ChannelBlend.Min, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
+    worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing'],
     assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
     fields: {
         form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }, { label: 'Island', value: WaterForm.Island }, { label: 'Exclusion Volume', value: WaterForm.Exclusion }, { label: 'Custom', value: WaterForm.Custom }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
@@ -135,6 +160,17 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
+        affectsTerrain: { category: 'Terrain', tooltip: 'Whether this body changes the terrain under and round it: a lake cutting its floor, a river its bed, an island raising its ground. Off, the terrain is left as it is and the water lies over it.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River, WaterForm.Island] } },
+        channelShape: { enum: [{ label: 'Built In', value: ChannelShape.BuiltIn }, { label: 'Curve Channel', value: ChannelShape.Curve }], category: 'Terrain', tooltip: 'How the bed is cut: the built-in profile (a lake\u2019s floor sloping in from its shore, a river\u2019s rounded trough), or the Curve Channel below: an elevation curve across a ramp from the shore, laid over the ground as its blend mode says, with terraces if asked.', shownWhen: { field: 'form', values: [WaterForm.Lake, WaterForm.River] } },
+        elevationCurve: { curve: true, category: 'Terrain', tooltip: 'The bed\u2019s profile across the ramp: from the curve\u2019s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river\u2019s points) is the depth reached.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        channelEdgeOffset: { category: 'Terrain', tooltip: 'How far in from the shore the curve starts, in world units. Negative starts it out on the bank, which widens the cut past the water.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        curveRampWidth: { min: 0.01, category: 'Terrain', tooltip: 'How wide the curve ramps from its start to the full depth, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terrainBlend: { enum: [{ label: 'Min', value: ChannelBlend.Min }, { label: 'Max', value: ChannelBlend.Max }, { label: 'Alpha Blend', value: ChannelBlend.AlphaBlend }], category: 'Terrain', tooltip: 'How the channel is laid over the terrain: Min only cuts it (ground already lower stays), Max only raises it, Alpha Blend lays the profile either way.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        falloffWidth: { min: 0, category: 'Terrain', tooltip: 'Past where the curve starts, how far out the bank runs back into the terrain, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terrainZOffset: { category: 'Terrain', tooltip: 'Raises (or, negative, lowers) the whole cut against the water\u2019s surface, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terraceAlpha: { min: 0, max: 1, category: 'Terrain', tooltip: 'Terraces laid over the cut: 0 none, 1 fully stepped.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terraceSpacing: { min: 0.01, category: 'Terrain', tooltip: 'The rise of each terrace, in world units.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
+        terraceSmoothness: { min: 0, max: 1, category: 'Terrain', tooltip: 'How round the terraces\u2019 edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.', shownWhen: { field: 'channelShape', values: [ChannelShape.Curve] } },
         underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UnderwaterLook.Own] } },
         waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [WaterForm.Ocean, WaterForm.Lake, WaterForm.River, WaterForm.Custom] } },
     },
@@ -210,6 +246,18 @@ export class Waters {
     exclusions_: readonly ZoneExclusion[] = [];
     /** The zone entity's world height, for the far distance mesh of a zone with no ocean. @internal */
     zoneLevel_ = 0;
+    /** @internal */ influences_ = new Map<number, { islands: number[]; exclusions: number[] }>();
+    /** @internal */ zoneEntity_: number | null = null;
+
+    /**
+     * The islands and exclusion volumes that act on a body of water (those whose ground overlaps it; an ocean, which goes on without edge,
+     * has every one in its zone), and the zone it belongs to: the WaterZone entity, or null where it is drawn by the zone made for a scene
+     * without one.
+     */
+    influencesOf(entity: Entity): { islands: Entity[]; exclusions: Entity[]; zone: Entity | null } {
+        const got = this.influences_.get(entity as number);
+        return { islands: (got?.islands ?? []) as Entity[], exclusions: (got?.exclusions ?? []) as Entity[], zone: this.zoneEntity_ as Entity | null };
+    }
     /** The ripples the zone keeps, where it asks for them. @internal */
     ripples_: RippleField | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
@@ -388,6 +436,22 @@ function rotate(q: Quat, vx: number, vy: number, vz: number): [number, number, n
     return [vx + q.w * tx + (q.y * tz - q.z * ty), vy + q.w * ty + (q.z * tx - q.x * tz), vz + q.w * tz + (q.x * ty - q.y * tx)];
 }
 
+/** A lake's or a river's Curve Channel, in world units, or null where it keeps the built-in cut. */
+function channelOf(d: WaterBodyData, scale: number): ChannelSettings | null {
+    if (d.channelShape !== ChannelShape.Curve) return null;
+    const keys = d.elevationCurve?.keys ?? [];
+    return {
+        curve: keys.length > 0 ? (u) => sampleKeyframes(keys, u) : (u) => u * u * (3 - 2 * u),
+        edgeOffset: d.channelEdgeOffset * scale, ramp: d.curveRampWidth * scale, blend: d.terrainBlend, falloff: d.falloffWidth * scale,
+        zOffset: d.terrainZOffset * scale, terraceAlpha: d.terraceAlpha, terraceSpacing: d.terraceSpacing * scale, terraceSmoothness: d.terraceSmoothness,
+    };
+}
+
+/** What a Curve Channel is cut from, for knowing when to cut it again. */
+function channelKey(d: WaterBodyData): unknown[] {
+    return [d.elevationCurve, d.channelEdgeOffset, d.curveRampWidth, d.terrainBlend, d.falloffWidth, d.terrainZOffset, d.terraceAlpha, d.terraceSpacing, d.terraceSmoothness];
+}
+
 /** A body's outline with the way into and out of its plane, for what it does to the ground. */
 function outlineSpace(t: TransformData, outline: readonly Point2[], scale: number): OutlineSpace {
     return {
@@ -450,6 +514,9 @@ interface Inputs {
     exclusions: ZoneExclusion[];
     /** The world height of the zone's entity (0 without one): where the far distance mesh lies when the zone has no ocean to lay it at. */
     zoneLevel: number;
+    /** Each body's islands and exclusion volumes (those whose ground overlaps it), and the zone entity it belongs to (null for the implicit zone). */
+    influences: Map<number, { islands: number[]; exclusions: number[] }>;
+    zoneEntity: number | null;
     bodies: ZoneBody[];
     grid: ZoneGrid;
     zone: WaterZoneData;
@@ -519,6 +586,8 @@ export class WaterPlugin implements Plugin {
             waters.zone_ = inputs.zone;
             waters.exclusions_ = inputs.exclusions;
             waters.zoneLevel_ = inputs.zoneLevel;
+            waters.influences_ = inputs.influences;
+            waters.zoneEntity_ = inputs.zoneEntity;
             if (inputs.bodies.length === 0) {
                 this.baking_?.cancel();
                 this.baking_ = null;
@@ -618,13 +687,14 @@ export class WaterPlugin implements Plugin {
                     toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
                 });
                 keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
-                if (d.bedDepth > 0) {
+                if (d.affectsTerrain !== false && d.bedDepth > 0) {
                     const level = t.worldPosition.y, depth = d.bedDepth * scale, ramp = Math.max(d.shoreWidth * scale, depth * 3);
-                    const space = outlineSpace(t, outline, scale);
-                    beds.push({ key, signature: JSON.stringify(['lake', outline, level, depth, ramp, t.worldPosition, t.worldRotation, scale]),
-                        make: (prefix) => [lakeFloorModifier(`${prefix}floor`, space, level, depth, ramp)] });
+                    const space = outlineSpace(t, outline, scale), channel = channelOf(d, scale);
+                    beds.push({ key, signature: JSON.stringify(['lake', outline, level, depth, ramp, t.worldPosition, t.worldRotation, scale, channel ? channelKey(d) : null]),
+                        make: (prefix) => [channel ? lakeChannelModifier(`${prefix}floor`, space, level, depth, channel) : lakeFloorModifier(`${prefix}floor`, space, level, depth, ramp)] });
                 }
             } else if (d.form === WaterForm.Island) {
+                if (d.affectsTerrain === false) continue;
                 const outline = outlineOf(d), top = t.worldPosition.y, falloff = d.shoreWidth * scale;
                 const space = outlineSpace(t, outline, scale);
                 beds.push({ key, signature: JSON.stringify(['island', outline, top, falloff, t.worldPosition, t.worldRotation, scale]),
@@ -651,13 +721,41 @@ export class WaterPlugin implements Plugin {
                 const curve = new SplineCurve(spline.points, spline.closed);
                 const stations = riverStations(curve, d.flowSpeed, (x, y, z) => fromLocal(t, x, y, z, scale), (x, y, z) => rotate(t.worldRotation, x, y, z), scale);
                 bodies.push({ kind: 'river', key, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, stations, ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}) });
-                if (d.bedDepth > 0 || stations.some((s) => (s.depth ?? 0) > 0)) {
-                    const depth = d.bedDepth * scale;
-                    beds.push({ key, signature: JSON.stringify(['river', depth, stations]), make: (prefix) => riverBedModifiers(prefix, stations, depth) });
+                if (d.affectsTerrain !== false && (d.bedDepth > 0 || stations.some((s) => (s.depth ?? 0) > 0))) {
+                    const depth = d.bedDepth * scale, channel = channelOf(d, scale);
+                    beds.push({ key, signature: JSON.stringify(['river', depth, stations, channel ? channelKey(d) : null]), make: (prefix) => riverBedModifiers(prefix, stations, depth, channel ?? undefined) });
                 }
                 keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor]);
             }
         }
+        // Which islands and exclusion volumes act on which body: those whose ground (their outline, grown by an island's slope) overlaps it.
+        const boxOf = (pts: ReadonlyArray<[number, number]>, grow = 0): [number, number, number, number] => {
+            let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+            for (const [x, z] of pts) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+            return [x0 - grow, z0 - grow, x1 + grow, z1 + grow];
+        };
+        const bodyBoxes = bodies.map((b) => ({ key: b.key, box: b.kind === 'ocean' ? null
+            : b.kind === 'river' ? boxOf(b.stations.map((s) => [s.x, s.z] as [number, number]), Math.max(...b.stations.map((s) => s.half)))
+            : boxOf(b.outline.map((p) => b.toWorld(p.x, p.y))) }));
+        const actors: Array<{ entity: number; kind: 'islands' | 'exclusions'; box: [number, number, number, number] }> = [];
+        for (const entity of app.world.getEntitiesWithComponents([WaterBody, Transform])) {
+            const d = app.world.get(entity, WaterBody) as WaterBodyData;
+            if (d.form !== WaterForm.Island && d.form !== WaterForm.Exclusion) continue;
+            const t = app.world.get(entity, Transform) as TransformData;
+            const scale = t.worldScale.y || 1;
+            const pts = outlineOf(d).map((p) => { const w = fromLocal(t, p.x, 0, p.y, scale); return [w[0], w[2]] as [number, number]; });
+            actors.push({ entity: entity as number, kind: d.form === WaterForm.Island ? 'islands' : 'exclusions', box: boxOf(pts, d.form === WaterForm.Island ? d.shoreWidth * scale : 0) });
+        }
+        const influences = new Map<number, { islands: number[]; exclusions: number[] }>();
+        for (const { key: bodyKey, box } of bodyBoxes) {
+            const got = { islands: [] as number[], exclusions: [] as number[] };
+            for (const a of actors) {
+                if (box && (a.box[0] > box[2] || a.box[2] < box[0] || a.box[1] > box[3] || a.box[3] < box[1])) continue;
+                got[a.kind].push(a.entity);
+            }
+            influences.set(bodyKey, got);
+        }
+        let zoneEntity: number | null = null;
         let zone = zoneDefaults();
         let grid: ZoneGrid | null = null;
         let zoneLevel = 0;
@@ -666,6 +764,7 @@ export class WaterPlugin implements Plugin {
             const t = app.world.get(entity, Transform) as TransformData;
             grid = gridOver(t.worldPosition.x - zone.sizeX / 2, t.worldPosition.z - zone.sizeZ / 2, zone.sizeX, zone.sizeZ, zone.resolution);
             zoneLevel = t.worldPosition.y;
+            zoneEntity = entity as number;
             break;
         }
         if (!grid) {
@@ -677,7 +776,7 @@ export class WaterPlugin implements Plugin {
         for (const b of bodies) b.exposure = exposureOf(b, zone.waveLength);
         const terrain = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const ground = terrain && terrain.built_.size > 0 ? terrain.revision_ : -1;
-        return { bodies, beds, exclusions, zoneLevel, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
+        return { bodies, beds, exclusions, zoneLevel, influences, zoneEntity, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
     }
 
     /**

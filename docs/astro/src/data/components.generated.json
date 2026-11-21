@@ -11820,6 +11820,86 @@
           "default": "0.6",
           "doc": "How bright the web of sunlight through the waves is on what is under the water. 0 draws none.",
           "range": "0–4"
+        },
+        {
+          "key": "affectsTerrain",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether this body changes the terrain under and round it: a lake cutting its floor, a river its bed, an island raising its ground. Off, the terrain is left as it is and the water lies over it."
+        },
+        {
+          "key": "channelShape",
+          "type": "enum",
+          "default": "Built In",
+          "doc": "How the bed is cut: the built-in profile (a lake’s floor sloping in from its shore, a river’s rounded trough), or the Curve Channel below: an elevation curve across a ramp from the shore, laid over the ground as its blend mode says, with terraces if asked.",
+          "values": [
+            "Built In",
+            "Curve Channel"
+          ]
+        },
+        {
+          "key": "elevationCurve",
+          "type": "object",
+          "default": "{\"keys\":[{\"time\":0,\"value\":0,\"inTangent\":0,\"outTangent\":0,\"interpolation\":\"easeInOut\"},{\"time\":1,\"value\":1,\"inTangent\":0,\"outTangent\":0,\"interpolation\":\"easeInOut\"}]}",
+          "doc": "The bed’s profile across the ramp: from the curve’s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river’s points) is the depth reached."
+        },
+        {
+          "key": "channelEdgeOffset",
+          "type": "number",
+          "default": "0",
+          "doc": "How far in from the shore the curve starts, in world units. Negative starts it out on the bank, which widens the cut past the water."
+        },
+        {
+          "key": "curveRampWidth",
+          "type": "number",
+          "default": "1500",
+          "doc": "How wide the curve ramps from its start to the full depth, in world units.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "terrainBlend",
+          "type": "enum",
+          "default": "Min",
+          "doc": "How the channel is laid over the terrain: Min only cuts it (ground already lower stays), Max only raises it, Alpha Blend lays the profile either way.",
+          "values": [
+            "Min",
+            "Max",
+            "Alpha Blend"
+          ]
+        },
+        {
+          "key": "falloffWidth",
+          "type": "number",
+          "default": "300",
+          "doc": "Past where the curve starts, how far out the bank runs back into the terrain, in world units.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "terrainZOffset",
+          "type": "number",
+          "default": "0",
+          "doc": "Raises (or, negative, lowers) the whole cut against the water’s surface, in world units."
+        },
+        {
+          "key": "terraceAlpha",
+          "type": "number",
+          "default": "0",
+          "doc": "Terraces laid over the cut: 0 none, 1 fully stepped.",
+          "range": "0–1"
+        },
+        {
+          "key": "terraceSpacing",
+          "type": "number",
+          "default": "100",
+          "doc": "The rise of each terrace, in world units.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "terraceSmoothness",
+          "type": "number",
+          "default": "0",
+          "doc": "How round the terraces’ edges are: 0 sheer steps, 0.5 rounded, 1 no steps at all.",
+          "range": "0–1"
         }
       ],
       "animatable": [
@@ -11847,7 +11927,16 @@
         "underwaterAbsorption.b",
         "underwaterAbsorption.a",
         "underwaterDensity",
-        "underwaterCaustics"
+        "underwaterCaustics",
+        "channelShape",
+        "channelEdgeOffset",
+        "curveRampWidth",
+        "terrainBlend",
+        "falloffWidth",
+        "terrainZOffset",
+        "terraceAlpha",
+        "terraceSpacing",
+        "terraceSmoothness"
       ]
     },
     {
