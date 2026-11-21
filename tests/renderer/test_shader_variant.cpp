@@ -753,7 +753,7 @@ static void testVertexHook() {
     const std::string vs = ShaderParser::assembleStage(p, ShaderStage::Vertex, "", {"MESH", "MESH_NORMALS"});
     CHECK(vs.find("void esMaterialVertex(") != std::string::npos, "GLSL: the hook is defined in the vertex stage");
     CHECK(vs.find("esMaterialVertex(local, localNormal, a_texCoord);") != std::string::npos, "GLSL: the hook is called");
-    CHECK(vs.find("applyMorph(local, localNormal);") < vs.find("esMaterialVertex(local, localNormal, a_texCoord);"),
+    CHECK(vs.find("esApplyMorph(local, localNormal);") < vs.find("esMaterialVertex(local, localNormal, a_texCoord);"),
           "GLSL: the hook runs after the morph target");
     CHECK(vs.find("esMaterialVertex(local, localNormal, a_texCoord);") < vs.find("vec4 world = esInstanceModel()"),
           "GLSL: the hook runs before the vertex is placed in the world");

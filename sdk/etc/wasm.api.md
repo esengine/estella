@@ -593,6 +593,7 @@ renderer_setLodPreview: ((view: number, entity: number, level: number) => void) 
 renderer_setMeshEdgeBuffers: ((enabled: boolean) => void) | undefined
 renderer_setOcclusionGridSize: ((size: number) => void) | undefined
 renderer_setOrigin: ((x: number, y: number, z: number) => void) | undefined
+renderer_setParallaxAnchor: ((set: boolean, x: number, y: number) => void) | undefined
 renderer_setParticleDepthGrid: ((texels: number) => void) | undefined
 renderer_setPlanarReflectionQuality: ((scale: number, maxSize: number, updatesPerSecond: number, capAuthored: boolean) => void) | undefined
 renderer_setPreviewOrbit: ((yawDegrees: number, pitchDegrees: number) => void) | undefined
