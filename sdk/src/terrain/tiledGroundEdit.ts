@@ -11,8 +11,9 @@
  *          as only loaded ground can be edited.
  */
 import { encodeHeightmap, paintSplat, reach, sculptField, SculptMode, unionDirty, type Brush, type BrushProfile, type Dirty } from './sculpt';
-import { BeforeTiles, put, type Piece } from './groundEdit';
+import { BeforeTiles, clearChannel, usedChannels, put, type Piece } from './groundEdit';
 import type { ModifiedSource, Splat } from './source';
+import { paintKernel, type TerrainPaintSettings } from './weightBrush';
 import type { Heightfield } from './heightfield';
 import type { Tile, TiledSource, TerrainTilesDocument } from './tiles';
 import type { GroundHost } from './groundEdit';
@@ -46,6 +47,8 @@ export class TiledGroundEdit {
     constructor(private readonly host: GroundHost, private readonly source: TiledSource, private readonly modified: ModifiedSource,
                 private readonly sizeX: number, private readonly sizeZ: number) {}
 
+    /** Active material layers and their stable weightmap slots, when the terrain has layer info. */
+    get paintTargets() { return this.source.paintLayout; }
     get minHeight(): number { return this.source.minHeight; }
     get maxHeight(): number { return this.source.maxHeight; }
     get area(): { sizeX: number; sizeZ: number } { return { sizeX: this.sizeX, sizeZ: this.sizeZ }; }
@@ -91,18 +94,56 @@ export class TiledGroundEdit {
         });
     }
 
-    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile): void {
+    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile, settings?: TerrainPaintSettings): void {
         this.dab({ ...profile, x, z, radius, falloff }, (win, sx, sz, brush) => {
-            const second = layer > 3 || win.tiles.some(({ tile }) => tile.splat2);
+            const second = layer > 3 || (settings?.weighted ?? 0) > 15 || win.tiles.some(({ tile }) => tile.splat2);
             for (const { tile, tx, tz } of win.tiles) this.source.ensureTileSplats(tile, tx, tz, second);
             const a: Splat = { width: win.w, height: win.h, pixels: this.readWindow(win, (t) => t.splat!.pixels, 4) };
             const b: Splat | null = second ? { width: win.w, height: win.h, pixels: this.readWindow(win, (t) => t.splat2!.pixels, 4) } : null;
-            const hit = paintSplat(a, b, sx, sz, { layer, brush, strength, erase });
+            const hit = paintSplat(a, b, sx, sz, { layer, brush, strength, erase, settings, worldCenter: { x, z } });
             if (!hit) return null;
             this.writeWindow(win, hit, a.pixels, 4, 'splat');
             if (b) this.writeWindow(win, hit, b.pixels, 4, 'splat2');
             return hit;
-        });
+        }, paintKernel(settings));
+    }
+
+    usedPaintSlots(): number {
+        const { a, b } = this.source.overviewSplats(false, false);
+        let mask = usedChannels(a) | (usedChannels(b) << 4);
+        for (const e of this.source.doc.tiles) {
+            const t = this.source.tileAt(e.x, e.z);
+            // An unloaded authored image may hold any of its four channels. Keep it until it can be inspected.
+            mask |= t ? usedChannels(t.splat) | (usedChannels(t.splat2) << 4) : (e.splat ? 15 : 0) | (e.splat2 ? 240 : 0);
+            if (mask === 255) break;
+        }
+        return mask;
+    }
+
+    /** Read just tiles with the relevant weight image, then clear their channel in one synchronous edit. */
+    async clearPaintLayer(slot: number, current: () => boolean = () => true): Promise<TiledGroundPatch | null> {
+        if (!Number.isInteger(slot) || slot < 0 || slot > 7) return null;
+        const s = this.source, field = slot < 4 ? 'splat' : 'splat2';
+        const entries = s.doc.tiles.filter(e => e[field] || s.tileAt(e.x, e.z)?.[field]);
+        const release = await s.holdForEdit(new Set(entries.map(e => e.x + ':' + e.z)));
+        try {
+            if (!current()) return null;
+            const tiles = new Map<string, Arrays>();
+            const clear = (image: Splat | null): Arrays => ({
+                heights: null, splat: field === 'splat' ? clearChannel(image, slot % 4) : null,
+                splat2: field === 'splat2' ? clearChannel(image, slot % 4) : null,
+            });
+            for (const e of entries) {
+                const part = clear(s.tileAt(e.x, e.z)?.[field] ?? null);
+                if (part[field]) tiles.set(e.x + ':' + e.z, part);
+            }
+            const { a, b } = s.overviewSplats(false, false), overview = clear(slot < 4 ? a : b);
+            if (!tiles.size && !overview[field]) return null;
+            const bounds: TiledGroundPatch['bounds'] = [-this.sizeX/2, -this.sizeZ/2, this.sizeX/2, this.sizeZ/2];
+            const patch = { tiles, overview, bounds };
+            this.apply(patch, 'after');
+            return patch;
+        } finally { release(); }
     }
 
     end(): TiledGroundPatch | null {
@@ -246,12 +287,12 @@ export class TiledGroundEdit {
     }
 
     /** The window of samples a brush reaches, one wider, and the tiles in memory over it; null where one is not, after asking for it. */
-    private dab(world: Brush, run: (win: Window, sx: number, sz: number, brush: Brush) => Dirty | null): void {
+    private dab(world: Brush, run: (win: Window, sx: number, sz: number, brush: Brush) => Dirty | null, halo = 1): void {
         const o = this.modified.origin, s = this.source;
         const brush = { ...world, x: world.x - o.x, z: world.z - o.z };
         const span = reach(s.samplesX, s.samplesZ, this.sizeX, this.sizeZ, brush);
         if (!span) return;
-        const win = this.window(span);
+        const win = this.window(span, halo);
         if (!win || !win.tiles.length) return;
         const ex = this.sizeX / (s.samplesX - 1), ez = this.sizeZ / (s.samplesZ - 1);
         const cx = ((win.i0 + win.i1) / 2 / (s.samplesX - 1) - 0.5) * this.sizeX, cz = ((win.j0 + win.j1) / 2 / (s.samplesZ - 1) - 0.5) * this.sizeZ;
@@ -270,10 +311,10 @@ export class TiledGroundEdit {
         this.host.remake(this.world(bounds));
     }
 
-    private window(span: Dirty): Window | null {
+    private window(span: Dirty, halo: number): Window | null {
         const s = this.source, n = s.doc.tileSamples - 1;
-        const i0 = Math.max(span.i0 - 1, 0), j0 = Math.max(span.j0 - 1, 0);
-        const i1 = Math.min(span.i1 + 1, s.samplesX - 1), j1 = Math.min(span.j1 + 1, s.samplesZ - 1);
+        const i0 = Math.max(span.i0 - halo, 0), j0 = Math.max(span.j0 - halo, 0);
+        const i1 = Math.min(span.i1 + halo, s.samplesX - 1), j1 = Math.min(span.j1 + halo, s.samplesZ - 1);
         const tiles: Window['tiles'] = [];
         let missing = false;
         for (let tz = Math.min(Math.floor(j0 / n), s.doc.tilesZ - 1); tz <= Math.min(Math.floor(j1 / n), s.doc.tilesZ - 1); tz++) {

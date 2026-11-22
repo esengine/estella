@@ -126,6 +126,17 @@ export function gradeLandscapeGround(ground: GroundEdit | TiledGroundEdit, graph
     const highest = [...graph.points, ...graph.segments].reduce((layer, p) => Math.max(layer, p.layer), -1);
     for (const b of brushes) {
         ground.sculpt(SculptMode.Flatten, b.x, b.z, b.radius, 0, 1, 0, b);
-        if (highest >= 0) ground.paint(highest, b.x, b.z, b.radius, 0, 1, false, b);
+        if (highest < 0) continue;
+        const rows = ground.paintTargets;
+        if (!rows?.length) { ground.paint(highest, b.x, b.z, b.radius, 0, 1, false, b); continue; }
+        const weighted = rows.reduce((mask, r) => r.slot >= 0 && r.materialIndex >= 0 && r.blend === 'weight' ? mask | (1 << r.slot) : mask, 0);
+        const sample = b.landscape!;
+        for (const r of rows) {
+            if (!r.info || r.slot < 0 || r.materialIndex < 0 || r.materialIndex > highest) continue;
+            ground.paint(r.slot, b.x, b.z, b.radius, 0, 1, false, { ...b, landscape(dx, dz) {
+                const hit = sample(dx, dz);
+                return hit?.layer === r.materialIndex ? hit : null;
+            } }, { weighted });
+        }
     }
 }

@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   editor:
-    name: Landscape brushes and splines in the editor
+    name: Landscape brushes, splines and paint in the editor
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -51,6 +51,9 @@ jobs:
           # These files are tested from HEAD below or have no effect on the native Web binary.
           git diff --quiet --ignore-submodules=none "$BUILD_SHA" HEAD -- . \
             ':(exclude)desktop' ':(exclude)sdk/src/terrain/*.ts' ':(exclude)sdk/tests/**' \
+            ':(exclude)sdk/src/scene/scene.ts' ':(exclude)sdk/src/assetTypes.ts' ':(exclude)sdk/src/runtime/planWorkerBundle.generated.ts' \
+            ':(exclude)sdk/etc/*.api.md' ':(exclude)docs/astro/src/data/*.generated.json' ':(exclude)pipeline/src/assets/assetDb.ts' \
+            ':(exclude)tools/assetMetaTable.js' ':(exclude)tools/check-corpus-authoring.mjs' \
             ':(exclude)changelog.d/**' ':(exclude).github/workflows/landscape-brush.yml'
       - uses: ./.github/actions/editor-checkout
         with:
@@ -81,9 +84,21 @@ jobs:
           sudo chmod 4755 "$sandbox"
           mkdir -p "$OUT"
           xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush landscape-splines
+      - name: Check Landscape weight painting in the editor
+        env:
+          OUT: ${{ runner.temp }}/landscape-captures
+        timeout-minutes: 4
+        working-directory: desktop
+        run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-paint
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: landscape-spline-viewport
           path: ${{ runner.temp }}/landscape-captures/landscape-splines.png
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: landscape-paint-viewport
+          path: ${{ runner.temp }}/landscape-captures/landscape-paint.png
           if-no-files-found: ignore

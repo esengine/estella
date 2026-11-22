@@ -11,6 +11,7 @@
  *          as with a provider: collision and queries try again once it is.
  */
 import { paintWeights } from './paint';
+import { initialPaintWeights, materialPaintWeights, writeWeightBytes, type TerrainPaintTarget } from './paintLayers';
 import { HeightmapFormat, heightfieldFromPixels, type Heightfield } from './heightfield';
 import type { TerrainData } from './terrainPlugin';
 import type { LayerWeights, Splat, TerrainRegionSamples, TerrainSource } from './source';
@@ -70,6 +71,7 @@ export const TERRAIN_TILE_BUDGET = 256 * 1024 * 1024;
 
 /** An area's ground read from tiles. @experimental */
 export class TiledSource implements TerrainSource {
+    paintLayout?: TerrainPaintTarget[];
     readonly infinite = false;
     readonly bounds: readonly [number, number, number, number];
     readonly minHeight = 0;
@@ -136,11 +138,16 @@ export class TiledSource implements TerrainSource {
     }
 
     paint(x: number, z: number, h: number, ny: number): LayerWeights {
+        const raw = this.rawPaint(x, z, h, ny);
+        return this.paintLayout?.length ? materialPaintWeights(raw, this.paintLayout) : raw;
+    }
+
+    private rawPaint(x: number, z: number, h: number, ny: number): LayerWeights {
         const at = this.locate(x, z), tile = this.tile(at.key);
         const u = x / this.params.sizeX + 0.5, v = z / this.params.sizeZ + 0.5;
         if (tile?.splat) return weights(tile.splat, tile.splat2, at.lx / (this.doc.tileSamples - 1), at.lz / (this.doc.tileSamples - 1));
         if (this.overviewSplat) return weights(this.overviewSplat, this.overviewSplat2, u, v);
-        return paintWeights((h - this.minHeight) / Math.max(this.maxHeight, 1e-6), ny, this.params);
+        return initialPaintWeights(paintWeights((h - this.minHeight) / Math.max(this.maxHeight, 1e-6), ny, this.params), this.paintLayout);
     }
 
     region(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples | Promise<TerrainRegionSamples> {
@@ -230,8 +237,8 @@ export class TiledSource implements TerrainSource {
             for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) {
                 const x = ((tx * n + i) / (this.samplesX - 1) - 0.5) * this.params.sizeX, z = ((tz * n + j) / (this.samplesZ - 1) - 0.5) * this.params.sizeZ;
                 const h = this.params.height * tile.field.data[j * t + i]!;
-                const w = this.paint(x, z, h, this.normal(x, z)?.[1] ?? 1);
-                for (let c = 0; c < 4; c++) pixels[(j * t + i) * 4 + c] = Math.round(Math.min(Math.max(w[c + layers] ?? 0, 0), 1) * 255);
+                const w = this.rawPaint(x, z, h, this.normal(x, z)?.[1] ?? 1);
+                writeWeightBytes(pixels, (j * t + i) * 4, w, layers);
             }
             return { width: t, height: t, pixels };
         };
@@ -247,8 +254,8 @@ export class TiledSource implements TerrainSource {
             for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
                 const at = (ii: number, jj: number) => d[Math.min(Math.max(jj, 0), h - 1) * w + Math.min(Math.max(ii, 0), w - 1)]! * this.params.height;
                 const sx = (at(i + 1, j) - at(i - 1, j)) / (2 * ex), sz = (at(i, j + 1) - at(i, j - 1)) / (2 * ez);
-                const weights = paintWeights(d[j * w + i]!, 1 / Math.hypot(sx, 1, sz), this.params);
-                for (let c = 0; c < 4; c++) pixels[(j * w + i) * 4 + c] = Math.round(weights[c]! * 255);
+                const weights = initialPaintWeights(paintWeights(d[j * w + i]!, 1 / Math.hypot(sx, 1, sz), this.params), this.paintLayout);
+                writeWeightBytes(pixels, (j * w + i) * 4, weights);
             }
             this.overviewSplat = { width: w, height: h, pixels };
         }
@@ -320,7 +327,20 @@ export class TiledSource implements TerrainSource {
             if (p1) fill(p1, k, this.overviewSplat!, u, v);
             if (p2) fill(p2, k, this.overviewSplat2!, u, v);
         }
-        return { heights, ...(p1 ? { paint: p1 } : {}), ...(p2 ? { paint2: p2 } : {}) };
+        return this.materialRegion(heights, p1, p2);
+    }
+
+    private materialRegion(heights: Float32Array, paint?: Float32Array, paint2?: Float32Array): TerrainRegionSamples {
+        if (this.paintLayout?.length && paint) {
+            const raw = Array<number>(8).fill(0);
+            if (this.paintLayout.some(t => t.materialIndex >= 4)) paint2 ??= new Float32Array(paint.length);
+            for (let at = 0; at < paint.length; at += 4) {
+                for (let c = 0; c < 4; c++) { raw[c] = paint[at + c]!; raw[c + 4] = paint2?.[at + c] ?? 0; }
+                const w = materialPaintWeights(raw, this.paintLayout);
+                for (let c = 0; c < 4; c++) { paint[at + c] = w[c]!; if (paint2) paint2[at + c] = w[c + 4]!; }
+            }
+        }
+        return { heights, paint, paint2 };
     }
 
     private fromTiles(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples {
@@ -342,7 +362,7 @@ export class TiledSource implements TerrainSource {
             if (splat) fill(p1, k, splat, su, sv);
             if (p2 && splat2) fill(p2, k, splat2, su, sv);
         }
-        return { heights, ...(p1 ? { paint: p1 } : {}), ...(p2 ? { paint2: p2 } : {}) };
+        return this.materialRegion(heights, p1, p2);
     }
 }
 

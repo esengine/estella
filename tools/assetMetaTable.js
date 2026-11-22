@@ -118,6 +118,8 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esaudioevent': 'sound-event',
     '.esworld': 'world-rules',
     '.esterrainlayer': 'terrain-layer',
+    '.esterrainlayerinfo': 'terrain-layer-info',
+    '.esphysmat': 'physical-material',
     '.esterrain': 'terrain-tiles',
     '.inputmap': 'inputmap',
     // Fonts

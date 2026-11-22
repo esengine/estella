@@ -137,6 +137,8 @@ export function terrainNormal(
 
 /** What {@link erodeHeightfield} wears the ground with. */
 export interface ErosionParams {
+    /** Optional resistance to cutting, 0 to 1 per height sample. */
+    hardness?: Float32Array;
     /** How much rain falls, 0 to 1: at 1, a drop for every sample of the field. */
     amount: number;
     seed: number;
@@ -227,7 +229,7 @@ export function* erosionJob(field: Heightfield, p: ErosionParams): Generator<num
                     const cx = ix + bx, cy = iy + by;
                     if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
                     const c = cy * w + cx;
-                    const cut = Math.min(H[c]!, take * weight);
+                    const cut = Math.min(H[c]!, take * weight * (1 - (p.hardness?.[c] ?? 0)));
                     H[c] = H[c]! - cut;
                     sediment += cut;
                 }

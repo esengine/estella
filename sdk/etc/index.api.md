@@ -971,7 +971,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab'
+'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -4374,7 +4374,7 @@ Step = 15
 ```
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
-    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'sound-event' | 'world-rules' | 'terrain-layer' | 'terrain-tiles' | 'video' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'sound-event' | 'world-rules' | 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'terrain-tiles' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline' | 'mesh'
     | 'unknown'
 ```
@@ -4640,6 +4640,7 @@ flow: Float32Array<ArrayBufferLike>
 ## ErosionParams — interface @experimental
 ```
 amount: number
+hardness: Float32Array<ArrayBufferLike> | undefined
 height: number
 seed: number
 sizeX: number
@@ -4878,10 +4879,11 @@ maxHeight: number
 minHeight: number
 normal: (x: number, z: number) => [number, number, number] | null
 paint: (x: number, z: number, h: number, ny: number) => LayerWeights
+paintLayout: TerrainPaintTarget[] | undefined
 splats: () => { a: Splat | null; b: Splat | null; }
 toData: () => FieldSourceData
 static fromData: (d: FieldSourceData) => FieldSource
-static new (field: Heightfield, data: Pick<TerrainData, "dirtHeight" | "height" | "rockSlope" | "sizeX" | "sizeZ" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null): FieldSource
+static new (field: Heightfield, data: Pick<TerrainData, "dirtHeight" | "height" | "rockSlope" | "sizeX" | "sizeZ" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null, paintLayout?: TerrainPaintTarget[] | undefined): FieldSource
 static prototype: FieldSource
 ```
 
@@ -12656,6 +12658,7 @@ material: number
 occlusionMap: number
 occlusionStrength: number
 octaves: number
+paintLayers: TerrainPaintBinding[] | undefined
 persistence: number
 provider: string
 resolution: number
@@ -12846,6 +12849,7 @@ groundEdit: (entity: Entity) => GroundEdit | TiledGroundEdit | null
 groundKnownAt: (x: number, z: number) => boolean
 heightAt: (x: number, z: number, only?: Entity) => number | null
 heightBeneathAt: (x: number, z: number) => number | null
+layerInfoAt: (x: number, z: number) => TerrainPaintTarget | null
 layerNames: () => string[]
 load: () => TerrainLoad
 loading: boolean
@@ -13311,6 +13315,7 @@ overview: Heightfield
 overviewBytes: number
 overviewSpacing: number
 paint: (x: number, z: number, h: number, ny: number) => LayerWeights
+paintLayout: TerrainPaintTarget[] | undefined
 readTile: (tx: number, tz: number) => Promise<Tile | null>
 region: (x0: number, z0: number, spacing: number, count: number) => TerrainRegionSamples | Promise<TerrainRegionSamples>
 residentAt: (x: number, z: number) => boolean

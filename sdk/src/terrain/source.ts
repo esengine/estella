@@ -14,6 +14,7 @@
  *              already steep, which leaves smooth valleys between sharp ridges and gullies down the slopes.
  */
 import { paintWeights } from './paint';
+import { initialPaintWeights, materialPaintWeights, writeWeightBytes, type TerrainPaintTarget } from './paintLayers';
 import type { TerrainData } from './terrainPlugin';
 import { sampleHeight, terrainNormal, type Heightfield } from './heightfield';
 
@@ -55,6 +56,7 @@ export interface FieldSourceData {
     splat: Splat | null;
     splat2: Splat | null;
     flow: Float32Array | null;
+    paintLayout?: TerrainPaintTarget[];
     range: [number, number];
 }
 
@@ -75,6 +77,7 @@ export class FieldSource implements TerrainSource {
         private readonly flow: Float32Array | null,
         range: readonly [number, number] = [0, data.height],
         private splat2: Splat | null = null,
+        public paintLayout?: TerrainPaintTarget[],
     ) {
         this.bounds = [-data.sizeX / 2, -data.sizeZ / 2, data.sizeX / 2, data.sizeZ / 2];
         [this.minHeight, this.maxHeight] = range;
@@ -92,8 +95,8 @@ export class FieldSource implements TerrainSource {
             for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
                 const x = (i / (width - 1) - 0.5) * sx, z = (j / (height - 1) - 0.5) * sz;
                 const h = this.height(x, z) ?? this.minHeight, n = this.normal(x, z);
-                const w = paintWeights((h - this.minHeight) / this.span, n ? n[1] : 1, this.data);
-                for (let c = 0; c < 4; c++) pixels[(j * width + i) * 4 + c] = Math.round(w[c]! * 255);
+                const w = initialPaintWeights(paintWeights((h - this.minHeight) / this.span, n ? n[1] : 1, this.data), this.paintLayout);
+                writeWeightBytes(pixels, (j * width + i) * 4, w);
             }
             this.splat = { width, height, pixels };
         }
@@ -115,12 +118,12 @@ export class FieldSource implements TerrainSource {
         const d = this.data;
         return {
             field: this.field, params: { sizeX: d.sizeX, sizeZ: d.sizeZ, height: d.height, rockSlope: d.rockSlope, dirtHeight: d.dirtHeight, snowHeight: d.snowHeight },
-            splat: this.splat, splat2: this.splat2, flow: this.flow, range: [this.minHeight, this.maxHeight],
+            splat: this.splat, splat2: this.splat2, flow: this.flow, paintLayout: this.paintLayout, range: [this.minHeight, this.maxHeight],
         };
     }
 
     static fromData(d: FieldSourceData): FieldSource {
-        return new FieldSource(d.field, d.params, d.splat, d.flow, d.range, d.splat2);
+        return new FieldSource(d.field, d.params, d.splat, d.flow, d.range, d.splat2, d.paintLayout);
     }
 
     height(x: number, z: number): number | null {
@@ -138,7 +141,7 @@ export class FieldSource implements TerrainSource {
 
     paint(x: number, z: number, h: number, ny: number): LayerWeights {
         const u = Math.min(Math.max(x / this.data.sizeX + 0.5, 0), 1), v = Math.min(Math.max(z / this.data.sizeZ + 0.5, 0), 1);
-        let w: number[] = [...paintWeights((h - this.minHeight) / this.span, ny, this.data)];
+        let w: number[] = [...initialPaintWeights(paintWeights((h - this.minHeight) / this.span, ny, this.data), this.paintLayout)];
         // The splatmaps, where they say anything, say all of it: layers 1 to 4 from the first, 5 to 8 from the second.
         // Read between its pixels: a page near the eye samples the ground finer than the splatmap is, and the nearest pixel alone drew
         // every pixel of it as a flat square with an edge.
@@ -158,16 +161,18 @@ export class FieldSource implements TerrainSource {
         if (this.splat || this.splat2) {
             const s = [...read(this.splat), ...(this.splat2 ? read(this.splat2) : [])];
             const sum = s.reduce((a, b) => a + b, 0);
-            if (sum > 0.001) w = s.map((c) => c / sum);
+            if (this.paintLayout?.length) w = s;
+            else if (sum > 0.001) w = s.map((c) => c / sum);
         }
-        if (this.flow) {
+        if (this.flow && (!this.paintLayout?.length || this.paintLayout.some(t => t.slot === 0 && t.materialIndex >= 0 && t.blend === 'weight')
+            && this.paintLayout.some(t => t.slot === 1 && t.materialIndex >= 0 && t.blend === 'weight'))) {
             // Where the rain ran it took the grass and left dirt; the other layers stay as they are.
             const fx = Math.round(u * (this.field.width - 1)), fy = Math.round(v * (this.field.height - 1));
             const channel = smooth(0.45, 0.85, this.flow[fy * this.field.width + fx]!) * 0.8 * w[0]!;
             w[0] = w[0]! - channel;
             w[1] = w[1]! + channel;
         }
-        return w;
+        return this.paintLayout?.length ? materialPaintWeights(w, this.paintLayout) : w;
     }
 }
 

@@ -23,6 +23,8 @@ import { registerTerrainSupport } from './terrainSupport';
 
 registerTerrainSupport();
 export { paintWeights } from './paint';
+export { terrainPaintTargets, terrainLayerName, defaultTerrainLayers, materialPaintWeights, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainLayerInfo, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
+export type { PaintTool, PaintDirection, TerrainPaintSettings } from './weightBrush';
 export { PlanetRegistry, PlanetRegistryRes, type PlanetFacts } from './planetQuery';
 export { Planet, Planets, PlanetPlugin, planetPlugin, type PlanetData, type PlanetStatus } from './planetPlugin';
 export { registerPlanetProvider, planetProvider, type PlanetProvider, type PlanetRegion, type PlanetSamples } from './planetProvider';

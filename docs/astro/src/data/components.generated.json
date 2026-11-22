@@ -9172,6 +9172,11 @@
           "default": "{\"points\":[],\"segments\":[]}"
         },
         {
+          "key": "paintLayers",
+          "type": "array",
+          "default": "empty"
+        },
+        {
           "key": "sizeX",
           "type": "number",
           "default": "100000",

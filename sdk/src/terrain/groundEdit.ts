@@ -10,6 +10,7 @@
  *          {@link GroundEdit.apply} lays down either way, which is what an editor's undo is made of. Nothing here writes a file: the
  *          arrays are what {@link GroundEdit.heightmapPixels} and {@link GroundEdit.splatmapPixels} hand over to be saved.
  */
+import type { TerrainPaintSettings } from './weightBrush';
 import type { Heightfield } from './heightfield';
 import type { FieldSource, Splat } from './source';
 import type { ModifiedSource } from './source';
@@ -52,6 +53,30 @@ export class BeforeTiles<T extends Texels> {
     }
 }
 
+/** @internal Channels carrying saved or in-memory data. */
+export function usedChannels(image: Splat | null): number {
+    if (!image) return 0;
+    let used = 0;
+    for (let i = 0; i < image.pixels.length && used !== 15; i++) if (image.pixels[i]) used |= 1 << (i % 4);
+    return used;
+}
+
+/** @internal Clears only a detached layer's bytes and keeps the affected tiles for undo. */
+export function clearChannel(image: Splat | null, channel: number): Piece<Uint8Array> | null {
+    if (!image) return null;
+    const { width, height, pixels } = image, rect = { i0: width, j0: height, i1: -1, j1: -1 };
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (!pixels[(y * width + x) * 4 + channel]) continue;
+        rect.i0 = Math.min(rect.i0, x); rect.i1 = Math.max(rect.i1, x);
+        rect.j0 = Math.min(rect.j0, y); rect.j1 = y;
+    }
+    if (rect.i1 < 0) return null;
+    const before = new BeforeTiles<Uint8Array>(width, height, 4);
+    before.keep(pixels, rect);
+    for (let y = rect.j0; y <= rect.j1; y++) for (let x = rect.i0; x <= rect.i1; x++) pixels[(y * width + x) * 4 + channel] = 0;
+    return before.piece(pixels, rect);
+}
+
 interface Open {
     heights: BeforeTiles<Float32Array>;
     splat: BeforeTiles<Uint8Array> | null;
@@ -79,6 +104,8 @@ export class GroundEdit {
     get samplesX(): number { return this.source.field.width; }
     get samplesZ(): number { return this.source.field.height; }
     /** The world height the field's 0 sits at and its 1 reaches. */
+    /** Active material layers and their stable weightmap slots, when the terrain has layer info. */
+    get paintTargets() { return this.source.paintLayout; }
     get minHeight(): number { return this.source.minHeight; }
     get maxHeight(): number { return this.source.maxHeight; }
     get area(): { sizeX: number; sizeZ: number } { return { sizeX: this.sizeX, sizeZ: this.sizeZ }; }
@@ -117,19 +144,34 @@ export class GroundEdit {
     }
 
     /** One dab of paint at the world position (x, z). Layers 5 to 8 make the second splatmap if there is none. */
-    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile): void {
+    paint(layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase = false, profile?: BrushProfile, settings?: TerrainPaintSettings): void {
         const o = this.modified.origin;
-        const { a, b } = this.source.ensureSplats(layer > 3);
+        const { a, b } = this.source.ensureSplats(layer > 3 || (settings?.weighted ?? 0) > 15);
         const brush = { ...profile, x: x - o.x, z: z - o.z, radius, falloff };
         const span = reach(a.width, a.height, this.sizeX, this.sizeZ, brush);
         if (this.open_ && span) {
             (this.open_.splat ??= new BeforeTiles(a.width, a.height, 4)).keep(a.pixels, span);
             if (b) (this.open_.splat2 ??= new BeforeTiles(b.width, b.height, 4)).keep(b.pixels, span);
         }
-        const hit = paintSplat(a, b, this.sizeX, this.sizeZ, { layer, brush, strength, erase });
+        const hit = paintSplat(a, b, this.sizeX, this.sizeZ, { layer, brush, strength, erase, settings, worldCenter: { x, z } });
         if (!hit) return;
         if (this.open_) { this.open_.s = unionDirty(this.open_.s, hit); if (b) this.open_.s2 = unionDirty(this.open_.s2, hit); }
         this.remake(x, z, radius, a);
+    }
+
+    usedPaintSlots(): number {
+        const { a, b } = this.source.splats();
+        return usedChannels(a) | (usedChannels(b) << 4);
+    }
+
+    /** Remove a detached storage channel and return its undo patch. */
+    clearPaintLayer(slot: number): GroundPatch | null {
+        if (!Number.isInteger(slot) || slot < 0 || slot > 7) return null;
+        const { a, b } = this.source.splats(), part = clearChannel(slot < 4 ? a : b, slot % 4);
+        if (!part) return null;
+        const patch = { heights: null, splat: slot < 4 ? part : null, splat2: slot >= 4 ? part : null };
+        this.apply(patch, 'after');
+        return patch;
     }
 
     /** Ends the stroke and says what it changed, or null when it changed nothing. */

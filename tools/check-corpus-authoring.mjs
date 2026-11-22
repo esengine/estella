@@ -66,6 +66,8 @@ const NOT_INSTANCE_FORMATS = {
   '.esanim': 'a clip: curves over time',
   '.esaudioevent': 'an audio event definition; source instances belong to scenes',
   '.esworld': 'world rules: biomes, recipes and layers as data; the WorldGen that names the file belongs to a scene',
+  '.esterrainlayerinfo': 'named terrain weight and collision settings referenced by a Terrain',
+  '.esphysmat': 'physics contact coefficients referenced by layer information',
   '.esterrainlayer': 'a terrain layer: the textures one kind of ground is drawn with; the Terrain that lists it belongs to a scene',
   '.esavatar': 'how one rig spells the joints another rig\'s clips name',
   '.esmaterial': 'a material: shader + uniform values',

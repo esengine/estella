@@ -42,6 +42,7 @@ export { paintWeights };
 import { GroundEdit } from './groundEdit';
 import { LandscapeRenderer } from './landscapeRenderer';
 import type { LandscapeSpline } from './landscapeSpline';
+import { terrainPaintTargets, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
@@ -74,6 +75,8 @@ export const TerrainExtent = { Area: 0, Infinite: 1 } as const;
 export interface TerrainData {
     /** Editable road and path network in terrain-local coordinates. */
     landscapeSpline?: LandscapeSpline;
+    /** Stable weightmap slots and reusable layer information for painted terrain. */
+    paintLayers?: TerrainPaintBinding[];
     /** {@link TerrainExtent}: an area `sizeX` by `sizeZ`, or ground that goes on for ever (from a provider, read anywhere). */
     extent: number;
     /**
@@ -161,7 +164,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
     extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: '', tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: '', splatmap2: '', colorMap: 0, colorMapStrength: 1, occlusionMap: 0, occlusionStrength: 1, layers: [] as string[], material: 0,
-    landscapeSpline: { points: [], segments: [] },
+    landscapeSpline: { points: [], segments: [] }, paintLayers: [] as TerrainPaintBinding[],
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
     sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000, virtualTexture: false, virtualTextureFrom: 1,
     collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
@@ -175,6 +178,11 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
             const path = data[field];
             return typeof path === 'string' && path ? [{type, path}] : [];
         });
+        for (const path of (data.layers ?? []) as string[]) if (path) refs.push({ type: 'terrain-layer', path });
+        for (const b of (data.paintLayers ?? []) as TerrainPaintBinding[]) {
+            if (b.info && !b.info.startsWith('builtin:')) refs.push({ type: 'terrain-layer-info', path: b.info });
+            if (b.physicalMaterial) refs.push({ type: 'physical-material', path: b.physicalMaterial });
+        }
         const graph = data.landscapeSpline as LandscapeSpline | undefined;
         for (const entry of [...(graph?.points ?? []), ...(graph?.segments ?? []).flatMap(s => s.meshes)]) {
             if (entry.mesh) refs.push({type: 'mesh', path: entry.mesh});
@@ -255,6 +263,10 @@ function surfaceTexelsOf(app: App): number {
 /** What the plugin knows about one terrain it has built. */
 interface Built {
     signature: string;
+    paintKey?: string;
+    paintTargets?: TerrainPaintTarget[];
+    physical?: Map<string, TerrainPhysicalMaterial>;
+    paintCollisionRevision?: number;
     /** The height range its pages were last made against (see `remake_`). */
     range?: string;
     data: TerrainData;
@@ -474,6 +486,17 @@ export class Terrains {
             if (layers.length > 0) return layers.map((ref, i) => (ref.split('/').pop() ?? '').replace(/\.[^.]*$/, '') || `layer${i}`);
         }
         return ['grass', 'dirt', 'snow', 'rock'];
+    }
+
+    /** The bound layer information for the strongest material at this world position. */
+    layerInfoAt(x: number, z: number): TerrainPaintTarget | null {
+        for (const built of this.built_.values()) {
+            if (!(built.source instanceof ModifiedSource) || !built.surface || !built.paintTargets) continue;
+            const w = groundPaintAt(built.source, built.surface, built.source.origin, x, z);
+            if (!w) continue;
+            return built.paintTargets.find(t => t.materialIndex === w.indexOf(Math.max(...w))) ?? null;
+        }
+        return null;
     }
 
     /** The world height of the ground at (x, z) as it was made, under every modifier laid over it: what a plot is levelled from. */
@@ -733,16 +756,35 @@ export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__
 
 /** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
 function signatureOf(data: TerrainData, at: { x: number; z: number }, images: string, atlasSize: number): string {
-    const { landscapeSpline: _splines, layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
+    const { paintLayers: _paint, landscapeSpline: _splines, layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
         collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, occlusionMap: _m, occlusionStrength: _n, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
-    const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
+    const shape = rest;
     // Ground read from a provider is the world's where the terrain stands: moved, it is read again; and a game's own provider is read
     // again when one is registered under its name.
     const fromProvider = data.extent === TerrainExtent.Infinite || (!data.heightmap && !data.tiles);
     const where = fromProvider ? `@${at.x},${at.z}` : '';
     const late = fromProvider && data.provider !== NOISE_PROVIDER ? `#${terrainProvidersRevision()}` : '';
     return `${JSON.stringify(shape)}${where}${late}${images}@${atlasSize}`;
+}
+
+function configuredPaint(app: App, data: TerrainData): TerrainPaintTarget[] {
+    const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
+    const paths = (data.layers ?? []).map(ref => assets?.resolveRef(ref) ?? ref);
+    return terrainPaintTargets(paths, data.paintLayers);
+}
+
+async function resolvePaintInfo(app: App, targets: TerrainPaintTarget[]): Promise<TerrainPaintTarget[]> {
+    if (!app.hasResource(Assets)) return targets;
+    const assets = app.getResource(Assets);
+    return Promise.all(targets.map(async row => {
+        if (!row.info || row.info.startsWith('builtin:')) return row;
+        try {
+            const info = parseTerrainLayerInfo(JSON.parse(await assets.fetchText(row.info)));
+            if (info.name === row.name) return { ...row, ...info };
+        } catch { /* Unavailable information leaves the stored weights intact. */ }
+        return { ...row, info: '' };
+    }));
 }
 
 async function tiledSourceOf(app: App, data: TerrainData): Promise<TiledSource> {
@@ -818,7 +860,11 @@ export class TerrainPlugin implements Plugin {
                 const images = this.images_.of(app, [data.heightmap, data.splatmap, data.splatmap2]);
                 const signature = signatureOf(data, (app.world.get(entity, Transform) as TransformData).worldPosition, images, this.quality_.terrainAtlasSize);
                 let built = terrains.built_.get(entity);
-                if (!built || built.signature !== signature) {
+                const shaderChanged = !!built?.data.layers?.length !== !!data.layers?.length;
+                if (!built || built.signature !== signature || shaderChanged) {
+                    // Switching stock shaders rebuilds GPU objects; the live painted/edited source is still the same ground.
+                    const keepSource = built?.signature === signature && !built.loading ? built.source : null;
+                    const keepSurface = keepSource ? built!.surface : null;
                     if (built) {
                         this.splineMeshes.drop(app, entity);
                         this.destroy(app, built);
@@ -831,7 +877,10 @@ export class TerrainPlugin implements Plugin {
                         baked: null, surfaceOn: false, pageMade: new Map(), pageSerial: 0, surfaceGen: 0,
                     };
                     terrains.built_.set(entity, built);
-                    void this.load(app, entity, built);
+                    if (keepSource) {
+                        built.source = keepSource; built.surface = keepSurface; built.loading = false;
+                        this.updatePaintLayers(app, built);
+                    } else void this.load(app, entity, built);
                     continue;
                 }
                 built.data = { ...data };
@@ -845,6 +894,7 @@ export class TerrainPlugin implements Plugin {
                         for (const m of terrains.modifiers_.values()) terrains.remake_(m.bounds);
                     }
                 }
+                this.updatePaintLayers(app, built);
                 this.collide(app, entity, built);
                 if (built.failure || built.loading || !built.source || !rendering) continue;
                 const transform = app.world.get(entity, Transform);
@@ -919,8 +969,21 @@ export class TerrainPlugin implements Plugin {
                 let field = made, flow: Float32Array | null = null;
                 if (data.erosion > 0) {
                     // Rain over a big field is seconds of work: it is spread over frames, and shown while it runs.
+                    let hardness: Float32Array | undefined;
+                    if (data.paintLayers?.length) {
+                        const rows = await resolvePaintInfo(app, configuredPaint(app, data));
+                        if (built.epoch !== epoch || !app.world.valid(entity)) return;
+                        const base = new FieldSource(made, data, splat, null, range, splat2, rows);
+                        hardness = new Float32Array(made.width * made.height);
+                        const dw = range[1] - range[0];
+                        for (let j = 0; j < made.height; j++) for (let i = 0; i < made.width; i++) {
+                            const x = (i / (made.width - 1) - 0.5) * data.sizeX, z = (j / (made.height - 1) - 0.5) * data.sizeZ;
+                            const k = j * made.width + i, w = base.paint(x, z, range[0] + made.data[k]! * dw, base.normal(x, z)?.[1] ?? 1);
+                            hardness[k] = rows.reduce((sum, row) => sum + (row.info ? (w[row.materialIndex] ?? 0) * row.hardness : 0), 0);
+                        }
+                    }
                     const job = bakesOf(app).run('Eroding the terrain',
-                        erosionJob(made, { amount: data.erosion, seed: data.seed, sizeX: data.sizeX, sizeZ: data.sizeZ, height: range[1] - range[0] }));
+                        erosionJob(made, { hardness, amount: data.erosion, seed: data.seed, sizeX: data.sizeX, sizeZ: data.sizeZ, height: range[1] - range[0] }));
                     built.cancel = job.cancel;
                     const worn = await job.done;
                     built.cancel = null;
@@ -933,6 +996,7 @@ export class TerrainPlugin implements Plugin {
             // The modifiers set on the ground (a plot levelled, a bed cut) are laid over it, for the pages, the queries and collision alike.
             const terrains = app.getResource(TerrainsRes);
             built.source = new ModifiedSource(built.source, () => terrains.modifiers_.values(), t.worldPosition, Math.max(data.cellSize, 1e-3));
+            this.updatePaintLayers(app, built);
             built.surface = new TerrainSurface(built.source, Math.max(data.cellSize, 1e-3));
             app.getResource(TerrainsRes).revision_++;
         } catch (e) {
@@ -941,6 +1005,44 @@ export class TerrainPlugin implements Plugin {
         } finally {
             if (built.epoch === epoch) built.loading = false;
         }
+    }
+
+    private updatePaintLayers(app: App, built: Built): void {
+        const base = built.source instanceof ModifiedSource ? built.source.base : null;
+        if (!(base instanceof FieldSource || base instanceof TiledSource)) return;
+        const bindings = built.data.paintLayers ?? [];
+        if (!bindings.length && !built.paintTargets) return;
+        const key = JSON.stringify([built.data.layers, bindings, this.layerEdits_]);
+        if (built.paintKey === key) return;
+        built.paintKey = key;
+        const targets = configuredPaint(app, built.data);
+        const apply = (rows: TerrainPaintTarget[] | undefined) => {
+            base.paintLayout = rows;
+            built.paintTargets = rows;
+            built.edits++; built.surfaceGen++; built.pageWork = undefined;
+            built.table.markStale(() => true);
+            app.getResource(TerrainsRes).revision_++;
+        };
+        const hadPhysics = !!built.physical?.size;
+        built.physical = undefined;
+        if (hadPhysics) built.paintCollisionRevision = (built.paintCollisionRevision ?? 0) + 1;
+        apply(bindings.length ? targets : undefined);
+        if (!app.hasResource(Assets) || !targets.some(row => row.info && !row.info.startsWith('builtin:'))) return;
+        this.watchTerrainAssets(app);
+        const assets = app.getResource(Assets), epoch = built.epoch;
+        void resolvePaintInfo(app, targets).then(async rows => {
+            if (built.epoch !== epoch || built.paintKey !== key) return;
+            if (JSON.stringify(rows) !== JSON.stringify(targets)) apply(rows);
+            const physical = new Map<string, TerrainPhysicalMaterial>();
+            await Promise.all([...new Set(rows.filter(r => r.materialIndex >= 0 && r.physicalMaterial).map(r => r.physicalMaterial))].map(async ref => {
+                try { physical.set(ref, parseTerrainPhysicalMaterial(JSON.parse(await assets.fetchText(ref)))); }
+                catch { /* An unavailable physical material uses the terrain's friction. */ }
+            }));
+            if (physical.size && built.epoch === epoch && built.paintKey === key) {
+                built.physical = physical;
+                built.paintCollisionRevision = (built.paintCollisionRevision ?? 0) + 1;
+            }
+        });
     }
 
     private async pixelsOf(app: App, path: string): Promise<{ width: number; height: number; pixels: Uint8Array; wide?: Uint16Array } | null> {
@@ -1091,27 +1193,41 @@ export class TerrainPlugin implements Plugin {
             const state = chunks.stateAt(id, x, z);
             return state !== 'ready' && state !== 'stale' && state !== 'failed';
         });
-        chunks.set<{ key: string; tile: SurfaceTile }>(id, {
+        chunks.set<{ key: string; tile: SurfaceTile; pieces: string[] }>(id, {
             label: 'Building the ground\'s collision',
             originX: at.x, originZ: at.z, sizeX: span, sizeZ: span,
             extent: bounds && [Math.floor(bounds[0] / span), Math.floor(bounds[1] / span), Math.ceil(bounds[2] / span), Math.ceil(bounds[3] / span)],
             loadRadius: Math.max(d.collisionDistance, 0),
             unloadRadius: Math.max(d.collisionDistance, 0) + span,
             // The ground (rebuilt under a new epoch), where it stands, and the layer and friction its tiles were made with.
-            generation: `${built.epoch}:${at.x}:${at.y}:${at.z}:${d.collisionLayer}:${d.friction}`,
+            generation: `${built.epoch}:${at.x}:${at.y}:${at.z}:${d.collisionLayer}:${d.friction}:${built.paintCollisionRevision ?? 0}`,
             sources: () => movers(app),
             make: (tx, tz) => {
                 // The ground is not known yet (still loading, or a provider still answering): asked again next frame.
                 const tile = built.surface?.tile(tx, tz);
-                return tile ? { key: tileKey(entity, tx, tz), tile } : null;
+                return tile ? { key: tileKey(entity, tx, tz), tile, pieces: [] } : null;
             },
-            publish: (_tx, _tz, { key, tile }) => {
-                geometry.set(key, {
-                    owner: entity, origin: [at.x + tile.x0, at.y, at.z + tile.z0], positions: tile.positions, indices: tile.indices,
-                    friction: d.friction, restitution: 0, layer: d.collisionLayer,
-                });
+            publish: (_tx, _tz, { key, tile, pieces }) => {
+                const publish = (id: string, indices: Uint32Array, material?: TerrainPhysicalMaterial) => {
+                    geometry.set(id, { owner: entity, origin: [at.x + tile.x0, at.y, at.z + tile.z0], positions: tile.positions, indices,
+                        friction: material?.friction ?? d.friction, restitution: material?.restitution ?? 0, layer: d.collisionLayer });
+                    pieces.push(id);
+                };
+                if (!built.physical?.size || !built.source || !built.surface) { publish(key, tile.indices); return; }
+                const groups = new Map<string, number[]>();
+                for (let i = 0; i < tile.indices.length; i += 3) {
+                    const triangle = tile.indices.subarray(i, i + 3);
+                    let x = tile.x0, z = tile.z0;
+                    for (const vertex of triangle) { x += tile.positions[vertex * 3]! / 3; z += tile.positions[vertex * 3 + 2]! / 3; }
+                    const w = groundPaintAt(built.source, built.surface, at, x + at.x, z + at.z);
+                    const index = w ? w.indexOf(Math.max(...w)) : -1;
+                    const ref = built.paintTargets?.find(t => t.materialIndex === index)?.physicalMaterial ?? '';
+                    const group = groups.get(ref) ?? [];
+                    group.push(...triangle); groups.set(ref, group);
+                }
+                for (const [ref, indices] of groups) publish(key + '/' + ref, Uint32Array.from(indices), built.physical.get(ref));
             },
-            release: (_tx, _tz, { key }) => geometry.delete(key),
+            release: (_tx, _tz, { pieces }) => { for (const key of pieces) geometry.delete(key); },
         });
     }
 

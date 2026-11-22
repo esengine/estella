@@ -237,7 +237,7 @@ const JSON_REF_TYPES = new Set([
   'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
   'scriptgraph',
   'environment', 'animatorcontroller', 'avatar',
-  'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-tiles',
+  'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-layer-info', 'physical-material', 'terrain-tiles',
 ]);
 
 const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && isTextureRecipePath(e.path);

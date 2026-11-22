@@ -7,7 +7,7 @@ export type AddressableAssetType = string;
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'dragonbones-atlas' | 'dragonbones-skeleton'
-    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'sound-event' | 'world-rules' | 'terrain-layer' | 'terrain-tiles' | 'video' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'font' | 'prefab' | 'json' | 'audio' | 'sound-event' | 'world-rules' | 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'terrain-tiles' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'tileset' | 'timeline' | 'mesh'
     | 'unknown';
 
@@ -83,6 +83,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esworld'], contentType: 'json', editorType: 'world-rules', wechatPackInclude: true, hasTransitiveDeps: true },
     // Terrain layers (TerrainLayerAssetLoader): one kind of ground, naming the albedo, normal and mask textures it is drawn with.
     { extensions: ['esterrainlayer'], contentType: 'json', editorType: 'terrain-layer', wechatPackInclude: true, hasTransitiveDeps: true },
+    { extensions: ['esterrainlayerinfo'], contentType: 'json', editorType: 'terrain-layer-info', wechatPackInclude: true, hasTransitiveDeps: true },
+    { extensions: ['esphysmat'], contentType: 'json', editorType: 'physical-material', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esterrain'], contentType: 'json', editorType: 'terrain-tiles', wechatPackInclude: true, hasTransitiveDeps: true },
     // Locale string table (LocaleAssetLoader → Localization.addCatalog) — one locale per file.
     { extensions: ['eslocale'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },

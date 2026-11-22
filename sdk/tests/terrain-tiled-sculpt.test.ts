@@ -83,6 +83,46 @@ describe('brushes on ground kept as tiles', () => {
         });
     }
 
+    it('matches area paint for world noise, masked flatten and halo smoothing across a four-tile junction', async () => {
+        const { source, edit } = tiled(), { edit: area } = whole();
+        await loadAll(source);
+        const seam = ((T - 1) / (N - 1) - 0.5) * SIZE;
+        for (const g of [edit, area]) {
+            g.begin();
+            g.paint(5, seam, seam, 100, 0, 1, false, undefined, { tool: 'noise', noiseScale: 35, weighted: 0 });
+            g.paint(5, seam, seam, 95, 0.2, 1, false, undefined, { tool: 'flatten', target: 0.7, weighted: 0, region: [seam, seam, seam + 110, seam + 110] });
+            g.paint(5, seam, seam, 75, 0.3, 0.8, false, undefined, { tool: 'smooth', kernel: 5, weighted: 0 });
+        }
+        const actual = edit.end()!, expected = area.end()!, bytes = area.splatmapPixels().b!.pixels;
+        for (const {x, z} of source.doc.tiles) {
+            const tile = source.tileAt(x,z)!.splat2;
+            if (!tile) continue;
+            for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) {
+                expect(tile.pixels[(j*T+i)*4+1], [x,z,i,j].join(',')).toBe(bytes[((z*(T-1)+j)*N+x*(T-1)+i)*4+1]);
+            }
+        }
+        edit.apply(actual,'before'); area.apply(expected,'before');
+        expect(source.tileAt(0,0)!.splat2!.pixels.every(v => v === 0)).toBe(true);
+        edit.apply(actual,'after');
+        expect(edit.saveImages().images.some(image => image.path.includes('splat2'))).toBe(true);
+    });
+
+    it('deletes one detached channel without allocating unused maps and restores tile and overview bytes', async () => {
+        const { source, edit } = tiled(); await loadAll(source);
+        edit.begin();
+        edit.paint(5, 0, 0, 50, 0, 1, false, undefined, { weighted: 0 });
+        edit.paint(6, 0, 0, 50, 0, 0.3, false, undefined, { weighted: 0 });
+        edit.end();
+        const before = edit.saveImages().images.filter(x => x.path.includes('splat2')).map(x => ({ path: x.path, bytes: x.pixels.slice() }));
+        const mask = edit.usedPaintSlots();
+        expect(mask & 96).toBe(96);
+        const patch = await edit.clearPaintLayer(5);
+        expect(patch).not.toBeNull(); expect(edit.usedPaintSlots() & 96).toBe(64);
+        edit.apply(patch!, 'before');
+        for (const image of before) expect(edit.saveImages().images.find(x => x.path === image.path)!.pixels).toEqual(image.bytes);
+        edit.apply(patch!, 'after'); expect(edit.usedPaintSlots() & 96).toBe(64);
+    });
+
     it('grades a spline across unloaded tile seams and undoes its height and paint together', async () => {
         const {source, edit} = tiled(1);
         const {edit: flat, field} = whole();

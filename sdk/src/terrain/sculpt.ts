@@ -11,6 +11,7 @@
  */
 import type { Heightfield } from './heightfield';
 import type { Splat } from './source';
+import { applyWeightBrush, type TerrainPaintSettings } from './weightBrush';
 
 /** What a brush does to heights. @experimental */
 export const SculptMode = { Raise: 0, Lower: 1, Smooth: 2, Flatten: 3, Clay: 4 } as const;
@@ -63,7 +64,8 @@ export function brushDistance(dx: number, dz: number, shape: BrushShape = 'circl
 
 /** The brush has full weight in the core; its curve determines how weight fades to the edge. */
 export function brushWeight(d: number, radius: number, falloff: number, curve: BrushCurve = 'smooth'): number {
-    if (d >= radius) return 0;
+    // A tile window and the whole grid can differ by a few ulps at the same outer edge.
+    if (d >= radius * (1 - 8 * Number.EPSILON)) return 0;
     const core = radius * (1 - Math.min(Math.max(falloff, 0), 1));
     if (d <= core) return 1;
     const t = (radius - d) / (radius - core);
@@ -218,6 +220,9 @@ export interface PaintDab {
     strength: number;
     /** Takes the layer away instead of laying it. */
     erase?: boolean;
+    settings?: TerrainPaintSettings;
+    /** World-space dab centre before a tile window rebases the brush. */
+    worldCenter?: { x: number; z: number };
 }
 
 /** One texel's eight weights, from the splatmaps. */
@@ -237,7 +242,10 @@ export function paintSplat(a: Splat, b: Splat | null, sizeX: number, sizeZ: numb
     if (dab.strength <= 0 || dab.layer < 0 || dab.layer > 7 || (dab.layer > 3 && !b)) return null;
     const span = reach(a.width, a.height, sizeX, sizeZ, dab.brush);
     if (!span) return null;
-    const bb = dab.brush, w = new Float32Array(8);
+    const bb = dab.brush;
+    if (dab.settings) return applyWeightBrush(a, b, sizeX, sizeZ, dab, dab.settings, span,
+        (x, z) => bb.landscape ? bb.landscape(x - bb.x, z - bb.z)?.weight ?? 0 : weightAt(bb, x, z));
+    const w = new Float32Array(8);
     let changed = false;
     for (let j = span.j0; j <= span.j1; j++) {
         for (let i = span.i0; i <= span.i1; i++) {
