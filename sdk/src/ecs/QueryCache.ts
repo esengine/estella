@@ -5,16 +5,10 @@
  * @brief   Component-aware query result cache with fine-grained invalidation
  */
 
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
-* @file    QueryCache.ts
-* @brief   Component-aware query result cache with fine-grained invalidation
-*/
 import type { Entity } from '../types';
 
 interface CacheEntry {
-    componentVersions: Map<symbol, number>;
+    validatedAt: number;
     result: Entity[];
 }
 
@@ -32,7 +26,9 @@ export interface QueryCacheStats {
 
 export class QueryCache {
     private structuralVersion_ = 0;
-    private componentVersions_ = new Map<symbol, number>();
+    // All component stamps in this world share a clock so one stamp can date a whole result.
+    private componentRevision_ = 0;
+    private readonly componentVersions_ = new Map<symbol, number>();
     private cache_ = new Map<string, CacheEntry>();
 
     private hits_ = 0;
@@ -58,8 +54,7 @@ export class QueryCache {
     }
 
     markComponentDirty(componentId: symbol): void {
-        const cur = this.componentVersions_.get(componentId) ?? 0;
-        this.componentVersions_.set(componentId, cur + 1);
+        this.componentVersions_.set(componentId, ++this.componentRevision_);
     }
 
     /**
@@ -68,7 +63,7 @@ export class QueryCache {
      * otherwise still correct, so nothing else would recompute them.
      */
     invalidateAll(): void {
-        this.cache_.clear();
+        this.cache_ = new Map();
         this.structuralVersion_++;
     }
 
@@ -86,7 +81,9 @@ export class QueryCache {
         dependentComponentIds: symbol[],
         computeFn: () => Entity[],
     ): Entity[] {
-        const cached = this.cache_.get(cacheKey);
+        // A full invalidation during compute also discards the entry being built in this map.
+        const entries = this.cache_;
+        const cached = entries.get(cacheKey);
         if (cached) {
             if (this.checkValidity_(cached, dependentComponentIds)) {
                 this.hits_++;
@@ -96,16 +93,9 @@ export class QueryCache {
         }
         this.misses_++;
 
+        const validatedAt = this.componentRevision_;
         const result = computeFn();
-
-        const compVersions = new Map<symbol, number>();
-        for (const id of dependentComponentIds) {
-            compVersions.set(id, this.componentVersions_.get(id) ?? 0);
-        }
-        this.cache_.set(cacheKey, {
-            componentVersions: compVersions,
-            result,
-        });
+        entries.set(cacheKey, { validatedAt, result });
 
         return result;
     }
@@ -127,13 +117,13 @@ export class QueryCache {
         this.componentInvalidations_ = 0;
     }
 
-    /** True when every dependent component is unchanged since the entry was cached. */
+    /** Inspect dependencies only on the first read after a component change. */
     private checkValidity_(entry: CacheEntry, dependentComponentIds: symbol[]): boolean {
+        if (entry.validatedAt === this.componentRevision_) return true;
         for (const id of dependentComponentIds) {
-            const current = this.componentVersions_.get(id) ?? 0;
-            const cached = entry.componentVersions.get(id) ?? 0;
-            if (current !== cached) return false;
+            if (this.componentVersion(id) > entry.validatedAt) return false;
         }
+        entry.validatedAt = this.componentRevision_;
         return true;
     }
 }

@@ -28,69 +28,72 @@ describe('Query cache miss - isolate query cost (2000 entities)', () => {
         world.getEntitiesWithComponents([A], [], []);
     });
 
-    bench('cache miss: 1 comp (force version bump)', () => {
-        (world as any).worldVersion_++;
+    // Invalidate membership the same way World.insert/remove do, keeping the edit itself out of the rebuild timing.
+    bench('cache miss: 1 comp', () => {
+        world.queries_.markComponentDirty(A._id);
         world.getEntitiesWithComponents([A], [], []);
     });
 
     bench('cache miss: 2 comp', () => {
-        (world as any).worldVersion_++;
+        world.queries_.markComponentDirty(A._id);
         world.getEntitiesWithComponents([A, B], [], []);
     });
 
     bench('cache miss: 2 comp + without filter', () => {
-        (world as any).worldVersion_++;
+        world.queries_.markComponentDirty(A._id);
         world.getEntitiesWithComponents([A, B], [], [C]);
     });
 
     bench('cache miss: 3 comp', () => {
-        (world as any).worldVersion_++;
+        world.queries_.markComponentDirty(A._id);
         world.getEntitiesWithComponents([A, B, C], [], []);
     });
 });
 
+// A batch is long enough to separate the time spent in World from the benchmark timer.
+describe('Query cache hits (2000 entities, 1000 lookups)', () => {
+    const world = makeWorld(2000);
+    const edit = world.spawn();
+
+    bench('one component', () => {
+        for (let i = 0; i < 1000; i++) world.getEntitiesWithComponents([A]);
+    });
+
+    bench('two components', () => {
+        for (let i = 0; i < 1000; i++) world.getEntitiesWithComponents([A, B]);
+    });
+
+    bench('two components after an unrelated insert or removal', () => {
+        if (world.has(edit, D)) world.remove(edit, D);
+        else world.insert(edit, D);
+        for (let i = 0; i < 1000; i++) world.getEntitiesWithComponents([A, B]);
+    });
+});
+
 describe('Query cache miss - scale by entity count', () => {
-    const w500 = makeWorld(500);
-    const w2000 = makeWorld(2000);
-    const w5000 = makeWorld(5000);
-    const w10000 = makeWorld(10000);
-
-    bench('500 entities, 2 comp miss', () => {
-        (w500 as any).worldVersion_++;
-        w500.getEntitiesWithComponents([A, B], [], []);
-    });
-
-    bench('2000 entities, 2 comp miss', () => {
-        (w2000 as any).worldVersion_++;
-        w2000.getEntitiesWithComponents([A, B], [], []);
-    });
-
-    bench('5000 entities, 2 comp miss', () => {
-        (w5000 as any).worldVersion_++;
-        w5000.getEntitiesWithComponents([A, B], [], []);
-    });
-
-    bench('10000 entities, 2 comp miss', () => {
-        (w10000 as any).worldVersion_++;
-        w10000.getEntitiesWithComponents([A, B], [], []);
-    });
+    for (const count of [500, 2000, 5000, 10000]) {
+        const world = makeWorld(count);
+        bench(`${count} entities, 2 comp miss`, () => {
+            world.queries_.markComponentDirty(A._id);
+            world.getEntitiesWithComponents([A, B]);
+        });
+    }
 });
 
 describe('Query cache miss - has() breakdown', () => {
     const world = makeWorld(2000);
-    const entities: number[] = [];
-    for (const [e] of (world as any).entities_) entities.push(e);
-    const storage = (world as any).tsStorage_.get(A._id) as Map<number, unknown>;
+    const entities = world.getEntitiesWithComponents([A]);
+    const storage = new Map(entities.map(entity => [entity, world.get(entity, A)]));
 
-    bench('Map.has() x2000 (direct storage)', () => {
+    bench('Map.has() x2000 (reference map)', () => {
         for (let i = 0; i < entities.length; i++) {
-            storage.has(entities[i] as any);
+            if (!storage.has(entities[i])) throw new Error('Entity missing from reference map');
         }
     });
 
     bench('world.has() x2000 (through dispatch)', () => {
         for (let i = 0; i < entities.length; i++) {
-            world.has(entities[i] as any, A);
+            if (!world.has(entities[i], A)) throw new Error('Entity missing component A');
         }
     });
 
