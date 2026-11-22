@@ -22,25 +22,26 @@ export const spriteMotionDriver: MotionDriver<AnimatorClipMotion> = {
         if (!world.has(entity, SpriteMotionPlayback)) {
             world.insert(entity, SpriteMotionPlayback, { ...SpriteMotionPlayback._default });
         }
-        const request = world.get(entity, SpriteMotionPlayback);
-        const player = authored ? world.get(entity, SpriteAnimator) : request.player;
-        const speed = motion.speed ?? 1;
-        const loopOverride = motion.loop ?? null;
-        const settingsChanged = request.speed !== speed || request.loopOverride !== loopOverride;
-        request.requested = true;
-        request.speed = speed;
-        request.loopOverride = loopOverride;
-        if (authored) request.player = null;
+        world.update(entity, SpriteMotionPlayback, request => {
+            const player = authored ? world.get(entity, SpriteAnimator) : request.player;
+            const speed = motion.speed ?? 1;
+            const loopOverride = motion.loop ?? null;
+            const settingsChanged = request.speed !== speed || request.loopOverride !== loopOverride;
+            request.requested = true;
+            request.speed = speed;
+            request.loopOverride = loopOverride;
+            if (authored) request.player = null;
 
-        const restart = enter || !player || player.clip !== motion.clip;
-        if (!restart && !settingsChanged) return;
-        const settings = { speed, loop: motion.loop ?? true };
-        // Selecting the same clip in consecutive states also restarts its
-        // first frame and event. Keep an authored player's identity for readers.
-        const changes = restart ? { ...SpriteAnimator._default, ...settings, clip: motion.clip } : settings;
-        if (restart) request.restart = true;
-        if (authored) world.update(entity, SpriteAnimator, draft => Object.assign(draft, changes));
-        else request.player = Object.assign(player ?? SpriteAnimator.create(), changes);
+            const restart = enter || !player || player.clip !== motion.clip;
+            if (!restart && !settingsChanged) return;
+            const settings = { speed, loop: motion.loop ?? true };
+            // Selecting the same clip in consecutive states also restarts its
+            // first frame and event. Keep an authored player's identity for readers.
+            const changes = restart ? { ...SpriteAnimator._default, ...settings, clip: motion.clip } : settings;
+            if (restart) request.restart = true;
+            if (authored) world.update(entity, SpriteAnimator, draft => Object.assign(draft, changes));
+            else request.player = Object.assign(player ?? SpriteAnimator.create(), changes);
+        });
     },
 
     isFinished({ world, entity }, motion) {

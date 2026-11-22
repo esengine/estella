@@ -83,6 +83,41 @@
       ]
     },
     {
+      "name": "AnimatorSpritePlayback",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "player",
+          "type": "unknown",
+          "default": "—"
+        },
+        {
+          "key": "requested",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "restart",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "loopOverride",
+          "type": "unknown",
+          "default": "—"
+        }
+      ],
+      "transient": true,
+      "animatable": [
+        "speed"
+      ]
+    },
+    {
       "name": "AudioListener",
       "source": "ts",
       "fields": [
