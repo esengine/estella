@@ -9,7 +9,7 @@ import { registerTerrainSupport } from '../src/terrain/terrainSupport';
 import { registerFoliageSupport } from '../src/foliage/foliageSupport';
 import { registerCharacterShaders } from '../src/character/characterSupport';
 
-const MODULE_IDS = ['water', 'terrain', 'foliage', 'hair', 'skin', 'eye'];
+const MODULE_IDS = ['water', 'underwater', 'terrain', 'terrain-layers', 'foliage', 'hair', 'skin', 'eye'];
 
 describe('the built-in shaders that ship with modules', () => {
     it('are the module\'s to install, not the core list\'s', () => {

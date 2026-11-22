@@ -45,6 +45,8 @@ export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object
   scene: 'json',
   inputmap: 'json',
   'terrain-tiles': 'json',
+  'terrain-layer-info': 'json',
+  'physical-material': 'json',
 });
 
 export const UNLOADED_TYPE = 'binary';
