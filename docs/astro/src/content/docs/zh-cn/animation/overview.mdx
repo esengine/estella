@@ -1,37 +1,54 @@
 ---
 title: 动画
-description: Estella 三套动画系统的完整指南——精灵表播放、带序列的补间(tween),以及参数驱动的动画状态机。
+description: 对照编辑器界面选择序列器、精灵动画、动画控制器或补间，跟做一个能在场景中播放的动画。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 有三套动画系统,各司其职:
+## 如何选择
 
-- **精灵动画** —— 逐帧的精灵表播放(`SpriteAnimator`)。
-- **补间(Tween)** —— 用缓动随时间插值任意属性(`Tween`)。
-- **动画状态机** —— 参数驱动的角色动画(`Animator`)。
+做一段 Logo 开场，让两张图依次出现并配上声音，直接用**序列器**。如果角色有待机、行走、跳跃等动作，需要按游戏状态切换，再用**动画控制器**。打开内容浏览器，可以按文件后缀找到对应的编辑器。
 
-它们可以组合:状态机可以驱动精灵片段,补间可以在精灵循环的同时给 UI 元素加"手感"。
+| 想做什么 | 从哪里开始 | 场景里谁来播放 |
+| --- | --- | --- |
+| 按时间编排 2D 或 3D 物体移动、显隐、声音和镜头 | **添加 → 新建动画**，打开序列器，保存为 `.estimeline` | **Timeline Player → Timeline**，勾选 **Playing** |
+| 把一张精灵表或多张图片做成逐帧动画 | 右键纹理，选**创建精灵动画**，得到 `.esanim` | 右键剪辑选**创建动画精灵**，生成的实体带 **Sprite** 和 **Sprite Animator** |
+| 按参数切换待机、行走等动作 | **添加 → 新建动画控制器**，打开状态图，保存为 `.esanimator` | 给目标实体添加 **Animator**，在 **Controller** 栏选择控制器 |
+| 用代码让按钮弹起、镜头缩放，或让属性随时间变化 | 在脚本中调用 `Tween` | 由脚本启动补间 |
+
+![内容浏览器的添加菜单，中部是“新建动画”，下方是“新建动画控制器”](@/assets/guides/zh/animation-create-menu.png)
+
+**新建状态机**会创建用于玩法逻辑的 `.esfsm`。要编辑角色的动画状态图，选同一菜单下的**新建动画控制器**。
+
+### 用序列器做第一个动作
+
+点**添加 → 新建动画**。在世界大纲选中一个可见物体，在序列器中绑定它，添加 `Transform.position.x` 属性轨道。给第 0 帧和一秒后填两个不同的值。拖动播放头时，物体应在场景视口里移动。点序列器的**保存**。要在运行场景时播放，把同一份时间轴指定给目标实体的 **Timeline Player → Timeline**，勾选 **Playing**，保存场景。
+
+![序列器里有两个位置关键帧，第二个关键帧的值为 120](@/assets/guides/zh/seq-first-keys.png)
+
+如果 **Bindings** 只有一行，新的命名绑定要在序列器的轨道菜单中创建。音频条目显示**未选声音**时，请先选中条目，再查看它的**细节**。
+
+[跟做两个关键帧的完整步骤](/docs/zh-cn/animation/timeline/#用两个关键帧做一段位移动画) · [给音频轨道选声音](/docs/zh-cn/animation/timeline/#给音频轨道选声音) · [让轨道控制另一个实体](/docs/zh-cn/animation/timeline/#绑定)
 
 ## 精灵动画
 
-![翻页书编辑器——4 帧行走片段,带逐帧时长与实时预览](@/assets/guides/zh/flipbook.png)
+### 在编辑器中创作剪辑
 
-*翻页书编辑器:一个 4 帧行走片段、逐帧时长,以及带 FPS / 循环 / 洋葱皮的实时预览。*
+1. 在内容浏览器里右键一张精灵表，选**创建精灵动画**。“精灵动画”面板会打开。在**帧来源**里调整**格宽**、**格高**、**边距**和**间距**，点击或拖选格子，把动作的各帧依次加到帧条。如果手头是多张独立图片，多选后右键，选**用 N 张图片创建精灵动画**。帧条会按文件名排好，`run_2` 排在 `run_10` 前面。
+2. 点面板内的播放按钮检查动作。拖帧块可以重排，拖右边缘可以改时长。选中一帧后，在**细节**里可以改它的时长、尺寸、偏移和锚点。重新切片后，帧仍引用原来的格子，越界的帧会标红。
+3. 点击**保存**。在内容浏览器里右键刚保存的 `.esanim`，选**创建动画精灵**。在世界大纲中选中生成的实体，可见 **Sprite** 和 **Sprite Animator** 两个组件，后者的 **Clip** 已指向这份剪辑。保存场景，点主工具栏的播放按钮看它换帧。编辑时可以打开视口的**预览特效**查看动画精灵的效果。
 
-`SpriteAnimator` 组件播放命名的精灵表片段(作为 `anim-clip` 资源编辑)。通过 `Mut` 查询
-写组件来切换片段:
+![精灵动画面板里的四帧行走动作和播放预览](@/assets/guides/zh/flipbook.png)
+如果脚本已用 `registerClip` 注册名为 `walk` 的剪辑，可以在切换动作时写入组件。用编辑器指定的文件播放时，保留 **Clip** 栏里的资源引用。
 
 ```typescript
-import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
+import type { SpriteAnimatorData } from 'esengine';
 
-const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
-  for (const [entity, animator] of q) {
-    animator.clip = 'walk';
-    animator.speed = 1.5;
-    animator.playing = true;
-  }
-});
+function startWalk(animator: SpriteAnimatorData) {
+  animator.clip = 'walk';
+  animator.speed = 1.5;
+  animator.playing = true;
+}
 ```
 
 | 属性 | 类型 | 默认 | 说明 |
@@ -39,7 +56,7 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 | `clip` | asset | `''` | 当前片段(一个 `anim-clip` 资源名)。 |
 | `speed` | number | `1` | 播放速度倍率。 |
 | `playing` | boolean | `true` | 播放是否在推进。 |
-| `loop` | boolean | `true` | 循环片段 vs 停在最后一帧。 |
+| `loop` | boolean | `true` | 组件和剪辑均开启循环时重复播放，否则停在最后一帧。 |
 | `enabled` | boolean | `true` | 关掉即冻结动画器。 |
 | `finished` | boolean | `false` | 只读:一次性片段播完时锁存。在 finished 状态抬起 `playing` 会从第 0 帧重播。 |
 | `currentFrame` | number | `0` | 只读:正在显示的帧索引。 |
@@ -48,15 +65,14 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 要更精细地控制,`SpriteAnimation` 资源可跳到指定帧或命名标签,并在运行时注册片段:
 
 ```typescript
-import { defineSystem, Query, Mut, Res, SpriteAnimator, SpriteAnimation } from 'esengine';
+import type { SpriteAnimationAPI, SpriteAnimatorData } from 'esengine';
 
-const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q, sprites) => {
-  for (const [entity, animator] of q) {
-    sprites.gotoFrame(animator, 0, true);         // frame index, and play
-    sprites.gotoLabel(animator, 'attack', true);  // named label, and play
-  }
-});
+function startAttack(sprites: SpriteAnimationAPI, animator: SpriteAnimatorData) {
+  sprites.gotoLabel(animator, 'attack', true);
+}
 ```
+
+这段示例要求代码注册的剪辑定义了名为 `attack` 的帧标签。在进入攻击状态时调用一次。要从指定帧播放，可改用 `sprites.gotoFrame(animator, 0, true)`。
 
 | 方法 | 说明 |
 |---|---|
@@ -75,47 +91,22 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 在帧回调中通过 `gotoFrame` / `gotoLabel` 调整播放，不要再次调用 `update`：
 同一动画 API 正在更新时会忽略嵌套更新。
 
-片段携带**帧事件**(`SpriteAnimEvent`——`{ frame, name, data? }`),播放到某帧时触发:
-脚步声、攻击的命中帧、金币翻面的那一刻。在 Flipbook 编辑器的 **Events** 轨道上编辑它们——
-选中一帧,**添加事件**,起个名字;帧条会标出哪些帧带事件。然后订阅:
+在**精灵动画 → 动画事件**里，选中一帧，点**添加事件**，再点该帧的旗标填写**名称**。例如把脚落地的帧命名为 `footstep`。游戏初始化时注册一次监听，就能在这个名字出现时播放脚步声。
 
 ```typescript
-import { defineSystem, Res, SpriteAnimation } from 'esengine';
+import { Audio, defineSystem, Res, SpriteAnimation } from 'esengine';
 
-const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
-  anim.onEvent(playerEntity, (e) => {
-    if (e.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
+app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, audio) => {
+  sprites.onEventGlobal((event) => {
+    if (event.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
   });
-});
+}));
 ```
 
 | 方法 | 说明 |
 |---|---|
 | `onEvent(entity, handler)` | 监听某个实体的帧事件。返回一个取消订阅的函数。 |
 | `onEventGlobal(handler)` | 监听所有实体的帧事件——回调还会收到实体本身。 |
-
-### 在编辑器中创作剪辑
-
-剪辑是 `.esanim` 资产,全程可视化创作——不用手写 JSON:
-
-1. 两条路:**右键一张纹理**选**创建精灵动画**——Flipbook 编辑器打开,精灵表上
-   覆盖切片网格(格子尺寸按图片猜测;在工具栏调整格宽/格高/边距/间距);或者
-   **选中多张图片**,选**用 N 张图片创建精灵动画**,按文件名顺序排好
-   (按数字比较,所以 `run_2` 排在 `run_10` 前面)。
-2. **点击或拖选格子**追加帧,或**把图片拖到时间轴上**插入。时间轴上一个块有多宽
-   就代表这帧有多长:拖它的右边缘改时长,拖块本身重排。视口把当前帧按真实尺寸
-   画在剪辑锚点上,相邻帧则各就各位地叠印在后面。
-3. **保存**,然后**右键 `.esanim` → 创建动画精灵**(或直接拖进视口)。
-   得到一个定格在第 0 帧的 `Sprite` + `SpriteAnimator` 实体——进 Play 零代码播放。
-
-选中动画精灵时,翻页动画**在编辑态视口中循环播放**(用 Preview FX 显示开关控制)。
-若该剪辑同时在 Flipbook 编辑器中打开,改帧即时反映在视口里。
-
-重新切片时所有帧一致跟随——帧引用的是网格格子,不是像素矩形。
-超出当前网格的帧会在帧条中标红。
-
-**播放头所在的那一帧**在检视器里有自己的一节——时长、尺寸、偏移、锚点,
-和剪辑的帧率、循环模式以及下面这两个开关并排。
 
 ### 从 Aseprite 文件导入
 
@@ -173,7 +164,7 @@ const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
 实体级锚点会让角色跟着滑来滑去;**逐帧**设锚点则能把必须钉住的部位钉住——
 脚踩在地面上、手握在武器上。
 
-在 Flipbook 编辑器预览条勾上**锚点**,当前帧上会出现一个十字准星:拖动它
+在精灵动画面板的预览条勾上**锚点**,当前帧上会出现一个十字准星:拖动它
 (或在旁边直接输入 X / Y)即可为该帧设锚点。准星的辅助线横贯整个预览台,
 配合洋葱皮就能把每一帧的脚与相邻帧对齐。单独设过锚点的帧在帧条上带一个
 琥珀色圆点,**×** 清除该覆盖、让此帧回落到剪辑锚点——剪辑锚点在检视器里
@@ -253,19 +244,19 @@ const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (ass
 ## 补间(Tween)
 
 `Tween` 资源在一段时长内把属性从一个值插值到另一个值。`to(entity, target, from, to,
-duration, options?)` 返回一个句柄:
+duration, options?)` 返回一个句柄。下面的函数可在按钮按下时调用一次。
 
 ```typescript
-import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+import { EasingType, LoopMode, TweenTarget, type Entity, type TweenAPI } from 'esengine';
 
-const animate = defineSystem([Res(Tween)], (tween) => {
-  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+function moveLogo(entity: Entity, tween: TweenAPI) {
+  return tween.to(entity, TweenTarget.PositionX, 0, 200, 1, {
     easing: EasingType.EaseInOutQuad,
     delay: 0.2,
     loop: LoopMode.PingPong,
-    loopCount: 3,          // -1 = forever
+    loopCount: 3,
   });
-});
+}
 ```
 
 ### 目标
@@ -362,30 +353,56 @@ tween.sequence([
 
 ## 动画状态机
 
-![动画控制器编辑器——Idle / Move / Hop 状态,带条件与参数面板](@/assets/guides/zh/animator-graph.png)
+### 让初始状态播起来
 
-*动画控制器:状态(Idle / Move / Hop)、带条件的转移(`speed>20`、`hop` 触发器),以及驱动它们的**参数**面板。*
+1. 先准备一个确实有动作的剪辑。用上面的序列器示例，保存带有两个不同位置关键帧的 `assets/Logo.estimeline`。也可以准备一段有多帧的精灵动画，例如 `assets/Walk.esanim`。
+2. 在**内容浏览器 → 添加 → 新建动画控制器**创建 `.esanimator`。点图上的 **Idle** 状态，在右侧把**类型**从**无**改为**剪辑**。新建控制器只有这一个初始状态，验证播放时无需创建转移或参数。
+3. 在 0.112.0 中，**剪辑**栏是文本框。输入实际项目路径，例如 `assets/Logo.estimeline`，按 Tab 确认；**播放器**选**时间轴**。如果用 `.esanim`，填它自己的路径，播放器选**精灵表**。点控制器面板的**保存**。
 
-角色动画用一个**动画控制器**:它持有状态、转移和由命名**参数**驱动的 1D 混合树。在编辑器
-里编辑它(或用代码注册),给实体加一个指明控制器的 `Animator` 组件,然后每帧通过
-`Res(AnimatorController)` 设置参数——控制器会解析出当前状态、片段与混合。
+   ![选中初始状态 Idle，类型设为剪辑，剪辑填写 assets/Logo.estimeline，播放器选时间轴](@/assets/guides/zh/animator-state-clip.png)
 
-控制器是一份 **`.esanimator` 资产**:在内容浏览器的 **新建** 菜单里创建,双击打开上图的
-图编辑器——带位置的状态、带条件的转移,以及**参数**面板——再用资产选择器把 `Animator`
-组件的 `controller` 字段指向它。场景会预加载它,所以第一帧之前它就已注册好。若直接填一个
-普通字符串,则解析为代码里 `registerController(...)` 注册的控制器;两种方式可以共存:
+4. 在**世界大纲**选中要运动的物体，在**细节 → 添加组件**中添加 **Animator**，在 **Controller** 栏选刚保存的 `.esanimator`。若用精灵剪辑，可以从右键 `.esanim` → **创建动画精灵**得到带 **Sprite** 和 **Sprite Animator** 的实体，然后给它添加 **Animator**。
+5. 保存场景，点**主工具栏**的播放按钮，看场景里的物体是否开始移动或换帧。点状态图上的节点只会打开它的属性。这个例子用控制器播放属性动画；要编排显隐、声音和镜头，请用[序列器和 Timeline Player](/docs/zh-cn/animation/timeline/)。
+
+<Aside type="note" title="0.112.0 的精灵剪辑">
+  这个版本可能会漏载仅在控制器里引用的 `.esanim`。先用**创建动画精灵**把要验证的那份剪辑放到场景里，并保留 **Sprite Animator → Clip** 中的引用，再运行上面的单状态示例。若有第二段 `Wizet.esanim`，可以给场景中一个空实体添加 **Sprite Animator**，在 **Clip** 指定第二段并取消 **Playing**，保存场景。这会让场景加载第二段。含修复的版本会加载控制器引用的精灵剪辑，并在填入 `.esanim` 时自动选择**精灵表**。
+</Aside>
+
+### 播完自动切到下一段
+
+例如开场要先播 `Nexon`，再播 `Wizet`。**不需要参数条件**。节点名前的绿色三角表示初始状态。只要场景实体上的 **Animator → Controller** 引用这份控制器，运行时就会进入初始状态。
+
+1. 选中从 `Nexon` 到 `Wizet` 的连线。如果线上写着 **⚡ toWz**，点右侧**转换 → 条件**里 `toWz` 这一行最右侧的 **×**，再勾上**播完再转**。参数列表里的 `toWz` 可以保留。如果保留线上的触发器条件，运行时还需要对这个实体调用 `anim.setTrigger(entity, 'toWz')`。
+2. 让第一段只播一次。**在 0.112.0 里直接改剪辑资源**。如果 `Nexon` 播的是 `.estimeline`，双击该文件，在序列器点**剪辑设置**图标，在弹窗的**循环**一行选**单次**并保存；如果播的是 `.esanim`，在**精灵动画**里关闭**循环**并保存。含状态播放设置修复的版本也可以选中 `Nexon` 节点，把**循环模式**改为**单次**。
+3. 保存控制器和场景，点主工具栏的播放按钮。**条件为空且勾选“播完再转”**时，第一段播到结尾才切换。**条件为空且没有勾选**时，运行的第一个更新就会切换，可能看不到首段。循环播放的首段会一直等下去。
+
+![选中转换后勾上“播完再转”，条件列表为空，示例中的目标状态为 Run](@/assets/guides/zh/animator-after-clip.png)
+
+**第一段从头就没画面？** 点初始状态节点，核对剪辑及播放器。节点显示的 `@uuid:…` 是项目资源引用。单凭这串字符无法知道它是时间轴还是精灵剪辑。再回世界大纲检查要显示动画的实体已经指定 **Animator → Controller**。如果 `.esanim` 单独能播，保留原实体的 **Sprite** 与 **Sprite Animator**，把 **Animator** 加在**同一个实体**上。只在父实体挂控制器时，精灵状态找不到子实体上的播放器。若首段能播、状态也切到了第二段但画面停住，请按上面的 0.112.0 步骤让场景也加载第二段。
+
+### 按参数切换动作
+
+1. 点控制器顶部的 **＋ 状态**，在右侧把新状态命名为 `Run`，给它指定第二段可见的剪辑。鼠标移到 `Idle` 节点，按住右边缘出现的连接点，拖到 `Run` 节点。线上会出现**始终**。这时两个状态之间已经有一条无条件转换。
+2. 在右侧**参数**标题旁点 **＋**，把新参数命名为 `speed`，保留**浮点**类型。点连接线上的**始终**，在右侧**转换 → 条件**旁点 **＋**。选择参数 `speed`，把**运算**设为 `>`，数值填 `0`。0.112.0 会默认显示 ⚡，需要手动改为 `>` 才会比较速度。
+3. 保存控制器和场景。游戏运行时，在这个实体上调用 `anim.setFloat(entity, 'speed', 1)`，它会从 `Idle` 切换到 `Run`。若希望速度降为零时回到待机，还需从 `Run` 拖回 `Idle`，设置反向条件。
+
+![转换面板里，目标是 Run，条件是 speed 大于 0](@/assets/guides/zh/animator-transition.png)
+
+下面是一张完成的角色状态图，其中移动和跳跃各有自己的条件。代码通过 `AnimatorController` 设置参数。
+
+![已配置的动画控制器，Idle、Move 和 Hop 三个状态之间有转移，右侧列出参数](@/assets/guides/zh/animator-graph.png)
 
 ```typescript
-import { defineSystem, Query, Res, Animator, AnimatorController } from 'esengine';
 
-const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim) => {
-  for (const [entity] of q) {
-    anim.setFloat(entity, 'speed', 4.2);     // drives a 1D blend / transition
-    anim.setBool(entity, 'grounded', true);
-    anim.setTrigger(entity, 'jump');         // one-shot; resetTrigger to clear
-    const speed = anim.getFloat(entity, 'speed');
-  }
-});
+import type { AnimatorControllerAPI, Entity } from 'esengine';
+
+function updateSpeed(anim: AnimatorControllerAPI, entity: Entity, speed: number) {
+  anim.setFloat(entity, 'speed', speed);
+}
+
+function onJumpPressed(anim: AnimatorControllerAPI, entity: Entity) {
+  anim.setTrigger(entity, 'hop');
+}
 ```
 
 | `Animator` 字段 | 类型 | 默认 | 说明 |
@@ -602,7 +619,7 @@ IK 属于控制器而不是某一层,在层叠加的结果上只运行一次。
 否则射线会停在它自己身上。骨架应当脚在高度 0、根节点站在地面上。foot-plant 先于其他约束运行,
 游戏里没有物理时它不改动片段。
 
-**Avatar。** 片段按导出者起的名字指名关节,所以两个人绑的两个角色互相用不了对方的片段。`.esavatar`(新建菜单)是骨架自己对这些名字的翻译,
+**Avatar。** 片段按导出者起的名字指名关节,所以两个人绑的两个角色互相用不了对方的片段。`.esavatar`（**添加 → 新建骨架映射**）是骨架自己对这些名字的翻译,
 并记录它的绑定姿态;控制器的 `avatar` 指明它的片段是对着哪个 avatar 做的,`Animator` 的 `avatar` 字段填这个骨架自己的。
 这样一个控制器就能驱动骨骼名字不同、绑定姿态不同的角色,根运动也会按各自骨架应走的距离缩放。
 
@@ -732,12 +749,7 @@ for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
 自身的 transform，剪辑只是原地播放。
 
 
-## 如何选择
 
-<Aside type="tip">
-  一次性的 UI/手感(按钮弹跳、淡入淡出)用**补间**,循环美术用**精灵动画**,当多个片段之间的
-  转移依赖玩法参数时用**状态机**。
-</Aside>
 
 ## 参见
 

@@ -467,6 +467,51 @@ describe('AnimatorController runtime load-by-path', () => {
         expect(def.layers[0]!.states[0]!.motion.clip).toBe('assets/upper.estimeline');
     });
 
+    it('resolves sprite assets in legacy blends and keeps runtime animation names', async () => {
+        const ref = '@uuid:12345678-1234-4234-8234-123456789abc';
+        const graph = {
+            initialState: 'Idle', parameters: [], states: [
+                { name: 'Idle', blend: { parameter: 'speed', thresholds: [
+                    { value: 0, clip: 'idle' }, { value: 1, clip: ref }, { value: 2, clip: 'fast.esanim' },
+                ] }, transitions: [] },
+                { name: 'Spine', motion: { kind: 'spine', clip: 'fast.esanim' }, transitions: [] },
+            ],
+        };
+        const acquired: Array<[string, string]> = [];
+        const ctx = {
+            catalog: { getBuildPath: (path: string) => path },
+            loadText: async () => JSON.stringify(graph),
+            acquireAsset: async (type: string, clip: string) => { acquired.push([type, clip]); },
+        } as unknown as LoadContext;
+        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/hero.esanimator', ctx);
+        expect(acquired).toEqual([['anim-clip', ref], ['anim-clip', 'assets/fast.esanim']]);
+        expect(era.published).toMatchObject({ states: [
+            { motion: { thresholds: [
+                { motion: { clip: 'idle' } }, { motion: { clip: ref } }, { motion: { clip: 'assets/fast.esanim' } },
+            ] } },
+            { motion: { kind: 'spine', clip: 'fast.esanim' } },
+        ] });
+    });
+
+    it('honors saved state playback settings while preserving explicit blend child overrides', async () => {
+        const graph = {
+            initialState: 'Logo', parameters: [], states: [
+                { name: 'Logo', loop: false, speed: 2, motion: { kind: 'timeline', clip: 'nexon.estimeline' }, transitions: [] },
+                { name: 'Walk', loop: true, speed: 3, transitions: [], motion: { kind: 'blend1d', parameter: 'speed',
+                    thresholds: [{ value: 0, motion: { kind: 'sprite', clip: 'idle', loop: false } }] } },
+            ],
+        };
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p }, loadText: async () => JSON.stringify(graph),
+            acquireAsset: async () => {},
+        } as unknown as LoadContext;
+        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/intro.esanimator', ctx);
+        expect(era.published).toMatchObject({ states: [
+            { motion: { clip: 'assets/nexon.estimeline', loop: false, speed: 2 } },
+            { motion: { thresholds: [{ motion: { clip: 'idle', loop: false, speed: 3 } }] } },
+        ] });
+    });
+
     it('acquires the avatar its clips were authored on, which no component names', async () => {
         // Without it the clip side of a retarget is never loaded, and a rig that
         // names its own avatar plays the clips' raw values: the character-rig

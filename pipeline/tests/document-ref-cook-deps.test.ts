@@ -54,14 +54,20 @@ const esenv = JSON.stringify({
 // this one with its authored ref, and the layer is silent in the package only.
 const controller = JSON.stringify({
   version: 2, parameters: [], initialState: 'Idle',
-  states: [{ name: 'Idle', clip: 'assets/anim/idle.esanim', loop: true, transitions: [] }],
+  states: [
+    { name: 'Idle', clip: 'idle.esanim', loop: true, transitions: [] },
+    { name: 'Walk', motion: { kind: 'blend1d', parameter: 'speed', thresholds: [
+      { value: 0, motion: { kind: 'sprite', clip: './idle.esanim' } },
+      { value: 1, motion: { kind: 'sprite', clip: 'registered' } },
+    ] }, transitions: [] },
+  ],
   layers: [{
     name: 'Upper', initialState: 'Wave',
     states: [{
       name: 'Wave', transitions: [],
       // A SIBLING name, which is what the editor writes and what staging then
-              // moves out from under — the same shape the environment's atlas has.
-              motion: { kind: 'timeline', clip: 'wave.estimeline', loop: false },
+      // moves out from under — the same shape the environment's atlas has.
+      motion: { kind: 'timeline', clip: 'wave.estimeline', loop: false },
     }],
   }],
 });
@@ -191,8 +197,12 @@ describe('assets named only inside another document are cooked', () => {
     // nothing — in the build only, the editor serving the whole project.
     const ctrl = manifest.entries.find((e) => e.uuid === CONTROLLER)!;
     const stagedCtrl = JSON.parse(readFileSync(path.join(res.outDir, ctrl.path), 'utf8')) as {
+      states: { clip?: string; motion?: { thresholds: { motion: { clip: string } }[] } }[];
       layers: { states: { motion: { clip: string } }[] }[];
     };
+    const [idle, walk] = stagedCtrl.states;
+    expect(idle!.clip).toBe('assets/anim/idle.esanim');
+    expect(walk!.motion!.thresholds.map(stop => stop.motion.clip)).toEqual(['assets/anim/idle.esanim', 'registered']);
     const layerRef = stagedCtrl.layers[0]!.states[0]!.motion.clip;
     expect(layerRef).toBe('assets/anim/wave.estimeline');
     expect(manifest.entries.some((e) => e.sourcePath === layerRef)).toBe(true);

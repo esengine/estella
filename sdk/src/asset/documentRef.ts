@@ -33,6 +33,13 @@ export function isLogicalAssetRef(ref: string): boolean {
     return ref.startsWith('/') || ref.startsWith('assets/');
 }
 
+/** Asset-backed animator motions. Plain sprite and Spine names are runtime registrations. */
+export function animatorMotionAssetType(kind: string | undefined, clip: string): 'timeline' | 'anim-clip' | undefined {
+    if (kind === 'timeline') return 'timeline';
+    if (kind === 'sprite' && (/\.esanim$/i.test(clip) || isUuidRef(clip))) return 'anim-clip';
+    return undefined;
+}
+
 /**
  * Prefix of a ref the engine answers in CODE — a stock shader, stock geometry, the
  * tilemap collision palette. Such a ref names no file, so every stage that turns a

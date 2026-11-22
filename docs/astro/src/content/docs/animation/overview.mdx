@@ -1,38 +1,54 @@
 ---
 title: Animation
-description: The complete guide to Estella's three animation systems — sprite-sheet playback, tweens with sequencing, and parameter-driven animator state machines.
+description: Choose between the Sequencer, sprite animation, an Animator Controller and tweens. Follow the editor controls to play your first animation in a scene.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella has three animation systems, each for a different job:
+## Choosing the right tool
 
-- **Sprite animation** — frame-by-frame sprite-sheet playback (`SpriteAnimator`).
-- **Tweens** — interpolate any property over time with easing (`Tween`).
-- **Animator state machine** — character animation driven by parameters (`Animator`).
+For a logo intro with two images appearing in turn and a sound cue, use the **Sequencer**. For a character that switches between idle, walk and jump in response to gameplay, use an **Animator Controller**. The file extension tells you which editor opens each asset.
 
-They compose: a state machine can drive sprite clips, and tweens can juice a UI
-element while a sprite loops.
+| What you want to do | Where to start | What plays it in the scene |
+| --- | --- | --- |
+| Time movement, visibility, sound and camera cues in 2D or 3D | **Add → New Animation** opens the Sequencer and creates an `.estimeline` | Assign the file to **Timeline Player → Timeline** and tick **Playing** |
+| Animate a sprite sheet or a sequence of images | Right-click a texture and choose **Create Sprite Animation** to create an `.esanim` | Right-click the clip and choose **Create Animated Sprite** for an entity with **Sprite** and **Sprite Animator** |
+| Switch between actions such as idle and walk using parameters | **Add → New Animation Controller** creates an `.esanimator` and opens the state graph | Add **Animator** to the target entity and select the controller in **Controller** |
+| Ease a button, zoom a camera or interpolate a property from code | Call `Tween` in a script | The script starts the tween |
+
+![The Content Browser Add menu with New Animation in the middle and New Animation Controller near the bottom](@/assets/guides/en/animation-create-menu.png)
+
+**New State Machine** creates an `.esfsm` for gameplay logic. Choose **New Animation Controller** in the same menu for a character animation graph.
+
+### Make a first move in the Sequencer
+
+Choose **Add → New Animation**. Select a visible object in the World Outliner, bind it in the Sequencer and add a `Transform.position.x` property track. Give the first frame and the frame one second later different values. Drag the playhead and watch the object move in the scene viewport. Click **Save** in the Sequencer. For scene playback, assign the same timeline to **Timeline Player → Timeline** on the target, tick **Playing** and save the scene.
+
+![Two position keys in the Sequencer with the second key set to 120](@/assets/guides/en/seq-first-keys.png)
+
+If **Bindings** shows a single row, add a named binding from the track menu in the Sequencer. For an audio item with no sound assigned, select the item and open its **Details**.
+
+[Follow the two-key walkthrough](/docs/animation/timeline/#animate-a-move-with-two-keys) · [Choose a sound for an audio track](/docs/animation/timeline/#choose-a-sound-for-an-audio-track) · [Bind a track to another entity](/docs/animation/timeline/#bindings)
 
 ## Sprite animation
 
-![The flipbook editor — a 4-frame walk clip with per-frame timing and a live preview](@/assets/guides/en/flipbook.png)
+### Authoring clips in the editor
 
-*The flipbook editor: a 4-frame walk clip, per-frame durations, and a live preview with FPS / loop / onion-skin.*
+1. Right-click a sprite sheet in the Content Browser and choose **Create Sprite Animation**. The **Sprite Animation** panel opens. Under **Frame source**, adjust **Cell W**, **Cell H**, **Margin** and **Spacing**, then click or drag across grid cells to append frames. If you have separate images, select them together, right-click and choose **Create Sprite Animation from N Images**. The frames start in filename order, with `run_2` before `run_10`.
+2. Press play in the panel to check the motion. Drag a frame block to reorder it or its right edge to change its duration. Select a frame to edit duration, size, offset and anchor in **Details**. Frames refer to grid cells when you re-slice the sheet. Out-of-grid frames appear red.
+3. Click **Save**. Right-click the saved `.esanim` and choose **Create Animated Sprite**. Select the new entity in the World Outliner. It has **Sprite** and **Sprite Animator**, with **Clip** already assigned. Save the scene and press play on the main toolbar to see the frames change. Enable **Preview FX** in the viewport to see animated sprites while editing.
 
-The `SpriteAnimator` component plays named sprite-sheet clips (authored as
-`anim-clip` assets). Switch clips by writing the component through a `Mut` query:
+![A four-frame walk cycle and its playback preview in the Sprite Animation panel](@/assets/guides/en/flipbook.png)
+If you registered a clip called `walk` with `registerClip`, you can switch to it on entering a state. For a file assigned in the editor, keep the asset reference in **Clip**.
 
 ```typescript
-import { defineSystem, Query, Mut, SpriteAnimator } from 'esengine';
+import type { SpriteAnimatorData } from 'esengine';
 
-const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
-  for (const [entity, animator] of q) {
-    animator.clip = 'walk';
-    animator.speed = 1.5;
-    animator.playing = true;
-  }
-});
+function startWalk(animator: SpriteAnimatorData) {
+  animator.clip = 'walk';
+  animator.speed = 1.5;
+  animator.playing = true;
+}
 ```
 
 | Property | Type | Default | Description |
@@ -40,7 +56,7 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 | `clip` | asset | `''` | Current clip (an `anim-clip` asset name). |
 | `speed` | number | `1` | Playback speed multiplier. |
 | `playing` | boolean | `true` | Whether playback is advancing. |
-| `loop` | boolean | `true` | Loop the clip vs. hold the last frame. |
+| `loop` | boolean | `true` | Repeats when both the component and the clip enable looping. Otherwise holds the last frame. |
 | `enabled` | boolean | `true` | Disable to freeze the animator. |
 | `finished` | boolean | `false` | Read-only: latched when a one-shot clip completes. Raising `playing` on a finished animator replays from frame 0. |
 | `currentFrame` | number | `0` | Read-only: the frame index being shown. |
@@ -50,15 +66,14 @@ For finer control, the `SpriteAnimation` resource jumps to a specific frame or a
 named label and registers clips at runtime:
 
 ```typescript
-import { defineSystem, Query, Mut, Res, SpriteAnimator, SpriteAnimation } from 'esengine';
+import type { SpriteAnimationAPI, SpriteAnimatorData } from 'esengine';
 
-const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q, sprites) => {
-  for (const [entity, animator] of q) {
-    sprites.gotoFrame(animator, 0, true);         // frame index, and play
-    sprites.gotoLabel(animator, 'attack', true);  // named label, and play
-  }
-});
+function startAttack(sprites: SpriteAnimationAPI, animator: SpriteAnimatorData) {
+  sprites.gotoLabel(animator, 'attack', true);
+}
 ```
+
+This example uses a code-registered clip with a frame label named `attack`. Call it once on entering the attack state. To play from a specific frame, use `sprites.gotoFrame(animator, 0, true)`.
 
 | Method | Description |
 |---|---|
@@ -78,57 +93,22 @@ the selected frame on the next animation update without advancing or firing even
 Inside a frame callback, change playback through `gotoFrame` / `gotoLabel` rather
 than calling `update` again: nested updates on the same animation API are ignored.
 
-Clips carry **frame events** (`SpriteAnimEvent` — `{ frame, name, data? }`) that
-fire when playback reaches a frame: a footstep sound, the hit frame of an attack,
-the moment a coin flips. Author them on the **Events** track of the Flipbook
-editor — pick a frame, **Add event**, name it; the frame strip marks which frames
-carry one. Then subscribe:
+In **Sprite Animation → Events**, select a frame, click **Add event** and click its flag to edit **Name**. For example, name a footfall frame `footstep`. Subscribe once during game initialization to play a sound when it fires.
 
 ```typescript
-import { defineSystem, Res, SpriteAnimation } from 'esengine';
+import { Audio, defineSystem, Res, SpriteAnimation } from 'esengine';
 
-const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
-  anim.onEvent(playerEntity, (e) => {
-    if (e.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
+app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, audio) => {
+  sprites.onEventGlobal((event) => {
+    if (event.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
   });
-});
+}));
 ```
 
 | Method | Description |
 |---|---|
 | `onEvent(entity, handler)` | Listen to one entity's frame events. Returns an unsubscribe function. |
 | `onEventGlobal(handler)` | Listen to every entity's — the handler receives the entity too. |
-
-### Authoring clips in the editor
-
-Clips are `.esanim` assets you author visually — no JSON by hand:
-
-1. Either **right-click a texture** and choose **Create Sprite Animation** —
-   the Flipbook editor opens with the sheet under a slicing grid (the cell size
-   is guessed from the image; adjust cell width/height, margin, and spacing in
-   the toolbar) — or **select several images** and choose **Create Sprite
-   Animation from N Images**, which lines them up in file-name order (counting
-   numerically, so `run_2` precedes `run_10`).
-2. **Click or drag across cells** to append frames, or **drop images onto the
-   timeline** to insert them. A block on the timeline is as wide as its frame is
-   long: drag its right edge to retime, drag the block itself to reorder. The
-   viewport draws the current frame at its true size against the clip's anchor,
-   with the neighbouring frames ghosted in their own places.
-3. **Save**, then **right-click the `.esanim` → Create Animated Sprite** (or
-   drag it into the viewport). You get a `Sprite` + `SpriteAnimator` entity
-   posed at frame 0 — it plays in Play mode with zero code.
-
-Selecting an animated sprite loops its flipbook **in the viewport while
-editing** (toggle with the Preview FX show flag). If the clip is open in the
-Flipbook editor at the same time, frame edits animate live as you make them.
-
-Re-slicing the grid moves every frame consistently — frames reference grid
-cells, not pixel rectangles. Frames that fall outside the current grid are
-flagged red in the strip.
-
-The **frame under the playhead** has its own section in the Details inspector —
-duration, size, offset, anchor — alongside the clip's fps, loop mode, and the
-two switches below.
 
 ### From an Aseprite file
 
@@ -194,7 +174,7 @@ artwork shifts inside its cell from frame to frame, one entity-wide anchor makes
 character slide around; anchoring **per frame** pins whatever has to hold still —
 feet on the ground, a hand on a weapon.
 
-Tick **Anchor** in the Flipbook editor's preview bar and a crosshair appears over the
+Tick **Anchor** in the Sprite Animation panel's preview bar and a crosshair appears over the
 current frame. Drag it (or type the X / Y beside it) to anchor that frame. The
 hairlines run the width of the stage, so with onion skin on you can line each frame's
 feet up against its neighbours. A frame anchored on its own gets an amber dot in the
@@ -278,19 +258,19 @@ optional **argument** carries the clip, so idle/run/attack switching is pure
 ## Tweens
 
 The `Tween` resource interpolates a property from one value to another over a
-duration. `to(entity, target, from, to, duration, options?)` returns a handle:
+duration. `to(entity, target, from, to, duration, options?)` returns a handle. Call this function once, for example on a button press.
 
 ```typescript
-import { defineSystem, Res, Tween, TweenTarget, EasingType, LoopMode } from 'esengine';
+import { EasingType, LoopMode, TweenTarget, type Entity, type TweenAPI } from 'esengine';
 
-const animate = defineSystem([Res(Tween)], (tween) => {
-  tween.to(entity, TweenTarget.PositionX, 0, 200, 1.0, {
+function moveLogo(entity: Entity, tween: TweenAPI) {
+  return tween.to(entity, TweenTarget.PositionX, 0, 200, 1, {
     easing: EasingType.EaseInOutQuad,
     delay: 0.2,
     loop: LoopMode.PingPong,
-    loopCount: 3,          // -1 = forever
+    loopCount: 3,
   });
-});
+}
 ```
 
 ### Targets
@@ -391,35 +371,56 @@ storing a handle to pause, cancel, or observe the composition later.
 
 ## Animator state machine
 
-![The animator editor — Idle / Move / Hop states with conditions and a parameters panel](@/assets/guides/en/animator-graph.png)
+### Play the initial state
 
-*The animator: states (Idle / Move / Hop), transitions with conditions (`speed>20`, the `hop` trigger), and the **Parameters** panel that drives them.*
+1. Prepare a clip with visible motion. For example, save the two distinct position keys from the Sequencer walkthrough as `assets/Logo.estimeline`, or prepare a multi-frame sprite clip such as `assets/Walk.esanim`.
+2. Choose **Content Browser → Add → New Animation Controller** to create an `.esanimator`. Click the **Idle** node in the graph and change **Kind** from **None** to **Clip** on the right. You can test this single initial state before adding transitions or parameters.
+3. In 0.112.0, **Clip** is a text field. Enter the actual project path, such as `assets/Logo.estimeline`, press Tab to commit the edit and set **Played by** to **Timeline**. For an `.esanim`, enter its own path and choose **Sprite sheet**. Click **Save** in the controller panel.
 
-For character animation, an **animator controller** holds states, transitions, and
-1D blend trees driven by named **parameters**. Author it in the editor (or
-register one in code), attach an `Animator` component naming the controller, then
-set parameters each frame through `Res(AnimatorController)` — the controller
-resolves the current state, clip, and blend.
+   ![The initial Idle state set to Clip, with assets/Logo.estimeline entered and Played by set to Timeline](@/assets/guides/en/animator-state-clip.png)
 
-A controller is an **`.esanimator` asset**: create one from the Content Browser's
-**New** menu, double-click to open the graph editor above — states with positions,
-transitions with conditions, and a **Parameters** panel — and point the `Animator`
-component's `controller` field at it with the asset picker. The scene preloads it,
-so it is registered before the first tick. Assigning a plain string instead
-resolves against controllers `registerController(...)` put there from code; both
-kinds coexist.
+4. Select the object to animate in the **World Outliner**. In **Details → Add Component**, add **Animator** and select the saved `.esanimator` in **Controller**. For a sprite clip, right-click its `.esanim` and choose **Create Animated Sprite** to create an entity with **Sprite** and **Sprite Animator**, then add **Animator** to it.
+5. Save the scene and press play on the **main toolbar**. Watch the object move or change frames in the scene. Clicking a graph node opens its properties. This example uses a controller for property animation. For timed visibility, audio or camera cues, use the [Sequencer and Timeline Player](/docs/animation/timeline/).
+
+<Aside type="note" title="Sprite clips in 0.112.0">
+  This version can miss an `.esanim` referenced only by a controller. To check the single-state example, use **Create Animated Sprite** with that clip and keep the assigned **Sprite Animator → Clip** reference in the scene. For a second clip such as `Wizet.esanim`, add **Sprite Animator** to an empty scene entity, assign the file in **Clip**, untick **Playing** and save the scene. This gives the scene a reference to load. Builds with the fix load sprite clips referenced by the controller and select **Sprite sheet** automatically for an `.esanim` file.
+</Aside>
+
+### Play the next state when a clip ends
+
+For an intro that plays `Nexon` and then `Wizet`, **no parameter condition is required**. The green triangle marks the initial state. The scene entity enters that state when its **Animator → Controller** references this controller and the scene runs.
+
+1. Select the edge from `Nexon` to `Wizet`. If it reads **⚡ toWz**, click **×** on that condition under **Transition → Conditions**, then tick **Has exit time**. You can leave `toWz` in the Parameters list. Keeping the trigger condition on the edge requires a call to `anim.setTrigger(entity, 'toWz')` for this entity.
+2. Make the first clip play once. **In 0.112.0, edit the clip asset itself.** For an `.estimeline`, open it, click the **Clip settings** icon in the Sequencer, choose **Once** in its **Loop** row and save. For an `.esanim`, turn **Loop** off in **Sprite Animation** and save. In builds with the state playback fix, you can also select the `Nexon` node and set its **Wrap Mode** to **Once**.
+3. Save the controller and scene, then press play on the main toolbar. With no conditions and **Has exit time** checked, the transition waits for the end. With no conditions and the box unchecked, it takes the transition on the first update and the opening state can pass unseen. A looping first clip keeps the controller waiting.
+
+![The transition to Run with Has exit time checked and the conditions list empty](@/assets/guides/en/animator-after-clip.png)
+
+**No motion from the first frame?** Click the initial state and check the clip and **Played by**. An `@uuid:…` on the node is a project asset reference. To identify its type, inspect the referenced asset. In the World Outliner, select the entity that should animate and check its **Animator → Controller**. If the `.esanim` plays on its own, keep **Sprite** and **Sprite Animator** on the original entity and add **Animator** to that **same entity**. A sprite state looks for its player on the controller entity. If the first clip plays and the state changes but the second clip freezes, use the 0.112.0 steps above to load the second clip as well.
+
+### Switch actions with parameters
+
+1. Click **＋ State** at the top of the graph, name it `Run` on the right and assign a second visible clip. Hover over `Idle` and drag the connector on its right edge onto `Run`. The edge reads **always** until you give it a condition.
+2. Click **＋** next to **Parameters**, name the new parameter `speed` and leave its type as **Float**. Click **always** on the edge, then **＋** beside **Conditions** in the **Transition** inspector. Select `speed`, set **Op** to `>` and enter `0`. In 0.112.0 the initial operator is ⚡. Change it to `>` to compare the float.
+3. Save the controller and the scene. During play, calling `anim.setFloat(entity, 'speed', 1)` for this entity transitions it from `Idle` to `Run`. To return to idle when the speed drops to zero, drag another edge from `Run` to `Idle` and give it the return condition.
+
+![Transition inspector showing Run as the target and speed greater than zero as its condition](@/assets/guides/en/animator-transition.png)
+
+The following character graph uses separate conditions for moving and jumping. Gameplay code sets their parameters through `AnimatorController`.
+
+![A configured Animator graph with Idle, Move and Hop states, transitions and the Parameters panel](@/assets/guides/en/animator-graph.png)
 
 ```typescript
-import { defineSystem, Query, Res, Animator, AnimatorController } from 'esengine';
 
-const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim) => {
-  for (const [entity] of q) {
-    anim.setFloat(entity, 'speed', 4.2);     // drives a 1D blend / transition
-    anim.setBool(entity, 'grounded', true);
-    anim.setTrigger(entity, 'jump');         // one-shot; resetTrigger to clear
-    const speed = anim.getFloat(entity, 'speed');
-  }
-});
+import type { AnimatorControllerAPI, Entity } from 'esengine';
+
+function updateSpeed(anim: AnimatorControllerAPI, entity: Entity, speed: number) {
+  anim.setFloat(entity, 'speed', speed);
+}
+
+function onJumpPressed(anim: AnimatorControllerAPI, entity: Entity) {
+  anim.setTrigger(entity, 'hop');
+}
 ```
 
 | `Animator` field | Type | Default | Description |
@@ -670,7 +671,7 @@ feet at height 0 and its root on the ground. Foot-plants run before the other co
 and with no physics in the game they leave the clip alone.
 
 **Avatars.** A clip names joints by whatever the exporter called them, so two
-characters rigged by two people share no clip. A `.esavatar` (New menu) is the rig's
+characters rigged by two people share no clip. An `.esavatar` (**Add → New Avatar**) is the rig's
 own translation of those names and records its bind pose; a controller's `avatar` names
 the avatar its clips were authored against, and the Animator's `avatar` field takes the rig's own. One controller then drives rigs with different bone names and
 different bind poses, and root motion is scaled to the distance each rig would
@@ -816,13 +817,7 @@ the middle, and the stick must not take it back there. Without an
 own transform; the clip simply plays on the spot.
 
 
-## Choosing the right tool
 
-<Aside type="tip">
-  Reach for **tweens** for one-off UI/juice (a button pop, a fade), **sprite
-  animation** for looping art, and the **state machine** when transitions between
-  many clips depend on gameplay parameters.
-</Aside>
 
 ## See also
 

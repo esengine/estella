@@ -26,7 +26,7 @@ import type {
     AnimatorParam,
     AnimatorParamType,
 } from './Animator';
-import type { AnimatorMotion } from './motion';
+import { isBlend1D, isBlend2D, type AnimatorMotion } from './motion';
 import {
     type GraphSpec, type GraphEdge,
     graphEdges, addGraphState, removeGraphState, moveGraphState, renameGraphState,
@@ -166,7 +166,16 @@ export function setStateProps(
     patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string }, layer = 0,
 ): AnimatorControllerDef {
     return withLayer(def, layer, {
-        states: scopeAt(def, layer).states.map((s) => (s.name === name ? { ...s, ...patch } : s)),
+        states: scopeAt(def, layer).states.map((s) => {
+            if (s.name !== name) return s;
+            const next = { ...s, ...patch };
+            if (s.motion && !isBlend1D(s.motion) && !isBlend2D(s.motion) && ('loop' in patch || 'speed' in patch)) {
+                next.motion = { ...s.motion };
+                if ('loop' in patch) next.motion.loop = patch.loop;
+                if ('speed' in patch) next.motion.speed = patch.speed;
+            }
+            return next;
+        }),
     });
 }
 

@@ -18,8 +18,12 @@ import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { AssetScope } from '../src/asset/AssetLease';
 import { SpriteAnimationAPI, SpriteAnimator, type SpriteAnimClip } from '../src/animation/SpriteAnimator';
+import { Animator } from '../src/animation/Animator';
+import { AnimationPlugin } from '../src/animation/AnimationPlugin';
+import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
+import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
 import { connectFakeCpp } from './helpers/fakeEngine';
-import { markEngineComponentBaseline, seedEngineComponents } from '../src/ecs/component';
+import { markEngineComponentBaseline, seedEngineComponents, Sprite } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { Backend } from '../src/asset/Backend';
 
@@ -46,6 +50,7 @@ vi.mock('../src/wasm/resourceManager', () => ({
 }));
 
 const platformFactory = vi.hoisted(() => () => ({
+    platformNow: () => performance.now(),
     platformCreateCanvas: () => ({
         width: 8, height: 8,
         getContext: () => ({
@@ -80,11 +85,11 @@ function clipDocument(revision: number): string {
     });
 }
 
-function buildAssets(sprites: SpriteAnimationAPI, doc: () => string) {
+function buildAssets(sprites: SpriteAnimationAPI, doc: (path: string) => string) {
     const assets = Assets.create({
         backend: {
             fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
-            fetchText: vi.fn(async () => doc()),
+            fetchText: vi.fn(async (path: string) => doc(path)),
             resolveUrl: (p: string) => `http://test/${p}`,
         } as unknown as Backend,
         module: { _malloc: vi.fn(() => 0), _free: vi.fn(), HEAPU8: new Uint8Array(1 << 16), GL: null, FS: null } as never,
@@ -146,6 +151,62 @@ describe('a persistent entity carries a ref-bound asset out of its scene', () =>
 
 describe('a registry-backed asset lives as long as it is held', () => {
     beforeEach(() => { pool = createPoolFake(); });
+
+    it('plays a controller-only sprite clip to completion and advances without a trigger', async () => {
+        const controller = 'assets/intro/logo.esanimator';
+        const nextRef = '@uuid:12345678-1234-4234-8234-123456789abc';
+        const graph = {
+            initialState: 'Nexon', parameters: [], states: [
+                { name: 'Nexon', motion: { kind: 'sprite', clip: 'nexon.esanim' },
+                    transitions: [{ to: 'Wizet', conditions: [], hasExitTime: true }] },
+                { name: 'Wizet', motion: { kind: 'sprite', clip: nextRef }, transitions: [] },
+            ],
+        };
+        const assets = buildAssets(new SpriteAnimationAPI(), path => {
+            if (path.endsWith('.esanimator')) return JSON.stringify(graph);
+            const first = path.endsWith('assets/intro/nexon.esanim');
+            if (!first && !path.endsWith('assets/intro/wizet.esanim')) throw new Error('Unexpected asset ' + path);
+            const frames = first ? 34 : 4;
+            return JSON.stringify({
+                fps: 6, loop: !first, frames: Array.from({ length: frames }, (_, cell) => ({ cell })),
+                sheet: { texture: first ? 'nexon.png' : 'wizet.png', cellWidth: 8, cellHeight: 8,
+                    pageWidth: frames * 8, pageHeight: 8 },
+            });
+        });
+        assets.setAssetRefResolver(ref => ref === nextRef ? 'assets/intro/wizet.esanim' : ref);
+        assets.register(new AnimatorControllerAssetLoader());
+        const app = App.new();
+        connectFakeCpp(app.world);
+        app.insertResource(AssetsResource, assets as never);
+        app.addPlugin(new AnimationPlugin());
+        app.addPlugin(new SkeletalAnimationPlugin());
+        const loaded = await assets.preloadSceneAssets({
+            version: '1.0', name: 'Intro', entities: [{ id: 1, name: 'Logo', parent: null, children: [],
+                components: [{ type: 'Animator', data: { controller } }, { type: 'SpriteAnimator', data: {} }] }],
+        });
+        const actor = app.world.spawn();
+        app.world.insert(actor, Animator, { controller });
+        app.world.insert(actor, SpriteAnimator, {});
+        app.world.insert(actor, Sprite, {});
+
+        const seen = new Map([['Nexon', new Set<number>()], ['Wizet', new Set<number>()]]);
+        let finishedAt = 0, switchedAt = 0;
+        for (let tick = 1; tick <= 420; tick++) {
+            await app.tick(1 / 60);
+            const state = app.world.get(actor, Animator).currentState;
+            const player = app.world.get(actor, SpriteAnimator);
+            seen.get(state)!.add(player.currentFrame);
+            if (state === 'Nexon' && player.finished && !finishedAt) finishedAt = tick;
+            if (state === 'Wizet' && !switchedAt) switchedAt = tick;
+        }
+        expect(seen.get('Nexon')!.size).toBe(34);
+        expect(finishedAt / 60).toBeCloseTo(34 / 6, 2);
+        expect(switchedAt).toBe(finishedAt + 1);
+        expect(seen.get('Wizet')!.size).toBe(4);
+        expect(app.world.get(actor, Sprite).texture).toBeGreaterThan(0);
+        loaded.scope.releaseAll();
+        expect(assets.resolveRegistryAsset('anim-clip', nextRef)).toBeUndefined();
+    });
 
     it('the last holder takes the clip and its frame textures with it', async () => {
         const sprites = new SpriteAnimationAPI();

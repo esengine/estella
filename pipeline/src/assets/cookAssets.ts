@@ -42,7 +42,7 @@ import {
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
-import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { animatorMotionAssetType, isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -332,9 +332,11 @@ function rewriteAnimatorRefs(
     states?: { motion?: unknown; stateMachine?: { states?: unknown[] } }[];
     layers?: { states?: unknown[] }[];
   };
-  // Only a motion whose clip is an ASSET: a sprite clip and a spine animation
-  // are names their own runtime holds, and rewriting those would break them.
-  const ASSET_KINDS = new Set(['timeline']);
+  const rewriteClip = (kind: string | undefined, holder: { clip?: string }): void => {
+    if (typeof holder.clip === 'string' && animatorMotionAssetType(kind, holder.clip)) {
+      holder.clip = logicalRef(holder.clip, docPath, byPath) as string;
+    }
+  };
   const walk = (motion: unknown): void => {
     if (!motion || typeof motion !== 'object') return;
     const m = motion as {
@@ -345,14 +347,18 @@ function rewriteAnimatorRefs(
       for (const child of m.thresholds ?? m.points ?? []) walk(child.motion);
       return;
     }
-    if (m.kind && ASSET_KINDS.has(m.kind) && typeof m.clip === 'string') {
-      m.clip = logicalRef(m.clip, docPath, byPath) as string;
-    }
+    rewriteClip(m.kind, m);
   };
   const states = (list: unknown[] | undefined): void => {
     for (const state of list ?? []) {
-      const st = state as { motion?: unknown; stateMachine?: { states?: unknown[] } };
+      const st = state as {
+        motion?: unknown; stateMachine?: { states?: unknown[] };
+        clip?: string; blend?: { thresholds?: { clip?: string }[] };
+      };
       walk(st.motion);
+      // Controllers saved before the motion format used clip and blend.thresholds.
+      rewriteClip('sprite', st);
+      for (const stop of st.blend?.thresholds ?? []) rewriteClip('sprite', stop);
       states(st.stateMachine?.states);
     }
   };

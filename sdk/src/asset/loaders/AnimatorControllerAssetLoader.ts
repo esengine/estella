@@ -12,41 +12,40 @@ import type {
     AssetLoader, LoadContext, AnimatorControllerResult, RegistryAssetLoader,
 } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { animatorScopes } from '../../animation/Animator';
+import { animatorScopes, motionOf } from '../../animation/Animator';
 import type { AnimatorControllerDef, AnimatorState } from '../../animation/Animator';
-import { isBlend1D, isBlend2D, type AnimatorMotion } from '../../animation/motion';
+import { isBlend1D, isBlend2D, type AnimatorMotion, type AnimatorClipMotion } from '../../animation/motion';
 import { migrateAnimatorController } from '../../animation/animatorMigrate';
-import { resolveDocumentRef } from '../documentRef';
+import { animatorMotionAssetType, resolveDocumentRef } from '../documentRef';
 
-/**
- * Motion kinds whose `clip` names an ASSET, and the type it loads as. A sprite
- * clip and a spine animation are names their own runtime already holds, so they
- * are absent rather than mapped to nothing.
- */
-const MOTION_ASSET_TYPES: Readonly<Record<string, string>> = {
-    timeline: 'timeline',
-};
+function* clipMotions(motion: AnimatorMotion): Generator<AnimatorClipMotion> {
+    if (isBlend1D(motion)) {
+        for (const stop of motion.thresholds) yield* clipMotions(stop.motion);
+    } else if (isBlend2D(motion)) {
+        for (const point of motion.points) yield* clipMotions(point.motion);
+    } else {
+        yield motion;
+    }
+}
 
-/** Every motion in the controller, across its layers, blends and sub-machines. */
-function* motionsOf(states: readonly AnimatorState[]): Generator<AnimatorMotion> {
+function* motionsOf(states: readonly AnimatorState[]): Generator<AnimatorClipMotion> {
     for (const state of states) {
-        if (state.motion) yield* flatten(state.motion);
+        const motion = motionOf(state);
+        if (motion) {
+            for (const clip of clipMotions(motion)) {
+                // Older editors stored the state controls beside the motion. Keep
+                // each blend child's own override when inheriting those settings.
+                if (clip.loop === undefined && state.loop !== undefined) clip.loop = state.loop;
+                if (clip.speed === undefined && state.speed !== undefined) clip.speed = state.speed;
+                yield clip;
+            }
+        }
         if (state.stateMachine) yield* motionsOf(state.stateMachine.states);
     }
 }
 
-/** Across every layer: a clip only a layer plays is a clip a game plays. */
-function* motionsOfController(def: AnimatorControllerDef): Generator<AnimatorMotion> {
+function* motionsOfController(def: AnimatorControllerDef): Generator<AnimatorClipMotion> {
     for (const scope of animatorScopes(def)) yield* motionsOf(scope.states);
-}
-
-function* flatten(motion: AnimatorMotion): Generator<AnimatorMotion> {
-    yield motion;
-    if (isBlend1D(motion)) {
-        for (const stop of motion.thresholds) yield* flatten(stop.motion);
-    } else if (isBlend2D(motion)) {
-        for (const point of motion.points) yield* flatten(point.motion);
-    }
 }
 
 export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorControllerResult> {
@@ -77,8 +76,7 @@ async function acquireMotionAssets(
 ): Promise<void> {
     const wanted = new Map<string, string>();
     for (const motion of motionsOfController(def)) {
-        if (isBlend1D(motion) || isBlend2D(motion)) continue;
-        const type = MOTION_ASSET_TYPES[motion.kind];
+        const type = animatorMotionAssetType(motion.kind, motion.clip);
         if (!type || !motion.clip) continue;
         motion.clip = resolveDocumentRef(path, motion.clip);
         wanted.set(motion.clip, type);
