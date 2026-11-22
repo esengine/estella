@@ -24,49 +24,10 @@ import type { Entity } from '../types';
 import type { AssetScope, AssetLease } from './AssetLease';
 import type { AssetFieldType } from '../scene/scene';
 import { findLiveAssetBindings, readLiveAssetBinding, writeLiveAssetBinding } from './liveAssetBindings';
-import { isRegistrySlotLease } from './registryAssets';
 import { log } from '../util/logger';
 
 /** The scope that owns what an entity's asset fields hold. */
 export type OwnerScopeResolver = (entity: Entity) => AssetScope;
-
-/**
- * What a bound field holds for this asset value — a handle.
- *
- * One rule for both ends of a replacement: the outgoing value an invalidation
- * reports, and the incoming lease. Undefined for an asset a field names by REF
- * rather than by value, which is not migrated at all — its slot swaps under the
- * name the field already holds.
- */
-export function boundValueIn(value: unknown): unknown {
-    if (typeof value === 'number') return value;
-    return (value as { handle?: number } | null)?.handle;
-}
-
-/** {@link boundValueIn} for what a receipt names. */
-export function boundValueOf(lease: AssetLease): unknown {
-    return boundValueIn(lease.value);
-}
-
-/** The receipt in `scope` that a bound value names, if the scope holds one. */
-export function leaseBoundAs(scope: AssetScope, value: unknown): AssetLease | undefined {
-    if (value === undefined || value === null || value === 0 || value === '') return undefined;
-    return scope.leases().find((lease) => boundValueOf(lease) === value);
-}
-
-/**
- * The slot receipt in `scope` that answers to this ref, if the scope holds one.
- *
- * The other half of {@link leaseBoundAs}: a field naming an asset by ref points
- * at a SLOT, and the slot's own names say which — no resolving a path, which
- * after an invalidate names a different era than the field is reading.
- */
-export function slotLeaseNamed(scope: AssetScope, ref: unknown): AssetLease | undefined {
-    if (typeof ref !== 'string' || ref === '') return undefined;
-    return scope.leases().find(
-        (lease) => isRegistrySlotLease(lease) && lease.names.includes(ref),
-    );
-}
 
 /** One acquisition of the replacement, and how to read the value a bound field
  *  holds for it. */
@@ -111,7 +72,8 @@ export function migrateScopeBindings(
 
     // What this scope holds for the outgoing era, found BEFORE the replacement
     // joins the scope — afterwards a search by value could match either.
-    const outgoing = leaseBoundAs(scope, oldValue);
+    const outgoing = typeof oldValue === 'number' || typeof oldValue === 'string'
+        ? scope.bindingLease(type, oldValue) : undefined;
 
     const previous = bindings.map((binding) => readLiveAssetBinding(world, binding));
     let written = 0;

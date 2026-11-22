@@ -22,7 +22,7 @@
  *          registry-backed type answered to a name an engine one already used —
  *          today that is only prevented by the file extensions differing.
  */
-import type { AssetLease } from './AssetLease';
+import { leaseBinding, type BindingLease } from './leaseBindings';
 import type { AssetWithReceipts, DependencyReceipt, Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 
@@ -49,13 +49,9 @@ export interface RegistryAssetKind<T> {
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
  *  which era is current is the slot's business and changes under the holder. */
-export interface RegistrySlotLease<T> extends AssetLease<T> {
+export interface RegistrySlotLease<T> extends BindingLease<T> {
     /** Every name that resolves to this slot: the load path and its aliases. */
     readonly names: readonly string[];
-}
-
-export function isRegistrySlotLease(lease: AssetLease): lease is RegistrySlotLease<unknown> {
-    return Array.isArray((lease as { names?: unknown }).names);
 }
 
 class Slot<T> {
@@ -73,6 +69,8 @@ class Slot<T> {
     refresh = 0;
 
     constructor(readonly type: string, readonly key: string, readonly id: number) {}
+
+    get published(): unknown { return this.era?.published; }
 }
 
 /**
@@ -198,7 +196,12 @@ export class RegistryAssetSlots {
      * runtime lookup reads, and the only copy of it.
      */
     published(type: string, name: string): unknown {
-        return this.byName_.get(lookupKey(type, name))?.era?.published;
+        return this.slot(type, name)?.published;
+    }
+
+    /** The same slot an engine-issued receipt identifies, including after a refresh. */
+    slot(type: string, name: string): { readonly type: string; readonly published: unknown } | undefined {
+        return this.byName_.get(lookupKey(type, name));
     }
 
     /** Everything published of one type. What a schedule analysis reads to learn
@@ -244,6 +247,7 @@ export class RegistryAssetSlots {
         slot.refs++;
         let spent = false;
         const lease: RegistrySlotLease<T> = {
+            [leaseBinding]: slot,
             key: slot.key,
             generation: slot.id,
             value: slot.era!.value,

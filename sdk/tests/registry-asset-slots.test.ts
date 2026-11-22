@@ -12,7 +12,6 @@
 import { describe, it, expect } from 'vitest';
 import { RegistryAssetSlots, type RegistryAssetKind } from '../src/asset/registryAssets';
 import { AssetScope, type AssetLease } from '../src/asset/AssetLease';
-import { slotLeaseNamed } from '../src/asset/liveAssetRebind';
 
 /** A kind whose every era is a distinguishable object owning one dependency. */
 function fixture() {
@@ -39,6 +38,25 @@ function fakeLease(key: string, released: string[]): AssetLease {
 }
 
 describe('retiring a slot with aliases', () => {
+    it('a populated scope index follows an alias reassigned outside the scope', async () => {
+        const { kind } = fixture();
+        const slots = new RegistryAssetSlots(), scope = new AssetScope();
+        const old = scope.add(await slots.acquire(kind, 'avatar', 'a', ['a', 'hero']));
+        const next = scope.add(await slots.acquire(kind, 'avatar', 'b', ['b']));
+        const lookup = () => scope.bindingLease('avatar', 'hero', slots.slot('avatar', 'hero'));
+        expect(lookup()).toBe(old);
+        expect(lookup()).toBe(old);
+        const foreign = new RegistryAssetSlots();
+        const foreignLease = await foreign.acquire(kind, 'avatar', 'a', ['a', 'hero']);
+        expect(scope.bindingLease('avatar', 'hero', foreign.slot('avatar', 'hero'))).toBeUndefined();
+        foreignLease.release();
+        const other = await slots.acquire(kind, 'avatar', 'b', ['b', 'hero']);
+        expect(lookup()).toBe(next);
+        other.release();
+        scope.releaseAll();
+        expect(lookup()).toBeUndefined();
+    });
+
     it('a scene follows a reassigned alias and releasing its old holder leaves its new owner live', async () => {
         const { kind, released } = fixture();
         const slots = new RegistryAssetSlots(), scope = new AssetScope();
@@ -48,7 +66,7 @@ describe('retiring a slot with aliases', () => {
         const fresh = await slots.acquire(kind, 'avatar', 'b', ['b', '@uuid:rig']);
         scope.add(fresh);
         expect(names).toEqual(['a']);
-        expect(slotLeaseNamed(scope, '@uuid:rig')).toBe(fresh);
+        expect(scope.bindingLease('avatar', '@uuid:rig', slots.slot('avatar', '@uuid:rig'))).toBe(fresh);
         old.release();
         expect(slots.has('avatar', 'a')).toBe(false);
         expect(slots.published('avatar', '@uuid:rig')).toBe(slots.published('avatar', 'b'));

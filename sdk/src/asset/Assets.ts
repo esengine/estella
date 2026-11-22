@@ -27,6 +27,7 @@ import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
+import { leaseBinding, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import {
@@ -2019,8 +2020,9 @@ export class Assets {
      */
     private textureLease_(
         lease: AssetRefLease<number>, value: TextureResult,
-    ): AssetLease<TextureResult> {
+    ): BindingLease<TextureResult> {
         return {
+            [leaseBinding]: 'texture',
             key: lease.key, generation: lease.generation, value,
             release: () => this.releaseTextureLease(lease),
             retain: () => {
@@ -2039,14 +2041,15 @@ export class Assets {
         return ownedAssetLease(`composed:${value.handle}`, value.handle, value, texture => {
             requireResourceManager().releaseTexture(texture.handle);
             evictTextureDimensions(texture.handle);
-        });
+        }, 'texture');
     }
 
     /** {@link textureLease_} for everything that goes through a typed loader. */
     private typedLease_<T>(
         type: string, lease: AssetRefLease<PreparedLoad<unknown>>, value: T,
-    ): AssetLease<T> {
+    ): BindingLease<T> {
         return {
+            [leaseBinding]: type,
             key: lease.key, generation: lease.generation, value,
             failedDependencies: lease.value.failedDependencies,
             release: () => this.releaseTypedLease(type, lease),
@@ -2855,8 +2858,21 @@ export class Assets {
      * @internal
      */
     resolveRegistryAsset<T>(type: string, ref: string): T | undefined {
-        return (this.registrySlots_.published(type, ref)
-            ?? this.registrySlots_.published(type, this.assetIdentity_(ref))) as T | undefined;
+        return this.publishedSlot_(type, ref)?.published as T | undefined;
+    }
+
+    private publishedSlot_(type: string, ref: string) {
+        const direct = this.registrySlots_.slot(type, ref);
+        if (direct?.published != null) return direct;
+        const identity = this.assetIdentity_(ref);
+        return identity === ref ? direct : this.registrySlots_.slot(type, identity);
+    }
+
+    /** @internal Resolve a live field through its loader type and the owning scope. */
+    leaseForBinding(scope: AssetScope, type: string, value: unknown): AssetLease | undefined {
+        if (typeof value === 'number') return scope.bindingLease(type, value);
+        if (typeof value === 'string' && value) return scope.bindingLease(type, value, this.publishedSlot_(type, value));
+        return undefined;
     }
 
     /** @internal Changes when a registry type publishes, replaces or withdraws an era. */

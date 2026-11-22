@@ -17,7 +17,7 @@
  */
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { getComponentRegistry, type AnyComponentDef } from '../ecs/component';
+import { builtinComponentRegistry, getComponentRegistry, getUserComponents, type AnyComponentDef } from '../ecs/component';
 import type { AssetFieldType } from '../scene/scene';
 
 /** One field of one live component, bound to the asset being replaced. */
@@ -64,15 +64,19 @@ export function findLiveAssetBindings(
     return found;
 }
 
-/** Every asset field this one entity carries, whatever the type. */
-export function assetBindingsOf(world: World, entity: Entity): LiveAssetBinding[] {
-    const found: LiveAssetBinding[] = [];
-    for (const component of getComponentRegistry().values()) {
-        if (component.assetFields.length === 0) continue;
-        if (!world.has(entity, component)) continue;
-        for (const { field } of component.assetFields) found.push({ entity, component, field });
+/** Read each bound component once, including fields declared by this project's plugins. */
+export function visitEntityAssetBindings(
+    world: World, entity: Entity, visit: (type: AssetFieldType, value: unknown) => void,
+): void {
+    const users = getUserComponents();
+    for (const registry of [builtinComponentRegistry(), users]) {
+        for (const component of registry.values()) {
+            if (!component.assetFields.length || (registry !== users && users.has(component._name))) continue;
+            if (!world.has(entity, component)) continue;
+            const data = world.get(entity, component) as Record<string, unknown>;
+            for (const { field, type } of component.assetFields) visit(type, data[field]);
+        }
     }
-    return found;
 }
 
 /** Read one binding's current value — what a rollback has to put back. */

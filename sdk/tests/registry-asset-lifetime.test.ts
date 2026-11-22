@@ -23,6 +23,7 @@ import { loadSceneWithAssets, serializeScene } from '../src/scene/scene';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
 import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
 import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
+import { AvatarAssetLoader } from '../src/asset/loaders/AvatarAssetLoader';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { markEngineComponentBaseline, seedEngineComponents, Sprite } from '../src/ecs/component';
 import type { Entity } from '../src/types';
@@ -109,6 +110,35 @@ markEngineComponentBaseline();
 
 describe('a persistent entity carries a ref-bound asset out of its scene', () => {
     beforeEach(() => { pool = createPoolFake(); seedEngineComponents(); });
+
+    it.each(['shared name', 'UUID for a path acquisition'])('keeps the sprite clip for a %s', async mode => {
+        const app = App.new(), sprites = new SpriteAnimationAPI();
+        connectFakeCpp(app.world);
+        const assets = buildAssets(sprites, () => JSON.stringify({ fps: 12, frames: [], joints: { hip: 'Rig/Hip' } }));
+        const manager = new SceneManagerState(app);
+        app.insertResource(AssetsResource, assets);
+        assets.register(new AvatarAssetLoader());
+        const path = 'assets/character.json';
+        const ref = mode === 'shared name' ? path : '@uuid:e85e5e12-93bf-4eab-93c7-88db872b7581';
+        assets.setAssetRefResolver(name => name === ref ? path : name);
+        let entity!: Entity;
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            scope.add(await assets.acquireTyped('avatar', path));
+            scope.add(await assets.acquireTyped('anim-clip', path));
+            ctx.trackAssetScope(scope);
+            entity = ctx.spawn();
+            app.world.insert(entity, SpriteAnimator, { clip: ref });
+            ctx.setPersistent(entity, true);
+        } });
+        await manager.load('level');
+        expect(sprites.getClip(ref)?.fps).toBe(12);
+        await manager.unload('level');
+        expect(sprites.getClip(ref)?.fps).toBe(12);
+        expect(assets.resolveRegistryAsset('avatar', path)).toBeUndefined();
+        app.world.despawn(entity);
+        expect(assets.sizes().registrySlots).toBe(0);
+    });
 
     it('a persistent sprite retains the clip its remapped UUID currently names', async () => {
         const app = App.new();

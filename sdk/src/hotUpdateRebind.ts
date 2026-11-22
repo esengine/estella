@@ -35,7 +35,8 @@ import type { Assets } from './asset/Assets';
 import type { AssetScope, AssetLease } from './asset/AssetLease';
 import type { AssetFieldType } from './scene/scene';
 import { componentsBindingAssetTypes } from './asset/liveAssetBindings';
-import { boundValueIn, boundValueOf, migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
+import { migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
+import { boundValueIn, boundValueOf } from './asset/leaseBindings';
 import { log } from './util/logger';
 
 /** Take the replacement out of the realm — by receipt, whatever its kind. */

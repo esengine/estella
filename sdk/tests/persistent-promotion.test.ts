@@ -100,6 +100,83 @@ async function settle(app: App, frames = 4): Promise<void> {
 describe('a persistent entity owns what it carries out of the scene', () => {
     beforeEach(() => { pool = createPoolFake(); });
 
+    it('retains the mesh and the texture independently when their pools return the same handle', async () => {
+        const { app, assets, manager } = harness();
+        const releaseMesh = vi.fn();
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async () => ({ handle: 1 }), unload: releaseMesh });
+        let entity!: Entity;
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            const mesh = scope.add(await assets.acquireTyped<{ handle: number }>('mesh', 'hero.esmesh'));
+            const texture = scope.add(await assets.acquireTexture('hero.png'));
+            expect(texture.value.handle).toBe(mesh.value.handle);
+            ctx.trackAssetScope(scope);
+            entity = ctx.spawn();
+            app.world.insert(entity, MeshRenderer, { mesh: mesh.value.handle, texture: texture.value.handle });
+            ctx.setPersistent(entity, true);
+        } });
+        await manager.load('level');
+        await manager.unload('level');
+        expect(assets.entityScopes.scopeFor(entity, app.world)?.size).toBe(2);
+        expect(pool.releaseTexture).not.toHaveBeenCalled();
+        expect(releaseMesh).not.toHaveBeenCalled();
+        app.world.despawn(entity);
+        expect(pool.releaseTexture).toHaveBeenCalledWith(1);
+        expect(releaseMesh).toHaveBeenCalledTimes(1);
+    });
+
+    it('hot rebind releases the outgoing texture even when a mesh has the same handle', async () => {
+        const { app, assets, manager } = harness(true);
+        const releaseMesh = vi.fn();
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async () => ({ handle: 1 }), unload: releaseMesh });
+        let entity!: Entity;
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            scope.add(await assets.acquireTyped('mesh', 'hero.esmesh'));
+            const texture = scope.add(await assets.acquireTexture('hero.png'));
+            expect(texture.value.handle).toBe(1);
+            ctx.trackAssetScope(scope);
+            entity = ctx.spawn();
+            app.world.insert(entity, MeshRenderer, { mesh: 1, texture: 1 });
+        } });
+        await manager.load('level');
+        assets.invalidate('hero.png');
+        await settle(app);
+        expect(app.world.get(entity, MeshRenderer)).toMatchObject({ mesh: 1, texture: 2 });
+        expect(pool.releaseTexture).toHaveBeenCalledWith(1);
+        expect(releaseMesh).not.toHaveBeenCalled();
+        await manager.unload('level');
+        expect(releaseMesh).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the scene receipts a bounded number of times while promoting many meshes', async () => {
+        const { app, assets, manager } = harness();
+        const count = 64, entities: Entity[] = [];
+        let reads = 0, next = 0;
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async () => {
+            const handle = ++next;
+            return { get handle() { reads++; return handle; } };
+        } });
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            for (let i = 0; i < count; i++) {
+                const lease = scope.add(await assets.acquireTyped<{ handle: number }>('mesh', `mesh-${i}.esmesh`));
+                const entity = ctx.spawn();
+                app.world.insert(entity, MeshRenderer, { mesh: lease.value.handle });
+                ctx.setPersistent(entity, true);
+                entities.push(entity);
+            }
+            ctx.trackAssetScope(scope);
+        } });
+        await manager.load('level');
+        reads = 0;
+        await manager.unload('level');
+        expect(assets.entityScopes.size).toBe(count);
+        expect(reads).toBeLessThanOrEqual(3 * count);
+        for (const entity of entities) app.world.despawn(entity);
+        expect(assets.entityScopes.size).toBe(0);
+    });
+
     it('releases a scope returned to a setup after its scene was unloaded', async () => {
         const { app, assets, manager } = harness();
         const base = assets.sizes().refRows;

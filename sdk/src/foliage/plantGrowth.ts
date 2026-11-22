@@ -89,7 +89,7 @@ export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind
         const made = source ? assets.createMesh(softenNormals(source, soft)) : 0;
         if (made === 0) return loaded;
         owned.push(made);
-        scope.add(ownedAssetLease(key, made, made, handle => assets.releaseBuiltMesh(handle)));
+        scope.add(ownedAssetLease(key, made, made, handle => assets.releaseBuiltMesh(handle), 'mesh'));
         handles.set(key, made);
         return made;
     };

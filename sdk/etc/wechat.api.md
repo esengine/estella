@@ -1049,6 +1049,7 @@ refCount: number
 
 ## AssetScope — class @experimental
 ```
+@internal bindingLease: (type: string, value: number | string, slot?: object) => AssetLease | undefined
 @internal leases: () => readonly AssetLease[]
 absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
@@ -1084,6 +1085,7 @@ ResourceDef<AssetsClass>
 @internal entityScopes: EntityAssetScopes
 @internal epoch: number
 @internal handleBoundTypes: () => string[]
+@internal leaseForBinding: (scope: AssetScope, type: string, value: unknown) => AssetLease | undefined
 @internal preparePrefab: (ref: string, overrides?: readonly PrefabOverride[]) => Promise<PreparedPrefab>
 @internal publishedRegistryAssets: <T>(type: string) => T[]
 @internal registryAssetVersion: (type: string) => number

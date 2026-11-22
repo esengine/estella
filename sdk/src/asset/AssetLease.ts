@@ -11,6 +11,7 @@
  */
 
 import { disposeAll } from '../util/disposeAll';
+import { firstBindingLease, leaseBinding, LeaseBindings, type BindingLease } from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
 
@@ -35,13 +36,13 @@ export interface AssetLease<T = unknown> {
 }
 
 /** A composed resource has no cache generation to re-acquire. Its last receipt disposes it. */
-export function ownedAssetLease<T>(key: string, generation: number, value: T, dispose: (value: T) => void): AssetLease<T> {
+export function ownedAssetLease<T>(key: string, generation: number, value: T, dispose: (value: T) => void, type?: string): AssetLease<T> {
     let holders = 0;
-    const acquire = (): AssetLease<T> => {
+    const acquire = (): BindingLease<T> => {
         holders++;
         let spent = false;
         return {
-            key, generation, value,
+            key, generation, value, [leaseBinding]: type,
             release: () => {
                 if (spent) return;
                 spent = true;
@@ -63,6 +64,8 @@ export function ownedAssetLease<T>(key: string, generation: number, value: T, di
  */
 export class AssetScope {
     private leases_: AssetLease[] = [];
+    /** Null after the first search. Repeated lookups share an index until a receipt is removed. */
+    private bindings_?: LeaseBindings | null;
 
     add<T>(lease: AssetLease<T>): AssetLease<T> {
         this.leases_.push(lease as AssetLease);
@@ -75,6 +78,7 @@ export class AssetScope {
     releaseAll(): void {
         const leases = this.leases_;
         this.leases_ = [];
+        this.bindings_ = undefined;
         // Detach before callbacks: a reentrant release cannot spend this batch.
         disposeAll(leases, releaseLease, true);
     }
@@ -90,6 +94,7 @@ export class AssetScope {
         if (other === this) return;
         for (const lease of other.leases_) this.leases_.push(lease);
         other.leases_ = [];
+        other.bindings_ = undefined;
     }
 
     /** Stop tracking one lease without releasing it — for an ownership transfer. */
@@ -97,7 +102,19 @@ export class AssetScope {
         const i = this.leases_.indexOf(lease);
         if (i < 0) return false;
         this.leases_.splice(i, 1);
+        this.bindings_ = undefined;
         return true;
+    }
+
+    /** @internal The receipt this scope owns for a live component field. */
+    bindingLease(type: string, value: number | string, slot?: object): AssetLease | undefined {
+        if (!value || !this.leases_.length) return undefined;
+        if (this.bindings_ === undefined || this.leases_.length === 1) {
+            this.bindings_ = null;
+            return firstBindingLease(this.leases_, type, value, slot);
+        }
+        this.bindings_ ??= new LeaseBindings();
+        return this.bindings_.find(this.leases_, type, value, slot);
     }
 
     /** How many acquisitions this scope still owes. Diagnostics and tests. */

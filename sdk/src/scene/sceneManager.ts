@@ -9,8 +9,8 @@ import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
-import { assetBindingsOf, readLiveAssetBinding } from '../asset/liveAssetBindings';
-import { leaseBoundAs, slotLeaseNamed } from '../asset/liveAssetRebind';
+import { visitEntityAssetBindings } from '../asset/liveAssetBindings';
+import { sameAcquisition } from '../asset/leaseBindings';
 import type { SystemDef } from '../ecs/system';
 import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
@@ -704,21 +704,17 @@ export class SceneManagerState {
      * slot that publishes it.
      */
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
-        const assets = this.app_.hasResource(Assets) ? this.app_.getResource(Assets) : null;
-        if (!assets) return;
+        if (!instance.assetScope.size || !this.app_.hasResource(Assets)) return;
+        const assets = this.app_.getResource(Assets);
         const sources = new Set<AssetLease>();
-        for (const binding of assetBindingsOf(this.app_.world, entity)) {
-            const bound = readLiveAssetBinding(this.app_.world, binding);
-            // By value for a handle, by name for a ref: the two ways a field can
-            // say which acquisition it is reading.
-            const held = leaseBoundAs(instance.assetScope, bound)
-                ?? slotLeaseNamed(instance.assetScope, bound);
+        visitEntityAssetBindings(this.app_.world, entity, (type, value) => {
+            const held = assets.leaseForBinding(instance.assetScope, type, value);
             if (held) sources.add(held);
-        }
+        });
         if (sources.size === 0) return;
         const scope = assets.entityScopes.ensure(this.app_.world, entity);
         for (const source of sources) {
-            if (scope.leases().some(held => held.key === source.key && held.generation === source.generation)) continue;
+            if (scope.leases().some(held => sameAcquisition(held, source))) continue;
             const retained = source.retain();
             if (retained) scope.add(retained);
         }
