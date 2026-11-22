@@ -153,12 +153,24 @@ export function surfHeight(shore: number, height: number, length: number, speed:
     if (height <= 0 || length <= 0) return 0;
     const reach = length * 4;
     if (shore > reach || shore < -reach * 0.05) return 0;
-    const celerity = Math.sqrt(waterGravity() * length / TAU) * speed;
-    const u = fract(phase / length + (celerity * time) / length);
+    const u = surfPhase(phase, length, speed, time);
     // Seaward of a crest the water falls away slowly; shoreward its face is steep.
     const face = 0.2;
     const g = u > 1 - face ? smooth01((u - (1 - face)) / face) : 1 - smooth01(u / (1 - face));
     return height * g * g * surfEnvelope(shore, reach);
+}
+
+/** The shore-distance phase of the rendered breaker, zero at its crest. */
+export function surfPhase(distance: number, length: number, speed: number, time: number): number {
+    return fract((distance + Math.sqrt(waterGravity() * length / TAU) * speed * time) / length);
+}
+
+/** Air entrainment in a breaking crest. A gentle swell or deep water carries no whitewater. */
+export function breakingCrest(shore: number, height: number, length: number, phase: number): number {
+    if (height <= 0 || length <= 0 || shore <= 0) return 0;
+    const face = phase > 0.8 ? smooth01((phase - 0.8) / 0.2) : 1 - smooth01(phase / 0.8);
+    return smooth01((height / length - 0.012) / 0.033) * smooth01((face - 0.92) / 0.08)
+        * smooth01(shore / (0.18 * length)) * (1 - smooth01((shore / length - 0.6) / 1.0));
 }
 
 /** How much of the surf stands at `shore`: none out past its reach, rising as the water shoals, and dying as it runs up the ground. */

@@ -8,11 +8,12 @@ import { describe, expect, it } from 'vitest';
 import { WaterField, WaterZone, inExclusion, insideBody, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean, type ZoneRiver } from '../src/water/zone';
 import type { Point2 } from '../src/water/shore';
 import { App } from '../src/app/app';
+import { Time } from '../src/ecs/resource';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Camera, Transform } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
-import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin } from '../src/water/waterPlugin';
+import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin, Waters } from '../src/water/waterPlugin';
 import { UnderwaterPlugin } from '../src/water/underwater';
 import { currentUnderwater } from '../src/postprocess/underwater';
 
@@ -35,6 +36,29 @@ describe('the waves calmed by depth', () => {
         expect(calmAt(0)).toBeCloseTo(1, 2);
         // Absent, the shore width (1) says it: a unit deep is calm-free.
         expect(calmAt()).toBeCloseTo(1, 2);
+    });
+});
+
+describe('a breaking crest sampled for particles', () => {
+    it('follows the surface and local shore normal through a period and rejects dry and flat water', () => {
+        const waters = new Waters(), app = App.new();
+        app.insertResource(Time, { ...Time._default, elapsed: 0 });
+        const clock = app.getResource(Time);
+        waters.app_ = app;
+        waters.zone_ = { ...WaterZone._default, surf: 1, surfLength: 14, waveSpeed: 0.85 };
+        const sea: ZoneOcean = { kind: 'ocean', key: 3, level: 0, waveHeight: 2, shoreWidth: 2 };
+        waters.field_ = WaterField.bake(grid, [sea], (x, z) => -z + x * 0.1, 14, [], 0.4);
+        const first = waters.sampleBreaker(0, 8)!;
+        clock.elapsed = (1 - first.phase) * first.wavelength / first.celerity;
+        const crest = waters.sampleBreaker(0, 8)!;
+        expect(crest.strength).toBeGreaterThan(0.95);
+        expect(crest.shoreward[1]).toBeLessThan(-0.9);
+        expect(crest.surface[1]).toBeCloseTo(waters.heightAt(0, 8)!, 8);
+        clock.elapsed += first.wavelength * 0.55 / first.celerity;
+        expect(waters.sampleBreaker(0, 8)!.strength).toBe(0);
+        expect(waters.sampleBreaker(0, -8)).toBeNull();
+        waters.quality = { ...waters.quality, displacement: false };
+        expect(waters.sampleBreaker(0, 8)).toBeNull();
     });
 });
 

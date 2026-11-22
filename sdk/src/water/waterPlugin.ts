@@ -39,7 +39,7 @@ import { BlendMode } from '../render/blend';
 import { log } from '../util/logger';
 import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
-import { surfHeight, waveHeight, waveSlope, waterGravity, WAVE_SET_SIZE, type WaveParams } from './waves';
+import { breakingCrest, surfHeight, surfPhase, waveHeight, waveSlope, waterGravity, WAVE_SET_SIZE, type WaveParams } from './waves';
 import { oceanReach } from './waterMesh';
 import { waterTileLayout, waterCoverage, waterViewPlanes, selectWaterTiles, buildWaterTiles, buildWaterApron, waterMaterialMeshes, type TileLayout } from './waterTiles';
 import { worldUnitScale } from '../ecs/worldUnits';
@@ -51,7 +51,7 @@ import { SplineCurve } from '../spline/curve';
 import { RippleField } from './ripples';
 import {
     WaterField, WaterZone, currentShare, inExclusion, insideBody,
-    type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
+    type FieldSample, type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
@@ -281,6 +281,23 @@ export interface WaterSample {
     inside: boolean;
 }
 
+/** A point on a shore break at the current simulation time, in project world units. @experimental */
+export interface WaterBreakerSample {
+    surface: [number, number, number];
+    shoreward: [number, number];
+    /** Signed distance to the rest shoreline, positive in water. */
+    shore: number;
+    /** Distance field that bends each crest around the shore, and its current phase (zero at the lip). */
+    phaseDistance: number;
+    phase: number;
+    wavelength: number;
+    celerity: number;
+    /** Height from the incoming surf alone, excluding the rest level, wind waves and local ripples. */
+    rise: number;
+    /** Potential to throw a jet at this point, from zero to one. */
+    strength: number;
+}
+
 /** What the quality level lets water spend: waves summed, the ripple grid's side, whether waves lift the geometry, the mirror from below, the sun's light through it. */
 export interface WaterQuality {
     waves: number;
@@ -403,17 +420,54 @@ export class Waters {
         const time = this.app_.getResource(Time).elapsed;
         const params = this.waves(s.amp, s.exposure);
         const zone = this.zone_;
-        const still = s.still;
         // Surf is swell come in from open water: sheltered water has as little of it as it is sheltered.
-        const surf = surfHeight(s.shore, zone.surf * grown(s.exposure) * s.swell * s.exposure * still, zone.surfLength, zone.waveSpeed, time, s.surf);
+        const surf = this.surfAt(s, time);
         // The lite water is flat: its waves are in the shading, so the height code reads is the rest plane's.
         const h = s.height + (this.quality.displacement ? waveHeight(params, x, z, time) + surf : 0) + (this.ripples_?.heightAt(x, z) ?? 0);
-        const [sx, sz] = waveSlope(params, x, z, time);
+        let [sx, sz] = this.quality.displacement ? waveSlope(params, x, z, time) : [0, 0];
+        if (surf > 0 && this.quality.displacement) {
+            const step = Math.max(zone.surfLength / 128, 1e-5);
+            const localSurf = (px: number, pz: number): number => {
+                const at = field.at(px, pz);
+                return at ? this.surfAt(at, time) : surf;
+            };
+            sx += (localSurf(x + step, z) - localSurf(x - step, z)) / (2 * step);
+            sz += (localSurf(x, z + step) - localSurf(x, z - step)) / (2 * step);
+        }
         const len = Math.hypot(sx, 1, sz);
         return {
             entity: s.key as Entity, bodyId: this.bodyIdOf(s.key as Entity), depth: y - h, normal: [-sx / len, 1 / len, -sz / len], flow: [s.flowX, 0, s.flowZ], surface: [x, h, z],
             waterDepth: s.depth, audioIntensity: s.audio, inside: true,
         };
+    }
+
+    private surfAt(s: FieldSample, time: number): number {
+        const z = this.zone_;
+        return surfHeight(s.shore, z.surf * grown(s.exposure) * s.swell * s.exposure * s.still,
+            z.surfLength, z.waveSpeed, time, s.surf);
+    }
+
+    /** The animated shore break at (x,z), for water-driven spray and rolled foam. Null outside its wet surf band. @experimental */
+    sampleBreaker(x: number, z: number): WaterBreakerSample | null {
+        const field = this.field_, zone = this.zone_;
+        if (!this.app_ || !field || !this.quality.displacement || zone.surf <= 0 || zone.surfLength <= 0) return null;
+        const s = field.at(x, z);
+        if (!s || s.shore <= 0 || s.shore >= 4 * zone.surfLength || s.still <= 0) return null;
+        const height = zone.surf * grown(s.exposure) * s.swell * s.exposure * s.still;
+        if (height <= 0) return null;
+        const time = this.app_.getResource(Time).elapsed;
+        const rise = this.surfAt(s, time);
+        const y = s.height + waveHeight(this.waves(s.amp, s.exposure), x, z, time) + rise + (this.ripples_?.heightAt(x, z) ?? 0);
+        if (this.exclusions_.some(e => inExclusion(e, x, y, z, s.key))) return null;
+        const step = Math.max(field.grid.sizeX / (field.grid.nx - 1), field.grid.sizeZ / (field.grid.nz - 1));
+        const dx = ((field.at(x - step, z)?.surf ?? s.surf) - (field.at(x + step, z)?.surf ?? s.surf)) / (2 * step);
+        const dz = ((field.at(x, z - step)?.surf ?? s.surf) - (field.at(x, z + step)?.surf ?? s.surf)) / (2 * step);
+        const gradient = Math.hypot(dx, dz);
+        if (gradient < 0.1) return null;
+        const wavelength = zone.surfLength, phase = surfPhase(s.surf, wavelength, zone.waveSpeed, time);
+        return { surface: [x, y, z], shoreward: [dx / gradient, dz / gradient], shore: s.shore, phaseDistance: s.surf, phase,
+            wavelength, celerity: Math.sqrt(waterGravity() * wavelength / (2 * Math.PI)) * zone.waveSpeed, rise,
+            strength: breakingCrest(s.shore, height, wavelength, phase) };
     }
 
     /**
@@ -731,7 +785,7 @@ export class WaterPlugin implements Plugin {
                 // A big zone is a second or more of work: it is spread over frames and shown while it runs.
                 this.baking_?.cancel();
                 const key = inputs.key;
-                const job = bakesOf(app).run('Baking the water', WaterField.baking(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength, inputs.exclusions));
+                const job = bakesOf(app).run('Baking the water', WaterField.baking(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength, inputs.exclusions, inputs.zone.surfSpread));
                 this.baking_ = { key, cancel: job.cancel };
                 waters.baking = true;
                 void job.done.then((field) => {
@@ -908,7 +962,7 @@ export class WaterPlugin implements Plugin {
         for (const b of bodies) b.exposure = exposureOf(b, zone.waveLength);
         const terrain = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const ground = terrain && terrain.built_.size > 0 ? terrain.revision_ : -1;
-        return { bodies, beds, exclusions, zoneLevel, influences, zoneEntity, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.waveLength]) };
+        return { bodies, beds, exclusions, zoneLevel, influences, zoneEntity, grid, zone, key: JSON.stringify([keyParts, grid, ground, zone.surfLength, zone.surfSpread, zone.waveLength]) };
     }
 
     /**
@@ -1083,6 +1137,8 @@ export class WaterPlugin implements Plugin {
         for (let k = 0; k < field.causticLook.length / 2; k++) {
             surfaceData[layer * 2 + k * 4] = Math.round(field.causticLook[k * 2]! / field.causticRange * 255);
             surfaceData[layer * 2 + k * 4 + 1] = Math.round(field.causticLook[k * 2 + 1]! * 255);
+            surfaceData[layer * 2 + k * 4 + 2] = field.swashGround[k] === 2 ? 255 : 0;
+            surfaceData[layer * 2 + k * 4 + 3] = field.swashGround[k] ? 255 : 0;
         }
         s.surfaceData = createTextureFromPixels(app.wasmModule, { width: w, height: h * 3, pixels: surfaceData }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
@@ -1205,8 +1261,14 @@ export class WaterPlugin implements Plugin {
         set('u_surfLength', zone.surfLength);
         set('u_surfSpeed', zone.waveSpeed);
         // Both wireframe views draw only the submitted triangle edges.
-        const optics = this.waters_.meshView > 0 ? null : this.opticalField.update(s.instance, q.caustics ? q.causticFieldSize ?? 0 : 0, eye[0], eye[2],
-            Math.max(waves.length * 3, 1e-3), lowY, Math.max(highY - lowY, 1e-3),
+        // A perspective view sees receivers ahead of the lens. Keep the lens inside the same source window
+        // while spending more of the fixed texel budget on the visible bed. Orthographic and shared views stay centred.
+        const span = Math.max(waves.length * 3, 1e-3);
+        const view = single && camera?.valid ? camera.viewProjection : null;
+        const opticsX = eye[0] + (view?.[3] ?? 0) * span * 0.22;
+        const opticsZ = eye[2] + (view?.[11] ?? 0) * span * 0.22;
+        const optics = this.waters_.meshView > 0 ? null : this.opticalField.update(s.instance, q.caustics ? q.causticFieldSize ?? 0 : 0, opticsX, opticsZ,
+            span, lowY, Math.max(highY - lowY, 1e-3),
             this.waters_.depthAt(eye[0], eye[2], 0) ?? ocean?.level ?? this.waters_.zoneLevel_, Math.max(waves.length * 0.125, 1e-3), app.getResource(Time).elapsed);
         this.waters_.opticalField_ = optics;
         for (const i of materials) {

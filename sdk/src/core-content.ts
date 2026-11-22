@@ -920,7 +920,7 @@ export { Spline, SplinePlugin, splinePlugin, PathFollower, PathMode, PathOrient,
 export { TerrainBand2D, buildTerrainBand, type TerrainBand2DData, type TerrainBandBuild } from './spline/terrainBand2D';
 export { SplineCurve, SPLINE_POINT_TYPES, type SplinePoint, type SplineNearest, type SplinePointType, type SplinePointValue } from './spline/curve';
 export {
-    WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample,
+    WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample, type WaterBreakerSample,
 } from './water/waterPlugin';
 export { WAVE_SET, waveFade, waveHeight, waveSlope, type WaveParams } from './water/waves';
 export { WaterZone, WaterField, currentShare, type WaterZoneData, type FieldSample } from './water/zone';

@@ -9,6 +9,8 @@ import { CAUSTIC_PROJECTION } from './causticProjection';
 import { CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES } from '../render/waterCaustics';
 
 export interface OpticalField {
+    /** Same frame's packed normal and elevation before forward projection. */
+    surfaceTexture?: number;
     texture: number;
     rect: { x: number; y: number; z: number; w: number };
     elevation: { x: number; y: number; z: number; w: number };
@@ -74,7 +76,7 @@ export class WaterOpticalField {
             this.failed = true;
             return null;
         }
-        return this.ready ? { texture: this.texture, rect, elevation } : null;
+        return this.ready ? { texture: this.texture, surfaceTexture: this.source.texture, rect, elevation } : null;
     }
 
     release(): void {

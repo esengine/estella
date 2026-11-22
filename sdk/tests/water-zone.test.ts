@@ -20,6 +20,30 @@ const ocean = (level = -5): ZoneOcean => ({ kind: 'ocean', key: 3, level, waveHe
 const grid: ZoneGrid = { minX: -80, minZ: -40, sizeX: 120, sizeZ: 80, nx: 241, nz: 161 };
 const bake = (bodies: ZoneBody[], ground?: (x: number, z: number) => number | null): WaterField => WaterField.bake(grid, bodies, ground);
 
+describe('an incoming shore break', () => {
+    const beach = (spread: number) => WaterField.bake(grid, [ocean(0)], (_x, z) => -z, 10, [], spread);
+
+    it('carries swell across the still shoreline without turning dry land into deep water', () => {
+        const field = beach(0), dry = field.at(0, -2)!;
+        expect(dry.shore).toBeLessThan(0);
+        expect(dry.swell).toBe(2);
+        expect(dry.amp).toBe(0);
+        const cell = (x: number, z: number) => Math.round((z - grid.minZ) / grid.sizeZ * (grid.nz - 1)) * grid.nx
+            + Math.round((x - grid.minX) / grid.sizeX * (grid.nx - 1));
+        expect(field.swashGround[cell(0, -2)]).toBe(2);
+        expect(field.swashGround[cell(0, 2)]).toBe(1);
+        expect(bake([lake()]).swashGround[cell(24, 0)]).toBe(0);
+        expect(field.sample(0, -2)).toBeNull();
+    });
+
+    it('bends the shared surf phase along a straight beach while preserving its physical shoreline', () => {
+        const straight = beach(0), spread = beach(1);
+        expect(straight.at(-3, 5)!.surf).toBeCloseTo(straight.at(7, 5)!.surf, 4);
+        expect(spread.at(-3, 5)!.surf).not.toBeCloseTo(spread.at(7, 5)!.surf, 1);
+        expect(spread.at(-3, 5)!.shore).toEqual(straight.at(-3, 5)!.shore);
+    });
+});
+
 describe('surface and junction materials', () => {
     it('uses the body material in its interior and the river junction material at the lake edge', () => {
         const stream = { ...river(), material: 12, riverToLake: 23, riverToOcean: 27 };

@@ -39,6 +39,8 @@ export interface WaterZoneData {
     /** The surf: how high a breaker stands against its body's waves (0 draws none), and how long the surf's waves are, in world units. */
     surf: number;
     surfLength: number;
+    /** Directional spread of the incoming shore break, from straight crests (0) to crossing swell (1). */
+    surfSpread?: number;
     /** Width of a base tile in project units. Zero derives it from the old cell settings. */
     tileSize: number;
     /** Base tiles from the zone centre to either edge along X and Z. */
@@ -80,7 +82,7 @@ export interface WaterZoneData {
 export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComponent<WaterZoneData>('WaterZone', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): 14 m waves on metre cells in any project.
     sizeX: 20000, sizeZ: 20000, resolution: 256, material: 0,
-    waveLength: 1400, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 800,
+    waveLength: 1400, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 800, surfSpread: 0,
     cellSize: 100, cells: 64, rings: 5,
     tileSize: 0, extentInTiles: { x: 0, y: 0 }, tessellationFactor: 3, lodScale: 1, forceCollapseDensityLevel: -1,
     ripples: 0, rippleSize: 6400, rippleSpeed: 600, rippleDamping: 0.8, foamFade: 0.4,
@@ -98,6 +100,7 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
         waveSpeed: { min: 0, max: 4, category: 'Waves', tooltip: 'A multiplier on how fast the waves travel.' },
         waveDirection: { min: 0, max: 360, category: 'Waves', tooltip: 'The heading of the waves, in degrees.' },
         surf: { min: 0, max: 4, category: 'Waves', tooltip: 'How high the surf breaking on a shore stands against its body\'s waves. 0 draws none. A current carries none.' },
+        surfSpread: { min: 0, max: 1, category: 'Waves', tooltip: 'Bends incoming crests along the beach. Run-up, spray sampling and refracted light follow the same crest field.' },
         surfLength: { min: 0.1, max: 100000, category: 'Waves', tooltip: 'The length of the surf\'s waves, in world units. They run in over four lengths of water, break, and run up the ground past the shore.' },
         forceCollapseDensityLevel: { min: -1, max: 9, step: 1, category: 'Mesh', tooltip: 'First level allowed to merge partially wet tiles. -1 retains the shoreline silhouette.' },
         tileSize: { min: 0, category: 'Mesh', tooltip: 'Width of a base tile in project units. Zero uses the legacy cell size.' },
@@ -267,6 +270,8 @@ export class WaterField {
      *  meet, one colour runs into the other; where none has its own, the share is 0 and the material's colour holds. */
     readonly look: Float32Array;
     readonly lookShare: Float32Array;
+    /** Surveyed run-up ground: 0 unknown, 1 below the shore or excluded, 2 a beach that can take the film. @internal */
+    readonly swashGround: Uint8Array;
     /** Premultiplied local gain and its coverage in the baked zone. */
     readonly causticLook: Float32Array;
     causticRange = 4;
@@ -301,6 +306,7 @@ export class WaterField {
         this.audio = new Float32Array(n).fill(1);
         this.look = new Float32Array(n * 3);
         this.lookShare = new Float32Array(n);
+        this.swashGround = new Uint8Array(n);
         this.causticLook = new Float32Array(n * 2);
         this.depth = new Float32Array(n);
         this.surf = new Float32Array(n);
@@ -316,8 +322,8 @@ export class WaterField {
      * The lakes come first, then the rivers have what they leave (a river runs into a lake and is the lake there), and the ocean what both leave. A texel no body holds keeps the height of the nearest water, so the
      * surface's vertices there (which the shore cuts away) do not pull the water's edge down to nothing.
      */
-    static bake(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = []): WaterField {
-        const job = WaterField.baking(grid, bodies, ground, surfLength, exclusions);
+    static bake(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = [], surfSpread = 0): WaterField {
+        const job = WaterField.baking(grid, bodies, ground, surfLength, exclusions, surfSpread);
         for (;;) {
             const next = job.next();
             if (next.done) return next.value;
@@ -325,7 +331,7 @@ export class WaterField {
     }
 
     /** {@link WaterField.bake} as a job that yields its progress (0 to 1) every few rows, for spreading over frames. */
-    static *baking(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = []): Generator<number, WaterField, void> {
+    static *baking(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = [], surfSpread = 0): Generator<number, WaterField, void> {
         const ocean = (bodies.find((b) => b.kind === 'ocean') as ZoneOcean | undefined) ?? null;
         const field = new WaterField(grid, ocean);
         for (const b of bodies) for (const m of [b.material, b.riverToLake, b.riverToOcean]) if (m) field.materials.add(m);
@@ -502,8 +508,8 @@ export class WaterField {
             }
         }
         yield* levelShore(field, texel);
-        yield* fillDry(field);
-        yield* surfDistance(field, rivers, texel, surfLength, 0.95);
+        yield* fillDry(field, grounds, exclusions);
+        yield* surfDistance(field, rivers, texel, surfLength, surfSpread, 0.95);
         // The water beside a steep shore takes its steepness: a cliff's foot is a texel or two out in the water.
         yield* blur(field.steep, grid.nx, grid.nz, 2, 0.99);
         for (let k = 0; k < field.steep.length; k++) field.steep[k] = Math.min(field.steep[k]! * 2, 1);
@@ -801,7 +807,7 @@ function* levelShore(field: WaterField, texel: number): Generator<number, void, 
  * A texel no body holds takes the height (and how open it is to the wind) of the nearest that one does: two passes of a chamfer sweep over
  * which texel is nearest. The shore's filtered reads then see the water's own, not the dry land's.
  */
-function* fillDry(field: WaterField): Generator<number, void, void> {
+function* fillDry(field: WaterField, grounds: Float64Array, exclusions: readonly ZoneExclusion[]): Generator<number, void, void> {
     const { nx, nz } = field.grid;
     const n = nx * nz;
     const src = new Int32Array(n).fill(-1);
@@ -837,9 +843,24 @@ function* fillDry(field: WaterField): Generator<number, void, void> {
     yield 0.95;
     const fallback = field.ocean ? field.ocean.level : 0;
     for (let k = 0; k < n; k++) {
-        if (Number.isFinite(field.height[k]!)) continue;
-        field.height[k] = src[k]! >= 0 ? field.height[src[k]!]! : fallback;
-        if (src[k]! >= 0) field.exposure[k] = field.exposure[src[k]!]!;
+        const wet = src[k]!;
+        if (!Number.isFinite(field.height[k]!)) {
+            field.height[k] = wet >= 0 ? field.height[wet]! : fallback;
+            if (wet >= 0) {
+                field.exposure[k] = field.exposure[wet]!;
+                field.swell[k] = field.swell[wet]!;
+            }
+        }
+        const ground = grounds[k]!;
+        if (!Number.isFinite(ground)) continue;
+        const level = field.height[k]!;
+        let bank = wet >= 0 && ground >= level;
+        if (bank && exclusions.length) {
+            const x = field.grid.minX + (k % nx) * field.grid.sizeX / (nx - 1);
+            const z = field.grid.minZ + Math.floor(k / nx) * field.grid.sizeZ / (nz - 1);
+            bank = !exclusions.some(e => inExclusion(e, x, level, z, field.owner[wet]));
+        }
+        field.swashGround[k] = bank ? 2 : 1;
     }
 }
 
@@ -848,7 +869,7 @@ function* fillDry(field: WaterField): Generator<number, void, void> {
  * no bay the crests bend into), smoothed over the surf's length. A crest is a line of it: smoothed, the crests come in from the open
  * water as lines and turn to follow the shore only as they near it, instead of tracing every turn of it from far out.
  */
-function* surfDistance(field: WaterField, rivers: Float32Array, texel: number, surfLength: number, at: number): Generator<number, void, void> {
+function* surfDistance(field: WaterField, rivers: Float32Array, texel: number, surfLength: number, spread: number, at: number): Generator<number, void, void> {
     const { nx, nz } = field.grid;
     const n = nx * nz;
     // Distances across the texels (8-neighbour chamfer) from the open water's edge: into the water above zero, onto the land (a river's
@@ -861,6 +882,23 @@ function* surfDistance(field: WaterField, rivers: Float32Array, texel: number, s
     const toLand = yield* chamfer(nx, nz, wet, 1, at);
     for (let k = 0; k < n; k++) field.surf[k] = Math.min(Math.max((toLand[k]! - toWater[k]!) * texel, -cap), cap);
     yield* blur(field.surf, nx, nz, Math.round(surfLength / Math.max(texel, 1e-6)), at);
+    // A directional swell reaches different points along the coast at different phases. Bake this in world coordinates:
+    // the GPU, floating objects and spray then read exactly the same refracted wavefront as the zone is retiled.
+    if (spread > 0 && surfLength > 0) {
+        const strength = Math.min(spread, 1) * surfLength;
+        const rows = rowsAStep(nx, SWEPT_A_STEP);
+        for (let j = 0; j < nz; j++) {
+            if (j % rows === 0) yield at;
+            const z = (field.grid.minZ + j * field.grid.sizeZ / (nz - 1)) / surfLength;
+            for (let i = 0; i < nx; i++) {
+                const k = j * nx + i;
+                if (Math.abs(field.shore[k]!) > 4.5 * surfLength) continue;
+                const x = (field.grid.minX + i * field.grid.sizeX / (nx - 1)) / surfLength;
+                field.surf[k]! += strength * (0.15 * Math.sin(1.73 * x + 0.67 * z)
+                    + 0.08 * Math.sin(1.19 * x - 2.13 * z) + 0.035 * Math.sin(3.61 * x - 0.57 * z));
+            }
+        }
+    }
     // A river's current carries no surf, and spreads as it runs out into open water: the surf comes back over half its length.
     for (let k = 0; k < n; k++) field.still[k] = 1 - rivers[k]!;
     yield* blur(field.still, nx, nz, Math.round((surfLength * 0.5) / Math.max(texel, 1e-6)), at);

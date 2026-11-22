@@ -50,6 +50,7 @@ ${CAUSTIC_PARAMS}
 ${CAUSTIC_FIELD_PARAMS}
 #pragma param u_zoneSurfaceData texture default(white) texel(data)
 #pragma param u_causticLevel float default(0)
+#pragma param u_lensSurface texture default(black) texel(data)
 #pragma param u_managedSurface float default(0)
 #pragma param u_shaftStrength float default(0.5) range(0,4)
 #pragma param u_shaftRange float default(2000) range(10,100000)
@@ -89,7 +90,20 @@ void main() {
 
     // The waterline: this pixel is under water where its place on the camera's near plane is below the surface at the camera.
     vec3 up = normalize(vec3(u_planeNx, u_planeNy, u_planeNz));
-    float wet = smoothstep(-u_band, u_band, u_planeD - dot(up, entry + u_renderOrigin.xyz));
+    vec3 atLens = entry + u_renderOrigin.xyz;
+    float immersion = u_planeD - dot(up, atLens);
+    if (u_managedSurface > 0.5 && u_causticRect.z > 0.0) {
+        vec2 lensUv = (atLens.xz - u_causticRect.xy) / u_causticRect.z;
+        if (all(greaterThanEqual(lensUv, vec2(0.0))) && all(lessThanEqual(lensUv, vec2(1.0)))) {
+            vec4 sampleAtLens = textureLod(u_lensSurface, lensUv, 0.0);
+            vec2 horizontal = (sampleAtLens.rg * 255.0 - 128.0) / 127.0;
+            if (dot(horizontal, horizontal) <= 1.001) {
+                float elevation = u_causticElevation.x + dot(sampleAtLens.ba, vec2(256.0, 1.0) / 257.0) * u_causticElevation.y;
+                immersion = elevation - atLens.y;
+            }
+        }
+    }
+    float wet = smoothstep(-u_band, u_band, immersion);
     if (wet <= 0.0 || u_amount <= 0.0) { fragColor = src; return; }
 
     vec3 dir = normalize(target - entry);

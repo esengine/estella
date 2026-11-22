@@ -67,6 +67,16 @@ describe('applyUnderwaterToEffects', () => {
         expect(effect.colors.get('u_absorption')).toEqual({ r: 0.4, g: 0.1, b: 0.05, a: 1 });
     });
 
+    it('binds the wave surface and the projected sunlight as separate textures from the same frame', () => {
+        const effects = new Map<string, BlendedEffect>();
+        const rect = { x: -10, y: 20, z: 40, w: 0.5 }, elevation = { x: -3, y: 7, z: 0, w: 1 };
+        applyUnderwaterToEffects(effects, state({ opticalField: { texture: 18, surfaceTexture: 19, rect, elevation } }));
+        const effect = effects.get('underwater')!;
+        expect(effect.textures.get('u_lensSurface')).toMatch(/#19$/);
+        expect(effect.textures.get('u_causticField')).toMatch(/#18$/);
+        expect(effect.colors.get('u_causticElevation')).toEqual({ r: -3, g: 7, b: 0, a: 1 });
+    });
+
     it('leaves an effect the scene switched off alone', () => {
         const off = blank();
         off.enabled = false;

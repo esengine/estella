@@ -103,6 +103,7 @@ export function applyUnderwaterToEffects(effects: Map<string, BlendedEffect>, st
     effect.colors.set('u_causticRect', { r: rect?.x ?? 0, g: rect?.y ?? 0, b: rect?.z ?? (state.waveCaustics ? -1 : 0), a: rect?.w ?? 0 });
     if (field) {
         effect.textures.set('u_causticField', runtimeTextureRef('waterOpticalSurface', field.texture));
+        if (field.surfaceTexture) effect.textures.set('u_lensSurface', runtimeTextureRef('waterLensSurface', field.surfaceTexture));
         effect.colors.set('u_causticElevation', { r: field.elevation.x, g: field.elevation.y, b: field.elevation.z, a: field.elevation.w });
     }
     if (state.light === false) {

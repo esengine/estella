@@ -132,7 +132,8 @@ const WATER_SURF_GLSL = `vec2 waterSurf(float phase, float shore, float height, 
     // A wave breaks only when it is steep for its length: a lake's small surf laps, the sea's breaks white.
     float steep = smoothstep(0.012, 0.045, height / u_surfLength);
     float white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
-    return vec2(height * g * g * env, white);
+    float swash = (1.0 - smoothstep(0.0, 0.18 * u_surfLength, shore)) * (1.0 - smoothstep(0.22, 0.65, u));
+    return vec2(height * g * g * env, max(white, swash * steep * env * 0.74));
 }`;
 const WATER_SURF_WGSL = `fn waterSurf(phase : f32, shore : f32, height : f32, time : f32) -> vec2f {
     if (height <= 0.0 || mc.u_surfLength <= 0.0) { return vec2f(0.0); }
@@ -149,7 +150,8 @@ const WATER_SURF_WGSL = `fn waterSurf(phase : f32, shore : f32, height : f32, ti
     let breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
     let steep = smoothstep(0.012, 0.045, height / mc.u_surfLength);
     let white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
-    return vec2f(height * g * g * env, white);
+    let swash = (1.0 - smoothstep(0.0, 0.18 * mc.u_surfLength, shore)) * (1.0 - smoothstep(0.22, 0.65, u));
+    return vec2f(height * g * g * env, max(white, swash * steep * env * 0.74));
 }`;
 const WATER_BEND_GLSL = `vec4 waterBend(vec2 p, float span) {
     vec2 q = p / span;
@@ -321,11 +323,11 @@ const ZONE_SAMPLE = `    vec2 zoneUv = (wp - u_zoneOrigin) / max(u_zoneSize, vec
     vec2 flow = zoneOn && zoneIn ? (zoneTex.gb - 0.5) * 2.0 * u_zoneRange.z : vec2(0.0);`;
 
 const SURFACE_SLOPE = `vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool zoneOn, bool zoneRead, float shoreDist, vec2 flow,
-                  float damp, float calm, float surfStep, out float crest, out float ripFoam, out vec2 surf) {
+                  float damp, float calm, float surfStep, out float crest, out float ripFoam, out vec2 surf, out vec2 toSea) {
     // The surf: its height across the shore distance gives its slope along the way to the shore, and where it breaks it is white.
     float still = zoneRead ? waterZoneStill(wp) : 1.0;
     float surfH = zoneOn ? u_surfHeight * u_waveHeight * zone.z * zone.w * still : 0.0;
-    vec2 toSea = vec2(0.0);
+    toSea = vec2(0.0);
     surf = vec2(0.0);
     float surfRise = 0.0;
     // The surf's reach (waterSurf), a step wider for the two reads of its rise: further from the shore it is nothing, and takes no reads to say so.
@@ -763,7 +765,13 @@ void main() {
     // field, screen-space refraction, and the optical atlas out of this draw.
     if (u_farSurface > 0.5 && u_waterMeshView < 0.5) {
         vec3 up = vec3(0,1,0);
-        SurfaceExt distant = surfaceExtNone(up);
+        vec2 oceanPoint = P.xz + u_renderOrigin.xz;
+        float crest;
+        vec2 oceanSlope = waveSlope(oceanPoint, time, waterDist, crest) * u_oceanWaves;
+        float footprint = max(length(dFdx(oceanPoint)), length(dFdy(oceanPoint)));
+        oceanSlope *= 1.0 - smoothstep(0.12 * u_waveLength, 0.35 * u_waveLength, footprint);
+        vec3 oceanNormal = normalize(vec3(-oceanSlope.x, 1.0, -oceanSlope.y));
+        SurfaceExt distant = surfaceExtNone(oceanNormal);
         distant.misc.x = 0.0;
         distant.coat = vec4(1.0,u_roughness,max(u_reflectance,1e-4),0.0);
         vec3 deep = mix(u_deepColor.rgb,u_oceanLook.rgb*u_deepColor.rgb/max(u_shallowColor.rgb,vec3(1e-3)),u_oceanLook.a);
@@ -787,13 +795,15 @@ void main() {
     vec3 shallowColor = mix(u_shallowColor.rgb, lookColor, lookOwn);
     vec3 deepColor = mix(u_deepColor.rgb, lookColor * u_deepColor.rgb / max(u_shallowColor.rgb, vec3(1e-3)), lookOwn);
     // Where the foam texture is read, and how fast that moves across the screen: taken here because the read itself waits until there is foam.
-    vec2 foamUv = (wp + u_foamFlow * time) / max(u_foamTile, 1e-4);
-    vec2 foamDx = dFdx(foamUv), foamDy = dFdy(foamUv);
     vec4 px = vec4(dFdx(wp), dFdy(wp));
     float surfStep = max(u_zoneSize.x / float(textureSize(u_zoneSurfaceData, 0).x), 1e-3);
     float crest, ripFoam;
-    vec2 surf;
-    vec2 slope = surfaceSlope(wp, time, waterDist, px, zone, zoneOn, zoneRead, shoreDist, flow, damp, calm, surfStep, crest, ripFoam, surf);
+    vec2 surf, toSea;
+    vec2 slope = surfaceSlope(wp, time, waterDist, px, zone, zoneOn, zoneRead, shoreDist, flow, damp, calm, surfStep, crest, ripFoam, surf, toSea);
+    // The foam on a moving water sheet travels landward on the rise and back with the drawdown.
+    float swashTravel = min(0.2 * u_surfLength, 1.25 * surf.x) * (1.0 - smoothstep(0.0, max(0.65 * u_surfLength, 1e-4), shoreDist));
+    vec2 foamUv = (wp + toSea * swashTravel + u_foamFlow * time) / max(u_foamTile, 1e-4);
+    vec2 foamDx = dFdx(foamUv), foamDy = dFdy(foamUv);
     vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
     vec3 Ngeo = vec3(0.0, 1.0, 0.0);
 #ifdef MESH_NORMALS
@@ -805,7 +815,8 @@ void main() {
     }
 #endif
     // Seen from below, the surface turns over, and light goes the other way through it: out of the water, into the air.
-    bool below = dot(viewDir, Ngeo) < 0.0;
+    // A near crest can face an eye below its rest tangent. The displaced triangle determines which medium the view ray leaves.
+    bool below = u_waveSpace > 0.5 ? !gl_FrontFacing : dot(viewDir, Ngeo) < 0.0;
     if (below) { N = -N; Ngeo = -Ngeo; }
 
     // What is behind the water: the picture and the distance, where the frame took them.
@@ -822,7 +833,13 @@ void main() {
     // Ground lower than the water there (a dry basin) takes no film. The picture's depth says it of this very pixel; the baked depth only
     // of whole texels (dry is 0 and any wet one beside it raises the blend), which would cut the film in the texels' steps.
     float under = haveDepth ? column0 * abs(viewDir.y) - 2.0 * (surf.x + u_waveHeight * zone.z) - 1.0 : shoreDepth - 1e-3;
-    if (shoreDist < 0.0 && (surf.x <= 0.0 || under > 0.0 || !film)) discard;
+    if (shoreDist < 0.0) {
+        if (surf.x <= 0.0 || !film) discard;
+        // On a surveyed beach an oblique eye ray may see past an entire breaker. Use the ground
+        // under this water column; the distant receiver on that ray cannot decide if the beach is wet.
+        vec2 ground = zoneRead ? waterZoneLayer(zoneUv, 2.0).ba : vec2(0.0);
+        if ((ground.y > 0.5 && ground.x < 0.05) || (ground.y <= 0.5 && under > 0.0)) discard;
+    }
 
     if (u_waterMeshView > 0.5) {
         vec3 bary = vec3(v_color.ba, 1.0-v_color.b-v_color.a);
@@ -917,7 +934,17 @@ void main() {
         }
         float onCrest = u_foamCrest > 0.0 ? smoothstep(crestLine, 1.0, crest) * smoothstep(0.35, 0.75, breakup) : 0.0;
         // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
-        if (surf.y > 0.0) surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, zoneOn ? waterZoneSteep(wp) : 1.0);
+        if (surf.y > 0.0) {
+            float pitch = smoothstep(0.045, 0.17, surf.x / max(u_surfLength, 1e-4));
+            float aeration = max(pitch, zoneOn ? waterZoneSteep(wp) : 1.0);
+            surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, aeration);
+            // On the beach the moving front is where a real layer of water meets the ground.
+            if (haveDepth && shoreDist < 0.0 && u_foamWidth > 0.0) {
+                float edge = 1.0 - smoothstep(0.0, u_foamWidth, vertical);
+                surfFoam = max(surfFoam, edge * smoothstep(0.05, 0.65, breakup + surf.y * 0.5)
+                    * smoothstep(0.0, 0.04 * u_surfLength, surf.x));
+            }
+        }
         foam = clamp(max(max(max(shore, onCrest * u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
     }
     // The texture as coverage: a texel holding c of foam shows where the foam asked for is more than 1 - c, rising to full over the rest,
@@ -1016,9 +1043,9 @@ void main() {
     float stepSize = u_bakeA.z / u_bakeB.z;
     float surfStep = max(u_zoneSize.x / float(textureSize(u_zoneSurfaceData, 0).x), 1e-3);
     float crest, foam;
-    vec2 surf;
+    vec2 surf, toSea;
     vec2 slope = surfaceSlope(wp, time, 0.0, vec4(stepSize, 0.0, 0.0, stepSize), zone, zoneOn, zoneRead, shoreDist,
-                              flow, damp, calm, surfStep, crest, foam, surf);
+                              flow, damp, calm, surfStep, crest, foam, surf, toSea);
     vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
     float height = zone.x + (waterWaveHeight(wp, time, 0.0) * damp + surf.x) * u_geoWaves;
     float code = floor(clamp((height - u_bakeB.x) / u_bakeB.y, 0.0, 1.0) * 65535.0 + 0.5);

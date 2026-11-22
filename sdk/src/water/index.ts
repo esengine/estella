@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export {
-    WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample,
+    WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample, type WaterBreakerSample,
 } from './waterPlugin';
 export { WAVE_SET, waveFade, waveHeight, waveSlope, type WaveParams } from './waves';
 export { UnderwaterPlugin, registerUnderwaterEffect } from './underwater';
