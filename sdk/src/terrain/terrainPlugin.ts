@@ -40,6 +40,8 @@ import { paintWeights } from './paint';
 
 export { paintWeights };
 import { GroundEdit } from './groundEdit';
+import { LandscapeRenderer } from './landscapeRenderer';
+import type { LandscapeSpline } from './landscapeSpline';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
@@ -70,6 +72,8 @@ export const TerrainExtent = { Area: 0, Infinite: 1 } as const;
 
 /** The fields of the `Terrain` component. @experimental */
 export interface TerrainData {
+    /** Editable road and path network in terrain-local coordinates. */
+    landscapeSpline?: LandscapeSpline;
     /** {@link TerrainExtent}: an area `sizeX` by `sizeZ`, or ground that goes on for ever (from a provider, read anywhere). */
     extent: number;
     /**
@@ -157,6 +161,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
     extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: '', tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: '', splatmap2: '', colorMap: 0, colorMapStrength: 1, occlusionMap: 0, occlusionStrength: 1, layers: [] as string[], material: 0,
+    landscapeSpline: { points: [], segments: [] },
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
     sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000, virtualTexture: false, virtualTextureFrom: 1,
     collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
@@ -165,6 +170,18 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
 }, {
     assetFields: [{ field: 'heightmap', type: 'image' }, { field: 'splatmap', type: 'image' }, { field: 'splatmap2', type: 'image' }, { field: 'colorMap', type: 'texture' }, { field: 'occlusionMap', type: 'texture' }, { field: 'material', type: 'material' }],
+    discoverAssets: (data) => {
+        const refs = Terrain.assetFields.flatMap(({field, type}) => {
+            const path = data[field];
+            return typeof path === 'string' && path ? [{type, path}] : [];
+        });
+        const graph = data.landscapeSpline as LandscapeSpline | undefined;
+        for (const entry of [...(graph?.points ?? []), ...(graph?.segments ?? []).flatMap(s => s.meshes)]) {
+            if (entry.mesh) refs.push({type: 'mesh', path: entry.mesh});
+            if (entry.material) refs.push({type: 'material', path: entry.material});
+        }
+        return refs;
+    },
     worldUnitFields: ['sizeX', 'sizeZ', 'height', 'cellSize', 'drawDistance', 'collisionDistance'],
     fields: {
         extent: { enum: [{ label: 'Area', value: TerrainExtent.Area }, { label: 'Infinite', value: TerrainExtent.Infinite }], category: 'Shape', tooltip: 'An area of its own size, from a heightmap or noise; or ground that goes on for ever, from noise read anywhere (the same seed is the same ground).' },
@@ -716,7 +733,7 @@ export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__
 
 /** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
 function signatureOf(data: TerrainData, at: { x: number; z: number }, images: string, atlasSize: number): string {
-    const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
+    const { landscapeSpline: _splines, layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
         collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, occlusionMap: _m, occlusionStrength: _n, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
     const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
@@ -768,6 +785,7 @@ async function windowOf(provider: TerrainProvider, data: TerrainData, cx: number
 }
 
 export class TerrainPlugin implements Plugin {
+    private readonly splineMeshes = new LandscapeRenderer();
     name = 'terrain';
     /** No terrain, no work; the frame after the last one goes still runs its sweep. */
     readonly activeWhen = [Terrain];
@@ -801,7 +819,10 @@ export class TerrainPlugin implements Plugin {
                 const signature = signatureOf(data, (app.world.get(entity, Transform) as TransformData).worldPosition, images, this.quality_.terrainAtlasSize);
                 let built = terrains.built_.get(entity);
                 if (!built || built.signature !== signature) {
-                    if (built) this.destroy(app, built);
+                    if (built) {
+                        this.splineMeshes.drop(app, entity);
+                        this.destroy(app, built);
+                    }
                     built = {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
                         table: new PageTable(this.quality_.terrainAtlasSize), heights: 0, paint: 0, mesh: 0, instance: 0,
@@ -826,6 +847,11 @@ export class TerrainPlugin implements Plugin {
                 }
                 this.collide(app, entity, built);
                 if (built.failure || built.loading || !built.source || !rendering) continue;
+                const transform = app.world.get(entity, Transform);
+                this.splineMeshes.update(app, entity, data.landscapeSpline,
+                    data.landscapeSpline?.segments.length ? this.eye(app, transform) : null,
+                    tiled instanceof TiledSource ? tiled : null,
+                    transform.worldPosition, data.collisionLayer, data.friction, this.layerEdits_);
                 if (!built.instance) {
                     if (!built.pending) void this.prepare(app, built);
                     continue;
@@ -843,6 +869,7 @@ export class TerrainPlugin implements Plugin {
         for (const [entity, built] of terrains.built_) {
             if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(collisionLayerOf(entity));
             if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(collisionLayerOf(entity));
+            this.splineMeshes.drop(app, entity);
             this.destroy(app, built);
         }
         terrains.built_.clear();
@@ -1456,6 +1483,7 @@ export class TerrainPlugin implements Plugin {
             chunksOf(app).remove(collisionLayerOf(entity));
             if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(collisionLayerOf(entity));
             this.destroy(app, built);
+            this.splineMeshes.drop(app, entity);
             terrains.built_.delete(entity);
             terrains.revision_++;
         }

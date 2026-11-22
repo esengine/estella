@@ -9167,6 +9167,11 @@
           "doc": "A material on the Terrain shader (on Terrain Layers when the ground has layers). Empty uses the stock one."
         },
         {
+          "key": "landscapeSpline",
+          "type": "object",
+          "default": "{\"points\":[],\"segments\":[]}"
+        },
+        {
           "key": "sizeX",
           "type": "number",
           "default": "100000",

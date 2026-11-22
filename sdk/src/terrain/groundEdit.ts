@@ -148,17 +148,17 @@ export class GroundEdit {
 
     /** Lays a patch's `before` or its `after` back over the ground. */
     apply(patch: GroundPatch, side: 'before' | 'after'): void {
-        let rect: Dirty | null = null;
-        if (patch.heights) { put(this.field.data, patch.heights, side, 1); rect = patch.heights.rect; }
         const { a, b } = this.source.splats();
-        if (patch.splat && a) put(a.pixels, patch.splat, side, 4);
-        if (patch.splat2 && b) put(b.pixels, patch.splat2, side, 4);
-        const r = rect ?? patch.splat?.rect ?? patch.splat2?.rect;
-        if (!r) return;
-        const w = patch.heights ? this.field.width : (a ?? b)!.width, h = patch.heights ? this.field.height : (a ?? b)!.height;
-        const x0 = (r.i0 / (w - 1) - 0.5) * this.sizeX + this.modified.origin.x, x1 = (r.i1 / (w - 1) - 0.5) * this.sizeX + this.modified.origin.x;
-        const z0 = (r.j0 / (h - 1) - 0.5) * this.sizeZ + this.modified.origin.z, z1 = (r.j1 / (h - 1) - 0.5) * this.sizeZ + this.modified.origin.z;
-        this.host.remake([x0 - this.sizeX / w, z0 - this.sizeZ / h, x1 + this.sizeX / w, z1 + this.sizeZ / h]);
+        const restore = <T extends Texels>(piece: Piece<T> | null, pixels: T, grid: {width: number; height: number}, stride: number) => {
+            if (!piece) return;
+            put(pixels, piece, side, stride);
+            const r = piece.rect, dx = this.sizeX / Math.max(1, grid.width - 1), dz = this.sizeZ / Math.max(1, grid.height - 1);
+            const x = this.origin.x - this.sizeX / 2, z = this.origin.z - this.sizeZ / 2;
+            this.host.remake([x + (r.i0 - 1) * dx, z + (r.j0 - 1) * dz, x + (r.i1 + 1) * dx, z + (r.j1 + 1) * dz]);
+        };
+        restore(patch.heights, this.field.data, this.field, 1);
+        if (a) restore(patch.splat, a.pixels, a, 4);
+        if (b) restore(patch.splat2, b.pixels, b, 4);
     }
 
     /** The heights as the image a heightmap is saved as: red and green 16 bits, `RGBA`, `field.width` by `field.height`. */

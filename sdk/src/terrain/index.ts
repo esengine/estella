@@ -32,6 +32,10 @@ export {
     type SphereNode, type SphereTreeParams,
 } from './sphere';
 export { GroundEdit, type GroundPatch } from './groundEdit';
+export { emptyLandscapeSpline, landscapeMesh, landscapePoint, landscapeDirection, landscapeRotation, nextLandscapeId, connectLandscape,
+    orientLandscapePoints, landscapeSpans, LandscapeSpan, splitLandscape, connectedLandscape,
+    type LandscapeSpline, type LandscapePoint, type LandscapeSegment, type LandscapeEnd, type LandscapeGrade, type LandscapeMesh, type LandscapeAxis } from './landscapeSpline';
+export { gradeLandscapeGround, landscapeGradeBrushes } from './landscapeGrade';
 export { TiledGroundEdit, type TiledGroundPatch, type TiledGroundImage } from './tiledGroundEdit';
 export { imagePixelsAt as readTerrainImage } from './layerArrays';
 export { SculptMode, brushDistance, brushWeight, encodeHeightmap, paintSplat, sculptField, unionDirty, type Brush, type BrushMask, type BrushShape, type BrushCurve, type BrushProfile, type Dirty, type PaintDab, type SculptDab } from './sculpt';

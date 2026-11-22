@@ -12657,6 +12657,7 @@ generatorVersion: number
 height: number
 heightmap: string
 heightmapFormat: number
+landscapeSpline: LandscapeSpline | undefined
 layerColor0: Color
 layerColor1: Color
 layerColor2: Color
@@ -13302,12 +13303,12 @@ title: number
 @internal dirtyTiles: () => string[]
 @internal ensureTileSplats: (tile: Tile, tx: number, tz: number, second: boolean) => void
 @internal hasTile: (tx: number, tz: number) => boolean
+@internal holdForEdit: (keys: Set<string>) => Promise<() => void>
 @internal markDirty: (tx: number, tz: number) => void
 @internal markOverviewDirty: () => void
 @internal markSaved: () => void
 @internal overviewDirty: boolean
 @internal overviewSplats: (make: boolean, second: boolean) => { a: Splat | null; b: Splat | null; }
-@internal readTile: (tx: number, tz: number) => Promise<Tile | null>
 @internal tileAt: (tx: number, tz: number) => Tile | undefined
 bounds: readonly [number, number, number, number]
 budget: number
@@ -13321,7 +13322,9 @@ overview: Heightfield
 overviewBytes: number
 overviewSpacing: number
 paint: (x: number, z: number, h: number, ny: number) => LayerWeights
+readTile: (tx: number, tz: number) => Promise<Tile | null>
 region: (x0: number, z0: number, spacing: number, count: number) => TerrainRegionSamples | Promise<TerrainRegionSamples>
+residentAt: (x: number, z: number) => boolean
 samplesX: number
 samplesZ: number
 stats: () => TerrainTileStats

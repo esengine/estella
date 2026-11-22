@@ -53,7 +53,9 @@ jobs:
           mkdir -p desktop/public/wasm
           cp build/wasm/web/* desktop/public/wasm/
           pnpm --dir desktop exec vite build
-      - name: Check Landscape brush Details in the editor
+      - name: Check Landscape brushes and splines in the editor
+        env:
+          OUT: ${{ runner.temp }}/landscape-captures
         timeout-minutes: 6
         working-directory: desktop
         run: |
@@ -62,4 +64,11 @@ jobs:
           sandbox=node_modules/electron/dist/chrome-sandbox
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
-          xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush
+          mkdir -p "$OUT"
+          xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush landscape-splines
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: landscape-spline-viewport
+          path: ${{ runner.temp }}/landscape-captures/landscape-splines.png
+          if-no-files-found: ignore

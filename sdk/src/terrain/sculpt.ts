@@ -22,11 +22,15 @@ export type BrushCurve = 'smooth' | 'linear' | 'spherical' | 'tip';
 export interface BrushProfile {
     /** Project a single RGBA channel. UV offsets are at the dab centre, so tile edit windows can rebase the brush without changing its mask. */
     mask?: BrushMask;
+    /** CPU projection of a landscape corridor at a ground sample relative to the brush centre. */
+    landscape?: (dx: number, dz: number) => LandscapeSample | null;
     /** Half extents of one clipped terrain patch. Shared edge samples belong to both patches. */
     component?: { halfX: number; halfZ: number };
     shape?: BrushShape;
     curve?: BrushCurve;
 }
+
+export interface LandscapeSample { weight: number; height: number; raise: boolean; lower: boolean; layer: number }
 
 /** A texture projection in cycles per world unit, evaluated relative to the centre of each dab. */
 export interface BrushMask {
@@ -141,12 +145,15 @@ export function sculptField(field: Heightfield, sizeX: number, sizeZ: number, da
     for (let j = span.j0; j <= span.j1; j++) {
         for (let i = span.i0; i <= span.i1; i++) {
             const x = (i / (field.width - 1) - 0.5) * sizeX, z = (j / (field.height - 1) - 0.5) * sizeZ;
-            const k = weightAt(b, x, z);
+            const sample = b.landscape?.(x - b.x, z - b.z);
+            const k = b.landscape ? sample?.weight ?? 0 : weightAt(b, x, z);
             if (k <= 0) continue;
             const at = j * width + i;
             const h = data[at]!;
             let next = h;
-            if (dab.mode === SculptMode.Raise) next = h + dab.amount * k;
+            if (sample) {
+                if (sample.height > h ? sample.raise : sample.lower) next = h + (sample.height - h) * k;
+            } else if (dab.mode === SculptMode.Raise) next = h + dab.amount * k;
             else if (dab.mode === SculptMode.Lower) next = h - dab.amount * k;
             else if (plane) {
                 // Lay one thin layer against the local slope. Raising fills hollows before
@@ -235,18 +242,20 @@ export function paintSplat(a: Splat, b: Splat | null, sizeX: number, sizeZ: numb
     for (let j = span.j0; j <= span.j1; j++) {
         for (let i = span.i0; i <= span.i1; i++) {
             const x = (i / (a.width - 1) - 0.5) * sizeX, z = (j / (a.height - 1) - 0.5) * sizeZ;
-            const k = weightAt(bb, x, z) * dab.strength;
-            if (k <= 0) continue;
+            const sample = bb.landscape?.(x - bb.x, z - bb.z);
+            const layer = sample?.layer ?? dab.layer;
+            const k = (bb.landscape ? sample?.weight ?? 0 : weightAt(bb, x, z)) * dab.strength;
+            if (k <= 0 || layer < 0 || layer > 7 || (layer > 3 && !b)) continue;
             const at = j * a.width + i;
             readWeights(a, b, at, w);
             let others = 0;
-            for (let c = 0; c < 8; c++) if (c !== dab.layer) others += w[c]!;
-            const was = w[dab.layer]!;
+            for (let c = 0; c < 8; c++) if (c !== layer) others += w[c]!;
+            const was = w[layer]!;
             const now = Math.min(Math.max(dab.erase ? was * (1 - Math.min(k, 1)) : was + (1 - was) * Math.min(k, 1), 0), 1);
             const rest = 1 - now;
-            if (others > 1e-6) for (let c = 0; c < 8; c++) { if (c !== dab.layer) w[c] = w[c]! * rest / others; }
-            else if (dab.erase) w[dab.layer === 0 ? 1 : 0] = rest;
-            w[dab.layer] = now;
+            if (others > 1e-6) for (let c = 0; c < 8; c++) { if (c !== layer) w[c] = w[c]! * rest / others; }
+            else if (dab.erase) w[layer === 0 ? 1 : 0] = rest;
+            w[layer] = now;
             for (let c = 0; c < 4; c++) {
                 const offset = at * 4 + c;
                 const value = Math.round(w[c]! * 255);

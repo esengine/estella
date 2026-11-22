@@ -81,6 +81,7 @@ export class TiledSource implements TerrainSource {
     private readonly tiles_ = new Map<string, Tile>();
     private readonly reading_ = new Map<string, Promise<Tile | null>>();
     private readonly dirty_ = new Set<string>();
+    private readonly editPins_ = new Map<string, number>();
     private overviewDirty_ = false;
     private clock_ = 0;
     private bytes_ = 0;
@@ -158,7 +159,7 @@ export class TiledSource implements TerrainSource {
     /** Lets go of tiles, least recently used first, until what is held is within the budget; those in `keep` stay. */
     trim(keep: ReadonlySet<string> = new Set()): void {
         if (this.bytes_ <= this.budget) return;
-        const order = [...this.tiles_].filter(([k]) => !keep.has(k) && !this.dirty_.has(k)).sort((a, b) => a[1].used - b[1].used);
+        const order = [...this.tiles_].filter(([k]) => !keep.has(k) && !this.dirty_.has(k) && !this.editPins_.has(k)).sort((a, b) => a[1].used - b[1].used);
         for (const [key, tile] of order) {
             if (this.bytes_ <= this.budget) break;
             this.tiles_.delete(key);
@@ -173,6 +174,18 @@ export class TiledSource implements TerrainSource {
     }
 
     /** @internal Reads the tile at (tx, tz) if it is not in memory; null where the document has none. */
+    async holdForEdit(keys: Set<string>): Promise<() => void> {
+        for (const key of keys) this.editPins_.set(key, (this.editPins_.get(key) ?? 0) + 1);
+        const release = () => { for (const key of keys) {
+            const n = (this.editPins_.get(key) ?? 1) - 1;
+            if (n) this.editPins_.set(key, n); else this.editPins_.delete(key);
+        } };
+        try {
+            for (const key of keys) if (!await this.ensure(key)) throw new Error('Could not read landscape tile ' + key);
+            return release;
+        } catch (error) { release(); throw error; }
+    }
+
     readTile(tx: number, tz: number): Promise<Tile | null> {
         return this.ensure(`${tx}:${tz}`);
     }
@@ -278,6 +291,9 @@ export class TiledSource implements TerrainSource {
     }
 
     /** Where (x, z) falls: its tile's key, and its place in that tile in samples. */
+    /** Whether this local position belongs to a currently loaded terrain tile. */
+    residentAt(x: number, z: number): boolean { return this.tiles_.has(this.locate(x,z).key); }
+
     private locate(x: number, z: number): { key: string; lx: number; lz: number } {
         const n = this.doc.tileSamples - 1;
         const gx = clamp(x / this.params.sizeX + 0.5, 0, 1) * (this.samplesX - 1), gz = clamp(z / this.params.sizeZ + 0.5, 0, 1) * (this.samplesZ - 1);

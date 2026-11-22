@@ -59,6 +59,23 @@ export class TiledGroundEdit {
         return this.source.height(x - this.modified.origin.x, z - this.modified.origin.z);
     }
 
+    /** Whether two handles still address the same loaded ground. */
+    sameSource(other: TiledGroundEdit): boolean { return this.source === other.source; }
+
+    /** Keep all tiles reached by a compound stroke resident until the returned release function is called. */
+    async prepareBrushes(brushes: readonly Brush[]): Promise<() => void> {
+        const s = this.source, n = s.doc.tileSamples - 1, keys = new Set<string>();
+        for (const brush of brushes) {
+            const span = reach(s.samplesX, s.samplesZ, this.sizeX, this.sizeZ,
+                { ...brush, x: brush.x - this.origin.x, z: brush.z - this.origin.z });
+            if (!span) continue;
+            const left = Math.max(0, Math.floor((span.i0 - 1) / n)), back = Math.max(0, Math.floor((span.j0 - 1) / n));
+            const right = Math.min(s.doc.tilesX - 1, Math.floor((span.i1 + 1) / n)), front = Math.min(s.doc.tilesZ - 1, Math.floor((span.j1 + 1) / n));
+            for (let z = back; z <= front; z++) for (let x = left; x <= right; x++) if (s.hasTile(x, z)) keys.add(x + ':' + z);
+        }
+        return s.holdForEdit(keys);
+    }
+
     begin(): void {
         if (!this.open_) this.open_ = { tiles: new Map(), overview: kept(), bounds: null };
     }
@@ -235,7 +252,7 @@ export class TiledGroundEdit {
         const span = reach(s.samplesX, s.samplesZ, this.sizeX, this.sizeZ, brush);
         if (!span) return;
         const win = this.window(span);
-        if (!win) return;
+        if (!win || !win.tiles.length) return;
         const ex = this.sizeX / (s.samplesX - 1), ez = this.sizeZ / (s.samplesZ - 1);
         const cx = ((win.i0 + win.i1) / 2 / (s.samplesX - 1) - 0.5) * this.sizeX, cz = ((win.j0 + win.j1) / 2 / (s.samplesZ - 1) - 0.5) * this.sizeZ;
         const hit = run(win, (win.w - 1) * ex, (win.h - 1) * ez, { ...brush, x: brush.x - cx, z: brush.z - cz });

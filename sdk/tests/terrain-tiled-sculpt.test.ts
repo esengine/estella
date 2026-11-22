@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { HeightmapFormat, type Heightfield } from '../src/terrain/heightfield';
 import { GroundEdit } from '../src/terrain/groundEdit';
+import { connectLandscape, landscapePoint, type LandscapeSpline } from '../src/terrain/landscapeSpline';
+import { gradeLandscapeGround, landscapeGradeBrushes } from '../src/terrain/landscapeGrade';
 import { TiledGroundEdit } from '../src/terrain/tiledGroundEdit';
 import { FieldSource, ModifiedSource } from '../src/terrain/source';
 import { SculptMode } from '../src/terrain/sculpt';
@@ -80,6 +82,31 @@ describe('brushes on ground kept as tiles', () => {
             for (let j = 0; j < T; j++) expect(a.field.data[j * T + n]).toBe(b.field.data[j * T]);
         });
     }
+
+    it('grades a spline across unloaded tile seams and undoes its height and paint together', async () => {
+        const {source, edit} = tiled(1);
+        const {edit: flat, field} = whole();
+        const a = landscapePoint(1, {x:-175, y:70, z:-80}, 40);
+        const b = landscapePoint(2, {x:165, y:70, z:-80}, 40);
+        const graph: LandscapeSpline = {points:[a,b], segments:[]};
+        connectLandscape(graph, a, b)!.layer = 5;
+        const brushes = landscapeGradeBrushes(graph, edit);
+        const release = await edit.prepareBrushes(brushes);
+        edit.begin(); flat.begin();
+        gradeLandscapeGround(edit, graph, brushes); gradeLandscapeGround(flat, graph, landscapeGradeBrushes(graph, flat));
+        const patch = edit.end()!, flatPatch = flat.end()!;
+        const left = source.tileAt(0, 0)!, right = source.tileAt(1, 0)!;
+        const leftSeam = (T*T-1), rightSeam = (T-1)*T;
+        expect(left.field.data[leftSeam]).toBeCloseTo(0.7);
+        expect(right.field.data[rightSeam]).toBe(left.field.data[leftSeam]);
+        expect(right.splat2!.pixels[rightSeam*4+1]).toBe(255);
+        expect(right.field.data[rightSeam]).toBe(field.data[(T-1)*N+(T-1)]);
+        release(); edit.apply(patch, 'before'); flat.apply(flatPatch, 'before');
+        expect(right.field.data[rightSeam]).toBe(field.data[(T-1)*N+(T-1)]);
+        expect(right.splat2!.pixels[rightSeam*4+1]).toBe(0);
+        edit.apply(patch, 'after');
+        expect(right.field.data[rightSeam]).toBeCloseTo(0.7);
+    });
 
     it('preserves a rotated pattern across tile windows and undo', async () => {
         const t = tiled(), w = whole();
