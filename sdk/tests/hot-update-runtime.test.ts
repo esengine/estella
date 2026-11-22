@@ -216,7 +216,87 @@ describe('a slot is keyed by what the asset IS, not by where this revision serve
     });
 });
 
+function twoFileManifest(hash: string, revision: string): AddressableManifest {
+    const result = cdnManifest(hash, revision);
+    const files = result.groups.cdn.assets;
+    files['uuid-2'] = { ...files['uuid-1'], address: 'assets/mask.png', path: `assets/mask-${hash}.png` };
+    return result;
+}
+
 describe('a hot update reaches what was built from what it changed', () => {
+    it('refreshes overlapping consumers once, after their dependencies, when two files change together', async () => {
+        const assets = createAssets(backendServing(twoFileManifest(REMOTE_HASH, 'new')));
+        assets.setManifest(twoFileManifest('aaaa', 'old'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const builds: string[] = [];
+        assets.register({ type: 'surface', extensions: ['.surface'], registry: {
+            prepare: async (_path, ctx) => {
+                await ctx.readSource!('assets/hero.png');
+                await ctx.readSource!('assets/mask.png');
+                const value = { revision: assets.getManifest()!.revision() };
+                builds.push('surface');
+                return { published: value, value };
+            },
+        } });
+        assets.register({ type: 'level', extensions: ['.level'], registry: {
+            prepare: async (_path, ctx) => {
+                const surface = await ctx.acquireAsset<{ revision: string }>('surface', 'ground.surface');
+                await ctx.readSource!('@uuid:uuid-2');
+                builds.push('level');
+                return { published: surface.value, value: surface.value };
+            },
+        } });
+        const held = await assets.acquireTyped('level', 'demo.level');
+        try {
+            builds.length = 0;
+            await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+            const result = await assets.applyUpdate();
+            expect(result).toMatchObject({ ok: true, updated: 2 });
+            expect(builds).toEqual(['surface', 'level']);
+            expect(assets.resolveRegistryAsset('level', 'demo.level')).toEqual({ revision: 'new' });
+        } finally {
+            held.release();
+        }
+    });
+
+    it('schedules a changed slot that also owns a changed dependency after that dependency', async () => {
+        const assets = createAssets(backendServing(twoFileManifest(REMOTE_HASH, 'new')));
+        assets.setManifest(twoFileManifest('aaaa', 'old'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const versions: string[] = [];
+        let start!: () => void, resume!: () => void;
+        const started = new Promise<void>(resolve => { start = resolve; });
+        const released = new Promise<void>(resolve => { resume = resolve; });
+        assets.register({ type: 'mask', extensions: [], registry: {
+            prepare: async () => {
+                const revision = assets.getManifest()!.revision();
+                if (revision === 'new') { start(); await released; }
+                return { published: revision, value: revision };
+            },
+        } });
+        assets.register({ type: 'surface', extensions: [], registry: {
+            prepare: async (_path, ctx) => {
+                const mask = await ctx.acquireAsset<string>('mask', '@uuid:uuid-2');
+                versions.push(mask.value);
+                return { published: mask.value, value: mask.value };
+            },
+        } });
+        const held = await assets.acquireTyped('surface', 'assets/hero.png');
+        try {
+            expect(assets.resolveRegistryAsset('mask', 'assets/mask.png')).toBe('old');
+            await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+            const updating = assets.applyUpdate();
+            await Promise.race([started, updating.then(() => { throw Error('Update finished before the mask was prepared'); })]);
+            resume();
+            expect(await updating).toMatchObject({ ok: true, updated: 2 });
+            expect(versions).toEqual(['old', 'new']);
+            expect(assets.resolveRegistryAsset('surface', 'assets/hero.png')).toBe('new');
+        } finally {
+            resume();
+            held.release();
+        }
+    });
+
     it('re-prepares the asset that read a changed one, against the new content', async () => {
         // The changed asset itself is content-addressed, so the next load of it
         // finds the update on its own. What CANNOT is an era already built from

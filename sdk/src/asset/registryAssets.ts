@@ -23,7 +23,7 @@
  *          today that is only prevented by the file extensions differing.
  */
 import type { AssetLease } from './AssetLease';
-import type { DependencyReceipt, Preparation } from './dependencies';
+import type { AssetWithReceipts, DependencyReceipt, Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
@@ -181,12 +181,12 @@ export class RegistryAssetSlots {
 
     /** Every live era, by the key its slot is filed under. What a reverse walk
      *  reads: who depends on what is computed from the eras themselves. */
-    eras(): Array<{ type: string; key: string; edges: readonly DependencyReceipt[] }> {
-        const out: Array<{ type: string; key: string; edges: readonly DependencyReceipt[] }> = [];
+    eras(): AssetWithReceipts[] {
+        const eras: AssetWithReceipts[] = [];
         for (const slot of new Set(this.byName_.values())) {
-            if (slot.era) out.push({ type: slot.type, key: slot.key, edges: slot.era.edges });
+            if (slot.era) eras.push({ type: slot.type, path: slot.key, edges: slot.era.edges });
         }
-        return out;
+        return eras;
     }
 
     /**

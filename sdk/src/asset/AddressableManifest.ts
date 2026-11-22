@@ -4,7 +4,10 @@ import type { AddressableAssetType } from '../assetTypes';
 import { indexTextureImportSettings, type ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
+import { UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
+
+type RemoteAsset = { path: string; identity: string };
 
 const warnedNotPackaged = new Set<string>();
 let probing = 0;
@@ -359,7 +362,7 @@ export class ManifestModel {
 
     private keyIndex_: Map<string, AddressableManifestAsset> | null = null;
     private pathIndex_: Map<string, AddressableManifestAsset> | null = null;
-    private remoteIndex_: { byRef: Map<string, string>; identity: Map<string, string> } | null = null;
+    private remoteIndex_: Map<string, RemoteAsset> | null = null;
 
     private indexes(): { byKey: Map<string, AddressableManifestAsset>; byPath: Map<string, AddressableManifestAsset> } {
         if (!this.keyIndex_ || !this.pathIndex_) {
@@ -406,7 +409,7 @@ export class ManifestModel {
      * manifest), while local / lazy assets keep their normal resolution.
      */
     remoteAssetPath(ref: string): string | null {
-        return this.remoteIndexes_().byRef.get(ref) ?? null;
+        return this.remoteAsset_(ref)?.path ?? null;
     }
 
     /**
@@ -416,27 +419,32 @@ export class ManifestModel {
      * one revision, while this is what every revision agrees on.
      */
     remoteAssetIdentity(ref: string): string | null {
-        return this.remoteIndexes_().identity.get(ref) ?? null;
+        return this.remoteAsset_(ref)?.identity ?? null;
     }
 
-    /** Both remote indexes, built together from one walk. */
-    private remoteIndexes_(): { byRef: Map<string, string>; identity: Map<string, string> } {
+    /** Every spelling resolves to one record, for both the stable name and the current locator. */
+    private remoteAsset_(ref: string): RemoteAsset | undefined {
         if (!this.remoteIndex_) {
-            const byRef = new Map<string, string>();
-            const identity = new Map<string, string>();
+            const index = new Map<string, RemoteAsset>();
             for (const group of Object.values(this.manifest.groups)) {
                 if (normalizeBundleMode(group.bundleMode) !== 'remote') continue;
                 for (const [key, asset] of Object.entries(group.assets)) {
-                    const name = asset.address ?? key;
-                    for (const ref of [key, asset.path, ...(asset.address ? [asset.address, `/${asset.address}`] : [])]) {
-                        byRef.set(ref, asset.path);
-                        identity.set(ref, name);
+                    const record = { path: asset.path, identity: asset.address ?? key };
+                    index.set(key, record);
+                    index.set(asset.path, record);
+                    if (asset.address) {
+                        index.set(asset.address, record);
+                        index.set(`/${asset.address}`, record);
                     }
                 }
             }
-            this.remoteIndex_ = { byRef, identity };
+            this.remoteIndex_ = index;
         }
-        return this.remoteIndex_;
+        if (ref.startsWith(UUID_REF_PREFIX)) {
+            const uuid = ref.slice(UUID_REF_PREFIX.length).toLowerCase();
+            return this.remoteIndex_.get(uuid) ?? this.remoteIndex_.get(ref);
+        }
+        return this.remoteIndex_.get(ref);
     }
 
     /**

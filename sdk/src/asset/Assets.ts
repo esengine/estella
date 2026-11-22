@@ -29,8 +29,11 @@ import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
-import { DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable, rebuildPlan, type AssetIdentity,
-         type DependencyReceipt, type Preparation, type PreparedLoad } from './dependencies';
+import {
+    DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable,
+    cachedPaths, matchingDependents, ownedDependents, rebuildPlan,
+    type AssetIdentity, type AssetWithReceipts, type DependencyReceipt, type Preparation, type PreparedLoad,
+} from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { spinePairKey } from './spinePairKey';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
@@ -1309,13 +1312,7 @@ export class Assets {
         // A changed asset is content-addressed, so its next load finds the update
         // on its own. An era already BUILT from one cannot: it holds what it read
         // at the revision it was prepared in, and only the walk ends it.
-        for (const c of changed) {
-            // Read the plan before anything is re-prepared, then the changed
-            // asset's own slot: it is keyed by its identity, so the update
-            // reaches it by preparing an era from the new revision's locator.
-            const plan = this.rebuildPlan_(c.key);
-            this.track_(this.republishSlots_(c.key).rebuilt.then(() => this.rebuildAssetGraph_(plan)));
-        }
+        if (changed.length) this.track_(this.rebuildChangedFiles_(changed.map(c => c.key)));
         // The update is applied when the asset graph agrees with the manifest —
         // not when the manifest was swapped. Bindings converge on a frame, which
         // an app that is not ticking would never reach from here.
@@ -2269,11 +2266,13 @@ export class Assets {
     /** What a change to `ref` reaches. Not filtered by path: an asset that
      *  happens to live at the changed file can still be what the chain reaches
      *  LAST, and dropping it there is the same erasure one level up. */
-    private rebuildPlan_(ref: string): AssetIdentity[][] {
-        return rebuildPlan(this.resolveLoadPath_(ref), {
-            ofSource: (path) => this.dependentsOfSource(path),
-            ofAsset: (asset) => this.dependentsOfAsset(asset),
-        });
+    private rebuildPlan_(refs: string | readonly string[]): AssetIdentity[][] {
+        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const changed = new Set((typeof refs === 'string' ? [refs] : refs).map(canonical));
+        const eras = this.eras_();
+        const roots = matchingDependents(eras, edge => isInvalidatable(edge) && changed.has(canonical(edge.path)));
+        if (!roots.length) return [];
+        return rebuildPlan(roots, ownedDependents(eras, canonical));
     }
 
     /** Count one propagation as in flight until it lands. It answers to nobody
@@ -2359,7 +2358,7 @@ export class Assets {
 
         // A registry-backed asset has no cache entry to drop and no handle to
         // swap: the update IS a new era published under the same names.
-        const slot = this.republishSlot_(type, asset.path);
+        const published = this.republishSlot_(type, this.assetIdentity_(asset.path));
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive the
         // Assets-level entry — sever it so a warm-cache revive can never serve
@@ -2375,7 +2374,7 @@ export class Assets {
         if (dropped) {
             this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue });
         }
-        return { hit: dropped || slot.found, rebuilt: slot.rebuilt };
+        return { hit: dropped || published !== undefined, rebuilt: published ?? Promise.resolve() };
     }
 
     /**
@@ -2383,32 +2382,37 @@ export class Assets {
      * atomically. By IDENTITY: the slot is keyed by what the asset is, and this
      * preparation resolves where the current revision serves it.
      */
-    private republishSlot_(type: string, ref: string): { found: boolean; rebuilt: Promise<void> } {
+    private republishSlot_(type: string, identity: string): Promise<void> | undefined {
+        if (!this.registrySlots_.has(type, identity)) return;
         const kind = this.registryKind_(type);
-        const identity = this.assetIdentity_(ref);
-        if (!kind || !this.registrySlots_.has(type, identity)) {
-            return { found: false, rebuilt: Promise.resolve() };
-        }
-        const rebuilt = this.registrySlots_.republish(kind, type, identity).then(
+        if (!kind) return;
+        return this.registrySlots_.republish(kind, type, identity).then(
             () => undefined,
             (e: unknown) => {
-                log.warn('asset', `hot update: re-publishing "${ref}" failed; holders keep the era they have`, e);
+                log.warn('asset', `hot update: re-publishing "${identity}" failed; holders keep the era they have`, e);
             },
         );
-        return { found: true, rebuilt };
     }
 
-    /** {@link republishSlot_} for every type this ref names one of — a changed
-     *  FILE, which does not say what kind of asset lives at it. */
-    private republishSlots_(ref: string): { found: boolean; rebuilt: Promise<void> } {
-        const work: Array<Promise<void>> = [];
-        let found = false;
-        for (const type of this.loaders_.keys()) {
-            const slot = this.republishSlot_(type, ref);
-            found = slot.found || found;
-            work.push(slot.rebuilt);
+    /** Plan from the outgoing receipts. Directly changed slots that also depend
+     *  on a change publish at their position in the plan, after their inputs. */
+    private async rebuildChangedFiles_(files: readonly string[]): Promise<void> {
+        const plan = this.rebuildPlan_(files);
+        const changed = new Map<string, Set<string>>();
+        for (const file of files) changed.set(this.assetIdentity_(file), new Set());
+        for (const group of plan) {
+            for (const asset of group) changed.get(asset.path)?.add(asset.type);
         }
-        return { found, rebuilt: Promise.all(work).then(() => undefined) };
+        const direct: Promise<void>[] = [];
+        for (const [identity, plannedTypes] of changed) {
+            for (const type of this.loaders_.keys()) {
+                if (plannedTypes.has(type)) continue;
+                const work = this.republishSlot_(type, identity);
+                if (work) direct.push(work);
+            }
+        }
+        await Promise.all(direct);
+        await this.rebuildAssetGraph_(plan);
     }
 
     /** Fire every onInvalidate listener with one generation's ending. Isolates
@@ -2709,10 +2713,7 @@ export class Assets {
         if (!this.remoteRoot_) return null;
         const model = this.manifestModel_;
         if (!model) return null;
-        const key = ref.startsWith(UUID_REF_PREFIX)
-            ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
-            : ref;
-        const path = model.remoteAssetPath(key) ?? model.remoteAssetPath(ref);
+        const path = model.remoteAssetPath(ref);
         return path != null ? this.remoteUrlFor_(path) : null;
     }
 
@@ -2901,9 +2902,9 @@ export class Assets {
      * @internal
      */
     dependentsOfSource(ref: string): AssetIdentity[] {
-        // Both meanings of a file: whoever READ it, and whoever acquired the
-        // asset that lives at it.
-        return this.dependents_(ref, isInvalidatable);
+        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const target = canonical(ref);
+        return matchingDependents(this.eras_(), edge => isInvalidatable(edge) && canonical(edge.path) === target);
     }
 
     /**
@@ -2915,40 +2916,19 @@ export class Assets {
      * @internal
      */
     dependentsOfAsset(asset: AssetIdentity): AssetIdentity[] {
-        return this.dependents_(asset.path, (e) => e.kind === 'owned' && e.type === asset.type);
-    }
-
-    /** Every era with an edge that `names` — the walk both doors share. */
-    private dependents_(ref: string, names: (e: DependencyReceipt) => boolean): AssetIdentity[] {
-        const canonical = new Map<string, string>();
-        const identify = (path: string): string => {
-            let known = canonical.get(path);
-            if (known === undefined) {
-                known = this.resolveLoadPath_(path);
-                canonical.set(path, known);
-            }
-            return known;
-        };
-        const target = identify(ref);
-        const out: AssetIdentity[] = [];
-        for (const era of this.eras_()) {
-            if (era.edges.some((e) => names(e) && identify(e.path) === target)) {
-                out.push({ type: era.type, path: era.path });
-            }
-        }
-        return out;
+        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const target = canonical(asset.path);
+        return matchingDependents(this.eras_(), edge => edge.kind === 'owned' && edge.type === asset.type && canonical(edge.path) === target);
     }
 
     /** Every live era of this realm, published under a name or held by handle. */
-    private *eras_(): Generator<{ type: string; path: string; edges: readonly DependencyReceipt[] }> {
-        for (const era of this.registrySlots_.eras()) {
-            yield { type: era.type, path: era.key, edges: era.edges };
-        }
+    private eras_(): AssetWithReceipts[] {
+        const eras = this.registrySlots_.eras();
         const seen = new Set<PreparedLoad<unknown>>();
         for (const [type, cache] of this.genericCache_) {
             for (const [path, era] of cache.entries()) {
                 seen.add(era);
-                yield { type, path, edges: era.edges };
+                eras.push({ type, path, edges: era.edges });
             }
         }
         // Invalidating removes residency, not ownership. A failed refresh can
@@ -2960,9 +2940,10 @@ export class Assets {
             for (const { value: era } of generations) {
                 if (seen.has(era)) continue;
                 seen.add(era);
-                yield { type, path, edges: era.edges };
+                eras.push({ type, path, edges: era.edges });
             }
         }
+        return eras;
     }
 
     /**

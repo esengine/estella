@@ -36,6 +36,19 @@ function manifest(): AddressableManifest {
     };
 }
 
+it('uses the same remote record for a UUID, address and cooked path', () => {
+    const fixture = manifest();
+    const uuid = 'a13c506a-d3c4-42a9-8ff7-f217669af910';
+    const address = 'assets/stone.png', path = 'cdn/stone.123.png';
+    fixture.groups.cdn.assets[uuid] = { path, address, type: 'texture', size: 1, labels: [] };
+    const model = ManifestModel.fromJson(fixture);
+    for (const ref of [uuid, `@uuid:${uuid.toUpperCase()}`, address, `/${address}`, path]) {
+        expect(model.remoteAssetPath(ref)).toBe(path);
+        expect(model.remoteAssetIdentity(ref)).toBe(address);
+    }
+    expect(model.remoteAssetIdentity('a.png')).toBeNull();
+});
+
 describe('normalizeBundleMode', () => {
     it('passes through known modes', () => {
         expect(normalizeBundleMode('local')).toBe('local');

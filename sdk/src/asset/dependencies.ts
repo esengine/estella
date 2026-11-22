@@ -74,67 +74,116 @@ export interface Preparation {
     readonly failedDependencies?: readonly string[];
 }
 
-/**
- * The two reverse questions, which are not one question with a flag.
- *
- * `ofSource` is asked of the file that changed: whoever READ it, and whoever
- * acquired the asset living at it. `ofAsset` is asked of every vertex after
- * that, and answers acquisitions only — those bytes have not changed.
- */
-export interface DependencyOracle {
-    ofSource(path: string): readonly AssetIdentity[];
-    ofAsset(asset: AssetIdentity): readonly AssetIdentity[];
+export type AssetWithReceipts = AssetIdentity & Pick<Preparation, 'edges'>;
+
+/** Resolve aliases against the same manifest once per spelling for this walk. */
+export function cachedPaths(resolve: (path: string) => string): (path: string) => string {
+    const paths = new Map<string, string>();
+    return path => {
+        let value = paths.get(path);
+        if (value === undefined) {
+            value = resolve(path);
+            paths.set(path, value);
+        }
+        return value;
+    };
+}
+
+/** A file reaches its readers AND its acquirers. Once an asset is reached,
+ * only an acquisition of that specific type can lead to another generation. */
+export function matchingDependents(
+    eras: Iterable<AssetWithReceipts>, matches: (edge: DependencyReceipt) => boolean,
+): AssetIdentity[] {
+    const result: AssetIdentity[] = [];
+    for (const era of eras) {
+        if (era.edges.some(matches)) result.push({ type: era.type, path: era.path });
+    }
+    return result;
+}
+
+/** Index the typed acquisitions for the duration of one propagation. A probe
+ * for a file with no live consumers never needs this table. */
+export function ownedDependents(eras: Iterable<AssetWithReceipts>, canonical: (path: string) => string) {
+    const byType = new Map<string, Map<string, AssetIdentity[]>>();
+    for (const era of eras) {
+        let owner: AssetIdentity | undefined;
+        for (const edge of era.edges) {
+            if (edge.kind !== 'owned' || edge.type === undefined) continue;
+            const path = canonical(edge.path);
+            let paths = byType.get(edge.type);
+            if (!paths) {
+                paths = new Map();
+                byType.set(edge.type, paths);
+            }
+            owner ??= { type: era.type, path: era.path };
+            const parents = paths.get(path);
+            if (!parents) paths.set(path, [owner]);
+            else if (parents[parents.length - 1] !== owner) parents.push(owner);
+        }
+    }
+    return (asset: AssetIdentity): readonly AssetIdentity[] => byType.get(asset.type)?.get(canonical(asset.path)) ?? [];
+}
+
+interface Visit {
+    readonly asset: AssetIdentity;
+    readonly index: number;
+    readonly parents: readonly AssetIdentity[];
+    low: number;
+    nextParent: number;
+    open: boolean;
 }
 
 /**
- * What to rebuild after `changed` changed, deepest dependency first, each cycle
- * one group. The root is a PATH (a change names a file, which need not be an
- * asset); every vertex after it keeps its TYPE, since flattening two assets that
- * share a path invents a cycle between them. Tarjan emits last-reached first.
+ * Order the consumers of the changed files, deepest dependency first, each
+ * cycle one group. All roots share one Tarjan traversal so an update visits a
+ * shared consumer once. The explicit DFS stack also supports deep asset chains.
  */
 export function rebuildPlan(
-    changed: string, dependents: DependencyOracle,
+    roots: readonly AssetIdentity[], parentsOf: (asset: AssetIdentity) => readonly AssetIdentity[],
 ): AssetIdentity[][] {
-    const index = new Map<string, number>();
-    const low = new Map<string, number>();
-    const open = new Set<string>();
-    const stack: AssetIdentity[] = [];
+    const visited = new Map<string, Visit>();
+    const pending: Visit[] = [];
+    const open: Visit[] = [];
     const groups: AssetIdentity[][] = [];
-    let next = 0;
     const keyOf = (id: AssetIdentity): string => `${id.type}\0${id.path}`;
-
-    const visit = (node: AssetIdentity): void => {
-        const key = keyOf(node);
-        index.set(key, next);
-        low.set(key, next);
-        next++;
-        stack.push(node);
-        open.add(key);
-        for (const parent of dependents.ofAsset(node)) {
-            const above = keyOf(parent);
-            if (!index.has(above)) {
-                visit(parent);
-                low.set(key, Math.min(low.get(key)!, low.get(above)!));
-            } else if (open.has(above)) {
-                low.set(key, Math.min(low.get(key)!, index.get(above)!));
-            }
-        }
-        if (low.get(key) !== index.get(key)) return;
-        const group: AssetIdentity[] = [];
-        for (;;) {
-            const member = stack.pop()!;
-            open.delete(keyOf(member));
-            group.push(member);
-            if (keyOf(member) === key) break;
-        }
-        groups.push(group);
-    };
-
-    // A forest, not a tree: the changed file can be read by several assets, and
-    // one already visited through another root is not visited again.
-    for (const root of dependents.ofSource(changed)) {
-        if (!index.has(keyOf(root))) visit(root);
+    function enter(asset: AssetIdentity, key: string): void {
+        const index = visited.size;
+        const node: Visit = { asset, index, low: index, parents: parentsOf(asset), nextParent: 0, open: true };
+        visited.set(key, node);
+        pending.push(node);
+        open.push(node);
     }
+    function finishGroup(root: Visit): void {
+        const group: AssetIdentity[] = [];
+        let member: Visit;
+        do {
+            member = open.pop()!;
+            member.open = false;
+            group.push(member.asset);
+        } while (member !== root);
+        groups.push(group);
+    }
+    function walk(root: AssetIdentity): void {
+        const key = keyOf(root);
+        if (visited.has(key)) return;
+        enter(root, key);
+        while (pending.length) {
+            const node = pending[pending.length - 1];
+            if (node.nextParent < node.parents.length) {
+                const parent = node.parents[node.nextParent++];
+                const parentKey = keyOf(parent);
+                const seen = visited.get(parentKey);
+                if (!seen) enter(parent, parentKey);
+                else if (seen.open) node.low = Math.min(node.low, seen.index);
+                continue;
+            }
+            pending.pop();
+            if (node.low === node.index) finishGroup(node);
+            const caller = pending[pending.length - 1];
+            if (caller) caller.low = Math.min(caller.low, node.low);
+        }
+    }
+    for (const root of roots) walk(root);
     return groups.reverse();
 }
 
