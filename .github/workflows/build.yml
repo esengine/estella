@@ -105,6 +105,8 @@ jobs:
         node tools/render-host/build.mjs
         node tools/tests/planar-reflection.e2e.mjs --webgl-only
         node tools/tests/planar-reflection.e2e.mjs --webgl-only --prepass
+    - name: Check underwater light conservation and coverage on diverging rays
+      run: node tools/tests/water-caustic-field.e2e.mjs
     - name: Check paused and scaled render clocks with genuine headless Chromium
       run: node tools/tests/render-clock.e2e.mjs --webgl-only
     - name: Check native placement bounds with genuine headless Chromium
