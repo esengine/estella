@@ -40,6 +40,18 @@ describe('the Model shader\'s shading layers', () => {
         expect(source).toMatch(/#pragma param u_specular float default\(1\)/);
     });
 
+    it('uses the isotropic surface when the texture has no valid anisotropy direction', () => {
+        for (const stage of [glsl, wgsl]) {
+            const length = stage.indexOf('dot(T, T)');
+            const guard = stage.indexOf('axisLength2 >', length);
+            const lobe = stage.indexOf('ext.aniso =', guard);
+            expect(length).toBeGreaterThan(0);
+            expect(guard).toBeGreaterThan(length);
+            expect(lobe).toBeGreaterThan(guard);
+            expect(lobe).toBeLessThan(stage.indexOf('}', guard));
+        }
+    });
+
     it('hands the filled surface to the lighting, in each language', () => {
         expect(glsl).toMatch(/applyLightingSurface\([^;]*, ext\)/);
         expect(wgsl).toMatch(/applyLightingSurface\([^;]*, ext\)/);

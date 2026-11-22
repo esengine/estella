@@ -43,7 +43,7 @@ describe('applyUnderwaterToEffects', () => {
         expect([e.uniforms.get('u_causticStrength'), e.uniforms.get('u_causticScale'), e.uniforms.get('u_causticSpeed')]).toEqual([0.6, 2, 0.35]);
     });
 
-    it('keeps the numbers a scene authored, and only fills in the depth and the amount', () => {
+    it('keeps explicit overrides and fills each missing optical property from the same body', () => {
         const authored = blank();
         authored.uniforms.set('u_density', 0.5);
         authored.uniforms.set('u_amount', 0.5);
@@ -52,9 +52,19 @@ describe('applyUnderwaterToEffects', () => {
         applyUnderwaterToEffects(effects, state({ amount: 0.5, depth: 7 }));
         expect(authored.uniforms.get('u_density')).toBe(0.5);
         expect(authored.colors.get('u_absorption')).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+        expect(authored.colors.get('u_scatterColor')).toEqual({ r: 0.02, g: 0.2, b: 0.3, a: 1 });
         // The authored amount is a ceiling on how much the effect shows, and the camera's own submersion scales it.
         expect(authored.uniforms.get('u_amount')).toBeCloseTo(0.25, 10);
         expect(authored.uniforms.get('u_cameraDepth')).toBe(7);
+    });
+
+    it('inherits surface optics when the volume only adjusts the light shafts', () => {
+        const effect = blank();
+        effect.uniforms.set('u_shaftStrength', 0.18);
+        applyUnderwaterToEffects(new Map([['underwater', effect]]), state());
+        expect(effect.uniforms.get('u_shaftStrength')).toBe(0.18);
+        expect(effect.uniforms.get('u_density')).toBe(0.02);
+        expect(effect.colors.get('u_absorption')).toEqual({ r: 0.4, g: 0.1, b: 0.05, a: 1 });
     });
 
     it('leaves an effect the scene switched off alone', () => {

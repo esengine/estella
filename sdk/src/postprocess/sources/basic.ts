@@ -38,7 +38,11 @@ in vec2 v_texCoord;
 uniform sampler2D u_texture;
 out vec4 fragColor;
 
-vec3 tap(vec2 uv) { return min(texture(u_texture, uv).rgb, vec3(65000.0)); }
+vec3 tap(vec2 uv) {
+    vec3 radiance = texture(u_texture, uv).rgb;
+    ${prefilter ? '// Invalid HDR radiance must not become a bright seed for the whole pyramid.\n    if (!all(lessThanEqual(abs(radiance), vec3(65504.0)))) return vec3(0.0);' : ''}
+    return clamp(radiance, vec3(0.0), vec3(65000.0));
+}
 
 void main() {
     vec2 ts = 1.0 / vec2(textureSize(u_texture, 0));

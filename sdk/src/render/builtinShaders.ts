@@ -747,8 +747,11 @@ void main() {
         // The direction the grooves run, from the UV frame turned by the rotation, then made to lie across N.
         highp vec3 T = perturbNormal(Ng, P, uv, vec3(cos(u_anisotropyRotation), sin(u_anisotropyRotation), 0.0));
         T -= N * dot(N, T);
-        if (dot(T, T) < 1e-6) T = cross(N, abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
-        ext.aniso = vec4(normalize(T), clamp(u_anisotropy, -0.99, 0.99));
+        // A collapsed UV axis has no groove direction. Use the isotropic lobe at that pixel.
+        highp float axisLength2 = dot(T, T);
+        if (axisLength2 > 1e-6) {
+            ext.aniso = vec4(T * inversesqrt(axisLength2), clamp(u_anisotropy, -0.99, 0.99));
+        }
     }
 #endif
     if (dot(u_sheenColor.rgb, vec3(1.0)) > 0.0) ext.sheen = vec4(u_sheenColor.rgb, max(u_sheenRoughness, 0.07));

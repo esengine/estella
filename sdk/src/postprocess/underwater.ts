@@ -6,9 +6,8 @@
  *
  * @details Being under water is not authored into a volume: it is a fact about where the camera is. The water module reports it (the camera is this
  *          deep under a surface whose water absorbs like this and glows like that) and this adds an `underwater` effect to whatever the volumes
- *          resolved, the way a weather adds its rain. A scene that authors an `underwater` effect of its own keeps its numbers and only has the
- *          depth and the amount filled in; one that does not gets the numbers of the water it is under, so the world below the surface and
- *          the surface seen from above agree.
+ *          resolved. The water's surface supplies the optical properties a scene leaves unspecified.
+ *          Explicit material and volume overrides apply to individual properties.
  *
  *          The effect itself (its shader and its definition) is registered by the water module: a build with no water has no state to report
  *          and carries none of it.
@@ -66,7 +65,6 @@ export function currentUnderwater(): UnderwaterState | null {
 export function applyUnderwaterToEffects(effects: Map<string, BlendedEffect>, state: UnderwaterState | null): void {
     if (!state || state.amount <= 0) return;
     let effect = effects.get('underwater');
-    const authored = !!effect;
     if (!effect) {
         effect = { enabled: true, uniforms: new Map(), textures: new Map(), colors: new Map() };
         effects.set('underwater', effect);
@@ -84,11 +82,9 @@ export function applyUnderwaterToEffects(effects: Map<string, BlendedEffect>, st
             else if ('x' in value) effect.colors.set(name,{r:value.x,g:value.y,b:'z' in value ? value.z : 0,a:'w' in value ? value.w : 0});
         }
     }
-    if (!authored) {
-        if (!effect.colors.has('u_absorption')) effect.colors.set('u_absorption', colour(state.absorption));
-        if (!effect.colors.has('u_scatterColor')) effect.colors.set('u_scatterColor', colour(state.scatter));
-        if (!effect.uniforms.has('u_density')) effect.uniforms.set('u_density', state.density);
-    }
+    if (!effect.colors.has('u_absorption')) effect.colors.set('u_absorption', colour(state.absorption));
+    if (!effect.colors.has('u_scatterColor')) effect.colors.set('u_scatterColor', colour(state.scatter));
+    if (!effect.uniforms.has('u_density')) effect.uniforms.set('u_density', state.density);
     const bodies = !effect.uniforms.has('u_causticStrength') && state.light !== false ? state.causticBodies : null;
     if (bodies) {
         effect.textures.set('u_zoneSurfaceData', runtimeTextureRef('waterSurfaceData', bodies.texture));
