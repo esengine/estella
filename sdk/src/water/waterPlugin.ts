@@ -1199,7 +1199,8 @@ export class WaterPlugin implements Plugin {
         set('u_surfHeight', zone.surf);
         set('u_surfLength', zone.surfLength);
         set('u_surfSpeed', zone.waveSpeed);
-        const optics = this.opticalField.update(s.instance, q.caustics ? q.causticFieldSize ?? 0 : 0, eye[0], eye[2],
+        // Both wireframe views draw only the submitted triangle edges.
+        const optics = this.waters_.meshView > 0 ? null : this.opticalField.update(s.instance, q.caustics ? q.causticFieldSize ?? 0 : 0, eye[0], eye[2],
             Math.max(waves.length * 3, 1e-3), lowY, Math.max(highY - lowY, 1e-3),
             this.waters_.depthAt(eye[0], eye[2], 0) ?? ocean?.level ?? this.waters_.zoneLevel_, Math.max(waves.length * 0.125, 1e-3), app.getResource(Time).elapsed);
         this.waters_.opticalField_ = optics;

@@ -12,7 +12,11 @@ on:
         type: string
         required: true
       current_source:
-        description: Test the current master editor and terrain SDK with a compatible recorded Web runtime
+        description: Test the current master authoring tools with a compatible recorded Web runtime
+        type: boolean
+        default: false
+      water_only:
+        description: Run only the water mesh and inspector acceptance
         type: boolean
         default: false
 
@@ -22,7 +26,11 @@ permissions:
 
 jobs:
   editor:
-    name: Landscape brushes, splines and paint in the editor
+    name: ${{ matrix.suite == 'water' && 'Water zone mesh and inspector' || 'Landscape brushes, splines and paint in the editor' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(inputs.water_only && '["water"]' || (github.event_name != 'workflow_dispatch' || inputs.current_source) && '["landscape","water"]' || '["landscape"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -41,7 +49,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.current_source && github.sha || steps.build.outputs.sha || github.sha }}
-      - name: Verify that the recorded runtime matches the current Landscape sources
+      - name: Verify that the recorded native runtime matches the current sources
         if: inputs.current_source
         env:
           BUILD_SHA: ${{ steps.build.outputs.sha }}
@@ -51,6 +59,9 @@ jobs:
           # These files are tested from HEAD below or have no effect on the native Web binary.
           git diff --quiet --ignore-submodules=none "$BUILD_SHA" HEAD -- . \
             ':(exclude)desktop' ':(exclude)sdk/src/terrain/*.ts' ':(exclude)sdk/tests/**' \
+            ':(exclude)sdk/src/water/*.ts' ':(exclude)sdk/src/render/builtinShaders.ts' \
+            ':(exclude)sdk/src/postprocess/underwater.ts' ':(exclude)sdk/src/postprocess/sources/basic.ts' \
+            ':(exclude)pipeline/src/assets/addressableManifest.ts' \
             ':(exclude)sdk/src/scene/scene.ts' ':(exclude)sdk/src/assetTypes.ts' ':(exclude)sdk/src/runtime/planWorkerBundle.generated.ts' \
             ':(exclude)sdk/etc/*.api.md' ':(exclude)docs/astro/src/data/*.generated.json' ':(exclude)pipeline/src/assets/assetDb.ts' \
             ':(exclude)tools/assetMetaTable.js' ':(exclude)tools/check-corpus-authoring.mjs' \
@@ -71,10 +82,9 @@ jobs:
           mkdir -p desktop/public/wasm
           cp build/wasm/web/* desktop/public/wasm/
           pnpm --dir desktop exec vite build
-      - name: Check Landscape brushes and splines in the editor
+      - name: Set up the editor on the virtual display
         env:
           OUT: ${{ runner.temp }}/landscape-captures
-        timeout-minutes: 6
         working-directory: desktop
         run: |
           # On a clean install the first require downloads Electron and prints its progress.
@@ -83,33 +93,40 @@ jobs:
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
           mkdir -p "$OUT"
-          xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush landscape-splines
+      - name: Check Landscape brushes and splines in the editor
+        if: matrix.suite == 'landscape'
+        env:
+          OUT: ${{ runner.temp }}/landscape-captures
+        timeout-minutes: 6
+        working-directory: desktop
+        run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-brush landscape-splines
       - name: Check Landscape weight painting in the editor
+        if: matrix.suite == 'landscape'
         env:
           OUT: ${{ runner.temp }}/landscape-captures
         timeout-minutes: 4
         working-directory: desktop
         run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-paint
       - name: Verify water zone authoring and water-only wireframes
-        if: github.event_name != 'workflow_dispatch' || inputs.current_source
+        if: matrix.suite == 'water'
         working-directory: desktop
         env:
           OUT: ${{ runner.temp }}/landscape-captures
         run: xvfb-run -a node scripts/editor-checks/run.mjs water-zone-mesh
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.current_source) }}
+        if: ${{ !cancelled() && matrix.suite == 'water' }}
         with:
           name: water-zone-inspector
           path: ${{ runner.temp }}/landscape-captures/water-zone-*.png
-          if-no-files-found: warn
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.suite == 'landscape' }}
         with:
           name: landscape-spline-viewport
           path: ${{ runner.temp }}/landscape-captures/landscape-splines.png
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.suite == 'landscape' }}
         with:
           name: landscape-paint-viewport
           path: ${{ runner.temp }}/landscape-captures/landscape-paint.png

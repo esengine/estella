@@ -261,6 +261,7 @@ export class UnderwaterPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             if (!app.hasResource(WatersRes)) return;
             const waters = app.getResource(WatersRes);
+            if (waters.meshView > 0) { setUnderwaterState(null); return; }
             let eye: [number, number, number] | null = null;
             let near = 1;
             for (const entity of app.world.getEntitiesWithComponents([Camera, Transform])) {
