@@ -45,6 +45,16 @@ struct MockGfxDevice final : GfxDevice {
     bool programsReady = true;
     // A stand-in for a backend with (or without) a compute stage.
     bool computeSupported = false;
+    bool independentCompute = false;
+    bool acceptAsyncDispatch = true;
+    int asyncWaits = 0;
+    AsyncComputePriority lastPriority = AsyncComputePriority::Default;
+    bool supportsAsyncCompute() const override { return independentCompute; }
+    bool backendDispatchAsyncCompute(AsyncComputePriority priority, u32, const GfxComputeBinding*, u32, u32, u32, u32) override {
+        lastPriority = priority;
+        return acceptAsyncDispatch;
+    }
+    void backendWaitAsyncCompute() override { ++asyncWaits; }
     int createComputeCalls = 0;
     int deleteComputeCalls = 0;
     int dispatchComputeCalls = 0;

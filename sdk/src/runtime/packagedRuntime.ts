@@ -73,6 +73,7 @@ export interface PackagedGameConfig {
      *  the device, which answers capability and never policy. */
     msaaSamples?: number;
     /** The compute skin cache; absent ⇒ on, every mesh, 128 MB. */
+    asyncCompute?: boolean;
     skinCache?: SkinCacheConfig;
     quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
@@ -219,13 +220,14 @@ export function glContextAttributes(preserveDrawingBuffer = false): WebGLContext
 export function packagedAppOptions(
     config: Pick<PackagedGameConfig,
         'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'
-        | 'msaaSamples' | 'quality' | 'skinCache'>,
+        | 'msaaSamples' | 'quality' | 'skinCache' | 'asyncCompute'>,
 ): {
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     outputTransform?: 'none' | 'aces' | 'neutral';
     msaaSamples?: number;
+    asyncCompute?: boolean;
     skinCache?: SkinCacheConfig;
     quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
@@ -239,6 +241,7 @@ export function packagedAppOptions(
         colorSpace: config.colorSpace,
         outputTransform: config.outputTransform,
         msaaSamples: config.msaaSamples,
+        ...(config.asyncCompute !== undefined ? { asyncCompute: config.asyncCompute } : {}),
         ...(config.skinCache ? { skinCache: config.skinCache } : {}),
         quality: config.quality,
         screenFit: config.screenFit,

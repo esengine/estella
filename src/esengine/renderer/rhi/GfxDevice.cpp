@@ -61,6 +61,8 @@ bool GfxDevice::markDeviceLost(GfxDeviceLostReason reason, std::string message, 
     if (device_status_ != GfxDeviceStatus::Live && device_status_ != GfxDeviceStatus::Recovering) {
         return false;
     }
+    compute_job_open_ = false;
+    pending_compute_fence_ = kNoAsyncComputeFence;
     device_status_ = GfxDeviceStatus::Lost;
     device_info_.reason = reason;
     device_info_.identity = identity_;
@@ -702,6 +704,37 @@ void GfxDevice::deleteCompute(ComputeHandle program) {
     registry_.computes.erase(id);
 }
 
+void GfxDevice::setAsyncComputeEnabled(bool enabled) {
+    if (!enabled) manualComputeBarrier();
+    async_compute_enabled_ = enabled;
+    if (isDeviceUsable()) backendSetAsyncComputeEnabled(enabled);
+}
+
+bool GfxDevice::beginAsyncComputeJob(AsyncComputePriority priority) {
+    if (compute_job_open_ || !supportsCompute() || !isDeviceUsable() || !backendComputeScopeAvailable()) return false;
+    manualComputeBarrier();
+    if (!isDeviceUsable()) return false;
+    compute_job_open_ = true;
+    compute_priority_ = priority;
+    return true;
+}
+
+AsyncComputeFence GfxDevice::endAsyncComputeJob() {
+    if (!compute_job_open_) return kNoAsyncComputeFence;
+    compute_job_open_ = false;
+    return pending_compute_fence_;
+}
+
+void GfxDevice::graphicsWaitOnAsyncComputeJob(AsyncComputeFence fence) {
+    if (fence == kNoAsyncComputeFence || fence != pending_compute_fence_) return;
+    pending_compute_fence_ = kNoAsyncComputeFence;
+    backendWaitAsyncCompute();
+}
+
+void GfxDevice::manualComputeBarrier() {
+    graphicsWaitOnAsyncComputeJob(pending_compute_fence_);
+}
+
 bool GfxDevice::dispatchCompute(ComputeHandle program, const GfxComputeBinding* bindings, u32 bindingCount,
                                 u32 groupsX, u32 groupsY, u32 groupsZ) {
     if (!supportsCompute() || !isDeviceUsable()) return false;
@@ -710,7 +743,14 @@ bool GfxDevice::dispatchCompute(ComputeHandle program, const GfxComputeBinding* 
     if (!record || !record->realized) return false;
     if (groupsX == 0 || groupsY == 0 || groupsZ == 0) return false;
     if (bindingCount > 0 && !bindings) return false;
-    return backendDispatchCompute(id, bindings, bindingCount, groupsX, groupsY, groupsZ);
+    manualComputeBarrier();
+    if (compute_job_open_ && async_compute_enabled_ && supportsAsyncCompute() &&
+        next_compute_fence_ < INT32_MAX &&
+        backendDispatchAsyncCompute(compute_priority_, id, bindings, bindingCount, groupsX, groupsY, groupsZ)) {
+        pending_compute_fence_ = ++next_compute_fence_;
+        return true;
+    }
+    return isDeviceUsable() && backendDispatchCompute(id, bindings, bindingCount, groupsX, groupsY, groupsZ);
 }
 
 void GfxDevice::useProgram(ShaderHandle program) {

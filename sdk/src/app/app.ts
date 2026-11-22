@@ -2174,6 +2174,8 @@ export interface WebAppOptions {
     msaaSamples?: number;
     /** The compute skin cache (Project Settings > Rendering > Skinning); absent is on, every mesh, 128 MB. */
     skinCache?: SkinCacheConfig;
+    /** Allow eligible GPU compute passes to overlap rendering. Defaults to false. */
+    asyncCompute?: boolean;
     quality?: QualityConfig;
     /**
      * Seed the engine's randomness so this run reproduces — a replay, a bug

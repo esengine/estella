@@ -8,6 +8,9 @@
  *          internal clear-triangle emulations.
  */
 #include "WebGPUDevice.hpp"
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+#include "MetalComputeQueue.hpp"
+#endif
 #include "WebGPUMappings.hpp"
 #include "../rhi/PixelUpload.hpp"
 #include "../../core/Log.hpp"
@@ -82,6 +85,9 @@ u32 WebGPUDevice::maxSamples() { return kMsaaSamples; }
 
 void WebGPUDevice::init() {
     captureDeviceIdentity();
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    backendSetAsyncComputeEnabled(asyncComputeEnabled());
+#endif
 }
 
 void WebGPUDevice::captureDeviceIdentity() {
@@ -179,6 +185,11 @@ void WebGPUDevice::shutdown() {
 }
 
 void WebGPUDevice::releaseDeviceObjects() {
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    manualComputeBarrier();
+    metal_compute_.reset();
+    metal_compute_attempted_ = false;
+#endif
     if (pass_) { wgpuRenderPassEncoderRelease(pass_); pass_ = nullptr; }
     pass_pipeline_ = nullptr;
     if (encoder_) { wgpuCommandEncoderRelease(encoder_); encoder_ = nullptr; }
@@ -243,6 +254,8 @@ void WebGPUDevice::releaseDeviceObjects() {
     releaseTexture(dummy_volume_texture_);
 
     // GPU timing resources.
+    parallel_span_ = false;
+    if (clock_pipeline_) { wgpuComputePipelineRelease(clock_pipeline_); clock_pipeline_ = nullptr; }
     if (timestamp_qset_) { wgpuQuerySetRelease(timestamp_qset_); timestamp_qset_ = nullptr; }
     if (timestamp_resolve_) { wgpuBufferRelease(timestamp_resolve_); timestamp_resolve_ = nullptr; }
     for (auto& s : gpu_time_ring_) { if (s.buf) wgpuBufferRelease(s.buf); s.buf = nullptr; s.pending = false; }
@@ -316,6 +329,7 @@ void WebGPUDevice::releaseDeviceObjects() {
     // and the depth companion is rebuilt against them.
     surface_depth_width_ = 0;
     surface_depth_height_ = 0;
+    if (queue_) { wgpuQueueRelease(queue_); queue_ = nullptr; }
 }
 
 // =============================================================================
@@ -850,6 +864,9 @@ void WebGPUDevice::writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* 
 }
 
 void WebGPUDevice::backendDeleteBuffer(u32 id) {
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (metal_compute_) metal_compute_->forgetBuffer(id);
+#endif
     auto it = buffers_.find(id);
     if (it == buffers_.end()) return;
     if (it->second.buffer) {
@@ -904,6 +921,9 @@ void WebGPUDevice::backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data
 }
 
 void WebGPUDevice::backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) {
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (metal_compute_) metal_compute_->forgetBuffer(id);
+#endif
     auto it = buffers_.find(id);
     if (it == buffers_.end()) return;
 
@@ -1170,6 +1190,9 @@ bool WebGPUDevice::backendCreateCompressedTexture(u32 id, const TextureDesc& des
 }
 
 void WebGPUDevice::releaseTexture(TextureRec& rec) {
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (metal_compute_ && rec.texture) metal_compute_->forgetTexture(rec.texture);
+#endif
     // The sample view first, and only when it is a view of its own: for a colour
     // texture it aliases `view`, and releasing that twice frees a live object.
     if (rec.sampleView && rec.sampleView != rec.view) {
@@ -2533,6 +2556,10 @@ bool WebGPUDevice::backendCreateFramebuffer(u32, const FramebufferDesc& desc) {
 }
 
 void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
+    if (computeJobOpen()) {
+        ES_LOG_ERROR("WebGPUDevice::beginRenderPass: a compute job is open");
+        return;
+    }
     if (!isDeviceUsable()) return;
     if (!device_) return;
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
@@ -3078,7 +3105,7 @@ bool WebGPUDevice::backendCreateTimerQuery(u32) {
 }
 
 // A span is what GL's GL_TIME_ELAPSED gives between the same two calls: the GPU's time for everything issued inside
-// it. WebGPU can only stamp a pass, so every pass that opens inside the span is stamped and the span is their sum.
+// it. Single-queue spans sum timed passes. Parallel spans measure the interval between two GPU timestamps.
 void WebGPUDevice::beginTimerQuery(u32) {
     if (!timestamp_supported_) return;
     span_closing_ = false;
@@ -3095,6 +3122,45 @@ void WebGPUDevice::beginTimerQuery(u32) {
     // With every readback still in flight the span goes untimed, and says so with a zero rather than no answer:
     // the caller keeps one query in flight per span and would otherwise wait on this one for good.
     span_open_ = true;
+    parallel_span_ = asyncComputeEnabled() && supportsAsyncCompute();
+    if (parallel_span_ && span_slot_ < kGpuTimeRing) stampParallelSpan(false);
+}
+
+void WebGPUDevice::stampParallelSpan(bool end) {
+    if (!clock_pipeline_) {
+        WGPUShaderSourceWGSL code{};
+        code.chain.sType = WGPUSType_ShaderSourceWGSL;
+        code.code = sv("@compute @workgroup_size(1) fn main() {}");
+        WGPUShaderModuleDescriptor md{};
+        md.nextInChain = &code.chain;
+        auto module = wgpuDeviceCreateShaderModule(device_, &md);
+        WGPUComputePipelineDescriptor pd = WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT;
+        pd.compute.module = module;
+        pd.compute.entryPoint = sv("main");
+        clock_pipeline_ = wgpuDeviceCreateComputePipeline(device_, &pd);
+        wgpuShaderModuleRelease(module);
+    }
+    if (!clock_pipeline_) return;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    WGPUPassTimestampWrites time{};
+    time.querySet = timestamp_qset_;
+    time.beginningOfPassWriteIndex = 0;
+    time.endOfPassWriteIndex = 1;
+    WGPUComputePassDescriptor pd{};
+    pd.timestampWrites = &time;
+    auto pass = wgpuCommandEncoderBeginComputePass(encoder, &pd);
+    wgpuComputePassEncoderSetPipeline(pass, clock_pipeline_);
+    wgpuComputePassEncoderDispatchWorkgroups(pass, 1, 1, 1);
+    wgpuComputePassEncoderEnd(pass);
+    wgpuComputePassEncoderRelease(pass);
+    wgpuCommandEncoderResolveQuerySet(encoder, timestamp_qset_, 0, 2, timestamp_resolve_, 0);
+    const u64 offset = end ? sizeof(u64) : 0;
+    wgpuCommandEncoderCopyBufferToBuffer(encoder, timestamp_resolve_, offset, gpu_time_ring_[span_slot_].buf, offset, sizeof(u64));
+    if (end) span_passes_ = 1; // The existing readback consumes one pair of timestamps.
+    auto commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
 }
 
 void WebGPUDevice::endTimerQuery() {
@@ -3106,7 +3172,7 @@ void WebGPUDevice::endTimerQuery() {
 }
 
 bool WebGPUDevice::spanTakesPass() const {
-    return timestamp_supported_ && span_open_ && span_slot_ < kGpuTimeRing && span_passes_ < kSpanPasses;
+    return timestamp_supported_ && span_open_ && !parallel_span_ && span_slot_ < kGpuTimeRing && span_passes_ < kSpanPasses;
 }
 
 void WebGPUDevice::resolveSpanPass(WGPUCommandEncoder encoder) {
@@ -3117,6 +3183,12 @@ void WebGPUDevice::resolveSpanPass(WGPUCommandEncoder encoder) {
 }
 
 void WebGPUDevice::finishSpan() {
+    // A sum of pass durations double-counts overlap. The closing timestamp follows the GPU join.
+    if (parallel_span_) {
+        parallel_span_ = false;
+        manualComputeBarrier();
+        if (span_slot_ < kGpuTimeRing && isDeviceUsable()) stampParallelSpan(true);
+    }
     const u32 slot = span_slot_;
     const u32 passes = span_passes_;
     span_slot_ = kGpuTimeRing;
@@ -3218,7 +3290,7 @@ void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*m
     const u32 passes = self->gpu_time_ring_[slot].passes;
     if (status == WGPUMapAsyncStatus_Success && buf) {
         const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(buf, 0, 16ull * passes));
-        // The span is the sum of its passes; a pair that ran backwards (a timestamp reset) counts for nothing.
+        // Either one elapsed interval or the sum of per-pass pairs. Discard pairs spanning a timestamp reset.
         u64 total = 0;
         for (u32 i = 0; ts && i < passes; ++i) {
             if (ts[2 * i + 1] >= ts[2 * i]) total += ts[2 * i + 1] - ts[2 * i];
@@ -3270,8 +3342,6 @@ u32 storageTexelBytes(WGPUTextureFormat format) {
     }
 }
 
-constexpr u32 kMaxComputeBindings = 16;
-constexpr u32 kMaxWorkgroupsPerDimension = 65535;
 }  // namespace
 
 bool WebGPUDevice::backendCreateCompute(u32 id, const GfxComputeSource& source, std::string* outLog) {
@@ -3301,6 +3371,9 @@ bool WebGPUDevice::backendCreateCompute(u32 id, const GfxComputeSource& source, 
 }
 
 void WebGPUDevice::backendDeleteCompute(u32 id) {
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (metal_compute_) metal_compute_->forgetProgram(id);
+#endif
     auto it = computes_.find(id);
     if (it == computes_.end()) return;
     for (auto& [key, pipeline] : it->second.pipelines) {

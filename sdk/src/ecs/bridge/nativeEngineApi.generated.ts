@@ -189,6 +189,7 @@ export interface NativeEngineApi {
     renderer_entityVisibleToCamera?(registry: unknown, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
     renderer_flush?(): void;
     renderer_framePending?(): number;
+    renderer_getAsyncComputeEnabled?(): boolean;
     renderer_getCapturedEntityCount?(): number;
     renderer_getCapturedFrameSize?(): number;
     renderer_getCapturedPassCount?(): number;
@@ -248,6 +249,7 @@ export interface NativeEngineApi {
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: unknown, outPtr: number, capacity: number): number;
     renderer_retainedTextSubmit?(registry: unknown, screen: number, projectionPtr: number): void;
+    renderer_setAsyncComputeEnabled?(enabled: boolean): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
     renderer_setColorSpace?(linear: number): void;
@@ -299,6 +301,7 @@ export interface NativeEngineApi {
     renderer_submitSkeletalPreviewBatch?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number): number;
     renderer_submitSkeletalPreviewBatchEx?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean): number;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number): void;
+    renderer_supportsAsyncCompute?(): boolean;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
     renderer_takeTargetCapture?(handle: number, dest: number, destSize: number): boolean;
@@ -585,6 +588,7 @@ export function createNativeEngineApi(
     bind('renderer_entityVisibleToCamera', 'es_renderer_entityVisibleToCamera', true);
     bind('renderer_flush', 'es_renderer_flush', false);
     bind('renderer_framePending', 'es_renderer_framePending', false);
+    bind('renderer_getAsyncComputeEnabled', 'es_renderer_getAsyncComputeEnabled', false);
     bind('renderer_getCapturedEntityCount', 'es_renderer_getCapturedEntityCount', false);
     bind('renderer_getCapturedFrameSize', 'es_renderer_getCapturedFrameSize', false);
     bind('renderer_getCapturedPassCount', 'es_renderer_getCapturedPassCount', false);
@@ -644,6 +648,7 @@ export function createNativeEngineApi(
     bind('renderer_retainedTextClear', 'es_renderer_retainedTextClear', false);
     bind('renderer_retainedTextStale', 'es_renderer_retainedTextStale', true);
     bind('renderer_retainedTextSubmit', 'es_renderer_retainedTextSubmit', true);
+    bind('renderer_setAsyncComputeEnabled', 'es_renderer_setAsyncComputeEnabled', false);
     bind('renderer_setAsyncShaderCompile', 'es_renderer_setAsyncShaderCompile', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
@@ -695,6 +700,7 @@ export function createNativeEngineApi(
     bind('renderer_submitSkeletalPreviewBatch', 'es_renderer_submitSkeletalPreviewBatch', false);
     bind('renderer_submitSkeletalPreviewBatchEx', 'es_renderer_submitSkeletalPreviewBatchEx', false);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
+    bind('renderer_supportsAsyncCompute', 'es_renderer_supportsAsyncCompute', false);
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
     bind('renderer_takeProbeCapture', 'es_renderer_takeProbeCapture', false);
     bind('renderer_takeTargetCapture', 'es_renderer_takeTargetCapture', false);

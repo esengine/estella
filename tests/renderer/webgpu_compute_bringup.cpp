@@ -165,7 +165,13 @@ void runBuffers() {
         GfxComputeBinding::storageRead(1, srcBuf),
         GfxComputeBinding::storage(2, dstBuf),
     };
+    g_device->setAsyncComputeEnabled(true);
+    expect("browser has one GPU queue", !g_device->supportsAsyncCompute(), "reported an independent queue");
+    expect("inline compute job opened", g_device->beginAsyncComputeJob(), "job scope refused");
     expect("buffers dispatch", g_device->dispatchCompute(program, bindings, 3, (N + 63) / 64), "dispatchCompute returned false");
+    const auto fence = g_device->endAsyncComputeJob();
+    expect("inline dispatch needs no fence", fence == kNoAsyncComputeFence, "received a hardware fence");
+    g_device->graphicsWaitOnAsyncComputeJob(fence);
     later("buffers result", g_device->requestBufferReadback(dstBuf, 0, N * 4), N * 4, [](const u8* bytes) -> std::string {
         const u32* out = reinterpret_cast<const u32*>(bytes);
         for (u32 i = 0; i < N; ++i) {
@@ -336,6 +342,7 @@ void runInsideRenderPass() {
     pass.target = fbo;
     pass.clearColor = true;
     g_device->beginRenderPass(pass);
+    expect("no compute job inside a render pass", !g_device->beginAsyncComputeJob(), "job opened inside a render pass");
     const GfxComputeBinding bindings[1] = {GfxComputeBinding::storageTexture(0, storageTex)};
     const bool ran = g_device->dispatchCompute(program, bindings, 1, 1, 1);
     g_device->endRenderPass();

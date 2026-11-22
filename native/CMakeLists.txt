@@ -316,6 +316,12 @@ include(ESEngineSources)
 
 add_library(esengine STATIC ${ESENGINE_SOURCES})
 
+option(ES_ENABLE_ASYNC_COMPUTE "Allow independent native GPU compute queues" ON)
+if(APPLE AND ES_ENABLE_ASYNC_COMPUTE)
+    target_sources(esengine PRIVATE "${SRC}/esengine/renderer/webgpu/MetalComputeQueue.cpp")
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_METAL_ASYNC_COMPUTE)
+endif()
+
 target_include_directories(esengine PUBLIC
     "${SRC}" "${TP}/stb"
     "${ESTELLA_DAWN_DIR}/include"                 # <webgpu/webgpu.h> forwarder
@@ -324,6 +330,11 @@ target_compile_definitions(esengine PUBLIC   # NOT ES_PLATFORM_WEB
     ES_ENABLE_WEBGPU ES_ENABLE_BITMAP_TEXT
     ES_ENABLE_TILEMAP ES_ENABLE_PARTICLES ES_ENABLE_POSTPROCESS ES_ENABLE_SPINE)
 target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
+
+if(APPLE AND ESTELLA_DESKTOP)
+    add_executable(test_metal_async_compute EXCLUDE_FROM_ALL "${REPO}/tests/renderer/test_metal_async_compute.cpp")
+    target_link_libraries(test_metal_async_compute PRIVATE esengine)
+endif()
 
 if(ESTELLA_DESKTOP)
     add_executable(test_native_renderer EXCLUDE_FROM_ALL

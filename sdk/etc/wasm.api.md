@@ -514,6 +514,7 @@ renderer_endScreenOverlay: ((targetHandle: number) => void) | undefined
 renderer_entityVisibleToCamera: ((registry: CppRegistry, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number) => void) | undefined
 renderer_flush: () => void
 renderer_framePending: (() => number) | undefined
+renderer_getAsyncComputeEnabled: (() => boolean) | undefined
 renderer_getCapturedEntities: () => number
 renderer_getCapturedEntityCount: () => number
 renderer_getCapturedFrameData: () => number
@@ -580,6 +581,7 @@ renderer_retainedTextBegin: ((entity: number, sdf: number, screen: number, hasBo
 renderer_retainedTextClear: ((entity: number) => void) | undefined
 renderer_retainedTextStale: ((registry: CppRegistry, outPtr: number, capacity: number) => number) | undefined
 renderer_retainedTextSubmit: ((registry: CppRegistry, screen: number, projectionPtr: number) => void) | undefined
+renderer_setAsyncComputeEnabled: ((enabled: boolean) => void) | undefined
 renderer_setAsyncShaderCompile: ((on: boolean) => void) | undefined
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
 renderer_setColorSpace: ((linear: number) => void) | undefined
@@ -631,6 +633,7 @@ renderer_submitSkeletalBatchByEntityEx: ((registry: CppRegistry, verticesPtr: nu
 renderer_submitSkeletalPreviewBatch: (preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number) => number
 renderer_submitSkeletalPreviewBatchEx: (preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean) => number
 renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number) => void) | undefined
+renderer_supportsAsyncCompute: (() => boolean) | undefined
 renderer_takeFrameCapture: ((handle: number, dest: number, destSize: number) => boolean) | undefined
 renderer_takeProbeCapture: ((dst: number, bytes: number) => boolean) | undefined
 renderer_takeTargetCapture: ((handle: number, dest: number, destSize: number) => boolean) | undefined

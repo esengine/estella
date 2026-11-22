@@ -37,6 +37,54 @@ rg::PassDesc fullscreen(const char* name, std::vector<rg::ResourceId> reads,
 }  // namespace
 
 int main() {
+    {
+        MockGfxDevice d;
+        d.computeSupported = d.independentCompute = true;
+        d.setAsyncComputeEnabled(true);
+        auto p = d.createCompute({GfxShaderLanguage::WGSL, "test", "main"});
+        rg::RenderGraph graph(d);
+        graph.begin(64, 64);
+        const auto source = graph.importTexture(TextureHandle{101}, 64, 64);
+        const auto alias = graph.importTexture(TextureHandle{101}, 64, 64);
+        const auto unrelated = graph.importTarget(FramebufferHandle{4}, 64, 64, false, TextureHandle{102});
+        const auto screen = graph.importTarget(FramebufferHandle{5}, 64, 64);
+        rg::TargetDesc storage;
+        storage.storage = true;
+        const auto image = graph.createTarget(storage);
+        auto job = fullscreen("compute", {source}, image);
+        job.compute = job.asyncCompute = true;
+        job.computePriority = AsyncComputePriority::High;
+        job.execute = [&](const rg::PassContext&) { d.dispatchCompute(p, nullptr, 0, 1); };
+        graph.addPass(std::move(job));
+        auto independent = fullscreen("independent draw", {}, unrelated);
+        independent.keep = true;
+        independent.execute = [&](const rg::PassContext&) { CHECK(d.asyncWaits == 0, "independent draw precedes the wait"); };
+        graph.addPass(std::move(independent));
+        auto consumer = fullscreen("alias dependency", {}, unrelated);
+        consumer.keep = true;
+        consumer.dependencies = {alias};
+        consumer.execute = [&](const rg::PassContext&) { CHECK(d.asyncWaits == 1, "aliased dependency waits before the callback"); };
+        graph.addPass(std::move(consumer));
+        graph.addPass(fullscreen("present", {image}, screen));
+        graph.execute();
+        CHECK(d.asyncWaits == 1 && d.lastPriority == AsyncComputePriority::High, "graph joins a hardware fence once and forwards priority");
+        d.beginAsyncComputeJob();
+        d.dispatchCompute(p, nullptr, 0, 1);
+        auto first = d.endAsyncComputeJob();
+        d.beginAsyncComputeJob();
+        d.dispatchCompute(p, nullptr, 0, 1);
+        auto second = d.endAsyncComputeJob();
+        d.graphicsWaitOnAsyncComputeJob(first);
+        d.graphicsWaitOnAsyncComputeJob(kNoAsyncComputeFence);
+        CHECK(first != second && d.asyncWaits == 2, "old or invalid fences leave a newer job alone");
+        d.graphicsWaitOnAsyncComputeJob(second);
+        d.graphicsWaitOnAsyncComputeJob(second);
+        CHECK(d.asyncWaits == 3, "repeated wait is harmless");
+        d.acceptAsyncDispatch = false;
+        d.beginAsyncComputeJob();
+        CHECK(d.dispatchCompute(p, nullptr, 0, 1) && d.endAsyncComputeJob() == kNoAsyncComputeFence &&
+              d.dispatchComputeCalls == 1, "ineligible dispatch falls back once without a fence");
+    }
     // A persistent capture is an input to the scene, not its replacement.
     {
         MockGfxDevice d;

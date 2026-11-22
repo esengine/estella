@@ -1391,6 +1391,18 @@ void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
     g_device->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
 }
 
+void renderer_setAsyncComputeEnabled(bool enabled) {
+    if (g_device) g_device->setAsyncComputeEnabled(enabled);
+}
+
+bool renderer_getAsyncComputeEnabled() {
+    return g_device && g_device->asyncComputeEnabled();
+}
+
+bool renderer_supportsAsyncCompute() {
+    return g_device && g_device->supportsAsyncCompute();
+}
+
 void renderer_setSkinCache(i32 enabled, i32 behavior, f32 maxMegabytes) {
     auto* frame = g_renderFrame;
     if (!frame || !frame->skinCache()) return;

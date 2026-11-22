@@ -349,6 +349,7 @@ u32 PostProcessPipeline::addComputePass(const std::string& name, const std::stri
     pass.name = name;
     pass.enabled = true;
     pass.isCompute = true;
+    pass.usesComputeDepth = wgsl.find("texture_depth") != std::string::npos;
     pass.computeParams = params;
     pass.workgroupX = std::max(workgroupX, 1u);
     pass.workgroupY = std::max(workgroupY, 1u);
@@ -1297,7 +1298,7 @@ void PostProcessPipeline::computePass(PostProcessPass& pass, const rg::PassConte
     }
 
     // The scene's depth where the frame wrote one; the device stands a blank in where it did not.
-    const TextureHandle depth = (graph_ && sceneResource_ != rg::kNoResource) ? graph_->depthTextureOf(sceneResource_)
+    const TextureHandle depth = (pass.usesComputeDepth && graph_ && sceneResource_ != rg::kNoResource) ? graph_->depthTextureOf(sceneResource_)
                                                                               : TextureHandle::Invalid;
     const GfxComputeBinding bindings[6] = {
         GfxComputeBinding::sampled(0, input),
@@ -1637,8 +1638,9 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
             pass.temporal = false;
             pass.feedback = false;
             node.compute = true;
+            node.asyncCompute = true;
             node.reads = {input};
-            node.dependencies = {scene};
+            if (pass.usesComputeDepth) node.dependencies = {scene};
             node.write = graph_->createTarget(writeDesc);
             node.execute = [this, &pass](const rg::PassContext& ctx) { computePass(pass, ctx); };
             input = node.write;

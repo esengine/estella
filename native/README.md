@@ -128,6 +128,14 @@ the tree:
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
 | Host platform | `eshost::Platform` (`host/Host.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
 
+### Asynchronous GPU compute
+
+On macOS and iOS, a Metal adapter with Dawn's IOSurface and shared-event features can submit a compute job to a second command queue. Enable it with the app option `asyncCompute: true`. During play, `Renderer.supportsAsyncCompute()` reports device capability, and `Renderer.consoleVariables['r.rdg.asynccompute'] = 0` switches back to the graphics queue. The runtime defaults to off. Building the native host with `-DES_ENABLE_ASYNC_COMPUTE=OFF` omits the second queue entirely.
+
+The render graph opts eligible image post-processing passes into compute jobs. A single-sample RGBA8 or RGBA16F colour target keeps its GPU pixels when first promoted to shared storage. Subsequent passes share that storage directly. The raw RHI also supports storage buffers, transferring just the bound ranges with GPU copies. Real depth textures, mip chains and unshareable resources use the ordinary dispatch path. Browser WebGPU and the other native backends retain their single queue.
+
+For a custom RHI job, call `beginAsyncComputeJob(priority)`, dispatch, then keep the fence from `endAsyncComputeJob()`. Submit independent draws before `graphicsWaitOnAsyncComputeJob(fence)` and wait before reading or modifying resources the job used. The wait orders GPU commands. A fence of `-1` needs no wait. `manualComputeBarrier()` orders dependent dispatches inside a job. Metal treats high priority as a hint. Per-pass profiling uses the graphics queue so all work appears in the capture. With independent queues enabled, the frame timer measures the elapsed GPU interval through the final queue wait.
+
 ### What is hand-written, and why
 
 The `es_*` globals the SDK reads off `globalThis` are mostly GENERATED, from the

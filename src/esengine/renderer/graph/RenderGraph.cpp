@@ -312,6 +312,21 @@ void RenderGraph::execute() {
         if (live[i] && passes_[i].write < resources_.size()) lastWriter[passes_[i].write] = static_cast<i32>(i);
     }
 
+    AsyncComputeFence pending = kNoAsyncComputeFence;
+    std::vector<ResourceId> inFlight;
+    std::vector<TextureHandle> inFlightTextures;
+    auto touchesPending = [&](ResourceId id) {
+        if (id >= resources_.size()) return false;
+        const Resource& resource = resources_[id];
+        // An opaque external framebuffer can alias a pooled attachment. The backbuffer cannot.
+        if (resource.kind == Kind::ImportedTarget && resource.target != FramebufferHandle::Default &&
+            resource.texture == TextureHandle::Invalid) return true;
+        const auto tex = resource.texture;
+        return std::find(inFlight.begin(), inFlight.end(), id) != inFlight.end() ||
+               (tex != TextureHandle::Invalid &&
+                std::find(inFlightTextures.begin(), inFlightTextures.end(), tex) != inFlightTextures.end());
+    };
+
     for (usize i = 0; i < passes_.size(); ++i) {
         if (!live[i]) continue;
         PassDesc& pass = passes_[i];
@@ -334,6 +349,15 @@ void RenderGraph::execute() {
             fbo = target.target;
         }
 
+        // The pool can give the same texture a different graph id before the next pass.
+        if (pending != kNoAsyncComputeFence &&
+            (pass.compute || touchesPending(pass.write) ||
+             std::any_of(pass.reads.begin(), pass.reads.end(), touchesPending) ||
+             std::any_of(pass.dependencies.begin(), pass.dependencies.end(), touchesPending))) {
+            device_.graphicsWaitOnAsyncComputeJob(pending);
+            pending = kNoAsyncComputeFence;
+        }
+
         if (timer_) timer_->begin(pass.name);
         if (pass.compute) {
             // A dispatch is not a draw: it runs between render passes, with nothing bound for it by the graph.
@@ -347,7 +371,19 @@ void RenderGraph::execute() {
                 ctx.height = target.height;
                 ctx.inputs = &inputScratch_;
                 ctx.output = target.texture;
+                const bool scoped = pass.asyncCompute && !timer_ && device_.asyncComputeEnabled() &&
+                                    device_.supportsAsyncCompute() && device_.beginAsyncComputeJob(pass.computePriority);
                 pass.execute(ctx);
+                if (scoped) {
+                    pending = device_.endAsyncComputeJob();
+                    if (pending != kNoAsyncComputeFence) {
+                        inFlight = pass.reads;
+                        inFlight.insert(inFlight.end(), pass.dependencies.begin(), pass.dependencies.end());
+                        inFlight.push_back(pass.write);
+                        inFlightTextures.clear();
+                        for (ResourceId id : inFlight) inFlightTextures.push_back(textureOf(id));
+                    }
+                }
             }
             ++executed_;
             if (timer_) timer_->end();
@@ -403,6 +439,7 @@ void RenderGraph::execute() {
             if (res.kind == Kind::Transient && res.lastRead == static_cast<i32>(i)) release(res);
         }
     }
+    device_.graphicsWaitOnAsyncComputeJob(pending);
 }
 
 TextureHandle RenderGraph::textureOf(ResourceId id) const {

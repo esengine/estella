@@ -95,9 +95,16 @@ void paintBootFrame(HostState& h) {
  *  block-compression families this adapter supports (a device rejects a format it
  *  did not opt into, even when the adapter advertises it). */
 bool createDevice(HostState& h) {
-    WGPUInstanceFeatureName feats[] = {WGPUInstanceFeatureName_TimedWaitAny};
+    WGPUInstanceFeatureName feats[] = {WGPUInstanceFeatureName_TimedWaitAny,
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+        WGPUInstanceFeatureName_MultipleDevicesPerAdapter,
+#endif
+    };
     WGPUInstanceDescriptor idesc = {};
     idesc.requiredFeatureCount = 1;
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (wgpuHasInstanceFeature(feats[1])) ++idesc.requiredFeatureCount;
+#endif
     idesc.requiredFeatures = feats;
     h.instance = wgpuCreateInstance(&idesc);
 
@@ -113,7 +120,7 @@ bool createDevice(HostState& h) {
 
     // Timestamps feed the engine's GPU frame timer (renderer_getGpuTimeMs, the
     // profiler's GPU track); without them a device reports -1 for every frame.
-    WGPUFeatureName compFeats[4];
+    WGPUFeatureName compFeats[6];
     size_t compCount = 0;
     for (WGPUFeatureName f : {WGPUFeatureName_TextureCompressionETC2,
                               WGPUFeatureName_TextureCompressionASTC,
@@ -121,6 +128,14 @@ bool createDevice(HostState& h) {
                               WGPUFeatureName_TimestampQuery}) {
         if (wgpuAdapterHasFeature(h.adapter, f)) compFeats[compCount++] = f;
     }
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    if (idesc.requiredFeatureCount == 2 &&
+        wgpuAdapterHasFeature(h.adapter, WGPUFeatureName_SharedTextureMemoryIOSurface) &&
+        wgpuAdapterHasFeature(h.adapter, WGPUFeatureName_SharedFenceMTLSharedEvent)) {
+        compFeats[compCount++] = WGPUFeatureName_SharedTextureMemoryIOSurface;
+        compFeats[compCount++] = WGPUFeatureName_SharedFenceMTLSharedEvent;
+    }
+#endif
     auto onDevice = [](WGPURequestDeviceStatus s, WGPUDevice d, WGPUStringView, void* u, void*) {
         if (s == WGPURequestDeviceStatus_Success) *static_cast<WGPUDevice*>(u) = d; };
     WGPUDeviceDescriptor dd = {};

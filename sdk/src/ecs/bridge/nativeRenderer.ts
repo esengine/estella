@@ -135,6 +135,9 @@ export function createNativeRendererBackend(
         setViewport: (x, y, w, h): void => {
             hostCall(scope, RENDERER_BINDINGS.setViewport, [x, y, w, h]);
         },
+        setAsyncComputeEnabled: (enabled) => { optional(scope, RENDERER_OPTIONAL_BINDINGS.setAsyncComputeEnabled)?.(enabled); },
+        getAsyncComputeEnabled: () => Boolean(optional(scope, RENDERER_OPTIONAL_BINDINGS.getAsyncComputeEnabled)?.()),
+        supportsAsyncCompute: () => Boolean(optional(scope, RENDERER_OPTIONAL_BINDINGS.supportsAsyncCompute)?.()),
         setYSortLayers: (mask): void => {
             hostCall(scope, RENDERER_BINDINGS.setYSortLayers, [mask >>> 0]);
         },

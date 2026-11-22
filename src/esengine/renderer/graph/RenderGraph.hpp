@@ -136,6 +136,9 @@ struct PassDesc {
     u32 viewportW = 0;
     u32 viewportH = 0;
     std::function<void(const PassContext&)> execute;
+    /// The compute callback only accesses the graph resources it declares and private uniforms.
+    bool asyncCompute = false;
+    AsyncComputePriority computePriority = AsyncComputePriority::Default;
 };
 
 /**

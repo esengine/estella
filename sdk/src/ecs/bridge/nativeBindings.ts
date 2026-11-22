@@ -180,6 +180,9 @@ export const HOST_FLAGS = {
  * here and is called through the optional path.
  */
 export const RENDERER_OPTIONAL_BINDINGS = {
+    setAsyncComputeEnabled: 'es_renderer_setAsyncComputeEnabled',
+    supportsAsyncCompute: 'es_renderer_supportsAsyncCompute',
+    getAsyncComputeEnabled: 'es_renderer_getAsyncComputeEnabled',
     /** The render origin (render/renderOrigin.ts); a host predating it draws relative to zero. */
     setOrigin: 'es_renderer_setOrigin',
     /** Where parallax is measured from (the editor's view); a host predating it measures from the camera. */

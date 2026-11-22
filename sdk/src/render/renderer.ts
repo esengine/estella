@@ -90,6 +90,9 @@ export interface RendererBackend {
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
+    setAsyncComputeEnabled?(enabled: boolean): void;
+    supportsAsyncCompute?(): boolean;
+    getAsyncComputeEnabled?(): boolean;
     setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
     skinCacheStat?(which: number): number;
     setDepthLayers(mask: number): void;
@@ -311,6 +314,9 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setStage: (stage) => m.renderer_setStage(stage),
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
+        setAsyncComputeEnabled: (enabled) => m.renderer_setAsyncComputeEnabled?.(enabled),
+        supportsAsyncCompute: () => m.renderer_supportsAsyncCompute?.() ?? false,
+        getAsyncComputeEnabled: () => m.renderer_getAsyncComputeEnabled?.() ?? false,
         setSkinCache: (enabled, behavior, maxMegabytes) => m.renderer_setSkinCache?.(enabled, behavior, maxMegabytes),
         skinCacheStat: (which) => m.renderer_getSkinCacheStat?.(which) ?? 0,
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
@@ -804,6 +810,22 @@ export const Renderer = {
     /** Layers (bits 0..31) that sort by world Y within the layer — top-down occlusion. */
     setYSortLayers(mask: number): void {
         backend?.setYSortLayers(mask);
+    },
+
+    /** Debug console controls. A value of 1 permits independent submissions on capable devices. */
+    consoleVariables: {
+        get 'r.rdg.asynccompute'(): 0 | 1 { return backend?.getAsyncComputeEnabled?.() ? 1 : 0; },
+        set 'r.rdg.asynccompute'(value: 0 | 1) { backend?.setAsyncComputeEnabled?.(value === 1); },
+    },
+
+    /** Permit independent GPU compute submissions. Disabled by default. */
+    setAsyncComputeEnabled(enabled: boolean): void {
+        backend?.setAsyncComputeEnabled?.(enabled);
+    },
+
+    /** Whether the current device has an independent compute queue. */
+    supportsAsyncCompute(): boolean {
+        return backend?.supportsAsyncCompute?.() ?? false;
     },
 
     /** The project's compute skin cache (see {@link SkinCacheConfig}); absent is the defaults. */

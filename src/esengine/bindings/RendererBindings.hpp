@@ -346,6 +346,10 @@ void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);
+/** Permit compute jobs to overlap independent graphics passes on a capable native device. */
+void renderer_setAsyncComputeEnabled(bool enabled);
+bool renderer_supportsAsyncCompute();
+bool renderer_getAsyncComputeEnabled();
 /**
  * @brief The project's skin cache: on or off, which meshes go through it when their MeshSkin says Auto (0 every one, 1 only those
  *        that say Enabled), and the memory it may hold in megabytes. A device without compute poses every skin in the vertex stage.

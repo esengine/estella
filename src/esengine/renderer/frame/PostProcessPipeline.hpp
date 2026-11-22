@@ -97,6 +97,7 @@ struct PostProcessPass {
     /// order, and the workgroup the shader declares. Invalid for every pass that draws.
     ComputeHandle compute = ComputeHandle::Invalid;
     bool isCompute = false;
+    bool usesComputeDepth = false;
     /// A pass the engine implements itself, in compute passes of its own (see VoxelGI): its name, empty for every other pass.
     std::string nativeKind;
     std::vector<std::string> computeParams;

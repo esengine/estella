@@ -897,6 +897,9 @@ export interface ESEngineModule {
     /** Scene draws the last frame left out because a program they use was still compiling. */
     renderer_getDrawsWaitingForProgram?(): number;
     /** The project's skin cache: on (1) or off, behaviour (0 inclusive, 1 exclusive), memory in megabytes. */
+    renderer_setAsyncComputeEnabled?(enabled: boolean): void;
+    renderer_getAsyncComputeEnabled?(): boolean;
+    renderer_supportsAsyncCompute?(): boolean;
     renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
     /** 0 active, 1 meshes held, 2 bytes held, 3 refused this frame, 4 posed this frame, 5 draws this frame that read a posed copy. */
     renderer_getSkinCacheStat?(which: number): number;

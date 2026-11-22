@@ -27,6 +27,7 @@ export interface RenderOptionsApi {
     renderer_setDepthLayers?(layers: number): void;
     postprocess_setOutputTransform?(code: number): void;
     postprocess_setMsaaSamples?(samples: number): void;
+    renderer_setAsyncComputeEnabled?(enabled: boolean): void;
     renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
 }
 
@@ -42,6 +43,7 @@ export interface RenderOptions {
     depthLayers?: number;
     outputTransform?: OutputTransform;
     msaaSamples?: number;
+    asyncCompute?: boolean;
     skinCache?: SkinCacheConfig;
     screenFit?: ScreenScalingData;
     quality?: QualityConfig;
@@ -65,6 +67,7 @@ export function applyFrameOptions(api: RenderOptionsApi, options: RenderOptions 
     api.renderer_setDepthLayers?.((options?.depthLayers ?? 0) >>> 0);
     api.postprocess_setOutputTransform?.(outputTransformCode(options?.outputTransform));
     api.postprocess_setMsaaSamples?.((options?.msaaSamples ?? 4) >>> 0);
+    api.renderer_setAsyncComputeEnabled?.(options?.asyncCompute ?? false);
     applySkinCache(api, options?.skinCache);
 }
 

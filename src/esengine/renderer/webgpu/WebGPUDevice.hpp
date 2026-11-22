@@ -37,12 +37,15 @@
 
 #include <array>
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace esengine {
+
+class MetalComputeQueue;
 
 class WebGPUDevice final : public GfxDevice {
 public:
@@ -144,6 +147,9 @@ public:
     }
 
     /// WebGPU is the backend with a compute stage; a device-less instance (bookkeeping only) has none to offer.
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    bool supportsAsyncCompute() const override;
+#endif
     bool supportsCompute() const override { return device_ != nullptr; }
     ReadbackHandle requestBufferReadback(BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) override;
     ReadbackHandle requestTextureReadback(TextureHandle texture) override;
@@ -337,6 +343,17 @@ public:
     bool framePending() override;
 
 private:
+    static constexpr u32 kMaxComputeBindings = 16;
+    static constexpr u32 kMaxWorkgroupsPerDimension = 65535;
+    bool backendComputeScopeAvailable() const override { return !inPass(); }
+#ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
+    friend class MetalComputeQueue;
+    std::unique_ptr<MetalComputeQueue> metal_compute_;
+    bool metal_compute_attempted_ = false;
+    void backendSetAsyncComputeEnabled(bool enabled) override;
+    bool backendDispatchAsyncCompute(AsyncComputePriority, u32, const GfxComputeBinding*, u32, u32, u32, u32) override;
+    void backendWaitAsyncCompute() override;
+#endif
     /** Match the backbuffer's depth-stencil companion to @p width x @p height. */
     bool ensureSurfaceDepth(u32 width, u32 height);
 
@@ -681,21 +698,17 @@ private:
     /// zero-padded copy rather than over-read. @p offset must already be aligned.
     void writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* data, u32 size);
 
-    // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
-    // profiler's gpuMs/gpuScopes populate on both backends. Active only when the
-    // device has the timestamp-query feature; otherwise createTimerQuery returns 0
-    // and timing stays off (unchanged behavior). begin/endTimerQuery bracket a span;
-    // every render or compute pass that opens inside it writes a begin/end timestamp,
-    // resolved into the span's readback buffer, and the span is their sum — the
-    // whole frame's GPU time, as GL's query gives it, not one pass's. The buffers are
-    // mapped asynchronously and getTimerQueryNs drains the elapsed ns into the
-    // engine's GpuTimer (whose ring already tolerates a few frames of latency).
+    // GPU timing requires TimestampQuery. Single-queue spans sum pass durations. With independent
+    // compute enabled, two timestamps on the graphics queue bracket all work, including the final GPU wait.
     bool timestamp_supported_ = false;
     bool timestamp_init_done_ = false;
     WGPUQuerySet timestamp_qset_ = nullptr;   ///< 2 slots: begin/end of the timed pass.
+    WGPUComputePipeline clock_pipeline_ = nullptr;  ///< One workgroup marks each end of a two-queue frame.
+    bool parallel_span_ = false;
+    void stampParallelSpan(bool end);
     WGPUBuffer timestamp_resolve_ = nullptr;  ///< QueryResolve target (16 bytes).
     static constexpr u32 kGpuTimeRing = 4;
-    /// Passes one span can sum. A frame with more is timed up to here, which reads low rather than wrong-way.
+    /// Passes one single-queue span can sum. A frame with more is timed up to here, which reads low rather than wrong-way.
     static constexpr u32 kSpanPasses = 96;
     struct GpuTimeSlot { WGPUBuffer buf = nullptr; bool pending = false; u32 passes = 0; };
     GpuTimeSlot gpu_time_ring_[kGpuTimeRing] = {};

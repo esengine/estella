@@ -20,6 +20,10 @@
 
 namespace esengine {
 
+enum class AsyncComputePriority { Default, High };
+using AsyncComputeFence = i32;
+inline constexpr AsyncComputeFence kNoAsyncComputeFence = -1;
+
 // =============================================================================
 // Resource Handles
 // =============================================================================
@@ -432,6 +436,9 @@ struct TextureDesc {
     /// rows, which an array never is. Its pixels are its slices back to back, as an array's layers are, and it carries
     /// every restriction an array does.
     bool volume = false;
+
+    /// Allow a native compute queue to share this single-sample colour target.
+    bool asyncShareable = false;
 
     /// An array or a volume: pixels given slice by slice, fixed at creation, never an attachment.
     bool layered() const { return layers > 1 || volume; }
