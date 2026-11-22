@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { RegistryAssetSlots, type RegistryAssetKind } from '../src/asset/registryAssets';
 import { AssetScope, type AssetLease } from '../src/asset/AssetLease';
+import { slotLeaseNamed } from '../src/asset/liveAssetRebind';
 
 /** A kind whose every era is a distinguishable object owning one dependency. */
 function fixture() {
@@ -36,6 +37,64 @@ function fakeLease(key: string, released: string[]): AssetLease {
     };
     return lease;
 }
+
+describe('retiring a slot with aliases', () => {
+    it('a scene follows a reassigned alias and releasing its old holder leaves its new owner live', async () => {
+        const { kind, released } = fixture();
+        const slots = new RegistryAssetSlots(), scope = new AssetScope();
+        const old = await slots.acquire(kind, 'avatar', 'a', ['a', '@uuid:rig']);
+        const names = old.names;
+        scope.add(old);
+        const fresh = await slots.acquire(kind, 'avatar', 'b', ['b', '@uuid:rig']);
+        scope.add(fresh);
+        expect(names).toEqual(['a']);
+        expect(slotLeaseNamed(scope, '@uuid:rig')).toBe(fresh);
+        old.release();
+        expect(slots.has('avatar', 'a')).toBe(false);
+        expect(slots.published('avatar', '@uuid:rig')).toBe(slots.published('avatar', 'b'));
+        scope.releaseAll();
+        expect(slots.size).toBe(0);
+        expect(released).toEqual(['a#1:texture', 'b#2:texture']);
+    });
+
+    it('can retain a slot by a surviving alias after its original name was reassigned', async () => {
+        const { kind } = fixture(), slots = new RegistryAssetSlots();
+        const held = await slots.acquire(kind, 'tilemap', 'a', ['a', 'still-a']);
+        const next = await slots.acquire(kind, 'tilemap', 'b', ['b', 'a']);
+        const retained = held.retain()!;
+        expect(retained).not.toBeNull();
+        held.release();
+        expect(slots.published('tilemap', 'still-a')).toEqual({ name: 'a#1' });
+        retained.release();
+        expect(slots.has('tilemap', 'still-a')).toBe(false);
+        expect(slots.has('tilemap', 'a')).toBe(true);
+        next.release();
+    });
+
+    it('realm teardown also releases a held slot whose last lookup was reassigned', async () => {
+        const { kind, released } = fixture();
+        const slots = new RegistryAssetSlots();
+        const shadowed = await slots.acquire(kind, 'avatar', 'old', ['old']);
+        const current = await slots.acquire(kind, 'avatar', 'next', ['next', 'old']);
+        expect(slots.publishedOf('avatar')).toEqual([slots.published('avatar', 'next')]);
+        slots.releaseAll();
+        expect(released).toEqual(['old#1:texture', 'next#2:texture']);
+        shadowed.release();
+        current.release();
+        expect(released).toHaveLength(2);
+    });
+
+    it('releases the implicit key and keeps a retained alias live until the last owner leaves', async () => {
+        const { kind } = fixture();
+        const slots = new RegistryAssetSlots();
+        const first = await slots.acquire(kind, 'tilemap', 'map', ['old-name']);
+        const other = await slots.acquire(kind, 'tilemap', 'map', ['another-name', 'old-name']);
+        first.release();
+        expect(slots.published('tilemap', 'another-name')).toBe(slots.published('tilemap', 'map'));
+        other.release();
+        for (const name of ['map', 'old-name', 'another-name']) expect(slots.has('tilemap', name)).toBe(false);
+    });
+});
 
 describe('publication versions', () => {
     it('changes only for published replacements and withdrawals of its own type', async () => {
@@ -89,6 +148,62 @@ function gated() {
 }
 
 describe('a refresh publishes only if it is still the current one', () => {
+    it('reclaims the remaining names of a displaced initial load without touching its replacement', async () => {
+        const { kind, released, finish } = gated();
+        const slots = new RegistryAssetSlots();
+        const obsolete = slots.acquire(kind, 'avatar', 'a', ['a', 'old-alias']);
+        const rejects = expect(obsolete).rejects.toThrow(/released while it was loading/);
+        const replacement = slots.acquire(kind, 'avatar', 'b', ['b', 'a']);
+        await finish(2);
+        const owner = await replacement;
+        await finish(1);
+        await rejects;
+        expect(slots.has('avatar', 'old-alias')).toBe(false);
+        expect(slots.published('avatar', 'a')).toEqual({ name: 'b#2' });
+        owner.release();
+        expect(slots.size).toBe(0);
+        expect(released).toEqual(['a#1:texture', 'b#2:texture']);
+    });
+
+    it('discards a refresh addressed to an alias that was reassigned during preparation', async () => {
+        const { kind, released, finish } = gated();
+        const slots = new RegistryAssetSlots();
+        const original = slots.acquire(kind, 'avatar', 'first', ['first', 'rig']);
+        await finish(1);
+        const first = await original;
+        const updating = slots.republish(kind, 'avatar', 'rig');
+        const replacing = slots.acquire(kind, 'avatar', 'second', ['second', 'rig']);
+        await finish(3);
+        const second = await replacing;
+        await finish(2);
+        expect(await updating).toBe(false);
+        expect(slots.published('avatar', 'first')).toEqual({ name: 'first#1' });
+        expect(slots.published('avatar', 'rig')).toEqual({ name: 'second#3' });
+        expect(released).toEqual(['first#2:texture']);
+        first.release();
+        second.release();
+    });
+
+    it('a waiting alias can change owners without releasing the initial load of its primary name', async () => {
+        const { kind, released, finish } = gated();
+        const slots = new RegistryAssetSlots();
+        const primary = slots.acquire(kind, 'avatar', 'a', ['a', 'join']);
+        const join = slots.acquire(kind, 'avatar', 'join', []);
+        const rejected = expect(join).rejects.toThrow(/released while it was loading/);
+        const replacement = slots.acquire(kind, 'avatar', 'b', ['b', 'join']);
+        await finish(2);
+        const b = await replacement;
+        await finish(1);
+        const a = await primary;
+        await rejected;
+        expect(released).toEqual([]);
+        expect(slots.published('avatar', 'a')).toEqual({ name: 'a#1' });
+        expect(slots.published('avatar', 'join')).toEqual({ name: 'b#2' });
+        a.release();
+        b.release();
+        expect(released).toEqual(['a#1:texture', 'b#2:texture']);
+    });
+
     it('a preparation that started earlier cannot land on top of a newer one', async () => {
         // Two updates in flight is what propagation makes ordinary: a change to
         // one texture re-prepares every parent that took it, twice in a row if

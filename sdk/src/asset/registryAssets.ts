@@ -26,6 +26,7 @@ import type { AssetLease } from './AssetLease';
 import type { AssetWithReceipts, DependencyReceipt, Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 
+const noNames: readonly string[] = Object.freeze([]);
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
 
 /** What one preparation PRODUCED. What it took is recorded for it — see
@@ -61,9 +62,12 @@ class Slot<T> {
     /** What a lookup asks for. Distinct from `key`, which is what an OWNER
      *  holds: a registry answers to a ref, not to an ownership identity. */
     readonly names: string[] = [];
+    /** Qualified keys currently routed here. Lease holders can observe the live names array. */
+    readonly lookupKeys = new Set<string>();
     refs = 0;
     era: PreparedEra<T> | null = null;
-    loading: Promise<PreparedEra<T>> | null = null;
+    loading: Promise<void> | null = null;
+    waiters = 0;
     /** Which refresh is the current one. A preparation that started before the
      *  count moved is answering a question nobody is asking any more. */
     refresh = 0;
@@ -82,7 +86,9 @@ function lookupKey(type: string, name: string): string {
 
 export class RegistryAssetSlots {
     /** By (type, name) — see the note on lookup identity above. */
-    private byName_ = new Map<string, Slot<unknown>>();
+    private readonly byName_ = new Map<string, Slot<unknown>>();
+    /** A held or loading slot can outlive the last name that still routes to it. */
+    private readonly slots_ = new Set<Slot<unknown>>();
     private nextId_ = 1;
     private versions_ = new Map<string, number>();
 
@@ -103,36 +109,35 @@ export class RegistryAssetSlots {
         kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[],
     ): Promise<RegistrySlotLease<T>> {
         const slot = this.slotFor_(type, key) as Slot<T>;
-        for (const name of names) this.name_(slot as Slot<unknown>, type, name);
+        for (const name of names) this.name_(slot, name);
 
-        if (!slot.era) {
-            slot.loading ??= kind.prepare(key);
-            let era: PreparedEra<T>;
-            try {
-                era = await slot.loading;
-            } catch (e) {
-                slot.loading = null;
-                if (slot.refs === 0) this.forget_(slot as Slot<unknown>);
-                throw e;
-            }
-            slot.loading = null;
-            // The realm can have let go of everything while this prepared. The
-            // slot is off the table, so publishing into it would hand a lease on
-            // an era nothing resolves to and nobody will ever release.
+        if (slot.era) return this.lease_(slot);
+        // Each caller reserves the slot until it has received its own lease or
+        // rejected. Preparation and publication belong to the slot once.
+        slot.waiters++;
+        try {
+            slot.loading ??= this.publishInitial_(kind, slot);
+            await slot.loading;
             if (this.byName_.get(lookupKey(type, key)) !== slot) {
-                era.dependencies.releaseAll();
                 throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);
             }
-            // Another acquire may have published while this one awaited; joining
-            // it is a cache hit, and publishing twice would retire what is live.
-            if (!slot.era) {
-                slot.era = era;
-                this.changed_(type);
-            } else if (era !== slot.era) {
-                era.dependencies.releaseAll();
+            return this.lease_(slot);
+        } finally {
+            if (--slot.waiters === 0) {
+                slot.loading = null;
+                if (slot.refs === 0) this.retire_(slot);
             }
         }
-        return this.lease_(kind, slot);
+    }
+
+    private async publishInitial_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): Promise<void> {
+        const era = await kind.prepare(slot.key);
+        if (this.byName_.get(lookupKey(slot.type, slot.key)) !== slot) {
+            era.dependencies.releaseAll();
+            throw new Error(`"${slot.key}" was released while it was loading; it has no owner. Load it again.`);
+        }
+        slot.era = era;
+        this.changed_(slot.type);
     }
 
     /**
@@ -144,7 +149,8 @@ export class RegistryAssetSlots {
      * the answer to any live question.
      */
     async republish<T>(kind: RegistryAssetKind<T>, type: string, name: string): Promise<boolean> {
-        const slot = this.byName_.get(lookupKey(type, name)) as Slot<T> | undefined;
+        const key = lookupKey(type, name);
+        const slot = this.byName_.get(key) as Slot<T> | undefined;
         if (!slot?.era) return false;
         const ticket = ++slot.refresh;
         const era = await kind.prepare(slot.key);
@@ -152,10 +158,8 @@ export class RegistryAssetSlots {
             era.dependencies.releaseAll();
             throw new Error(`Cannot refresh "${name}": dependencies did not load: ${era.failedDependencies.join(', ')}`);
         }
-        // Two things can have happened while this prepared: a newer refresh
-        // started, or the last holder let go. Publishing either way puts an era
-        // where nothing will ever release it.
-        if (ticket !== slot.refresh || !slot.era) {
+        // A newer refresh, a last release or a reassigned alias can supersede this request.
+        if (ticket !== slot.refresh || !slot.era || this.byName_.get(key) !== slot) {
             era.dependencies.releaseAll();
             return false;
         }
@@ -209,18 +213,20 @@ export class RegistryAssetSlots {
 
     /** Live slots — one per asset, however many names it answers to. */
     get size(): number {
-        return new Set(this.byName_.values()).size;
+        return this.slots_.size;
     }
 
     /** Give up every slot. For a wholesale teardown. */
     releaseAll(): void {
         const eras: Array<Preparation | null> = [];
-        for (const slot of new Set(this.byName_.values())) {
+        for (const slot of this.slots_) {
             eras.push(slot.era);
             if (slot.era) this.changed_(slot.type);
             slot.era = null;
             slot.refs = 0;
+            slot.lookupKeys.clear();
         }
+        this.slots_.clear();
         this.byName_.clear();
         disposeAll(eras, releaseEra);
     }
@@ -234,7 +240,7 @@ export class RegistryAssetSlots {
         return true;
     }
 
-    private lease_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): RegistrySlotLease<T> {
+    private lease_<T>(slot: Slot<T>): RegistrySlotLease<T> {
         slot.refs++;
         let spent = false;
         const lease: RegistrySlotLease<T> = {
@@ -242,26 +248,29 @@ export class RegistryAssetSlots {
             generation: slot.id,
             value: slot.era!.value,
             get failedDependencies() { return slot.era?.failedDependencies; },
-            names: slot.names,
+            get names() { return slot.lookupKeys.size ? slot.names : noNames; },
             release: () => {
                 if (spent) return;
                 spent = true;
-                this.drop_(slot as Slot<unknown>);
+                this.drop_(slot);
             },
-            retain: () => (this.byName_.get(lookupKey(slot.type, slot.key)) === (slot as Slot<unknown>) && slot.era
-                ? this.lease_(kind, slot)
-                : null),
+            retain: () => slot.lookupKeys.size && slot.era ? this.lease_(slot) : null,
         };
         return lease;
     }
 
     private drop_(slot: Slot<unknown>): void {
         if (slot.refs === 0) return; // A wholesale release already retired it.
-        if (--slot.refs > 0) return;
+        if (--slot.refs === 0 && slot.waiters === 0) this.retire_(slot);
+    }
+
+    private retire_(slot: Slot<unknown>): void {
+        if (!this.slots_.delete(slot)) return;
+        for (const key of slot.lookupKeys) this.byName_.delete(key);
+        slot.lookupKeys.clear();
         const era = slot.era;
         slot.era = null;
         if (era) this.changed_(slot.type);
-        this.forget_(slot);
         releaseEra(era);
     }
 
@@ -270,6 +279,8 @@ export class RegistryAssetSlots {
         let slot = this.byName_.get(id);
         if (!slot) {
             slot = new Slot<unknown>(type, key, this.nextId_++);
+            slot.lookupKeys.add(id);
+            this.slots_.add(slot);
             this.byName_.set(id, slot);
         }
         return slot;
@@ -282,14 +293,17 @@ export class RegistryAssetSlots {
      * already indexed when it is created, and reading that back as "already
      * known" left the list — which is what gets published — empty.
      */
-    private name_(slot: Slot<unknown>, type: string, name: string): void {
+    private name_(slot: Slot<unknown>, name: string): void {
+        const key = lookupKey(slot.type, name);
+        const previous = this.byName_.get(key);
         if (!slot.names.includes(name)) slot.names.push(name);
-        this.byName_.set(lookupKey(type, name), slot);
-    }
-
-    private forget_(slot: Slot<unknown>): void {
-        for (const [name, held] of [...this.byName_]) {
-            if (held === slot) this.byName_.delete(name);
+        if (previous === slot) return;
+        if (previous) {
+            previous.lookupKeys.delete(key);
+            const at = previous.names.indexOf(name);
+            if (at >= 0) previous.names.splice(at, 1);
         }
+        this.byName_.set(key, slot);
+        slot.lookupKeys.add(key);
     }
 }

@@ -110,6 +110,35 @@ markEngineComponentBaseline();
 describe('a persistent entity carries a ref-bound asset out of its scene', () => {
     beforeEach(() => { pool = createPoolFake(); seedEngineComponents(); });
 
+    it('a persistent sprite retains the clip its remapped UUID currently names', async () => {
+        const app = App.new();
+        const sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, path => clipDocument(path.endsWith('new.esanim') ? 12 : 6));
+        const manager = new SceneManagerState(app);
+        app.insertResource(AssetsResource, assets as never);
+        app.insertResource(SceneManager, manager);
+        const ref = '@uuid:e85e5e12-93bf-4eab-93c7-88db872b7581';
+        let target = 'anim/old.esanim', entity = 0 as Entity;
+        assets.setAssetRefResolver(name => name === ref ? target : name);
+        manager.register({ name: 'rigs', setup: async ctx => {
+            const scope = new AssetScope();
+            scope.add(await assets.acquireTyped('anim-clip', ref));
+            target = 'anim/new.esanim';
+            scope.add(await assets.acquireTyped('anim-clip', ref));
+            ctx.trackAssetScope(scope);
+            entity = ctx.spawn();
+            app.world.insert(entity, SpriteAnimator, { clip: ref } as never);
+            ctx.setPersistent(entity, true);
+        } });
+        await manager.loadAdditive('rigs');
+        expect(sprites.getClip(ref)?.fps).toBe(12);
+        await manager.unload('rigs');
+        expect(sprites.getClip(ref)?.fps).toBe(12);
+        expect(sprites.getClip('anim/old.esanim')).toBeUndefined();
+        app.world.despawn(entity);
+        expect(assets.sizes().registrySlots).toBe(0);
+    });
+
     it('the slot survives the scene, and ends with the entity', async () => {
         // The half the last round left out: a promotion matched bindings by
         // VALUE, and a field naming an asset by ref has no handle to match. It
