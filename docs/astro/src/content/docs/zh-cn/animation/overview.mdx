@@ -361,11 +361,11 @@ tween.sequence([
 
    ![选中初始状态 Idle，类型设为剪辑，剪辑填写 assets/Logo.estimeline，播放器选时间轴](@/assets/guides/zh/animator-state-clip.png)
 
-4. 在**世界大纲**选中要运动的物体，在**细节 → 添加组件**中添加 **Animator**，在 **Controller** 栏选刚保存的 `.esanimator`。若用精灵剪辑，可以从右键 `.esanim` → **创建动画精灵**得到带 **Sprite** 和 **Sprite Animator** 的实体，然后给它添加 **Animator**。
+4. 在**世界大纲**选中要运动的物体，在**细节 → 添加组件**中添加 **Animator**，在 **Controller** 栏选刚保存的 `.esanimator`。在包含精灵控制器修复的版本中，把 **Animator** 加到带 **Sprite** 的实体上即可播放并显示 `.esanim`。如果实体已带 **Sprite Animator**，控制器会使用这个播放器。
 5. 保存场景，点**主工具栏**的播放按钮，看场景里的物体是否开始移动或换帧。点状态图上的节点只会打开它的属性。这个例子用控制器播放属性动画；要编排显隐、声音和镜头，请用[序列器和 Timeline Player](/docs/zh-cn/animation/timeline/)。
 
 <Aside type="note" title="0.112.0 的精灵剪辑">
-  这个版本可能会漏载仅在控制器里引用的 `.esanim`。先用**创建动画精灵**把要验证的那份剪辑放到场景里，并保留 **Sprite Animator → Clip** 中的引用，再运行上面的单状态示例。若有第二段 `Wizet.esanim`，可以给场景中一个空实体添加 **Sprite Animator**，在 **Clip** 指定第二段并取消 **Playing**，保存场景。这会让场景加载第二段。含修复的版本会加载控制器引用的精灵剪辑，并在填入 `.esanim` 时自动选择**精灵表**。
+  0.112.0 需要在显示动画的同一实体上保留 **Sprite**、**Sprite Animator** 和 **Animator**。这个版本可能会漏载仅在控制器里引用的 `.esanim`。先用**创建动画精灵**把要验证的那份剪辑放到场景里，并保留 **Sprite Animator → Clip** 中的引用，再运行上面的单状态示例。若有第二段 `Wizet.esanim`，可以给场景中一个空实体添加 **Sprite Animator**，在 **Clip** 指定第二段并取消 **Playing**，保存场景。这会让场景加载第二段。含修复的版本会加载控制器引用的精灵剪辑，并在填入 `.esanim` 时自动选择**精灵表**。
 </Aside>
 
 ### 播完自动切到下一段
@@ -378,7 +378,9 @@ tween.sequence([
 
 ![选中转换后勾上“播完再转”，条件列表为空，示例中的目标状态为 Run](@/assets/guides/zh/animator-after-clip.png)
 
-**第一段从头就没画面？** 点初始状态节点，核对剪辑及播放器。节点显示的 `@uuid:…` 是项目资源引用。单凭这串字符无法知道它是时间轴还是精灵剪辑。再回世界大纲检查要显示动画的实体已经指定 **Animator → Controller**。如果 `.esanim` 单独能播，保留原实体的 **Sprite** 与 **Sprite Animator**，把 **Animator** 加在**同一个实体**上。只在父实体挂控制器时，精灵状态找不到子实体上的播放器。若首段能播、状态也切到了第二段但画面停住，请按上面的 0.112.0 步骤让场景也加载第二段。
+**第一段从头就没画面？** 点初始状态节点，核对剪辑及播放器。节点显示的 `@uuid:…` 是项目资源引用。单凭这串字符无法知道它是时间轴还是精灵剪辑。再回世界大纲检查要显示动画的实体已经指定 **Animator → Controller**。把 **Animator** 加在要显示动画的 **Sprite** 实体上。控制器可以在没有 **Sprite** 的实体上推进状态和发送帧事件，画面由同一实体上的 **Sprite** 显示。如果使用 0.112.0，按上面的旧版步骤保留播放器并加载两段剪辑。
+
+![含修复的编辑器中，Nexon 状态选择精灵表播放器，面板提示在同一实体添加 Sprite 显示各帧](@/assets/guides/zh/animator-sprite-state.png)
 
 ### 按参数切换动作
 

@@ -4,40 +4,49 @@
  * @file    spriteMotion.ts
  * @brief   The `sprite` motion kind: an animator state driving a sprite clip.
  *
- * @details Playback itself stays SpriteAnimationAPI's — this only points the
- *          entity's SpriteAnimator at a clip and reads back whether it ended, so
- *          there is still exactly one thing advancing sprite frames.
+ * @details The graph selects the clip. Both standalone and graph-driven
+ *          sprites advance in SpriteAnimationAPI, including their frame events.
  */
 
 import type { MotionDriver, AnimatorClipMotion } from './motion';
-import { SpriteAnimator, type SpriteAnimatorData } from './SpriteAnimator';
+import { SpriteAnimator, SpriteMotionPlayback } from './SpriteAnimator';
 
 export const SPRITE_MOTION = 'sprite';
 
 export const spriteMotionDriver: MotionDriver<AnimatorClipMotion> = {
-    apply({ world, entity }, motion, enter) {
-        if (!world.has(entity, SpriteAnimator)) return;
-        const current = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
-        // Steady state is a no-op: rewriting the clip every frame would hold it
-        // on frame 0 forever.
-        if (current.clip === motion.clip && !enter) return;
+    lastLayerOnly: true,
 
-        world.update(entity, SpriteAnimator, (sp: SpriteAnimatorData) => {
-            sp.clip = motion.clip;
-            sp.speed = motion.speed ?? 1.0;
-            sp.loop = motion.loop ?? true;
-            sp.currentFrame = 0;
-            sp.frameTimer = 0;
-            sp.playing = true;
-            sp.finished = false;
-            sp.enabled = true;
-        });
+    apply({ world, entity }, motion, enter) {
+        const authored = world.has(entity, SpriteAnimator);
+
+        if (!world.has(entity, SpriteMotionPlayback)) {
+            world.insert(entity, SpriteMotionPlayback, { ...SpriteMotionPlayback._default });
+        }
+        const request = world.get(entity, SpriteMotionPlayback);
+        const player = authored ? world.get(entity, SpriteAnimator) : request.player;
+        const speed = motion.speed ?? 1;
+        const loopOverride = motion.loop ?? null;
+        const settingsChanged = request.speed !== speed || request.loopOverride !== loopOverride;
+        request.requested = true;
+        request.speed = speed;
+        request.loopOverride = loopOverride;
+        if (authored) request.player = null;
+
+        const restart = enter || !player || player.clip !== motion.clip;
+        if (!restart && !settingsChanged) return;
+        const settings = { speed, loop: motion.loop ?? true };
+        // Selecting the same clip in consecutive states also restarts its
+        // first frame and event. Keep an authored player's identity for readers.
+        const changes = restart ? { ...SpriteAnimator._default, ...settings, clip: motion.clip } : settings;
+        if (restart) request.restart = true;
+        if (authored) world.update(entity, SpriteAnimator, draft => Object.assign(draft, changes));
+        else request.player = Object.assign(player ?? SpriteAnimator.create(), changes);
     },
 
     isFinished({ world, entity }, motion) {
-        if (!world.has(entity, SpriteAnimator)) return false;
-        const sp = world.get(entity, SpriteAnimator) as SpriteAnimatorData;
-        // Completion belongs to this clip; pause and a pending replay are not completion.
-        return sp.clip === motion.clip && sp.clip !== '' && sp.finished && !sp.playing;
+        if (!world.has(entity, SpriteMotionPlayback)) return false;
+        const player = world.has(entity, SpriteAnimator)
+            ? world.get(entity, SpriteAnimator) : world.get(entity, SpriteMotionPlayback).player;
+        return !!player && player.clip === motion.clip && player.clip !== '' && player.finished && !player.playing;
     },
 };

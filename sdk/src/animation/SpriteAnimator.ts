@@ -5,7 +5,7 @@
  * @brief   Sprite frame animation component and system (pure TypeScript)
  */
 
-import { defineComponent, type ComponentDef } from '../ecs/component';
+import { defineComponent, getComponent, type ComponentDef } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
 import { getDefaultContext } from '../ecs/context';
 import type { Entity, TextureHandle } from '../types';
@@ -164,7 +164,9 @@ export class SpriteAnimationAPI {
             this.pendingApplies.add(animator);
             return false;
         }
-        if (world.tryGet(entity, SpriteAnimator) !== animator
+        const motion = world.tryGet(entity, SpriteMotionPlayback);
+        const current = world.tryGet(entity, SpriteAnimator) ?? motion?.player;
+        if (current !== animator || (motion && (motion.restart || !motionOwnerEnabled(world, entity)))
             || animator.clip !== clipName || this.getClip(clipName) !== clip
             || this.pendingApplies.has(animator)) return false;
         if (clip.frames !== frames || frames.length !== frameCount
@@ -226,12 +228,16 @@ export class SpriteAnimationAPI {
         // this API's current animation pass. Always release the guard on error.
         if (this.updating) return;
         this.updating = true;
-        try { this.updateWorld(world, deltaTime); }
-        finally { this.updating = false; }
+        try {
+            this.updatePlayers(world, deltaTime, SpriteMotionPlayback);
+            this.updatePlayers(world, deltaTime, SpriteAnimator);
+        } finally { this.updating = false; }
     }
 
-    private updateWorld(world: World, deltaTime: number): void {
-        const entities = world.getEntitiesWithComponents([SpriteAnimator]);
+    private updatePlayers(world: World, deltaTime: number, source: typeof SpriteAnimator | typeof SpriteMotionPlayback): void {
+        const entities = source === SpriteMotionPlayback
+            ? world.getEntitiesWithComponents([SpriteMotionPlayback])
+            : world.getEntitiesWithComponents([SpriteAnimator], [], [SpriteMotionPlayback]);
         if (entities.length === 0) return;
         const registry = world.getCppRegistry(), module = world.getWasmModule();
         const readSprite = world.resolveGetter(Sprite), writeSprite = world.resolveSetter(Sprite);
@@ -240,9 +246,31 @@ export class SpriteAnimationAPI {
             // An earlier entity's event can remove a later entity/component
             // from the query snapshot we are currently walking.
             if (!world.isEntityActive(entity)) continue;
-            const animator = world.tryGet(entity, SpriteAnimator);
+            const motion = world.tryGet(entity, SpriteMotionPlayback);
+            if (source === SpriteMotionPlayback) {
+                if (!motion) continue;
+                const enabled = motionOwnerEnabled(world, entity);
+                if (!motion.requested || !enabled) {
+                    motion.requested = false;
+                    // A disabled controller resumes at the same frame. Leaving the
+                    // sprite state or removing the controller releases its playhead.
+                    if (enabled === false) continue;
+                    world.remove(entity, SpriteMotionPlayback);
+                    continue;
+                }
+                motion.requested = false;
+            } else if (motion) {
+                // The controlled pass already advanced this authored player.
+                continue;
+            }
+            const authored = world.tryGet(entity, SpriteAnimator);
+            const animator = authored ?? motion?.player;
             if (!animator) continue;
             if (!animator.enabled || !animator.clip) continue;
+            if (motion?.restart) {
+                this.appliedAnimators.delete(animator);
+                motion.restart = false;
+            }
             const applied = this.appliedAnimators.get(animator);
             if (!animator.playing && !this.pendingApplies.has(animator) && !applied) continue;
 
@@ -272,7 +300,7 @@ export class SpriteAnimationAPI {
                 ? Math.max(0, Math.min(Math.floor(animator.currentFrame), clip.frames.length - 1)) : 0;
             const prevFrame = animator.currentFrame;
             const wasPlaying = animator.playing;
-            const looping = animator.loop && clip.loop;
+            const looping = motion?.loopOverride ?? (animator.loop && clip.loop);
             const elapsed = wasPlaying && Number.isFinite(deltaTime) ? Math.max(0, deltaTime) : 0;
             animator.frameTimer = Math.min(Number.MAX_VALUE,
                 (Number.isFinite(animator.frameTimer) ? Math.max(0, animator.frameTimer) : 0) + elapsed);
@@ -348,7 +376,7 @@ export class SpriteAnimationAPI {
             if (frameChanged) {
                 // These are complete existing values: stamp their changes without
                 // rebuilding defaults or allocating a replacement component.
-                world.set(entity, SpriteAnimator, animator);
+                if (authored) world.set(entity, SpriteAnimator, animator);
                 this.appliedAnimators.set(animator, token);
             }
         }
@@ -424,3 +452,23 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
 }, {
     assetFields: [{ field: 'clip', type: 'anim-clip' }],
 });
+
+// Animator lives in an optional entry point. Resolving it only for an active
+// sprite motion keeps standalone sprite playback independent of the graph.
+function motionOwnerEnabled(world: World, entity: Entity): boolean | undefined {
+    const controller = getComponent('Animator');
+    return controller && world.tryGet(entity, controller)?.enabled;
+}
+
+/** @internal A sprite state's request for this update. The optional playhead is
+ * used only on an entity without an authored SpriteAnimator. Scene saves omit
+ * the entire request and the state machine recreates it on playback. */
+export const SpriteMotionPlayback = defineComponent<{
+    player: SpriteAnimatorData | null;
+    requested: boolean;
+    restart: boolean;
+    speed: number;
+    loopOverride: boolean | null;
+}>('AnimatorSpritePlayback', {
+    player: null, requested: false, restart: false, speed: 1, loopOverride: null,
+}, { transient: true });

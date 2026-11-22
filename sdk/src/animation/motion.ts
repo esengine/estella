@@ -208,6 +208,8 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
      * only on the frame the state was entered, and means restart from the top.
      */
     apply?(ctx: MotionContext, motion: M, enter: boolean): void;
+    /** One player per entity. Only the highest contributing layer selects its clip. */
+    readonly lastLayerOnly?: boolean;
     /**
      * Evaluate `motion` at `time` seconds into `pose`, writing no component;
      * wrapping belongs here, only the driver knowing how long its clip runs.
@@ -258,6 +260,8 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
  */
 export class MotionRegistry {
     private readonly drivers_ = new Map<string, MotionDriver<never>>();
+    private layered_ = false;
+    private readonly layerDrives_ = new Map<string, { motion: AnimatorMotion | null; enter: boolean }>();
     /** Scratch lent to composite motions. Pools and not one buffer per driver:
      *  nesting decides how many are live at once, and only the stack knows that. */
     private readonly posePool_: Pose[] = [];
@@ -266,10 +270,13 @@ export class MotionRegistry {
 
     register<M extends AnimatorMotion>(kind: M['kind'], driver: MotionDriver<M>): void {
         this.drivers_.set(kind, driver as MotionDriver<never>);
+        if (driver.lastLayerOnly) this.layerDrives_.set(kind, { motion: null, enter: false });
+        else this.layerDrives_.delete(kind);
     }
 
     unregister(kind: string): void {
         this.drivers_.delete(kind);
+        this.layerDrives_.delete(kind);
     }
 
     has(kind: string): boolean {
@@ -288,6 +295,7 @@ export class MotionRegistry {
     context(
         world: World, entity: Entity, params: MotionParams, resolveJoint?: JointResolver,
     ): MotionContext {
+        this.layered_ = false;
         const ctx = this.ctx_;
         ctx.world = world;
         ctx.entity = entity;
@@ -297,12 +305,39 @@ export class MotionRegistry {
         return ctx;
     }
 
+    /** Collect requests for single-player motions across this entity's layers.
+     *  @internal */
+    beginLayerDrives(): void {
+        for (const selection of this.layerDrives_.values()) selection.motion = null;
+        this.layered_ = true;
+    }
+
+    /** Apply the winning requests once all layers have selected their motions.
+     *  @internal */
+    flushLayerDrives(): void {
+        this.layered_ = false;
+        for (const selection of this.layerDrives_.values()) {
+            const motion = selection.motion;
+            if (!motion) continue;
+            selection.motion = null;
+            this.driverFor(motion)?.apply?.(this.ctx_, motion, selection.enter);
+        }
+    }
+
     private readonly ctx_: MotionContext = {
         world: null!,
         entity: 0 as Entity,
         params: {},
         extractRootMotion: false,
-        drive: (motion, enter) => { this.driverFor(motion)?.apply?.(this.ctx_, motion, enter); },
+        drive: (motion, enter) => {
+            const selection = this.layered_ && this.layerDrives_.get(motion.kind);
+            if (selection) {
+                selection.motion = motion;
+                selection.enter = enter;
+            } else {
+                this.driverFor(motion)?.apply?.(this.ctx_, motion, enter);
+            }
+        },
         finished: (motion) => this.driverFor(motion)?.isFinished?.(this.ctx_, motion) ?? false,
         sample: (motion, time, pose) =>
             this.driverFor(motion)?.sample?.(this.ctx_, motion, time, pose) ?? false,

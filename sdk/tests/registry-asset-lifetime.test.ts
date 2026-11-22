@@ -17,8 +17,9 @@ import { App } from '../src/app/app';
 import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { AssetScope } from '../src/asset/AssetLease';
-import { SpriteAnimationAPI, SpriteAnimator, type SpriteAnimClip } from '../src/animation/SpriteAnimator';
+import { SpriteAnimation, SpriteAnimationAPI, SpriteAnimator, type SpriteAnimClip } from '../src/animation/SpriteAnimator';
 import { Animator } from '../src/animation/Animator';
+import { loadSceneWithAssets, serializeScene } from '../src/scene/scene';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
 import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
 import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
@@ -152,7 +153,11 @@ describe('a persistent entity carries a ref-bound asset out of its scene', () =>
 describe('a registry-backed asset lives as long as it is held', () => {
     beforeEach(() => { pool = createPoolFake(); });
 
-    it('plays a controller-only sprite clip to completion and advances without a trigger', async () => {
+    it.each([
+        { setup: 'Animator alone', hasSprite: false, hasPlayer: false },
+        { setup: 'a visible sprite', hasSprite: true, hasPlayer: false },
+        { setup: 'an existing standalone player', hasSprite: true, hasPlayer: true },
+    ])('plays and auto-advances controller-only clips on $setup', async ({ hasSprite, hasPlayer }) => {
         const controller = 'assets/intro/logo.esanimator';
         const nextRef = '@uuid:12345678-1234-4234-8234-123456789abc';
         const graph = {
@@ -169,6 +174,7 @@ describe('a registry-backed asset lives as long as it is held', () => {
             const frames = first ? 34 : 4;
             return JSON.stringify({
                 fps: 6, loop: !first, frames: Array.from({ length: frames }, (_, cell) => ({ cell })),
+                events: Array.from({ length: frames }, (_, frame) => ({ frame, name: first ? 'Nexon' : 'Wizet' })),
                 sheet: { texture: first ? 'nexon.png' : 'wizet.png', cellWidth: 8, cellHeight: 8,
                     pageWidth: frames * 8, pageHeight: 8 },
             });
@@ -180,31 +186,40 @@ describe('a registry-backed asset lives as long as it is held', () => {
         app.insertResource(AssetsResource, assets as never);
         app.addPlugin(new AnimationPlugin());
         app.addPlugin(new SkeletalAnimationPlugin());
-        const loaded = await assets.preloadSceneAssets({
+        const entities = await loadSceneWithAssets(app.world, {
             version: '1.0', name: 'Intro', entities: [{ id: 1, name: 'Logo', parent: null, children: [],
-                components: [{ type: 'Animator', data: { controller } }, { type: 'SpriteAnimator', data: {} }] }],
-        });
-        const actor = app.world.spawn();
-        app.world.insert(actor, Animator, { controller });
-        app.world.insert(actor, SpriteAnimator, {});
-        app.world.insert(actor, Sprite, {});
+                components: [
+                    { type: 'Animator', data: { controller } },
+                    ...(hasSprite ? [{ type: 'Sprite', data: {} }] : []),
+                    ...(hasPlayer ? [{ type: 'SpriteAnimator', data: {} }] : []),
+                ] }],
+        }, { assets, abortOnMissingAssets: true });
+        const actor = entities.get(1)!;
 
-        const seen = new Map([['Nexon', new Set<number>()], ['Wizet', new Set<number>()]]);
-        let finishedAt = 0, switchedAt = 0;
+        const events: Record<string, number[]> = { Nexon: [], Wizet: [] };
+        const visible = new Map([['Nexon', new Set<number>()], ['Wizet', new Set<number>()]]);
+        app.getResource(SpriteAnimation).onEvent(actor, event => events[event.name]!.push(event.frame));
+        let switchedAt = 0;
         for (let tick = 1; tick <= 420; tick++) {
             await app.tick(1 / 60);
             const state = app.world.get(actor, Animator).currentState;
-            const player = app.world.get(actor, SpriteAnimator);
-            seen.get(state)!.add(player.currentFrame);
-            if (state === 'Nexon' && player.finished && !finishedAt) finishedAt = tick;
             if (state === 'Wizet' && !switchedAt) switchedAt = tick;
+            if (hasSprite) visible.get(state)!.add(app.world.get(actor, Sprite).uvOffset.x);
         }
-        expect(seen.get('Nexon')!.size).toBe(34);
-        expect(finishedAt / 60).toBeCloseTo(34 / 6, 2);
-        expect(switchedAt).toBe(finishedAt + 1);
-        expect(seen.get('Wizet')!.size).toBe(4);
-        expect(app.world.get(actor, Sprite).texture).toBeGreaterThan(0);
-        loaded.scope.releaseAll();
+        expect(switchedAt).toBe(341);
+        expect(events.Nexon).toEqual(Array.from({ length: 34 }, (_, i) => i));
+        expect(events.Wizet!.slice(0, 5)).toEqual([0, 1, 2, 3, 0]);
+        if (hasSprite) {
+            expect(visible.get('Nexon')!.size).toBe(34);
+            expect(visible.get('Wizet')!.size).toBe(4);
+            expect(app.world.get(actor, Sprite).texture).toBeGreaterThan(0);
+        }
+        expect(app.world.has(actor, SpriteAnimator)).toBe(hasPlayer);
+        expect(app.world.has(actor, Sprite)).toBe(hasSprite);
+        const saved = serializeScene(app.world).entities.find(entity => entity.id === actor)!;
+        expect(saved.components.map(component => component.type)).not.toContain('AnimatorSpritePlayback');
+        expect(saved.components.some(component => component.type === 'SpriteAnimator')).toBe(hasPlayer);
+        app.world.despawn(actor);
         expect(assets.resolveRegistryAsset('anim-clip', nextRef)).toBeUndefined();
     });
 

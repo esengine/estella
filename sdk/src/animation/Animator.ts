@@ -842,10 +842,12 @@ export class AnimatorControllerAPI {
 
             let wrote = false;
             this.spentTriggers_.length = 0;
+            if (count > 1) this.motions_.beginLayerDrives();
             for (let index = 0; index < count; index++) {
                 wrote = this.stepLayer(world, entity, a, def, index, ctx, rt, dt, events, travel)
                     || wrote;
             }
+            if (count > 1) this.motions_.flushLayerDrives();
             // Consumed after EVERY layer has been asked, not as each fires: one
             // trigger is one event every layer is told about, so an attack both
             // machines answer cannot depend on which was stepped first.
@@ -904,7 +906,10 @@ export class AnimatorControllerAPI {
         // frame past the clip it was waiting for.
         this.advance(lrt, dt * stateTimeScale(leaf, params));
         const leafMotion = motionOf(leaf);
-        const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, lrt.time);
+        // A newly seeded layer has yet to play its initial motion. A previous
+        // controller or standalone player may have finished that very clip.
+        const clipFinished = fromPath === layerState(a, index) && leafMotion !== null
+            && this.motionEnded(ctx, leafMotion, lrt.time);
 
         // The windows the state being left holds over the stretch its clock just
         // covered: a press buffered before the combo window opens is taken the

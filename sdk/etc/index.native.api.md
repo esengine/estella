@@ -7180,6 +7180,7 @@ apply: ((ctx: MotionContext, motion: M, enter: boolean) => void) | undefined
 duration: ((ctx: MotionContext, motion: M) => number) | undefined
 events: ((ctx: MotionContext, motion: M, span: MotionSpan, out: MotionEvent[]) => void) | undefined
 isFinished: ((ctx: MotionContext, motion: M) => boolean) | undefined
+lastLayerOnly: boolean | undefined
 loops: ((ctx: MotionContext, motion: M) => boolean) | undefined
 rootMotion: ((ctx: MotionContext, motion: M, span: MotionSpan, out: RootMotionDelta) => boolean) | undefined
 sample: ((ctx: MotionContext, motion: M, time: number, pose: Pose) => boolean) | undefined
@@ -7208,6 +7209,8 @@ rate: MotionRate | undefined
 
 ## MotionRegistry — class @experimental
 ```
+@internal beginLayerDrives: () => void
+@internal flushLayerDrives: () => void
 context: (world: World, entity: Entity, params: MotionParams, resolveJoint?: JointResolver) => MotionContext
 driverFor: (motion: AnimatorMotion) => MotionDriver | undefined
 has: (kind: string) => boolean

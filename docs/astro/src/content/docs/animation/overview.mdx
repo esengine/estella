@@ -379,11 +379,11 @@ storing a handle to pause, cancel, or observe the composition later.
 
    ![The initial Idle state set to Clip, with assets/Logo.estimeline entered and Played by set to Timeline](@/assets/guides/en/animator-state-clip.png)
 
-4. Select the object to animate in the **World Outliner**. In **Details → Add Component**, add **Animator** and select the saved `.esanimator` in **Controller**. For a sprite clip, right-click its `.esanim` and choose **Create Animated Sprite** to create an entity with **Sprite** and **Sprite Animator**, then add **Animator** to it.
+4. Select the object to animate in the **World Outliner**. In **Details → Add Component**, add **Animator** and select the saved `.esanimator` in **Controller**. In builds with controller-driven sprite playback, add **Animator** to an entity with **Sprite** to play and display an `.esanim`. If the entity already has a **Sprite Animator**, the controller uses that player.
 5. Save the scene and press play on the **main toolbar**. Watch the object move or change frames in the scene. Clicking a graph node opens its properties. This example uses a controller for property animation. For timed visibility, audio or camera cues, use the [Sequencer and Timeline Player](/docs/animation/timeline/).
 
 <Aside type="note" title="Sprite clips in 0.112.0">
-  This version can miss an `.esanim` referenced only by a controller. To check the single-state example, use **Create Animated Sprite** with that clip and keep the assigned **Sprite Animator → Clip** reference in the scene. For a second clip such as `Wizet.esanim`, add **Sprite Animator** to an empty scene entity, assign the file in **Clip**, untick **Playing** and save the scene. This gives the scene a reference to load. Builds with the fix load sprite clips referenced by the controller and select **Sprite sheet** automatically for an `.esanim` file.
+  In 0.112.0 keep **Sprite**, **Sprite Animator** and **Animator** on the same visible entity. This version can miss an `.esanim` referenced only by a controller. To check the single-state example, use **Create Animated Sprite** with that clip and keep the assigned **Sprite Animator → Clip** reference in the scene. For a second clip such as `Wizet.esanim`, add **Sprite Animator** to an empty scene entity, assign the file in **Clip**, untick **Playing** and save the scene. This gives the scene a reference to load. Builds with the fix load sprite clips referenced by the controller and select **Sprite sheet** automatically for an `.esanim` file.
 </Aside>
 
 ### Play the next state when a clip ends
@@ -396,7 +396,9 @@ For an intro that plays `Nexon` and then `Wizet`, **no parameter condition is re
 
 ![The transition to Run with Has exit time checked and the conditions list empty](@/assets/guides/en/animator-after-clip.png)
 
-**No motion from the first frame?** Click the initial state and check the clip and **Played by**. An `@uuid:…` on the node is a project asset reference. To identify its type, inspect the referenced asset. In the World Outliner, select the entity that should animate and check its **Animator → Controller**. If the `.esanim` plays on its own, keep **Sprite** and **Sprite Animator** on the original entity and add **Animator** to that **same entity**. A sprite state looks for its player on the controller entity. If the first clip plays and the state changes but the second clip freezes, use the 0.112.0 steps above to load the second clip as well.
+**No motion from the first frame?** Click the initial state and check the clip and **Played by**. An `@uuid:…` on the node is a project asset reference. To identify its type, inspect the referenced asset. In the World Outliner, select the entity that should animate and check its **Animator → Controller**. Place **Animator** on the **Sprite** you want to animate. The controller can advance states and dispatch frame events on an entity without a **Sprite**. A **Sprite** on that entity displays the frames. For 0.112.0, follow the steps above to keep the player and load both clips.
+
+![Nexon in an editor with the fix, showing its sprite sheet player and the hint to add Sprite to the same entity to display the frames](@/assets/guides/en/animator-sprite-state.png)
 
 ### Switch actions with parameters
 

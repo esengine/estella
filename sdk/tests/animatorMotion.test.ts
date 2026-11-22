@@ -12,7 +12,9 @@ import {
 } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
-import { defineComponent } from '../src/ecs/component';
+import { defineComponent, Sprite } from '../src/ecs/component';
+import { World } from '../src/ecs/world';
+import { connectFakeCpp } from './helpers/fakeEngine';
 import {
     WrapMode, TrackType, InterpType, type TimelineAsset,
 } from '../src/timeline/TimelineTypes';
@@ -40,6 +42,7 @@ function makeWorld() {
         isEntityActive: () => true,
         insert(e: number, c: unknown, data: unknown) { mapOf(c).set(e, data); },
         get(e: number, c: unknown) { return mapOf(c).get(e); },
+        remove(e: number, c: unknown) { mapOf(c).delete(e); },
         has(e: number, c: unknown) { return mapOf(c).has(e); },
         set(e: number, c: unknown, data: unknown) { mapOf(c).set(e, data); },
         tryGet(e: number, c: unknown) { return mapOf(c).get(e) ?? null; },
@@ -102,6 +105,97 @@ function locomotionGraph(motionFor: (state: string) => AnimatorMotion): Animator
         ],
     };
 }
+
+describe('controller-driven sprite playback', () => {
+    function setup(authored: boolean) {
+        const world = new World();
+        connectFakeCpp(world);
+        const actor = world.spawn();
+        const graph = new AnimatorControllerAPI();
+        const sprites = new SpriteAnimationAPI();
+        sprites.registerClip({
+            name: 'logo', fps: 4, loop: false, frames: [{ texture: 11 }, { texture: 22 }],
+            events: [{ frame: 0, name: 'first' }, { frame: 1, name: 'last' }],
+        });
+        graph.registerController('intro', {
+            initialState: 'Repeat', parameters: [{ name: 'next', type: 'trigger' }], states: [
+                { name: 'Repeat', motion: { kind: 'sprite', clip: 'logo', loop: true, speed: 2 },
+                    transitions: [{ to: 'Once', conditions: [{ param: 'next', op: 'trigger' }] },
+                        { to: 'Done', hasExitTime: true, conditions: [] }] },
+                { name: 'Once', motion: { kind: 'sprite', clip: 'logo' },
+                    transitions: [{ to: 'Done', hasExitTime: true, conditions: [] }] },
+                { name: 'Done', transitions: [] },
+            ],
+        });
+        world.insert(actor, Animator, { controller: 'intro' });
+        world.insert(actor, Sprite, {});
+        if (authored) world.insert(actor, SpriteAnimator, { clip: 'logo', finished: true, playing: false });
+        const events: string[] = [];
+        sprites.onEvent(actor, event => events.push(event.name));
+        const tick = (dt: number) => { graph.update(world, dt); sprites.update(world, dt); };
+        return { world, actor, graph, sprites, events, tick };
+    }
+
+    it.each([false, true])('pauses, resumes and re-enters the same clip with an authored player = %s', authored => {
+        const { world, actor, graph, events, tick } = setup(authored);
+        tick(1 / 16);
+        expect(world.get(actor, Animator).currentState).toBe('Repeat');
+        expect(events).toEqual(['first']);
+        world.update(actor, Animator, state => { state.enabled = false; });
+        tick(1);
+        expect(events).toEqual(['first']);
+        world.update(actor, Animator, state => { state.enabled = true; });
+        tick(1 / 16);
+        expect(world.get(actor, Sprite).texture).toBe(22);
+        tick(1 / 8);
+        expect(events).toEqual(['first', 'last', 'first']);
+        expect(world.get(actor, Animator).currentState).toBe('Repeat');
+
+        graph.setTrigger(actor, 'next');
+        tick(0);
+        expect(events).toEqual(['first', 'last', 'first', 'first']);
+        tick(1 / 4);
+        tick(1 / 4);
+        tick(0);
+        expect(world.get(actor, Animator).currentState).toBe('Done');
+        expect(events).toEqual(['first', 'last', 'first', 'first', 'last']);
+        expect(world.get(actor, Sprite).texture).toBe(22);
+    });
+
+    it.each([false, true])('keeps the top sprite layer advancing with an authored player = %s', authored => {
+        const { world, actor, graph, sprites, events, tick } = setup(authored);
+        sprites.registerClip({ name: 'base', fps: 4, loop: true, frames: [{ texture: 33 }],
+            events: [{ frame: 0, name: 'base' }] });
+        graph.registerController('intro', {
+            initialState: 'Base', parameters: [],
+            states: [{ name: 'Base', clip: 'base', transitions: [] }],
+            layers: [{ name: 'Overlay', initialState: 'Logo', states: [
+                { name: 'Logo', clip: 'logo', transitions: [{ to: 'Hold', conditions: [], hasExitTime: true }] },
+                { name: 'Hold', transitions: [] },
+            ] }],
+        });
+        tick(0);
+        tick(1 / 4);
+        expect(world.get(actor, Sprite).texture).toBe(22);
+        expect(events).toEqual(['first', 'last']);
+        tick(1 / 4);
+        tick(0);
+        expect(world.get(actor, Animator).layerStates).toEqual(['Hold']);
+        expect(world.get(actor, Sprite).texture).toBe(33);
+        expect(events).toEqual(['first', 'last', 'base']);
+    });
+
+    it('drops an implicit playhead when a frame event removes its controller', () => {
+        const { world, actor, sprites, events, tick } = setup(false);
+        sprites.onEvent(actor, () => world.remove(actor, Animator));
+        tick(1 / 8);
+        expect(events).toEqual(['first']);
+        expect(world.get(actor, Sprite).texture).toBe(0);
+        tick(1);
+        expect(events).toEqual(['first']);
+        expect(world.has(actor, SpriteAnimator)).toBe(false);
+    });
+});
 
 const spriteMotionFor = (name: string): AnimatorMotion => ({ kind: 'sprite', clip: name });
 const timelineMotionFor = (name: string): AnimatorMotion =>
