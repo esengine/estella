@@ -20,17 +20,20 @@ describe('Commands.spawn().id() during a query', () => {
         const app = App.new();
         const a = app.world.spawn(); app.world.insert(a, Source, { n: 1 });
         const b = app.world.spawn(); app.world.insert(b, Source, { n: 2 });
+        const initial = app.world.getEntitiesWithComponents([]);
         const made: Entity[] = [];
         app.addSystem(defineSystem([Query(Source), Commands()], (q, cmds) => {
             for (const [entity] of q) {
                 const id = cmds.spawn('child').insert(Child, { of: entity as number }).id();
                 expect(id).not.toBe(0);
+                expect(app.world.getEntitiesWithComponents([])).toBe(initial);
                 made.push(id);
             }
         }, { name: 'SpawnInQuery' }));
         await app.tick(1 / 60);
         expect(made).toHaveLength(2);
         expect(new Set(made).size).toBe(2);
+        expect(app.world.getEntitiesWithComponents([])).toEqual([a, b, ...made]);
         for (const id of made) {
             expect(app.world.valid(id)).toBe(true);
             expect(app.world.has(id, Child)).toBe(true);

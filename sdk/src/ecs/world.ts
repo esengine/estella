@@ -17,7 +17,7 @@ import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
-import { rankByOrder, reorderMapByRank } from './entityOrder';
+import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
 import { registerEngineStampFlush } from './engineStamps';
 import { withScratch } from '../wasm/wasmScratch';
@@ -78,8 +78,10 @@ const _keyIds: number[] = [];
 
 /** What an omitted `with` or `without` reads as: one shared list, where a default `[]` was a new array every call. */
 const NO_COMPONENTS: AnyComponentDef[] = [];
+/** Membership of the committed world, for queries a bare entity can satisfy. */
+const ENTITY_POPULATION = Symbol('entity population');
 
-/** The cache key and dependency ids of a query that names one or two components and nothing else. */
+/** The cache key and dependency ids of an unfiltered query with up to two components. */
 interface PlainQueryPlan {
     readonly key: string;
     readonly depIds: symbol[];
@@ -88,13 +90,13 @@ const PAIR = 0x100000;
 const plainQueryPlans_ = new Map<number, PlainQueryPlan>();
 
 /**
- * The plan of `world.getEntitiesWithComponents([A])` or `([A, B])`, made once per component pair: nearly every call
- * that does not come from a `Query` (which keeps its own) has one of those two shapes, and is asked every frame.
+ * Most direct world queries ask for the population, a component, or a pair on every frame.
+ * Zero is free for the population because component IDs start at one.
  */
 function plainQueryPlan(components: AnyComponentDef[]): PlainQueryPlan {
-    const id = components.length === 1
-        ? getCompNumId(components[0])
-        : getCompNumId(components[0]) * PAIR + getCompNumId(components[1]);
+    let id = 0;
+    if (components.length === 1) id = getCompNumId(components[0]);
+    else if (components.length === 2) id = getCompNumId(components[0]) * PAIR + getCompNumId(components[1]);
     let plan = plainQueryPlans_.get(id);
     if (!plan) {
         plan = { key: computeQueryCacheKey(components), depIds: queryDepIds(components, NO_COMPONENTS, NO_COMPONENTS) };
@@ -155,9 +157,9 @@ export function feedsTransformComposition(component: AnyComponentDef): boolean {
 
 
 /**
- * The cache dependencies of a query, Disabled included: switching one entity off
- * changes what EVERY query answers. Shared because QueryInstance and the AOT
- * plan precompute this set once and would each have to remember.
+ * Switching an entity off can change any query. A query with no required
+ * component also depends on bare entities entering or leaving the world.
+ * World, QueryInstance and compiled systems all use the same dependencies.
  */
 export function queryDepIds(
     components: readonly AnyComponentDef[],
@@ -166,6 +168,7 @@ export function queryDepIds(
     filterDeps: readonly AnyComponentDef[] = [],
 ): symbol[] {
     const ids: symbol[] = [Disabled._id];
+    if (!components.length && !withFilters.length) ids.push(ENTITY_POPULATION);
     for (const c of components) ids.push(c._id);
     for (const c of withFilters) ids.push(c._id);
     for (const c of withoutFilters) ids.push(c._id);
@@ -199,12 +202,16 @@ export class World {
     private inactiveVersion_ = -1;
     private coreActivityEpoch_ = -1;
     private readonly coreDisconnect_ = new Set<() => void>();
-    private entities_ = new Map<Entity, number>();
+    /** Allocation order, updated on an explicit reorder. Generation is part of the entity handle. */
+    private readonly entities_ = new Map<Entity, number>();
+    private nextEntityRank_ = 0;
+    private reservedEntities_?: Set<Entity>;
+    /** Worlds that only query components keep their cached hits across bare spawns. */
+    private tracksPopulation_ = false;
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
     private iterationDepth_ = 0;
     private queryCostEnabled_ = false;
     private nextEntityIndex_ = 0;  // pure-JS fallback: monotonic index counter
-    private nextGeneration_ = 0;
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
     private assetFieldResolver_: AssetFieldResolver | null = null;
@@ -323,12 +330,14 @@ export class World {
         if (this.speculation_) {
             throw new Error('Cannot reserve an entity inside a speculation.');
         }
-        return this.allocateEntity_();
+        const entity = this.allocateEntity_();
+        (this.reservedEntities_ ??= new Set()).add(entity);
+        return entity;
     }
 
     /** @internal Finish a spawn begun by {@link reserveEntity}. */
     commitReservedSpawn(entity: Entity, name?: string): void {
-        this.commitSpawn_(entity, name);
+        if (this.reservedEntities_?.delete(entity)) this.commitSpawn_(entity, name);
     }
 
     private allocateEntity_(): Entity {
@@ -343,30 +352,20 @@ export class World {
                 throw e;
             }
         } else {
-            // Pure-JS fallback: pack into the same {generation(12) | index(20)}
-            // layout as C++ so Entity helpers (entityIndex/entityGeneration)
-            // give consistent results whether or not WASM is connected.
+            // Use the same packed index and generation as the C++ entity handle.
             const idx = ++this.nextEntityIndex_;
             const gen = (this.indexGeneration_.get(idx) ?? 0);
             entity = makeEntity(idx, gen);
         }
 
-        let generation = 0;
-        const module = this.builtin_.getWasmModule();
-        if (module && cppRegistry) {
-            try {
-                generation = module.registry_getGeneration(cppRegistry, entity);
-            } catch { /* fallback to 0 */ }
-        } else {
-            generation = ++this.nextGeneration_;
-        }
-        this.entities_.set(entity, generation);
+        this.entities_.set(entity, this.nextEntityRank_++);
         this.indexGeneration_.set(entityIndex(entity), entityGeneration(entity));
         return entity;
     }
 
     private commitSpawn_(entity: Entity, name?: string): void {
         this.queries_.markStructuralChange();
+        if (this.tracksPopulation_) this.queries_.markComponentDirty(ENTITY_POPULATION);
 
         if (name !== undefined) {
             this.insert(entity, Name, { value: name });
@@ -472,6 +471,8 @@ export class World {
         }
         this.entities_.delete(entity);
         this.queries_.markStructuralChange();
+        const wasReserved = this.reservedEntities_?.delete(entity);
+        if (!wasReserved && this.tracksPopulation_) this.queries_.markComponentDirty(ENTITY_POPULATION);
 
         // Dirty exactly the component versions this entity carried so its
         // membership leaves the relevant cached queries — unrelated queries stay
@@ -700,7 +701,10 @@ export class World {
         // that can fail (no core, or a core built before this entry point existed).
         this.pushEntityOrderToCore_(entities);
 
-        reorderMapByRank(this.entities_, rankOf);
+        const ordered = this.getAllEntities().sort((a, b) => rankOf(a) - rankOf(b));
+        this.entities_.clear();
+        this.nextEntityRank_ = 0;
+        for (const entity of ordered) this.entities_.set(entity, this.nextEntityRank_++);
         this.builtin_.reorderEntitySets(rankOf);
         this.scripts_.reorderStorages(rankOf);
         // Cached query results are entity ARRAYS — their order is now wrong, and no
@@ -1365,26 +1369,28 @@ export class World {
         comps: AnyComponentDef[],
         scriptOut: Map<Entity, unknown>[],
         builtinOut: BuiltinMethods[],
+        required = true,
     ): boolean {
         for (const comp of comps) {
             if (isBuiltinComponent(comp)) {
-                if (!this.builtin_.hasCpp) return false;
-                builtinOut.push(this.builtin_.getBuiltinMethods(comp._cppName));
+                if (this.builtin_.hasCpp) builtinOut.push(this.builtin_.getBuiltinMethods(comp._cppName));
+                else if (required) return false;
             } else {
                 const storage = this.scripts_.getStorageById(comp._id);
-                if (!storage) return false;
-                scriptOut.push(storage);
+                if (storage) scriptOut.push(storage);
+                else if (required) return false;
             }
         }
         return true;
     }
 
-    private collectComponentIds_(
-        components: AnyComponentDef[],
-        withFilters: AnyComponentDef[],
-        withoutFilters: AnyComponentDef[],
-    ): symbol[] {
-        return queryDepIds(components, withFilters, withoutFilters);
+    /** Scanning and sorting a rare tag can be cheaper than testing every entity in world order. */
+    private sparseWorldFilter_(filters: Map<Entity, unknown>[]): Map<Entity, unknown> | null {
+        let smallest = filters[0];
+        for (const storage of filters) {
+            if (storage.size < smallest.size) smallest = storage;
+        }
+        return smallest.size * Math.log2(smallest.size + 1) < this.entities_.size ? smallest : null;
     }
 
     /**
@@ -1424,14 +1430,14 @@ export class World {
         let depIds = precomputedDepIds;
         if (cacheKey === undefined && depIds === undefined && !filter
             && withFilters.length === 0 && withoutFilters.length === 0
-            && (components.length === 1 || components.length === 2)) {
+            && components.length <= 2) {
             const plan = plainQueryPlan(components);
             cacheKey = plan.key;
             depIds = plan.depIds;
         }
         cacheKey ??= computeQueryCacheKey(components, withFilters, withoutFilters);
         if (!depIds) {
-            depIds = this.collectComponentIds_(components, withFilters, withoutFilters);
+            depIds = queryDepIds(components, withFilters, withoutFilters);
             if (filter) {
                 for (const c of filter.deps) depIds.push(c._id);
             }
@@ -1446,7 +1452,8 @@ export class World {
             || withFilters.includes(Disabled) || withoutFilters.includes(Disabled);
 
         return this.queries_.getOrCompute(cacheKey, depIds, () => {
-            const entities: Entity[] = [];
+            const population = !components.length && !withFilters.length;
+            if (population) this.tracksPopulation_ = true;
             const off = namesDisabled ? null : this.inactiveEntities_();
 
             const reqScript: Map<Entity, unknown>[] = [];
@@ -1454,25 +1461,12 @@ export class World {
             if (!this.resolveStorages_(components, reqScript, reqBuiltin)) {
                 return [];
             }
-
-            let withScript: Map<Entity, unknown>[] | null = null;
-            let withBuiltin: BuiltinMethods[] | null = null;
-            if (withFilters.length > 0) {
-                withScript = [];
-                withBuiltin = [];
-                if (!this.resolveStorages_(withFilters, withScript, withBuiltin)) {
-                    return [];
-                }
+            if (!off && !filter && !withFilters.length && !withoutFilters.length && !reqBuiltin.length) {
+                if (population && !this.reservedEntities_?.size) return this.getAllEntities();
+                if (reqScript.length === 1) return Array.from(reqScript[0].keys());
             }
 
-            let woScript: Map<Entity, unknown>[] | null = null;
-            let woBuiltin: BuiltinMethods[] | null = null;
-            if (withoutFilters.length > 0) {
-                woScript = [];
-                woBuiltin = [];
-                this.resolveStorages_(withoutFilters, woScript, woBuiltin);
-            }
-
+            // The requested components determine iteration order independently of the filters.
             let smallestSet: { keys(): IterableIterator<Entity>; size: number } | null = null;
             let smallestSize = Infinity;
             for (let i = 0; i < reqScript.length; i++) {
@@ -1492,49 +1486,44 @@ export class World {
                 }
             }
 
-            const candidates = smallestSet ? smallestSet.keys() : this.entities_.keys();
-            const rsLen = reqScript.length;
-            const rbLen = reqBuiltin.length;
+            if (withFilters.length && !this.resolveStorages_(withFilters, reqScript, reqBuiltin)) return [];
+            let woScript: Map<Entity, unknown>[] | null = null;
+            let woBuiltin: BuiltinMethods[] | null = null;
+            if (withoutFilters.length) {
+                woScript = [];
+                woBuiltin = [];
+                this.resolveStorages_(withoutFilters, woScript, woBuiltin, false);
+            }
+            const sparse = !components.length && reqScript.length && !filter ? this.sparseWorldFilter_(reqScript) : null;
+            const candidates = (smallestSet ?? sparse ?? this.entities_).keys();
 
-            for (const entity of candidates) {
-                if (off?.has(entity)) continue;
-                let match = true;
-                for (let i = 0; i < rsLen; i++) {
-                    if (!reqScript[i].has(entity)) { match = false; break; }
+            const entities: Entity[] = [];
+            candidate: for (const entity of candidates) {
+                if (population && this.reservedEntities_?.has(entity)) continue;
+                if (sparse && !this.entities_.has(entity)) continue;
+                // Test script membership before crossing into the core for activity or builtin membership.
+                for (let i = 0; i < reqScript.length; i++) {
+                    if (!reqScript[i].has(entity)) continue candidate;
                 }
-                if (match) {
-                    for (let i = 0; i < rbLen; i++) {
-                        if (!reqBuiltin[i].has(entity)) { match = false; break; }
-                    }
-                }
-                if (match && withScript) {
-                    for (let i = 0; i < withScript.length; i++) {
-                        if (!withScript[i].has(entity)) { match = false; break; }
-                    }
-                    if (match) {
-                        for (let i = 0; i < withBuiltin!.length; i++) {
-                            if (!withBuiltin![i].has(entity)) { match = false; break; }
-                        }
-                    }
-                }
-                if (match && woScript) {
+                if (woScript) {
                     for (let i = 0; i < woScript.length; i++) {
-                        if (woScript[i].has(entity)) { match = false; break; }
-                    }
-                    if (match) {
-                        for (let i = 0; i < woBuiltin!.length; i++) {
-                            if (woBuiltin![i].has(entity)) { match = false; break; }
-                        }
+                        if (woScript[i].has(entity)) continue candidate;
                     }
                 }
-                if (match && filter && !filter.match(entity)) {
-                    match = false;
+                if (off?.has(entity)) continue;
+                for (let i = 0; i < reqBuiltin.length; i++) {
+                    if (!reqBuiltin[i].has(entity)) continue candidate;
                 }
-                if (match) {
-                    entities.push(entity);
+                if (woBuiltin) {
+                    for (let i = 0; i < woBuiltin.length; i++) {
+                        if (woBuiltin[i].has(entity)) continue candidate;
+                    }
                 }
+                if (!filter || filter.match(entity)) entities.push(entity);
             }
 
+            // Filter-only queries observe world order, even when tags were attached in another order.
+            if (sparse) entities.sort((a, b) => this.entities_.get(a)! - this.entities_.get(b)!);
             return entities;
         });
     }

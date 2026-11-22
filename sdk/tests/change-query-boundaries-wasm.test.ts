@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App, flushPendingRegistrations } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
+import { Transform, defineTag } from '../src/ecs/component';
 import { Added, Changed, Mut, Query } from '../src/ecs/query';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
+
+const Excluded = defineTag('QueryBoundaryExcluded');
 
 describe.skipIf(!HAS_WASM)('builtin change query boundaries on real WASM', () => {
     let engine: ESEngineModule;
@@ -42,6 +45,22 @@ describe.skipIf(!HAS_WASM)('builtin change query boundaries on real WASM', () =>
         await app.tick(1 / 60);
         expect(batches).toEqual([[], [entity], []]);
     });
+    it('tests builtin membership only for entities passing the script exclusions', () => {
+        const { world } = app;
+        const entities = Array.from({ length: 100 }, () => world.spawn());
+        for (const entity of entities) {
+            world.insert(entity, Transform);
+            if (entity !== entities[0]) world.insert(entity, Excluded);
+        }
+        const nativeHas = vi.spyOn(world.builtin.getBuiltinMethods(Transform._cppName), 'has');
+        try {
+            expect(world.getEntitiesWithComponents([Transform], [], [Excluded])).toEqual([entities[0]]);
+            expect(nativeHas.mock.calls).toEqual([[entities[0]]]);
+        } finally {
+            nativeHas.mockRestore();
+        }
+    });
+
     it('sees a late UI write on the next frame without retriggering its own Mut writeback', async () => {
         const batches: Entity[][] = [];
         app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(UINode), Changed(UINode))], query => {

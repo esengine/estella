@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, bench } from 'vitest';
 import { World } from '../src/ecs/world';
-import { defineComponent } from '../src/ecs/component';
+import { Disabled, defineComponent } from '../src/ecs/component';
 
 const A = defineComponent('CMA', { v: 0 });
 const B = defineComponent('CMB', { v: 0 });
@@ -78,6 +78,39 @@ describe('Query cache miss - scale by entity count', () => {
             world.getEntitiesWithComponents([A, B]);
         });
     }
+});
+
+describe('World membership queries (20000 entities)', () => {
+    const world = new World();
+    const rare = defineComponent('CMMembershipRare', {});
+    const common = defineComponent('CMMembershipCommon', {});
+    const entities = Array.from({ length: 20000 }, () => world.spawn());
+    // A component can be attached long after spawn and in a different order.
+    for (let i = entities.length - 1; i >= 0; i--) {
+        if (i % 1000 === 0) world.insert(entities[i], rare);
+        if (i % 2 === 0) world.insert(entities[i], common);
+    }
+
+    bench('all entities, 1000 warm reads', () => {
+        for (let i = 0; i < 1000; i++) world.getEntitiesWithComponents([]);
+    });
+
+    bench('rebuild all entities', () => {
+        world.queries_.markComponentDirty(Disabled._id);
+        if (world.getEntitiesWithComponents([]).length !== 20000) throw new Error('Incorrect population');
+    });
+
+    bench('with a tag on 20 entities', () => {
+        world.queries_.markComponentDirty(rare._id);
+        const found = world.getEntitiesWithComponents([], [rare]);
+        if (found.length !== 20 || found[0] !== entities[0]) throw new Error('Incorrect sparse selection');
+    });
+
+    bench('with a tag on 10000 entities', () => {
+        world.queries_.markComponentDirty(common._id);
+        const found = world.getEntitiesWithComponents([], [common]);
+        if (found.length !== 10000 || found[0] !== entities[0]) throw new Error('Incorrect dense selection');
+    });
 });
 
 describe('Query cache miss - has() breakdown', () => {
