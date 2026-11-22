@@ -10,6 +10,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { Disabled } from '../src/ecs/component';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
 import { frameStatsReport } from '../src/runtime/frameStats';
@@ -33,6 +34,20 @@ function nativeEngine() {
 afterEach(() => setNativeEngineApi(null));
 
 describe('frame stats on a device with no wasm module', () => {
+    it('counts all live entities without enumerating the scene', () => {
+        const app = App.new();
+        const enumerate = vi.spyOn(app.world, 'getAllEntities');
+        expect(frameStatsReport(app).entities).toBe(0);
+        const first = app.world.spawn();
+        const second = app.world.spawn();
+        app.world.insert(second, Disabled);
+        expect(frameStatsReport(app).entities).toBe(2);
+        app.world.despawn(first);
+        expect(frameStatsReport(app).entities).toBe(1);
+        expect(enumerate).not.toHaveBeenCalled();
+        app.quit();
+    });
+
     it('reports the completed app frame rather than a polling host clock', async () => {
         const app = App.new();
         expect(frameStatsReport(app).seq).toBeUndefined();

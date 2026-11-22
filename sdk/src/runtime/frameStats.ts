@@ -73,7 +73,7 @@ export function frameStatsReport(app: App): FrameStatsReport {
         gpuDraws: m?.renderer_getGpuDrawCalls?.() ?? 0,
         triangles: m?.renderer_getTriangles?.() ?? 0,
         sprites: m?.renderer_getSprites?.() ?? 0,
-        entities: app.world.getAllEntities().length,
+        entities: app.world.entityCount(),
         gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
         cppScopes: jsonMap(m?.engine_getCpuScopes?.()),
         cppCounters: jsonMap(m?.engine_getCounters?.()),

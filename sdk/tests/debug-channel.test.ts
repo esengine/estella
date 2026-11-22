@@ -136,26 +136,20 @@ describe('what the channel costs a device', () => {
         vi.resetModules();
         const base = await import('../src/platform/base');
         const channel = await import('../src/runtime/debugChannel');
+        const { App } = await import('../src/app/app');
         const s = fakeSocket();
         // A browser that is not cross-origin isolated: performance.now() steps by 0.1 ms.
         const coarse = () => Math.floor(performance.now() * 10) / 10;
         base.setPlatform({ name: 'web', now: coarse, createSocket: () => s.socket } as unknown as PlatformAdapter);
         channel.startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
         s.open();
-        channel.attachDebugChannel({
-            hasResource: () => false,
-            enableStats: () => {},
-            onFrameEnd: () => () => {},
-            getPhaseTimings: () => [],
-            getFrameCosts: () => null,
-            getFrameTiming: () => null,
-            wasmModule: null,
-            world: { getAllEntities: () => [], getEntitiesWithComponents: () => [] },
-        } as unknown as App);
+        const app = App.new();
+        channel.attachDebugChannel(app);
         s.receive({ t: 'query', reqId: 21, kind: 'stats' });
         await flush();
         const reply = s.sent.find((m) => (m as { reqId?: number }).reqId === 21) as { data: { clockMs: number } };
         expect(reply.data.clockMs).toBeCloseTo(0.1, 5);
+        app.quit();
     });
 });
 
