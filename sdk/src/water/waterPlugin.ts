@@ -977,7 +977,12 @@ export class WaterPlugin implements Plugin {
         const layout = waterTileLayout(zone);
         const meshKey = JSON.stringify([layout, far]);
         let s = this.surface_;
-        if (s && (s.meshKey !== meshKey || s.material !== zone.material)) { this.dropSurface(app); s = null; }
+        // Reopening the same scene despawns generated entities while the plugin
+        // and its GPU handles survive. An identical layout still needs a new draw entity.
+        if (s && (s.meshKey !== meshKey || s.material !== zone.material || (s.entity && !app.world.valid(s.entity)))) {
+            this.dropSurface(app);
+            s = null;
+        }
         if (!s) {
             s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;

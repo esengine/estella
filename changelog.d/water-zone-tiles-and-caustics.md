@@ -10,9 +10,10 @@ commits:
   - fix(water): keep shore asset loading and material menu order consistent
   - fix(water): keep mesh inspection independent of optical passes
   - fix(editor): align water diagnostics and verify rendered wire edges
+  - fix(water): restore generated surface entities after a scene reload
 ---
 **Water tiles meet at the shoreline and sunlight follows the waves across the waterline.** Water zones expose rectangular extents, tile density, distance scaling, far water and two wireframe views. Rivers, lakes and oceans can use their own surface, junction and underwater materials. Wave speed respects project units. Sunlight projects through the current waves onto submerged objects and the bed, and unlit water no longer adds a fixed glow.
 
 Fish scales with a collapsed texture direction fall back to an isotropic reflection at that pixel. Bloom ignores invalid radiance samples. Adjusting the light shafts on a volume preserves the water body's absorption and density.
 
-The two editor wireframe views display the geometry above and below the surface without baking caustics or applying underwater fog.
+The two editor wireframe views display the geometry above and below the surface without baking caustics or applying underwater fog. Reopening a water scene restores its surface and far mesh even when its tile settings are identical.
