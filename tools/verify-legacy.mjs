@@ -35,7 +35,7 @@ const ARGS = toolArgs({ tier: TIERS, tag: '', id: '' });
 // against opened ones without them reads every rename as content loss.
 // pathToFileURL, not the bare path: `import()` of an absolute Windows path is
 // not a valid specifier, and this file has no other reason to be read there.
-const { RENAMED_COMPONENT_TYPES, RETIRED_COMPONENT_TYPES } =
+const { RENAMED_COMPONENT_TYPES, RETIRED_COMPONENT_TYPES, renumberEntityZero } =
   await import(pathToFileURL(path.join(ROOT, 'sdk', 'dist', 'index.js')).href);
 
 const TIER = ARGS.tier;
@@ -142,6 +142,9 @@ for (const { tag, id } of cases) {
       continue;
     }
     const loaded = JSON.parse(line.slice(7));
+    // Opening a document gives its entity 0 a fresh ID. Check that entity and
+    // all of its original components at the ID the editor assigns on open.
+    renumberEntityZero(released);
     const want = shapeOf(released);
 
     const missingEntities = Object.keys(want).filter((k) => !(k in loaded));
