@@ -545,12 +545,8 @@ jobs:
     - name: Install headless Chromium for device preview checks
       run: pnpm exec playwright install --with-deps chromium
 
-    - name: Verify render workers on WebGL2 and WebGPU
-      env:
-        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
-      run: |
-        node tools/verify-render-thread.mjs build/wasm/web webgl2
-        node tools/verify-render-thread.mjs build/wasm/web webgpu
+    - name: Verify the WebGL2 render worker
+      run: node tools/verify-render-thread.mjs build/wasm/web webgl2
 
     - name: Run Desktop tests (engine-coupled)
       env:
@@ -826,6 +822,29 @@ jobs:
         if-no-files-found: warn
         retention-days: 7
 
+  # The GPU-less Linux runner loses the WebGPU device while presenting a worker's OffscreenCanvas.
+  # Exercise both the default Metal adapter and SwiftShader on a runner that supports presentation.
+  # Keep this separate from the full scene suite so pull requests also verify threaded WebGPU pixels.
+  verify-worker-webgpu:
+    name: Render worker (WebGPU)
+    runs-on: macos-latest
+    needs: build-emscripten
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/setup
+    - uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+    - name: Install headless Chromium
+      run: pnpm exec playwright install chromium
+    - name: Verify threaded rendering on Metal
+      run: node tools/verify-render-thread.mjs build/wasm/web webgpu
+    - name: Verify threaded rendering on SwiftShader
+      env:
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
+      run: node tools/verify-render-thread.mjs build/wasm/web webgpu
+
   # The same scenes on the second backend, on a runner of its own.
   #
   # Its own runner is about COST: sixty-four scenes on a software Vulkan cost more
@@ -866,8 +885,6 @@ jobs:
 
     # The adapter Dawn picks for itself, which here is Metal. `swiftshader` is the
     # bundled software one, kept as an explicit opt-in for a machine with no GPU.
-    - name: Verify the WebGPU render worker on Metal
-      run: node tools/verify-render-thread.mjs build/wasm/web webgpu
     - name: Second backend, PR tier
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
@@ -1062,7 +1079,7 @@ jobs:
     name: Build passed
     if: always()
     needs: [playable-runtime, build-emscripten, cpp-tests, sanitizers, test, test-engine, scale, verify-render,
-            verify-golden, verify-render-webgpu, desktop-linux, desktop-windows, landscape-brush]
+            verify-golden, verify-worker-webgpu, verify-render-webgpu, desktop-linux, desktop-windows, landscape-brush]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed or was skipped

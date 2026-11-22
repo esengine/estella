@@ -110,7 +110,9 @@ const bare = (name) => name.replace(/^u_/, '');
 function glslBlock(name) {
     const m = new RegExp(`layout\\(std140\\)\\s+uniform\\s+${name}\\s*\\{([^}]*)\\}`, 'm').exec(text);
     if (!m) return null;
-    return [...m[1].matchAll(/(\w+)\s*(?:\[(\d+)\])?\s*;/g)]
+    // Declarations may share their type, e.g. highp vec4 u_waterRect, u_waterDepth, u_waterSun;
+    const body = m[1].replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ' ');
+    return [...body.matchAll(/(\w+)\s*(?:\[(\d+)\])?\s*[,;]/g)]
         .map((f) => `${bare(f[1])}${f[2] ? `[${f[2]}]` : ''}`);
 }
 
