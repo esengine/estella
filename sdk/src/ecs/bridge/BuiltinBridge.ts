@@ -25,7 +25,7 @@ import { hasOwn } from '../../util/ownProperties';
 import { reorderSetByRank, type RankOf } from '../entityOrder';
 import {
     type MemoryProvider, type ComponentHeap,
-    WasmMemoryProvider, resolveWasmPtrFn,
+    WasmMemoryProvider, resolveWasmPtrFn, resolveHeapWriter, createComponentHeap,
 } from './memoryProvider';
 
 // =============================================================================
@@ -332,6 +332,7 @@ export function writePtrField(
 
 export interface BuiltinMethods {
     add: (e: Entity, d: unknown) => void;
+    addFields?: (e: Entity, data: Record<string, unknown>) => boolean;
     get: (e: Entity) => unknown;
     has: (e: Entity) => boolean;
     remove: (e: Entity) => void;
@@ -800,6 +801,11 @@ export class BuiltinBridge {
             has: guard('has', (hasFn as (e: Entity) => boolean).bind(reg)),
             remove: guard('remove', (removeFn as (e: Entity) => void).bind(reg)),
         };
+        const accepts = PTR_ACCESSORS[cppName]?.acceptsFields;
+        const write = accepts && this.memory_?.resolveComponentWriter?.(cppName);
+        if (write && accepts) {
+            methods.addFields = guard('add', (e: Entity, data: Record<string, unknown>) => accepts(data) && write(e, data));
+        }
         this.builtinMethodCache_.set(cppName, methods);
         if (!hasOwn(COMPONENT_META, cppName)) this.extraMethodCache_.set(cppName, methods);
         return methods;
@@ -907,9 +913,7 @@ export class BuiltinBridge {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 isNew = !methods.has(entity);
-                this.replace(entity, component._cppName,
-                             convertForWasm(merged as Record<string, unknown>, component.colorKeys),
-                             component.entityFields ?? []);
+                this.replace(entity, component, merged as Record<string, unknown>);
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }
@@ -924,22 +928,29 @@ export class BuiltinBridge {
         return { merged, isNew: isNew || !tracked };
     }
 
-    /**
-     * Hand a component's whole value to C++, converting the fields embind cannot
-     * take as a JS array. The write `insert` performs, without its structural
-     * bookkeeping — so a replace cannot marshal differently from an add.
-     */
-    replace(entity: Entity, cppName: string, payload: Record<string, unknown>,
-            entityFields: readonly string[] = []): void {
+    set<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>): void {
+        if (data == null) throw new TypeError('Expected component data');
+        this.replace(entity, component, mergeIntoDefaults(component._default as Record<string, unknown>, data, 'declared'));
+    }
+
+    /** Both add and replace hand the same complete SDK value to the registry. */
+    replace<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>): void {
+        const methods = this.getBuiltinMethods(component._cppName);
+        if (methods.addFields?.(entity, data)) return;
+        const payload = convertForWasm(data, component.colorKeys);
+        const numberFields = numberListFieldsOf(component._cppName);
+        const entityFields = component.entityFields ?? [];
+        if (!entityFields.length && !numberFields.length) {
+            methods.add(entity, payload);
+            return;
+        }
         const module = this.module_ as unknown as
             { VectorEntity?: new () => WasmVector; VectorFloat?: new () => WasmVector } | null;
-        const numberFields = numberListFieldsOf(cppName);
-        // On a copy: the vectors are freed below, and @p payload can be a Mut row the game still holds.
-        const out = entityFields.length > 0 || numberFields.length > 0 ? { ...payload } : payload;
+        const out = { ...payload };
         const vectors = materializeEntityVectors(out, entityFields, module);
         vectors.push(...materializeNumberVectors(out, numberFields, module));
         try {
-            this.getBuiltinMethods(cppName).add(entity, out);
+            methods.add(entity, out);
         } finally {
             for (const v of vectors) v.delete();
         }
@@ -1013,7 +1024,7 @@ export class BuiltinBridge {
         if (ptrFn) return (e: Entity) => ptrFn(e) || undefined;
         const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
         if (!resolveHeap) return null;
-        const heap: ComponentHeap = SCRATCH_HEAP();
+        const heap: ComponentHeap = createComponentHeap();
         return (e: Entity) => (resolveHeap(e, heap) ? heap.ptr : undefined);
     }
 
@@ -1028,15 +1039,7 @@ export class BuiltinBridge {
     }
 
     resolvePtrSetter(cppName: string): ((entity: Entity, data: unknown) => void) | null {
-        const accessor = PTR_ACCESSORS[cppName];
-        if (!accessor) return null;
-        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
-        if (!resolveHeap) return null;
-        const heap: ComponentHeap = SCRATCH_HEAP();
-        return (e: Entity, data: unknown) => {
-            if (!resolveHeap(e, heap)) return;
-            accessor.write(heap.f32, heap.u32, heap.u8, heap.ptr, data);
-        };
+        return resolveHeapWriter(this.memory_, cppName);
     }
 
     /**
@@ -1051,7 +1054,7 @@ export class BuiltinBridge {
         if (!accessor) return null;
         const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
         if (!resolveHeap) return null;
-        const heap: ComponentHeap = SCRATCH_HEAP();
+        const heap: ComponentHeap = createComponentHeap();
         if (mode === 'retained') {
             return (e: Entity) => {
                 if (!resolveHeap(e, heap)) return null;
@@ -1068,12 +1071,3 @@ export class BuiltinBridge {
         };
     }
 }
-
-// A fresh reusable ComponentHeap for one resolver. Its views are overwritten on
-// every successful resolve, so the empty initial arrays are never observed.
-function SCRATCH_HEAP(): ComponentHeap {
-    return { f32: EMPTY_F32, u32: EMPTY_U32, u8: EMPTY_U8, ptr: 0 };
-}
-const EMPTY_F32 = new Float32Array(0);
-const EMPTY_U32 = new Uint32Array(0);
-const EMPTY_U8 = new Uint8Array(0);

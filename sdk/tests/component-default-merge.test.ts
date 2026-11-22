@@ -51,6 +51,23 @@ describe('mergeIntoDefaults', () => {
     // The script path merges through `create`; the builtin path through the
     // bridge. Same rule, or a C++ component and a TS one disagree about what an
     // incomplete vector means.
+    it('reads own authored values once in order, including on a declared-fields-only write', () => {
+        const reads: string[] = [];
+        const data = Object.assign(Object.create({ inherited: 9 }), { extra: 5 });
+        Object.defineProperties(data, {
+            b: { enumerable: true, get() { reads.push('b'); return 2; } },
+            a: { enumerable: true, get() { reads.push('a'); return { x: 7 }; } },
+            hidden: { get() { throw new Error('non-enumerable input was read'); } },
+        });
+        Object.defineProperty(data, Symbol('metadata'), { enumerable: true, get() { throw new Error('metadata was read'); } });
+        const defaults = { a: { x: 1, y: 2 }, b: 0, inherited: 1, hidden: 3 };
+        expect(mergeIntoDefaults(defaults, data, 'declared')).toEqual({
+            a: { x: 7, y: 2 }, b: 2, inherited: 1, hidden: 3,
+        });
+        expect(reads).toEqual(['b', 'a']);
+        expect(mergeIntoDefaults(defaults, data)).toHaveProperty('extra', 5);
+    });
+
     it('is what a script component create does', () => {
         clearUserComponents();
         const Comp = defineComponent('MergeProbe', { v: { x: 0, y: 0, z: 0 }, n: 1 });

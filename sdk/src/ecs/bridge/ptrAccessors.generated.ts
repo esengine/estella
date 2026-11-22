@@ -2989,10 +2989,80 @@ export function createVelocityData(): VelocityPtrData {
     };
 }
 
+export type ScalarWrite = (entity: number, ...fields: (number | boolean)[]) => boolean;
+
+function acceptsSpriteFields(data: SpritePtrData): boolean {
+    if (typeof data.texture !== 'number') return false;
+    if (typeof data.color?.r !== 'number' || typeof data.color?.g !== 'number' || typeof data.color?.b !== 'number' || typeof data.color?.a !== 'number') return false;
+    if (typeof data.size?.x !== 'number' || typeof data.size?.y !== 'number') return false;
+    if (typeof data.pivot?.x !== 'number' || typeof data.pivot?.y !== 'number') return false;
+    if (typeof data.uvOffset?.x !== 'number' || typeof data.uvOffset?.y !== 'number') return false;
+    if (typeof data.uvScale?.x !== 'number' || typeof data.uvScale?.y !== 'number') return false;
+    if (typeof data.layer !== 'number') return false;
+    if (typeof data.order !== 'number') return false;
+    if (typeof data.maskInteraction !== 'number') return false;
+    if (typeof data.lit !== 'boolean') return false;
+    if (typeof data.flipX !== 'boolean') return false;
+    if (typeof data.flipY !== 'boolean') return false;
+    if (typeof data.drawMode !== 'number') return false;
+    if (typeof data.tileSize?.x !== 'number' || typeof data.tileSize?.y !== 'number') return false;
+    if (typeof data.tileSpacing?.x !== 'number' || typeof data.tileSpacing?.y !== 'number') return false;
+    if (typeof data.parallax?.x !== 'number' || typeof data.parallax?.y !== 'number') return false;
+    if (typeof data.material !== 'number') return false;
+    if (typeof data.enabled !== 'boolean') return false;
+    return true;
+}
+
+function storeSpriteFields(write: ScalarWrite, entity: number, data: SpritePtrData): boolean {
+    return write(entity,
+        data.texture,
+        data.color.r, data.color.g, data.color.b, data.color.a,
+        data.size.x, data.size.y,
+        data.pivot.x, data.pivot.y,
+        data.uvOffset.x, data.uvOffset.y,
+        data.uvScale.x, data.uvScale.y,
+        data.layer,
+        data.order,
+        data.maskInteraction,
+        data.lit,
+        data.flipX,
+        data.flipY,
+        data.drawMode,
+        data.tileSize.x, data.tileSize.y,
+        data.tileSpacing.x, data.tileSpacing.y,
+        data.parallax.x, data.parallax.y,
+        data.material,
+        data.enabled,
+    );
+}
+
+function acceptsTransformFields(data: TransformPtrData): boolean {
+    if (typeof data.position?.x !== 'number' || typeof data.position?.y !== 'number' || typeof data.position?.z !== 'number') return false;
+    if (typeof data.rotation?.x !== 'number' || typeof data.rotation?.y !== 'number' || typeof data.rotation?.z !== 'number' || typeof data.rotation?.w !== 'number') return false;
+    if (typeof data.scale?.x !== 'number' || typeof data.scale?.y !== 'number' || typeof data.scale?.z !== 'number') return false;
+    if (typeof data.worldPosition?.x !== 'number' || typeof data.worldPosition?.y !== 'number' || typeof data.worldPosition?.z !== 'number') return false;
+    if (typeof data.worldRotation?.x !== 'number' || typeof data.worldRotation?.y !== 'number' || typeof data.worldRotation?.z !== 'number' || typeof data.worldRotation?.w !== 'number') return false;
+    if (typeof data.worldScale?.x !== 'number' || typeof data.worldScale?.y !== 'number' || typeof data.worldScale?.z !== 'number') return false;
+    return true;
+}
+
+function storeTransformFields(write: ScalarWrite, entity: number, data: TransformPtrData): boolean {
+    return write(entity,
+        data.position.x, data.position.y, data.position.z,
+        data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w,
+        data.scale.x, data.scale.y, data.scale.z,
+        data.worldPosition.x, data.worldPosition.y, data.worldPosition.z,
+        data.worldRotation.x, data.worldRotation.y, data.worldRotation.z, data.worldRotation.w,
+        data.worldScale.x, data.worldScale.y, data.worldScale.z,
+    );
+}
+
 export interface PtrAccessor<T> {
     fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;
     write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;
     create: () => T;
+    acceptsFields?: (data: T) => boolean;
+    storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;
 }
 
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
@@ -3038,11 +3108,11 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     SpringBone: { fill: fillSpringBone, write: writeSpringBone, create: createSpringBoneData },
     SpringBoneCollider: { fill: fillSpringBoneCollider, write: writeSpringBoneCollider, create: createSpringBoneColliderData },
-    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
+    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData, acceptsFields: acceptsSpriteFields, storeFields: storeSpriteFields },
     SpriteMask: { fill: fillSpriteMask, write: writeSpriteMask, create: createSpriteMaskData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
     TrailRenderer: { fill: fillTrailRenderer, write: writeTrailRenderer, create: createTrailRendererData },
-    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
+    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData, acceptsFields: acceptsTransformFields, storeFields: storeTransformFields },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },

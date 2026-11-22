@@ -2,13 +2,14 @@
 
 from typing import List, Set
 from ..registry_ops import REGISTRY_OPS
+from .ptr_layout import scalar_write_fields
 from ..data import Component, Enum, HIERARCHY_COMPONENTS, READ_HOOKS
 from ..type_system import TypeSystem
 
 
 class EmbindGenerator:
     def __init__(self, components: List[Component], enums: List[Enum],
-                 layout_asserts: str = '', abi_hash: str = '', ptr_access: str = ''):
+                 layout_asserts: str = '', abi_hash: str = '', ptr_access: str = '', layouts=()):
         self.components = components
         self.enums = enums
         self.types = TypeSystem(enums)
@@ -18,6 +19,8 @@ class EmbindGenerator:
         self.layout_asserts = layout_asserts
         self.abi_hash = abi_hash
         self.ptr_access = ptr_access
+        self.scalar_writes = {layout['name']: fields for layout in layouts
+                              if (fields := scalar_write_fields(layout))}
 
     def generate(self) -> str:
         lines = self._gen_header()
@@ -72,6 +75,7 @@ class EmbindGenerator:
             '#include <emscripten/bind.h>',
             '#include <cstddef>',
             '#include <cstdint>',
+            '#include <cstring>',
             '#include <string>',
             '#include "../ecs/Registry.hpp"',
             '#include "../math/Math.hpp"',
@@ -370,8 +374,57 @@ class EmbindGenerator:
             lines.append(f'        .function("{op.name}", optional_override([](Registry& r{params}) {{ {body} }}))')
         return lines
 
+    def _store_body(self, name, full, wrapped):
+        body = ['auto entity = static_cast<Entity>(e);', 'if (!r.valid(entity)) return;']
+        if wrapped:
+            body += [f'if (auto* existing = r.tryGet<{full}>(entity)) {{',
+                     f'    {name.lower()}ApplyJS(*existing, js);', '    return;', '}',
+                     f'r.emplaceOrReplace<{full}>(entity, {name.lower()}FromJS(js));']
+        else:
+            body.append(f'r.emplaceOrReplace<{full}>(entity, c);')
+        return body
+
+    def _scalar_writers(self):
+        lines = []
+        for comp in self.components:
+            fields = self.scalar_writes.get(comp.name)
+            if not fields:
+                continue
+            name = comp.name
+            full = f'{comp.namespace}::{name}' if comp.namespace else name
+            wrapped = self.types.needs_wrapper(comp)
+            row = f'{name}JS' if wrapped else full
+            value = 'js' if wrapped else 'c'
+            lines.append(f'static void store{name}(Registry& r, u32 e, const {row}& {value}) {{')
+            lines += ['    ' + line for line in self._store_body(name, full, wrapped)]
+            lines += ['}', '', f'static bool store{name}Fields(Registry& r, u32 e,']
+            for i, (_, path, _) in enumerate(fields):
+                end = ') {' if i == len(fields) - 1 else ','
+                lines.append(f'    decltype({row}{{}}.{path}) {path.replace(".", "_")}{end}')
+            readonly = {prop.name for prop in comp.properties if 'readonly' in prop.annotations}
+            if readonly:
+                # Copy the engine's derived output. An explicit override still belongs to the original object binding.
+                lines.append(f'    const auto* current = r.tryGet<{full}>(static_cast<Entity>(e));')
+                snapshot = 'component' if wrapped else 'value'
+                lines.append(f'    {full} {snapshot} = current ? *current : {full}{{}};')
+                if name in READ_HOOKS:
+                    lines.append(f'    {snapshot}.{READ_HOOKS[name]}();')
+                if wrapped:
+                    lines.append(f'    {row} value = {name.lower()}ToJS(component);')
+                lines.append('    const auto same = [](auto a, auto b) { return std::memcmp(&a, &b, sizeof(a)) == 0; };')
+            else:
+                lines.append(f'    {row} value{{}};')
+            for _, path, _ in fields:
+                arg = path.replace('.', '_')
+                if path.split('.')[0] in readonly:
+                    lines.append(f'    if (!same(value.{path}, {arg})) return false;')
+                else:
+                    lines.append(f'    value.{path} = {arg};')
+            lines += [f'    store{name}(r, e, value);', '    return true;', '}', '']
+        return lines
+
     def _gen_registry(self) -> List[str]:
-        lines = [
+        lines = self._scalar_writers() + [
             '// =============================================================================',
             '// Registry',
             '// =============================================================================',
@@ -403,7 +456,6 @@ class EmbindGenerator:
             name = comp.name
             needs_wrap = self.types.needs_wrapper(comp)
             js = f'{name}JS'
-            from_js = f'{name.lower()}FromJS'
             to_js = f'{name.lower()}ToJS'
 
             lines.append(f'        // {name}')
@@ -434,15 +486,6 @@ class EmbindGenerator:
                 else:
                     lines.append(f'            return {to_js}(r.get<{full}>(entity));')
                 lines.append('        }))')
-                lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{')
-                lines.append(f'            auto entity = static_cast<Entity>(e);')
-                lines.append(f'            if (!r.valid(entity)) return;')
-                lines.append(f'            if (auto* existing = r.tryGet<{full}>(entity)) {{')
-                lines.append(f'                {name.lower()}ApplyJS(*existing, js);')
-                lines.append(f'                return;')
-                lines.append('            }')
-                lines.append(f'            r.emplaceOrReplace<{full}>(entity, {from_js}(js));')
-                lines.append('        }))')
             else:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) -> {full}& {{')
                 lines.append(f'            auto entity = static_cast<Entity>(e);')
@@ -455,10 +498,12 @@ class EmbindGenerator:
                 else:
                     lines.append(f'            return r.get<{full}>(entity);')
                 lines.append('        }), allow_raw_pointers())')
-                lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {full}& c) {{')
-                lines.append(f'            auto entity = static_cast<Entity>(e);')
-                lines.append(f'            if (!r.valid(entity)) return;')
-                lines.append(f'            r.emplaceOrReplace<{full}>(entity, c);')
+            if name in self.scalar_writes:
+                lines.append(f'        .function("add{name}", &store{name})')
+            else:
+                payload = f'const {js}& js' if needs_wrap else f'const {full}& c'
+                lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, {payload}) {{')
+                lines += ['            ' + line for line in self._store_body(name, full, needs_wrap)]
                 lines.append('        }))')
 
             lines.append(f'        .function("remove{name}", optional_override([](Registry& r, u32 e) {{')
@@ -469,5 +514,7 @@ class EmbindGenerator:
             lines.append('')
 
         lines.append('        ;')
+        for name in self.scalar_writes:
+            lines.append(f'    emscripten::function("store{name}Fields", &store{name}Fields);')
         lines.append('}')
         return lines

@@ -7,6 +7,7 @@
 #include <emscripten/bind.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
@@ -2512,6 +2513,133 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
 }
 
+static void storeSprite(Registry& r, u32 e, const SpriteJS& js) {
+    auto entity = static_cast<Entity>(e);
+    if (!r.valid(entity)) return;
+    if (auto* existing = r.tryGet<esengine::ecs::Sprite>(entity)) {
+        spriteApplyJS(*existing, js);
+        return;
+    }
+    r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
+}
+
+static bool storeSpriteFields(Registry& r, u32 e,
+    decltype(SpriteJS{}.texture) texture,
+    decltype(SpriteJS{}.color.x) color_x,
+    decltype(SpriteJS{}.color.y) color_y,
+    decltype(SpriteJS{}.color.z) color_z,
+    decltype(SpriteJS{}.color.w) color_w,
+    decltype(SpriteJS{}.size.x) size_x,
+    decltype(SpriteJS{}.size.y) size_y,
+    decltype(SpriteJS{}.pivot.x) pivot_x,
+    decltype(SpriteJS{}.pivot.y) pivot_y,
+    decltype(SpriteJS{}.uvOffset.x) uvOffset_x,
+    decltype(SpriteJS{}.uvOffset.y) uvOffset_y,
+    decltype(SpriteJS{}.uvScale.x) uvScale_x,
+    decltype(SpriteJS{}.uvScale.y) uvScale_y,
+    decltype(SpriteJS{}.layer) layer,
+    decltype(SpriteJS{}.order) order,
+    decltype(SpriteJS{}.maskInteraction) maskInteraction,
+    decltype(SpriteJS{}.lit) lit,
+    decltype(SpriteJS{}.flipX) flipX,
+    decltype(SpriteJS{}.flipY) flipY,
+    decltype(SpriteJS{}.drawMode) drawMode,
+    decltype(SpriteJS{}.tileSize.x) tileSize_x,
+    decltype(SpriteJS{}.tileSize.y) tileSize_y,
+    decltype(SpriteJS{}.tileSpacing.x) tileSpacing_x,
+    decltype(SpriteJS{}.tileSpacing.y) tileSpacing_y,
+    decltype(SpriteJS{}.parallax.x) parallax_x,
+    decltype(SpriteJS{}.parallax.y) parallax_y,
+    decltype(SpriteJS{}.material) material,
+    decltype(SpriteJS{}.enabled) enabled) {
+    SpriteJS value{};
+    value.texture = texture;
+    value.color.x = color_x;
+    value.color.y = color_y;
+    value.color.z = color_z;
+    value.color.w = color_w;
+    value.size.x = size_x;
+    value.size.y = size_y;
+    value.pivot.x = pivot_x;
+    value.pivot.y = pivot_y;
+    value.uvOffset.x = uvOffset_x;
+    value.uvOffset.y = uvOffset_y;
+    value.uvScale.x = uvScale_x;
+    value.uvScale.y = uvScale_y;
+    value.layer = layer;
+    value.order = order;
+    value.maskInteraction = maskInteraction;
+    value.lit = lit;
+    value.flipX = flipX;
+    value.flipY = flipY;
+    value.drawMode = drawMode;
+    value.tileSize.x = tileSize_x;
+    value.tileSize.y = tileSize_y;
+    value.tileSpacing.x = tileSpacing_x;
+    value.tileSpacing.y = tileSpacing_y;
+    value.parallax.x = parallax_x;
+    value.parallax.y = parallax_y;
+    value.material = material;
+    value.enabled = enabled;
+    storeSprite(r, e, value);
+    return true;
+}
+
+static void storeTransform(Registry& r, u32 e, const esengine::ecs::Transform& c) {
+    auto entity = static_cast<Entity>(e);
+    if (!r.valid(entity)) return;
+    r.emplaceOrReplace<esengine::ecs::Transform>(entity, c);
+}
+
+static bool storeTransformFields(Registry& r, u32 e,
+    decltype(esengine::ecs::Transform{}.position.x) position_x,
+    decltype(esengine::ecs::Transform{}.position.y) position_y,
+    decltype(esengine::ecs::Transform{}.position.z) position_z,
+    decltype(esengine::ecs::Transform{}.rotation.x) rotation_x,
+    decltype(esengine::ecs::Transform{}.rotation.y) rotation_y,
+    decltype(esengine::ecs::Transform{}.rotation.z) rotation_z,
+    decltype(esengine::ecs::Transform{}.rotation.w) rotation_w,
+    decltype(esengine::ecs::Transform{}.scale.x) scale_x,
+    decltype(esengine::ecs::Transform{}.scale.y) scale_y,
+    decltype(esengine::ecs::Transform{}.scale.z) scale_z,
+    decltype(esengine::ecs::Transform{}.worldPosition.x) worldPosition_x,
+    decltype(esengine::ecs::Transform{}.worldPosition.y) worldPosition_y,
+    decltype(esengine::ecs::Transform{}.worldPosition.z) worldPosition_z,
+    decltype(esengine::ecs::Transform{}.worldRotation.x) worldRotation_x,
+    decltype(esengine::ecs::Transform{}.worldRotation.y) worldRotation_y,
+    decltype(esengine::ecs::Transform{}.worldRotation.z) worldRotation_z,
+    decltype(esengine::ecs::Transform{}.worldRotation.w) worldRotation_w,
+    decltype(esengine::ecs::Transform{}.worldScale.x) worldScale_x,
+    decltype(esengine::ecs::Transform{}.worldScale.y) worldScale_y,
+    decltype(esengine::ecs::Transform{}.worldScale.z) worldScale_z) {
+    const auto* current = r.tryGet<esengine::ecs::Transform>(static_cast<Entity>(e));
+    esengine::ecs::Transform value = current ? *current : esengine::ecs::Transform{};
+    value.ensureDecomposed();
+    const auto same = [](auto a, auto b) { return std::memcmp(&a, &b, sizeof(a)) == 0; };
+    value.position.x = position_x;
+    value.position.y = position_y;
+    value.position.z = position_z;
+    value.rotation.x = rotation_x;
+    value.rotation.y = rotation_y;
+    value.rotation.z = rotation_z;
+    value.rotation.w = rotation_w;
+    value.scale.x = scale_x;
+    value.scale.y = scale_y;
+    value.scale.z = scale_z;
+    if (!same(value.worldPosition.x, worldPosition_x)) return false;
+    if (!same(value.worldPosition.y, worldPosition_y)) return false;
+    if (!same(value.worldPosition.z, worldPosition_z)) return false;
+    if (!same(value.worldRotation.x, worldRotation_x)) return false;
+    if (!same(value.worldRotation.y, worldRotation_y)) return false;
+    if (!same(value.worldRotation.z, worldRotation_z)) return false;
+    if (!same(value.worldRotation.w, worldRotation_w)) return false;
+    if (!same(value.worldScale.x, worldScale_x)) return false;
+    if (!same(value.worldScale.y, worldScale_y)) return false;
+    if (!same(value.worldScale.z, worldScale_z)) return false;
+    storeTransform(r, e, value);
+    return true;
+}
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -3682,15 +3810,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return SpriteJS{};
             return spriteToJS(r.get<esengine::ecs::Sprite>(entity));
         }))
-        .function("addSprite", optional_override([](Registry& r, u32 e, const SpriteJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::Sprite>(entity)) {
-                spriteApplyJS(*existing, js);
-                return;
-            }
-            r.emplaceOrReplace<esengine::ecs::Sprite>(entity, spriteFromJS(js));
-        }))
+        .function("addSprite", &storeSprite)
         .function("removeSprite", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Sprite>(entity)) return;
@@ -3778,11 +3898,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             c.ensureDecomposed();
             return c;
         }), allow_raw_pointers())
-        .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::Transform>(entity, c);
-        }))
+        .function("addTransform", &storeTransform)
         .function("removeTransform", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return;
@@ -3928,6 +4044,8 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
 
         ;
+    emscripten::function("storeSpriteFields", &storeSpriteFields);
+    emscripten::function("storeTransformFields", &storeTransformFields);
 }
 
 EMSCRIPTEN_BINDINGS(esengine_ptr_access) {

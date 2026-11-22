@@ -286,29 +286,34 @@ export interface ComponentDef<T> {
  * field grew a `z` would arrive with no depth. Arrays and nested defaults are
  * copied, not shared — two entities taking the default would write into one array.
  */
-export function mergeIntoDefaults<T extends object>(defaults: T, data?: Partial<T>): T {
+export function mergeIntoDefaults<T extends object>(
+    defaults: T, data?: Partial<T>, fields: 'all' | 'declared' = 'all',
+): T {
     const out = { ...defaults } as Record<string, unknown>;
-    const src = defaults as Record<string, unknown>;
-    for (const k of Object.keys(src)) {
-        const v = src[k];
-        if (Array.isArray(v)) out[k] = v.slice();
-        else if (v !== null && typeof v === 'object') out[k] = { ...(v as object) };
+    // Read authored getters once, in their own order, before completing any nested record.
+    let authored: Record<string, unknown> | undefined;
+    if (data) {
+        const values: Record<string, unknown> = Object.create(null);
+        for (const key of Object.keys(data)) values[key] = (data as Record<string, unknown>)[key];
+        authored = values;
     }
-    if (!data) return out as T;
-    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
-        if (v === undefined) continue;
-        const base = hasOwn(out, k) ? out[k] : undefined;
-        const nest = base !== null && typeof base === 'object' && !Array.isArray(base)
-            && v !== null && typeof v === 'object' && !Array.isArray(v);
-        // The default's nested record was already copied above. Reuse that
-        // instance on ordinary patches; __proto__ needs spread's own-data write
-        // so it cannot invoke the inherited prototype setter.
-        const merged = nest
-            ? hasOwn(v as object, '__proto__')
-                ? { ...(base as object), ...(v as object) }
-                : Object.assign(base as object, v)
-            : v;
-        setOwn(out, k, merged);
+    for (const key of Object.keys(out)) {
+        const base = out[key];
+        const value = authored?.[key];
+        if (value === undefined) {
+            if (Array.isArray(base)) out[key] = base.slice();
+            else if (base !== null && typeof base === 'object') out[key] = { ...base };
+        } else if (base !== null && typeof base === 'object' && !Array.isArray(base)
+            && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+            out[key] = { ...base, ...value };
+        } else out[key] = value;
+    }
+    if (authored && fields === 'all') {
+        for (const key of Object.keys(authored)) {
+            if (hasOwn(out, key)) continue;
+            const value = authored[key];
+            if (value !== undefined) setOwn(out, key, value);
+        }
     }
     return out as T;
 }

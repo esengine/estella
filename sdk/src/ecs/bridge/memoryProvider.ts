@@ -20,6 +20,7 @@
 
 import type { Entity } from '../../types';
 import type { CppRegistry, ESEngineModule } from '../../wasm';
+import { PTR_ACCESSORS, type ScalarWrite } from './ptrAccessors.generated';
 import { PTR_LAYOUTS } from '../../wasm/ptrLayouts.generated';
 
 /**
@@ -38,6 +39,9 @@ export interface ComponentHeap {
  *  false when the entity has no live component (skip the read/write). */
 export type ComponentHeapResolver = (entity: Entity, out: ComponentHeap) => boolean;
 
+/** Synchronously submit a complete reflected row to the core. */
+export type ComponentWriter = (entity: Entity, data: Record<string, unknown>) => boolean;
+
 /**
  * Where the fast path gets a component's memory. One implementation per engine
  * backend; the BuiltinBridge holds one and both `resolvePtrSetter` and
@@ -50,6 +54,30 @@ export interface MemoryProvider {
      * method-based path).
      */
     resolveComponentHeap(cppName: string): ComponentHeapResolver | null;
+    /** Submit a complete numeric SDK row; false delegates to the registry object binding. */
+    resolveComponentWriter?(cppName: string): ComponentWriter | null;
+}
+
+// A fresh reusable ComponentHeap for one resolver. Its views are overwritten on
+// every successful resolve, so the empty initial arrays are never observed.
+export function createComponentHeap(): ComponentHeap {
+    return { f32: EMPTY_F32, u32: EMPTY_U32, u8: EMPTY_U8, ptr: 0 };
+}
+const EMPTY_F32 = new Float32Array(0);
+const EMPTY_U32 = new Uint32Array(0);
+const EMPTY_U8 = new Uint8Array(0);
+
+/** One generated field store for mutable query rows and native component replacement. */
+export function resolveHeapWriter(memory: MemoryProvider | null, cppName: string) {
+    const accessor = PTR_ACCESSORS[cppName];
+    const resolve = accessor && memory?.resolveComponentHeap(cppName);
+    if (!resolve) return null;
+    const heap = createComponentHeap();
+    return (entity: Entity, data: unknown) => {
+        if (!resolve(entity, heap)) return false;
+        accessor.write(heap.f32, heap.u32, heap.u8, heap.ptr, data);
+        return true;
+    };
 }
 
 /**
@@ -81,6 +109,14 @@ export class WasmMemoryProvider implements MemoryProvider {
         private readonly module: ESEngineModule,
         private readonly cppRegistry: CppRegistry,
     ) {}
+
+    resolveComponentWriter(cppName: string): ComponentWriter | null {
+        const store = PTR_ACCESSORS[cppName]?.storeFields;
+        const fn = (this.module as unknown as Record<string, unknown>)[`store${cppName}Fields`];
+        if (!store || typeof fn !== 'function') return null;
+        const write = fn.bind(this.module, this.cppRegistry) as ScalarWrite;
+        return (entity: Entity, data: Record<string, unknown>) => store(write, entity, data);
+    }
 
     resolveComponentHeap(cppName: string): ComponentHeapResolver | null {
         const getPtrFn = resolveWasmPtrFn(this.module, this.cppRegistry, cppName);
@@ -119,6 +155,10 @@ export class NativeMemoryProvider implements MemoryProvider {
         private readonly scope: Record<string, unknown> =
             globalThis as unknown as Record<string, unknown>,
     ) {}
+
+    resolveComponentWriter(cppName: string): ComponentWriter | null {
+        return PTR_ACCESSORS[cppName]?.acceptsFields ? resolveHeapWriter(this, cppName) : null;
+    }
 
     resolveComponentHeap(cppName: string): ComponentHeapResolver | null {
         const bufFn = this.scope[`es_${cppName}_buffer`] as NativeComponentBufferFn | undefined;

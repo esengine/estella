@@ -7,10 +7,10 @@
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
 import { type Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, Transform, type ParentData, type ChildrenData } from './component';
+import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, Transform, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
-import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,
+import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, type BridgeConnectOptions,
          type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
@@ -22,7 +22,6 @@ import { worldEngineApi } from './bridge/engineApi';
 import { registerEngineStampFlush } from './engineStamps';
 import { withScratch } from '../wasm/wasmScratch';
 import { log } from '../util/logger';
-import { hasOwn } from '../util/ownProperties';
 import { getDefaultContext, type EditorBridge } from './context';
 
 /** The slice of a core {@link World.applyEntityOrder} needs: the entry point plus
@@ -905,26 +904,7 @@ export class World {
             }
             if (this.builtin_.hasCpp) {
                 try {
-                    const defaults = component._default as Record<string, unknown>;
-                    const raw = data as Record<string, unknown>;
-                    let wasmData = raw;
-                    for (const k of Object.keys(raw)) {
-                        if (!hasOwn(defaults, k)) {
-                            if (wasmData === raw) wasmData = { ...raw };
-                            delete wasmData[k];
-                        }
-                    }
-                    // Merged into the defaults one level in, as an add is: a field
-                    // that grew an axis (ParticleEmitter.gravity went vec2 -> vec3)
-                    // still reads the {x, y} a document wrote before it did, where
-                    // embind refused the whole value for its missing `z`.
-                    wasmData = mergeIntoDefaults(defaults, wasmData);
-                    // Through the bridge's own write, so a replace marshals the
-                    // way an add does: a list field crosses as the vector embind
-                    // registered, never as the JS array a document holds.
-                    this.builtin_.replace(entity, component._cppName,
-                                          convertForWasm(wasmData, component.colorKeys),
-                                          component.entityFields ?? []);
+                    this.builtin_.set(entity, component, data as Record<string, unknown>);
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
@@ -1245,7 +1225,7 @@ export class World {
             }
             // The one marshalled write, as world.set and insert take it: a list field crosses as the vector embind
             // registered, never as the JS array a row holds.
-            return (e, d) => this.builtin_.replace(e, name, convertForWasm(d as Record<string, unknown>, colorKeys), entityFields);
+            return (e, d) => this.builtin_.replace(e, component, d as Record<string, unknown>);
         }
         // Through ScriptStorage, not into the map: a pooled component's stored
         // value is a live view onto its row, and replacing it with a plain

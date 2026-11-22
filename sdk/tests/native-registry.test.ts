@@ -169,6 +169,29 @@ describe('createNativeRegistry', () => {
         const reg = createNativeRegistry({ es_registry_setParent: () => accepted });
         expect(reg.setParent(1 as never, 2 as never)).toBe(accepted);
     });
+    it('writes a native SDK sprite to its current storage after the pool moves', () => {
+        let buffer = new ArrayBuffer(128);
+        const scope = mockNativeScope();
+        scope.es_Sprite_buffer = () => buffer;
+        const bridge = new BuiltinBridge();
+        bridge.connect(createNativeRegistry(scope), undefined, { memory: new NativeMemoryProvider(scope) });
+        const sprite = { ...Sprite._default, color: { r: .125, g: .25, b: .5, a: .75 } };
+        try {
+            const write = bridge.getBuiltinMethods('Sprite').addFields!;
+            expect(write(42, sprite)).toBe(true);
+            const first = buffer;
+            buffer = new ArrayBuffer(128);
+            expect(write(42, { ...sprite, color: { ...sprite.color, a: .25 } })).toBe(true);
+            const read = (bytes: ArrayBuffer) => {
+                const row = PTR_ACCESSORS.Sprite.create();
+                PTR_ACCESSORS.Sprite.fill(new Float32Array(bytes), new Uint32Array(bytes), new Uint8Array(bytes), 0, row);
+                return row.color;
+            };
+            expect(read(first)).toEqual(sprite.color);
+            expect(read(buffer)).toEqual({ r: .125, g: .25, b: .5, a: .25 });
+            expect(write(42, { ...sprite, color: {} })).toBe(false);
+        } finally { bridge.disconnect(); }
+    });
     it('round-trips a component through add / has / get / remove (embind shape)', () => {
         const reg = createNativeRegistry(mockNativeScope()) as unknown as Record<string, Function>;
 
@@ -204,8 +227,7 @@ describe('createNativeRegistry', () => {
         const e = 42;
         expect(bridge.has(e, Sprite)).toBe(false);
 
-        // insert() speaks the SDK {r,g,b,a} color shape; convertForWasm + the
-        // registry's convertFromWasm bridge it to native memory and back.
+        // The SDK colour shape crosses the native write boundary and comes back intact.
         const { isNew } = bridge.insert(e, Sprite, {
             color: { r: 0.5, g: 0.25, b: 0.125, a: 1 },
             size: { x: 20, y: 40 },

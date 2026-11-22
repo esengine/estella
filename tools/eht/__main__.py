@@ -259,6 +259,7 @@ def main() -> int:
         layout_asserts=ptr_gen.generate_layout_asserts(),
         abi_hash=abi_hash,
         ptr_access=ptr_gen.generate_ptr_access(),
+        layouts=ptr_gen.layouts,
     )
     _write_lf(embind_path, embind_gen.generate())
 

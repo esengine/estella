@@ -5,6 +5,29 @@ from ..type_system import TypeSystem
 from ..field_utils import is_color_field
 
 
+# These complete numeric rows dominate authored 2D and 3D animation writeback.
+# Their object and scalar entry points commit through the same registry operation.
+SCALAR_WRITE_COMPONENTS = {'Sprite', 'Transform'}
+
+
+def scalar_write_fields(layout):
+    """SDK path, embind value-object path, and JS type, in one wire order."""
+    if layout['name'] not in SCALAR_WRITE_COMPONENTS or not layout['ptrFn']:
+        return []
+    fields = []
+    for field in layout['fields']:
+        name, kind = field['name'], field['type']
+        if kind in ('f32', 'i32', 'u32', 'u8', 'bool'):
+            fields.append((name, name, 'boolean' if kind == 'bool' else 'number'))
+        elif kind in ('vec2', 'uvec2', 'vec3', 'vec4', 'quat', 'color'):
+            axes = {'vec2': 'xy', 'uvec2': 'xy', 'vec3': 'xyz'}.get(kind, 'xyzw')
+            sdk_axes = 'rgba' if kind == 'color' else axes
+            fields.extend((f'{name}.{sdk}', f'{name}.{cpp}', 'number') for sdk, cpp in zip(sdk_axes, axes))
+        else:
+            return []
+    return fields
+
+
 class PtrLayoutGenerator:
     """Generates ptrLayouts.generated.ts with computed struct field offsets."""
 
@@ -331,8 +354,6 @@ class PtrLayoutGenerator:
             '',
         ]
 
-        accessor_names = []
-
         for layout in self.layouts:
             name = layout['name']
             fields = layout['fields']
@@ -462,20 +483,44 @@ class PtrLayoutGenerator:
             lines.append('}')
             lines.append('')
 
-            accessor_names.append(name)
+        lines.append('export type ScalarWrite = (entity: number, ...fields: (number | boolean)[]) => boolean;')
+        lines.append('')
+        for layout in self.layouts:
+            fields = scalar_write_fields(layout)
+            if not fields:
+                continue
+            name = layout['name']
+            lines.append(f'function accepts{name}Fields(data: {name}PtrData): boolean {{')
+            for field in layout['fields']:
+                key = field['name']
+                parts = [(sdk, js) for sdk, _, js in fields if sdk.split('.')[0] == key]
+                checks = [f"typeof data.{sdk.replace('.', '?.', 1)} !== '{js}'" for sdk, js in parts]
+                lines.append(f"    if ({' || '.join(checks)}) return false;")
+            lines.extend(['    return true;', '}', ''])
+            lines.append(f'function store{name}Fields(write: ScalarWrite, entity: number, data: {name}PtrData): boolean {{')
+            lines.append('    return write(entity,')
+            for field in layout['fields']:
+                key = field['name']
+                args = [f'data.{sdk}' for sdk, _, _ in fields if sdk.split('.')[0] == key]
+                lines.append(f"        {', '.join(args)},")
+            lines.extend(['    );', '}', ''])
 
         # Generate accessor registry type
         lines.append('export interface PtrAccessor<T> {')
         lines.append('    fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;')
         lines.append('    write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;')
         lines.append('    create: () => T;')
+        lines.append('    acceptsFields?: (data: T) => boolean;')
+        lines.append('    storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;')
         lines.append('}')
         lines.append('')
 
         # Generate accessor map
         lines.append('export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {')
-        for name in accessor_names:
-            lines.append(f'    {name}: {{ fill: fill{name}, write: write{name}, create: create{name}Data }},')
+        for layout in self.layouts:
+            name = layout['name']
+            store = f', acceptsFields: accepts{name}Fields, storeFields: store{name}Fields' if scalar_write_fields(layout) else ''
+            lines.append(f'    {name}: {{ fill: fill{name}, write: write{name}, create: create{name}Data{store} }},')
         lines.append('};')
         lines.append('')
 

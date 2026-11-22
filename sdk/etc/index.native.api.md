@@ -6962,6 +6962,7 @@ static prototype: MeasuredLinearLayoutProvider
 ## MemoryProvider — interface @experimental
 ```
 resolveComponentHeap: (cppName: string) => ComponentHeapResolver | null
+resolveComponentWriter: ((cppName: string) => ComponentWriter | null) | undefined
 ```
 
 ## MeshChannel — const @experimental
@@ -7445,6 +7446,7 @@ onWheel: (deltaX: number, deltaY: number) => void
 ## NativeMemoryProvider — class @experimental
 ```
 resolveComponentHeap: (cppName: string) => ComponentHeapResolver | null
+resolveComponentWriter: (cppName: string) => ComponentWriter | null
 static new (scope?: Record<string, unknown>): NativeMemoryProvider
 static prototype: NativeMemoryProvider
 ```
