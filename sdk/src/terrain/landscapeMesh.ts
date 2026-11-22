@@ -111,13 +111,116 @@ export function landscapePieces(span: LandscapeSpan, sources: ReadonlyMap<string
     }
     return pieces;
 }
+/** Keep a straight edge within one percent of the road width of the curve it represents. */
+function longitudinalSlices(span: LandscapeSpan, start: number, end: number): number {
+    const curve = span.curve;
+    const tolerance = Math.max(0.0001, Math.min(curve.width(start), curve.width(end)) * 0.01);
+    const bank = Math.abs(span.b.rotation.z - span.a.rotation.z) / curve.length;
+    const count = (from: number, to: number, level: number): number => {
+        if (level === 5) return 1;
+        const a = curve.position(from),
+            b = curve.position(to);
+        const bends = [0.25, 0.5, 0.75].some((t) => {
+            const at = curve.position(from + (to - from) * t);
+            return Math.hypot(...at.map((v, i) => v - (a[i]! + (b[i]! - a[i]!) * t))) > tolerance;
+        });
+        if (!bends && (to - from) * bank <= 15) return 1;
+        const mid = (from + to) / 2;
+        return 2 * Math.max(count(from, mid, level + 1), count(mid, to, level + 1));
+    };
+    return count(start, end, 0);
+}
+
+/** Split only triangles with long forward edges. Neighbours share their new vertex; duplicated UV seams keep their own. */
+function subdivideRoad(source: MeshData, axis: Axis, slices: number): MeshData {
+    const position = source.channels.find((c) => c.semantic === MeshChannel.Position);
+    if (slices <= 1 || position?.type !== MeshChannelType.Float32) return source;
+    const stride = source.vertexStride,
+        component = position.offset + 4 * axis;
+    const step = (source.aabbMax[axis] - source.aabbMin[axis]) / slices;
+    let vertices = source.vertices,
+        count = source.vertexCount;
+    let view = new DataView(vertices.buffer, vertices.byteOffset, vertices.byteLength);
+    const coordinate = (i: number) => view.getFloat32(i * stride + component, true);
+    const splits = new Map<string, number>(),
+        triangles: number[] = [];
+    const midpoint = (a: number, b: number): number => {
+        const key = Math.min(a, b) + ':' + Math.max(a, b),
+            existing = splits.get(key);
+        if (existing !== undefined) return existing;
+        if (vertices === source.vertices || (count + 1) * stride > vertices.length) {
+            const larger = new Uint8Array(Math.max(vertices.length * 2, (count + 1) * stride));
+            larger.set(vertices);
+            vertices = larger;
+            view = new DataView(larger.buffer);
+        }
+        const index = count++,
+            offset = index * stride;
+        vertices.copyWithin(offset, a * stride, (a + 1) * stride);
+        for (const c of source.channels) {
+            if (c.semantic === MeshChannel.Joints) continue;
+            for (let k = 0; k < c.components; k++) {
+                if (c.semantic === MeshChannel.Tangent && k === 3) continue;
+                if (c.type === MeshChannelType.Float32) {
+                    const d = c.offset + 4 * k;
+                    view.setFloat32(
+                        offset + d,
+                        (view.getFloat32(a * stride + d, true) + view.getFloat32(b * stride + d, true)) / 2,
+                        true,
+                    );
+                } else if (c.type === MeshChannelType.UNorm16 || c.type === MeshChannelType.UInt16) {
+                    const d = c.offset + 2 * k;
+                    view.setUint16(
+                        offset + d,
+                        Math.round((view.getUint16(a * stride + d, true) + view.getUint16(b * stride + d, true)) / 2),
+                        true,
+                    );
+                } else {
+                    const d = c.offset + k;
+                    vertices[offset + d] = Math.round((vertices[a * stride + d]! + vertices[b * stride + d]!) / 2);
+                }
+            }
+        }
+        splits.set(key, index);
+        return index;
+    };
+    const split = (a: number, b: number, c: number): void => {
+        const x = coordinate(a),
+            y = coordinate(b),
+            z = coordinate(c);
+        const ab = Math.abs(x - y),
+            bc = Math.abs(y - z),
+            ca = Math.abs(z - x),
+            longest = Math.max(ab, bc, ca);
+        if (longest <= step * 1.00001) {
+            triangles.push(a, b, c);
+            return;
+        }
+        if (bc === longest) [a, b, c] = [b, c, a];
+        else if (ca === longest) [a, b, c] = [c, a, b];
+        const mid = midpoint(a, b);
+        // At large local coordinates adjacent floats may already have no representable midpoint.
+        if (coordinate(mid) === coordinate(a) || coordinate(mid) === coordinate(b)) {
+            triangles.push(a, b, c);
+            return;
+        }
+        split(a, mid, c);
+        split(mid, b, c);
+    };
+    for (let i = 0; i + 2 < source.indices.length; i += 3) split(source.indices[i]!, source.indices[i + 1]!, source.indices[i + 2]!);
+    return count === source.vertexCount
+        ? source
+        : { ...source, vertices: vertices.subarray(0, count * stride), vertexCount: count, indices: Uint32Array.from(triangles) };
+}
+
 export function deformLandscapeMesh(span: LandscapeSpan, piece: LandscapePiece): MeshData | null {
     const { source, entry, start, end } = piece,
         d = dims(source, entry);
     if (!d || d.length <= 0) return null;
     const axisScale = keys.map((k) => entry.scale[k]) as Triple;
     const offsets = keys.map((k) => entry.offset[k]);
-    return mapMesh(source, (p) => {
+    const surface = subdivideRoad(source, d.f, longitudinalSlices(span, start, end));
+    return mapMesh(surface, (p) => {
         const fraction = (p[d.f] - source.aabbMin[d.f]) / d.length;
         const forwardSign = (span.segment.flipped ? -1 : 1) * (axisScale[d.f] < 0 ? -1 : 1);
         const at = start + (end - start) * (forwardSign < 0 ? 1 - fraction : fraction) + offsets[d.f]! * forwardSign;

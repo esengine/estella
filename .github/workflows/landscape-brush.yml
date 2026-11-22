@@ -11,6 +11,10 @@ on:
         description: Master Build run with the Web runtime to test
         type: string
         required: true
+      current_source:
+        description: Test the current master editor and terrain SDK with a compatible recorded Web runtime
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,11 +22,11 @@ permissions:
 
 jobs:
   editor:
-    name: Landscape brush in the editor
+    name: Landscape brushes and splines in the editor
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      # A replay uses the exact source and editor pin that produced the chosen runtime.
+      # Replays default to the original source. A current-source replay verifies all native runtime inputs first.
       - name: Identify the recorded build
         if: inputs.build_run
         id: build
@@ -36,7 +40,18 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          ref: ${{ steps.build.outputs.sha || github.sha }}
+          ref: ${{ inputs.current_source && github.sha || steps.build.outputs.sha || github.sha }}
+      - name: Verify that the recorded runtime matches the current Landscape sources
+        if: inputs.current_source
+        env:
+          BUILD_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/master
+          git fetch --no-tags --depth=1 origin "$BUILD_SHA"
+          # These files are tested from HEAD below or have no effect on the native Web binary.
+          git diff --quiet --ignore-submodules=none "$BUILD_SHA" HEAD -- . \
+            ':(exclude)desktop' ':(exclude)sdk/src/terrain/*.ts' ':(exclude)sdk/tests/**' \
+            ':(exclude)changelog.d/**' ':(exclude).github/workflows/landscape-brush.yml'
       - uses: ./.github/actions/editor-checkout
         with:
           ssh-key: ${{ secrets.EDITOR_SSH_KEY }}

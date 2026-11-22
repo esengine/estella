@@ -848,6 +848,7 @@ export class TerrainPlugin implements Plugin {
                 this.collide(app, entity, built);
                 if (built.failure || built.loading || !built.source || !rendering) continue;
                 const transform = app.world.get(entity, Transform);
+                if (data.landscapeSpline?.points.length) this.watchTerrainAssets(app);
                 this.splineMeshes.update(app, entity, data.landscapeSpline,
                     data.landscapeSpline?.segments.length ? this.eye(app, transform) : null,
                     tiled instanceof TiledSource ? tiled : null,
@@ -985,15 +986,11 @@ export class TerrainPlugin implements Plugin {
     private pack(app: App, built: Built): void {
         const refs = built.data.layers ?? [];
         if (refs.length === 0 || built.packing) return;
-        const assets = app.getResource(Assets);
         const wanted = `${JSON.stringify(refs)}#${this.layerEdits_}`;
         if (wanted === built.packed) return;
         built.packing = true;
         const epoch = built.epoch;
-        if (!this.watching_) {
-            // A layer file edited and saved, or a texture it names, is packed again.
-            this.watching_ = assets.onInvalidate(() => { this.layerEdits_++; });
-        }
+        this.watchTerrainAssets(app);
         void (async () => {
             try {
                 const still = (): boolean => built.epoch === epoch && !!built.instance;
@@ -1474,6 +1471,10 @@ export class TerrainPlugin implements Plugin {
         if (built.mesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(built.mesh);
         built.mesh = 0;
         built.source = null;
+    }
+
+    private watchTerrainAssets(app: App): void {
+        this.watching_ ??= app.getResource(Assets).onInvalidate(() => { this.layerEdits_++; });
     }
 
     /** Releases the nodes of a terrain whose entity is gone. */

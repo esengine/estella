@@ -103,6 +103,62 @@ describe('landscape spline networks', () => {
         expect(height(0, 0)).toBeCloseTo(40);
     });
 
+    it('subdivides a two-triangle road only on bends and keeps a watertight textured centre seam', () => {
+        const { g, a, b } = road(),
+            entry = landscapeMesh(),
+            stride = 24;
+        const bytes = new Uint8Array(stride * 4),
+            data = new DataView(bytes.buffer);
+        for (const [i, [u, v]] of (
+            [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [1, 1],
+            ] as const
+        ).entries()) {
+            data.setFloat32(i * stride, 2 * u - 1, true);
+            data.setFloat32(i * stride + 8, 2 * v - 1, true);
+            data.setFloat32(i * stride + 12, u, true);
+            data.setFloat32(i * stride + 16, v, true);
+            bytes[i * stride + 20] = 255 * u;
+        }
+        const mesh: MeshData = {
+            vertices: bytes,
+            indices: new Uint32Array([0, 2, 1, 1, 2, 3]),
+            vertexCount: 4,
+            vertexStride: stride,
+            aabbMin: [-1, 0, -1],
+            aabbMax: [1, 0, 1],
+            channels: [
+                { semantic: MeshChannel.Position, type: MeshChannelType.Float32, components: 3, offset: 0 },
+                { semantic: MeshChannel.TexCoord0, type: MeshChannelType.Float32, components: 2, offset: 12 },
+                { semantic: MeshChannel.Color, type: MeshChannelType.UNorm8, components: 4, offset: 20 },
+            ],
+        };
+        const build = () => {
+            const span = landscapeSpans(g)[0]!;
+            return deformLandscapeMesh(span, { entry, source: mesh, start: 0, end: span.curve.length })!;
+        };
+        expect(build().vertexCount).toBe(4);
+        a.rotation.y = 70;
+        b.rotation.y = -70;
+        const bent = build(),
+            view = new DataView(bent.vertices.buffer),
+            curve = landscapeSpans(g)[0]!.curve,
+            mid = curve.position(curve.length / 2);
+        const middle = Array.from({ length: bent.vertexCount }, (_, i) => i).filter(
+            (i) => view.getFloat32(i * stride + 12, true) === 0.5 && view.getFloat32(i * stride + 16, true) === 0.5,
+        );
+        expect(middle).toHaveLength(1);
+        const offset = middle[0]! * stride;
+        expect(view.getFloat32(offset, true)).toBeCloseTo(mid[0]);
+        expect(view.getFloat32(offset + 8, true)).toBeCloseTo(mid[2]);
+        expect(bent.vertices[offset + 20]).toBe(128);
+        expect(bent.indices.length).toBeGreaterThan(6);
+        expect(bytes.byteLength).toBe(stride * 4);
+    });
+
     it('bends the source vertices down a curved segment while preserving UVs, mesh flip, and seeded variation', () => {
         const { g, s, a, b } = road();
         a.rotation.y = 70;
