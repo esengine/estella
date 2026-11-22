@@ -6028,4 +6028,82 @@ export const NOTED = {
     { note: "Each body of water can look its own from under it." },
   "feat(water): a body's waves calm by the depth of its water, its colour wins an overlap by priority, its shape can be grown past its outline, and its look from under the water is laid over another body's by priority, blend weight and blend radius":
     { note: "More of a body of water's own settings." },
+  "fix(editor): match animator clips and transition conditions to their types":
+    { note: "Animator states now load the sprite clips they play." },
+  "fix(editor): make animation state playback overrides explicit":
+    { note: "Animator states now load the sprite clips they play." },
+  "fix(animation): load sprite clips referenced by animator states":
+    { note: "Animator states now load the sprite clips they play." },
+  "fix(animation): play sprite states without an authored player":
+    { note: "Animator states now load the sprite clips they play." },
+  "fix(animation): report sprite motion playback changes":
+    { note: "Animator states now load the sprite clips they play." },
+  "fix(editor): show sprite controller guidance in the state inspector":
+    { note: "Animator states now load the sprite clips they play." },
+  "feat(render): schedule eligible GPU compute jobs on an independent Metal queue":
+    { note: "GPU compute jobs can overlap independent graphics passes on Metal." },
+  "feat(terrain): sculpt and paint with profiled landscape brushes":
+    { note: "Sculpt and paint with a brush you can see on the landscape." },
+  "feat(editor): share landscape brush settings across authoring views":
+    { note: "Sculpt and paint with a brush you can see on the landscape." },
+  "feat(terrain): paint and compose named landscape material weights":
+    { note: "Landscape Paint can paint, smooth, flatten and add noise to a material layer." },
+  "feat(editor): author landscape material weights and layer information":
+    { note: "Landscape Paint can paint, smooth, flatten and add noise to a material layer." },
+  "fix(editor): finish orphan deletion across weightmap reloads":
+    { note: "Landscape Paint can paint, smooth, flatten and add noise to a material layer." },
+  "feat(editor): author landscape spline networks in the terrain tools":
+    { note: "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines." },
+  "feat(terrain): grade landscapes and deform static meshes along spline networks":
+    { note: "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines." },
+  "fix(terrain): subdivide long road mesh edges through spline bends":
+    { note: "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines." },
+  "fix(editor): preserve landscape spline asset references in the edit world":
+    { note: "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines." },
+  "fix(editor): shape landscape control point markers like terrain peaks":
+    { note: "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines." },
+  "feat(editor): match landscape brush details and add texture and component tools":
+    { note: "Landscape brushes can stamp or tile a texture channel and edit a single terrain patch." },
+  "feat(terrain): project texture masks and edit individual terrain patches":
+    { note: "Landscape brushes can stamp or tile a texture channel and edit a single terrain patch." },
+  "fix(terrain): bound component dirty regions and respect brush material capabilities":
+    { note: "Landscape brushes can stamp or tile a texture channel and edit a single terrain patch." },
+  "fix(editor): restore brush settings when a numeric gesture is cancelled":
+    { note: "Landscape brushes can stamp or tile a texture channel and edit a single terrain patch." },
+  "feat(editor): expose render scheduling in project settings":
+    { note: "Project Settings now has switches for the dedicated render thread and GPU async compute." },
+  "feat(render): carry project render scheduling choices into builds":
+    { note: "Project Settings now has switches for the dedicated render thread and GPU async compute." },
+  "feat(render): run native and web rendering on a dedicated CPU thread":
+    { note: "Native and web games can render on a dedicated CPU thread." },
+  "fix(editor): restore Sequencer sound selection and submenu navigation":
+    { note: "Sequencer sound items can now pick a project audio file in Details." },
+  "feat(water): couple breaking surf and lens immersion to the wave field":
+    { note: "Breaking waves and half-submerged cameras follow the same surface." },
+  "fix(water): reconstruct refracted beam footprints between receiver depths":
+    { note: "Sunlight stays connected across underwater surfaces." },
+  "perf(water): trace refracted sunlight to opaque receivers":
+    { note: "Water caustics follow the surfaces they strike." },
+  "fix(water): redistribute direct sunlight on submerged surfaces":
+    { note: "Water caustics redistribute the sun's direct light." },
+  "feat(editor): expose water mesh inspection and tiled water zone controls":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(water): project wave caustics onto shared receivers and stitch visible water tiles":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(editor): refresh water triangle counts as the viewport moves":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(editor): pin the live water mesh diagnostics":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(render): keep degenerate scale highlights out of underwater bloom":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(editor): group water mesh labels with the Details inspector":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(water): keep shore asset loading and material menu order consistent":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(water): keep mesh inspection independent of optical passes":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(editor): align water diagnostics and verify rendered wire edges":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "fix(water): restore generated surface entities after a scene reload":
+    { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
 };

@@ -1647,6 +1647,20 @@ export const SHIPPED = {
     { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-underwater.test.ts; the look under the water was judged by hand (the on-demand water-under check is not run by CI)." },
   "More of a body of water's own settings.":
     { notCertifiable: "A water feature no golden project carries, so no game act decides it. Covered by sdk/tests/water-waves-look.test.ts and sdk/tests/water-bodies.test.ts." },
+  "GPU compute jobs can overlap independent graphics passes on Metal.":
+    { notCertifiable: "Queue selection and synchronization require backend instrumentation. tests/renderer/test_metal_async_compute.cpp and sdk/tests/async-compute.test.ts exercise scheduling and fallback." },
+  "Sculpt and paint with a brush you can see on the landscape.":
+    { notCertifiable: "The brush cursor is an editor overlay. desktop/scripts/editor-checks/landscape-brush.mjs exercises the viewport and desktop/tests/terrain-brush-settings.test.tsx covers its controls." },
+  "Landscape Paint can paint, smooth, flatten and add noise to a material layer.":
+    { notCertifiable: "These are editing operations on layer weights. desktop/scripts/editor-checks/landscape-paint.mjs exercises the editor and sdk/tests/terrain-paint-mode.test.ts checks the resulting weights." },
+  "Landscape roads, paths and junctions can now be authored in Manage → Edit Splines.":
+    { notCertifiable: "Control-point and segment editing requires the editor. desktop/scripts/editor-checks/landscape-splines.mjs exercises authoring and sdk/tests/landscape-spline-renderer.test.ts covers the generated meshes." },
+  "Landscape brushes can stamp or tile a texture channel and edit a single terrain patch.":
+    { notCertifiable: "Texture-channel selection and the patch cursor are brush controls in the editor. desktop/tests/terrain-brush-settings.test.tsx and desktop/scripts/editor-checks/landscape-brush.mjs cover them." },
+  "Project Settings now has switches for the dedicated render thread and GPU async compute.":
+    { notCertifiable: "The controls and exported configuration are inspected by desktop/tests/render-scheduling-settings.test.tsx and pipeline/tests/runtime-config.test.ts." },
+  "Native and web games can render on a dedicated CPU thread.":
+    { notCertifiable: "Thread identity, fences and resource disposal require runtime instrumentation. tests/renderer/test_render_thread.cpp covers the native thread and tools/verify-render-thread.mjs exercises the web worker." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

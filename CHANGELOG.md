@@ -14,6 +14,31 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.113.0] - 2026-11-22
+
+### Added
+
+- **GPU compute jobs can overlap independent graphics passes on Metal.** Enable `asyncCompute` in the app options or set `Renderer.consoleVariables['r.rdg.asynccompute']` to `1` at runtime. The render graph waits before consuming a result. Devices with a single queue run the same dispatches inline.
+- **Sculpt and paint with a brush you can see on the landscape.** Choose a round, square or diamond footprint and one of four falloff curves in the terrain panel, Details or the viewport toolbar. The shaded footprint follows the surface and shows the full-strength core and outer edge. A clay brush builds up or carves layers along slopes, including across terrain tiles.
+- **Landscape Paint can paint, smooth, flatten and add noise to a material layer.** The viewport supports rectangular selections, inverse masks and stroke undo. Named layer information can be shared between terrains and defines weight blending, independent opacity, erosion hardness and physical material. Removing a painted layer from a material keeps its weightmap channel until the author deletes it.
+- **Landscape roads, paths and junctions can now be authored in Manage → Edit Splines.** Extend or split curves in the viewport, edit their tangents and shoulders, and assign static meshes to control points or connected segments. Apply the roadbed and its painted layer together, including across streamed terrain tiles, with one undo step.
+- **Landscape brushes can stamp or tile a texture channel and edit a single terrain patch.** Sculpt and Paint share a compact property table with the viewport palette. Alpha stamps can follow the stroke direction. Pattern scale, rotation and offsets stay anchored to the ground. The viewport shows the selected mask or the snapped patch as you work.
+- **Project Settings now has switches for the dedicated render thread and GPU async compute.** Find both under Rendering → Render Scheduling. Local browser previews enable cross-origin isolation when the project requests a render thread. Native builds use a separate GPU compute queue on supported Metal devices.
+- **Native and web games can render on a dedicated CPU thread.** Enable `features.rendering.threadedRendering` in the project. Native hosts render and present on a dedicated thread. Web exports ship a worker-enabled core for WebGL2 and WebGPU and use the regular core on pages without cross-origin isolation or transferable canvases. The SDK exposes CPU render fences for tracking submitted work and draining deferred resource releases.
+
+### Changed
+
+- **Water caustics follow the surfaces they strike.** Refracted sunlight gathers on terrain and moving meshes in a shared light-space map on both sides of the waterline. A lower-resolution field supplies underwater shafts, reducing the number of full-detail light footprints drawn per update.
+
+### Fixed
+
+- **Animator states now load the sprite clips they play.** This includes clips used only after a transition or in a blend. Relative clip paths also survive packaging. In the graph, typing a sprite or timeline filename selects its player, and new transition conditions match the parameter type. State playback speed and wrap settings now reach the clip, including settings saved by earlier editors. The animation guide shows how to create each asset and play the initial state in a scene. An Animator can now play a sprite clip and advance to the next state on its own. Add Sprite to the same entity to show the frames. Existing Sprite Animator components share the same playback clock and frame events. The highest contributing sprite layer selects the visible clip, and state hints appear beside their controls.
+- **Sequencer sound items can now pick a project audio file in Details.** Selecting a file updates the item’s title immediately, including after undo. Track submenus stay open when moving diagonally to an entity, and the recording hint explains how to add a property channel before recording.
+- **Breaking waves and half-submerged cameras follow the same surface.** Water carries swell onto beaches and exposes each crest and its shoreward direction to particle effects. Directional spread bends the same crest field for rendering, water queries and lighting. A half-submerged lens samples the rendered wave elevation and the displaced face when switching between air and water.
+- **Sunlight stays connected across underwater surfaces.** Each sample of the wave surface spreads its light according to where neighbouring refracted rays land. Both sides of the waterline follow the arriving ray between sampled depths, reducing gaps and doubled highlights on the bed and on moving objects.
+- **Water caustics redistribute the sun's direct light.** Light gathers in wave crests' focused patterns and drops as they move away. Submerged meshes and terrain evaluate the same field before reflections, ambient light and emission are added. Both sides of the waterline see the same illuminated receiver.
+- **Water tiles meet at the shoreline and sunlight follows the waves across the waterline.** Water zones expose rectangular extents, tile density, distance scaling, far water and two wireframe views. Rivers, lakes and oceans can use their own surface, junction and underwater materials. Wave speed respects project units. Sunlight projects through the current waves onto submerged objects and the bed, and unlit water no longer adds a fixed glow. Fish scales with a collapsed texture direction fall back to an isotropic reflection at that pixel. Bloom ignores invalid radiance samples. Adjusting the light shafts on a volume preserves the water body's absorption and density. The two editor wireframe views display the geometry above and below the surface without baking caustics or applying underwater fog. Reopening a water scene restores its surface and far mesh even when its tile settings are identical.
+
 ## [0.112.0] - 2026-11-21
 
 ### Added
@@ -15956,7 +15981,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.112.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.113.0...HEAD
+[0.113.0]: https://github.com/esengine/estella/compare/v0.112.0...v0.113.0
 [0.112.0]: https://github.com/esengine/estella/compare/v0.111.0...v0.112.0
 [0.111.0]: https://github.com/esengine/estella/compare/v0.110.0...v0.111.0
 [0.110.0]: https://github.com/esengine/estella/compare/v0.109.1...v0.110.0
