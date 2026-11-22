@@ -30,7 +30,7 @@ export interface WaterZoneData {
     sizeZ: number;
     /** Texels along the longer side of the region. */
     resolution: number;
-    /** A material on the Water shader for the whole surface. Empty uses the stock water. */
+    /** Default Water surface material inherited by bodies without an override. Empty selects the stock water. */
     material: number;
     /** The waves every body shares (each sets only how high they stand): the length of the longest, a multiplier on their speed, their heading in degrees. */
     waveLength: number;
@@ -39,7 +39,17 @@ export interface WaterZoneData {
     /** The surf: how high a breaker stands against its body's waves (0 draws none), and how long the surf's waves are, in world units. */
     surf: number;
     surfLength: number;
-    /** The surface's mesh: the cell size of its finest ring, cells along a ring's side, and how many rings (each twice as coarse) follow the camera. */
+    /** Width of a base tile in project units. Zero derives it from the old cell settings. */
+    tileSize: number;
+    /** Base tiles from the zone centre to either edge along X and Z. */
+    extentInTiles: { x: number; y: number };
+    /** The number of cells on a tile side is two to this power. */
+    tessellationFactor: number;
+    /** Distance at which a tile splits, in tile widths. */
+    lodScale: number;
+    /** First level allowed to merge partly wet tiles. Negative preserves the shoreline. */
+    forceCollapseDensityLevel: number;
+    /** Finest cell size of scenes using the legacy ring settings. */
     cellSize: number;
     cells: number;
     rings: number;
@@ -72,22 +82,28 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
     sizeX: 20000, sizeZ: 20000, resolution: 256, material: 0,
     waveLength: 1400, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 800,
     cellSize: 100, cells: 64, rings: 5,
+    tileSize: 0, extentInTiles: { x: 0, y: 0 }, tessellationFactor: 3, lodScale: 1, forceCollapseDensityLevel: -1,
     ripples: 0, rippleSize: 6400, rippleSpeed: 600, rippleDamping: 0.8, foamFade: 0.4,
     // 80 km: further than a camera a kilometre up can see.
     farDistance: true, farDistanceExtent: 8000000, farDistanceMaterial: 0, farMeshWithoutOcean: false,
 }, {
-    worldUnitFields: ['sizeX', 'sizeZ', 'waveLength', 'surfLength', 'cellSize', 'rippleSize', 'rippleSpeed', 'farDistanceExtent'],
+    worldUnitFields: ['sizeX', 'sizeZ', 'waveLength', 'surfLength', 'tileSize', 'cellSize', 'rippleSize', 'rippleSpeed', 'farDistanceExtent'],
     assetFields: [{ field: 'material', type: 'material' }, { field: 'farDistanceMaterial', type: 'material' }],
     fields: {
         sizeX: { min: 1, category: 'Region', tooltip: 'The region baked along x, centred on the entity. Water outside it is not drawn; an ocean goes on past it.' },
         sizeZ: { min: 1, category: 'Region', tooltip: 'The region baked along z, centred on the entity.' },
         resolution: { min: 32, max: 1024, step: 32, category: 'Region', tooltip: 'Texels along the longer side of the region: how finely shores and rivers are traced.' },
-        material: { category: 'Look', tooltip: 'A material on the Water shader for the whole surface. Empty uses the stock water.' },
+        material: { category: 'Look', tooltip: 'Default Water surface material inherited by bodies without an override. Empty selects the stock water.' },
         waveLength: { min: 0.5, max: 3000, category: 'Waves', tooltip: 'The length of the longest wave. Every body shares the waves; each sets how high they stand.' },
         waveSpeed: { min: 0, max: 4, category: 'Waves', tooltip: 'A multiplier on how fast the waves travel.' },
         waveDirection: { min: 0, max: 360, category: 'Waves', tooltip: 'The heading of the waves, in degrees.' },
         surf: { min: 0, max: 4, category: 'Waves', tooltip: 'How high the surf breaking on a shore stands against its body\'s waves. 0 draws none. A current carries none.' },
         surfLength: { min: 0.1, max: 100000, category: 'Waves', tooltip: 'The length of the surf\'s waves, in world units. They run in over four lengths of water, break, and run up the ground past the shore.' },
+        forceCollapseDensityLevel: { min: -1, max: 9, step: 1, category: 'Mesh', tooltip: 'First level allowed to merge partially wet tiles. -1 retains the shoreline silhouette.' },
+        tileSize: { min: 0, category: 'Mesh', tooltip: 'Width of a base tile in project units. Zero uses the legacy cell size.' },
+        extentInTiles: { label: 'Extent in Tiles (X, Z)', category: 'Mesh', tooltip: 'Base tiles from the zone centre to each edge. Zero inherits the old ring extent on that axis.' },
+        tessellationFactor: { min: 1, max: 6, step: 1, category: 'Mesh', tooltip: 'A tile has two to this power cells per side. Controls vertex density independently of tile size.' },
+        lodScale: { label: 'LOD Scale', min: 0.5, max: 4, step: 0.1, category: 'Mesh', tooltip: 'Split distance in tile widths. Larger values retain more detail farther from the eye.' },
         cellSize: { min: 0.05, category: 'Detail', tooltip: 'The cell size of the finest ring of the surface. Waves shorter than six cells are not drawn as geometry there (the shading still shows them).' },
         cells: { min: 4, max: 256, step: 4, category: 'Detail', tooltip: 'Cells along a ring\'s side.' },
         rings: { min: 1, max: 10, step: 1, category: 'Detail', tooltip: 'Rings of the surface, each twice as coarse as the one inside it.' },
@@ -96,9 +112,9 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
         rippleSpeed: { min: 0.1, max: 4000, category: 'Ripples', tooltip: 'How fast a ripple spreads, in world units a second.' },
         rippleDamping: { min: 0, max: 10, category: 'Ripples', tooltip: 'How much of its height a ripple loses each second.' },
         foamFade: { min: 0, max: 10, category: 'Ripples', tooltip: 'How fast the foam a disturbance leaves fades, a second.' },
-        farDistance: { category: 'Far Distance', tooltip: 'Past the rings, draw a flat sea out to the far distance extent, so an ocean reaches the horizon instead of ending in a straight line where the rings stop. It has no waves of its own: it is the open sea at its level, seen from far away.' },
-        farDistanceExtent: { min: 1, category: 'Far Distance', tooltip: 'How far from the camera the far distance mesh reaches, in world units. Large enough to fill the gap between the rings and the horizon from every height the camera goes to.' },
-        farDistanceMaterial: { category: 'Far Distance', tooltip: 'The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty draws it with the zone water material.' },
+        farDistance: { category: 'Far Distance', tooltip: 'Extend the ocean from the tiled region to the far distance using a flat, eight-triangle mesh just below sea level.' },
+        farDistanceExtent: { min: 1, category: 'Far Distance', tooltip: 'Distance from the centre of the tiled surface to the outer edge of the far mesh, in project units.' },
+        farDistanceMaterial: { category: 'Far Distance', tooltip: 'The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty uses the deep colour and sky reflection of the zone water.' },
         farMeshWithoutOcean: { category: 'Far Distance', tooltip: 'Draw the far distance mesh when the zone has no ocean too. Off, a zone of lakes and rivers alone has none.' },
     },
 });
@@ -112,6 +128,11 @@ export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComp
  * width), how far its shape is grown out past its outline, and its priority where its look overlaps another's.
  */
 export interface ZoneBodyCommon {
+    material?: number;
+    riverToLake?: number;
+    riverToOcean?: number;
+    /** A local override of the material’s receiver gain, shared from either side. */
+    caustics?: { strength: number; weight: number; priority: number };
     /** The depth under which its waves calm, shallower water calming them more; 0 calms them by no depth at all. Its shore width when absent. */
     attenuationDepth?: number;
     /** How far its water reaches past its outline (a lake's or a river's), in world units: holds a small body against the zone's texels. */
@@ -246,6 +267,13 @@ export class WaterField {
      *  meet, one colour runs into the other; where none has its own, the share is 0 and the material's colour holds. */
     readonly look: Float32Array;
     readonly lookShare: Float32Array;
+    /** Premultiplied local gain and its coverage in the baked zone. */
+    readonly causticLook: Float32Array;
+    causticRange = 4;
+    hasCausticLook = false;
+    /** Authored material at each wet texel. Absent when the zone uses only its shared base. */
+    materialTable?: Uint32Array;
+    readonly materials = new Set<number>();
     readonly depth: Float32Array;
     /** The distance the surf runs in by (see {@link FieldSample.surf}). */
     readonly surf: Float32Array;
@@ -273,6 +301,7 @@ export class WaterField {
         this.audio = new Float32Array(n).fill(1);
         this.look = new Float32Array(n * 3);
         this.lookShare = new Float32Array(n);
+        this.causticLook = new Float32Array(n * 2);
         this.depth = new Float32Array(n);
         this.surf = new Float32Array(n);
         this.still = new Float32Array(n).fill(1);
@@ -299,6 +328,8 @@ export class WaterField {
     static *baking(grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength = 0, exclusions: readonly ZoneExclusion[] = []): Generator<number, WaterField, void> {
         const ocean = (bodies.find((b) => b.kind === 'ocean') as ZoneOcean | undefined) ?? null;
         const field = new WaterField(grid, ocean);
+        for (const b of bodies) for (const m of [b.material, b.riverToLake, b.riverToOcean]) if (m) field.materials.add(m);
+        if (field.materials.size) field.materialTable = new Uint32Array(grid.nx * grid.nz);
         const texel = Math.max(grid.sizeX / Math.max(grid.nx - 1, 1), grid.sizeZ / Math.max(grid.nz - 1, 1));
         const blend = texel * 1.5;
         // Lakes before rivers: a river that runs into a lake is the lake's there, as both are the ocean's betters.
@@ -325,6 +356,12 @@ export class WaterField {
         const rivers = new Float32Array(grid.nx * grid.nz);
         const rows = rowsAStep(grid.nx, CELLS_A_STEP);
         // Each texel's bodies, as their weight, priority and colour (NaN red for none), for laying their colours by priority.
+        for (const body of bodies) {
+            if (body.caustics && body.caustics.weight > 0) {
+                field.hasCausticLook = true;
+                field.causticRange = Math.max(field.causticRange, body.caustics.strength);
+            }
+        }
         const looks: number[] = [];
         for (let j = 0; j < grid.nz; j++) {
             if (j % rows === 0) yield 0.3 * (j / grid.nz);
@@ -354,6 +391,8 @@ export class WaterField {
                 const slope = g === null ? MIN_SLOPE : slopeAt(i, j);
                 field.steep[k] = smooth(STEEP_FROM, STEEP_TO, slope);
                 let w = 0, h = 0, a = 0, c = 0, sw = 0, ex = 0, fx = 0, fz = 0, au = 0, best = -Infinity, owner = -1, ownerW = 0, held = 0, lakeShore = -Infinity, riverW = 0;
+                let material = 0, priority = -Infinity, share = 0, atLake = false, atSea = false;
+                let river: ZoneBody | undefined, riverShare = 0;
                 looks.length = 0;
                 // Ground below the sea's level that the open sea does not reach is a dry basin: as far above the sea as a texel.
                 const seaDeep = !ocean ? -DEEP : g === null ? DEEP : g < ocean.level && !sea![k] ? -texel : (ocean.level - g) / slope;
@@ -379,8 +418,16 @@ export class WaterField {
                     if (bounded[b]!.kind === 'river') riverW += weight;
                     w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight; au += say.audio * weight;
                     const own = bounded[b]!.color;
-                    looks.push(weight, bounded[b]!.priority ?? 0, own ? own[0] : Number.NaN, own?.[1] ?? 0, own?.[2] ?? 0);
+                    looks.push(weight, bounded[b]!.priority ?? 0, own ? own[0] : Number.NaN, own?.[1] ?? 0, own?.[2] ?? 0, bounded[b]!.caustics?.strength ?? 0, bounded[b]!.caustics?.weight ?? 0, bounded[b]!.caustics?.priority ?? 0);
                     ex += (bounded[b]!.exposure ?? 1) * weight;
+                    if (field.materialTable && weight > 0) {
+                        const body = bounded[b]!, rank = body.priority ?? 0;
+                        if (rank > priority || (rank === priority && weight > share)) {
+                            material = body.material ?? 0; priority = rank; share = weight;
+                        }
+                        if (body.kind === 'lake') atLake = true;
+                        if (body.kind === 'river' && weight > riverShare) { river = body; riverShare = weight; }
+                    }
                     if (weight > ownerW) { ownerW = weight; owner = bounded[b]!.key; }
                 }
                 if (ocean) {
@@ -390,8 +437,11 @@ export class WaterField {
                     if (weight > 0) {
                         const calm = Math.min(shoreDamp(deep, ocean.shoreWidth), shoreDamp(g === null ? deep : ocean.level - g, ocean.attenuationDepth ?? ocean.shoreWidth));
                         w += weight; h += ocean.level * weight; a += ocean.waveHeight * calm * weight; c += calm * weight; sw += ocean.waveHeight * weight; au += weight;
-                        looks.push(weight, ocean.priority ?? 0, ocean.color ? ocean.color[0] : Number.NaN, ocean.color?.[1] ?? 0, ocean.color?.[2] ?? 0);
+                        looks.push(weight, ocean.priority ?? 0, ocean.color ? ocean.color[0] : Number.NaN, ocean.color?.[1] ?? 0, ocean.color?.[2] ?? 0, ocean.caustics?.strength ?? 0, ocean.caustics?.weight ?? 0, ocean.caustics?.priority ?? 0);
                         ex += (ocean.exposure ?? 1) * weight;
+                        atSea = true;
+                        const rank = ocean.priority ?? 0;
+                        if (rank > priority || (rank === priority && weight > share)) material = ocean.material ?? 0;
                         if (weight > ownerW) { ownerW = weight; owner = ocean.key; }
                     }
                 }
@@ -406,6 +456,10 @@ export class WaterField {
                         best = Math.min(best, -exclusionInside(ex, x, z));
                     }
                 }
+                if (field.materialTable) {
+                    const transition = atLake ? river?.riverToLake : atSea ? river?.riverToOcean : 0;
+                    field.materialTable[k] = transition || material;
+                }
                 field.shore[k] = best === -Infinity ? -DEEP : best;
                 field.owner[k] = w > 0 ? owner : -1;
                 if (w > 0) {
@@ -419,14 +473,27 @@ export class WaterField {
                     field.audio[k] = au / w;
                     // Each body's colour as much as no body of higher priority covers it: equal priorities blend by weight as before.
                     let lr = 0, lg = 0, lb = 0, lw = 0, all = 0;
-                    for (let q = 0; q < looks.length; q += 5) {
+                    for (let q = 0; q < looks.length; q += 8) {
                         let share = looks[q]!;
-                        for (let o = 0; o < looks.length; o += 5) if (looks[o + 1]! > looks[q + 1]!) share *= 1 - Math.min(looks[o]!, 1);
+                        for (let o = 0; o < looks.length; o += 8) if (looks[o + 1]! > looks[q + 1]!) share *= 1 - Math.min(looks[o]!, 1);
                         all += share;
                         if (Number.isNaN(looks[q + 2]!)) continue;
                         lr += looks[q + 2]! * share; lg += looks[q + 3]! * share; lb += looks[q + 4]! * share; lw += share;
                     }
                     if (lw > 0) { field.look[k * 3] = lr / lw; field.look[k * 3 + 1] = lg / lw; field.look[k * 3 + 2] = lb / lw; field.lookShare[k] = lw / Math.max(all, 1e-9); }
+                    if (field.hasCausticLook) {
+                        let light = 0, covered = 0, total = 0;
+                        for (let q = 0; q < looks.length; q += 8) {
+                            let share = looks[q]!;
+                            for (let o = 0; o < looks.length; o += 8) if (looks[o + 7]! > looks[q + 7]!) share *= 1 - Math.min(looks[o]!, 1);
+                            total += share;
+                            const own = share * looks[q + 6]!;
+                            covered += own;
+                            light += own * looks[q + 5]!;
+                        }
+                        field.causticLook[k * 2] = light / Math.max(total, 1e-9);
+                        field.causticLook[k * 2 + 1] = covered / Math.max(total, 1e-9);
+                    }
                     rivers[k] = riverW / w;
                 } else {
                     field.height[k] = Number.NaN;
@@ -474,6 +541,15 @@ export class WaterField {
         const o = this.ocean;
         if (!o) return null;
         return { key: o.key, height: o.level, amp: o.waveHeight, calm: 1, swell: o.waveHeight, flowX: 0, flowZ: 0, audio: 1, shore: DEEP, depth: DEEP, surf: DEEP, still: 1, exposure: o.exposure ?? 1 };
+    }
+
+    /** Material for one triangle on the shared surface. */
+    materialAt(x: number, z: number): number {
+        const g = this.grid;
+        if (!this.materialTable || x<g.minX || z<g.minZ || x>g.minX+g.sizeX || z>g.minZ+g.sizeZ)
+            return this.ocean?.material ?? 0;
+        const i=Math.round((x-g.minX)/g.sizeX*(g.nx-1)), j=Math.round((z-g.minZ)/g.sizeZ*(g.nz-1));
+        return this.materialTable[j*g.nx+i]!;
     }
 
     /** The part of the field a world is laid out by (how deep water stands over a height, how far a point is from the shore), as a query over this field's own arrays. */

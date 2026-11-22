@@ -747,7 +747,7 @@ export const Renderer = {
     },
 
     /**
-     * A render target: `flags` 1 with a depth buffer, 2 filtered linearly. Its rows are bottom-up on every backend, and the texture
+     * A render target: `flags` 1 with a depth buffer, 2 filtered linearly, 8 requests blendable half-float colour when supported. Its rows are bottom-up on every backend, and the texture
      * drawn into is the one read.
      */
     createRenderTarget(width: number, height: number, flags: number = 1): RenderTargetHandle {
@@ -786,6 +786,11 @@ export const Renderer = {
     bakeState(ticket: number): number {
         if (!ticket) return -1;
         return engine()?.renderer_materialBakeState?.(ticket) ?? -1;
+    },
+
+    /** Adds a dependent, additive projection of instances of the screen triangle to the just-queued bake. */
+    projectMaterialBake(ticket: number, material: number, target: number, instances: number): boolean {
+        return engine()?.renderer_projectMaterialBake?.(ticket, material, target, instances) ?? false;
     },
 
     setClearColor(r: number, g: number, b: number, a: number): void {

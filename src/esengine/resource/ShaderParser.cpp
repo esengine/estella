@@ -1456,13 +1456,14 @@ std::string wgslReachedTextureDecls(const std::string& source, bool postProcess)
 // cannot be filtered, and a layout that pairs it with a filtering sampler is refused by the device.
 std::string wgslMaterialTextureDecls(const ParsedShader& parsed, const std::string& body, const std::string* only = nullptr) {
     std::string src;
+    const u32 declared = scanWGSLBindingMask(body.c_str(), 1);
     for (const auto& p : parsed.properties) {
         if (!p.fromParam || p.type != ShaderPropertyType::Texture || p.textureUnit < 0) continue;
         if (only && only->find(p.name) == std::string::npos) continue;
         const u32 unit = static_cast<u32>(p.textureUnit);
-        src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var " + p.name +
+        if ((declared & (1u << textureBindingForUnit(unit))) == 0) src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var " + p.name +
                (p.layered ? " : texture_2d_array<f32>;\n" : " : texture_2d<f32>;\n");
-        if (body.find(p.name + "_s") == std::string::npos) continue;
+        if (body.find(p.name + "_s") == std::string::npos || (declared & (1u << samplerBindingForUnit(unit))) != 0) continue;
         src += "@group(1) @binding(" + std::to_string(samplerBindingForUnit(unit)) + ") var " + p.name +
                "_s : sampler;\n";
     }
@@ -2978,6 +2979,10 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         // A material's vertex hook may read its textures too (a height field the surface is lifted by): the ones it names are declared
         // for this stage as well, and the device then makes their bindings visible to it.
         inject(wgslMaterialTextureDecls(parsed, bodyText, &parsed.wgslVertexHook));
+    } else if (stage == ShaderStage::Vertex && !parsed.wgslVertexIsCanonical) {
+        // Explicit vertex stages (including forward light projection) can sample
+        // the same named material textures as canonical displacement hooks.
+        inject(wgslMaterialTextureDecls(parsed, bodyText, &bodyText));
     }
     if (stage == ShaderStage::Fragment) {
         inject(wgslMaterialTextureDecls(parsed, bodyIt->second));

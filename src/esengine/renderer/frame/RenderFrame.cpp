@@ -492,6 +492,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     // it, and while a lost device waits for its content no end() ever ran to empty them, so the staging grew every frame until an
     // allocation of gigabytes failed.
     pool_.beginFrame();
+    projected_bake_resources_.clear();
     draw_list_.clear();
     clip_state_.clear();
 
@@ -835,6 +836,7 @@ void RenderFrame::end() {
             if (mask.resource != rg::kNoResource) scene.dependencies.push_back(mask.resource);
         }
         if (planar_resource_ != rg::kNoResource) scene.dependencies.push_back(planar_resource_);
+        scene.dependencies.insert(scene.dependencies.end(), projected_bake_resources_.begin(), projected_bake_resources_.end());
 #ifdef ES_ENABLE_GPU_PARTICLES
         // The particles a kernel advances this frame are drawn by the scene, so it runs first.
         if (gpu_particles_) {
@@ -2854,6 +2856,25 @@ u32 RenderFrame::queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, 
     return ticket;
 }
 
+void RenderFrame::cancelMaterialBakesFor(u32 target) {
+    if (!target) return;
+    material_bakes_.erase(std::remove_if(material_bakes_.begin(), material_bakes_.end(), [this, target](const MaterialBake& bake) {
+        if (target != bake.target && target != bake.receiver) return false;
+        material_bake_states_.erase(bake.ticket);
+        return true;
+    }), material_bakes_.end());
+}
+
+bool RenderFrame::projectMaterialBake(u32 ticket, u32 material, u32 target, u32 instances) {
+    if (material_bakes_.empty() || !material || !target || !instances || instances > 4194304) return false;
+    auto& bake = material_bakes_.back();
+    if (bake.ticket != ticket || bake.target == target || bake.projection) return false;
+    bake.projection = material;
+    bake.receiver = target;
+    bake.instances = instances;
+    return true;
+}
+
 i32 RenderFrame::materialBakeState(u32 ticket) {
     auto it = material_bake_states_.find(ticket);
     if (it == material_bake_states_.end()) return -1;
@@ -2872,12 +2893,14 @@ void RenderFrame::declareMaterialBakes() {
     for (const MaterialBake& bake : material_bakes_) {
         RenderTarget* target = target_manager_.get(bake.target);
         Shader* shader = resource_manager_.getShader(resource::ShaderHandle(bake.shader));
-        if (!target || !shader || bake.w == 0 || bake.h == 0) {
+        RenderTarget* receiver = bake.projection ? target_manager_.get(bake.receiver) : nullptr;
+        Shader* projector = bake.projection ? resource_manager_.getShader(context_.materials().shaderOf(bake.projection)) : nullptr;
+        if (!target || !shader || bake.w == 0 || bake.h == 0 || (bake.projection && (!receiver || !projector))) {
             material_bake_states_[bake.ticket] = -1;
             continue;
         }
         // A program still compiling draws nothing: the bake waits a frame for it rather than leaving its rect as it was and saying done.
-        if (!device_.programReady(shader->handle())) {
+        if (!device_.programReady(shader->handle()) || (projector && !device_.programReady(projector->handle()))) {
             waiting.push_back(bake);
             continue;
         }
@@ -2897,7 +2920,25 @@ void RenderFrame::declareMaterialBakes() {
             material_bake_states_[bake.ticket] = drawn ? 1 : -1;
             if (drawn) ++material_bakes_drawn_;
         };
+        const auto source = pass.write;
         graph_.addPass(std::move(pass));
+        if (receiver) {
+            rg::PassDesc projection;
+            projection.name = "material-forward-projection";
+            projection.keep = true;
+            projection.dependencies = {source};
+            projection.write = graph_.importTarget(receiver->getFramebuffer(), receiver->getWidth(), receiver->getHeight(),
+                                                   false, receiver->getColorTexture());
+            projected_bake_resources_.push_back(projection.write);
+            projection.clear = true;
+            projection.clearColor[3] = 0.0f;
+            const u32 projectionSlot = scratch++;
+            projection.execute = [this, bake, projectionSlot](const rg::PassContext&) {
+                if (material_bake_states_[bake.ticket] > 0)
+                    material_bake_states_[bake.ticket] = post_process_->drawProjectedMaterial(bake.projection, bake.instances, projectionSlot) ? 1 : -1;
+            };
+            graph_.addPass(std::move(projection));
+        }
     }
     material_bakes_ = std::move(waiting);
 #endif

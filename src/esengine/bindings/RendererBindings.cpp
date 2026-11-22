@@ -1110,7 +1110,7 @@ u32 renderer_createTarget(u32 width, u32 height, i32 flags) {
     bool depth = (flags & 1) != 0;
     bool linear = (flags & 2) != 0;
     // 4 once asked for the texture as drawn rather than a copy turned bottom-up; every target is read as drawn now.
-    return g_renderFrame->targetManager().create(width, height, depth, linear);
+    return g_renderFrame->targetManager().create(width, height, depth, linear, (flags & 8) != 0);
 }
 
 u32 renderer_getTargetDepthTexture(u32 handle) {
@@ -1121,6 +1121,7 @@ u32 renderer_getTargetDepthTexture(u32 handle) {
 
 void renderer_releaseTarget(u32 handle) {
     if (!g_renderFrame) return;
+    g_renderFrame->cancelMaterialBakesFor(handle);
     g_renderFrame->targetManager().release(handle);
 }
 
@@ -1134,6 +1135,10 @@ u32 renderer_queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, u32 
                                f32 a0, f32 a1, f32 a2, f32 a3, f32 b0, f32 b1, f32 b2, f32 b3) {
     if (!g_renderFrame) return 0;
     return g_renderFrame->queueMaterialBake(material, shader, target, x, y, w, h, glm::vec4(a0, a1, a2, a3), glm::vec4(b0, b1, b2, b3));
+}
+
+bool renderer_projectMaterialBake(u32 ticket, u32 material, u32 target, u32 instances) {
+    return g_renderFrame && g_renderFrame->projectMaterialBake(ticket, material, target, instances);
 }
 
 i32 renderer_materialBakeState(u32 ticket) {

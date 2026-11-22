@@ -16,6 +16,13 @@
  *          Everything here is in the body's own space: x and z along its surface, the height along its up.
  */
 
+import { worldUnitsPerMeter } from '../ecs/worldUnits';
+
+/** Gravitational acceleration in the project's length units per second squared. */
+export function waterGravity(): number {
+    return 9.8 * worldUnitsPerMeter();
+}
+
 /** How many waves a sea is the sum of at most. */
 export const WAVE_SET_SIZE = 8;
 /** How far to either side of the wind the waves head, in degrees. */
@@ -60,7 +67,7 @@ export interface WaveParams {
 }
 
 const TAU = Math.PI * 2;
-const GRAVITY = 9.8;
+
 
 /** How far a crest is bent, as a share of the longest wave. Its slope is this times the bend's frequency, about 0.33 at most. */
 const BEND = 0.45;
@@ -100,6 +107,7 @@ export function waveCount(p: WaveParams): number {
 export function waveHeight(p: WaveParams, x: number, z: number, time: number, cell = 0): number {
     let height = 0;
     const base = p.direction * Math.PI / 180;
+    const gravity = waterGravity();
     const [bx, bz] = waveBend(x, z, p.length);
     let used = waveCount(p);
     for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
@@ -107,7 +115,7 @@ export function waveHeight(p: WaveParams, x: number, z: number, time: number, ce
         const length = p.length * lengthShare;
         const k = TAU / length;
         const a = base + heading * Math.PI / 180;
-        const omega = Math.sqrt(GRAVITY * k) * p.speed * speedShare;
+        const omega = Math.sqrt(gravity * k) * p.speed * speedShare;
         const theta = k * (Math.sin(a) * bx + Math.cos(a) * bz) - omega * time;
         height += p.height * heightShare * Math.exp(Math.sin(theta) - 1) * waveFade(length, cell);
     }
@@ -118,6 +126,7 @@ export function waveHeight(p: WaveParams, x: number, z: number, time: number, ce
 export function waveSlope(p: WaveParams, x: number, z: number, time: number): [number, number] {
     let sx = 0, sz = 0;
     const base = p.direction * Math.PI / 180;
+    const gravity = waterGravity();
     const [bx, bz, xAlongZ, zAlongX] = waveBend(x, z, p.length);
     let used = waveCount(p);
     for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
@@ -125,7 +134,7 @@ export function waveSlope(p: WaveParams, x: number, z: number, time: number): [n
         const k = TAU / (p.length * lengthShare);
         const a = base + heading * Math.PI / 180;
         const dx = Math.sin(a), dz = Math.cos(a);
-        const omega = Math.sqrt(GRAVITY * k) * p.speed * speedShare;
+        const omega = Math.sqrt(gravity * k) * p.speed * speedShare;
         const theta = k * (dx * bx + dz * bz) - omega * time;
         const rise = p.height * heightShare * Math.exp(Math.sin(theta) - 1) * Math.cos(theta) * k;
         sx += dx * rise;
@@ -144,7 +153,7 @@ export function surfHeight(shore: number, height: number, length: number, speed:
     if (height <= 0 || length <= 0) return 0;
     const reach = length * 4;
     if (shore > reach || shore < -reach * 0.05) return 0;
-    const celerity = Math.sqrt(GRAVITY * length / TAU) * speed;
+    const celerity = Math.sqrt(waterGravity() * length / TAU) * speed;
     const u = fract(phase / length + (celerity * time) / length);
     // Seaward of a crest the water falls away slowly; shoreward its face is steep.
     const face = 0.2;

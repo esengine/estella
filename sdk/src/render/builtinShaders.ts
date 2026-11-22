@@ -1040,7 +1040,7 @@ const MODULE_TEMPLATE_ORDER = ['water', 'terrain', 'foliage', 'hair', 'skin', 'e
 
 /** The module a built-in shader ships in, for the error a project gets when its material names a shader whose module it did not install. */
 export const BUILTIN_SHADER_MODULE: Readonly<Record<string, string>> = {
-    water: 'esengine/water', terrain: 'esengine/terrain', foliage: 'esengine/foliage',
+    water: 'esengine/water', underwater: 'esengine/water', terrain: 'esengine/terrain', 'terrain-layers': 'esengine/terrain', foliage: 'esengine/foliage',
     hair: 'esengine/character-shaders', skin: 'esengine/character-shaders', eye: 'esengine/character-shaders',
 };
 

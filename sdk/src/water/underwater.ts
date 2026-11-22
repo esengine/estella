@@ -21,8 +21,9 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Camera, Transform, type CameraData, type TransformData } from '../ecs/component';
 import type { Entity } from '../types';
+import { worldUnitScale } from '../ecs/worldUnits';
 import { Material } from '../render/material';
-import { CAUSTICS_GLSL } from '../render/waterCaustics';
+import { CAUSTICS_GLSL, CAUSTIC_PARAMS, CAUSTIC_FIELD_PARAMS, WATER_ZONE_LAYER_GLSL, WATER_CAUSTICS } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
 import { setUnderwaterState, lensReach } from '../postprocess/underwater';
 import { UnderwaterLook, WaterBody, WatersRes, type WaterBodyData } from './waterPlugin';
@@ -30,7 +31,7 @@ import { IGN_GLSL, PHASE_HG_GLSL } from '../render/shaderLib';
 import { RAY_START_GLSL } from '../postprocess/sources/shared';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_SHAFT_STEPS } from '../render/qualitySettings/water';
 
-const SOURCE = `#pragma shader "PP Underwater"
+export const UNDERWATER_SHADER = `#pragma shader "PP Underwater"
 #pragma version 300 es
 #pragma domain PostProcess
 #pragma param u_absorption color default(0.45,0.09,0.05,1)
@@ -45,9 +46,11 @@ const SOURCE = `#pragma shader "PP Underwater"
 #pragma param u_planeNz float default(0) range(-1,1)
 #pragma param u_planeD float default(0) range(-1000000,1000000)
 #pragma param u_band float default(0.25) range(0,1000)
-#pragma param u_causticStrength float default(0.6) range(0,3)
-#pragma param u_causticScale float default(2) range(0.05,2000)
-#pragma param u_causticSpeed float default(0.35) range(0,4)
+${CAUSTIC_PARAMS}
+${CAUSTIC_FIELD_PARAMS}
+#pragma param u_zoneSurfaceData texture default(white) texel(data)
+#pragma param u_causticLevel float default(0)
+#pragma param u_managedSurface float default(0)
 #pragma param u_shaftStrength float default(0.5) range(0,4)
 #pragma param u_shaftRange float default(2000) range(10,100000)
 #pragma param u_shaftSteps float default(${MOST_WATER_SHAFT_STEPS}) range(1,${MOST_WATER_SHAFT_STEPS})
@@ -64,6 +67,7 @@ out vec4 fragColor;
 
 const int SHAFT_STEPS = ${MOST_WATER_SHAFT_STEPS};
 
+${WATER_ZONE_LAYER_GLSL}
 ${CAUSTICS_GLSL}
 /// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
 /// (the projection is built with near = -far), so depth 0 is that far-behind plane, above the water for a camera under it; mid-depth is the plane
@@ -85,7 +89,7 @@ void main() {
 
     // The waterline: this pixel is under water where its place on the camera's near plane is below the surface at the camera.
     vec3 up = normalize(vec3(u_planeNx, u_planeNy, u_planeNz));
-    float wet = smoothstep(-u_band, u_band, u_planeD - dot(up, entry));
+    float wet = smoothstep(-u_band, u_band, u_planeD - dot(up, entry + u_renderOrigin.xyz));
     if (wet <= 0.0 || u_amount <= 0.0) { fragColor = src; return; }
 
     vec3 dir = normalize(target - entry);
@@ -96,21 +100,21 @@ void main() {
     vec4 sunDir, sunColor;
     ivec2 tiles;
     findSun(sunDir, sunColor, tiles);
-    float cosUp = dot(sunDir.xyz, up);
-    bool sunny = sunDir.w > 0.5 && cosUp > 0.05;
-    float slant = max(cosUp, 0.15);
-    float clock = u_time.x * u_causticSpeed;
+    vec3 lightUp = u_managedSurface > 0.5 ? vec3(0.0, 1.0, 0.0) : up;
+    float cosUp = dot(sunDir.xyz, lightUp);
+    bool sunny = sunDir.w > 0.5 && cosUp > 0.0;
+    vec3 sunWater = waterSunRay(sunDir.xyz, lightUp);
+    float slant = max(dot(sunWater, lightUp), 0.08);
 
     // What the camera sees, lit by the sun through the waves: a web of bright threads on what faces the sun, where the sun reaches it.
     vec3 colour = src.rgb;
-    if (!sky && sunny && u_causticStrength > 0.0) {
-        vec3 normal = normalize(facing);
+    if (!sky && sunny && (u_causticStrength > 0.0 || u_causticBodyOcean.w > 0.5)) {
+        vec3 normal = dot(facing, facing) > 1e-12 ? normalize(facing) : up;
         if (dot(normal, dir) > 0.0) normal = -normal;
-        float below = max(u_planeD - dot(up, target), 0.0);
-        vec3 onSurface = target + sunDir.xyz * (below / slant);
-        float web = causticPattern(onSurface.xz / u_causticScale, clock, u_causticLayers);
-        float reach = exp(-extinction * below / slant);
-        colour *= 1.0 + u_causticStrength * web * max(dot(normal, sunDir.xyz), 0.0) * sunVisibility(target, tiles.x, tiles.y) * reach * min(sunColor.a, 2.0) * 0.5;
+        vec3 absolute = target + u_renderOrigin.xyz;
+        float below = u_managedSurface > 0.5 ? u_causticLevel - absolute.y : u_planeD - dot(up, absolute);
+        vec3 light = waterReceiverLight(absolute, normal, lightUp, below, sunDir.xyz, sunColor, u_absorption.rgb * u_density, u_causticStrength, u_time.x);
+        if (any(greaterThan(light, vec3(0.0)))) colour *= 1.0 + light * sunVisibility(target, tiles.x, tiles.y);
     }
 
     // The water gives back its own colour, less of it the deeper the camera is: the light it scatters is what reached it from above.
@@ -118,8 +122,12 @@ void main() {
 #ifdef ES_LINEAR
     scatter = srgbToLinear(scatter);
 #endif
-    scatter *= exp(-u_lightFalloff * u_cameraDepth);
-    vec3 col = colour * transmit + scatter * (1.0 - dot(transmit, vec3(1.0 / 3.0)));
+    // A medium scatters incident radiance. In an unlit scene it contributes no light
+    // of its own. The environment's DC coefficient is its mean incident radiance.
+    vec3 skyLight = max(u_ambient.rgb + 0.282095 * u_envIrradiance[0].rgb * u_envTint.rgb, vec3(0.0));
+    vec3 direct = sunny ? sunColor.rgb * sunColor.a * max(cosUp,0.0) : vec3(0.0);
+    scatter *= (skyLight + direct) * exp(-u_lightFalloff * u_cameraDepth);
+    vec3 col = colour * transmit + scatter * (1.0 - transmit);
 
     // Shafts: the sun scattered toward the eye by the water along the ray, wherever the shadow map says it gets in and in the pattern the waves throw.
     if (sunny && u_shaftStrength > 0.0) {
@@ -132,16 +140,20 @@ void main() {
         for (int i = 0; i < SHAFT_STEPS; ++i) {
             if (float(i) >= steps) break;
             vec3 p = entry + dir * ((float(i) + jitter) * ds);
-            float below = u_planeD - dot(up, p);
+            vec3 absolute = p + u_renderOrigin.xyz;
+            float below = u_managedSurface > 0.5 ? u_causticLevel - absolute.y : u_planeD - dot(up, absolute);
             if (below > 0.0) {
-                vec3 onSurface = p + sunDir.xyz * (below / slant);
-                float shaft = mix(1.0, min(causticPattern(onSurface.xz / u_causticScale, clock, u_causticLayers) * 1.6, 1.0), 0.7);
-                lit += through * ds * sunVisibility(p, tiles.x, tiles.y) * exp(-extinction * below / slant) * shaft;
+                vec3 beam;
+                float travel, focus;
+                waterSunBundle(absolute, lightUp, below, sunDir.xyz, sunWater, u_time.x, beam, travel, focus);
+                float shaft = 0.3 + min(focus, 3.0) * 0.7;
+                lit += through * ds * sunVisibility(p, tiles.x, tiles.y) * exp(-extinction * travel)
+                     * shaft * phaseHG(dot(dir, beam));
             }
             through *= exp(-extinction * ds);
         }
         vec3 sunTint = sunColor.rgb / max(max(sunColor.r, sunColor.g), max(sunColor.b, 1e-3));
-        col += sunTint * lit * extinction * 0.5 * phaseHG(dot(dir, sunDir.xyz)) * u_shaftStrength * clamp(sunColor.a, 0.0, 8.0) * 8.0;
+        col += sunTint * lit * extinction * 0.5 * waterSunFlux(max(cosUp, 0.0), slant) * u_shaftStrength * clamp(sunColor.a, 0.0, 8.0) * 8.0;
     }
     fragColor = vec4(mix(src.rgb, col, u_amount * wet), src.a);
 }
@@ -161,7 +173,7 @@ export function registerUnderwaterEffect(): void {
         labelZh: '水下',
         category: 'atmosphere',
         qualityGroup: 'water',
-        factory: () => Material.compileShader(SOURCE),
+        factory: () => Material.compileShader(UNDERWATER_SHADER),
         uniforms: [
             // Per WORLD unit of water: how much of the light a unit takes out (times each colour's absorption).
             { name: 'u_density', label: 'Density', min: 0, max: 4, step: 0.005, defaultValue: 0.12, neutralValue: 0 },
@@ -179,9 +191,9 @@ export function registerUnderwaterEffect(): void {
             { name: 'u_planeD', label: 'Surface Offset', min: -1000000, max: 1000000, step: 1, defaultValue: 0 },
             { name: 'u_band', label: 'Waterline Softness', min: 0, max: 1000, step: 0.05, defaultValue: 0.25 },
             // The web of light on what faces the sun, as the Water material draws it from above: how strong, how large a cell (world units), how fast it swims.
-            { name: 'u_causticStrength', label: 'Caustics', min: 0, max: 3, step: 0.01, defaultValue: 0.6, neutralValue: 0 },
-            { name: 'u_causticScale', label: 'Caustic Scale', min: 0.05, max: 2000, step: 0.05, defaultValue: 2 },
-            { name: 'u_causticSpeed', label: 'Caustic Speed', min: 0, max: 4, step: 0.01, defaultValue: 0.35 },
+            { name: 'u_causticStrength', label: 'Caustics', min: 0, max: WATER_CAUSTICS.strength.max, step: 0.01, defaultValue: WATER_CAUSTICS.strength.value, neutralValue: 0 },
+            { name: 'u_causticScale', label: 'Caustic Scale', min: WATER_CAUSTICS.scale.min, max: WATER_CAUSTICS.scale.max, step: 5, defaultValue: WATER_CAUSTICS.scale.value, worldUnits: 1 },
+            { name: 'u_causticSpeed', label: 'Fine Caustic Speed', min: 0, max: WATER_CAUSTICS.speed.max, step: 0.01, defaultValue: WATER_CAUSTICS.speed.value },
             // The sun scattered toward the camera by the water along each ray: how strong the shafts are, and how far from the camera they are walked.
             { name: 'u_shaftStrength', label: 'Light Shafts', min: 0, max: 4, step: 0.01, defaultValue: 0.5, neutralValue: 0 },
             { name: 'u_shaftRange', label: 'Shaft Range', min: 10, max: 100000, step: 10, defaultValue: 2000 },
@@ -218,11 +230,12 @@ interface UnderLook { absorption: [number, number, number]; density: number; sha
 
 /** A body's look from under its water: its own, or the zone material's, as its surface is drawn. */
 function lookOf(body: WaterBodyData | null, instance: number): UnderLook {
+    instance = body?.waterMaterial || instance;
     const own = body && body.underwaterLook === UnderwaterLook.Own ? body : null;
     if (!own) {
         return { absorption: triple(instance, 'u_absorption', [0.45, 0.09, 0.05]), density: single(instance, 'u_density', 0.12),
             shallow: triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]), deep: triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]),
-            caustics: single(instance, 'u_causticStrength', 0.6) };
+            caustics: single(instance, 'u_causticStrength', WATER_CAUSTICS.strength.value) };
     }
     const shallow: [number, number, number] = [own.underwaterColor.r, own.underwaterColor.g, own.underwaterColor.b];
     return { absorption: [own.underwaterAbsorption.r, own.underwaterAbsorption.g, own.underwaterAbsorption.b], density: own.underwaterDensity,
@@ -260,7 +273,7 @@ export class UnderwaterPlugin implements Plugin {
             }
             const sample = eye ? waters.sample(eye[0], eye[1], eye[2]) : null;
             // Under, or close enough above that part of the lens (the near plane ahead of the camera) can be: the effect decides pixel by pixel.
-            if (!sample || !(sample.depth < lensReach(near))) { setUnderwaterState(null); return; }
+            if (!eye || !sample || !(sample.depth < lensReach(near))) { setUnderwaterState(null); return; }
             const instance = waters.instance_;
             const depth = Math.max(-sample.depth, 0);
             const bodyOf = (e: Entity): WaterBodyData | null =>
@@ -275,7 +288,7 @@ export class UnderwaterPlugin implements Plugin {
                 if (body && body.underwaterEnabled === false) return null;
                 const radius = body?.underwaterBlendRadius ?? 0;
                 const fade = b.inside >= 0 ? 1 : radius > 0 ? smoothstep(1 + b.inside / radius) : 0;
-                return { look: lookOf(body, instance), weight: Math.min(Math.max(body?.underwaterBlendWeight ?? 1, 0), 1) * fade,
+                return { look: lookOf(body, instance), material: body?.underwaterMaterial ?? 0, weight: Math.min(Math.max(body?.underwaterBlendWeight ?? 1, 0), 1) * fade,
                     priority: body?.underwaterPriority ?? 0, last: b.entity === sample.entity ? 1 : 0 };
             }).filter((l): l is NonNullable<typeof l> => l !== null && l.weight > 0)
                 .sort((p, q) => p.priority - q.priority || p.last - q.last);
@@ -297,9 +310,14 @@ export class UnderwaterPlugin implements Plugin {
                 scatter: [shallow[0] + (deep[0] - shallow[0]) * toDeep, shallow[1] + (deep[1] - shallow[1]) * toDeep, shallow[2] + (deep[2] - shallow[2]) * toDeep],
                 plane: [n[0], n[1], n[2], n[0] * sample.surface[0] + n[1] * sample.surface[1] + n[2] * sample.surface[2]],
                 band: Math.max(near * 0.08, 0.05),
-                causticStrength: look.caustics,
-                causticScale: single(instance, 'u_causticScale', 2),
-                causticSpeed: single(instance, 'u_causticSpeed', 0.35),
+                causticStrength: waters.causticBodies_ ? single(instance, 'u_causticStrength', WATER_CAUSTICS.strength.value) : look.caustics,
+                causticBodies: waters.causticBodies_,
+                causticScale: single(instance, 'u_causticScale', WATER_CAUSTICS.scale.value * worldUnitScale()),
+                causticSpeed: single(instance, 'u_causticSpeed', WATER_CAUSTICS.speed.value),
+                level: waters.depthAt(eye[0], eye[2], 0) ?? sample.surface[1],
+                material: layers[layers.length-1]!.material,
+                opticalField: waters.opticalField_,
+                waveCaustics: !!waters.quality.causticFieldSize,
                 light: waters.quality.caustics });
         }, { name: 'UnderwaterSystem' }));
     }

@@ -291,6 +291,8 @@ u32 renderer_queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, u32 
                                f32 a0, f32 a1, f32 a2, f32 a3, f32 b0, f32 b1, f32 b2, f32 b3);
 /// 0 waiting, 1 drawn, -1 not drawable; a drawn or failed ticket is forgotten once asked.
 i32 renderer_materialBakeState(u32 ticket);
+/// Attach an additive, instanced projection to the just-queued material bake. Both run before the scene.
+bool renderer_projectMaterialBake(u32 ticket, u32 material, u32 target, u32 instances);
 u32 renderer_getDrawCalls();
 /// Every draw the GPU was asked for in the last frame, every pass included (shadows, prepass, reflections, post-processing).
 u32 renderer_getGpuDrawCalls();

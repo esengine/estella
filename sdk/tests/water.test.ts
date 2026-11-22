@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { WAVE_SET, waveBend, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
+import { worldUnitsPerMeter, setWorldUnitsPerMeter } from '../src/ecs/worldUnits';
+import { WAVE_SET, surfHeight, waveBend, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
 import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
 import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
@@ -36,6 +37,21 @@ function facing(p: Float32Array, a: number, b: number, c: number): number {
 }
 
 describe('the waves', () => {
+    it('keeps wind waves and surf on the same physical clock across project units', () => {
+        const saved = worldUnitsPerMeter();
+        const sample = (units: number) => {
+            setWorldUnitsPerMeter(units);
+            const p = { ...params, length: 5.55 * units, height: 0.4 * units };
+            return [waveHeight(p, 2 * units, units, 0.73) / units,
+                ...waveSlope(p, 2 * units, units, 0.73),
+                surfHeight(units, 0.5 * units, 4 * units, 1, 0.73) / units];
+        };
+        try {
+            const metres = sample(1);
+            for (const units of [10, 100, 1000]) sample(units).forEach((v, i) => expect(v).toBeCloseTo(metres[i]!, 9));
+        } finally { setWorldUnitsPerMeter(saved); }
+    });
+
     it('is the sum of the set\'s peaked sines', () => {
         const t = 1.3;
         const [x, z] = waveBend(3.7, -2.2, params.length);
@@ -43,7 +59,7 @@ describe('the waves', () => {
         for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
             const k = 2 * Math.PI / (params.length * lengthShare);
             const a = (params.direction + heading) * Math.PI / 180;
-            const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(9.8 * k) * params.speed * speedShare * t;
+            const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(9.8 * worldUnitsPerMeter() * k) * params.speed * speedShare * t;
             expected += params.height * heightShare * Math.exp(Math.sin(theta) - 1);
         }
         expect(waveHeight(params, 3.7, -2.2, t)).toBeCloseTo(expected, 10);

@@ -645,6 +645,7 @@ public:
     void drawCloudShadow(const glm::mat4& inverse, const glm::vec4& rect, const rg::PassContext& ctx);
     /// Draws material @p material through PostProcess shader @p shader over the pass's viewport (RenderFrame::queueMaterialBake), its
     /// block in MaterialStore scratch @p scratch. False when it could not.
+    bool drawProjectedMaterial(u32 material, u32 instances, u32 scratch);
     bool drawMaterialThrough(u32 material, u32 shader, const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch);
     bool canDrawMaterialOver(u32 material);
     bool drawMaterialOver(u32 material);
@@ -664,7 +665,7 @@ private:
     void ensureScreenQuad();
     void drawScreenQuad();
     /// @p over: composite onto the target by the source's coverage (premultiplied) instead of replacing it.
-    void applyPassPipeline(const Shader& shader, bool over = false);
+    void applyPassPipeline(const Shader& shader, bool over = false, bool additive = false);
     void renderPass(PostProcessPass& pass, const rg::PassContext& ctx);
     /// A compute pass: its params and the size into a block each, the picture, the depth and the output bound, one dispatch over it.
     void computePass(PostProcessPass& pass, const rg::PassContext& ctx);
@@ -721,6 +722,7 @@ private:
     rg::RenderGraph* frameGraph_ = nullptr;
     Unique<rg::RenderGraph> ownedGraph_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
+    BufferHandle projected_triangle_indices_ = BufferHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;
     /// The other variants of the same file the last pass needs (a curve, the resampling upscaler, the display LUT), by feature set, compiled when

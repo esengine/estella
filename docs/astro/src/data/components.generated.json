@@ -11699,6 +11699,30 @@
       "source": "ts",
       "fields": [
         {
+          "key": "waterMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Material instance on the shared water surface. Empty inherits the zone water."
+        },
+        {
+          "key": "riverToLakeMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Water material on the shared surface where this river meets a lake."
+        },
+        {
+          "key": "riverToOceanMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Water material on the shared surface where this river meets the open sea."
+        },
+        {
+          "key": "underwaterMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Post-process material for the submerged part of the lens. Empty uses the built-in underwater shader."
+        },
+        {
           "key": "form",
           "type": "enum",
           "default": "Lake",
@@ -12061,6 +12085,10 @@
         }
       ],
       "animatable": [
+        "waterMaterial",
+        "riverToLakeMaterial",
+        "riverToOceanMaterial",
+        "underwaterMaterial",
         "form",
         "sizeX",
         "sizeZ",
@@ -12144,7 +12172,7 @@
           "key": "material",
           "type": "Asset<material>",
           "default": "none",
-          "doc": "A material on the Water shader for the whole surface. Empty uses the stock water."
+          "doc": "Default Water surface material inherited by bodies without an override. Empty selects the stock water."
         },
         {
           "key": "waveLength",
@@ -12203,6 +12231,40 @@
           "range": "1–10, step 1"
         },
         {
+          "key": "tileSize",
+          "type": "number",
+          "default": "0",
+          "doc": "Width of a base tile in project units. Zero uses the legacy cell size.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "extentInTiles",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Base tiles from the zone centre to each edge. Zero inherits the old ring extent on that axis."
+        },
+        {
+          "key": "tessellationFactor",
+          "type": "number",
+          "default": "3",
+          "doc": "A tile has two to this power cells per side. Controls vertex density independently of tile size.",
+          "range": "1–6, step 1"
+        },
+        {
+          "key": "lodScale",
+          "type": "number",
+          "default": "1",
+          "doc": "Split distance in tile widths. Larger values retain more detail farther from the eye.",
+          "range": "0.5–4, step 0.1"
+        },
+        {
+          "key": "forceCollapseDensityLevel",
+          "type": "number",
+          "default": "-1",
+          "doc": "First level allowed to merge partially wet tiles. -1 retains the shoreline silhouette.",
+          "range": "-1–9, step 1"
+        },
+        {
           "key": "ripples",
           "type": "number",
           "default": "0",
@@ -12241,20 +12303,20 @@
           "key": "farDistance",
           "type": "boolean",
           "default": "true",
-          "doc": "Past the rings, draw a flat sea out to the far distance extent, so an ocean reaches the horizon instead of ending in a straight line where the rings stop. It has no waves of its own: it is the open sea at its level, seen from far away."
+          "doc": "Extend the ocean from the tiled region to the far distance using a flat, eight-triangle mesh just below sea level."
         },
         {
           "key": "farDistanceExtent",
           "type": "number",
           "default": "8000000",
-          "doc": "How far from the camera the far distance mesh reaches, in world units. Large enough to fill the gap between the rings and the horizon from every height the camera goes to.",
+          "doc": "Distance from the centre of the tiled surface to the outer edge of the far mesh, in project units.",
           "range": "≥ 1"
         },
         {
           "key": "farDistanceMaterial",
           "type": "Asset<material>",
           "default": "none",
-          "doc": "The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty draws it with the zone water material."
+          "doc": "The material the far distance mesh is drawn with: a cheaper one on the Water shader, matched to the ocean so the two meet without a seam. Empty uses the deep colour and sky reflection of the zone water."
         },
         {
           "key": "farMeshWithoutOcean",
@@ -12276,6 +12338,12 @@
         "cellSize",
         "cells",
         "rings",
+        "tileSize",
+        "extentInTiles.x",
+        "extentInTiles.y",
+        "tessellationFactor",
+        "lodScale",
+        "forceCollapseDensityLevel",
         "ripples",
         "rippleSize",
         "rippleSpeed",

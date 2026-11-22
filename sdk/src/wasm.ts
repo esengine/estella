@@ -734,6 +734,7 @@ export interface ESEngineModule {
     renderer_getTargetTexture(handle: number): number;
     renderer_queueMaterialBake(material: number, shader: number, target: number, x: number, y: number, w: number, h: number,
                                a0: number, a1: number, a2: number, a3: number, b0: number, b1: number, b2: number, b3: number): number;
+    renderer_projectMaterialBake?(ticket: number, material: number, target: number, instances: number): boolean;
     renderer_materialBakeState(ticket: number): number;
     renderer_getTargetDepthTexture(handle: number): number;
     /**

@@ -240,6 +240,12 @@ export function shutdownMaterialAPI(): void {
     }
 }
 
+/** Whether a runtime parameter can be bound on this material. @internal */
+export function materialDeclaresUniform(material: MaterialHandle, name: string): boolean {
+    const shader = shaderOf(material);
+    return shader !== undefined && declaredParams.get(shader)?.has(name) === true;
+}
+
 /** The shader a material draws with — its own, or the one it inherits as an instance. */
 function shaderOf(handle: MaterialHandle): ShaderHandle | undefined {
     let data = materials.get(handle);

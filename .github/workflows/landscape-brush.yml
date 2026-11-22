@@ -24,7 +24,7 @@ jobs:
   editor:
     name: Landscape brushes, splines and paint in the editor
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       # Replays default to the original source. A current-source replay verifies all native runtime inputs first.
       - name: Identify the recorded build
@@ -90,6 +90,18 @@ jobs:
         timeout-minutes: 4
         working-directory: desktop
         run: xvfb-run -a node scripts/editor-checks/run.mjs landscape-paint
+      - name: Verify water zone authoring and water-only wireframes
+        if: github.event_name != 'workflow_dispatch' || inputs.current_source
+        working-directory: desktop
+        env:
+          OUT: ${{ runner.temp }}/landscape-captures
+        run: xvfb-run -a node scripts/editor-checks/run.mjs water-zone-mesh
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.current_source) }}
+        with:
+          name: water-zone-inspector
+          path: ${{ runner.temp }}/landscape-captures/water-zone-*.png
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:

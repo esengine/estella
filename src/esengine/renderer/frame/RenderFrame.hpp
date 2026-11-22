@@ -394,6 +394,8 @@ public:
     /** @brief A bake's state: 0 waiting, 1 drawn, -1 not drawable (no target, shader or material, or no post-processing in this build). A
      *         drawn or failed ticket is forgotten once asked. */
     i32 materialBakeState(u32 ticket);
+    void cancelMaterialBakesFor(u32 target);
+    bool projectMaterialBake(u32 ticket, u32 material, u32 target, u32 instances);
 
     const Stats& stats() const { return stats_; }
     FrameCapture& frameCapture() { return frame_capture_; }
@@ -723,9 +725,10 @@ private:
     u64 skin_cache_frame_ = ~0ull;
     void declareSkinCache(ecs::Registry& registry);
     RenderTargetManager target_manager_;
-    struct MaterialBake { u32 ticket; u32 material; u32 shader; u32 target; u32 x, y, w, h; glm::vec4 a, b; };
+    struct MaterialBake { u32 ticket; u32 material; u32 shader; u32 target; u32 x, y, w, h; glm::vec4 a, b; u32 projection = 0, receiver = 0, instances = 0; };
     /// Bakes asked for and not yet declared, and each ticket's state (0 waiting, 1 drawn, -1 failed).
     std::vector<MaterialBake> material_bakes_;
+    std::vector<rg::ResourceId> projected_bake_resources_;
     std::unordered_map<u32, i32> material_bake_states_;
     u32 next_material_bake_ = 1;
     u32 material_bakes_drawn_ = 0;

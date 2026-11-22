@@ -37,10 +37,11 @@ A `WaterZone` says where the water is drawn, how finely, and what every body sha
 |---|---|
 | `sizeX`, `sizeZ` | The region baked. Water outside it is not drawn; an ocean goes on past it. |
 | `resolution` | Texels along the region's longer side: how finely shores and rivers are traced. |
-| `material` | A material on the Water shader for the whole surface. Empty uses the stock water. |
+| `material` | Default surface material for bodies that inherit the zone look. Empty selects the stock Water shader. |
 | `waveLength`, `waveSpeed`, `waveDirection` | The waves every body shares ([Waves](#waves)). |
 | `surf`, `surfLength` | The surf breaking on the shores: how high a breaker stands against its body's waves (0 draws none), and the length of the surf's waves ([Surf](#surf)). |
-| `cellSize`, `cells`, `rings` | The surface's mesh: the cell size of its finest ring, cells along a ring's side, and how many rings ([Geometry](#geometry)). |
+| `tileSize`, `extentInTiles` | Base tile width in project units and tile counts from the zone centre to either edge along world X and Z. |
+| `tessellationFactor`, `lodScale`, `forceCollapseDensityLevel` | Subdivision within a tile, the distance at which the next detail level starts and the first level allowed to merge mixed shore tiles. See [Geometry](#geometry). |
 | `ripples`, `rippleSize`, `rippleSpeed`, `rippleDamping`, `foamFade` | The ripples the zone keeps ([Ripples](#ripples)). |
 
 The zone bakes every body over its region into a grid, each texel holding what the water is there:
@@ -72,8 +73,7 @@ and a river hardly at all). They **move the geometry**:
 the shader lifts each vertex by the wave height, and the fragment takes the slope per pixel from the same formula, so the lit surface is the one that is drawn and
 the silhouette against the sky rises and falls with the waves.
 
-The waves are measured on the world's xz plane and lift the surface straight up. Parameters are in world units: a scene in metres wants the defaults, one in
-centimetres wants the lengths scaled.
+The waves are measured on the world's xz plane and lift the surface straight up. Wavelength and height use project units. Gravity uses 9.8 metres per second squared converted to those units, so the same physical wavelength has the same period in metre and centimetre projects.
 
 ## Surf
 
@@ -92,15 +92,11 @@ against rock and cliffs, wash up a gentle beach in a thin line, and run up only 
 
 ## Geometry
 
-The whole surface is one mesh: rings of the same number of cells (`cells` a side), the finest of `cellSize` cells, each twice as coarse as the one inside it
-with a hole where that one sits, so it reaches `cells * cellSize * 2^(rings - 1) / 2` from its centre and spends its triangles near. It follows the camera on a
-lattice all its rings line up on, and the material's origin moves by as much, so the water stays put in the world while the mesh moves under it. Its vertex hook
-reads the zone's field at each vertex (the heights texel by texel, decoded and then blended) and lifts the vertex to the water's height there plus its waves; the
-pixels where the field says there is no water are cut.
+The zone traverses a quadtree over the shared ocean, river and lake surface. A fully dry tile is skipped. The active view sees fine tiles near the eye and progressively coarser ones in the distance. Their triangles alternate diagonals. Fine edges use their coarse neighbours’ actual vertices, and vertices gradually move onto the parent lattice as the camera travels. Mixed shoreline tiles stay detailed with `forceCollapseDensityLevel = -1`. The final shoreline follows the baked water field.
 
-A coarse ring cannot draw a short wave: below three cells to a wavelength it would alias, so its vertices fade out the waves shorter than six of
-its cells (the shading still shows them, per pixel). Where two rings meet, the coarse one has half the vertices along the edge, and the surfaces
-can part by what the waves do between them; keep `waveLength` at least six of the coarsest visible ring's cells and there is no seam to see.
+A base tile has `2 ** tessellationFactor` cells per side. `lodScale` changes the split distance independently of tile size and extent. A scene saved with only `cellSize`, `cells` and `rings` inherits its previous scale and coverage. In **Water Zone → Mesh**, switch between the shaded surface, displaced wireframe and base-height wireframe. Both wireframes show the indexed triangles submitted by the renderer.
+
+**Far Distance** adds four flat strips below the ocean level. Set the extent and an optional separate far material there. The default far shader uses the deep-water colour and sky reflection. Each body can override `waterMaterial` and `underwaterMaterial`. A river also has `riverToLakeMaterial` and `riverToOceanMaterial` for its junctions. Surface materials share the Water shader’s displacement contract and meet on the same geometry.
 
 ## Lakes and shores
 
@@ -247,9 +243,7 @@ and the post-process volume system adds an **Underwater** effect for as long as 
 - **A waterline across the lens.** Each pixel is asked whether its place on the camera's near plane is below the surface at the camera, so a camera with its lens half in the water has
   a dry upper half and a wet lower half with a soft line between them (`u_band`, a twelfth of the near plane), and crossing the surface is the line sliding up the lens and not a cut.
   The effect is on from a couple of near planes above the surface down.
-- **The sun through the waves.** What the camera sees is lit by the web of bright threads the waves focus the sun into: the same pattern the surface draws from above (`u_causticStrength`,
-  `u_causticScale`, `u_causticSpeed` on the Water material, which the effect is given), on what faces the sun and is not in its shadow, less the further the sun's light went through
-  the water to reach it. It follows the first directional light, and its shadow map where there is one.
+- **The sun through the waves.** The renderer refracts sunlight through the current wave field and accumulates transmitted flux at multiple receiver depths. Fish and the bed sample this field at their world positions. Surface orientation, shadows and absorption along the optical path determine the light reaching each receiver.
 - **Light shafts.** The water along each ray scatters the sun toward the camera: the pattern is marched along the ray in 24 steps, each lit where the shadow map says the sun reaches it
   and as much as the water above it lets through, which is what makes shafts (`u_shaftStrength`, `u_shaftRange`). It costs 24 taps a pixel in the water.
 - **Yours if you wrote it.** A scene that authors an `underwater` effect in a volume keeps its numbers; only the camera's depth and how wholly it is under are filled in.
@@ -298,10 +292,11 @@ A zone's region has no handles: set its size in Details.
 
 ## Quality levels
 
-Water spends what the project's quality level says it may. The five fields are in each level's profile (`project.esproject`, `features.rendering.quality.profiles`), and a project can change what a level means. **Project Settings → Rendering → Level · Water** edits them for the level chosen under Editing level; the group is hidden while quality is off or the project excludes the water module.
+Water spends what the project's quality level says it may. The water settings are in each level's profile (`project.esproject`, `features.rendering.quality.profiles`), and a project can change what a level means. **Project Settings → Rendering → Level · Water** edits them for the level chosen under Editing level; the group is hidden while quality is off or the project excludes the water module.
 
 | Field | Low | Medium | High | What it does |
 |---|---|---|---|---|
+| `waterCausticFieldSize` | 0 | 128 | 256 | Samples per side of the projected wave field. Zero selects the procedural approximation when caustics are enabled. |
 | `waterWaves` | 3 | 5 | 8 | How many of the eight waves are summed, longest first: in the geometry, the shading, and what `Waters.sample` answers. |
 | `waterRippleCells` | 32 | 64 | 128 | The most cells along a side of the ripple grid; the zone's own `ripples` is held to it, and 0 keeps none. |
 | `waterDisplacement` | off | on | on | Whether the waves lift the geometry. Off is the **lite water**: a surface at the water's rest height whose waves are in the shading only. |
@@ -337,8 +332,7 @@ differ by the short waves, which are small.
 default (0) the waves are measured on the world's xz plane, nothing is lifted and the surface is taken to lie flat. The zone turns it to 1: the mesh's uv
 is its x and z, `u_origin` is where the mesh was moved to as it follows the camera, and the vertices are lifted to the zone's water and its waves.
 
-- **Caustics.** `u_causticStrength` (0 turns them off), `u_causticScale` (the size of one cell, in world units) and `u_causticSpeed` shape the web of light on what is under the water, seen from
-  above and, through the effect, from below.
+- **Caustics.** `u_causticStrength` scales receiver light from either side. With a positive `waterCausticFieldSize`, wave shape, time and sunlight move the pattern. `u_causticScale`, `u_causticSpeed` and noise layers apply to the procedural approximation when field size is zero.
 - **Waves.** `u_waveLength`, `u_waveHeight`, `u_waveSpeed`, `u_waveDirection`; the ripples the wind raises (`u_rippleStrength`, `u_rippleLength`) ride
   on them: three layers of a tiling map of ripples the engine makes (`default(ripples)`, or the material's own `u_detailMap`), at sizes that share no
   multiple so no repeat shows, each carried downwind, their mips flattening what a pixel cannot hold. `u_rippleTile` is the map's repeat in ripple lengths,
@@ -390,15 +384,14 @@ What is not there yet, so nobody is surprised:
   that have both. A blended draw with no depth test, or one that crosses the surface, is drawn whole on both sides of it, and one in front of the water is seen through it a second time, faintly,
   as the picture the water refracts holds it.
 - Water is horizontal: a body may be turned about its up, not tilted, and the surface is one height at each place, so there is no water over water.
-- One zone is used, the first `WaterZone` found, with one material for all of its water, and one ocean, the first found. Water outside the zone's region is not drawn, except the ocean.
+- One zone is used, the first `WaterZone` found, with independent body material slots, and one ocean, the first found. Water outside the zone's region is not drawn, except the ocean.
   A shore or a river is traced at the zone's resolution: a river a texel or two wide, or an outline's detail finer than that, is lost, and a large region wants a high `resolution`.
-- The surface reaches `cells * cellSize * 2^(rings - 1) / 2` from the camera; with a `WaterZone` of your own, make that cover what should be seen (a zone you did not author grows its cells to do it).
+- The tiled extent along each axis is measured from the zone centre. An ocean authored with legacy ring parameters retains a moving window.
 - A river cuts its bed only when `bedDepth` is above zero (see [Its bed](#rivers)); rapids and falls are not foamed by how fast or steep the water runs. A lake's outline is a polygon on a plane: it does not follow a curved
   shore.
 - Things float (see [Floating](#floating)) and make a wake (see [Ripples](#ripples)); nothing swims yet.
-- Caustics and shafts follow the first directional light only, from a pattern and not a simulation: the web does not respond to the actual shape of the waves. From above the caustics
-  take what is under the water to face up (the picture holds no normals there), so a wall under the surface is lit as a floor would be.
-- The mirror from below is screen-space: it shows only what the frame has on screen, and a ray that leaves the picture or meets nothing finds the water's own colour.
+- Caustics and shafts use the first directional light. The local projected field spans three wavelengths around the primary view, with sixteen depth slices spaced one eighth of the wavelength apart. It fades at the edge. Opaque depth supplies the receiver position and normal.
+- The mirror from below is screen-space: it shows only what the frame has on screen, and a ray that leaves the picture or meets nothing uses the lit water environment.
 - Ripples only bend the shading and carry foam: they do not lift the geometry, and they are one window following the camera, so water far from the camera keeps none and two cameras
   in a split screen share the first's. Foam that a ripple leaves is not carried by a river's current, and the waves the geometry is lifted by are not carried by it either (only the shading's).
 - The waves are eight peaked sines spread about the wind, not a simulated spectrum, and they lift the surface without pushing it sideways.

@@ -5,7 +5,7 @@
 
 namespace esengine {
 
-void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter) {
+void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter, bool floatColor) {
     width_ = width;
     height_ = height;
     has_depth_ = depth;
@@ -16,8 +16,13 @@ void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bo
     spec.height = height;
     spec.depthStencil = depth;
     spec.linearFilter = linearFilter;
+    if (floatColor && device.supportsFloatTargets()) spec.colorFormat = GfxPixelFormat::RGBA16F;
 
     framebuffer_ = Framebuffer::create(device, spec);
+    if (!framebuffer_ && floatColor) {
+        spec.colorFormat = GfxPixelFormat::RGBA8;
+        framebuffer_ = Framebuffer::create(device, spec);
+    }
     device_ = &device;
 }
 
@@ -62,7 +67,7 @@ FramebufferHandle RenderTarget::getFramebuffer() const {
     return framebuffer_ ? framebuffer_->handle() : FramebufferHandle::Default;
 }
 
-RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter) {
+RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter, bool floatColor) {
     Handle handle;
 
     if (!free_list_.empty()) {
@@ -74,7 +79,7 @@ RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, b
     }
 
     auto target = makeUnique<RenderTarget>();
-    target->init(*device_, width, height, depth, linearFilter);
+    target->init(*device_, width, height, depth, linearFilter, floatColor);
 
     usize index = handle - 1;
     if (index < targets_.size()) {

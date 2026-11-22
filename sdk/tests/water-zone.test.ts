@@ -20,6 +20,20 @@ const ocean = (level = -5): ZoneOcean => ({ kind: 'ocean', key: 3, level, waveHe
 const grid: ZoneGrid = { minX: -80, minZ: -40, sizeX: 120, sizeZ: 80, nx: 241, nz: 161 };
 const bake = (bodies: ZoneBody[], ground?: (x: number, z: number) => number | null): WaterField => WaterField.bake(grid, bodies, ground);
 
+describe('surface and junction materials', () => {
+    it('uses the body material in its interior and the river junction material at the lake edge', () => {
+        const stream = { ...river(), material: 12, riverToLake: 23, riverToOcean: 27 };
+        const sea = { ...ocean(), material: 5 };
+        const field = bake([stream, lake({ material: 17 }), sea]);
+        expect(field.materialAt(0, 0)).toBe(17);
+        expect(field.materialAt(-44, 0)).toBe(12);
+        expect(field.materialAt(-19, 0)).toBe(23);
+        expect(field.materialAt(-44, 3)).toBe(27);
+        expect(field.materialAt(-100, -60)).toBe(5);
+        expect(bake([lake()]).materialTable).toBeUndefined();
+    });
+});
+
 describe('the outline of a lake', () => {
     it('is the signed distance to its edge, positive inside', () => {
         expect(polygonSdf(square, 0, 0)).toBeCloseTo(20, 6);

@@ -13,6 +13,9 @@
  *          The effect itself (its shader and its definition) is registered by the water module: a build with no water has no state to report
  *          and carries none of it.
  */
+import { Material } from '../render/material';
+import { runtimeTextureRef } from './runtimeTextures';
+import type { OpticalField, CausticBodies } from '../water/opticalField';
 import type { BlendedEffect, Rgba } from './volumeBlending';
 
 /** How a camera is under water. */
@@ -36,6 +39,12 @@ export interface UnderwaterState {
     causticSpeed: number;
     /** Whether the sun's light is drawn through the water (the web on what is seen, the shafts). The quality level turns it off; absent is on. */
     light?: boolean;
+    /** Stable rest level for sunlight; the local tangent plane is only for the waterline. */
+    level?: number;
+    opticalField?: OpticalField | null;
+    waveCaustics?: boolean;
+    material?: number;
+    causticBodies?: CausticBodies | null;
 }
 
 let current: UnderwaterState | null = null;
@@ -64,13 +73,41 @@ export function applyUnderwaterToEffects(effects: Map<string, BlendedEffect>, st
     }
     if (!effect.enabled) return;
     const colour = (c: [number, number, number]): Rgba => ({ r: c[0], g: c[1], b: c[2], a: 1 });
+    // Explicit volume overrides win per parameter. A volume that authors only shafts
+    // still inherits the water material's optical settings.
+    if (state.material) {
+        effect.shader = Material.getShader(state.material);
+        for (const [name,value] of Material.getUniforms(state.material)) {
+            if (effect.uniforms.has(name) || effect.colors.has(name) || effect.textures.has(name)) continue;
+            if (typeof value === 'number') effect.uniforms.set(name,value);
+            else if ('__textureRef' in value) effect.textures.set(name,runtimeTextureRef(name,value.textureId));
+            else if ('x' in value) effect.colors.set(name,{r:value.x,g:value.y,b:'z' in value ? value.z : 0,a:'w' in value ? value.w : 0});
+        }
+    }
     if (!authored) {
-        effect.colors.set('u_absorption', colour(state.absorption));
-        effect.colors.set('u_scatterColor', colour(state.scatter));
-        effect.uniforms.set('u_density', state.density);
-        effect.uniforms.set('u_causticStrength', state.causticStrength);
-        effect.uniforms.set('u_causticScale', state.causticScale);
-        effect.uniforms.set('u_causticSpeed', state.causticSpeed);
+        if (!effect.colors.has('u_absorption')) effect.colors.set('u_absorption', colour(state.absorption));
+        if (!effect.colors.has('u_scatterColor')) effect.colors.set('u_scatterColor', colour(state.scatter));
+        if (!effect.uniforms.has('u_density')) effect.uniforms.set('u_density', state.density);
+    }
+    const bodies = !effect.uniforms.has('u_causticStrength') && state.light !== false ? state.causticBodies : null;
+    if (bodies) {
+        effect.textures.set('u_zoneSurfaceData', runtimeTextureRef('waterSurfaceData', bodies.texture));
+        effect.colors.set('u_causticBodyRect', { r: bodies.rect.x, g: bodies.rect.y, b: bodies.rect.z, a: bodies.rect.w });
+        effect.colors.set('u_causticBodyOcean', { r: bodies.ocean.x, g: bodies.ocean.y, b: bodies.ocean.z, a: bodies.ocean.w });
+    } else {
+        effect.colors.set('u_causticBodyOcean', { r: 0, g: 0, b: 0, a: 0 });
+    }
+    if (!effect.uniforms.has('u_causticStrength')) effect.uniforms.set('u_causticStrength', state.causticStrength);
+    if (!effect.uniforms.has('u_causticScale')) effect.uniforms.set('u_causticScale', state.causticScale);
+    if (!effect.uniforms.has('u_causticSpeed')) effect.uniforms.set('u_causticSpeed', state.causticSpeed);
+    effect.uniforms.set('u_managedSurface', state.level === undefined ? 0 : 1);
+    effect.uniforms.set('u_causticLevel', state.level ?? 0);
+    const field = state.opticalField;
+    const rect = field?.rect;
+    effect.colors.set('u_causticRect', { r: rect?.x ?? 0, g: rect?.y ?? 0, b: rect?.z ?? (state.waveCaustics ? -1 : 0), a: rect?.w ?? 0 });
+    if (field) {
+        effect.textures.set('u_causticField', runtimeTextureRef('waterOpticalSurface', field.texture));
+        effect.colors.set('u_causticElevation', { r: field.elevation.x, g: field.elevation.y, b: field.elevation.z, a: field.elevation.w });
     }
     if (state.light === false) {
         effect.uniforms.set('u_causticStrength', 0);

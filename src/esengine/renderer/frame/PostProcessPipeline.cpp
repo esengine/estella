@@ -227,6 +227,10 @@ void PostProcessPipeline::shutdown() {
     feedback_.clear();
 
     auto* device = &device_;
+    if (projected_triangle_indices_ != BufferHandle::Invalid && device) {
+        device->deleteBuffer(projected_triangle_indices_);
+        projected_triangle_indices_ = BufferHandle::Invalid;
+    }
     if (screen_quad_vbo_ != BufferHandle::Invalid && device) {
         device->deleteBuffer(screen_quad_vbo_);
         screen_quad_vbo_ = BufferHandle::Invalid;
@@ -925,7 +929,33 @@ void PostProcessPipeline::drawScreenQuad() {
     device_.drawArrays(0, 3);
 }
 
-void PostProcessPipeline::applyPassPipeline(const Shader& shader, bool over) {
+bool PostProcessPipeline::drawProjectedMaterial(u32 material, u32 instances, u32 scratch) {
+    const auto ref = context_.materials().shaderOf(material);
+    Shader* shader = resourceManager_.getShader(ref);
+    if (!shader || !context_.materials().layoutFor(ref)) return false;
+    if (projected_triangle_indices_ == BufferHandle::Invalid) {
+        const u16 triangle[] = {0, 1, 2};
+        projected_triangle_indices_ = device_.createBuffer({GfxBufferUsage::Index, sizeof(triangle), false},
+                                                           GfxContent::retained(), triangle);
+        if (projected_triangle_indices_ == BufferHandle::Invalid) return false;
+    }
+    applyPassPipeline(*shader, false, true);
+    // The collected light list includes environment-following suns, visibility and the view's light selection.
+    glm::vec4 sun(0.0f);
+    for (const auto& light : context_.lights().data().lights) {
+        if (light.posDir.z > 0.5f && light.posDir.z < 1.5f && light.color.a > 0.0f) {
+            sun = glm::vec4(-glm::normalize(glm::vec3(light.posDir.x, light.posDir.y, light.posDir.w)), 1.0f);
+            break;
+        }
+    }
+    if (!context_.materials().bindThrough(material, ref, {{"u_bakeSun", sun}}, scratch)) return false;
+    device_.setVertexBuffer(0, screen_quad_vbo_, 0);
+    device_.setIndexBuffer(projected_triangle_indices_);
+    device_.drawElementsInstanced(3, GfxDataType::UnsignedShort, 0, instances);
+    return true;
+}
+
+void PostProcessPipeline::applyPassPipeline(const Shader& shader, bool over, bool additive) {
     ensureScreenQuad();
     // Fullscreen passes overwrite every pixel: no blend, no depth, no stencil. The one exception is the present of a
     // camera that keeps the colour under it, which lays its picture over by coverage. The capture was cleared to
@@ -933,8 +963,9 @@ void PostProcessPipeline::applyPassPipeline(const Shader& shader, bool over) {
     PipelineDesc desc{};
     desc.program = shader.handle();
     desc.vertexLayout = screen_quad_layout_;
-    desc.blendEnabled = over;
-    if (over) desc.blend = BlendMode::PremultipliedAlpha;
+    desc.blendEnabled = over || additive;
+    if (additive) desc.blend = BlendMode::PmaAdditive;
+    else if (over) desc.blend = BlendMode::PremultipliedAlpha;
     desc.depthTest = false;
     desc.depthWrite = false;
     device_.setPipeline(device_.createPipeline(desc));

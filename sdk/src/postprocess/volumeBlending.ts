@@ -18,6 +18,8 @@ export interface ActiveVolume {
 }
 
 export interface BlendedEffect {
+    /** Optional shader from an authored single-pass effect material. */
+    shader?: number;
     enabled: boolean;
     uniforms: Map<string, number>;
     /** Texture params (sampler uniform -> serialized texture ref). Textures don't

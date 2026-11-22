@@ -18,6 +18,7 @@
     "./dist/spine/index.js",
     "./dist/tilemap/index.js",
     "./dist/terrain/index.js",
+    "./dist/shared/terrain.js",
     "./dist/timeline/index.js",
     "./dist/fx-basic/index.js",
     "./dist/fx-atmosphere/index.js",

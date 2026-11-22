@@ -9532,6 +9532,7 @@ voxelGIGridSize: 32 | 64 | 128
 voxelGIResolution: number
 voxelGISunSamples: number
 voxelRebuildBudgetMs: number
+waterCausticFieldSize: number
 waterCausticLayers: number
 waterCaustics: boolean
 waterDisplacement: boolean
@@ -10068,6 +10069,7 @@ number
 ```
 _depth: boolean
 _filter: "linear" | "nearest"
+_floatColor: boolean | undefined
 _generation: number
 _handle: number
 height: number
@@ -10080,6 +10082,7 @@ width: number
 ```
 depth: boolean | undefined
 filter: "linear" | "nearest" | undefined
+floatColor: boolean | undefined
 height: number
 width: number
 ```
@@ -10098,7 +10101,7 @@ UIElement = 7
 
 ## Renderer — const @experimental
 ```
-{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; setOrigin(x: number, y: number, z: number): void; setParallaxAnchor(set: boolean, x?: number, y?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; endFrame(): void; hasScreenOverlay(): boolean; beginScreenOverlay(projection: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): void; submitScreenOverlay(registry: { _cpp: CppRegistry; }): void; keepScreenOverlay(registry: { _cpp: CppRegistry; }, hostStill: boolean): boolean; hasScreenOverlayEffect(): boolean; setScreenOverlayEffect(material: number): void; endScreenOverlay(target?: RenderTargetHandle): void; drawOverScreen(vpX: number, vpY: number, vpW: number, vpH: number, target?: RenderTargetHandle): void; hasDrawOverScreen(): boolean; submitAll(registry: { _cpp: CppRegistry; }, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; bakeMaterial(material: number, shader: number, target: RenderTargetHandle, x: number, y: number, w: number, h: number, a: readonly [number, number, number, number], b: readonly [number, number, number, number]): number; bakeState(ticket: number): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setSkinCache(config: SkinCacheConfig | undefined): void; skinCacheStats(): { active: boolean; meshes: number; bytes: number; refused: number; posed: number; draws: number; }; setDepthLayers(mask: number): void; setTreeSortLayers(mask: number): void; setCullingMask(mask: number): void; setViewId(view: number): void; lodInspect(view: number, entity: number): LodDecision | null; clusterInspect(entity: number): ClusterDraw | null; framePending(): boolean; setLodPreview(view: number, entity: number, level: number | null): void; setViewShading(view: number, mode: ViewShading): void; setViewSelection(view: number, entities: readonly number[]): void; outlinesSelection(): boolean; setMeshEdgeBuffers(enabled: boolean): void; setViewSkinWeights(view: number, entity: number | null, joint?: number): void; lightStatus(entity: number): LightStatus | null; shadowStatus(entity: number): ShadowStatus | null; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; snapshotMatchesCapture(): boolean; }
+{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; setOrigin(x: number, y: number, z: number): void; setParallaxAnchor(set: boolean, x?: number, y?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; endFrame(): void; hasScreenOverlay(): boolean; beginScreenOverlay(projection: Float32Array, vpX: number, vpY: number, vpW: number, vpH: number): void; submitScreenOverlay(registry: { _cpp: CppRegistry; }): void; keepScreenOverlay(registry: { _cpp: CppRegistry; }, hostStill: boolean): boolean; hasScreenOverlayEffect(): boolean; setScreenOverlayEffect(material: number): void; endScreenOverlay(target?: RenderTargetHandle): void; drawOverScreen(vpX: number, vpY: number, vpW: number, vpH: number, target?: RenderTargetHandle): void; hasDrawOverScreen(): boolean; submitAll(registry: { _cpp: CppRegistry; }, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; bakeMaterial(material: number, shader: number, target: RenderTargetHandle, x: number, y: number, w: number, h: number, a: readonly [number, number, number, number], b: readonly [number, number, number, number]): number; bakeState(ticket: number): number; projectMaterialBake(ticket: number, material: number, target: number, instances: number): boolean; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setSkinCache(config: SkinCacheConfig | undefined): void; skinCacheStats(): { active: boolean; meshes: number; bytes: number; refused: number; posed: number; draws: number; }; setDepthLayers(mask: number): void; setTreeSortLayers(mask: number): void; setCullingMask(mask: number): void; setViewId(view: number): void; lodInspect(view: number, entity: number): LodDecision | null; clusterInspect(entity: number): ClusterDraw | null; framePending(): boolean; setLodPreview(view: number, entity: number, level: number | null): void; setViewShading(view: number, mode: ViewShading): void; setViewSelection(view: number, entities: readonly number[]): void; outlinesSelection(): boolean; setMeshEdgeBuffers(enabled: boolean): void; setViewSkinWeights(view: number, entity: number | null, joint?: number): void; lightStatus(entity: number): LightStatus | null; shadowStatus(entity: number): ShadowStatus | null; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; snapshotMatchesCapture(): boolean; }
 ```
 
 ## ReplayReport — interface @experimental
@@ -15058,6 +15061,8 @@ form: number
 innerSmoothDistance: number
 outerSmoothDistance: number
 overlapPriority: number
+riverToLakeMaterial: number
+riverToOceanMaterial: number
 shapeDilation: number
 shapeMesh: number
 shoreWidth: number
@@ -15080,8 +15085,10 @@ underwaterColor: { r: number; g: number; b: number; a: number; }
 underwaterDensity: number
 underwaterEnabled: boolean
 underwaterLook: number
+underwaterMaterial: number
 underwaterPriority: number
 waterColor: { r: number; g: number; b: number; a: number; }
+waterMaterial: number
 waveAttenuationDepth: number
 waveHeight: number
 ```
@@ -15092,15 +15099,21 @@ amp: Float32Array<ArrayBufferLike>
 at: (x: number, z: number) => FieldSample | null
 audio: Float32Array<ArrayBufferLike>
 calm: Float32Array<ArrayBufferLike>
+causticLook: Float32Array<ArrayBufferLike>
+causticRange: number
 depth: Float32Array<ArrayBufferLike>
 encode: (r: ZoneRanges) => { heights: Uint8Array; field: Uint8Array; exposure: Uint8Array; look: Uint8Array; }
 exposure: Float32Array<ArrayBufferLike>
 flowX: Float32Array<ArrayBufferLike>
 flowZ: Float32Array<ArrayBufferLike>
 grid: ZoneGrid
+hasCausticLook: boolean
 height: Float32Array<ArrayBufferLike>
 look: Float32Array<ArrayBufferLike>
 lookShare: Float32Array<ArrayBufferLike>
+materialAt: (x: number, z: number) => number
+materialTable: Uint32Array<ArrayBufferLike> | undefined
+materials: Set<number>
 ocean: ZoneOcean | null
 owner: Int32Array<ArrayBufferLike>
 query: () => WaterQuery
@@ -15154,11 +15167,14 @@ ComponentDef<WaterZoneData>
 ```
 cellSize: number
 cells: number
+extentInTiles: { x: number; y: number; }
 farDistance: boolean
 farDistanceExtent: number
 farDistanceMaterial: number
 farMeshWithoutOcean: boolean
 foamFade: number
+forceCollapseDensityLevel: number
+lodScale: number
 material: number
 resolution: number
 rings: number
@@ -15170,6 +15186,8 @@ sizeX: number
 sizeZ: number
 surf: number
 surfLength: number
+tessellationFactor: number
+tileSize: number
 waveDirection: number
 waveLength: number
 waveSpeed: number
@@ -15222,10 +15240,12 @@ z: number
 ```
 @internal app_: App | null
 @internal bodies_: readonly ZoneBody[]
+@internal causticBodies_: CausticBodies | null
 @internal exclusions_: readonly ZoneExclusion[]
 @internal field_: WaterField | null
 @internal influences_: Map<number, { islands: number[]; exclusions: number[]; }>
 @internal instance_: number
+@internal opticalField_: OpticalField | null
 @internal revision_: number
 @internal ripples_: RippleField | null
 @internal zoneEntity_: number | null
@@ -15239,6 +15259,8 @@ disturb: (x: number, y: number, z: number, radius: number, strength: number) => 
 empty: boolean
 heightAt: (x: number, z: number) => number | null
 influencesOf: (entity: Entity) => { islands: Entity[]; exclusions: Entity[]; zone: Entity | null; }
+meshStats: { tiles: number; triangles: number; }
+meshView: 0 | 2 | 1
 quality: WaterQuality
 queryData: () => WaterQueryData | null
 rippleAt: (x: number, _y: number, z: number) => number

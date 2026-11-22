@@ -106,7 +106,7 @@ export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
  * uses the module that ships it — with no component in a scene to say so (a Water material on a plain mesh, a character's Hair).
  */
 export const SHADER_SUBSYSTEM: Readonly<Record<string, Subsystem>> = {
-    'builtin:water': 'water', 'builtin:terrain': 'terrain', 'builtin:foliage': 'foliage', 'builtin:voxel-ground': 'voxel',
+    'builtin:water': 'water', 'builtin:underwater': 'water', 'builtin:terrain': 'terrain', 'builtin:terrain-layers': 'terrain', 'builtin:foliage': 'foliage', 'builtin:voxel-ground': 'voxel',
     'builtin:hair': 'characterShaders', 'builtin:skin': 'characterShaders', 'builtin:eye': 'characterShaders',
 };
 

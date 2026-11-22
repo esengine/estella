@@ -22,7 +22,7 @@ public:
 
     /** A target's rows are bottom-up on every backend (WebGPU turns clip y over to lay them so), so the texture drawn into is the
      *  one read: there is no turned copy to keep. */
-    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false);
+    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false, bool floatColor = false);
     void shutdown();
 
     void bind();
@@ -58,7 +58,7 @@ public:
     /** @brief Binds the device used to create render targets. Call once at setup. */
     void setDevice(GfxDevice& device) { device_ = &device; }
 
-    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false);
+    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false, bool floatColor = false);
     RenderTarget* get(Handle handle);
     void release(Handle handle);
 

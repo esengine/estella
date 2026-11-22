@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
+import { worldUnitsPerMeter } from '../src/ecs/worldUnits';
 import { WAVE_SET, WAVE_SET_HEIGHT, WAVE_SET_SIZE, waveBend, waveHeight, waveSlope, waveCount, type WaveParams } from '../src/water/waves';
 import { FULL_WATER, waterQualityOf } from '../src/water/waterPlugin';
 import { defaultQualityProfile, resolveQualityProfile, parseQualityConfig, MOST_WATER_WAVES } from '../src/render/quality';
@@ -41,7 +42,7 @@ describe('the wave count', () => {
         // The one wave is the set's first, at its own length and height.
         const k = 2 * Math.PI / 20, a = 30 * Math.PI / 180;
         const [bx, bz] = waveBend(x, z, 20);
-        const theta = k * (Math.sin(a) * bx + Math.cos(a) * bz) - Math.sqrt(9.8 * k) * t;
+        const theta = k * (Math.sin(a) * bx + Math.cos(a) * bz) - Math.sqrt(9.8 * worldUnitsPerMeter() * k) * t;
         expect(one).toBeCloseTo(WAVE_SET[0]![2] * Math.exp(Math.sin(theta) - 1), 9);
     });
 
@@ -65,11 +66,11 @@ describe('what a quality level allows water', () => {
 
     it('is the low profile on a minigame with no policy: flat, no mirror, no web of light', () => {
         const q = waterQualityOf(null, true);
-        expect(q).toEqual({ waves: 3, rippleCells: 32, displacement: false, mirror: false, caustics: false, reflectionSteps: 8, causticLayers: 2 });
+        expect(q).toEqual({ waves: 3, rippleCells: 32, displacement: false, mirror: false, caustics: false, reflectionSteps: 8, causticLayers: 2, causticFieldSize: 0 });
     });
 
     it('follows the profile of the level a project is at, so a project can change what a level means', () => {
-        expect(waterQualityOf(defaultQualityProfile('high'), false)).toEqual({ waves: WAVE_SET_SIZE, rippleCells: 128, displacement: true, mirror: true, caustics: true, reflectionSteps: 20, causticLayers: 3 });
+        expect(waterQualityOf(defaultQualityProfile('high'), false)).toEqual({ waves: WAVE_SET_SIZE, rippleCells: 128, displacement: true, mirror: true, caustics: true, reflectionSteps: 20, causticLayers: 3, causticFieldSize: 256 });
         const own = resolveQualityProfile('low', { waterMirror: true, waterDisplacement: true, waterWaves: 4 });
         expect(waterQualityOf(own, true)).toMatchObject({ waves: 4, displacement: true, mirror: true, caustics: false });
         // A profile wins over the minigame rule: the project said what it wants.

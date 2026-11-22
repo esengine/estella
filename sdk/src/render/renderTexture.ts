@@ -10,6 +10,8 @@ export interface RenderTextureOptions {
     width: number;
     height: number;
     depth?: boolean;
+    /** Prefer a blendable half-float target for linear radiance or data. */
+    floatColor?: boolean;
     filter?: 'nearest' | 'linear';
 }
 
@@ -27,6 +29,7 @@ export interface RenderTextureHandle {
     width: number;
     height: number;
     _depth: boolean;
+    _floatColor?: boolean;
     _filter: 'nearest' | 'linear';
     /** The device generation its pixels were drawn on — see {@link RenderTexture.contentLost}. */
     _generation: number;
@@ -48,7 +51,7 @@ export const RenderTexture = {
     create(options: RenderTextureOptions): RenderTextureHandle {
         const depth = options.depth ?? true;
         const linear = options.filter === 'linear';
-        const flags = (depth ? 1 : 0) | (linear ? 2 : 0);
+        const flags = (depth ? 1 : 0) | (linear ? 2 : 0) | (options.floatColor ? 8 : 0);
 
         const handle = Renderer.createRenderTarget(options.width, options.height, flags);
         if (handle === 0 && !warnedNoTarget) {
@@ -70,6 +73,7 @@ export const RenderTexture = {
             width: options.width,
             height: options.height,
             _depth: depth,
+            _floatColor: options.floatColor,
             _filter: linear ? 'linear' : 'nearest',
             _generation: deviceGeneration(),
         };
@@ -83,7 +87,7 @@ export const RenderTexture = {
 
     resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle {
         RenderTexture.release(rt);
-        return RenderTexture.create({ width, height, depth: rt._depth, filter: rt._filter });
+        return RenderTexture.create({ width, height, depth: rt._depth, filter: rt._filter, floatColor: rt._floatColor });
     },
 
     begin(rt: RenderTextureHandle, viewProjection: Float32Array): void {

@@ -129,7 +129,7 @@ function shapeSignature(effects: ResolvedEffects): string {
     let sig = '';
     for (const [type, data] of effects) {
         if (!data.enabled) continue;
-        sig += type + ':';
+        sig += type + ':' + (data.shader ?? 0) + ':';
         for (const k of data.uniforms.keys()) sig += k + ',';
         sig += '|';
         for (const [k, ref] of data.textures) sig += k + '=' + ref + ';';
@@ -168,7 +168,7 @@ function effectsSignature(effects: ResolvedEffects): string {
     let sig = '';
     for (const [type, data] of effects) {
         if (!data.enabled) continue;
-        sig += type + ':';
+        sig += type + ':' + (data.shader ?? 0) + ':';
         for (const [k, v] of data.uniforms) sig += k + '=' + v + ';';
         sig += '|';
         for (const [k, ref] of data.textures) sig += k + '=' + ref + ';';
@@ -312,7 +312,7 @@ function applyBlendedEffects(
             if (def.inline) stack.setEffect(effectType, effectType);
             for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
         } else if (def.factory) {
-            const shader = getOrCreateShader(api, effectType, def.factory);
+            const shader = effectData.shader || getOrCreateShader(api, effectType, def.factory);
             stack.addPass(effectType, shader);
             if (def.inline) stack.setEffect(effectType, effectType);
             for (const [uniformName, uniformValue] of effectData.uniforms) {

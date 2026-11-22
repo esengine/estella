@@ -100,6 +100,20 @@ export const WATER_SETTINGS = [
         },
     },
     {
+        key: 'waterCausticFieldSize',
+        type: 'number',
+        defaults: { low: 0, medium: 128, high: 256 },
+        min: 0, max: 512, step: 64, integer: true,
+        group: 'water',
+        preference: false,
+        requires: { waterCaustics: true },
+        label: { en: 'Wave caustic resolution', zh: '波面焦散分辨率' },
+        description: {
+            en: 'Texels per side of the local optical surface. Sunlight focuses according to the rendered waves. Zero uses the procedural approximation.',
+            zh: '附近水面光学场每边的纹素数。阳光按实际波浪聚焦，设为零时使用程序近似。',
+        },
+    },
+    {
         key: 'waterCausticLayers',
         type: 'number',
         defaults: { low: 2, medium: 3, high: MOST_WATER_CAUSTIC_LAYERS },
@@ -110,8 +124,8 @@ export const WATER_SETTINGS = [
         uniform: { effects: ['underwater'], name: 'u_causticLayers' },
         label: { en: 'Caustic layers', zh: '焦散层数' },
         description: {
-            en: 'How many scales of the web of light are laid over one another, the coarsest first, on what lies under the water and in the shafts. Each layer is two reads of noise per sample.',
-            zh: '光网叠几层尺度（从最粗的起），用于水下物体上的焦散和光柱。每层每个样本要读两次噪声。',
+            en: 'Number of noise scales used when wave caustic resolution is zero.',
+            zh: '波面焦散分辨率设为零时，程序纹样叠加的噪声层数。',
         },
     },
 ] as const satisfies readonly QualitySetting[];

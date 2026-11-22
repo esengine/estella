@@ -73,7 +73,7 @@ export function buildOceanMesh(cells: number, rings: number, cellSize: number, s
             indices.push(a, b, c, b, d, c);
         }
     }
-    return pack(positions, colors, indices);
+    return packWaterMesh(positions, colors, indices);
 }
 
 /**
@@ -106,7 +106,7 @@ function quad(indices: number[], p00: number, p01: number, p10: number, p11: num
     indices.push(p00, p01, p10, p10, p01, p11);
 }
 
-function pack(positions: number[], colors: number[], indices: number[]): MeshData {
+export function packWaterMesh(positions: number[], colors: number[], indices: number[]): MeshData {
     const { channels, vertexStride } = packChannels([
         { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
         { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },

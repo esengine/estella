@@ -34,6 +34,8 @@ describe('the engine modules a package installs', () => {
         const { collectSubsystems } = await import('../src/project/targetSupport');
         const material = (shader: string) => ({ version: '1.0', type: 'material', shader, properties: {} });
         expect([...collectSubsystems(material('builtin:water'))]).toEqual(['water']);
+        expect([...collectSubsystems(material('builtin:underwater'))]).toEqual(['water']);
+        expect([...collectSubsystems(material('builtin:terrain-layers'))]).toEqual(['terrain']);
         expect([...collectSubsystems(material('builtin:terrain'))]).toEqual(['terrain']);
         expect([...collectSubsystems(material('builtin:foliage'))]).toEqual(['foliage']);
         for (const id of ['hair', 'skin', 'eye']) expect([...collectSubsystems(material(`builtin:${id}`))]).toEqual(['characterShaders']);

@@ -30,7 +30,7 @@ import {
 } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
-import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
+import { Material, materialDeclaresUniform, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
@@ -39,8 +39,11 @@ import { BlendMode } from '../render/blend';
 import { log } from '../util/logger';
 import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
-import { surfHeight, waveHeight, waveSlope, WAVE_SET_SIZE, type WaveParams } from './waves';
-import { buildFarMesh, buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
+import { surfHeight, waveHeight, waveSlope, waterGravity, WAVE_SET_SIZE, type WaveParams } from './waves';
+import { oceanReach } from './waterMesh';
+import { waterTileLayout, waterCoverage, waterViewPlanes, selectWaterTiles, buildWaterTiles, buildWaterApron, waterMaterialMeshes, type TileLayout } from './waterTiles';
+import { worldUnitScale } from '../ecs/worldUnits';
+import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { installWaterfalls } from './waterfall';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
@@ -52,6 +55,8 @@ import {
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
+import { WaterOpticalField, type OpticalField, type CausticBodies } from './opticalField';
+import { DEFAULT_CAUSTIC_STRENGTH, MAX_CAUSTIC_STRENGTH } from '../render/waterCaustics';
 import { waterReflectionGrowth } from './waterShader';
 import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postprocess/weather';
 import { defaultQualityProfile, type QualityProfile } from '../render/quality';
@@ -91,6 +96,12 @@ export interface WaterBodyData {
     waveHeight: number;
     /** How deep a river cuts its bed into the terrain under its surface at its middle, or a lake its floor under its outline; 0 leaves the ground as it is. */
     bedDepth: number;
+    /** Surface material and optional river junction instances on the shared tile geometry. */
+    waterMaterial: number;
+    riverToLakeMaterial: number;
+    riverToOceanMaterial: number;
+    /** Post-process material for the submerged portion of the lens. */
+    underwaterMaterial: number;
     /** {@link SurfaceLook}: whether the body's water is the zone material's colour or its own `waterColor`, blended into its neighbours where they meet. */
     surfaceLook: number;
     waterColor: { r: number; g: number; b: number; a: number };
@@ -171,10 +182,11 @@ export const UnderwaterLook = { Zone: UNDER_ZONE, Own: UNDER_OWN } as const;
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
+    waterMaterial: 0, riverToLakeMaterial: 0, riverToOceanMaterial: 0, underwaterMaterial: 0,
     form: LAKE, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
     surfaceLook: SURFACE_ZONE, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
     underwaterLook: UNDER_ZONE, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
-    underwaterDensity: 0.12, underwaterCaustics: 0.6,
+    underwaterDensity: 0.12, underwaterCaustics: DEFAULT_CAUSTIC_STRENGTH,
     affectsTerrain: true, channelShape: SHAPE_BUILT_IN, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
     terrainBlend: BLEND_ALPHA, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
     falloffMode: FALLOFF_WIDTH, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
@@ -184,7 +196,8 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
     excludeAllOverlapping: true, excludeBodies: [] as number[],
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset', 'waveAttenuationDepth', 'shapeDilation', 'underwaterBlendRadius'],
-    assetFields: [{ field: 'shapeMesh', type: 'mesh' }],
+    assetFields: [{ field: 'waterMaterial', type: 'material' }, { field: 'underwaterMaterial', type: 'material' },
+        { field: 'riverToLakeMaterial', type: 'material' }, { field: 'riverToOceanMaterial', type: 'material' }, { field: 'shapeMesh', type: 'mesh' }],
     entityFields: ['excludeBodies'],
     fields: {
         form: { enum: [{ label: 'Ocean', value: OCEAN }, { label: 'Lake', value: LAKE }, { label: 'River', value: RIVER }, { label: 'Island', value: ISLAND }, { label: 'Exclusion Volume', value: EXCLUSION }, { label: 'Custom', value: CUSTOM }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity; an island raises the terrain inside its rectangle or outline to its own height, out of the water round it; an exclusion volume keeps the water out of a box (a dry room under the sea, the hold of a boat): the surface is not drawn over it, and inside it nothing is under water; a custom body is the shape of its Shape Mesh seen from above (a fountain bowl, a pool of any outline), its water at the mesh’s top.' },
@@ -199,6 +212,10 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         shoreWidth: { min: 0, category: 'Shape', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, ISLAND, CUSTOM] }, tooltip: 'How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge. On an island, how far out past its outline its slope runs down to the ground.' },
         flowSpeed: { min: 0, max: 5000, category: 'Waves', tooltip: 'A river\'s current, in world units a second where it is as wide as its widest. A narrower reach runs faster.', shownWhen: { field: 'form', values: [RIVER] } },
         bedDepth: { min: 0, category: 'Shape', tooltip: 'How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.', shownWhen: { field: 'form', values: [RIVER, LAKE] } },
+        waterMaterial: { category: 'Rendering', tooltip: 'Material instance on the shared water surface. Empty inherits the zone water.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        underwaterMaterial: { label: 'Underwater Post Process Material', category: 'Rendering', tooltip: 'Post-process material for the submerged part of the lens. Empty uses the built-in underwater shader.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        riverToLakeMaterial: { label: 'River to Lake Material', category: 'Rendering', tooltip: 'Water material on the shared surface where this river meets a lake.', shownWhen: { field: 'form', values: [RIVER] } },
+        riverToOceanMaterial: { label: 'River to Ocean Material', category: 'Rendering', tooltip: 'Water material on the shared surface where this river meets the open sea.', shownWhen: { field: 'form', values: [RIVER] } },
         surfaceLook: { enum: [{ label: 'Zone Material', value: SURFACE_ZONE }, { label: 'Own', value: SURFACE_OWN }], category: 'Look', tooltip: 'The colour of this body\u2019s water: the zone water material\u2019s, or its own Water Color. Where a body with its own colour meets another (a river running into a lake), the two colours run into each other across the junction.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
         waterColor: { category: 'Look', tooltip: 'The colour of this body\u2019s shallow water. Deep water darkens it the way the zone material\u2019s deep colour darkens its shallow one.', shownWhen: { field: 'surfaceLook', values: [SURFACE_OWN] } },
         underwaterLook: { enum: [{ label: 'Zone Material', value: UNDER_ZONE }, { label: 'Own', value: UNDER_OWN }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
@@ -232,11 +249,11 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         underwaterPriority: { min: -8192, max: 8191, step: 1, category: 'Underwater', tooltip: 'Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority\u2019s underwater look is laid over the lower one\u2019s, by its Blend Weight. Equal ones are laid in no set order.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
         underwaterBlendRadius: { min: 0, category: 'Underwater', tooltip: 'How far out past the body\u2019s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
         underwaterBlendWeight: { min: 0, max: 1, category: 'Underwater', tooltip: 'How much of this body\u2019s underwater look there is: 1 all of it, 0 none.', shownWhen: { field: 'underwaterEnabled', values: [1] } },
-        underwaterCaustics: { min: 0, max: 4, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        underwaterCaustics: { min: 0, max: MAX_CAUSTIC_STRENGTH, category: 'Underwater', tooltip: 'How bright the web of sunlight through the waves is on what is under the water. 0 draws none.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
         waveAttenuationDepth: { min: 0, category: 'Waves', tooltip: 'How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water\u2019s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
         overlapPriority: { min: -8192, max: 8191, step: 1, category: 'Look', tooltip: 'Where this body\u2019s water overlaps another\u2019s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
         shapeDilation: { min: 0, category: 'Shape', tooltip: 'How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.', shownWhen: { field: 'form', values: [LAKE, RIVER, CUSTOM] } },
-        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
+        waveHeight: { min: 0, max: 800, category: 'Waves', tooltip: 'The height of the tallest wave, in world units. Their length, speed and heading are the zone\'s.', shownWhen: { field: 'form', values: [OCEAN, LAKE, CUSTOM] } },
     },
 });
 
@@ -273,12 +290,13 @@ export interface WaterQuality {
     caustics: boolean;
     reflectionSteps: number;
     causticLayers: number;
+    causticFieldSize?: number;
 }
 
 /** Everything on: a project with no quality policy, off a minigame. */
 export const FULL_WATER: WaterQuality = {
     waves: WAVE_SET_SIZE, rippleCells: 256, displacement: true, mirror: true, caustics: true,
-    reflectionSteps: MOST_WATER_REFLECTION_STEPS, causticLayers: MOST_WATER_CAUSTIC_LAYERS,
+    reflectionSteps: MOST_WATER_REFLECTION_STEPS, causticLayers: MOST_WATER_CAUSTIC_LAYERS, causticFieldSize: 256,
 };
 
 /**
@@ -290,7 +308,7 @@ export function waterQualityOf(profile: Readonly<QualityProfile> | null, miniGam
     if (!p) return FULL_WATER;
     return {
         waves: p.waterWaves, rippleCells: p.waterRippleCells, displacement: p.waterDisplacement, mirror: p.waterMirror, caustics: p.waterCaustics,
-        reflectionSteps: p.waterReflectionSteps, causticLayers: p.waterCausticLayers,
+        reflectionSteps: p.waterReflectionSteps, causticLayers: p.waterCausticLayers, causticFieldSize: p.waterCausticFieldSize,
     };
 }
 
@@ -340,6 +358,14 @@ export class Waters {
     ripples_: RippleField | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
     instance_ = 0;
+    /** Water inspection: shaded, displaced wire, or rest-height wire. @experimental */
+    meshView: 0 | 1 | 2 = 0;
+    /** Tiles and triangles submitted for this water view. @experimental */
+    meshStats = { tiles: 0, triangles: 0 };
+    /** The finished wave field both views read. @internal */
+    opticalField_: OpticalField | null = null;
+    /** Per-body optical overrides at receiver positions. @internal */
+    causticBodies_: CausticBodies | null = null;
     /** Bumped each time a new bake lands, so what is placed by the water (plants kept out of it) knows to place again. @internal */
     revision_ = 0;
     /** Whether a bake is in hand: what is placed by the water waits for it. */
@@ -516,12 +542,15 @@ function rotate(q: Quat, vx: number, vy: number, vz: number): [number, number, n
 
 /** What every body tells the zone beside its shape: its waves' calming depth, how far its water is grown out, and its colour's priority. */
 function commonOf(d: WaterBodyData, scale: number): ZoneBodyCommon {
-    return { attenuationDepth: (d.waveAttenuationDepth ?? d.shoreWidth) * scale, dilation: (d.shapeDilation ?? 0) * scale, priority: d.overlapPriority ?? 0 };
+    const caustics = d.underwaterLook === UnderwaterLook.Own && d.underwaterEnabled !== false
+        ? { strength: Math.max(0, d.underwaterCaustics ?? DEFAULT_CAUSTIC_STRENGTH),
+            weight: Math.min(Math.max(d.underwaterBlendWeight ?? 1, 0), 1), priority: d.underwaterPriority ?? 0 } : undefined;
+    return { material: d.waterMaterial, riverToLake: d.riverToLakeMaterial, riverToOcean: d.riverToOceanMaterial, caustics, attenuationDepth: (d.waveAttenuationDepth ?? d.shoreWidth) * scale, dilation: (d.shapeDilation ?? 0) * scale, priority: d.overlapPriority ?? 0 };
 }
 
 /** What the zone is baked from of {@link commonOf}, for knowing when to bake it again. */
 function commonKey(d: WaterBodyData): unknown[] {
-    return [d.waveAttenuationDepth, d.shapeDilation, d.overlapPriority];
+    return [d.waterMaterial,d.riverToLakeMaterial,d.riverToOceanMaterial,d.waveAttenuationDepth, d.shapeDilation, d.overlapPriority, d.underwaterLook, d.underwaterCaustics, d.underwaterEnabled, d.underwaterBlendWeight, d.underwaterPriority];
 }
 
 /** A lake's or a river's Curve Channel, in world units, or null where it keeps the built-in cut. */
@@ -623,6 +652,10 @@ interface Surface {
     entity: Entity;
     mesh: number;
     meshKey: string;
+    layout: TileLayout;
+    groups: Map<number, {entity:Entity; instance:number; mesh:number}>;
+    visibleTiles?: string;
+    coverage?: ReturnType<typeof waterCoverage>;
     instance: number;
     /** The far distance mesh past the rings, and the instance of its own material when the zone names one (0: it is drawn with `instance`). */
     farEntity: Entity;
@@ -634,6 +667,7 @@ interface Surface {
     exposure: number;
     /** The bodies' own colours, blended where they meet (see WaterField.look). */
     look: number;
+    surfaceData: number;
     /** Which bake the textures hold. */
     baked: WaterField | null;
     ripple: number;
@@ -940,11 +974,12 @@ export class WaterPlugin implements Plugin {
     /** The surface, made (or remade, where its mesh or its material changed) as the zone asks. */
     private surface(app: App, zone: WaterZoneData, ocean: boolean): Surface {
         const far = farOf(zone, ocean);
-        const meshKey = JSON.stringify([zone.cells, zone.rings, zone.cellSize, far]);
+        const layout = waterTileLayout(zone);
+        const meshKey = JSON.stringify([layout, far]);
         let s = this.surface_;
         if (s && (s.meshKey !== meshKey || s.material !== zone.material)) { this.dropSurface(app); s = null; }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
         if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone, far);
@@ -958,23 +993,19 @@ export class WaterPlugin implements Plugin {
             const source = zone.material || await this.stock(app);
             if (s.epoch !== epoch || this.surface_ !== s) return;
             const assets = app.getResource(Assets);
-            // The rings are where the waves are; past them the far distance mesh carries the sea to the horizon (see farOf), drawn apart so
-            // it can take a cheaper material of its own.
-            const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize));
-            if (mesh === 0) { s.failure = 'the engine refused the water geometry'; log.warn('water', s.failure); return; }
+            // update selects the first geometry with the resolved view and the baked shoreline.
             const instance = Material.createInstance(source);
-            if (instance === 0) { assets.releaseBuiltMesh(mesh); s.failure = 'the water material could not be instanced'; log.warn('water', s.failure); return; }
-            s.mesh = mesh;
+            if (!instance) { s.failure = 'the water material could not be instanced'; log.warn('water', s.failure); return; }
             s.instance = instance;
             this.waters_.instance_ = instance;
             const entity = app.world.spawn('Water');
             app.world.insert(entity, Transform, { position: { x: 0, y: 0, z: 0 } });
             app.world.insert(entity, MeshRenderer, {
                 // Light goes through water: the sun lights what is under it, through the caustics, and no shadow of the surface.
-                mesh, material: instance, lit: true, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
+                mesh: 0, material: instance, lit: true, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
             } as Partial<MeshRendererData>);
             s.entity = entity;
-            const farData = far ? buildFarMesh(zone.cells, zone.rings, zone.cellSize, far.extent) : null;
+            const farData = far ? buildWaterApron(s.layout, far.extent, Math.min(s.layout.tile*.002, worldUnitScale()*2), true) : null;
             if (far && farData) {
                 const farMesh = assets.createMesh(farData);
                 // An instance of its own, of its own material or the rings': one instance drawn by two meshes drew neither with the Water shader.
@@ -982,6 +1013,8 @@ export class WaterPlugin implements Plugin {
                 if (farMesh !== 0) {
                     s.farMesh = farMesh;
                     s.farInstance = farInstance;
+                    if (!far.material && farInstance && materialDeclaresUniform(farInstance,'u_farSurface'))
+                        Material.setUniform(farInstance,'u_farSurface',1);
                     const farEntity = app.world.spawn('Water Far');
                     app.world.insert(farEntity, Transform, { position: { x: 0, y: 0, z: 0 } });
                     app.world.insert(farEntity, MeshRenderer, {
@@ -1010,17 +1043,58 @@ export class WaterPlugin implements Plugin {
         const w = empty ? 2 : nx, h = empty ? 2 : nz;
         s.heights = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16) : heights }, TextureContent.Retained, false,
             { filterMode: 'nearest', wrapMode: 'clamp', srgb: false });
-        s.field = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16) : rest }, TextureContent.Retained, false,
+        for (const [source, group] of s.groups) {
+            if (field.materials.has(source)) continue;
+            if (app.world.valid(group.entity)) app.world.despawn(group.entity);
+            if (group.mesh) app.getResource(Assets).releaseBuiltMesh(group.mesh);
+            Material.release(group.instance);
+            s.groups.delete(source);
+        }
+        for (const source of field.materials) {
+            if (source===s.material || s.groups.has(source)) continue;
+            const instance=Material.createInstance(source);
+            if (!instance) continue;
+            const entity=app.world.spawn('Water surface material');
+            app.world.insert(entity,Transform,{position:{x:0,y:0,z:0}});
+            app.world.insert(entity,MeshRenderer,{...app.world.get(s.entity,MeshRenderer),mesh:0,material:instance,enabled:false});
+            s.groups.set(source,{entity,instance,mesh:0});
+        }
+        const uses = (name: string): boolean => drawnWith(s).some(i => materialDeclaresUniform(i, name));
+        // Older custom water shaders still receive their independent field and colour maps.
+        if (uses('u_zoneField')) s.field = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16) : rest }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         s.exposure = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).fill(255) : exposure }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
-        s.look = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).map((_, i) => (i % 4 === 3 ? 255 : 0)) : look }, TextureContent.Retained, false,
+        if (uses('u_zoneLook')) s.look = createTextureFromPixels(app.wasmModule, { width: w, height: h, pixels: empty ? new Uint8Array(16).map((_, i) => (i % 4 === 3 ? 255 : 0)) : look }, TextureContent.Retained, false,
             { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
         s.baked = field;
+        s.coverage = waterCoverage(field, Math.max(this.waters_.zone_.surf * field.ranges().amp * 2, 0));
+        s.visibleTiles = undefined;
         const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
-        set('u_zoneLook', Material.tex(s.look));
+        const layer = w * h * 4;
+        const surfaceData = new Uint8Array(layer * 3);
+        surfaceData.set(rest, 0);
+        surfaceData.set(look, layer);
+        for (let k = 0; k < field.causticLook.length / 2; k++) {
+            surfaceData[layer * 2 + k * 4] = Math.round(field.causticLook[k * 2]! / field.causticRange * 255);
+            surfaceData[layer * 2 + k * 4 + 1] = Math.round(field.causticLook[k * 2 + 1]! * 255);
+        }
+        s.surfaceData = createTextureFromPixels(app.wasmModule, { width: w, height: h * 3, pixels: surfaceData }, TextureContent.Retained, false,
+            { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
+        const local = field.ocean?.caustics;
+        const opticalRect = { x: empty ? 1e9 : minX, y: empty ? 1e9 : minZ, z: empty ? 1e-4 : sizeX, w: empty ? 1e-4 : sizeZ };
+        const opticalOcean = { x: (local?.strength ?? 0) * (local?.weight ?? 0), y: local?.weight ?? 0, z: field.causticRange, w: field.hasCausticLook ? 1 : 0 };
+        this.waters_.causticBodies_ = field.hasCausticLook ? { texture: s.surfaceData, rect: opticalRect, ocean: opticalOcean } : null;
+        for (const i of drawnWith(s)) {
+            if (materialDeclaresUniform(i, 'u_zoneSurfaceData')) {
+                Material.setUniform(i, 'u_zoneSurfaceData', Material.tex(s.surfaceData));
+                Material.setUniform(i, 'u_causticBodyRect', opticalRect);
+                Material.setUniform(i, 'u_causticBodyOcean', opticalOcean);
+            }
+            if (s.look && materialDeclaresUniform(i, 'u_zoneLook')) Material.setUniform(i, 'u_zoneLook', Material.tex(s.look));
+            if (s.field && materialDeclaresUniform(i, 'u_zoneField')) Material.setUniform(i, 'u_zoneField', Material.tex(s.field));
+        }
         set('u_zoneHeights', Material.tex(s.heights));
-        set('u_zoneField', Material.tex(s.field));
         set('u_zoneExposure', Material.tex(s.exposure));
         // A region of nothing is put where no point is: everything is past it, which is the ocean.
         set('u_zoneOrigin', empty ? { x: 1e9, y: 1e9 } : { x: minX, y: minZ });
@@ -1030,22 +1104,64 @@ export class WaterPlugin implements Plugin {
         set('u_zoneOn', 1);
     }
 
-    /** Writes the zone into the instance, and moves the surface to the camera on the lattice its rings line up on. */
+    private readonly opticalField = new WaterOpticalField();
+
     private update(app: App, s: Surface, zone: WaterZoneData, eye: [number, number, number]): void {
         const field = this.waters_.field_!;
         if (s.baked !== field) this.upload(app, s, field);
-        const snap = oceanSnap(zone.rings, zone.cellSize);
-        const ox = Math.round(eye[0] / snap) * snap, oz = Math.round(eye[2] / snap) * snap;
+        const { layout } = s;
+        // Explicit extents are fixed to the zone. Legacy unbounded seas can still follow a travelling ship.
+        const cx = field.grid.minX + field.grid.sizeX/2, cz = field.grid.minZ + field.grid.sizeZ/2;
+        const follow = !!field.ocean && !(zone.tileSize > 0) && !zone.extentInTiles?.x && !zone.extentInTiles?.y;
+        const ox = (follow ? Math.round(eye[0]/layout.tile)*layout.tile : cx) - layout.halfX*layout.tile;
+        const oz = (follow ? Math.round(eye[2]/layout.tile)*layout.tile : cz) - layout.halfZ*layout.tile;
+        const range = field.ranges();
+        const waves = waveParamsOf(zone);
+        const rise = (2 + Math.max(zone.surf, 0)) * Math.max(range.amp, field.ocean?.waveHeight ?? 0) * Math.max(1, waves.height);
+        const lowY = Math.min(range.heightMin,field.ocean?.level ?? range.heightMin)-rise;
+        const highY = Math.max(range.heightMin+range.heightSpan,field.ocean?.level ?? lowY)+rise;
+        const camera = app.hasResource(UICameraInfo) ? app.getResource(UICameraInfo) : null;
+        // The one mesh serves offscreen and split-screen views as well.
+        const single = app.world.getEntitiesWithComponents([Camera]).filter(e => app.world.get(e,Camera).isActive).length <= 1;
+        const planes = single && camera?.valid ? waterViewPlanes(camera.viewProjection) : [];
+        const tiles = selectWaterTiles(layout,ox,oz,eye,lowY,highY,s.coverage!,planes);
+        const selection = [ox,oz,Number(this.waters_.meshView>0),...tiles.map(t=>(t.level*1024+t.z)*1024+t.x)].join(',');
+        if (selection !== s.visibleTiles) {
+            const assets = app.getResource(Assets);
+            const data = tiles.length ? buildWaterTiles(layout,tiles,this.waters_.meshView>0,!!s.farMesh) : null;
+            if (data) { data.aabbMin[1]=lowY; data.aabbMax[1]=highY; }
+            const meshes = data && s.groups.size ? waterMaterialMeshes(data,(x,z)=>{
+                const source=field.materialAt(x+ox,z+oz);
+                return s.groups.has(source) ? source : 0;
+            }) : new Map(data ? [[0,data]] : []);
+            const pending = new Map<number,number>();
+            for (const [id,piece] of meshes) {
+                const handle=assets.createMesh(piece);
+                if (!handle) break;
+                pending.set(id,handle);
+            }
+            if (pending.size===meshes.size) {
+                for (const [source,group] of [[0,s] as const,...s.groups]) {
+                    const mesh=pending.get(source) ?? 0;
+                    app.world.insert(group.entity,MeshRenderer,{...app.world.get(group.entity,MeshRenderer),mesh,enabled:!!mesh});
+                    if (group.mesh) assets.releaseBuiltMesh(group.mesh);
+                    group.mesh=mesh;
+                    if (source) app.world.insert(group.entity,Transform,{...app.world.get(group.entity,Transform),position:{x:ox,y:0,z:oz}});
+                }
+                s.visibleTiles=selection;
+                this.waters_.meshStats={tiles:tiles.length, triangles:(data?.indices.length ?? 0)/3};
+            } else for (const handle of pending.values()) assets.releaseBuiltMesh(handle);
+        }
         const t = app.world.get(s.entity, Transform) as TransformData;
         if (t.position.x !== ox || t.position.z !== oz) app.world.insert(s.entity, Transform, { ...t, position: { x: ox, y: 0, z: oz } });
         if (s.farEntity && app.world.valid(s.farEntity)) {
             const f = app.world.get(s.farEntity, Transform) as TransformData;
             if (f.position.x !== ox || f.position.z !== oz) app.world.insert(s.farEntity, Transform, { ...f, position: { x: ox, y: 0, z: oz } });
         }
-        const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
+        const materials = drawnWith(s);
+        const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of materials) Material.setUniform(i, name, value); };
         const q = this.waters_.quality;
         const ocean = field.ocean;
-        const waves = waveParamsOf(zone);
         set('u_waveCount', q.waves);
         set('u_mirror', q.mirror ? 1 : 0);
         set('u_causticOn', q.caustics ? 1 : 0);
@@ -1054,19 +1170,25 @@ export class WaterPlugin implements Plugin {
         set('u_causticLayers', q.causticLayers);
         set('u_waveSpace', 1);
         set('u_origin', { x: ox, y: oz });
-        set('u_cellSize', zone.cellSize);
+        set('u_cellSize', layout.tile/layout.divisions);
+        set('u_tileEye', { x: eye[0]-ox, y: eye[2]-oz });
+        for (const i of materials) {
+            Material.setUniform(i,'u_tileMorph',{x:layout.divisions, y:layout.lodScale, z:Math.max(lowY-eye[1],0,eye[1]-highY), w:0});
+            Material.setUniform(i,'u_waterMeshView',this.waters_.meshView);
+        }
         set('u_geoWaves', q.displacement ? 1 : 0);
         set('u_waveHeight', waves.height);
         set('u_rain', rainOnWater());
         set('u_waveLength', waves.length);
         set('u_waveSpeed', waves.speed);
+        set('u_waveGravity', waterGravity());
         set('u_waveDirection', waves.direction);
         set('u_oceanOn', ocean ? 1 : 0);
         set('u_oceanLevel', ocean ? ocean.level : 0);
         set('u_oceanWaves', ocean ? ocean.waveHeight : 0);
         // Past the region the ocean's own colour, where it has one.
         const oceanLook = ocean?.color ? { x: ocean.color[0], y: ocean.color[1], z: ocean.color[2], w: 1 } : { x: 0, y: 0, z: 0, w: 0 };
-        for (const i of drawnWith(s)) Material.setUniform(i, 'u_oceanLook', oceanLook);
+        for (const i of materials) Material.setUniform(i, 'u_oceanLook', oceanLook);
         // A zone with no ocean that asks for the far distance mesh: that mesh alone takes the open sea past the region, flat, at the zone's
         // own height, while the rings keep to the lakes and rivers baked in it.
         if (!ocean && s.farInstance) {
@@ -1077,6 +1199,15 @@ export class WaterPlugin implements Plugin {
         set('u_surfHeight', zone.surf);
         set('u_surfLength', zone.surfLength);
         set('u_surfSpeed', zone.waveSpeed);
+        const optics = this.opticalField.update(s.instance, q.caustics ? q.causticFieldSize ?? 0 : 0, eye[0], eye[2],
+            Math.max(waves.length * 3, 1e-3), lowY, Math.max(highY - lowY, 1e-3),
+            this.waters_.depthAt(eye[0], eye[2], 0) ?? ocean?.level ?? this.waters_.zoneLevel_, Math.max(waves.length * 0.125, 1e-3), app.getResource(Time).elapsed);
+        this.waters_.opticalField_ = optics;
+        for (const i of materials) {
+            if (optics) Material.setUniform(i, 'u_causticField', Material.tex(optics.texture));
+            if (optics) Material.setUniform(i, 'u_causticElevation', optics.elevation);
+            Material.setUniform(i, 'u_causticRect', optics?.rect ?? { x: 0, y: 0, z: q.caustics && q.causticFieldSize ? -1 : 0, w: 0 });
+        }
     }
 
     /**
@@ -1146,6 +1277,9 @@ export class WaterPlugin implements Plugin {
         if (s.field) rm?.releaseTexture(s.field);
         if (s.exposure) rm?.releaseTexture(s.exposure);
         if (s.look) rm?.releaseTexture(s.look);
+        if (s.surfaceData) rm?.releaseTexture(s.surfaceData);
+        s.surfaceData = 0;
+        this.waters_.causticBodies_ = null;
         s.look = 0;
         s.heights = 0;
         s.field = 0;
@@ -1165,9 +1299,17 @@ export class WaterPlugin implements Plugin {
         if (s.ripple) { withdrawTextureContent(s.ripple); getResourceManager()?.releaseTexture(s.ripple); }
         this.waters_.ripples_ = null;
         this.dropFieldTextures(s);
+        for (const group of s.groups.values()) {
+            if (app.world.valid(group.entity)) app.world.despawn(group.entity);
+            if (group.mesh) app.getResource(Assets).releaseBuiltMesh(group.mesh);
+            Material.release(group.instance);
+        }
         if (s.instance) Material.release(s.instance);
         if (s.mesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(s.mesh);
+        this.opticalField.release();
+        this.waters_.opticalField_ = null;
         this.waters_.instance_ = 0;
+        this.waters_.meshStats = {tiles:0,triangles:0};
     }
 }
 
@@ -1180,9 +1322,9 @@ function farOf(zone: WaterZoneData, ocean: boolean): FarMesh | null {
     return { extent: zone.farDistanceExtent, material: zone.farDistanceMaterial };
 }
 
-/** The material instances the surface is drawn with: the rings', and the far mesh's own where it has one. Both take every uniform the plugin writes. */
+/** Material instances sharing world-space wave, view and optical parameters across the tiled and far surfaces. */
 function drawnWith(s: Surface): number[] {
-    return [s.instance, s.farInstance].filter((i) => i !== 0);
+    return [s.instance, s.farInstance,...Array.from(s.groups.values(), g=>g.instance)].filter((i) => i !== 0);
 }
 
 /** A region from (minX, minZ), `sizeX` by `sizeZ`, with `resolution` texels along its longer side. */
