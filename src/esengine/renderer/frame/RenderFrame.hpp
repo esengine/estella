@@ -984,7 +984,29 @@ private:
      */
     void declareShadowPass(ecs::Registry& registry);
     /// The queued material bakes, as passes before the scene (queueMaterialBake).
-    void declareMaterialBakes();
+    void declareMaterialBakes(ecs::Registry& registry);
+#ifdef ES_ENABLE_POSTPROCESS
+    struct ReceiverCapture {
+        explicit ReceiverCapture(GfxDevice& device) : pool(device) {}
+        ~ReceiverCapture() {
+            pool.shutdown();
+            if (constants != BufferHandle::Invalid) pool.device().deleteBuffer(constants);
+        }
+        u32 bakeTarget = 0;
+        TransientBufferPool pool;
+        DrawList draws;
+        BufferHandle constants = BufferHandle::Invalid;
+        Unique<Framebuffer> target;
+        u64 key = 0;
+        bool valid = false;
+    };
+    struct ReceiverMaps {
+        rg::ResourceId fixed = rg::kNoResource, moving = rg::kNoResource;
+        glm::vec4 window{0, 0, 1, 0};
+    };
+    std::vector<Unique<ReceiverCapture>> receiver_captures_;
+    ReceiverMaps declareCausticReceivers(ecs::Registry& registry, const MaterialBake& bake, const glm::vec4& sun, usize index);
+#endif
     /// Collects every planned square's occluders into its list, and answers what they would draw as one number
     /// (shadow_drawn_key_): the squares, their views, the draws, their records and their materials. False when
     /// something in them can change without the number changing (a material that moves its vertices, records a

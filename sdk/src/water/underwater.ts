@@ -159,9 +159,9 @@ void main() {
             if (below > 0.0) {
                 vec3 beam;
                 float travel, focus;
-                waterSunBundle(absolute, lightUp, below, sunDir.xyz, sunWater, u_time.x, beam, travel, focus);
+                bool visible = waterSunBundle(absolute, below, lightUp, sunWater, u_time.x, false, beam, travel, focus);
                 float shaft = 0.3 + min(focus, 3.0) * 0.7;
-                lit += through * ds * sunVisibility(p, tiles.x, tiles.y) * exp(-extinction * travel)
+                if (visible) lit += through * ds * sunVisibility(p, tiles.x, tiles.y) * exp(-extinction * travel)
                      * shaft * phaseHG(dot(dir, beam));
             }
             through *= exp(-extinction * ds);

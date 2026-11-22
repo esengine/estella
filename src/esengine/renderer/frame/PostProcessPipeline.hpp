@@ -646,7 +646,9 @@ public:
     void drawCloudShadow(const glm::mat4& inverse, const glm::vec4& rect, const rg::PassContext& ctx);
     /// Draws material @p material through PostProcess shader @p shader over the pass's viewport (RenderFrame::queueMaterialBake), its
     /// block in MaterialStore scratch @p scratch. False when it could not.
-    bool drawProjectedMaterial(u32 material, u32 instances, u32 scratch);
+    glm::vec4 bakeSun() const;
+    bool drawProjectedMaterial(u32 material, u32 instances, u32 scratch, const glm::vec4& sun,
+                               const glm::vec4& receiverWindow, TextureHandle receiverDepth, TextureHandle movingDepth);
     bool drawMaterialThrough(u32 material, u32 shader, const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch);
     bool canDrawMaterialOver(u32 material);
     bool drawMaterialOver(u32 material);

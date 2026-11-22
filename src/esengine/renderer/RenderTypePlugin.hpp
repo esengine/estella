@@ -99,6 +99,8 @@ struct RenderFrameContext {
     /// whether or not light passes it, so a see-through surface that casts no shadow (a glass roof) is in it all the same.
     /// Last, so the positional initialisers before it keep their places.
     bool rainCover = false;
+    /// Opaque geometry seen by refracted sunlight, including objects with shadow casting disabled.
+    bool causticReceivers = false;
 };
 
 /** @brief What every plugin needs to know about the camera, derived once per collect

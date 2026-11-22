@@ -109,8 +109,8 @@ export const WATER_SETTINGS = [
         requires: { waterCaustics: true },
         label: { en: 'Wave caustic resolution', zh: '波面焦散分辨率' },
         description: {
-            en: 'Texels per side of the local optical surface. Sunlight focuses according to the rendered waves. Zero uses the procedural approximation.',
-            zh: '附近水面光学场每边的纹素数。阳光按实际波浪聚焦，设为零时使用程序近似。',
+            en: 'Samples per side of the live wave and opaque receiver maps. Underwater surfaces use refracted light hits; the intervening water uses a coarser volume. Zero uses the procedural approximation.',
+            zh: '波面与受光几何每边的采样数。沙底和水中物体按实际折射落点受光，水体内部使用较低分辨率。设为零时使用程序近似。',
         },
     },
     {

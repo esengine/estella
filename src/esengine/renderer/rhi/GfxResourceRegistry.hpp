@@ -64,6 +64,7 @@ struct GfxTextureRecord {
     /// core/Revision.hpp and GfxDevice::textureRevision. Not when the GPU writes it (a render target, a storage texture) or
     /// a host swaps what an imported texture shows: those are not uploads this device sees.
     u64 revision = nextRevision();
+    bool externallyWritable = false;  ///< Attached for rendering or backed by a host texture.
 };
 
 struct GfxProgramRecord {

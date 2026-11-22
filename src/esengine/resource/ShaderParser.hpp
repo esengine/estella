@@ -186,6 +186,9 @@ struct ParsedShader {
     /// assembles exactly as before. The WGSL twin takes pointers instead of `inout`.
     std::string vertexHook;
     std::string wgslVertexHook;
+    /// #pragma depthinput names the sole texture affecting a vertex hook's silhouette.
+    /// Such a hook may otherwise depend only on geometry, instance records and material constants.
+    std::string depthInput;
     /// `#pragma vertexbounds <units>`: how far the hook can move a vertex from the mesh's own
     /// bounds, in the mesh's local units — what culling must grow its box by so a bent mesh is not
     /// dropped while still visible. Zero when the material has no hook.

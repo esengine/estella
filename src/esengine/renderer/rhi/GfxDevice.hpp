@@ -438,6 +438,8 @@ public:
     /** @brief What @p texture's content is, as a number that changes whenever the device is given new content or sampling
      *         for it (see GfxTextureRecord::revision); 0 for none. */
     u64 textureRevision(TextureHandle texture) const;
+    /// Zero for content that can change without an upload, including render targets and host textures.
+    u64 trackedTextureRevision(TextureHandle texture) const;
     /** @brief Counts every texture made, deleted, or given new storage under its handle (a restore, an adopt): what changes the
      *         size a handle answers, never what its pixels hold. */
     u64 textureShapes() const { return texture_shapes_; }

@@ -480,6 +480,7 @@ TextureHandle GfxDevice::importExternalTexture(u32 nativeId, const TextureDesc& 
         return TextureHandle::Invalid;
     }
     const u32 id = registry_.textures.insert(GfxTextureRecord{desc, content});
+    registry_.textures.find(id)->externallyWritable = true;
     if (!isDeviceUsable()) return TextureHandle{id};
     if (!backendAdoptTexture(id, nativeId, desc)) {
         eraseTexture(id);
@@ -495,6 +496,7 @@ bool GfxDevice::restoreTextureFromNative(TextureHandle texture, u32 nativeId) {
     auto* record = registry_.textures.find(id);
     if (!record || !isDeviceUsable()) return false;
     if (record->realized) backendDeleteTexture(id);
+    record->externallyWritable = true;
     record->realized = backendAdoptTexture(id, nativeId, record->desc);
     record->revision = nextRevision();
     if (record->realized) payTexture(id, *record);
@@ -517,6 +519,7 @@ bool GfxDevice::adoptTextureContent(TextureHandle into, TextureHandle from) {
     backendMoveTexture(intoId, fromId);
 
     target->desc = source->desc;
+    target->externallyWritable |= source->externallyWritable;
     target->compressed = source->compressed;
     target->compressedFormat = source->compressedFormat;
     target->mipLevels = source->mipLevels;
@@ -602,6 +605,11 @@ void GfxDevice::generateMipmaps(TextureHandle texture) {
 u64 GfxDevice::textureRevision(TextureHandle texture) const {
     const auto* record = registry_.textures.find(static_cast<u32>(texture));
     return record ? record->revision : 0;
+}
+
+u64 GfxDevice::trackedTextureRevision(TextureHandle texture) const {
+    const auto* record = registry_.textures.find(static_cast<u32>(texture));
+    return record && record->realized && !record->desc.storage && !record->externallyWritable ? record->revision : 0;
 }
 
 const TextureDesc* GfxDevice::textureDesc(TextureHandle texture) const {
@@ -908,6 +916,10 @@ void GfxDevice::uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bi
 
 FramebufferHandle GfxDevice::createFramebuffer(const FramebufferDesc& desc) {
     if (device_status_ == GfxDeviceStatus::Dead) return FramebufferHandle::Default;
+    for (TextureHandle attachment : {desc.color0, desc.color1, desc.color2, desc.depthStencil,
+                                     desc.resolveColor0, desc.resolveColor1, desc.resolveColor2, desc.resolveDepthStencil}) {
+        if (auto* texture = registry_.textures.find(static_cast<u32>(attachment))) texture->externallyWritable = true;
+    }
     const u32 id = registry_.framebuffers.insert(GfxFramebufferRecord{desc});
     if (!isDeviceUsable()) return FramebufferHandle{id};
     if (!backendCreateFramebuffer(id, desc)) {

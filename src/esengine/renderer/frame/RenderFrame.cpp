@@ -231,6 +231,9 @@ void RenderFrame::shutdown() {
     velocity_pool_.shutdown();
     selection_pool_.shutdown();
     cover_pool_.shutdown();
+#ifdef ES_ENABLE_POSTPROCESS
+    receiver_captures_.clear();
+#endif
     shadow_mover_pool_.shutdown();
     cover_mover_pool_.shutdown();
     if (cover_frame_ubo_ != BufferHandle::Invalid) {
@@ -2858,6 +2861,11 @@ u32 RenderFrame::queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, 
 
 void RenderFrame::cancelMaterialBakesFor(u32 target) {
     if (!target) return;
+#ifdef ES_ENABLE_POSTPROCESS
+    for (auto& capture : receiver_captures_) {
+        if (capture && capture->bakeTarget == target) capture.reset();
+    }
+#endif
     material_bakes_.erase(std::remove_if(material_bakes_.begin(), material_bakes_.end(), [this, target](const MaterialBake& bake) {
         if (target != bake.target && target != bake.receiver) return false;
         material_bake_states_.erase(bake.ticket);
@@ -2883,13 +2891,14 @@ i32 RenderFrame::materialBakeState(u32 ticket) {
     return state;
 }
 
-void RenderFrame::declareMaterialBakes() {
+void RenderFrame::declareMaterialBakes(ecs::Registry& registry) {
 #ifdef ES_ENABLE_POSTPROCESS
     // Once a frame, by the first view that collects: the passes write textures of their own, not any view's picture.
     if (material_bakes_.empty() || material_bakes_frame_ == planar_frame_ || !post_process_) return;
     material_bakes_frame_ = planar_frame_;
     std::vector<MaterialBake> waiting;
     u32 scratch = 0;
+    usize captureIndex = 0;
     for (const MaterialBake& bake : material_bakes_) {
         RenderTarget* target = target_manager_.get(bake.target);
         Shader* shader = resource_manager_.getShader(resource::ShaderHandle(bake.shader));
@@ -2903,6 +2912,15 @@ void RenderFrame::declareMaterialBakes() {
         if (!device_.programReady(shader->handle()) || (projector && !device_.programReady(projector->handle()))) {
             waiting.push_back(bake);
             continue;
+        }
+        glm::vec4 sun(0);
+        ReceiverMaps maps;
+        if (receiver) {
+            sun = post_process_->bakeSun();
+            const auto* layout = context_.materials().layoutFor(context_.materials().shaderOf(bake.projection));
+            if (layout && layout->findTexture("u_bakeReceiverDepth") && sun.y > 0.0f) {
+                maps = declareCausticReceivers(registry, bake, sun, captureIndex++);
+            }
         }
         rg::PassDesc pass;
         pass.name = "material-bake";
@@ -2927,20 +2945,25 @@ void RenderFrame::declareMaterialBakes() {
             projection.name = "material-forward-projection";
             projection.keep = true;
             projection.dependencies = {source};
+            if (maps.fixed != rg::kNoResource) projection.dependencies.push_back(maps.fixed);
+            if (maps.moving != rg::kNoResource) projection.dependencies.push_back(maps.moving);
             projection.write = graph_.importTarget(receiver->getFramebuffer(), receiver->getWidth(), receiver->getHeight(),
                                                    false, receiver->getColorTexture());
             projected_bake_resources_.push_back(projection.write);
             projection.clear = true;
             projection.clearColor[3] = 0.0f;
             const u32 projectionSlot = scratch++;
-            projection.execute = [this, bake, projectionSlot](const rg::PassContext&) {
+            projection.execute = [this, bake, projectionSlot, sun, maps](const rg::PassContext&) {
                 if (material_bake_states_[bake.ticket] > 0)
-                    material_bake_states_[bake.ticket] = post_process_->drawProjectedMaterial(bake.projection, bake.instances, projectionSlot) ? 1 : -1;
+                    material_bake_states_[bake.ticket] = post_process_->drawProjectedMaterial(bake.projection, bake.instances, projectionSlot, sun,
+                        maps.window, graph_.textureOf(maps.fixed), graph_.textureOf(maps.moving)) ? 1 : -1;
             };
             graph_.addPass(std::move(projection));
         }
     }
     material_bakes_ = std::move(waiting);
+#else
+    (void)registry;
 #endif
 }
 
@@ -3405,7 +3428,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     { ES_PROFILE_SCOPE("render.collect.skinCache"); declareSkinCache(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
-    declareMaterialBakes();
+    declareMaterialBakes(registry);
     { ES_PROFILE_SCOPE("render.collect.shadow2dDeclare"); declareShadow2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.shape2dDeclare"); declareShape2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.planar"); declarePlanarReflection(registry); }

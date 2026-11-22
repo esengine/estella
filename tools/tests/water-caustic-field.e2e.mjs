@@ -15,13 +15,14 @@ try {
   const result = await page.evaluate((source) => {
     const n = 64, depth = 64, stretch = 2, layer = 4;
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 4 * n;
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    canvas.width = 3 * n;
+    canvas.height = n;
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: true });
     if (!gl) throw new Error('WebGL 2 is required');
     const program = gl.createProgram();
     for (const [stage, type] of [['vertex', gl.VERTEX_SHADER], ['fragment', gl.FRAGMENT_SHADER]]) {
       const body = source.split(`#pragma ${stage}\n`)[1].split('#pragma end')[0];
-      const header = 'precision highp float;\nuniform sampler2D u_surface;\nuniform vec4 u_window, u_levels, u_bakeSun;\n';
+      const header = 'precision highp float;\nuniform sampler2D u_surface, u_bakeReceiverDepth, u_bakeMovingDepth;\nuniform vec4 u_window, u_levels, u_bakeSun, u_bakeReceiverWindow;\n';
       const shader = gl.createShader(type);
       gl.shaderSource(shader, '#version 300 es\n' + header + body);
       gl.compileShader(shader);
@@ -32,7 +33,7 @@ try {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
     gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
@@ -46,7 +47,41 @@ try {
     gl.blendFunc(gl.ONE, gl.ONE);
     gl.disable(gl.DITHER);
 
-    function project(magnification, sun) {
+    gl.uniform4f(gl.getUniformLocation(program, 'u_bakeReceiverWindow'), 0, 0, 1, 0);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_bakeReceiverDepth'), 1);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_bakeMovingDepth'), 2);
+    for (const unit of [gl.TEXTURE1, gl.TEXTURE2]) {
+        gl.activeTexture(unit);
+        gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+
+    function depthMap(unit, shelf, empty, centreOnly) {
+      gl.activeTexture(unit);
+      const receivers = new Uint8Array(n * n * 4);
+      const reach = 15 * depth / layer, head = 1 + 0.01 * reach;
+      for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) {
+        const first = shelf && Math.abs(x - n / 2) < 10 ? depth / 2 : depth;
+        let value = 0.5 + 0.5 * (first + head) / (reach + head);
+        const at = 4 * (z * n + x);
+        for (let j = 0; j < 3; j++) {
+          value *= 255;
+          receivers[at + j] = Math.floor(value);
+          value -= Math.floor(value);
+        }
+        receivers[at + 3] = empty || (centreOnly && Math.abs(x - n / 2) >= 10) ? 0 : 255;
+      }
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, n, n, 0, gl.RGBA, gl.UNSIGNED_BYTE, receivers);
+    }
+
+    function project(magnification, sun, shelf = false, empty = false, moving = false) {
+      depthMap(gl.TEXTURE1, shelf && !moving, empty, false);
+      depthMap(gl.TEXTURE2, true, !moving, true);
+      gl.uniform4f(gl.getUniformLocation(program, 'u_bakeReceiverWindow'), 0, 0, 1, moving ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0);
       const data = new Uint8Array(n * n * 4);
       for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) {
         // Invert Snell's law so neighbouring rays land exactly magnification texels apart.
@@ -62,12 +97,12 @@ try {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, n, n, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
       gl.uniform4f(gl.getUniformLocation(program, 'u_bakeSun'), 0, 1, 0, sun);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n * n * 16);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, 2 * n * n + 1);
       const sample = new Uint8Array(16 * 4);
-      gl.readPixels(n / 2 - 8, n + n / 2, 16, 1, gl.RGBA, gl.UNSIGNED_BYTE, sample);
+      gl.readPixels(n / 2 - 8, n / 2, 16, 1, gl.RGBA, gl.UNSIGNED_BYTE, sample);
       return Array.from(sample).filter((_, i) => i % 4 === 0).map(value => value / 32);
     }
-    return { flat: project(1, 1), dark: project(1, 0), spread: project(stretch, 1) };
+    return { flat: project(1, 1), dark: project(1, 0), spread: project(stretch, 1), shelf: project(stretch, 1, true), empty: project(1, 1, false, true), moving: project(stretch, 1, true, false, true) };
   }, CAUSTIC_PROJECTION);
   assert.ok(result.flat.every(v => Math.abs(v - 1) < 0.04), 'a level surface preserves unit irradiance');
   assert.ok(result.dark.every(v => v === 0), 'a disabled sun carries no flux');
@@ -75,7 +110,12 @@ try {
   const mean = result.spread.reduce((a, b) => a + b) / result.spread.length;
   assert.ok(Math.abs(mean - 0.5) < 0.06, `spread loses energy: ${mean}`);
   assert.ok(result.spread.every(v => Math.abs(v - 0.5) < 0.13), `spurious holes in the footprint: ${result.spread}`);
-  console.log('Water caustic flux preserved for flat, dark and diverging beams.');
+  assert.ok(result.empty.every(v => v === 0), 'rays without a solid hit write no surface caustic');
+  const shelfMean = result.shelf.slice(3, -3).reduce((a, b) => a + b) / (result.shelf.length - 6);
+  assert.ok(Math.abs(shelfMean - 2/3) < 0.09 && shelfMean > mean + 0.10,
+    `the raised receiver must take the beam at its own depth: ${shelfMean}, bed ${mean}`);
+  assert.deepEqual(result.moving, result.shelf, 'static and moving receivers stop the same ray at the same depth');
+  console.log('Water caustic flux and first hits verified on the bed and a raised receiver.');
 } finally {
   await browser.close();
 }

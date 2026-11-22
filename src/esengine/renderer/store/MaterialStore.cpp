@@ -425,6 +425,9 @@ MaterialUniformLayout MaterialStore::layoutOf(const resource::ParsedShader& pars
             layout.params.push_back(slot);
         }
     }
+    if (const auto* input = layout.findTexture(parsed.depthInput)) {
+        layout.depthInputUnit = static_cast<i32>(input->unit);
+    }
     return layout;
 }
 

@@ -226,11 +226,20 @@ u32 RenderContext::frameConstantsSize() {
     return static_cast<u32>(sizeof(FrameConstants));
 }
 
-void RenderContext::useFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection) {
+void RenderContext::prepareFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection) {
     if (ubo == BufferHandle::Invalid) return;
     const FrameConstants frame{viewProjection, cameraFromViewProjection(viewProjection),
                                glm::inverse(viewProjection), glm::vec4(glm::vec3(renderOrigin()), 0.0f)};
     device_.updateBuffer(ubo, 0, &frame, sizeof(FrameConstants));
+}
+
+void RenderContext::useFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection) {
+    if (ubo == BufferHandle::Invalid) return;
+    prepareFrameConstants(ubo, viewProjection);
+    bindFrameConstants(ubo);
+}
+
+void RenderContext::bindFrameConstants(BufferHandle ubo) {
     device_.setUniformBuffer(FRAME_CONSTANTS_BINDING, ubo);
     // Same re-arm the frame's own upload does: a previous pass may have left a
     // differently sized params buffer on the shared slot.

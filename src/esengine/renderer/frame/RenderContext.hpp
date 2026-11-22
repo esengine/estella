@@ -181,6 +181,9 @@ public:
      *          buffer each makes the BINDING, an encoder command, what varies.
      */
     void useFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection);
+    /// Stage a light view before the render passes and switch to it without a mid-pass upload.
+    void prepareFrameConstants(BufferHandle ubo, const glm::mat4& viewProjection);
+    void bindFrameConstants(BufferHandle ubo);
 
     /** @brief The buffer the camera's FrameConstants live in, for a compute pass that reads them (it is bound at group 0). */
     BufferHandle frameUbo() const { return frameUbo_; }

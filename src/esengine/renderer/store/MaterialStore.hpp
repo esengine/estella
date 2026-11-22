@@ -117,6 +117,7 @@ struct MaterialUniformLayout {
     /// program of its own for the second.
     float vertexBounds = 0.0f;
     bool vertexHook = false;
+    i32 depthInputUnit = -1;  ///< The tracked sampler of a deterministic vertex hook.
     std::vector<MaterialParamSlot> params;
     std::vector<MaterialTextureSlot> textures;
 
@@ -311,6 +312,14 @@ public:
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
         return layout && layout->vertexHook;
+    }
+
+    /// An arbitrary vertex hook can depend on time or GPU state. A declared depth input
+    /// lets a light-space capture track its silhouette through the instance and material instead.
+    bool hasUntrackedDepthHook(u32 materialId) const {
+        const auto* material = find(materialId);
+        const auto* layout = material ? layoutFor(material->shaderRef) : nullptr;
+        return layout && layout->vertexHook && layout->depthInputUnit < 0;
     }
 
     /// Whether @p materialId's caster has to be cut out by its alpha: its alpha is coverage now and the

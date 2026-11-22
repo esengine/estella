@@ -39,6 +39,7 @@ export class WaterOpticalField {
 
     update(surface: number, size: number, eyeX: number, eyeZ: number, span: number,
            low: number, heightRange: number, level: number, depthStep: number, time: number): OpticalField | null {
+        size = size > 0 ? Math.min(512, Math.max(CAUSTIC_ATLAS_SIDE, Math.round(size / CAUSTIC_ATLAS_SIDE) * CAUSTIC_ATLAS_SIDE)) : 0;
         const generation = deviceGeneration();
         if (size !== this.size || generation !== this.generation) {
             this.release();
@@ -50,9 +51,9 @@ export class WaterOpticalField {
             this.bake = Material.compileShader(WATER_CAUSTIC_BAKE);
             this.projection = Material.compileShader(CAUSTIC_PROJECTION);
             this.source = RenderTexture.create({ width: size, height: size, depth: false, filter: 'linear', floatColor: true });
-            this.target = Renderer.createRenderTarget(size * CAUSTIC_ATLAS_SIDE, size * CAUSTIC_ATLAS_SIDE, 2 | 8);
+            this.target = Renderer.createRenderTarget(size * 3, size, 2 | 8);
             const id = this.target && Renderer.getTargetTexture(this.target);
-            this.texture = id ? getResourceManager()?.wrapDeviceTexture?.(id, size * CAUSTIC_ATLAS_SIDE, size * CAUSTIC_ATLAS_SIDE) ?? 0 : 0;
+            this.texture = id ? getResourceManager()?.wrapDeviceTexture?.(id, size * 3, size) ?? 0 : 0;
             if (!this.bake || !this.projection || !this.source.texture || !this.texture) { this.failed = true; return null; }
             this.material = Material.create({ shader: this.projection });
             Material.setUniform(this.material, 'u_surface', Material.tex(this.source.texture));
@@ -70,9 +71,12 @@ export class WaterOpticalField {
         const elevation = { x: low, y: heightRange, z: level, w: depthStep };
         Material.setUniform(this.material, 'u_window', { x, y: z, z: span, w: size });
         Material.setUniform(this.material, 'u_levels', elevation);
+        const volumeSize = size / CAUSTIC_ATLAS_SIDE;
+        // One full-density beam per wave cell, a coarser volume, and one triangle copying receiver depths.
+        const instances = size * size + volumeSize * volumeSize * CAUSTIC_SLICES + 1;
         this.ticket = Renderer.bakeMaterial(surface, this.bake, this.source._handle, 0, 0, size, size,
-            [x, z, span, time], [low, heightRange, size, 0]);
-        if (!this.ticket || !Renderer.projectMaterialBake(this.ticket, this.material, this.target, size * size * CAUSTIC_SLICES)) {
+            [x, z, span, time], [low, heightRange, level, depthStep * (CAUSTIC_SLICES - 1)]);
+        if (!this.ticket || !Renderer.projectMaterialBake(this.ticket, this.material, this.target, instances)) {
             this.failed = true;
             return null;
         }

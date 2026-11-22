@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { SUN_OPTICS_GLSL, CAUSTIC_ATLAS_SIDE } from '../render/waterCaustics';
+import { SUN_OPTICS_GLSL, CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES, CAUSTIC_RECEIVER_GLSL } from '../render/waterCaustics';
 
 /** Stretch the reconstruction tent along the axes of the refracted cell. Its area
  * divides every light moment, preserving the integrated flux. The tent's variance
@@ -31,11 +31,44 @@ const FOOTPRINT_WGSL = `fn beamOffset(dx: vec2f, dz: vec2f, corner: vec2f) -> ve
     return vec3f(offset, major * minor);
 }`;
 
-/** Depth slices in a refracted-light coordinate system. Neighbouring slices can
- * be interpolated without translating a whole caustic by the flat ray's horizontal travel. */
+const READ_RECEIVER_GLSL = `vec4 readReceiver(vec2 uv) {
+    vec2 q = uv*u_bakeReceiverWindow.z + u_bakeReceiverWindow.xy;
+    q.y = 1.0-q.y;
+    vec4 fixedHit = textureLod(u_bakeReceiverDepth,q,0.0);
+    if (fixedHit.r < 0.49) fixedHit.a = 0.0;
+    if (u_bakeReceiverWindow.w > 0.5) {
+        vec4 movingHit = textureLod(u_bakeMovingDepth,q,0.0);
+        if (movingHit.a > 0.5 && (fixedHit.a < 0.5 || receiverPlaneDepth(movingHit,u_levels) < receiverPlaneDepth(fixedHit,u_levels))) return movingHit;
+    }
+    return fixedHit;
+}`;
+
+const RECEIVER_WGSL = `fn receiverPlaneDepth(record: vec4f) -> f32 {
+    let reach = mc.u_levels.w * ${CAUSTIC_SLICES-1}.0;
+    let head = max(mc.u_levels.x + mc.u_levels.y - mc.u_levels.z, 0.0) + reach * 0.01;
+    let z = 2.0 * dot(record.rgb, vec3f(1.0, 1.0/255.0, 1.0/65025.0)) - 1.0;
+    return z * (head + reach) - head;
+}
+fn readReceiver(uv: vec2f) -> vec4f {
+    let q = uv*mc.u_bakeReceiverWindow.z + mc.u_bakeReceiverWindow.xy;
+    let at = vec2f(q.x,1.0-q.y);
+    var fixedHit = textureSampleLevel(u_bakeReceiverDepth,u_bakeReceiverDepth_s,at,0.0);
+    if (fixedHit.r < 0.49) { fixedHit.a = 0.0; }
+    if (mc.u_bakeReceiverWindow.w > 0.5) {
+        let movingHit = textureSampleLevel(u_bakeMovingDepth,u_bakeMovingDepth_s,at,0.0);
+        if (movingHit.a > 0.5 && (fixedHit.a < 0.5 || receiverPlaneDepth(movingHit) < receiverPlaneDepth(fixedHit))) { return movingHit; }
+    }
+    return fixedHit;
+}`;
+
+/** The first slab of the atlas holds flux at opaque hits, the second their packed depth.
+ * The last slab holds the lower-resolution light field used by the volume march. */
 export const CAUSTIC_PROJECTION = `#pragma shader "Water Forward Light Bundles"
 #pragma version 300 es
 #pragma param u_surface texture default(black) texel(data)
+#pragma param u_bakeReceiverDepth texture default(black) texel(data)
+#pragma param u_bakeMovingDepth texture default(black) texel(data)
+#pragma param u_bakeReceiverWindow vec4 default(0,0,1,0)
 #pragma param u_window vec4 default(0,0,1,1)
 #pragma param u_levels vec4 default(0,1,0,1)
 #pragma param u_bakeSun vec4 default(0,1,0,0)
@@ -45,7 +78,36 @@ layout(location=0) in vec2 a_position;
 out vec2 v_kernel;
 out vec4 v_moment;
 out vec2 v_tileUV;
+out vec2 v_hit;
 ${SUN_OPTICS_GLSL}
+${CAUSTIC_RECEIVER_GLSL}
+${READ_RECEIVER_GLSL}
+float firstHit(vec2 entry, vec2 drift, float start, float reach) {
+    // Walk in light space, where even a grazing flat ray is stationary. Refine the
+    // first crossing only; intersecting the bed first would miss a fish above it.
+    float previous = start;
+    for (int i = 0; i <= 12; ++i) {
+        float d = mix(start, reach, float(i) / 12.0);
+        vec2 uv = entry + drift * (d - start);
+        if (any(lessThan(uv,vec2(0))) || any(greaterThanEqual(uv,vec2(1)))) break;
+        vec4 record = readReceiver(uv);
+        float bed = receiverPlaneDepth(record, u_levels);
+        if (record.a > 0.5 && d >= bed) {
+            if (i == 0) return -1e20;
+            float lo = previous, hi = d;
+            for (int j = 0; j < 4; ++j) {
+                float mid = (lo + hi) * 0.5;
+                vec2 q = entry + drift * (mid - start);
+                vec4 test = readReceiver(q);
+                float surface = receiverPlaneDepth(test, u_levels);
+                if (test.a > 0.5 && mid >= surface) { hi = mid; bed = surface; } else lo = mid;
+            }
+            return clamp(bed, lo, hi);
+        }
+        previous = d;
+    }
+    return -1e20;
+}
 ${FOOTPRINT_GLSL}
 // Horizontal displacement from the entry point to a neighbour ray's impact, in world units.
 // Dry source samples and receivers above this piece of water do not define a differential.
@@ -59,8 +121,20 @@ vec2 beamDrift(vec2 uv, float depth, vec2 centre) {
     return -ray.xz * (vertical / max(ray.y,0.08));
 }
 void main() {
-    int n = int(u_window.w);
-    int cell = gl_InstanceID % (n*n), layer = gl_InstanceID / (n*n);
+    int full = int(u_window.w), cells = full * full, coarse = full / ${CAUSTIC_ATLAS_SIDE};
+    int id = gl_InstanceID;
+    v_hit = vec2(0);
+    if (id == cells + coarse*coarse*${CAUSTIC_SLICES}) {
+        v_hit.x = -1.0;
+        v_kernel = vec2(0); v_moment = vec4(0);
+        v_tileUV = a_position * 0.5 + 0.5;
+        gl_Position = vec4((1.0+v_tileUV.x)*(2.0/3.0)-1.0, a_position.y, 0, 1);
+        return;
+    }
+    bool hit = id < cells;
+    int n = hit ? full : coarse;
+    int index = hit ? id : id-cells;
+    int cell = index % (n*n), layer = index / (n*n);
     vec2 uv = (vec2(cell % n, cell / n) + 0.5) / float(n);
     vec4 field = textureLod(u_surface, uv, 0.0);
     vec2 h = clamp((field.rg * 255.0 - 128.0) / 127.0, -1.0, 1.0);
@@ -70,11 +144,23 @@ void main() {
     float depth = float(layer) * u_levels.w;
     vec3 sun = u_bakeSun.xyz, levelRay = waterSunRay(sun, vec3(0,1,0)), ray = waterSunRay(sun, normal);
     float airCos = dot(sun, normal);
+    if (hit && airCos > 0.0 && ray.y > 0.0 && sun.y > 0.0 && u_bakeSun.w > 0.0 && dot(h,h) <= 1.001) {
+        float start = u_levels.z - height;
+        vec2 flatSlope = levelRay.xz / max(levelRay.y,0.08);
+        vec2 drift = (flatSlope - ray.xz / max(ray.y,0.08)) / u_window.z;
+        depth = firstHit(uv + flatSlope * (start / u_window.z), drift, start, ${CAUSTIC_SLICES-1}.0 * u_levels.w);
+    }
+    if (hit) v_hit = vec2(1.0, depth);
     float path = max(height-u_levels.z+depth, 0.0) / max(ray.y, 0.08);
     vec2 landing = uv + (levelRay.xz * depth / max(levelRay.y,0.08) - ray.xz * path) / u_window.z;
     float weight = waterSunFlux(max(airCos,0.0), max(dot(ray,normal),0.0)) * max(dot(ray,normal),0.0)
                  / max(normal.y * levelRay.y * waterSunFlux(max(sun.y,0.0),levelRay.y), 1e-6);
     if (sun.y <= 0.0 || u_bakeSun.w <= 0.0 || airCos <= 0.0 || ray.y <= 0.0 || dot(h,h)>1.001 || height-u_levels.z+depth<0.0) weight = 0.0;
+    if (weight <= 0.0) {
+        v_kernel = vec2(0); v_moment = vec4(0); v_tileUV = vec2(0);
+        gl_Position = vec4(2,2,0,1);
+        return;
+    }
     vec2 ex = vec2(0.5 / float(n), 0.0), ez = ex.yx;
     vec2 centre = -ray.xz * path;
     vec2 dx = vec2(1,0) + (beamDrift(uv+ex,depth,centre) - beamDrift(uv-ex,depth,centre)) * (float(n)/u_window.z);
@@ -89,7 +175,8 @@ void main() {
     v_kernel = a_position;
     v_tileUV = landing + offset / float(n);
     vec2 tile = vec2(layer%${CAUSTIC_ATLAS_SIDE}, layer/${CAUSTIC_ATLAS_SIDE});
-    gl_Position = vec4((tile+v_tileUV)*(2.0/${CAUSTIC_ATLAS_SIDE}.0)-1.0,0.0,1.0);
+    vec2 at = hit ? v_tileUV : vec2(2,0) + (tile+v_tileUV)/${CAUSTIC_ATLAS_SIDE}.0;
+    gl_Position = vec4(at*vec2(2.0/3.0,2.0)-1.0,0,1);
 }
 #pragma end
 #pragma fragment
@@ -97,21 +184,54 @@ precision highp float;
 in vec2 v_kernel;
 in vec4 v_moment;
 in vec2 v_tileUV;
+in vec2 v_hit;
 out vec4 fragColor;
+${CAUSTIC_RECEIVER_GLSL}
+${READ_RECEIVER_GLSL}
 void main() {
     if (any(lessThan(v_tileUV,vec2(0))) || any(greaterThanEqual(v_tileUV,vec2(1)))) discard;
+    if (v_hit.x != 0.0) {
+        vec4 record = readReceiver(v_tileUV);
+        if (v_hit.x < 0.0) { fragColor = record; return; }
+        if (record.a < 0.5 || abs(receiverPlaneDepth(record,u_levels) - v_hit.y) > 2.5*u_window.z/u_window.w) discard;
+    }
     vec2 weights = max(1.0-abs(v_kernel),0.0);
     fragColor = v_moment * weights.x * weights.y;
 }
 #pragma end
 #pragma vertex wgsl
 struct VSIn { @location(0) position: vec2f, @builtin(instance_index) instance: u32 };
-struct VSOut { @builtin(position) position: vec4f, @location(0) kernel: vec2f, @location(1) moment: vec4f, @location(2) tileUV: vec2f };
+struct VSOut { @builtin(position) position: vec4f, @location(0) kernel: vec2f, @location(1) moment: vec4f, @location(2) tileUV: vec2f, @location(3) hit: vec2f };
 fn sunFlux(c: f32, t: f32) -> f32 {
     let rs=(c-1.333*t)/max(c+1.333*t,1e-4); let rp=(1.333*c-t)/max(1.333*c+t,1e-4);
     return c*(1.0-0.5*(rs*rs+rp*rp))/max(t,1e-4);
 }
 ${FOOTPRINT_WGSL}
+${RECEIVER_WGSL}
+fn firstHit(entry: vec2f, drift: vec2f, start: f32, reach: f32) -> f32 {
+    var previous = start;
+    for (var i = 0; i <= 12; i++) {
+        let d = mix(start,reach,f32(i)/12.0);
+        let uv = entry + drift*(d-start);
+        if (any(uv<vec2f(0)) || any(uv>=vec2f(1))) { break; }
+        let record = readReceiver(uv);
+        var bed = receiverPlaneDepth(record);
+        if (record.a > 0.5 && d >= bed) {
+            if (i == 0) { return -1e20; }
+            var lo = previous; var hi = d;
+            for (var j = 0; j < 4; j++) {
+                let mid = (lo+hi)*0.5;
+                let q = entry+drift*(mid-start);
+                let test = readReceiver(q);
+                let surface = receiverPlaneDepth(test);
+                if (test.a>0.5 && mid>=surface) { hi=mid; bed=surface; } else { lo=mid; }
+            }
+            return clamp(bed,lo,hi);
+        }
+        previous=d;
+    }
+    return -1e20;
+}
 fn beamDrift(uv: vec2f, depth: f32, centre: vec2f) -> vec2f {
     let field = textureSampleLevel(u_surface, u_surface_s, uv, 0.0);
     let h = clamp((field.rg*255.0-128.0)/127.0,vec2f(-1),vec2f(1));
@@ -123,20 +243,35 @@ fn beamDrift(uv: vec2f, depth: f32, centre: vec2f) -> vec2f {
 }
 @vertex fn vs_main(v: VSIn) -> VSOut {
     var out: VSOut;
-    let n=u32(mc.u_window.w); let cell=v.instance%(n*n); let layer=v.instance/(n*n);
+    let full = u32(mc.u_window.w); let cells = full*full; let coarse = full/${CAUSTIC_ATLAS_SIDE}u;
+    if (v.instance == cells + coarse*coarse*${CAUSTIC_SLICES}u) {
+        out.hit.x = -1.0;
+        out.tileUV = v.position*0.5+0.5;
+        out.position = vec4f((1.0+out.tileUV.x)*(2.0/3.0)-1.0,-v.position.y,0,1);
+        return out;
+    }
+    let hit = v.instance < cells; let n = select(coarse,full,hit);
+    let index = select(v.instance-cells,v.instance,hit); let cell=index%(n*n); let layer=index/(n*n);
     let uv=(vec2f(f32(cell%n),f32(cell/n))+0.5)/f32(n);
     let field=textureSampleLevel(u_surface,u_surface_s,uv,0.0);
     var h=clamp((field.rg*255.0-128.0)/127.0,vec2f(-1),vec2f(1));
     if (dot(h,h)<1e-9) { h=vec2f(0); }
     let normal=vec3f(h.x,sqrt(max(1.0-dot(h,h),1e-5)),h.y);
     let height=mc.u_levels.x+dot(field.ba,vec2f(256,1)/257.0)*mc.u_levels.y;
-    let depth=f32(layer)*mc.u_levels.w;
+    var depth=f32(layer)*mc.u_levels.w;
     let sun=mc.u_bakeSun.xyz; let levelRay=-refract(-sun,vec3f(0,1,0),1.0/1.333);
     let ray=-refract(-sun,normal,1.0/1.333); let c=dot(sun,normal); let t=max(dot(ray,normal),0.0);
+    if (hit && c>0.0 && ray.y>0.0 && sun.y>0.0 && mc.u_bakeSun.w>0.0 && dot(h,h)<=1.001) {
+        let start=mc.u_levels.z-height;
+        let flatSlope=levelRay.xz/max(levelRay.y,0.08);
+        depth=firstHit(uv+flatSlope*(start/mc.u_window.z),(flatSlope-ray.xz/max(ray.y,0.08))/mc.u_window.z,start,${CAUSTIC_SLICES-1}.0*mc.u_levels.w);
+    }
+    if (hit) { out.hit=vec2f(1.0,depth); }
     let path=max(height-mc.u_levels.z+depth,0.0)/max(ray.y,0.08);
     let land=uv+(levelRay.xz*depth/max(levelRay.y,0.08)-ray.xz*path)/mc.u_window.z;
     var weight=sunFlux(max(c,0.0),t)*t / max(normal.y*levelRay.y*sunFlux(max(sun.y,0.0),levelRay.y),1e-6);
     if(sun.y<=0.0 || mc.u_bakeSun.w<=0.0 || c<=0.0 || ray.y<=0.0 || dot(h,h)>1.001 || height-mc.u_levels.z+depth<0.0) { weight=0.0; }
+    if (weight<=0.0) { out.position=vec4f(2,2,0,1); return out; }
     let ex = vec2f(0.5/f32(n),0); let ez = ex.yx; let centre = -ray.xz*path;
     let dx = vec2f(1,0) + (beamDrift(uv+ex,depth,centre)-beamDrift(uv-ex,depth,centre))*(f32(n)/mc.u_window.z);
     let dz = vec2f(0,1) + (beamDrift(uv+ez,depth,centre)-beamDrift(uv-ez,depth,centre))*(f32(n)/mc.u_window.z);
@@ -145,14 +280,22 @@ fn beamDrift(uv: vec2f, depth: f32, centre: vec2f) -> vec2f {
     if (abs(excessPath)<1e-4*mc.u_levels.w) { excessPath=0.0; }
     out.moment=(weight*(32.0/255.0)/footprint.z)*vec4f(1.0,ray.xz*0.5+0.5,1.0+excessPath/(mc.u_levels.w*16.0));
     out.kernel=v.position; out.tileUV=land+footprint.xy/f32(n);
-    let p=(vec2f(f32(layer%${CAUSTIC_ATLAS_SIDE}u),f32(layer/${CAUSTIC_ATLAS_SIDE}u))+out.tileUV)*(2.0/${CAUSTIC_ATLAS_SIDE}.0)-1.0;
+    let tile=vec2f(f32(layer%${CAUSTIC_ATLAS_SIDE}u),f32(layer/${CAUSTIC_ATLAS_SIDE}u));
+    let at=select(vec2f(2,0)+(tile+out.tileUV)/${CAUSTIC_ATLAS_SIDE}.0,out.tileUV,hit);
+    let p=at*vec2f(2.0/3.0,2.0)-1.0;
     out.position=vec4f(p.x,-p.y,0,1); return out;
 }
 #pragma end
 #pragma fragment wgsl
-struct FSIn { @location(0) kernel: vec2f, @location(1) moment: vec4f, @location(2) tileUV: vec2f };
+struct FSIn { @location(0) kernel: vec2f, @location(1) moment: vec4f, @location(2) tileUV: vec2f, @location(3) hit: vec2f };
+${RECEIVER_WGSL}
 @fragment fn fs_main(v: FSIn) -> @location(0) vec4f {
     if(any(v.tileUV<vec2f(0)) || any(v.tileUV>=vec2f(1))) { discard; }
+    if (v.hit.x != 0.0) {
+        let record=readReceiver(v.tileUV);
+        if(v.hit.x<0.0) { return record; }
+        if(record.a<0.5 || abs(receiverPlaneDepth(record)-v.hit.y)>2.5*mc.u_window.z/mc.u_window.w) { discard; }
+    }
     let weight=max(vec2f(1)-abs(v.kernel),vec2f(0)); return v.moment*weight.x*weight.y;
 }
 #pragma end

@@ -992,6 +992,11 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
+        if (directive == "depthinput") {
+            result.depthInput = trim(argument);
+            continue;
+        }
+
         if (directive == "vertexbounds") {
             // How far the vertex hook may move a vertex, in the mesh's local units.
             result.vertexBounds = std::strtof(argument.c_str(), nullptr);

@@ -930,17 +930,7 @@ void PostProcessPipeline::drawScreenQuad() {
     device_.drawArrays(0, 3);
 }
 
-bool PostProcessPipeline::drawProjectedMaterial(u32 material, u32 instances, u32 scratch) {
-    const auto ref = context_.materials().shaderOf(material);
-    Shader* shader = resourceManager_.getShader(ref);
-    if (!shader || !context_.materials().layoutFor(ref)) return false;
-    if (projected_triangle_indices_ == BufferHandle::Invalid) {
-        const u16 triangle[] = {0, 1, 2};
-        projected_triangle_indices_ = device_.createBuffer({GfxBufferUsage::Index, sizeof(triangle), false},
-                                                           GfxContent::retained(), triangle);
-        if (projected_triangle_indices_ == BufferHandle::Invalid) return false;
-    }
-    applyPassPipeline(*shader, false, true);
+glm::vec4 PostProcessPipeline::bakeSun() const {
     // The collected light list includes environment-following suns, visibility and the view's light selection.
     glm::vec4 sun(0.0f);
     for (const auto& light : context_.lights().data().lights) {
@@ -949,8 +939,31 @@ bool PostProcessPipeline::drawProjectedMaterial(u32 material, u32 instances, u32
             break;
         }
     }
-    if (!context_.materials().bindThrough(material, ref, {{"u_bakeSun", sun}}, scratch)) return false;
+    return sun;
+}
+
+bool PostProcessPipeline::drawProjectedMaterial(u32 material, u32 instances, u32 scratch, const glm::vec4& sun,
+                               const glm::vec4& receiverWindow, TextureHandle receiverDepth, TextureHandle movingDepth) {
+    const auto ref = context_.materials().shaderOf(material);
+    Shader* shader = resourceManager_.getShader(ref);
+    const auto* layout = context_.materials().layoutFor(ref);
+    if (!shader || !layout) return false;
+    if (layout->findTexture("u_bakeReceiverDepth") && sun.y <= 0.0f) return true;
+    if (projected_triangle_indices_ == BufferHandle::Invalid) {
+        const u16 triangle[] = {0, 1, 2};
+        projected_triangle_indices_ = device_.createBuffer({GfxBufferUsage::Index, sizeof(triangle), false},
+                                                           GfxContent::retained(), triangle);
+        if (projected_triangle_indices_ == BufferHandle::Invalid) return false;
+    }
+    applyPassPipeline(*shader, false, true);
+    if (!context_.materials().bindThrough(material, ref, {{"u_bakeSun", sun}, {"u_bakeReceiverWindow", receiverWindow}}, scratch)) return false;
     device_.setVertexBuffer(0, screen_quad_vbo_, 0);
+    if (receiverDepth != TextureHandle::Invalid) {
+        if (const auto* slot = layout->findTexture("u_bakeReceiverDepth")) device_.bindTexture(slot->unit, receiverDepth);
+    }
+    if (movingDepth != TextureHandle::Invalid) {
+        if (const auto* slot = layout->findTexture("u_bakeMovingDepth")) device_.bindTexture(slot->unit, movingDepth);
+    }
     device_.setIndexBuffer(projected_triangle_indices_);
     device_.drawElementsInstanced(3, GfxDataType::UnsignedShort, 0, instances);
     return true;

@@ -39,6 +39,15 @@ export const WATER_ZONE_LAYER_WGSL = `fn waterZoneLayer(uv : vec2f, layer : f32)
 export const CAUSTIC_ATLAS_SIDE = 4;
 export const CAUSTIC_SLICES = CAUSTIC_ATLAS_SIDE * CAUSTIC_ATLAS_SIDE;
 
+// The receiver capture writes the shadow shader's 24-bit linear depth in RGB.
+// Its near plane includes wave crests; the far plane is the volume's optical reach.
+export const CAUSTIC_RECEIVER_GLSL = `float receiverPlaneDepth(vec4 record, vec4 levels) {
+    float reach = levels.w * ${CAUSTIC_SLICES - 1}.0;
+    float head = max(levels.x + levels.y - levels.z, 0.0) + reach * 0.01;
+    float z = 2.0 * dot(record.rgb, vec3(1.0, 1.0/255.0, 1.0/65025.0)) - 1.0;
+    return z * (head + reach) - head;
+}`;
+
 export const SUN_OPTICS_GLSL = `const float WATER_IOR = 1.333;
 vec3 waterSunRay(vec3 sun, vec3 normal) {
     return -refract(-sun, normal, 1.0 / WATER_IOR);
@@ -82,11 +91,13 @@ float causticPattern(vec2 p, float t, float layers) {
 // All positions used to address the optical field are absolute world positions. The shadow
 // pass takes a render-relative receiver separately. Direction vectors point back to the sun.
 ${SUN_OPTICS_GLSL}
+${CAUSTIC_RECEIVER_GLSL}
 vec4 waterMoment(vec2 uv, float layer) {
     if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec4(0.0);
-    float border = 0.5 * u_causticRect.w / u_causticRect.z;
+    float border = 0.5 * ${CAUSTIC_ATLAS_SIDE}.0 * u_causticRect.w / u_causticRect.z;
     vec2 tile = vec2(mod(layer, ${CAUSTIC_ATLAS_SIDE}.0), floor(layer / ${CAUSTIC_ATLAS_SIDE}.0));
-    return textureLod(u_causticField, (tile + clamp(uv,vec2(border),vec2(1.0-border))) / ${CAUSTIC_ATLAS_SIDE}.0, 0.0) * (255.0 / 32.0);
+    vec2 at = (tile + clamp(uv,vec2(border),vec2(1.0-border))) / ${CAUSTIC_ATLAS_SIDE}.0;
+    return textureLod(u_causticField, vec2((at.x+2.0)/3.0,at.y), 0.0) * (255.0 / 32.0);
 }
 vec3 waterMomentRay(vec4 moment) {
     vec2 h = clamp(2.0 * moment.gb / moment.r - 1.0, -1.0, 1.0);
@@ -94,7 +105,7 @@ vec3 waterMomentRay(vec4 moment) {
 }
 // Coordinates refer to the receiver actually sampled by the view. The atlas stores an additive
 // sum over all incident surface cells, including multiple branches at a fold.
-void waterSunBundle(vec3 receiver, vec3 up, float depth, vec3 sun, vec3 meanRay, float time,
+bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float time, bool surface,
                     out vec3 ray, out float travel, out float focus) {
     ray = meanRay;
     travel = max(depth, 0.0) / max(dot(meanRay, up), 0.08);
@@ -104,31 +115,45 @@ void waterSunBundle(vec3 receiver, vec3 up, float depth, vec3 sun, vec3 meanRay,
         // Unmanaged material previews and the explicit low-cost quality tier.
         if (u_causticRect.z == 0.0 && depth > 0.0)
             focus = causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers);
-        return;
+        return true;
     }
     float planeDepth = u_causticElevation.z - receiver.y;
     float stepDepth = u_causticElevation.w;
-    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES-1}.0 * stepDepth) return;
-    vec2 uv = (receiver.xz + meanRay.xz * (max(planeDepth,0.0)/max(meanRay.y,0.08)) - u_causticRect.xy) / u_causticRect.z;
+    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES-1}.0 * stepDepth) return true;
+    vec2 uv = (receiver.xz + meanRay.xz * (planeDepth/max(meanRay.y,0.08)) - u_causticRect.xy) / u_causticRect.z;
     vec2 edge = min(uv, 1.0-uv);
     float fade = smoothstep(0.025,0.09,min(edge.x,edge.y)) * (1.0-smoothstep(${CAUSTIC_SLICES-2}.0,${CAUSTIC_SLICES-1}.0,planeDepth/stepDepth));
-    if (fade <= 0.0) return;
-    float layer = clamp(planeDepth/stepDepth,0.0,${CAUSTIC_SLICES-1}.0);
-    float base = floor(layer), nextLayer = min(base+1.0,${CAUSTIC_SLICES-1}.0), part = fract(layer);
-    vec4 m = mix(waterMoment(uv,base), waterMoment(uv,nextLayer), part);
-    // The coordinates remove the flat sun ray's drift. A bent bundle still moves sideways
-    // between slices. Follow its measured direction to the two footprints that reach this depth.
-    if (m.r > 1e-4 && part > 0.0) {
-        vec3 localRay = waterMomentRay(m);
-        vec2 drift = (meanRay.xz/max(meanRay.y,0.08) - localRay.xz/max(localRay.y,0.08)) * (stepDepth/u_causticRect.z);
-        m = mix(waterMoment(uv - part*drift,base), waterMoment(uv + (1.0-part)*drift,nextLayer), part);
+    if (fade <= 0.0) return true;
+    int n = textureSize(u_causticField,0).y;
+    ivec2 texel = clamp(ivec2(uv*float(n)),ivec2(0),ivec2(n-1));
+    vec4 record = texelFetch(u_causticField, ivec2(n,0)+texel, 0);
+    float behind = planeDepth - receiverPlaneDepth(record,u_causticElevation);
+    float tolerance = 2.5*u_causticRect.w;
+    // Geometry hidden from the refracted sun receives no concentrated light.
+    if (record.a > 0.5 && behind > tolerance) return false;
+    vec4 m;
+    if (surface && record.a > 0.5 && behind >= -tolerance) {
+        m = textureLod(u_causticField, vec2(uv.x/3.0,uv.y), 0.0) * (255.0/32.0);
+    } else {
+        // The water between the wave and its first solid hit samples a coarser 3D field.
+        float layer = clamp(planeDepth/stepDepth,0.0,${CAUSTIC_SLICES-1}.0);
+        float base = floor(layer), nextLayer = min(base+1.0,${CAUSTIC_SLICES-1}.0), part = fract(layer);
+        m = mix(waterMoment(uv,base), waterMoment(uv,nextLayer), part);
+        // The coordinates remove the flat sun ray's drift. A bent bundle still moves sideways
+        // between slices. Follow its measured direction to the two footprints that reach this depth.
+        if (m.r > 1e-4 && part > 0.0) {
+            vec3 localRay = waterMomentRay(m);
+            vec2 drift = (meanRay.xz/max(meanRay.y,0.08) - localRay.xz/max(localRay.y,0.08)) * (stepDepth/u_causticRect.z);
+            m = mix(waterMoment(uv - part*drift,base), waterMoment(uv + (1.0-part)*drift,nextLayer), part);
+        }
     }
-    if (m.r <= 1e-4) return;
+    if (m.r <= 1e-4) return true;
     vec3 arriving = waterMomentRay(m);
     ray = normalize(mix(meanRay,arriving,fade));
     float projectedPath = max(planeDepth,0.0)/max(meanRay.y,0.08) + (m.a/m.r-1.0)*(16.0*stepDepth);
     travel = max(mix(travel, projectedPath, fade), 0.0);
     focus = fade * max(m.r-1.0,0.0);
+    return true;
 }
 
 vec3 waterReceiverLight(vec3 receiver, vec3 receiverN, vec3 up, float depth, vec3 sun, vec4 sunlight,
@@ -146,7 +171,7 @@ vec3 waterReceiverLight(vec3 receiver, vec3 receiverN, vec3 up, float depth, vec
     vec3 meanRay = waterSunRay(sun, up);
     vec3 ray;
     float travel, focus;
-    waterSunBundle(receiver, up, depth, sun, meanRay, time, ray, travel, focus);
+    if (!waterSunBundle(receiver, depth, up, meanRay, time, true, ray, travel, focus)) return vec3(0.0);
     return sunlight.rgb * (strength * focus * max(dot(receiverN, ray), 0.0) * waterSunFlux(airCos, dot(meanRay, up))
          * min(sunlight.a, 2.0) * 0.5) * exp(-extinction * travel);
 }

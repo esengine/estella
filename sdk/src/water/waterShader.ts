@@ -1038,9 +1038,9 @@ ${SURFACE_SLOPE}
 void main() {
     vec2 wp = u_bakeA.xy + v_texCoord * u_bakeA.z;
     float time = u_bakeA.w;
+    float stepSize = u_bakeA.z * abs(dFdx(v_texCoord.x));
     ${ZONE_SAMPLE}
     if (shoreDist < 0.0) { fragColor = vec4(0.0); return; }
-    float stepSize = u_bakeA.z / u_bakeB.z;
     float surfStep = max(u_zoneSize.x / float(textureSize(u_zoneSurfaceData, 0).x), 1e-3);
     float crest, foam;
     vec2 surf, toSea;

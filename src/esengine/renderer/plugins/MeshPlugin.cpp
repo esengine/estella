@@ -1348,7 +1348,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     // The editor's selection mask (a motion collect with a selection): the selected meshes, as they stand.
     const bool selecting = motion && collect_ctx.selection != nullptr;
     for (auto entity : meshView) {
-        if (split && isMover(entity) != wantMovers) continue;
+        if (split && !ctx.causticReceivers && isMover(entity) != wantMovers) continue;
         if (selecting && !collect_ctx.selection->count(entity.id())) continue;
         ++walked;
         const auto& authored = meshView.get<ecs::MeshRenderer>(entity);
@@ -1420,7 +1420,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // What light passes through (water) stands in no light's way. Rain's way is another matter: a see-through surface
         // set to cast no shadow (glass) still keeps rain off what is under it, so the rain's cover map takes it. What is
         // opaque and casts no shadow (a held gun, an effect's mesh) stays out of both.
-        if (shadowDepth && !mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
+        if (ctx.causticReceivers) {
+            if (!mesh.opaque || (ctx.materials && ctx.materials->usesSceneColor(mesh.material))) continue;
+            const bool deforming = registry.has<ecs::MeshSkin>(entity) || registry.has<ecs::MeshMorph>(entity)
+                || (ctx.materials && ctx.materials->hasUntrackedDepthHook(mesh.material));
+            if (split && (isMover(entity) || deforming) != wantMovers) continue;
+        } else if (shadowDepth && !mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
         // Only a surface that draws opaque and unblended has a motion worth writing: what is blended over
         // something has two, and the picture can follow one.
         if (motion && !selecting && !mesh.opaque) continue;

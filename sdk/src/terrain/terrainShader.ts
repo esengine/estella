@@ -14,7 +14,8 @@ import { BRUSH_PARAMS, BRUSH_GLSL, BRUSH_WGSL } from './brushPreview';
 
 // The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
 // heights read from the atlas, and each vertex slid onto the coarser level's grid toward the end of its range.
-const terrainVertex = (surface: boolean): string => `#pragma vertexoffset
+const terrainVertex = (surface: boolean): string => `#pragma depthinput u_heightPages
+#pragma vertexoffset
 // The node's page (pages.ts): its height decoded texel by texel and blended (a filtered pair of bytes is no number).
 float tnPageHeight(vec2 texel) {
     vec2 f = texel - 0.5;
