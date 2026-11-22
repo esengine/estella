@@ -6,9 +6,9 @@
 
 #include "MockGfxDevice.hpp"
 #include "esengine/renderer/rhi/Shader.hpp"
-#include "esengine/renderer/store/LightConstants.hpp"
 #include "esengine/renderer/rhi/GfxEnums.hpp"
-#include "esengine/renderer/store/MorphConstants.hpp"
+#include "esengine/renderer/store/EngineTextureUnits.hpp"
+#include "esengine/renderer/store/InstanceConstants.hpp"
 
 #include <cstdio>
 
@@ -32,16 +32,14 @@ int main() {
         CHECK(shader->getProgramId() == 1, "programId is the device-returned id");
         CHECK(d.getActiveUniformsCalls == 1, "reflection routes through device.getActiveUniforms");
 
-        CHECK(d.setUniform1iCalls == 8
-                  && d.lastUniform1iVal == static_cast<i32>(MESH_INSTANCE_TEXTURE_UNIT),
-              "compile pins the injected samplers to their texture units");
         CHECK(d.useProgramCalls == 2, "seeding them binds and unbinds the program once");
 
         shader->bind();
         CHECK(d.useProgramCalls == 3 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
 
+        const int callsBefore = d.setUniform1iCalls;
         shader->setUniform("u_tex", 3);
-        CHECK(d.setUniform1iCalls == 9, "setUniform(name,int) routes through device.setUniform1i");
+        CHECK(d.setUniform1iCalls == callsBefore + 1, "setUniform(name,int) routes through device.setUniform1i");
         CHECK(d.lastUniform1iVal == 3, "uniform value forwarded");
 
         shader->setUniform("u_color", glm::vec4(1, 0, 0, 1));
@@ -54,6 +52,26 @@ int main() {
         // shader destructed at scope end -> device.deleteProgram
     }
     CHECK(d.deleteProgramCalls == 1, "destructor routes through device.deleteProgram");
+
+    // Isolate each name so a swapped or missing binding identifies the offending sampler.
+    const struct { const char* name; u32 unit; } samplers[] = {
+        {SHADOW_MAP_SAMPLER, SHADOW_MAP_TEXTURE_UNIT},
+        {ENV_MAP_SAMPLER, ENV_MAP_TEXTURE_UNIT},
+        {SHADOW_2D_SAMPLER, SHADOW_2D_TEXTURE_UNIT},
+        {SHAPE_2D_SAMPLER, SHAPE_2D_TEXTURE_UNIT},
+        {WATER_SUN_SAMPLER, WATER_SUN_TEXTURE_UNIT},
+        {LIGHTMAP_SAMPLER, LIGHTMAP_TEXTURE_UNIT},
+        {PROBE_GRID_SAMPLER, LIGHTMAP_TEXTURE_UNIT},
+        {MORPH_DELTA_SAMPLER, MORPH_DELTA_TEXTURE_UNIT},
+        {INSTANCE_DATA_SAMPLER, MESH_INSTANCE_TEXTURE_UNIT},
+    };
+    for (const auto& sampler : samplers) {
+        MockGfxDevice device;
+        device.soleActiveUniform = sampler.name;
+        auto shader = Shader::create(device, "vs", "fs");
+        CHECK(shader && device.setUniform1iCalls == 1
+                  && device.lastUniform1iVal == static_cast<i32>(sampler.unit), sampler.name);
+    }
 
     // Language capability gate (REARCH_WGSL Phase 1): a source language the
     // backend cannot compile fails fast BEFORE any createProgram call, with a log.

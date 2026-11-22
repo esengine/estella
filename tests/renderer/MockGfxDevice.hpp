@@ -65,6 +65,8 @@ struct MockGfxDevice final : GfxDevice {
     int deleteProgramCalls = 0;
     /** Uniforms a compiler would have optimized out: no location. */
     std::vector<std::string> absentUniforms;
+    /** When set, model a linked shader that exposes only this uniform. */
+    std::string soleActiveUniform;
     int setUniform1iCalls = 0;
     int setUniform1fCalls = 0;
     int setUniform4fCalls = 0;
@@ -321,6 +323,7 @@ protected:
     void backendDeleteProgram(u32) override { ++deleteProgramCalls; }
     void backendUseProgram(u32 id) override { ++useProgramCalls; lastProgram = ShaderHandle{id}; }
     i32 backendUniformLocation(u32, const char* name) override {
+        if (!soleActiveUniform.empty() && soleActiveUniform != name) return -1;
         for (const auto& absent : absentUniforms) if (absent == name) return -1;
         return 0;
     }
