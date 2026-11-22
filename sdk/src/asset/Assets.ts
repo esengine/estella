@@ -2909,6 +2909,13 @@ export class Assets {
         return types;
     }
 
+    /** @internal Whether an asynchronous replacement still holds the value published for this ref. */
+    isCurrentBindingLease(type: string, ref: string, lease: AssetLease): boolean {
+        if (type === 'texture') return this.getTexture(ref) === lease.value;
+        const era = this.genericCache_.get(type)?.get(this.resolveLoadPath_(ref));
+        return era !== undefined && era.value === lease.value;
+    }
+
     /**
      * Every asset of this realm whose CURRENT era took `ref` — the reverse of
      * {@link dependenciesOf}, walked from the eras so there is no table to keep.

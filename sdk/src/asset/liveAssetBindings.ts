@@ -25,6 +25,7 @@ export interface LiveAssetBinding {
     readonly entity: Entity;
     readonly component: AnyComponentDef;
     readonly field: string;
+    readonly value: number | string;
 }
 
 /** Component names carrying at least one field of any of these asset types —
@@ -44,24 +45,26 @@ export function componentsBindingAssetTypes(types: readonly string[]): string[] 
  * field holds, so matching it would hand back every field of every entity that
  * never referenced the asset at all.
  */
-export function findLiveAssetBindings(
-    world: World, type: AssetFieldType, value: unknown,
-): LiveAssetBinding[] {
-    const found: LiveAssetBinding[] = [];
-    if (value === 0 || value === '' || value === null || value === undefined) return found;
+export function* liveAssetBindings(
+    world: World, type: AssetFieldType, value: number | string, other?: number | string,
+): Generator<LiveAssetBinding> {
+    if (!value) return;
 
     for (const component of getComponentRegistry().values()) {
+        if (!component.assetFields.length) continue;
         const fields = component.assetFields.filter((f) => f.type === type);
         if (fields.length === 0) continue;
         for (const entity of world.getEntitiesWithComponents([component])) {
             if (world.isDestructionPending(entity)) continue;
-            const data = world.get(entity, component) as Record<string, unknown>;
+            const data = world.get(entity, component) as Record<string, number | string>;
             for (const { field } of fields) {
-                if (data[field] === value) found.push({ entity, component, field });
+                const bound = data[field];
+                if (bound === value || (other !== undefined && bound === other)) {
+                    yield { entity, component, field, value: bound };
+                }
             }
         }
     }
-    return found;
 }
 
 /** Read each bound component once, including fields declared by this project's plugins. */
@@ -77,23 +80,4 @@ export function visitEntityAssetBindings(
             for (const { field, type } of component.assetFields) visit(type, data[field]);
         }
     }
-}
-
-/** Read one binding's current value — what a rollback has to put back. */
-export function readLiveAssetBinding(world: World, binding: LiveAssetBinding): unknown {
-    return (world.get(binding.entity, binding.component) as Record<string, unknown>)[binding.field];
-}
-
-/**
- * Point one binding at another asset.
- *
- * Through `world.set` rather than a mutation: an engine-backed component answers
- * a fresh object per `get`, so writing to that object stores nothing.
- */
-export function writeLiveAssetBinding(
-    world: World, binding: LiveAssetBinding, value: unknown,
-): void {
-    const data = world.get(binding.entity, binding.component) as Record<string, unknown>;
-    data[binding.field] = value;
-    world.set(binding.entity, binding.component, data as never);
 }

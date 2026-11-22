@@ -1085,21 +1085,19 @@ export const SceneManager = defineResource<SceneManagerState>(
 );
 
 /**
- * Who owes a release for what this entity's asset fields hold: its existing
- * entity scope, its scene, or a new scope ending at its own despawn.
- *
- * A promoted entity owns what it holds and carries no scene tag, so a caller
- * working the rule out for itself hands its replacement to the app instead.
- * Runtime entities without a scene also end before the app does.
+ * Prefer the entity's own asset scope, then its scene. Promoted entities retain their own scope after unloading.
+ * A lookup may create a scope ending at despawn. With `create` disabled it returns null for an untracked entity.
  */
-export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity): AssetScope {
+export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity): AssetScope;
+export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity, create: boolean): AssetScope | null;
+export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity, create = true): AssetScope | null {
     const own = assets.entityScopes.scopeFor(entity, app.world);
     if (own) return own;
     const owner = app.world.tryGet(entity, SceneOwner);
     const scene = owner?.scene && app.hasResource(SceneManager)
         ? app.getResource(SceneManager).assetScopeFor(owner.scene)
         : null;
-    return scene ?? assets.entityScopes.ensure(app.world, entity);
+    return scene ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
 }
 
 // =============================================================================

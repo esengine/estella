@@ -19,14 +19,14 @@
  *
  *          It is a transaction coordinator, not an owner: which fields hold the
  *          asset comes from `component.assetFields` (liveAssetBindings.ts), and
- *          the replacement is acquired once per owning scope and handed to that
- *          scope (liveAssetRebind.ts). What it acquires and cannot place, it
- *          gives back.
+ *          one replacement generation is acquired, and each scope still holding
+ *          the asset receives its own receipt (liveAssetRebind.ts).
  *
  *          Registered once per App (initRuntime). State lives in this closure —
  *          per install, not module-global — so realms don't share queues.
  */
 import type { App } from './app/app';
+import type { World } from './ecs/world';
 import { defineResource } from './ecs/resource';
 import { Schedule, defineSystem, GetWorld } from './ecs/system';
 import { assetScopeForEntity } from './scene/sceneManager';
@@ -34,13 +34,13 @@ import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
 import type { AssetScope, AssetLease } from './asset/AssetLease';
 import type { AssetFieldType } from './scene/scene';
-import { componentsBindingAssetTypes } from './asset/liveAssetBindings';
-import { migrateScopeBindings, ownerScopesOf } from './asset/liveAssetRebind';
-import { boundValueIn, boundValueOf } from './asset/leaseBindings';
+import { componentsBindingAssetTypes, liveAssetBindings } from './asset/liveAssetBindings';
+import { migrateLiveBindings } from './asset/liveAssetRebind';
+import { boundValueIn } from './asset/leaseBindings';
 import { log } from './util/logger';
 
 /** Take the replacement out of the realm — by receipt, whatever its kind. */
-function acquire(assets: Assets, type: AssetFieldType, ref: string): Promise<AssetLease> {
+async function acquire(assets: Assets, type: AssetFieldType, ref: string): Promise<AssetLease> {
     return type === 'texture'
         ? assets.acquireTexture(ref)
         : assets.acquireTyped(type, ref);
@@ -66,13 +66,16 @@ export interface LiveBindingsData {
  */
 export const LiveBindings = defineResource<LiveBindingsData>(null!, 'LiveBindings');
 
+interface BindingChange {
+    ref: string;
+    type: AssetFieldType;
+    oldValue: number | string;
+    epoch: number;
+}
+
 export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsData {
-    // Ended eras (with the value bound before the drop), awaiting the reload;
-    // and replacements awaiting their owner's transaction.
-    const pending: Array<{ ref: string; type: AssetFieldType; oldValue: unknown }> = [];
-    const ready: Array<{
-        type: AssetFieldType; oldValue: unknown; scope: AssetScope; lease: AssetLease;
-    }> = [];
+    const pending: BindingChange[] = [];
+    const ready: Array<{ change: BindingChange; lease: AssetLease }> = [];
     // Reloads started but not yet placed. Without them a caller can ask between
     // the queues and be told the world has caught up while an acquisition is in
     // the air.
@@ -86,63 +89,60 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
         const type = event.type as AssetFieldType;
         if (!assets.handleBoundTypes().includes(type)) return;
         const oldValue = boundValueIn(event.oldValue);
-        if (oldValue !== undefined && oldValue !== 0) pending.push({ ref: event.ref, type, oldValue });
+        if ((typeof oldValue === 'number' || typeof oldValue === 'string') && oldValue) {
+            pending.push({ ref: event.ref, type, oldValue, epoch: assets.epoch });
+        }
     });
 
     // Who owns what an entity holds is answered in ONE place, not here: a
     // promoted entity carries no scene tag and owns its assets itself, and a
     // second copy of this rule is how it came to be handed to the app instead.
-    const ownerScopeOf = (entity: Entity): AssetScope =>
-        assetScopeForEntity(app, assets, entity);
+    const ownerScopeOf = (entity: Entity, create: boolean): AssetScope | null =>
+        assetScopeForEntity(app, assets, entity, create);
+
+    function publish(world: World, change: BindingChange, lease: AssetLease): void {
+        try {
+            if (change.epoch !== assets.epoch) return;
+            const { ref, type, oldValue } = change;
+            if (!assets.isCurrentBindingLease(type, ref, lease)) {
+                // A second invalidation still owes the original bindings the latest era.
+                pending.push(change);
+                return;
+            }
+            const { moved, revisit } = migrateLiveBindings(world, type, oldValue, lease, ownerScopeOf);
+            if (revisit) pending.push(change);
+            else if (!moved) log.warn('asset', `hot-update rebind: placed nothing for "${type}" at ${String(oldValue)}`);
+        } finally {
+            lease.release();
+        }
+    }
 
     app.addSystemToSchedule(Schedule.Update, defineSystem(
         [GetWorld()],
         (world) => {
-            // One acquisition per owning scope; the async results land in
-            // `ready` a frame or two later, each with the scope it is for.
-            while (pending.length > 0) {
-                const { ref, type, oldValue } = pending.shift()!;
-                // Nobody holding it is the other silent end: the update committed,
-                // the pixels did not move, nothing said why. Usually two cache
-                // entries for one image, under two spellings of the same asset.
-                let owners = 0;
-                for (const scope of ownerScopesOf(world, type, oldValue, ownerScopeOf)) {
-                    owners++;
-                    reloading++;
-                    void acquire(assets, type, ref).then(
-                        (lease) => { ready.push({ type, oldValue, scope, lease }); },
-                        (e: unknown) => {
-                            log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, e);
-                        },
-                    ).finally(() => { reloading--; });
-                }
-                if (owners === 0) {
-                    log.warn('asset', `hot-update rebind: nothing holds "${ref}" (${type}) at ${String(oldValue)}`
-                        + ' — the update landed and no live binding moved');
-                }
-            }
             while (ready.length > 0) {
-                const { type, oldValue, scope, lease } = ready.shift()!;
-                // Re-acquiring and getting the era the update just ended places the
-                // same pixels back and reads as success everywhere. The cache
-                // answered for a key the revision did not move.
-                if (boundValueOf(lease) === oldValue) {
-                    log.warn('asset', `hot-update rebind: re-acquiring "${type}" returned the same value`
-                        + ` (${String(oldValue)}) — the update ended an era the cache still serves`);
-                }
-                // It returns whether it placed anything, and the answer was being
-                // dropped: false means the scope held no binding after all, which
-                // is a rebind that did nothing and said nothing.
-                const moved = migrateScopeBindings(
-                    world, scope, type, oldValue,
-                    { lease, boundValue: boundValueOf }, ownerScopeOf,
-                );
-                if (!moved) {
-                    log.warn('asset', `hot-update rebind: placed nothing for "${type}" at ${String(oldValue)}`
-                        + ' — the scope holds no live binding of it, so the old content stays on screen');
+                const { change, lease } = ready.shift()!;
+                try {
+                    publish(world, change, lease);
+                } catch (error) {
+                    log.warn('asset', `hot-update rebind: could not finish publishing "${change.ref}"`, error);
                 }
             }
-            if (converged()) for (const wake of waiting.splice(0)) wake();
+            while (pending.length > 0) {
+                const change = pending.shift()!;
+                if (change.epoch !== assets.epoch) continue;
+                const { ref, type, oldValue } = change;
+                if (liveAssetBindings(world, type, oldValue).next().done) {
+                    log.warn('asset', `hot-update rebind: nothing holds "${ref}" (${type}) at ${String(oldValue)}`);
+                    continue;
+                }
+                reloading++;
+                void acquire(assets, type, ref).then(
+                    lease => { ready.push({ change, lease }); },
+                    error => { log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, error); },
+                ).finally(() => { reloading--; });
+            }
+            if (waiting.length && converged()) for (const wake of waiting.splice(0)) wake();
         },
         {
             name: 'HotUpdateRebindSystem',

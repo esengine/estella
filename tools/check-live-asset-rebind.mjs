@@ -109,7 +109,7 @@ for (const file of REBIND_PATH) {
 
 /** One exported function's body, braces balanced. */
 function functionBody(text, name) {
-  const m = new RegExp(`export function ${name}\\b`).exec(text);
+  const m = new RegExp(`export function\\*?\\s+${name}\\b`).exec(text);
   if (!m) return null;
   let i = text.indexOf('{', m.index);
   if (i < 0) return null;
@@ -124,7 +124,7 @@ function functionBody(text, name) {
 // Per function, not per file: the file kept the word `assetFields` in a
 // neighbouring helper while the walk itself had been replaced by a literal.
 const discovery = stripComments(readFileSync(path.join(ROOT, REBIND_PATH[0]), 'utf8'));
-for (const fn of ['findLiveAssetBindings', 'componentsBindingAssetTypes']) {
+for (const fn of ['liveAssetBindings', 'componentsBindingAssetTypes']) {
   const body = functionBody(discovery, fn);
   if (body === null) {
     findings.push(`${REBIND_PATH[0]}  ${fn}() is gone — the rebind path's only door to the declaration.`);

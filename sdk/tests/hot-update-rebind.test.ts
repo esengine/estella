@@ -18,18 +18,18 @@ import { World } from '../src/ecs/world';
 import { defineComponent, getComponent, getComponentRegistry, type AnyComponentDef } from '../src/ecs/component';
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets } from '../src/asset/Assets';
+import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 import { ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
-import { AssetScope } from '../src/asset/AssetLease';
+import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import { Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
 import { UIVisual } from '../src/ui/core/ui-visual';
-import { findLiveAssetBindings } from '../src/asset/liveAssetBindings';
-import { migrateScopeBindings } from '../src/asset/liveAssetRebind';
-import type { AssetLease } from '../src/asset/AssetLease';
+import { liveAssetBindings } from '../src/asset/liveAssetBindings';
+import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
 
 /** The pool, modelled: every decode mints a handle, invalidate severs revival. */
 function createPoolFake() {
@@ -202,10 +202,10 @@ describe('the hot-update rebinder reaches every declared texture field', () => {
         const e = world.spawn();
         world.insert(e, Widget, {});
 
-        expect(findLiveAssetBindings(world, 'texture', 0)).toEqual([]);
-        expect(findLiveAssetBindings(world, 'texture', 7)).toEqual([]);
+        expect([...liveAssetBindings(world, 'texture', 0)]).toEqual([]);
+        expect([...liveAssetBindings(world, 'texture', 7)]).toEqual([]);
         world.insert(e, Widget, { icon: 7 });
-        expect(findLiveAssetBindings(world, 'texture', 7)).toHaveLength(1);
+        expect([...liveAssetBindings(world, 'texture', 7)]).toHaveLength(1);
     });
 
     it('does not hand a dying entity a new owner during despawn callbacks', () => {
@@ -215,7 +215,7 @@ describe('the hot-update rebinder reaches every declared texture field', () => {
         let bindingsDuringDespawn = -1;
         world.onDespawn(() => {
             pending = world.isDestructionPending(entity);
-            bindingsDuringDespawn = findLiveAssetBindings(world, 'texture', 7).length;
+            bindingsDuringDespawn = [...liveAssetBindings(world, 'texture', 7)].length;
         });
         world.despawn(entity);
         expect(pending).toBe(true);
@@ -257,6 +257,240 @@ describe('a replacement is a transaction per owning scope', () => {
     const boundValues = (app: App, component: AnyComponentDef, field: string): number[] =>
         app.world.getEntitiesWithComponents([component])
             .map((e) => (app.world.get(e, component) as Record<string, number>)[field]);
+
+    function delayNextTexture(assets: Assets) {
+        const acquire = assets.acquireTexture.bind(assets);
+        type Lease = Awaited<ReturnType<typeof acquire>>;
+        let finish!: (lease: Lease) => void;
+        const pending = new Promise<Lease>(resolve => { finish = resolve; });
+        const load = vi.spyOn(assets, 'acquireTexture').mockReturnValueOnce(pending);
+        return { acquire, finish, load };
+    }
+
+    it('replaces a shared texture with bounded component reads and one load for independent owners', async () => {
+        const { app, assets } = sceneApp();
+        const source = await assets.acquireTexture('shared.png');
+        const count = 64;
+        const entities = Array.from({ length: count }, (_, i) => {
+            const entity = app.world.spawn();
+            app.world.insert(entity, i % 2 ? MeshRenderer : Sprite, { texture: source.value.handle });
+            assets.entityScopes.ensure(app.world, entity).add(source.retain()!);
+            return entity;
+        });
+        source.release();
+        const load = vi.spyOn(assets, 'acquireTexture');
+        const get = vi.spyOn(app.world, 'get'), tryGet = vi.spyOn(app.world, 'tryGet');
+        assets.invalidate('shared.png');
+        await settle(app);
+        expect(get.mock.calls.length + tryGet.mock.calls.length).toBeLessThanOrEqual(6 * count);
+        expect(load).toHaveBeenCalledTimes(1);
+        const after = assets.getTexture('shared.png')!.handle;
+        expect(after).not.toBe(source.value.handle);
+        expect(assets.sizes().refRows).toBe(count);
+        for (const [i, entity] of entities.entries()) {
+            expect(app.world.get(entity, i % 2 ? MeshRenderer : Sprite).texture).toBe(after);
+            app.world.despawn(entity);
+        }
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('finds the current owners when a scene unloads and a new mesh binds during reload', async () => {
+        const { app, assets, manager } = sceneApp();
+        app.insertResource(AssetsResource, assets);
+        const world = app.world;
+        let survivor!: Entity;
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            const source = scope.add(await assets.acquireTexture('shared.png'));
+            ctx.trackAssetScope(scope);
+            survivor = ctx.spawn();
+            world.insert(survivor, Sprite, { texture: source.value.handle });
+            ctx.setPersistent(survivor, true);
+        } });
+        await manager.load('level');
+        const { acquire, finish } = delayNextTexture(assets);
+        assets.invalidate('shared.png');
+        await app.tick(1 / 60);
+        await manager.unload('level');
+        const held = assets.entityScopes.scopeFor(survivor, world)!.leases()[0];
+        const mesh = world.spawn(), other = world.spawn();
+        world.insert(mesh, MeshRenderer, { texture: world.get(survivor, Sprite).texture });
+        assets.entityScopes.ensure(world, mesh).add(held.retain()!);
+        const own = await acquire('other.png');
+        world.insert(other, Sprite, { texture: own.value.handle });
+        assets.entityScopes.ensure(world, other).add(own);
+        const incoming = await acquire('shared.png');
+        finish(incoming);
+        await settle(app);
+        expect(world.get(survivor, Sprite).texture).toBe(incoming.value.handle);
+        expect(world.get(mesh, MeshRenderer).texture).toBe(incoming.value.handle);
+        expect(world.get(other, Sprite).texture).toBe(own.value.handle);
+        expect(assets.sizes().refRows).toBe(3);
+        for (const entity of [survivor, mesh, other]) world.despawn(entity);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('skips a replacement invalidated again before a delayed acquisition is delivered', async () => {
+        const { app, assets } = sceneApp();
+        const old = await assets.acquireTexture('hero.png'), entity = app.world.spawn();
+        app.world.insert(entity, Sprite, { texture: old.value.handle });
+        assets.entityScopes.ensure(app.world, entity).add(old);
+        const { acquire, finish } = delayNextTexture(assets);
+        assets.invalidate('hero.png');
+        await app.tick(1 / 60);
+        const middle = await acquire('hero.png');
+        assets.invalidate('hero.png');
+        await app.tick(1 / 60);
+        const latest = await acquire('hero.png');
+        finish(middle);
+        await settle(app);
+        expect(app.world.get(entity, Sprite).texture).toBe(latest.value.handle);
+        latest.release();
+        expect(assets.sizes().refRows).toBe(1);
+        app.world.despawn(entity);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('releases the replacement when a write synchronously despawns its owner', async () => {
+        const { app, assets } = sceneApp();
+        const world = app.world, entity = world.spawn(), source = await assets.acquireTexture('shared.png');
+        world.insert(entity, Sprite, { texture: source.value.handle });
+        assets.entityScopes.ensure(world, entity).add(source);
+        const set = world.set.bind(world);
+        vi.spyOn(world, 'set').mockImplementation((e, component, value) => {
+            set(e, component, value);
+            if (e === entity && component === Sprite) world.despawn(entity);
+        });
+        assets.invalidate('shared.png');
+        await settle(app);
+        expect(world.valid(entity)).toBe(false);
+        expect(assets.entityScopes.size).toBe(0);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('picks up a new entity bound by a synchronous component observer', async () => {
+        const { app, assets } = sceneApp();
+        const world = app.world, first = world.spawn(), source = await assets.acquireTexture('shared.png');
+        world.insert(first, Sprite, { texture: source.value.handle });
+        assets.entityScopes.ensure(world, first).add(source);
+        let late: Entity | undefined;
+        const set = world.set.bind(world);
+        vi.spyOn(world, 'set').mockImplementation((entity, component, value) => {
+            set(entity, component, value);
+            if (entity !== first || component !== Sprite || late !== undefined) return;
+            late = world.spawn();
+            world.insert(late, MeshRenderer, { texture: source.value.handle });
+            assets.entityScopes.ensure(world, late).add(source.retain()!);
+        });
+        assets.invalidate('shared.png');
+        await settle(app, 6);
+        const latest = assets.getTexture('shared.png')!.handle;
+        expect(world.get(first, Sprite).texture).toBe(latest);
+        expect(world.get(late!, MeshRenderer).texture).toBe(latest);
+        expect(assets.sizes().refRows).toBe(2);
+        world.despawn(first);
+        world.despawn(late!);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('releases the outgoing receipt when an observer already updated the next owner', async () => {
+        const { app, assets } = sceneApp();
+        const world = app.world, first = world.spawn(), second = world.spawn();
+        const source = await assets.acquireTexture('shared.png');
+        for (const entity of [first, second]) {
+            world.insert(entity, Sprite, { texture: source.value.handle });
+            assets.entityScopes.ensure(world, entity).add(source.retain()!);
+        }
+        source.release();
+        const set = world.set.bind(world);
+        vi.spyOn(world, 'set').mockImplementation((entity, component, data) => {
+            set(entity, component, data);
+            if (component !== Sprite) return;
+            const peer = entity === first ? second : first;
+            set(peer, Sprite, { ...world.get(peer, Sprite), texture: world.get(entity, Sprite).texture });
+        });
+        assets.invalidate('shared.png');
+        await settle(app);
+        const latest = assets.getTexture('shared.png')!.handle;
+        expect(world.get(first, Sprite).texture).toBe(latest);
+        expect(world.get(second, Sprite).texture).toBe(latest);
+        expect(assets.sizes().refRows).toBe(2);
+        expect(pool.releaseTexture).toHaveBeenCalledWith(source.value.handle);
+        world.despawn(first);
+        world.despawn(second);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('drops a delayed replacement when the realm has released its assets', async () => {
+        const { app, assets } = sceneApp();
+        const old = await assets.acquireTexture('hero.png'), entity = app.world.spawn();
+        app.world.insert(entity, Sprite, { texture: old.value.handle });
+        const { acquire, finish, load } = delayNextTexture(assets);
+        assets.invalidate('hero.png');
+        await app.tick(1 / 60);
+        const incoming = await acquire('hero.png');
+        assets.releaseAll();
+        finish(incoming);
+        await settle(app);
+        expect(app.world.get(entity, Sprite).texture).toBe(old.value.handle);
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(assets.sizes().refRows).toBe(0);
+        expect(assets.entityScopes.size).toBe(0);
+        app.world.despawn(entity);
+    });
+
+    it('keeps both generations until an existing scene field bound by an observer has caught up', async () => {
+        const { app, assets, manager } = sceneApp();
+        const world = app.world;
+        let sprite!: Entity, mesh!: Entity, old = 0;
+        manager.register({ name: 'level', setup: async ctx => {
+            const scope = new AssetScope();
+            old = scope.add(await assets.acquireTexture('shared.png')).value.handle;
+            ctx.trackAssetScope(scope);
+            sprite = ctx.spawn();
+            mesh = ctx.spawn();
+            world.insert(sprite, Sprite, { texture: old });
+            world.insert(mesh, MeshRenderer, { texture: 0 });
+        } });
+        await manager.load('level');
+        let oldStillHeld = false;
+        const set = world.set.bind(world);
+        vi.spyOn(world, 'set').mockImplementation((entity, component, data) => {
+            set(entity, component, data);
+            if (entity === sprite && component === Sprite) set(mesh, MeshRenderer, { ...world.get(mesh, MeshRenderer), texture: old });
+            if (entity === mesh && component === MeshRenderer) oldStillHeld = !pool.releaseTexture.mock.calls.some(([handle]) => handle === old);
+        });
+        assets.invalidate('shared.png');
+        await settle(app, 6);
+        const latest = assets.getTexture('shared.png')!.handle;
+        expect(world.get(sprite, Sprite).texture).toBe(latest);
+        expect(world.get(mesh, MeshRenderer).texture).toBe(latest);
+        expect(oldStillHeld).toBe(true);
+        expect(assets.sizes().refRows).toBe(1);
+        await manager.unload('level');
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('respects an observer that restores the outgoing value without retrying or holding the unused replacement', async () => {
+        const { app, assets } = sceneApp();
+        const world = app.world, entity = world.spawn(), source = await assets.acquireTexture('shared.png');
+        world.insert(entity, Sprite, { texture: source.value.handle });
+        assets.entityScopes.ensure(world, entity).add(source);
+        const set = world.set.bind(world);
+        vi.spyOn(world, 'set').mockImplementation((e, component, data) => {
+            set(e, component, data);
+            if (e === entity && component === Sprite) set(entity, Sprite, { ...world.get(entity, Sprite), texture: source.value.handle });
+        });
+        const load = vi.spyOn(assets, 'acquireTexture');
+        assets.invalidate('shared.png');
+        await settle(app);
+        expect(world.get(entity, Sprite).texture).toBe(source.value.handle);
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(assets.sizes().refRows).toBe(1);
+        expect(pool.releaseTexture).not.toHaveBeenCalledWith(source.value.handle);
+        world.despawn(entity);
+        expect(assets.sizes().refRows).toBe(0);
+    });
 
     it('two scenes holding one texture get one acquisition EACH', async () => {
         // The cardinality the world-wide swap got wrong: it acquired once and
@@ -405,11 +639,10 @@ describe('a replacement is a transaction per owning scope', () => {
         const initial = await assets.acquireTexture('hero.png');
         const entity = app.world.spawn();
         app.world.insert(entity, Sprite, { texture: initial.value.handle });
-        const acquire = assets.acquireTexture.bind(assets);
-        let finish!: (lease: Awaited<ReturnType<typeof acquire>>) => void;
-        vi.spyOn(assets, 'acquireTexture').mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const { acquire, finish } = delayNextTexture(assets);
         assets.invalidate('hero.png'); await app.tick(1 / 60);
-        expect(assets.entityScopes.size).toBe(1);
+        expect(assets.acquireTexture).toHaveBeenCalledTimes(1);
+        expect(assets.entityScopes.size).toBe(0);
         app.world.despawn(entity); initial.release();
         finish(await acquire('hero.png')); await settle(app);
         expect(assets.entityScopes.size).toBe(0);
@@ -419,6 +652,25 @@ describe('a replacement is a transaction per owning scope', () => {
 });
 
 describe('a scope migrates all of its bindings or none', () => {
+    it('keeps one receipt for a generation already held when the loader reuses a handle', () => {
+        const world = new World(); connectFakeCpp(world);
+        const scope = new AssetScope(), releaseOld = vi.fn(), releaseNew = vi.fn();
+        scope.add(ownedAssetLease('mesh:path', 1, 7, releaseOld, 'mesh'));
+        const next = ownedAssetLease('mesh:path', 2, 7, releaseNew, 'mesh');
+        scope.add(next.retain()!);
+        const entity = world.spawn();
+        world.insert(entity, MeshRenderer, { mesh: 7 });
+        const set = vi.spyOn(world, 'set');
+        expect(migrateLiveBindings(world, 'mesh', 7, next, () => scope)).toEqual({ moved: 1, revisit: false });
+        expect(set).not.toHaveBeenCalled();
+        expect(scope.size).toBe(1);
+        expect(releaseOld).toHaveBeenCalledTimes(1);
+        next.release();
+        expect(releaseNew).not.toHaveBeenCalled();
+        scope.releaseAll();
+        expect(releaseNew).toHaveBeenCalledTimes(1);
+    });
+
     /** A world whose Nth write refuses — the failure the rollback exists for. */
     function worldFailingWriteAt(nth: number): World {
         const world = new World();
@@ -432,7 +684,7 @@ describe('a scope migrates all of its bindings or none', () => {
         return world;
     }
 
-    it('puts back every binding it had already written, and gives the replacement back', () => {
+    it('rolls back a failed owner while an independent owner still receives the replacement', () => {
         const scope = new AssetScope();
         let released = 0;
         const outgoing = {
@@ -448,27 +700,24 @@ describe('a scope migrates all of its bindings or none', () => {
         );
         const entities = [world.spawn(), world.spawn(), world.spawn(), world.spawn()];
         for (const e of entities) world.insert(e, Widget, { icon: 11 });
+        const independent = world.spawn(), otherScope = new AssetScope();
+        world.insert(independent, Widget, { icon: 11 });
 
         let replacementReleased = 0;
-        const replacement = {
-            lease: {
-                key: 'texture:hero.png', generation: 2, value: { handle: 22 },
-                release: () => { replacementReleased++; },
-            },
-            boundValue: (lease: AssetLease) => (lease.value as { handle: number }).handle,
-        };
-        const migrated = migrateScopeBindings(
-            world, scope, 'texture', 11, replacement as never, () => scope,
-        );
+        const replacement = ownedAssetLease('texture:hero.png', 2, { handle: 22 }, () => { replacementReleased++; }, 'texture');
+        const migrated = migrateLiveBindings(world, 'texture', 11, replacement, e => e === independent ? otherScope : scope);
+        replacement.release();
 
-        expect(migrated).toBe(false);
+        expect(migrated).toEqual({ moved: 1, revisit: false });
         // Every binding still holds the era the scope still owns...
         for (const e of entities) expect((world.get(e, Widget) as { icon: number }).icon).toBe(11);
         expect(released).toBe(0);
-        // ...and the replacement was given back rather than kept by anyone.
-        expect(replacementReleased).toBe(1);
+        expect(world.get(independent, Widget).icon).toBe(22);
+        expect(replacementReleased).toBe(0);
         expect(scope.size).toBe(1);
         expect(scope.leases()[0]).toBe(outgoing);
+        otherScope.releaseAll();
+        expect(replacementReleased).toBe(1);
     });
 });
 

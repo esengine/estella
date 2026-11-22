@@ -2,110 +2,138 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    liveAssetRebind.ts
- * @brief   Replacing a live asset is a transaction, and its unit is the owning scope.
- *
- * @details Ownership is per scope: two scenes holding one texture hold two
- *          receipts. So a replacement that acquires ONCE and swaps the handle
- *          world-wide moves both owners onto an asset only one of them owes a
- *          release for — the other's receipt now names an era nothing on screen
- *          is using, and the new era has one holder where two are needed.
- *
- *          Hence one acquisition per scope that migrates, and within a scope
- *          all of its bindings move or none do: a scope holding the new
- *          generation for some of its bindings and the old one for the rest
- *          owes two receipts for one replacement, and nothing afterwards can
- *          say which binding belongs to which.
- *
- *          The coordinator owns nothing at rest. Every acquisition it makes
- *          ends up in an owner's scope or is given straight back.
+ * @brief   Publish a replacement to the scopes that own its live bindings.
  */
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import type { AssetScope, AssetLease } from './AssetLease';
 import type { AssetFieldType } from '../scene/scene';
-import { findLiveAssetBindings, readLiveAssetBinding, writeLiveAssetBinding } from './liveAssetBindings';
+import { liveAssetBindings, type LiveAssetBinding } from './liveAssetBindings';
+import { boundValueOf, sameAcquisition } from './leaseBindings';
 import { log } from '../util/logger';
 
-/** The scope that owns what an entity's asset fields hold. */
-export type OwnerScopeResolver = (entity: Entity) => AssetScope;
+type OwnerScopeResolver = (entity: Entity, create: boolean) => AssetScope | null;
 
-/** One acquisition of the replacement, and how to read the value a bound field
- *  holds for it. */
-export interface LiveAssetReplacement {
-    readonly lease: AssetLease;
-    readonly boundValue: (lease: AssetLease) => unknown;
+function boundData(world: World, binding: LiveAssetBinding, expected: unknown): Record<string, unknown> | null {
+    if (!world.valid(binding.entity) || world.isDestructionPending(binding.entity)) return null;
+    const data = world.tryGet(binding.entity, binding.component) as Record<string, unknown> | null;
+    return data && data[binding.field] === expected ? data : null;
 }
 
-/** Every scope owning at least one live binding of `oldValue` — one replacement
- *  acquisition is owed to each. */
-export function ownerScopesOf(
-    world: World, type: AssetFieldType, oldValue: unknown, ownerScopeOf: OwnerScopeResolver,
-): AssetScope[] {
-    const scopes: AssetScope[] = [];
-    for (const binding of findLiveAssetBindings(world, type, oldValue)) {
-        const scope = ownerScopeOf(binding.entity);
-        if (!scopes.includes(scope)) scopes.push(scope);
-    }
-    return scopes;
+function writeBinding(world: World, binding: LiveAssetBinding, data: Record<string, unknown>, value: unknown): void {
+    data[binding.field] = value;
+    world.set(binding.entity, binding.component, data as never);
 }
 
-/**
- * Move one scope onto the replacement: bindings and ownership together, all or
- * none. Returns whether it migrated; when it did not, the replacement has been
- * given back rather than kept by the coordinator.
- */
-export function migrateScopeBindings(
-    world: World,
-    scope: AssetScope,
-    type: AssetFieldType,
-    oldValue: unknown,
-    replacement: LiveAssetReplacement,
-    ownerScopeOf: OwnerScopeResolver,
+function replaceFields(
+    world: World, scope: AssetScope, bindings: LiveAssetBinding[], ownerOf: OwnerScopeResolver,
+    oldValue: number | string, newValue: number | string,
 ): boolean {
-    const bindings = findLiveAssetBindings(world, type, oldValue)
-        .filter((binding) => ownerScopeOf(binding.entity) === scope);
-    const newValue = replacement.boundValue(replacement.lease);
-    if (bindings.length === 0 || newValue === undefined) {
-        replacement.lease.release();
-        return false;
-    }
-
-    // What this scope holds for the outgoing era, found BEFORE the replacement
-    // joins the scope — afterwards a search by value could match either.
-    const outgoing = typeof oldValue === 'number' || typeof oldValue === 'string'
-        ? scope.bindingLease(type, oldValue) : undefined;
-
-    const previous = bindings.map((binding) => readLiveAssetBinding(world, binding));
-    let written = 0;
-    let failure: unknown = null;
-    for (; written < bindings.length; written++) {
-        try {
-            writeLiveAssetBinding(world, bindings[written], newValue);
-        } catch (e) {
-            failure = e;
-            break;
+    const attempted: LiveAssetBinding[] = [];
+    try {
+        for (const binding of bindings) {
+            const data = boundData(world, binding, oldValue);
+            if (!data || ownerOf(binding.entity, false) !== scope) continue;
+            attempted.push(binding);
+            writeBinding(world, binding, data, newValue);
         }
-    }
-    if (failure !== null) {
-        // Every binding, not only the ones whose write RETURNED: a write that
-        // threw may still have landed, and one left holding the replacement is
-        // the split ownership this is atomic to prevent.
-        for (let i = bindings.length - 1; i >= 0; i--) {
+        return attempted.length > 0;
+    } catch (error) {
+        // Include the throwing write. An observer can throw after the component was updated.
+        for (let i = attempted.length - 1; i >= 0; i--) {
+            const binding = attempted[i];
             try {
-                writeLiveAssetBinding(world, bindings[i], previous[i]);
-            } catch {
-                // The binding is gone; there is nothing to put back into it.
-            }
+                const data = boundData(world, binding, newValue);
+                if (data) writeBinding(world, binding, data, oldValue);
+            } catch { /* The component may have disappeared during rollback. */ }
         }
-        replacement.lease.release();
-        log.warn('asset', 'live asset rebind rolled back — a binding could not be written', failure);
+        log.warn('asset', 'live asset rebind rolled back — a binding could not be written', error);
         return false;
     }
+}
 
-    scope.add(replacement.lease);
-    if (outgoing) {
-        scope.forget(outgoing);
-        outgoing.release();
+interface OwnerBindings {
+    fields: LiveAssetBinding[];
+    outgoing?: AssetLease;
+    added?: AssetLease;
+    byEntity?: Map<Entity, LiveAssetBinding[]>;
+}
+
+/** Only needed if a field still holds the outgoing value after the writes. */
+function originallyBound(owner: OwnerBindings, binding: LiveAssetBinding): boolean {
+    if (!owner.byEntity) {
+        owner.byEntity = new Map();
+        for (const field of owner.fields) {
+            const fields = owner.byEntity.get(field.entity);
+            if (fields) fields.push(field);
+            else owner.byEntity.set(field.entity, [field]);
+        }
     }
-    return true;
+    return owner.byEntity.get(binding.entity)?.some(field => field.component === binding.component && field.field === binding.field) ?? false;
+}
+
+function releaseHeld(scope: AssetScope, lease: AssetLease | undefined): void {
+    if (!lease || !scope.forget(lease)) return;
+    try { lease.release(); }
+    catch (error) { log.warn('asset', 'hot-update rebind: could not dispose an unused acquisition', error); }
+}
+
+/** Borrow the acquired generation. Each scope keeps exactly the receipts its live fields still use. */
+export function migrateLiveBindings(
+    world: World, type: AssetFieldType, oldValue: number | string, replacement: AssetLease, ownerOf: OwnerScopeResolver,
+): { moved: number; revisit: boolean } {
+    const result = { moved: 0, revisit: false };
+    const newValue = boundValueOf(replacement);
+    if ((typeof newValue !== 'number' && typeof newValue !== 'string') || !newValue) return result;
+    if (newValue === oldValue) {
+        log.warn('asset', `hot-update rebind: re-acquiring "${type}" returned the same value (${String(oldValue)})`);
+    }
+
+    const owners = new Map<AssetScope, OwnerBindings>();
+    for (const binding of liveAssetBindings(world, type, oldValue)) {
+        const scope = ownerOf(binding.entity, true);
+        if (!scope) continue;
+        const group = owners.get(scope);
+        if (group) group.fields.push(binding);
+        else owners.set(scope, { fields: [binding] });
+    }
+    if (!owners.size) return result;
+    for (const [scope, group] of owners) {
+        try {
+            const outgoing = scope.bindingLease(type, oldValue);
+            const existing = oldValue === newValue ? outgoing : scope.bindingLease(type, newValue);
+            const alreadyHeld = existing && (sameAcquisition(existing, replacement)
+                || (oldValue === newValue && scope.leases().some(held => sameAcquisition(held, replacement))));
+            if (!alreadyHeld) {
+                const share = replacement.retain();
+                if (!share) break;
+                // A write may synchronously despawn its owner. Register the share before notifying the world.
+                group.added = scope.add(share);
+            }
+            // Another owner's observer may have moved these fields already. The final walk decides what is still held.
+            if (outgoing && !sameAcquisition(outgoing, replacement)) group.outgoing = outgoing;
+            if (oldValue === newValue || replaceFields(world, scope, group.fields, ownerOf, oldValue, newValue)) {
+                result.moved++;
+            }
+        } catch (error) {
+            log.warn('asset', 'hot-update rebind: an owner could not settle its receipts', error);
+        }
+    }
+
+    // Observers may edit other fields or transfer entities during a write. Reconcile all scopes in one walk.
+    for (const binding of liveAssetBindings(world, type, oldValue, newValue)) {
+        const scope = ownerOf(binding.entity, false);
+        const group = scope && owners.get(scope);
+        if (binding.value === newValue) {
+            if (group) group.added = undefined;
+        } else {
+            if (group) group.outgoing = undefined;
+            if (!result.revisit && (!group || !originallyBound(group, binding))) result.revisit = true;
+        }
+    }
+    for (const [scope, group] of owners) {
+        releaseHeld(scope, group.outgoing);
+        releaseHeld(scope, group.added);
+    }
+    return result;
 }
