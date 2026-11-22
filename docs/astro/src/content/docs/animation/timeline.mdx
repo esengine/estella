@@ -1,15 +1,55 @@
 ---
 title: Timeline
-description: The complete guide to Sequencer timelines — the TimelinePlayer component, the Timeline playback API, and keyframe tracks.
+description: Make your first animation in the Sequencer. Follow the screenshots to bind an object, set two keys, assign a sound, and play the timeline in a game.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-A timeline is a **Sequencer animation** — tracks of keyframes over time that move a
-Transform, swap sprites, fire audio, toggle entities, or drive Spine. You author it
-in the editor's Sequencer, attach it with a `TimelinePlayer` component, and control
-playback through the `Timeline` resource. Because one timeline drives many things at
-once, it's the tool for cutscenes and scripted sequences.
+A **Sequencer** timeline coordinates movement, sprite animation, sound and camera shots. Each `.estimeline` file holds one timeline. An `.esanimator` file holds an animation controller and defines transitions between states.
+
+Already have a track? Jump to [choosing a sound](#choose-a-sound-for-an-audio-track) or [binding another entity](#bindings).
+
+## Animate a move with two keys
+
+Pick a sprite you can see in a 2D scene, such as a character named `Hero`. This example moves its X position from 0 to 120 in one second. The same steps work on a 3D object with a distance suited to your scene.
+
+<Steps>
+
+1. **Create the timeline.** Open the destination folder in the Content Browser and choose **Add → New Animation**. The editor creates `NewAnimation.estimeline` and opens it in the Sequencer. You can also open **Panels → Sequencer** on the left toolbar and click **New animation** in the empty panel. To edit an existing timeline, double-click its file.
+
+   ![The New animation button in an empty Sequencer](@/assets/guides/en/seq-first-new.png)
+
+2. **Bind the character and set the starting position.** Select the character in the **World Outliner**. The link button at the upper left of the Sequencer should show its name. If it reads **Unbound**, click it. Click **Jump to start** to put the playhead at frame 0. Open **+ Track**, scroll to **Property (from the bound entity)** and choose `position.x` for `Transform`. The Sheet adds a channel and places the first key at the character’s current X position.
+
+   ![The property section of the Track menu with position.x highlighted for Transform](@/assets/guides/en/seq-first-track.png)
+
+3. **Set the end position at one second.** Click the ruler at **1.00 s** (frame 12 at the default 12 fps). Hover over the `position.x` row on the left and click its diamond **Key at playhead** button. Click the new key in the lane on the right, enter `120` in **Details → Value** and press Enter. The Sheet now shows **2 keys** in its footer. If your object started at 120, choose a different end value.
+
+   ![The second key is selected at frame 12, its value is 120 in Details, and the Sheet counts two keys](@/assets/guides/en/seq-first-keys.png)
+
+4. **Preview and save.** Drag the playhead back to frame 0, then scrub slowly to frame 12. Watch the character move in the scene viewport. You can also click the triangle in the Sequencer to play the clip. Click **Save** at the upper right of the Sequencer to write the keys to the `.estimeline` file.
+
+</Steps>
+
+**To record a movement**, follow step 2 first. Keep the character selected, move the playhead to one second, and click the red record button next to the link button. Drag the character along its X axis with the Move tool, or edit its X position in the character’s **Details**. Click record again to finish. Recording keys **existing property channels on the bound object** and also edits the object’s scene properties. Editing the key’s value as in step 3 preserves the object’s original scene position.
+
+**To play the timeline when the game starts**, select the same character in the World Outliner. In **Details → Add Component**, search for `TimelinePlayer` and add **Timeline Player**. Assign the saved `.estimeline` to **Timeline**, enable **Playing**, save the scene and press Play on the editor’s main toolbar. If the clip previews in the Sequencer but the character stays still in the game, check which entity has the player and which file it references.
+
+## Choose a sound for an audio track
+
+1. Find the audio file you want to use in the **Content Browser**, for example `Intro.mp3`. Open the timeline and move the playhead to the time the sound should start, such as one second.
+2. Choose **+ Track → Audio** and pick **(timeline root)** or a child. The Sequencer creates and selects a sound item at the playhead. **No sound** means the item is ready for a file. If Details shows track settings, click the diamond in the lane to inspect the item.
+3. In an editor build with the picker fix, click **None ▾** in **Details → Audio → Sound** and choose `Intro.mp3`. The Sound field now shows the filename. Click **Save** in the Sequencer.
+
+   ![The fixed Sound picker listing the project files Bell.wav and Intro.mp3](@/assets/guides/en/seq-sound-picker.png)
+
+4. **Listen.** The default **Length** of zero makes a one-shot. Save, run the scene from the main toolbar and let the playing timeline cross the item to hear it. To audition a span in the Sequencer, set **Length** to a positive value such as two seconds and start playback before the item. The diamond becomes a bar.
+
+<Aside type="note" title="Using 0.112.0">
+  The **Sound** field is read-only in this version. A grey **None** with no dropdown arrow identifies the affected control. The player’s **Playing** and **Bindings** settings cannot assign the file. An AI assistant connected to the editor can fill in the existing item. Try “In the open timeline, find the empty audio item I just added. Assign the project file Intro.mp3 to it, keep its start time and volume, and save the timeline.” Substitute your own filename.
+
+  If the target menu closes when you move the pointer diagonally, use ↑ and ↓ to highlight **Audio**, → to open it, then ↑ or ↓ and Enter to pick the entity.
+</Aside>
 
 ## Attach a timeline
 
@@ -118,6 +158,7 @@ A timeline is a set of tracks evaluated together each frame:
 | Audio | `Audio` | Sounds: a moment fires the whole sound once; a clip with a length is heard over its span (see [below](#audio-clips)). |
 | Activation | `Activation` | Switch an entity on and off over ranges, its children with it; `UINode.display` on a UI node (see [below](#activation-ranges)). |
 | Spine | `Spine` | Play Spine animations as clips. |
+| Particles | `Particle` | Play, stop or reset the target entity’s particle emitter at a particular time. |
 | Marker | `Marker` | Named time markers, sent to the game as a `TimelineEvent` when crossed. |
 | Custom event | `CustomEvent` | Named events with a payload (and an optional window), sent as a `TimelineEvent` (see [below](#events-and-markers)). |
 | Camera | `Camera` | Which camera is the view, shot by shot (see [below](#cameras-and-sequences)). |
@@ -283,11 +324,13 @@ are not its children, and one timeline played by two players drives two differen
 | `bindingNames` | The names of the player's bindings. |
 | `bindings` | The entity each name is bound to, in the same order; carried to the loaded entities like any entity reference. |
 
-In the Sequencer, **Track → (kind) → Bound entity…** lists the scene entities outside the root and binds a new track to
-the one picked: the player gains the binding (or reuses the one it has for that entity) and the track's path becomes
-`@Name`, in one undo step. The player's Details lists its bindings by name, each with its entity to change. Every kind of
-track can be bound, and bound paths work in the preview, in play and in nested sequences; a binding the player does not
-have resolves to nothing, and its track does nothing.
+Suppose the player is on `Stage`, `Hero` is its child, and `Spotlight` is elsewhere in the scene. Check that the link button in the Sequencer names Stage as the preview root.
+
+- **Control a child.** Choose **+ Track → Active → Hero**. The track finds Hero by its path below Stage.
+- **Control an entity elsewhere.** Choose **+ Track → Active → Bound entity… → Spotlight**. This creates or reuses the Spotlight binding on Stage’s **Timeline Player** and sets the track’s target to `@Spotlight`. If the submenu says the root has no player, add **Timeline Player** to Stage first.
+- **Retarget an existing binding.** Select Stage in the World Outliner and open **Details → Timeline Player → Bindings**. Each row shows the binding name on the left and an entity dropdown on the right. There is no add button here. Save the timeline and the scene, then run the scene to check visibility over the active range.
+
+![The Active track submenu offers the child Hero directly and the external entity Spotlight under Bound entity](@/assets/guides/en/seq-binding-menu.png)
 
 ### Events and markers
 
@@ -330,21 +373,13 @@ entities, and `timelineSignalType(name)` spells the type in code.
 
 ## Author in the Sequencer
 
-Double-click an `.estimeline` (or open the timeline of a selected entity) to author
-it in the **Sequencer** — the editor for keyframe animation. The **dope sheet** lays
-every track and its keys along a shared, scrubbable playhead; add tracks, drag keys,
-then **Save**.
+To explore a finished cutscene, open the `Cutscene` example and double-click `assets/timelines/intro.estimeline` in the Content Browser. The **Sheet** shows tracks and current values on the left and a frame ruler on the right. Drag the playhead across the ruler to scrub. On the two `Hero` position channels, circles and diamonds indicate different interpolation modes. The two green bars below keep the top and bottom letterbox bars active for their respective spans.
 
-![The Sequencer dope sheet — tracks and keyframes for a cutscene timeline](@/assets/guides/en/seq-dopesheet.png)
+![The cutscene Sheet with the Hero position keys above two three-second letterbox activation ranges](@/assets/guides/en/seq-dopesheet.png)
 
-*The dope sheet: one row per track (here a Transform's `position.x` / `position.y` plus two letterbox activation tracks), keyframes as diamonds, a scrubbable playhead, and the transport up top.*
+Switch to **Curves**. The red curve moves the character into the shot along X, and the green curve moves it up and down. Click a key on the green curve to reveal its two tangent handles. Drag the key to change its time and value, or drag a handle to adjust the slope at that key.
 
-Switch to the **Curves** tab to shape the interpolation between keys — drag the value
-curves and their tangent handles for eases the dope sheet can't express:
-
-![The Sequencer curve editor — value curves with tangent handles](@/assets/guides/en/seq-curves.png)
-
-*The curve editor: each keyframed channel becomes an editable curve (here `position.x` easing in, `position.y` bobbing), with per-key tangent handles.*
+![A selected key on the character’s height curve with its frame, value and two tangent handles](@/assets/guides/en/seq-curves.png)
 
 ### Zoom and markers
 
@@ -372,15 +407,9 @@ A clip's right-click menu has Split, Copy and Paste too. A click on one item of 
 
 ### Tracks on an entity
 
-**Track** in the Sequencer's header adds any track the runtime plays: pick its kind
-(Active, Spine animation, Sprite animation, Audio, Particles, Markers, Events), then the
-entity below the root it is about, or the root itself. The track sits under that entity's
-row with its first item at the playhead. Spans (an active range, a Spine animation, an
-event with a window) are bars, dragged by their body and resized by their edges; moments
-(a sound, a particle action, a marker, an event) are pins, dragged in time. The row's
-**+** adds another at the playhead, and a selected item is edited in the Details: a
-sound's asset and volume, a particle action, a Spine animation's name, loop and speed, an
-event's name, window and payload. Delete removes it; every edit is one undo step.
+Open **+ Track** and pick an entity track such as Audio, Active, Animation, Spawn or Camera shake. Choose **(timeline root)** or one of its descendants. The first item appears at the playhead. Drag the body of a clip to move it, or an edge to change its duration. A particle action, marker or event at a single instant can be dragged along the lane.
+
+For tracks that accept multiple items, the row’s **+** adds another at the playhead. Click an item and edit its sound asset, volume, animation name or event data in **Details**. Press **Delete** to remove the selection.
 
 ### Mute, lock and folders
 
@@ -423,19 +452,9 @@ encoded with the ffmpeg the editor ships. Play is left as it was found, and Canc
 
 ### What the preview animates
 
-Scrubbing or playing in the Sequencer animates the **live viewport**, not a separate
-preview window — the sampled pose is written to the open document and restored the
-moment you unbind, close, or enter Play, so it can never leak into the saved scene.
+Scrub the playhead to see property-channel values in the scene viewport. Run the scene to check activation ranges, sprite animation starts and one-shot sounds. The link button names the **preview root**. Tracks can animate that root, its descendants, or other scene entities explicitly bound through the player.
 
-It animates one entity: the **preview root**, named on the link button in the
-Sequencer's header. That root is derived, not asked for — it is the entity whose
-`TimelinePlayer` plays this timeline, so double-clicking a clip in the Content Browser
-binds to the thing that plays it. Selecting a node *inside* an effect still previews
-the whole effect (the root is found by walking up), and when several entities play the
-same timeline the header says so and previews the selected one. With no player anywhere
-and nothing selected there is nothing to animate: the button reads **Unbound**, and the
-link button binds it to your selection — which is how you author a new clip onto an
-entity that does not play it yet.
+When you open a timeline, the Sequencer looks for a `TimelinePlayer` that plays this file on the selected entity or its ancestors, then for the first matching player in the scene. If there is no matching player, it uses the current selection. When the button reads **Unbound**, select the target in the World Outliner and click the link button.
 
 ### Through an agent
 
