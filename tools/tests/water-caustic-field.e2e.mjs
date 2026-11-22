@@ -50,7 +50,9 @@ try {
       const data = new Uint8Array(n * n * 4);
       for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) {
         // Invert Snell's law so neighbouring rays land exactly magnification texels apart.
-        const slope = -(x + 0.5 - n / 2) * (magnification - 1) / depth;
+        // Centre the synthetic lens on a texel. A lens centred between two texels can
+        // accidentally distribute a fixed one-texel tent evenly at this exact magnification.
+        const slope = -(x - n / 2) * (magnification - 1) / depth;
         const rayY = 1 / Math.hypot(1, slope), rayX = slope * rayY;
         const nx = rayX / Math.hypot(rayX, rayY - 1 / 1.333);
         const i = 4 * (z * n + x);
