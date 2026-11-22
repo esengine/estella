@@ -44,12 +44,16 @@ describe('runtimeConfigOf', () => {
     expect(rc).toEqual(DEFAULT_RUNTIME_CONFIG);
   });
 
-  it('exports the render-thread opt-in for both native and web hosts', () => {
-    const manifest = parseManifest({ formatVersion: '1', name: 'Threaded', version: '1.0.0',
-      features: { rendering: { threadedRendering: true } } });
-    const enabled = runtimeConfigOf(manifest);
-    expect(packagedRuntimeFields(enabled).threadedRendering).toBe(true);
-    expect(packagedRuntimeFields(DEFAULT_RUNTIME_CONFIG)).not.toHaveProperty('threadedRendering');
+  it.each([
+    [true, false], [false, true], [true, true], [false, false], [undefined, undefined], ['false', 1],
+  ])('exports only enabled render scheduling options (%s, %s)', (threadedRendering, asyncCompute) => {
+    const manifest = parseManifest({ name: 'Rendering', features: { rendering: { threadedRendering, asyncCompute } } });
+    const runtime = runtimeConfigOf(manifest);
+    for (const platform of ['web', 'desktop', 'ios']) {
+      const fields = packagedRuntimeFields(runtime, platform);
+      expect(fields.threadedRendering).toBe(threadedRendering === true ? true : undefined);
+      expect(fields.asyncCompute).toBe(asyncCompute === true ? true : undefined);
+    }
   });
 
   it('turns the sorting-layer lists into the masks the renderer takes', () => {

@@ -29,6 +29,10 @@ setting on any page.
     environment live here too, with the choices about delivery: compiling shaders in the
     background, warming them up behind the loading screen, and drawing only frames that
     change (see [Quality levels](/docs/performance/quality-levels/#shader-compilation-and-render-on-demand)).
+    Under **Render Scheduling**, enable **Dedicated render thread** for native builds
+    and cross-origin isolated web builds, or **GPU async compute** for supported native
+    Metal devices. Both switches default to off. Use the local browser preview to try
+    the web render thread.
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
     speed, sleeping, continuous collision). See [Physics](/docs/gameplay/physics/).

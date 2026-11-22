@@ -95,6 +95,10 @@ const DECLARED_GAPS = {
     play: 'the play realm boots on the editor\'s own context; the two backends are held '
       + 'equal by the pixel gates (`verify-render --backend webgpu`) rather than by Play',
   },
+  threadedRendering: {
+    editor: 'the editing canvas and its inspection tools share the editor thread',
+    play: 'embedded Play shares an unisolated editor window; local browser preview runs the exported host with cross-origin isolation',
+  },
   screenFit: {
     editor: 'the device preview reads it through projectSeams, not by applying it '
       + 'to the edit camera (the editor view is a free zoom by design)',
@@ -130,6 +134,8 @@ const PARSE_KEY = {
   colorSpace: 'r.colorSpace',
   outputTransform: 'r.outputTransform',
   renderBackend: 'r.backend',
+  threadedRendering: 'r.threadedRendering',
+  asyncCompute: 'r.asyncCompute',
   screenFit: 'r.cameraScaleMode',
   msaaSamples: 'r.msaa',
   skinCache: 'r.skinning',
@@ -161,6 +167,8 @@ const AUTHORING = {
   skinCache: { ui: 'project.rendering.skinning.computeSkinCache' },
   quality: { ui: 'project.rendering.quality' },
   renderBackend: { ui: 'project.rendering.backend' },
+  threadedRendering: { ui: 'project.rendering.threadedRendering' },
+  asyncCompute: { ui: 'project.rendering.asyncCompute' },
   screenFit: { ui: 'project.display.cameraFit' },
 };
 
@@ -168,7 +176,7 @@ const AUTHORING = {
 function runtimeConfigFields(src) {
   const body = src.slice(src.indexOf('export interface RuntimeProjectConfig {'));
   const end = body.indexOf('\n}');
-  return [...body.slice(0, end).matchAll(/^ {2}(\w+):/gm)].map((m) => m[1]);
+  return [...body.slice(0, end).matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1]);
 }
 
 const runtimeSrc = read(RUNTIME_CONFIG);

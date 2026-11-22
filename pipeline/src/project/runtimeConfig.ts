@@ -96,6 +96,7 @@ export interface RuntimeProjectConfig {
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
   threadedRendering?: boolean;
+  asyncCompute?: boolean;
   /** Main-camera fit of the design resolution; `scaleMode < 0` = off. */
   screenFit: RuntimeScreenFit;
 }
@@ -184,6 +185,7 @@ export function runtimeConfigOf(
     quality: { ...quality, mode: quality.mode ?? 'off' },
     qualityModeNamed: quality.mode !== undefined,
     threadedRendering: f?.rendering?.threadedRendering === true,
+    asyncCompute: f?.rendering?.asyncCompute === true,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -207,7 +209,7 @@ export function withAudioLoadTypes(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'threadedRendering' | 'screenFit'
-  | 'msaaSamples' | 'quality' | 'skinCache'
+  | 'msaaSamples' | 'quality' | 'skinCache' | 'asyncCompute'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
 >;
@@ -233,6 +235,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig, platform?: Expor
     ...(isDefaultSkinCache(rc.skinCache) ? {} : { skinCache: rc.skinCache }),
     ...(quality ? { quality } : {}),
     ...(rc.threadedRendering ? { threadedRendering: true } : {}),
+    ...(rc.asyncCompute ? { asyncCompute: true } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or
