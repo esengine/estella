@@ -236,17 +236,17 @@ function readbackContext(): WebGL2RenderingContext | null {
  * the colour of a texel that is clear is gone by the time it is read back, and a texture that carries data in its colour under a clear alpha (a weight map
  * the ground is mixed by) comes out black. A texture keeps what it is given.
  */
-export function readBitmapTexels(image: ImageBitmap, width: number, height: number): Uint8Array | null {
+export function readBitmapTexels(image: GlImageSource, width: number, height: number, flip = false): Uint8Array | null {
     const gl = readbackContext();
     if (!gl || width > gl.getParameter(gl.MAX_TEXTURE_SIZE) || height > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return null;
     const texture = gl.createTexture();
     const framebuffer = gl.createFramebuffer();
     try {
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image as TexImageSource);
         gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
         if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return null;

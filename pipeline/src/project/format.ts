@@ -203,6 +203,8 @@ export interface ProjectFeatures {
      *  opt in without giving up the browsers that have neither. Absent ⇒ WebGL2,
      *  which is also what a mini-game and a playable always get. */
     backend?: 'webgpu';
+    /** Run drawing on a dedicated CPU thread on native and isolated web hosts. */
+    threadedRendering?: boolean;
     /** How the MAIN camera fits the design resolution, INDEPENDENT of any UI Canvas
      *  (the runtime's ScreenScaling). Absent/'none' ⇒ the camera keeps its raw
      *  orthoSize (Canvas fit when present) — the zero-regression default. */
@@ -891,6 +893,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (f.rendering && typeof f.rendering === 'object') {
       const r = f.rendering as Record<string, unknown>;
       const rendering: NonNullable<ProjectFeatures['rendering']> = {};
+      if (typeof r.threadedRendering === 'boolean') rendering.threadedRendering = r.threadedRendering;
       if (Array.isArray(r.sortingLayers)) {
         rendering.sortingLayers = r.sortingLayers
           .slice(0, SORTING_LAYER_COUNT)

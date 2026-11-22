@@ -79,6 +79,7 @@ export interface PackagedGameConfig {
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
+    threadedRendering?: boolean;
     /** Project camera fit (design resolution + scale mode) — letterboxes the main
      *  camera without a UI Canvas; absent = no fit. */
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };

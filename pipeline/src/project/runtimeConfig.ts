@@ -95,6 +95,7 @@ export interface RuntimeProjectConfig {
   /** GPU backend the build asks for; 'webgl2' is the default. Boot-fixed, and a
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
+  threadedRendering?: boolean;
   /** Main-camera fit of the design resolution; `scaleMode < 0` = off. */
   screenFit: RuntimeScreenFit;
 }
@@ -182,6 +183,7 @@ export function runtimeConfigOf(
     skinCache: skinCacheOf(f?.rendering?.skinning),
     quality: { ...quality, mode: quality.mode ?? 'off' },
     qualityModeNamed: quality.mode !== undefined,
+    threadedRendering: f?.rendering?.threadedRendering === true,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -204,7 +206,7 @@ export function withAudioLoadTypes(
 /** The settings a shipped build carries, as `game.config.json` spells them. */
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
-  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
+  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'threadedRendering' | 'screenFit'
   | 'msaaSamples' | 'quality' | 'skinCache'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
@@ -230,6 +232,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig, platform?: Expor
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
     ...(isDefaultSkinCache(rc.skinCache) ? {} : { skinCache: rc.skinCache }),
     ...(quality ? { quality } : {}),
+    ...(rc.threadedRendering ? { threadedRendering: true } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or

@@ -21,8 +21,9 @@
 
 namespace esengine {
 
-LogLevel Log::level_ = LogLevel::Info;
-std::vector<std::pair<u32, LogSink>> Log::sinks_;
+std::atomic<LogLevel> Log::level_{LogLevel::Info};
+Log::Sinks Log::sinks_;
+std::mutex Log::sinks_mutex_;
 u32 Log::nextSinkId_ = 1;
 
 void Log::init() {
@@ -59,12 +60,14 @@ const char* Log::levelToString(LogLevel level) {
 }
 
 u32 Log::addSink(LogSink sink) {
+    std::lock_guard lock(sinks_mutex_);
     u32 id = nextSinkId_++;
-    sinks_.emplace_back(id, std::move(sink));
+    sinks_.emplace_back(id, std::make_shared<LogSink>(std::move(sink)));
     return id;
 }
 
 void Log::removeSink(u32 sinkId) {
+    std::lock_guard lock(sinks_mutex_);
     sinks_.erase(
         std::remove_if(sinks_.begin(), sinks_.end(),
                        [sinkId](const auto& pair) { return pair.first == sinkId; }),
@@ -128,8 +131,13 @@ void Log::notifySinks(LogLevel level, const std::string& message) {
 
     LogEntry entry{level, message, static_cast<u64>(millis)};
 
-    for (const auto& [id, sink] : sinks_) {
-        sink(entry);
+    Sinks snapshot;
+    {
+        std::lock_guard lock(sinks_mutex_);
+        snapshot = sinks_;
+    }
+    for (const auto& [id, sink] : snapshot) {
+        (*sink)(entry);
     }
 }
 

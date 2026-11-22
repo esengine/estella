@@ -90,9 +90,8 @@ void EstellaContext::registerLogicSystems() {
 }
 
 EstellaContext::~EstellaContext() {
-    if (state_.initialized) {
-        shutdown();
-    }
+    shutdown();
+    render_thread_.stop();
 }
 
 #ifdef ES_PLATFORM_WEB
@@ -245,6 +244,11 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 }
 
 void EstellaContext::shutdown() {
+    if (render_thread_.enabled() && !render_thread_.isOwner()) {
+        render_thread_.invoke([this] { shutdown(); });
+        render_thread_.stop();
+        return;
+    }
     if (!state_.initialized) return;
 
 #ifdef ES_PLATFORM_WEB

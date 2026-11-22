@@ -58,6 +58,9 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
+#ifdef ES_RENDER_THREADS
+#include <emscripten/emscripten.h>
+#endif
 #endif
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -831,6 +834,17 @@ void renderer_setParallaxAnchor(bool set, f64 x, f64 y) {
     parallaxAnchor() = ParallaxAnchor{set, glm::dvec2(x, y)};
 }
 
+bool renderThread_enabled() { return ctx().renderThread().enabled(); }
+
+f64 renderThread_fence() { return static_cast<f64>(ctx().renderThread().fence()); }
+
+bool renderThread_complete(f64 fence) {
+    if (!std::isfinite(fence) || fence < 0 || fence > 9007199254740991.0 || std::floor(fence) != fence) return false;
+    return ctx().renderThread().complete(static_cast<RenderThread::Fence>(fence));
+}
+
+void renderThread_flush() { ctx().renderThread().flush(); }
+
 void renderer_beginFrame(f32 elapsedSec) {
     // A render frame is not a mutation: composition is invalidated by the
     // producers that write transform inputs. A server has no frames, and one
@@ -876,6 +890,9 @@ void renderer_end() {
 void renderer_endFrame() {
     if (!g_renderFrame) return;
     g_renderFrame->endFrame();
+#if defined(__EMSCRIPTEN__) && defined(ES_RENDER_THREADS)
+    EM_ASM({ if (Module['estellaGLPresent']) Module['estellaGLPresent'](); });
+#endif
 }
 
 /** Compose if a producer said the inputs moved. The renderer is a consumer of

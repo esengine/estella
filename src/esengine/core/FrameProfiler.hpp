@@ -5,6 +5,8 @@
  * @file    FrameProfiler.hpp
  * @brief   Per-frame CPU scope timing (ES_PROFILE_SCOPE) read by the editor profiler.
  */
+#include <atomic>
+#include <mutex>
 #include <vector>
 #include <string>
 #include <cstring>
@@ -44,16 +46,24 @@ public:
     bool enabled() const { return enabled_; }
 
     void add(const char* name, double ms) {
+        std::lock_guard lock(mutex_);
         for (auto& e : cur_) {
             if (std::strcmp(e.name, name) == 0) { e.ms += ms; return; }
         }
         cur_.push_back({name, ms});
     }
 
-    void counter(const char* name, double value) { setEntry(counters_cur_, name, value); }
-    void gpuScope(const char* name, double ms) { setEntry(gpu_cur_, name, ms); }
+    void counter(const char* name, double value) {
+        std::lock_guard lock(mutex_);
+        setEntry(counters_cur_, name, value);
+    }
+    void gpuScope(const char* name, double ms) {
+        std::lock_guard lock(mutex_);
+        setEntry(gpu_cur_, name, ms);
+    }
 
     void commit() {
+        std::lock_guard lock(mutex_);
         last_.swap(cur_);
         cur_.clear();
         counters_last_.swap(counters_cur_);
@@ -62,9 +72,18 @@ public:
         gpu_cur_.clear();
     }
 
-    std::string lastJson() const { return toJson(last_); }
-    std::string lastCountersJson() const { return toJson(counters_last_); }
-    std::string lastGpuJson() const { return toJson(gpu_last_); }
+    std::string lastJson() const {
+        std::lock_guard lock(mutex_);
+        return toJson(last_);
+    }
+    std::string lastCountersJson() const {
+        std::lock_guard lock(mutex_);
+        return toJson(counters_last_);
+    }
+    std::string lastGpuJson() const {
+        std::lock_guard lock(mutex_);
+        return toJson(gpu_last_);
+    }
 
 private:
     struct Entry { const char* name; double ms; };
@@ -97,7 +116,8 @@ private:
     std::vector<Entry> counters_last_;
     std::vector<Entry> gpu_cur_;
     std::vector<Entry> gpu_last_;
-    bool enabled_ = false;
+    std::atomic_bool enabled_{false};
+    mutable std::mutex mutex_;
 };
 
 class ScopeTimer {

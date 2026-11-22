@@ -123,6 +123,7 @@ bool WebGPUDevice::pollDeviceLost() {
     // its own, but pumping here gives it a guaranteed point in the frame — and
     // keeps the loss detectable if the mode ever tightens to ProcessEvents.
     if (instance_) wgpuInstanceProcessEvents(instance_);
+    drainCompletions();
     return false;
 }
 
@@ -153,6 +154,7 @@ bool WebGPUDevice::adoptDevice(WGPUDevice device) {
     // stays — it outlives devices, and on native the surface must match it.
     releaseDeviceObjects();
 
+    mailbox_ = std::make_shared<Mailbox>();
     device_ = device;
     queue_ = wgpuDeviceGetQueue(device_);
     init();
@@ -180,11 +182,15 @@ bool WebGPUDevice::recreateDevice() {
 
 void WebGPUDevice::shutdown() {
     releaseDeviceObjects();
+    if (owns_device_ && pending_device_) wgpuDeviceRelease(pending_device_);
+    pending_device_ = nullptr;
     if (instance_ && owns_instance_) { wgpuInstanceRelease(instance_); }
     instance_ = nullptr;
 }
 
 void WebGPUDevice::releaseDeviceObjects() {
+    mailbox_.reset();
+    frames_done_ = frames_ended_;
 #ifdef ES_ENABLE_METAL_ASYNC_COMPUTE
     manualComputeBarrier();
     metal_compute_.reset();
@@ -330,6 +336,7 @@ void WebGPUDevice::releaseDeviceObjects() {
     surface_depth_width_ = 0;
     surface_depth_height_ = 0;
     if (queue_) { wgpuQueueRelease(queue_); queue_ = nullptr; }
+    if (owns_device_ && device_) { wgpuDeviceRelease(device_); device_ = nullptr; }
 }
 
 // =============================================================================
@@ -683,10 +690,42 @@ bool WebGPUDevice::ensureSurfaceProxy(u32 width, u32 height) {
     return surface_proxy_view_ != nullptr;
 }
 
+bool WebGPUDevice::acquireFrameView() {
+    if (frame_view_) return true;
+    if (surface_reconfigure_) {
+        surface_reconfigure_ = false;
+        configureSwapchain(surface_width_, surface_height_);
+    }
+    WGPUSurfaceTexture st{};
+    wgpuSurfaceGetCurrentTexture(surface_, &st);
+    if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
+        st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+        ES_LOG_ERROR("WebGPUDevice: surface texture unavailable ({})",
+                     static_cast<u32>(st.status));
+        if (st.texture) wgpuTextureRelease(st.texture);
+        return false;
+    }
+    frame_texture_ = st.texture;
+    frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
+    // The texture the surface hands back is the truth about its size: a
+    // native surface may ignore the configured extent (a window mid-
+    // rotation still reports the old one), and a depth companion built
+    // for the size we ASKED for is then the wrong shape, which invalidates
+    // the pass and takes the whole frame with it.
+    const u32 texW = wgpuTextureGetWidth(frame_texture_);
+    const u32 texH = wgpuTextureGetHeight(frame_texture_);
+    if (texW > 0 && texH > 0) {
+        surface_width_ = texW;
+        surface_height_ = texH;
+        ensureSurfaceDepth(texW, texH);
+    }
+    return frame_view_ != nullptr;
+}
+
 void WebGPUDevice::presentSurfaceProxy() {
     if (!surface_proxy_drawn_) return;
     surface_proxy_drawn_ = false;
-    if (!device_ || !frame_view_ || !surface_proxy_view_ || !isDeviceUsable()) return;
+    if (!device_ || !surface_proxy_view_ || !isDeviceUsable() || !acquireFrameView()) return;
     if (pass_) endRenderPass();
     WGPURenderPipeline pipeline = ensureFlipPipeline(surface_format_, /*flip=*/true);
     if (!pipeline) return;
@@ -2119,7 +2158,7 @@ bool WebGPUDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle 
             surface_reconfigure_ = true;
             return false;
         }
-        if (surface_reconfigure_ || !frame_texture_ || !surface_proxy_) return false;
+        if (surface_reconfigure_ || (!frame_texture_ && !surface_proxy_drawn_) || !surface_proxy_) return false;
         from = surface_proxy_;
         fromFormat = surface_format_;
         width = surface_width_;
@@ -2665,43 +2704,9 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no surface configured");
             return;
         }
-        // The swapchain texture belongs to the FRAME, not to one pass: WebGPU
-        // hands it out once and takes it back at present. A frame that opens a
-        // second pass on it — a post-process blit over the captured scene, a
-        // second camera — must reuse the one it already holds; re-acquiring
-        // after releasing it returns an error, and every draw after that is
-        // dropped, which is a black screen with nothing else wrong.
-        // A web boot logs one "Destroyed texture used in a submit" from a frame
-        // that is never ended; the frames are correct and it happens once. See
-        // docs/REARCH_RENDER.md §9 for what was measured and what it costs.
-        if (!frame_view_) {
-            if (surface_reconfigure_) {
-                surface_reconfigure_ = false;
-                configureSwapchain(surface_width_, surface_height_);
-            }
-            WGPUSurfaceTexture st{};
-            wgpuSurfaceGetCurrentTexture(surface_, &st);
-            if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
-                st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
-                ES_LOG_ERROR("WebGPUDevice::beginRenderPass: surface texture unavailable ({})",
-                             static_cast<u32>(st.status));
-                return;
-            }
-            frame_texture_ = st.texture;
-            frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
-            // The texture the surface hands back is the truth about its size: a
-            // native surface may ignore the configured extent (a window mid-
-            // rotation still reports the old one), and a depth companion built
-            // for the size we ASKED for is then the wrong shape, which invalidates
-            // the pass and takes the whole frame with it.
-            const u32 texW = wgpuTextureGetWidth(frame_texture_);
-            const u32 texH = wgpuTextureGetHeight(frame_texture_);
-            if (texW > 0 && texH > 0) {
-                surface_width_ = texW;
-                surface_height_ = texH;
-                ensureSurfaceDepth(texW, texH);
-            }
-        }
+        // A browser worker may yield to its event loop between passes. Its
+        // canvas texture expires at that boundary, while our surface proxy persists.
+        if (!late_surface_acquire_ && !acquireFrameView()) return;
         pass_width_ = surface_width_;
         pass_height_ = surface_height_;
         // Drawn into the proxy, whose rows are bottom-up like every target's here; the swapchain texture receives the
@@ -2710,9 +2715,11 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no backbuffer texture");
             return;
         }
+        if (!ensureSurfaceDepth(surface_width_, surface_height_)) return;
+        const bool multisampled = ensureSurfaceMsaa(surface_width_, surface_height_);
+        if (surface_samples_ > 1 && !multisampled) return;
         surface_proxy_drawn_ = true;
-        if (ensureSurfaceMsaa(surface_width_, surface_height_)) {
-            ensureSurfaceDepth(surface_width_, surface_height_);
+        if (multisampled) {
             targetView = surface_msaa_view_;
             resolveView = surface_proxy_view_;
             pass_samples_ = surface_msaa_samples_;
@@ -2850,10 +2857,12 @@ void WebGPUDevice::endRenderPass() {
 bool WebGPUDevice::framePending() {
     if (frames_done_ >= frames_ended_) return false;
     if (instance_) wgpuInstanceProcessEvents(instance_);
+    drainCompletions();
     return frames_done_ < frames_ended_;
 }
 
 void WebGPUDevice::endFrame() {
+    drainCompletions();
     ++bind_group_frame_;
     presentSurfaceProxy();
     // Told when the queue has finished everything submitted so far: this frame and all before it.
@@ -2861,13 +2870,10 @@ void WebGPUDevice::endFrame() {
         const u64 frame = ++frames_ended_;
         WGPUQueueWorkDoneCallbackInfo done = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
         done.mode = WGPUCallbackMode_AllowSpontaneous;
-        done.callback = [](WGPUQueueWorkDoneStatus, WGPUStringView, void* self, void* which) {
-            auto* device = static_cast<WebGPUDevice*>(self);
-            const u64 finished = static_cast<u64>(reinterpret_cast<uintptr_t>(which));
-            if (finished > device->frames_done_) device->frames_done_ = finished;
+        done.callback = [](WGPUQueueWorkDoneStatus, WGPUStringView, void* ticket, void*) {
+            publishCompletion(ticket);
         };
-        done.userdata1 = this;
-        done.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(frame));
+        done.userdata1 = new Ticket{mailbox_, {CompletionKind::Frame, frame}};
         wgpuQueueOnSubmittedWorkDone(queue_, done);
     }
     // A capture is served HERE and nowhere else: this is the last instant at which
@@ -2908,12 +2914,44 @@ ReadbackHandle WebGPUDevice::captureNextFrame(u32 w, u32 h) {
 // Readback (async seam: texture → staging copy, resolved when the map lands)
 // =============================================================================
 
-void WebGPUDevice::onReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
-                                    void* userdata1, void* userdata2) {
-    auto* self = static_cast<WebGPUDevice*>(userdata1);
-    const u32 id = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
-    auto it = self->readbacks_.find(id);
-    if (it == self->readbacks_.end()) return;  // taken or discarded while in flight
+void WebGPUDevice::publishCompletion(void* userdata, WGPUMapAsyncStatus status) {
+    std::unique_ptr<Ticket> ticket(static_cast<Ticket*>(userdata));
+    ticket->result.status = status;
+    std::lock_guard lock(ticket->mailbox->mutex);
+    ticket->mailbox->ready.push_back(ticket->result);
+}
+
+WGPUBufferMapCallbackInfo WebGPUDevice::mapCallback(CompletionKind kind, u32 id) {
+    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    cb.mode = WGPUCallbackMode_AllowSpontaneous;
+    cb.callback = [](WGPUMapAsyncStatus status, WGPUStringView, void* data, void*) {
+        publishCompletion(data, status);
+    };
+    cb.userdata1 = new Ticket{mailbox_, {kind, id}};
+    return cb;
+}
+
+void WebGPUDevice::drainCompletions() {
+    if (!mailbox_) return;
+    std::vector<Completion> ready;
+    {
+        std::lock_guard lock(mailbox_->mutex);
+        ready.swap(mailbox_->ready);
+    }
+    for (const auto& result : ready) {
+        const u32 id = static_cast<u32>(result.id);
+        switch (result.kind) {
+            case CompletionKind::Frame: frames_done_ = std::max(frames_done_, result.id); break;
+            case CompletionKind::Readback: onReadbackMapped(result.status, id); break;
+            case CompletionKind::PassTime: onPassTimeMapped(result.status, id); break;
+            case CompletionKind::GpuTime: onGpuTimeMapped(result.status, id); break;
+        }
+    }
+}
+
+void WebGPUDevice::onReadbackMapped(WGPUMapAsyncStatus status, u32 id) {
+    auto it = readbacks_.find(id);
+    if (it == readbacks_.end()) return;  // taken or discarded while in flight
     it->second.status = (status == WGPUMapAsyncStatus_Success) ? GfxReadbackStatus::Ready
                                                                : GfxReadbackStatus::Failed;
 }
@@ -2990,11 +3028,7 @@ void WebGPUDevice::mapReadback(u32 id) {
     auto it = readbacks_.find(id);
     if (it == readbacks_.end()) return;
     ReadbackRec& rec = it->second;
-    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-    cb.mode = WGPUCallbackMode_AllowSpontaneous;
-    cb.callback = &WebGPUDevice::onReadbackMapped;
-    cb.userdata1 = this;
-    cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
+    auto cb = mapCallback(CompletionKind::Readback, id);
     wgpuBufferMapAsync(rec.buffer, WGPUMapMode_Read, 0,
                        static_cast<u64>(rec.paddedBytesPerRow) * rec.height, cb);
 }
@@ -3014,6 +3048,7 @@ GfxReadbackStatus WebGPUDevice::pollReadback(ReadbackHandle handle) {
     // AllowSpontaneous callbacks fire from the browser's event loop on their own;
     // the pump is defensive (and required if the callback mode ever tightens).
     if (instance_) wgpuInstanceProcessEvents(instance_);
+    drainCompletions();
     auto it = readbacks_.find(static_cast<u32>(handle));
     if (it == readbacks_.end()) return GfxReadbackStatus::Failed;
     if (it->second.status == GfxReadbackStatus::Failed) {
@@ -3024,6 +3059,7 @@ GfxReadbackStatus WebGPUDevice::pollReadback(ReadbackHandle handle) {
 }
 
 bool WebGPUDevice::takeReadback(ReadbackHandle handle, void* dest, usize destSize) {
+    drainCompletions();
     auto it = readbacks_.find(static_cast<u32>(handle));
     if (it == readbacks_.end() || it->second.status != GfxReadbackStatus::Ready) return false;
     ReadbackRec& rec = it->second;
@@ -3201,16 +3237,13 @@ void WebGPUDevice::finishSpan() {
     // Map async — drained by getTimerQueryNs a few frames later (the GpuTimer ring tolerates the latency).
     gpu_time_ring_[slot].pending = true;
     gpu_time_ring_[slot].passes = passes;
-    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-    cb.mode = WGPUCallbackMode_AllowSpontaneous;
-    cb.callback = &WebGPUDevice::onGpuTimeMapped;
-    cb.userdata1 = this;
-    cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(slot));
+    auto cb = mapCallback(CompletionKind::GpuTime, slot);
     wgpuBufferMapAsync(gpu_time_ring_[slot].buf, WGPUMapMode_Read, 0, 16ull * passes, cb);
 }
 bool WebGPUDevice::timerDisjoint() { return false; }
 
 bool WebGPUDevice::getTimerQueryNs(u32 query, u64* outNs) {
+    drainCompletions();
     if (pass_time_tags_.count(query)) {
         const auto it = pass_time_results_.find(query);
         if (it == pass_time_results_.end()) return false;
@@ -3259,35 +3292,25 @@ void WebGPUDevice::resolvePassTime(WGPUCommandEncoder encoder, u32 slot) {
 
 void WebGPUDevice::mapPassTime(u32 slot) {
     pass_time_pool_[slot].pending = true;
-    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-    cb.mode = WGPUCallbackMode_AllowSpontaneous;
-    cb.callback = &WebGPUDevice::onPassTimeMapped;
-    cb.userdata1 = this;
-    cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(slot));
+    auto cb = mapCallback(CompletionKind::PassTime, slot);
     wgpuBufferMapAsync(pass_time_pool_[slot].buf, WGPUMapMode_Read, 0, 16, cb);
 }
 
-void WebGPUDevice::onPassTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
-                                    void* userdata1, void* userdata2) {
-    auto* self = static_cast<WebGPUDevice*>(userdata1);
-    const u32 slot = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
-    if (!self || slot >= self->pass_time_pool_.size()) return;
-    PassTimeSlot& ps = self->pass_time_pool_[slot];
+void WebGPUDevice::onPassTimeMapped(WGPUMapAsyncStatus status, u32 slot) {
+    if (slot >= pass_time_pool_.size()) return;
+    PassTimeSlot& ps = pass_time_pool_[slot];
     if (status == WGPUMapAsyncStatus_Success && ps.buf) {
         const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(ps.buf, 0, 16));
-        if (ts && ts[1] >= ts[0]) self->pass_time_results_[ps.tag] = ts[1] - ts[0];
+        if (ts && ts[1] >= ts[0]) pass_time_results_[ps.tag] = ts[1] - ts[0];
         wgpuBufferUnmap(ps.buf);
     }
     ps.pending = false;
 }
 
-void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
-                                   void* userdata1, void* userdata2) {
-    auto* self = static_cast<WebGPUDevice*>(userdata1);
-    const u32 slot = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
-    if (!self || slot >= kGpuTimeRing) return;
-    WGPUBuffer buf = self->gpu_time_ring_[slot].buf;
-    const u32 passes = self->gpu_time_ring_[slot].passes;
+void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, u32 slot) {
+    if (slot >= kGpuTimeRing) return;
+    WGPUBuffer buf = gpu_time_ring_[slot].buf;
+    const u32 passes = gpu_time_ring_[slot].passes;
     if (status == WGPUMapAsyncStatus_Success && buf) {
         const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(buf, 0, 16ull * passes));
         // Either one elapsed interval or the sum of per-pass pairs. Discard pairs spanning a timestamp reset.
@@ -3296,10 +3319,10 @@ void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*m
             if (ts[2 * i + 1] >= ts[2 * i]) total += ts[2 * i + 1] - ts[2 * i];
         }
         // Cap the FIFO so a stalled consumer can't grow it without bound.
-        if (ts && self->gpu_time_results_.size() < 16) self->gpu_time_results_.push_back(total);
+        if (ts && gpu_time_results_.size() < 16) gpu_time_results_.push_back(total);
         wgpuBufferUnmap(buf);
     }
-    self->gpu_time_ring_[slot].pending = false;
+    gpu_time_ring_[slot].pending = false;
 }
 
 void WebGPUDevice::setWireframe(bool) {}

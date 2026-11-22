@@ -18,14 +18,16 @@
  * no mipmaps (a chain regenerated every frame is pure waste), clamped wrap
  * (nothing tiles a leaderboard), and `update()`.
  */
-import { TextureContent } from '../wasm';
+import { TextureContent, type ESEngineModule } from '../wasm';
+import { withMalloc } from '../wasm/wasmScratch';
+import { samplesAsSrgb } from '../ecs/env';
 import {
     provideTextureContent, requireResourceManager, withdrawTextureContent,
 } from '../wasm/resourceManager';
 import type { App } from '../app/app';
 import {
     uploadBoundTextureImage, applyBoundTextureSampling, findWebGL2Context, handOverNewTexture,
-    writeDeviceTexture, type GlImageSource,
+    writeDeviceTexture, readBitmapTexels, type GlImageSource,
 } from './glTextureUpload';
 
 /** A texture backed by a canvas someone else draws on. */
@@ -56,26 +58,29 @@ export function createCanvasTexture(
 ): CanvasTexture | null {
     const module = app?.wasmModule;
     const gl = findWebGL2Context(module?.GL);
-    if (!gl || !module) return null;
-
+    if (!module || (!gl && !module.renderThread_enabled?.())) return null;
     let size = { width: source.width, height: source.height };
-    // A canvas is an element source, so orientation is the pixel-store flag's
-    // to apply — the same `flip` a raw <img> upload takes, and for the same
-    // reason: the engine's texture space is bottom-up and the source is not.
     const take = (ctx: WebGL2RenderingContext): void => {
         uploadBoundTextureImage(ctx, source, true);
         size = { width: source.width, height: source.height };
     };
-
-    const handle = handOverNewTexture(module, gl, (ctx) => {
+    const handle = gl ? handOverNewTexture(module, gl, (ctx) => {
         take(ctx);
         applyBoundTextureSampling(ctx, { filter: 'linear', wrap: 'clamp', mipmaps: false });
-    }, { width: size.width, height: size.height, content: TextureContent.Canvas });
+    }, { width: size.width, height: size.height, content: TextureContent.Canvas })
+        : uploadCanvasBytes(module, source, 0, true);
+    if (!handle) return null;
+    const update = (restore: boolean): boolean => {
+        if (gl) return writeDeviceTexture(module, handle, take);
+        if (!uploadCanvasBytes(module, source, handle, restore || size.width !== source.width || size.height !== source.height)) return false;
+        size = { width: source.width, height: source.height };
+        return true;
+    };
 
     // After a device loss the canvas itself is untouched, so the content comes
     // back by taking it again — into whatever texture the device rebuilt.
     provideTextureContent(handle, () => {
-        if (!writeDeviceTexture(module, handle, take)) return false;
+        if (!update(true)) return false;
         requireResourceManager().restoreTextureContent?.(handle);
         return true;
     });
@@ -87,7 +92,7 @@ export function createCanvasTexture(
         get height() { return size.height; },
         update() {
             if (!alive) return;
-            writeDeviceTexture(module, handle, take);
+            update(false);
         },
         destroy() {
             if (!alive) return;
@@ -96,4 +101,27 @@ export function createCanvasTexture(
             requireResourceManager().releaseTexture(handle);
         },
     };
+}
+
+// The source is a page object. Copy texels across the wasm boundary and keep
+// the worker-owned texture handle stable through resize and device recovery.
+function uploadCanvasBytes(module: ESEngineModule, source: GlImageSource, handle: number, replace: boolean): number {
+    const { width, height } = source;
+    if (!width || !height) return 0;
+    const pixels = readBitmapTexels(source, width, height, true);
+    if (!pixels) return 0;
+    const rm = requireResourceManager();
+    return withMalloc(module, pixels.length, ptr => {
+        module.HEAPU8.set(pixels, ptr);
+        if (!replace) {
+            rm.updateTextureSubregion(handle, 0, 0, width, height, ptr, pixels.length);
+            return handle;
+        }
+        const fresh = rm.createTextureEx(width, height, ptr, pixels.length, samplesAsSrgb() ? 2 : 1,
+            false, 1, 1, TextureContent.Canvas);
+        if (!handle || !fresh) return fresh;
+        const moved = rm.adoptTextureContent?.(handle, fresh);
+        rm.releaseTexture(fresh);
+        return moved ? handle : 0;
+    });
 }

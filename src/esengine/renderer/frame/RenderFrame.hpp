@@ -893,7 +893,8 @@ private:
     void collectReflections(ecs::Registry& registry);
     void declarePlanarReflection(ecs::Registry& registry);
     void declareProbeCapture(ecs::Registry& registry);
-    void executeProbeFace(ecs::Registry& registry);
+    void collectProbeFace(ecs::Registry& registry);
+    void executeProbeFace();
     struct ProbeCapture {
         enum class State : u8 { Idle, Capturing, Drawn, Reading };
         State state = State::Idle;
@@ -912,7 +913,8 @@ private:
     std::unordered_map<u32, resource::ProbeVolumeHandle> probe_overrides_;
     struct CapturedReflection { u32 environment = 0; u32 slot = 0; };
     std::unordered_map<u32, CapturedReflection> probe_reflections_;
-    void executePlanarReflection(ecs::Registry& registry, u32 view);
+    void collectPlanarReflection(ecs::Registry& registry, u32 view);
+    void executePlanarReflection(u32 view);
     struct PlanarCapture {
         Unique<Framebuffer> target;
         BufferHandle frameUbo = BufferHandle::Invalid;

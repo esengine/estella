@@ -52,8 +52,10 @@ esjs::Val js_createTextureKTX2(const esjs::Args& a) {
     readByteSource(a[0], bytes);
     if (bytes.empty()) return esjs::null();
     const bool srgb = a.size() > 1 && esjs::toBool(a[1]);
-    auto r = transcodeKTX2(bytes.data(), bytes.size(), srgb,
-                           host().ctx->require<resource::ResourceManager>(), *host().gfx);
+    auto r = host().ctx->renderThread().invoke([&] {
+        return transcodeKTX2(bytes.data(), bytes.size(), srgb,
+                             host().ctx->require<resource::ResourceManager>(), *host().gfx);
+    });
     if (r.handle < 0) return esjs::null();
     esjs::Val o = esjs::object();
     esjs::set(o, "id", esjs::int32(r.handle));
@@ -70,6 +72,7 @@ esjs::Val js_createTextureKTX2(const esjs::Args& a) {
 esjs::Val js_getTextureDimensions(const esjs::Args& a) {
     int64_t id = 0;
     id = esjs::toInt64(a[0]);
+    host().ctx->renderThread().flush();
     auto* tex = host().ctx->require<resource::ResourceManager>().getTexture(
         resource::TextureHandle((u32)id));
     if (!tex) return esjs::null();

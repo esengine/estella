@@ -300,6 +300,19 @@ per-component half (`es_set_<C>`, `es_<C>_buffer`, `_has`, `_remove`) is
 generated from the same reflection, with only what cannot be generated — the
 registry surface, which the web build reaches as an embind class — hand-written.
 
+### Dedicated render thread
+
+Set `features.rendering.threadedRendering` to `true` in `project.esproject` before exporting. It defaults to `false`. Native hosts establish the render thread before configuring the surface. A web export needs both the regular core and the `web-threaded` build (`node build-tools/cli.js build -t web-threaded`). Serve it over HTTPS or localhost with these response headers to enable shared memory:
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+The web host transfers its canvas before acquiring a graphics context. The worker owns WebGL2 or WebGPU, completes the frame and presents it. A page without the required browser capabilities uses the regular core. The game thread owns simulation and scene mutation. Scene collection finishes reading borrowed components before submission returns; queued draws and resource releases can then overlap subsequent game work. The queue limits outstanding frame ends to two.
+
+`Renderer.renderThread.enabled` reports the active mode. `fence()` returns a ticket for previously submitted work, `complete(ticket)` polls it, and `flush()` waits for the render CPU to finish that work. GPU completion and readback use their existing APIs.
+
 ## Scene Management (SDK)
 
 `SceneManager` is a resource over the single ECS World. Scenes share one World;

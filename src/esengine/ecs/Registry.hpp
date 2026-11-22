@@ -938,7 +938,7 @@ public:
 private:
     // Handed out once per registry and never recycled, so it survives one being
     // destroyed and the next taking its address. See instanceId().
-    static inline u64 next_instance_id_{0};
+    static inline std::atomic<u64> next_instance_id_{0};
     u64 instance_id_{++next_instance_id_};
 
     // =========================================================================

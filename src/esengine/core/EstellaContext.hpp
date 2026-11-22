@@ -14,6 +14,7 @@
 
 #include "Types.hpp"
 #include "ServiceRegistry.hpp"
+#include "../renderer/frame/RenderThread.hpp"
 #include "../bindings/EngineState.hpp"
 
 namespace esengine {
@@ -59,6 +60,8 @@ public:
     /** @brief Check if the context is initialized */
     bool isInitialized() const { return state_.initialized; }
 
+    RenderThread& renderThread() { return render_thread_; }
+
     ServiceRegistry& services() { return services_; }
 
     template<typename T>
@@ -82,6 +85,7 @@ private:
 
     ServiceRegistry services_;
     EngineState state_;
+    RenderThread render_thread_;
 };
 
 }  // namespace esengine

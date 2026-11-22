@@ -369,7 +369,15 @@ class NativeFunctionsGenerator:
             js_index += 1
 
         scope = '' if fn.extern_c else 'esengine::'
-        call = f'{scope}{fn.name}({", ".join(call_args)})'
+        if not fn.extern_c and fn.name.startswith((
+            'renderer_', 'draw_', 'gl_', 'rm_', 'postprocess_', 'material_', 'mesh_', 'meshRenderer_',
+            'meshInstances_', 'geometry_', 'environment_', 'probe_', 'engine_', 'particle_', 'tilemap_',
+            'trail_', 'uiHitTest_', 'uiLayout_', 'uiRenderOrder_', 'ui_',
+        )):
+            callee = f'ES_RENDER_BIND({fn.name})'
+        else:
+            callee = f'{scope}{fn.name}'
+        call = f'{callee}({", ".join(call_args)})'
         releases = [f'    esn_argRelease(a[{index}], {local}_off);'
                     for local, index in ptr_releases]
         if fn.ret == _VOID:
@@ -507,6 +515,7 @@ class NativeFunctionsGenerator:
             '// from the SAME declarations. The bodies live in the binding TUs, which this',
             '// build compiles too — one implementation, two registration layers.',
             f'#include "{self.shim_header}"',
+            '#include "esengine/bindings/RenderBinding.hpp"',
             '',
             '#include <cstdint>',
             '#include <string>',

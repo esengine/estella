@@ -58,6 +58,10 @@ std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity);
 void renderer_setViewLighting(u32 mode, f32 rotationDegrees, f32 keyIntensity, f32 fillIntensity,
                               f32 skyIntensity, bool showSky);
 void renderer_beginFrame(f32 elapsedSec);
+bool renderThread_enabled();
+f64 renderThread_fence();
+bool renderThread_complete(f64 fence);
+void renderThread_flush();
 void renderer_setOrigin(f64 x, f64 y, f64 z);
 void renderer_setParallaxAnchor(bool set, f64 x, f64 y);
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,

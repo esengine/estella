@@ -238,6 +238,13 @@ export interface ESEngineModule {
 
     initRenderer(): boolean;
     initRendererWithContext(contextHandle: number): boolean;
+    initRendererThreaded?(preferGPU: boolean, features: string, readback: boolean): boolean;
+    renderThread_bootStatus?(): number;
+    renderThread_enabled?(): boolean;
+    renderThread_resizeSurface?(width: number, height: number): void;
+    renderThread_fence?(): number;
+    renderThread_complete?(fence: number): boolean;
+    renderThread_flush?(): void;
     /**
      * Boot on the WebGPU backend. The host must acquire a GPUDevice and pass it
      * as `preinitializedWebGPUDevice` in the module factory arg BEFORE

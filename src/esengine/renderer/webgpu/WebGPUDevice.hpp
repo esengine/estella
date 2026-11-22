@@ -38,6 +38,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -109,10 +110,14 @@ public:
 
     bool pollDeviceLost() override;
 
+    /// The web host transfers the reference it imported from JavaScript.
+    void ownDeviceReference() { owns_device_ = true; }
     /** @brief Hands a replacement in for the next recovery attempt to take up. */
     bool provideReplacementDevice(void* nativeDevice) override {
+        if (!nativeDevice) return false;
+        if (owns_device_ && pending_device_) wgpuDeviceRelease(pending_device_);
         pending_device_ = static_cast<WGPUDevice>(nativeDevice);
-        return pending_device_ != nullptr;
+        return true;
     }
 
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
@@ -316,6 +321,8 @@ public:
      * shipped frame would pay for a check nobody asked for.
      */
     void setSurfaceReadback(bool enabled) { surface_readback_ = enabled; }
+    /// Worker passes can span browser tasks. Acquire their expiring canvas texture at present.
+    void setLateSurfaceAcquire(bool enabled) { late_surface_acquire_ = enabled; }
 
     /**
      * @brief Present as fast as the surface allows instead of waiting for the
@@ -511,6 +518,7 @@ private:
     bool inPass() const { return pass_ != nullptr; }
 
     WGPUDevice device_ = nullptr;
+    bool owns_device_ = false;
     WGPUQueue queue_ = nullptr;
     WGPUDevice pending_device_ = nullptr;  ///< Replacement a host handed over, not yet adopted.
     WGPUInstance instance_ = nullptr;
@@ -553,10 +561,17 @@ private:
     std::unordered_map<u32, ReadbackRec> readbacks_;
     u32 next_readback_id_ = 1;
 
-    /** @brief mapAsync completion: flips the readback's status by id (userdata2).
-     *         A discarded/taken readback simply misses the lookup and no-ops. */
-    static void onReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView message,
-                                 void* userdata1, void* userdata2);
+    // Driver callbacks may run on any thread, including after device replacement.
+    // They own only this generation's mailbox; the render owner consumes the results.
+    enum class CompletionKind { Frame, Readback, PassTime, GpuTime };
+    struct Completion { CompletionKind kind; u64 id; WGPUMapAsyncStatus status{}; };
+    struct Mailbox { std::mutex mutex; std::vector<Completion> ready; };
+    struct Ticket { std::shared_ptr<Mailbox> mailbox; Completion result; };
+    std::shared_ptr<Mailbox> mailbox_ = std::make_shared<Mailbox>();
+    static void publishCompletion(void* ticket, WGPUMapAsyncStatus status = {});
+    WGPUBufferMapCallbackInfo mapCallback(CompletionKind kind, u32 id);
+    void drainCompletions();
+    void onReadbackMapped(WGPUMapAsyncStatus status, u32 id);
     /** @brief Erases + releases a readback record (aborts a still-pending map). */
     void releaseReadback(u32 id);
 
@@ -617,6 +632,8 @@ private:
     u32 surface_proxy_width_ = 0;
     u32 surface_proxy_height_ = 0;
     /// A pass drew into the proxy since the swapchain texture last received it.
+    bool acquireFrameView();
+    bool late_surface_acquire_ = false;
     bool surface_proxy_drawn_ = false;
     bool ensureSurfaceProxy(u32 width, u32 height);
     void releaseSurfaceProxy();
@@ -740,9 +757,8 @@ private:
     u32 takePassTimeSlot();
     void resolvePassTime(WGPUCommandEncoder encoder, u32 slot);
     void mapPassTime(u32 slot);
-    static void onPassTimeMapped(WGPUMapAsyncStatus status, WGPUStringView message, void* userdata1, void* userdata2);
-    static void onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView message,
-                                void* userdata1, void* userdata2);
+    void onPassTimeMapped(WGPUMapAsyncStatus status, u32 slot);
+    void onGpuTimeMapped(WGPUMapAsyncStatus status, u32 slot);
 
     std::unordered_map<u8, WGPUSampler> samplers_;  ///< Keyed by packed filter/wrap params.
 

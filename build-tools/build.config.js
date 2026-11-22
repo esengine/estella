@@ -16,6 +16,7 @@ export default {
 
     optimization: {
         web: { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        'web-threaded': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'web-js': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'wechat-glx': { cmakeOpt: '-O2', wasmOpt: '-O2' },
@@ -34,6 +35,15 @@ export default {
             outputs: {
                 'sdk/esengine.js': 'wasm/web/esengine.js',
                 'sdk/esengine.wasm': 'wasm/web/esengine.wasm',
+            },
+        },
+        'web-threaded': {
+            buildDir: 'build/cmake/web-threaded',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_WEB_RENDER_THREAD=ON', '-DES_ENABLE_WEBGPU=ON'],
+            targets: ['esengine_sdk'],
+            outputs: {
+                'sdk/esengine-threaded.js': 'wasm/web/esengine-threaded.js',
+                'sdk/esengine-threaded.wasm': 'wasm/web/esengine-threaded.wasm',
             },
         },
         // The same engine as plain JavaScript (wasm2js), for a host with no

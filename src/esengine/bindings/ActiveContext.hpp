@@ -14,6 +14,9 @@ namespace esengine {
  *          the legacy initRenderer path. Read through {@link activeCtx}.
  */
 inline EstellaContext* g_activeContext = nullptr;
+#ifdef ES_RENDER_THREADS
+inline thread_local EstellaContext* renderOwnerContext = nullptr;
+#endif
 
 /**
  * @brief The engine context every binding routes through — single source of truth.
@@ -32,7 +35,23 @@ inline EstellaContext* g_activeContext = nullptr;
  *          dereferenced `g_activeContext` bare → null deref when headless.
  */
 inline EstellaContext& activeCtx() {
+#ifdef ES_RENDER_THREADS
+    if (renderOwnerContext) return *renderOwnerContext;
+#endif
     return g_activeContext ? *g_activeContext : EngineContext::instance().context();
+}
+
+inline bool startRenderThread(EstellaContext& context, const char* canvas = nullptr) {
+#ifdef ES_RENDER_THREADS
+    auto& queue = context.renderThread();
+    if (!queue.start(canvas)) return false;
+    queue.invoke([&] { renderOwnerContext = &context; });
+    return true;
+#else
+    (void)context;
+    (void)canvas;
+    return false;
+#endif
 }
 
 }  // namespace esengine

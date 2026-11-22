@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { ENGINE_WEBGPU_FEATURES } from './webgpuFeatures';
 import { onWorldUnitsPerMeter } from '../ecs/worldUnits';
 import { flushEngineStamps } from '../ecs/engineStamps';
 import type { ESEngineModule, CppRegistry } from '../wasm';
@@ -642,6 +643,27 @@ export function shutdownRendererAPI(): void {
 }
 
 export const Renderer = {
+    /** Transfer the module canvas and let the browser service context creation on its event loop. */
+    async prepareThreadedSurface(core: ESEngineModule, backend: 'webgl2' | 'webgpu' = 'webgl2',
+        readback = false, colorSpace?: 'gamma' | 'linear'): Promise<'threaded-webgl2' | 'threaded-webgpu'> {
+        if (colorSpace) core.renderer_setColorSpace?.(colorSpace === 'linear' ? 1 : 0);
+        if (!core.initRendererThreaded?.(backend === 'webgpu', ENGINE_WEBGPU_FEATURES.join(','), readback) || !core.renderThread_bootStatus) {
+            throw new Error('This core could not start an OffscreenCanvas render thread.');
+        }
+        while (core.renderThread_bootStatus() === 0) await new Promise(resolve => setTimeout(resolve, 1));
+        const status = core.renderThread_bootStatus();
+        if (status === 1) return 'threaded-webgl2';
+        if (status === 2) return 'threaded-webgpu';
+        core.shutdownRenderer();
+        throw new Error('Graphics context creation on the render thread failed.');
+    },
+    /** Completion on the CPU that owns rendering. GPU completion is a separate timeline. */
+    renderThread: {
+        get enabled(): boolean { return engine()?.renderThread_enabled?.() ?? false; },
+        fence(): number { return engine()?.renderThread_fence?.() ?? 0; },
+        complete(fence: number): boolean { return engine()?.renderThread_complete?.(fence) ?? fence === 0; },
+        flush(): void { engine()?.renderThread_flush?.(); },
+    },
     init(width: number, height: number): void {
         backend?.init(width, height);
     },

@@ -21,6 +21,7 @@
 #include "BootLog.hpp"
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
+#include <mutex>
 #include "Bench.hpp"
 #include "PackagedConfig.hpp"
 #include "Shot.hpp"
@@ -91,6 +92,34 @@ void paintBootFrame(HostState& h) {
     h.gfx->present();
 }
 
+// Dawn may report loss or validation from inside a driver call on another
+// thread. Never wait for the render owner from that callback.
+struct DeviceMessage {
+    bool lost;
+    u32 code;
+    std::string text;
+};
+std::mutex deviceMessageMutex;
+std::vector<DeviceMessage> deviceMessages;
+
+void postDeviceMessage(bool lost, u32 code, std::string text) {
+    std::lock_guard lock(deviceMessageMutex);
+    deviceMessages.push_back({lost, code, std::move(text)});
+}
+
+void drainDeviceMessages(WebGPUDevice& device) {
+    std::vector<DeviceMessage> batch;
+    {
+        std::lock_guard lock(deviceMessageMutex);
+        batch.swap(deviceMessages);
+    }
+    for (const auto& message : batch) {
+        if (message.lost) device.notifyDeviceLost(WebGPUDevice::reasonFromWgpu(message.code),
+                                                  message.text, "Dawn device-lost callback");
+        else device.reportUncapturedError(message.code, message.text.c_str());
+    }
+}
+
 /** Ask Dawn for an adapter and a device on the platform's backend, enabling the
  *  block-compression families this adapter supports (a device rejects a format it
  *  did not opt into, even when the adapter advertises it). */
@@ -149,9 +178,7 @@ bool createDevice(HostState& h) {
             ESHOST_LOGE("WebGPU: %s", text.c_str());
             // An out-of-memory or internal error is the device telling us it is
             // finished; the backend decides which kinds end it.
-            if (hostAlive() && host().gfx) {
-                host().gfx->reportUncapturedError(static_cast<uint32_t>(type), text.c_str());
-            }
+            postDeviceMessage(false, static_cast<u32>(type), text);
         };
     // Device loss can only be subscribed to HERE — WebGPU takes the callback in
     // the descriptor that creates the device, and there is no way to attach one
@@ -161,11 +188,7 @@ bool createDevice(HostState& h) {
         [](WGPUDevice const*, WGPUDeviceLostReason reason, WGPUStringView message, void*, void*) {
             const std::string text = svText(message);
             ESHOST_LOGE("WebGPU device lost (%d): %s", (int)reason, text.c_str());
-            if (hostAlive() && host().gfx) {
-                host().gfx->notifyDeviceLost(
-                    WebGPUDevice::reasonFromWgpu(static_cast<uint32_t>(reason)),
-                    text, "Dawn device-lost callback");
-            }
+            postDeviceMessage(true, static_cast<u32>(reason), text);
         };
     WGPURequestDeviceCallbackInfo dci = {};
     dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onDevice; dci.userdata1 = &h.device;
@@ -206,11 +229,15 @@ bool bindSurface() {
     h.h = (f32)hh;
     // Before configureSurface, always: the copy usage is part of the swapchain's
     // configuration, so asking afterwards would silently do nothing.
-    h.gfx->setSurfaceReadback(shotWanted());
+    const auto surface = h.platform->surface();
+    const bool readback = shotWanted(), uncapped = benchWanted();
     // A benched frame must not be quantised to the panel's refresh — see Bench.hpp.
-    h.gfx->setPresentUncapped(benchWanted());
     framePacer().setUnbounded(benchWanted());   // nor held to the pacer's floor
-    if (!h.gfx->configureSurface(h.platform->surface(), w, hh)) {
+    if (!h.ctx->renderThread().invoke([&] {
+        h.gfx->setSurfaceReadback(readback);
+        h.gfx->setPresentUncapped(uncapped);
+        return h.gfx->configureSurface(surface, w, hh);
+    })) {
         ESHOST_LOGE("configureSurface failed");
         return false;
     }
@@ -220,6 +247,7 @@ bool bindSurface() {
 
 void surfaceLost() {
     if (!hostAlive()) return;
+    if (auto* ctx = host().ctx) ctx->renderThread().flush();
     host().surfaceReady = false;
     // The next frame is the first of a new run of them. Without this the game is
     // handed however long the app spent backgrounded — clamped, but still a
@@ -273,8 +301,6 @@ bool boot(Platform& platform) {
 
     auto device = makeUnique<WebGPUDevice>(h.device, h.instance, h.adapter);
     h.gfx = device.get();
-    bootPhase("surface");
-    if (!bindSurface()) return false;
 
     static EstellaContext context;
     h.ctx = &context;
@@ -283,16 +309,19 @@ bool boot(Platform& platform) {
     // the web entry does at initRenderer. Without this they would act on the
     // fallback context and render into a different engine than the host presents.
     g_activeContext = &context;
+    const auto config = platform.readAsset("game.config.json");
+    const std::string_view settings(reinterpret_cast<const char*>(config.data()), config.size());
+    if (packagedConfigThreadedRendering(settings) && !startRenderThread(context)) return false;
+    bootPhase("surface");
+    if (!bindSurface()) return false;
     context.state().viewport_width = (i32)h.w;
     context.state().viewport_height = (i32)h.h;
     bootPhase("engine context");
-    // Before the first shader compiles, as the web declares it before its renderer starts (PackagedConfig.hpp).
-    {
-        const std::vector<u8> config = platform.readAsset("game.config.json");
-        resource::ShaderParser::setLinearColorSpace(packagedConfigIsLinear(
-            std::string_view(reinterpret_cast<const char*>(config.data()), config.size())));
-    }
-    if (!context.init(std::move(device))) { ESHOST_LOGE("context.init failed"); return false; }
+    const bool initialized = context.renderThread().invoke([&] {
+        resource::ShaderParser::setLinearColorSpace(packagedConfigIsLinear(settings));
+        return context.init(std::move(device));
+    });
+    if (!initialized) { ESHOST_LOGE("context.init failed"); return false; }
 
     static ecs::Registry registry;
     h.registry = &registry;
@@ -304,7 +333,7 @@ bool boot(Platform& platform) {
     // died leaves behind; they are the same picture for as long as boot takes, and
     // on a first launch that has to compile the SDK bundle that is seconds. One
     // filled frame is the difference between "starting" and "gone".
-    paintBootFrame(h);
+    context.renderThread().invoke([&] { paintBootFrame(h); });
 
     bootPhase("js runtime");
     initRuntime(h);
@@ -381,7 +410,9 @@ void frame(long long vsyncNanos) {
 
     // Booked before the game renders, because the copy is served from inside the
     // renderer's own endFrame (see Shot.hpp).
-    shotBeforeFrame(*h.gfx, h.frame, (u32)h.w, (u32)h.h);
+    auto& renderer = h.ctx->renderThread();
+    renderer.enqueue([device = h.gfx] { drainDeviceMessages(*device); });
+    if (shotWanted()) renderer.invoke([&] { shotBeforeFrame(*h.gfx, h.frame, (u32)h.w, (u32)h.h); });
 
     benchUpdateBegin();
     {
@@ -419,7 +450,7 @@ void frame(long long vsyncNanos) {
     // app.tick above ran the SDK's render system, which resolved the scene's
     // cameras and drove RenderFrame through the es_renderer_* bindings. What is
     // left here is what only a host can do: flip the swapchain.
-    if (!jsOwnsFrame(h)) fallbackFrame(h);
+    if (!jsOwnsFrame(h)) renderer.invoke([&] { fallbackFrame(h); });
 #if defined(ESTELLA_DESKTOP)
     // Steam's callbacks, once per frame: without them the client never learns the
     // game is alive and the overlay never opens.
@@ -429,13 +460,14 @@ void frame(long long vsyncNanos) {
     // measurement it never asked for.
     if (benchWanted()) {
         if (auto* benched = h.ctx->tryGet<RenderFrame>()) {
-            const auto& st = benched->stats();
+            const auto st = renderer.invoke([&] { return benched->stats(); });
             benchNoteDraws(st.draw_calls, st.sprites);
         }
     }
     benchBeforePresent();
-    h.gfx->present();
-    if (shotAfterPresent(*h.gfx)) h.quitRequested = true;
+    renderer.finishFrame([device = h.gfx] { device->present(); });
+    if (benchWanted()) renderer.flush();  // The benchmark includes the actual presentation call.
+    if (shotWanted() && renderer.invoke([&] { return shotAfterPresent(*h.gfx); })) h.quitRequested = true;
     if (benchFrameEnd()) h.quitRequested = true;
     // What the frame DREW, not only that one happened: a capture is one flat colour
     // whether nothing was submitted or it was submitted into a view nothing is in.
@@ -444,7 +476,7 @@ void frame(long long vsyncNanos) {
     const auto n = ++h.frame;
     if (n == 1 || n == 2 || n == 5 || n == 10 || n == 30 || n == 60 || n % 120 == 0) {
         if (auto* rf = h.ctx->tryGet<RenderFrame>()) {
-            const auto& st = rf->stats();
+            const auto st = renderer.invoke([&] { return rf->stats(); });
             ESHOST_LOGI("real-SDK frame %llu — %u draw(s), %u tri, %u sprite, %u mesh, %u text, %u culled",
                         (unsigned long long)h.frame, st.draw_calls, st.triangles, st.sprites,
                         st.meshes, st.text, st.culled);

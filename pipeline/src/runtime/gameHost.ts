@@ -104,10 +104,14 @@ async function boot(): Promise<void> {
   // runtime actually rendered the cooked scene (the editor host can't — it uses a
   // different asset path).
   const headless = new URLSearchParams(location.search).has('headless');
+  let workerResize: ((w: number, h: number) => void) | null = null;
+  let surfaceWidth = 1, surfaceHeight = 1;
   const resize = () => {
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
-    canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
+    surfaceWidth = Math.max(1, Math.floor(window.innerWidth * dpr));
+    surfaceHeight = Math.max(1, Math.floor(window.innerHeight * dpr));
+    if (workerResize) workerResize(surfaceWidth, surfaceHeight);
+    else { canvas.width = surfaceWidth; canvas.height = surfaceHeight; }
   };
   window.addEventListener('resize', resize);
   resize();
@@ -207,8 +211,13 @@ async function boot(): Promise<void> {
     throw new Error('This browser has no WebAssembly, and this build carries no JavaScript engine '
       + '(Project Settings → Web → "Run without WebAssembly", packaging.platforms.web.engineJs).');
   }
+  const threaded = cfg.threadedRendering === true && !engineAsJs && !headless
+    && globalThis.crossOriginIsolated === true
+    && typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined'
+    && typeof canvas.transferControlToOffscreen === 'function';
+  const engineName = threaded ? 'esengine-threaded' : 'esengine';
   const { default: createModule } = (await import(
-    /* @vite-ignore */ `${wasmBase}${engineAsJs ? 'esengine.asm.js' : 'esengine.js'}`)) as {
+    /* @vite-ignore */ `${wasmBase}${engineAsJs ? 'esengine.asm.js' : engineName + '.js'}`)) as {
     default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
   };
   if (engineAsJs) console.info('[estella] engine: JavaScript build (no WebAssembly)');
@@ -217,9 +226,9 @@ async function boot(): Promise<void> {
   // GL context, which is what the capture hook below has. The JavaScript engine is
   // built without WebGPU: a host with no wasm has no WebGPU either.
   const wantsWebGPU = cfg.renderBackend === 'webgpu' && !headless && !engineAsJs;
-  const gpu = await acquireWebGPUDevice(wantsWebGPU ? 'webgpu' : 'webgl2',
+  const gpu = await acquireWebGPUDevice(wantsWebGPU && !threaded ? 'webgpu' : 'webgl2',
     (m) => console.error(m));
-  if (wantsWebGPU && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
+  if (wantsWebGPU && !threaded && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
   // A shader is written in GLSL; drawing through WebGPU, the ones with no WGSL of their own are given it as they compile. Loaded
   // here, where the device is WebGPU, so a game that draws through WebGL never fetches it.
   if (gpu.device) await import('esengine/wgsl');
@@ -228,7 +237,7 @@ async function boot(): Promise<void> {
     canvas,
     locateFile: (p: string) => `${wasmBase}${p}`,
     // The JavaScript engine is the whole module in its own file: nothing to instantiate.
-    ...(engineAsJs ? {} : { instantiateWasm: engineInstantiator(`${wasmBase}esengine.wasm`, splash, cfg.engineBytes) }),
+    ...(engineAsJs ? {} : { instantiateWasm: engineInstantiator(`${wasmBase}${engineName}.wasm`, splash, threaded ? undefined : cfg.engineBytes) }),
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
     ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),
@@ -238,7 +247,12 @@ async function boot(): Promise<void> {
 
   let gl: WebGL2RenderingContext | null = null;
   let renderSurface: RenderSurfaceSource;
-  if (gpu.device) {
+  if (threaded) {
+    workerResize = (w, h) => module.renderThread_resizeSurface?.(w, h);
+    const kind = await Renderer.prepareThreadedSurface(module, wantsWebGPU ? 'webgpu' : 'webgl2', false, cfg.colorSpace);
+    if (kind === 'threaded-webgpu') await import('esengine/wgsl');
+    renderSurface = { kind };
+  } else if (gpu.device) {
     canvas.id ||= 'canvas';
     renderSurface = { kind: 'webgpu', canvasSelector: `#${canvas.id}` };
   } else {
@@ -254,7 +268,7 @@ async function boot(): Promise<void> {
     renderSurface,
     // Everything the config says an App must be BUILT with (see packagedAppOptions).
     ...packagedAppOptions(cfg),
-    getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
+    getViewportSize: () => ({ width: surfaceWidth, height: surfaceHeight }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });
   if (poki?.provider) app.getResource(Ads)?.setProvider(poki.provider);
@@ -751,7 +765,7 @@ async function boot(): Promise<void> {
       renderFacts(): Record<string, unknown> {
         const post = app.hasResource(PostProcess) ? app.getResource(PostProcess) : null;
         return {
-          backend: gpu.device ? 'webgpu' : 'webgl2',
+          backend: gpu.device || renderSurface.kind === 'threaded-webgpu' ? 'webgpu' : 'webgl2',
           msaa: { requested: cfg.msaaSamples ?? null, ...(post?.msaaCapability() ?? {}) },
           hdr: post?.hdrFormat() ?? null,
           texture: app.getResource(Assets)?.textureFormatReport() ?? null,
@@ -1015,7 +1029,7 @@ async function boot(): Promise<void> {
     ],
     ...(worlds.length > 0 ? { worlds } : {}),
     firstScene: entryName,
-    aspectRatio: canvas.width / canvas.height,
+    aspectRatio: surfaceWidth / surfaceHeight,
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(cfg),
   });

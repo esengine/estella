@@ -18,6 +18,7 @@
 
 #include "EngineContext.hpp"
 #include "ActiveContext.hpp"
+#include "RenderBinding.hpp"
 #include "ResourceManagerBindings.hpp"
 #include "RendererBindings.hpp"
 #include "TestProbeBindings.hpp"
@@ -164,6 +165,9 @@ bool initRendererInternal(const char* canvasSelector) {
 
     EmscriptenWebGLContextAttributes attrs;
     emscripten_webgl_init_context_attributes(&attrs);
+#ifdef ES_RENDER_THREADS
+    attrs.proxyContextToMainThread = EMSCRIPTEN_WEBGL_CONTEXT_PROXY_DISALLOW;
+#endif
     attrs.majorVersion = 2;
     attrs.minorVersion = 0;
     attrs.alpha = true;
@@ -193,6 +197,20 @@ bool initRendererInternal(const char* canvasSelector) {
     return true;
 }
 
+#ifdef ES_ENABLE_WEBGPU
+EM_JS_DEPS(estella_webgpu_replacement, "$WebGPU");
+
+// The page's replacement GPUDevice, as a WGPUDevice. Imported rather than read
+// through emscripten_webgpu_get_device, which caches the FIRST device and would
+// hand back the dead one forever.
+EM_JS(uintptr_t, es_takePendingWebGPUDevice, (), {
+    var device = Module['pendingWebGPUDevice'];
+    if (!device) return 0;
+    Module['pendingWebGPUDevice'] = null;
+    return WebGPU.importJsDevice(device);
+});
+#endif
+
 // The WebGPU mirror of initRendererInternal — the same platform boundary,
 // injecting the backend instead of a GL context handle. The page acquires the
 // GPUDevice asynchronously (navigator.gpu) BEFORE instantiating the module and
@@ -204,16 +222,20 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
 #ifdef ES_ENABLE_WEBGPU
     if (g_initialized) return true;
 
-    WGPUDevice raw = emscripten_webgpu_get_device();
+    const bool worker = ctx().renderThread().isOwner();
+    WGPUDevice raw = worker ? reinterpret_cast<WGPUDevice>(es_takePendingWebGPUDevice())
+                            : emscripten_webgpu_get_device();
     if (!raw) {
         ES_LOG_ERROR("initRendererWebGPU: no Module.preinitializedWebGPUDevice — the host "
                      "must acquire a GPUDevice before instantiating the module");
         return false;
     }
     auto device = makeUnique<WebGPUDevice>(raw);
+    device->ownDeviceReference();
     // Before the surface is configured, because the usage is fixed there: a host
     // that will ask what was drawn (the editor's viewport capture, a pixel gate)
     // has to say so now.
+    device->setLateSurfaceAcquire(worker);
     device->setSurfaceReadback(readback);
     // navigator.gpu.getPreferredCanvasFormat(), as the page reported it: any other
     // format makes the browser copy the whole frame on every present.
@@ -226,12 +248,145 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
     ES_LOG_INFO("WebGPU device injected for '{}' ({}x{})", canvasSelector, width, height);
     ES_LOG_INFO("Estella runtime provenance {}", kEstellaBuildProvenance);
 
-    g_activeContext = &legacyCtx().context();
-    return g_activeContext->init(std::move(device));
+    auto& context = legacyCtx().context();
+    if (!worker) g_activeContext = &context;
+    return context.init(std::move(device));
 #else
     (void)canvasSelector; (void)width; (void)height; (void)readback; (void)preferBGRA;
     ES_LOG_ERROR("initRendererWebGPU: this build carries no WebGPU backend (ES_ENABLE_WEBGPU off)");
     return false;
+#endif
+}
+
+// OffscreenCanvas context creation can itself wait for the browser UI event loop.
+static std::atomic<int> threadedBoot{0};
+
+#ifdef ES_RENDER_THREADS
+// These callbacks run in the owner realm. A browser GPUDevice cannot be
+// transferred from the page into the worker that owns the surface.
+extern "C" EMSCRIPTEN_KEEPALIVE void estella_threaded_surface_ready(int glHandle, int width, int height, int bgra, int readback) {
+    const bool gpu = glHandle < 0;
+    const bool ok = gpu ? initRendererWebGPU("#canvas", width, height, readback != 0, bgra != 0)
+                        : glHandle && ctx().init(glHandle, true);
+    if (glHandle > 0 && !ok) emscripten_webgl_destroy_context(glHandle);
+    threadedBoot.store(ok ? (gpu ? 2 : 1) : -1);
+}
+
+bool provideReplacementDevice();
+void notifyDeviceLost(u32 reason, const std::string& message);
+extern "C" EMSCRIPTEN_KEEPALIVE void estella_threaded_device_lost(int reason) {
+    if (threadedBoot.load() > 0) notifyDeviceLost(reason, "Worker graphics device lost");
+}
+extern "C" EMSCRIPTEN_KEEPALIVE bool estella_threaded_replace_device() {
+    return threadedBoot.load() == 2 && provideReplacementDevice();
+}
+EM_JS_DEPS(estella_threaded_surface, "$GL");
+EM_JS(void, es_startWorkerSurface, (int preferGPU, const char* features, int readback), {
+    const canvas = Module['canvas'];
+    const wanted = UTF8ToString(features).split(',').filter(Boolean);
+    let live = true;
+    Module['estellaDisposeSurface'] = () => {
+        live = false;
+        const device = Module['preinitializedWebGPUDevice'];
+        Module['estellaGLBackBuffer'] = Module['estellaGLPresent'] = null;
+        Module['pendingWebGPUDevice'] = Module['preinitializedWebGPUDevice'] = null;
+        if (device) device.destroy();
+    };
+    const setupGL = () => {
+        // A pass can span worker tasks. Only publish complete frames, and keep
+        // depth, stencil and antialiasing on the private WebGL drawing surface.
+        const back = new OffscreenCanvas(canvas.width, canvas.height);
+        const bitmap = canvas.getContext('bitmaprenderer');
+        const display = bitmap || canvas.getContext('2d');
+        const handle = display && GL.createContext(back, { majorVersion: 2, minorVersion: 0,
+            alpha: true, depth: true, stencil: true, antialias: true, premultipliedAlpha: true,
+            preserveDrawingBuffer: true, enableExtensionsByDefault: true });
+        if (handle) {
+            Module['estellaGLBackBuffer'] = back;
+            Module['estellaGLPresent'] = bitmap
+                ? () => bitmap.transferFromImageBitmap(back.transferToImageBitmap())
+                : () => { display.globalCompositeOperation = 'copy'; display.drawImage(back, 0, 0); };
+            back.addEventListener('webglcontextlost', event => {
+                event.preventDefault();
+                _estella_threaded_device_lost(1);
+            });
+        }
+        _estella_threaded_surface_ready(handle || 0, canvas.width, canvas.height, 0, readback);
+    };
+    const gl = () => {
+        if (!live) return;
+        try { setupGL(); }
+        catch (error) {
+            console.error('Worker WebGL initialization failed', error);
+            _estella_threaded_surface_ready(0, canvas.width, canvas.height, 0, readback);
+        }
+    };
+    if (!preferGPU || !navigator.gpu) { gl(); return; }
+    const request = async () => {
+        const adapter = await navigator.gpu.requestAdapter();
+        return adapter && adapter.requestDevice({ requiredFeatures: wanted.filter(name => adapter.features.has(name)) });
+    };
+    const watch = device => {
+        device.addEventListener('uncapturederror', event => console.error('[webgpu]', event.error.message));
+        device.lost.then(async info => {
+            if (!live || Module['preinitializedWebGPUDevice'] !== device) return;
+            _estella_threaded_device_lost(info.reason === 'destroyed' ? 5 : 0);
+            try {
+                const next = await request();
+                if (!next) return;
+                if (!live || Module['preinitializedWebGPUDevice'] !== device) { next.destroy(); return; }
+                Module['pendingWebGPUDevice'] = next;
+                if (_estella_threaded_replace_device()) {
+                    Module['preinitializedWebGPUDevice'] = next;
+                    watch(next);
+                }
+            } catch (error) { console.warn('[webgpu] worker replacement device:', error); }
+        });
+    };
+    request().then(device => {
+        if (!live) { if (device) device.destroy(); return; }
+        if (!device) { gl(); return; }
+        Module['pendingWebGPUDevice'] = Module['preinitializedWebGPUDevice'] = device;
+        watch(device);
+        _estella_threaded_surface_ready(-1, canvas.width, canvas.height, navigator.gpu.getPreferredCanvasFormat() === 'bgra8unorm', readback);
+    }, gl);
+});
+#endif
+
+bool initRendererThreaded(bool preferGPU, const std::string& features, bool readback) {
+#ifdef ES_RENDER_THREADS
+    auto& context = legacyCtx().context();
+    if (context.renderThread().enabled()) return threadedBoot.load() >= 0;
+    if (context.isInitialized()) return false;
+    g_activeContext = &context;
+    if (!startRenderThread(context, "#canvas")) return false;
+    threadedBoot.store(0);
+#ifndef ES_ENABLE_WEBGPU
+    preferGPU = false;
+#endif
+    context.renderThread().enqueue([=] { es_startWorkerSurface(preferGPU, features.c_str(), readback); });
+    return true;
+#else
+    (void)preferGPU; (void)features; (void)readback;
+    return false;
+#endif
+}
+
+i32 renderThread_bootStatus() { return threadedBoot.load(); }
+
+void renderThread_resizeSurface(u32 width, u32 height) {
+#ifdef ES_RENDER_THREADS
+    auto& queue = ctx().renderThread();
+    if (queue.enabled()) queue.enqueue([=] {
+        emscripten_set_canvas_element_size("#canvas", width, height);
+        EM_ASM({
+            const back = Module['estellaGLBackBuffer'];
+            if (back) { back.width = $0; back.height = $1; }
+        }, width, height);
+        renderer_resize(width, height);
+    });
+#else
+    (void)width; (void)height;
 #endif
 }
 
@@ -251,10 +406,25 @@ bool initRendererWithContext(int contextHandle) {
 }
 
 void shutdownRenderer() {
-    if (g_activeContext) {
-        g_activeContext->shutdown();
-        g_activeContext = nullptr;
+    threadedBoot.store(-1);
+    if (!g_activeContext) return;
+    auto& context = *g_activeContext;
+#ifdef ES_RENDER_THREADS
+    if (context.renderThread().enabled()) {
+        context.renderThread().invoke([&] {
+            context.shutdown();
+            EM_ASM({
+                if (Module['estellaDisposeSurface']) Module['estellaDisposeSurface']();
+                Module['estellaDisposeSurface'] = null;
+            });
+        });
+        context.renderThread().stop();
+    } else
+#endif
+    {
+        context.shutdown();
     }
+    g_activeContext = nullptr;
 }
 
 resource::ResourceManager* getResourceManager() {
@@ -267,7 +437,7 @@ resource::ResourceManager* getResourceManager() {
 
 namespace {
 GfxDevice* activeGfxDevice() {
-    return g_activeContext ? g_activeContext->tryGet<GfxDevice>() : nullptr;
+    return activeCtx().tryGet<GfxDevice>();
 }
 }  // namespace
 
@@ -299,20 +469,6 @@ std::string deviceIdentity() {
     if (!id.known()) return {};
     return id.backend + "|" + id.vendor + "|" + id.renderer + "|" + id.version;
 }
-
-#ifdef ES_ENABLE_WEBGPU
-EM_JS_DEPS(estella_webgpu_replacement, "$WebGPU");
-
-// The page's replacement GPUDevice, as a WGPUDevice. Imported rather than read
-// through emscripten_webgpu_get_device, which caches the FIRST device and would
-// hand back the dead one forever.
-EM_JS(uintptr_t, es_takePendingWebGPUDevice, (), {
-    var device = Module['pendingWebGPUDevice'];
-    if (!device) return 0;
-    Module['pendingWebGPUDevice'] = null;
-    return WebGPU.importJsDevice(device);
-});
-#endif
 
 /**
  * @brief Hands the backend a replacement device the page acquired.
@@ -399,11 +555,17 @@ EMSCRIPTEN_BINDINGS(esengine_context) {
     // Pointer (not reference) so JS can pass null to clear the active context.
     emscripten::function(
         "setActiveContext",
-        +[](esengine::EstellaContext* c) { esengine::g_activeContext = c; },
+        +[](esengine::EstellaContext* c) {
+            if (esengine::g_activeContext) esengine::g_activeContext->renderThread().flush();
+            esengine::g_activeContext = c;
+        },
         emscripten::allow_raw_pointers());
 }
 
 EMSCRIPTEN_BINDINGS(esengine_renderer) {
+    emscripten::function("renderThread_resizeSurface", &esengine::renderThread_resizeSurface);
+    emscripten::function("renderThread_bootStatus", &esengine::renderThread_bootStatus);
+    emscripten::function("initRendererThreaded", &esengine::initRendererThreaded);
     emscripten::function("initRenderer", &esengine::initRenderer);
     emscripten::function("initRendererWithContext", &esengine::initRendererWithContext);
     // Registered in every build variant; without ES_ENABLE_WEBGPU it reports
@@ -414,238 +576,242 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 #ifdef ES_ENABLE_BITMAP_TEXT
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
 #endif
-    emscripten::function("deviceStatus", &esengine::deviceStatus);
-    emscripten::function("deviceLostReport", &esengine::deviceLostReport);
-    emscripten::function("deviceIdentity", &esengine::deviceIdentity);
-    emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
-    emscripten::function("recoverDevice", &esengine::recoverDevice);
-    emscripten::function("provideReplacementDevice", &esengine::provideReplacementDevice);
+    emscripten::function("deviceStatus", ES_RENDER_BIND(deviceStatus));
+    emscripten::function("deviceLostReport", ES_RENDER_BIND(deviceLostReport));
+    emscripten::function("deviceIdentity", ES_RENDER_BIND(deviceIdentity));
+    emscripten::function("notifyDeviceLost", ES_RENDER_BIND(notifyDeviceLost));
+    emscripten::function("recoverDevice", ES_RENDER_BIND(recoverDevice));
+    emscripten::function("provideReplacementDevice", ES_RENDER_BIND(provideReplacementDevice));
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
-        .function("createTexture", &esengine::rm_createTexture)
-        .function("createTextureEx", &esengine::rm_createTextureEx)
-        .function("createTextureArray", &esengine::rm_createTextureArray)
-        .function("createShader", &esengine::rm_createShader)
-        .function("supportsCompressedFormat", &esengine::rm_supportsCompressedFormat)
-        .function("createCompressedTexture", &esengine::rm_createCompressedTexture)
-        .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
-        .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
-        .function("wrapDeviceTexture", &esengine::rm_wrapDeviceTexture)
-        .function("texturesAwaitingReupload", &esengine::rm_texturesAwaitingReupload)
-        .function("forgoTextureContent", &esengine::rm_forgoTextureContent)
-        .function("restoreTextureContent", &esengine::rm_restoreTextureContent)
-        .function("getTextureNativeId", &esengine::rm_getTextureNativeId)
-        .function("meshesAwaitingRemat", &esengine::rm_meshesAwaitingRemat)
-        .function("meshRealizations", &esengine::rm_meshRealizations)
-        .function("adoptTextureContent", &esengine::rm_adoptTextureContent)
-        .function("releaseTexture", &esengine::rm_releaseTexture)
-        .function("getTextureRefCount", &esengine::rm_getTextureRefCount)
-        .function("releaseShader", &esengine::rm_releaseShader)
-        .function("getShaderRefCount", &esengine::rm_getShaderRefCount)
-        .function("getTextureGLId", &esengine::rm_getTextureGLId)
-        .function("getTextureDimensions", &esengine::rm_getTextureDimensions)
-        .function("setTextureMetadata", &esengine::rm_setTextureMetadata)
-        .function("updateTextureSubregion", &esengine::rm_updateTextureSubregion)
-        .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
-        .function("setTextureBudget", &esengine::rm_setTextureBudget)
-        .function("setRetainedBudget", &esengine::rm_setRetainedBudget)
-        .function("acquireTextureByPath", &esengine::rm_acquireTextureByPath)
-        .function("invalidateTexturePath", &esengine::rm_invalidateTexturePath)
-        .function("trimTextureCache", &esengine::rm_trimTextureCache)
-        .function("getResourceStats", &esengine::rm_getResourceStats)
+        .function("createTexture", ES_RENDER_BIND(rm_createTexture))
+        .function("createTextureEx", ES_RENDER_BIND(rm_createTextureEx))
+        .function("createTextureArray", ES_RENDER_BIND(rm_createTextureArray))
+        .function("createShader", ES_RENDER_BIND(rm_createShader))
+        .function("supportsCompressedFormat", ES_RENDER_BIND(rm_supportsCompressedFormat))
+        .function("createCompressedTexture", ES_RENDER_BIND(rm_createCompressedTexture))
+        .function("registerExternalTexture", ES_RENDER_BIND(rm_registerExternalTexture))
+        .function("registerExternalTextureSized", ES_RENDER_BIND(rm_registerExternalTextureSized))
+        .function("wrapDeviceTexture", ES_RENDER_BIND(rm_wrapDeviceTexture))
+        .function("texturesAwaitingReupload", ES_RENDER_BIND(rm_texturesAwaitingReupload))
+        .function("forgoTextureContent", ES_RENDER_BIND(rm_forgoTextureContent))
+        .function("restoreTextureContent", ES_RENDER_BIND(rm_restoreTextureContent))
+        .function("getTextureNativeId", ES_RENDER_BIND(rm_getTextureNativeId))
+        .function("meshesAwaitingRemat", ES_RENDER_BIND(rm_meshesAwaitingRemat))
+        .function("meshRealizations", ES_RENDER_BIND(rm_meshRealizations))
+        .function("adoptTextureContent", ES_RENDER_BIND(rm_adoptTextureContent))
+        .function("releaseTexture", ES_RENDER_BIND(rm_releaseTexture))
+        .function("getTextureRefCount", ES_RENDER_BIND(rm_getTextureRefCount))
+        .function("releaseShader", ES_RENDER_BIND(rm_releaseShader))
+        .function("getShaderRefCount", ES_RENDER_BIND(rm_getShaderRefCount))
+        .function("getTextureGLId", ES_RENDER_BIND(rm_getTextureGLId))
+        .function("getTextureDimensions", ES_RENDER_BIND(rm_getTextureDimensions))
+        .function("setTextureMetadata", ES_RENDER_BIND(rm_setTextureMetadata))
+        .function("updateTextureSubregion", ES_RENDER_BIND(rm_updateTextureSubregion))
+        .function("registerTextureWithPath", ES_RENDER_BIND(rm_registerTextureWithPath))
+        .function("setTextureBudget", ES_RENDER_BIND(rm_setTextureBudget))
+        .function("setRetainedBudget", ES_RENDER_BIND(rm_setRetainedBudget))
+        .function("acquireTextureByPath", ES_RENDER_BIND(rm_acquireTextureByPath))
+        .function("invalidateTexturePath", ES_RENDER_BIND(rm_invalidateTexturePath))
+        .function("trimTextureCache", ES_RENDER_BIND(rm_trimTextureCache))
+        .function("getResourceStats", ES_RENDER_BIND(rm_getResourceStats))
 #ifdef ES_ENABLE_BITMAP_TEXT
-        .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
-        .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)
-        .function("releaseBitmapFont", &esengine::rm_releaseBitmapFont)
-        .function("getBitmapFontRefCount", &esengine::rm_getBitmapFontRefCount)
-        .function("measureBitmapText", &esengine::rm_measureBitmapText)
+        .function("loadBitmapFont", ES_RENDER_BIND(rm_loadBitmapFont))
+        .function("createLabelAtlasFont", ES_RENDER_BIND(rm_createLabelAtlasFont))
+        .function("releaseBitmapFont", ES_RENDER_BIND(rm_releaseBitmapFont))
+        .function("getBitmapFontRefCount", ES_RENDER_BIND(rm_getBitmapFontRefCount))
+        .function("measureBitmapText", ES_RENDER_BIND(rm_measureBitmapText))
 #endif
         ;
 
     // Every skeletal runtime is a side module; this is the one door their posed
     // geometry comes through, so it belongs to neither of their build flags.
-    emscripten::function("renderer_submitSkeletalBatchByEntity", &esengine::renderer_submitSkeletalBatchByEntity);
-    emscripten::function("renderer_submitSkeletalBatchByEntityEx", &esengine::renderer_submitSkeletalBatchByEntityEx);
-    emscripten::function("renderer_entityVisibleToCamera", &esengine::renderer_entityVisibleToCamera);
-    emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
-    emscripten::function("renderer_retainedTextBegin", &esengine::renderer_retainedTextBegin);
-    emscripten::function("renderer_retainedTextBatch", &esengine::renderer_retainedTextBatch);
-    emscripten::function("renderer_retainedTextClear", &esengine::renderer_retainedTextClear);
-    emscripten::function("renderer_retainedTextStale", &esengine::renderer_retainedTextStale);
-    emscripten::function("renderer_retainedTextSubmit", &esengine::renderer_retainedTextSubmit);
-    emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
-    emscripten::function("meshInstances_set", &esengine::meshInstances_set);
-    emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);
-    emscripten::function("mesh_rematerializeFromChannels", &esengine::mesh_rematerializeFromChannels);
-    emscripten::function("mesh_setClusters", &esengine::mesh_setClusters);
-    emscripten::function("mesh_setSkinChunks", &esengine::mesh_setSkinChunks);
-    emscripten::function("mesh_release", &esengine::mesh_release);
-    emscripten::function("environment_create", &esengine::environment_create);
-    emscripten::function("environment_setSky", &esengine::environment_setSky);
-    emscripten::function("environment_setSun", &esengine::environment_setSun);
-    emscripten::function("environment_release", &esengine::environment_release);
-    emscripten::function("renderer_setSkyEnvironment", &esengine::renderer_setSkyEnvironment);
-    emscripten::function("probe_volume_create", &esengine::probe_volume_create);
-    emscripten::function("probe_volume_createBricks", &esengine::probe_volume_createBricks);
-    emscripten::function("probe_volume_getResolution", &esengine::probe_volume_getResolution);
-    emscripten::function("probe_volume_getBricks", &esengine::probe_volume_getBricks);
-    emscripten::function("probe_volume_release", &esengine::probe_volume_release);
-    emscripten::function("probe_volume_setSkyVisibility", &esengine::probe_volume_setSkyVisibility);
-    emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
-    emscripten::function("meshRenderer_makeAllResident", &esengine::meshRenderer_makeAllResident);
-    emscripten::function("meshRenderer_setMeshAll", &esengine::meshRenderer_setMeshAll);
-    emscripten::function("meshRenderer_setMaterialAll", &esengine::meshRenderer_setMaterialAll);
+    emscripten::function("renderer_submitSkeletalBatchByEntity", ES_RENDER_BIND(renderer_submitSkeletalBatchByEntity));
+    emscripten::function("renderer_submitSkeletalBatchByEntityEx", ES_RENDER_BIND(renderer_submitSkeletalBatchByEntityEx));
+    emscripten::function("renderer_entityVisibleToCamera", ES_RENDER_BIND(renderer_entityVisibleToCamera));
+    emscripten::function("renderer_submitTextBatch", ES_RENDER_BIND(renderer_submitTextBatch));
+    emscripten::function("renderer_retainedTextBegin", ES_RENDER_BIND(renderer_retainedTextBegin));
+    emscripten::function("renderer_retainedTextBatch", ES_RENDER_BIND(renderer_retainedTextBatch));
+    emscripten::function("renderer_retainedTextClear", ES_RENDER_BIND(renderer_retainedTextClear));
+    emscripten::function("renderer_retainedTextStale", ES_RENDER_BIND(renderer_retainedTextStale));
+    emscripten::function("renderer_retainedTextSubmit", ES_RENDER_BIND(renderer_retainedTextSubmit));
+    emscripten::function("meshRenderer_setGeometry", ES_RENDER_BIND(meshRenderer_setGeometry));
+    emscripten::function("meshInstances_set", ES_RENDER_BIND(meshInstances_set));
+    emscripten::function("mesh_createFromChannels", ES_RENDER_BIND(mesh_createFromChannels));
+    emscripten::function("mesh_rematerializeFromChannels", ES_RENDER_BIND(mesh_rematerializeFromChannels));
+    emscripten::function("mesh_setClusters", ES_RENDER_BIND(mesh_setClusters));
+    emscripten::function("mesh_setSkinChunks", ES_RENDER_BIND(mesh_setSkinChunks));
+    emscripten::function("mesh_release", ES_RENDER_BIND(mesh_release));
+    emscripten::function("environment_create", ES_RENDER_BIND(environment_create));
+    emscripten::function("environment_setSky", ES_RENDER_BIND(environment_setSky));
+    emscripten::function("environment_setSun", ES_RENDER_BIND(environment_setSun));
+    emscripten::function("environment_release", ES_RENDER_BIND(environment_release));
+    emscripten::function("renderer_setSkyEnvironment", ES_RENDER_BIND(renderer_setSkyEnvironment));
+    emscripten::function("probe_volume_create", ES_RENDER_BIND(probe_volume_create));
+    emscripten::function("probe_volume_createBricks", ES_RENDER_BIND(probe_volume_createBricks));
+    emscripten::function("probe_volume_getResolution", ES_RENDER_BIND(probe_volume_getResolution));
+    emscripten::function("probe_volume_getBricks", ES_RENDER_BIND(probe_volume_getBricks));
+    emscripten::function("probe_volume_release", ES_RENDER_BIND(probe_volume_release));
+    emscripten::function("probe_volume_setSkyVisibility", ES_RENDER_BIND(probe_volume_setSkyVisibility));
+    emscripten::function("meshRenderer_localBounds", ES_RENDER_BIND(meshRenderer_localBounds));
+    emscripten::function("meshRenderer_makeAllResident", ES_RENDER_BIND(meshRenderer_makeAllResident));
+    emscripten::function("meshRenderer_setMeshAll", ES_RENDER_BIND(meshRenderer_setMeshAll));
+    emscripten::function("meshRenderer_setMaterialAll", ES_RENDER_BIND(meshRenderer_setMaterialAll));
 
-    emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
+    emscripten::function("material_compileEsshader", ES_RENDER_BIND(material_compileEsshader));
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);
     emscripten::function("es_getMallocBytes", &esengine::es_getMallocBytes);
-    emscripten::function("material_define", &esengine::material_define);
-    emscripten::function("material_setUniform", &esengine::material_setUniform);
-    emscripten::function("material_setTexture", &esengine::material_setTexture);
-    emscripten::function("material_undefine", &esengine::material_undefine);
+    emscripten::function("material_define", ES_RENDER_BIND(material_define));
+    emscripten::function("material_setUniform", ES_RENDER_BIND(material_setUniform));
+    emscripten::function("material_setTexture", ES_RENDER_BIND(material_setTexture));
+    emscripten::function("material_undefine", ES_RENDER_BIND(material_undefine));
 
-    emscripten::function("draw_begin", &esengine::draw_begin);
-    emscripten::function("draw_end", &esengine::draw_end);
-    emscripten::function("draw_deferEnd", &esengine::draw_deferEnd);
-    emscripten::function("draw_line", &esengine::draw_line);
-    emscripten::function("draw_line3D", &esengine::draw_line3D);
-    emscripten::function("draw_line3DScreen", &esengine::draw_line3DScreen);
-    emscripten::function("draw_line3DScreenOffset", &esengine::draw_line3DScreenOffset);
-    emscripten::function("draw_rect", &esengine::draw_rect);
-    emscripten::function("draw_rectOutline", &esengine::draw_rectOutline);
-    emscripten::function("draw_circle", &esengine::draw_circle);
-    emscripten::function("draw_circleOutline", &esengine::draw_circleOutline);
-    emscripten::function("draw_texture", &esengine::draw_texture);
-    emscripten::function("draw_textureRotated", &esengine::draw_textureRotated);
-    emscripten::function("draw_triangles", &esengine::draw_triangles);
-    emscripten::function("draw_createTriangleMesh", &esengine::draw_createTriangleMesh);
-    emscripten::function("draw_destroyTriangleMesh", &esengine::draw_destroyTriangleMesh);
-    emscripten::function("draw_triangleMesh", &esengine::draw_triangleMesh);
-    emscripten::function("draw_triangleMeshMany", &esengine::draw_triangleMeshMany);
-    emscripten::function("draw_setLayer", &esengine::draw_setLayer);
-    emscripten::function("draw_setDepth", &esengine::draw_setDepth);
-    emscripten::function("draw_getDrawCallCount", &esengine::draw_getDrawCallCount);
-    emscripten::function("draw_getPrimitiveCount", &esengine::draw_getPrimitiveCount);
-    emscripten::function("draw_setBlendMode", &esengine::draw_setBlendMode);
-    emscripten::function("draw_setDepthTest", &esengine::draw_setDepthTest);
-    emscripten::function("draw_getDepthState", &esengine::draw_getDepthState);
-    emscripten::function("draw_setDepthState", &esengine::draw_setDepthState);
-    emscripten::function("draw_deferBegin", &esengine::draw_deferBegin);
-    emscripten::function("draw_mesh", &esengine::draw_mesh);
-    emscripten::function("draw_meshWithUniforms", &esengine::draw_meshWithUniforms);
-    emscripten::function("draw_meshWithMaterial", &esengine::draw_meshWithMaterial);
+    emscripten::function("draw_begin", ES_RENDER_BIND(draw_begin));
+    emscripten::function("draw_end", ES_RENDER_BIND(draw_end));
+    emscripten::function("draw_deferEnd", ES_RENDER_BIND(draw_deferEnd));
+    emscripten::function("draw_line", ES_RENDER_BIND(draw_line));
+    emscripten::function("draw_line3D", ES_RENDER_BIND(draw_line3D));
+    emscripten::function("draw_line3DScreen", ES_RENDER_BIND(draw_line3DScreen));
+    emscripten::function("draw_line3DScreenOffset", ES_RENDER_BIND(draw_line3DScreenOffset));
+    emscripten::function("draw_rect", ES_RENDER_BIND(draw_rect));
+    emscripten::function("draw_rectOutline", ES_RENDER_BIND(draw_rectOutline));
+    emscripten::function("draw_circle", ES_RENDER_BIND(draw_circle));
+    emscripten::function("draw_circleOutline", ES_RENDER_BIND(draw_circleOutline));
+    emscripten::function("draw_texture", ES_RENDER_BIND(draw_texture));
+    emscripten::function("draw_textureRotated", ES_RENDER_BIND(draw_textureRotated));
+    emscripten::function("draw_triangles", ES_RENDER_BIND(draw_triangles));
+    emscripten::function("draw_createTriangleMesh", ES_RENDER_BIND(draw_createTriangleMesh));
+    emscripten::function("draw_destroyTriangleMesh", ES_RENDER_BIND(draw_destroyTriangleMesh));
+    emscripten::function("draw_triangleMesh", ES_RENDER_BIND(draw_triangleMesh));
+    emscripten::function("draw_triangleMeshMany", ES_RENDER_BIND(draw_triangleMeshMany));
+    emscripten::function("draw_setLayer", ES_RENDER_BIND(draw_setLayer));
+    emscripten::function("draw_setDepth", ES_RENDER_BIND(draw_setDepth));
+    emscripten::function("draw_getDrawCallCount", ES_RENDER_BIND(draw_getDrawCallCount));
+    emscripten::function("draw_getPrimitiveCount", ES_RENDER_BIND(draw_getPrimitiveCount));
+    emscripten::function("draw_setBlendMode", ES_RENDER_BIND(draw_setBlendMode));
+    emscripten::function("draw_setDepthTest", ES_RENDER_BIND(draw_setDepthTest));
+    emscripten::function("draw_getDepthState", ES_RENDER_BIND(draw_getDepthState));
+    emscripten::function("draw_setDepthState", ES_RENDER_BIND(draw_setDepthState));
+    emscripten::function("draw_deferBegin", ES_RENDER_BIND(draw_deferBegin));
+    emscripten::function("draw_mesh", ES_RENDER_BIND(draw_mesh));
+    emscripten::function("draw_meshWithUniforms", ES_RENDER_BIND(draw_meshWithUniforms));
+    emscripten::function("draw_meshWithMaterial", ES_RENDER_BIND(draw_meshWithMaterial));
 
-    emscripten::function("geometry_create", &esengine::geometry_create);
-    emscripten::function("geometry_init", &esengine::geometry_init);
-    emscripten::function("geometry_setIndices16", &esengine::geometry_setIndices16);
-    emscripten::function("geometry_setIndices32", &esengine::geometry_setIndices32);
-    emscripten::function("geometry_updateVertices", &esengine::geometry_updateVertices);
-    emscripten::function("geometry_release", &esengine::geometry_release);
-    emscripten::function("geometry_isValid", &esengine::geometry_isValid);
+    emscripten::function("geometry_create", ES_RENDER_BIND(geometry_create));
+    emscripten::function("geometry_init", ES_RENDER_BIND(geometry_init));
+    emscripten::function("geometry_setIndices16", ES_RENDER_BIND(geometry_setIndices16));
+    emscripten::function("geometry_setIndices32", ES_RENDER_BIND(geometry_setIndices32));
+    emscripten::function("geometry_updateVertices", ES_RENDER_BIND(geometry_updateVertices));
+    emscripten::function("geometry_release", ES_RENDER_BIND(geometry_release));
+    emscripten::function("geometry_isValid", ES_RENDER_BIND(geometry_isValid));
 
 #ifdef ES_ENABLE_POSTPROCESS
-    emscripten::function("postprocess_init", &esengine::postprocess_init);
-    emscripten::function("postprocess_shutdown", &esengine::postprocess_shutdown);
-    emscripten::function("postprocess_resize", &esengine::postprocess_resize);
-    emscripten::function("postprocess_addPass", &esengine::postprocess_addPass);
-    emscripten::function("postprocess_addComputePass", &esengine::postprocess_addComputePass);
-    emscripten::function("postprocess_supportsCompute", &esengine::postprocess_supportsCompute);
-    emscripten::function("postprocess_addNativePass", &esengine::postprocess_addNativePass);
-    emscripten::function("postprocess_setGIScene", &esengine::postprocess_setGIScene);
-    emscripten::function("postprocess_updateGIField", &esengine::postprocess_updateGIField);
-    emscripten::function("postprocess_setPassScale", &esengine::postprocess_setPassScale);
-    emscripten::function("postprocess_setPassContinuesEffect", &esengine::postprocess_setPassContinuesEffect);
-    emscripten::function("postprocess_requestSkyCapture", &esengine::postprocess_requestSkyCapture);
-    emscripten::function("postprocess_pollSkyCapture", &esengine::postprocess_pollSkyCapture);
-    emscripten::function("postprocess_takeSkyCapture", &esengine::postprocess_takeSkyCapture);
-    emscripten::function("postprocess_giStats", &esengine::postprocess_giStats);
-    emscripten::function("postprocess_setMsaaSamples", &esengine::postprocess_setMsaaSamples);
-    emscripten::function("postprocess_effectiveMsaaSamples", &esengine::postprocess_effectiveMsaaSamples);
-    emscripten::function("postprocess_maxMsaaSamples", &esengine::postprocess_maxMsaaSamples);
-    emscripten::function("postprocess_hdrFormat", &esengine::postprocess_hdrFormat);
-    emscripten::function("postprocess_hdrFormatNames", &esengine::postprocess_hdrFormatNames);
-    emscripten::function("postprocess_setUniformFloat", &esengine::postprocess_setUniformFloat);
-    emscripten::function("postprocess_setUniformVec4", &esengine::postprocess_setUniformVec4);
-    emscripten::function("postprocess_setPassTexture", &esengine::postprocess_setPassTexture);
-    emscripten::function("postprocess_begin", &esengine::postprocess_begin);
-    emscripten::function("postprocess_end", &esengine::postprocess_end);
-    emscripten::function("postprocess_isInitialized", &esengine::postprocess_isInitialized);
-    emscripten::function("postprocess_setBypass", &esengine::postprocess_setBypass);
-    emscripten::function("postprocess_setOutputTransform", &esengine::postprocess_setOutputTransform);
-    emscripten::function("postprocess_setDisplayLut", &esengine::postprocess_setDisplayLut);
-    emscripten::function("postprocess_setViewExposure", &esengine::postprocess_setViewExposure);
-    emscripten::function("postprocess_clearPasses", &esengine::postprocess_clearPasses);
-    emscripten::function("postprocess_setOutputViewport", &esengine::postprocess_setOutputViewport);
-    emscripten::function("postprocess_setPresentRequired", &esengine::postprocess_setPresentRequired);
-    emscripten::function("postprocess_beginScreenCapture", &esengine::postprocess_beginScreenCapture);
-    emscripten::function("postprocess_endScreenCapture", &esengine::postprocess_endScreenCapture);
-    emscripten::function("postprocess_executeScreenPasses", &esengine::postprocess_executeScreenPasses);
-    emscripten::function("postprocess_addScreenPass", &esengine::postprocess_addScreenPass);
-    emscripten::function("postprocess_clearScreenPasses", &esengine::postprocess_clearScreenPasses);
-    emscripten::function("postprocess_setScreenUniformFloat", &esengine::postprocess_setScreenUniformFloat);
-    emscripten::function("postprocess_setScreenUniformVec4", &esengine::postprocess_setScreenUniformVec4);
+    emscripten::function("postprocess_init", ES_RENDER_BIND(postprocess_init));
+    emscripten::function("postprocess_shutdown", ES_RENDER_BIND(postprocess_shutdown));
+    emscripten::function("postprocess_resize", ES_RENDER_BIND(postprocess_resize));
+    emscripten::function("postprocess_addPass", ES_RENDER_BIND(postprocess_addPass));
+    emscripten::function("postprocess_addComputePass", ES_RENDER_BIND(postprocess_addComputePass));
+    emscripten::function("postprocess_supportsCompute", ES_RENDER_BIND(postprocess_supportsCompute));
+    emscripten::function("postprocess_addNativePass", ES_RENDER_BIND(postprocess_addNativePass));
+    emscripten::function("postprocess_setGIScene", ES_RENDER_BIND(postprocess_setGIScene));
+    emscripten::function("postprocess_updateGIField", ES_RENDER_BIND(postprocess_updateGIField));
+    emscripten::function("postprocess_setPassScale", ES_RENDER_BIND(postprocess_setPassScale));
+    emscripten::function("postprocess_setPassContinuesEffect", ES_RENDER_BIND(postprocess_setPassContinuesEffect));
+    emscripten::function("postprocess_requestSkyCapture", ES_RENDER_BIND(postprocess_requestSkyCapture));
+    emscripten::function("postprocess_pollSkyCapture", ES_RENDER_BIND(postprocess_pollSkyCapture));
+    emscripten::function("postprocess_takeSkyCapture", ES_RENDER_BIND(postprocess_takeSkyCapture));
+    emscripten::function("postprocess_giStats", ES_RENDER_BIND(postprocess_giStats));
+    emscripten::function("postprocess_setMsaaSamples", ES_RENDER_BIND(postprocess_setMsaaSamples));
+    emscripten::function("postprocess_effectiveMsaaSamples", ES_RENDER_BIND(postprocess_effectiveMsaaSamples));
+    emscripten::function("postprocess_maxMsaaSamples", ES_RENDER_BIND(postprocess_maxMsaaSamples));
+    emscripten::function("postprocess_hdrFormat", ES_RENDER_BIND(postprocess_hdrFormat));
+    emscripten::function("postprocess_hdrFormatNames", ES_RENDER_BIND(postprocess_hdrFormatNames));
+    emscripten::function("postprocess_setUniformFloat", ES_RENDER_BIND(postprocess_setUniformFloat));
+    emscripten::function("postprocess_setUniformVec4", ES_RENDER_BIND(postprocess_setUniformVec4));
+    emscripten::function("postprocess_setPassTexture", ES_RENDER_BIND(postprocess_setPassTexture));
+    emscripten::function("postprocess_begin", ES_RENDER_BIND(postprocess_begin));
+    emscripten::function("postprocess_end", ES_RENDER_BIND(postprocess_end));
+    emscripten::function("postprocess_isInitialized", ES_RENDER_BIND(postprocess_isInitialized));
+    emscripten::function("postprocess_setBypass", ES_RENDER_BIND(postprocess_setBypass));
+    emscripten::function("postprocess_setOutputTransform", ES_RENDER_BIND(postprocess_setOutputTransform));
+    emscripten::function("postprocess_setDisplayLut", ES_RENDER_BIND(postprocess_setDisplayLut));
+    emscripten::function("postprocess_setViewExposure", ES_RENDER_BIND(postprocess_setViewExposure));
+    emscripten::function("postprocess_clearPasses", ES_RENDER_BIND(postprocess_clearPasses));
+    emscripten::function("postprocess_setOutputViewport", ES_RENDER_BIND(postprocess_setOutputViewport));
+    emscripten::function("postprocess_setPresentRequired", ES_RENDER_BIND(postprocess_setPresentRequired));
+    emscripten::function("postprocess_beginScreenCapture", ES_RENDER_BIND(postprocess_beginScreenCapture));
+    emscripten::function("postprocess_endScreenCapture", ES_RENDER_BIND(postprocess_endScreenCapture));
+    emscripten::function("postprocess_executeScreenPasses", ES_RENDER_BIND(postprocess_executeScreenPasses));
+    emscripten::function("postprocess_addScreenPass", ES_RENDER_BIND(postprocess_addScreenPass));
+    emscripten::function("postprocess_clearScreenPasses", ES_RENDER_BIND(postprocess_clearScreenPasses));
+    emscripten::function("postprocess_setScreenUniformFloat", ES_RENDER_BIND(postprocess_setScreenUniformFloat));
+    emscripten::function("postprocess_setScreenUniformVec4", ES_RENDER_BIND(postprocess_setScreenUniformVec4));
 #endif
 
 #ifdef ES_ENABLE_TILEMAP
     // Tilemaps registered here with every other binding, from the same
     // TilemapBindings.hpp declarations the native wrappers are generated from.
-    emscripten::function("tilemap_initLayer", &esengine::tilemap_initLayer);
-    emscripten::function("tilemap_initInfinite", &esengine::tilemap_initInfinite);
-    emscripten::function("tilemap_destroyLayer", &esengine::tilemap_destroyLayer);
-    emscripten::function("tilemap_setTile", &esengine::tilemap_setTile);
-    emscripten::function("tilemap_getTile", &esengine::tilemap_getTile);
-    emscripten::function("tilemap_fillRect", &esengine::tilemap_fillRect);
-    emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
-    emscripten::function("tilemap_setTilesets", &esengine::tilemap_setTilesets);
-    emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
-    emscripten::function("tilemap_getEditRevision", &esengine::tilemap_getEditRevision);
-    emscripten::function("tilemap_getGeneration", &esengine::tilemap_getGeneration);
-    emscripten::function("tilemap_readChunkIndex", &esengine::tilemap_readChunkIndex);
-    emscripten::function("tilemap_readChunkTiles", &esengine::tilemap_readChunkTiles);
-    emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
-    emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
-    emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);
-    emscripten::function("tilemap_setOriginEntity", &esengine::tilemap_setOriginEntity);
-    emscripten::function("tilemap_exportChunks", &esengine::tilemap_exportChunks);
-    emscripten::function("tilemap_importChunks", &esengine::tilemap_importChunks);
-    emscripten::function("tilemap_initInfiniteLayer", &esengine::tilemap_initInfiniteLayer);
-    emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
-    emscripten::function("tilemap_removeChunk", &esengine::tilemap_removeChunk);
-    emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
-    emscripten::function("tilemap_clearTileAnimations", &esengine::tilemap_clearTileAnimations);
-    emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);
-    emscripten::function("tilemap_setTileProperty", &esengine::tilemap_setTileProperty);
-    emscripten::function("tilemap_getTileProperty", &esengine::tilemap_getTileProperty);
-    emscripten::function("tilemap_flipTile", &esengine::tilemap_flipTile);
-    emscripten::function("tilemap_rotateTile", &esengine::tilemap_rotateTile);
-    emscripten::function("tilemap_setGridType", &esengine::tilemap_setGridType);
-    emscripten::function("tilemap_setHexParams", &esengine::tilemap_setHexParams);
-    emscripten::function("tilemap_tileToWorld", &esengine::tilemap_tileToWorld);
-    emscripten::function("tilemap_worldToTile", &esengine::tilemap_worldToTile);
+    emscripten::function("tilemap_initLayer", ES_RENDER_BIND(tilemap_initLayer));
+    emscripten::function("tilemap_initInfinite", ES_RENDER_BIND(tilemap_initInfinite));
+    emscripten::function("tilemap_destroyLayer", ES_RENDER_BIND(tilemap_destroyLayer));
+    emscripten::function("tilemap_setTile", ES_RENDER_BIND(tilemap_setTile));
+    emscripten::function("tilemap_getTile", ES_RENDER_BIND(tilemap_getTile));
+    emscripten::function("tilemap_fillRect", ES_RENDER_BIND(tilemap_fillRect));
+    emscripten::function("tilemap_setTiles", ES_RENDER_BIND(tilemap_setTiles));
+    emscripten::function("tilemap_setTilesets", ES_RENDER_BIND(tilemap_setTilesets));
+    emscripten::function("tilemap_hasLayer", ES_RENDER_BIND(tilemap_hasLayer));
+    emscripten::function("tilemap_getEditRevision", ES_RENDER_BIND(tilemap_getEditRevision));
+    emscripten::function("tilemap_getGeneration", ES_RENDER_BIND(tilemap_getGeneration));
+    emscripten::function("tilemap_readChunkIndex", ES_RENDER_BIND(tilemap_readChunkIndex));
+    emscripten::function("tilemap_readChunkTiles", ES_RENDER_BIND(tilemap_readChunkTiles));
+    emscripten::function("tilemap_setRenderProps", ES_RENDER_BIND(tilemap_setRenderProps));
+    emscripten::function("tilemap_setTint", ES_RENDER_BIND(tilemap_setTint));
+    emscripten::function("tilemap_setVisible", ES_RENDER_BIND(tilemap_setVisible));
+    emscripten::function("tilemap_setOriginEntity", ES_RENDER_BIND(tilemap_setOriginEntity));
+    emscripten::function("tilemap_exportChunks", ES_RENDER_BIND(tilemap_exportChunks));
+    emscripten::function("tilemap_importChunks", ES_RENDER_BIND(tilemap_importChunks));
+    emscripten::function("tilemap_initInfiniteLayer", ES_RENDER_BIND(tilemap_initInfiniteLayer));
+    emscripten::function("tilemap_setChunkTiles", ES_RENDER_BIND(tilemap_setChunkTiles));
+    emscripten::function("tilemap_removeChunk", ES_RENDER_BIND(tilemap_removeChunk));
+    emscripten::function("tilemap_setTileAnimation", ES_RENDER_BIND(tilemap_setTileAnimation));
+    emscripten::function("tilemap_clearTileAnimations", ES_RENDER_BIND(tilemap_clearTileAnimations));
+    emscripten::function("tilemap_advanceAnimations", ES_RENDER_BIND(tilemap_advanceAnimations));
+    emscripten::function("tilemap_setTileProperty", ES_RENDER_BIND(tilemap_setTileProperty));
+    emscripten::function("tilemap_getTileProperty", ES_RENDER_BIND(tilemap_getTileProperty));
+    emscripten::function("tilemap_flipTile", ES_RENDER_BIND(tilemap_flipTile));
+    emscripten::function("tilemap_rotateTile", ES_RENDER_BIND(tilemap_rotateTile));
+    emscripten::function("tilemap_setGridType", ES_RENDER_BIND(tilemap_setGridType));
+    emscripten::function("tilemap_setHexParams", ES_RENDER_BIND(tilemap_setHexParams));
+    emscripten::function("tilemap_tileToWorld", ES_RENDER_BIND(tilemap_tileToWorld));
+    emscripten::function("tilemap_worldToTile", ES_RENDER_BIND(tilemap_worldToTile));
 #endif
 
-    emscripten::function("renderer_init", &esengine::renderer_init);
-    emscripten::function("renderer_resize", &esengine::renderer_resize);
-    emscripten::function("renderer_beginFrame", &esengine::renderer_beginFrame);
-    emscripten::function("renderer_setOrigin", &esengine::renderer_setOrigin);
-    emscripten::function("renderer_setParallaxAnchor", &esengine::renderer_setParallaxAnchor);
-    emscripten::function("renderer_begin", &esengine::renderer_begin);
-    emscripten::function("renderer_flush", &esengine::renderer_flush);
-    emscripten::function("renderer_end", &esengine::renderer_end);
-    emscripten::function("renderer_endFrame", &esengine::renderer_endFrame);
-    emscripten::function("renderer_beginScreenOverlay", &esengine::renderer_beginScreenOverlay);
-    emscripten::function("renderer_submitScreenOverlay", &esengine::renderer_submitScreenOverlay);
-    emscripten::function("renderer_keepScreenOverlay", &esengine::renderer_keepScreenOverlay);
-    emscripten::function("renderer_setRetainedTextCollected", &esengine::renderer_setRetainedTextCollected);
-    emscripten::function("renderer_setScreenOverlayEffect", &esengine::renderer_setScreenOverlayEffect);
-    emscripten::function("renderer_endScreenOverlay", &esengine::renderer_endScreenOverlay);
-    emscripten::function("renderer_drawOverScreen", &esengine::renderer_drawOverScreen);
+    emscripten::function("renderer_init", ES_RENDER_BIND(renderer_init));
+    emscripten::function("renderer_resize", ES_RENDER_BIND(renderer_resize));
+    emscripten::function("renderThread_enabled", &esengine::renderThread_enabled);
+    emscripten::function("renderThread_fence", &esengine::renderThread_fence);
+    emscripten::function("renderThread_complete", &esengine::renderThread_complete);
+    emscripten::function("renderThread_flush", &esengine::renderThread_flush);
+    emscripten::function("renderer_beginFrame", ES_RENDER_BIND(renderer_beginFrame));
+    emscripten::function("renderer_setOrigin", ES_RENDER_BIND(renderer_setOrigin));
+    emscripten::function("renderer_setParallaxAnchor", ES_RENDER_BIND(renderer_setParallaxAnchor));
+    emscripten::function("renderer_begin", ES_RENDER_BIND(renderer_begin));
+    emscripten::function("renderer_flush", ES_RENDER_BIND(renderer_flush));
+    emscripten::function("renderer_end", ES_RENDER_BIND(renderer_end));
+    emscripten::function("renderer_endFrame", ES_RENDER_BIND(renderer_endFrame));
+    emscripten::function("renderer_beginScreenOverlay", ES_RENDER_BIND(renderer_beginScreenOverlay));
+    emscripten::function("renderer_submitScreenOverlay", ES_RENDER_BIND(renderer_submitScreenOverlay));
+    emscripten::function("renderer_keepScreenOverlay", ES_RENDER_BIND(renderer_keepScreenOverlay));
+    emscripten::function("renderer_setRetainedTextCollected", ES_RENDER_BIND(renderer_setRetainedTextCollected));
+    emscripten::function("renderer_setScreenOverlayEffect", ES_RENDER_BIND(renderer_setScreenOverlayEffect));
+    emscripten::function("renderer_endScreenOverlay", ES_RENDER_BIND(renderer_endScreenOverlay));
+    emscripten::function("renderer_drawOverScreen", ES_RENDER_BIND(renderer_drawOverScreen));
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif
 
 #ifdef ES_ENABLE_PARTICLES
 #endif
-    emscripten::function("renderer_updateTransforms", &esengine::renderer_updateTransforms);
+    emscripten::function("renderer_updateTransforms", ES_RENDER_BIND(renderer_updateTransforms));
     // The address of the composition's staleness counter, so a producer on the
     // JS side stores into linear memory instead of calling across it. Measured:
     // the store is below noise, the call nearly doubles a Transform write.
@@ -689,119 +855,119 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("transform_takeChanges", emscripten::optional_override([]() {
         if (auto* ts = esengine::ctx().tryGet<esengine::ecs::TransformSystem>()) ts->takeChanges();
     }));
-    emscripten::function("renderer_setEntityDrawOrder", &esengine::renderer_setEntityDrawOrder);
-    emscripten::function("renderer_submitAll", &esengine::renderer_submitAll);
+    emscripten::function("renderer_setEntityDrawOrder", ES_RENDER_BIND(renderer_setEntityDrawOrder));
+    emscripten::function("renderer_submitAll", ES_RENDER_BIND(renderer_submitAll));
 #ifdef ES_ENABLE_PARTICLES
-    emscripten::function("particle_update", &esengine::particle_update);
-    emscripten::function("particle_collisionQueryCount", &esengine::particle_collisionQueryCount);
-    emscripten::function("particle_collisionQueries", &esengine::particle_collisionQueries);
-    emscripten::function("particle_collisionEventCount", &esengine::particle_collisionEventCount);
-    emscripten::function("particle_collisionEvents", &esengine::particle_collisionEvents);
-    emscripten::function("particle_collisionStatsCount", &esengine::particle_collisionStatsCount);
-    emscripten::function("particle_collisionStats", &esengine::particle_collisionStats);
-    emscripten::function("particle_collisionResolve", &esengine::particle_collisionResolve);
-    emscripten::function("particle_collisionSetBudget", &esengine::particle_collisionSetBudget);
-    emscripten::function("particle_play", &esengine::particle_play);
-    emscripten::function("particle_stop", &esengine::particle_stop);
-    emscripten::function("particle_reset", &esengine::particle_reset);
-    emscripten::function("particle_emitAt", &esengine::particle_emitAt);
-    emscripten::function("particle_getAliveCount", &esengine::particle_getAliveCount);
-    emscripten::function("particle_set_color_lut", &esengine::particle_set_color_lut);
-    emscripten::function("particle_set_size_lut", &esengine::particle_set_size_lut);
-    emscripten::function("particle_set_speed_lut", &esengine::particle_set_speed_lut);
-    emscripten::function("particle_set_bursts", &esengine::particle_set_bursts);
+    emscripten::function("particle_update", ES_RENDER_BIND(particle_update));
+    emscripten::function("particle_collisionQueryCount", ES_RENDER_BIND(particle_collisionQueryCount));
+    emscripten::function("particle_collisionQueries", ES_RENDER_BIND(particle_collisionQueries));
+    emscripten::function("particle_collisionEventCount", ES_RENDER_BIND(particle_collisionEventCount));
+    emscripten::function("particle_collisionEvents", ES_RENDER_BIND(particle_collisionEvents));
+    emscripten::function("particle_collisionStatsCount", ES_RENDER_BIND(particle_collisionStatsCount));
+    emscripten::function("particle_collisionStats", ES_RENDER_BIND(particle_collisionStats));
+    emscripten::function("particle_collisionResolve", ES_RENDER_BIND(particle_collisionResolve));
+    emscripten::function("particle_collisionSetBudget", ES_RENDER_BIND(particle_collisionSetBudget));
+    emscripten::function("particle_play", ES_RENDER_BIND(particle_play));
+    emscripten::function("particle_stop", ES_RENDER_BIND(particle_stop));
+    emscripten::function("particle_reset", ES_RENDER_BIND(particle_reset));
+    emscripten::function("particle_emitAt", ES_RENDER_BIND(particle_emitAt));
+    emscripten::function("particle_getAliveCount", ES_RENDER_BIND(particle_getAliveCount));
+    emscripten::function("particle_set_color_lut", ES_RENDER_BIND(particle_set_color_lut));
+    emscripten::function("particle_set_size_lut", ES_RENDER_BIND(particle_set_size_lut));
+    emscripten::function("particle_set_speed_lut", ES_RENDER_BIND(particle_set_speed_lut));
+    emscripten::function("particle_set_bursts", ES_RENDER_BIND(particle_set_bursts));
 #endif
-    emscripten::function("trail_update", &esengine::trail_update);
-    emscripten::function("trail_clear", &esengine::trail_clear);
+    emscripten::function("trail_update", ES_RENDER_BIND(trail_update));
+    emscripten::function("trail_clear", ES_RENDER_BIND(trail_clear));
     emscripten::function("springbone_update", &esengine::springbone_update);
     emscripten::function("springbone_reset", &esengine::springbone_reset);
     emscripten::function("springbone_release", &esengine::springbone_release);
     emscripten::function("springbone_snapshot", &esengine::springbone_snapshot);
     emscripten::function("springbone_snapshotCount", &esengine::springbone_snapshotCount);
     emscripten::function("springbone_snapshotData", &esengine::springbone_snapshotData);
-    emscripten::function("renderer_setStage", &esengine::renderer_setStage);
-    emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
-    emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);
-    emscripten::function("renderer_getTargetTexture", &esengine::renderer_getTargetTexture);
-    emscripten::function("renderer_queueMaterialBake", &esengine::renderer_queueMaterialBake);
-    emscripten::function("renderer_projectMaterialBake", &esengine::renderer_projectMaterialBake);
-    emscripten::function("renderer_materialBakeState", &esengine::renderer_materialBakeState);
-    emscripten::function("renderer_getTargetDepthTexture", &esengine::renderer_getTargetDepthTexture);
-    emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
-    emscripten::function("renderer_getGpuDrawCalls", &esengine::renderer_getGpuDrawCalls);
-    emscripten::function("renderer_getDrawsWaitingForProgram", &esengine::renderer_getDrawsWaitingForProgram);
-    emscripten::function("renderer_setAsyncComputeEnabled", &esengine::renderer_setAsyncComputeEnabled);
-    emscripten::function("renderer_getAsyncComputeEnabled", &esengine::renderer_getAsyncComputeEnabled);
-    emscripten::function("renderer_supportsAsyncCompute", &esengine::renderer_supportsAsyncCompute);
-    emscripten::function("renderer_setSkinCache", &esengine::renderer_setSkinCache);
-    emscripten::function("renderer_getSkinCacheStat", &esengine::renderer_getSkinCacheStat);
-    emscripten::function("renderer_getPendingProgramLabels", &esengine::renderer_getPendingProgramLabels);
-    emscripten::function("renderer_getLiveObjects", &esengine::renderer_getLiveObjects);
-    emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
-    emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);
-    emscripten::function("renderer_getSkeletal", &esengine::renderer_getSkeletal);
-    emscripten::function("renderer_getText", &esengine::renderer_getText);
-    emscripten::function("renderer_getMeshes", &esengine::renderer_getMeshes);
-    emscripten::function("renderer_getCulled", &esengine::renderer_getCulled);
-    emscripten::function("renderer_getGpuTimeMs", &esengine::renderer_getGpuTimeMs);
-    emscripten::function("engine_setCpuProfiling", &esengine::engine_setCpuProfiling);
-    emscripten::function("engine_setRandomSeed", &esengine::engine_setRandomSeed);
-    emscripten::function("engine_getCpuScopes", &esengine::engine_getCpuScopes);
+    emscripten::function("renderer_setStage", ES_RENDER_BIND(renderer_setStage));
+    emscripten::function("renderer_createTarget", ES_RENDER_BIND(renderer_createTarget));
+    emscripten::function("renderer_releaseTarget", ES_RENDER_BIND(renderer_releaseTarget));
+    emscripten::function("renderer_getTargetTexture", ES_RENDER_BIND(renderer_getTargetTexture));
+    emscripten::function("renderer_queueMaterialBake", ES_RENDER_BIND(renderer_queueMaterialBake));
+    emscripten::function("renderer_projectMaterialBake", ES_RENDER_BIND(renderer_projectMaterialBake));
+    emscripten::function("renderer_materialBakeState", ES_RENDER_BIND(renderer_materialBakeState));
+    emscripten::function("renderer_getTargetDepthTexture", ES_RENDER_BIND(renderer_getTargetDepthTexture));
+    emscripten::function("renderer_getDrawCalls", ES_RENDER_BIND(renderer_getDrawCalls));
+    emscripten::function("renderer_getGpuDrawCalls", ES_RENDER_BIND(renderer_getGpuDrawCalls));
+    emscripten::function("renderer_getDrawsWaitingForProgram", ES_RENDER_BIND(renderer_getDrawsWaitingForProgram));
+    emscripten::function("renderer_setAsyncComputeEnabled", ES_RENDER_BIND(renderer_setAsyncComputeEnabled));
+    emscripten::function("renderer_getAsyncComputeEnabled", ES_RENDER_BIND(renderer_getAsyncComputeEnabled));
+    emscripten::function("renderer_supportsAsyncCompute", ES_RENDER_BIND(renderer_supportsAsyncCompute));
+    emscripten::function("renderer_setSkinCache", ES_RENDER_BIND(renderer_setSkinCache));
+    emscripten::function("renderer_getSkinCacheStat", ES_RENDER_BIND(renderer_getSkinCacheStat));
+    emscripten::function("renderer_getPendingProgramLabels", ES_RENDER_BIND(renderer_getPendingProgramLabels));
+    emscripten::function("renderer_getLiveObjects", ES_RENDER_BIND(renderer_getLiveObjects));
+    emscripten::function("renderer_getTriangles", ES_RENDER_BIND(renderer_getTriangles));
+    emscripten::function("renderer_getSprites", ES_RENDER_BIND(renderer_getSprites));
+    emscripten::function("renderer_getSkeletal", ES_RENDER_BIND(renderer_getSkeletal));
+    emscripten::function("renderer_getText", ES_RENDER_BIND(renderer_getText));
+    emscripten::function("renderer_getMeshes", ES_RENDER_BIND(renderer_getMeshes));
+    emscripten::function("renderer_getCulled", ES_RENDER_BIND(renderer_getCulled));
+    emscripten::function("renderer_getGpuTimeMs", ES_RENDER_BIND(renderer_getGpuTimeMs));
+    emscripten::function("engine_setCpuProfiling", ES_RENDER_BIND(engine_setCpuProfiling));
+    emscripten::function("engine_setRandomSeed", ES_RENDER_BIND(engine_setRandomSeed));
+    emscripten::function("engine_getCpuScopes", ES_RENDER_BIND(engine_getCpuScopes));
 #ifdef ES_ENABLE_TEST_PROBES
-    emscripten::function("engine_prewarmMeshVariants", &esengine::engine_prewarmMeshVariants);
+    emscripten::function("engine_prewarmMeshVariants", ES_RENDER_BIND(engine_prewarmMeshVariants));
 #endif
-    emscripten::function("engine_getCounters", &esengine::engine_getCounters);
-    emscripten::function("engine_getGpuScopes", &esengine::engine_getGpuScopes);
-    emscripten::function("renderer_getTextureBytes", &esengine::renderer_getTextureBytes);
-    emscripten::function("renderer_getEstimatedGpuBytes", &esengine::renderer_getEstimatedGpuBytes);
-    emscripten::function("renderer_programEpoch", &esengine::renderer_programEpoch);
-    emscripten::function("renderer_deviceGeneration", &esengine::renderer_deviceGeneration);
-    emscripten::function("engine_prepareMeshPrograms", &esengine::engine_prepareMeshPrograms);
-    emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
-    emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
-    emscripten::function("renderer_setYSortLayers", &esengine::renderer_setYSortLayers);
-    emscripten::function("renderer_setTreeSortLayers", &esengine::renderer_setTreeSortLayers);
-    emscripten::function("renderer_setDepthLayers", &esengine::renderer_setDepthLayers);
-    emscripten::function("renderer_setQualityBudgets", &esengine::renderer_setQualityBudgets);
-    emscripten::function("renderer_setShadowDistance", &esengine::renderer_setShadowDistance);
-    emscripten::function("renderer_setShadow2DSoftSamples", &esengine::renderer_setShadow2DSoftSamples);
-    emscripten::function("renderer_setQualityValue", &esengine::renderer_setQualityValue);
-    emscripten::function("renderer_setDepthPrepass", &esengine::renderer_setDepthPrepass);
-    emscripten::function("renderer_setProbesPerPixel", &esengine::renderer_setProbesPerPixel);
-    emscripten::function("renderer_getProbeAtlasBytes", &esengine::renderer_getProbeAtlasBytes);
-    emscripten::function("renderer_getProbeDraws", &esengine::renderer_getProbeDraws);
-    emscripten::function("renderer_setLodDistanceScale", &esengine::renderer_setLodDistanceScale);
-    emscripten::function("renderer_setOcclusionGridSize", &esengine::renderer_setOcclusionGridSize);
-    emscripten::function("renderer_setTargetPoolIdleBudget", &esengine::renderer_setTargetPoolIdleBudget);
-    emscripten::function("renderer_setLightingDirect", &esengine::renderer_setLightingDirect);
-    emscripten::function("renderer_setAsyncShaderCompile", &esengine::renderer_setAsyncShaderCompile);
-    emscripten::function("renderer_getPendingShaders", &esengine::renderer_getPendingShaders);
-    emscripten::function("renderer_setPlanarReflectionQuality", &esengine::renderer_setPlanarReflectionQuality);
-    emscripten::function("renderer_setParticleDepthGrid", &esengine::renderer_setParticleDepthGrid);
-    emscripten::function("renderer_setQualityConstants", &esengine::renderer_setQualityConstants);
-    emscripten::function("renderer_getPlanarReflectionStatus", &esengine::renderer_getPlanarReflectionStatus);
-    emscripten::function("renderer_setViewLighting", &esengine::renderer_setViewLighting);
-    emscripten::function("renderer_setCullingMask", &esengine::renderer_setCullingMask);
-    emscripten::function("renderer_setViewId", &esengine::renderer_setViewId);
-    emscripten::function("renderer_lodInspect", &esengine::renderer_lodInspect);
-    emscripten::function("renderer_clusterInspect", &esengine::renderer_clusterInspect);
-    emscripten::function("renderer_framePending", &esengine::renderer_framePending);
-    emscripten::function("renderer_setLodPreview", &esengine::renderer_setLodPreview);
-    emscripten::function("renderer_setImpostorAtlas", &esengine::renderer_setImpostorAtlas);
-    emscripten::function("renderer_takeTextureWants", &esengine::renderer_takeTextureWants);
-    emscripten::function("renderer_setViewShading", &esengine::renderer_setViewShading);
-    emscripten::function("renderer_setViewSelection", &esengine::renderer_setViewSelection);
-    emscripten::function("renderer_setWorldUnitsPerMeter", &esengine::renderer_setWorldUnitsPerMeter);
-    emscripten::function("renderer_requestProbeCapture", &esengine::renderer_requestProbeCapture);
-    emscripten::function("renderer_pollProbeCapture", &esengine::renderer_pollProbeCapture);
-    emscripten::function("renderer_takeProbeCapture", &esengine::renderer_takeProbeCapture);
-    emscripten::function("renderer_setProbeVolumeOverride", &esengine::renderer_setProbeVolumeOverride);
-    emscripten::function("renderer_setProbeVolumeReflection", &esengine::renderer_setProbeVolumeReflection);
-    emscripten::function("renderer_setMeshEdgeBuffers", &esengine::renderer_setMeshEdgeBuffers);
-    emscripten::function("renderer_setViewSkinWeights", &esengine::renderer_setViewSkinWeights);
-    emscripten::function("renderer_lightStatus", &esengine::renderer_lightStatus);
-    emscripten::function("renderer_shadowStatus", &esengine::renderer_shadowStatus);
-    emscripten::function("renderer_setColorSpace", &esengine::renderer_setColorSpace);
+    emscripten::function("engine_getCounters", ES_RENDER_BIND(engine_getCounters));
+    emscripten::function("engine_getGpuScopes", ES_RENDER_BIND(engine_getGpuScopes));
+    emscripten::function("renderer_getTextureBytes", ES_RENDER_BIND(renderer_getTextureBytes));
+    emscripten::function("renderer_getEstimatedGpuBytes", ES_RENDER_BIND(renderer_getEstimatedGpuBytes));
+    emscripten::function("renderer_programEpoch", ES_RENDER_BIND(renderer_programEpoch));
+    emscripten::function("renderer_deviceGeneration", ES_RENDER_BIND(renderer_deviceGeneration));
+    emscripten::function("engine_prepareMeshPrograms", ES_RENDER_BIND(engine_prepareMeshPrograms));
+    emscripten::function("renderer_setClearColor", ES_RENDER_BIND(renderer_setClearColor));
+    emscripten::function("renderer_setViewport", ES_RENDER_BIND(renderer_setViewport));
+    emscripten::function("renderer_setYSortLayers", ES_RENDER_BIND(renderer_setYSortLayers));
+    emscripten::function("renderer_setTreeSortLayers", ES_RENDER_BIND(renderer_setTreeSortLayers));
+    emscripten::function("renderer_setDepthLayers", ES_RENDER_BIND(renderer_setDepthLayers));
+    emscripten::function("renderer_setQualityBudgets", ES_RENDER_BIND(renderer_setQualityBudgets));
+    emscripten::function("renderer_setShadowDistance", ES_RENDER_BIND(renderer_setShadowDistance));
+    emscripten::function("renderer_setShadow2DSoftSamples", ES_RENDER_BIND(renderer_setShadow2DSoftSamples));
+    emscripten::function("renderer_setQualityValue", ES_RENDER_BIND(renderer_setQualityValue));
+    emscripten::function("renderer_setDepthPrepass", ES_RENDER_BIND(renderer_setDepthPrepass));
+    emscripten::function("renderer_setProbesPerPixel", ES_RENDER_BIND(renderer_setProbesPerPixel));
+    emscripten::function("renderer_getProbeAtlasBytes", ES_RENDER_BIND(renderer_getProbeAtlasBytes));
+    emscripten::function("renderer_getProbeDraws", ES_RENDER_BIND(renderer_getProbeDraws));
+    emscripten::function("renderer_setLodDistanceScale", ES_RENDER_BIND(renderer_setLodDistanceScale));
+    emscripten::function("renderer_setOcclusionGridSize", ES_RENDER_BIND(renderer_setOcclusionGridSize));
+    emscripten::function("renderer_setTargetPoolIdleBudget", ES_RENDER_BIND(renderer_setTargetPoolIdleBudget));
+    emscripten::function("renderer_setLightingDirect", ES_RENDER_BIND(renderer_setLightingDirect));
+    emscripten::function("renderer_setAsyncShaderCompile", ES_RENDER_BIND(renderer_setAsyncShaderCompile));
+    emscripten::function("renderer_getPendingShaders", ES_RENDER_BIND(renderer_getPendingShaders));
+    emscripten::function("renderer_setPlanarReflectionQuality", ES_RENDER_BIND(renderer_setPlanarReflectionQuality));
+    emscripten::function("renderer_setParticleDepthGrid", ES_RENDER_BIND(renderer_setParticleDepthGrid));
+    emscripten::function("renderer_setQualityConstants", ES_RENDER_BIND(renderer_setQualityConstants));
+    emscripten::function("renderer_getPlanarReflectionStatus", ES_RENDER_BIND(renderer_getPlanarReflectionStatus));
+    emscripten::function("renderer_setViewLighting", ES_RENDER_BIND(renderer_setViewLighting));
+    emscripten::function("renderer_setCullingMask", ES_RENDER_BIND(renderer_setCullingMask));
+    emscripten::function("renderer_setViewId", ES_RENDER_BIND(renderer_setViewId));
+    emscripten::function("renderer_lodInspect", ES_RENDER_BIND(renderer_lodInspect));
+    emscripten::function("renderer_clusterInspect", ES_RENDER_BIND(renderer_clusterInspect));
+    emscripten::function("renderer_framePending", ES_RENDER_BIND(renderer_framePending));
+    emscripten::function("renderer_setLodPreview", ES_RENDER_BIND(renderer_setLodPreview));
+    emscripten::function("renderer_setImpostorAtlas", ES_RENDER_BIND(renderer_setImpostorAtlas));
+    emscripten::function("renderer_takeTextureWants", ES_RENDER_BIND(renderer_takeTextureWants));
+    emscripten::function("renderer_setViewShading", ES_RENDER_BIND(renderer_setViewShading));
+    emscripten::function("renderer_setViewSelection", ES_RENDER_BIND(renderer_setViewSelection));
+    emscripten::function("renderer_setWorldUnitsPerMeter", ES_RENDER_BIND(renderer_setWorldUnitsPerMeter));
+    emscripten::function("renderer_requestProbeCapture", ES_RENDER_BIND(renderer_requestProbeCapture));
+    emscripten::function("renderer_pollProbeCapture", ES_RENDER_BIND(renderer_pollProbeCapture));
+    emscripten::function("renderer_takeProbeCapture", ES_RENDER_BIND(renderer_takeProbeCapture));
+    emscripten::function("renderer_setProbeVolumeOverride", ES_RENDER_BIND(renderer_setProbeVolumeOverride));
+    emscripten::function("renderer_setProbeVolumeReflection", ES_RENDER_BIND(renderer_setProbeVolumeReflection));
+    emscripten::function("renderer_setMeshEdgeBuffers", ES_RENDER_BIND(renderer_setMeshEdgeBuffers));
+    emscripten::function("renderer_setViewSkinWeights", ES_RENDER_BIND(renderer_setViewSkinWeights));
+    emscripten::function("renderer_lightStatus", ES_RENDER_BIND(renderer_lightStatus));
+    emscripten::function("renderer_shadowStatus", ES_RENDER_BIND(renderer_shadowStatus));
+    emscripten::function("renderer_setColorSpace", ES_RENDER_BIND(renderer_setColorSpace));
 
 
     emscripten::function("registry_getCanvasEntity", &esengine::registry_getCanvasEntity);
@@ -819,69 +985,69 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("registry_readEntityChanges", &esengine::registry_readEntityChanges);
     emscripten::function("registry_markComponentsChanged", &esengine::registry_markComponentsChanged);
 
-    emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
-    emscripten::function("gl_checkErrors", &esengine::gl_checkErrors);
-    emscripten::function("renderer_diagnose", &esengine::renderer_diagnose);
+    emscripten::function("gl_enableErrorCheck", ES_RENDER_BIND(gl_enableErrorCheck));
+    emscripten::function("gl_checkErrors", ES_RENDER_BIND(gl_checkErrors));
+    emscripten::function("renderer_diagnose", ES_RENDER_BIND(renderer_diagnose));
 
-    emscripten::function("renderer_captureNextFrame", &esengine::renderer_captureNextFrame);
-    emscripten::function("renderer_captureFrame", &esengine::renderer_captureFrame);
-    emscripten::function("renderer_captureTarget", &esengine::renderer_captureTarget);
-    emscripten::function("renderer_takeTargetCapture", &esengine::renderer_takeTargetCapture);
-    emscripten::function("renderer_pollFrameCapture", &esengine::renderer_pollFrameCapture);
-    emscripten::function("renderer_takeFrameCapture", &esengine::renderer_takeFrameCapture);
-    emscripten::function("renderer_getCapturedFrameSize", &esengine::renderer_getCapturedFrameSize);
-    emscripten::function("renderer_getCapturedFrameData", &esengine::renderer_getCapturedFrameData);
-    emscripten::function("renderer_getCapturedEntities", &esengine::renderer_getCapturedEntities);
-    emscripten::function("renderer_getCapturedEntityCount", &esengine::renderer_getCapturedEntityCount);
-    emscripten::function("renderer_getCapturedTextures", &esengine::renderer_getCapturedTextures);
-    emscripten::function("renderer_getCapturedTextureCount", &esengine::renderer_getCapturedTextureCount);
-    emscripten::function("renderer_getCapturedPassCount", &esengine::renderer_getCapturedPassCount);
-    emscripten::function("renderer_hasCapturedData", &esengine::renderer_hasCapturedData);
-    emscripten::function("renderer_replayToDrawCall", &esengine::renderer_replayToDrawCall);
-    emscripten::function("renderer_snapshotMatchesCapture", &esengine::renderer_snapshotMatchesCapture);
-    emscripten::function("renderer_pollSnapshotReadback", &esengine::renderer_pollSnapshotReadback);
-    emscripten::function("renderer_getSnapshotPtr", &esengine::renderer_getSnapshotPtr);
-    emscripten::function("renderer_getSnapshotSize", &esengine::renderer_getSnapshotSize);
-    emscripten::function("renderer_getSnapshotWidth", &esengine::renderer_getSnapshotWidth);
-    emscripten::function("renderer_getSnapshotHeight", &esengine::renderer_getSnapshotHeight);
-    emscripten::function("renderer_renderMaterialPreview", &esengine::renderer_renderMaterialPreview);
+    emscripten::function("renderer_captureNextFrame", ES_RENDER_BIND(renderer_captureNextFrame));
+    emscripten::function("renderer_captureFrame", ES_RENDER_BIND(renderer_captureFrame));
+    emscripten::function("renderer_captureTarget", ES_RENDER_BIND(renderer_captureTarget));
+    emscripten::function("renderer_takeTargetCapture", ES_RENDER_BIND(renderer_takeTargetCapture));
+    emscripten::function("renderer_pollFrameCapture", ES_RENDER_BIND(renderer_pollFrameCapture));
+    emscripten::function("renderer_takeFrameCapture", ES_RENDER_BIND(renderer_takeFrameCapture));
+    emscripten::function("renderer_getCapturedFrameSize", ES_RENDER_BIND(renderer_getCapturedFrameSize));
+    emscripten::function("renderer_getCapturedFrameData", ES_RENDER_BIND(renderer_getCapturedFrameData));
+    emscripten::function("renderer_getCapturedEntities", ES_RENDER_BIND(renderer_getCapturedEntities));
+    emscripten::function("renderer_getCapturedEntityCount", ES_RENDER_BIND(renderer_getCapturedEntityCount));
+    emscripten::function("renderer_getCapturedTextures", ES_RENDER_BIND(renderer_getCapturedTextures));
+    emscripten::function("renderer_getCapturedTextureCount", ES_RENDER_BIND(renderer_getCapturedTextureCount));
+    emscripten::function("renderer_getCapturedPassCount", ES_RENDER_BIND(renderer_getCapturedPassCount));
+    emscripten::function("renderer_hasCapturedData", ES_RENDER_BIND(renderer_hasCapturedData));
+    emscripten::function("renderer_replayToDrawCall", ES_RENDER_BIND(renderer_replayToDrawCall));
+    emscripten::function("renderer_snapshotMatchesCapture", ES_RENDER_BIND(renderer_snapshotMatchesCapture));
+    emscripten::function("renderer_pollSnapshotReadback", ES_RENDER_BIND(renderer_pollSnapshotReadback));
+    emscripten::function("renderer_getSnapshotPtr", ES_RENDER_BIND(renderer_getSnapshotPtr));
+    emscripten::function("renderer_getSnapshotSize", ES_RENDER_BIND(renderer_getSnapshotSize));
+    emscripten::function("renderer_getSnapshotWidth", ES_RENDER_BIND(renderer_getSnapshotWidth));
+    emscripten::function("renderer_getSnapshotHeight", ES_RENDER_BIND(renderer_getSnapshotHeight));
+    emscripten::function("renderer_renderMaterialPreview", ES_RENDER_BIND(renderer_renderMaterialPreview));
     // Skeletal previews. Every one names its handle — there is no current preview
     // and no begin/end pair, so two of them cannot reach each other.
-    emscripten::function("renderer_createSkeletalPreview", &esengine::renderer_createSkeletalPreview);
-    emscripten::function("renderer_submitSkeletalPreviewBatch", &esengine::renderer_submitSkeletalPreviewBatch);
-    emscripten::function("renderer_submitSkeletalPreviewBatchEx", &esengine::renderer_submitSkeletalPreviewBatchEx);
-    emscripten::function("renderer_renderSkeletalPreview", &esengine::renderer_renderSkeletalPreview);
-    emscripten::function("renderer_pollSkeletalPreview", &esengine::renderer_pollSkeletalPreview);
-    emscripten::function("renderer_getSkeletalPreviewPtr", &esengine::renderer_getSkeletalPreviewPtr);
-    emscripten::function("renderer_getSkeletalPreviewSize", &esengine::renderer_getSkeletalPreviewSize);
-    emscripten::function("renderer_getSkeletalPreviewWidth", &esengine::renderer_getSkeletalPreviewWidth);
-    emscripten::function("renderer_getSkeletalPreviewHeight", &esengine::renderer_getSkeletalPreviewHeight);
-    emscripten::function("renderer_destroySkeletalPreview", &esengine::renderer_destroySkeletalPreview);
-    emscripten::function("renderer_renderMeshPreview", &esengine::renderer_renderMeshPreview);
-    emscripten::function("renderer_setPreviewOrbit", &esengine::renderer_setPreviewOrbit);
-    emscripten::function("renderer_pollPreviewReadback", &esengine::renderer_pollPreviewReadback);
-    emscripten::function("renderer_getPreviewPtr", &esengine::renderer_getPreviewPtr);
-    emscripten::function("renderer_getPreviewSize", &esengine::renderer_getPreviewSize);
-    emscripten::function("renderer_getPreviewWidth", &esengine::renderer_getPreviewWidth);
-    emscripten::function("renderer_getPreviewHeight", &esengine::renderer_getPreviewHeight);
-    emscripten::function("renderer_setTextureParams", &esengine::renderer_setTextureParams);
+    emscripten::function("renderer_createSkeletalPreview", ES_RENDER_BIND(renderer_createSkeletalPreview));
+    emscripten::function("renderer_submitSkeletalPreviewBatch", ES_RENDER_BIND(renderer_submitSkeletalPreviewBatch));
+    emscripten::function("renderer_submitSkeletalPreviewBatchEx", ES_RENDER_BIND(renderer_submitSkeletalPreviewBatchEx));
+    emscripten::function("renderer_renderSkeletalPreview", ES_RENDER_BIND(renderer_renderSkeletalPreview));
+    emscripten::function("renderer_pollSkeletalPreview", ES_RENDER_BIND(renderer_pollSkeletalPreview));
+    emscripten::function("renderer_getSkeletalPreviewPtr", ES_RENDER_BIND(renderer_getSkeletalPreviewPtr));
+    emscripten::function("renderer_getSkeletalPreviewSize", ES_RENDER_BIND(renderer_getSkeletalPreviewSize));
+    emscripten::function("renderer_getSkeletalPreviewWidth", ES_RENDER_BIND(renderer_getSkeletalPreviewWidth));
+    emscripten::function("renderer_getSkeletalPreviewHeight", ES_RENDER_BIND(renderer_getSkeletalPreviewHeight));
+    emscripten::function("renderer_destroySkeletalPreview", ES_RENDER_BIND(renderer_destroySkeletalPreview));
+    emscripten::function("renderer_renderMeshPreview", ES_RENDER_BIND(renderer_renderMeshPreview));
+    emscripten::function("renderer_setPreviewOrbit", ES_RENDER_BIND(renderer_setPreviewOrbit));
+    emscripten::function("renderer_pollPreviewReadback", ES_RENDER_BIND(renderer_pollPreviewReadback));
+    emscripten::function("renderer_getPreviewPtr", ES_RENDER_BIND(renderer_getPreviewPtr));
+    emscripten::function("renderer_getPreviewSize", ES_RENDER_BIND(renderer_getPreviewSize));
+    emscripten::function("renderer_getPreviewWidth", ES_RENDER_BIND(renderer_getPreviewWidth));
+    emscripten::function("renderer_getPreviewHeight", ES_RENDER_BIND(renderer_getPreviewHeight));
+    emscripten::function("renderer_setTextureParams", ES_RENDER_BIND(renderer_setTextureParams));
 }
 
 EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
-    emscripten::function("uiLayout_update", &esengine::uiLayout_update);
-    emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
-    emscripten::function("uiHitTest_updateDomains", &esengine::uiHitTest_updateDomains);
-    emscripten::function("uiHitTest_inputsChanged", &esengine::uiHitTest_inputsChanged);
-    emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
-    emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
-    emscripten::function("uiHitTest_pickAll", &esengine::uiHitTest_pickAll);
-    emscripten::function("uiHitTest_pickResult", &esengine::uiHitTest_pickResult);
+    emscripten::function("uiLayout_update", ES_RENDER_BIND(uiLayout_update));
+    emscripten::function("uiHitTest_update", ES_RENDER_BIND(uiHitTest_update));
+    emscripten::function("uiHitTest_updateDomains", ES_RENDER_BIND(uiHitTest_updateDomains));
+    emscripten::function("uiHitTest_inputsChanged", ES_RENDER_BIND(uiHitTest_inputsChanged));
+    emscripten::function("uiHitTest_getHitEntity", ES_RENDER_BIND(uiHitTest_getHitEntity));
+    emscripten::function("uiHitTest_pick", ES_RENDER_BIND(uiHitTest_pick));
+    emscripten::function("uiHitTest_pickAll", ES_RENDER_BIND(uiHitTest_pickAll));
+    emscripten::function("uiHitTest_pickResult", ES_RENDER_BIND(uiHitTest_pickResult));
     emscripten::function("uiNode_computedWidth", &esengine::uiNode_computedWidth);
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
-    emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
-    emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
-    emscripten::function("ui_getCullBit", &esengine::ui_getCullBit);
-    emscripten::function("ui_isScreenDomain", &esengine::ui_isScreenDomain);
+    emscripten::function("uiRenderOrder_update", ES_RENDER_BIND(uiRenderOrder_update));
+    emscripten::function("ui_getRenderOrder", ES_RENDER_BIND(ui_getRenderOrder));
+    emscripten::function("ui_getCullBit", ES_RENDER_BIND(ui_getCullBit));
+    emscripten::function("ui_isScreenDomain", ES_RENDER_BIND(ui_isScreenDomain));
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);

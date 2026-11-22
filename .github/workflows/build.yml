@@ -545,6 +545,11 @@ jobs:
     - name: Install headless Chromium for device preview checks
       run: pnpm exec playwright install --with-deps chromium
 
+    - name: Verify render workers on WebGL2 and WebGPU
+      run: |
+        node tools/verify-render-thread.mjs build/wasm/web webgl2
+        node tools/verify-render-thread.mjs build/wasm/web webgpu
+
     - name: Run Desktop tests (engine-coupled)
       env:
         ESTELLA_REQUIRE_WASM: '1'
@@ -944,7 +949,7 @@ jobs:
             libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
             libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
             libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
-            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev mesa-vulkan-drivers \
             libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
 
       - name: Fetch Dawn + QuickJS + SDL at their pinned commits
@@ -955,8 +960,9 @@ jobs:
 
       - name: Run native renderer regressions
         run: |
-          cmake --build build/cmake/native-linux --target test_native_renderer --parallel 4
+          cmake --build build/cmake/native-linux --target test_native_renderer test_render_thread --parallel 4
           build/cmake/native-linux/test_native_renderer
+          build/cmake/native-linux/test_render_thread
 
       - name: The native socket speaks wss and refuses a certificate it cannot trust
         run: |

@@ -166,6 +166,10 @@ export interface NativeEngineApi {
     registry_readWorldPoses2D?(registry: unknown, entitiesPtr: number, count: number, outputPtr: number): number;
     registry_unwatchEntityChanges?(registry: unknown, reader: number): void;
     registry_watchEntityChanges?(registry: unknown): number;
+    renderThread_complete?(fence: number): boolean;
+    renderThread_enabled?(): boolean;
+    renderThread_fence?(): number;
+    renderThread_flush?(): void;
     renderer_begin?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_beginFrame?(elapsedSec: number): void;
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
@@ -565,6 +569,10 @@ export function createNativeEngineApi(
     bind('registry_readWorldPoses2D', 'es_registry_readWorldPoses2D', true);
     bind('registry_unwatchEntityChanges', 'es_registry_unwatchEntityChanges', true);
     bind('registry_watchEntityChanges', 'es_registry_watchEntityChanges', true);
+    bind('renderThread_complete', 'es_renderThread_complete', false);
+    bind('renderThread_enabled', 'es_renderThread_enabled', false);
+    bind('renderThread_fence', 'es_renderThread_fence', false);
+    bind('renderThread_flush', 'es_renderThread_flush', false);
     bind('renderer_begin', 'es_renderer_begin', false);
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);
     bind('renderer_beginScreenOverlay', 'es_renderer_beginScreenOverlay', false);

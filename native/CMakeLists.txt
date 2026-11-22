@@ -315,6 +315,9 @@ set(ES_ENABLE_SPINE ON)
 include(ESEngineSources)
 
 add_library(esengine STATIC ${ESENGINE_SOURCES})
+find_package(Threads REQUIRED)
+target_compile_definitions(esengine PUBLIC ES_RENDER_THREADS=1)
+target_link_libraries(esengine PUBLIC Threads::Threads)
 
 option(ES_ENABLE_ASYNC_COMPUTE "Allow independent native GPU compute queues" ON)
 if(APPLE AND ES_ENABLE_ASYNC_COMPUTE)
@@ -337,6 +340,8 @@ if(APPLE AND ESTELLA_DESKTOP)
 endif()
 
 if(ESTELLA_DESKTOP)
+    add_executable(test_render_thread EXCLUDE_FROM_ALL "${REPO}/tests/renderer/test_render_thread.cpp")
+    target_link_libraries(test_render_thread PRIVATE esengine)
     add_executable(test_native_renderer EXCLUDE_FROM_ALL
         "${REPO}/tests/renderer/test_batch_builder.cpp")
     target_include_directories(test_native_renderer PRIVATE "${TP}/doctest")

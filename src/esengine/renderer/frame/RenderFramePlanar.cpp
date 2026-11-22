@@ -135,7 +135,8 @@ void RenderFrame::declarePlanarReflection(ecs::Registry& registry) {
         for (u32 i = 0; i < 4; ++i) pass.clearColor[i] = scene_clear_[i];
         if (shadow_resource_ != rg::kNoResource) pass.dependencies.push_back(shadow_resource_);
         const u32 view = view_id_;
-        pass.execute = [this, &registry, view](const rg::PassContext&) { executePlanarReflection(registry, view); };
+        collectPlanarReflection(registry, view);
+        pass.execute = [this, view](const rg::PassContext&) { executePlanarReflection(view); };
         graph_.addPass(std::move(pass));
     }
     // Imported targets do not publish a texture until explicitly named.
@@ -147,12 +148,8 @@ void RenderFrame::declarePlanarReflection(ecs::Registry& registry) {
     planar_constants_.params = {1.0f, 1.0f, 1.0f / w, 1.0f / h};
 }
 
-void RenderFrame::executePlanarReflection(ecs::Registry& registry, u32 view) {
+void RenderFrame::collectPlanarReflection(ecs::Registry& registry, u32 view) {
     auto& capture = planar_captures_.at(view);
-    if (capture.frameUbo == BufferHandle::Invalid) {
-        capture.frameUbo = device_.createBuffer({GfxBufferUsage::Uniform, RenderContext::frameConstantsSize(), true}, GfxContent::transient(), nullptr);
-    }
-    if (capture.frameUbo == BufferHandle::Invalid) return;
     planar_pool_.beginFrame();
     planar_list_.clear();
     planar_list_.setCullingMask(capture.mask);
@@ -170,6 +167,14 @@ void RenderFrame::executePlanarReflection(ecs::Registry& registry, u32 view) {
     collectSky(collect);
     // No recursive frame/scene collect, post-processing, host overlays or HUD.
     for (auto& plugin : plugins_) plugin->collect(collect);
+}
+
+void RenderFrame::executePlanarReflection(u32 view) {
+    auto& capture = planar_captures_.at(view);
+    if (capture.frameUbo == BufferHandle::Invalid) {
+        capture.frameUbo = device_.createBuffer({GfxBufferUsage::Uniform, RenderContext::frameConstantsSize(), true}, GfxContent::transient(), nullptr);
+    }
+    if (capture.frameUbo == BufferHandle::Invalid) return;
     planar_list_.finalize(planar_pool_);
     planar_pool_.upload();
     context_.useFrameConstants(capture.frameUbo,

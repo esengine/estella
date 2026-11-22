@@ -22,8 +22,11 @@
 #include "Types.hpp"
 
 // Standard library
+#include <atomic>
 #include <cstdlib>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -184,13 +187,15 @@ public:
     }
 
 private:
-    static LogLevel level_;
-    static std::vector<std::pair<u32, LogSink>> sinks_;
+    static std::atomic<LogLevel> level_;
+    using Sinks = std::vector<std::pair<u32, std::shared_ptr<LogSink>>>;
+    static Sinks sinks_;
+    static std::mutex sinks_mutex_;
     static u32 nextSinkId_;
 
     template<typename... Args>
     static void log(LogLevel level, const char* fmt, Args&&... args) {
-        if (level < level_) return;
+        if (level < level_.load(std::memory_order_relaxed)) return;
 
         std::string message;
         formatTo(message, fmt, std::forward<Args>(args)...);

@@ -94,7 +94,7 @@ function parseClassRegistration(cppSource: string, className: string): Map<strin
     const head = src.indexOf(`("${className}")`);
     if (head < 0) throw new Error(`embind class_ registration '${className}' not found`);
     const end = src.indexOf(';', head);
-    const chain = src.slice(head, end);
+    const chain = src.slice(head, end).replace(/ES_RENDER_BIND\((\w+)\)/g, '&$1');
     const out = new Map<string, string>();
     const re = /\.function\(\s*"(\w+)"\s*,\s*[^&]*&([\w:]+)/g;
     for (let m = re.exec(chain); m; m = re.exec(chain)) {

@@ -19,6 +19,7 @@
 // =============================================================================
 
 // Standard library
+#include <atomic>
 #include <cstdint>
 #include <ostream>
 #include <limits>
@@ -198,14 +199,14 @@ namespace detail {
      * @note Internal use only.
      */
     template<typename Domain>
-    inline TypeId& typeIdCounter() {
-        static TypeId counter = 0;
+    inline std::atomic<TypeId>& typeIdCounter() {
+        static std::atomic<TypeId> counter{0};
         return counter;
     }
 
     template<typename Domain, typename T>
     inline TypeId domainTypeId() {
-        static const TypeId id = typeIdCounter<Domain>()++;
+        static const TypeId id = typeIdCounter<Domain>().fetch_add(1, std::memory_order_relaxed);
         return id;
     }
 }  // namespace detail

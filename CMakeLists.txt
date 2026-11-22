@@ -7,6 +7,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
+option(ES_WEB_RENDER_THREAD "Build the isolated web core with a dedicated render pthread" OFF)
+if(ES_WEB_RENDER_THREAD)
+    if(NOT EMSCRIPTEN OR NOT ES_BUILD_WEB OR ES_BUILD_WXGAME OR ES_WASM2JS)
+        message(FATAL_ERROR "ES_WEB_RENDER_THREAD requires the WebAssembly web build")
+    endif()
+    add_compile_options(-pthread)
+    add_link_options(-pthread)
+endif()
 option(ES_BUILD_TESTS "Build tests" ON)
 # Which spine{NN}.wasm side modules to build. The core links no spine code and no
 # longer compiles differently for it: posed geometry from ANY skeletal runtime
@@ -230,6 +238,10 @@ endif()
 
 add_library(esengine STATIC ${ESENGINE_SOURCES} ${ESENGINE_HEADERS})
 
+if(ES_WEB_RENDER_THREAD)
+    target_compile_definitions(esengine PUBLIC ES_RENDER_THREADS=1)
+endif()
+
 if(Python3_FOUND)
     add_dependencies(esengine eht)
 endif()
@@ -329,6 +341,12 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         set_target_properties(esengine_sdk PROPERTIES
             OUTPUT_NAME "esengine-core"
         )
+    endif()
+
+    if(ES_WEB_RENDER_THREAD)
+        target_link_options(esengine_sdk PRIVATE -sPTHREAD_POOL_SIZE=1 -sOFFSCREENCANVAS_SUPPORT=1
+            -sDEFAULT_PTHREAD_STACK_SIZE=2097152 -sSTACK_SIZE=2097152 -sENVIRONMENT=web,worker)
+        set_target_properties(esengine_sdk PROPERTIES OUTPUT_NAME "esengine-threaded")
     endif()
 
     # WeChat MiniGame SDK (CommonJS compatible)

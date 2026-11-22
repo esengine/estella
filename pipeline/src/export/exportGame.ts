@@ -1307,8 +1307,13 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         }
       }
       const wasmOut = await resetRuntimeTree(payloadDir, 'wasm', [opts.sdkDistDir, opts.wasmDir]);
+      const ships = shipsSideModule(files.map((f) => f.file));
+      const threaded = platform === 'web' && runtime.threadedRendering === true;
+      if (threaded && ['js', 'wasm'].some(ext => !existsSync(path.join(opts.wasmDir, `esengine-threaded.${ext}`)))) {
+        errors.push('Threaded rendering needs the web-threaded runtime. Build it with node build-tools/cli.js build -t web-threaded.');
+      }
       await cp(opts.wasmDir, wasmOut, {
-        recursive: true, filter: shipsSideModule(files.map((f) => f.file)),
+        recursive: true, filter: src => ships(src) && (threaded || !path.basename(src).startsWith('esengine-threaded.')),
       });
       // The plain-JavaScript engine is the web page's answer to a browser with no
       // WebAssembly; any other package has an engine of its own kind, or none.

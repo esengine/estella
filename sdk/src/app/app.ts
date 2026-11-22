@@ -2122,6 +2122,7 @@ export type RenderSurfaceSource =
          *  (`captureFrame`). Fixed at surface configuration, hence here. */
         readonly readback?: boolean;
     }
+    | { readonly kind: 'threaded-webgl2' | 'threaded-webgpu' }
     | { readonly kind: 'default' };
 
 export interface WebAppOptions {
@@ -2223,6 +2224,8 @@ export function surfaceSizeOf(app: App): { width: number; height: number } | nul
 
 export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | null {
     switch (surface.kind) {
+        case 'threaded-webgpu': return 'WebGPU';
+        case 'threaded-webgl2': return 'WebGL2';
         case 'webgpu': return 'WebGPU';
         case 'gl-context': return surface.glx ? 'EmscriptenGLX' : 'WebGL2';
         case 'default': return null;
@@ -2264,6 +2267,12 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 watchWebGPUDeviceLoss(module);
                 break;
             }
+            case 'threaded-webgl2':
+            case 'threaded-webgpu':
+                if (module.renderThread_bootStatus?.() !== (surface.kind === 'threaded-webgpu' ? 2 : 1)) {
+                    throw new Error('Prepare the threaded canvas with await Renderer.prepareThreadedSurface(module) before creating the App.');
+                }
+                break;
             case 'gl-context':
                 if (!module.initRendererWithContext(surface.handle)) {
                     throw new Error(`WebGL2 renderer initialization failed for context ${surface.handle}.`);

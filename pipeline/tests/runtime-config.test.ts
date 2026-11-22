@@ -44,6 +44,14 @@ describe('runtimeConfigOf', () => {
     expect(rc).toEqual(DEFAULT_RUNTIME_CONFIG);
   });
 
+  it('exports the render-thread opt-in for both native and web hosts', () => {
+    const manifest = parseManifest({ formatVersion: '1', name: 'Threaded', version: '1.0.0',
+      features: { rendering: { threadedRendering: true } } });
+    const enabled = runtimeConfigOf(manifest);
+    expect(packagedRuntimeFields(enabled).threadedRendering).toBe(true);
+    expect(packagedRuntimeFields(DEFAULT_RUNTIME_CONFIG)).not.toHaveProperty('threadedRendering');
+  });
+
   it('turns the sorting-layer lists into the masks the renderer takes', () => {
     const rc = runtimeConfigOf({
       features: { rendering: { ySortLayers: [0, 3], depthLayers: [1, 2] } },

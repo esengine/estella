@@ -102,7 +102,8 @@ void RenderFrame::declareProbeCapture(ecs::Registry& registry) {
     for (u32 i = 0; i < 4; ++i) face.clearColor[i] = 0.0f;
     face.keep = true;
     if (shadow_resource_ != rg::kNoResource) face.dependencies.push_back(shadow_resource_);
-    face.execute = [this, &registry](const rg::PassContext&) { executeProbeFace(registry); };
+    collectProbeFace(registry);
+    face.execute = [this](const rg::PassContext&) { executeProbeFace(); };
     const rg::ResourceId faceResource = face.write;
     graph_.addPass(std::move(face));
 
@@ -130,13 +131,8 @@ void RenderFrame::declareProbeCapture(ecs::Registry& registry) {
 #endif
 }
 
-void RenderFrame::executeProbeFace(ecs::Registry& registry) {
-    ProbeCapture& c = probe_capture_;
-    if (c.frameUbo == BufferHandle::Invalid) {
-        c.frameUbo = device_.createBuffer({GfxBufferUsage::Uniform, RenderContext::frameConstantsSize(), true},
-                                          GfxContent::transient(), nullptr);
-    }
-    if (c.frameUbo == BufferHandle::Invalid) return;
+void RenderFrame::collectProbeFace(ecs::Registry& registry) {
+    auto& c = probe_capture_;
     probe_pool_.beginFrame();
     probe_list_.clear();
     probe_list_.setCullingMask(0xFFFFFFFFu);
@@ -153,6 +149,15 @@ void RenderFrame::executeProbeFace(ecs::Registry& registry) {
     collectSky(collect);
     // The scene as lit, and nothing after it: no post-processing, overlays or HUD.
     for (auto& plugin : plugins_) plugin->collect(collect);
+}
+
+void RenderFrame::executeProbeFace() {
+    ProbeCapture& c = probe_capture_;
+    if (c.frameUbo == BufferHandle::Invalid) {
+        c.frameUbo = device_.createBuffer({GfxBufferUsage::Uniform, RenderContext::frameConstantsSize(), true},
+                                          GfxContent::transient(), nullptr);
+    }
+    if (c.frameUbo == BufferHandle::Invalid) return;
     probe_list_.finalize(probe_pool_);
     probe_pool_.upload();
     context_.useFrameConstants(c.frameUbo, toClipDepthRange(c.viewProjection, device_.clipDepthRange()));
