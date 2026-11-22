@@ -189,6 +189,8 @@ const DISPOSITION = {
   'WaterZone.sizeX': 'extent',
   'WaterZone.sizeZ': 'extent',
   'WaterZone.cellSize': ['no-place', 'the cell size of the finest ring of the surface\'s mesh, not a region of the entity'],
+  'WaterZone.tileSize': ['no-place', 'the base tile width used to tessellate the water surface'],
+  'WaterZone.extentInTiles': ['not-world', 'counts of base tiles from the centre to the edge of the drawn water mesh on each axis'],
   'WaterZone.rippleSize': ['no-place', 'the side of a window of ripples that follows the camera, not a region of the entity'],
   'WaterZone.farDistanceExtent': ['no-place', 'how far from the camera the far distance mesh reaches, not a region of the entity'],
   'Floating.radius': ['no-place', 'how deep under the surface a point of the body is wholly wet, not a region of the entity'],

@@ -14,7 +14,7 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     if (req.url === '/') {
         res.setHeader('Content-Type', 'text/html');
-        res.end('<canvas id="canvas" width="32" height="32"></canvas>');
+        res.end('<link rel="icon" href="data:,"><canvas id="canvas" width="32" height="32"></canvas>');
         return;
     }
     if (!['/esengine-threaded.js', '/esengine-threaded.wasm'].includes(req.url)) {
@@ -28,8 +28,14 @@ const server = http.createServer(async (req, res) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let browser;
 try {
-    browser = await chromium.launch({ headless: true, executablePath: process.env.ESTELLA_CHROMIUM,
-        args: ['--enable-unsafe-swiftshader', '--enable-unsafe-webgpu', '--use-angle=swiftshader'] });
+    // The full headless browser composites transferred OffscreenCanvas frames. The headless shell
+    // can lose the GPU device when presenting the first WebGPU frame from a worker.
+    const args = gpu ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist'] : [];
+    const adapter = process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER;
+    if (!gpu || adapter === 'swiftshader') args.push('--enable-unsafe-swiftshader', '--use-angle=swiftshader');
+    if (gpu && adapter) args.push(`--use-webgpu-adapter=${adapter}`);
+    browser = await chromium.launch({ channel: 'chromium', headless: true, executablePath: process.env.ESTELLA_CHROMIUM,
+        args });
     const page = await browser.newPage();
     let workers = 0;
     const errors = [];

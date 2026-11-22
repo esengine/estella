@@ -546,6 +546,8 @@ jobs:
       run: pnpm exec playwright install --with-deps chromium
 
     - name: Verify render workers on WebGL2 and WebGPU
+      env:
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
       run: |
         node tools/verify-render-thread.mjs build/wasm/web webgl2
         node tools/verify-render-thread.mjs build/wasm/web webgpu
@@ -864,6 +866,8 @@ jobs:
 
     # The adapter Dawn picks for itself, which here is Metal. `swiftshader` is the
     # bundled software one, kept as an explicit opt-in for a machine with no GPU.
+    - name: Verify the WebGPU render worker on Metal
+      run: node tools/verify-render-thread.mjs build/wasm/web webgpu
     - name: Second backend, PR tier
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: ''

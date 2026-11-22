@@ -7,7 +7,7 @@
  * `unlit colour -> effects -> output transform -> sRGB encode`. Each expectation applies the published curve (or, for the
  * engine's own effects, the formula their shader source states) to the patch colour; no frame was read to write it.
  */
-import { scene, camera, mesh, volume, probe, probeFrom, SIZE } from './scene.mjs';
+import { scene, camera, mesh, volume, ambient, probe, probeFrom, SIZE } from './scene.mjs';
 import { encodeLinear8, encodeGamma8, clamp01, acesNarkowicz, pbrNeutral, srgbDecode, scale, smoothstep } from './formulas.mjs';
 
 const SLOTS = [[-75, -50], [-25, -50], [25, -50], [75, -50], [-75, 50], [-25, 50], [25, 50], [75, 50]];
@@ -21,7 +21,7 @@ const COLOURS = [[0.8, 0.1, 0.05], [0.05, 0.6, 0.1], [0.05, 0.1, 0.9], [0.9, 0.7
  * @param tops  patch heights above the floor line; the camera looks down at each patch's top face
  * @param out   (linear rgb, slot index) -> linear rgb the frame should end as, before the sRGB encode
  */
-function patches({ id, colorSpace = 'linear', colours, tops, effects, outputTransform, out, tol = 3, about, perspective = false }) {
+function patches({ id, colorSpace = 'linear', colours, tops, effects, outputTransform, out, tol = 3, about, perspective = false, ambientIntensity = 0 }) {
   const doc = scene(id, () => [
     camera(perspective ? { projectionType: 0, fov: 40 } : {}),
     ...colours.map((c, i) => {
@@ -29,6 +29,7 @@ function patches({ id, colorSpace = 'linear', colours, tops, effects, outputTran
       return mesh(`Patch${i}`, 'cube', [SLOTS[i][0], top / 2, SLOTS[i][1]], [0.4, top / 100, 0.4], c, { lit: false });
     }),
     ...(effects ? [volume(effects)] : []),
+    ...(ambientIntensity > 0 ? [ambient(ambientIntensity)] : []),
   ]);
   const expect = colours.map((c, i) => {
     const p = perspective ? probeFrom(...SLOTS[i], 400 - (tops?.[i] ?? 10), 40) : probe(...SLOTS[i]);
@@ -95,15 +96,21 @@ function heightFogPerspective(c, top, [x, z]) {
 }
 
 
-// Underwater: the camera (y = 400) is under a water plane at y = 450. With no sun there are no caustics or shafts, so a surface seen
-// through `len` of water is colour * T + scatter * (1 - mean(T)), T = exp(-absorption * density * len), len the drop to the surface.
-const WATER = { absorption: [0.45, 0.09, 0.05], scatter: [0.03, 0.2, 0.28], density: 0.003, planeD: 450 };
-const waterMix = (c, top) => {
-  const len = 400 - top;
-  const T = WATER.absorption.map((a) => Math.exp(-a * WATER.density * len));
-  const mean = (T[0] + T[1] + T[2]) / 3, scatter = WATER.scatter.map(srgbDecode);
-  return c.map((v, k) => v * T[k] + scatter[k] * (1 - mean));
-};
+// With no sun or environment map the only incident light comes from the optional white ambient light.
+// Beer–Lambert transmission and the complementary scattered fraction are evaluated per colour channel.
+function underwater(id, ambientIntensity) {
+  const absorption = [0.45, 0.09, 0.05], scatter = [0.45, 0.65, 0.85], density = 0.003;
+  return patches({
+    id, ambientIntensity, colours: GREYS.map((g) => g.map((v) => Math.min(v, 1) * 0.8 + 0.1)), tops: FOG_TOPS, tol: 4,
+    effects: [fx('underwater', { u_density: density, u_planeNx: 0, u_planeNy: 1, u_planeNz: 0, u_planeD: 450, u_cameraDepth: 0, u_range: 4000 },
+      { u_absorption: { r: absorption[0], g: absorption[1], b: absorption[2], a: 1 }, u_scatterColor: { r: scatter[0], g: scatter[1], b: scatter[2], a: 1 } })],
+    out: (c, i) => c.map((v, k) => {
+      const transmit = Math.exp(-absorption[k] * density * (400 - FOG_TOPS[i]));
+      return v * transmit + ambientIntensity * srgbDecode(scatter[k]) * (1 - transmit);
+    }),
+    about: ambientIntensity ? 'Ambient light scattered through water at eight depths' : 'Underwater transmission with no incident light',
+  });
+}
 
 const LOOK = { exposure: -0.5, contrast: 1.2, saturation: 0.8 };
 const VIGNETTE = { intensity: 0.8, softness: 0.6 };
@@ -161,13 +168,8 @@ export const POST_SCENES = [
     out: (c, i, slot) => heightFogPerspective(c, FOG_TOPS[i], slot).map(clamp01),
     about: 'Height fog under a perspective camera: the ray starts on the near plane',
   }),
-  patches({
-    id: 'oracle-underwater', colours: GREYS.map((g) => g.map((v) => Math.min(v, 1) * 0.8 + 0.1)), tops: FOG_TOPS, tol: 4,
-    effects: [fx('underwater', { u_density: WATER.density, u_planeNx: 0, u_planeNy: 1, u_planeNz: 0, u_planeD: WATER.planeD, u_cameraDepth: 0, u_range: 4000 },
-      { u_absorption: { r: WATER.absorption[0], g: WATER.absorption[1], b: WATER.absorption[2], a: 1 }, u_scatterColor: { r: WATER.scatter[0], g: WATER.scatter[1], b: WATER.scatter[2], a: 1 } })],
-    out: (c, i) => waterMix(c, FOG_TOPS[i]).map(clamp01),
-    about: 'Underwater fog: Beer-Lambert absorption over the drop to the surface, plus the colour of the water itself',
-  }),
+  underwater('oracle-underwater', 0),
+  underwater('oracle-underwater-ambient', 0.75),
   patches({
     id: 'oracle-grade-sharpen-vignette', colours: COLOURS,
     effects: [

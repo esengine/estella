@@ -12210,6 +12210,13 @@
           "range": "0.1–100000"
         },
         {
+          "key": "surfSpread",
+          "type": "number",
+          "default": "0",
+          "doc": "Bends incoming crests along the beach. Run-up, spray sampling and refracted light follow the same crest field.",
+          "range": "0–1"
+        },
+        {
           "key": "cellSize",
           "type": "number",
           "default": "100",
@@ -12335,6 +12342,7 @@
         "waveDirection",
         "surf",
         "surfLength",
+        "surfSpread",
         "cellSize",
         "cells",
         "rings",

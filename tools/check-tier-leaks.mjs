@@ -64,7 +64,9 @@ const MEMBER_NAME = /^(?:static\s+|readonly\s+)*[A-Za-z_$][\w$]*\??\s*:/;
 function referenced(name) {
     const lines = (api.get(name)?.body ?? '').split('\n')
         .filter((l) => !l.startsWith('@internal '))
-        .map((l) => l.replace(MEMBER_NAME, ''));
+        // A string literal type can contain an exported name, e.g. 'terrain-layer-info'.
+        // Its text is data. Only identifiers outside the quotes can refer to other types.
+        .map((l) => l.replace(MEMBER_NAME, '').replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, ' '));
     const out = new Set();
     for (const id of lines.join('\n').match(/[A-Za-z_$][\w$]*/g) ?? []) {
         if (id !== name && api.has(id)) out.add(id);
