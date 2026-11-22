@@ -987,7 +987,8 @@ jobs:
 
       - name: The native socket speaks wss and refuses a certificate it cannot trust
         run: |
-          cmake --build build/cmake/native-linux --target test_native_wss --parallel 4
+          cmake --build build/cmake/native-linux --target test_native_ws_lifetime test_native_wss --parallel 4
+          build/cmake/native-linux/test_native_ws_lifetime
           node tools/verify-native-wss.mjs --probe build/cmake/native-linux/test_native_wss --trust machine
 
       - name: A game packaged from it renders
@@ -1055,7 +1056,8 @@ jobs:
       - name: The native socket speaks wss and refuses a certificate it cannot trust
         shell: bash
         run: |
-          cmake --build build/cmake/native-windows --target test_native_wss --parallel 4
+          cmake --build build/cmake/native-windows --target test_native_ws_lifetime test_native_wss --parallel 4
+          ./build/cmake/native-windows/test_native_ws_lifetime.exe
           node tools/verify-native-wss.mjs --probe build/cmake/native-windows/test_native_wss.exe --trust machine
 
       # No xvfb and no software driver: a Windows runner has a desktop and a

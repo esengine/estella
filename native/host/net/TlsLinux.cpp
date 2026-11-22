@@ -110,6 +110,8 @@ std::unique_ptr<ByteStream> dialTls(const std::string& host, const std::string& 
         curl_easy_cleanup(curl);
         return nullptr;
     }
+    // The stream keeps the easy handle beyond this handshake's diagnostic buffer.
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, static_cast<char*>(nullptr));
     return std::make_unique<CurlTlsStream>(curl, socket);
 }
 

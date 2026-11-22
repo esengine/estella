@@ -92,11 +92,13 @@ function echo(server) {
 function probe(url) {
   return new Promise((resolve) => {
     execFile(ARGS.probe, [url, '20'], { encoding: 'utf8', timeout: 40000 }, (err, stdout, stderr) => {
-      try {
-        resolve(JSON.parse(stdout.trim().split('\n').pop()));
-      } catch {
-        resolve({ crashed: true, code: err?.code ?? null, signal: err?.signal ?? null, stdout, stderr });
+      if (!err) {
+        try {
+          resolve(JSON.parse(stdout.trim().split('\n').pop()));
+          return;
+        } catch { /* Missing output also fails the probe. */ }
       }
+      resolve({ crashed: true, code: err?.code ?? null, signal: err?.signal ?? null, stdout, stderr });
     });
   });
 }

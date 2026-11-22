@@ -198,15 +198,20 @@ void emit(Conn& c, WsEvent::Kind kind, std::vector<uint8_t> data = {}, int code 
 }
 
 void run(std::shared_ptr<Conn> c, std::string url) {
+    std::shared_ptr<ByteStream> stream;
     auto finish = [&](int code, std::string reason) {
         c->open = false;
         {
             std::lock_guard<std::mutex> lk(c->sendMutex);
             c->stream.reset();
         }
+        stream.reset();
+        {
+            std::lock_guard<std::mutex> lk(g_connsMutex);
+            g_conns.erase(c->id);
+        }
+        // A close handler can exit the host as soon as it receives this final event.
         emit(*c, WsEvent::Kind::Close, {}, code, std::move(reason));
-        std::lock_guard<std::mutex> lk(g_connsMutex);
-        g_conns.erase(c->id);
     };
     Url u;
     if (!parseWsUrl(url, u)) {
@@ -214,7 +219,7 @@ void run(std::shared_ptr<Conn> c, std::string url) {
         return finish(1006, "bad url");
     }
     std::string refused;
-    const std::shared_ptr<ByteStream> stream = dial(u, refused);
+    stream = dial(u, refused);
     {
         std::lock_guard<std::mutex> lk(c->sendMutex);
         c->stream = stream;
