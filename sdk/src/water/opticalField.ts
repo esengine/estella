@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { worldUnitScale } from '../ecs/worldUnits';
 import { Material } from '../render/material';
 import { Renderer, deviceGeneration } from '../render/renderer';
 import { RenderTexture, type RenderTextureHandle } from '../render/renderTexture';
 import { getResourceManager } from '../wasm/resourceManager';
 import { WATER_CAUSTIC_BAKE } from './waterShader';
 import { CAUSTIC_PROJECTION } from './causticProjection';
-import { CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES } from '../render/waterCaustics';
+import { CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES, DEFAULT_CAUSTIC_STRENGTH } from '../render/waterCaustics';
 
 export interface OpticalField {
     /** Same frame's packed normal and elevation before forward projection. */
@@ -32,13 +33,14 @@ export class WaterOpticalField {
     private projection = 0;
     private material = 0;
     private ticket = 0;
+    private bodyTexture = 0;
     private generation = -1;
     private size = 0;
     private ready = false;
     private failed = false;
 
     update(surface: number, size: number, eyeX: number, eyeZ: number, span: number,
-           low: number, heightRange: number, level: number, depthStep: number, time: number): OpticalField | null {
+           low: number, heightRange: number, level: number, depthStep: number, time: number, bodies?: CausticBodies | null): OpticalField | null {
         size = size > 0 ? Math.min(512, Math.max(CAUSTIC_ATLAS_SIDE, Math.round(size / CAUSTIC_ATLAS_SIDE) * CAUSTIC_ATLAS_SIDE)) : 0;
         const generation = deviceGeneration();
         if (size !== this.size || generation !== this.generation) {
@@ -71,6 +73,18 @@ export class WaterOpticalField {
         const elevation = { x: low, y: heightRange, z: level, w: depthStep };
         Material.setUniform(this.material, 'u_window', { x, y: z, z: span, w: size });
         Material.setUniform(this.material, 'u_levels', elevation);
+        // The copy of the receiver depth also records whether the point is submerged and
+        // the effective strength there. Read live material overrides, including a zero gain.
+        const uniforms = Material.getUniforms(surface);
+        Material.setUniform(this.material, 'u_causticStrength', uniforms.get('u_causticStrength') ?? DEFAULT_CAUSTIC_STRENGTH);
+        Material.setUniform(this.material, 'u_absorption', uniforms.get('u_absorption') ?? { x: 0.45, y: 0.09, z: 0.05, w: 1 });
+        Material.setUniform(this.material, 'u_density', uniforms.get('u_density') ?? 0.0012 / worldUnitScale());
+        Material.setUniform(this.material, 'u_causticBodyOcean', bodies?.ocean ?? { x: 0, y: 0, z: 4, w: 0 });
+        if (bodies) Material.setUniform(this.material, 'u_causticBodyRect', bodies.rect);
+        if (this.bodyTexture !== (bodies?.texture ?? 0)) {
+            this.bodyTexture = bodies?.texture ?? 0;
+            Material.setUniform(this.material, 'u_zoneSurfaceData', Material.tex(this.bodyTexture));
+        }
         const volumeSize = size / CAUSTIC_ATLAS_SIDE;
         // One full-density beam per wave cell, a coarser volume, and one triangle copying receiver depths.
         const instances = size * size + volumeSize * volumeSize * CAUSTIC_SLICES + 1;
@@ -93,6 +107,7 @@ export class WaterOpticalField {
         if (this.bake) Material.releaseShader(this.bake);
         this.source = undefined;
         this.material = this.projection = this.bake = this.target = this.texture = this.ticket = 0;
+        this.bodyTexture = 0;
         this.ready = this.failed = false;
     }
 }

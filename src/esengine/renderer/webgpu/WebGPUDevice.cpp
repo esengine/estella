@@ -1374,12 +1374,12 @@ bool WebGPUDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
         u32 reachedTex = 0;
         u32 reachedSam = 0;
         scanWGSLReachedUnits(src, reachedTex, reachedSam);
-        const u32 declared = scanWGSLBindingMask(src, 1);
+        const u64 declared = scanWGSLBindingMask(src, 1);
         for (u32 unit = 0; unit < 16; ++unit) {
             const bool tex = (reachedTex & (1u << unit)) != 0
-                             && (declared & (1u << textureBindingForUnit(unit))) == 0;
+                             && (declared & (u64{1} << textureBindingForUnit(unit))) == 0;
             const bool sam = (reachedSam & (1u << unit)) != 0
-                             && (declared & (1u << samplerBindingForUnit(unit))) == 0;
+                             && (declared & (u64{1} << samplerBindingForUnit(unit))) == 0;
             if (!tex && !sam) continue;
             if (outLog) {
                 *outLog = std::string("the ") + stage + " stage reaches "
@@ -1429,6 +1429,7 @@ bool WebGPUDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
     // to the fragment stage alone unless the layout says otherwise, and reading
     // one it was not given is a pipeline WebGPU rejects with nothing named.
     rec.group1VertexMask = scanWGSLBindingMask(source.vertexSrc, 1);
+    rec.group1FragmentMask = scanWGSLBindingMask(source.fragmentSrc, 1);
     if (!rec.vertex || !rec.fragment) {
         if (rec.vertex) wgpuShaderModuleRelease(rec.vertex);
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
@@ -1538,7 +1539,7 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
                                   progIt->second.group1DepthMask,
                                   progIt->second.group1VertexMask,
                                   progIt->second.group1ArrayMask,
-                                  progIt->second.group1VolumeMask);
+                                  progIt->second.group1VolumeMask, progIt->second.group1FragmentMask);
     pd.vertex.module = progIt->second.vertex;
     pd.vertex.entryPoint = sv("vs_main");
     pd.vertex.bufferCount = slotCount;
@@ -2245,11 +2246,11 @@ bool WebGPUDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle 
     return true;
 }
 
-WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthMask,
-                                                u32 vertexMask, u32 arrayMask, u32 volumeMask) {
+WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u64 mask, u64 depthMask,
+                                                u64 vertexMask, u64 arrayMask, u64 volumeMask, u64 fragmentMask) {
     // Every mask is part of the key: the same bindings sampled as depth or as an
     // array are a DIFFERENT layout, and visibility is part of an entry too.
-    const std::array<u32, 6> key{group, mask, depthMask, vertexMask, arrayMask, volumeMask};
+    const std::array<u64, 7> key{group, mask, depthMask, vertexMask, arrayMask, volumeMask, fragmentMask};
     auto cached = group_layouts_.find(key);
     if (cached != group_layouts_.end()) return cached->second;
     if (!device_) return nullptr;
@@ -2268,20 +2269,18 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthM
             entries[count++] = e;
         }
     } else {
-        // Texture units through the unit→binding convention. Fragment-only
-        // visibility unless the vertex stage declared the binding itself: a
-        // stage sees only what its entry admits.
+        // Track vertex and fragment visibility separately so vertex records never consume a fragment slot.
         static_assert(kTextureSlots == kGroup1TextureUnits,
                       "device texture slots mirror the group-1 convention");
         for (u32 unit = 0; unit < kTextureSlots; ++unit) {
             const u32 tb = textureBindingForUnit(unit);
             const u32 sb = samplerBindingForUnit(unit);
             const auto stages = [&](u32 binding) {
-                return (vertexMask & (1u << binding))
-                           ? (WGPUShaderStage_Vertex | WGPUShaderStage_Fragment)
-                           : WGPUShaderStage_Fragment;
+                const u64 bit = u64{1} << binding;
+                return ((vertexMask & bit) ? WGPUShaderStage_Vertex : 0) |
+                       ((fragmentMask & bit) ? WGPUShaderStage_Fragment : 0);
             };
-            if (mask & (1u << tb)) {
+            if (mask & (u64{1} << tb)) {
                 WGPUBindGroupLayoutEntry e{};
                 e.binding = tb;
                 e.visibility = stages(tb);
@@ -2289,15 +2288,15 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthM
                 // unfilterable by construction — which is what lets rgba32float
                 // bind here. Filterable formats satisfy it too.
                 e.texture.sampleType =
-                    (depthMask & (1u << tb))  ? WGPUTextureSampleType_Depth
-                    : (mask & (1u << sb))     ? WGPUTextureSampleType_Float
+                    (depthMask & (u64{1} << tb))  ? WGPUTextureSampleType_Depth
+                    : (mask & (u64{1} << sb))     ? WGPUTextureSampleType_Float
                                               : WGPUTextureSampleType_UnfilterableFloat;
-                e.texture.viewDimension = (arrayMask & (1u << tb))    ? WGPUTextureViewDimension_2DArray
-                                          : (volumeMask & (1u << tb)) ? WGPUTextureViewDimension_3D
+                e.texture.viewDimension = (arrayMask & (u64{1} << tb))    ? WGPUTextureViewDimension_2DArray
+                                          : (volumeMask & (u64{1} << tb)) ? WGPUTextureViewDimension_3D
                                                                       : WGPUTextureViewDimension_2D;
                 entries[count++] = e;
             }
-            if (mask & (1u << sb)) {
+            if (mask & (u64{1} << sb)) {
                 WGPUBindGroupLayoutEntry e{};
                 e.binding = sb;
                 e.visibility = stages(sb);
@@ -2315,13 +2314,13 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthM
     return layout;
 }
 
-WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mask,
-                                                   u32 group1DepthMask, u32 group1VertexMask,
-                                                   u32 group1ArrayMask, u32 group1VolumeMask) {
+WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u64 group1Mask,
+                                                   u64 group1DepthMask, u64 group1VertexMask,
+                                                   u64 group1ArrayMask, u64 group1VolumeMask, u64 group1FragmentMask) {
     // The depth, visibility and array masks change the group-1 layout under this
     // pipeline, so they have to reach the key here too — see groupLayoutFor.
-    const std::array<u32, 6> key{group0Mask, group1Mask, group1DepthMask, group1VertexMask, group1ArrayMask,
-                                 group1VolumeMask};
+    const std::array<u64, 7> key{group0Mask, group1Mask, group1DepthMask, group1VertexMask, group1ArrayMask,
+                                 group1VolumeMask, group1FragmentMask};
     auto cached = pipeline_layouts_.find(key);
     if (cached != pipeline_layouts_.end()) return cached->second;
     if (!device_) return nullptr;
@@ -2333,7 +2332,7 @@ WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mas
     if (group0Mask != 0 || group1Mask != 0) bgls[count++] = groupLayoutFor(0, group0Mask);
     if (group1Mask != 0) {
         bgls[count++] = groupLayoutFor(1, group1Mask, group1DepthMask, group1VertexMask, group1ArrayMask,
-                                       group1VolumeMask);
+                                       group1VolumeMask, group1FragmentMask);
     }
 
     WGPUPipelineLayoutDescriptor pld{};
@@ -2496,15 +2495,15 @@ void WebGPUDevice::flushBindGroup() {
             if (!rec) continue;
             const u32 tb = textureBindingForUnit(unit);
             const u32 sb = samplerBindingForUnit(unit);
-            if (prog->group1Mask & (1u << tb)) {
+            if (prog->group1Mask & (u64{1} << tb)) {
                 // A depth declaration must be fed a depth texture even when the
                 // unit is unbound: the white dummy under `sampleType = Depth` is
                 // a validation error, not a blank sample.
-                const bool wantsDepth = (prog->group1DepthMask & (1u << tb)) != 0;
+                const bool wantsDepth = (prog->group1DepthMask & (u64{1} << tb)) != 0;
                 // The view's dimension must be the declaration's: an array where a
                 // 2D texture is declared, or the reverse, is the dummy of the right kind.
-                const bool wantsArray = (prog->group1ArrayMask & (1u << tb)) != 0;
-                const bool wantsVolume = (prog->group1VolumeMask & (1u << tb)) != 0;
+                const bool wantsArray = (prog->group1ArrayMask & (u64{1} << tb)) != 0;
+                const bool wantsVolume = (prog->group1VolumeMask & (u64{1} << tb)) != 0;
                 const bool isArray = !rec->volume && rec->layers > 1;
                 const TextureRec* src = rec;
                 if (wantsDepth && !isDepthFormat(src->format)) src = depthDummy;
@@ -2522,7 +2521,7 @@ void WebGPUDevice::flushBindGroup() {
                 e.textureView = src->sampleView;
                 texEntries[texCount++] = e;
             }
-            if (prog->group1Mask & (1u << sb)) {
+            if (prog->group1Mask & (u64{1} << sb)) {
                 WGPUBindGroupEntry e{};
                 e.binding = sb;
                 e.sampler = samplerFor(rec->samplerKey);
@@ -2532,7 +2531,7 @@ void WebGPUDevice::flushBindGroup() {
 
         WGPUBindGroupDescriptor tgd{};
         tgd.layout = groupLayoutFor(1, prog->group1Mask, prog->group1DepthMask,
-                                    prog->group1VertexMask, prog->group1ArrayMask, prog->group1VolumeMask);
+                                    prog->group1VertexMask, prog->group1ArrayMask, prog->group1VolumeMask, prog->group1FragmentMask);
         tgd.entryCount = texCount;
         tgd.entries = texEntries;
         u64 tids[kTextureSlots * 2];

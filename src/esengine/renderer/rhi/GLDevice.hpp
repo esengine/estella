@@ -295,7 +295,7 @@ private:
     // Redundant-state caches for the two per-draw hot paths. glActiveTexture is
     // the only site that moves the active unit, so active_texture_unit_ is
     // authoritative; bound_texture_[unit] mirrors the sampler bindings by GL name.
-    static constexpr u32 kTextureSlots = 16;
+    static constexpr u32 kTextureSlots = 17;
     u32 active_texture_unit_ = 0;
     u32 bound_texture_[kTextureSlots] = {};
     i16 current_depth_bias_ = 0;

@@ -878,7 +878,7 @@ void main() {
         column = max(dist1 - waterDist, 0.0);
         // The material refracts a scene-colour texel. Its depth belongs to its own view ray:
         // the same point that the underwater pass reconstructs when the lens crosses the surface.
-        if (!below && haveDepth && u_causticOn > 0.5) {
+        if (!below && haveDepth && u_causticOn > 0.5 && u_causticRect.z == 0.0) {
             vec3 receiver = waterReceiverAt(uv1, dist1);
             vec3 face = cross(dFdx(receiver), dFdy(receiver));
             if (dot(face, viewDirection(receiver)) < 0.0) face = -face;

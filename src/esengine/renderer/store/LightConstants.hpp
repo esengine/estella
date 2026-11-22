@@ -198,6 +198,10 @@ struct LightConstants {
     /// that view finds no tile and skips nothing. Last, after a member a block may leave off, so a block that does not read it
     /// need not declare it.
     glm::mat4 tileView{1.0f};
+    // Render-relative optical window and depth decoder. A zero span disables it.
+    glm::vec4 waterRect{};
+    glm::vec4 waterDepth{}; // surface datum, top margin, full depth span, slice spacing
+    glm::vec4 waterSun{};   // mean refracted X/Z slopes, selected light slot, reserved
 };
 
 /**
@@ -248,7 +252,7 @@ static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16
                                         + 16 + 32 * MAX_REFLECTION_PROBES + 16
-                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16 + 16 + 64,
+                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16 + 16 + 64 + 48,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

@@ -26,24 +26,24 @@ namespace esengine {
  *        bindings 0-7; a material's own units start at 8 and take 16 upward, leaving
  *        8-15 for the samplers underneath the first eight.
  */
-inline constexpr u32 textureBindingForUnit(u32 unit) { return unit < 8 ? unit : unit + 8; }
+inline constexpr u32 textureBindingForUnit(u32 unit) { return unit < 8 ? unit : (unit < 16 ? unit + 8 : 32 + 2 * (unit - 16)); }
 
 /** @brief Group-1 binding of a texture unit's sampler (see textureBindingForUnit). */
-inline constexpr u32 samplerBindingForUnit(u32 unit) { return unit < 8 ? unit + 8 : unit + 16; }
+inline constexpr u32 samplerBindingForUnit(u32 unit) { return unit < 8 ? unit + 8 : (unit < 16 ? unit + 16 : 33 + 2 * (unit - 16)); }
 
 /** @brief Units a `tN` / `sN` name can carry — the batch stream and a material's own. */
-inline constexpr u32 WGSL_MAX_TEXTURE_UNITS = 16;
+inline constexpr u32 WGSL_MAX_TEXTURE_UNITS = 17;
 
 /**
  * @brief Bit mask of the `@group(N) @binding(i)` indices a WGSL source declares.
  * @details Declarations drive the backend's EXPLICIT bind-group layouts: every declared
  *          binding gets a layout entry and a bound resource (or a dummy backfill), so a
- *          declared-but-unused binding is as legal as it is in GLSL. Bindings >= 32 are
- *          ignored — the group-1 convention tops out at 31.
+ *          declared-but-unused binding is as legal as it is in GLSL. Bindings >= 64 are
+ *          ignored.
  */
-inline u32 scanWGSLBindingMask(const char* source, u32 group) {
+inline u64 scanWGSLBindingMask(const char* source, u32 group) {
     if (!source) return 0;
-    u32 mask = 0;
+    u64 mask = 0;
     for (const char* p = source; (p = std::strstr(p, "@group(")) != nullptr;) {
         p += 7;
         char* end = nullptr;
@@ -57,7 +57,7 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
         const unsigned long idx = std::strtoul(b, &end, 10);
         if (end == b) continue;
         p = end;
-        if (idx < 32) mask |= (1u << idx);
+        if (idx < 64) mask |= (u64{1} << idx);
     }
     return mask;
 }

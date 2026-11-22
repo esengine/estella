@@ -298,6 +298,14 @@ public:
         dirty_ = true;
     }
 
+    void setWaterSun(const glm::vec4& rect, const glm::vec4& depth, const glm::vec4& sun) {
+        if (data_.waterRect == rect && data_.waterDepth == depth && data_.waterSun == sun) return;
+        data_.waterRect = rect;
+        data_.waterDepth = depth;
+        data_.waterSun = sun;
+        dirty_ = true;
+    }
+
     /// Uploads the mirror (when dirty) and binds it at LIGHT_CONSTANTS_BINDING. Called once per
     /// frame in flush(); the binding persists, only the contents change. No-op without a device.
     void uploadAndBind();

@@ -114,7 +114,7 @@ TEST_CASE("pipeline depth-stencil state carries GL semantics exactly") {
     CHECK(!hasStencilPlanes(WGPUTextureFormat_Undefined));
 }
 
-TEST_CASE("group-1 unit→binding convention: disjoint maps covering one u32 mask") {
+TEST_CASE("group-1 texture and sampler bindings remain disjoint across the frame and material units") {
     // Engine units 0..7: textures at 0..7, samplers at 8..15.
     CHECK(textureBindingForUnit(0) == 0u);
     CHECK(textureBindingForUnit(7) == 7u);
@@ -127,13 +127,14 @@ TEST_CASE("group-1 unit→binding convention: disjoint maps covering one u32 mas
     CHECK(samplerBindingForUnit(8) == 24u);
     CHECK(samplerBindingForUnit(15) == 31u);
 
-    // Bijection: the 16 units' texture+sampler bindings tile bits 0..31 exactly.
-    u32 mask = 0;
+    CHECK(textureBindingForUnit(16) == 32u);
+    CHECK(samplerBindingForUnit(16) == 33u);
+    u64 mask = 0;
     for (u32 unit = 0; unit < kGroup1TextureUnits; ++unit) {
-        mask |= (1u << textureBindingForUnit(unit));
-        mask |= (1u << samplerBindingForUnit(unit));
+        mask |= (u64{1} << textureBindingForUnit(unit));
+        mask |= (u64{1} << samplerBindingForUnit(unit));
     }
-    CHECK(mask == 0xFFFFFFFFu);
+    CHECK(mask == (u64{1} << (2 * kGroup1TextureUnits)) - 1);
 }
 
 TEST_CASE("binding-mask scan mirrors the declarations an explicit layout carries") {
@@ -164,6 +165,7 @@ TEST_CASE("binding-mask scan mirrors the declarations an explicit layout carries
 )";
     CHECK(scanWGSLBindingMask(material, 1) == ((1u << 16) | (1u << 24)));
 
+    CHECK(scanWGSLBindingMask("@group(1) @binding(32) var sun : texture_2d<f32>;", 1) == (u64{1} << 32));
     CHECK(scanWGSLBindingMask(nullptr, 0) == 0u);
     CHECK(scanWGSLBindingMask("no bindings here", 0) == 0u);
 }

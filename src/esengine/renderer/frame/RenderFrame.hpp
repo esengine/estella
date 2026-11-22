@@ -732,6 +732,13 @@ private:
     std::unordered_map<u32, i32> material_bake_states_;
     u32 next_material_bake_ = 1;
     u32 material_bakes_drawn_ = 0;
+    struct WaterSunField {
+        TextureHandle texture = TextureHandle::Invalid;
+        u32 target = 0;
+        glm::vec4 rect{}, depth{}, sun{};
+        glm::vec3 sunDirection{};
+    };
+    WaterSunField water_sun_;
     /// The frame the bakes were last declared in: once a frame, by its first view.
     u64 material_bakes_frame_ = ~0ull;
 

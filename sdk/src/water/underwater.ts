@@ -120,9 +120,9 @@ void main() {
     vec3 sunWater = waterSunRay(sunDir.xyz, lightUp);
     float slant = max(dot(sunWater, lightUp), 0.08);
 
-    // What the camera sees, lit by the sun through the waves: a web of bright threads on what faces the sun, where the sun reaches it.
+    // Managed surfaces arrive already lit. The standalone procedural effect has no world-space field.
     vec3 colour = src.rgb;
-    if (!sky && sunny && (u_causticStrength > 0.0 || u_causticBodyOcean.w > 0.5)) {
+    if (u_causticRect.z == 0.0 && !sky && sunny && (u_causticStrength > 0.0 || u_causticBodyOcean.w > 0.5)) {
         vec3 normal = dot(facing, facing) > 1e-12 ? normalize(facing) : up;
         if (dot(normal, dir) > 0.0) normal = -normal;
         vec3 absolute = target + u_renderOrigin.xyz;

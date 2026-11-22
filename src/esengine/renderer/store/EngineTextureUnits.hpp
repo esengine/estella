@@ -70,4 +70,8 @@ inline constexpr u32 SHAPE_2D_TEXTURE_UNIT = 6;
 inline constexpr const char* SHADOW_2D_SAMPLER = "u_shadow2D";
 inline constexpr u32 SHADOW_2D_TEXTURE_UNIT = 7;
 
+// Fragment-only frame texture. Units 0..15 retain the material, batch and vertex-record ABI.
+inline constexpr const char* WATER_SUN_SAMPLER = "u_waterSunField";
+inline constexpr u32 WATER_SUN_TEXTURE_UNIT = 16;
+
 }  // namespace esengine

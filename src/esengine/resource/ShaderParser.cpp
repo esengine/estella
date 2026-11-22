@@ -11,6 +11,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 
+#include "WaterSunShader.hpp"
 #include "ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../renderer/store/InstanceConstants.hpp"
@@ -1431,12 +1432,12 @@ std::string wgslReachedTextureDecls(const std::string& source, bool postProcess)
     u32 reachedTex = 0;
     u32 reachedSam = 0;
     scanWGSLReachedUnits(source.c_str(), reachedTex, reachedSam);
-    const u32 declared = scanWGSLBindingMask(source.c_str(), 1);
+    const u64 declared = scanWGSLBindingMask(source.c_str(), 1);
     std::string src;
     for (u32 unit = 0; unit < WGSL_MAX_TEXTURE_UNITS; ++unit) {
         const std::string n = std::to_string(unit);
         if ((reachedTex & (1u << unit)) != 0
-            && (declared & (1u << textureBindingForUnit(unit))) == 0) {
+            && (declared & (u64{1} << textureBindingForUnit(unit))) == 0) {
             // A fullscreen pass reads the scene's DEPTH at the top engine unit, and a
             // depth texture is its own WGSL type with no sampler under it.
             src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var t" + n
@@ -1444,7 +1445,7 @@ std::string wgslReachedTextureDecls(const std::string& source, bool postProcess)
                                                            : " : texture_2d<f32>;\n");
         }
         if ((reachedSam & (1u << unit)) != 0
-            && (declared & (1u << samplerBindingForUnit(unit))) == 0) {
+            && (declared & (u64{1} << samplerBindingForUnit(unit))) == 0) {
             src += "@group(1) @binding(" + std::to_string(samplerBindingForUnit(unit)) + ") var s" + n
                  + " : sampler;\n";
         }
@@ -1461,14 +1462,14 @@ std::string wgslReachedTextureDecls(const std::string& source, bool postProcess)
 // cannot be filtered, and a layout that pairs it with a filtering sampler is refused by the device.
 std::string wgslMaterialTextureDecls(const ParsedShader& parsed, const std::string& body, const std::string* only = nullptr) {
     std::string src;
-    const u32 declared = scanWGSLBindingMask(body.c_str(), 1);
+    const u64 declared = scanWGSLBindingMask(body.c_str(), 1);
     for (const auto& p : parsed.properties) {
         if (!p.fromParam || p.type != ShaderPropertyType::Texture || p.textureUnit < 0) continue;
         if (only && only->find(p.name) == std::string::npos) continue;
         const u32 unit = static_cast<u32>(p.textureUnit);
-        if ((declared & (1u << textureBindingForUnit(unit))) == 0) src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var " + p.name +
+        if ((declared & (u64{1} << textureBindingForUnit(unit))) == 0) src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var " + p.name +
                (p.layered ? " : texture_2d_array<f32>;\n" : " : texture_2d<f32>;\n");
-        if (body.find(p.name + "_s") == std::string::npos || (declared & (1u << samplerBindingForUnit(unit))) != 0) continue;
+        if (body.find(p.name + "_s") == std::string::npos || (declared & (u64{1} << samplerBindingForUnit(unit))) != 0) continue;
         src += "@group(1) @binding(" + std::to_string(samplerBindingForUnit(unit)) + ") var " + p.name +
                "_s : sampler;\n";
     }
@@ -1593,6 +1594,9 @@ struct LightConstants {
     tileInfo : vec4f,
     u_ambientGround : vec4f,
     u_tileView : mat4x4f,
+    u_waterRect : vec4f,
+    u_waterDepth : vec4f,
+    u_waterSun : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
 struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : vec4f };
@@ -2406,7 +2410,11 @@ fn applyLightingSurfaceBRDF(diffuse : vec3f, F0 : vec3f, N : vec3f, worldPos : v
 #endif
     for (var i = 0; i < lightCount; i++) {
         if ((reach3D & (1u << u32(i))) == 0u) { continue; }
-        let term = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
+        var lamp = lc.u_lights[i];
+#ifdef ES_SURFACE_3D
+        if (lc.u_waterRect.z > 0.0 && f32(i) == lc.u_waterSun.z) { lamp = waterIncidentSun(lamp, worldPos); }
+#endif
+        let term = shadeLight(lamp.posDir, lamp.color, lamp.spot, lamp.shadow,
                               lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, worldPos, a, F0, NdotV, specular, roughness, ext, true);
         lit += term.lit;
         gloss += term.gloss;
@@ -2991,7 +2999,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     }
     if (stage == ShaderStage::Fragment) {
         inject(wgslMaterialTextureDecls(parsed, bodyIt->second));
-        if (lit) inject(kLitHeaderWGSL);
+        if (lit) { inject(kLitHeaderWGSL); inject(WATER_SUN_WGSL); }
         if (parsed.domain == "PostProcess" && parsed.usesLights) inject(kPostLightHeaderWGSL);
         inject(kColorHelpersWGSL);
     }
@@ -3251,6 +3259,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec4 u_tileInfo;\n"
             "    highp vec4 u_ambientGround;\n"
             "    highp mat4 u_tileView;\n"
+            "    highp vec4 u_waterRect, u_waterDepth, u_waterSun;\n"
             "};\n"
             // One run of nine per INSTANCE, not one for the draw: a merged draw
             // holds objects standing in many places. The flag in w tells "no
@@ -4066,6 +4075,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             //   trans   x light passing through, y thickness 0..1, z curvature 0..1, w how far the wrap is per channel and curvature-shaped
             //   film    x strength, y film index, z thickness in nm
             //   misc    x dielectric reflectance at normal incidence (0.04 for an index of 1.5)
+            "#ifdef ES_SURFACE_3D\n"
+            "void waterIncidentSun(inout Light lamp, highp vec3 position);\n"
+            "#endif\n"
             "struct SurfaceExt {\n"
             "    highp vec4 coat;\n"
             "    highp vec4 coatN;\n"
@@ -4164,7 +4176,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#endif\n"
             "    for (int i = 0; i < lightCount; ++i) {\n"
             "        if ((reach3D & (1u << uint(i))) == 0u) continue;\n"
-            "        shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,\n"
+            "        Light lamp = u_lights[i];\n"
+            "#ifdef ES_SURFACE_3D\n"
+            "        if (u_waterRect.z > 0.0 && float(i) == u_waterSun.z) waterIncidentSun(lamp, worldPos);\n"
+            "#endif\n"
+            "        shadeLight(lamp.posDir, lamp.color, lamp.spot, lamp.shadow,\n"
             "                   u_lights[i].shadowMap, u_lights[i].falloff, N, V, worldPos, a, F0, NdotV,\n"
             "                   specular, roughness, ext, lit, gloss, extra, true);\n"
             "    }\n"
@@ -4522,7 +4538,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             assembled << kLightmapHeader;
             headerLines += countNewlines(kLightmapHeader);
         }
-        assembled << kLitHeader;
+        assembled << kLitHeader << WATER_SUN_GLSL;
+        headerLines += countNewlines(WATER_SUN_GLSL);
         headerLines += countNewlines(kLitHeader);
     }
 

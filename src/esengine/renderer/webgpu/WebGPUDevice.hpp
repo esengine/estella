@@ -415,17 +415,16 @@ private:
          *         bindings with no bound resource are backfilled with dummies,
          *         so an unused declaration is as legal as in GLSL. */
         u32 group0Mask = 0;
-        u32 group1Mask = 0;
-        /// Which of group1Mask's bindings the VERTEX stage declares. A texture is
-        /// fragment-visible by default here; one the vertex stage names has to say
-        /// so, and the layout it produces is a different layout.
-        u32 group1VertexMask = 0;
+        u64 group1Mask = 0;
+        /// Each binding is visible only to stages that declare it. Texture limits apply per stage.
+        u64 group1VertexMask = 0;
+        u64 group1FragmentMask = 0;
         /// Which of group1Mask's bindings are `texture_depth_2d`.
-        u32 group1DepthMask = 0;
+        u64 group1DepthMask = 0;
         /// Which of group1Mask's bindings are `texture_2d_array`.
-        u32 group1ArrayMask = 0;
+        u64 group1ArrayMask = 0;
         /// Which of group1Mask's bindings are `texture_3d`.
-        u32 group1VolumeMask = 0;
+        u64 group1VolumeMask = 0;
     };
     /// What a pass's second colour attachment means to the pipeline drawn into it: there is none, the
     /// pipeline writes it, or the pipeline leaves it alone (its target is declared with an empty write mask).
@@ -480,14 +479,14 @@ private:
      *         are texture_2d/sampler pairs per the WebGPUMappings unit→binding
      *         convention (engine units 0..7 at 0..7/8..15, material units 8..15
      *         at 16..23/24..31). */
-    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask, u32 depthMask = 0,
-                                       u32 vertexMask = 0, u32 arrayMask = 0, u32 volumeMask = 0);
+    WGPUBindGroupLayout groupLayoutFor(u32 group, u64 mask, u64 depthMask = 0,
+                                       u64 vertexMask = 0, u64 arrayMask = 0, u64 volumeMask = 0, u64 fragmentMask = 0);
     /** @brief Returns the cached explicit pipeline layout for a program's masks.
      *         A program with group-1 bindings but an empty group 0 still gets a
      *         (zero-entry) group-0 layout, so group indices stay positional. */
-    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask, u32 group1DepthMask = 0,
-                                        u32 group1VertexMask = 0, u32 group1ArrayMask = 0,
-                                        u32 group1VolumeMask = 0);
+    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u64 group1Mask, u64 group1DepthMask = 0,
+                                        u64 group1VertexMask = 0, u64 group1ArrayMask = 0,
+                                        u64 group1VolumeMask = 0, u64 group1FragmentMask = 0);
     /** @brief Lazily creates the dummy backfill resources: a zeroed uniform
      *         buffer and a 1x1 white texture, standing in for declared-but-
      *         unbound bindings (GL reads an unbound block/unit without
@@ -682,7 +681,7 @@ private:
     u32 uniform_sizes_[kUniformSlots] = {};  ///< 0 = the whole buffer.
     /// Engine units 0..7 (batch multi-texture) + material-param units 8..15
     /// (== webgpu::kGroup1TextureUnits, static_asserted in the .cpp).
-    static constexpr u32 kTextureSlots = 16;
+    static constexpr u32 kTextureSlots = 17;
     u32 texture_slots_[kTextureSlots] = {};  ///< TextureHandle id per sampler unit.
     bool bind_group_dirty_ = true;
     WGPUBindGroup bind_group_ = nullptr;    ///< Currently bound group 0 (points INTO the cache; not owned).
@@ -765,8 +764,8 @@ private:
     // Explicit layouts, cached by every mask that shapes them: {group, mask, depth, vertex, array} for
     // bind-group layouts, {group0, group1, depth, vertex, array} for pipeline layouts. Pipelines and bind groups
     // share the cached objects, so group compatibility holds by identity.
-    std::map<std::array<u32, 6>, WGPUBindGroupLayout> group_layouts_;
-    std::map<std::array<u32, 6>, WGPUPipelineLayout> pipeline_layouts_;
+    std::map<std::array<u64, 7>, WGPUBindGroupLayout> group_layouts_;
+    std::map<std::array<u64, 7>, WGPUPipelineLayout> pipeline_layouts_;
     // Backfill belongs to this backend, not to the registry: nothing above it can
     // name these, so they are made again lazily rather than recovered.
     BufferRec dummy_ubo_;         ///< Zeroed backfill for declared-but-unbound UBO slots.

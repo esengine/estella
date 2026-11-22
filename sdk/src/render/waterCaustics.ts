@@ -130,9 +130,9 @@ bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float tim
     float behind = planeDepth - receiverPlaneDepth(record,u_causticElevation);
     float tolerance = 2.5*u_causticRect.w;
     // Geometry hidden from the refracted sun receives no concentrated light.
-    if (record.a > 0.5 && behind > tolerance) return false;
+    if (record.a > 0.25 && behind > tolerance) return false;
     vec4 m;
-    if (surface && record.a > 0.5 && behind >= -tolerance) {
+    if (surface && record.a > 0.25 && behind >= -tolerance) {
         m = textureLod(u_causticField, vec2(uv.x/3.0,uv.y), 0.0) * (255.0/32.0);
     } else {
         // The water between the wave and its first solid hit samples a coarser 3D field.

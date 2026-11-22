@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { SUN_OPTICS_GLSL, CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES, CAUSTIC_RECEIVER_GLSL } from '../render/waterCaustics';
+import { SUN_OPTICS_GLSL, CAUSTIC_ATLAS_SIDE, CAUSTIC_SLICES, CAUSTIC_RECEIVER_GLSL, WATER_ZONE_LAYER_GLSL, WATER_ZONE_LAYER_WGSL, DEFAULT_CAUSTIC_STRENGTH } from '../render/waterCaustics';
 
 /** Stretch the reconstruction tent along the axes of the refracted cell. Its area
  * divides every light moment, preserving the integrated flux. The tent's variance
@@ -71,6 +71,12 @@ export const CAUSTIC_PROJECTION = `#pragma shader "Water Forward Light Bundles"
 #pragma param u_bakeReceiverWindow vec4 default(0,0,1,0)
 #pragma param u_window vec4 default(0,0,1,1)
 #pragma param u_levels vec4 default(0,1,0,1)
+#pragma param u_causticStrength float default(${DEFAULT_CAUSTIC_STRENGTH})
+#pragma param u_density float default(0.0012) unit(perLength)
+#pragma param u_absorption color default(0.45,0.09,0.05,1)
+#pragma param u_causticBodyRect vec4 default(0,0,1,1)
+#pragma param u_causticBodyOcean vec4 default(0,0,4,0)
+#pragma param u_zoneSurfaceData texture default(white) texel(data)
 #pragma param u_bakeSun vec4 default(0,1,0,0)
 #pragma vertex
 precision highp float;
@@ -188,11 +194,37 @@ in vec2 v_hit;
 out vec4 fragColor;
 ${CAUSTIC_RECEIVER_GLSL}
 ${READ_RECEIVER_GLSL}
+${WATER_ZONE_LAYER_GLSL}
+// The depth copy is one fragment per optical column. Keep dry and absent hits
+// distinct from a wet surface with zero flux, including at the edge of a lake.
+float receiverGain(vec2 uv, float depth) {
+    vec3 meanRay = -refract(-u_bakeSun.xyz,vec3(0,1,0),1.0/1.333);
+    vec2 at = uv - meanRay.xz * (depth / (max(meanRay.y,0.08) * u_window.z));
+    if (any(lessThan(at,vec2(0))) || any(greaterThanEqual(at,vec2(1)))) return 0.0;
+    vec4 surface = textureLod(u_surface, at, 0.0);
+    vec2 h = (surface.rg * 255.0 - 128.0) / 127.0;
+    float water = u_levels.x + dot(surface.ba,vec2(256,1)/257.0)*u_levels.y - u_levels.z + depth;
+    if (dot(h,h) > 1.001 || water <= 0.0) return 0.0;
+    float gain = u_causticStrength;
+    if (u_causticBodyOcean.w > 0.5) {
+        vec2 zone = (u_window.xy + at*u_window.z - u_causticBodyRect.xy) / u_causticBodyRect.zw;
+        vec2 body = u_causticBodyOcean.xy;
+        if (all(greaterThanEqual(zone,vec2(0))) && all(lessThanEqual(zone,vec2(1))))
+            body = waterZoneLayer(zone,2.0).rg * vec2(u_causticBodyOcean.z,1);
+        gain = gain * (1.0 - body.y) + body.x;
+    }
+    float extinction = dot(u_absorption.rgb,vec3(1.0/3.0)) * u_density;
+    return clamp(gain,0.0,4.0) * exp(-extinction * water / max(meanRay.y,0.08));
+}
 void main() {
     if (any(lessThan(v_tileUV,vec2(0))) || any(greaterThanEqual(v_tileUV,vec2(1)))) discard;
     if (v_hit.x != 0.0) {
         vec4 record = readReceiver(v_tileUV);
-        if (v_hit.x < 0.0) { fragColor = record; return; }
+        if (v_hit.x < 0.0) {
+            if (record.a > 0.5) record.a = (128.0 + 31.75 * receiverGain(v_tileUV,receiverPlaneDepth(record,u_levels))) / 255.0;
+            fragColor = record;
+            return;
+        }
         if (record.a < 0.5 || abs(receiverPlaneDepth(record,u_levels) - v_hit.y) > 2.5*u_window.z/u_window.w) discard;
     }
     vec2 weights = max(1.0-abs(v_kernel),0.0);
@@ -289,11 +321,35 @@ fn beamDrift(uv: vec2f, depth: f32, centre: vec2f) -> vec2f {
 #pragma fragment wgsl
 struct FSIn { @location(0) kernel: vec2f, @location(1) moment: vec4f, @location(2) tileUV: vec2f, @location(3) hit: vec2f };
 ${RECEIVER_WGSL}
+${WATER_ZONE_LAYER_WGSL}
+fn receiverGain(uv: vec2f, depth: f32) -> f32 {
+    let meanRay = -refract(-mc.u_bakeSun.xyz,vec3f(0,1,0),1.0/1.333);
+    let at = uv - meanRay.xz * (depth / (max(meanRay.y,0.08) * mc.u_window.z));
+    if (any(at<vec2f(0)) || any(at>=vec2f(1))) { return 0.0; }
+    let surface = textureSampleLevel(u_surface,u_surface_s,at,0.0);
+    let h = (surface.rg*255.0-128.0)/127.0;
+    let water = mc.u_levels.x + dot(surface.ba,vec2f(256,1)/257.0)*mc.u_levels.y - mc.u_levels.z + depth;
+    if (dot(h,h)>1.001 || water<=0.0) { return 0.0; }
+    var gain = mc.u_causticStrength;
+    if (mc.u_causticBodyOcean.w>0.5) {
+        let zone = (mc.u_window.xy + at*mc.u_window.z - mc.u_causticBodyRect.xy)/mc.u_causticBodyRect.zw;
+        var body = mc.u_causticBodyOcean.xy;
+        if (all(zone>=vec2f(0)) && all(zone<=vec2f(1))) {
+            body = waterZoneLayer(zone,2.0).rg * vec2f(mc.u_causticBodyOcean.z,1);
+        }
+        gain = gain*(1.0-body.y)+body.x;
+    }
+    let extinction = dot(mc.u_absorption.rgb,vec3f(1.0/3.0))*mc.u_density;
+    return clamp(gain,0.0,4.0)*exp(-extinction*water/max(meanRay.y,0.08));
+}
 @fragment fn fs_main(v: FSIn) -> @location(0) vec4f {
     if(any(v.tileUV<vec2f(0)) || any(v.tileUV>=vec2f(1))) { discard; }
     if (v.hit.x != 0.0) {
         let record=readReceiver(v.tileUV);
-        if(v.hit.x<0.0) { return record; }
+        if (v.hit.x < 0.0) {
+            if (record.a > 0.5) { return vec4f(record.rgb,(128.0+31.75*receiverGain(v.tileUV,receiverPlaneDepth(record)))/255.0); }
+            return record;
+        }
         if(record.a<0.5 || abs(receiverPlaneDepth(record)-v.hit.y)>2.5*mc.u_window.z/mc.u_window.w) { discard; }
     }
     let weight=max(vec2f(1)-abs(v.kernel),vec2f(0)); return v.moment*weight.x*weight.y;

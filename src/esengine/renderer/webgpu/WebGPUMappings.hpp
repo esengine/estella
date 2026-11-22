@@ -388,9 +388,9 @@ inline constexpr u32 kGroup1TextureUnits = WGSL_MAX_TEXTURE_UNITS;
  * @brief Bit mask of the group's bindings whose declaration names the type `kind`.
  * @details Same source scan as {@link scanWGSLBindingMask}, reading the declaration that follows each binding.
  */
-inline u32 scanWGSLTextureKindMask(const char* source, u32 group, const char* kind) {
+inline u64 scanWGSLTextureKindMask(const char* source, u32 group, const char* kind) {
     if (!source) return 0;
-    u32 mask = 0;
+    u64 mask = 0;
     for (const char* p = source; (p = std::strstr(p, "@group(")) != nullptr;) {
         p += 7;
         char* end = nullptr;
@@ -408,7 +408,7 @@ inline u32 scanWGSLTextureKindMask(const char* source, u32 group, const char* ki
         // so a matching type further down the file cannot be read as this one's.
         const char* semi = std::strchr(p, ';');
         const char* type = std::strstr(p, kind);
-        if (idx < 32 && type && (!semi || type < semi)) mask |= (1u << idx);
+        if (idx < 64 && type && (!semi || type < semi)) mask |= (u64{1} << idx);
     }
     return mask;
 }
@@ -419,7 +419,7 @@ inline u32 scanWGSLTextureKindMask(const char* source, u32 group, const char* ki
  *          entry and a depth-aspect view under it; bound as an ordinary float
  *          texture WebGPU rejects the pipeline.
  */
-inline u32 scanWGSLDepthTextureMask(const char* source, u32 group) {
+inline u64 scanWGSLDepthTextureMask(const char* source, u32 group) {
     return scanWGSLTextureKindMask(source, group, "texture_depth_2d");
 }
 
@@ -427,7 +427,7 @@ inline u32 scanWGSLDepthTextureMask(const char* source, u32 group) {
  * @brief Bit mask of the group's bindings a WGSL source declares as `texture_2d_array`.
  * @details Such a binding's layout entry is `viewDimension = 2DArray`, and only an array view binds under it.
  */
-inline u32 scanWGSLArrayTextureMask(const char* source, u32 group) {
+inline u64 scanWGSLArrayTextureMask(const char* source, u32 group) {
     return scanWGSLTextureKindMask(source, group, "texture_2d_array");
 }
 
@@ -435,7 +435,7 @@ inline u32 scanWGSLArrayTextureMask(const char* source, u32 group) {
  * @brief Bit mask of the group's bindings a WGSL source declares as `texture_3d`.
  * @details Such a binding's layout entry is `viewDimension = 3D`, and only a volume's view binds under it.
  */
-inline u32 scanWGSLVolumeTextureMask(const char* source, u32 group) {
+inline u64 scanWGSLVolumeTextureMask(const char* source, u32 group) {
     return scanWGSLTextureKindMask(source, group, "texture_3d");
 }
 

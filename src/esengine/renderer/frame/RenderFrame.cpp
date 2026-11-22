@@ -233,6 +233,7 @@ void RenderFrame::shutdown() {
     cover_pool_.shutdown();
 #ifdef ES_ENABLE_POSTPROCESS
     receiver_captures_.clear();
+    water_sun_ = {};
 #endif
     shadow_mover_pool_.shutdown();
     cover_mover_pool_.shutdown();
@@ -363,6 +364,18 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
     draw_list_.setMask2DTexture(SHAPE_2D_TEXTURE_UNIT, shape_2d_texture_id_ != 0 ? shape_2d_texture_id_ : shadow_2d_masks_[1].textureId);
     // Here and not in flush(): the shadow pass runs before this one and decides
     // which atlas tile each light reads, so the block has to go up after it.
+    // Multiple views and paused redraws can consume the last completed simulation step.
+    // Rebase its absolute window for this draw. Releasing its target invalidates the record.
+    WaterSunField field = water_sun_;
+    if (cloud_sun_slot_ < 0 || glm::dot(-cloud_sun_aim_, field.sunDirection) < 0.99999f) field = {};
+    const auto origin = renderOrigin();
+    field.rect.x = static_cast<f32>(field.rect.x - origin.x);
+    field.rect.y = static_cast<f32>(field.rect.y - origin.z);
+    field.depth.x = static_cast<f32>(field.depth.x - origin.y);
+    field.sun.z = static_cast<f32>(cloud_sun_slot_);
+    context_.lights().setWaterSun(field.rect, field.depth, field.sun);
+    device_.bindTexture(WATER_SUN_TEXTURE_UNIT, field.texture == TextureHandle::Invalid
+        ? TextureHandle{context_.getWhiteTextureId()} : field.texture);
     context_.lights().uploadAndBind();
 
     {
@@ -2862,6 +2875,7 @@ u32 RenderFrame::queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, 
 void RenderFrame::cancelMaterialBakesFor(u32 target) {
     if (!target) return;
 #ifdef ES_ENABLE_POSTPROCESS
+    if (water_sun_.target == target) water_sun_ = {};
     for (auto& capture : receiver_captures_) {
         if (capture && capture->bakeTarget == target) capture.reset();
     }
@@ -2915,11 +2929,20 @@ void RenderFrame::declareMaterialBakes(ecs::Registry& registry) {
         }
         glm::vec4 sun(0);
         ReceiverMaps maps;
+        WaterSunField field;
         if (receiver) {
             sun = post_process_->bakeSun();
             const auto* layout = context_.materials().layoutFor(context_.materials().shaderOf(bake.projection));
             if (layout && layout->findTexture("u_bakeReceiverDepth") && sun.y > 0.0f) {
                 maps = declareCausticReceivers(registry, bake, sun, captureIndex++);
+                const glm::vec3 ray = -glm::refract(-glm::vec3(sun), glm::vec3(0,1,0), 1.0f / 1.333f);
+                const f32 top = std::max(bake.b.x + bake.b.y - bake.b.z, 0.0f) + 0.01f * bake.b.w;
+                field.texture = receiver->getColorTexture();
+                field.target = bake.receiver;
+                field.sunDirection = glm::vec3(sun);
+                field.rect = {bake.a.x, bake.a.y, bake.a.z, bake.a.z / bake.w};
+                field.depth = {bake.b.z, top, top + bake.b.w, bake.b.w / 15.0f};
+                field.sun = {ray.x / ray.y, ray.z / ray.y, 0, 0};
             }
         }
         rg::PassDesc pass;
@@ -2953,10 +2976,12 @@ void RenderFrame::declareMaterialBakes(ecs::Registry& registry) {
             projection.clear = true;
             projection.clearColor[3] = 0.0f;
             const u32 projectionSlot = scratch++;
-            projection.execute = [this, bake, projectionSlot, sun, maps](const rg::PassContext&) {
+            projection.execute = [this, bake, projectionSlot, sun, maps, field](const rg::PassContext&) {
                 if (material_bake_states_[bake.ticket] > 0)
                     material_bake_states_[bake.ticket] = post_process_->drawProjectedMaterial(bake.projection, bake.instances, projectionSlot, sun,
                         maps.window, graph_.textureOf(maps.fixed), graph_.textureOf(maps.moving)) ? 1 : -1;
+                if (field.target || water_sun_.target == bake.receiver)
+                    water_sun_ = material_bake_states_[bake.ticket] > 0 ? field : WaterSunField{};
             };
             graph_.addPass(std::move(projection));
         }

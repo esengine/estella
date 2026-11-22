@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Run the production projector on a flat surface and a diverging bundle in headless WebGL 2.
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +23,7 @@ try {
     const program = gl.createProgram();
     for (const [stage, type] of [['vertex', gl.VERTEX_SHADER], ['fragment', gl.FRAGMENT_SHADER]]) {
       const body = source.split(`#pragma ${stage}\n`)[1].split('#pragma end')[0];
-      const header = 'precision highp float;\nuniform sampler2D u_surface, u_bakeReceiverDepth, u_bakeMovingDepth;\nuniform vec4 u_window, u_levels, u_bakeSun, u_bakeReceiverWindow;\n';
+      const header = 'precision highp float;\nuniform sampler2D u_surface, u_bakeReceiverDepth, u_bakeMovingDepth, u_zoneSurfaceData;\nuniform float u_causticStrength, u_density;\nuniform vec4 u_absorption, u_causticBodyRect, u_causticBodyOcean;\nuniform vec4 u_window, u_levels, u_bakeSun, u_bakeReceiverWindow;\n';
       const shader = gl.createShader(type);
       gl.shaderSource(shader, '#version 300 es\n' + header + body);
       gl.compileShader(shader);
@@ -115,6 +116,62 @@ try {
   assert.ok(Math.abs(shelfMean - 2/3) < 0.09 && shelfMean > mean + 0.10,
     `the raised receiver must take the beam at its own depth: ${shelfMean}, bed ${mean}`);
   assert.deepEqual(result.moving, result.shelf, 'static and moving receivers stop the same ray at the same depth');
+  // Exercise the receiver function that the native 3D material compiler injects. The old
+  // projector-only test passed even when the scene compositor discarded all negative changes.
+  const header = await readFile(new URL('../../src/esengine/resource/WaterSunShader.hpp', import.meta.url), 'utf8');
+  const receiver = header.match(/WATER_SUN_GLSL\[\] = R"\(([\s\S]*?)\)";/)[1];
+  const values = await page.evaluate((body) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const gl = canvas.getContext('webgl2', { antialias: false });
+    const program = gl.createProgram();
+    const vertex = 'void main(){gl_Position=vec4(float((gl_VertexID<<1)&2)*2.-1.,float(gl_VertexID&2)*2.-1.,0.,1.);}';
+    const fragment = `precision highp float;
+#define ES_SURFACE_3D
+struct Light { vec4 posDir; vec4 color; };
+uniform vec4 u_waterRect, u_waterDepth, u_waterSun;
+uniform float receiverY;
+out vec4 colour;
+${body}
+void main() {
+    Light sun = Light(vec4(0,-1,1,0), vec4(1));
+    waterIncidentSun(sun,vec3(0,receiverY,0));
+    colour = vec4(sun.color.rgb * 0.25,1);
+}`;
+    for (const [stage, text] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
+      const shader = gl.createShader(stage);
+      gl.shaderSource(shader, '#version 300 es\n' + text);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(shader));
+      gl.attachShader(program, shader);
+    }
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
+    gl.useProgram(program);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.uniform4f(gl.getUniformLocation(program, 'u_waterRect'), -4, -4, 8, 0.2);
+    gl.uniform4f(gl.getUniformLocation(program, 'u_waterDepth'), 0, 0, 64, 4);
+    const shade = (flux, gain, y = -32) => {
+      // Packed depth .75 lands at 32. Alpha 128 is exactly gain zero even on UNORM8.
+      const texels = new Uint8Array([32*flux,16*flux,16*flux,32*flux,191,63,191,Math.round(128+31.75*gain),0,0,0,0]);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,3,1,0,gl.RGBA,gl.UNSIGNED_BYTE,texels);
+      gl.uniform1f(gl.getUniformLocation(program, 'receiverY'), y);
+      gl.drawArrays(gl.TRIANGLES,0,3);
+      const pixel = new Uint8Array(4);
+      gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+      return pixel[0];
+    };
+    return {flat:shade(1,1), dim:shade(.5,1), bright:shade(2,1), empty:shade(0,1),
+      off:shade(0,0), above:shade(2,1,2), hidden:shade(2,1,-36), highGain:shade(.5,4)};
+  }, receiver);
+  assert.ok(Math.abs(values.flat-64)<=1 && Math.abs(values.dim-32)<=1 && Math.abs(values.bright-128)<=2);
+  assert.equal(values.empty,0);
+  assert.equal(values.off,values.flat);
+  assert.equal(values.above,values.flat);
+  assert.equal(values.hidden,0);
+  assert.ok(values.highGain>0 && values.highGain<values.dim);
   console.log('Water caustic flux and first hits verified on the bed and a raised receiver.');
 } finally {
   await browser.close();
