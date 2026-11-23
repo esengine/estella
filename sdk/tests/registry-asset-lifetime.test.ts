@@ -111,6 +111,28 @@ markEngineComponentBaseline();
 describe('a persistent entity carries a ref-bound asset out of its scene', () => {
     beforeEach(() => { pool = createPoolFake(); seedEngineComponents(); });
 
+    it('keeps a path-tracked clip and its frame textures on a sprite after reset', async () => {
+        const app = App.new(), sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, () => clipDocument(12));
+        const manager = new SceneManagerState(app), path = 'walk.esanim';
+        app.insertResource(AssetsResource, assets);
+        manager.register({ name: 'level', async setup(ctx) {
+            await assets.loadAnimClip(path);
+            ctx.trackAssets(new Map([['anim-clip', new Set([path])]]));
+            app.world.insert(ctx.spawn(), SpriteAnimator, { clip: path });
+        } });
+        try {
+            const ctx = await manager.load('level'), [sprite] = ctx.entities;
+            manager.reset();
+            expect(sprites.getClip(path)?.fps).toBe(12);
+            expect(assets.sizes()).toMatchObject({ registrySlots: 1, refRows: 2 });
+            app.world.despawn(sprite!);
+            expect(sprites.getClip(path)).toBeUndefined();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+            expect(pool.releaseTexture).toHaveBeenCalledTimes(2);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['shared name', 'UUID for a path acquisition'])('keeps the sprite clip for a %s', async mode => {
         const app = App.new(), sprites = new SpriteAnimationAPI();
         connectFakeCpp(app.world);

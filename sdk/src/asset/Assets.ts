@@ -814,7 +814,9 @@ export class Assets {
     }
 
     private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
-        return (await this.acquireTextureVariant_(ref, flip)).result;
+        const { result, lease } = await this.acquireTextureVariant_(ref, flip);
+        this.textureRefs_.leaveByPath(lease.key, lease.generation);
+        return result;
     }
 
     private async acquireTextureVariant_(
@@ -993,17 +995,7 @@ export class Assets {
     }
 
     async loadAnimClip(ref: string): Promise<AnimClipResult> {
-        return (await this.acquireAnimClip_(ref)).value;
-    }
-
-    /**
-     * A clip is published under the load path AND the ref as it was spelled: a
-     * realm whose resolver returns URLs hands the loader `estella://…/walk.esanim`
-     * while components ask for `assets/animations/walk.esanim`. Both names are
-     * the slot's, so a republish is seen through either.
-     */
-    private async acquireAnimClip_(ref: string): Promise<AssetLease<AnimClipResult>> {
-        return this.acquireTyped<AnimClipResult>('anim-clip', ref);
+        return this.loadTyped('anim-clip', ref);
     }
 
     async loadTilemap(ref: string): Promise<TilemapResult> {
@@ -2071,9 +2063,9 @@ export class Assets {
      * path: an owner splitting what it holds joins the era it already has, which
      * after an invalidate is not the era a path resolves to.
      */
-    private textureLease_(
-        lease: AssetRefLease<number>, value: TextureResult, key = lease.key,
-    ): BindingLease<TextureResult> {
+    private textureLease_<T extends TextureResult | number>(
+        lease: AssetRefLease<number>, value: T, key = lease.key,
+    ): BindingLease<T> {
         return {
             [leaseBinding]: 'texture',
             key, generation: lease.generation, value,
@@ -2205,6 +2197,35 @@ export class Assets {
                 else this.releaseTyped(type, path);
             }
         }
+    }
+
+    /** @internal Hand a scene the existing acquisitions reported by a path-only loader. */
+    takeTrackedAsset(type: string, ref: string, scope: AssetScope): boolean {
+        const path = this.resolveLoadPath_(ref);
+        const typedKey = assetPairKey(type, path);
+        const genericClaim = this.genericRefs_.hasPathClaim(typedKey);
+        const before = scope.size;
+        if (type === 'texture') {
+            const variants = [this.textureCacheKey_(path, true), this.textureCacheKey_(path, false)];
+            const reported = variants.filter(key => this.textureRefs_.hasPathClaim(key));
+            // A typed texture loader can coexist with a built-in flip variant.
+            // Prefer all value-only acquisitions over borrowing a receipt by path.
+            for (const key of reported.length || genericClaim ? reported : variants) {
+                const claim = this.textureRefs_.takeByPath(key);
+                if (!claim) continue;
+                const cached = this.textureCache_.get(key)?.value;
+                scope.add(this.textureLease_(claim, cached?.handle === claim.value ? cached : claim.value));
+            }
+            if (scope.size !== before && !genericClaim) return true;
+        }
+        if (!genericClaim) {
+            const slot = this.registrySlots_.takeByName(type, this.assetIdentity_(ref));
+            if (slot) { scope.add(slot); return true; }
+        }
+        const claim = this.genericRefs_.takeByPath(typedKey);
+        if (!claim) return false;
+        scope.add(this.typedLease_(type, claim, claim.value.value));
+        return true;
     }
 
     /**
@@ -2866,9 +2887,9 @@ export class Assets {
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
         try {
-            const lease = this.getLoader<T>(type)?.registry
-                ? await this.acquireTypedLease_<T>(type, ref)
-                : await this.acquireHandle_<T>(type, ref);
+            if (this.getLoader<T>(type)?.registry) return (await this.acquireTypedLease_<T>(type, ref)).value;
+            const lease = await this.acquireHandle_<T>(type, ref);
+            this.genericRefs_.leaveByPath(lease.key, lease.generation);
             return lease.value;
         } catch (error) { throw preparationFailureReason(error); }
     }

@@ -86,6 +86,22 @@ const Drawn = defineComponent('SleepPromotionDrawn', { visible: true }, { render
 describe('a scene load that fails leaves nothing of itself behind', () => {
     beforeEach(() => { clearDrawCallbacks(); });
 
+    it('reset removes the old systems before a scene of the same name runs', async () => {
+        const { app, manager } = harness();
+        const old = vi.fn(), current = vi.fn();
+        try {
+            manager.register({ name: 'level', systems: [{ schedule: Schedule.Update, system: defineSystem([], old) }] });
+            await manager.load('level');
+            await app.tick(1 / 60);
+            manager.reset();
+            manager.register({ name: 'level', systems: [{ schedule: Schedule.Update, system: defineSystem([], current) }] });
+            await manager.load('level');
+            await app.tick(1 / 60);
+            expect(old).toHaveBeenCalledOnce();
+            expect(current).toHaveBeenCalledOnce();
+        } finally { app.quit(); }
+    });
+
     it('gives back every kind of thing the scene owned, and a retry is clean', async () => {
         const { app, assets, manager, pp, unloaded } = harness();
         const base = assets.sizes().refRows;

@@ -70,9 +70,7 @@ export class SceneTransitionController {
         return new Promise((resolve, reject) => {
             const { duration, color, onComplete } = options;
 
-            options.onStart?.();
-
-            this.state_ = {
+            const state: TransitionState = {
                 phase: 'fade-out',
                 elapsed: 0,
                 duration,
@@ -83,11 +81,15 @@ export class SceneTransitionController {
                 outcome: { status: 'pending' },
             };
 
-            registerDrawCallback(TRANSITION_CALLBACK_ID, () => this.drawOverlay_());
-
-            // Fire the swap when we enter the 'loading' phase, not now — the
-            // fade-out needs to finish first. We kick it off from update().
+            this.state_ = state;
             this.performSwap_ = performSwap;
+            try {
+                options.onStart?.();
+                if (this.state_ === state) registerDrawCallback(TRANSITION_CALLBACK_ID, () => this.drawOverlay_());
+            } catch (error) {
+                if (this.state_ === state) this.teardown_();
+                reject(error);
+            }
         });
     }
 
@@ -104,6 +106,7 @@ export class SceneTransitionController {
             this.state_.phase = 'loading';
             this.state_.elapsed = 0;
             this.kickSwap_();
+            return;
         }
 
         // Phase 2 → 3 or reject: loading polls the outcome each frame. Elapsed
@@ -140,11 +143,12 @@ export class SceneTransitionController {
         }
     }
 
-    /** Forcibly drop any in-flight transition without resolving or rejecting. */
-    reset(): void {
-        if (this.state_) {
-            this.teardown_();
-        }
+    /** Drop the overlay and cancel its pending switch. */
+    reset(reason: Error): void {
+        const state = this.state_;
+        if (!state) return;
+        this.teardown_();
+        state.reject(reason);
     }
 
     private performSwap_: (() => Promise<void>) | null = null;

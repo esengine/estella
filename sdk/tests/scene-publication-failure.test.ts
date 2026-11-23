@@ -75,6 +75,78 @@ describe('overlapping registered scene loads', () => {
         } finally { assets.releaseAll(); app.quit(); }
     });
 
+    it.each(['reset', 'replace'])('returns speculative mesh receipts on registration %s', async mode => {
+        const { app, assets, manager, unloaded } = await registered();
+        try {
+            await manager.prepare('cell');
+            expect(assets.sizes().refRows).toBe(1);
+            if (mode === 'reset') manager.reset();
+            manager.register({ name: 'cell' });
+            await manager.load('cell');
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('reset cancels waiting loads and retires their unfinished setup while the same name can load again', async () => {
+        const { app, assets, manager, config, unloaded } = await registered();
+        const entered = barrier(), resume = barrier(), finished = barrier();
+        const setup = config.setup!;
+        config.setup = async ctx => {
+            await setup(ctx);
+            entered.open();
+            await resume.promise;
+            try { ctx.spawn(); } finally { finished.open(); }
+        };
+        try {
+            const cancelled = expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+            await entered.promise;
+            const pending = manager.whenLoadsSettle();
+            manager.reset();
+            await Promise.all([cancelled, pending]);
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(assets.sizes().refRows).toBe(0);
+            manager.register({ name: 'cell', setup: ctx => { ctx.spawn(); } });
+            const next = await manager.load('cell');
+            resume.open();
+            await finished.promise;
+            expect(manager.getScene('cell')).toBe(next);
+            expect(next.entities.size).toBe(1);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { resume.open(); assets.releaseAll(); app.quit(); }
+    });
+
+    it('reset keeps a retiring mesh, cancels the queued load and fences the old scheduler', async () => {
+        const { app, assets, manager, config, unloaded } = await registered();
+        connectFakeCpp(app.world);
+        const turn = barrier(), finished = barrier();
+        config.retire = async (entities, retirement) => {
+            retirement!.hideRoots();
+            await turn.promise;
+            for (const entity of entities) retirement!.despawn(entity);
+            finished.open();
+        };
+        try {
+            const first = await manager.load('cell'), [mesh] = first.entities;
+            const leaving = expect(manager.unload('cell', { staggered: true })).rejects.toBeInstanceOf(SceneLoadCancelled);
+            const queued = expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+            expect(app.world.has(mesh!, Disabled)).toBe(true);
+            manager.reset();
+            await Promise.all([leaving, queued]);
+            manager.register({ name: 'cell' });
+            const next = await manager.loadAdditive('cell');
+            next.adopt(mesh!);
+            turn.open();
+            await finished.promise;
+            expect(app.world.valid(mesh!)).toBe(true);
+            expect(app.world.has(mesh!, Disabled)).toBe(false);
+            expect(assets.sizes().refRows).toBe(1);
+            expect(manager.getActive()).toBeNull();
+            await manager.unload('cell');
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { turn.open(); assets.releaseAll(); app.quit(); }
+    });
+
     it('releases a discarded acquisition without consuming the preparation that replaced it', async () => {
         const { app, assets, manager, unloaded } = await registered();
         const began = barrier(), finish = barrier();
@@ -116,6 +188,61 @@ describe('overlapping registered scene loads', () => {
         } finally { manager.rush('cell'); await first.catch(() => {}); assets.releaseAll(); app.quit(); }
     });
 
+    it.each(['prepare', 'load', 'join'])('reset cancels a parked streamed %s without a new frame', async mode => {
+        const { app, manager, assets, config } = await registered(true);
+        const bakes = bakesOf(app), turn = bakes.turn.bind(bakes), parked = barrier();
+        const retryParked = barrier();
+        const gates = vi.spyOn(bakes, 'turn').mockImplementation(owner => {
+            (gates.mock.calls.length === 1 ? parked : retryParked).open();
+            return turn(owner);
+        });
+        const preload = vi.spyOn(assets, 'preloadSceneAssets');
+        try {
+            const started = mode === 'load' ? manager.load('cell') : manager.prepare('cell');
+            const cancelled = expect(started).rejects.toBeInstanceOf(SceneLoadCancelled);
+            await parked.promise;
+            const joined = mode === 'join' ? expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled) : null;
+            manager.reset();
+            await Promise.all([cancelled, joined]);
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(preload).not.toHaveBeenCalled();
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(assets.sizes().refRows).toBe(0);
+            manager.register(config);
+            const retry = manager.load('cell');
+            await retryParked.promise;
+            expect(bakes.turn).toHaveBeenCalledTimes(2);
+            manager.rush('cell');
+            expect((await retry).entities.size).toBe(1);
+            await manager.unload('cell');
+        } finally { manager.rush('cell'); assets.releaseAll(); app.quit(); }
+    });
+
+    it('discards the hidden part of a staged spawn without running its remaining component writes', async () => {
+        const { app, assets, config, manager, unloaded } = await registered(true);
+        connectFakeCpp(app.world);
+        const bakes = bakesOf(app), phases: string[] = [];
+        config.onPhase = phase => { phases.push(phase); };
+        try {
+            manager.urge('cell', true);
+            await manager.prepare('cell');
+            manager.urge('cell', false);
+            const cancelled = expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+            await vi.waitFor(() => expect(bakes.active).toHaveLength(1));
+            let clock = 0;
+            bakes.step(() => clock += 1000);
+            const [partial] = app.world.getAllEntities();
+            expect(app.world.has(partial!, Disabled)).toBe(true);
+            manager.reset();
+            await cancelled;
+            await vi.waitFor(() => expect(assets.sizes().refRows).toBe(0));
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(bakes.active).toHaveLength(0);
+            expect(phases).not.toContain('spawn.components');
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { manager.rush('cell'); assets.releaseAll(); app.quit(); }
+    });
+
     it('keeps newer callers joined when an unloaded instance finishes under the same name', async () => {
         const { app, assets, manager, config, unloaded } = await registered();
         const arrivals = [barrier(), barrier()], gates = [barrier(), barrier()];
@@ -138,13 +265,14 @@ describe('overlapping registered scene loads', () => {
             expect(manager.getLoading()).toEqual(['cell']);
             expect(app.world.getAllEntities()).toEqual([]);
             expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).not.toHaveBeenCalled();
             const third = manager.load('cell');
             gates[1]!.open();
             const ctx = await second;
             expect(await third).toBe(ctx);
             expect(ctx.entities.size).toBe(1);
             await manager.unload('cell');
-            expect(unloaded).toHaveBeenCalledTimes(2);
+            expect(unloaded).toHaveBeenCalledOnce();
         } finally { for (const gate of gates) gate.open(); assets.releaseAll(); app.quit(); }
     });
 

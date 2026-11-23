@@ -18,7 +18,7 @@ import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
-import { ensureBuiltinComponentsRegistered, Sprite, MeshRenderer, TrailRenderer } from '../src/ecs/component';
+import { ensureBuiltinComponentsRegistered, Disabled, SceneOwner, Sprite, MeshRenderer, TrailRenderer } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
@@ -100,6 +100,51 @@ async function settle(app: App, frames = 4): Promise<void> {
 describe('a persistent entity owns what it carries out of the scene', () => {
     beforeEach(() => { pool = createPoolFake(); });
 
+    it.each(['receipts', 'paths'])('reset keeps live sprite and mesh users and releases unused %s', async ownership => {
+        const { app, assets, manager } = harness(), world = app.world;
+        const freeMesh = vi.fn();
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async (path: string) => ({ handle: path === 'live.esmesh' ? 8 : 9 }), unload: freeMesh });
+        let sprite!: Entity, mesh!: Entity;
+        manager.register({ name: 'level', async setup(ctx) {
+            const scope = new AssetScope();
+            const texture = ownership === 'paths' ? await assets.loadTexture('hero.png')
+                : scope.add(await assets.acquireTexture('hero.png')).value;
+            for (const path of ['live.esmesh', 'unused.esmesh']) {
+                if (ownership === 'paths') await assets.load('mesh', path);
+                else scope.add(await assets.acquireTyped('mesh', path));
+            }
+            if (ownership === 'paths') ctx.trackAssets(new Map([
+                ['texture', new Set(['hero.png'])], ['mesh', new Set(['live.esmesh', 'unused.esmesh'])],
+            ]));
+            else ctx.trackAssetScope(scope);
+            sprite = ctx.spawn(); mesh = ctx.spawn();
+            world.insert(sprite, Sprite, { texture: texture.handle });
+            world.insert(mesh, MeshRenderer, { mesh: 8, texture: texture.handle });
+            world.insert(mesh, Disabled, {});
+        } });
+        try {
+            const previous = await manager.load('level');
+            manager.sleep('level');
+            manager.reset();
+            expect(world.get(sprite, SceneOwner).scene).toBe('');
+            expect(world.get(mesh, SceneOwner).scene).toBe('');
+            expect(previous.entities.size).toBe(0);
+            expect(world.has(sprite, Disabled)).toBe(false);
+            expect(world.has(mesh, Disabled)).toBe(true);
+            expect(world.get(sprite, Sprite).enabled).toBe(true);
+            expect(assets.entityScopes.scopeFor(sprite, world)?.size).toBe(1);
+            expect(assets.entityScopes.scopeFor(mesh, world)?.size).toBe(2);
+            expect(freeMesh.mock.calls.map(([item]) => item.handle)).toEqual([9]);
+            manager.reset();
+            world.despawn(mesh);
+            expect(freeMesh.mock.calls.map(([item]) => item.handle)).toEqual([9, 8]);
+            expect(pool.releaseTexture).not.toHaveBeenCalled();
+            world.despawn(sprite);
+            expect(pool.releaseTexture).toHaveBeenCalledOnce();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it('retains the mesh and the texture independently when their pools return the same handle', async () => {
         const { app, assets, manager } = harness();
         const releaseMesh = vi.fn();
@@ -123,6 +168,53 @@ describe('a persistent entity owns what it carries out of the scene', () => {
         app.world.despawn(entity);
         expect(pool.releaseTexture).toHaveBeenCalledWith(1);
         expect(releaseMesh).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the value-only texture generation and leaves another owner’s raw variant and older era intact', async () => {
+        const { app, assets, manager } = harness();
+        const older = await assets.acquireTexture('hero.png');
+        const raw = await assets.acquireTexture('hero.png', false);
+        assets.invalidate('hero.png');
+        const fresh = await assets.loadTexture('hero.png');
+        try {
+            manager.register({ name: 'level', setup(ctx) {
+                const sprite = ctx.spawn();
+                app.world.insert(sprite, Sprite, { texture: fresh.handle });
+                const tracked = new Map([['texture', new Set(['hero.png'])]]);
+                ctx.trackAssets(tracked);
+                ctx.trackAssets(tracked);
+            } });
+            const ctx = await manager.load('level'), [sprite] = ctx.entities;
+            manager.reset();
+            expect(assets.sizes().refRows).toBe(3);
+            expect(assets.entityScopes.scopeFor(sprite!, app.world)?.leases().map(l => l.generation)).toHaveLength(1);
+            app.world.despawn(sprite!);
+            expect(pool.releaseTexture.mock.calls).toEqual([[fresh.handle]]);
+            older.release(); raw.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('takes a typed texture path without consuming another owner’s built-in receipt', async () => {
+        const { app, assets, manager } = harness();
+        const builtin = await assets.acquireTexture('hero.png');
+        const unload = vi.fn();
+        assets.register({ type: 'texture', extensions: ['.png'], load: async () => ({ handle: 37 }), unload });
+        try {
+            const texture = await assets.load<{ handle: number }>('texture', 'hero.png');
+            manager.register({ name: 'level', setup(ctx) {
+                app.world.insert(ctx.spawn(), Sprite, { texture: texture.handle });
+                ctx.trackAssets(new Map([['texture', new Set(['hero.png'])]]));
+            } });
+            const ctx = await manager.load('level'), [sprite] = ctx.entities;
+            manager.reset();
+            expect(assets.entityScopes.scopeFor(sprite!, app.world)?.size).toBe(1);
+            app.world.despawn(sprite!);
+            expect(unload).toHaveBeenCalledOnce();
+            expect(pool.releaseTexture).not.toHaveBeenCalled();
+            builtin.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
     });
 
     it('hot rebind releases the outgoing texture even when a mesh has the same handle', async () => {

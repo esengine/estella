@@ -1175,11 +1175,12 @@ describe('SceneManager', () => {
             manager.register({ name: 'level2', data: makeSceneData() });
             await manager.load('level1');
 
-            manager.switchTo('level2', { transition: 'fade', duration: 1.0 });
+            const cancelled = expect(manager.switchTo('level2', { transition: 'fade', duration: 1.0 })).rejects.toBeInstanceOf(SceneLoadCancelled);
             await Promise.resolve();
             expect(manager.isTransitioning()).toBe(true);
 
             manager.reset();
+            await cancelled;
             expect(manager.isTransitioning()).toBe(false);
             expect(unregisterDrawCallback).toHaveBeenCalledWith('__scene_transition_overlay__');
         });

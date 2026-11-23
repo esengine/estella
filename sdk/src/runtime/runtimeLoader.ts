@@ -626,6 +626,14 @@ interface PublicationTarget {
 
 type SpreadSceneSpawn = (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>;
 
+function assertSceneContext(app: App, context?: SceneContext | null): void {
+    if (!context || !app.hasResource(SceneManager)) return;
+    const manager = app.getResource(SceneManager);
+    if (manager.getScene(context.name) !== context || manager.getSceneStatus(context.name) === 'unloading') {
+        throw new SceneLoadCancelled(context.name);
+    }
+}
+
 /**
  * Bring a prepared scene into the world.
  *
@@ -659,6 +667,7 @@ async function publishPreparedScene(
     const { sceneData, assetResult, spineManager, spineAssetInfo,
             dragonBonesManager, dragonBonesAssetInfo } = prepared;
     const { app, module, uiTheme, uiThemeOverrides, sceneName, onPhase } = prepared.options;
+    assertSceneContext(app, now?.context);
     const links = now?.externalEntities;
     const externalEntities = (typeof links === 'function' ? links() : links) ?? prepared.options.externalEntities;
     const timed = scenePhaseRunner(onPhase);
@@ -683,7 +692,15 @@ async function publishPreparedScene(
         const spawning: StagedSpawn = { entities: new Map(), hidden: [] };
         attempt.entities = spawning.entities;
         const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning);
-        try { staged = await spread(job); }
+        function* whileOwned(): Generator<number, StagedSpawn, void> {
+            for (;;) {
+                assertSceneContext(app, ctx);
+                const step = job.next();
+                if (step.done) return step.value;
+                yield step.value;
+            }
+        }
+        try { staged = await spread(ctx ? whileOwned() : job); }
         finally { job.return(spawning); }
         entityMap = staged.entities;
     } else {
@@ -692,6 +709,7 @@ async function publishPreparedScene(
             return attempt.entities;
         });
     }
+    assertSceneContext(app, ctx);
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
@@ -791,6 +809,7 @@ export function createRuntimeSceneConfig(
         done: Promise<PreparedRuntimeScene>;
         ready?: PreparedRuntimeScene;
         discarded: boolean;
+        assertOwner?: () => void;
     }
     let preparation: Preparation | undefined;
     // A streamed cell's work over frames: the one job in hand (its arrival or its departure), and whether a player would
@@ -821,6 +840,7 @@ export function createRuntimeSceneConfig(
         ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
         : undefined;
     const readied = async (sceneOwned?: boolean, assertActive?: () => void): Promise<PreparedRuntimeScene> => {
+        assertActive?.();
         const nextTurn = gate && assertActive ? async () => { assertActive(); await gate(); assertActive(); } : gate;
         let data = sceneData;
         if (!data) {
@@ -855,8 +875,10 @@ export function createRuntimeSceneConfig(
                 const pending: Preparation = {
                     discarded: false,
                     done: Promise.resolve().then(async () => {
-                        const assertActive = (): void => { if (pending.discarded) throw new SceneLoadCancelled(name); };
-                        assertActive();
+                        const assertActive = (): void => {
+                            if (pending.discarded) throw new SceneLoadCancelled(name);
+                            pending.assertOwner?.();
+                        };
                         const ready = await readied(undefined, assertActive);
                         if (pending.discarded) {
                             ready.assetResult.scope.releaseAll();
@@ -903,7 +925,9 @@ export function createRuntimeSceneConfig(
         async setup(context) {
             const pending = preparation;
             preparation = undefined;
-            const ready = await (pending?.done ?? readied(!!context));
+            const assertOwner = () => assertSceneContext(options.app, context);
+            if (pending) pending.assertOwner = assertOwner;
+            const ready = await (pending?.done ?? readied(!!context, assertOwner));
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },

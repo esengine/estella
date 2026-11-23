@@ -49,8 +49,12 @@ export interface AssetRefGeneration<T> {
     superseded: boolean;
 }
 
+interface TrackedGeneration<T> extends AssetRefGeneration<T> {
+    pathClaims: number;
+}
+
 export class AssetRefLedger<T> {
-    private byKey_ = new Map<string, Array<AssetRefGeneration<T>>>();
+    private byKey_ = new Map<string, Array<TrackedGeneration<T>>>();
     private nextId_ = 1;
 
     /** The first waiter registers the load. Later waiters join that exact generation. */
@@ -78,12 +82,12 @@ export class AssetRefLedger<T> {
             this.byKey_.set(key, generations);
         }
         const current = generations[generations.length - 1];
-        let generation: AssetRefGeneration<T>;
+        let generation: TrackedGeneration<T>;
         if (current && !current.superseded && current.value === value) {
             current.count++;
             generation = current;
         } else {
-            generation = { id: this.nextId_++, value, count: 1, superseded: false };
+            generation = { id: this.nextId_++, value, count: 1, superseded: false, pathClaims: 0 };
             generations.push(generation);
         }
         const lease: LeaseImpl<T> = { key, generation: generation.id, value, spent: false };
@@ -99,6 +103,26 @@ export class AssetRefLedger<T> {
      */
     retain(lease: AssetRefLease<T>): AssetRefLease<T> | undefined {
         return this.retainGeneration_(lease.key, lease.generation);
+    }
+
+    /** The value-only load returned its value and left its acquisition addressable by path. */
+    leaveByPath(key: string, id: number): void {
+        const era = this.byKey_.get(key)?.find(g => g.id === id);
+        if (era) era.pathClaims++;
+    }
+
+    hasPathClaim(key: string): boolean {
+        return this.byKey_.get(key)?.some(era => era.pathClaims > 0) ?? false;
+    }
+
+    /** Wrap one existing path claim in a receipt, without adding another holder. */
+    takeByPath(key: string): AssetRefLease<T> | undefined {
+        const eras = this.byKey_.get(key);
+        const era = eras?.find(g => g.pathClaims > 0) ?? eras?.[0];
+        if (!era) return undefined;
+        if (era.pathClaims) era.pathClaims--;
+        const receipt: LeaseImpl<T> = { key, generation: era.id, value: era.value, spent: false };
+        return receipt;
     }
 
     private retainGeneration_(key: string, id: number): AssetRefLease<T> | undefined {
@@ -158,6 +182,7 @@ export class AssetRefLedger<T> {
         const ambiguous = generations.length > 1;
 
         const oldest = generations[0];
+        if (oldest.pathClaims) oldest.pathClaims--;
         oldest.count--;
         if (oldest.count > 0) return { value: oldest.value, exhausted: false, ambiguous };
 

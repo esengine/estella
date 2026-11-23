@@ -9,10 +9,8 @@
  * was missing four steps: a failed load released no assets, removed no systems,
  * unregistered no draw callbacks and unbound no post-process.
  *
- *   1. `unload` and `rollbackFailedLoad_` perform no teardown of their own —
- *      both go through disposeSceneOwnedState_. A third door that tears scenes
- *      down its own way (reset) has to SAY so, with the reason: a silent copy
- *      is how the second one came to be missing four steps.
+ *   1. Unload, rollback and reset use disposeSceneOwnedState_. Their policies
+ *      decide which entities survive. All three release a scene's services.
  *   2. The protocol still performs all of them. Emptying a collection is not
  *      giving its contents back: dropping the `removeSystem` loop while keeping
  *      `systemIds.length = 0` leaves the systems running and looks tidy.
@@ -34,8 +32,7 @@ if (!existsSync(path.join(ROOT, FILE))) {
 }
 
 /** Comments out, line numbers intact. */
-const raw = readFileSync(path.join(ROOT, FILE), 'utf8');
-const src = stripComments(raw);
+const src = stripComments(readFileSync(path.join(ROOT, FILE), 'utf8'));
 
 /**
  * One method body, braces balanced. Anchored at the member declaration: matching
@@ -69,7 +66,7 @@ if (!/\bbatch\.despawn\s*\(/.test(dispose.text) || !/\bthis\.world\.despawn\s*\(
 }
 const protocol = dispose.text + releaseAssets.text;
 
-// --- 1. neither door tears down on its own ---------------------------------
+// --- 1. every exit goes through shared teardown ----------------------------
 const TEARDOWN_OPS = [
   /\b(?:world|batch)\.despawn\s*\(/,
   /\bunregisterDrawCallback\s*\(/,
@@ -78,28 +75,20 @@ const TEARDOWN_OPS = [
   /\breleaseAll\s*\(/,
   /\breleaseAssets\s*\(/,
 ];
-for (const name of ['unload', 'rollbackFailedLoad_']) {
+for (const name of ['unload', 'rollbackFailedLoad_', 'reset']) {
   const body = methodBody(name);
   if (!body) {
     findings.push(`${FILE}  ${name}() is gone — this guard is reading the wrong file.`);
     continue;
+  }
+  if (!/\bdisposeSceneOwnedState_\s*\(/.test(body.text)) {
+    findings.push(`${FILE}:${body.line}  ${name}() must release scene state through disposeSceneOwnedState_.`);
   }
   for (const op of TEARDOWN_OPS) {
     if (!op.test(body.text)) continue;
     findings.push(`${FILE}:${body.line}  ${name}() tears down on its own (${op.source}) instead of through disposeSceneOwnedState_ — that is how the two copies came to disagree.`);
     break;
   }
-}
-
-// --- 1b. a door that deliberately differs says so --------------------------
-const reset = methodBody('reset');
-if (!reset) {
-  findings.push(`${FILE}  reset() is gone — this guard is reading the wrong file.`);
-  // The marker is read from the RAW text: it is a comment, and `src` has had
-  // its comments taken out.
-} else if (!/\bdisposeSceneOwnedState_\s*\(/.test(reset.text)
-           && !/scene-teardown:\s*\S/.test(raw.split('\n').slice(Math.max(0, reset.line - 9), reset.line - 1).join('\n'))) {
-  findings.push(`${FILE}:${reset.line}  reset() drops scenes without the shared teardown and without saying why — write \`// scene-teardown: <why>\` above it, or go through disposeSceneOwnedState_.`);
 }
 
 // --- 2. and the protocol still performs every one of them ------------------

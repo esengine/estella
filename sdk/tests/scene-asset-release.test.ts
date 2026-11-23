@@ -61,6 +61,7 @@ import { Material } from '../src/render/material';
 function withBatchRelease(stub: Record<string, unknown>): Record<string, unknown> {
     return {
         ...stub,
+        takeTrackedAsset: () => false,
         releaseAssets(byType: ReadonlyMap<string, ReadonlySet<string>>) {
             for (const [type, paths] of byType) {
                 if (type === 'material' || type === 'spine') continue;
@@ -225,14 +226,8 @@ describe('Scene unload releases all tracked asset categories', () => {
         const app = createMockApp(assetsStub);
         const manager = new SceneManagerState(app as never);
         manager.register({ name: 'level1', data: { version: '1.0', name: 'level1', entities: [] } });
-        await manager.load('level1');
-
-        // Seeded directly: discovery needs the component registry, and the claim
-        // here is about the release wiring, not about what a scene declares.
-        const instance = (manager as unknown as {
-            scenes_: Map<string, { loadedByType: Map<string, Set<string>> }>;
-        }).scenes_.get('level1')!;
-        for (const [type, path] of TRACKED) instance.loadedByType.set(type, new Set([path]));
+        const ctx = await manager.load('level1');
+        ctx.trackAssets(new Map(TRACKED.map(([type, path]) => [type, new Set([path])])));
 
         await manager.unload('level1');
 

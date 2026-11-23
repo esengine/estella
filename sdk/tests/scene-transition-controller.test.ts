@@ -134,19 +134,43 @@ describe('SceneTransitionController', () => {
         expect(ctrl.isTransitioning()).toBe(false);
     });
 
-    it('reset() clears in-flight transitions without resolve/reject', () => {
+    it('reset() clears the overlay and rejects the pending transition', async () => {
         drawCalls.register.mockClear();
         drawCalls.unregister.mockClear();
         const ctrl = new SceneTransitionController();
-        void ctrl.start(
+        const cancelled = new Error('reset');
+        const waiting = expect(ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 } },
             async () => { /* noop */ },
-        );
+        )).rejects.toBe(cancelled);
         expect(ctrl.isTransitioning()).toBe(true);
 
-        ctrl.reset();
+        ctrl.reset(cancelled);
+        await waiting;
         expect(ctrl.isTransitioning()).toBe(false);
         expect(drawCalls.unregister).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets onStart reset its own transition before installing the overlay', async () => {
+        drawCalls.register.mockClear();
+        const ctrl = new SceneTransitionController(), cancelled = new Error('reset');
+        const swap = vi.fn(async () => {});
+        await expect(ctrl.start({ duration: 1, color: { r: 0, g: 0, b: 0, a: 1 },
+            onStart: () => ctrl.reset(cancelled) }, swap)).rejects.toBe(cancelled);
+        ctrl.update(1);
+        expect(ctrl.isTransitioning()).toBe(false);
+        expect(drawCalls.register).not.toHaveBeenCalled();
+        expect(swap).not.toHaveBeenCalled();
+    });
+
+    it('lets a swap reset the transition during the frame that starts it', async () => {
+        const ctrl = new SceneTransitionController(), cancelled = new Error('reset');
+        const pending = ctrl.start({ duration: 1, color: { r: 0, g: 0, b: 0, a: 1 } },
+            async () => ctrl.reset(cancelled));
+        const rejected = expect(pending).rejects.toBe(cancelled);
+        ctrl.update(0.6);
+        await rejected;
+        expect(ctrl.isTransitioning()).toBe(false);
     });
 
     it('invokes onStart at start and onComplete only on success', async () => {

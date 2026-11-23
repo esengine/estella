@@ -27,6 +27,8 @@ import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
+import { disposeAll } from '../util/disposeAll';
+import { createAbort } from '../util/abort';
 
 // =============================================================================
 // Types
@@ -36,6 +38,8 @@ import { log } from '../util/logger';
  *  does not — see {@link SceneManagerState.pause} and `sleep`.
  *  @beta */
 export type SceneStatus = 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading';
+
+type SceneSurvival = 'all' | 'persistent' | 'none';
 
 /** Operations supplied to a scene's staggered unload hook. @beta */
 export interface SceneRetirement {
@@ -114,9 +118,8 @@ export interface SceneContext {
     /**
      * Take over the receipts a loader acquired for this scene.
      *
-     * What {@link trackAssets} is for a caller that only ever had paths. A
-     * caller holding receipts hands them over instead: unload then gives back
-     * the acquisitions this load made, not the oldest ones sharing their path.
+     * A receipt identifies the exact acquisition even when several generations
+     * share a path. A value-only loader can report paths through {@link trackAssets}.
      */
     trackAssetScope(scope: AssetScope): void;
     despawn(entity: Entity): void;
@@ -166,13 +169,8 @@ class SceneInstance {
      * scene's refs resolve to by then.
      */
     readonly assetScope = new AssetScope();
-    /**
-     * Path-keyed assets registered by a loader that did its own acquiring
-     * ({@link SceneContext.trackAssets}) — a packaged scene carries no data, so
-     * the manager's preload never ran for it. Released by path, because a path
-     * is all such a caller ever had.
-     */
-    readonly loadedByType = new Map<string, Set<string>>();
+    /** Paths reported by a loader, and whether the live asset store supplied their receipts. */
+    readonly loadedByType = new Map<string, Map<string, boolean>>();
     status: SceneStatus = 'loading';
 
     constructor(config: SceneConfig) {
@@ -231,13 +229,16 @@ class SceneContextImpl implements SceneContext {
 
     trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void {
         this.assertCurrent_();
+        const assets = this.app_.hasResource(Assets) ? this.app_.getResource(Assets) : null;
         for (const [type, paths] of byType) {
             // Materials are handle-keyed and skeletons belong to the
             // SpineManager; both are released through their own doors.
             if (type === 'material' || type === 'spine') continue;
             let bucket = this.instance_.loadedByType.get(type);
-            if (!bucket) { bucket = new Set(); this.instance_.loadedByType.set(type, bucket); }
-            for (const path of paths) bucket.add(path);
+            if (!bucket) { bucket = new Map(); this.instance_.loadedByType.set(type, bucket); }
+            for (const path of paths) {
+                if (!bucket.has(path)) bucket.set(path, assets?.takeTrackedAsset(type, path, this.instance_.assetScope) ?? false);
+            }
         }
     }
 
@@ -287,7 +288,7 @@ class SceneContextImpl implements SceneContext {
  */
 export class SceneLoadCancelled extends Error {
     constructor(name: string) {
-        super(`Scene load for "${name}" was cancelled (the scene was unloaded mid-load)`);
+        super(`Scene load for "${name}" was cancelled (the scene was unloaded or the manager was reset)`);
         this.name = 'SceneLoadCancelled';
     }
 }
@@ -314,7 +315,8 @@ export class SceneManagerState {
     private activeScene_: string | null = null;
     private initialScene_: string | null = null;
     private readonly transitionController_ = new SceneTransitionController();
-    private switching_ = false;
+    private switching_: string | null = null;
+    private lifetime_ = createAbort();
     private loadPromises_ = new Map<string, Promise<SceneContext>>();
     /** Staggered unloads in flight: a load of the same name waits, rather than taking up a scene half torn down. */
     private unloadPromises_ = new Map<string, Promise<void>>();
@@ -334,27 +336,15 @@ export class SceneManagerState {
         }) ?? null;
     }
 
-    /**
-     * Forget the scenes while the caller keeps the World.
-     *
-     * scene-teardown: NOT the shared protocol. Entities stay, so what they still
-     * render must not be released under them — and a dropped instance therefore
-     * keeps its receipts and systems. No caller in this repo says if that is right.
-     */
+    /** Forget registrations and scene services. Committed entities keep their live assets in the World. */
     reset(): void {
+        const instances = [...this.scenes_.values()], configs = [...this.configs_.values()];
+        const committed = new Set(this.loadOrder_), sleeping = new Set(this.sleepingScenes_);
+        const lifetime = this.lifetime_;
+        this.lifetime_ = createAbort();
         this.stopEntityTracking_?.();
         this.stopEntityTracking_ = null;
-        for (const instance of this.scenes_.values()) {
-            for (const id of instance.drawCallbacks.keys()) {
-                unregisterDrawCallback(id);
-            }
-            const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
-            for (const camera of instance.postProcessBindings.keys()) {
-                pp?.unbind(camera);
-            }
-        }
-
-        this.transitionController_.reset();
+        if (this.switching_ !== null) this.transitionController_.reset(new SceneLoadCancelled(this.switching_));
 
         this.configs_.clear();
         this.scenes_.clear();
@@ -365,12 +355,30 @@ export class SceneManagerState {
         this.loadOrder_.length = 0;
         this.activeScene_ = null;
         this.initialScene_ = null;
-        this.switching_ = false;
+        this.switching_ = null;
         this.loadPromises_.clear();
+        this.unloadPromises_.clear();
+        lifetime.abort();
+
+        disposeAll([
+            () => disposeAll(configs, config => config.discardPrepared?.()),
+            () => disposeAll(instances, instance => {
+                const name = instance.config.name;
+                try { this.disposeSceneOwnedState_(instance, committed.has(name) ? 'all' : 'none', sleeping.has(name)); }
+                finally {
+                    if (instance.status === 'loading' || instance.status === 'unloading') {
+                        try { instance.config.rush?.(); }
+                        finally { instance.config.urge?.(false); }
+                    }
+                }
+            }),
+        ], dispose => dispose());
     }
 
     register(config: SceneConfig): void {
+        const previous = this.configs_.get(config.name);
         this.configs_.set(config.name, config);
+        if (previous && previous !== config) previous.discardPrepared?.();
     }
 
     setInitial(name: string): void {
@@ -409,17 +417,18 @@ export class SceneManagerState {
         options: TransitionOptions | undefined,
         reload: boolean,
     ): Promise<void> {
-        if (this.transitionController_.isTransitioning() || this.switching_) {
+        if (this.transitionController_.isTransitioning() || this.switching_ !== null) {
             log.warn('scene', `Scene switch already in progress, ignoring switchTo("${name}")`);
             return;
         }
 
         // One lock for both paths: "one switch at a time" is a single invariant,
         // and a faded switch must hold the same one a plain switch does.
-        this.switching_ = true;
+        const { signal } = this.lifetime_;
+        this.switching_ = name;
         try {
             if ((options?.transition ?? 'none') !== 'fade') {
-                await this.swapTo_(name, options, reload);
+                await this.swapTo_(name, options, reload, signal);
                 return;
             }
             await this.transitionController_.start(
@@ -429,24 +438,26 @@ export class SceneManagerState {
                     onStart: options?.onStart,
                     onComplete: options?.onComplete,
                 },
-                () => this.swapTo_(name, options, reload),
+                () => this.swapTo_(name, options, reload, signal),
             );
         } finally {
-            this.switching_ = false;
+            if (!signal.aborted) this.switching_ = null;
         }
     }
 
     /** The swap itself: retire whatever is active, bring `name` up. */
     private async swapTo_(
         name: string,
-        options?: TransitionOptions,
-        reload = false,
+        options: TransitionOptions | undefined,
+        reload: boolean, signal: AbortSignal,
     ): Promise<void> {
+        if (signal.aborted) throw new SceneLoadCancelled(name);
         // Read at swap time, not at switchTo time: a fade puts half a second
         // between the two, and the scene to retire is the one active NOW.
         const outgoing = this.activeScene_;
         if (outgoing && (reload || outgoing !== name)) {
             await this.unload(outgoing, options);
+            if (signal.aborted) throw new SceneLoadCancelled(name);
         }
         await this.load(name);
     }
@@ -471,7 +482,8 @@ export class SceneManagerState {
      */
     async prepare(name: string): Promise<void> {
         if (this.scenes_.has(name)) return;
-        await this.configs_.get(name)?.prepare?.();
+        const config = this.configs_.get(name);
+        if (config?.prepare) await this.untilReset_(name, () => config.prepare!());
     }
 
     /**
@@ -482,7 +494,7 @@ export class SceneManagerState {
     async readyRenderPrograms(name: string): Promise<RenderReadiness> {
         if (this.scenes_.has(name)) return { applicable: false };
         const ready = this.configs_.get(name)?.readyRenderPrograms;
-        return ready ? ready() : { applicable: false };
+        return ready ? this.untilReset_(name, ready) : { applicable: false };
     }
 
     /**
@@ -515,12 +527,16 @@ export class SceneManagerState {
         mode: 'exclusive' | 'additive',
         onProgress?: SceneLoadProgressCallback,
     ): Promise<SceneContext> {
+        const { signal } = this.lifetime_;
         const adopt = (): void => {
             if (mode === 'additive') this.additiveScenes_.add(name);
             else this.activeScene_ = name;
         };
         const leaving = this.unloadPromises_.get(name);
-        if (leaving) await leaving.catch(() => undefined);
+        if (leaving) {
+            await leaving.catch(() => undefined);
+            if (signal.aborted) throw new SceneLoadCancelled(name);
+        }
 
         if (this.scenes_.has(name)) {
             const existing = this.scenes_.get(name)!;
@@ -550,7 +566,7 @@ export class SceneManagerState {
             entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance));
         this.contexts_.set(name, ctx);
 
-        const loadPromise = (async (): Promise<SceneContext> => {
+        const populate = async (): Promise<SceneContext> => {
             let sceneData = config.data;
             if (!sceneData && config.path) {
                 const began = performance.now();
@@ -567,19 +583,20 @@ export class SceneManagerState {
             }
 
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
-
+            if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
             instance.status = 'running';
             adopt();
             this.loadOrder_.push(name);
             return ctx;
-        })();
-
-        this.loadPromises_.set(name, loadPromise);
-        try {
-            return await loadPromise;
-        } catch (err) {
+        };
+        const loadPromise = this.untilReset_(name, () => populate().catch(err => {
             this.rollbackFailedLoad_(name, instance);
             throw err;
+        }));
+
+        if (!signal.aborted) this.loadPromises_.set(name, loadPromise);
+        try {
+            return await loadPromise;
         } finally {
             if (this.loadPromises_.get(name) === loadPromise) this.loadPromises_.delete(name);
         }
@@ -589,11 +606,10 @@ export class SceneManagerState {
      * Roll back a load that threw partway, through the teardown a successful
      * unload runs: a half-loaded scene owns what a loaded one owns.
      *
-     * `keepPersistent: false` because persistence is a property of a COMMITTED
-     * scene — a failed load cannot promote an entity into a global one.
+     * Persistence takes effect when the scene commits.
      */
     private rollbackFailedLoad_(name: string, instance: SceneInstance): void {
-        this.disposeSceneOwnedState_(instance, false, false);
+        this.disposeSceneOwnedState_(instance, 'none', false);
         this.removeSceneSlot_(name, instance);
     }
 
@@ -605,12 +621,15 @@ export class SceneManagerState {
      * rollback then runs over it again — over whatever its setup added between.
      */
     private disposeSceneOwnedState_(
-        instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
+        instance: SceneInstance, survival: SceneSurvival, wasSleeping: boolean,
         retire?: SceneConfig['retire'],
     ): Promise<void> | void {
-        const { survivors, doomed } = this.partitionOnUnload_(instance, keepPersistent);
+        const { survivors, doomed } = this.partitionOnUnload_(instance, survival);
         const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed);
-        for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
+        for (const survivor of survivors) {
+            batch.release(survivor);
+            this.promoteToGlobal_(instance, survivor, wasSleeping);
+        }
         const finish = (): void => {
             for (const entity of doomed) batch.despawn(entity);
             instance.entities.clear();
@@ -645,21 +664,17 @@ export class SceneManagerState {
         })();
     }
 
-    /**
-     * Who lives through this unload and who does not, decided before anything is
-     * destroyed. Persistence is only asked of a scene that COMMITTED: a rollback
-     * passes `keepPersistent: false`, and everything it made is doomed.
-     */
+    /** Decide survival before subtree destruction, including committed entities handed back to the World at reset. */
     private partitionOnUnload_(
-        instance: SceneInstance, keepPersistent: boolean,
+        instance: SceneInstance, survival: SceneSurvival,
     ): { survivors: Entity[]; doomed: Entity[] } {
         const world = this.app_.world;
         const survivors: Entity[] = [];
         const doomed: Entity[] = [];
         for (const entity of instance.entities) {
-            if (!world.valid(entity)) continue;
-            const owner = keepPersistent ? world.tryGet(entity, SceneOwner) : null;
-            if (owner?.persistent) survivors.push(entity);
+            if (!world.valid(entity) || world.isDestructionPending?.(entity)) continue;
+            const keep = survival === 'all' || (survival === 'persistent' && world.tryGet(entity, SceneOwner)?.persistent);
+            if (keep) survivors.push(entity);
             else doomed.push(entity);
         }
         return { survivors, doomed };
@@ -675,8 +690,8 @@ export class SceneManagerState {
     private promoteToGlobal_(instance: SceneInstance, entity: Entity, wasSleeping: boolean): void {
         const world = this.app_.world;
         this.promoteAssetOwnership_(instance, entity);
-        const data = world.get(entity, SceneOwner);
-        if (data.scene !== '') {
+        const data = world.tryGet(entity, SceneOwner);
+        if (data?.scene) {
             data.scene = '';
             world.insert(entity, SceneOwner, data);
         }
@@ -780,20 +795,22 @@ export class SceneManagerState {
             }
         }
 
+        if (this.scenes_.get(name) !== instance) return;
         const retire = options?.staggered ? instance.config.retire : undefined;
+        const survival = options?.keepPersistent === false ? 'none' : 'persistent';
         if (!retire) {
-            this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping);
-            this.removeSceneSlot_(name, instance);
+            try { this.disposeSceneOwnedState_(instance, survival, wasSleeping); }
+            finally { this.removeSceneSlot_(name, instance); }
             return;
         }
-        const leaving = (async () => {
+        const leaving = this.untilReset_(name, async () => {
             try {
-                await this.disposeSceneOwnedState_(instance, options?.keepPersistent ?? true, wasSleeping, retire);
+                await this.disposeSceneOwnedState_(instance, survival, wasSleeping, retire);
             } finally {
                 this.removeSceneSlot_(name, instance);
             }
-        })();
-        this.unloadPromises_.set(name, leaving);
+        });
+        if (this.scenes_.get(name) === instance) this.unloadPromises_.set(name, leaving);
         try {
             await leaving;
         } finally {
@@ -803,6 +820,20 @@ export class SceneManagerState {
 
     private acceptsSceneWork_(instance: SceneInstance): boolean {
         return !instance.retirement && this.scenes_.get(instance.config.name) === instance;
+    }
+
+    /** A reset settles callers even when a loader or a custom frame scheduler is still waiting outside the engine. */
+    private untilReset_<T>(name: string, start: () => Promise<T>): Promise<T> {
+        const { signal } = this.lifetime_;
+        return new Promise<T>((resolve, reject) => {
+            const cancel = () => {
+                signal.removeEventListener('abort', cancel);
+                reject(new SceneLoadCancelled(name));
+            };
+            signal.addEventListener('abort', cancel);
+            try { start().then(resolve, reject).finally(() => signal.removeEventListener('abort', cancel)); }
+            catch (error) { signal.removeEventListener('abort', cancel); reject(error); }
+        });
     }
 
     /**
@@ -819,9 +850,8 @@ export class SceneManagerState {
         sceneData: SceneData | undefined,
         onProgress?: SceneLoadProgressCallback,
     ): Promise<void> {
+        if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
         if (sceneData) {
-            instance.loadedByType.clear();
-
             const collectAssets: LoadedSceneAssets = {
                 // What the scene DECLARED is an intention; ownership is the set
                 // of receipts the preload hands back, and only successful
@@ -893,15 +923,16 @@ export class SceneManagerState {
             ? this.app_.getResource(Assets)
             : null;
 
-        // What this scene actually acquired, given back by receipt. Materials
-        // included — their leases are in here too, so releasing them again by
-        // handle below would be the double free this whole path exists to stop.
-        instance.assetScope.releaseAll();
-
-        // Assets a loader acquired on its own and only registered by path.
-        assetsRes?.releaseAssets(instance.loadedByType);
-
+        // Keep path-based cleanup for acquisitions the loader could not bind to receipts.
+        const unresolved = new Map<string, Set<string>>();
+        for (const [type, paths] of instance.loadedByType) {
+            const remaining = new Set<string>();
+            for (const [path, captured] of paths) if (!captured) remaining.add(path);
+            if (remaining.size) unresolved.set(type, remaining);
+        }
         instance.loadedByType.clear();
+        try { instance.assetScope.releaseAll(); }
+        finally { if (unresolved.size) assetsRes?.releaseAssets(unresolved); }
     }
 
     /**

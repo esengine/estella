@@ -247,6 +247,15 @@ export class RegistryAssetSlots {
         return true;
     }
 
+    /** Transfer one existing path-based claim to a receipt for the same published slot. */
+    takeByName(type: string, name: string): RegistrySlotLease<unknown> | undefined {
+        const slot = this.byName_.get(assetPairKey(type, name));
+        if (!slot?.era || !slot.refs) return undefined;
+        const receipt = this.lease_(slot);
+        this.drop_(slot);
+        return receipt;
+    }
+
     private lease_<T>(slot: Slot<T>, unclaim?: () => void): RegistrySlotLease<T> {
         slot.refs++;
         let spent = false;
