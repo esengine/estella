@@ -246,7 +246,9 @@ function finish(result, server) {
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) && (result.studio?.ok ?? true) && (result.shading?.ok ?? true) && (result.skinWeights?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.clusterView?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.gpuFrame?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
-  const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
+  let why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
+  const missed = result.expect?.points?.find((point) => !point.ok);
+  if (missed) why += `: pixel (${missed.x}, ${missed.y}) expected [${missed.want}], got [${missed.got}]`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {

@@ -21,7 +21,8 @@ const SLOTS = [[-75, -50], [-25, -50], [25, -50], [75, -50], [-75, 50], [-25, 50
 const TOPS = [5, 45, 85, 125, 165, 205, 245, 285];
 const COLOURS = [0.9, 0.7, 0.5, 0.35, 0.25, 0.6, 0.8, 1].map((v) => [v, v * 0.95, v * 0.9]);
 const LEVEL = 450;
-const FOV = 40;
+// The nearest patch is 75 units off-axis with 115 units of depth.
+const FOV = 75;
 
 /** The length of water the eye looks through to a patch: from the near plane (1 unit down the straight-down axis) to the patch's top. */
 function rayLength([x, z], top) {
@@ -39,6 +40,9 @@ function underwaterScene(id, body, density, about) {
   ]);
   const expect = COLOURS.map((c, i) => {
     const p = probeFrom(...SLOTS[i], 400 - TOPS[i], FOV);
+    if (p.x === 0 || p.x === 1 || p.y === 0 || p.y === 1) {
+      throw new Error(`${id}: Patch${i} must be sampled inside the frame to measure its ray length`);
+    }
     const len = rayLength(SLOTS[i], TOPS[i]);
     return { x: p.x, y: p.y, rgb: encodeLinear8(c.map((v, k) => v * Math.exp(-ABSORPTION[k] * density * len))), tol: 4 };
   });

@@ -34,7 +34,7 @@
       "farPlane": 2000,
       "isActive": true,
       "priority": 0,
-      "fov": 40
+      "fov": 75
      }
     }
    ]
