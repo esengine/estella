@@ -4,7 +4,8 @@ import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
 import type { App, Plugin } from '../app/app';
 import { claimsKeyDefault, recordTabModifiers, clearTabModifiers } from './keyDefaultPolicy';
-import { getPlatform, platformUnbindInputEvents } from '../platform';
+import { getPlatform } from '../platform';
+import { InputBinding } from '../platform/listeners';
 import type { GamepadSnapshot, InputEventCallbacks } from '../platform/types';
 import { inputRouter } from './inputRouter';
 import { cancelPrimaryPointer, takePrimaryPointerCancellation } from './pointerCancellation';
@@ -622,7 +623,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             }
         },
         onInputCancel() {
-            inputRouter.resetModifiers();
+            if (!hostInput.owner || hostInput.owner === state) inputRouter.resetModifiers();
             state.keysDown.clear();
             state.mouseButtons.clear();
             state.touches.clear();
@@ -639,32 +640,51 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
     };
 }
 
+// The selected platform and its input router are shared within a realm.
+// Release the old host even when the next App selects a different adapter.
+const hostInput = new InputBinding<InputState>();
+
 export class InputPlugin implements Plugin {
     name = 'input';
     private target_: unknown;
-    private readonly executionCleanup_ = new WeakMap<App, () => void>();
+    private readonly cleanup_ = new WeakMap<App, () => void>();
+    private activeApp_?: App;
 
     constructor(target?: unknown) {
         this.target_ = target ?? null;
     }
 
     build(app: App): void {
+        const platform = getPlatform();
         const state = new InputState();
         app.insertResource(Input, state);
         const offExecution = app.onExecutionChange(held => setInputExecutionHeld(state, app, held));
-        this.executionCleanup_.set(app, () => { offExecution(); setInputExecutionHeld(state, app, false); });
+        const callbacks = inputEventCallbacks(state);
+        this.cleanup_.set(app, () => {
+            offExecution();
+            setInputExecutionHeld(state, app, false);
+            hostInput.unbind(state);
+        });
 
-        state.touchAvailable = getPlatform().hasTouch?.() ?? false;
-        getPlatform().bindInputEvents(inputEventCallbacks(state), this.target_ ?? undefined);
+        state.touchAvailable = platform.hasTouch?.() ?? false;
+        hostInput.bind(state, scope => {
+            this.activeApp_ = app;
+            scope.add(() => platform.unbindInputEvents?.(callbacks));
+            scope.add(() => {
+                this.activeApp_ = undefined;
+                state.updateGamepads([]);
+            });
+            inputRouter.resetModifiers();
+            platform.bindInputEvents(callbacks, this.target_ ?? undefined);
+        });
 
         // Gamepads are polled (no DOM events). Web supplies pollGamepads; platforms
         // without it (WeChat, headless) skip gamepad input. Runs in First so the
         // freshest pad state is up before any gameplay / action-map system reads it.
-        const platform = getPlatform();
         if (platform.pollGamepads) {
             const poll = platform.pollGamepads.bind(platform);
             app.addSystemToSchedule(Schedule.First, defineSystem([], () => {
-                state.updateGamepads(poll());
+                state.updateGamepads(hostInput.owner === state ? poll() : []);
             }, { name: 'GamepadPollSystem' }));
         }
 
@@ -674,8 +694,11 @@ export class InputPlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
-        if (app) { this.executionCleanup_.get(app)?.(); this.executionCleanup_.delete(app); }
-        platformUnbindInputEvents();
+        const owner = app ?? this.activeApp_;
+        if (!owner) return;
+        const cleanup = this.cleanup_.get(owner);
+        this.cleanup_.delete(owner);
+        cleanup?.();
     }
 }
 

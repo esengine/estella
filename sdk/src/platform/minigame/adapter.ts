@@ -38,6 +38,8 @@ import type {
     MiniGameOpenDataContext,
 } from './api';
 import { createPrimaryPointer } from '../primaryPointer';
+import { InputBinding } from '../listeners';
+import { miniGameEvents } from './events';
 import { mgReadFile, mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
 import { cacheEntryName } from '../cacheEntryName';
 import { mgLoadImagePixels } from './image';
@@ -58,7 +60,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     private readonly profile_: MiniGameProfile;
     private readonly g_: MiniGameGlobal;
     private fs_: MiniGameFileSystemManager | null = null;
-    private inputCleanup_: (() => void) | null = null;
+    private readonly inputBinding_ = new InputBinding();
     private pixelRatio_: number | null = null;
     private openDataCtx_: MiniGameOpenDataContext | null = null;
     private openDataResolved_ = false;
@@ -275,16 +277,12 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         this.g_.shareAppMessage?.call(this.g_, options);
     }
 
-    /** The host's foreground signal. A host without `offShow` cannot unsubscribe,
-     *  and the returned function then does nothing. */
     onAppShow(callback: () => void): () => void {
-        this.g_.onShow?.call(this.g_, callback);
-        return () => { this.g_.offShow?.call(this.g_, callback); };
+        return miniGameEvents.show(this.g_, callback);
     }
 
     onAppHide(callback: () => void): () => void {
-        this.g_.onHide?.call(this.g_, callback);
-        return () => { this.g_.offHide?.call(this.g_, callback); };
+        return miniGameEvents.hide(this.g_, callback);
     }
 
     /** Register the passive-share card provider (the host's own share menu). */
@@ -508,11 +506,6 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, _target?: unknown): void {
-        if (this.inputCleanup_) {
-            this.inputCleanup_();
-            this.inputCleanup_ = null;
-        }
-
         const g = this.g_;
 
         const heldKeys = new Set<string>();
@@ -523,12 +516,6 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         const onKeyUp = (res: { code: string }) => {
             if (heldKeys.delete(res.code)) callbacks.onKeyUp(res.code);
         };
-
-        const hasKeyboard = typeof g.onKeyDown === 'function';
-        if (hasKeyboard) {
-            g.onKeyDown?.(onKeyDown);
-            g.onKeyUp?.(onKeyUp);
-        }
 
         const pointer = createPrimaryPointer(callbacks);
         const heldTouches = new Set<number>();
@@ -562,31 +549,25 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
             for (const touch of res.changedTouches) if (heldTouches.delete(touch.identifier)) pointer.cancel(touch.identifier);
         };
 
-        g.onTouchStart(onTouchStart);
-        g.onTouchMove(onTouchMove);
-        g.onTouchEnd(onTouchEnd);
-        g.onTouchCancel?.(onTouchCancel);
-        g.onHide?.(cancelInput);
-
-        this.inputCleanup_ = () => {
-            if (hasKeyboard) {
-                g.offKeyDown?.(onKeyDown);
-                g.offKeyUp?.(onKeyUp);
+        this.inputBinding_.bind(callbacks, scope => {
+            scope.add(cancelInput);
+            if (typeof g.onKeyDown === 'function') {
+                scope.add(miniGameEvents.keyDown(g, onKeyDown));
+                scope.add(miniGameEvents.keyUp(g, onKeyUp));
             }
-            g.offTouchStart(onTouchStart);
-            g.offTouchMove(onTouchMove);
-            g.offTouchEnd(onTouchEnd);
-            g.offTouchCancel?.(onTouchCancel);
-            g.offHide?.(cancelInput);
-            cancelInput();
-        };
+            g.onTouchStart(onTouchStart);
+            scope.add(() => g.offTouchStart(onTouchStart));
+            g.onTouchMove(onTouchMove);
+            scope.add(() => g.offTouchMove(onTouchMove));
+            g.onTouchEnd(onTouchEnd);
+            scope.add(() => g.offTouchEnd(onTouchEnd));
+            scope.add(miniGameEvents.touchCancel(g, onTouchCancel));
+            scope.add(this.onAppHide(cancelInput));
+        });
     }
 
-    unbindInputEvents(): void {
-        if (this.inputCleanup_) {
-            this.inputCleanup_();
-            this.inputCleanup_ = null;
-        }
+    unbindInputEvents(owner?: InputEventCallbacks): void {
+        this.inputBinding_.unbind(owner);
     }
 
     createAudioBackend(): PlatformAudioBackend {

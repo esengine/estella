@@ -454,9 +454,9 @@ export interface PlatformAdapter {
      */
     hasTouch?(): boolean;
 
-    /** Tear down the listeners {@link bindInputEvents} registered. Optional — a
-     *  headless host that never binds input (node) omits it. */
-    unbindInputEvents?(): void;
+    /** Tear down the current input listeners. When given the callbacks from a
+     * bind, release only that binding. A host without listeners may omit this. */
+    unbindInputEvents?(owner?: InputEventCallbacks): void;
 
     /** Poll connected gamepads for this frame. Optional — platforms without
      *  gamepad support (WeChat, headless) omit it and the input plugin skips
@@ -587,10 +587,8 @@ export interface PlatformAdapter {
      */
     onContextLost?(callback: () => void): () => void;
 
-    /** App foreground/background signals, for platforms with no DOM visibility
-     *  event. The native shell pushes them through its bridge; the Lifecycle
-     *  plugin subscribes and auto-pauses on hide. Web/WeChat read visibility from
-     *  their own globals (document/wx) and omit these. Each returns an unsubscribe. */
+    /** The native shell and mini-game hosts push foreground/background events
+     * through these hooks. Each registration returns its own unsubscribe. */
     onAppShow?(callback: () => void): () => void;
     onAppHide?(callback: () => void): () => void;
 

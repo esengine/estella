@@ -6427,7 +6427,7 @@ static prototype: LifecycleManager
 ## LifecyclePlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (options_?: LifecyclePluginOptions | undefined): LifecyclePlugin
 static prototype: LifecyclePlugin
@@ -8492,7 +8492,7 @@ share: ((options: PlatformShareOptions) => void) | undefined
 steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
 steamIdentity: (() => { id: string; name: string; } | null) | undefined
 submitScore: ((score: number) => Promise<void>) | undefined
-unbindInputEvents: (() => void) | undefined
+unbindInputEvents: ((owner?: InputEventCallbacks) => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 

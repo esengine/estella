@@ -41,6 +41,7 @@ import type { PlatformVideoBackend, VideoBackendContext } from '../../video/Plat
 import { WasmVideoBackend } from '../../video/WasmVideoBackend';
 import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
+import { InputBinding } from '../listeners';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import { createNativeTextEditor } from './textEditor';
 import {
@@ -55,7 +56,7 @@ export class NativePlatformAdapter implements PlatformAdapter {
     readonly name = 'native' as const;
     device() { return this.bridge_.device?.() ?? this.unavailableDevice_; }
     private readonly unavailableDevice_ = unavailableDevice();
-    private inputCleanup_: (() => void) | null = null;
+    private readonly inputBinding_ = new InputBinding();
 
     constructor(private readonly bridge_: NativeBridge) {
         // Only advertise audio when the host bound an engine; otherwise the base
@@ -186,7 +187,6 @@ export class NativePlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks): void {
-        this.inputCleanup_?.();
         const pointer = createPrimaryPointer(callbacks);
         const heldKeys = new Set<string>();
         const heldTouches = new Set<number>();
@@ -214,18 +214,16 @@ export class NativePlatformAdapter implements PlatformAdapter {
             onKeyDown: (code) => { heldKeys.add(code); callbacks.onKeyDown(code); },
             onKeyUp: (code) => { if (heldKeys.delete(code)) callbacks.onKeyUp(code); },
         };
-        const unregisterInput = this.bridge_.registerInput(listener);
-        const unregisterHide = this.bridge_.onHide?.(cancelInput);
-        this.inputCleanup_ = () => {
-            unregisterInput();
-            unregisterHide?.();
-            cancelInput();
-        };
+        this.inputBinding_.bind(callbacks, scope => {
+            scope.add(cancelInput);
+            scope.add(this.bridge_.registerInput(listener));
+            const offHide = this.bridge_.onHide?.(cancelInput);
+            if (offHide) scope.add(offHide);
+        });
     }
 
-    unbindInputEvents(): void {
-        this.inputCleanup_?.();
-        this.inputCleanup_ = null;
+    unbindInputEvents(owner?: InputEventCallbacks): void {
+        this.inputBinding_.unbind(owner);
     }
 
     // Foreground/background: the shell has no DOM visibility event, so the

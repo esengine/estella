@@ -8,6 +8,7 @@
 import { defineResource } from './resource';
 import type { App, Plugin } from '../app/app';
 import { getPlatformType, isMiniGame, platformOnAppShow, platformOnAppHide } from '../platform';
+import { ListenerScope } from '../platform/listeners';
 import { log } from '../util/logger';
 
 // =============================================================================
@@ -99,119 +100,62 @@ export interface LifecyclePluginOptions {
 
 export class LifecyclePlugin implements Plugin {
     name = 'Lifecycle';
-    private cleanupFn_: (() => void) | null = null;
+    private readonly subscriptions_ = new Map<App, ListenerScope>();
 
     constructor(private readonly options_?: LifecyclePluginOptions) {}
 
     build(app: App): void {
-        const autoPause = this.options_?.autoPause ?? true;
-        const manager = new LifecycleManager(autoPause);
+        this.cleanup(app);
+        const manager = new LifecycleManager(this.options_?.autoPause ?? true);
         app.insertResource(Lifecycle, manager);
 
-        const platformType = getPlatformType();
+        const hostEvents = getPlatformType() === 'native' || isMiniGame();
+        const page = typeof document !== 'undefined' && typeof document.addEventListener === 'function'
+            && typeof window !== 'undefined' ? document : null;
+        if (!hostEvents && !page) return;
 
-        // A mini-game host and the native shell both push foreground/background
-        // through the adapter. Every mini-game runs with a `document` stub that has
-        // no addEventListener, so the web branch must not be reached from one.
-        if (platformType === 'native' || isMiniGame()) {
-            this.cleanupFn_ = setupHostLifecycle_(manager, app);
-        } else if (typeof document !== 'undefined' && typeof document.addEventListener === 'function'
-            && typeof window !== 'undefined') {
-            this.cleanupFn_ = setupWebLifecycle_(manager, app);
+        const scope = new ListenerScope();
+        this.subscriptions_.set(app, scope);
+        scope.add(() => manager.removeAllListeners());
+        let pausedByLifecycle = false;
+        const setVisible = (visible: boolean) => {
+            manager.setVisible_(visible);
+            if (this.subscriptions_.get(app) !== scope) return; // A hide/show listener can quit or rebuild.
+            if (!visible && manager.autoPause && !app.isPaused()) {
+                pausedByLifecycle = true;
+                app.setPaused(true);
+                manager.emit_('pause');
+            } else if (visible && pausedByLifecycle) {
+                pausedByLifecycle = false;
+                app.setPaused(false);
+                manager.emit_('resume');
+            }
+        };
+
+        if (hostEvents) {
+            scope.add(platformOnAppShow(() => setVisible(true)));
+            scope.add(platformOnAppHide(() => setVisible(false)));
+        } else if (page) {
+            scope.listen(page, 'visibilitychange', () => setVisible(!page.hidden));
+            scope.listen(window, 'focus', () => manager.setFocused_(true));
+            scope.listen(window, 'blur', () => manager.setFocused_(false));
+            // A page opened in a background tab receives no initial visibilitychange.
+            if (page.hidden) setVisible(false);
         }
-        // Headless hosts (node server, workers) keep the Lifecycle resource and
-        // stay always-visible; a native shell that never wired the show/hide
-        // signal degrades to the same (setupNativeLifecycle_ just never fires).
     }
 
-    cleanup(): void {
-        this.cleanupFn_?.();
-        this.cleanupFn_ = null;
+    cleanup(app?: App): void {
+        if (app) {
+            const scope = this.subscriptions_.get(app);
+            this.subscriptions_.delete(app);
+            scope?.dispose();
+        } else {
+            const scopes = [...this.subscriptions_.values()];
+            this.subscriptions_.clear();
+            for (const scope of scopes) scope.dispose();
+        }
     }
 }
 
 /** Default-config instance; `new LifecyclePlugin({ autoPause })` to configure. */
 export const lifecyclePlugin = new LifecyclePlugin();
-
-// =============================================================================
-// Web Platform
-// =============================================================================
-
-type AppLike = { setPaused(v: boolean): void; isPaused(): boolean };
-
-function setupWebLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
-    let pausedByLifecycle = false;
-
-    const onVisibilityChange = (): void => {
-        const hidden = document.hidden;
-        manager.setVisible_(!hidden);
-
-        if (hidden) {
-            if (manager.autoPause && !app.isPaused()) {
-                app.setPaused(true);
-                pausedByLifecycle = true;
-                manager.emit_('pause');
-            }
-        } else {
-            if (pausedByLifecycle) {
-                app.setPaused(false);
-                pausedByLifecycle = false;
-                manager.emit_('resume');
-            }
-        }
-    };
-
-    const onFocus = (): void => { manager.setFocused_(true); };
-    const onBlur = (): void => { manager.setFocused_(false); };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
-    // No event reports the state a page is born in: one opened in a background tab
-    // would otherwise count as visible until it had been shown and hidden again.
-    if (document.hidden) onVisibilityChange();
-
-    return (): void => {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-        window.removeEventListener('focus', onFocus);
-        window.removeEventListener('blur', onBlur);
-        manager.removeAllListeners();
-    };
-}
-
-// =============================================================================
-// Hosts that push foreground/background (mini-game vendors, the native shell)
-// =============================================================================
-
-/**
- * The host pushes foreground/background through the adapter (a mini-game's
- * onShow/onHide, the native bridge). Native suspends audio itself on background,
- * so this only drives the game tick and the lifecycle events.
- */
-function setupHostLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
-    let pausedByLifecycle = false;
-
-    const offShow = platformOnAppShow(() => {
-        manager.setVisible_(true);
-        if (pausedByLifecycle) {
-            app.setPaused(false);
-            pausedByLifecycle = false;
-            manager.emit_('resume');
-        }
-    });
-
-    const offHide = platformOnAppHide(() => {
-        manager.setVisible_(false);
-        if (manager.autoPause && !app.isPaused()) {
-            app.setPaused(true);
-            pausedByLifecycle = true;
-            manager.emit_('pause');
-        }
-    });
-
-    return (): void => {
-        offShow();
-        offHide();
-        manager.removeAllListeners();
-    };
-}

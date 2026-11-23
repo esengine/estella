@@ -29,6 +29,7 @@ import { GameSocket } from '../net/GameSocket';
 import { createPrimaryPointer } from './primaryPointer';
 import { createWebRecorder } from './webRecorder';
 import { WebDevice } from '../device/web';
+import { InputBinding } from './listeners';
 import { cacheEntryName } from './cacheEntryName';
 import { imageSizeAtEdge, readCanvasPixels } from './imagePixels';
 import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCacheWrite } from './webCacheStore';
@@ -47,10 +48,10 @@ class WebPlatformAdapter implements PlatformAdapter {
     private device_: WebDevice | null = null;
     device(): WebDevice { return this.device_ ??= new WebDevice(); }
     readonly name = 'web' as const;
-    private inputCleanup_: (() => void) | null = null;
+    private readonly inputBinding_ = new InputBinding();
     /** Whether a pad is plugged in as far as the page knows: the last look found one, or the browser announced one since. */
     private padsLive_ = false;
-    private padEvents_ = false;
+    private stopPadEvents_?: () => void;
     private padPolls_ = 0;
     private recorder_: PlatformScreenRecorder | null | undefined;
 
@@ -187,11 +188,6 @@ class WebPlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void {
-        if (this.inputCleanup_) {
-            this.inputCleanup_();
-            this.inputCleanup_ = null;
-        }
-
         const el = (target as HTMLElement) ?? document.querySelector('canvas') ?? document.body;
 
         const heldKeys = new Set<string>();
@@ -285,41 +281,34 @@ class WebPlatformAdapter implements PlatformAdapter {
             callbacks.onWheel(dx, dy);
         };
 
-        window.addEventListener('blur', onBlur);
-        document.addEventListener('visibilitychange', onVisibilityChange);
-        document.addEventListener('keydown', onKeyDown);
-        document.addEventListener('keyup', onKeyUp);
-        el.addEventListener('mousemove', onMouseMove);
-        el.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('mouseup', onMouseUp);
-        el.addEventListener('touchstart', onTouchStart, { passive: false });
-        el.addEventListener('touchmove', onTouchMove, { passive: false });
-        el.addEventListener('touchend', onTouchEnd, { passive: false });
-        el.addEventListener('touchcancel', onTouchCancel);
-        el.addEventListener('wheel', onWheel);
-
-        this.inputCleanup_ = () => {
-            window.removeEventListener('blur', onBlur);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-            onBlur();
-            document.removeEventListener('keydown', onKeyDown);
-            document.removeEventListener('keyup', onKeyUp);
-            el.removeEventListener('mousemove', onMouseMove);
-            el.removeEventListener('mousedown', onMouseDown);
-            document.removeEventListener('mouseup', onMouseUp);
-            el.removeEventListener('touchstart', onTouchStart);
-            el.removeEventListener('touchmove', onTouchMove);
-            el.removeEventListener('touchend', onTouchEnd);
-            el.removeEventListener('touchcancel', onTouchCancel);
-            el.removeEventListener('wheel', onWheel);
-        };
+        this.inputBinding_.bind(callbacks, scope => {
+            scope.add(onBlur);
+            scope.add(() => this.resetGamepadPoll_());
+            scope.listen(window, 'blur', onBlur);
+            scope.listen(document, 'visibilitychange', onVisibilityChange);
+            scope.listen(document, 'keydown', onKeyDown);
+            scope.listen(document, 'keyup', onKeyUp);
+            scope.listen(el, 'mousemove', onMouseMove);
+            scope.listen(el, 'mousedown', onMouseDown);
+            scope.listen(document, 'mouseup', onMouseUp);
+            scope.listen(el, 'touchstart', onTouchStart, { passive: false });
+            scope.listen(el, 'touchmove', onTouchMove, { passive: false });
+            scope.listen(el, 'touchend', onTouchEnd, { passive: false });
+            scope.listen(el, 'touchcancel', onTouchCancel);
+            scope.listen(el, 'wheel', onWheel);
+        });
     }
 
-    unbindInputEvents(): void {
-        if (this.inputCleanup_) {
-            this.inputCleanup_();
-            this.inputCleanup_ = null;
-        }
+    unbindInputEvents(owner?: InputEventCallbacks): void {
+        this.inputBinding_.unbind(owner);
+        if (!owner) this.resetGamepadPoll_(); // Also ends a standalone poll subscription.
+    }
+
+    private resetGamepadPoll_(): void {
+        this.stopPadEvents_?.();
+        this.stopPadEvents_ = undefined;
+        this.padsLive_ = false;
+        this.padPolls_ = 0;
     }
 
     /**
@@ -330,9 +319,11 @@ class WebPlatformAdapter implements PlatformAdapter {
     pollGamepads(): GamepadSnapshot[] {
         const nav = typeof navigator !== 'undefined' ? navigator : undefined;
         if (!nav || typeof nav.getGamepads !== 'function') return NO_GAMEPADS;
-        if (!this.padEvents_ && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-            this.padEvents_ = true;
-            window.addEventListener('gamepadconnected', () => { this.padsLive_ = true; });
+        if (!this.stopPadEvents_ && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+            const target = window;
+            const connected = () => { this.padsLive_ = true; };
+            target.addEventListener('gamepadconnected', connected);
+            this.stopPadEvents_ = () => target.removeEventListener('gamepadconnected', connected);
         }
         if (!this.padsLive_ && this.padPolls_++ % GAMEPAD_LOOK_EVERY !== 0) return NO_GAMEPADS;
         const out: GamepadSnapshot[] = [];

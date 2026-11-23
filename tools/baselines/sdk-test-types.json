@@ -88,9 +88,6 @@
   "tests/mocks/wasm.ts": {
     "TS2353|Object literal may only specify known properties, and 'loadTexture' does not exist in type 'CppResourceManager'.": 1
   },
-  "tests/native-host-bridge.test.ts": {
-    "TS2345|Argument of type '{ onTouchStart: Mock<Procedure>; onTouchMove: Mock<Procedure>; onTouchEnd: Mock<Procedure>; onTouchCancel: Mock<Procedure>; }' is not assignable to parameter of type 'NativeInputListener'.": 1
-  },
   "tests/native-text.test.ts": {
     "TS2353|Object literal may only specify known properties, and 'len' does not exist in type '{ handle: number; x: number; y: number; w: number; h: number; bytes: number; }'.": 1
   },

@@ -58,7 +58,11 @@ describe('createHostBridge', () => {
     it('routes host touches to the registered input sink', () => {
         const scope = hostScope();
         const bridge = createHostBridge(scope);
-        const sink = { onTouchStart: vi.fn(), onTouchMove: vi.fn(), onTouchEnd: vi.fn(), onTouchCancel: vi.fn() };
+        const sink = {
+            onTouchStart: vi.fn(), onTouchMove: vi.fn(), onTouchEnd: vi.fn(), onTouchCancel: vi.fn(),
+            onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(),
+            onWheel: vi.fn(), onKeyDown: vi.fn(), onKeyUp: vi.fn(),
+        };
         const stop = bridge.registerInput(sink);
 
         const dispatch = scope.es_onNativeTouch as (t: number, i: number, x: number, y: number) => void;
@@ -70,9 +74,13 @@ describe('createHostBridge', () => {
         expect(sink.onTouchEnd).toHaveBeenCalledWith(1);
 
         // Unsubscribing must actually detach: a host keeps dispatching regardless.
+        const stopNext = bridge.registerInput(sink);
         stop();
+        dispatch(0, 2, 0, 0);
+        expect(sink.onTouchStart).toHaveBeenCalledTimes(2);
+        stopNext();
         dispatch(0, 1, 0, 0);
-        expect(sink.onTouchStart).toHaveBeenCalledTimes(1);
+        expect(sink.onTouchStart).toHaveBeenCalledTimes(2);
     });
 
     /** The host's cache as AssetBindings.cpp keeps it: a name outside

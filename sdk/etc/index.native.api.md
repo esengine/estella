@@ -6431,7 +6431,7 @@ static prototype: LifecycleManager
 ## LifecyclePlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (options_?: LifecyclePluginOptions | undefined): LifecyclePlugin
 static prototype: LifecyclePlugin
@@ -7551,7 +7551,7 @@ setStorageItem: (key: string, value: string) => void
 setWindowSize: (width: number, height: number) => void
 steamAchievements: (appId: number) => AchievementProvider | null
 steamIdentity: () => { id: string; name: string; } | null
-unbindInputEvents: () => void
+unbindInputEvents: (owner?: InputEventCallbacks) => void
 writeCacheFile: (key: string, bytes: ArrayBuffer) => Promise<void>
 static new (bridge_: NativeBridge): NativePlatformAdapter
 static prototype: NativePlatformAdapter
@@ -8704,7 +8704,7 @@ share: ((options: PlatformShareOptions) => void) | undefined
 steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
 steamIdentity: (() => { id: string; name: string; } | null) | undefined
 submitScore: ((score: number) => Promise<void>) | undefined
-unbindInputEvents: (() => void) | undefined
+unbindInputEvents: ((owner?: InputEventCallbacks) => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 

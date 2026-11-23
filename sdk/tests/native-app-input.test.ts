@@ -7,7 +7,7 @@
  *          inputPlugin subscribes, so host touch flows through the actual
  *          inputPlugin -> native adapter -> Input resource path, headless.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
 import { Input } from '../src/input/input';
 import type { NativeBridge, NativeInputListener } from '../src/platform/native/bridge';
@@ -33,6 +33,31 @@ function makeBridge() {
 }
 
 describe('createNativeApp', () => {
+    it('gives a replacement game on the same bridge exclusive host input across late teardown', () => {
+        const { bridge, listener } = makeBridge();
+        const first = createNativeApp(bridge, hostWithRegistryOps());
+        listener()!.onTouchStart(1, 10, 20);
+        const next = createNativeApp(bridge, hostWithRegistryOps());
+        expect(first.getResource(Input).touches.size).toBe(0);
+        first.quit();
+        listener()!.onTouchStart(2, 30, 40);
+        expect(next.getResource(Input).getMousePosition()).toEqual({ x: 30, y: 40 });
+        expect(next.getResource(Input).touches.size).toBe(1);
+        next.quit();
+        expect(listener()).toBeNull();
+    });
+
+    it('withdraws host input if the bridge rejects the following hide subscription', () => {
+        const { bridge, listener } = makeBridge();
+        const error = new Error('host is closing');
+        bridge.onHide = vi.fn(() => { throw error; });
+        expect(() => createNativeApp(bridge, hostWithRegistryOps())).toThrow(error);
+        expect(listener()).toBeNull();
+        delete bridge.onHide;
+        const next = createNativeApp(bridge, hostWithRegistryOps());
+        expect(listener()).not.toBeNull();
+        next.quit();
+    });
     it('routes host touch through the real input plugin to the Input resource', async () => {
         const { bridge, listener } = makeBridge();
         const app = createNativeApp(bridge, hostWithRegistryOps());
@@ -53,6 +78,7 @@ describe('createNativeApp', () => {
 
         l!.onTouchEnd(0);
         await app.tick(1 / 60);
+        app.quit();
     });
 
     it('gives the game the real World over the native core', async () => {
@@ -61,5 +87,6 @@ describe('createNativeApp', () => {
         await app.tick(0);
         expect(app.world).toBeDefined();
         expect(app.world.hasCpp).toBe(true);            // connected to the native registry
+        app.quit();
     });
 });

@@ -179,6 +179,7 @@ export function createHostBridge(
     }
 
     let listener: NativeInputListener | null = null;
+    let inputGeneration = 0;
     scope.es_onNativeTouch = (type: number, id: number, x: number, y: number): void => {
         if (!listener) return;
         if (type === TOUCH_START) listener.onTouchStart(id, x, y);
@@ -257,8 +258,9 @@ export function createHostBridge(
             }
             : {}),
         registerInput: (sink) => {
+            const generation = ++inputGeneration;
             listener = sink;
-            return () => { listener = null; };
+            return () => { if (generation === inputGeneration) listener = null; };
         },
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
         safeAreaInsets: () => bindings.es_safeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 },

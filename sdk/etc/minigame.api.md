@@ -6418,7 +6418,7 @@ static prototype: LifecycleManager
 ## LifecyclePlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (options_?: LifecyclePluginOptions | undefined): LifecyclePlugin
 static prototype: LifecyclePlugin
@@ -7328,7 +7328,7 @@ screenRecorder: () => PlatformScreenRecorder | null
 setCloudKeyValues: (entries: Readonly<Record<string, string>>) => boolean
 setStorageItem: (key: string, value: string) => void
 share: (options: PlatformShareOptions) => void
-unbindInputEvents: () => void
+unbindInputEvents: (owner?: InputEventCallbacks) => void
 writeCacheFile: (key: string, bytes: ArrayBuffer) => Promise<void>
 static new (profile: MiniGameProfile): MiniGamePlatformAdapter
 static prototype: MiniGamePlatformAdapter
@@ -8787,7 +8787,7 @@ share: ((options: PlatformShareOptions) => void) | undefined
 steamAchievements: ((appId: number) => AchievementProvider | null) | undefined
 steamIdentity: (() => { id: string; name: string; } | null) | undefined
 submitScore: ((score: number) => Promise<void>) | undefined
-unbindInputEvents: (() => void) | undefined
+unbindInputEvents: ((owner?: InputEventCallbacks) => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 
