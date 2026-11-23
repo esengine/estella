@@ -66,15 +66,24 @@ if (!/\bbatch\.despawn\s*\(/.test(dispose.text) || !/\bthis\.world\.despawn\s*\(
 }
 const protocol = dispose.text + releaseAssets.text;
 
+// Draw registrations return release functions. Camera bindings expose release().
+// Capture the loop variable to check that each action releases that map's own values.
+function releasesEachValue(field, method = '') {
+  const loop = String.raw`for\s*\(\s*const\s+(\w+)\s+of\s+\w+\.${field}\.values\(\)\s*\)`;
+  const member = method ? `\\.${method}` : '';
+  return new RegExp(loop + String.raw`\s*\{?\s*\1${member}\s*\(\s*\)`);
+}
+
 // --- 1. every exit goes through shared teardown ----------------------------
 const TEARDOWN_OPS = [
-  /\b(?:world|batch)\.despawn\s*\(/,
-  /\bunregisterDrawCallback\s*\(/,
-  /\bremoveSystem\s*\(/,
-  /\bunbind\s*\(/,
-  /\breleaseAll\s*\(/,
-  /\breleaseAssets\s*\(/,
+  [/\b(?:world|batch)\.despawn\s*\(/, 'despawn the scene entities'],
+  [releasesEachValue('drawCallbacks'), 'invoke each stored draw registration release'],
+  [/\bremoveSystem\s*\(/, 'remove the scene systems'],
+  [releasesEachValue('postProcessBindings', 'release'), 'release each stored camera binding'],
+  [/\breleaseAll\s*\(/, 'release the scene asset scope'],
+  [/\breleaseAssets\s*\(/, 'release unresolved scene assets'],
 ];
+const directTeardown = [...TEARDOWN_OPS.map(([op]) => op), /\bunregisterDrawCallback\s*\(/, /\bunbind\s*\(/];
 for (const name of ['unload', 'rollbackFailedLoad_', 'reset']) {
   const body = methodBody(name);
   if (!body) {
@@ -84,7 +93,7 @@ for (const name of ['unload', 'rollbackFailedLoad_', 'reset']) {
   if (!/\bdisposeSceneOwnedState_\s*\(/.test(body.text)) {
     findings.push(`${FILE}:${body.line}  ${name}() must release scene state through disposeSceneOwnedState_.`);
   }
-  for (const op of TEARDOWN_OPS) {
+  for (const op of directTeardown) {
     if (!op.test(body.text)) continue;
     findings.push(`${FILE}:${body.line}  ${name}() tears down on its own (${op.source}) instead of through disposeSceneOwnedState_ — that is how the two copies came to disagree.`);
     break;
@@ -92,9 +101,9 @@ for (const name of ['unload', 'rollbackFailedLoad_', 'reset']) {
 }
 
 // --- 2. and the protocol still performs every one of them ------------------
-for (const op of TEARDOWN_OPS) {
+for (const [op, action] of TEARDOWN_OPS) {
   if (op.test(protocol)) continue;
-  findings.push(`${FILE}:${dispose.line}  the teardown protocol no longer does ${op.source} — emptying the collection that held them is not giving them back.`);
+  findings.push(`${FILE}:${dispose.line}  the teardown protocol must ${action}.`);
 }
 
 // --- 3. every piece of instance state is in the protocol -------------------
