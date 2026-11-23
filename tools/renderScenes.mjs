@@ -48,9 +48,9 @@ export const SCENE_WATCHDOG_MS = { webgl2: 45_000, webgpu: 120_000 };
  */
 export const HOST_WATCHDOG_MS = { editor: 150_000 };
 
-/** How long one scene gets, for the host that draws it on the backend it names. */
-export function sceneWatchdogMs(backend, host) {
-    return Math.max(SCENE_WATCHDOG_MS[backend] ?? 45_000, HOST_WATCHDOG_MS[host] ?? 0);
+/** Long-running scenes can set a floor for the software rasterizer. */
+export function sceneWatchdogMs(backend, host, softwareFloorMs = 0) {
+    return Math.max(SCENE_WATCHDOG_MS[backend] ?? 45_000, HOST_WATCHDOG_MS[host] ?? 0, softwareFloorMs);
 }
 
 /**
@@ -391,9 +391,17 @@ export const SCENES = [
   // A Blender groom on a skin: three groups of strands, four meshes in all. Strands are widened to a pixel for the eye only:
   // widened in the shadow map too, they shadowed the skin black.
   { id: "groom-strands", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/groom-strands.esscene", ESTELLA_VERIFY_W: "320", ESTELLA_VERIFY_H: "240", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_WARM: "1", ESTELLA_VERIFY_COUNTERS: "{\"render.meshes\":4}" } },
-  // A groom grown from parameters (`grow` in place of a curves file) on a head and shoulders: the strands are made in the engine at load,
-  // so the five meshes include the hair's own; the hair hangs past the shoulders, which is the shoulders' collider holding it.
-  { id: "groom-grown", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/groom-grown.esscene", ESTELLA_VERIFY_W: "240", ESTELLA_VERIFY_H: "300", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_WARM: "1", ESTELLA_VERIFY_COUNTERS: "{\"render.meshes\":5}" } },
+  // All 6,000 generated strands draw with the head and shoulders. The groom holds shader warm-up until its mesh is ready.
+  // One settled frame gives the same pixels as three. Software WebGL2 has taken over 75s to drain the draws at readback.
+  {
+    id: 'groom-grown', tier: 'pr', webgpu: true, softwareWatchdogMs: 120_000,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/groom-grown.esscene', ESTELLA_VERIFY_W: '240', ESTELLA_VERIFY_H: '300',
+      ESTELLA_VERIFY_STEPS: '1', ESTELLA_VERIFY_WARM: '1',
+      // 6,000 ribbons × 19 intervals × 2 triangles, plus 3,968 triangles for the head and shoulders.
+      ESTELLA_VERIFY_COUNTERS: '{"render.meshes":5,"render.triangles":231968}',
+    },
+  },
   { id: "skin-detail", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/skin-detail.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/skin-detail.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[137,89,80],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[253,205,197],\"tol\":20}]" } },
   { id: "mesh-shadow-cutout", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-cutout.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-shadow-cutout.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.6,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
   { id: "mesh-shadow-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-material.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },

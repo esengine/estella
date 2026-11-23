@@ -25,6 +25,9 @@ for (const s of SCENES) {
   if (seen.has(s.id)) fail(`"${s.id}" is listed twice — --only would run one and mean the other`);
   seen.add(s.id);
   if (!TIERS.includes(s.tier)) fail(`"${s.id}" has tier "${s.tier}" (have: ${TIERS.join(', ')})`);
+  if (s.softwareWatchdogMs !== undefined && !(Number.isSafeInteger(s.softwareWatchdogMs) && s.softwareWatchdogMs > 0)) {
+    fail(`"${s.id}" needs a positive integer softwareWatchdogMs`);
+  }
   if (!s.env || typeof s.env !== 'object') fail(`"${s.id}" has no env — an empty one is {}, not missing`);
 
   // A scene path that does not resolve is a check that passes by never drawing

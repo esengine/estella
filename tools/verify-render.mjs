@@ -73,7 +73,6 @@ if (BUDGET && !(Number(BUDGET) > 0)) {
 // measured. A tier that outgrows its runner is a report either way; without one
 // the report is a killed process, which names no scene at all.
 const BUDGET_MS = Number(BUDGET || 0) * 60_000;
-const watchdogFor = (host) => sceneWatchdogMs(BACKEND, host);
 // The scene's own watchdog produces a verdict, so this kill is for the launch
 // that never reaches it — a whole electron start-up beyond.
 const LAUNCH_MARGIN_MS = 30_000;
@@ -177,7 +176,8 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
 function runScene(scene) {
   const RUNNER = 'tools/render-host/run.mjs';
-  const watchdog = watchdogFor(scene.host);
+  const softwareWebgl = BACKEND === 'webgl2' && (softwareGpu || Boolean(process.env.ESTELLA_VERIFY_SOFTWARE_GPU));
+  const watchdog = sceneWatchdogMs(BACKEND, scene.host, softwareWebgl ? scene.softwareWatchdogMs : 0);
   const at = Date.now();
   const r = runElectron([RUNNER], {
     cwd: ROOT,
