@@ -42,6 +42,18 @@ export type SceneStatus = 'loading' | 'running' | 'paused' | 'sleeping' | 'unloa
 
 type SceneSurvival = 'all' | 'persistent' | 'none';
 
+interface SceneLoadRequest {
+    readonly done: Promise<SceneContext>;
+    activate: boolean;
+    instance?: SceneInstance;
+}
+
+interface SceneArrival {
+    request?: SceneLoadRequest;
+    readonly settled: Promise<void>;
+    finish(): void;
+}
+
 /** Operations supplied to a scene's staggered unload hook. @beta */
 export interface SceneRetirement {
     /** Hide the remaining roots until they are adopted or destroyed. */
@@ -309,7 +321,6 @@ export class SceneManagerState {
     private readonly configs_ = new Map<string, SceneConfig>();
     private readonly scenes_ = new Map<string, SceneInstance>();
     private readonly contexts_ = new Map<string, SceneContextImpl>();
-    private readonly additiveScenes_ = new Set<string>();
     private readonly pausedScenes_ = new Set<string>();
     private readonly sleepingScenes_ = new Set<string>();
     private readonly loadOrder_: string[] = [];
@@ -318,7 +329,7 @@ export class SceneManagerState {
     private readonly transitionController_ = new SceneTransitionController();
     private switching_: string | null = null;
     private lifetime_ = createAbort();
-    private loadPromises_ = new Map<string, Promise<SceneContext>>();
+    private readonly arrivals_ = new Map<string, Set<SceneArrival>>();
     /** A same-name load waits through cleanup and any remaining retirement frames. */
     private unloadPromises_ = new Map<string, { done: Promise<void>; config: SceneConfig; staggered: boolean }>();
     private stopEntityTracking_: (() => void) | null = null;
@@ -350,14 +361,15 @@ export class SceneManagerState {
         this.configs_.clear();
         this.scenes_.clear();
         this.contexts_.clear();
-        this.additiveScenes_.clear();
         this.pausedScenes_.clear();
         this.sleepingScenes_.clear();
         this.loadOrder_.length = 0;
         this.activeScene_ = null;
         this.initialScene_ = null;
         this.switching_ = null;
-        this.loadPromises_.clear();
+        for (const arrivals of this.arrivals_.values()) {
+            for (const arrival of arrivals) arrival.finish();
+        }
         this.unloadPromises_.clear();
         lifetime.abort();
 
@@ -368,8 +380,7 @@ export class SceneManagerState {
                 try { this.disposeSceneOwnedState_(instance, committed.has(name) ? 'all' : 'none', sleeping.has(name)); }
                 finally {
                     if (instance.status === 'loading' || instance.status === 'unloading') {
-                        try { instance.config.rush?.(); }
-                        finally { instance.config.urge?.(false); }
+                        this.finishPendingWork_(instance.config);
                     }
                 }
             }),
@@ -457,8 +468,13 @@ export class SceneManagerState {
         // between the two, and the scene to retire is the one active NOW.
         const outgoing = this.activeScene_;
         if (outgoing && (reload || outgoing !== name)) {
-            await this.unload(outgoing, options);
-            if (signal.aborted) throw new SceneLoadCancelled(name);
+            const swap = this.trackArrival_(name);
+            try {
+                await this.unload(outgoing, options);
+                if (signal.aborted) throw new SceneLoadCancelled(name);
+                await this.loadScene_(name, 'exclusive', undefined, swap);
+            } finally { swap.finish(); }
+            return;
         }
         await this.load(name);
     }
@@ -521,6 +537,35 @@ export class SceneManagerState {
         return this.unloadPromises_.get(name)?.config ?? this.scenes_.get(name)?.config ?? this.configs_.get(name);
     }
 
+    private finishPendingWork_(config: SceneConfig): void {
+        try { config.rush?.(); }
+        finally { config.urge?.(false); }
+    }
+
+    /** A switch may be waiting for the outgoing scene while its destination already has a load of its own. */
+    private trackArrival_(name: string): SceneArrival {
+        const arrivals = this.arrivals_.get(name) ?? new Set<SceneArrival>();
+        const settled = reservePromise<void>();
+        const arrival: SceneArrival = {
+            settled: settled.promise,
+            finish: () => {
+                if (!arrivals.delete(arrival)) return;
+                if (!arrivals.size) this.arrivals_.delete(name);
+                settled.resolve();
+            },
+        };
+        arrivals.add(arrival);
+        this.arrivals_.set(name, arrivals);
+        return arrival;
+    }
+
+    private loadArrival_(name: string): SceneArrival | undefined {
+        for (const arrival of this.arrivals_.get(name) ?? []) {
+            if (arrival.request) return arrival;
+        }
+        return undefined;
+    }
+
     /**
      * The one load path. `mode` is the only difference between the two doors —
      * which is why they were two copies, and why the fix for re-loading a SLEPT
@@ -531,39 +576,54 @@ export class SceneManagerState {
         name: string,
         mode: 'exclusive' | 'additive',
         onProgress?: SceneLoadProgressCallback,
+        swap?: SceneArrival,
     ): Promise<SceneContext> {
-        const { signal } = this.lifetime_;
-        const adopt = (): void => {
-            if (mode === 'additive') this.additiveScenes_.add(name);
-            else this.activeScene_ = name;
-        };
         const leaving = this.unloadPromises_.get(name);
-        if (leaving) {
-            await leaving.done.catch(() => undefined);
-            if (signal.aborted) throw new SceneLoadCancelled(name);
-        }
-
-        if (this.scenes_.has(name)) {
-            const existing = this.scenes_.get(name)!;
-            if (existing.status === 'loading') {
-                return this.loadPromises_.get(name)!;
-            }
+        const existing = this.scenes_.get(name);
+        if (!leaving && existing && existing.status !== 'loading') {
             // Re-loading a scene that was slept/paused must run the full restore
             // (remove Disabled, replay savedEnabled, re-enable post-process); a
             // bare status flip would strand its entities disabled.
             if (existing.status === 'sleeping') this.wake(name);
             else if (existing.status === 'paused') this.resume(name);
             existing.status = 'running';
-            adopt();
+            if (mode === 'exclusive') this.activeScene_ = name;
             return this.contexts_.get(name)!;
         }
 
+        const pending = this.loadArrival_(name);
+        if (pending?.request) {
+            if (mode === 'exclusive') pending.request.activate = true;
+            if (swap) void pending.settled.then(swap.finish);
+            return pending.request.done;
+        }
+
+        const { signal } = this.lifetime_;
+        const load = this.reserveOperation_<SceneContext>(name);
+        const request: SceneLoadRequest = { done: load.done, activate: mode === 'exclusive' };
+        const arrival = swap ?? this.trackArrival_(name);
+        arrival.request = request;
+        try {
+            return await load.start(async () => {
+                if (leaving) {
+                    await leaving.done.catch(() => undefined);
+                    if (signal.aborted) throw new SceneLoadCancelled(name);
+                }
+                return this.publishScene_(name, request, onProgress);
+            });
+        } finally { arrival.finish(); }
+    }
+
+    private async publishScene_(
+        name: string, request: SceneLoadRequest, onProgress?: SceneLoadProgressCallback,
+    ): Promise<SceneContext> {
         const config = this.configs_.get(name);
         if (!config) {
             throw new Error(`Scene "${name}" is not registered`);
         }
 
         const instance = new SceneInstance(config);
+        request.instance = instance;
         this.trackEntityDestruction_();
         this.scenes_.set(name, instance);
 
@@ -571,7 +631,7 @@ export class SceneManagerState {
             entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance));
         this.contexts_.set(name, ctx);
 
-        const populate = async (): Promise<SceneContext> => {
+        try {
             let sceneData = config.data;
             if (!sceneData && config.path) {
                 const began = performance.now();
@@ -590,19 +650,12 @@ export class SceneManagerState {
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
             if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
             instance.status = 'running';
-            adopt();
+            if (request.activate) this.activeScene_ = name;
             this.loadOrder_.push(name);
             return ctx;
-        };
-        const load = this.reserveOperation_<SceneContext>(name);
-        this.loadPromises_.set(name, load.done);
-        try {
-            return await load.start(() => populate().catch(err => {
-                this.rollbackFailedLoad_(name, instance);
-                throw err;
-            }));
-        } finally {
-            if (this.loadPromises_.get(name) === load.done) this.loadPromises_.delete(name);
+        } catch (error) {
+            this.rollbackFailedLoad_(name, instance);
+            throw error;
         }
     }
 
@@ -765,7 +818,6 @@ export class SceneManagerState {
         if (this.scenes_.get(name) !== instance) return;
         this.scenes_.delete(name);
         this.contexts_.delete(name);
-        this.additiveScenes_.delete(name);
         this.pausedScenes_.delete(name);
         this.sleepingScenes_.delete(name);
 
@@ -787,23 +839,31 @@ export class SceneManagerState {
         // Read before the status becomes 'unloading': what a promoted entity
         // needs put back is what sleep() took, and only the old status says so.
         const wasSleeping = instance.status === 'sleeping';
+        const wasLoading = instance.status === 'loading';
         instance.status = 'unloading';
+        const arrival = this.loadArrival_(name);
+        if (arrival?.request?.instance === instance) arrival.finish();
 
         const unload = this.reserveOperation_<void>(name);
-        const departure = { done: unload.done, config: instance.config, staggered: options?.staggered === true };
+        const staggered = !wasLoading && options?.staggered === true;
+        const departure = { done: unload.done, config: instance.config, staggered };
         this.unloadPromises_.set(name, departure);
         return unload.start(async () => {
             try {
                 try { instance.config.cleanup?.(ctx); }
                 catch (err) { log.error('scene', `Scene "${name}" cleanup callback threw; continuing teardown`, err); }
                 if (this.scenes_.get(name) !== instance) return;
-                const retire = options?.staggered ? instance.config.retire : undefined;
-                const survival = options?.keepPersistent === false ? 'none' : 'persistent';
+                const retire = staggered ? instance.config.retire : undefined;
+                const survival = wasLoading || options?.keepPersistent === false ? 'none' : 'persistent';
                 const retiring = this.disposeSceneOwnedState_(instance, survival, wasSleeping, retire);
                 if (retiring) await retiring;
             } finally {
-                this.removeSceneSlot_(name, instance);
-                if (this.unloadPromises_.get(name) === departure) this.unloadPromises_.delete(name);
+                try {
+                    if (wasLoading && this.scenes_.get(name) === instance) this.finishPendingWork_(instance.config);
+                } finally {
+                    this.removeSceneSlot_(name, instance);
+                    if (this.unloadPromises_.get(name) === departure) this.unloadPromises_.delete(name);
+                }
             }
         });
     }
@@ -858,7 +918,12 @@ export class SceneManagerState {
                 spineKeys: new Set(),
             };
 
-            const loadOptions: SceneLoadOptions = { collectAssets };
+            const loadOptions: SceneLoadOptions = {
+                collectAssets,
+                assertCurrent: () => {
+                    if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
+                },
+            };
             if (onProgress) loadOptions.onProgress = onProgress;
             if (config.externalEntities) loadOptions.externalEntities = config.externalEntities();
             if (config.onPhase) loadOptions.onPhase = config.onPhase;
@@ -1057,19 +1122,23 @@ export class SceneManagerState {
         return Array.from(this.scenes_.keys());
     }
 
-    /** Scenes whose load has started and not yet finished, in the order they began. */
+    /** Requested scenes still waiting for retirement or publication, in request order. */
     getLoading(): string[] {
-        return Array.from(this.loadPromises_.keys());
+        return Array.from(this.arrivals_.keys());
     }
 
     /**
-     * Resolves once every load in flight NOW has finished, failed or been
-     * cancelled — loads read their files in wall time, so a caller that advances
-     * the game by frames (a test, an automation driver) cannot count its way to
-     * a loaded scene. A load started after this call is not waited for.
+     * Wait for the currently requested scenes to become ready, fail, or be cancelled.
+     * Includes the outgoing retirement of a switch or reload. Cancellation settles
+     * this snapshot as soon as the load loses its scene, even while setup unwinds.
+     * Later requests have their own wait.
      */
     async whenLoadsSettle(): Promise<void> {
-        await Promise.allSettled([...this.loadPromises_.values()]);
+        const pending: Promise<void>[] = [];
+        for (const arrivals of this.arrivals_.values()) {
+            for (const arrival of arrivals) pending.push(arrival.settled);
+        }
+        await Promise.all(pending);
     }
 
     getLoadOrder(): string[] {

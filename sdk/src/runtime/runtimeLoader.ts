@@ -674,6 +674,7 @@ async function publishPreparedScene(
     const hasSceneManager = !!sceneName && app.hasResource(SceneManager);
     const ctx = now?.context !== undefined ? now.context
         : hasSceneManager ? app.getResource(SceneManager).getScene(sceneName) : null;
+    const assertCurrent = ctx ? () => assertSceneContext(app, ctx) : undefined;
     /**
      * The synchronous sibling of `timed`, for the steps that ARE synchronous.
      *
@@ -691,25 +692,17 @@ async function publishPreparedScene(
     if (spread) {
         const spawning: StagedSpawn = { entities: new Map(), hidden: [] };
         attempt.entities = spawning.entities;
-        const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning);
-        function* whileOwned(): Generator<number, StagedSpawn, void> {
-            for (;;) {
-                assertSceneContext(app, ctx);
-                const step = job.next();
-                if (step.done) return step.value;
-                yield step.value;
-            }
-        }
-        try { staged = await spread(ctx ? whileOwned() : job); }
+        const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning, assertCurrent);
+        try { staged = await spread(job); }
         finally { job.return(spawning); }
         entityMap = staged.entities;
     } else {
         entityMap = await timed('spawn', () => {
-            attempt.entities = spawnAndLoadEntities(app.world, sceneData, externalEntities, onPhase);
+            attempt.entities = spawnAndLoadEntities(app.world, sceneData, externalEntities, onPhase, assertCurrent);
             return attempt.entities;
         });
     }
-    assertSceneContext(app, ctx);
+    assertCurrent?.();
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track

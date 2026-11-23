@@ -105,6 +105,8 @@ export interface SceneLoadOptions {
     assetBaseUrl?: string;
     collectAssets?: LoadedSceneAssets;
     onProgress?: SceneLoadProgressCallback;
+    /** @internal Verify the owning scene before prepared work enters the World. */
+    assertCurrent?: () => void;
     /**
      * Invoked once during load with the list of asset refs that could not
      * be loaded (unresolved UUID or fetch failure). Fires even if the list
@@ -617,12 +619,15 @@ export interface StagedSpawn {
  */
 export function* spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
+    sink?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
+    assertCurrent?: () => void,
 ): Generator<number, StagedSpawn, void> {
     // One clock reading per component rather than two: the end of one write is
     // the start of the next, so attribution costs a call and not a pair. The
     // clock is reset after every pause, so a phase is charged its own work and
     // never the frames it waited through.
+    const onPhase: ScenePhaseSink | undefined = sink && assertCurrent
+        ? (phase, ms) => { sink(phase, ms); assertCurrent(); } : sink;
     let mark = onPhase ? performance.now() : 0;
     const since = (): number => {
         const now = performance.now();
@@ -630,7 +635,11 @@ export function* spawnAndLoadEntitiesJob(
         mark = now;
         return elapsed;
     };
-    const resume = (): void => { if (onPhase) mark = performance.now(); };
+    const resume = (): void => {
+        assertCurrent?.();
+        if (onPhase) mark = performance.now();
+    };
+    assertCurrent?.();
     checkLoadable(sceneData);
     if (onPhase) onPhase('spawn.validate', since());
     const { entities: entityMap, hidden } = spawn;
@@ -732,9 +741,9 @@ export function revealStagedEntities(world: World, spawn: StagedSpawn): void {
 /** Spawn private, migrated records. Binding entity references consumes those records. */
 export function spawnAndLoadEntities(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink,
+    onPhase?: ScenePhaseSink, assertCurrent?: () => void,
 ): Map<number, Entity> {
-    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false);
+    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false, undefined, assertCurrent);
     for (;;) {
         const next = job.next();
         if (next.done) return next.value.entities;
@@ -810,13 +819,16 @@ async function loadSceneAssetsAndSpawn(
 ): Promise<Map<number, Entity>> {
     return runSceneLoad(world, async attempt => {
         const assets = options?.assets, collector = options?.collectAssets;
+        const assertCurrent = options?.assertCurrent;
         let ownership: PreparedSpawnOwnership | undefined;
         try {
+            assertCurrent?.();
             if (assets) {
                 const result = await timed('assets', async () => {
                     attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress);
                     return attempt.assets;
                 });
+                assertCurrent?.();
                 if (!collector && assets.entityScopes) {
                     ownership = prepareSpawnOwnership(data, result, assets.entityScopes, assets.resolveRef.bind(assets))?.();
                 }
@@ -828,9 +840,10 @@ async function loadSceneAssetsAndSpawn(
                 applyTextureMetadata(data, result.textureHandles);
             }
             const entities = await timed('spawn', () => {
-                attempt.entities = spawnAndLoadEntities(world, data, options?.externalEntities, options?.onPhase);
+                attempt.entities = spawnAndLoadEntities(world, data, options?.externalEntities, options?.onPhase, assertCurrent);
                 return attempt.entities;
             });
+            assertCurrent?.();
             ownership?.attach(world, entities);
             assets?.trackSceneAssetReferences(data, entities);
             registerDeferredInstances(world, deferred, entities);

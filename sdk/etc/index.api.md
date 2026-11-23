@@ -10701,6 +10701,7 @@ static prototype: SceneLoadCancelled
 
 ## SceneLoadOptions — interface @experimental
 ```
+@internal assertCurrent: (() => void) | undefined
 abortOnMissingAssets: boolean | undefined
 assetBaseUrl: string | undefined
 assets: Assets | undefined

@@ -10,7 +10,7 @@ import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { App } from '../src/app/app';
 import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
-import { SceneLoadCancelled, SceneManager, SceneManagerState } from '../src/scene/sceneManager';
+import { SceneLoadCancelled, SceneManager, SceneManagerState, type SceneConfig } from '../src/scene/sceneManager';
 import { bakesOf } from '../src/runtime/bakes';
 import { Disabled, MeshRenderer, Parent } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
@@ -51,6 +51,49 @@ describe('overlapping registered scene loads', () => {
         manager.register(config);
         return { ...state, manager, config };
     }
+
+    it.each(['authoring', 'runtime'])('cancels a waiting %s publication before it spawns or transfers mesh receipts', async entry => {
+        const { app, assets, options, unloaded } = await runtime();
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const began = barrier(), resume = barrier();
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], unload: unloaded, load: async () => {
+            began.open(); await resume.promise; return { handle: 7 };
+        } });
+        manager.register(entry === 'authoring' ? { name: 'cell', data: scene } : createRuntimeSceneConfig('cell', scene, options));
+        const spawn = vi.spyOn(app.world, 'spawn');
+        const cancelled = expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+        try {
+            await began.promise;
+            const waiting = manager.whenLoadsSettle();
+            await manager.unload('cell'); await waiting;
+            resume.open(); await cancelled;
+            expect(spawn).not.toHaveBeenCalled();
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { resume.open(); await cancelled; assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['authoring', 'runtime'])('stops %s component writes if a spawn observer retires the scene', async entry => {
+        const { app, assets, options, unloaded } = await runtime();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const config: SceneConfig = entry === 'authoring' ? { name: 'cell', data: scene }
+            : createRuntimeSceneConfig('cell', scene, options);
+        let leaving: Promise<void> | undefined;
+        config.onPhase = phase => { if (phase === 'spawn.entities') leaving = manager.unload('cell'); };
+        manager.register(config);
+        const insert = vi.spyOn(app.world, 'insert');
+        try {
+            await expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+            expect(leaving).toBeDefined(); await leaving;
+            expect(insert.mock.calls.some(([, component]) => component === MeshRenderer)).toBe(false);
+            expect(app.world.entityCount()).toBe(0);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
 
     it('lets a synchronous setup callback join the load that invoked it', async () => {
         const { app, manager, assets } = await registered();
