@@ -6,7 +6,7 @@
  *          group's settings put on its material.
  */
 import { describe, expect, it } from 'vitest';
-import { MeshChannel, type MeshData } from '../src/asset/meshFormat';
+import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../src/asset/meshFormat';
 import {
     decodeCurves, encodeCurves, groupStats, parseGroomDocument, settingsForGroups, emptyCurveSet, DEFAULT_GROUP_SETTINGS,
     type CurveSet, type GroomCurves,
@@ -15,6 +15,7 @@ import { buildStrandMesh } from '../src/groom/groomMesh';
 import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 import { growGroom } from '../src/groom/groomGrow';
+import { meshSurface, projectStrands, SEGMENT_FLOATS } from '../src/groom/groomTextures';
 
 /** `curves` straight up from x = 0, 1, 2…, each of `points` points 1 cm apart, the radius narrowing from 0.5 mm to 0.25 mm. */
 function upright(curves: number, points: number): CurveSet {
@@ -241,5 +242,53 @@ describe('a groom grown from parameters', () => {
         expect(doc.grow?.groups[0]?.name).toBe('Hair');
         expect(() => parseGroomDocument(JSON.stringify({ version: 1, type: 'groom' }))).toThrow(/curves|grow/);
         expect(() => growGroom({ groups: [{ scalp: { center: [0, 0, 0], radii: [0, 1, 1] } }] })).toThrow(/radii/);
+    });
+});
+
+describe('strands laid onto a mesh for its textures', () => {
+    /** A square 1 m a side on y = 0, facing +y, its UVs u = x and v = z, in a project of 100 units a metre. */
+    function plane(): MeshData {
+        const { channels, vertexStride } = packChannels([
+            { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
+            { semantic: MeshChannel.Normal, components: 3, type: MeshChannelType.Float32 },
+            { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
+        ]);
+        const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+        const vertices = new Uint8Array(4 * vertexStride);
+        const view = new DataView(vertices.buffer);
+        const at = (s: number) => channels.find((c) => c.semantic === s)!.offset;
+        corners.forEach(([x, z], v) => {
+            [x! * 100, 0, z! * 100].forEach((n, k) => view.setFloat32(v * vertexStride + at(MeshChannel.Position) + k * 4, n, true));
+            [0, 1, 0].forEach((n, k) => view.setFloat32(v * vertexStride + at(MeshChannel.Normal) + k * 4, n, true));
+            [x!, z!].forEach((n, k) => view.setFloat32(v * vertexStride + at(MeshChannel.TexCoord0) + k * 4, n, true));
+        });
+        return { channels, vertexStride, vertexCount: 4, vertices, indices: new Uint32Array([0, 2, 1, 0, 3, 2]), aabbMin: [0, 0, 0], aabbMax: [100, 0, 100] };
+    }
+    /** One strand along +x at height `h`, from x 0.2 to 0.8 at z 0.5. */
+    const strand = (h: number): GroomCurves => {
+        const n = 7, positions = new Float32Array(n * 3);
+        for (let k = 0; k < n; k++) positions.set([0.2 + 0.1 * k, h, 0.5], k * 3);
+        return { groups: [{ name: 'g', strands: { counts: new Uint16Array([n]), positions, radii: new Float32Array(n).fill(0.0005), rootUV: new Float32Array([0.25, 0.75]) }, guides: emptyCurveSet() }] };
+    };
+
+    it('lands each segment at its UVs, as deep as it is over the surface, along +u in tangent space', () => {
+        const surface = meshSurface(plane(), {}, 0, 100);
+        const got = projectStrands(strand(0.01), surface, 256, { trace: 'outside', traceDistance: 0.02 });
+        expect(got.count).toBe(6);
+        const s = (i: number, k: number) => got.data[i * SEGMENT_FLOATS + k]!;
+        expect(s(0, 0)).toBeCloseTo(0.2, 4); expect(s(0, 1)).toBeCloseTo(0.5, 4);
+        expect(s(5, 2)).toBeCloseTo(0.8, 4);
+        expect(s(0, 6)).toBeCloseTo(0.5, 3);
+        expect([s(0, 7), s(0, 8), s(0, 9)].map((v) => Math.round(v * 1000) / 1000)).toEqual([1, 0, 0]);
+        // A strand 1 mm wide on a metre of UV at 256 texels is a quarter of a texel: drawn a texel wide at a quarter.
+        expect(s(0, 5)).toBeCloseTo(0.256, 2);
+        expect(s(0, 12)).toBeCloseTo(0.25, 5);
+    });
+
+    it('keeps to the side it traces and to the distance it is given', () => {
+        const surface = meshSurface(plane(), {}, 0, 100);
+        expect(projectStrands(strand(0.01), surface, 256, { trace: 'inside', traceDistance: 0.02 }).count).toBe(0);
+        expect(projectStrands(strand(-0.01), surface, 256, { trace: 'inside', traceDistance: 0.02 }).count).toBe(6);
+        expect(projectStrands(strand(0.05), surface, 256, { trace: 'both', traceDistance: 0.02 }).count).toBe(0);
     });
 });

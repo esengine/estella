@@ -10421,7 +10421,7 @@ number
 
 ## RenderTexture — const @experimental
 ```
-{ create(options: RenderTextureOptions): RenderTextureHandle; release(rt: RenderTextureHandle): void; resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle; begin(rt: RenderTextureHandle, viewProjection: Float32Array): void; end(): void; getDepthTexture(rt: RenderTextureHandle): number; contentLost(rt: RenderTextureHandle): boolean; contentDrawn(rt: RenderTextureHandle): void; }
+{ create(options: RenderTextureOptions): RenderTextureHandle; release(rt: RenderTextureHandle): void; resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle; begin(rt: RenderTextureHandle, viewProjection: Float32Array, options?: { data?: boolean; }): void; end(): void; getDepthTexture(rt: RenderTextureHandle): number; contentLost(rt: RenderTextureHandle): boolean; contentDrawn(rt: RenderTextureHandle): void; }
 ```
 
 ## RenderTextureHandle — interface @experimental

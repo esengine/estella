@@ -26,6 +26,7 @@
     "./dist/fx-agx/index.js",
     "./dist/foliage/index.js",
     "./dist/groom/index.js",
+    "./dist/shared/groom.js",
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
     "./dist/shared/water.js",
