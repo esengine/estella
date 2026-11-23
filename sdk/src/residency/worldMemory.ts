@@ -18,12 +18,12 @@
 
 import type { App } from '../app/app';
 import type { Entity } from '../types';
-import { defineComponent, getComponent, type ComponentDef } from '../ecs/component';
-import { serializeEntityComponents, type SceneComponentData, type SceneData, type SceneEntityData } from '../scene/scene';
+import { defineComponent, type ComponentDef } from '../ecs/component';
+import { mapEntityRefField } from '../ecs/entityRefField';
+import { visitSerializedComponents, type SceneComponentData, type SceneData, type SceneEntityData } from '../scene/scene';
 import { SceneManager } from '../scene/sceneManager';
 import { sceneOriginOf } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
-import { registryEntityFields } from './componentRefs';
 import type { WorldManifest } from './cells';
 
 /** The fields of the `RememberState` component. @experimental */
@@ -166,24 +166,22 @@ export class WorldMemory {
     private snapshot_(entity: Entity): SceneComponentData[] {
         const world = this.app_.world;
         const keepTransform = (world.get(entity, RememberState) as RememberStateData).keepTransform !== false;
-        const fieldsOf = registryEntityFields();
         const out: SceneComponentData[] = [];
-        for (const component of serializeEntityComponents(world, entity)) {
-            const def = getComponent(component.type);
+        visitSerializedComponents(world, entity, (component, def) => {
             if (component.type === 'Transform') {
-                if (!keepTransform) continue;
+                if (!keepTransform) return;
                 const t = component.data as { position?: unknown; rotation?: unknown; scale?: unknown };
                 out.push({ type: 'Transform', data: { position: t.position, rotation: t.rotation, scale: t.scale } });
-                continue;
+                return;
             }
-            if (!def || def._builtin) continue;
+            if (def._builtin) return;
             const data = structuredClone(component.data) as Record<string, unknown>;
-            for (const field of fieldsOf(component.type)) {
-                const target = data[field];
-                if (typeof target === 'number' && target !== 0) data[field] = sceneOriginOf(this.app_, target as Entity) ?? 0;
+            for (const field of def.entityFields) {
+                if (field in data) data[field] = mapEntityRefField(data[field], target =>
+                    typeof target === 'number' && target !== 0 ? sceneOriginOf(this.app_, target as Entity) ?? 0 : target);
             }
             out.push({ type: component.type, data });
-        }
+        });
         return out;
     }
 }

@@ -4,7 +4,11 @@
  * @file  What a streamed world remembers of a cell: the document it is brought back in with.
  */
 import { describe, it, expect } from 'vitest';
-import { WorldMemory, type WorldMemoryData } from '../src/residency/worldMemory';
+import { RememberState, WorldMemory, type WorldMemoryData } from '../src/residency/worldMemory';
+import { App } from '../src/app/app';
+import { defineComponent, unregisterComponent } from '../src/ecs/component';
+import { enableSceneOrigins, recordSceneOrigins } from '../src/scene/sceneOrigins';
+import { loadSceneData } from '../src/scene/scene';
 import type { SceneData } from '../src/scene/scene';
 import type { WorldManifest } from '../src/residency/cells';
 
@@ -27,6 +31,35 @@ function remembered(entries: WorldMemoryData['entries'], world = 'w'): WorldMemo
 }
 
 describe('a cell brought back from memory', () => {
+    it('restores remembered target lists by authored id after the cell receives new entity handles', () => {
+        const app = App.new(), w = app.world, memory = new WorldMemory(app, () => manifest);
+        const type = 'RememberedTargetList', defaults = { targets: [] as number[], values: [] as number[] };
+        const definition = defineComponent(type, defaults, { entityFields: ['targets'] });
+        enableSceneOrigins(app);
+        const rows = document(), actor = w.spawn(), target = w.spawn(), dynamic = w.spawn();
+        memory.adapt(cell.name, rows);
+        recordSceneOrigins(app, new Map([[1, actor], [3, target]]));
+        const values = [target, dynamic, 0, target];
+        w.insert(actor, RememberState, { keepTransform: false });
+        w.insert(actor, definition, { targets: values, values });
+        try {
+            unregisterComponent(type);
+            memory.despawned(actor);
+            const saved = JSON.parse(JSON.stringify(memory.toJSON())) as WorldMemoryData;
+            expect(saved.entries[cell.name + ':1'].components).toContainEqual({
+                type, data: { targets: [3, 0, 0, 3], values },
+            });
+            const again = new WorldMemory(app, () => manifest);
+            again.read(saved);
+            w.despawn(actor);
+            w.despawn(target);
+            const restored = defineComponent(type, defaults, { entityFields: ['targets'] });
+            const ids = loadSceneData(w, again.adapt(cell.name, rows));
+            expect(ids.get(3)).not.toBe(target);
+            expect(w.get(ids.get(1)!, restored)).toEqual({ targets: [ids.get(3), 0, 0, ids.get(3)], values });
+        } finally { unregisterComponent(type); }
+    });
+
     it('comes in as it was left, and without what was destroyed and everything under it', () => {
         const memory = remembered({
             'w.cell_1_0:1': { components: [{ type: 'Health', data: { current: 25, max: 100 } }, { type: 'Transform', data: { position: { x: 7, y: 0, z: 0 } } }] },

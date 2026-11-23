@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
-import { defineComponent, defineBuiltin, Name, Camera } from '../src/ecs/component';
+import { defineComponent, defineBuiltin, getUserComponents, unregisterComponent, Name, Camera } from '../src/ecs/component';
 import { INVALID_ENTITY } from '../src/types';
 import {
     loadSceneData,
@@ -18,6 +18,7 @@ import {
     SCENE_FORMAT_VERSION,
     registerSceneComponentCodec,
     serializeEntityComponents,
+    serializeScene,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSkeletalFieldDescriptor,
@@ -76,6 +77,32 @@ describe('Scene', () => {
     });
 
     describe('serialize detaches from live storage', () => {
+        it('saves each stored script row with its declaration through catalogue reloads and aliases', () => {
+            const type = 'SceneReloadedInventory', alias = 'RenamedSceneInventory';
+            const defaults = { items: [] as string[] };
+            const first = defineComponent(type, defaults), hero = world.spawn('Hero');
+            world.insert(hero, first, { items: ['key'] });
+            try {
+                unregisterComponent(type);
+                const saved: SceneData = JSON.parse(JSON.stringify(serializeScene(world)));
+                expect(saved.entities.find(e => e.name === 'Hero')!.components)
+                    .toContainEqual({ type, data: { items: ['key'] } });
+                const hidden = defineComponent(type, defaults, { transient: true }), other = world.spawn('Other');
+                world.insert(other, hidden, { items: ['runtime'] });
+                expect(serializeEntityComponents(world, hero)).toContainEqual({ type, data: { items: ['key'] } });
+                expect(serializeEntityComponents(world, other).some(c => c.type === type)).toBe(false);
+                unregisterComponent(type);
+                getUserComponents().set(alias, first);
+                expect(serializeEntityComponents(world, hero)).toContainEqual({ type: alias, data: { items: ['key'] } });
+                const registered = defineComponent(type, defaults);
+                const restored = new World(), ids = loadSceneData(restored, saved);
+                expect(restored.get(ids.get(hero)!, registered).items).toEqual(['key']);
+            } finally {
+                unregisterComponent(type);
+                unregisterComponent(alias);
+            }
+        });
+
         it('clones script-component data so the snapshot does not alias the world', () => {
             const Stats = defineComponent('SerStats', { hp: 10, tags: [] as string[] });
             const e = world.spawn();

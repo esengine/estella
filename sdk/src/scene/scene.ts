@@ -13,7 +13,8 @@ import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type 
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { discardSceneEntities, runSceneLoad, scenePhaseRunner } from './sceneLoadAttempt';
-import { getComponent, Name, Camera, RuntimeOnly, Disabled } from '../ecs/component';
+import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef } from '../ecs/component';
+import { mapEntityRefField } from '../ecs/entityRefField';
 import { deepClone } from '../util/deepClone';
 import { AssetScope } from '../asset/AssetLease';
 import type { PrefabResult } from '../asset/AssetLoader';
@@ -234,7 +235,7 @@ export function remapEntityFields(
     let field = '';
     for (field of comp.entityFields) {
         const value = data[field];
-        data[field] = Array.isArray(value) ? value.map(remap) : remap(value);
+        data[field] = mapEntityRefField(value, remap);
     }
 }
 
@@ -956,18 +957,22 @@ const STRUCTURAL_COMPONENTS = new Set(['Name', 'Parent', 'Children', 'WorldTrans
  * skips structural + transient components, folds out-of-band codec state in.
  * Round-trips through {@link loadComponent}.
  */
-export function serializeEntityComponents(world: World, entity: Entity): SceneComponentData[] {
-    const entityNum = entity as unknown as number;
+export function serializeEntityComponents(world: World, entity: Entity, registeredTypes?: readonly string[]): SceneComponentData[] {
     const components: SceneComponentData[] = [];
-    for (const typeName of world.getComponentTypes(entity)) {
-        if (STRUCTURAL_COMPONENTS.has(typeName)) continue;
-        const comp = getComponent(typeName);
-        if (!comp) continue;
-        // Runtime-only components (per-frame pointer/drag/hover state) never
-        // persist — their systems rebuild them each frame. See ComponentMetadata.transient.
-        if (comp.transient) continue;
+    visitSerializedComponents(world, entity, record => components.push(record), registeredTypes);
+    return components;
+}
+
+/** Capture a detached record with the declaration that supplied its data. Registered aliases retain their wire names. */
+export function visitSerializedComponents(
+    world: World, entity: Entity, visit: (record: SceneComponentData, definition: AnyComponentDef) => void,
+    registeredTypes: readonly string[] = world.getComponentTypes(entity),
+): void {
+    const entityNum = entity as unknown as number;
+    const capture = (typeName: string, comp: AnyComponentDef): void => {
+        if (comp.transient || STRUCTURAL_COMPONENTS.has(typeName) || STRUCTURAL_COMPONENTS.has(comp._name)) return;
         const data = world.tryGet(entity, comp);
-        if (data === null) continue;
+        if (data === null) return;
         // tryGet returns a fresh object for builtins (convertFromWasm) but the LIVE
         // stored object for script components — clone the latter so the snapshot
         // doesn't alias running-world state (and exportData below can't mutate it).
@@ -976,12 +981,15 @@ export function serializeEntityComponents(world: World, entity: Entity): SceneCo
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
         for (const filter of worldExportFilters.get(world) ?? []) filter(entity, typeName, payload);
-        components.push({
-            type: typeName,
-            data: payload,
-        });
+        visit({ type: typeName, data: payload }, comp);
+    };
+    const scriptNames = new Map<symbol, string>();
+    for (const name of registeredTypes) {
+        const registered = getComponent(name);
+        if (registered?._builtin) capture(name, registered);
+        else if (registered) scriptNames.set(registered._id, name);
     }
-    return components;
+    for (const stored of world.getStoredScriptComponents(entity)) capture(scriptNames.get(stored._id) ?? stored._name, stored);
 }
 
 /**
@@ -1023,13 +1031,14 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
     }
 
     const entities: SceneEntityData[] = [];
-    for (const entity of allEntities) {
+    const registeredTypes = world.getComponentTypesBatch(allEntities);
+    for (const [i, entity] of allEntities.entries()) {
         const entityNum = entity as unknown as number;
 
         const nameComp = world.tryGet(entity, Name) as { value: string } | null;
         const name = nameComp?.value ?? `Entity_${entityNum}`;
 
-        const components = serializeEntityComponents(world, entity);
+        const components = serializeEntityComponents(world, entity, registeredTypes[i]);
 
         entities.push({
             id: entityNum,

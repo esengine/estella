@@ -8,7 +8,7 @@ import type {
     ProcessedEntity,
 } from './types';
 import { getComponent } from '../ecs/component';
-import { mapEntityRefField } from './entityRef';
+import { mapEntityRefField } from '../ecs/entityRefField';
 import { hasOwn } from '../util/ownProperties';
 
 /**

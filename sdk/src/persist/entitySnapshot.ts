@@ -10,8 +10,9 @@
  */
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { Name, getComponent } from '../ecs/component';
-import { loadComponent, serializeEntityComponents, type SceneComponentData } from '../scene/scene';
+import { Name } from '../ecs/component';
+import { mapEntityRefField } from '../ecs/entityRefField';
+import { loadComponent, visitSerializedComponents, type SceneComponentData } from '../scene/scene';
 
 export interface EntitySnapshot {
     name?: string;
@@ -39,23 +40,19 @@ export function snapshotEntity(world: World, entity: Entity, options: EntitySnap
     const include = options.include ? new Set(options.include) : null;
     const exclude = new Set(options.exclude ?? []);
     const components: SceneComponentData[] = [];
-    for (const comp of serializeEntityComponents(world, entity)) {
-        if (PROCESS_STATE.has(comp.type) || exclude.has(comp.type)) continue;
-        if (include && !include.has(comp.type)) continue;
+    visitSerializedComponents(world, entity, (comp, definition) => {
+        if (PROCESS_STATE.has(comp.type) || exclude.has(comp.type)) return;
+        if (include && !include.has(comp.type)) return;
         if (comp.type === 'Replicated') {
             // Still replicated after a restart, under a new netId, owned by the server.
             components.push({ type: comp.type, data: { netId: 0, owner: 0, archetype: comp.data.archetype ?? '' } });
-            continue;
+            return;
         }
-        const refs = getComponent(comp.type)?.entityFields ?? [];
-        if (refs.length > 0) {
-            const data = { ...comp.data };
-            for (const f of refs) if (typeof data[f] === 'number') data[f] = 0;
-            components.push({ type: comp.type, data });
-        } else {
-            components.push(comp);
+        for (const field of definition.entityFields) {
+            if (field in comp.data) comp.data[field] = mapEntityRefField(comp.data[field], ref => typeof ref === 'number' ? 0 : ref);
         }
-    }
+        components.push(comp);
+    });
     const name = (world.tryGet(entity, Name) as { value?: string } | null)?.value;
     return name ? { name, components } : { components };
 }

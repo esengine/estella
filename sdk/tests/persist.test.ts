@@ -15,7 +15,7 @@ import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { App } from '../src/app/app';
-import { clearUserComponents, defineComponent, Name } from '../src/ecs/component';
+import { clearUserComponents, defineComponent, unregisterComponent, Name } from '../src/ecs/component';
 import {
     MemoryStore, FileStore, PersistConflict, RecordBook, PlayerPersistence, WorldPersistence, Persistent,
     snapshotEntity, restoreEntity, type PersistStore,
@@ -206,6 +206,24 @@ describe('PlayerPersistence', () => {
 });
 
 describe('entity snapshots', () => {
+    it('clears scalar and list references using the declaration that supplied each row', () => {
+        const world = App.new().world, actor = world.spawn('Actor'), other = world.spawn('Other');
+        const type = 'PersistentTargetList', defaults = { targets: [] as number[], values: [] as number[] };
+        const original = defineComponent(type, defaults, { entityFields: ['targets'] });
+        const ids = [actor, other, 0, other];
+        world.insert(actor, original, { targets: ids, values: ids });
+        unregisterComponent(type);
+        const current = defineComponent(type, defaults, { entityFields: ['values'] });
+        world.insert(other, current, { targets: ids, values: ids });
+        const capture = (entity: Entity) => snapshotEntity(world, entity, { include: [type] }).components[0].data;
+        expect(capture(actor)).toEqual({ targets: [0, 0, 0, 0], values: ids });
+        expect(capture(other)).toEqual({ targets: ids, values: [0, 0, 0, 0] });
+        expect(world.get(actor, original).targets).toEqual(ids);
+        const fresh = App.new().world;
+        const restored = restoreEntity(fresh, JSON.parse(JSON.stringify(snapshotEntity(world, actor))));
+        expect(fresh.get(restored, current)).toEqual({ targets: [0, 0, 0, 0], values: ids });
+    });
+
     it('round-trip components, leave out process state, and zero entity references', () => {
         const app = App.new();
         app.addPlugin(replicationPlugin);

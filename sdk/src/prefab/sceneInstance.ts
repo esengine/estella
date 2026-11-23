@@ -34,7 +34,7 @@ import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
-import { mapEntityRefField } from './entityRef';
+import { mapEntityRefField } from '../ecs/entityRefField';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,

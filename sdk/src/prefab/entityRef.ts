@@ -2,16 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ComponentData, PrefabEntityId } from './types';
 import { getComponent } from '../ecs/component';
+import { mapEntityRefField } from '../ecs/entityRefField';
 import { INVALID_ENTITY } from '../types';
-
-/**
- * Apply @p one to an entity-ref field, which holds one ref or a LIST of them —
- * `MeshSkin.joints` is a list, and a bare `typeof` test leaves those untouched.
- * All three translation directions come through here, so none can disagree.
- */
-export function mapEntityRefField(value: unknown, one: (ref: unknown) => unknown): unknown {
-    return Array.isArray(value) ? value.map(one) : one(value);
-}
 
 /**
  * Remap entity-typed component fields from prefab-local ids to runtime ids.
