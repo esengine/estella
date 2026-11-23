@@ -23,7 +23,13 @@ const worldIds = new WeakMap<World, number>();
 let nextWorldId = 0;
 
 export function registerDrawCallback(id: string, fn: DrawCallback, scene?: string): void {
-    callbacks.set(id, { fn, scene: scene ?? '' });
+    registerOwnedDrawCallback(id, { fn, scene: scene ?? '' });
+}
+
+/** Release only this installation, even if its name and function have both been reused. @internal */
+export function registerOwnedDrawCallback(id: string, entry: DrawEntry): () => void {
+    callbacks.set(id, entry);
+    return () => { if (callbacks.get(id) === entry) callbacks.delete(id); };
 }
 
 /** An engine-owned overlay belongs to one world's render passes. @internal */
@@ -39,9 +45,7 @@ export function registerWorldDrawCallback(name: string, world: World, fn: DrawCa
         worldIds.set(world, worldId);
     }
     const id = `${name}:${worldId}`;
-    const entry: DrawEntry = { fn, scene: '', world, get registry() { return world.getCppRegistry(); } };
-    callbacks.set(id, entry);
-    return () => { if (callbacks.get(id) === entry) callbacks.delete(id); };
+    return registerOwnedDrawCallback(id, { fn, scene: '', world, get registry() { return world.getCppRegistry(); } });
 }
 
 export function unregisterDrawCallback(id: string): void {

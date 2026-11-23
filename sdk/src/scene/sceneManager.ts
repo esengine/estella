@@ -20,8 +20,10 @@ import { SceneAssetProgress } from './sceneAssetProgress';
 import { recordSceneOrigins } from './sceneOrigins';
 import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
 import { discardSceneEntities } from './sceneLoadAttempt';
-import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import { registerOwnedDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
+import { bindSceneCamera } from '../postprocess/PostProcessAPI';
+import type { SceneCameraBinding } from '../postprocess/PostProcessStack';
 import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
 import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef } from '../ecs/component';
@@ -140,8 +142,11 @@ export interface SceneContext {
      */
     trackAssetScope(scope: AssetScope): void;
     despawn(entity: Entity): void;
+    /** Install a named draw callback for this scene. Later registrations under the same ID survive its unload. */
     registerDrawCallback(id: string, fn: DrawCallback): void;
+    /** Bind a camera for this scene. Pausing or sleeping bypasses this camera's effects and preserves the stack's pass settings. */
     bindPostProcess(camera: Entity, stack: PostProcessStack): void;
+    /** Release the binding this scene still holds on the camera. */
     unbindPostProcess(camera: Entity): void;
     setPersistent(entity: Entity, persistent: boolean): void;
 }
@@ -175,8 +180,8 @@ export interface TransitionOptions {
 class SceneInstance {
     readonly config: SceneConfig;
     readonly entities = new Set<Entity>();
-    readonly drawCallbacks = new Map<string, DrawCallback>();
-    readonly postProcessBindings = new Map<Entity, PostProcessStack>();
+    readonly drawCallbacks = new Map<string, () => void>();
+    readonly postProcessBindings = new Map<Entity, SceneCameraBinding>();
     readonly savedEnabled = new Map<Entity, { wasDisabled: boolean; renderables: Map<RenderableComponentDef, boolean> }>();
     retirement: SceneEntityBatch | null = null;
     readonly systemIds: symbol[] = [];
@@ -192,6 +197,17 @@ class SceneInstance {
 
     constructor(config: SceneConfig) {
         this.config = config;
+    }
+
+    get postProcessEnabled(): boolean {
+        return this.status !== 'paused' && this.status !== 'sleeping';
+    }
+
+    releaseCamera(camera: Entity): void {
+        const binding = this.postProcessBindings.get(camera);
+        if (!binding) return;
+        binding.release();
+        this.postProcessBindings.delete(camera);
     }
 }
 
@@ -268,20 +284,21 @@ class SceneContextImpl implements SceneContext {
 
     registerDrawCallback(id: string, fn: DrawCallback): void {
         this.assertCurrent_();
-        this.instance_.drawCallbacks.set(id, fn);
-        registerDrawCallback(id, fn, this.instance_.config.name);
+        this.instance_.drawCallbacks.set(id, registerOwnedDrawCallback(id, { fn, scene: this.name }));
     }
 
     bindPostProcess(camera: Entity, stack: PostProcessStack): void {
         this.assertCurrent_();
-        if (this.app_.hasResource(PostProcess)) this.app_.getResource(PostProcess).bind(camera, stack);
-        this.instance_.postProcessBindings.set(camera, stack);
+        if (!this.app_.hasResource(PostProcess)) return;
+        const instance = this.instance_;
+        const binding = bindSceneCamera(this.app_.getResource(PostProcess), camera, stack, instance.postProcessEnabled);
+        instance.postProcessBindings.get(camera)?.release();
+        instance.postProcessBindings.set(camera, binding);
     }
 
     unbindPostProcess(camera: Entity): void {
         this.assertCurrent_();
-        if (this.app_.hasResource(PostProcess)) this.app_.getResource(PostProcess).unbind(camera);
-        this.instance_.postProcessBindings.delete(camera);
+        this.instance_.releaseCamera(camera);
     }
 
     setPersistent(entity: Entity, persistent: boolean): void {
@@ -349,6 +366,7 @@ export class SceneManagerState {
         if (this.stopEntityTracking_) return;
         this.stopEntityTracking_ = this.app_.world.onDespawn?.(entity => {
             for (const instance of this.scenes_.values()) {
+                instance.releaseCamera(entity);
                 instance.entities.delete(entity);
                 instance.savedEnabled.delete(entity);
             }
@@ -754,9 +772,7 @@ export class SceneManagerState {
             instance.entities.clear();
             instance.savedEnabled.clear();
 
-            for (const id of instance.drawCallbacks.keys()) {
-                unregisterDrawCallback(id);
-            }
+            for (const release of instance.drawCallbacks.values()) release();
             instance.drawCallbacks.clear();
 
             for (const id of instance.systemIds) {
@@ -764,10 +780,7 @@ export class SceneManagerState {
             }
             instance.systemIds.length = 0;
 
-            const pp = this.app_.hasResource(PostProcess) ? this.app_.getResource(PostProcess) : null;
-            for (const camera of instance.postProcessBindings.keys()) {
-                pp?.unbind(camera);
-            }
+            for (const binding of instance.postProcessBindings.values()) binding.release();
             instance.postProcessBindings.clear();
 
             this.releaseSceneAssets_(instance);
@@ -855,11 +868,12 @@ export class SceneManagerState {
             previous.retirement?.release(entity);
             detachFromSceneParent(world, entity, previous.entities);
             if (this.sleepingScenes_.has(previous.config.name)) this.restoreSleepState_(previous, entity);
-            const stack = previous.postProcessBindings.get(entity);
-            if (stack) {
-                previous.postProcessBindings.delete(entity);
-                target.postProcessBindings.set(entity, stack);
-                stack.setAllPassesEnabled(target.status !== 'sleeping' && target.status !== 'paused');
+            const binding = previous.postProcessBindings.get(entity);
+            previous.postProcessBindings.delete(entity);
+            if (binding?.isCurrent()) {
+                target.postProcessBindings.get(entity)?.release();
+                target.postProcessBindings.set(entity, binding);
+                binding.enabled = target.postProcessEnabled;
             }
             previous.entities.delete(entity);
             previous.savedEnabled.delete(entity);
@@ -1088,7 +1102,7 @@ export class SceneManagerState {
         if (!instance || instance.status !== 'running') return;
         instance.status = 'paused';
         this.pausedScenes_.add(name);
-        this.setPostProcessPassesEnabled(instance, false);
+        this.updateCameraBindings_(instance);
     }
 
     resume(name: string): void {
@@ -1096,7 +1110,7 @@ export class SceneManagerState {
         if (!instance || instance.status !== 'paused') return;
         instance.status = 'running';
         this.pausedScenes_.delete(name);
-        this.setPostProcessPassesEnabled(instance, true);
+        this.updateCameraBindings_(instance);
     }
 
     sleep(name: string): void {
@@ -1104,7 +1118,7 @@ export class SceneManagerState {
         if (!instance || instance.status !== 'running') return;
         instance.status = 'sleeping';
         this.sleepingScenes_.add(name);
-        this.setPostProcessPassesEnabled(instance, false);
+        this.updateCameraBindings_(instance);
         instance.savedEnabled.clear();
 
         // Hoisted: the same registry answer for every entity in the scene.
@@ -1139,7 +1153,7 @@ export class SceneManagerState {
         if (!instance || instance.status !== 'sleeping') return;
         instance.status = 'running';
         this.sleepingScenes_.delete(name);
-        this.setPostProcessPassesEnabled(instance, true);
+        this.updateCameraBindings_(instance);
 
         for (const entity of instance.entities) this.restoreSleepState_(instance, entity);
         instance.savedEnabled.clear();
@@ -1162,10 +1176,8 @@ export class SceneManagerState {
         }
     }
 
-    private setPostProcessPassesEnabled(instance: SceneInstance, enabled: boolean): void {
-        for (const stack of instance.postProcessBindings.values()) {
-            stack.setAllPassesEnabled(enabled);
-        }
+    private updateCameraBindings_(instance: SceneInstance): void {
+        for (const binding of instance.postProcessBindings.values()) binding.enabled = instance.postProcessEnabled;
     }
 
     isPaused(name: string): boolean {

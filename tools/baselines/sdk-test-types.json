@@ -143,7 +143,6 @@
     "TS2352|Conversion of type 'SystemDef' to type '{ _fn: (...a: unknown[]) => void; }' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.": 1
   },
   "tests/sceneManager.test.ts": {
-    "TS2339|Property 'unbind' does not exist on type 'ResourceDef<PostProcessAPI>'.": 3,
     "TS2345|Argument of type 'BuiltinComponentDef<BitmapTextData>' is not assignable to parameter of type 'symbol'.": 2,
     "TS2345|Argument of type 'BuiltinComponentDef<SpineAnimationData>' is not assignable to parameter of type 'symbol'.": 2,
     "TS2345|Argument of type 'BuiltinComponentDef<SpriteData>' is not assignable to parameter of type 'symbol'.": 4,

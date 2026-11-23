@@ -35,6 +35,46 @@ export interface ComputePassSource {
     workgroupSize: [number, number];
 }
 
+/** Control of one installation on one camera. @internal */
+export interface SceneCameraBinding {
+    enabled: boolean;
+    isCurrent(): boolean;
+    release(): void;
+}
+
+class CameraBindings extends Map<Entity, PostProcessStack> {
+    private readonly scenes_ = new Map<Entity, SceneCameraBinding>();
+
+    claim(camera: Entity, enabled: boolean): SceneCameraBinding {
+        const binding: SceneCameraBinding = {
+            enabled,
+            isCurrent: () => this.scenes_.get(camera) === binding,
+            release: () => { if (binding.isCurrent()) this.delete(camera); },
+        };
+        this.scenes_.set(camera, binding);
+        return binding;
+    }
+
+    activeStack(camera: Entity): PostProcessStack | undefined {
+        return this.scenes_.get(camera)?.enabled === false ? undefined : this.get(camera);
+    }
+
+    override set(camera: Entity, stack: PostProcessStack): this {
+        this.scenes_.delete(camera);
+        return super.set(camera, stack);
+    }
+
+    override delete(camera: Entity): boolean {
+        this.scenes_.delete(camera);
+        return super.delete(camera);
+    }
+
+    override clear(): void {
+        this.scenes_.clear();
+        super.clear();
+    }
+}
+
 /**
  * Owns one App's post-process stacks, camera bindings, screen stack, and id
  * counter. A stack registers into the state it is created with — no global.
@@ -43,7 +83,7 @@ export interface ComputePassSource {
 export class PostProcessState {
     nextStackId = 1;
     readonly stacks: Map<number, PostProcessStack> = new Map();
-    readonly cameraBindings: Map<Entity, PostProcessStack> = new Map();
+    readonly cameraBindings = new CameraBindings();
     screenStack: PostProcessStack | null = null;
 
     /** Create a stack owned by (and registered in) this state. */

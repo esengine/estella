@@ -16,16 +16,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
 import { Schedule, defineSystem } from '../src/ecs/system';
-import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
+import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
-import { PostProcess } from '../src/postprocess';
+import { PostProcess, PostProcessAPI } from '../src/postprocess';
 import { getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
 import { Disabled, Parent, SceneOwner, Transform, defineComponent } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
+import type { ShaderHandle } from '../src/render/material';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: vi.fn(() => false) }),
@@ -53,27 +54,15 @@ function makeAssets(unloaded: string[]): Assets {
     return assets;
 }
 
-/** The post-process surface a scene binds against, modelled: bind/unbind/getStack
- *  over a table, so "the binding is gone" is something the test can read. */
-function postProcessFake() {
-    const bound = new Map<Entity, unknown>();
-    return {
-        bind: (camera: Entity, stack: unknown) => { bound.set(camera, stack); },
-        unbind: (camera: Entity) => { bound.delete(camera); },
-        getStack: (camera: Entity) => bound.get(camera) ?? null,
-        size: () => bound.size,
-    };
-}
-
 function harness() {
     const unloaded: string[] = [];
     const app = App.new();
     const assets = makeAssets(unloaded);
     const manager = new SceneManagerState(app);
-    const pp = postProcessFake();
+    const pp = new PostProcessAPI();
     app.insertResource(AssetsResource, assets as never);
     app.insertResource(SceneManager, manager);
-    app.insertResource(PostProcess, pp as never);
+    app.insertResource(PostProcess, pp);
     return { app, assets, manager, pp, unloaded };
 }
 
@@ -82,6 +71,109 @@ const CAMERA = 7 as Entity;
 /** Something sleep() switches off — the engine's renderables are C++-backed,
  *  and what is under test is the protocol, not the component. */
 const Drawn = defineComponent('SleepPromotionDrawn', { visible: true }, { renderableField: 'visible' });
+
+describe('render registrations across scene handoffs', () => {
+    beforeEach(() => { clearDrawCallbacks(); });
+
+    it.each(['retirement', 'failed setup'] as const)('keeps a replacement installed during %s', async (phase) => {
+        const { app, manager, pp } = harness();
+        const stack = pp.createStack();
+        const draw = vi.fn();
+        let enter!: () => void, finish!: () => void;
+        const entered = new Promise<void>(resolve => { enter = resolve; });
+        const gate = new Promise<void>(resolve => { finish = resolve; });
+        const install = (ctx: SceneContext) => {
+            ctx.registerDrawCallback('hud', draw);
+            ctx.bindPostProcess(CAMERA, stack);
+        };
+        manager.register({ name: 'old', setup: async ctx => {
+            install(ctx);
+            if (phase === 'failed setup') { enter(); await gate; throw new Error('setup failed'); }
+        }, retire: async () => { enter(); await gate; } });
+        manager.register({ name: 'next', setup: install });
+        try {
+            const load = manager.loadAdditive('old');
+            const leaving = phase === 'failed setup' ? expect(load).rejects.toThrow('setup failed')
+                : load.then(() => manager.unload('old', { staggered: true }));
+            await entered;
+            await manager.loadAdditive('next');
+            finish();
+            await leaving;
+            expect.soft([...getDrawCallbacks().values()].map(entry => entry.fn)).toEqual([draw]);
+            expect.soft(pp.getStack(CAMERA)).toBe(stack);
+            await manager.unload('next');
+            expect(getDrawCallbacks().size).toBe(0);
+            expect(pp.getStack(CAMERA)).toBeNull();
+        } finally { finish(); app.quit(); }
+    });
+
+    it('leaves a camera rebound to the same stack by game code under game control', async () => {
+        const { app, manager, pp } = harness();
+        const stack = pp.createStack().addPass('bloom', 1 as ShaderHandle);
+        try {
+            manager.register({ name: 'old' });
+            const old = await manager.loadAdditive('old');
+            old.bindPostProcess(CAMERA, stack);
+            pp.bind(CAMERA, stack);
+            manager.pause('old');
+            expect(pp.state.cameraBindings.activeStack(CAMERA)).toBe(stack);
+            expect(stack.enabledPassCount).toBe(1);
+            old.unbindPostProcess(CAMERA);
+            expect(pp.getStack(CAMERA)).toBe(stack);
+        } finally { app.quit(); }
+    });
+
+    it('gates each camera of a shared stack and preserves its authored pass settings', async () => {
+        const { app, manager, pp } = harness();
+        const shared = pp.createStack().addPass('bloom', 1 as ShaderHandle).addPass('blur', 2 as ShaderHandle);
+        shared.setEnabled('blur', false);
+        try {
+            manager.register({ name: 'map' });
+            manager.register({ name: 'minimap' });
+            const map = await manager.loadAdditive('map');
+            const minimap = await manager.loadAdditive('minimap');
+            const main = map.spawn(), inset = minimap.spawn();
+            map.bindPostProcess(main, shared);
+            manager.sleep('minimap');
+            minimap.bindPostProcess(inset, shared);
+            expect(pp.state.cameraBindings.activeStack(inset)).toBeUndefined();
+            expect(pp.state.cameraBindings.activeStack(main)).toBe(shared);
+            manager.wake('minimap');
+            expect(pp.state.cameraBindings.activeStack(inset)).toBe(shared);
+            expect(shared.passes.map(pass => pass.enabled)).toEqual([true, false]);
+            app.world.despawn(inset);
+            expect(pp.getStack(inset)).toBeNull();
+            expect(pp.getStack(main)).toBe(shared);
+        } finally { app.quit(); }
+    });
+
+    it('transfers the current binding on adoption and keeps a replacement already owned by the new scene', async () => {
+        const { app, manager, pp } = harness();
+        const oldStack = pp.createStack(), newStack = pp.createStack();
+        try {
+            manager.register({ name: 'old' });
+            manager.register({ name: 'next' });
+            const old = await manager.loadAdditive('old'), next = await manager.loadAdditive('next');
+            const adopted = old.spawn(), rebound = old.spawn();
+            old.bindPostProcess(adopted, oldStack);
+            old.bindPostProcess(rebound, oldStack);
+            next.bindPostProcess(rebound, newStack);
+            manager.pause('next');
+            next.adopt(adopted);
+            next.adopt(rebound);
+            await manager.unload('old');
+            expect(pp.state.cameraBindings.activeStack(adopted)).toBeUndefined();
+            expect(pp.state.cameraBindings.activeStack(rebound)).toBeUndefined();
+            manager.resume('next');
+            expect(pp.state.cameraBindings.activeStack(adopted)).toBe(oldStack);
+            expect(pp.state.cameraBindings.activeStack(rebound)).toBe(newStack);
+            next.unbindPostProcess(adopted);
+            next.unbindPostProcess(rebound);
+            expect(pp.getStack(adopted)).toBeNull();
+            expect(pp.getStack(rebound)).toBeNull();
+        } finally { app.quit(); }
+    });
+});
 
 describe('a scene load that fails leaves nothing of itself behind', () => {
     beforeEach(() => { clearDrawCallbacks(); });
@@ -295,7 +387,7 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
         expect(assets.sizes().refRows, 'what it acquired after the unload').toBe(base);
         expect(unloaded, 'freed once, not twice').toEqual(['gen1']);
         expect(getDrawCallbacks().has('ghost')).toBe(false);
-        expect(pp.size()).toBe(0);
+        expect(pp.getStack(CAMERA)).toBeNull();
         expect(manager.getScene('level')).toBeNull();
     });
 

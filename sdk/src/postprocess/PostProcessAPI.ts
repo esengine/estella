@@ -6,7 +6,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { defineResource } from '../ecs/resource';
 import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
-import { PostProcessStack, PostProcessState, type PassConfig } from './PostProcessStack';
+import { PostProcessStack, PostProcessState, type PassConfig, type SceneCameraBinding } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
 import { qualitySettingDefaults, type QualitySettingValues } from '../render/qualitySettings/index';
 import { qualityPassAllowed, qualityPassScale, qualityPassUniforms } from './qualityFilter';
@@ -277,6 +277,12 @@ export function outputTransformCode(transform: OutputTransform | undefined): num
     return transform === 'aces' ? 1 : transform === 'neutral' ? 2 : 0;
 }
 
+/** A scene may bypass or release its installation while this camera still uses it. @internal */
+export function bindSceneCamera(api: PostProcessAPI, camera: Entity, stack: PostProcessStack, enabled: boolean): SceneCameraBinding {
+    api.bind(camera, stack);
+    return api.state.cameraBindings.claim(camera, enabled);
+}
+
 export class PostProcessAPI {
     readonly state = new PostProcessState();
 
@@ -539,7 +545,7 @@ export class PostProcessAPI {
     // -- per-camera / screen orchestration (state + commands) ----------------
 
     _applyForCamera(camera: Entity): void {
-        const stack = this.state.cameraBindings.get(camera);
+        const stack = this.state.cameraBindings.activeStack(camera);
         if (!stack || stack.isDestroyed || stack.enabledPassCount === 0) {
             this.setBypass(true);
             return;

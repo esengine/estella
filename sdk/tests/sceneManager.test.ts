@@ -6,17 +6,13 @@ vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 
-vi.mock('../src/render/customDraw', () => ({
-    registerDrawCallback: vi.fn(),
-    unregisterDrawCallback: vi.fn(),
-}));
+vi.mock('../src/render/customDraw', async (original) => {
+    const draw = await original<typeof import('../src/render/customDraw')>();
+    return { ...draw, registerDrawCallback: vi.fn(draw.registerDrawCallback), unregisterDrawCallback: vi.fn(draw.unregisterDrawCallback) };
+});
 
 vi.mock('../src/postprocess', () => ({
-    PostProcess: {
-        bind: vi.fn(),
-        unbind: vi.fn(),
-    },
-    PostProcessStack: vi.fn(),
+    PostProcess: Symbol('PostProcess'),
 }));
 
 vi.mock('../src/render/material', () => ({
@@ -80,8 +76,10 @@ vi.mock('../src/defaults', () => ({
 import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem, type SceneContext } from '../src/scene/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText, TilemapLayer } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene/scene';
-import { registerDrawCallback, unregisterDrawCallback } from '../src/render/customDraw';
+import { registerDrawCallback, unregisterDrawCallback, getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
 import { PostProcess } from '../src/postprocess';
+import { PostProcessAPI } from '../src/postprocess/PostProcessAPI';
+import type { Entity } from '../src/types';
 import { Material } from '../src/render/material';
 
 function createMockApp() {
@@ -89,9 +87,8 @@ function createMockApp() {
     const despawnListeners = new Set<(entity: number) => void>();
     let nextEntity = 1;
     const resources = new Map<any, any>();
-    // PostProcess is now a per-App resource; register the mock so sceneManager's
-    // app.getResource(PostProcess).bind/unbind hits the spies.
-    resources.set(PostProcess, PostProcess);
+    const postProcess = new PostProcessAPI();
+    resources.set(PostProcess, postProcess);
 
     const world = {
         spawn: vi.fn(() => {
@@ -126,6 +123,7 @@ function createMockApp() {
 
     return {
         world,
+        postProcess,
         hasResource: vi.fn((key: any) => resources.has(key)),
         getResource: vi.fn((key: any) => resources.get(key)),
         addSystemToSchedule: vi.fn(),
@@ -149,6 +147,7 @@ describe('SceneManager', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        clearDrawCallbacks();
         app = createMockApp();
         manager = new SceneManagerState(app as any);
     });
@@ -391,18 +390,20 @@ describe('SceneManager', () => {
             const ctx = await manager.load('level1');
 
             ctx.registerDrawCallback('myDraw', () => {});
+            expect(getDrawCallbacks().has('myDraw')).toBe(true);
             await manager.unload('level1');
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('myDraw');
+            expect(getDrawCallbacks().has('myDraw')).toBe(false);
         });
 
         it('unload() unbinds postprocess stacks', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
 
-            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
-            ctx.bindPostProcess(1 as any, mockStack);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(1 as Entity, stack);
+            expect(app.postProcess.getStack(1 as Entity)).toBe(stack);
             await manager.unload('level1');
-            expect(PostProcess.unbind).toHaveBeenCalledWith(1);
+            expect(app.postProcess.getStack(1 as Entity)).toBeNull();
         });
 
         it('unload() releases what the scene acquired, by receipt', async () => {
@@ -576,27 +577,28 @@ describe('SceneManager', () => {
             expect(manager.getSceneStatus('level1')).toBe('running');
         });
 
-        it('pause() disables postprocess passes via stack', async () => {
+        it('pause() bypasses the bound camera stack', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
-            ctx.bindPostProcess(1 as any, mockStack);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(1 as Entity, stack);
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBe(stack);
 
             manager.pause('level1');
-            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(false);
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBeUndefined();
         });
 
-        it('resume() re-enables postprocess passes via stack', async () => {
+        it('resume() restores the bound camera stack', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
-            ctx.bindPostProcess(1 as any, mockStack);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(1 as Entity, stack);
 
             manager.pause('level1');
-            mockStack.setAllPassesEnabled.mockClear();
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBeUndefined();
 
             manager.resume('level1');
-            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(true);
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBe(stack);
         });
     });
 
@@ -696,18 +698,17 @@ describe('SceneManager', () => {
             expect(manager.getSceneStatus('level1')).toBe('running');
         });
 
-        it('wake() disables postprocess passes on sleep and re-enables on wake', async () => {
+        it('bypasses the camera stack on sleep and restores it on wake', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
-            ctx.bindPostProcess(1 as any, mockStack);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(1 as Entity, stack);
 
             manager.sleep('level1');
-            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(false);
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBeUndefined();
 
-            mockStack.setAllPassesEnabled.mockClear();
             manager.wake('level1');
-            expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(true);
+            expect(app.postProcess.state.cameraBindings.activeStack(1 as Entity)).toBe(stack);
         });
 
         it('load() on a sleeping scene wakes it (restores enabled, clears sleeping)', async () => {
@@ -1093,10 +1094,11 @@ describe('SceneManager', () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
 
-            const mockStack = { setAllPassesEnabled: vi.fn(), isDestroyed: false } as any;
-            ctx.bindPostProcess(1 as any, mockStack);
-            ctx.unbindPostProcess(1 as any);
-            expect(PostProcess.unbind).toHaveBeenCalledWith(1);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(1 as Entity, stack);
+            expect(app.postProcess.getStack(1 as Entity)).toBe(stack);
+            ctx.unbindPostProcess(1 as Entity);
+            expect(app.postProcess.getStack(1 as Entity)).toBeNull();
         });
     });
 
@@ -1144,18 +1146,20 @@ describe('SceneManager', () => {
             const ctx = await manager.load('level1');
             ctx.registerDrawCallback('myDraw', () => {});
 
+            expect(getDrawCallbacks().has('myDraw')).toBe(true);
             manager.reset();
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('myDraw');
+            expect(getDrawCallbacks().has('myDraw')).toBe(false);
         });
 
         it('unbinds post process from loaded scenes', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             const ctx = await manager.load('level1');
-            const mockStack = { setAllPassesEnabled: vi.fn() };
-            ctx.bindPostProcess(42 as any, mockStack as any);
+            const stack = app.postProcess.createStack();
+            ctx.bindPostProcess(42 as Entity, stack);
+            expect(app.postProcess.getStack(42 as Entity)).toBe(stack);
 
             manager.reset();
-            expect(PostProcess.unbind).toHaveBeenCalledWith(42);
+            expect(app.postProcess.getStack(42 as Entity)).toBeNull();
         });
 
         it('does not despawn entities', async () => {
