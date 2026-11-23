@@ -59,15 +59,28 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
             const root = node('Root'), spine = node('Spine', root);
             const head = node('Head', spine), arm = node('Arm', spine);
             const reads = vi.spyOn(world, 'tryGet');
+            const revisions = vi.spyOn(world, 'mutationRevision');
             expect(resolveChildEntity(world, root, 'Spine/Head')).toBe(head);
-            const initialReads = reads.mock.calls.length;
+            const initialReads = reads.mock.calls.length, initialRevisions = revisions.mock.calls.length;
+            expect(initialRevisions).toBeGreaterThan(0);
             for (let i = 0; i < 20; i++) {
                 world.set(head, Transform, { ...world.get(head, Transform), position: { x: i, y: 0, z: 0 } });
                 expect(resolveChildEntity(world, root, 'Spine/Arm')).toBe(arm);
                 expect(resolveChildEntity(world, spine, 'Head')).toBe(head);
                 expect(resolveChildEntity(world, root, 'Spine/Missing')).toBeNull();
             }
+            expect(revisions.mock.calls.length).toBe(initialRevisions);
+            // Another reader observes Transform. Its writes now advance the clock, but keep the hierarchy valid.
+            world.mutationRevision(Transform, 'write');
+            world.set(head, Transform, world.get(head, Transform));
+            revisions.mockClear();
+            expect(resolveChildEntity(world, root, 'Spine/Head')).toBe(head);
+            expect(revisions.mock.calls.length).toBeGreaterThan(0);
+            revisions.mockClear();
+            expect(resolveChildEntity(world, root, 'Spine/Arm')).toBe(arm);
+            expect(revisions).not.toHaveBeenCalled();
             expect(reads.mock.calls.length).toBe(initialReads);
+            revisions.mockRestore();
             reads.mockRestore();
         } finally { dispose(); }
     });
@@ -234,11 +247,14 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
         }
     });
 
-    it('keeps minimal preview worlds live without a mutation revision API', () => {
+    it.each([false, true])('keeps preview worlds live without a shared revision clock (component revisions %s)', revisions => {
         const { world, node, dispose } = realm();
         try {
             const root = node('Root'), child = node('Old', root);
-            const preview = { tryGet: world.tryGet.bind(world) };
+            const preview = {
+                tryGet: world.tryGet.bind(world),
+                ...(revisions && { mutationRevision: world.mutationRevision.bind(world), getCppRegistry: world.getCppRegistry.bind(world) }),
+            };
             expect(resolveChildEntity(preview, root, 'Old')).toBe(child);
             world.set(child, Name, { value: 'New' });
             expect(resolveChildEntity(preview, root, 'Old')).toBeNull();

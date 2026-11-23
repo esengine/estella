@@ -321,6 +321,9 @@ export class ChangeTracker {
         return kind === 'write' ? this.writes_ : this.topology_;
     }
 
+    /** Latest change to any component whose mutation revision has been read. */
+    get observedMutationRevision(): number { return this.revision_; }
+
     mutationRevision(component: AnyComponentDef, kind: 'write' | 'topology'): number {
         let revisions = this.revisions_.get(component._id);
         if (!revisions) { revisions = [0, 0]; this.revisions_.set(component._id, revisions); }

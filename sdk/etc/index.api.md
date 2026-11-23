@@ -15647,6 +15647,7 @@ Generator<number, T, void>
 @internal mutationRevision: (component: AnyComponentDef, kind: "topology" | "write") => number
 @internal mutationSequence: (kind: "topology" | "write") => number
 @internal mutationsForCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number) => Entity[]
+@internal observedMutationRevision: number
 @internal onAssetFieldsChanged: (observer: (entity: Entity, component: AnyComponentDef) => void) => () => void
 @internal onCoreDisconnect: (dispose: () => void) => () => void
 @internal openSpeculation: (log: { record(world: World, entity: Entity, component: AnyComponentDef): void; }) => void

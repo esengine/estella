@@ -1868,6 +1868,9 @@ export class World {
     /** @internal Current boundary to acknowledge after a successful read. */
     mutationSequence(kind: 'write' | 'topology'): number { return this.changes_.mutationSequence(kind); }
 
+    /** @internal Allows readers of several component revisions to skip polling them while none changed. */
+    get observedMutationRevision(): number { return this.changes_.observedMutationRevision; }
+
     /** @internal Component stamps survive released mutation-history readers. */
     mutationRevision(component: AnyComponentDef, kind: 'write' | 'topology'): number {
         return this.changes_.mutationRevision(component, kind);

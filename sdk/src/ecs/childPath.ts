@@ -15,9 +15,13 @@ import type { Entity } from '../types';
 import { getComponent, type AnyComponentDef } from './component';
 
 type ChildPathWorld = Pick<World, 'tryGet'>
-    & Partial<Pick<World, 'mutationRevision' | 'getCppRegistry'>>;
+    & Partial<Pick<World, 'mutationRevision' | 'observedMutationRevision' | 'getCppRegistry'>>;
 
 interface ChildIndex {
+    checkedAt: number | undefined;
+    children: AnyComponentDef;
+    name: AnyComponentDef;
+    parent: AnyComponentDef;
     revision: number;
     core: ReturnType<World['getCppRegistry']>;
     parents: Map<Entity, ReadonlyMap<string, Entity>>;
@@ -32,18 +36,26 @@ function childIndex(
 ): ChildIndex | undefined {
     const parent = getComponent('Parent');
     if (!world.mutationRevision || !world.getCppRegistry || !parent) return undefined;
+    const core = world.getCppRegistry();
+    let index = childIndices.get(world);
+    if (index && (index.core !== core || index.children !== children || index.name !== name || index.parent !== parent)) {
+        index = undefined;
+    }
+    const observed = world.observedMutationRevision;
+    if (index && observed !== undefined && index.checkedAt === observed) return index;
     // Detaching updates Parent; component addition/removal uses topology revisions.
     const revision = Math.max(
         world.mutationRevision(children, 'write'), world.mutationRevision(children, 'topology'),
         world.mutationRevision(name, 'write'), world.mutationRevision(name, 'topology'),
         world.mutationRevision(parent, 'write'), world.mutationRevision(parent, 'topology'),
     );
-    const core = world.getCppRegistry();
-    let index = childIndices.get(world);
-    if (!index || index.revision !== revision || index.core !== core) {
-        index = { revision, core, parents: new Map(), pathsByRoot: new Map(), freePathSlots: 0 };
+    if (!index || index.revision !== revision) {
+        index = {
+            checkedAt: observed, children, name, parent, revision, core,
+            parents: new Map(), pathsByRoot: new Map(), freePathSlots: 0,
+        };
         childIndices.set(world, index);
-    }
+    } else index.checkedAt = observed;
     return index;
 }
 
