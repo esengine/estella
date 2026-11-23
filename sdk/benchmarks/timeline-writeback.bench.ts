@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { bench, describe } from 'vitest';
 import { Animator, AnimatorControllerAPI } from '../src/animation/Animator';
 import { Pose } from '../src/animation/pose';
-import { getComponent, Name, Transform } from '../src/ecs/component';
+import { getComponent, Name, Sprite, Transform } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
 import { World } from '../src/ecs/world';
 import { evaluateChannel, sampleTimeline, sampleTimelineIntoPose, type SampleDeps } from '../src/timeline/TimelineEvaluator';
@@ -19,14 +19,41 @@ import type { CppRegistry } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from '../tests/helpers/loadWasm';
 
 const examples = resolve(dirname(fileURLToPath(import.meta.url)), '../../examples');
+const example = (file: string) => parseTimelineAsset(JSON.parse(readFileSync(resolve(examples, file), 'utf8')));
+
+function spriteFades() {
+    const paths: string[] = [];
+    const extend = (parent: string) => {
+        const path = (parent ? parent + '/' : '') + 'Node' + paths.length;
+        paths.push(path);
+        return path;
+    };
+    let trunk = '';
+    for (let i = 0; i < 7; i++) trunk = extend(trunk);
+    for (let branch = 0; branch < 8; branch++) {
+        let tip = trunk;
+        for (let i = 0; i < 6; i++) tip = extend(tip);
+    }
+    return parseTimelineAsset({
+        version: '1.3', type: 'timeline', duration: 1, wrapMode: 'loop',
+        tracks: paths.map((childPath, index) => ({
+            type: 'property', name: 'Tint' + index, childPath, component: 'Sprite',
+            channels: [{ property: 'color.a', keyframes: [0, 1].map(time => ({
+                time, value: time, inTangent: 0, outTangent: 0, interpolation: 'linear',
+            })) }],
+        })),
+    });
+}
+
 const clips = {
-    '2D intro': 'cutscene/assets/timelines/intro.estimeline',
-    '3D jog': 'character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline',
+    'authored 2D intro': () => example('cutscene/assets/timelines/intro.estimeline'),
+    'authored 3D jog': () => example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline'),
+    '2D sprite fades': spriteFades,
 };
 
-for (const [name, file] of Object.entries(clips)) {
-    describe.skipIf(!HAS_WASM)(`authored ${name}, 16 actors`, () => {
-        const asset = parseTimelineAsset(JSON.parse(readFileSync(resolve(examples, file), 'utf8')));
+for (const [name, load] of Object.entries(clips)) {
+    describe.skipIf(!HAS_WASM)(`${name}, 16 actors`, () => {
+        const asset = load();
         const tracks = asset.tracks.filter(track => track.type === TrackType.Property);
         for (const mode of ['direct', 'pose', 'controller']) {
             let registry: CppRegistry, world: World, frame: number;
@@ -55,12 +82,12 @@ for (const [name, file] of Object.entries(clips)) {
                     };
                     if (mode === 'controller') {
                         const timeline = new TimelineAPI();
-                        timeline.registerAsset(file, asset);
+                        timeline.registerAsset(name, asset);
                         controller = new AnimatorControllerAPI();
                         controller.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
                         controller.registerController('playback', {
                             initialState: 'play', parameters: [], states: [{
-                                name: 'play', motion: { kind: TIMELINE_MOTION, clip: file, loop: true }, transitions: [],
+                                name: 'play', motion: { kind: TIMELINE_MOTION, clip: name, loop: true }, transitions: [],
                             }],
                         });
                     }
@@ -84,18 +111,22 @@ for (const [name, file] of Object.entries(clips)) {
                                 }
                                 parent = child;
                             }
+                            if (track.component === 'Sprite') world.insert(parent, Sprite);
                         }
                     }
                     if (controller) {
                         controller.update(world, 0);
                         controller.update(world, asset.duration / 3);
                     } else sampleAt(asset.duration / 3);
-                    const channel = tracks[0].channels.find(c => c.property === 'position.x')!;
-                    const expected = evaluateChannel(channel, asset.duration / 3);
-                    for (const { root } of actors) {
-                        const target = bindings.resolveChild(root, tracks[0].childPath);
-                        if (target === null || Math.abs(world.get(target, Transform).position.x - expected) > .0001) {
-                            throw new Error('Authored animation did not reach its target');
+                    const tint = tracks[0].component === 'Sprite';
+                    for (const track of tint ? tracks : [tracks[0]]) {
+                        const channel = track.channels.find(c => c.property === (tint ? 'color.a' : 'position.x'))!;
+                        const expected = evaluateChannel(channel, asset.duration / 3);
+                        for (const { root } of actors) {
+                            const target = bindings.resolveChild(root, track.childPath);
+                            if (target === null) throw new Error('Missing animation target: ' + track.childPath);
+                            const value = tint ? world.get(target, Sprite).color.a : world.get(target, Transform).position.x;
+                            if (!Number.isFinite(value) || Math.abs(value - expected) > .0001) throw new Error('Incorrect animated value: ' + track.childPath);
                         }
                     }
                 },

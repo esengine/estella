@@ -2386,6 +2386,60 @@ export function fillSprite(
     out.enabled = u8[ptr + 96] !== 0;
 }
 
+function projectSprite(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: SpritePtrData, vectorColorAliases: boolean,
+): void {
+    const texture = u32[ptr >> 2];
+    const colorR = f32[(ptr + 4) >> 2];
+    const colorG = f32[((ptr + 4) >> 2) + 1];
+    const colorB = f32[((ptr + 4) >> 2) + 2];
+    const colorA = f32[((ptr + 4) >> 2) + 3];
+    const sizeX = f32[(ptr + 20) >> 2];
+    const sizeY = f32[((ptr + 20) >> 2) + 1];
+    const pivotX = f32[(ptr + 28) >> 2];
+    const pivotY = f32[((ptr + 28) >> 2) + 1];
+    const uvOffsetX = f32[(ptr + 36) >> 2];
+    const uvOffsetY = f32[((ptr + 36) >> 2) + 1];
+    const uvScaleX = f32[(ptr + 44) >> 2];
+    const uvScaleY = f32[((ptr + 44) >> 2) + 1];
+    const layer = u32[(ptr + 52) >> 2] | 0;
+    const order = u32[(ptr + 56) >> 2] | 0;
+    const maskInteraction = u32[(ptr + 60) >> 2] | 0;
+    const lit = u8[ptr + 64] !== 0;
+    const flipX = u8[ptr + 65] !== 0;
+    const flipY = u8[ptr + 66] !== 0;
+    const drawMode = u8[ptr + 67];
+    const tileSizeX = f32[(ptr + 68) >> 2];
+    const tileSizeY = f32[((ptr + 68) >> 2) + 1];
+    const tileSpacingX = f32[(ptr + 76) >> 2];
+    const tileSpacingY = f32[((ptr + 76) >> 2) + 1];
+    const parallaxX = f32[(ptr + 84) >> 2];
+    const parallaxY = f32[((ptr + 84) >> 2) + 1];
+    const material = u32[(ptr + 92) >> 2];
+    const enabled = u8[ptr + 96] !== 0;
+    out.texture = texture;
+    const color_ = Object(out.color ??= {} as Color);
+    if (vectorColorAliases) { color_.x = colorR; color_.y = colorG; color_.z = colorB; color_.w = colorA; }
+    color_.r = colorR; color_.g = colorG; color_.b = colorB; color_.a = colorA;
+    const size_ = Object(out.size ??= {} as Vec2); size_.x = sizeX; size_.y = sizeY;
+    const pivot_ = Object(out.pivot ??= {} as Vec2); pivot_.x = pivotX; pivot_.y = pivotY;
+    const uvOffset_ = Object(out.uvOffset ??= {} as Vec2); uvOffset_.x = uvOffsetX; uvOffset_.y = uvOffsetY;
+    const uvScale_ = Object(out.uvScale ??= {} as Vec2); uvScale_.x = uvScaleX; uvScale_.y = uvScaleY;
+    out.layer = layer;
+    out.order = order;
+    out.maskInteraction = maskInteraction;
+    out.lit = lit;
+    out.flipX = flipX;
+    out.flipY = flipY;
+    out.drawMode = drawMode;
+    const tileSize_ = Object(out.tileSize ??= {} as Vec2); tileSize_.x = tileSizeX; tileSize_.y = tileSizeY;
+    const tileSpacing_ = Object(out.tileSpacing ??= {} as Vec2); tileSpacing_.x = tileSpacingX; tileSpacing_.y = tileSpacingY;
+    const parallax_ = Object(out.parallax ??= {} as Vec2); parallax_.x = parallaxX; parallax_.y = parallaxY;
+    out.material = material;
+    out.enabled = enabled;
+}
+
 export function writeSprite(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: SpritePtrData,
@@ -2636,6 +2690,38 @@ export function fillTransform(
     const worldPosition_ = out.worldPosition; worldPosition_.x = f32[(ptr + 40) >> 2]; worldPosition_.y = f32[((ptr + 40) >> 2) + 1]; worldPosition_.z = f32[((ptr + 40) >> 2) + 2];
     const worldRotation_ = out.worldRotation; worldRotation_.x = f32[(ptr + 52) >> 2]; worldRotation_.y = f32[((ptr + 52) >> 2) + 1]; worldRotation_.z = f32[((ptr + 52) >> 2) + 2]; worldRotation_.w = f32[((ptr + 52) >> 2) + 3];
     const worldScale_ = out.worldScale; worldScale_.x = f32[(ptr + 68) >> 2]; worldScale_.y = f32[((ptr + 68) >> 2) + 1]; worldScale_.z = f32[((ptr + 68) >> 2) + 2];
+}
+
+function projectTransform(
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
+    ptr: number, out: TransformPtrData,
+): void {
+    const positionX = f32[ptr >> 2];
+    const positionY = f32[(ptr >> 2) + 1];
+    const positionZ = f32[(ptr >> 2) + 2];
+    const rotationX = f32[(ptr + 12) >> 2];
+    const rotationY = f32[((ptr + 12) >> 2) + 1];
+    const rotationZ = f32[((ptr + 12) >> 2) + 2];
+    const rotationW = f32[((ptr + 12) >> 2) + 3];
+    const scaleX = f32[(ptr + 28) >> 2];
+    const scaleY = f32[((ptr + 28) >> 2) + 1];
+    const scaleZ = f32[((ptr + 28) >> 2) + 2];
+    const worldPositionX = f32[(ptr + 40) >> 2];
+    const worldPositionY = f32[((ptr + 40) >> 2) + 1];
+    const worldPositionZ = f32[((ptr + 40) >> 2) + 2];
+    const worldRotationX = f32[(ptr + 52) >> 2];
+    const worldRotationY = f32[((ptr + 52) >> 2) + 1];
+    const worldRotationZ = f32[((ptr + 52) >> 2) + 2];
+    const worldRotationW = f32[((ptr + 52) >> 2) + 3];
+    const worldScaleX = f32[(ptr + 68) >> 2];
+    const worldScaleY = f32[((ptr + 68) >> 2) + 1];
+    const worldScaleZ = f32[((ptr + 68) >> 2) + 2];
+    const position_ = Object(out.position ??= {} as Vec3); position_.x = positionX; position_.y = positionY; position_.z = positionZ;
+    const rotation_ = Object(out.rotation ??= {} as Vec4); rotation_.x = rotationX; rotation_.y = rotationY; rotation_.z = rotationZ; rotation_.w = rotationW;
+    const scale_ = Object(out.scale ??= {} as Vec3); scale_.x = scaleX; scale_.y = scaleY; scale_.z = scaleZ;
+    const worldPosition_ = Object(out.worldPosition ??= {} as Vec3); worldPosition_.x = worldPositionX; worldPosition_.y = worldPositionY; worldPosition_.z = worldPositionZ;
+    const worldRotation_ = Object(out.worldRotation ??= {} as Vec4); worldRotation_.x = worldRotationX; worldRotation_.y = worldRotationY; worldRotation_.z = worldRotationZ; worldRotation_.w = worldRotationW;
+    const worldScale_ = Object(out.worldScale ??= {} as Vec3); worldScale_.x = worldScaleX; worldScale_.y = worldScaleY; worldScale_.z = worldScaleZ;
 }
 
 export function writeTransform(
@@ -3061,6 +3147,7 @@ export interface PtrAccessor<T> {
     fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;
     write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;
     create: () => T;
+    project?: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T, vectorColorAliases: boolean) => void;
     acceptsFields?: (data: T) => boolean;
     storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;
 }
@@ -3108,11 +3195,11 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     SpringBone: { fill: fillSpringBone, write: writeSpringBone, create: createSpringBoneData },
     SpringBoneCollider: { fill: fillSpringBoneCollider, write: writeSpringBoneCollider, create: createSpringBoneColliderData },
-    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData, acceptsFields: acceptsSpriteFields, storeFields: storeSpriteFields },
+    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData, project: projectSprite, acceptsFields: acceptsSpriteFields, storeFields: storeSpriteFields },
     SpriteMask: { fill: fillSpriteMask, write: writeSpriteMask, create: createSpriteMaskData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
     TrailRenderer: { fill: fillTrailRenderer, write: writeTrailRenderer, create: createTrailRendererData },
-    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData, acceptsFields: acceptsTransformFields, storeFields: storeTransformFields },
+    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData, project: projectTransform, acceptsFields: acceptsTransformFields, storeFields: storeTransformFields },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },

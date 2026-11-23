@@ -38,6 +38,13 @@ export interface ComponentHeap {
 /** Fills `out` with the heap views + base ptr for `entity`'s component; returns
  *  false when the entity has no live component (skip the read/write). */
 export type ComponentHeapResolver = (entity: Entity, out: ComponentHeap) => boolean;
+export type ComponentSource = (entity: Entity) => ComponentHeap | null;
+/** A native registry getter can expose its non-creating, layout-checked read. */
+export const nativeComponentSource = Symbol('native component source');
+export interface NativeComponentGetter {
+    (entity: Entity): unknown;
+    [nativeComponentSource]?: ComponentSource;
+}
 
 /** Synchronously submit a complete reflected row to the core. */
 export type ComponentWriter = (entity: Entity, data: Record<string, unknown>) => boolean;
@@ -67,6 +74,13 @@ const EMPTY_F32 = new Float32Array(0);
 const EMPTY_U32 = new Uint32Array(0);
 const EMPTY_U8 = new Uint8Array(0);
 
+/** Resolve fresh views for each access. The record is borrowed until the next call. */
+export function resolveHeapSource(memory: MemoryProvider | null, cppName: string): ComponentSource | null {
+    const resolve = memory?.resolveComponentHeap(cppName);
+    if (!resolve) return null;
+    const heap = createComponentHeap();
+    return (entity) => resolve(entity, heap) ? heap : null;
+}
 /** One generated field store for mutable query rows and native component replacement. */
 export function resolveHeapWriter(memory: MemoryProvider | null, cppName: string) {
     const accessor = PTR_ACCESSORS[cppName];

@@ -3,7 +3,8 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Sprite, Transform, getComponent } from '../src/ecs/component';
-import { writeProjection } from '../src/ecs/componentProjection';
+import { readProjection, writeProjection } from '../src/ecs/componentProjection';
+import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { Pose } from '../src/animation/pose';
 import { Animator, AnimatorControllerAPI } from '../src/animation/Animator';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
@@ -133,6 +134,96 @@ describe.skipIf(!HAS_WASM)('animation component replacement', () => {
                 transformDefaults.mockRestore(); spriteDefaults.mockRestore();
                 context.editorBridge = previous; dispose();
             }
+        }
+    });
+
+    it('seeds independent pose records in place without allocating a retained component for each read', () => {
+        const { world, entity, dispose } = scene(true);
+        try {
+            world.insert(entity, Transform, { position: { x: 3, y: 4, z: 5 } });
+            world.insert(entity, Sprite, { color: { r: .125, g: .25, b: .5, a: .75 } });
+            const expected = world.get(entity, Sprite);
+            const makeSprite = vi.spyOn(PTR_ACCESSORS.Sprite, 'create');
+            const makeTransform = vi.spyOn(PTR_ACCESSORS.Transform, 'create');
+            try {
+                const first = new Pose(), other = new Pose();
+                const sprite = first.track(world, entity, Sprite)!;
+                const color = sprite.data.color, owned = sprite.data;
+                const transform = first.track(world, entity, Transform)!;
+                const position = transform.data.position;
+                const second = other.track(world, entity, Sprite)!;
+                expect(second.data).toEqual(expected);
+                expect(second.data.color).not.toBe(color);
+                world.set(entity, Sprite, { ...expected, color: { ...expected.color, a: .25 } });
+                sprite.touched.add('color');
+                first.reset();
+                expect(first.track(world, entity, Sprite)).toBe(sprite);
+                expect(sprite.data).toBe(owned);
+                expect(sprite.data.color).toBe(color);
+                expect(sprite.data.color).toMatchObject({ a: .25 });
+                expect(second.data.color).toMatchObject({ a: .75 });
+                expect(sprite.touched.size).toBe(0);
+                expect(first.track(world, entity, Transform)!.data.position).toBe(position);
+                expect(makeTransform).not.toHaveBeenCalled();
+                expect(makeSprite).not.toHaveBeenCalled();
+            } finally { makeSprite.mockRestore(); makeTransform.mockRestore(); }
+        } finally { dispose(); }
+    });
+
+    it('captures every field before a destination accessor changes or re-enters the world', () => {
+        const { world, entity, dispose } = scene(true);
+        try {
+            world.insert(entity, Transform, { position: { x: 1, y: 2, z: 3 }, scale: { x: 4, y: 5, z: 6 } });
+            const before = world.get(entity, Transform);
+            const after = { ...before, position: { x: 7, y: 8, z: 9 }, scale: { x: 10, y: 11, z: 12 } };
+            const nested: Record<string, unknown> = {}, reentered: Record<string, unknown> = {};
+            const read = vi.fn(() => {
+                world.set(entity, Transform, after);
+                readProjection(world, entity, Transform, reentered);
+                return nested;
+            });
+            const target: Record<string, unknown> = Object.defineProperty({ rotation: null, worldScale: 17 }, 'position', { get: read });
+            readProjection(world, entity, Transform, target);
+            expect(read).toHaveBeenCalledTimes(1);
+            expect(nested).toEqual(before.position);
+            expect(target.scale).toEqual(before.scale);
+            expect(target.rotation).toEqual(before.rotation);
+            expect(target.worldScale).toBe(17);
+            expect(reentered).toEqual(world.get(entity, Transform));
+            expect(reentered.scale).toEqual(after.scale);
+            const failure = new Error('pose field rejected');
+            const rejecting = Object.defineProperty({}, 'position', { get() { throw failure; } });
+            expect(() => readProjection(world, entity, Transform, rejecting)).toThrow(failure);
+        } finally { dispose(); }
+    });
+
+    it('uses the old object binding once per generation and honors intercepted or speculative reads', () => {
+        const registry = new engine.Registry(), world = new World();
+        const binding = vi.spyOn(registry, 'getTransform');
+        const pointer = engine.getTransformPtr;
+        try {
+            Object.assign(engine, { getTransformPtr: undefined });
+            world.connectCpp(registry, engine);
+            const entity = world.spawn(), pose = new Pose();
+            world.insert(entity, Transform, { position: { x: 6, y: 7, z: 8 } });
+            const first = pose.track(world, entity, Transform)!;
+            expect(pose.track(world, entity, Transform)).toBe(first);
+            expect(binding).toHaveBeenCalledTimes(1);
+            const get = vi.spyOn(world, 'get');
+            try {
+                pose.reset();
+                expect(pose.track(world, entity, Transform)?.data.position).toEqual({ x: 6, y: 7, z: 8 });
+                expect(get.mock.calls).toEqual([[entity, Transform]]);
+                expect(binding).toHaveBeenCalledTimes(2);
+            } finally { get.mockRestore(); }
+            const record = vi.fn();
+            world.openSpeculation({ record });
+            try { readProjection(world, entity, Transform, {}); }
+            finally { world.closeSpeculation(); }
+            expect(record.mock.calls).toEqual([[world, entity, Transform]]);
+        } finally {
+            Object.assign(engine, { getTransformPtr: pointer });
+            world.disconnectCpp(); registry.delete();
         }
     });
 

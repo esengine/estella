@@ -12,6 +12,7 @@ import {
 } from '../src/wasm/moduleHealth';
 import { handleWasmError } from '../src/wasm/wasmError';
 import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
+import { Transform } from '../src/ecs/component';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../src/ecs/component.generated';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
@@ -93,7 +94,9 @@ describe('BuiltinBridge abort gating', () => {
     it('refuses boundary calls once the module has aborted', () => {
         const bridge = new BuiltinBridge();
         const reg = makeCompleteRegistry() as unknown as CppRegistry;
+        const getTransformPtr = vi.fn(() => 0);
         const module = {
+            getTransformPtr,
             getBuiltinComponentNames: () => Object.keys(COMPONENT_META),
             getAbiLayoutHash: () => ABI_LAYOUT_HASH,
         } as unknown as ESEngineModule;
@@ -109,5 +112,9 @@ describe('BuiltinBridge abort gating', () => {
 
         expect(() => methods.has(1 as unknown as Entity)).toThrowError(WasmModuleAborted);
         expect(() => methods.add(1 as unknown as Entity, {})).toThrowError(WasmModuleAborted);
+        const into = { position: { x: 17 } };
+        expect(() => bridge.readProjection(1 as Entity, Transform, into)).toThrowError(WasmModuleAborted);
+        expect(getTransformPtr).not.toHaveBeenCalled();
+        expect(into).toEqual({ position: { x: 17 } });
     });
 });

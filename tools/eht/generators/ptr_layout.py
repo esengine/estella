@@ -5,14 +5,13 @@ from ..type_system import TypeSystem
 from ..field_utils import is_color_field
 
 
-# These complete numeric rows dominate authored 2D and 3D animation writeback.
-# Their object and scalar entry points commit through the same registry operation.
-SCALAR_WRITE_COMPONENTS = {'Sprite', 'Transform'}
+# Generate direct numeric reads and writes for these complete animation rows.
+SCALAR_PROJECTION_COMPONENTS = {'Sprite', 'Transform'}
 
 
 def scalar_write_fields(layout):
     """SDK path, embind value-object path, and JS type, in one wire order."""
-    if layout['name'] not in SCALAR_WRITE_COMPONENTS or not layout['ptrFn']:
+    if layout['name'] not in SCALAR_PROJECTION_COMPONENTS or not layout['ptrFn']:
         return []
     fields = []
     for field in layout['fields']:
@@ -339,6 +338,57 @@ class PtrLayoutGenerator:
             'quat': 'Vec4', 'color': 'Color',
         }[ptr_type]
 
+    def _field_reads(self, field):
+        """The scalar reads of one field, in SDK property order."""
+        off, kind = field['offset'], field['type']
+        idx = f'(ptr + {off}) >> 2' if off else 'ptr >> 2'
+        byte = f'ptr + {off}' if off else 'ptr'
+        if kind == 'struct':
+            parts = []
+            for member in field['members']:
+                word, slot = self._member_expr(member, off)
+                view = 'f32' if member['type'] == 'f32' else 'u32'
+                expr = f'u8[{slot}]' if member['type'] in ('u8', 'bool') else f'{view}[{word}]'
+                parts.append((member['name'], expr))
+            return parts
+        axes = {'vec2': 'xy', 'uvec2': 'xy', 'vec3': 'xyz', 'vec4': 'xyzw', 'quat': 'xyzw', 'color': 'rgba'}
+        if kind in axes:
+            view = 'u32' if kind == 'uvec2' else 'f32'
+            return [(axis, f'{view}[{idx}]' if i == 0 else f'{view}[({idx}) + {i}]')
+                    for i, axis in enumerate(axes[kind])]
+        scalar = {'f32': f'f32[{idx}]', 'i32': f'u32[{idx}] | 0', 'u32': f'u32[{idx}]',
+                  'bool': f'u8[{byte}] !== 0', 'u8': f'u8[{byte}]'}
+        return [(None, scalar[kind])]
+
+    def _fill_body(self, fields, projection):
+        lines, stores = [], []
+        for field in fields:
+            name = field['name']
+            reads = self._field_reads(field)
+            if projection:
+                # A destination setter can re-enter the world and move the heap.
+                # Finish the entire snapshot before touching any destination.
+                captured = []
+                for axis, expr in reads:
+                    local = name + (axis.upper() if axis else '')
+                    lines.append(f'    const {local} = {expr};')
+                    captured.append((axis, local))
+                reads = captured
+            if reads[0][0] is None:
+                stores.append(f'    out.{name} = {reads[0][1]};')
+                continue
+            target = f'out.{name}'
+            if projection:
+                target = f'Object({target} ??= {{}} as {self._ts_type_for(field["type"])})'
+            assignments = ' '.join(f'{name}_.{axis} = {value};' for axis, value in reads)
+            if projection and field['type'] == 'color':
+                stores.append(f'    const {name}_ = {target};')
+                aliases = ' '.join(f'{name}_.{axis} = {value};' for axis, (_, value) in zip('xyzw', reads))
+                stores.extend([f'    if (vectorColorAliases) {{ {aliases} }}', '    ' + assignments])
+            else:
+                stores.append(f'    const {name}_ = {target}; ' + assignments)
+        return lines + stores
+
     def generate_accessors(self) -> str:
         lines = [
             '/**',
@@ -366,51 +416,14 @@ class PtrLayoutGenerator:
             lines.append('}')
             lines.append('')
 
-            # Generate fill function (mutates pre-allocated object)
-            lines.append(f'export function fill{name}(')
-            heap_params_at = len(lines)
-            lines.append(f'    ptr: number, out: {name}PtrData,')
-            lines.append(f'): void {{')
-            for f in fields:
-                byte_off = f['offset']
-                idx_expr = f'(ptr + {byte_off}) >> 2' if byte_off else 'ptr >> 2'
-                byte_expr = f'ptr + {byte_off}' if byte_off else 'ptr'
-                ft = f['type']
-                fn = f['name']
-                if ft == 'f32':
-                    lines.append(f'    out.{fn} = f32[{idx_expr}];')
-                elif ft == 'i32':
-                    lines.append(f'    out.{fn} = u32[{idx_expr}] | 0;')
-                elif ft == 'u32':
-                    lines.append(f'    out.{fn} = u32[{idx_expr}];')
-                elif ft == 'bool':
-                    lines.append(f'    out.{fn} = u8[{byte_expr}] !== 0;')
-                elif ft == 'u8':
-                    lines.append(f'    out.{fn} = u8[{byte_expr}];')
-                elif ft == 'vec2':
-                    lines.append(f'    const {fn}_ = out.{fn}; {fn}_.x = f32[{idx_expr}]; {fn}_.y = f32[({idx_expr}) + 1];')
-                elif ft == 'uvec2':
-                    lines.append(f'    const {fn}_ = out.{fn}; {fn}_.x = u32[{idx_expr}]; {fn}_.y = u32[({idx_expr}) + 1];')
-                elif ft == 'vec3':
-                    lines.append(f'    const {fn}_ = out.{fn}; {fn}_.x = f32[{idx_expr}]; {fn}_.y = f32[({idx_expr}) + 1]; {fn}_.z = f32[({idx_expr}) + 2];')
-                elif ft in ('vec4', 'quat'):
-                    lines.append(f'    const {fn}_ = out.{fn}; {fn}_.x = f32[{idx_expr}]; {fn}_.y = f32[({idx_expr}) + 1]; {fn}_.z = f32[({idx_expr}) + 2]; {fn}_.w = f32[({idx_expr}) + 3];')
-                elif ft == 'color':
-                    lines.append(f'    const {fn}_ = out.{fn}; {fn}_.r = f32[{idx_expr}]; {fn}_.g = f32[({idx_expr}) + 1]; {fn}_.b = f32[({idx_expr}) + 2]; {fn}_.a = f32[({idx_expr}) + 3];')
-                elif ft == 'struct':
-                    reads = []
-                    for m in f['members']:
-                        m_idx, m_byte = self._member_expr(m, byte_off)
-                        if m['type'] == 'f32':
-                            reads.append(f'{fn}_.{m["name"]} = f32[{m_idx}];')
-                        elif m['type'] in ('u8', 'bool'):
-                            reads.append(f'{fn}_.{m["name"]} = u8[{m_byte}];')
-                        else:
-                            reads.append(f'{fn}_.{m["name"]} = u32[{m_idx}];')
-                    lines.append(f'    const {fn}_ = out.{fn}; ' + ' '.join(reads))
-            lines.insert(heap_params_at, self._heap_params(lines[heap_params_at:]))
-            lines.append('}')
-            lines.append('')
+            fill = self._fill_body(fields, False)
+            lines.extend([f'export function fill{name}(', self._heap_params(fill),
+                          f'    ptr: number, out: {name}PtrData,', '): void {', *fill, '}', ''])
+            if scalar_write_fields(layout):
+                project = self._fill_body(fields, True)
+                aliases = ' vectorColorAliases: boolean,' if any(f['type'] == 'color' for f in fields) else ''
+                lines.extend([f'function project{name}(', self._heap_params(project),
+                              f'    ptr: number, out: {name}PtrData,{aliases}', '): void {', *project, '}', ''])
 
             # Generate write function
             lines.append(f'export function write{name}(')
@@ -510,6 +523,7 @@ class PtrLayoutGenerator:
         lines.append('    fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;')
         lines.append('    write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;')
         lines.append('    create: () => T;')
+        lines.append('    project?: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T, vectorColorAliases: boolean) => void;')
         lines.append('    acceptsFields?: (data: T) => boolean;')
         lines.append('    storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;')
         lines.append('}')
@@ -519,7 +533,7 @@ class PtrLayoutGenerator:
         lines.append('export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {')
         for layout in self.layouts:
             name = layout['name']
-            store = f', acceptsFields: accepts{name}Fields, storeFields: store{name}Fields' if scalar_write_fields(layout) else ''
+            store = f', project: project{name}, acceptsFields: accepts{name}Fields, storeFields: store{name}Fields' if scalar_write_fields(layout) else ''
             lines.append(f'    {name}: {{ fill: fill{name}, write: write{name}, create: create{name}Data{store} }},')
         lines.append('};')
         lines.append('')

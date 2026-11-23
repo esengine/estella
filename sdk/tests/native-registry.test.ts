@@ -8,7 +8,7 @@
  *          the fast path) runs on the native backend end-to-end, headless, no
  *          device — proving Stage A: one SDK, native core.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BuiltinBridge } from '../src/ecs/bridge/BuiltinBridge';
 import { createNativeRegistry } from '../src/ecs/bridge/nativeRegistry';
 import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
@@ -273,6 +273,43 @@ describe('createNativeRegistry', () => {
             addPoseOver(mixed, high, low, 0.25, world, null);
             check(mixed, 0.625);
         } finally { world.disconnectCpp(); }
+    });
+
+    it('refills native pose colors and their vector aliases, without emplacing an absent component', () => {
+        const scope = mockNativeScope(), bridge = new BuiltinBridge();
+        const bytes = vi.fn(scope.es_Sprite_buffer as (e: number) => ArrayBuffer | null);
+        scope.es_Sprite_buffer = bytes;
+        const registry = createNativeRegistry(scope);
+        bridge.connect(registry, undefined, { memory: new NativeMemoryProvider(scope) });
+        try {
+            const into: Record<string, unknown> = {}, e = 14;
+            bridge.readProjection(e, Sprite, into);
+            expect(bridge.has(e, Sprite)).toBe(false);
+            expect(bytes).not.toHaveBeenCalled();
+            const held = into.color;
+            bridge.insert(e, Sprite, { color: { r: .125, g: .25, b: .5, a: .75 } });
+            bridge.readProjection(e, Sprite, into);
+            const expected = bridge.get(e, Sprite);
+            expect(into).toEqual(expected);
+            expect(into.color).toBe(held);
+            expect(into.color).toMatchObject({ x: .125, y: .25, z: .5, w: .75, r: .125, g: .25, b: .5, a: .75 });
+            bridge.set(e, Sprite, { ...expected, color: { r: .75, g: .5, b: .25, a: .125 } });
+            bridge.readProjection(e, Sprite, into);
+            expect(into.color).toBe(held);
+            expect(into.color).toMatchObject({ x: .75, y: .5, z: .25, w: .125, r: .75, g: .5, b: .25, a: .125 });
+            bytes.mockClear().mockReturnValueOnce(null);
+            bridge.readProjection(e, Sprite, into);
+            expect(bytes.mock.calls).toEqual([[e]]);
+            expect(into.color).toEqual({ x: 0, y: 0, z: 0, w: 0, r: 0, g: 0, b: 0, a: 0 });
+            bridge.disconnect();
+            const getter = vi.fn(() => ({ ...expected, color: { x: .5, y: .25, z: .125, w: 1 } }));
+            Object.assign(registry, { getSprite: getter });
+            bridge.connect(registry, undefined, { memory: new NativeMemoryProvider(scope) });
+            bridge.readProjection(e, Sprite, into);
+            expect(getter.mock.calls).toEqual([[e]]);
+            expect(into.color).toBe(held);
+            expect(into.color).toMatchObject({ r: .5, g: .25, b: .125, a: 1 });
+        } finally { bridge.disconnect(); }
     });
 
     it('get never creates a component (has stays false)', () => {

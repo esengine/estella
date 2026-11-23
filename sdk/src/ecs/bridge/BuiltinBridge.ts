@@ -15,6 +15,7 @@ import { flushEngineStamps } from '../engineStamps';
 import type { Entity } from '../../types';
 import { mergeIntoDefaults } from '../component';
 import type { BuiltinComponentDef } from '../component';
+import { copyComponentData } from '../componentProjection';
 import type { CppRegistry, ESEngineModule } from '../../wasm';
 import { validateComponentData, formatValidationErrors } from '../../util/validation';
 import { handleWasmError } from '../../wasm/wasmError';
@@ -24,8 +25,9 @@ import { PTR_ACCESSORS } from './ptrAccessors.generated';
 import { hasOwn } from '../../util/ownProperties';
 import { reorderSetByRank, type RankOf } from '../entityOrder';
 import {
-    type MemoryProvider, type ComponentHeap,
-    WasmMemoryProvider, resolveWasmPtrFn, resolveHeapWriter, createComponentHeap,
+    type MemoryProvider, type ComponentHeap, type ComponentSource, type NativeComponentGetter,
+    WasmMemoryProvider, nativeComponentSource, resolveHeapSource,
+    resolveWasmPtrFn, resolveHeapWriter, createComponentHeap,
 } from './memoryProvider';
 
 // =============================================================================
@@ -331,6 +333,7 @@ export interface BuiltinMethods {
     add: (e: Entity, d: unknown) => void;
     addFields?: (e: Entity, data: Record<string, unknown>) => boolean;
     get: (e: Entity) => unknown;
+    projectionSource?: ComponentSource;
     has: (e: Entity) => boolean;
     remove: (e: Entity) => void;
 }
@@ -798,7 +801,13 @@ export class BuiltinBridge {
             has: guard('has', (hasFn as (e: Entity) => boolean).bind(reg)),
             remove: guard('remove', (removeFn as (e: Entity) => void).bind(reg)),
         };
-        const accepts = PTR_ACCESSORS[cppName]?.acceptsFields;
+        const accessor = PTR_ACCESSORS[cppName];
+        if (accessor?.project) {
+            const source = this.module_ ? resolveHeapSource(this.memory_, cppName)
+                : (getFn as NativeComponentGetter)[nativeComponentSource];
+            if (source) methods.projectionSource = guard('get', source);
+        }
+        const accepts = accessor?.acceptsFields;
         const write = accepts && this.memory_?.resolveComponentWriter?.(cppName);
         if (write && accepts) {
             methods.addFields = guard('add', (e: Entity, data: Record<string, unknown>) => accepts(data) && write(e, data));
@@ -981,9 +990,40 @@ export class BuiltinBridge {
             if (fromHeap !== null) return fromHeap as T;
             return builtinFromWasm(this.getBuiltinMethods(component._cppName).get(entity), component) as T;
         } catch (e) {
-            handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
-            return { ...component._default } as T;
+            return this.readError_(e, entity, component);
         }
+    }
+
+    readProjection<T>(entity: Entity, component: BuiltinComponentDef<T>, into: Record<string, unknown>): void {
+        const name = component._cppName;
+        const methods = this.builtinMethodCache_.get(name);
+        const colors = COMPONENT_META[name]?.colorFields;
+        const customNativeColors = !this.module_ && component.colorKeys !== colors
+            && (component.colorKeys.length > 0 || !!colors?.length);
+        if (!methods?.projectionSource || customNativeColors) {
+            copyComponentData(into, this.get(entity, component) as Record<string, unknown>);
+            return;
+        }
+        const accessor = PTR_ACCESSORS[name]!;
+        let heap: ComponentHeap | null = null, value: unknown;
+        try {
+            heap = methods.projectionSource(entity);
+            if (!heap) {
+                // Native buffer getters return a zero row when absent. Probing their emplacing storage again can change it.
+                value = this.module_ ? builtinFromWasm(methods.get(entity), component)
+                    : convertFromWasm(convertForWasm(accessor.create(), component.colorKeys), component.colorKeys);
+            }
+        } catch (e) {
+            value = this.readError_(e, entity, component);
+        }
+        // Destination setters belong to the caller and can throw or re-enter the world.
+        if (heap) accessor.project!(heap.f32, heap.u32, heap.u8, heap.ptr, into, !this.module_);
+        else copyComponentData(into, value as Record<string, unknown>);
+    }
+
+    private readError_<T>(error: unknown, entity: Entity, component: BuiltinComponentDef<T>): T {
+        handleWasmError(error, `getBuiltin(${component._name}, entity=${entity})`);
+        return { ...component._default };
     }
 
     has(entity: Entity, component: BuiltinComponentDef<any>): boolean {

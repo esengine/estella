@@ -20,9 +20,8 @@ import { PTR_ACCESSORS } from './ptrAccessors.generated';
 import { REGISTRY_BINDINGS, REGISTRY_OPS, SCENE_QUERY_BINDINGS, INSPECTION_BINDINGS } from './nativeBindings';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
+import { NativeMemoryProvider, nativeComponentSource, createComponentHeap, type NativeComponentGetter } from './memoryProvider';
 
-/** A host-injected entity->ArrayBuffer accessor over one native ECS component. */
-type BufferFn = (entity: number) => ArrayBuffer | null | undefined;
 type HasFn = (entity: number) => boolean;
 type RemoveFn = (entity: number) => void;
 /** The generated pair a list field crosses by — see COMPONENT_META.listFields. */
@@ -30,15 +29,6 @@ interface ListFieldBinding {
     field: string;
     get: (entity: number) => unknown;
     set: (entity: number, value: unknown) => void;
-}
-
-function views(buf: ArrayBuffer): [Float32Array, Uint32Array, Uint8Array] {
-    // Float32Array/Uint32Array require a byteLength that is a multiple of 4, but a
-    // component's native struct can be any size (Interactable is 3 bytes, UIMask 2).
-    // Cover the 4-aligned prefix for the word views — every f32/u32 field is
-    // naturally aligned and fits within it — and the whole buffer for the byte view.
-    const words = Math.floor(buf.byteLength / 4);
-    return [new Float32Array(buf, 0, words), new Uint32Array(buf, 0, words), new Uint8Array(buf)];
 }
 
 /** Invoke a host-provided global by name (throws a clear error if the host did not
@@ -88,6 +78,7 @@ export function createNativeRegistry(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): CppRegistry {
     const reg: Record<string, unknown> = {};
+    const memory = new NativeMemoryProvider(scope);
     for (const [method, binding] of Object.entries(INSPECTION_BINDINGS)) {
         if (typeof scope[binding] === 'function') reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
     }
@@ -219,13 +210,14 @@ export function createNativeRegistry(
 
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         const accessor = PTR_ACCESSORS[cppName];
-        const bufFn = scope[`es_${cppName}_buffer`] as BufferFn | undefined;   // getOrEmplace = add
+        const storage = memory.resolveComponentHeap(cppName);
         const hasFn = scope[`es_${cppName}_has`] as HasFn | undefined;
         const removeFn = scope[`es_${cppName}_remove`] as RemoveFn | undefined;
-        if (typeof bufFn !== 'function' || typeof hasFn !== 'function'
+        if (!storage || typeof hasFn !== 'function'
             || typeof removeFn !== 'function') {
             continue;
         }
+        const heap = createComponentHeap();
         const colorFields = (COMPONENT_META[cppName]?.colorFields ?? []) as readonly string[];
         // A list field's storage is a pointer, so it is absent from the buffer the
         // accessors write through: it crosses as its own generated pair, and a host
@@ -244,29 +236,26 @@ export function createNativeRegistry(
         // SDK hands embind-shape data ({x,y,z,w} colors); ptrAccessors want
         // {r,g,b,a}, so bridge colors back before writing.
         reg[`add${cppName}`] = (entity: Entity, data: Record<string, unknown>): void => {
-            const buf = bufFn(entity);
-            if (!buf) return;
+            if (!storage(entity, heap)) return;
+            const { f32, u32, u8, ptr } = heap;
             const ptrData = colorFields.length ? convertFromWasm(data, colorFields) : data;
-            const [f32, u32, u8] = views(buf);
-            accessor.write(f32, u32, u8, 0, ptrData);
+            accessor.write(f32, u32, u8, ptr, ptrData);
             for (const l of listFields) l.set(entity, (data as Record<string, unknown>)[l.field] ?? []);
         };
 
         // get: read into a fresh object (embind returns fresh, so callers may
         // retain it), then present colors in embind {x,y,z,w} shape for the SDK,
         // which converts them back. Never creates: checks has first.
-        reg[`get${cppName}`] = (entity: Entity): unknown => {
+        const get: NativeComponentGetter = (entity): unknown => {
             const out = accessor.create() as Record<string, unknown>;
-            if (hasFn(entity)) {
-                const buf = bufFn(entity);
-                if (buf) {
-                    const [f32, u32, u8] = views(buf);
-                    accessor.fill(f32, u32, u8, 0, out);
-                }
-            }
+            if (hasFn(entity) && storage(entity, heap)) accessor.fill(heap.f32, heap.u32, heap.u8, heap.ptr, out);
             for (const l of listFields) out[l.field] = l.get(entity);
             return colorFields.length ? convertForWasm(out, colorFields) : out;
         };
+        if (accessor.project && !listFields.length) {
+            get[nativeComponentSource] = (e: Entity) => hasFn(e) && storage(e, heap) ? heap : null;
+        }
+        reg[`get${cppName}`] = get;
 
         reg[`has${cppName}`] = (entity: Entity): boolean => hasFn(entity);
         reg[`remove${cppName}`] = (entity: Entity): void => { removeFn(entity); };

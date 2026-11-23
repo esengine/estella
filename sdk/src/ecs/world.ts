@@ -16,7 +16,7 @@ import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
-import { componentProjection } from './componentProjection';
+import { componentProjection, copyComponentData, readComponentProjection } from './componentProjection';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
@@ -1054,6 +1054,15 @@ export class World {
             return this.builtin_.get(entity, component) as ComponentData<C>;
         }
         return this.scripts_.get(entity, component as ComponentDef<any>) as ComponentData<C>;
+    }
+
+    /** @internal Read a snapshot into the caller's existing pose records. */
+    [readComponentProjection](entity: Entity, component: AnyComponentDef, into: Record<string, unknown>): void {
+        if (this.get !== worldGet || this.speculation_ || !isBuiltinComponent(component)) {
+            copyComponentData(into, this.get(entity, component));
+        } else {
+            this.builtin_.readProjection(entity, component, into);
+        }
     }
 
     /** Whether `entity` carries `component`. */

@@ -17,7 +17,7 @@
 
 import type { Entity } from '../types';
 import type { AnyComponentDef } from '../ecs/component';
-import { writeProjection } from '../ecs/componentProjection';
+import { readProjection, writeProjection } from '../ecs/componentProjection';
 
 /** The world surface a pose is seeded from and written back to. */
 export interface PoseWorld {
@@ -49,27 +49,8 @@ interface PoseSlot {
 const keyOf = (entity: Entity, def: AnyComponentDef): string => `${entity} ${def._name}`;
 
 /**
- * Copy `src`'s values into `dst`, reusing whatever objects `dst` already holds.
- * A pose OWNS its values: a builtin component's `get` hands back a projection
- * the next reader may share, so two poses seeded from one entity would be the
- * same object, and blending them would compare a value with itself.
- */
-function copyInto(dst: Record<string, unknown>, src: Record<string, unknown>): void {
-    for (const key of Object.keys(src)) {
-        const value = src[key];
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-            const nested = (dst[key] ??= {}) as Record<string, unknown>;
-            Object.assign(nested, value);
-        } else {
-            dst[key] = value;
-        }
-    }
-}
-
-/**
- * One motion's evaluated result. Reused across frames: {@link reset} keeps the
- * track objects and their buffers, so a steady animation allocates nothing
- * after its first frame.
+ * One motion's evaluated result. {@link reset} retains the track records and
+ * their nested values for the next frame.
  */
 export class Pose {
     private readonly slots_ = new Map<string, PoseSlot>();
@@ -98,7 +79,7 @@ export class Pose {
         if (!world.has(entity, def)) return null;
 
         const track = slot?.track ?? { entity, def, data: {}, touched: new Set<string>() };
-        copyInto(track.data, world.get(entity, def));
+        readProjection(world, entity, def, track.data);
         track.touched.clear();
         if (slot) slot.stamp = this.stamp_;
         else this.slots_.set(key, { track, stamp: this.stamp_ });

@@ -15807,6 +15807,7 @@ Generator<number, T, void>
 ## World — class @public
 ```
 @internal [Symbol.componentProjection]: <C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>) => void
+@internal [Symbol.readComponentProjection]: (entity: Entity, component: AnyComponentDef, into: Record<string, unknown>) => void
 @internal addressOfComponent: (component: AnyComponentDef, entity: Entity) => number | undefined
 @internal addressResolver: (component: AnyComponentDef) => (entity: Entity) => number | undefined
 @internal advanceMutationCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number, through: number) => void
