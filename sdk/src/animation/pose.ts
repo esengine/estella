@@ -18,6 +18,7 @@
 import type { Entity } from '../types';
 import type { AnyComponentDef } from '../ecs/component';
 import { readProjection, writeProjection } from '../ecs/componentProjection';
+import { poseStorageFor, StoredPoseTracks, type PoseStorage } from './poseStorage';
 
 /** The world surface a pose is seeded from and written back to. */
 export interface PoseWorld {
@@ -70,9 +71,26 @@ export class PoseTrackIndex<T> {
  * their nested values for the next frame.
  */
 export class Pose {
-    private readonly slots_ = new PoseTrackIndex<PoseSlot>();
+    private readonly slots_: PoseTrackIndex<PoseSlot> | StoredPoseTracks<PoseSlot>;
+    private readonly stored_?: StoredPoseTracks<PoseSlot>;
     private readonly live_: PoseTrack[] = [];
     private stamp_ = 0;
+    private held_ = false;
+    private retirementAtSeed_ = 0;
+
+    constructor();
+    /** @internal Only evaluator scratch poses are released at the end of a sample. */
+    constructor(storage: PoseStorage);
+    constructor(storage?: PoseStorage) {
+        if (storage) this.stored_ = new StoredPoseTracks(storage);
+        this.slots_ = this.stored_ ?? new PoseTrackIndex();
+    }
+
+    /** @internal Drop the ordered live view after every consumer has finished blending. */
+    finishEvaluation(): void {
+        this.held_ = false;
+        this.reset();
+    }
 
     /** Drop this frame's contents, keeping the buffers. */
     reset(): void {
@@ -96,15 +114,26 @@ export class Pose {
      * motion animating only position must not zero the rotation beside it.
      */
     track(world: PoseWorld, entity: Entity, def: AnyComponentDef): PoseTrack | null {
+        if (this.stored_ && this.live_.length === 0) {
+            const storage = poseStorageFor(world);
+            this.stored_.storage = storage;
+            this.retirementAtSeed_ = storage.retirementRevision;
+            if (!this.held_) this.held_ = storage.hold(this);
+        }
         const slot = this.slots_.lookup(entity, def);
         if (slot && slot.stamp === this.stamp_) return slot.track;
         if (!world.has(entity, def)) return null;
 
+        const key = !slot ? this.stored_?.keyFor(entity, def, world) : undefined;
         const track = slot?.track ?? { entity, def, data: {}, touched: new Set<string>() };
         readProjection(world, entity, def, track.data);
         track.touched.clear();
         if (slot) slot.stamp = this.stamp_;
-        else this.slots_.set(entity, def, { track, stamp: this.stamp_ });
+        else {
+            const sampled = { track, stamp: this.stamp_ };
+            if (this.slots_ instanceof PoseTrackIndex) this.slots_.set(entity, def, sampled);
+            else this.slots_.remember(key, sampled);
+        }
         this.live_.push(track);
         return track;
     }
@@ -120,8 +149,12 @@ export class Pose {
     }
 
     private writeTracks_(world: PoseWorld, write: typeof writeComponent): void {
+        const storage = this.stored_?.storage;
         for (const track of this.live_) {
-            if (track.touched.size > 0) write(world, track.entity, track.def, track.data);
+            if (track.touched.size === 0) continue;
+            // A previous write can despawn a later joint or replace its core while this list is in use.
+            if (storage && storage.retirementRevision !== this.retirementAtSeed_ && this.findTrack(track.entity, track.def) !== track) continue;
+            write(world, track.entity, track.def, track.data);
         }
     }
 }

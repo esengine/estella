@@ -22,6 +22,7 @@
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import { Pose } from './pose';
+import { poseStorageFor } from './poseStorage';
 import { mixPoses, type WeightedPose } from './poseMix';
 import { resolveChildEntity } from '../ecs/childPath';
 import type { JointResolver } from './animatorAvatar';
@@ -351,8 +352,8 @@ export class MotionRegistry {
         },
         rootDelta: (motion, span, out) =>
             this.driverFor(motion)?.rootMotion?.(this.ctx_, motion, span, out) ?? false,
-        borrowPose: () => this.posePool_.pop() ?? new Pose(),
-        releasePose: (pose) => { this.posePool_.push(pose); },
+        borrowPose: () => this.posePool_.pop() ?? new Pose(poseStorageFor(this.ctx_.world)),
+        releasePose: (pose) => { pose.reset(); this.posePool_.push(pose); },
         borrowMix: () => this.mixPool_.pop() ?? [],
         releaseMix: (mix) => { this.mixPool_.push(mix); },
         borrowDelta: () => this.deltaPool_.pop() ?? {

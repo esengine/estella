@@ -29,6 +29,7 @@ import {
 } from './motion';
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 import { Pose } from './pose';
+import { poseStorageFor, type PoseStorage } from './poseStorage';
 import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
@@ -823,6 +824,19 @@ export class AnimatorControllerAPI {
         for (const list of this.windows_.values()) list.length = 0;
         this.windows_.clear();
         const entities = world.getEntitiesWithComponents([Animator]);
+        if (entities.length === 0) return;
+        const storage = poseStorageFor(world);
+        const mark = storage.begin();
+        try {
+            this.updateEntities(world, entities, storage, dt, events);
+        } finally {
+            storage.end(mark);
+        }
+    }
+
+    private updateEntities(
+        world: World, entities: readonly Entity[], storage: PoseStorage, dt: number, events?: AnimatorEventSink,
+    ): void {
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
             if (!a.enabled) continue;
@@ -830,6 +844,8 @@ export class AnimatorControllerAPI {
             const def = this.getController(a.controller);
             if (!def || animatorScopes(def).every((s) => s.states.length === 0)) continue;
 
+            const actorKey = storage.keyFor(entity, world);
+            if (!actorKey) continue;
             const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const rig = this.avatarOf(a.avatar);
@@ -837,7 +853,7 @@ export class AnimatorControllerAPI {
             const joints = avatarResolver(world, rig);
             const travel = travelRatio(clips, rig);
             const ctx = this.motions_.context(world, entity, params, joints);
-            const rt = this.runtimeFor(entity, count);
+            const rt = this.runtimeFor(entity, count, storage);
             rt.composed.reset();
 
             let wrote = false;
@@ -870,7 +886,7 @@ export class AnimatorControllerAPI {
             }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
-            if (wrote) rt.composed.applyEvaluatedTo(world);
+            if (wrote && storage.entities[entity] === actorKey) rt.composed.applyEvaluatedTo(world);
         }
     }
 
@@ -1216,10 +1232,10 @@ export class AnimatorControllerAPI {
         return ground;
     }
 
-    private runtimeFor(entity: Entity, layers: number): AnimatorRuntime {
+    private runtimeFor(entity: Entity, layers: number, storage: PoseStorage): AnimatorRuntime {
         let rt = this.runtimes_.get(entity);
         if (!rt) {
-            rt = { layers: [], composed: new Pose(), rest: new Pose() };
+            rt = { layers: [], composed: new Pose(storage), rest: new Pose(storage) };
             this.runtimes_.set(entity, rt);
         }
         while (rt.layers.length < layers) {
@@ -1227,7 +1243,7 @@ export class AnimatorControllerAPI {
                 time: 0, prevTime: 0, entered: true,
                 fadeFrom: null, fadeFromRoot: false,
                 fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
-                poseFrom: new Pose(), poseTo: new Pose(), mixed: new Pose(),
+                poseFrom: new Pose(storage), poseTo: new Pose(storage), mixed: new Pose(storage),
                 fade: [{ pose: null!, weight: 0 }, { pose: null!, weight: 0 }],
             });
         }

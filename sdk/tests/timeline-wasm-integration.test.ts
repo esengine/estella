@@ -7,8 +7,15 @@
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
 import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { Session } from 'node:inspector';
+import { setImmediate } from 'node:timers/promises';
+import { Animator, AnimatorControllerAPI } from '../src/animation/Animator';
+import { resolveChildEntity } from '../src/ecs/childPath';
+import { TimelineAPI } from '../src/timeline/TimelineControl';
+import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline/timelineMotion';
 import { World } from '../src/ecs/world';
 import { Transform, defineComponent, getComponent, unregisterComponent } from '../src/ecs/component';
+import type { Entity } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import {
@@ -120,6 +127,116 @@ describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
             scenes.forEach((s, index) => expect(s.world.get(s.actor, probe).value).toBe(index + 10));
         } finally {
             for (const { world, registry } of worlds) disposeWorld(world, registry);
+            unregisterComponent(probe._name);
+        }
+    });
+
+    it.each(['timeline', 'controller', 'blend'])('releases despawned joint data while the %s keeps playing', async mode => {
+        const { world, registry } = createWorld();
+        const probe = defineComponent('PoseLifetimeProbe', { value: 0, samples: [] as number[] });
+        try {
+            const root = world.spawn(), survivor = world.spawn('Stay');
+            world.setParent(survivor, root);
+            world.insert(survivor, probe, { value: 10 });
+            const names = Array.from({ length: 32 }, (_, i) => 'Joint' + i);
+            const motion = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1,
+                tracks: ['Stay', ...names.map(name => 'Part/' + name)].map(childPath => ({ type: 'property', childPath, component: probe._name,
+                    channels: [{ property: 'value', keyframes: [{ time: 0, value: 40 }] }],
+                })),
+            });
+            const layer = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1, tracks: [{
+                type: 'animation', weight: .5, clips: [{ start: 0, duration: 1, clip: 'cue' }],
+            }] });
+            const deps = { world, getComponent, resolveChild: (entity: Entity, path: string) => resolveChildEntity(world, entity, path) };
+            const controllers = new AnimatorControllerAPI();
+            if (mode !== 'timeline') {
+                const timelines = new TimelineAPI();
+                timelines.registerAsset('cue', motion);
+                controllers.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timelines));
+                const clip = { kind: TIMELINE_MOTION, clip: 'cue' };
+                controllers.registerController('play', { initialState: 'step', parameters: [], states: [{
+                    name: 'step', transitions: [], motion: mode === 'controller' ? clip : {
+                        kind: 'blend1d', parameter: 'mix', thresholds: [{ value: 0, motion: clip }, { value: 1, motion: clip }],
+                    },
+                }] });
+                controllers.setFloat(root, 'mix', .5);
+                world.insert(root, Animator, { controller: 'play', enabled: true });
+            }
+            const sample = () => mode === 'timeline'
+                ? sampleAnimationTracks(layer, .5, root, deps, () => motion)
+                : controllers.update(world);
+            const replacePart = (wave: number) => {
+                const part = world.spawn('Part');
+                world.setParent(part, root);
+                const joints = names.map((name, i) => {
+                    const joint = world.spawn(name), value = wave + i;
+                    world.setParent(joint, part);
+                    const data = world.insert(joint, probe, { value, samples: Array<number>(8192).fill(value + .25) });
+                    return { joint, value, marker: new WeakRef(data.samples) };
+                });
+                sample();
+                for (const { joint, value } of joints) {
+                    expect(world.get(joint, probe).value).toBe(mode === 'timeline' ? (value + 40) / 2 : 40);
+                }
+                // A later teardown listener can still sample the joint. It must not reattach the retired data.
+                const off = world.onDespawn(entity => { if (entity === joints[0]!.joint) sample(); });
+                try { world.despawn(part); } finally { off(); }
+                return joints.map(joint => joint.marker);
+            };
+            const listeners = world.getStorageSizes();
+            const retired = Array.from({ length: 8 }, (_, wave) => replacePart(wave)).flat();
+            // WeakRef keeps its target until this JS job ends. Collect in the test worker's own isolate.
+            await setImmediate();
+            const session = new Session();
+            session.connect();
+            try {
+                await new Promise<void>((resolve, reject) => session.post('HeapProfiler.collectGarbage', err => err ? reject(err) : resolve()));
+            } finally { session.disconnect(); }
+            expect(retired.filter(ref => ref.deref() !== undefined)).toHaveLength(0);
+            sample();
+            expect(world.get(survivor, probe).value).toBe(mode === 'timeline' ? 25 : 40);
+            world.despawn(root);
+            expect(world.getStorageSizes()).toMatchObject({
+                despawnCallbacks: listeners.despawnCallbacks, coreDisconnectCallbacks: listeners.coreDisconnectCallbacks,
+            });
+        } finally {
+            disposeWorld(world, registry);
+            unregisterComponent(probe._name);
+        }
+    });
+
+    it('skips a joint retired by another joint’s write in the same evaluation', () => {
+        const { world, registry } = createWorld();
+        const probe = defineComponent('RetiredDuringPose', { value: 0 });
+        try {
+            const root = world.spawn(), first = world.spawn('First'), last = world.spawn('Last');
+            for (const joint of [first, last]) {
+                world.setParent(joint, root);
+                world.insert(joint, probe);
+            }
+            const motion = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1,
+                tracks: ['First', 'Last'].map(childPath => ({ type: 'property', childPath, component: probe._name,
+                    channels: [{ property: 'value', keyframes: [{ time: 0, value: 7 }] }],
+                })),
+            });
+            const take = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1, tracks: [{
+                type: 'animation', clips: [{ start: 0, duration: 1, clip: 'motion' }],
+            }] });
+            const store = world.set.bind(world);
+            const write = vi.spyOn(world, 'set').mockImplementation((entity, def, data) => {
+                store(entity, def, data);
+                if (entity === first && def === probe) world.despawn(last);
+            });
+            try {
+                sampleAnimationTracks(take, .5, root, {
+                    world, getComponent, resolveChild: (e, path) => resolveChildEntity(world, e, path),
+                }, () => motion);
+            } finally { write.mockRestore(); }
+            expect(world.get(first, probe).value).toBe(7);
+            expect(world.valid(last)).toBe(false);
+            expect(world.has(last, probe)).toBe(false);
+        } finally {
+            disposeWorld(world, registry);
             unregisterComponent(probe._name);
         }
     });

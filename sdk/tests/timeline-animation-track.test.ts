@@ -354,6 +354,43 @@ describe('root motion', () => {
         expect(rigX()).toBeCloseTo(50, 6);
     });
 
+    it.each([false, true])('forgets the old registry when it reuses a rig handle (root motion %s)', rootMotion => {
+        const track = tl({ rootMotion, weight: .5, clips: [clip({ clip: 'walk' })] });
+        sampleAnimationTracks(track, .5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(rootMotion ? 60 : 30);
+        const oldRig = rig;
+        const replacement = createMockModule();
+        world.connectCpp(replacement.getRegistry(), replacement);
+        rig = world.spawn('replacement');
+        expect(rig).toBe(oldRig);
+        world.insert(rig, Transform, { position: { x: 80, y: 0, z: 0 } });
+        sampleAnimationTracks(track, .5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(rootMotion ? 130 : 65);
+    });
+
+    it('does not write old root motion into a registry replaced during a read', () => {
+        const track = tl({ rootMotion: true, clips: [clip({ clip: 'walk' })] });
+        const get = world.get.bind(world);
+        let replaced = false;
+        const read = vi.spyOn(world, 'get').mockImplementation((entity, def) => {
+            const data = get(entity, def);
+            if (!replaced && entity === rig && def === Transform) {
+                replaced = true;
+                const next = createMockModule();
+                world.connectCpp(next.getRegistry(), next);
+                const replacement = world.spawn();
+                expect(replacement).toBe(rig);
+                world.insert(replacement, Transform, { position: { x: 80, y: 0, z: 0 } });
+            }
+            return data;
+        });
+        try { sampleAnimationTracks(track, .5, rig, deps(), lookup); } finally { read.mockRestore(); }
+        expect(replaced).toBe(true);
+        expect(rigX()).toBeCloseTo(80);
+        sampleAnimationTracks(track, .5, rig, deps(), lookup);
+        expect(rigX()).toBeCloseTo(130);
+    });
+
     it('starts again from where the rig stands once its rests are forgotten', () => {
         const t = tl({ rootMotion: true, clips: [clip({ start: 0, duration: 1, clip: 'walk' })] });
         sampleAnimationTracks(t, 0.5, rig, deps(), lookup);
