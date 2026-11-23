@@ -783,7 +783,7 @@ export class Assets {
 
     private async acquireTextureVariant_(
         ref: string, flip: boolean,
-    ): Promise<{ result: TextureResult; lease: AssetRefLease<number> }> {
+    ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string }> {
         this.assertLoading_();
         const path = this.resolveLoadPath_(ref);
         const cacheKey = this.textureCacheKey_(path, flip);
@@ -825,7 +825,7 @@ export class Assets {
             const b = settings.sliceBorder;
             requireResourceManager().setTextureMetadata(result.handle, b.left, b.right, b.top, b.bottom);
         }
-        return { result, lease };
+        return { result, lease, path };
     }
 
     private releaseUnclaimedTexture_(load: TextureLoad): void {
@@ -1994,6 +1994,11 @@ export class Assets {
     }
 
     private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T>> {
+        if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
+            const { result, lease, path } = await this.acquireTextureVariant_(ref, true);
+            const receipt: AssetLease = this.textureLease_(lease, result, `texture:${path}`);
+            return receipt as AssetLease<T>;
+        }
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
         const slot = await this.acquireSlot_<T>(type, ref, owner);
@@ -2023,15 +2028,15 @@ export class Assets {
      * after an invalidate is not the era a path resolves to.
      */
     private textureLease_(
-        lease: AssetRefLease<number>, value: TextureResult,
+        lease: AssetRefLease<number>, value: TextureResult, key = lease.key,
     ): BindingLease<TextureResult> {
         return {
             [leaseBinding]: 'texture',
-            key: lease.key, generation: lease.generation, value,
+            key, generation: lease.generation, value,
             release: () => this.releaseTextureLease(lease),
             retain: () => {
                 const child = this.textureRefs_.retain(lease);
-                return child ? this.textureLease_(child, value) : null;
+                return child ? this.textureLease_(child, value, key) : null;
             },
         };
     }
@@ -2070,13 +2075,15 @@ export class Assets {
 
     releaseTexture(ref: string): void {
         const path = this.resolveLoadPath_(ref);
-        for (const flip of [true, false]) {
-            const key = this.textureCacheKey_(path, flip);
-            const dropped = this.textureRefs_.releaseOldest(key);
-            if (!dropped) continue;
-            if (dropped.ambiguous) warnAmbiguousRelease_(key);
-            if (dropped.exhausted) this.disposeTexture_(key, dropped.value);
-        }
+        for (const flip of [true, false]) this.releaseTextureVariant_(path, flip);
+    }
+
+    private releaseTextureVariant_(path: string, flip: boolean): void {
+        const key = this.textureCacheKey_(path, flip);
+        const dropped = this.textureRefs_.releaseOldest(key);
+        if (!dropped) return;
+        if (dropped.ambiguous) warnAmbiguousRelease_(key);
+        if (dropped.exhausted) this.disposeTexture_(key, dropped.value);
     }
 
     /**
@@ -2163,6 +2170,10 @@ export class Assets {
         const path = type === 'spine'
             ? spinePairKey(this.resolveLoadPath_(ref), this.spineAtlasOf_(this.resolveLoadPath_(ref)))
             : this.resolveLoadPath_(ref);
+        if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
+            this.releaseTextureVariant_(path, true);
+            return;
+        }
         const kind = this.registryKind_(type);
         if (kind) {
             this.registrySlots_.releaseByName(type, this.assetIdentity_(ref));

@@ -58,6 +58,69 @@ describe('the import settings of one texture request', () => {
             expect(uploads).toContainEqual({ width: 512, format: 2, flip: true, filter: 3, wrap: 2 });
         } finally { assets.releaseAll(); }
     });
+
+    it.each(['typed first', 'texture first', 'concurrent'] as const)('shares one configured upload and generation (%s)', async order => {
+        setLinearColorSpace(true);
+        const assets = assetsWithPixels();
+        assets.setAssetRefResolver(() => 'tex/normal.png');
+        assets.setTextureImportSettingsResolver(ref => ref === 'authored'
+            ? { srgb: false, filter: 'nearest', wrap: 'repeat', mipmaps: false } : undefined);
+        assets.noteMeshSurface({ texture: 'authored' });
+        assets.setTextureStreamingStart(64);
+        const viaType = () => assets.acquireTyped<{ handle: number }>('texture', 'authored');
+        const viaTexture = () => assets.acquireTexture('authored');
+        try {
+            const pending = order === 'texture first' ? undefined : viaType();
+            if (order === 'typed first') await pending;
+            const texture = await viaTexture();
+            const typed = await (pending ?? viaType());
+            expect(uploads).toEqual([{ width: 64, format: 1, flip: true, filter: 0, wrap: 0 }]);
+            expect(typed.value).toBe(texture.value);
+            expect(typed.key).toBe('texture:tex/normal.png');
+            expect(typed.generation).toBe(texture.generation);
+            const extra = typed.retain()!;
+            typed.release(); texture.release();
+            expect(extra.key).toBe(typed.key);
+            expect(assets.getTexture('authored')).toBe(extra.value);
+            extra.release();
+            expect(assets.getTexture('authored')).toBeUndefined();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('releases the default typed orientation by path and still honors a custom texture loader', async () => {
+        const assets = assetsWithPixels();
+        try {
+            const raw = await assets.loadTextureRaw('dual.png');
+            const normal = await assets.acquireTyped<{ handle: number }>('texture', 'dual.png');
+            expect(assets.getTexture('dual.png')).toBe(normal.value);
+            assets.releaseTyped('texture', 'dual.png');
+            expect(assets.getTexture('dual.png')).toBeUndefined();
+            expect(assets.textureResizable(raw.handle)).toBe(true);
+            const unload = vi.fn();
+            assets.register({ type: 'texture', extensions: [], load: async () => 'custom', unload });
+            const custom = await assets.acquireTyped<string>('texture', 'dual.png');
+            expect(custom.value).toBe('custom');
+            assets.releaseTyped('texture', 'dual.png');
+            expect(unload).toHaveBeenCalledWith('custom');
+            expect(assets.textureResizable(raw.handle)).toBe(true);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('keeps a typed receipt on its original upload across a file edit', async () => {
+        const assets = assetsWithPixels();
+        try {
+            const old = await assets.acquireTyped<{ handle: number }>('texture', 'edited.png');
+            assets.invalidate('edited.png');
+            const current = await assets.acquireTexture('edited.png');
+            const oldChild = old.retain()!;
+            expect(current.generation).not.toBe(old.generation);
+            expect(current.value.handle).not.toBe(old.value.handle);
+            expect(oldChild.value).toBe(old.value);
+            old.release(); oldChild.release();
+            expect(assets.getTexture('edited.png')).toBe(current.value);
+            current.release();
+        } finally { assets.releaseAll(); }
+    });
 });
 
 function appWithQuality(edge: 64 | 128 | 256): App {
