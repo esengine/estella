@@ -1142,6 +1142,11 @@ export class App {
         return this.resources_.has(resource);
     }
 
+    /** @internal Observe the current explicit value and its replacements synchronously, including before the first frame. */
+    onResourceChange<T>(resource: ResourceDef<T>, observer: (value: T | undefined) => void): () => void {
+        return this.resources_.onChange(resource, observer);
+    }
+
     getResourceByName(name: string): unknown | undefined {
         // The storage learns a name on INSERT; a declared one `get` materialises
         // at its default, which is what an interpreted system reads on its first

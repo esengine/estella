@@ -48,13 +48,18 @@ function harness(startedSmall = 0) {
             return { width: size, height: size };
         },
     };
-    const resources = new Map<unknown, unknown>([[Quality, { profile }], [Assets, assets]]);
+    const quality = { enabled: true, profile };
+    const resources = new Map<unknown, unknown>([[Quality, quality], [Assets, assets]]);
     let tick: (() => void) | null = null;
     const app = {
         world: { getEntitiesWithComponents: () => [] },
         insertResource: (res: unknown, value: unknown) => { resources.set(res, value); },
         hasResource: (res: unknown) => resources.has(res),
         getResource: (res: unknown) => resources.get(res),
+        onResourceChange: (res: unknown, observer: (value: unknown) => void) => {
+            observer(resources.get(res));
+            return () => {};
+        },
         addSystemToSchedule: (_schedule: unknown, system: { _fn: () => void }) => { tick = system._fn; },
     };
     new TextureStreamingPlugin().build(app as never);
@@ -63,7 +68,7 @@ function harness(startedSmall = 0) {
         tick!();
         for (let i = 0; i < 10; i++) await Promise.resolve();
     };
-    return { profile, resized, run, bindings, assets, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
+    return { quality, profile, resized, run, bindings, assets, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
 }
 
 describe('textures streaming shrank, once the quality level stops streaming', () => {
@@ -102,6 +107,15 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         expect([dims.get(2)!.width, dims.get(3)!.width]).toEqual([1024, 512]);
         await run(2000);
         expect(resized.length).toBe(2);
+    });
+
+    it('restores a small mesh texture when the quality controller is switched off', async () => {
+        const { quality, run, resized, state } = harness(1);
+        dims.set(1, { width: 64, height: 64 });
+        quality.enabled = false;
+        await run(1000);
+        expect(state().enabled).toBe(false);
+        expect(resized).toEqual([[1, 0]]);
     });
 
     it('are asked once only when one cannot come back at full size', async () => {

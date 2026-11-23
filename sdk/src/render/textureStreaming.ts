@@ -18,12 +18,13 @@
  *          KTX2 file is cut at a level and not decoded again.
  */
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
-import { setTextureStreamingStartProvider } from '../asset/Assets';
+import { bindTextureStreamingStart } from '../asset/Assets';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { getTextureDimensions } from '../wasm/resourceManager';
 import { platformNow } from '../platform';
@@ -182,20 +183,26 @@ const UNMEASURED = ['Sprite', 'UIVisual', 'TilemapLayer', 'ParticleEmitter', 'Tr
 /** @experimental */
 export class TextureStreamingPlugin implements Plugin {
     name = 'textureStreaming';
+    private readonly subscriptions_ = new PluginInstallations<() => void>();
 
     build(app: App): void {
+        this.cleanup(app);
         const state = new TextureStreaming();
         app.insertResource(TextureStreamingRes, state);
         const world = app.world;
         let last = 0, lastHeld = -Infinity, owed = false, seenSmall = 0;
         const moving = new Set<number>();
-        // Asked as each texture loads, not first in the frame loop: a scene may start loading before the first frame does, and the
-        // quality level may be settled after this plugin is built.
-        const startEdge = (): number => {
+        const activeProfile = (api = engineApi(app)): Readonly<QualityProfile> | null => {
             const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
-            return quality?.profile.textureStreaming && engineApi(app)?.renderer_takeTextureWants ? quality.profile.textureStreamingStartEdge : 0;
+            return quality?.enabled && quality.profile.textureStreaming && api?.renderer_takeTextureWants ? quality.profile : null;
         };
-        setTextureStreamingStartProvider(startEdge);
+        const startEdge = () => activeProfile()?.textureStreamingStartEdge ?? 0;
+        let detach: (() => void) | undefined;
+        const stop = app.onResourceChange(Assets, assets => {
+            detach?.();
+            detach = assets && bindTextureStreamingStart(assets, startEdge);
+        });
+        this.subscriptions_.set(app, () => { stop(); detach?.(); });
 
         const parse = (raw: string): Map<number, number> => {
             const out = new Map<number, number>();
@@ -220,16 +227,15 @@ export class TextureStreamingPlugin implements Plugin {
         };
 
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
-            const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
-            const profile = quality?.profile;
-            state.enabled = !!profile?.textureStreaming;
             const api = engineApi(app);
+            const profile = activeProfile(api);
+            state.enabled = profile !== null;
             if (!api?.renderer_takeTextureWants || !app.hasResource(Assets)) return;
             const now = platformNow();
-            const interval = profile?.textureStreaming ? profile.textureStreamingIntervalMs : TEXTURE_STREAMING_INTERVAL_MS;
+            const interval = profile?.textureStreamingIntervalMs ?? TEXTURE_STREAMING_INTERVAL_MS;
             if (now - last < interval) return;
             last = now;
-            const inFlight = profile?.textureStreaming ? profile.textureStreamingInFlight : TEXTURE_STREAMING_IN_FLIGHT;
+            const inFlight = profile?.textureStreamingInFlight ?? TEXTURE_STREAMING_IN_FLIGHT;
 
             const assets = app.getResource(Assets);
             const loader = assets.getTextureLoader();
@@ -252,7 +258,7 @@ export class TextureStreamingPlugin implements Plugin {
                     .finally(() => { state.inFlight--; state.restoring.delete(handle); });
             };
             if (loader.startedSmall !== seenSmall) { seenSmall = loader.startedSmall; owed = true; }
-            if (!state.enabled) {
+            if (!profile) {
                 state.textures.clear();
                 if (!owed || state.inFlight > state.restoring.size) return;
                 const held: Pick<StreamedTexture, 'handle' | 'fullWidth' | 'fullHeight' | 'edge'>[] = [];
@@ -293,7 +299,7 @@ export class TextureStreamingPlugin implements Plugin {
                 if (full && now_ && (now_.width < full.width || now_.height < full.height) && state.inFlight < inFlight && !state.restoring.has(handle)) putBack(handle);
             }
 
-            const options = textureStreamingOptionsOf(profile!);
+            const options = textureStreamingOptionsOf(profile);
             const available = [...state.textures.values()].filter(e => !moving.has(e.handle) && !state.restoring.has(e.handle));
             for (const move of planStreaming(available, now, options)) {
                 if (state.inFlight >= inFlight) break;
@@ -322,6 +328,8 @@ export class TextureStreamingPlugin implements Plugin {
             }
         }, { name: 'TextureStreamingSystem' }), { runIf: playModeOnly });
     }
+
+    cleanup(app?: App): void { this.subscriptions_.take(app)?.(); }
 }
 
 /** @experimental */

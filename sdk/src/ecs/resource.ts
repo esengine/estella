@@ -196,6 +196,7 @@ export class ResMutInstance<T> {
 
 export class ResourceStorage {
     private resources_ = new Map<symbol, unknown>();
+    private readonly observers_ = new Map<symbol, Set<() => void>>();
     private resMutPool_ = new Map<symbol, ResMutInstance<unknown>>();
     private ticks_ = new Map<symbol, number>();
     private globalTick_ = 0;
@@ -219,10 +220,7 @@ export class ResourceStorage {
     }
 
     insert<T>(resource: ResourceDef<T>, value: T): void {
-        this.resources_.set(resource._id, value);
-        this.defaulted_.delete(resource._id);
-        this.ticks_.set(resource._id, ++this.globalTick_);
-        this.note_(resource as ResourceDef<unknown>);
+        this.set(resource, value);
     }
 
     get<T>(resource: ResourceDef<T>): T {
@@ -241,6 +239,7 @@ export class ResourceStorage {
         this.defaulted_.delete(resource._id);
         this.ticks_.set(resource._id, ++this.globalTick_);
         this.note_(resource as ResourceDef<unknown>);
+        this.observers_.get(resource._id)?.forEach(notify => notify());
     }
 
     has<T>(resource: ResourceDef<T>): boolean {
@@ -254,6 +253,28 @@ export class ResourceStorage {
         this.ticks_.delete(resource._id);
         this.names_.delete(resource._id);
         this.nameRegistry_.delete(resource._name);
+        this.observers_.get(resource._id)?.forEach(notify => notify());
+    }
+
+    /** Observe the installed value immediately and when its identity changes. An empty slot yields undefined. */
+    onChange<T>(resource: ResourceDef<T>, observer: (value: T | undefined) => void): () => void {
+        const read = () => this.has(resource) ? this.get(resource) : undefined;
+        let current = read();
+        const notify = () => {
+            const next = read();
+            if (Object.is(current, next)) return;
+            current = next;
+            observer(next);
+        };
+        const id = resource._id;
+        const listeners = this.observers_.get(id) ?? new Set<() => void>();
+        this.observers_.set(id, listeners);
+        listeners.add(notify);
+        const stop = () => {
+            if (listeners.delete(notify) && listeners.size === 0) this.observers_.delete(id);
+        };
+        try { observer(current); } catch (error) { stop(); throw error; }
+        return stop;
     }
 
     /**

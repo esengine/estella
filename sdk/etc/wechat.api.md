@@ -824,6 +824,7 @@ writers: readonly { slot: number; event: string; fields: readonly string[]; }[] 
 ```
 @internal addBundleSystems: (entries: ReadonlyArray<{ schedule: number; system: SystemDef | SystemSet; }>) => App
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions & { ownedRegistry?: boolean; }) => App
+@internal onResourceChange: <T>(resource: ResourceDef<T>, observer: (value: T | undefined) => void) => () => void
 @internal wasmModule: ESEngineModule | null
 addEvent: <T>(event: EventDef<T>) => App
 addPlugin: (plugin: Plugin) => App
@@ -13269,6 +13270,7 @@ unseenAfter: number
 ## TextureStreamingPlugin — class @experimental
 ```
 build: (app: App) => void
+cleanup: (app?: App) => void
 name: string
 static new (): TextureStreamingPlugin
 static prototype: TextureStreamingPlugin

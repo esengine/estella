@@ -72,6 +72,11 @@ export interface TextureImportSettings {
 
 export type TextureImportSettingsResolver = (ref: string) => TextureImportSettings | undefined;
 
+interface TextureLoadOptions {
+    settings?: TextureImportSettings;
+    startEdge?: number;
+}
+
 /** An asset's settings for the engine's pixel upload: mipmapped unless it says not, as the WebGL upload is. */
 function pixelParams(settings: TextureImportSettings | undefined): TextureParams {
     return { filterMode: settings?.filter, wrapMode: settings?.wrap, srgb: settings?.srgb, mipmaps: settings?.mipmaps ?? true };
@@ -159,7 +164,6 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private readonly formats_ = new TextureFormatLog();
     /** File-backed handles this realm currently owns and can resize. */
     private readonly held_ = new Map<number, HeldTextureSource>();
-    private pendingStartEdge_ = 0;
     /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
     startedSmall = 0;
     askedSmall = 0;
@@ -178,12 +182,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         this.module_ = module;
     }
 
-    /** Currently-effective settings for the in-flight load. Set by Assets.ts
-     *  before delegating to load(); cleared when done. Avoids threading a new
-     *  param through the AssetLoader interface, which is also implemented by
-     *  non-texture loaders that don't need it. */
-    private pendingSettings_: TextureImportSettings | undefined;
-    setPendingSettings(s: TextureImportSettings | undefined): void { this.pendingSettings_ = s; }
+    /** One-shot options for direct calls that omit their own load options. */
+    private pendingOptions_: TextureLoadOptions = {};
+    setPendingSettings(settings: TextureImportSettings | undefined): void { this.pendingOptions_.settings = settings; }
 
     /** Platform pixel decoder (see {@link TexturePixelDecoder}). Null ⇒ the
      *  default URL `<img>` decode path (editor / app Assets, unchanged). */
@@ -195,16 +196,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private compressedSource_: TextureCompressedSource | null = null;
     setCompressedSource(source: TextureCompressedSource | null): void { this.compressedSource_ = source; }
 
-    async load(path: string, ctx: LoadContext): Promise<TextureResult> {
-        const settings = this.pendingSettings_;
-        this.pendingSettings_ = undefined;
-        return this.loadWithFlip(path, ctx, true, settings);
+    load(path: string, ctx: LoadContext, options?: TextureLoadOptions): Promise<TextureResult> {
+        return this.loadWithFlip(path, ctx, true, options);
     }
 
-    async loadRaw(path: string, ctx: LoadContext): Promise<TextureResult> {
-        const settings = this.pendingSettings_;
-        this.pendingSettings_ = undefined;
-        return this.loadWithFlip(path, ctx, false, settings);
+    loadRaw(path: string, ctx: LoadContext, options?: TextureLoadOptions): Promise<TextureResult> {
+        return this.loadWithFlip(path, ctx, false, options);
     }
 
     async loadFromPixels(
@@ -289,7 +286,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     /** Decode the next load no larger than @p edge on a side (texture streaming's start), where the file's own size can still be known. */
-    setPendingStartEdge(edge: number): void { this.pendingStartEdge_ = Math.max(0, edge); }
+    setPendingStartEdge(edge: number): void { this.pendingOptions_.startEdge = edge; }
 
     /** A texture the warm cache gave back under @p key is the one this loader decoded under it: resizable again. */
     adoptRevived(handle: number, key: string): void {
@@ -308,11 +305,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private async loadWithFlip(
-        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
+        path: string, ctx: LoadContext, flip: boolean, options?: TextureLoadOptions,
     ): Promise<TextureResult> {
         const revision = this.imageRevisions_.get(path);
-        const start = this.pendingStartEdge_;
-        this.pendingStartEdge_ = 0;
+        const { settings, startEdge = 0 } = options ?? this.pendingOptions_;
+        if (!options) this.pendingOptions_ = {};
+        const start = Math.max(0, startEdge);
         if (start > 0) this.askedSmall++;
         const { texture: result, decision } = await this.decodeAndUpload_(path, ctx, flip, settings, start);
         if (result.fullWidth !== undefined) this.startedSmall++;

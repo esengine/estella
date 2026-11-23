@@ -177,6 +177,29 @@ describe('ResourceStorage', () => {
         });
     });
 
+    it('observes explicit replacements through either declaration of a named slot', () => {
+        const alias = defineResource({ count: 0 }, 'StorageCounter');
+        const seen: Array<number | undefined> = [];
+        storage.get(Counter);
+        const stop = storage.onChange(Counter, value => seen.push(value?.count));
+        expect(storage.has(Counter)).toBe(false);
+        const value = { count: 1 };
+        storage.insert(alias, value);
+        storage.set(alias, value);
+        storage.getResMut(alias).set({ count: 2 });
+        storage.remove(alias);
+        stop();
+        storage.insert(alias, { count: 3 });
+        expect(seen).toEqual([undefined, 1, 2, undefined]);
+    });
+
+    it('removes an observer whose initial notification fails', () => {
+        storage.set(Counter, { count: 1 });
+        expect(() => storage.onChange(Counter, () => { throw new Error('observe'); })).toThrow('observe');
+        storage.set(Counter, { count: 2 });
+        expect(storage.get(Counter).count).toBe(2);
+    });
+
     describe('has', () => {
         it('should return false for missing resource', () => {
             expect(storage.has(Counter)).toBe(false);

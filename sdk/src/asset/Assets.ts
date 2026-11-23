@@ -385,13 +385,15 @@ function warnAmbiguousRelease_(key: string): void {
         + 'which may not be the one the caller holds. Release it by its lease instead.');
 }
 
-/**
- * What edge a mesh texture is first loaded at, asked as each one loads (texture streaming says, by the quality level): set once per
- * realm, before any Assets exists, since a scene can load before the first frame. 0 loads it whole.
- */
-let textureStreamingStart: () => number = () => 0;
-/** @internal */
-export function setTextureStreamingStartProvider(provider: () => number): void { textureStreamingStart = provider; }
+const streamingDefaults = new WeakMap<Assets, () => number>();
+
+/** @internal The owning App supplies its current quality level until this Assets leaves its resource slot. */
+export function bindTextureStreamingStart(assets: Assets, provider: () => number): () => void {
+    streamingDefaults.set(assets, provider);
+    return () => {
+        if (streamingDefaults.get(assets) === provider) streamingDefaults.delete(assets);
+    };
+}
 
 export class Assets {
     readonly backend: Backend;
@@ -567,10 +569,6 @@ export class Assets {
     }
 
     /**
-     * Load the textures meshes draw no larger than @p edge on a side to begin with (0 loads them whole): texture streaming grows each
-     * to what its views need. A texture something else also draws is put back at its size by the streamer.
-     */
-    /**
      * Say that a material or texture will be drawn on meshes made at run time, before loading it. A scene's MeshRenderers
      * are found when the scene loads; plants a world grows, and anything else built in code, are not in any scene, so
      * their textures were loaded at their files' size even where texture streaming starts mesh textures small. Noted
@@ -583,8 +581,15 @@ export class Assets {
         if (surface.texture) this.meshTextures_.add(this.resolveLoadPath_(surface.texture));
     }
 
+    /** A positive edge overrides this App's initial mesh texture size. Zero uses its quality profile, or full size without one. */
     setTextureStreamingStart(edge: number | (() => number)): void {
         this.streamingStartEdge_ = edge;
+    }
+
+    private initialTextureEdge_(path: string): number {
+        if (!this.meshTextures_.has(path)) return 0;
+        const edge = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
+        return edge > 0 ? edge : streamingDefaults.get(this)?.() ?? 0;
     }
 
     /** Whether {@link resizeTexture} can move @p handle between sizes. */
@@ -777,14 +782,11 @@ export class Assets {
             // exact key — reviving it skips the whole fetch + decode + upload.
             const revived = this.reviveResidentTexture_(cacheKey);
             if (revived) return { value: revived };
-            this.textureLoader_.setPendingSettings(settings);
-            // Asked as each texture loads: what decides it (the quality level) may arrive after whoever said how to ask.
-            const own = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
-            const start = own > 0 ? own : textureStreamingStart();
-            if (start > 0 && this.meshTextures_.has(path)) this.textureLoader_.setPendingStartEdge(start);
+            const options = { settings, startEdge: this.initialTextureEdge_(path) };
+            const ctx = this.getLoadContext_();
             const value = flip
-                ? await this.textureLoader_.load(path, this.getLoadContext_())
-                : await this.textureLoader_.loadRaw(path, this.getLoadContext_());
+                ? await this.textureLoader_.load(path, ctx, options)
+                : await this.textureLoader_.loadRaw(path, ctx, options);
             return { value };
         });
         // BEFORE acquiring, so no ledger entry is ever created for a load nobody
