@@ -830,6 +830,10 @@ void main() {
     // A near crest can face an eye below its rest tangent. The displaced triangle determines which medium the view ray leaves.
     bool below = u_waveSpace > 0.5 ? !gl_FrontFacing : dot(viewDir, Ngeo) < 0.0;
     if (below) { N = -N; Ngeo = -Ngeo; }
+    // A face turned away from the eye cannot be seen: the steep front of a breaker seen from behind is hidden by its crest, and only the
+    // surface's coarseness leaves a sliver of it on screen. Shaded by its own normal it mirrors the sky whole (N.V under zero is Fresnel 1),
+    // an even grey line along every breaker; shaded by the surface's own normal it is the crest in front of it.
+    if (!below) N = normalize(mix(N, Ngeo, smoothstep(0.3, -0.1, dot(N, viewDir))));
 
     // What is behind the water: the picture and the distance, where the frame took them.
     bool haveColor = texture(u_sceneColor, vec2(0.5)).a < 0.75;
