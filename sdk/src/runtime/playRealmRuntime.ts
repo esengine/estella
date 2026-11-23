@@ -19,26 +19,21 @@ import type { ParsedTextureImportSettings } from '../asset/textureImportSettings
 import type { App } from '../app/app';
 import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
+import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
 import { registryEntityFields } from '../residency/componentRefs';
 import { deferFarProxies, farProxySceneName, farProxySettings, type FarProxyHost } from '../residency/farProxy';
 import { decodeMesh, encodeMesh } from '../asset/meshFormat';
-import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import type { AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
-import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
-import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
-import type { RuntimeBuildConfig } from '../defaults';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers, indexPackagedManifest } from './packagedRuntime';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
-import type { Physics3DBackend } from '../sideModules/registry';
-import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 
-export interface PlayRealmRuntimeConfig {
+export interface PlayRealmRuntimeConfig extends RuntimeProjectSettings {
     app: App;
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
@@ -81,27 +76,6 @@ export interface PlayRealmRuntimeConfig {
      *  paths (`audio.playSFX('assets/…')`), so it needs this base to fetch from the
      *  project rather than the play-realm subdir. */
     assetBaseUrl?: string;
-    /** Project-declared physics enable (`.uproject` features analog) — installs
-     *  physics even for runtime-spawned bodies the static scene doesn't show. */
-    physicsEnabled?: boolean;
-    /** Project-declared physics world config (gravity, solver tuning, collision-layer
-     *  masks, sleep/continuous) from the editor's Project Settings. */
-    physicsConfig?: Physics2DPluginConfig;
-    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
-    uiTheme?: 'dark' | 'light';
-    /** Project-declared theme token overrides (partial re-skin over the base). */
-    uiThemeOverrides?: ThemeOverrides;
-    /** Project-declared mixer state (bus volumes / effects / duck rules). */
-    audioConfig?: AudioProjectConfig;
-    /** The project's runtime tuning (Project Settings → Game → Runtime), so Play runs under what ships. */
-    runtime?: RuntimeBuildConfig;
-    /** The project's declared achievement ids — Play checks an unlock against the
-     *  same set a shipped build does, so a typo is found here. */
-    achievements?: string[];
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
     enableStats?: boolean;
     /**
@@ -379,17 +353,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         ...(cut ? { worlds: [cut.manifest], cellDocuments: cut.documents } : {}),
         firstScene: entryName,
         aspectRatio: canvas.width / canvas.height,
-        physicsEnabled: config.physicsEnabled,
-        physicsConfig: config.physicsConfig,
-        physics3dBackend: config.physics3dBackend,
-        physics3dWorld: config.physics3dWorld,
-        uiTheme: config.uiTheme,
-        uiThemeOverrides: config.uiThemeOverrides,
-        audioConfig: config.audioConfig,
-        runtime: config.runtime,
-        achievements: config.achievements,
-        // Physics (and spine) are acquired from app.sideModules — the fetch host
-        // createWebApp built from this realm's wasmBaseUrl.
+        ...runtimeProjectSettings(config),
     });
     // Per-phase / per-system frame timing for the editor profiler (enabled before
     // the loop starts so the runner instruments from frame zero).

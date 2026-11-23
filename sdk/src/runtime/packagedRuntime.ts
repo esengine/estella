@@ -13,7 +13,6 @@
  */
 
 import type { QualityConfig } from '../render/quality';
-import type { RuntimeBuildConfig } from '../defaults';
 import type { SkinCacheConfig } from '../render/skinCache';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import { extractUuid } from '../asset/AssetRegistry';
@@ -24,22 +23,26 @@ import { FileSystemBackend, type Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import type { SpineCullingRect } from '../asset/spineImportSettings';
 import { Audio } from '../audio/Audio';
-import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
-import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
-import { parseThemeOverrides, type ThemeOverrides } from '../ui/theme/tokens';
+import { parseThemeOverrides } from '../ui/theme/tokens';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
-import { registerSideModule, type Physics3DBackend } from '../sideModules/registry';
-import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
+import { registerSideModule } from '../sideModules/registry';
 import type { AotManifest } from '../ecs/aot/AotSystems';
+import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
+
+/** The package omits the default dark theme and encodes overrides as hex colors. */
+interface PackagedProjectSettings extends Omit<RuntimeProjectSettings, 'uiThemeOverrides'> {
+    uiTheme?: 'light';
+    uiThemeColors?: Record<string, string>;
+}
 
 /**
  * `game.config.json` — what an export bakes about the project, and the contract
  * between the export pipeline that writes it and every runtime that reads it.
  * One declaration so the two sides cannot drift.
  */
-export interface PackagedGameConfig {
+export interface PackagedGameConfig extends PackagedProjectSettings {
     /** External Web distribution SDK selected by this export. */
     webChannel?: 'poki' | 'crazygames' | 'youtube';
     /** Public client encryption key for invited CrazyGames leaderboards; never a server API key. */
@@ -83,13 +86,6 @@ export interface PackagedGameConfig {
     /** Project camera fit (design resolution + scale mode) — letterboxes the main
      *  camera without a UI Canvas; absent = no fit. */
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-    /** Project widget theme; absent = dark. */
-    uiTheme?: 'light';
-    /** Project theme color overrides (role → #rrggbbaa hex). */
-    uiThemeColors?: Record<string, string>;
-    /** The achievement ids this game declares. The runtime refuses an unlock
-     *  outside the set, because a store accepts an unknown id and does nothing. */
-    achievements?: string[];
     /** The Steam application id, when this build ships to Steam. Its presence is
      *  what makes the runtime try to bring a Steam client up at all. */
     steamAppId?: number;
@@ -102,25 +98,6 @@ export interface PackagedGameConfig {
     /** The package carries the engine built as plain JavaScript (wasm/esengine.asm.js),
      *  which the page loads where there is no WebAssembly. */
     engineJs?: boolean;
-    /**
-     * Install physics even when the shipped scene shows no bodies — a project
-     * that spawns them from script (Project Settings → Physics → Enabled).
-     * Absent ⇒ physics installs only when a scene actually uses it.
-     */
-    physicsEnabled?: boolean;
-    /** The physics world the project declared: gravity, solver, collision matrix.
-     *  Absent ⇒ the engine's own defaults. */
-    physicsConfig?: Physics2DPluginConfig;
-    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    /** Project mixer state: bus volumes, custom buses, effects, duck rules.
-     *  Absent ⇒ the default mix. */
-    audioConfig?: AudioProjectConfig;
-    /** The runtime tuning the project declared (scene transition, frame limits, asset timeouts, cache budgets).
-     *  Absent ⇒ the engine's own values; only fields that differ from them are written. */
-    runtime?: RuntimeBuildConfig;
     /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
      *  the storage key an applied update persists under (both optional). */
     hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
@@ -249,41 +226,20 @@ export function packagedAppOptions(
     };
 }
 
+type PackagedBootFields = Pick<PackagedGameConfig, 'uiTheme' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel'>;
+
 /**
  * The {@link initRuntime} arguments a packaged config declares — everything
  * applied to a LIVE app rather than baked into its construction. The twin of
  * {@link packagedAppOptions}; between them a host names the config once.
  */
 export function packagedRuntimeInit(
-    config: Pick<PackagedGameConfig,
-        'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel' | 'runtime'>,
-): {
-    physicsEnabled?: boolean;
-    physicsConfig?: Physics2DPluginConfig;
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    audioConfig?: AudioProjectConfig;
-    runtime?: RuntimeBuildConfig;
-    uiTheme?: 'light';
-    uiThemeOverrides?: ThemeOverrides;
-    achievements?: string[];
-    steamAppId?: number;
-    screenFit?: PackagedGameConfig['screenFit'];
-    aot?: PackagedGameConfig['aot'];
-    debugChannel?: DebugChannelConfig;
-} {
+    config: PackagedProjectSettings & PackagedBootFields,
+): RuntimeProjectSettings & PackagedBootFields {
     return {
-        physicsEnabled: config.physicsEnabled,
-        physicsConfig: config.physicsConfig,
-        physics3dBackend: config.physics3dBackend,
-        physics3dWorld: config.physics3dWorld,
-        audioConfig: config.audioConfig,
-        runtime: config.runtime,
+        ...runtimeProjectSettings(config),
         uiTheme: config.uiTheme,
         uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
-        achievements: config.achievements,
         steamAppId: config.steamAppId,
         // Also here, not only in packagedAppOptions: the camera fit is baked into
         // the app's construction, but the WINDOW is sized on a live one.

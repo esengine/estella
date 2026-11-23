@@ -19,9 +19,8 @@ import type { RenderOptions } from '../app/renderOptions';
 import { bootPercent, bootSays, type BootStage } from './bootStages';
 import { markIdentDone, playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
-import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
-import type { ThemeOverrides } from '../ui';
+import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../platform';
 import { MiniGamePlatformAdapter } from '../platform/minigame';
@@ -30,7 +29,6 @@ import {
     registerPackagedSideModules, glContextAttributes, packagedAppOptions,
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
-import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { startDebugChannel } from './debugChannelHook';
@@ -39,8 +37,6 @@ import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
-import type { Physics3DBackend } from '../sideModules/registry';
-import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 
 // =============================================================================
 // Emscripten WASM Instantiation
@@ -109,7 +105,7 @@ function instantiateModule<T>(
 // Public API
 // =============================================================================
 
-export interface MiniGameRuntimeConfig extends RenderOptions {
+export interface MiniGameRuntimeConfig extends RenderOptions, RuntimeProjectSettings {
     engineFactory: (opts: unknown) => Promise<ESEngineModule>;
     /** Package-relative path of the engine wasm binary. The exporter stages the
      *  runtime under wasm/ and knows which glue it shipped, so it passes the
@@ -119,26 +115,6 @@ export interface MiniGameRuntimeConfig extends RenderOptions {
     sceneNames: string[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
-    /** The project's runtime tuning (Project Settings → Game → Runtime), applied by `initRuntime` before anything loads. */
-    runtime?: RuntimeBuildConfig;
-    /** Install physics even when the scene shows no bodies — a project that
-     *  spawns them from script (Project Settings → Physics → Enabled). */
-    physicsEnabled?: boolean;
-    /** The physics world the project declared: gravity, solver, collision matrix.
-     *  The FULL config, not a three-field subset: a collision matrix that reached
-     *  Play and not a shipped build is a game that only collides in rehearsal. */
-    physicsConfig?: Physics2DPluginConfig;
-    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
-    uiTheme?: 'dark' | 'light';
-    /** Project-declared theme token overrides (partial re-skin over the base). */
-    uiThemeOverrides?: ThemeOverrides;
-    /** Project-declared mixer state (routing labels only on mini-games — the host
-     *  hands out finished players, not a DSP graph). */
-    audioConfig?: AudioProjectConfig;
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createMiniGameSideModuleHost}. */
@@ -418,14 +394,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         catalog,
         scenes,
         firstScene: config.firstScene,
-        physicsEnabled: config.physicsEnabled,
-        physicsConfig: config.physicsConfig,
-        physics3dBackend: config.physics3dBackend,
-        physics3dWorld: config.physics3dWorld,
-        uiTheme: config.uiTheme,
-        uiThemeOverrides: config.uiThemeOverrides,
-        audioConfig: config.audioConfig,
-        runtime: config.runtime,
+        ...runtimeProjectSettings(config),
         aspectRatio: canvas.width / canvas.height,
         ...(config.aot ? { aot: config.aot } : {}),
         ...(config.debugChannel ? { debugChannel: config.debugChannel } : {}),

@@ -469,6 +469,7 @@ export { Breakable, BreakablePlugin, breakablePlugin, Broke, burstVelocity, setB
 // Runtime Loader
 // =============================================================================
 
+export type { RuntimeProjectSettings } from './runtime/projectSettings';
 export {
     loadRuntimeScene,
     createRuntimeSceneConfig,

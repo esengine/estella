@@ -115,10 +115,15 @@ describe('esengine/minigame entry', () => {
             quality: { mode: 'high', profiles: { high: { textureStreaming: true, textureStreamingStartEdge: 64 } } },
             msaaSamples: 2, outputTransform: 'neutral', asyncCompute: false,
         } as const;
+        const project = {
+            achievements: ['FIRST_MAP'], physicsEnabled: false, physics3dWorld: { unitsPerMeter: 1 },
+            uiTheme: 'dark' as const, uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } },
+        };
         try {
             await mg.initMiniGameRuntime({ engineFactory: async () => module, engineWasmPath: 'wasm/core.wasm',
-                sceneNames: ['Main'], firstScene: 'Main', ...settings });
+                sceneNames: ['Main'], firstScene: 'Main', ...settings, ...project });
             expect(create).toHaveBeenCalledWith(module, expect.objectContaining(settings));
+            expect(boot.mock.calls[0]![0]).toMatchObject(project);
             expect(await boot.mock.calls[0]![0].source.decodePixels('mesh.png', true, 2)).toBe(fitted);
             expect(decode).toHaveBeenCalledWith('mesh.png', 2);
         } finally { vi.restoreAllMocks(); setPlatform(webAdapter); }

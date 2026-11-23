@@ -145,6 +145,13 @@ describe('what Play hands the shipping runtime', () => {
         return initRuntime.mock.calls[0][0] as RuntimeInitConfig;
     }
 
+    it('checks declared achievements in Play using its local provider', async () => {
+        const settings = { achievements: ['FIRST_MAP'], steamAppId: 42 };
+        const config = await boot(scene(), settings);
+        expect(config.achievements).toEqual(settings.achievements);
+        expect(config.steamAppId).toBeUndefined();
+    });
+
     it('is the world, its cells and their documents — not the scene played whole', async () => {
         const config = await boot(scene(
             entity(0, 'World', null, { components: [declaration] }),

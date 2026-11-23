@@ -13,28 +13,23 @@
 import type { App } from '../app/app';
 import { setAppHostPaused } from '../app/hostPause';
 import type { ESEngineModule } from '../wasm';
-import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
-import type { RuntimeBuildConfig } from '../defaults';
 import { initRuntime } from './runtimeLoader';
+import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { warmShaders } from '../render/shaderWarmup';
 import { log } from '../util/logger';
-import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
 import { platformLoadImagePixels } from '../platform/base';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import { Catalog, type CatalogData } from '../asset/Catalog';
-import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import { Audio, setAudioHostSuspended } from '../audio/Audio';
 import { Input, inputEventCallbacks } from '../input/input';
 import { playableAdBridge } from './playableCta';
 import { VideoPlayer } from '../video/VideoAPI';
-import type { Physics3DBackend } from '../sideModules/registry';
-import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 
-export interface PlayableRuntimeConfig {
+export interface PlayableRuntimeConfig extends RuntimeProjectSettings {
     app: App;
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
@@ -49,25 +44,6 @@ export interface PlayableRuntimeConfig {
     assetPathMap?: Record<string, string>;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
-    /** Install physics even when the scene shows no bodies — a project that
-     *  spawns them from script (Project Settings → Physics → Enabled). */
-    physicsEnabled?: boolean;
-    /** The physics world the project declared: gravity, solver, collision matrix.
-     *  The FULL config, not a three-field subset: a collision matrix that reached
-     *  Play and not a shipped build is a game that only collides in rehearsal. */
-    physicsConfig?: Physics2DPluginConfig;
-    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
-    uiTheme?: 'dark' | 'light';
-    /** Project-declared theme token overrides (partial re-skin over the base). */
-    uiThemeOverrides?: ThemeOverrides;
-    /** Project-declared mixer state (bus volumes / effects / duck rules). */
-    audioConfig?: AudioProjectConfig;
-    /** The project's runtime tuning (Project Settings → Game → Runtime). */
-    runtime?: RuntimeBuildConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
     /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
@@ -170,14 +146,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         source,
         scenes,
         firstScene,
-        physicsEnabled: config.physicsEnabled,
-        physicsConfig: config.physicsConfig,
-        physics3dBackend: config.physics3dBackend,
-        physics3dWorld: config.physics3dWorld,
-        uiTheme: config.uiTheme,
-        uiThemeOverrides: config.uiThemeOverrides,
-        audioConfig: config.audioConfig,
-        runtime: config.runtime,
+        ...runtimeProjectSettings(config),
         aspectRatio: config.canvas.width / config.canvas.height,
         ...(config.catalog ? { catalog: Catalog.fromJson(config.catalog) } : {}),
     });

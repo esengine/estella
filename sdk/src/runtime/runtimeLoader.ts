@@ -27,7 +27,8 @@ import type { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
-import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
+import { applyAudioProjectConfig } from '../audio/AudioProjectConfig';
+import type { RuntimeProjectSettings } from './projectSettings';
 import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource } from '../asset/AssetPlugin';
@@ -43,7 +44,7 @@ import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
 import { WorldMemoryRes } from '../residency/worldMemory';
 import type { WorldManifest } from '../residency/cells';
-import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
+import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
@@ -1014,7 +1015,7 @@ export function createRuntimeSceneConfig(
     return config;
 }
 
-export interface RuntimeInitConfig {
+export interface RuntimeInitConfig extends RuntimeProjectSettings {
     app: App;
     /** The wasm module, or null on a native host (see LoadRuntimeSceneOptions). */
     module: ESEngineModule | null;
@@ -1061,31 +1062,9 @@ export interface RuntimeInitConfig {
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
     physicsModule?: PhysicsWasmModule | null;
-    /** Project-declared physics world config (gravity, solver tuning, collision-layer
-     *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
-    physicsConfig?: Physics2DPluginConfig;
-    /** The 3D physics backend; selects the side module the 3D world is acquired from. Absent ⇒ Jolt. */
-    physics3dBackend?: Physics3DBackend;
-    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
-    physics3dWorld?: Partial<Physics3DWorldConfig>;
-    /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
-    physicsEnabled?: boolean;
-    /** Project-declared mixer state (bus volumes / custom buses / effects / duck
-     *  rules) — threaded from the editor's audio config, applied once at boot. */
-    audioConfig?: AudioProjectConfig;
-    /** The project's runtime tuning (scene transition, frame limits, asset timeouts, cache budgets). Applied before anything loads, so the
-     *  first asset already runs under it. */
-    runtime?: RuntimeBuildConfig;
-    /** Project-declared UI theme; see {@link LoadRuntimeSceneOptions.uiTheme}. */
-    uiTheme?: 'dark' | 'light';
-    /** Project-declared theme token overrides; see {@link LoadRuntimeSceneOptions.uiThemeOverrides}. */
-    uiThemeOverrides?: ThemeOverrides;
     /** The design resolution and camera fit. A desktop window opens at the design
      *  size; the fit itself is applied by createWebApp/createNativeApp. */
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-    /** The achievement ids the project declares — the set an unlock is checked
-     *  against, since a store would take an unknown one and do nothing. */
-    achievements?: string[];
     /** The Steam application id; present ⇒ try to bring a Steam client up and let
      *  it answer for achievements. Absent or unavailable keeps the local one. */
     steamAppId?: number;

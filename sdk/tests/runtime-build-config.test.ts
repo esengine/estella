@@ -13,6 +13,22 @@ describe('packagedRuntimeInit', () => {
         expect(packagedRuntimeInit({ runtime }).runtime).toBe(runtime);
         expect(packagedRuntimeInit({}).runtime).toBeUndefined();
     });
+
+    it('decodes theme colors alongside gameplay and native host settings', () => {
+        const settings = {
+            physicsEnabled: false, physicsConfig: { fixedTimestep: 0.02 }, physics3dBackend: 'physx' as const,
+            physics3dWorld: { unitsPerMeter: 1 }, audioConfig: { maxVoices: 0 }, achievements: [],
+            uiTheme: 'light' as const, steamAppId: 42,
+            screenFit: { designWidth: 640, designHeight: 360, scaleMode: 0, matchWidthOrHeight: 0 },
+            aot: { module: 'aot/systems.wasm', manifest: { engineAbi: 'abi', projectShapes: 'shapes', systems: [] } },
+            debugChannel: { url: 'ws://localhost:4000' },
+        };
+        const config = { ...settings, uiThemeColors: { primary: '#00ff00ff' }, entryScene: 'main' };
+        const options = packagedRuntimeInit(config);
+        expect(options).toMatchObject({ ...settings, uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } } });
+        expect(options).not.toHaveProperty('entryScene');
+        expect(options).not.toHaveProperty('uiThemeColors');
+    });
 });
 
 describe('RUNTIME_BUILD_DEFAULTS', () => {

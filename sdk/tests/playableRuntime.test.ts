@@ -116,6 +116,18 @@ describe('initPlayableRuntime', () => {
         expect(decode).toHaveBeenCalledWith(url, 2);
     });
 
+    it('boots the embedded game with its declared achievements and resolved theme', async () => {
+        const settings = {
+            achievements: ['FIRST_MAP'],
+            uiTheme: 'dark' as const,
+            uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } },
+        };
+        await initPlayableRuntime(createMockConfig({ ...settings, manifest: { version: '2.0', groups: {} } }));
+        const boot = vi.mocked(initRuntime).mock.calls[0]![0];
+        expect(boot).toMatchObject(settings);
+        expect(boot.manifest).toBeUndefined();
+    });
+
     it('passes scenes array and firstScene to initRuntime', async () => {
         const scenes = [
             { name: 'level1', data: { version: '1', name: 'level1', entities: [] } as any },
