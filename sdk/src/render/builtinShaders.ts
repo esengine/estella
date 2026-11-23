@@ -1040,7 +1040,10 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
 
 /** The module a built-in shader ships in, for the error a project gets when its material names a shader whose module it did not install. */
 export const BUILTIN_SHADER_MODULE: Readonly<Record<string, string>> = {
-    water: 'esengine/water', underwater: 'esengine/water', terrain: 'esengine/terrain', 'terrain-layers': 'esengine/terrain', foliage: 'esengine/foliage', strands: 'esengine/groom',
+    water: 'esengine/water', underwater: 'esengine/water', waterfall: 'esengine/water',
+    terrain: 'esengine/terrain', 'terrain-layers': 'esengine/terrain', 'terrain-surface-bake': 'esengine/terrain',
+    planet: 'esengine/terrain', 'planet-sea': 'esengine/terrain', 'voxel-ground': 'esengine/voxel',
+    foliage: 'esengine/foliage', strands: 'esengine/groom',
     hair: 'esengine/character-shaders', skin: 'esengine/character-shaders', eye: 'esengine/character-shaders',
 };
 
