@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
+import type { SpineResult } from '../src/asset/AssetLoader';
 
 function createPoolFake() {
     const live = new Set<number>();
@@ -66,7 +67,7 @@ vi.mock('../src/platform/base', platformFactory);
 const ATLAS = 'hero.png\nsize: 4,4\nformat: RGBA8888\nfilter: Linear,Linear\nrepeat: none\n';
 const OTHER_ATLAS = 'winter.png\nsize: 4,4\nformat: RGBA8888\n';
 
-function realm(docs: Record<string, string>, fail?: (url: string) => boolean): Assets {
+function realm(docs: Record<string, string>, fail?: (url: string) => boolean, catalog = Catalog.empty()): Assets {
     const assets = Assets.create({
         backend: {
             fetchBinary: vi.fn(async (url: string) => {
@@ -79,7 +80,7 @@ function realm(docs: Record<string, string>, fail?: (url: string) => boolean): A
             }),
             resolveUrl: (p: string) => `http://test/${p}`,
         } as unknown as Backend,
-        catalog: Catalog.empty(),
+        catalog,
         module: { _malloc: vi.fn(() => 0), _free: vi.fn(), HEAPU8: new Uint8Array(1 << 16), GL: null, FS: null } as never,
     });
     assets.getTextureLoader().setPixelDecoder(async () => ({
@@ -90,6 +91,112 @@ function realm(docs: Record<string, string>, fail?: (url: string) => boolean): A
 
 describe('a spine asset is a preparation', () => {
     beforeEach(() => { pool = createPoolFake(); });
+
+    const skeleton = 'spine/hero.skel', atlas = 'spine/hero.atlas';
+    const catalog = Catalog.fromJson({
+        version: 1, entries: { [skeleton]: { type: 'spine', deps: ['spine/atlas-alias'] } },
+        addresses: { 'spine/atlas-alias': atlas },
+    });
+
+    it('shares the catalog pair across typed and explicit acquisitions and releases by name', async () => {
+        const assets = realm({ 'hero.atlas': ATLAS }, undefined, catalog);
+        const read = vi.spyOn(assets.backend, 'fetchBinary');
+        const [typed, pair] = await Promise.all([
+            assets.acquireTyped<SpineResult>('spine', skeleton), assets.acquireSpine(skeleton, atlas),
+        ]);
+        expect(typed.value).toBe(pair.value);
+        expect(typed.generation).toBe(pair.generation);
+        expect(read).toHaveBeenCalledTimes(1);
+        expect(assets.isCurrentBindingLease('spine', skeleton, typed)).toBe(true);
+        expect(assets.dependenciesOf('spine', skeleton)).toContainEqual({ kind: 'source', path: atlas });
+        assets.releaseTyped('spine', skeleton);
+        expect(pool.liveTextures()).toBe(1);
+        pair.release();
+        expect(assets.sizes()).toMatchObject({ refRows: 0, genericCached: 0 });
+        expect(pool.liveTextures()).toBe(0);
+    });
+
+    it('keeps a custom spine loader addressable by its own path', async () => {
+        const assets = realm({});
+        const unload = vi.fn();
+        assets.register({ type: 'spine', extensions: [], load: async () => 'custom', unload });
+        expect((await assets.acquireTyped('spine', 'hero.custom')).value).toBe('custom');
+        assets.releaseTyped('spine', 'hero.custom');
+        expect(unload.mock.calls).toEqual([['custom']]);
+    });
+
+    it('releases the oldest claim when a plugin replaces the loader with a catalog pair still held', async () => {
+        const assets = realm({ 'hero.atlas': ATLAS }, undefined, catalog);
+        const pair = await assets.acquireSpine(skeleton);
+        const unload = vi.fn();
+        assets.register({ type: 'spine', extensions: [], load: async () => 'custom', unload });
+        const custom = await assets.acquireTyped('spine', skeleton);
+        assets.releaseTyped('spine', skeleton);
+        expect(pool.liveTextures()).toBe(0);
+        expect(unload).not.toHaveBeenCalled();
+        assets.releaseTyped('spine', skeleton);
+        expect(unload.mock.calls).toEqual([['custom']]);
+        pair.release(); custom.release();
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('rebuilds nested consumers when either file of their catalog pair changes', async () => {
+        const docs = { 'hero.atlas': ATLAS };
+        const assets = realm(docs, undefined, catalog);
+        const read = vi.spyOn(assets.backend, 'fetchBinary').mockResolvedValue(Uint8Array.of(1).buffer);
+        assets.register({
+            type: 'costume', extensions: [],
+            load: async (_path, ctx) => (await ctx.acquireAsset<SpineResult>('spine', skeleton)).value,
+        });
+        const first = await assets.acquireTyped<SpineResult>('costume', 'hero');
+        const explicit = await assets.acquireSpine(skeleton, atlas);
+        expect(assets.dependentsOfSource(skeleton)).toContainEqual({ type: 'spine', path: skeleton + ':' + atlas });
+        expect(assets.dependentsOfAsset({ type: 'spine', path: skeleton + ':' + atlas }))
+            .toContainEqual({ type: 'costume', path: 'hero' });
+        read.mockResolvedValue(Uint8Array.of(2).buffer);
+        assets.invalidate(skeleton);
+        await assets.assetGraphSettled();
+        const edited = await assets.acquireTyped<SpineResult>('costume', 'hero');
+        expect(edited.value.skelData).toEqual(Uint8Array.of(2));
+        expect(first.value.skelData).toEqual(Uint8Array.of(1));
+        expect(explicit.value).toBe(first.value);
+        docs['hero.atlas'] = OTHER_ATLAS;
+        assets.invalidate(atlas);
+        await assets.assetGraphSettled();
+        const reskinned = await assets.acquireTyped<SpineResult>('costume', 'hero');
+        expect([...edited.value.textures.keys()]).toEqual(['hero.png']);
+        expect([...reskinned.value.textures.keys()]).toEqual(['winter.png']);
+        explicit.release(); first.release(); edited.release(); reskinned.release();
+        expect(pool.liveTextures()).toBe(0);
+    });
+
+    it.each(['direct', 'nested'])('detaches a pending %s acquisition when its binary source changes', async mode => {
+        const assets = realm({ 'hero.atlas': ATLAS }, undefined, catalog);
+        let entered!: () => void, finish!: (bytes: ArrayBuffer) => void;
+        const started = new Promise<void>(resolve => { entered = resolve; });
+        const pending = new Promise<ArrayBuffer>(resolve => { finish = resolve; });
+        const read = vi.spyOn(assets.backend, 'fetchBinary').mockResolvedValue(Uint8Array.of(2).buffer)
+            .mockImplementationOnce(() => { entered(); return pending; });
+        assets.register({
+            type: 'costume', extensions: [],
+            load: async (_path, ctx) => (await ctx.acquireAsset<SpineResult>('spine', skeleton)).value,
+        });
+        const acquire = () => mode === 'direct' ? assets.acquireSpine(skeleton, atlas) : assets.acquireTyped<SpineResult>('costume', 'hero');
+        const before = acquire();
+        await started;
+        assets.invalidate(skeleton);
+        const after = acquire();
+        finish(Uint8Array.of(1).buffer);
+        const [old, fresh] = await Promise.all([before, after]);
+        expect(read).toHaveBeenCalledTimes(2);
+        expect(old.value.skelData).toEqual(Uint8Array.of(1));
+        expect(fresh.value.skelData).toEqual(Uint8Array.of(2));
+        expect(old.generation).not.toBe(fresh.generation);
+        const shared = await acquire();
+        expect(shared.value).toBe(fresh.value);
+        old.release(); shared.release(); fresh.release();
+        expect(pool.liveTextures()).toBe(0);
+    });
 
     it('the atlas pages are the era\'s, and go back with it', async () => {
         const assets = realm({ 'hero.atlas': ATLAS });

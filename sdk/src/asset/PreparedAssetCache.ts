@@ -11,6 +11,11 @@ export class PreparedAssetCache extends AsyncCache<PreparedLoad<unknown>> {
         super(dispose);
     }
 
+    isPreparing(owner: AssetDependencyOwner): boolean {
+        const pending = this.pendingRequest(owner.key);
+        return pending !== undefined && this.pendingOwners_.get(pending) === owner;
+    }
+
     acquire(
         key: string, parent: AssetDependencyOwner | undefined,
         prepare: (owner: AssetDependencyOwner) => Promise<PreparedLoad<unknown>>,

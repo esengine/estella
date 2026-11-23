@@ -183,6 +183,8 @@ export interface LoadContext {
      * that content changes. A log setting read during a load is not one.
      */
     readSource?(ref: string): Promise<string>;
+    /** Binary content that shapes this asset, tracked with the same source identity as {@link readSource}. */
+    readBinarySource?(ref: string): Promise<ArrayBuffer>;
     /**
      * Audio API for the owning app, resolved lazily so that
      * AudioPlugin / AssetPlugin can be installed in either order.

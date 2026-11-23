@@ -4,9 +4,12 @@ import type { AssetLease } from './AssetLease';
 
 /** A handle's pool or the registry slot that answers a named lookup. */
 export const leaseBinding = Symbol('asset binding');
+/** The dependency to record when the ref requested names only part of an acquired asset. */
+export const leaseDependencyKey = Symbol('asset dependency key');
 type BindingIdentity = string | { readonly type: string };
 export interface BindingLease<T = unknown> extends AssetLease<T> {
     readonly [leaseBinding]: BindingIdentity | undefined;
+    readonly [leaseDependencyKey]?: string;
 }
 
 function identityOf(lease: AssetLease): BindingLease[typeof leaseBinding] {

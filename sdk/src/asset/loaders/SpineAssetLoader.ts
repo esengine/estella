@@ -50,7 +50,9 @@ function spineIo(ctx: LoadContext, atlasRef: string): SpineIO {
         text: (ref) => (ctx.readSource
             ? ctx.readSource(ref)
             : ctx.loadText(ctx.catalog.getBuildPath(ref))),
-        binary: (ref) => ctx.loadBinary(ctx.catalog.getBuildPath(ref)),
+        binary: (ref) => ctx.readBinarySource
+            ? ctx.readBinarySource(ref)
+            : ctx.loadBinary(ctx.catalog.getBuildPath(ref)),
         // flipY false: an atlas page's rows are a layout, and the atlas's
         // coordinates are top-first.
         page: async (path) => (await ctx.acquireTexture(path, false)).value,

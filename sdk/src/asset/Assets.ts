@@ -29,7 +29,7 @@ import { logicalTextureKey, TextureLoader, textureResidencyKey } from './loaders
 import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './AssetRefLedger';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
-import { leaseBinding, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseDependencyKey, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import {
@@ -958,6 +958,10 @@ export class Assets {
     private async acquireSpineLease_(skeletonRef: string, atlasRef?: string, owner?: AssetDependencyOwner): Promise<AssetLease<SpineResult>> {
         const skeleton = this.resolveLoadPath_(skeletonRef);
         const atlas = this.spineAtlasOf_(skeleton, atlasRef);
+        if (!atlas) {
+            throw new Error(`Spine skeleton has no atlas dependency: ${skeleton}. `
+                + 'Pass the atlas explicitly or configure Catalog deps.');
+        }
         const key = spinePairKey(skeleton, atlas);
         return this.acquirePrepared_<SpineResult>(
             this.spineLoader_, key, skeletonRef,
@@ -967,14 +971,9 @@ export class Assets {
 
     /** The atlas of a pair the caller named only half of: a skeleton's atlas is
      *  a Catalog dependency, which is what a cook records for it. */
-    private spineAtlasOf_(skeleton: string, atlasRef?: string): string {
-        if (atlasRef) return this.resolveLoadPath_(atlasRef);
-        const deps = this.catalog.getDeps(skeleton);
-        if (deps.length === 0) {
-            throw new Error(`Spine skeleton has no atlas dependency: ${skeleton}. `
-                + 'Pass the atlas explicitly or configure Catalog deps.');
-        }
-        return deps[0];
+    private spineAtlasOf_(skeleton: string, atlasRef?: string): string | undefined {
+        const atlas = atlasRef || this.catalog.getDeps(skeleton)[0];
+        return atlas ? this.resolveLoadPath_(atlas) : undefined;
     }
 
     async loadMaterial(ref: string): Promise<MaterialResult> {
@@ -2031,7 +2030,12 @@ export class Assets {
     }
 
     private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T>> {
-        if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
+        const loader = this.loaders_.get(type);
+        if (loader === this.spineLoader_) {
+            const receipt: AssetLease = await this.acquireSpineLease_(ref, undefined, owner);
+            return receipt as AssetLease<T>;
+        }
+        if (loader === this.textureLoader_) {
             const { result, lease, path } = await this.acquireTextureVariant_(ref, true);
             const receipt: AssetLease = this.textureLease_(lease, result, assetPairKey('texture', path));
             return receipt as AssetLease<T>;
@@ -2096,6 +2100,7 @@ export class Assets {
     ): BindingLease<T> {
         return {
             [leaseBinding]: type,
+            [leaseDependencyKey]: lease.value.loader === this.spineLoader_ ? lease.value.owner.key : undefined,
             key: lease.key, generation: lease.generation, value,
             failedDependencies: lease.value.failedDependencies,
             release: () => { unclaim?.(); this.releaseTypedLease(type, lease); },
@@ -2204,21 +2209,26 @@ export class Assets {
      * group channel table uses. Game code calls the named release* methods.
      */
     releaseTyped(type: string, ref: string): void {
-        const path = type === 'spine'
-            ? spinePairKey(this.resolveLoadPath_(ref), this.spineAtlasOf_(this.resolveLoadPath_(ref)))
-            : this.resolveLoadPath_(ref);
+        const resolved = this.resolveLoadPath_(ref);
         if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
-            this.releaseTextureVariant_(path, true);
+            this.releaseTextureVariant_(resolved, true);
             return;
         }
-        const kind = this.registryKind_(type);
-        if (kind) {
-            this.registrySlots_.releaseByName(type, this.assetIdentity_(ref));
-            return;
-        }
+        if (this.registrySlots_.size && this.registrySlots_.releaseByName(type, this.assetIdentity_(ref))) return;
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
+        let path = resolved;
+        if (type === 'spine') {
+            const atlas = this.spineAtlasOf_(resolved);
+            if (atlas) {
+                const pair = spinePairKey(resolved, atlas);
+                const builtin = this.genericRefs_.generations(assetPairKey(type, pair))[0];
+                const custom = this.genericRefs_.generations(assetPairKey(type, resolved))[0];
+                if (builtin && custom) warnAmbiguousRelease_(assetPairKey(type, resolved));
+                if (builtin && (!custom || builtin.id < custom.id)) path = pair;
+            }
+        }
         const key = assetPairKey(type, path);
         const dropped = this.genericRefs_.releaseOldest(key);
         if (!dropped) return;
@@ -2296,7 +2306,7 @@ export class Assets {
             }
         }
         const { hit, rebuilt } = this.invalidateSource_(ref);
-        if (plan.length > 0) this.track_(rebuilt.then(() => this.rebuildAssetGraph_(plan)));
+        if (plan.length > 0) this.track_(rebuilt ? rebuilt.then(() => this.rebuildAssetGraph_(plan)) : this.rebuildAssetGraph_(plan));
         this.fireSourceChanged_(ref);
         return hit;
     }
@@ -2327,6 +2337,12 @@ export class Assets {
         const canonical = cachedPaths(path => this.resolveLoadPath_(path));
         const changed = new Set((typeof refs === 'string' ? [refs] : refs).map(canonical));
         const eras = this.eras_();
+        for (const preparation of this.preparations_) {
+            const owner = preparation.owner;
+            if (owner && this.genericCache_.get(owner.type)?.isPreparing(owner)) {
+                eras.push({ type: owner.type, path: owner.key, edges: preparation.pendingEdges() });
+            }
+        }
         const roots = matchingDependents(eras, edge => isInvalidatable(edge) && changed.has(canonical(edge.path)));
         if (!roots.length) return [];
         return rebuildPlan(roots, ownedDependents(eras, canonical));
@@ -2346,7 +2362,12 @@ export class Assets {
     /** Each group only once everything it was built from has landed. */
     private async rebuildAssetGraph_(plan: AssetIdentity[][]): Promise<void> {
         for (const group of plan) {
-            await Promise.all(group.map((vertex) => this.invalidateAsset_(vertex).rebuilt));
+            const work: Promise<void>[] = [];
+            for (const vertex of group) {
+                const { rebuilt } = this.invalidateAsset_(vertex, true);
+                if (rebuilt) work.push(rebuilt);
+            }
+            if (work.length) await Promise.all(work);
         }
     }
 
@@ -2354,15 +2375,15 @@ export class Assets {
      * End every era at one PATH: a file changed, and whatever it names changed
      * with it. What `invalidate(ref)` is, and what a hot update's changed key is.
      */
-    private invalidateSource_(ref: string): { hit: boolean; rebuilt: Promise<void> } {
+    private invalidateSource_(ref: string): { hit: boolean; rebuilt?: Promise<void> } {
         let hit = false;
         const work: Array<Promise<void>> = [];
         for (const type of this.loaders_.keys()) {
             const ended = this.invalidateAsset_({ type, path: ref });
             hit = ended.hit || hit;
-            work.push(ended.rebuilt);
+            if (ended.rebuilt) work.push(ended.rebuilt);
         }
-        return { hit, rebuilt: Promise.all(work).then(() => undefined) };
+        return { hit, rebuilt: work.length ? Promise.all(work).then(() => undefined) : undefined };
     }
 
     /**
@@ -2371,9 +2392,11 @@ export class Assets {
      * the other; a plan that knows the difference and then ends both has thrown
      * away what it knew.
      */
-    private invalidateAsset_(asset: AssetIdentity): { hit: boolean; rebuilt: Promise<void> } {
+    private invalidateAsset_(asset: AssetIdentity, fromGraph = false): { hit: boolean; rebuilt?: Promise<void> } {
         const { type } = asset;
-        const path = this.resolveLoadPath_(asset.path);
+        // Handle-bound graph nodes already carry their cache key, including a skeleton/atlas pair.
+        const cache = this.genericCache_.get(type);
+        const path = fromGraph && cache ? asset.path : this.resolveLoadPath_(asset.path);
         // Held by a cache or by a loader's own residency: what a listener is
         // told about. A slot swaps its era instead, and reports nothing.
         let dropped = false;
@@ -2404,7 +2427,6 @@ export class Assets {
                 dropped = true;
             }
         } else {
-            const cache = this.genericCache_.get(type);
             if (cache) {
                 oldValue = cache.get(path)?.value;
                 if (cache.invalidate(path)) dropped = true;
@@ -2415,7 +2437,7 @@ export class Assets {
 
         // A registry-backed asset has no cache entry to drop and no handle to
         // swap: the update IS a new era published under the same names.
-        const published = this.republishSlot_(type, this.assetIdentity_(asset.path));
+        const published = this.republishSlot_(type, fromGraph ? asset.path : this.assetIdentity_(asset.path));
 
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive the
         // Assets-level entry — sever it so a warm-cache revive can never serve
@@ -2434,7 +2456,7 @@ export class Assets {
         if (dropped) {
             this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue });
         }
-        return { hit: dropped || published !== undefined, rebuilt: published ?? Promise.resolve() };
+        return { hit: dropped || published !== undefined, rebuilt: published };
     }
 
     /**
@@ -2954,7 +2976,20 @@ export class Assets {
         if (own.length > 0) return own;
         const byIdentity = this.registrySlots_.dependenciesOf(type, this.assetIdentity_(ref));
         if (byIdentity.length > 0) return byIdentity;
-        return this.genericCache_.get(type)?.get(this.resolveLoadPath_(ref))?.edges ?? [];
+        return this.currentPrepared_(type, ref)?.edges ?? [];
+    }
+
+    private currentPrepared_(type: string, ref: string): PreparedLoad<unknown> | undefined {
+        const cache = this.genericCache_.get(type);
+        if (!cache) return;
+        if (type === 'spine') {
+            const pair = cache.get(ref);
+            if (pair?.loader === this.spineLoader_) return pair;
+        }
+        const path = this.resolveLoadPath_(ref);
+        if (this.loaders_.get(type) !== this.spineLoader_) return cache.get(path);
+        const atlas = this.spineAtlasOf_(path);
+        return atlas ? cache.get(spinePairKey(path, atlas)) : undefined;
     }
 
     /**
@@ -2975,7 +3010,7 @@ export class Assets {
     /** @internal Whether an asynchronous replacement still holds the value published for this ref. */
     isCurrentBindingLease(type: string, ref: string, lease: AssetLease): boolean {
         if (type === 'texture') return this.getTexture(ref) === lease.value;
-        const era = this.genericCache_.get(type)?.get(this.resolveLoadPath_(ref));
+        const era = this.currentPrepared_(type, ref);
         return era !== undefined && era.value === lease.value;
     }
 
@@ -3100,6 +3135,10 @@ export class Assets {
             this.assertLoading_(epoch);
             return result;
         };
+        const readSource = <T>(ref: string, fetch: (path: string) => Promise<T>) => {
+            recorder.read(ref);
+            return read(ref, () => fetch(this.catalog.getBuildPath(ref)));
+        };
         const take = async <T>(ref: string, work: () => Promise<AssetLease<T>>, type?: string): Promise<AssetLease<T>> => {
             // Own first: if teardown crossed this await, rollback must still
             // return the receipt before the obsolete loader sees its value.
@@ -3128,13 +3167,8 @@ export class Assets {
                 this.assertLoading_(epoch);
                 return lease;
             },
-            readSource: async (ref) => {
-                // The edge records what was ASKED for; where the build put
-                // those bytes is this door's business, as it is for a texture.
-                // A loader resolving first records an identity nothing names.
-                recorder.read(ref);
-                return read(ref, () => base.loadText(this.catalog.getBuildPath(ref)));
-            },
+            readSource: ref => readSource(ref, base.loadText),
+            readBinarySource: ref => readSource(ref, base.loadBinary),
         };
     }
 

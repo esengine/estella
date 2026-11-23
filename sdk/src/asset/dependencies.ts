@@ -35,6 +35,7 @@ import type { AssetLoader } from './AssetLoader';
 import type { LoadGeneration } from './AssetRefLedger';
 import { log } from '../util/logger';
 import { assetPairKey } from './assetPairKey';
+import { leaseDependencyKey, type BindingLease } from './leaseBindings';
 
 export type DependencyKind = 'owned' | 'source';
 
@@ -69,6 +70,13 @@ export class AssetDependencyOwner {
         const claim = { target };
         claims.add(claim);
         return () => { claims.delete(claim); };
+    }
+
+    /** An open preparation can be waiting on a child whose receipt has yet to arrive. */
+    *claimedAssets(): IterableIterator<DependencyReceipt> {
+        for (const { target } of this.claims_ ?? []) {
+            yield { kind: 'owned', type: target.type, path: target.key };
+        }
     }
 
     private reaches_(target: AssetDependencyOwner): boolean {
@@ -268,10 +276,16 @@ export class DependencyRecorder {
 
     constructor(readonly owner?: AssetDependencyOwner) {}
 
+    /** Reads already started and acquisitions already requested by this preparation. */
+    pendingEdges(): readonly DependencyReceipt[] {
+        return this.owner ? [...this.edges_, ...this.owner.claimedAssets()] : this.edges_;
+    }
+
     /** A runtime resource this preparation now holds. */
     own<T>(path: string, lease: AssetLease<T>, type?: string): AssetLease<T> {
         if (this.state_ !== 'open') return this.late_(lease);
         this.acquired_.add(lease);
+        path = (lease as Partial<BindingLease>)[leaseDependencyKey] ?? path;
         this.edges_.push(type === undefined ? { kind: 'owned', path } : { kind: 'owned', type, path });
         // The acquisition succeeded, but may hold a degraded preparation. Its
         // owned edge carries causality; its readiness must reach this owner too.
