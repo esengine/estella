@@ -14,7 +14,7 @@ import { AudioAssetLoader } from '../src/asset/loaders/AudioAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 
 function createHost() {
-    const created: Array<{ src: string; play: ReturnType<typeof vi.fn> }> = [];
+    const created: Array<{ src: string; startTime: number; play: ReturnType<typeof vi.fn> }> = [];
     const g = {
         createInnerAudioContext: () => {
             const ctx = {
@@ -33,6 +33,25 @@ function createHost() {
 const COOKED = 'assets/6a1f2c.mp3';
 
 describe('mini-game audio plays the cooked file', () => {
+    it('keeps each reference’s encoder lead and length when two paths resolve to one packaged file', async () => {
+        const { g, created } = createHost();
+        const audio = new AudioAPI(new MiniGameAudioBackend(g as never, 'WeChat'));
+        audio.setRefResolver(() => COOKED);
+        audio.setEncodedClips({
+            'a.wav': { lead: 0.025, seconds: 1.955 },
+            'b.wav': { lead: 0.012, seconds: 1.970 },
+            'copy.wav': { lead: 0.025, seconds: 1.955 },
+        });
+        await Promise.all([audio.preload('a.wav'), audio.preloadFromData('b.wav', new ArrayBuffer(0)), audio.preload('copy.wav')]);
+        expect(audio.getBufferHandle('a.wav')?.duration).toBe(1.955);
+        expect(audio.getBufferHandle('b.wav')?.duration).toBe(1.970);
+        expect(audio.getBufferHandle('copy.wav')).toBe(audio.getBufferHandle('a.wav'));
+        audio.playSFX('a.wav');
+        audio.playSFX('b.wav');
+        expect(created.map(ctx => [ctx.src, ctx.startTime])).toEqual([[COOKED, 0.025], [COOKED, 0.012]]);
+        audio.dispose();
+    });
+
     it('preloaded-by-bytes clips still play the resolved URL', async () => {
         const { g, created } = createHost();
         const audio = new AudioAPI(new MiniGameAudioBackend(g as never, 'WeChat'));
@@ -69,6 +88,7 @@ describe('AudioAssetLoader on a url-delivery backend', () => {
         const ctx = {
             getAudio: () => audio,
             catalog: { getBuildPath: (p: string) => (p === 'audio/tap.wav' ? COOKED : p) },
+            backend: { resolveUrl: (p: string) => p },
             loadBinary,
         } as unknown as LoadContext;
 

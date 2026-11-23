@@ -13,33 +13,15 @@ export class AudioAssetLoader implements AssetLoader<AudioResult> {
      *  which have no LoadContext. Defaults to "no audio" for bare setups. */
     constructor(private readonly getAudio_: () => AudioAPI | null = () => null) {}
 
-    async load(path: string, ctx: LoadContext): Promise<AudioResult> {
+    async load(path: string, ctx: LoadContext, resolved = ctx.resolveRef?.(path) ?? path, address = resolved): Promise<AudioResult> {
         const audio = ctx.getAudio();
         if (!audio) {
             log.warn('asset', `AudioAssetLoader: no Audio resource for "${path}" (AudioPlugin not installed?)`);
             return { bufferId: path };
         }
-        // Warm-cache hit: the buffer survived its last release as an evictable
-        // entry — pin it and skip the whole fetch + decode.
-        if (audio.retainBuffer(path)) {
-            return this.ownedResult_(audio, path);
-        }
-        // A `url` backend (a mini-game player) streams the file itself: fetching
-        // it here reads the whole clip into memory to drop it, and its source
-        // comes from the ref resolver rather than from this loader.
-        if (audio.delivery === 'url') {
-            await audio.preload(path);
-        } else {
-            const buildPath = ctx.catalog.getBuildPath(path);
-            await audio.preloadFromData(path, await ctx.loadBinary(buildPath));
-        }
-        audio.retainBuffer(path);
-        return this.ownedResult_(audio, path);
-    }
-
-    private ownedResult_(audio: AudioAPI, path: string): AudioResult {
+        const buildPath = ctx.catalog.getBuildPath(resolved);
+        const buffer = await audio.acquireAssetBuffer(path, { url: ctx.backend.resolveUrl(buildPath), address }, () => ctx.loadBinary(buildPath));
         const result = { bufferId: path };
-        const buffer = audio.getBufferHandle(path);
         if (buffer) this.releases_.set(result, () => {
             if (audio.getBufferHandle(path) === buffer) audio.releaseBuffer(path);
         });

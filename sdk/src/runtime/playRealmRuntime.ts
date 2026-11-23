@@ -27,13 +27,13 @@ import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
-import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
+import type { AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { RuntimeBuildConfig } from '../defaults';
 import { fetchDecodePixels } from '../asset/imageDecode';
-import { applyAssetRefResolvers } from './packagedRuntime';
+import { applyAssetRefResolvers, indexPackagedManifest } from './packagedRuntime';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import type { Physics3DBackend } from '../sideModules/registry';
 import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
@@ -166,10 +166,12 @@ export function resolvePlayAssetRef(
  * source — rebuilding a spelling map per ref would walk the manifest on every
  * asset a scene preloads.
  */
-function manifestBackedSettings(model: ManifestModel): Partial<RuntimeAssetSource> {
+function manifestBackedSettings(manifest: AddressableManifest): Partial<RuntimeAssetSource> {
+    const index = indexPackagedManifest(manifest);
     return {
-        textureImportSettings: model.textureImportLookup(),
-        spineCulling: model.spineCullingLookup(),
+        resolveAddress: index.addressOf,
+        textureImportSettings: index.textureImport,
+        spineCulling: index.spineCulling,
     };
 }
 
@@ -237,11 +239,16 @@ function createPlayRealmSource(
     made: PlayMade = { bytes: new Map(), later: new Map() },
 ): RuntimeAssetSource {
     const backend = new OverlayBackend(made);
+    const base = assetBaseUrl?.replace(/\/$/, '');
     return {
         backend,
         ...(compressedTexture ? { compressedTexture } : {}),
         decodePixels: (path, _flip, maxEdge) => fetchDecodePixels(backend.resolveUrl(path), maxEdge),
         resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
+        resolveAddress: (ref) => {
+            const url = resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap);
+            return base && url.startsWith(base + '/') ? url.slice(base.length + 1) : url;
+        },
         // Cooked builds: logical paths (the pathMap keys). Editor play: the
         // manifest's resolved URLs — both keep the real extension, which is all
         // the .eslocale discovery filters on.
@@ -249,7 +256,7 @@ function createPlayRealmSource(
         // Sampling, and the spine culling contract, both come off the addressable
         // manifest — the same fields a cooked build reads, so Play and ship
         // cannot disagree about what an author promised.
-        ...(addressable ? withUrlSettings(manifestBackedSettings(ManifestModel.fromJson(addressable)), manifest, assetBaseUrl) : {}),
+        ...(addressable ? withUrlSettings(manifestBackedSettings(addressable), manifest, assetBaseUrl) : {}),
     };
 }
 

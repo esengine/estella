@@ -76,9 +76,9 @@ export interface SceneAssetRefs {
 /** Turns a raw serialized ref into a concrete path (or null if unknown). */
 export type RefResolver = (ref: string) => string | null;
 
-// A SpriteAnimator or Animator looks up clips under the spelling it carries.
+// Animation and audio components play the authored clip reference they carry.
 function usesAuthoredRef(type: string): boolean {
-    return type === 'anim-clip';
+    return type === 'anim-clip' || type === 'audio';
 }
 
 export function sceneAcquisitionPaths(refs: SceneAssetRefs, type: string): ReadonlySet<string> | undefined {

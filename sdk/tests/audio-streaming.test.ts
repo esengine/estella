@@ -129,6 +129,37 @@ describe('WebAudioBackend streaming', () => {
     expect((await backend.loadBufferFromData('long.mp3', mp3(120), { loadType: 'decompress' })).streamed).toBeUndefined();
   });
 
+  it.each(['effect.wav', 'music.wav'])('keeps authored load modes when %s loads first from the same bytes', async first => {
+    const audio = new AudioAPI(backend);
+    audio.setRefResolver(() => 'cooked/shared.wav');
+    audio.setLoadTypes({ 'effect.wav': 'decompress', 'music.wav': 'streaming', 'theme.wav': 'streaming' });
+    const bytes = wav(2);
+    const byteLength = bytes.byteLength;
+    ctx.decodeAudioData.mockImplementation(async (input: ArrayBuffer) => {
+      structuredClone(input, { transfer: [input] }); // Web Audio takes ownership of its input.
+      return { duration: 2, length: 96000, numberOfChannels: 2 };
+    });
+    metadataDuration = 2;
+    await audio.preloadFromData(first, bytes);
+    await audio.preloadFromData(first === 'effect.wav' ? 'music.wav' : 'effect.wav', bytes);
+    await audio.preloadFromData('theme.wav', bytes);
+    expect(bytes.byteLength).toBe(byteLength);
+    const effect = audio.getBufferHandle('effect.wav')!;
+    const music = audio.getBufferHandle('music.wav')!;
+    expect(effect).toMatchObject({ duration: 2, bytes: 768000 });
+    expect(music).toMatchObject({ duration: 2, streamed: true, bytes: 0 });
+    expect(music.id).not.toBe(effect.id);
+    expect(audio.getBufferHandle('theme.wav')).toBe(music);
+    expect(audio.getBufferStats()).toMatchObject({ bufferCount: 3, streamedCount: 1, bufferBytes: effect.bytes });
+    const voice = audio.playSFX('music.wav')!;
+    expect(audio.invalidateBuffer('effect.wav')).toBe(true);
+    expect(audio.getBufferStats()).toMatchObject({ bufferCount: 0, streamedCount: 0, bufferBytes: 0 });
+    expect(voice.isPlaying).toBe(true);
+    expect(revoked).toEqual([]);
+    voice.stop();
+    expect(revoked).toEqual(objectUrls);
+  });
+
   it('plays through the pooled gain into the bus, loops, and ends the voice when the element ends', async () => {
     const handle = await backend.loadBufferFromData('bgm.mp3', mp3(180));
     const voice = backend.play(handle, { volume: 0.5, loop: true, bus: 'music' });

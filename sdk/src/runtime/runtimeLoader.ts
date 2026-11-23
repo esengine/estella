@@ -126,6 +126,12 @@ function ensureRuntimeAssets(
         getLocalization: () => (app.hasResource(Localization) ? app.getResource(Localization) : null),
     });
     if (source.resolveRef) assets.setAssetRefResolver(source.resolveRef);
+    if (source.resolveRef && app.hasResource(Audio)) {
+        app.getResource(Audio).setRefResolver(
+            ref => source.backend.resolveUrl(assets.resolveLoadPath(ref)),
+            source.resolveAddress ?? source.resolveRef,
+        );
+    }
 
     const loader = assets.getTextureLoader();
     loader.setPixelDecoder((path, flip, maxEdge) => source.decodePixels(path, flip, maxEdge));

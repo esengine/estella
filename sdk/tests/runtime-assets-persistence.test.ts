@@ -10,13 +10,18 @@
  */
 import { describe, it, expect } from 'vitest';
 import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
+import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
+import { Audio, AudioAPI } from '../src/audio/Audio';
+import '../src/audio/AudioComponents';
+import { MiniGameAudioBackend } from '../src/audio/MiniGameAudioBackend';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets as AssetsClass } from '../src/asset/Assets';
 import { ManifestModel } from '../src/asset/AddressableManifest';
 import { World } from '../src/ecs/world';
 import type { App } from '../src/app/app';
 import type { Backend } from '../src/asset/Backend';
-import type { ESEngineModule } from '../src/wasm';
+import type { CppResourceManager, ESEngineModule } from '../src/wasm';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import type { SceneData } from '../src/scene/scene';
 
 const fakeModule = { _malloc: () => 0, _free: () => {} } as unknown as ESEngineModule;
@@ -65,6 +70,41 @@ function loadScene(app: App, sceneData: SceneData): Promise<void> {
 }
 
 describe('per-App runtime Assets persistence', () => {
+    it('preloads UUID audio components with their authored settings when the cook deduplicates the file', async ({ onTestFinished }) => {
+        const app = makeFakeApp();
+        const audio = new AudioAPI(new MiniGameAudioBackend({} as never));
+        app.insertResource(Audio, audio);
+        initResourceManager({} as CppResourceManager);
+        onTestFinished(() => { audio.dispose(); shutdownResourceManager(); });
+
+        const effect = '11111111-1111-4111-8111-111111111111';
+        const music = '22222222-2222-4222-8222-222222222222';
+        const file = { type: 'audio' as const, path: 'assets/shared.mp3', labels: [], size: 16 };
+        const index = indexPackagedManifest({
+            version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+                [effect]: { ...file, address: 'effect.wav' }, [music]: { ...file, address: 'music.wav' },
+            } } },
+        });
+        audio.setEncodedClips({
+            'effect.wav': { lead: 0.012, seconds: 1.97 }, 'music.wav': { lead: 0.025, seconds: 1.955 },
+        });
+        const refs = [`@uuid:${effect}`, `@uuid:${music}`];
+        const scene = makeScene('Audio');
+        scene.entities = refs.map((ref, i) => ({
+            id: i + 1, name: ref, parent: null, children: [], visible: true,
+            components: [{ type: 'AudioSource', data: { clip: ref } }],
+        }));
+        await loadRuntimeScene({
+            app, module: fakeModule, sceneData: scene, spineManager: null,
+            source: createPackagedAssetSource(index, { backend: fakeBackend }),
+        });
+        expect(refs.map(ref => audio.getBufferHandle(ref)?.duration)).toEqual([1.97, 1.955]);
+        await audio.preload('music.wav');
+        expect(audio.getBufferHandle('music.wav')).toBe(audio.getBufferHandle(refs[1]));
+        expect(audio.invalidateBuffer('effect.wav')).toBe(true);
+        expect(audio.getBufferStats().bufferCount).toBe(0);
+    });
+
     it('replaces a pre-existing (AssetPlugin) Assets resource once, then reuses its own', async () => {
         const app = makeFakeApp();
         const pluginAssets = AssetsClass.create({ backend: fakeBackend, module: fakeModule });

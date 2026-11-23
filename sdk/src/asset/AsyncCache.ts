@@ -177,6 +177,11 @@ export class AsyncCache<T> {
         return this.cache_.entries();
     }
 
+    /** @internal Every key which invalidation can retire, including a request still reading bytes. */
+    keys(): Set<string> {
+        return new Set([...this.cache_.keys(), ...this.pending_.keys(), ...this.failed_.keys()]);
+    }
+
     values(): IterableIterator<T> {
         return this.cache_.values();
     }

@@ -115,10 +115,10 @@ export interface PlatformAudioBackend {
     ensureResumed(): Promise<void>;
     /** @param src a RESOLVED source the host can fetch — never a cache key. */
     loadBuffer(src: string, options?: AudioLoadOptions): Promise<AudioBufferHandle>;
-    /** @param src as {@link loadBuffer}; `bytes` backends use `data` and ignore it. */
+    /** Load caller-owned bytes. A backend may use the resolved source and settings to reuse a buffer. */
     loadBufferFromData(src: string, data: ArrayBuffer, options?: AudioLoadOptions): Promise<AudioBufferHandle>;
     unloadBuffer(handle: AudioBufferHandle): void;
-    /** Forget source-address reuse after an authored clip changes. */
+    /** Forget all cached load modes and trims for this resolved file. Existing handles remain valid until unloaded. */
     invalidateSource?(src: string): void;
     play(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle;
     suspend(): void;

@@ -7,6 +7,8 @@ import { AudioMixer } from './AudioMixer';
 import { AudioPool, type PooledAudioNode } from './AudioPool';
 import { getPlatform } from '../platform/base';
 import { log } from '../util/logger';
+import { reservePromise } from '../util/reservePromise';
+import { addAudioSource, audioLoadProfile, removeAudioSource, type AudioSourceKey, type AudioSourceMap } from './audioSourceCache';
 
 class WebAudioHandle implements AudioHandle {
     readonly id: number;
@@ -337,15 +339,17 @@ function decodedBytes(buf: AudioBuffer): number {
 
 interface BufferRecord {
     buffer: AudioBuffer | null;
-    url: string;
+    source: SourceRecord;
     /** Where the clip really lies in the decoded buffer, for one the exporter re-encoded: from `lead` to `end`, in seconds. */
     span?: { lead: number; end: number };
     /** A streamed clip: the object URL its media element plays, and its length. */
     stream?: { objectUrl: string; duration: number; lead?: number };
 }
 
-interface SourceRecord {
+interface SourceRecord extends AudioSourceKey, AudioLoadOptions {
     pending: number;
+    /** Reads by URL join one request. Explicit byte loads supply their own input. */
+    urlLoad?: Promise<AudioBufferHandle>;
     bufferId?: number;
 }
 
@@ -354,6 +358,7 @@ const MIME: Record<string, string> = {
 };
 
 function mimeOf(url: string): string {
+    if (url.startsWith('data:')) return /^data:([^;,]+)/i.exec(url)?.[1] ?? '';
     const ext = /\.([a-z0-9]+)(?:[?#]|$)/i.exec(url)?.[1]?.toLowerCase();
     return (ext && MIME[ext]) || '';
 }
@@ -387,9 +392,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
     private mixer_: AudioMixer | null = null;
     private pool_: AudioPool | null = null;
     private buffers_ = new Map<number, BufferRecord>();
-    private loadingUrls_ = new Map<string, Promise<AudioBufferHandle>>();
-    /** Only current cached or pending sources; identity separates invalidated loads. */
-    private sources_ = new Map<string, SourceRecord>();
+    private readonly sources_: AudioSourceMap<SourceRecord> = new Map();
     private nextBufferId_ = 0;
     private nextHandleId_ = 0;
     private resumeHandler_: (() => void) | null = null;
@@ -483,32 +486,16 @@ export class WebAudioBackend implements PlatformAudioBackend {
         });
     }
 
-    async loadBuffer(url: string, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
-        if (!this.context_) {
-            throw new Error('AudioContext not initialized');
-        }
-
-        const cached = this.cachedBuffer_(url);
-        if (cached) return cached;
-
-        const inFlight = this.loadingUrls_.get(url);
-        if (inFlight) return inFlight;
-
-        const promise = this.loadSource_(url, () => getPlatform().readFile(url), options);
-        this.loadingUrls_.set(url, promise);
-        try {
-            return await promise;
-        } finally {
-            if (this.loadingUrls_.get(url) === promise) this.loadingUrls_.delete(url);
-        }
+    loadBuffer(url: string, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+        return this.load_(url, options);
     }
 
-    async loadBufferFromData(url: string, data: ArrayBuffer, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
-        return this.loadSource_(url, async () => data, options);
+    loadBufferFromData(url: string, data: ArrayBuffer, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+        return this.load_(url, options, data);
     }
 
-    private cachedBuffer_(url: string): AudioBufferHandle | null {
-        const id = this.sources_.get(url)?.bufferId;
+    private cachedBuffer_(source: SourceRecord): AudioBufferHandle | null {
+        const id = source.bufferId;
         if (id === undefined) return null;
         const record = this.buffers_.get(id);
         return record ? this.handleOf_(id, record) : null;
@@ -523,29 +510,41 @@ export class WebAudioBackend implements PlatformAudioBackend {
         return { id, duration: record.span ? record.span.end - record.span.lead : record.buffer!.duration, bytes: decodedBytes(record.buffer!) };
     }
 
-    private async loadSource_(url: string, read: () => Promise<ArrayBuffer>, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+    private async load_(url: string, options?: AudioLoadOptions, data?: ArrayBuffer): Promise<AudioBufferHandle> {
         const context = this.context_;
-        if (!context) {
-            throw new Error('AudioContext not initialized');
+        if (!context) throw new Error('AudioContext not initialized');
+        const profile = audioLoadProfile(options);
+        let source = this.sources_.get(url)?.get(profile);
+        if (source) {
+            const cached = this.cachedBuffer_(source);
+            if (cached) return cached;
+        } else {
+            source = { url, profile, pending: 0, loadType: options?.loadType, trim: options?.trim && { ...options.trim } };
+            addAudioSource(this.sources_, source);
         }
+        if (data !== undefined) return this.loadSource_(source, context, data);
+        if (source.urlLoad) return source.urlLoad;
+        // The platform may request the same file again from inside readFile().
+        const pending = reservePromise<AudioBufferHandle>();
+        source.urlLoad = pending.promise;
+        void this.loadSource_(source, context).then(pending.resolve, pending.reject);
+        try {
+            return await pending.promise;
+        } finally {
+            delete source.urlLoad;
+        }
+    }
+
+    private async loadSource_(source: SourceRecord, context: AudioContext, given?: ArrayBuffer): Promise<AudioBufferHandle> {
         const generation = this.contextGeneration_;
-        const cached = this.cachedBuffer_(url);
-        if (cached) return cached;
-        let source = this.sources_.get(url);
-        if (!source) {
-            source = { pending: 0 };
-            this.sources_.set(url, source);
-        }
         source.pending++;
         try {
-            const data = await read();
+            const data = await (given ?? getPlatform().readFile(source.url));
             this.assertLoadContext_(context, generation);
-            return await this.decodeBuffer_(url, data, source, context, generation, options);
+            return await this.decodeBuffer_(data, source, context, generation);
         } finally {
             source.pending--;
-            if (this.sources_.get(url) === source && source.pending === 0 && source.bufferId === undefined) {
-                this.sources_.delete(url);
-            }
+            if (source.pending === 0 && source.bufferId === undefined) removeAudioSource(this.sources_, source);
         }
     }
 
@@ -556,30 +555,30 @@ export class WebAudioBackend implements PlatformAudioBackend {
     }
 
     private async decodeBuffer_(
-        url: string, data: ArrayBuffer, source: SourceRecord,
-        context: AudioContext, generation: number, options?: AudioLoadOptions,
+        data: ArrayBuffer, source: SourceRecord, context: AudioContext, generation: number,
     ): Promise<AudioBufferHandle> {
-        if (this.sources_.get(url) === source) {
-            const cached = this.cachedBuffer_(url);
+        if (this.sources_.get(source.url)?.get(source.profile) === source) {
+            const cached = this.cachedBuffer_(source);
             if (cached) return cached;
         }
-        if (shouldStream(options?.loadType, data)) {
-            return this.streamBuffer_(url, data, source, context, generation, options);
+        if (shouldStream(source.loadType, data)) {
+            return this.streamBuffer_(data, source, context, generation);
         }
 
         let audioBuffer: AudioBuffer;
         try {
-            audioBuffer = await context.decodeAudioData(data);
+            // Web Audio detaches its input. Packaged assets can lend these bytes to several loads.
+            audioBuffer = await context.decodeAudioData(data.slice(0));
         } catch (err) {
             this.assertLoadContext_(context, generation);
-            throw new Error(`Failed to decode audio ${url}: ${(err as Error).message}`);
+            throw new Error(`Failed to decode audio ${source.url}: ${(err as Error).message}`);
         }
         this.assertLoadContext_(context, generation);
 
         const id = ++this.nextBufferId_;
-        const span = clipSpan(options?.trim, audioBuffer.duration);
-        this.buffers_.set(id, { buffer: audioBuffer, url, ...(span ? { span } : {}) });
-        if (this.sources_.get(url) === source) source.bufferId = id;
+        const span = clipSpan(source.trim, audioBuffer.duration);
+        this.buffers_.set(id, { buffer: audioBuffer, source, ...(span ? { span } : {}) });
+        source.bufferId = id;
 
         return this.handleOf_(id, this.buffers_.get(id)!);
     }
@@ -590,18 +589,18 @@ export class WebAudioBackend implements PlatformAudioBackend {
      * clip does not take.
      */
     private async streamBuffer_(
-        url: string, data: ArrayBuffer, source: SourceRecord, context: AudioContext, generation: number, options?: AudioLoadOptions,
+        data: ArrayBuffer, source: SourceRecord, context: AudioContext, generation: number,
     ): Promise<AudioBufferHandle> {
-        const objectUrl = URL.createObjectURL(new Blob([data], { type: mimeOf(url) }));
+        const objectUrl = URL.createObjectURL(new Blob([data], { type: mimeOf(source.url) }));
         const duration = await probeDuration(objectUrl, estimateAudioSeconds(data));
         if (this.context_ !== context || this.contextGeneration_ !== generation) {
             URL.revokeObjectURL(objectUrl);
             throw new Error('AudioContext changed while loading audio');
         }
         const id = ++this.nextBufferId_;
-        const span = clipSpan(options?.trim, duration);
-        this.buffers_.set(id, { buffer: null, url, stream: { objectUrl, duration: span ? span.end - span.lead : duration, ...(span?.lead ? { lead: span.lead } : {}) } });
-        if (this.sources_.get(url) === source) source.bufferId = id;
+        const span = clipSpan(source.trim, duration);
+        this.buffers_.set(id, { buffer: null, source, stream: { objectUrl, duration: span ? span.end - span.lead : duration, ...(span?.lead ? { lead: span.lead } : {}) } });
+        source.bufferId = id;
         return this.handleOf_(id, this.buffers_.get(id)!);
     }
 
@@ -655,7 +654,6 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
     invalidateSource(url: string): void {
         this.sources_.delete(url);
-        this.loadingUrls_.delete(url);
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {
@@ -667,10 +665,10 @@ export class WebAudioBackend implements PlatformAudioBackend {
             if (sounding) this.retiredStreams_.set(sounding, record.stream.objectUrl);
             else URL.revokeObjectURL(record.stream.objectUrl);
         }
-        const source = this.sources_.get(record.url);
-        if (source?.bufferId === handle.id) {
+        const source = record.source;
+        if (source.bufferId === handle.id) {
             delete source.bufferId;
-            if (source.pending === 0) this.sources_.delete(record.url);
+            if (source.pending === 0) removeAudioSource(this.sources_, source);
         }
     }
 
@@ -776,7 +774,6 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.mixer_ = null;
         this.buffers_.clear();
         this.sources_.clear();
-        this.loadingUrls_.clear();
         this.context_?.close();
         this.context_ = null;
     }

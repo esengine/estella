@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebAudioBackend } from '../src/audio/WebAudioBackend';
 import { setPlatform } from '../src/platform/base';
+import type { AudioBufferHandle } from '../src/audio/PlatformAudioBackend';
 import type { PlatformAdapter } from '../src/platform/types';
 
 function createMockGainNode(context: any): any {
@@ -361,6 +362,41 @@ describe('WebAudioBackend', () => {
             const h2 = await backend.loadBuffer('cached.mp3');
             expect(h1.id).toBe(h2.id);
             expect(mockPlatform.readFile).toHaveBeenCalledTimes(1);
+        });
+
+        it('shares a reentrant read with equal settings and keeps independent playback spans at the same URL', async () => {
+            await backend.initialize();
+            const ctx = (globalThis as any).__mockAudioContext;
+            const platform = (globalThis as any).__mockPlatform;
+            ctx.decodeAudioData.mockResolvedValue({ duration: 3, length: 300, numberOfChannels: 1 });
+            const url = 'shared.wav';
+            const trim = { lead: 0.125, seconds: 2 };
+            let joined!: Promise<AudioBufferHandle>;
+            platform.readFile.mockImplementationOnce(async () => {
+                joined = backend.loadBuffer(url, { loadType: 'auto', trim: { ...trim } });
+                return new ArrayBuffer(16);
+            });
+            const first = backend.loadBuffer(url, { trim });
+            trim.lead = 0.25; // The first request keeps its original settings.
+            const second = backend.loadBuffer(url, { trim });
+            const [a, b] = await Promise.all([first, second]);
+            expect((await joined).id).toBe(a.id);
+            expect(platform.readFile).toHaveBeenCalledTimes(2);
+            expect(b.id).not.toBe(a.id);
+            for (const [buffer, lead] of [[a, 0.125], [b, 0.25]] as const) {
+                const voice = backend.play(buffer, {});
+                expect(ctx.createBufferSource.mock.results.at(-1).value.start.mock.calls[0][1]).toBe(lead);
+                voice.stop();
+            }
+            const full = await backend.loadBufferFromData(url, new ArrayBuffer(16));
+            expect(full.duration).toBe(3);
+            const shortened = await backend.loadBufferFromData(url, new ArrayBuffer(16), { trim: { lead: 0, seconds: 1 } });
+            expect(shortened.duration).toBe(1);
+            backend.invalidateSource(url);
+            const fresh = await backend.loadBuffer(url, { trim });
+            expect(fresh.id).not.toBe(b.id);
+            for (const old of [a, b, full, shortened]) backend.unloadBuffer(old);
+            expect((await backend.loadBuffer(url, { trim })).id).toBe(fresh.id);
         });
 
         it('should throw if not initialized', async () => {

@@ -26,6 +26,11 @@ playable and is revived without a re-fetch + re-decode, while the oldest unused
 buffers are dropped past the budget. On OS memory warnings the engine trims the
 whole warm cache automatically — sounds that are playing keep playing.
 
+Two clip references can resolve to the same packaged file. They share a buffer when
+their load mode, encoder lead and clip length match. You can stream the file as music
+and preload it as a decoded effect in either order. Invalidating the file clears all
+its cached settings while voices already playing can finish.
+
 <Aside type="note">
   Audio is registered automatically — no plugin to add. Browsers require a user
   gesture before sound can start, so trigger the first playback from a tap or key.

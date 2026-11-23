@@ -4,7 +4,7 @@ import { RuntimeConfig } from '../defaults';
 import type { Backend } from './Backend';
 import { packedBackend } from './packedBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
-import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
+import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
 import { encodeUtf8 } from '../util/utf8';
@@ -66,7 +66,7 @@ import { indexSceneAssets, sceneAcquisitionPaths, SceneAssetOwners, type SceneAs
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
-import { UUID_REF_PREFIX } from './AssetRegistry';
+import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -1174,7 +1174,7 @@ export class Assets {
              });
 
         for (const asset of model.assetsInGroup(groupName)) {
-            const path = this.manifestAssetUrl_(asset.path, mode === 'remote');
+            const path = this.groupAssetRef_(asset, mode === 'remote');
             const task = this.groupLoadTask_(path, asset.type, bundle);
             if (task) promises.push(track(task, path, asset.type));
         }
@@ -1206,7 +1206,7 @@ export class Assets {
             // The SAME path loadGroup acquired under. Resolving it a different
             // way here would release a key nobody holds, which is a leak that
             // looks exactly like a working release.
-            const path = this.manifestAssetUrl_(asset.path, mode === 'remote');
+            const path = this.groupAssetRef_(asset, mode === 'remote');
             GROUP_ASSET_CHANNELS[asset.type]?.release?.(this, path);
         }
     }
@@ -1243,6 +1243,11 @@ export class Assets {
      *  {@link resolveLoadPath_} → {@link remoteAssetPath_}) never resolve two ways. */
     private manifestAssetUrl_(path: string, isRemote: boolean, root: string | undefined = this.remoteRoot_): string {
         return isRemote && root ? this.remoteUrlFor_(path, root) : this.resolveLoadPath_(path);
+    }
+
+    private groupAssetRef_(asset: AddressableManifestAsset, remote: boolean): string {
+        if (asset.type === 'audio' && asset.address) return asset.address;
+        return this.manifestAssetUrl_(asset.path, remote);
     }
 
     /**
@@ -1610,7 +1615,7 @@ export class Assets {
                 failed.push({ ref, reason: 'unresolved' });
                 continue;
             }
-            const load = this.typedLoadFor_(path, type);
+            const load = this.typedLoadFor_(type === 'audio' ? ref : path, type);
             if (!load) {
                 log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
                 failed.push({ ref, type, reason: 'unresolved' });
@@ -2195,7 +2200,7 @@ export class Assets {
 
     /** @internal Hand a scene the existing acquisitions reported by a path-only loader. */
     takeTrackedAsset(type: string, ref: string, scope: AssetScope): boolean {
-        const path = this.resolveLoadPath_(ref);
+        const path = this.handleLoadKey_(type, ref);
         const typedKey = assetPairKey(type, path);
         const genericClaim = this.genericRefs_.hasPathClaim(typedKey);
         const before = scope.size;
@@ -2227,7 +2232,7 @@ export class Assets {
      * group channel table uses. Game code calls the named release* methods.
      */
     releaseTyped(type: string, ref: string): void {
-        const resolved = this.resolveLoadPath_(ref);
+        const resolved = this.handleLoadKey_(type, ref);
         if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
             this.releaseTextureVariant_(resolved, true);
             return;
@@ -2415,6 +2420,8 @@ export class Assets {
         // Handle-bound graph nodes already carry their cache key, including a skeleton/atlas pair.
         const cache = this.genericCache_.get(type);
         const path = fromGraph && cache ? asset.path : this.resolveLoadPath_(asset.path);
+        const loader = this.loaders_.get(type);
+        let residencyPath = path;
         // Held by a cache or by a loader's own residency: what a listener is
         // told about. A slot swaps its era instead, and reports nothing.
         let dropped = false;
@@ -2444,6 +2451,20 @@ export class Assets {
                 && rm.invalidateTexturePath(path)) {
                 dropped = true;
             }
+        } else if (loader instanceof AudioAssetLoader) {
+            const audio = this.getAudio_();
+            const sourceOf = (ref: string) => audio?.getBufferSource(ref)
+                ?? this.backend.resolveUrl(this.catalog.getBuildPath(this.audioFile_(ref).path));
+            residencyPath = sourceOf(asset.path);
+            // Each authored clip holds its own lease, while a change to the file ends every preparation of it.
+            if (cache) {
+                for (const key of cache.keys()) {
+                    if (key !== asset.path && sourceOf(key) !== residencyPath) continue;
+                    oldValue ??= cache.get(key)?.value;
+                    if (cache.invalidate(key)) dropped = true;
+                    this.genericRefs_.supersede(assetPairKey(type, key));
+                }
+            }
         } else {
             if (cache) {
                 oldValue = cache.get(path)?.value;
@@ -2460,7 +2481,7 @@ export class Assets {
         // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive the
         // Assets-level entry — sever it so a warm-cache revive can never serve
         // stale bytes after a hot reload.
-        if (this.loaders_.get(type)?.invalidate?.(path)) dropped = true;
+        if (loader?.invalidate?.(residencyPath)) dropped = true;
 
         // The reverse handle→path records of this kind are stale now: a reload
         // mints new handles, and the old ones must stop naming the asset.
@@ -2897,9 +2918,23 @@ export class Assets {
         if (!loader.load) {
             throw new Error(`Loader for "${type}" publishes by name; acquire it through its slot`);
         }
+        if (loader instanceof AudioAssetLoader) {
+            const { path, address } = this.audioFile_(ref);
+            return this.acquirePrepared_<T>(loader, ref, ref, ctx => loader.load(ref, ctx, path, address) as Promise<T>, owner);
+        }
         const load = loader.load.bind(loader);
         const path = this.resolveLoadPath_(ref);
         return this.acquirePrepared_<T>(loader, path, ref, (ctx) => load(path, ctx), owner);
+    }
+
+    private audioFile_(ref: string): { path: string; address?: string } {
+        const entry = this.manifestModel_?.assetByKey(extractUuid(ref) ?? ref);
+        const resolved = this.resolveLoadPath_(ref);
+        return { path: resolved === ref ? entry?.path ?? resolved : resolved, address: entry?.address };
+    }
+
+    private handleLoadKey_(type: string, ref: string): string {
+        return this.loaders_.get(type) instanceof AudioAssetLoader ? ref : this.resolveLoadPath_(ref);
     }
 
     /**
@@ -3003,7 +3038,7 @@ export class Assets {
             const pair = cache.get(ref);
             if (pair?.loader === this.spineLoader_) return pair;
         }
-        const path = this.resolveLoadPath_(ref);
+        const path = this.handleLoadKey_(type, ref);
         if (this.loaders_.get(type) !== this.spineLoader_) return cache.get(path);
         const atlas = this.spineAtlasOf_(path);
         return atlas ? cache.get(spinePairKey(path, atlas)) : undefined;

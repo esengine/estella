@@ -1205,6 +1205,7 @@ static prototype: AssetsClass
 ## AsyncCache — class @experimental
 ```
 @internal failures: () => Generator<[string, Error]>
+@internal keys: () => Set<string>
 @internal sizes: () => { cached: number; pending: number; failed: number; }
 clear: () => void
 clearAll: () => void
@@ -1249,6 +1250,8 @@ ResourceDef<AudioAPI>
 
 ## AudioAPI — class @experimental
 ```
+@internal acquireAssetBuffer: (ref: string, file: { url: string; address: string; }, read: () => Promise<ArrayBuffer>) => Promise<AudioBufferHandle | undefined>
+@internal getBufferSource: (ref: string) => string | undefined
 @internal getVoiceState: (handle: AudioHandle) => "ended" | "paused" | "playing" | "stopped" | "untracked"
 @internal onPlaybackStop: (callback: (generation: number) => void) => () => void
 @internal playbackGeneration: number
@@ -1294,7 +1297,7 @@ setLoadTypes: (types: Readonly<Record<string, AudioLoadType>> | null) => void
 setMasterVolume: (volume: number) => void
 setMaxVoices: (max: number) => void
 setMusicVolume: (volume: number) => void
-setRefResolver: (resolver: ((ref: string) => string) | null) => void
+setRefResolver: (resolver: ((ref: string) => string) | null, resolveAddress?: (ref: string) => string | null) => void
 setSFXVolume: (volume: number) => void
 setUIVolume: (volume: number) => void
 stopAll: () => void

@@ -21,6 +21,7 @@ import { log } from '../util/logger';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
+import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
@@ -141,10 +142,14 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // resolveRef contract; a ref with no known path (or already a path) passes
     // through, and the backend resolves both spellings off the same aliased map.
     const backend = new EmbeddedBackend(assets);
-    const resolveRefToPath = (ref: string): string => keyToPath[ref] ?? ref;
+    const resolveRefToPath = (ref: string): string => {
+        const uuid = extractUuid(ref);
+        return keyToPath[uuid ? UUID_REF_PREFIX + uuid : ref] ?? ref;
+    };
     const inlined: RuntimeAssetSource = {
         backend,
         resolveRef: resolveRefToPath,
+        resolveAddress: resolveRefToPath,
         decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.

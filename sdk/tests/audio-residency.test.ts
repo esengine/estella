@@ -173,6 +173,31 @@ describe('AudioAPI buffer residency', () => {
         expect(audio.trimBufferCache()).toBe(1);
     });
 
+    it('invalidates cached and pending settings together and keeps a replacement started during invalidation', async () => {
+        audio.setRefResolver(ref => {
+            if (ref.startsWith('cooked/')) throw new Error('expected an authored reference');
+            return ref === 'other' ? 'cooked/other.wav' : 'cooked/shared.wav';
+        });
+        audio.setLoadTypes({ music: 'streaming', other: 'auto' });
+        await audio.preloadAll(['fx', 'other']);
+        let finish!: (buffer: AudioBufferHandle) => void;
+        backend.loadBufferFromData = () => new Promise(resolve => { finish = resolve; });
+        const oldMusic = audio.preloadFromData('music', new ArrayBuffer(16));
+        let fresh!: Promise<void>;
+        backend.invalidateSource = vi.fn(() => { fresh = audio.preloadAll(['music', 'fx']); });
+        expect(audio.invalidateBuffer('cooked/shared.wav')).toBe(true);
+        expect(backend.invalidateSource).toHaveBeenCalledWith('cooked/shared.wav');
+        await fresh;
+        expect(backend.loads).toEqual(['cooked/shared.wav', 'cooked/other.wav', 'cooked/shared.wav', 'cooked/shared.wav']);
+        finish({ id: 99, duration: 2, bytes: 200 });
+        await oldMusic;
+        expect(backend.unloaded).toEqual([1, 99]);
+        expect(audio.getBufferStats()).toMatchObject({ bufferCount: 3, bufferBytes: 300 });
+        expect(audio.getBufferHandle('other')?.id).toBe(2);
+        expect(audio.getBufferHandle('music')?.id).toBe(3);
+        expect(audio.trimBufferCache()).toBe(3);
+    });
+
     it('invalidates the source captured by a pending load when the resolver changes', async () => {
         let source = 'old.wav';
         audio.setRefResolver(() => source);
@@ -190,6 +215,44 @@ describe('AudioAPI buffer residency', () => {
         await old;
         expect(backend.unloaded).toEqual([1]);
         expect(audio.getBufferHandle('key')?.id).toBe(2);
+    });
+
+    it('keeps the authored leases of a cooked group and retires a late file read before it reaches the backend', async () => {
+        const src = 'assets/shared.wav';
+        audio.setBufferBudget(100); // Both preparations must survive until their concurrent asset acquisitions pin them.
+        const fetchBinary = vi.fn(async () => new ArrayBuffer(16));
+        const assets = Assets.create({ module: null, getAudio: () => audio,
+            backend: { resolveUrl: path => '/' + path, fetchBinary, fetchText: async () => '' } });
+        const file = { path: src, type: 'audio' as const, labels: [], size: 16 };
+        assets.setManifest({ version: '2.0', groups: { sounds: { bundleMode: 'local', labels: [], assets: {
+            music: { ...file, address: 'theme.wav' }, fx: { ...file, address: 'effect.wav' },
+            copy: { ...file, address: 'copy.wav' },
+        } } } });
+        audio.setLoadTypes({ 'theme.wav': 'streaming', 'effect.wav': 'decompress', 'copy.wav': 'decompress' });
+        const decode = vi.spyOn(backend, 'loadBufferFromData');
+        const group = await assets.loadGroup('sounds');
+        expect(decode).toHaveBeenCalledTimes(2);
+        expect(fetchBinary).toHaveBeenCalledTimes(2);
+        expect(fetchBinary).toHaveBeenCalledWith('/' + src);
+        expect(audio.getBufferHandle('effect.wav')).toBe(audio.getBufferHandle('copy.wav'));
+        expect(audio.getBufferHandle('effect.wav')).not.toBe(audio.getBufferHandle('theme.wav'));
+        expect(audio.getBufferStats()).toMatchObject({ bufferCount: 3, evictableCount: 0 });
+        expect(assets.invalidate(src)).toBe(true);
+        expect(audio.getBufferStats().bufferCount).toBe(0);
+
+        let finish!: (bytes: ArrayBuffer) => void;
+        fetchBinary.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const old = assets.acquireTyped('audio', 'theme.wav');
+        await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+        expect(assets.invalidate('theme.wav')).toBe(true);
+        const fresh = await assets.acquireTyped('audio', 'theme.wav');
+        finish(new ArrayBuffer(8));
+        (await old).release();
+        group.release();
+        expect(decode).toHaveBeenCalledTimes(3);
+        expect(audio.getBufferStats()).toMatchObject({ bufferCount: 1, bufferBytes: 100, evictableCount: 0 });
+        fresh.release();
+        expect(audio.trimBufferCache()).toBe(1);
     });
 
     it.each([0, 1000])('releasing an old asset lease cannot release the replacement clip, budget=%i', async budget => {
