@@ -201,6 +201,29 @@ describe('RenderPipeline', () => {
         expect(calls).toEqual(['b grid', 'b hud', 'b handles', 'a grid', 'a hud', 'a handles']);
     });
 
+    it("uses the presented camera's scenes after another world renders to a texture", () => {
+        const screen = new World(), preview = new World(), offscreen = { _cpp: {} as typeof registry._cpp };
+        vi.spyOn(screen, 'getCppRegistry').mockReturnValue(registry._cpp);
+        vi.spyOn(preview, 'getCppRegistry').mockReturnValue(offscreen._cpp);
+        const shown = vi.fn(), hidden = vi.fn(), other = vi.fn();
+        registerOverScreenDrawCallback('hud', shown, { world: screen, scene: 'map' });
+        registerOverScreenDrawCallback('paused', hidden, { world: screen, scene: 'preview' });
+        registerOverScreenDrawCallback('hud', other, { world: preview, scene: 'preview' });
+        const camera = { viewProjection, viewportPixels: { x: 0, y: 0, w: 80, h: 60 }, clearFlags: 3, elapsed: 0 };
+        pipeline.beginFrame();
+        const scenes = new Set(['map']);
+        pipeline.setActiveScenes(scenes);
+        pipeline.renderCamera({ ...camera, registry });
+        scenes.clear();
+        scenes.add('preview');
+        pipeline.setActiveScenes(scenes);
+        pipeline.renderCamera({ ...camera, registry: offscreen, renderTarget: 2 });
+        pipeline.renderOverScreen();
+        expect(shown).toHaveBeenCalledOnce();
+        expect(hidden).not.toHaveBeenCalled();
+        expect(other).not.toHaveBeenCalled();
+    });
+
     it('passes each camera projection and the independent overlay projection to glyph callbacks', () => {
         const world = vi.fn(), screen = vi.fn();
         pipeline.addPreFlushCallback(world);

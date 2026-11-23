@@ -79,7 +79,12 @@ export class RenderPipeline {
     private applyQuality_: (() => void) | null = null;
     private warnedMissingPresent_ = false;
     /** The last camera the frame drew to the screen: the view the over-screen callbacks are drawn through. */
-    private overScreenView_: { viewProjection: Float32Array; viewport: Viewport; registry: CppRegistry } | null = null;
+    private overScreenView_: {
+        viewProjection: Float32Array;
+        viewport: Viewport;
+        registry: CppRegistry;
+        activeScenes: ReadonlySet<string> | null;
+    } | null = null;
 
     /** @experimental */
     get renderingEnabled(): boolean { return this.renderingEnabled_; }
@@ -214,7 +219,7 @@ export class RenderPipeline {
         if (!view || overScreenCallbacks.entries.size === 0 || !isDrawAPIReady() || !Renderer.hasDrawOverScreen()) return;
         const { viewProjection, viewport } = view;
         const frame = { viewProjection, width: viewport.w, height: viewport.h };
-        const drew = overScreenCallbacks.dispatch(view.registry, this.activeScenes_,
+        const drew = overScreenCallbacks.dispatch(view.registry, view.activeScenes,
             () => beginPresentedDraw(viewProjection, viewport.w, viewport.h), fn => fn(this.frameElapsed_, frame));
         if (drew) {
             endPresentedDraw();
@@ -357,7 +362,10 @@ export class RenderPipeline {
         this.submitScene(registry, viewProjection, scene, elapsed);
         Renderer.end();
         if (!params.renderTarget && overScreenCallbacks.entries.size > 0) {
-            this.overScreenView_ = { viewProjection: Float32Array.from(viewProjection), viewport: { ...present }, registry: registry._cpp };
+            this.overScreenView_ = {
+                viewProjection: Float32Array.from(viewProjection), viewport: { ...present }, registry: registry._cpp,
+                activeScenes: this.activeScenes_ && new Set(this.activeScenes_),
+            };
         }
 
         if (hasPostProcess) {
