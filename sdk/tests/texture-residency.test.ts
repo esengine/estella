@@ -209,6 +209,40 @@ describe('texture residency (Assets ↔ pool contract)', () => {
         expect(pool.createTexture).toHaveBeenCalledTimes(2);
     });
 
+    it.each(['before', 'after'] as const)('keeps the new residency when an invalidated decode finishes %s its replacement', async order => {
+        const assets = buildAssets();
+        const ref = 'tex/edited.png';
+        let entered!: () => void, resume!: () => void;
+        const decoding = new Promise<void>(resolve => { entered = resolve; });
+        const gate = new Promise<void>(resolve => { resume = resolve; });
+        let reads = 0;
+        assets.getTextureLoader().setPixelDecoder(async () => {
+            const width = ++reads;
+            if (width === 1) { entered(); await gate; }
+            return { width, height: 1, pixels: new Uint8Array(width * 4) };
+        });
+        const pending = assets.acquireTexture(ref);
+        try {
+            await decoding;
+            assets.invalidate(ref);
+            if (order === 'before') { resume(); await pending; }
+            const fresh = await assets.acquireTexture(ref);
+            resume();
+            const previous = await pending;
+            expect([previous.value.width, fresh.value.width]).toEqual([1, 2]);
+            previous.release();
+            expect(pool.entryOf(previous.value.handle)).toBeNull();
+            expect(pool.entryOf(fresh.value.handle)?.refCount).toBe(1);
+            fresh.release();
+            const revived = await assets.acquireTexture(ref);
+            expect(revived.value.handle).toBe(fresh.value.handle);
+            expect(assets.getTextureLoader().fullSize(revived.value.handle)?.width).toBe(2);
+            expect(reads).toBe(2);
+            revived.release();
+            expect(pool.entryOf(fresh.value.handle)?.refCount).toBe(0);
+        } finally { resume(); assets.releaseAll(); }
+    });
+
     it('flip variants are distinct residency entries', async () => {
         const assets = buildAssets();
         const flipped = await assets.loadTexture('tex/a.png');

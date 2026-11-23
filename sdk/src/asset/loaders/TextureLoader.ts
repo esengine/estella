@@ -94,7 +94,7 @@ const isPng = (b: Uint8Array): boolean => b.byteLength > 8 && b[0] === 0x89 && b
 export class TextureLoader implements AssetLoader<TextureResult> {
     private readonly imageRevisions_ = new Map<string, number>();
 
-    /** End the browser image-cache identity when an asset's bytes change. */
+    /** End this revision for browser image requests and pending residency publications. */
     invalidate(path: string): boolean {
         this.imageRevisions_.set(path, ++nextImageRevision);
         return false;
@@ -269,6 +269,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async loadWithFlip(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
+        const revision = this.imageRevisions_.get(path);
         const start = this.pendingStartEdge_;
         this.pendingStartEdge_ = 0;
         if (start > 0) this.askedSmall++;
@@ -276,17 +277,19 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const source = { path, flip, settings, fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height };
         this.sources_.set(result.handle, source);
         if (result.fullWidth !== undefined) this.startedSmall++;
-        this.sourcesByKey_.set(textureResidencyKey(path, flip), source);
+        // The original caller still owns its pixels. Only the current revision can publish them by path.
+        if (revision !== this.imageRevisions_.get(path)) return result;
+        const key = textureResidencyKey(path, flip);
+        this.sourcesByKey_.set(key, source);
         // Recorded HERE, once, for every path into the loader — the compressed
         // paths, the pixel decoder and the <img> upload alike. A record kept only
         // where a fallback happens cannot say that everything else was fine.
-        this.formats_.record(textureResidencyKey(path, flip), this.lastDecision_);
+        this.formats_.record(key, this.lastDecision_);
         // Path identity in the C++ pool: after the last release the texture can
         // survive as an evictable cache entry (budget permitting) and the next
         // load revives it by this key instead of re-fetching + re-decoding.
         // Optional-chained: minimal test mocks may not model the pool surface.
-        requireResourceManager().registerTextureWithPath?.(
-            result.handle, textureResidencyKey(path, flip));
+        requireResourceManager().registerTextureWithPath?.(result.handle, key);
         return result;
     }
 
