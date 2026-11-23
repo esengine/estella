@@ -867,7 +867,7 @@ registerEffect({
     label: 'Rain',
     factory: () => postProcessEffects.createRain(),
     uniforms: [
-        // How much rain falls: how many of the streaks that a layer could hold are there.
+        // How much rain falls: the share of the precipitation lattice's falls that do (render/precipitation.ts).
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // How wet the ground is: how far it darkens and how clearly the rings read.
         { name: 'u_wetness', label: 'Wetness', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
@@ -875,8 +875,8 @@ registerEffect({
         { name: 'u_wind', label: 'Wind', min: -1, max: 1, step: 0.01, defaultValue: 0.15 },
         { name: 'u_speed', label: 'Speed', min: 0.2, max: 6, step: 0.1, defaultValue: 1.6 },
         { name: 'u_streakLength', label: 'Streak Length', min: 0.05, max: 0.9, step: 0.01, defaultValue: 0.3 },
-        // A WORLD length: the size of the grid cell each ring lives in.
-        { name: 'u_rippleScale', label: 'Ripple Scale', min: 5, max: 400, step: 1, defaultValue: 60, worldUnits: 1 },
+        // The project's world units a metre: the rings on puddles are a raindrop's size whatever the scale. Set by the units, not authored.
+        { name: 'u_metre', label: 'Metre', min: 0.01, max: 1000000, step: 1, defaultValue: 100, worldUnits: 1, internal: true },
         // How far from the camera, in world units, the map of what stands over each place reaches: ground under an awning
         // inside it stays dry. The map is the scene drawn from straight above, so this is also how much of it costs.
         { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000, worldUnits: 1 },
@@ -884,11 +884,39 @@ registerEffect({
         // The reflections effect draws the same pools when it is given the same two numbers.
         { name: 'u_puddles', label: 'Puddles', min: 0, max: 1, step: 0.01, defaultValue: 0.3, neutralValue: 0 },
         { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350, worldUnits: 1 },
-        // How much snow falls, in the same three layers as the rain; 0 is none. Snow neither wets the ground nor rings it.
+        // How much snow falls; 0 is none. Snow neither wets the ground nor rings it.
         { name: 'u_snowfall', label: 'Snowfall', min: 0, max: 2, step: 0.01, defaultValue: 0, neutralValue: 0 },
+        // How the drops, flakes, splashes and rings look; metres and seconds, so a look holds at any world scale. The defaults are
+        // real rain's: a toon look widens and brightens them, or gives each a texture.
+        { name: 'u_streakWidth', label: 'Streak Width', min: 0.001, max: 0.2, step: 0.001, defaultValue: 0.012 },
+        { name: 'u_streakBrightness', label: 'Streak Brightness', min: 0, max: 4, step: 0.01, defaultValue: 0.35 },
+        { name: 'u_flakeSize', label: 'Flake Size', min: 0.005, max: 0.5, step: 0.005, defaultValue: 0.04 },
+        { name: 'u_flakeBrightness', label: 'Flake Brightness', min: 0, max: 4, step: 0.01, defaultValue: 0.9 },
+        // A splash: the droplets it throws, how big and bright they are, how fast they are thrown, and how long it lasts. 0 droplets
+        // leaves only the bright point where the drop landed.
+        { name: 'u_splashDroplets', label: 'Splash Droplets', min: 0, max: 8, step: 1, defaultValue: 4 },
+        { name: 'u_splashSize', label: 'Splash Size', min: 0, max: 0.3, step: 0.001, defaultValue: 0.03, neutralValue: 0 },
+        { name: 'u_splashBrightness', label: 'Splash Brightness', min: 0, max: 4, step: 0.01, defaultValue: 0.9 },
+        { name: 'u_splashSpeed', label: 'Splash Speed', min: 0, max: 4, step: 0.01, defaultValue: 1 },
+        { name: 'u_splashLife', label: 'Splash Life', min: 0.05, max: 1.5, step: 0.01, defaultValue: 0.3 },
+        // The rings a drop opens on water and puddles: how fast they run (m/s), how long they last (s), a crest's width (m) and how
+        // strongly they catch the light. A ring is gone before it is a quarter metre across, however long it is given.
+        { name: 'u_ringSpeed', label: 'Ring Speed', min: 0.02, max: 1, step: 0.01, defaultValue: 0.25 },
+        { name: 'u_ringLife', label: 'Ring Life', min: 0.05, max: 2, step: 0.01, defaultValue: 0.5 },
+        { name: 'u_ringWidth', label: 'Ring Width', min: 0.001, max: 0.05, step: 0.001, defaultValue: 0.006 },
+        { name: 'u_ringStrength', label: 'Ring Strength', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 0 },
+    ],
+    textures: [
+        // What each is drawn with instead of the built-in soft streak and dot: its alpha is the shape, its colour tints it. A streak's
+        // texture runs tail (v 0) to head (v 1).
+        { name: 'u_streakTexture', label: 'Streak Texture' },
+        { name: 'u_flakeTexture', label: 'Flake Texture' },
+        { name: 'u_splashTexture', label: 'Splash Texture' },
     ],
     colors: [
         { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
+        { name: 'u_flakeColor', label: 'Flake Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
+        { name: 'u_splashColor', label: 'Splash Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
     ],
 });
 

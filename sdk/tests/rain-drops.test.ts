@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { buildRainDrops, rainFall, snowFall, RAIN_DROPS_SHADER } from '../src/postprocess/rainDrops';
+import { buildRainDrops, rainFall, snowFall, splashFall, RAIN_DROPS_SHADER } from '../src/postprocess/rainDrops';
 import { MeshChannel } from '../src/asset/meshFormat';
 
 const effect = (values: Record<string, number>) => ({ uniforms: new Map(Object.entries(values)) });
@@ -45,6 +45,33 @@ describe('the 3D rain\'s drops', () => {
         expect(snowFall(effect({}), 0, 100).share).toBe(0);
         expect(rainFall(effect({}), 0, 100).mode).toBe(0);
         expect(rainFall(effect({}), 0, 100).sway[0]).toBe(0);
+    });
+
+    it('take their look from the effect, in metres, so a toon rain is the author\'s values and textures, not new code', () => {
+        const drops = rainFall(effect({ u_streakWidth: 0.05, u_streakBrightness: 2 }), 0, 100);
+        expect(drops.width).toBeCloseTo(5, 9);
+        expect(drops.brightness).toBe(2);
+        expect([drops.color, drops.texture]).toEqual(['u_streakColor', 'u_streakTexture']);
+        const snow = snowFall(effect({ u_snowfall: 1, u_flakeSize: 0.1 }), 0, 1);
+        expect(snow.width).toBeCloseTo(0.1, 9);
+        expect([snow.color, snow.texture]).toEqual(['u_flakeColor', 'u_flakeTexture']);
+    });
+
+    it('throw splashes where the drops fall, as many droplets, as fast and as long as the effect says, and none at size 0', () => {
+        const drops = rainFall(effect({ u_intensity: 1 }), 0, 100);
+        const splash = splashFall(effect({ u_splashDroplets: 6, u_splashSpeed: 2, u_splashLife: 0.5, u_splashSize: 0.05 }), drops, 100);
+        expect(splash.mode).toBe(2);
+        expect(splash.share).toBe(drops.share);
+        expect(splash.width).toBeCloseTo(5, 9);
+        expect(splash.splash).toEqual({ droplets: 6, speed: 2, life: 0.5 });
+        expect([splash.color, splash.texture]).toEqual(['u_splashColor', 'u_splashTexture']);
+        expect(splashFall(effect({ u_splashDroplets: 40 }), drops, 100).splash.droplets).toBe(8);
+        expect(splashFall(effect({ u_splashSize: 0 }), drops, 100).share).toBe(0);
+    });
+
+    it('are drawn with the author\'s texture where one is given: its alpha the shape, its colour a tint', () => {
+        expect(RAIN_DROPS_SHADER).toContain('u_rainSprite');
+        expect(RAIN_DROPS_SHADER).toContain('u_rainTint.rgb * sprite.rgb');
     });
 
     it('are a quad each, numbered in the x of every corner, with bounds no camera culls', () => {

@@ -56,6 +56,7 @@ import {
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { invertMatrix4 } from '../math/mat4';
+import { DEFAULT_PRECIPITATION_RING, currentPrecipitation } from '../render/precipitation';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
 import { WaterOpticalField, type OpticalField, type CausticBodies } from './opticalField';
 import { DEFAULT_CAUSTIC_STRENGTH, MAX_CAUSTIC_STRENGTH } from '../render/waterCaustics';
@@ -1261,7 +1262,7 @@ export class WaterPlugin implements Plugin {
             if (f.position.x !== ox || f.position.z !== oz) app.world.insert(s.farEntity, Transform, { ...f, position: { x: ox, y: 0, z: oz } });
         }
         const materials = drawnWith(s);
-        const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of materials) Material.setUniform(i, name, value); };
+        const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { for (const i of materials) Material.setUniform(i, name, value); };
         const q = this.waters_.quality;
         const ocean = field.ocean;
         set('u_waveCount', q.waves);
@@ -1280,7 +1281,10 @@ export class WaterPlugin implements Plugin {
         }
         set('u_geoWaves', q.displacement ? 1 : 0);
         set('u_waveHeight', waves.height);
-        set('u_rain', rainOnWater());
+        const precipitation = currentPrecipitation();
+        set('u_rain', precipitation?.intensity ?? rainOnWater());
+        const [ringSpeed, ringLife, ringWidth, ringStrength] = precipitation?.ring ?? DEFAULT_PRECIPITATION_RING;
+        set('u_rainRing', { x: ringSpeed, y: ringLife, z: ringWidth, w: ringStrength });
         set('u_waveLength', waves.length);
         set('u_waveSpeed', waves.speed);
         set('u_waveGravity', waterGravity());

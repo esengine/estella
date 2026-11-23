@@ -43,6 +43,11 @@ export function setVolumeTextureResolver(resolver: ((ref: string) => number) | n
     volumeTextureResolver = resolver;
 }
 
+/** The texture a volume's texture param names, or 0 where it names none or it is not loaded. */
+export function resolveVolumeTexture(ref: string | undefined): number {
+    return ref && volumeTextureResolver ? volumeTextureResolver(ref) : 0;
+}
+
 function getOrCreateShader(api: PostProcessAPI, key: string, factory: () => ShaderHandle): ShaderHandle {
     const existing = api.volumeShaders.get(key);
     if (existing !== undefined) return existing;

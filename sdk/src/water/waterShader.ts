@@ -6,6 +6,7 @@
  *
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
+import { PRECIPITATION_CELL_METRES, PRECIPITATION_GLSL } from '../render/precipitation';
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { CAUSTICS_GLSL, CAUSTIC_PARAMS, CAUSTIC_FIELD_PARAMS, WATER_ZONE_LAYER_GLSL, WATER_ZONE_LAYER_WGSL } from '../render/waterCaustics';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
@@ -244,32 +245,13 @@ vec2 rippleSlope(vec2 p, float time, vec4 px) {
     return slope * (u_rippleStrength * gust);
 }
 
-/// The slope rain adds at p: in every cell of two offset grids 0.875 m across, a drop lands at a place and a moment of
-/// its own once a cycle, and a ring runs out from it and dies away. Harder rain wets more of the cells. No foam: a raindrop makes none.
-vec2 rainRings(vec2 p, float time, float rain) {
-    vec2 slope = vec2(0.0);
-    if (rain <= 0.0) return slope;
-    // A raindrop's ring is the size it is in metres (u_metre, the project's units a metre): 0.875 m cells, a ring out to 0.4 m.
-    float cellSize = u_metre * 0.875;
-    const float K = 52.0;
-    for (int layer = 0; layer < 2; layer++) {
-        vec2 q = p / cellSize + float(layer) * vec2(0.37, 0.71);
-        vec2 cell = floor(q) + float(layer) * 113.0;
-        float h = waterHash(cell);
-        float rate = 0.8 + 0.5 * h;
-        float cycle = time * rate + h * 7.31;
-        vec2 drop = cell + floor(cycle) * vec2(17.0, 31.0);
-        if (waterHash(drop + 0.5) > clamp(rain * 0.4, 0.0, 0.9)) continue;
-        float t = fract(cycle);
-        vec2 centre = floor(q) + 0.25 + 0.5 * vec2(waterHash(drop + 3.1), waterHash(drop + 5.7));
-        vec2 d = q - centre;
-        float r = max(length(d), 1e-4);
-        float x = r - t * 0.45;
-        float env = (1.0 - t) * (1.0 - t) * exp(-x * x * 900.0);
-        float dh = (cos(x * K) - x * 1800.0 / K * sin(x * K)) * env;
-        slope += d / r * dh * 0.3;
-    }
-    return slope;
+/// The slope rain adds at p: the rings from where the drops of the precipitation lattice land (render/precipitation.ts), summed so
+/// that rings that meet add and cancel. The drops the rain draws in the air land on the same places at the same moments, and splash there.
+${PRECIPITATION_GLSL}
+vec2 rainRings(vec2 p, float time, float rain, float footprint) {
+    if (rain <= 0.0) return vec2(0.0);
+    // A raindrop's ring is the size it is in metres (u_metre, the project's units a metre).
+    return precipRings(p, time, precipDensity(rain), u_metre * ${PRECIPITATION_CELL_METRES}, footprint, u_rainRing);
 }
 
 /// The slope of the water's surface at p (d height / d x, d height / d z) and how near the waves are to a crest, 0 to 1.
@@ -380,6 +362,8 @@ vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool
     }
     // Rain rings are fine: where a pixel grows past a ring's crests they would shimmer, so they fade out before it.
     float rainFade = 1.0 - smoothstep(20.0 * u_metre, 50.0 * u_metre, waterDist);
+    // How much of the world a pixel covers here: the rings fade out where it is more than half a ripple.
+    float footprint = max(length(px.xy), length(px.zw));
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
         // A current: what lies on the surface rides it (the waves, the wind's ripples, the rain's rings, the detail). Two copies of it are
@@ -388,12 +372,12 @@ vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool
         float crest0, crest1;
         // Named copy0/copy1 because a t or s followed by a number is a texture unit's name (ShaderParser::materialOverflowUnits).
         vec2 at0 = wp - flow * phase.x, at1 = wp - flow * phase.y;
-        vec2 copy0 = waterSurface(at0, time, waterDist, px, damp, calm, crest0) + rainRings(at0, time, u_rain) * rainFade + detailSlope(at0, time) * calm;
-        vec2 copy1 = waterSurface(at1, time, waterDist, px, damp, calm, crest1) + rainRings(at1, time, u_rain) * rainFade + detailSlope(at1, time) * calm;
+        vec2 copy0 = waterSurface(at0, time, waterDist, px, damp, calm, crest0) + rainRings(at0, time, u_rain, footprint) * rainFade + detailSlope(at0, time) * calm;
+        vec2 copy1 = waterSurface(at1, time, waterDist, px, damp, calm, crest1) + rainRings(at1, time, u_rain, footprint) * rainFade + detailSlope(at1, time) * calm;
         slope = mix(copy1, copy0, phase.z);
         crest = mix(crest1, crest0, phase.z);
     } else {
-        slope = waterSurface(wp, time, waterDist, px, damp, calm, crest) + rainRings(wp, time, u_rain) * rainFade + detailSlope(wp, time) * calm;
+        slope = waterSurface(wp, time, waterDist, px, damp, calm, crest) + rainRings(wp, time, u_rain, footprint) * rainFade + detailSlope(wp, time) * calm;
     }
     slope += ripSlope + toSea * (surfRise * u_geoWaves);
     return slope;
@@ -451,8 +435,10 @@ const WATER = `#pragma shader "Water"
 // mirrors seen straight on (water's 0.0204).
 #pragma param u_bodyShading float default(0.25) range(0,1) ui(slider)
 #pragma param u_reflectance float default(0.0204) range(0,0.2) ui(slider)
-// How hard it rains on the water (the weather writes it): drops ring out on the surface, a few to every u_rippleLength.
+// How hard it rains on the water (the weather writes it), and how its rings look: speed (m/s), life (s), crest width (m), strength.
+// Both come from the rain effect while it rains (render/precipitation.ts), so the water rings as the puddles do.
 #pragma param u_rain float default(0) range(0,4) ui(slider)
+#pragma param u_rainRing vec4 default(0.25,0.5,0.006,1)
 #pragma param u_roughness float default(0.04) range(0,1) ui(slider)
 // How far what is seen through the water is shifted by its waves, and the depth of water at which that stops growing.
 #pragma param u_refractionStrength float default(1) range(0,4) ui(slider)

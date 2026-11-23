@@ -13,6 +13,7 @@ import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { starfieldEffects } from './starfield';
 import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, RAY_START_GLSL } from './shared';
+import { PRECIPITATION_CELL_METRES, PRECIPITATION_GLSL } from '../../render/precipitation';
 import { HASH11_GLSL, HASH13_GLSL, HASH21_GLSL, IGN_GLSL, PHASE_HG_GLSL, VALUE_NOISE3_GLSL } from '../../render/shaderLib';
 
 const SKY_LEVEL_PARAMS = ['skyScatterSteps', 'skyLightDepthSteps', 'cloudSteps', 'cloudUpperSteps', 'cloudShadowSamples'].map(qualityUniformParam).join(String.fromCharCode(10));
@@ -1254,13 +1255,27 @@ ${HASH21_GLSL}
 #pragma param u_wind float default(0.15) range(-1,1)
 #pragma param u_speed float default(1.6) range(0.2,6)
 #pragma param u_streakLength float default(0.3) range(0.05,0.9)
-#pragma param u_rippleScale float default(60) range(5,400)
+#pragma param u_metre float default(100) range(0.01,1000000)
+#pragma param u_ringSpeed float default(0.25) range(0.02,1)
+#pragma param u_ringLife float default(0.5) range(0.05,2)
+#pragma param u_ringWidth float default(0.006) range(0.001,0.05)
+#pragma param u_ringStrength float default(1) range(0,4)
 #pragma param u_puddles float default(0.3) range(0,1)
 #pragma param u_puddleScale float default(350) range(40,2000)
 #pragma param u_snowfall float default(0) range(0,2)
 #pragma param u_streakColor color default(0.78,0.82,0.9,1)
-#pragma param u_timeScale float default(1) range(0,1)
-#pragma param u_phase float default(0) range(0,100000)
+// What the drops in the world are drawn with (rainDrops.ts reads them off the effect): declared so the effect's params are this shader's.
+#pragma param u_streakWidth float default(0.012) range(0.001,0.2)
+#pragma param u_streakBrightness float default(0.35) range(0,4)
+#pragma param u_flakeSize float default(0.04) range(0.005,0.5)
+#pragma param u_flakeBrightness float default(0.9) range(0,4)
+#pragma param u_splashDroplets float default(4) range(0,8)
+#pragma param u_splashSize float default(0.03) range(0,0.3)
+#pragma param u_splashBrightness float default(0.9) range(0,4)
+#pragma param u_splashSpeed float default(1) range(0,4)
+#pragma param u_splashLife float default(0.3) range(0.05,1.5)
+#pragma param u_flakeColor color default(0.78,0.82,0.9,1)
+#pragma param u_splashColor color default(0.78,0.82,0.9,1)
 #pragma param u_shelterRange float default(3000) range(100,30000)
 #pragma param u_shelterBias float default(40) range(1,500)
 #pragma param u_coverActive float default(0) range(0,1)
@@ -1295,28 +1310,10 @@ ${RAY_START_GLSL}
 /// a tree — and 0 in the open. The map stores the depth the shadow maps do, so a point on the surface itself is not over it.
 ${SHELTERED_AT_GLSL}
 
-/// A drop landing on ground that is not water, in cells of the grid @p g: a point where it hits and five droplets thrown
-/// out from it, seen for the first fifth of the cell's cycle. Dots, not a ring: a ring is what water does.
-float rainSplash(vec2 g, float T) {
-    vec2 id = floor(g);
-    if (hash21(id + 2.0) > 0.6) return 0.0;
-    float life = fract(T * 1.7 + hash21(id + 29.0)) / 0.2;
-    if (life >= 1.0) return 0.0;
-    vec2 f = fract(g) - 0.5;
-    vec2 hit = (vec2(hash21(id + 5.0), hash21(id + 11.0)) - 0.5) * 0.5;
-    float fade = (1.0 - life) * (1.0 - life);
-    float v = (1.0 - smoothstep(0.0, 0.08, length(f - hit))) * (1.0 - smoothstep(0.0, 0.35, life));
-    for (int k = 0; k < 5; k++) {
-        float a = 6.2831853 * (float(k) / 5.0 + 0.3 * hash21(id + float(k) * 3.7));
-        float reach = (0.1 + 0.12 * hash21(id + float(k) + 17.0)) * sqrt(life);
-        v += 1.0 - smoothstep(0.0, 0.05, length(f - hit - vec2(cos(a), sin(a)) * reach));
-    }
-    return v * fade;
-}
+${PRECIPITATION_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
-    float T = u_time.x * u_timeScale + u_phase;
     ivec2 size = textureSize(u_sceneDepth, 0);
     ivec2 c = screenTexel(v_texCoord, size);
     float d = depthAt(c, size);
@@ -1364,19 +1361,13 @@ void main() {
         // Drops landing need drops falling: wet ground under no rain is still.
         float falling = clamp(u_intensity, 0.0, 1.0) * (1.0 - shelter);
         float near = 1.0 - smoothstep(1200.0, 3500.0, dist);
-        // Rings only where water stands: a drop opens a ring on a puddle, never on a street that is merely wet.
+        // Rings only where water stands: a drop opens a ring on a puddle, never on a street that is merely wet. They are the rings the
+        // water draws, where the drops land (render/precipitation.ts), summed so that rings that meet add and cancel; their slope is
+        // what catches the light. Off the puddles a drop splashes, and the splash is thrown up in the world (rainDrops.ts).
         float pool = smoothstep(0.15, 0.6, puddle);
-        vec2 g = P.xz / u_rippleScale;
-        vec2 id = floor(g);
-        vec2 f = fract(g) - 0.5;
-        float h = hash21(id);
-        vec2 centre = (vec2(hash21(id + 7.0), hash21(id + 13.0)) - 0.5) * 0.5;
-        float phase = fract(T * 0.9 + h);
-        float ring = (1.0 - smoothstep(0.0, 0.035, abs(length(f - centre) - phase * 0.5)))
-                   * (1.0 - phase) * (1.0 - phase) * step(hash21(id + 3.0), 0.9);
-        col += tint * ring * 0.9 * pool * u_wetness * up * near * falling;
-        // Off the water a drop splashes: a bright point where it lands and droplets thrown out from it, gone in a moment.
-        col += tint * rainSplash(P.xz / (u_rippleScale * 0.8), T) * 1.2 * u_wetness * up * near * falling * (1.0 - pool);
+        vec2 rings = precipRings(P.xz, u_time.x, precipDensity(u_intensity), u_metre * ${PRECIPITATION_CELL_METRES}, length(ax),
+            vec4(u_ringSpeed, u_ringLife, u_ringWidth, u_ringStrength));
+        col += tint * clamp(length(rings) * 3.0, 0.0, 1.0) * 0.9 * pool * u_wetness * up * near * falling;
     }
 
     // Neither the falling drops nor the snow's flakes are drawn here: they fall in the world (rainDrops.ts), as this effect's values say.
