@@ -12,6 +12,7 @@
  */
 
 import type { Plugin, App } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
 import {
     loadPhysicsModule,
     type PhysicsWasmModule,
@@ -123,8 +124,7 @@ export class Physics2DPlugin implements Plugin {
     private config_: ResolvedPhysics2DConfig;
     private wasmUrl_: string;
     private factory_?: PhysicsModuleFactory;
-    private readonly instances_ = new WeakMap<App, Physics2DInstance>();
-    private latestInstance_: Physics2DInstance | null = null;
+    private readonly instances_ = new PluginInstallations<Physics2DInstance>();
 
     constructor(wasmUrl: string, config: Physics2DPluginConfig = {}, factory?: PhysicsModuleFactory) {
         this.wasmUrl_ = wasmUrl;
@@ -137,7 +137,6 @@ export class Physics2DPlugin implements Plugin {
         const runtime = { module: null as PhysicsWasmModule | null, initPromise: null as Promise<void> | null };
         const instance: Physics2DInstance = { released: false, module: null, runtime, disposeSystems: null };
         this.instances_.set(app, instance);
-        this.latestInstance_ = instance;
         const bridge = new PhysicsBridge();
         app.insertResource(Physics2DEvents, {
             collisionEnters: [],
@@ -217,11 +216,9 @@ export class Physics2DPlugin implements Plugin {
      * module makes the call abort-safe; null after so a double cleanup is a no-op.
      */
     cleanup(app?: App): void {
-        const instance = app ? this.instances_.get(app) : this.latestInstance_;
-        if (!instance || instance.released) return;
+        const instance = this.instances_.take(app);
+        if (!instance) return;
         instance.released = true;
-        if (app) this.instances_.delete(app);
-        if (instance === this.latestInstance_) this.latestInstance_ = null;
         const module = instance.module;
         instance.module = null;
         instance.runtime.module = null;

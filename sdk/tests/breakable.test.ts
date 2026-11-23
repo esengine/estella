@@ -27,7 +27,7 @@ vi.mock('../src/ecs/component', async (importOriginal) => {
 
 const { App } = await import('../src/app/app');
 const { Transform, getComponent } = await import('../src/ecs/component');
-const { Breakable, BreakablePlugin, Broke, burstVelocity, reportContact, setBodyPusher } = await import('../src/breakable/breakable');
+const { Breakable, BreakablePlugin, Broke, bindBodyPusher, burstVelocity, reportContact, setBodyPusher } = await import('../src/breakable/breakable');
 const { defineSystem, Schedule } = await import('../src/ecs/system');
 const { EventReader } = await import('../src/ecs/event');
 
@@ -152,6 +152,30 @@ describe('a thing that breaks', () => {
         expect(burstVelocity({ x: -10, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }, 100).x).toBeLessThan(-90);
         const at = burstVelocity({ x: 10, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }, 100);
         expect([at.x, at.y, at.z]).toEqual([0, 100, 0]);
+    });
+
+    it('throws pieces through the solver installed in their app', async () => {
+        const first = setup();
+        const second = setup();
+        const pushA = vi.fn(() => true);
+        const pushB = vi.fn(() => true);
+        const releaseA = bindBodyPusher(first.app, pushA);
+        const releaseB = bindBodyPusher(second.app, pushB);
+        try {
+            first.breakIt(true);
+            await first.tick(3);
+            expect(pushA).toHaveBeenCalledTimes(first.made[0]!.pieces.length);
+            expect(pushB).not.toHaveBeenCalled();
+            releaseA();
+            second.breakIt(true);
+            await second.tick(3);
+            expect(pushB).toHaveBeenCalledTimes(second.made[0]!.pieces.length);
+        } finally {
+            releaseA();
+            releaseB();
+            first.app.quit();
+            second.app.quit();
+        }
     });
 
     it('lets its pieces fall where they are when it has no burst', async () => {

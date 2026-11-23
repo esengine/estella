@@ -8323,7 +8323,7 @@ ResourceDef<Physics3DEventsData>
 ## Physics3DPlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (wasmUrl: string, config?: Partial<Physics3DConfig>, factory?: Physics3DModuleFactory): Physics3DPlugin
 static prototype: Physics3DPlugin

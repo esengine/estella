@@ -8,7 +8,7 @@
  *          units would be a second set of numbers for a caller to remember.
  */
 import { reportContact } from '../breakable/breakable';
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import type { Physics3DWasmModule } from './Physics3DModule';
 
 /** Where a cast met something, in world units. */
@@ -61,7 +61,8 @@ export class Physics3DQueries {
                 private readonly ppu_: number,
                 private readonly characters_: ReadonlyMap<Entity, number> = new Map(),
                 private readonly bodies_: ReadonlyMap<Entity, number> = new Map(),
-                private readonly world_: { gravity: { x: number; y: number; z: number } } = { gravity: { x: 0, y: -9.81, z: 0 } }) {}
+                private readonly world_: { gravity: Vec3 } = { gravity: { x: 0, y: -9.81, z: 0 } },
+                private readonly onContact_: (a: Entity, b: Entity, impulse: number, point: Vec3) => void = reportContact) {}
 
     // ── Pushing bodies ────────────────────────────────────────────────────────
     // Lengths and speeds are world units, as Transform's; masses kilograms; angles radians. A force is kilograms by
@@ -192,7 +193,7 @@ export class Physics3DQueries {
             y += upward;
             const long = Math.hypot(x, y, z) || 1;
             const blow = impulse * share;
-            reportContact(hit.entity, hit.entity, blow, at);
+            this.onContact_(hit.entity, hit.entity, blow, at);
             if (this.getMass(hit.entity) !== null
                 && this.applyImpulse(hit.entity, { x: (x / long) * blow, y: (y / long) * blow, z: (z / long) * blow })) moved++;
         }

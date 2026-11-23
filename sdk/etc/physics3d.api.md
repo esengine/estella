@@ -332,7 +332,7 @@ sensorExits: Sensor3DEvent[]
 ## Physics3DPlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (wasmUrl: string, config?: Partial<Physics3DConfig>, factory?: Physics3DModuleFactory): Physics3DPlugin
 static prototype: Physics3DPlugin
@@ -364,7 +364,7 @@ setGravity: (gravity: { x: number; y: number; z: number; }) => boolean
 setLinearVelocity: (entity: Entity, velocity: { x: number; y: number; z: number; }) => boolean
 sphereCast: (origin: { x: number; y: number; z: number; }, radius: number, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
 teleportCharacter: (entity: Entity, position: { x: number; y: number; z: number; }) => boolean
-static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>, bodies_?: ReadonlyMap<Entity, number>, world_?: { gravity: { x: number; y: number; z: number; }; }): Physics3DQueries
+static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>, bodies_?: ReadonlyMap<Entity, number>, world_?: { gravity: Vec3; }, onContact_?: (a: Entity, b: Entity, impulse: number, point: Vec3) => void): Physics3DQueries
 static prototype: Physics3DQueries
 ```
 

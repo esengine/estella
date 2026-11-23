@@ -11,7 +11,7 @@
  * a graph node and the inspector all write the same switch.
  *
  * It needs no physics to swap one for the other. The 3D world, where a game has one, says how a body is pushed
- * ({@link setBodyPusher}); a game without one has pieces that appear in place and stay there, and this file pulls
+ * ({@link bindBodyPusher}); a game without one has pieces that appear in place and stay there, and this file pulls
  * no solver into its bundle.
  */
 import type { App, Plugin } from '../app/app';
@@ -84,21 +84,34 @@ export const Breakable = defineComponent<BreakableData>('Breakable', {
 /** Sets a body's velocity, in world units a second; false while the entity has no body yet. */
 export type BodyPusher = (entity: Entity, velocity: Vec3) => boolean;
 let pusher: BodyPusher | null = null;
+let appPushers = new WeakMap<App, BodyPusher>();
 
-/** The 3D world says how a body is pushed, when it has loaded; null when it has gone. */
+/** Override the current body pushers, including for apps without a physics plugin. */
 export function setBodyPusher(push: BodyPusher | null): void {
     pusher = push;
+    appPushers = new WeakMap();
 }
 
-type ContactSink = (a: Entity, b: Entity, impulse: number, point: Vec3) => void;
-const sinks = new Set<ContactSink>();
+/** Install the solver for this app and withdraw only that installation on shutdown. */
+export function bindBodyPusher(app: App, push: BodyPusher): () => void {
+    appPushers.set(app, push);
+    return () => { if (appPushers.get(app) === push) appPushers.delete(app); };
+}
+
+export type ContactSink = (a: Entity, b: Entity, impulse: number, point: Vec3) => void;
+const sinks = new Map<App, Set<ContactSink>>();
 
 /**
  * Two bodies met at `point` with `impulse`, kilograms by world units a second: what a 3D world says after each of its
  * steps, so that a thing struck hard enough breaks without the world knowing anything breaks.
  */
-export function reportContact(a: Entity, b: Entity, impulse: number, point: Vec3): void {
-    for (const sink of sinks) sink(a, b, impulse, point);
+export function reportContact(a: Entity, b: Entity, impulse: number, point: Vec3, app?: App): void {
+    if (app) {
+        const group = sinks.get(app);
+        if (group) for (const sink of group) sink(a, b, impulse, point);
+        return;
+    }
+    for (const group of sinks.values()) for (const sink of group) sink(a, b, impulse, point);
 }
 
 interface Broken {
@@ -129,7 +142,9 @@ export class BreakablePlugin implements Plugin {
     cleanup(app?: App): void {
         for (const [owner, sink] of [...this.sinks_]) {
             if (app && owner !== app) continue;
-            sinks.delete(sink);
+            const group = sinks.get(owner);
+            group?.delete(sink);
+            if (!group?.size) sinks.delete(owner);
             this.sinks_.delete(owner);
         }
     }
@@ -180,7 +195,9 @@ export class BreakablePlugin implements Plugin {
                 if (data.enabled && !data.broken && data.breakImpulse > 0 && impulse >= data.breakImpulse) hits.push({ entity, impulse, point });
             }
         };
-        sinks.add(sink);
+        let group = sinks.get(app);
+        if (!group) sinks.set(app, (group = new Set()));
+        group.add(sink);
         this.sinks_.set(app, sink);
         const offDespawn = world.onDespawn((entity: Entity) => {
             cool(entity);
@@ -271,8 +288,9 @@ export class BreakablePlugin implements Plugin {
                 if (b.loading) continue;
                 // The world makes a piece's body on its next step; until then there is nothing to throw.
                 if (b.throws.length) {
+                    const push = appPushers.get(app) ?? pusher;
                     b.throws = b.throws.flatMap((t) => {
-                        if (!world.valid(t.entity) || pusher?.(t.entity, t.velocity)) return [];
+                        if (!world.valid(t.entity) || push?.(t.entity, t.velocity)) return [];
                         return t.tries + 1 < 30 ? [{ ...t, tries: t.tries + 1 }] : [];
                     });
                 }
