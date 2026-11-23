@@ -54,6 +54,6 @@ it('forwards the selected scene settings and shares a display across the render 
     const hardware = launch([], { ...env, DISPLAY: ':99', ESTELLA_VERIFY_SOFTWARE_GPU: '' });
     expect(hardware.map(job => job.timeout)).toEqual([75_000, 75_000]);
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
