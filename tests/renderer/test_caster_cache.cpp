@@ -5,6 +5,7 @@
 #include "esengine/renderer/plugins/MeshPlugin.hpp"
 #include "esengine/renderer/store/MaterialStore.hpp"
 #include "esengine/resource/ResourceManager.hpp"
+#include "esengine/resource/ShaderParser.hpp"
 #include "esengine/ecs/Registry.hpp"
 #include "esengine/ecs/components/Transform.hpp"
 #include "esengine/ecs/components/MeshRenderer.hpp"
@@ -143,6 +144,39 @@ int main() {
     }();
 
     const resource::MeshHandle box = makeBox(resources);
+    const glm::mat4 vp = cameraAt(glm::vec3(0.0f, 8.0f, 0.0f));
+    if (coverOn) {
+        const auto shader = resources.createShader("vertex", "fragment", false);
+        const auto parsed = resource::ShaderParser::parse(R"(#pragma shader "Cover reader"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_rainCover texture default(white)
+#pragma depthinput u_rainCover
+#pragma vertexoffset
+void esMaterialVertex(inout vec3 p, inout vec3 n, in vec2 uv) { p.y += textureLod(u_rainCover, uv, 0.0).r; }
+#pragma end
+#pragma fragment
+out vec4 fragColor;
+void main() { fragColor = vec4(1.0); }
+#pragma end
+)");
+        context.materials().registerLayout(shader, MaterialStore::layoutOf(parsed));
+        constexpr u32 readerMaterial = 71;
+        MaterialRecord reader;
+        reader.shaderRef = shader;
+        context.materials().define(readerMaterial, reader);
+        const Entity e = spawnMesh(registry, box, glm::vec3(0.0f, 0.0f, -20.0f), glm::vec3(1.0f));
+        auto& mesh = registry.patch<ecs::MeshRenderer>(e);
+        mesh.material = readerMaterial;
+        mesh.opaque = false;
+        mesh.castShadows = false;
+        drawFrame(frame, registry, vp);
+        CHECK(frame.casterCacheStats().coverDraws == 0, "precipitation cannot draw into the map it samples");
+        registry.patch<ecs::MeshRenderer>(e).material = 0;
+        drawFrame(frame, registry, vp);
+        CHECK(frame.casterCacheStats().coverDraws == 1, "a transparent roof that casts no shadow still shelters the scene");
+        registry.destroy(e);
+    }
     spawnMesh(registry, box, glm::vec3(0.0f, -1.0f, -20.0f), glm::vec3(30.0f, 0.5f, 30.0f));
     const Entity still = spawnMesh(registry, box, glm::vec3(-4.0f, 1.0f, -20.0f), glm::vec3(1.0f));
     const Entity crate = spawnMesh(registry, box, glm::vec3(4.0f, 1.0f, -20.0f), glm::vec3(1.0f));
@@ -159,7 +193,6 @@ int main() {
     light.meshShadows = true;
     registry.emplace<ecs::Light>(sun, light);
 
-    const glm::mat4 vp = cameraAt(glm::vec3(0.0f, 8.0f, 0.0f));
     device.setSkipPendingPrograms(true);
     device.programsReady = false;
     for (int i = 0; i < 3; ++i) drawFrame(frame, registry, vp);

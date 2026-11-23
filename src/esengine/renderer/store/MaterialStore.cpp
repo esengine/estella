@@ -427,6 +427,7 @@ MaterialUniformLayout MaterialStore::layoutOf(const resource::ParsedShader& pars
     }
     if (const auto* input = layout.findTexture(parsed.depthInput)) {
         layout.depthInputUnit = static_cast<i32>(input->unit);
+        layout.depthReadsRainCover = layout.vertexHook && input->name == "u_rainCover";
     }
     return layout;
 }

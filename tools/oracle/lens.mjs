@@ -61,6 +61,22 @@ function rainHidden({ id }) {
     about: 'Rain behind a slab 20 units under a perspective eye is hidden by it, and none falls in front of it' };
 }
 
+// The glass roof blocks rain even with shadow casting disabled. Place it beyond the orthographic camera's signed depth range,
+// so only the overhead capture sees it. Every pixel of the floor must then keep its dry colour.
+function rainSheltered(id) {
+  const drop = 100;
+  const doc = scene(id, () => [
+    eye(true, drop, { farPlane: drop + 50 }),
+    mesh('Floor', 'cube', [0, 0, 0], [3.2, 0.1, 3.2], [FLOOR, FLOOR, FLOOR], { lit: false }),
+    mesh('Roof', 'cube', [0, FLOOR_TOP + drop + 300, 0], [40, 0.1, 40], [1, 1, 1], { opaque: false, castShadows: false }),
+    volume([fx('rain', { u_intensity: 2, u_wetness: 0, u_wind: 0.65 })]),
+  ]);
+  placeCamera(doc, drop);
+  return { id, doc, colorSpace: 'linear', warm: true, uniform: true,
+    count: [{ rgb: encodeLinear8([FLOOR, FLOOR, FLOOR]), tol: 2, atLeast: SIZE * SIZE }],
+    about: 'No drops reach the floor under a glass roof outside the camera view' };
+}
+
 function rainFalls({ id, ortho }) {
   const doc = scene(id, () => ortho
     ? [eye(true), mesh('Wall', 'cube', [0, 0, -1000], [8, 8, 0.1], [FLOOR, FLOOR, FLOOR], { lit: false }), volume([fx('rain', { u_intensity: 2, u_wetness: 0 })])]
@@ -165,6 +181,7 @@ export const LENS_SCENES = [
   rainWet({ id: 'oracle-rain-wet-ortho', ortho: true }),
   rainWet({ id: 'oracle-rain-wet-perspective', ortho: false }),
   rainHidden({ id: 'oracle-rain-hidden-perspective' }),
+  rainSheltered('oracle-rain-sheltered-ortho'),
   rainFalls({ id: 'oracle-rain-falls-perspective', ortho: false }),
   rainFalls({ id: 'oracle-rain-falls-ortho', ortho: true }),
   depthOfField({ id: 'oracle-dof-ortho', ortho: true }),

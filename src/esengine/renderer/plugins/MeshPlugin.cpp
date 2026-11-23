@@ -1425,7 +1425,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             const bool deforming = registry.has<ecs::MeshSkin>(entity) || registry.has<ecs::MeshMorph>(entity)
                 || (ctx.materials && ctx.materials->hasUntrackedDepthHook(mesh.material));
             if (split && (isMover(entity) || deforming) != wantMovers) continue;
-        } else if (shadowDepth && !mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
+        } else if (shadowDepth) {
+            if (!mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
+            // A drop ends at the captured surface. Drawing that drop into the same capture would sample its own render target.
+            if (ctx.rainCover && mesh.material && ctx.materials && ctx.materials->depthReadsRainCover(mesh.material)) continue;
+        }
         // Only a surface that draws opaque and unblended has a motion worth writing: what is blended over
         // something has two, and the picture can follow one.
         if (motion && !selecting && !mesh.opaque) continue;

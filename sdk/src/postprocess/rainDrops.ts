@@ -67,6 +67,7 @@ export const RAIN_DROPS_SHADER = `#pragma shader "Rain Drops"
 #pragma param u_rainSway vec4 default(0,0,0,0)
 // The map of what stands over each place (the frame's rain cover) and the matrix it was drawn through.
 #pragma param u_rainCover texture default(white) texel(data)
+#pragma depthinput u_rainCover
 #pragma param u_rainCoverOn float default(0) range(0,1)
 #pragma param u_rainCover0 vec4 default(1,0,0,0)
 #pragma param u_rainCover1 vec4 default(0,1,0,0)

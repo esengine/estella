@@ -58,7 +58,7 @@ describe('the 3D rain\'s drops', () => {
     });
 
     it('end on what stands over them, read from the frame\'s cover map, and are drawn where the eye sees them', () => {
-        expect(RAIN_DROPS_SHADER).toContain('u_rainCover');
+        expect(RAIN_DROPS_SHADER).toContain('#pragma depthinput u_rainCover');
         expect(RAIN_DROPS_SHADER).toContain('#pragma vertexoffset');
         expect(RAIN_DROPS_SHADER).not.toContain('`');
     });

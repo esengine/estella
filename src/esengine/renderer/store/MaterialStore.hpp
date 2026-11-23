@@ -118,6 +118,7 @@ struct MaterialUniformLayout {
     float vertexBounds = 0.0f;
     bool vertexHook = false;
     i32 depthInputUnit = -1;  ///< The tracked sampler of a deterministic vertex hook.
+    bool depthReadsRainCover = false;  ///< The mesh's silhouette depends on the overhead cover capture.
     std::vector<MaterialParamSlot> params;
     std::vector<MaterialTextureSlot> textures;
 
@@ -320,6 +321,12 @@ public:
         const auto* material = find(materialId);
         const auto* layout = material ? layoutFor(material->shaderRef) : nullptr;
         return layout && layout->vertexHook && layout->depthInputUnit < 0;
+    }
+
+    bool depthReadsRainCover(u32 materialId) const {
+        const auto* material = find(materialId);
+        const auto* layout = material ? layoutFor(material->shaderRef) : nullptr;
+        return layout && layout->depthReadsRainCover;
     }
 
     /// Whether @p materialId's caster has to be cut out by its alpha: its alpha is coverage now and the
