@@ -178,7 +178,8 @@ describe('entity references across changes in visibility and network identity', 
         client.sampleInterpolation(0);
         expect(cw.get(ghost, Link).focus).toBe(ghost);
         client.enablePrediction({ apply() {} });
-        cw.get(ghost, Link).marks.push(9);
+        cw.update(ghost, Link, data => { data.marks.push(9); });
+        expect(cw.get(ghost, Link).marks).toEqual([3, 9]);
         await clientApp.tick(STEP);
         expect(cw.get(ghost, Link).focus).toBe(other);
         expect(cw.get(ghost, Link).marks).toEqual([3]);
