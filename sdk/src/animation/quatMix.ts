@@ -13,6 +13,8 @@
  *          the kind of thing that belongs in one.
  */
 
+import type { AnyComponentDef } from '../ecs/component';
+
 export interface QuatLike { w: number; x: number; y: number; z: number }
 
 export function isQuatLike(v: unknown): v is QuatLike {
@@ -20,6 +22,11 @@ export function isQuatLike(v: unknown): v is QuatLike {
     const o = v as Record<string, unknown>;
     return typeof o.w === 'number' && typeof o.x === 'number'
         && typeof o.y === 'number' && typeof o.z === 'number';
+}
+
+/** A reflected colour can also carry the registry's x/y/z/w transport fields. */
+export function isQuaternionField(def: AnyComponentDef, field: string, value: unknown): value is QuatLike {
+    return isQuatLike(value) && !def.colorKeys?.includes(field);
 }
 
 export function normalizeQuat(out: QuatLike): void {

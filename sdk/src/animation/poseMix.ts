@@ -18,7 +18,7 @@
 
 import type { Pose, PoseTrack, PoseWorld } from './pose';
 import {
-    accumulateQuat, canonicalizeQuat, isQuatLike as isQuat, normalizeQuat,
+    accumulateQuat, canonicalizeQuat, isQuatLike as isQuat, isQuaternionField, normalizeQuat,
     type QuatLike as Quat,
 } from './quatMix';
 
@@ -134,7 +134,7 @@ export function mixPoses(
             if (total <= 0) continue;
 
             const sample = writers[0]!.track.data[field];
-            if (isQuat(sample)) mixQuaternionField(field, writers, target.data);
+            if (isQuaternionField(target.def, field, sample)) mixQuaternionField(field, writers, target.data);
             else if (typeof sample === 'number') mixScalarField(field, writers, total, target.data);
             else if (isNumericObject(sample)) {
                 mixNumericObjectField(field, writers, total, target.data);

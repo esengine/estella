@@ -20,7 +20,7 @@
 
 import type { Pose, PoseTrack, PoseWorld } from './pose';
 import {
-    deltaQuat, isQuatLike as isQuat, leanQuat, turnByQuat, type QuatLike as Quat,
+    deltaQuat, isQuatLike as isQuat, isQuaternionField, leanQuat, turnByQuat, type QuatLike as Quat,
 } from './quatMix';
 
 function isNumericObject(v: unknown): v is Record<string, number> {
@@ -53,11 +53,11 @@ export interface LayerReach {
 }
 
 function leanField(
-    dst: Record<string, unknown>, src: Record<string, unknown>, field: string, weight: number,
+    dst: Record<string, unknown>, src: PoseTrack, field: string, weight: number,
 ): void {
     const from = dst[field];
-    const to = src[field];
-    if (isQuat(to)) {
+    const to = src.data[field];
+    if (isQuaternionField(src.def, field, to)) {
         if (isQuat(from)) leanQuat(from, to, weight);
         else dst[field] = { w: to.w, x: to.x, y: to.y, z: to.z };
     } else if (typeof to === 'number') {
@@ -77,13 +77,13 @@ function leanField(
 }
 
 function addField(
-    dst: Record<string, unknown>, src: Record<string, unknown>,
+    dst: Record<string, unknown>, src: PoseTrack,
     ref: Record<string, unknown>, field: string, weight: number,
 ): void {
     const from = dst[field];
-    const to = src[field];
+    const to = src.data[field];
     const base = ref[field];
-    if (isQuat(to) && isQuat(base)) {
+    if (isQuaternionField(src.def, field, to) && isQuat(base)) {
         if (isQuat(from)) turnQuat(from, base, to, weight);
     } else if (typeof to === 'number' && typeof base === 'number') {
         if (typeof from === 'number') dst[field] = from + (to - base) * weight;
@@ -110,7 +110,7 @@ export function overlayPose(
         const dst = acc.track(world, src.entity, src.def);
         if (!dst) continue;
         for (const field of src.touched) {
-            leanField(dst.data, src.data, field, weight);
+            leanField(dst.data, src, field, weight);
             dst.touched.add(field);
         }
     }
@@ -139,7 +139,7 @@ export function addPoseOver(
         if (!dst) continue;
         for (const field of src.touched) {
             if (!ref.touched.has(field)) continue;
-            addField(dst.data, src.data, ref.data, field, weight);
+            addField(dst.data, src, ref.data, field, weight);
             dst.touched.add(field);
         }
     }

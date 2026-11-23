@@ -14,6 +14,10 @@ import { createNativeRegistry } from '../src/ecs/bridge/nativeRegistry';
 import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { Sprite } from '../src/ecs/component';
+import { World } from '../src/ecs/world';
+import { Pose } from '../src/animation/pose';
+import { mixPoses } from '../src/animation/poseMix';
+import { addPoseOver, overlayPose } from '../src/animation/layerStack';
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { INSPECTION_BINDINGS, REGISTRY_BINDINGS, REGISTRY_OPS } from '../src/ecs/bridge/nativeBindings';
 import { readFileSync } from 'node:fs';
@@ -243,6 +247,32 @@ describe('createNativeRegistry', () => {
         expect(sprite.color.a).toBeCloseTo(1);
         expect(sprite.size).toMatchObject({ x: 20, y: 40 });
         expect(sprite.lit).toBe(true);
+    });
+
+    it('blends sprite channels from the native registry through crossfades, override and additive layers', () => {
+        const scope = mockNativeScope(), world = new World(), entity = 42;
+        scope.es_registry_activityEpoch = () => 0;
+        world.connectCpp(createNativeRegistry(scope), undefined, { memory: new NativeMemoryProvider(scope) });
+        const sample = (alpha: number) => {
+            const pose = new Pose(), track = pose.track(world, entity, Sprite)!;
+            Object.assign(track.data.color as object, { r: 1 - alpha, g: alpha, b: 0.5, a: alpha });
+            track.touched.add('color');
+            return pose;
+        };
+        const check = (pose: Pose, alpha: number) => {
+            pose.applyTo(world);
+            expect(world.get(entity, Sprite).color).toMatchObject({ r: 1 - alpha, g: alpha, b: 0.5, a: alpha });
+        };
+        try {
+            world.insert(entity, Sprite, { color: { r: 0.5, g: 0.5, b: 0.5, a: 0.5 } });
+            const low = sample(0), high = sample(1), mixed = new Pose();
+            mixPoses([{ pose: low, weight: 0.25 }, { pose: high, weight: 0.75 }], mixed, world);
+            check(mixed, 0.75);
+            overlayPose(mixed, low, 0.5, world, null);
+            check(mixed, 0.375);
+            addPoseOver(mixed, high, low, 0.25, world, null);
+            check(mixed, 0.625);
+        } finally { world.disconnectCpp(); }
     });
 
     it('get never creates a component (has stays false)', () => {
