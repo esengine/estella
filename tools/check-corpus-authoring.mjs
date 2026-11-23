@@ -159,6 +159,7 @@ const DISPOSITION = {
   VoxelTerrain: ['owed', 'no example digs in a volume yet; a small mine is where the first one goes'],
   RoadDecal: ['owed', 'no example lays a road over a terrain yet; wilds is where the first one goes'],
   PlantProxy: ['derived', 'the plant interaction makes it for a plant near a contact, and takes it away again; a scene never holds one'],
+  LODMember: ['derived', 'the Groom component makes it on the strands and cards it spawns, naming the LOD entity it also spawns; a scene could author one, but its group and sphere are what a system that knows the levels computes'],
   Groom: ['owed', 'no example has a furred or long-haired character yet; the groom-strands render fixture draws one, and an example gains one when a character is groomed'],
   FoliageContact: ['owed', 'no example has a character walking through plants yet; wilds gains one when it gets a player'],
   PlacedFoliage: ['derived', 'a generated world grows its plants through the same machinery without the component, and a project that places plants by hand writes the kinds and records with a script from its own rules; the lists are generated data, not something a scene is authored by hand with'],

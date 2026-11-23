@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-export { Groom, GroomPlugin, GroomRes, GroomResource, groomPlugin, groupUniforms, besideFile, createStrandsMaterial, loadGroomCurves, screenSizeOf, GROOM_SHADOW_PER_UNIT, GROOM_LOD_HYSTERESIS, type GroomData } from './groomPlugin';
+export { Groom, GroomPlugin, GroomRes, GroomResource, groomPlugin, groupUniforms, besideFile, createStrandsMaterial, loadGroomCurves, GROOM_SHADOW_PER_UNIT, GROOM_LOD_HYSTERESIS, type GroomData } from './groomPlugin';
 export {
     decodeCurves, encodeCurves, parseGroomDocument, groupSettings, settingsForGroups, curveSetStats, groupStats, emptyCurveSet,
     CurveAttribute, DEFAULT_GROUP_SETTINGS, DEFAULT_CARDS_SCREEN_SIZE, CURVES_MAGIC, CURVES_VERSION, GROOM_FORMAT_VERSION,

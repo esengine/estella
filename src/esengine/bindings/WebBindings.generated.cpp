@@ -29,6 +29,7 @@
 #include "../ecs/components/Impostor.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/LODGroup.hpp"
+#include "../ecs/components/LODMember.hpp"
 #include "../ecs/components/Light.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../ecs/components/Occluder.hpp"
@@ -2084,6 +2085,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("hysteresis", &LODGroupJS::hysteresis)
         .field("enabled", &LODGroupJS::enabled);
 
+    value_object<esengine::ecs::LODMember>("LODMember")
+        .field("group", &esengine::ecs::LODMember::group)
+        .field("level", &esengine::ecs::LODMember::level)
+        .field("boundsCentre", &esengine::ecs::LODMember::boundsCentre)
+        .field("boundsRadius", &esengine::ecs::LODMember::boundsRadius);
+
     value_object<LightJS>("Light")
         .field("type", &LightJS::type)
         .field("color", &LightJS::color)
@@ -2691,6 +2698,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (r.has<esengine::ecs::Impostor>(entity)) { if (!names.empty()) names += "|"; names += "Impostor"; }
             if (r.has<esengine::ecs::Interactable>(entity)) { if (!names.empty()) names += "|"; names += "Interactable"; }
             if (r.has<esengine::ecs::LODGroup>(entity)) { if (!names.empty()) names += "|"; names += "LODGroup"; }
+            if (r.has<esengine::ecs::LODMember>(entity)) { if (!names.empty()) names += "|"; names += "LODMember"; }
             if (r.has<esengine::ecs::Light>(entity)) { if (!names.empty()) names += "|"; names += "Light"; }
             if (r.has<esengine::ecs::LightProbeVolume>(entity)) { if (!names.empty()) names += "|"; names += "LightProbeVolume"; }
             if (r.has<esengine::ecs::MeshCollider3D>(entity)) { if (!names.empty()) names += "|"; names += "MeshCollider3D"; }
@@ -2751,6 +2759,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "Impostor") return static_cast<int>(componentTypeId<esengine::ecs::Impostor>());
             if (name == "Interactable") return static_cast<int>(componentTypeId<esengine::ecs::Interactable>());
             if (name == "LODGroup") return static_cast<int>(componentTypeId<esengine::ecs::LODGroup>());
+            if (name == "LODMember") return static_cast<int>(componentTypeId<esengine::ecs::LODMember>());
             if (name == "Light") return static_cast<int>(componentTypeId<esengine::ecs::Light>());
             if (name == "LightProbeVolume") return static_cast<int>(componentTypeId<esengine::ecs::LightProbeVolume>());
             if (name == "MeshCollider3D") return static_cast<int>(componentTypeId<esengine::ecs::MeshCollider3D>());
@@ -3230,6 +3239,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::LODGroup>(entity)) return;
             r.remove<esengine::ecs::LODGroup>(entity);
+        }))
+
+        // LODMember
+        .function("hasLODMember", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::LODMember>(static_cast<Entity>(e));
+        }))
+        .function("getLODMember", optional_override([](Registry& r, u32 e) -> esengine::ecs::LODMember& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::LODMember s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::LODMember>(entity)) return s_dummy;
+            return r.get<esengine::ecs::LODMember>(entity);
+        }), allow_raw_pointers())
+        .function("addLODMember", optional_override([](Registry& r, u32 e, const esengine::ecs::LODMember& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::LODMember>(entity, c);
+        }))
+        .function("removeLODMember", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LODMember>(entity)) return;
+            r.remove<esengine::ecs::LODMember>(entity);
         }))
 
         // Light
@@ -4134,6 +4164,11 @@ EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
         if (!c) return 0;
         return static_cast<int>(reinterpret_cast<uintptr_t>(c));
     }));
+    emscripten::function("getLODMemberPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::LODMember>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
     emscripten::function("getLightPtr", optional_override([](Registry& r, u32 e) -> int {
         auto* c = r.tryGet<esengine::ecs::Light>(static_cast<Entity>(e));
         if (!c) return 0;
@@ -4316,6 +4351,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Impostor")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("LODGroup")));
+    arr.set(i++, val(std::string("LODMember")));
     arr.set(i++, val(std::string("Light")));
     arr.set(i++, val(std::string("LightProbeVolume")));
     arr.set(i++, val(std::string("MeshCollider3D")));
@@ -4500,6 +4536,10 @@ static_assert(offsetof(esengine::ecs::LODGroup, lod3Size) == 20, "ABI offset dri
 static_assert(offsetof(esengine::ecs::LODGroup, cullSize) == 24, "ABI offset drift: esengine::ecs::LODGroup.cullSize (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::LODGroup, hysteresis) == 28, "ABI offset drift: esengine::ecs::LODGroup.hysteresis (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::LODGroup, enabled) == 32, "ABI offset drift: esengine::ecs::LODGroup.enabled (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::LODMember, group) == 0, "ABI offset drift: esengine::ecs::LODMember.group (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::LODMember, level) == 4, "ABI offset drift: esengine::ecs::LODMember.level (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::LODMember, boundsCentre) == 8, "ABI offset drift: esengine::ecs::LODMember.boundsCentre (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::LODMember, boundsRadius) == 20, "ABI offset drift: esengine::ecs::LODMember.boundsRadius (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::Light, type) == 0, "ABI offset drift: esengine::ecs::Light.type (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Light, color) == 4, "ABI offset drift: esengine::ecs::Light.color (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Light, intensity) == 20, "ABI offset drift: esengine::ecs::Light.intensity (EHT expected 20)");
@@ -4852,7 +4892,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "d7ed397eaf20f509";
+static const char* kEsAbiLayoutHash = "21759a2e9e105f51";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

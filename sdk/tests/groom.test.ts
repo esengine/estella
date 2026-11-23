@@ -12,7 +12,7 @@ import {
     type CurveSet, type GroomCurves,
 } from '../src/groom/groomFormat';
 import { buildStrandMesh } from '../src/groom/groomMesh';
-import { besideFile, Groom, groupUniforms, screenSizeOf, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
+import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 import { growGroom } from '../src/groom/groomGrow';
 import { meshSurface, projectStrands, SEGMENT_FLOATS } from '../src/groom/groomTextures';
@@ -345,13 +345,4 @@ describe('a groom drawn as its cards when small', () => {
         expect(parseGroomDocument(JSON.stringify({ version: 1, type: 'groom', curves: 'a.escurves', cards: { mesh: 'a.esmesh' } })).cards).toBeUndefined();
     });
 
-    it('measures how much of the view height a sphere covers, smaller as it goes further', () => {
-        // A perspective of 90 degrees vertical (y stretched by 1) looking down -z, from the origin: column-major.
-        const vp = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1, 0, 0, -0.2, 0]);
-        expect(screenSizeOf(vp, [0, 0, -10], 1)).toBeCloseTo(0.1, 6);
-        expect(screenSizeOf(vp, [0, 0, -20], 1)).toBeCloseTo(0.05, 6);
-        expect(screenSizeOf(vp, [3, 2, -10], 1)).toBeCloseTo(0.1, 6);
-        // Behind the eye it is not small: nothing switches on a groom the camera has turned from.
-        expect(screenSizeOf(vp, [0, 0, 10], 1)).toBe(Infinity);
-    });
 });

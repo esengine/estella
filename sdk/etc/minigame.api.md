@@ -5765,9 +5765,9 @@ static prototype: GroomPlugin
 @internal stockAsked_: boolean
 @internal stock_: number
 cards: (entity: Entity) => Entity | null
-drawnAs: (entity: Entity) => "cards" | "strands" | null
 failure: (entity: Entity) => string | null
 groups: (entity: Entity) => readonly Entity[]
+lodGroup: (entity: Entity) => Entity | null
 static new (): GroomRes
 static prototype: GroomRes
 ```

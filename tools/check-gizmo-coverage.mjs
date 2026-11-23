@@ -268,6 +268,8 @@ const DISPOSITION = {
   'UITreeView.rowHeight': ['not-world', 'virtualized row height in local layout pixels'],
   'VirtualJoystick.radius': ['not-world', 'control travel in local UI layout pixels; the authored base and handle draw the control'],
   'SpriteMask.rangeEndOrder': ['not-world', 'the last draw ORDER a mask reaches, not a distance it reaches over'],
+  'LODMember.boundsCentre': ['no-place', 'where the sphere a group is measured by sits, written by the system that spawns the members (a groom); nothing authors it by hand'],
+  'LODMember.boundsRadius': ['no-place', 'the size of the sphere a group is measured by, written by the system that spawns the members (a groom); nothing authors it by hand'],
   'LODGroup.lod1Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],
   'LODGroup.lod2Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],
   'LODGroup.lod3Size': ['not-world', 'a fraction of SCREEN height — a property of the view, not of the entity'],

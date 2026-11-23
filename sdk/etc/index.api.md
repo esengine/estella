@@ -5,7 +5,7 @@ Symbols: 115 public · 169 beta · 2410 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"d7ed397eaf20f509"
+"21759a2e9e105f51"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5770,9 +5770,9 @@ static prototype: GroomPlugin
 @internal stockAsked_: boolean
 @internal stock_: number
 cards: (entity: Entity) => Entity | null
-drawnAs: (entity: Entity) => "cards" | "strands" | null
 failure: (entity: Entity) => string | null
 groups: (entity: Entity) => readonly Entity[]
+lodGroup: (entity: Entity) => Entity | null
 static new (): GroomRes
 static prototype: GroomRes
 ```

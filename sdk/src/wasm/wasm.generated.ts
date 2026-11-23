@@ -692,6 +692,13 @@ export interface LODGroup {
     enabled: boolean;
 }
 
+export interface LODMember {
+    group: number;
+    level: number;
+    boundsCentre: Vec3;
+    boundsRadius: number;
+}
+
 export interface Light {
     type: number;
     color: Vec4;
@@ -1282,6 +1289,10 @@ export interface Registry {
     getLODGroup(entity: Entity): LODGroup;
     addLODGroup(entity: Entity, component: LODGroup): void;
     removeLODGroup(entity: Entity): void;
+    hasLODMember(entity: Entity): boolean;
+    getLODMember(entity: Entity): LODMember;
+    addLODMember(entity: Entity, component: LODMember): void;
+    removeLODMember(entity: Entity): void;
     hasLight(entity: Entity): boolean;
     getLight(entity: Entity): Light;
     addLight(entity: Entity, component: Light): void;
@@ -1457,6 +1468,7 @@ export interface ESEngineModule {
     Impostor: new () => Impostor;
     Interactable: new () => Interactable;
     LODGroup: new () => LODGroup;
+    LODMember: new () => LODMember;
     Light: new () => Light;
     LightProbeVolume: new () => LightProbeVolume;
     MeshCollider3D: new () => MeshCollider3D;

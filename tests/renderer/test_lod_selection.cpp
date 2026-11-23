@@ -250,7 +250,21 @@ static void testRecentForShadows() {
     CHECK(!state.recent(camera, grass, 2, level), "three frames on, the answer is no longer this view's");
 }
 
+// A group whose levels are entities names them by its screen sizes alone: the sizes above zero, descending, up to the first that is not.
+static void testLevelsFromSizes() {
+    const f32 one[lod::kMaxStandIns] = {0.2f, 0.0f, 0.0f};
+    const lod::LevelSet a = lod::levelsFromSizes(one, 0.0f, 0.1f);
+    CHECK(a.count == 1 && near(a.takeOver[0], 0.2f) && near(a.hysteresis, 0.1f), "one size names one level below the finest");
+    CHECK(lod::selectLevel(a, 0.5f, 0) == 0 && lod::selectLevel(a, 0.1f, 0) == 1, "above the size the finest, below it the next");
+    CHECK(lod::selectLevel(a, 0.21f, 1) == 1 && lod::selectLevel(a, 0.23f, 1) == 0, "the hysteresis holds the coarser level just above the size");
+    const f32 out[lod::kMaxStandIns] = {0.3f, 0.4f, 0.1f};
+    CHECK(lod::levelsFromSizes(out, 0.0f, 0.0f).count == 1, "a size that does not descend ends the levels");
+    const f32 none[lod::kMaxStandIns] = {0.0f, 0.2f, 0.1f};
+    CHECK(lod::levelsFromSizes(none, 0.05f, 0.0f).count == 0, "no first size, no levels, though a cull size still culls");
+}
+
 int main() {
+    testLevelsFromSizes();
     testProjection();
     testBoundingSphere();
     testSelection();

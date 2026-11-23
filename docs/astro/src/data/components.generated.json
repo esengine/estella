@@ -4329,6 +4329,38 @@
       ]
     },
     {
+      "name": "LODMember",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "group",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity whose LODGroup chooses the level this draws at."
+        },
+        {
+          "key": "level",
+          "type": "number",
+          "default": "0",
+          "doc": "The level of the group this draws at: 0 the finest, 1 below its LOD 1 screen size.",
+          "range": "0–3, step 1"
+        },
+        {
+          "key": "boundsCentre",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Centre of the sphere the group is measured by, in the group entity's space."
+        },
+        {
+          "key": "boundsRadius",
+          "type": "number",
+          "default": "0",
+          "doc": "Radius of the sphere the group is measured by.",
+          "range": "≥ 0"
+        }
+      ]
+    },
+    {
       "name": "Light",
       "source": "cpp",
       "fields": [

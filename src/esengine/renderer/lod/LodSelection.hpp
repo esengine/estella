@@ -83,6 +83,22 @@ inline f32 screenRelativeSize(const glm::mat4& viewProjection, const glm::vec3& 
 }
 
 /**
+ * @brief The levels screen sizes alone name: one per size above zero, each below the one before, the first that is not ending the
+ *        list. What a group whose levels are whole entities (LODMember) is chosen by, having no stand-in meshes to count.
+ */
+inline LevelSet levelsFromSizes(const f32 (&sizes)[kMaxStandIns], f32 cull, f32 hysteresis) {
+    LevelSet set;
+    set.cull = cull;
+    set.hysteresis = hysteresis;
+    for (u8 i = 0; i < kMaxStandIns; ++i) {
+        if (!(sizes[i] > 0.0f) || (i > 0 && sizes[i] >= sizes[i - 1])) break;
+        set.takeOver[i] = sizes[i];
+        set.count = static_cast<u8>(i + 1);
+    }
+    return set;
+}
+
+/**
  * @brief The level @p size asks for, given the one shown last.
  *
  * @details Each boundary is asymmetric — `takeOver * (1 + hysteresis)` to come back

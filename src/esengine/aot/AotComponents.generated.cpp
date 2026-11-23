@@ -24,6 +24,7 @@
 #include "esengine/ecs/components/Impostor.hpp"
 #include "esengine/ecs/components/Interactable.hpp"
 #include "esengine/ecs/components/LODGroup.hpp"
+#include "esengine/ecs/components/LODMember.hpp"
 #include "esengine/ecs/components/Light.hpp"
 #include "esengine/ecs/components/MeshRenderer.hpp"
 #include "esengine/ecs/components/Occluder.hpp"
@@ -169,6 +170,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "LODGroup") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::LODGroup>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "LODMember") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::LODMember>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "Light") == 0) {
@@ -455,6 +461,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::LODGroup>());
         };
     }
+    if (std::strcmp(name, "LODMember") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::LODMember>());
+        };
+    }
     if (std::strcmp(name, "Light") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::Light>());
@@ -659,6 +670,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "Impostor") == 0) return true;
     if (std::strcmp(name, "Interactable") == 0) return true;
     if (std::strcmp(name, "LODGroup") == 0) return true;
+    if (std::strcmp(name, "LODMember") == 0) return true;
     if (std::strcmp(name, "Light") == 0) return true;
     if (std::strcmp(name, "LightProbeVolume") == 0) return true;
     if (std::strcmp(name, "MeshCollider3D") == 0) return true;

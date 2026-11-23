@@ -254,6 +254,15 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 32 },
         ],
     },
+    LODMember: {
+        ptrFn: 'getLODMemberPtr',
+        fields: [
+            { name: 'group', type: 'u32', offset: 0 },
+            { name: 'level', type: 'i32', offset: 4 },
+            { name: 'boundsCentre', type: 'vec3', offset: 8 },
+            { name: 'boundsRadius', type: 'f32', offset: 20 },
+        ],
+    },
     Light: {
         ptrFn: 'getLightPtr',
         fields: [

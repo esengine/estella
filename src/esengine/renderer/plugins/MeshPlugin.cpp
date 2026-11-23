@@ -17,6 +17,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/MeshRenderer.hpp"
 #include "../../ecs/components/LODGroup.hpp"
+#include "../../ecs/components/LODMember.hpp"
 #include "../../ecs/components/Billboard.hpp"
 #include "../draw/BillboardFacing.hpp"
 #include "../draw/ImpostorFrames.hpp"
@@ -370,6 +371,49 @@ u32 normalTextureOf(RenderFrameContext& ctx, const ecs::MeshRenderer& mesh, cons
     return tex ? tex->getId() : 0;
 }
 
+/** @brief The levels an LODGroup names by its screen sizes alone: one per size above zero, descending, for a group whose levels
+ *         are whole entities (LODMember) and not stand-in meshes. */
+lod::LevelSet memberLevelSet(const ecs::LODGroup& group) {
+    const f32 sizes[lod::kMaxStandIns] = {group.lod1Size, group.lod2Size, group.lod3Size};
+    return lod::levelsFromSizes(sizes, group.cullSize, group.hysteresis);
+}
+
+/**
+ * @brief The level @p member's group is drawn at in this collect's view.
+ *
+ * @details Chosen once per view per frame, by whichever member is collected first, and remembered under the GROUP entity as an
+ *          LODGroup's level is under its own: every member of the group reads the same answer, a shadow cast for the view follows
+ *          what the view settled on, and an editor's preview of the group holds all its members. A collect that does not select
+ *          draws level 0, as it draws an LODGroup's own mesh.
+ */
+template <class Collect, class Context>
+u8 memberGroupLevel(ecs::Registry& registry, Collect& collect_ctx, const Context& ctx, const ecs::LODMember& member) {
+    const Entity g = Entity::fromRaw(member.group);
+    if (!registry.valid(g)) return 0;
+    const auto* group = registry.tryGet<ecs::LODGroup>(g);
+    auto* placed = registry.tryGet<ecs::Transform>(g);
+    if (!group || !group->enabled || !placed) return 0;
+    if (!collect_ctx.lod.state) return 0;
+    const lod::LevelSet set = memberLevelSet(*group);
+    auto& state = *collect_ctx.lod.state;
+    const u32 view = collect_ctx.lod.view;
+    u8 level = 0;
+    if (collect_ctx.lod.follow) {
+        if (!state.recent(view, g, 2, level)) level = 0;
+        return level == lod::kCulled ? level : state.drawn(view, g, level, set.count);
+    }
+    if (state.recent(view, g, 0, level)) return level == lod::kCulled ? level : state.drawn(view, g, level, set.count);
+    placed->ensureDecomposed();
+    const glm::vec3 scale = placed->worldScale;
+    const glm::vec3 centre = rebased(placed->worldPosition) + glm::mat3_cast(placed->worldRotation) * (member.boundsCentre * scale);
+    const f32 radius = member.boundsRadius * std::max(std::abs(scale.x), std::max(std::abs(scale.y), std::abs(scale.z)));
+    const f32 size = lod::screenRelativeSize(ctx.view_projection, centre, radius) * (ctx.frame ? ctx.frame->lodDistanceScale() : 1.0f);
+    level = lod::selectLevel(set, size, state.lastLevel(view, g));
+    state.remember(view, g, level, lod::selectLevel(set, size, 0), set.count, size);
+    if (collect_ctx.lod.counts) collect_ctx.lod.counts->record(level);
+    return level == lod::kCulled ? level : state.drawn(view, g, level, set.count);
+}
+
 /**
  * @brief The components whose presence keeps a draw from being kept (MeshPlugin::MeshProxy), one bit each: each turns, picks
  *        or poses the mesh per view or per frame. Read where the walk reads them.
@@ -380,7 +424,8 @@ u8 ruledOut(ecs::Registry& registry, Entity entity) {
          | (registry.has<ecs::LODGroup>(entity) ? 4u : 0u)
          | (registry.has<ecs::Impostor>(entity) ? 8u : 0u)
          | (registry.has<ecs::MeshSkin>(entity) ? 16u : 0u)
-         | (registry.has<ecs::MeshMorph>(entity) ? 32u : 0u);
+         | (registry.has<ecs::MeshMorph>(entity) ? 32u : 0u)
+         | (registry.has<ecs::LODMember>(entity) ? 64u : 0u);
 }
 
 /** @brief The latest tick any of ruledOut's components was written, added or removed at. */
@@ -388,7 +433,8 @@ u32 ruledOutChangedAt(const ecs::Registry& registry) {
     u32 latest = 0;
     for (const u32 t : {registry.lastChangedTick<ecs::Billboard>(), registry.lastChangedTick<ecs::MeshInstances>(),
                         registry.lastChangedTick<ecs::LODGroup>(), registry.lastChangedTick<ecs::Impostor>(),
-                        registry.lastChangedTick<ecs::MeshSkin>(), registry.lastChangedTick<ecs::MeshMorph>()}) {
+                        registry.lastChangedTick<ecs::MeshSkin>(), registry.lastChangedTick<ecs::MeshMorph>(),
+                        registry.lastChangedTick<ecs::LODMember>()}) {
         if (latest == 0 || (t != 0 && ecs::tickAfter(t, latest))) latest = t;
     }
     return latest;
@@ -701,7 +747,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
         if (registry.anyChangedSince<ecs::MeshSkin>(since) || registry.anyChangedSince<ecs::MeshMorph>(since)) why |= 8u;
         if (registry.anyChangedSince<ecs::MeshInstances>(since) || registry.anyChangedSince<ecs::LODGroup>(since)
             || registry.anyChangedSince<ecs::Billboard>(since) || registry.anyChangedSince<ecs::Impostor>(since)
-            || registry.anyChangedSince<ecs::MeshLightmap>(since)) {
+            || registry.anyChangedSince<ecs::MeshLightmap>(since) || registry.anyChangedSince<ecs::LODMember>(since)) {
             why |= 16u;
         }
         if (why == 0 && registry.countOf<ecs::MeshSkin>() > 0) {
@@ -725,7 +771,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     }
     if ((why & 63u) || heldMoved) ++cast_held_serial_;
     if (!movers_.empty() && cast_look_ % 60 == 0 && dropStillMovers()) ++cast_held_serial_;
-    if (registry.countOf<ecs::LODGroup>() > 0) why |= 128u;
+    if (registry.countOf<ecs::LODGroup>() > 0 || registry.countOf<ecs::LODMember>() > 0) why |= 128u;
     ES_PROFILE_COUNTER("render.mesh.castChanged", why);
     ES_PROFILE_COUNTER("render.mesh.castMovers", static_cast<u32>(movers_.size()));
     if (why & 127u) ++cast_serial_;
@@ -733,7 +779,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     cast_activity_ = registry.activityEpoch();
     cast_tick_ = now;
     cast_held_vouched_ = false;
-    if (registry.countOf<ecs::LODGroup>() > 0) return false;
+    if (registry.countOf<ecs::LODGroup>() > 0 || registry.countOf<ecs::LODMember>() > 0) return false;
 
     u64 h = hash::kFnv64Offset;
     const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
@@ -1553,6 +1599,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             const u8 shown = state.drawn(view, entity, level, levels.set.count);
             if (shown == lod::kCulled) { ++collect_ctx.culled; tick(2); continue; }
             resident = levels.mesh[shown];
+        }
+        // One level of a group whose levels are whole entities: drawn only while its group, in this view, is at that level.
+        if (const auto* member = registry.tryGet<ecs::LODMember>(entity)) {
+            if (memberGroupLevel(registry, collect_ctx, ctx, *member) != static_cast<u8>(member->level)) { ++collect_ctx.culled; tick(2); continue; }
         }
         tick(2);
 

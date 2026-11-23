@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'd7ed397eaf20f509';
+export const ABI_LAYOUT_HASH = '21759a2e9e105f51';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -516,6 +516,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             cullSize: { min: 0, max: 1, tooltip: "Screen height fraction below which nothing is drawn (0 = never)." },
             hysteresis: { min: 0, max: 1, tooltip: "Extra fraction to grow past a threshold before the finer level returns.", advanced: true },
             enabled: { tooltip: "Off: the MeshRenderer's own mesh is always drawn." },
+        },
+    },
+    LODMember: {
+        defaults: {
+            group: 0,
+            level: 0,
+            boundsCentre: { x: 0, y: 0, z: 0 },
+            boundsRadius: 0,
+        },
+        assetFields: [],
+        entityFields: ['group'],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            group: { tooltip: "The entity whose LODGroup chooses the level this draws at." },
+            level: { min: 0, max: 3, step: 1, tooltip: "The level of the group this draws at: 0 the finest, 1 below its LOD 1 screen size." },
+            boundsCentre: { tooltip: "Centre of the sphere the group is measured by, in the group entity's space." },
+            boundsRadius: { min: 0, tooltip: "Radius of the sphere the group is measured by." },
         },
     },
     Light: {
@@ -1743,6 +1761,19 @@ export interface LODGroupData {
     cullSize: number;
     hysteresis: number;
     enabled: boolean;
+}
+
+/**
+ * The fields of the engine's `LODMember` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @experimental
+ */
+export interface LODMemberData {
+    group: Entity;
+    level: number;
+    boundsCentre: Vec3;
+    boundsRadius: number;
 }
 
 export interface LightData {

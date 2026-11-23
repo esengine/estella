@@ -925,6 +925,42 @@ export function createLODGroupData(): LODGroupPtrData {
     };
 }
 
+export interface LODMemberPtrData {
+    group: number;
+    level: number;
+    boundsCentre: Vec3;
+    boundsRadius: number;
+}
+
+export function fillLODMember(
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
+    ptr: number, out: LODMemberPtrData,
+): void {
+    out.group = u32[ptr >> 2];
+    out.level = u32[(ptr + 4) >> 2] | 0;
+    const boundsCentre_ = out.boundsCentre; boundsCentre_.x = f32[(ptr + 8) >> 2]; boundsCentre_.y = f32[((ptr + 8) >> 2) + 1]; boundsCentre_.z = f32[((ptr + 8) >> 2) + 2];
+    out.boundsRadius = f32[(ptr + 20) >> 2];
+}
+
+export function writeLODMember(
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
+    ptr: number, data: LODMemberPtrData,
+): void {
+    u32[ptr >> 2] = data.group;
+    u32[(ptr + 4) >> 2] = data.level | 0;
+    f32[(ptr + 8) >> 2] = data.boundsCentre.x; f32[((ptr + 8) >> 2) + 1] = data.boundsCentre.y; f32[((ptr + 8) >> 2) + 2] = data.boundsCentre.z;
+    f32[(ptr + 20) >> 2] = data.boundsRadius;
+}
+
+export function createLODMemberData(): LODMemberPtrData {
+    return {
+        group: 0,
+        level: 0,
+        boundsCentre: { x: 0, y: 0, z: 0 },
+        boundsRadius: 0,
+    };
+}
+
 export interface LightPtrData {
     type: number;
     color: Color;
@@ -3172,6 +3208,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Impostor: { fill: fillImpostor, write: writeImpostor, create: createImpostorData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
+    LODMember: { fill: fillLODMember, write: writeLODMember, create: createLODMemberData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },
     LightProbeVolume: { fill: fillLightProbeVolume, write: writeLightProbeVolume, create: createLightProbeVolumeData },
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
