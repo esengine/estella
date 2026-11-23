@@ -56,20 +56,25 @@ describe.skipIf(!HAS_ASSETS)('DragonBonesManager', () => {
         bindAtlasTexture(info, manager, handle);
     };
 
-    it('releases discarded scene preparations and transfers published pages to their armatures', async () => {
+    it.each(['path', 'uuid'])('releases discarded %s preparations and transfers published pages to their armatures', async spelling => {
         const app = App.new(), manager = fresh();
         registerDragonBonesSupport();
         app.setSideModules({ acquire: async () => null });
         app.addPlugin(new DragonBonesPlugin(manager));
         const skeletonPath = 'DragonBoy_ske.json', atlasPath = 'DragonBoy_tex.json';
+        const skeletonRef = spelling === 'uuid' ? '@uuid:dragon-skeleton' : skeletonPath;
+        const atlasRef = spelling === 'uuid' ? '@uuid:dragon-atlas' : atlasPath;
         const backend = new EmbeddedBackend({
             [skeletonPath]: 'data:application/json;base64,' + readFileSync(SKE).toString('base64'),
             [atlasPath]: readFileSync(TEX, 'utf8'),
         });
-        const source = { backend, decodePixels: async () => { throw new Error('unexpected decode'); } };
+        const paths = new Map([[skeletonRef, skeletonPath], [atlasRef, atlasPath]]);
+        const source = { backend, resolveRef: (ref: string) => paths.get(ref) ?? ref,
+            resolveAddress: (ref: string) => ref === atlasRef ? 'characters/' + atlasPath : ref,
+            decodePixels: async () => { throw new Error('unexpected decode'); } };
         const sceneData = { version: 1, name: 'dragon', entities: [{
             id: 1, name: 'Dragon', parent: null, children: [],
-            components: [{ type: 'DragonBonesAnimation', data: { skeletonPath, atlasPath, armature: 'Dragon' } }],
+            components: [{ type: 'DragonBonesAnimation', data: { skeletonPath: skeletonRef, atlasPath: atlasRef, armature: 'Dragon' } }],
         }] };
         const release = vi.fn();
         const acquire = vi.spyOn(Assets.prototype, 'acquireTexture').mockImplementation(async path =>
@@ -81,12 +86,14 @@ describe.skipIf(!HAS_ASSETS)('DragonBonesManager', () => {
             await config.prepare!();
             expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
             expect(acquire).toHaveBeenCalledOnce();
+            expect(acquire.mock.calls[0]?.[0]).toBe('characters/DragonBoy_tex.png');
             expect(config.discardPrepared!()).toBe(1);
             expect(config.discardPrepared!()).toBe(0);
             expect(release).toHaveBeenCalledTimes(1);
 
             progress.mockClear();
             const prepared = await prepareRuntimeScene({ ...options, sceneData });
+            expect(prepared.discovered.dragonBones).toEqual([{ skeleton: skeletonRef, atlas: atlasRef }]);
             expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
             expect(prepared.assetResult.scope.size).toBe(1);
             await publishRuntimeScene(prepared);

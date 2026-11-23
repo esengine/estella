@@ -52,7 +52,7 @@ async function resolveAssetFields(
         entities: [{ id: 0, name: '', parent: null, children: [], components: [{ type: component._name, data }], visible: true }],
     } as SceneData;
     try {
-        const result = await assets.preloadSceneAssets(scene);
+        const result = await assets.preloadSceneAssets(scene, undefined, { entityOwnership: true });
         const ownership = prepareSpawnOwnership(scene, result, assets.entityScopes, assets.resolveRef?.bind(assets));
         assets.resolveSceneAssetPaths(scene, result);
         try {

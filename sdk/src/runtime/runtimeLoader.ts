@@ -20,7 +20,7 @@ import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
-import { discoverSceneAssets } from '../asset/discoverAssets';
+import type { SceneAssetRefs } from '../asset/discoverAssets';
 import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
 import type { SpineManager } from '../spine/SpineManager';
@@ -355,7 +355,7 @@ export interface PreparedRuntimeScene {
     readonly spineAssetInfo: Map<string, SpineAssetInfo>;
     readonly dragonBonesManager: DragonBonesManager | null;
     readonly dragonBonesAssetInfo: Map<string, DragonBonesAssetInfo>;
-    readonly discovered: ReturnType<typeof discoverSceneAssets>;
+    readonly discovered: SceneAssetRefs;
 }
 
 /** Apps already told that physics is not installed (see prepareRuntimeScene). */
@@ -420,11 +420,8 @@ async function readRuntimeScene(
     migrateOwnedSceneData(sceneData);
     if (onPhase) onPhase('migrate', copyMs + performance.now() - migrationBegan);
 
-    // Spine pairs (raw refs) for the two-phase spine load+apply below; every
-    // other asset type loads through the single canonical Assets channel.
     await turn();
     const discoverBegan = onPhase ? performance.now() : 0;
-    const discovered = discoverSceneAssets(sceneData);
 
     // Eager scene assets (textures / fonts / materials / anim-clips / tilemaps /
     // audio) load through the single canonical Assets channel — one per-type
@@ -446,27 +443,37 @@ async function readRuntimeScene(
         videoSupport()?.setRefResolver(app, (ref) => backend.resolveUrl(resolveRef(ref)));
     }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
-    // Two full walks of the document before a byte is fetched. Named because
-    // they scale with the cell and not with what it references, which is not
-    // what "asset discovery" sounds like it costs.
-    if (onPhase) onPhase('discover', performance.now() - discoverBegan);
     const dragonBones = dragonBonesSupport();
-    const spineCount = app.sideModules && spine ? discovered.spines.length : 0;
-    const dragonBonesCount = app.sideModules && dragonBones ? discovered.dragonBones.length : 0;
+    let discovered!: SceneAssetRefs;
+    let pairCount = 0;
+    let assetsBegan: number | undefined;
     const report = options.onProgress;
     let completed = 0, total = 0;
     const regularProgress: SceneLoadProgressCallback | undefined = report && ((loaded, regularTotal) => {
         completed = loaded;
-        total = regularTotal + spineCount + dragonBonesCount;
+        total = regularTotal + pairCount;
         report(completed, total);
     });
     const finishPairs = report && ((count = 1) => { completed += count; report(completed, total); });
-    const assetResult = await timed('assets', async () => {
+    try {
         attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, regularProgress, {
             skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info',
+            entityOwnership: !sceneOwned,
+            onDiscover(authored) {
+                // Both skeletal runtimes bind by the spelling still on the component.
+                discovered = authored;
+                if (app.sideModules) pairCount = (spine ? authored.spines.length : 0)
+                    + (dragonBones ? authored.dragonBones.length : 0);
+                if (onPhase) {
+                    onPhase('discover', performance.now() - discoverBegan);
+                    assetsBegan = performance.now();
+                }
+            },
         });
-        return attempt.assets;
-    });
+    } finally {
+        if (onPhase && assetsBegan !== undefined) onPhase('assets', performance.now() - assetsBegan);
+    }
+    const assetResult = attempt.assets;
     await turn();
     const retainEntityAssets = sceneOwned ? undefined
         : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneAssets.resolveRef.bind(sceneAssets));
@@ -512,7 +519,7 @@ async function readRuntimeScene(
                 log.warn('scene', dragonBones
                     ? 'DragonBones assets present but the runtime could not be loaded'
                     : 'DragonBones assets present but this build ships without the runtime');
-                if (dragonBonesCount) finishPairs?.(dragonBonesCount);
+                if (dragonBones) finishPairs?.(discovered.dragonBones.length);
             } else {
                 dragonBonesAssetInfo = await dragonBones!.load(
                     module, source, discovered.dragonBones, transcoderProvider, sceneAssets, assetResult.scope, finishPairs);

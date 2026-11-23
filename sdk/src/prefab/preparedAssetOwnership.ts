@@ -2,12 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import type { SceneAssetResult } from '../asset/Assets';
-import { discoverSceneAssets, type RefResolver } from '../asset/discoverAssets';
+import { indexSceneAssets, SceneAssetOwners, type RefResolver } from '../asset/discoverAssets';
 import type { EntityAssetScopes } from '../asset/entityAssetScopes';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import type { SceneData } from '../scene/scene';
-import { spinePairKey } from '../asset/spinePairKey';
 
 /** Resources retained before a spawn; attachment transfers them to entity scopes. */
 export interface PreparedSpawnOwnership {
@@ -21,32 +20,21 @@ export function prepareSpawnOwnership(
     resolveRef?: RefResolver,
 ): (() => PreparedSpawnOwnership) | undefined {
     if (!owners || !result.acquisitions?.length) return undefined;
-    const index = new Map<string, Map<string, AssetLease>>();
-    for (const { type, path, lease } of result.acquisitions) {
-        let paths = index.get(type);
-        if (!paths) index.set(type, paths = new Map());
-        paths.set(path, lease);
+    // A structural preload provider may return receipts without entity information.
+    let fallback: SceneAssetOwners | undefined;
+    if (result.acquisitions.some(receipt => !receipt.entityIds)) {
+        fallback = new SceneAssetOwners(true);
+        indexSceneAssets(scene, resolveRef, fallback);
     }
-    const sources = new Map<number, readonly AssetLease[]>();
-    for (const entity of scene.entities) {
-        const refs = discoverSceneAssets({ ...scene, entities: [entity] }, resolveRef);
-        const selected = new Set<AssetLease>();
-        // Ref-bound loaders acquire the authored name; handle-bound loaders use
-        // the resolved path. Both are spellings of an actual acquisition.
-        for (const buckets of [refs.byType, refs.rawByType]) {
-            for (const [type, paths] of buckets) {
-                const acquired = index.get(type === 'bitmap-font' ? 'font' : type);
-                for (const path of paths) {
-                    const lease = acquired?.get(path);
-                    if (lease) selected.add(lease);
-                }
-            }
+    const sources = new Map<number, Set<AssetLease>>();
+    for (const { type, path, lease, entityIds } of result.acquisitions) {
+        const entities = entityIds ?? fallback?.get(type, path);
+        if (!entities) continue;
+        for (const id of entities) {
+            let selected = sources.get(id);
+            if (!selected) sources.set(id, selected = new Set());
+            selected.add(lease);
         }
-        for (const pair of refs.spines) {
-            const lease = index.get('spine')?.get(spinePairKey(pair.skeleton, pair.atlas));
-            if (lease) selected.add(lease);
-        }
-        if (selected.size) sources.set(entity.id, [...selected]);
     }
     if (!sources.size) return undefined;
     return () => {

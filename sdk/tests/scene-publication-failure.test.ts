@@ -12,7 +12,8 @@ import { App } from '../src/app/app';
 import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
 import { SceneLoadCancelled, SceneManager, SceneManagerState, type SceneConfig } from '../src/scene/sceneManager';
 import { bakesOf } from '../src/runtime/bakes';
-import { Disabled, MeshRenderer, Parent } from '../src/ecs/component';
+import { spawnPrepared } from '../src/prefab/preparedPrefab';
+import { defineComponent, Disabled, MeshRenderer, Parent } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 
 vi.mock('../src/wasm/resourceManager', () => ({
@@ -40,6 +41,125 @@ function barrier() {
     const promise = new Promise<void>(resolve => { open = resolve; });
     return { open, promise };
 }
+
+describe('scene asset discovery', () => {
+    it.each(['authored', 'packaged'])('uses the same %s declarations for reads and entity lifetimes', async entry => {
+        const { app, assets, options, unloaded } = await runtime();
+        const seen = new Set<string>();
+        const discoverAssets = vi.fn((data: Record<string, unknown>) => {
+            const ref = String(data.ref);
+            if (seen.has(ref)) return [];
+            seen.add(ref);
+            return [{ type: 'mesh', path: ref }, { type: 'mesh', path: ref }];
+        });
+        const type = 'DiscoveryOwner_' + entry;
+        defineComponent(type, { ref: '' }, { discoverAssets });
+        assets.setAssetRefResolver(ref => ref.startsWith('@uuid:') ? 'shared.esmesh' : ref);
+        const data = { ...scene, entities: ['@uuid:a', '@uuid:b', 'only.esmesh'].map((ref, id) => ({
+            ...scene.entities[0]!, id, name: 'owner' + id, components: [{ type, data: { ref } }],
+        })) };
+        try {
+            if (entry === 'authored') await loadSceneWithAssets(app.world, data, { assets });
+            else await loadRuntimeScene({ ...options, sceneData: data });
+            const entities = data.entities.map(row => app.world.findEntityByName(row.name)!);
+            expect(entities.map(entity => assets.entityScopes.scopeFor(entity, app.world)?.size)).toEqual([1, 1, 1]);
+            expect(discoverAssets).toHaveBeenCalledTimes(3);
+            app.world.despawn(entities[0]!);
+            expect(unloaded).not.toHaveBeenCalled();
+            app.world.despawn(entities[2]!);
+            expect(unloaded).toHaveBeenCalledOnce();
+            app.world.despawn(entities[1]!);
+            expect(unloaded).toHaveBeenCalledTimes(2);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('preserves every authored spelling while loading a shared path once and reporting missing refs', async () => {
+        const { app, assets, options, unloaded } = await runtime();
+        const refs = ['@uuid:one', 'shared.esmesh', '@uuid:missing', '@uuid:two'];
+        const resolve = (ref: string) => ref === '@uuid:missing' ? null : 'shared.esmesh';
+        assets.setAssetRefResolver(resolve);
+        const data = { ...scene, entities: refs.map((mesh, id) => ({ ...scene.entities[0]!, id,
+            components: [{ type: 'MeshRenderer', data: { mesh } }],
+        })) };
+        try {
+            const ready = await prepareRuntimeScene({ ...options, sceneData: data });
+            expect(ready.discovered.byType.get('mesh')).toEqual(new Set(refs));
+            expect(ready.assetResult.missing).toEqual([{ ref: '@uuid:missing', reason: 'unresolved' }]);
+            expect(ready.assetResult.acquisitions).toHaveLength(1);
+            expect(ready.assetResult.acquisitions![0]).toMatchObject({
+                type: 'mesh', path: 'shared.esmesh', entityIds: new Set([0, 1, 3]),
+            });
+            ready.assetResult.scope.releaseAll();
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('reuses declarations from the prefab bake across spawns and releases the last live owner', async () => {
+        const { app, assets, unloaded } = await runtime();
+        const type = 'DiscoveryOwner_Prefab';
+        const discoverAssets = vi.fn(() => [{ type: 'mesh', path: 'shared.esmesh' }]);
+        defineComponent(type, {}, { discoverAssets });
+        vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify({
+            version: '2', name: 'Shared mesh', rootEntityId: 'root', entities: [{
+                prefabEntityId: 'root', name: 'mesh', parent: null, children: [], visible: true,
+                components: [{ type, data: {} }],
+            }],
+        }));
+        try {
+            const prefab = await assets.preparePrefab('mesh.esprefab');
+            const a = spawnPrepared(app.world, prefab), b = spawnPrepared(app.world, prefab);
+            prefab.release();
+            expect(discoverAssets).toHaveBeenCalledOnce();
+            app.world.despawn(a.root);
+            expect(unloaded).not.toHaveBeenCalled();
+            app.world.despawn(b.root);
+            expect(unloaded).toHaveBeenCalledOnce();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('keeps each animation clip receipt with the entity that names that spelling', async () => {
+        const { app, assets } = await runtime();
+        const type = 'DiscoveryOwner_Clip';
+        defineComponent(type, { clip: '' }, { assetFields: [{ field: 'clip', type: 'anim-clip' }] });
+        const canonical = 'idle.esanim';
+        assets.setAssetRefResolver(ref => ref === '@uuid:idle' ? canonical : ref);
+        assets.register({ type: 'anim-clip', extensions: ['.esanim'], load: async () => ({}), unload() {} });
+        const data = { ...scene, entities: ['@uuid:idle', canonical].map((clip, id) => ({
+            ...scene.entities[0]!, id, components: [{ type, data: { clip } }],
+        })) };
+        try {
+            const batch = await assets.preloadSceneAssets(data, undefined, { entityOwnership: true });
+            try {
+                const sources = new Map(batch.acquisitions?.map(a => [a.path, a.entityIds]));
+                expect(sources).toEqual(new Map([['@uuid:idle', new Set([0])], [canonical, new Set([1])]]));
+            } finally { batch.scope.releaseAll(); }
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('attaches an older preload provider’s receipt keyed by the authored alias', async () => {
+        const { app, assets, unloaded } = await runtime();
+        const ref = '@uuid:legacy-mesh';
+        assets.setAssetRefResolver(raw => raw === ref ? 'mesh.esmesh' : raw);
+        const preload = assets.preloadSceneAssets.bind(assets);
+        vi.spyOn(assets, 'preloadSceneAssets').mockImplementation(async (data, progress) => {
+            const batch = await preload(data, progress);
+            return { ...batch, acquisitions: batch.acquisitions?.map(({ type, lease }) => ({ type, path: ref, lease })) };
+        });
+        try {
+            const data = { ...scene, entities: [{ ...scene.entities[0]!,
+                components: [{ type: 'MeshRenderer', data: { mesh: ref } }],
+            }] };
+            const entities = await loadSceneWithAssets(app.world, data, { assets });
+            const entity = entities.get(1)!;
+            expect(assets.entityScopes.scopeFor(entity, app.world)?.size).toBe(1);
+            expect(unloaded).not.toHaveBeenCalled();
+            app.world.despawn(entity);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+});
 
 describe('scene asset progress', () => {
     async function setup(entry: string) {

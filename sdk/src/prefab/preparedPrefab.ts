@@ -100,7 +100,7 @@ export async function preparePrefabFromSource(
 
     // The same preload the scene runs, on the same shape — so a prefab spawned
     // from here and one placed in a scene get the same handles for the same refs.
-    const result = await assets.preloadSceneAssets(scene);
+    const result = await assets.preloadSceneAssets(scene, undefined, { entityOwnership: !!assets.entityScopes });
     const retainSpawnAssets = prepareSpawnOwnership(scene, result, assets.entityScopes, assets.resolveRef?.bind(assets));
     assets.resolveSceneAssetPaths(scene, result);
 

@@ -61,7 +61,7 @@ import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
 import { getComponentDefaults } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
-import { discoverSceneAssets } from './discoverAssets';
+import { indexSceneAssets, sceneAcquisitionPaths, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
@@ -333,6 +333,13 @@ function warnFailedLoads(failed: readonly MissingAsset[], where?: string): void 
     log.warn('asset', `${where ? `${where}: ` : ''}${failed.length} asset(s) failed to load`, failed);
 }
 
+interface SceneAssetAcquisition {
+    readonly type: string;
+    readonly path: string;
+    readonly lease: AssetLease;
+    readonly entityIds?: ReadonlySet<number>;
+}
+
 export interface SceneAssetResult {
     textureHandles: Map<string, number>;
     materialHandles: Map<string, number>;
@@ -348,7 +355,7 @@ export interface SceneAssetResult {
      */
     scope: AssetScope;
     /** @internal Projection of successful acquisitions; their scope/era remains the owner. */
-    acquisitions?: readonly { readonly type: string; readonly path: string; readonly lease: AssetLease }[];
+    acquisitions?: readonly SceneAssetAcquisition[];
     missing: MissingAsset[];
     /** Per asset type: how many loaded, the sum of their load times and the
      *  slowest one, in ms. Loads overlap, so the sums exceed the wall time. */
@@ -1690,6 +1697,10 @@ export class Assets {
             readonly maxConcurrent?: number; readonly skipSpine?: boolean;
             /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
             readonly summary?: 'info' | 'debug';
+            /** Record the declaring entities on each successful acquisition. */
+            readonly entityOwnership?: boolean;
+            /** Receive the authored references before any acquisition or progress notification. */
+            readonly onDiscover?: (authored: SceneAssetRefs) => void;
         },
     ): Promise<SceneAssetResult> {
         return this.preloadSceneAssets_(sceneData, onProgress, options);
@@ -1698,15 +1709,12 @@ export class Assets {
     private async preloadSceneAssets_(
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
-        options?: {
-            readonly maxConcurrent?: number; readonly skipSpine?: boolean;
-            /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
-            readonly summary?: 'info' | 'debug';
-        },
+        options?: Parameters<Assets['preloadSceneAssets']>[2],
         recorder?: DependencyRecorder,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
-        const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
+        const owners = options?.entityOwnership ? new SceneAssetOwners() : undefined;
+        const discovered = indexSceneAssets(sceneData, ref => this.resolveRef(ref), owners, options?.onDiscover);
         for (const p of discovered.meshTextures) this.meshTextures_.add(p);
         for (const p of discovered.meshMaterials) this.meshMaterials_.add(p);
         for (const ref of discovered.unresolved) {
@@ -1719,29 +1727,6 @@ export class Assets {
                 discovered.unresolved,
             );
         }
-        const texturePaths = discovered.byType.get('texture') ?? new Set<string>();
-        const materialPaths = discovered.byType.get('material') ?? new Set<string>();
-        const fontPaths = discovered.byType.get('font') ?? new Set<string>();
-        // Anim clips load by their RAW serialized ref: components (SpriteAnimator.clip,
-        // Animator states) look clips up by that ref, and loadAnimClip aliases it to
-        // the resolved registration. Feeding the resolved path here (like the handle
-        // types) would strip the alias and leave play-realm lookups keyless.
-        const animClipPaths = discovered.rawByType.get('anim-clip') ?? new Set<string>();
-        const audioPaths = discovered.byType.get('audio') ?? new Set<string>();
-        const soundEventPaths = discovered.byType.get('sound-event') ?? new Set<string>();
-        const tilemapPaths = discovered.byType.get('tilemap') ?? new Set<string>();
-        const tilesetPaths = discovered.byType.get('tileset') ?? new Set<string>();
-        const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
-        const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
-        const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
-        const graphPaths = discovered.byType.get('scriptgraph') ?? new Set<string>();
-        const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
-        const avatarPaths = discovered.byType.get('avatar') ?? new Set<string>();
-        const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
-        const environmentPaths = discovered.byType.get('environment') ?? new Set<string>();
-        const probeVolumePaths = discovered.byType.get('probeVolume') ?? new Set<string>();
-        const prefabPaths = discovered.byType.get('prefab') ?? new Set<string>();
-        const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
         const materialHandles = new Map<string, number>();
@@ -1751,7 +1736,13 @@ export class Assets {
         const probeVolumeHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
         const scope = new AssetScope();
-        const acquisitions: { type: string; path: string; lease: AssetLease }[] = [];
+        const acquisitions: SceneAssetAcquisition[] = [];
+        const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
+            if (recorder) recorder.own(path, lease, type);
+            else scope.add(lease);
+            acquisitions.push({ type, path, lease, entityIds: owners?.get(type, path) });
+            releaseCallbacks.push(() => lease.release());
+        };
 
         let loadedCount = 0;
 
@@ -1787,20 +1778,16 @@ export class Assets {
             });
         };
         const pushAcquire = (
-            paths: Set<string>,
             label: string,
             handles?: Map<string, number>,
             acquire: (path: string) => Promise<AssetLease> = path => this.acquireTypedLease_(label, path, recorder?.owner),
         ): void => {
-            for (const path of paths) {
+            for (const path of sceneAcquisitionPaths(discovered, label) ?? []) {
                 tasks.push(() =>
                     timedLoad(label, () => acquire(path)).then(lease => {
                         // A baked asset's era owns these acquisitions. An ordinary
                         // scene owns them through the returned scope instead.
-                        if (recorder) recorder.own(path, lease, label);
-                        else scope.add(lease);
-                        acquisitions.push({ type: label, path, lease });
-                        releaseCallbacks.push(() => lease.release());
+                        recordAcquisition(label, path, lease);
                         if (handles) {
                             handles.set(path, (lease.value as { handle?: number } | null)?.handle ?? 0);
                         }
@@ -1820,27 +1807,23 @@ export class Assets {
         // loadTexture anyway, so the bytes fetched are identical either way —
         // feeding it the resolved path only strips the lookup of its key.
         pushAcquire(
-            texturePaths,
             'texture',
             textureHandles,
             p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
         );
-        pushAcquire(materialPaths, 'material', materialHandles);
-        pushAcquire(fontPaths, 'font', fontHandles);
-        pushAcquire(meshPaths, 'mesh', meshHandles);
-        pushAcquire(environmentPaths, 'environment', environmentHandles);
-        pushAcquire(probeVolumePaths, 'probeVolume', probeVolumeHandles);
+        pushAcquire('material', materialHandles);
+        pushAcquire('font', fontHandles);
+        pushAcquire('mesh', meshHandles);
+        pushAcquire('environment', environmentHandles);
+        pushAcquire('probeVolume', probeVolumeHandles);
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
         // the scene's exactly as every other one is. The runtime scene loader
         // opts out: its second phase binds to entities that do not exist yet.
         if (!options?.skipSpine) {
-            for (const pair of spinePairs) {
+            for (const pair of discovered.spines) {
                 tasks.push(() =>
                     this.acquireSpineLease_(pair.skeleton, pair.atlas, recorder?.owner).then((lease) => {
-                        if (recorder) recorder.own(spinePairKey(pair.skeleton, pair.atlas), lease, 'spine');
-                        else scope.add(lease);
-                        acquisitions.push({ type: 'spine', path: spinePairKey(pair.skeleton, pair.atlas), lease });
-                        releaseCallbacks.push(() => lease.release());
+                        recordAcquisition('spine', spinePairKey(pair.skeleton, pair.atlas), lease);
                     }).catch(e => {
                         log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
                         recordFailure(pair.skeleton, 'spine', e);
@@ -1848,21 +1831,21 @@ export class Assets {
                 );
             }
         }
-        pushAcquire(animClipPaths, 'anim-clip');
-        pushAcquire(tilemapPaths, 'tilemap');
-        pushAcquire(tilesetPaths, 'tileset');
-        pushAcquire(timelinePaths, 'timeline');
-        pushAcquire(audioPaths, 'audio');
-        pushAcquire(soundEventPaths, 'sound-event');
+        pushAcquire('anim-clip');
+        pushAcquire('tilemap');
+        pushAcquire('tileset');
+        pushAcquire('timeline');
+        pushAcquire('audio');
+        pushAcquire('sound-event');
         // FSM/BT loaders register the parsed definition into the shared AI store
         // under the asset path, so a StateMachineAgent/BehaviorTreeAgent whose
         // fsm/bt is that path resolves once the scene finishes preloading.
-        pushAcquire(fsmPaths, 'statemachine');
-        pushAcquire(btPaths, 'behaviortree');
-        pushAcquire(graphPaths, 'scriptgraph');
-        pushAcquire(animatorPaths, 'animatorcontroller');
-        pushAcquire(avatarPaths, 'avatar');
-        pushAcquire(prefabPaths, 'prefab');
+        pushAcquire('statemachine');
+        pushAcquire('behaviortree');
+        pushAcquire('scriptgraph');
+        pushAcquire('animatorcontroller');
+        pushAcquire('avatar');
+        pushAcquire('prefab');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -3118,7 +3101,7 @@ export class Assets {
                         overrides: readonly PrefabOverride[] = []): Promise<PreparedPrefab> {
         return preparePrefabFromSource({
             loadPrefab: async (ref) => (await ctx.acquireAsset<PrefabResult>('prefab', ref)).value,
-            preloadSceneAssets: scene => this.preloadSceneAssets_(scene, undefined, undefined, ctx.recorder),
+            preloadSceneAssets: (scene, progress, options) => this.preloadSceneAssets_(scene, progress, options, ctx.recorder),
             resolveSceneAssetPaths: (scene, result) => this.resolveSceneAssetPaths(scene, result),
             trackSceneAssetReferences: (scene, entities) => this.trackSceneAssetReferences(scene, entities),
             resolveRef: ref => this.resolveRef(ref),

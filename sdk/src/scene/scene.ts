@@ -825,7 +825,7 @@ async function loadSceneAssetsAndSpawn(
             assertCurrent?.();
             if (assets) {
                 const result = await timed('assets', async () => {
-                    attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress);
+                    attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress, { entityOwnership: !collector });
                     return attempt.assets;
                 });
                 assertCurrent?.();

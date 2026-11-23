@@ -23,6 +23,7 @@
  */
 
 import { getComponent } from '../ecs/component';
+import { spinePairKey } from './spinePairKey';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 
 export interface SpineAssetRef {
@@ -75,109 +76,143 @@ export interface SceneAssetRefs {
 /** Turns a raw serialized ref into a concrete path (or null if unknown). */
 export type RefResolver = (ref: string) => string | null;
 
-export function discoverSceneAssets(
-    sceneData: SceneData,
-    refResolver?: RefResolver,
-): SceneAssetRefs {
-    const byType = new Map<string, Set<string>>();
-    const rawByType = new Map<string, Set<string>>();
-    const rawFor = new Map<string, string>();
-    const spines: SkeletalAssetRef[] = [];
-    const dragonBones: SkeletalAssetRef[] = [];
-    // One set across both runtimes: the key is the pair, and the same pair cannot
-    // belong to two runtimes.
+// A SpriteAnimator or Animator looks up clips under the spelling it carries.
+function usesAuthoredRef(type: string): boolean {
+    return type === 'anim-clip';
+}
+
+export function sceneAcquisitionPaths(refs: SceneAssetRefs, type: string): ReadonlySet<string> | undefined {
+    return (usesAuthoredRef(type) ? refs.rawByType : refs.byType).get(type);
+}
+
+/** Entities that named each acquisition in this preparation. */
+export class SceneAssetOwners {
+    private readonly byType = new Map<string, Map<string, Set<number>>>();
+
+    constructor(private readonly includeAliases = false) {}
+
+    asset(type: string, raw: string, path: string, entity: number): void {
+        const label = type === 'bitmap-font' ? 'font' : type;
+        // A clip registers under each authored spelling. Handle-backed assets share a resolved path.
+        const key = usesAuthoredRef(type) ? raw : path;
+        this.add(label, key, entity);
+        // Older structural providers could identify a receipt by either spelling.
+        if (this.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity);
+    }
+
+    add(type: string, path: string, entity: number): void {
+        let paths = this.byType.get(type);
+        if (!paths) this.byType.set(type, paths = new Map());
+        let entities = paths.get(path);
+        if (!entities) paths.set(path, entities = new Set());
+        entities.add(entity);
+    }
+
+    get(type: string, path: string): ReadonlySet<number> | undefined {
+        return this.byType.get(type)?.get(path);
+    }
+}
+
+function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
+    const refs: SceneAssetRefs = {
+        byType: new Map(), rawByType: new Map(), rawFor: new Map(),
+        spines: [], dragonBones: [], unresolved: [], meshTextures: new Set(), meshMaterials: new Set(),
+    };
     const skeletalKeys = new Set<string>();
-    const unresolved: string[] = [];
-    const meshTextures = new Set<string>();
-    const meshMaterials = new Set<string>();
-
     const resolve = (raw: string): string | null => {
-        const r = refResolver ? refResolver(raw) : raw;
-        if (r == null || r === '') {
-            unresolved.push(raw);
-            return null;
-        }
-        return r;
+        const path = refResolver ? refResolver(raw) : raw;
+        if (path) return path;
+        refs.unresolved.push(raw);
+        return null;
     };
-
     const bucket = (map: Map<string, Set<string>>, type: string, value: string): void => {
-        let set = map.get(type);
-        if (!set) {
-            set = new Set();
-            map.set(type, set);
-        }
-        set.add(value);
+        let paths = map.get(type);
+        if (!paths) map.set(type, paths = new Set());
+        paths.add(value);
     };
-
-    const addAsset = (type: string, raw: string): void => {
-        const path = resolve(raw);
-        if (path == null) return;
-        bucket(byType, type, path);
-        bucket(rawByType, type, raw);
-        if (!rawFor.has(path)) rawFor.set(path, raw);
+    return {
+        refs,
+        asset(entity: number, type: string, raw: string) {
+            const path = resolve(raw);
+            if (path === null) return;
+            bucket(refs.byType, type, path);
+            bucket(refs.rawByType, type, raw);
+            if (!refs.rawFor.has(path)) refs.rawFor.set(path, raw);
+            owners?.asset(type, raw, path, entity);
+        },
+        mesh(raw: string, material: boolean) {
+            const path = refResolver ? refResolver(raw) : raw;
+            if (path) (material ? refs.meshMaterials : refs.meshTextures).add(path);
+        },
+        skeletal(entity: number, dragonBones: boolean, skelRef: string, atlasRef: string) {
+            const skeleton = resolve(skelRef), atlas = resolve(atlasRef);
+            if (skeleton === null || atlas === null) return;
+            const key = spinePairKey(skeleton, atlas);
+            if (!dragonBones) owners?.add('spine', key, entity);
+            if (skeletalKeys.has(key)) return;
+            skeletalKeys.add(key);
+            (dragonBones ? refs.dragonBones : refs.spines).push({ skeleton, atlas });
+        },
     };
+}
 
-    for (const entityData of sceneData.entities) {
-        if (entityData.visible === false) continue;
-        // A prefab-instance entry carries no inline `components` (it holds a prefab
-        // ref plus overrides); its assets are discovered when the prefab is expanded
-        // by loadSceneWithAssets, not from here. Skipping it also guards the loop
-        // against `components: undefined` — the discovery pass runs on the raw scene,
-        // before expansion, in the runtime and scene-manager preload paths.
-        if (!Array.isArray(entityData.components)) continue;
+/** Index the same component declarations for acquisition, optional authored bindings and entity ownership. */
+export function indexSceneAssets(
+    scene: SceneData, resolveRef?: RefResolver, owners?: SceneAssetOwners,
+    onAuthored?: (refs: SceneAssetRefs) => void,
+): SceneAssetRefs {
+    const resolved = assetIndex(resolveRef, owners);
+    const authored = onAuthored ? assetIndex() : undefined;
+    const indexes = authored ? [resolved, authored] : [resolved];
 
-        for (const compData of entityData.components) {
-            const comp = getComponent(compData.type);
-            if (!comp) continue;
+    for (const entity of scene.entities) {
+        // Prefab rows supply their components after expansion.
+        if (entity.visible === false || !Array.isArray(entity.components)) continue;
+        for (const component of entity.components) {
+            const definition = getComponent(component.type);
+            if (!definition) continue;
+            const data = component.data as Record<string, unknown>;
 
-            const data = compData.data as Record<string, unknown>;
-
-            if (compData.type === 'MeshRenderer') {
-                for (const [field, into] of [['texture', meshTextures], ['normalMap', meshTextures], ['material', meshMaterials]] as const) {
+            if (component.type === 'MeshRenderer') {
+                for (const field of ['texture', 'normalMap', 'material'] as const) {
                     const raw = data[field];
-                    const at = typeof raw === 'string' && raw ? (refResolver ? refResolver(raw) : raw) : null;
-                    if (at) into.add(at);
+                    if (typeof raw === 'string' && raw) {
+                        for (const index of indexes) index.mesh(raw, field === 'material');
+                    }
                 }
             }
 
-            if (comp.discoverAssets) {
-                for (const ref of comp.discoverAssets(data)) {
-                    if (typeof ref.path === 'string' && ref.path) {
-                        addAsset(ref.type, ref.path);
+            if (definition.discoverAssets) {
+                for (const { type, path } of definition.discoverAssets(data)) {
+                    if (typeof path === 'string' && path) {
+                        for (const index of indexes) index.asset(entity.id, type, path);
                     }
                 }
             } else {
-                for (const desc of comp.assetFields) {
-                    const value = data[desc.field];
-                    if (typeof value === 'string' && value) {
-                        addAsset(desc.type, value);
+                for (const { field, type } of definition.assetFields) {
+                    const raw = data[field];
+                    if (typeof raw === 'string' && raw) {
+                        for (const index of indexes) index.asset(entity.id, type, raw);
                     }
                 }
             }
 
-            if (comp.skeletalFields) {
-                const skelRaw = data[comp.skeletalFields.skeletonField] as string;
-                const atlasRaw = data[comp.skeletalFields.atlasField] as string;
-                if (skelRaw && atlasRaw) {
-                    const skel = resolve(skelRaw);
-                    const atlas = resolve(atlasRaw);
-                    if (skel != null && atlas != null) {
-                        const key = `${skel}:${atlas}`;
-                        if (!skeletalKeys.has(key)) {
-                            skeletalKeys.add(key);
-                            // An unnamed runtime is Spine: the field predates the
-                            // second runtime, so that is what a component without
-                            // one has always meant.
-                            const bucket = comp.skeletalFields.runtime === 'dragonbones' ? dragonBones : spines;
-                            bucket.push({ skeleton: skel, atlas });
-                        }
-                    }
+            const fields = definition.skeletalFields;
+            if (fields) {
+                const skeleton = data[fields.skeletonField] as string;
+                const atlas = data[fields.atlasField] as string;
+                if (skeleton && atlas) {
+                    for (const index of indexes) index.skeletal(entity.id, fields.runtime === 'dragonbones', skeleton, atlas);
                 }
             }
         }
     }
+    if (authored) onAuthored?.(authored.refs);
+    return resolved.refs;
+}
 
-    return { byType, rawByType, rawFor, spines, dragonBones, unresolved, meshTextures, meshMaterials };
+export function discoverSceneAssets(sceneData: SceneData, refResolver?: RefResolver): SceneAssetRefs {
+    return indexSceneAssets(sceneData, refResolver);
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {
