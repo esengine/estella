@@ -6722,6 +6722,8 @@ static prototype: LocalizationPlugin
 
 ## LodDecision — interface @experimental
 ```
+fade: number | undefined
+fadingFrom: number | null | undefined
 level: number | null
 levels: number
 screenSize: number

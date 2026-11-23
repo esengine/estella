@@ -263,7 +263,29 @@ static void testLevelsFromSizes() {
     CHECK(lod::levelsFromSizes(none, 0.05f, 0.0f).count == 0, "no first size, no levels, though a cull size still culls");
 }
 
+// A change of level a view sees dissolves the old level into the new over the fade, by time; a first sighting does not fade.
+static void testFade() {
+    lod::LodViewState state;
+    const Entity e = Entity::fromRaw(7);
+    state.beginFrame(10.0);
+    state.remember(1, e, 0, 0, 1, 0.5f);
+    CHECK(near(state.weight(1, e, 0, 0.4f), 1.0f) && near(state.weight(1, e, 1, 0.4f), 0.0f), "a first sighting draws its level whole");
+    state.beginFrame(10.1);
+    state.remember(1, e, 1, 1, 1, 0.1f);
+    CHECK(near(state.weight(1, e, 1, 0.4f), 0.0f) && near(state.weight(1, e, 0, 0.4f), 1.0f), "the frame it changes, the old level is still whole");
+    state.beginFrame(10.3);
+    state.remember(1, e, 1, 1, 1, 0.1f);
+    CHECK(near(state.weight(1, e, 1, 0.4f), 0.5f) && near(state.weight(1, e, 0, 0.4f), 0.5f), "half way through, half of each");
+    state.beginFrame(10.6);
+    state.remember(1, e, 1, 1, 1, 0.1f);
+    CHECK(near(state.weight(1, e, 1, 0.4f), 1.0f) && near(state.weight(1, e, 0, 0.4f), 0.0f), "after the fade, the new level alone");
+    state.preview(1, e, 0);
+    CHECK(near(state.weight(1, e, 0, 0.4f), 1.0f) && near(state.weight(1, e, 1, 0.4f), 0.0f), "a preview draws the level held, whole");
+    CHECK(near(state.weight(2, e, 0, 0.4f), 1.0f), "a view that never measured it draws the finest");
+}
+
 int main() {
+    testFade();
     testLevelsFromSizes();
     testProjection();
     testBoundingSphere();

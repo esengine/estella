@@ -1586,9 +1586,11 @@ i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr) {
 }
 
 i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
-    auto* out = boundarySpanMut<f32>(outPtr, 4, "renderer_lodInspect.out");
+    auto* out = boundarySpanMut<f32>(outPtr, 6, "renderer_lodInspect.out");
     if (!out) return 0;
     out[0] = out[1] = out[2] = out[3] = 0.0f;
+    out[4] = -1.0f;
+    out[5] = 1.0f;
     if (!g_renderFrame) return 0;
     u8 level = 0, unbiased = 0, levels = 0;
     f32 size = 0.0f;
@@ -1601,6 +1603,13 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     out[1] = unbiased == lod::kCulled ? -1.0f : static_cast<f32>(unbiased);
     out[2] = static_cast<f32>(levels);
     out[3] = size;
+    // A fade running: the level being left, and how far the drawn one has come in (1 when settled).
+    u8 from = 0;
+    f32 progress = 1.0f;
+    if (g_renderFrame->lodFading(view, Entity::fromRaw(entity), from, progress)) {
+        out[4] = from == lod::kCulled ? -1.0f : static_cast<f32>(from);
+        out[5] = progress;
+    }
     return 1;
 }
 

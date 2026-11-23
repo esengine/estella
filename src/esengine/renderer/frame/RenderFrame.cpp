@@ -456,7 +456,8 @@ void RenderFrame::beginFrame() {
     // one view's answer: the same object seen by two cameras is two selections, and
     // that they can differ is the whole claim.
     lod_counts_ = {};
-    lod_view_state_.beginFrame();
+    // On a monotonic clock, not the game's: a fade must finish in a paused editor view and in a game slowed or stopped.
+    lod_view_state_.beginFrame(es_profile_now_ms() / 1000.0);
 
     // The per-draw blocks go back at the FRAME boundary and not at each pass's:
     // a frame reaches the device as several passes with one submission behind

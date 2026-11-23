@@ -1600,9 +1600,18 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             if (shown == lod::kCulled) { ++collect_ctx.culled; tick(2); continue; }
             resident = levels.mesh[shown];
         }
-        // One level of a group whose levels are whole entities: drawn only while its group, in this view, is at that level.
+        // One level of a group whose levels are whole entities: drawn while its group, in this view, is at that level, and while it
+        // fades from it or into it (lodFade, which the record's alpha carries: a material whose alpha is coverage dissolves with it).
+        f32 lodFade = 1.0f;
         if (const auto* member = registry.tryGet<ecs::LODMember>(entity)) {
-            if (memberGroupLevel(registry, collect_ctx, ctx, *member) != static_cast<u8>(member->level)) { ++collect_ctx.culled; tick(2); continue; }
+            const u8 at = memberGroupLevel(registry, collect_ctx, ctx, *member);
+            const u8 mine = static_cast<u8>(member->level);
+            if (collect_ctx.lod.state && !collect_ctx.lod.follow && at != lod::kCulled) {
+                lodFade = collect_ctx.lod.state->weight(collect_ctx.lod.view, Entity::fromRaw(member->group), mine, lod::kFadeSeconds);
+            } else {
+                lodFade = at == mine ? 1.0f : 0.0f;
+            }
+            if (!(lodFade > 0.0f)) { ++collect_ctx.culled; tick(2); continue; }
         }
         tick(2);
 
@@ -1787,7 +1796,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     key.morphIndex = draw_list.addMorphShapes(shapes);
                     key.morphTextureId = static_cast<u32>(resident->morphTexture);
                 }
-                std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &mesh.color, 16);
+                const glm::vec4 tint{mesh.color.r, mesh.color.g, mesh.color.b, mesh.color.a * lodFade};
+                std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &tint, 16);
                 if (skinned) {
                     // A chunked skin uploads each chunk's bones with the chunk's draw instead (below).
                     if (!chunked) {

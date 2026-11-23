@@ -450,6 +450,11 @@ public:
         return lod_view_state_.inspect(view, entity, outLevel, outUnbiased, outLevels, outSize);
     }
 
+    /** @brief The fade @p view is in for @p entity's levels: the level it is leaving and how far the new one has come, or false. */
+    bool lodFading(u32 view, Entity entity, u8& outFrom, f32& outProgress) const {
+        return lod_view_state_.fading(view, entity, lod::kFadeSeconds, outFrom, outProgress);
+    }
+
     /**
      * @brief Show @p level for @p entity in @p view instead of the level that
      *        view chose; @ref lod::kNoPreview goes back to choosing.

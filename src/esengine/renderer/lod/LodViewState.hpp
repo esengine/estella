@@ -14,6 +14,9 @@
 
 namespace esengine::lod {
 
+/** @brief How long two levels dissolve into each other after a view changes level, in seconds. */
+inline constexpr f32 kFadeSeconds = 0.35f;
+
 /** @brief A preview slot holding no level, so the view's own choice is drawn. */
 inline constexpr u8 kNoPreview = 0xFEu;
 
@@ -37,8 +40,9 @@ public:
 
     /** @brief Opens a frame and, now and then, drops what no view still asks about
      *         — an entity that died leaves a pair nothing will ever touch again. */
-    void beginFrame() {
+    void beginFrame(f64 seconds = 0.0) {
         ++frame_;
+        now_ = seconds;
         if (frame_ % kKeepFrames != 0) return;
         for (auto it = entries_.begin(); it != entries_.end();) {
             it = (frame_ - it->second.stamp > kKeepFrames) ? entries_.erase(it) : std::next(it);
@@ -70,7 +74,13 @@ public:
      *          component: the numbers on screen would say the other level.
      */
     void remember(u32 view, Entity entity, u8 chosen, u8 unbiased, u8 levels, f32 size) {
+        const auto found = entries_.find(key(view, entity));
+        // A change of level this view saw happen starts a fade from the old one; a first sighting, or one after the view has not
+        // looked for a while, starts at its level.
+        const bool seen = found != entries_.end() && frame_ - found->second.stamp <= 2;
         auto& entry = entries_[key(view, entity)];
+        if (!seen) { entry.from = chosen; entry.fadeStart = now_; }
+        else if (chosen != entry.level) { entry.from = entry.level; entry.fadeStart = now_; }
         entry.level = chosen;
         entry.unbiased = unbiased;
         entry.levels = levels;
@@ -123,6 +133,38 @@ public:
         return held != kNoPreview && held <= levels ? held : chosen;
     }
 
+    /**
+     * @brief How much of @p level this view draws of @p entity now: 1 for the level it is at, and during the @p seconds after a change
+     *        both the level it came from (falling to 0) and the one it went to (rising to 1), so the two dissolve into each other
+     *        rather than one replacing the other in a frame. A preview, a cull and a view that has not measured the entity do not fade.
+     */
+    f32 weight(u32 view, Entity entity, u8 level, f32 seconds) const {
+        const auto it = entries_.find(key(view, entity));
+        if (it == entries_.end()) return level == 0 ? 1.0f : 0.0f;
+        const Entry& e = it->second;
+        const u8 held = previewOf(view, entity);
+        if (held != kNoPreview && held <= e.levels) return level == held ? 1.0f : 0.0f;
+        const f32 t = seconds > 0.0f ? static_cast<f32>((now_ - e.fadeStart) / seconds) : 1.0f;
+        if (e.from == e.level || e.level == kCulled || e.from == kCulled || !(t < 1.0f)) return level == e.level ? 1.0f : 0.0f;
+        const f32 rise = t < 0.0f ? 0.0f : t;
+        if (level == e.level) return rise;
+        if (level == e.from) return 1.0f - rise;
+        return 0.0f;
+    }
+
+    /** @brief The fade a view is in for an entity: the level it is leaving and how far the new one has come (0..1), or false when
+     *         none is running (it is settled, culled, held by a preview, or never measured). */
+    bool fading(u32 view, Entity entity, f32 seconds, u8& outFrom, f32& outProgress) const {
+        const auto it = entries_.find(key(view, entity));
+        if (it == entries_.end() || previewOf(view, entity) != kNoPreview) return false;
+        const Entry& e = it->second;
+        const f32 rising = weight(view, entity, e.level, seconds);
+        if (e.from == e.level || !(rising < 1.0f)) return false;
+        outFrom = e.from;
+        outProgress = rising;
+        return true;
+    }
+
     void clear() { entries_.clear(); previews_.clear(); }
 
     usize size() const { return entries_.size(); }
@@ -137,6 +179,9 @@ private:
         u8 level = 0;
         u8 unbiased = 0;
         u8 levels = 0;
+        /** The level a fade is from, equal to `level` when none is running, and when it began. */
+        u8 from = 0;
+        f64 fadeStart = 0.0;
     };
 
     static u64 key(u32 view, Entity entity) {
@@ -146,6 +191,7 @@ private:
     std::unordered_map<u64, Entry> entries_;
     std::unordered_map<u64, u8> previews_;
     u64 frame_ = 0;
+    f64 now_ = 0.0;
 };
 
 }  // namespace esengine::lod

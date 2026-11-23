@@ -190,6 +190,10 @@ export interface LodDecision {
     levels: number;
     /** Fraction of the viewport HEIGHT the object covered when it was measured. */
     screenSize: number;
+    /** During a fade between levels (an LODMember group's), the level being left; null when settled. */
+    fadingFrom?: number | null;
+    /** How far the drawn level has come in, 0..1: 1 when settled. */
+    fade?: number;
 }
 
 /** What the last frames drew of one entity's Cluster LOD mesh. */
@@ -327,12 +331,14 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         lodInspect: (view, entity) => {
             if (!m.renderer_lodInspect || !lodInspectPtr) return null;
             if (!m.renderer_lodInspect(view >>> 0, entity >>> 0, lodInspectPtr)) return null;
-            const f = m.HEAPF32.subarray(lodInspectPtr >> 2, (lodInspectPtr >> 2) + 4);
+            const f = m.HEAPF32.subarray(lodInspectPtr >> 2, (lodInspectPtr >> 2) + 6);
             return {
                 level: f[0]! < 0 ? null : f[0]!,
                 unbiased: f[1]! < 0 ? null : f[1]!,
                 levels: f[2]!,
                 screenSize: f[3]!,
+                fadingFrom: f[4]! < 0 ? null : f[4]!,
+                fade: f[5]!,
             };
         },
         framePending: () => (m.renderer_framePending ? m.renderer_framePending() !== 0 : false),
@@ -613,7 +619,7 @@ export function initRendererAPI(wasmModule: ESEngineModule): void {
     module = bridge.module;
     installContextLossGuard(module);
     viewProjectionPtr = module._malloc(16 * 4);
-    lodInspectPtr = module._malloc(4 * 4);
+    lodInspectPtr = module._malloc(6 * 4);
     lightStatusPtr = module._malloc(9 * 4);
     backend = wasmBackend(module);
 }
