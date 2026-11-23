@@ -2942,14 +2942,16 @@ void RenderFrame::declareMaterialBakes(ecs::Registry& registry) {
                 field.sunDirection = glm::vec3(sun);
                 field.rect = {bake.a.x, bake.a.y, bake.a.z, bake.a.z / bake.w};
                 field.depth = {bake.b.z, top, top + bake.b.w, bake.b.w / 15.0f};
-                // w: the material's caustic strength, for the receivers past the measured window, which draw the pattern without it.
-                f32 strength = 1.0f;
+                // w: how strongly the receivers past the measured window take the procedural pattern: the material's caustic strength
+                // times the contrast the water module matched to the baked field's for these waves (u_farContrast).
+                f32 strength = 1.0f, contrast = 1.24f;
                 if (const auto* record = context_.materials().find(bake.projection)) {
                     for (usize p = 0; p < layout->params.size(); ++p) {
-                        if (layout->params[p].name == "u_causticStrength") { strength = MaterialStore::paramValue(*record, *layout, static_cast<i32>(p)); break; }
+                        if (layout->params[p].name == "u_causticStrength") strength = MaterialStore::paramValue(*record, *layout, static_cast<i32>(p));
+                        else if (layout->params[p].name == "u_farContrast") contrast = MaterialStore::paramValue(*record, *layout, static_cast<i32>(p));
                     }
                 }
-                field.sun = {ray.x / ray.y, ray.z / ray.y, 0, strength};
+                field.sun = {ray.x / ray.y, ray.z / ray.y, 0, strength * contrast};
             }
         }
         rg::PassDesc pass;

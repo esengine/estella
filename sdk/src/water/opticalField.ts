@@ -40,7 +40,7 @@ export class WaterOpticalField {
     private failed = false;
 
     update(surface: number, size: number, eyeX: number, eyeZ: number, span: number,
-           low: number, heightRange: number, level: number, depthStep: number, time: number, bodies?: CausticBodies | null): OpticalField | null {
+           low: number, heightRange: number, level: number, depthStep: number, time: number, bodies?: CausticBodies | null, farContrast = 1.24): OpticalField | null {
         size = size > 0 ? Math.min(512, Math.max(CAUSTIC_ATLAS_SIDE, Math.round(size / CAUSTIC_ATLAS_SIDE) * CAUSTIC_ATLAS_SIDE)) : 0;
         const generation = deviceGeneration();
         if (size !== this.size || generation !== this.generation) {
@@ -80,6 +80,8 @@ export class WaterOpticalField {
         Material.setUniform(this.material, 'u_absorption', uniforms.get('u_absorption') ?? { x: 0.45, y: 0.09, z: 0.05, w: 1 });
         Material.setUniform(this.material, 'u_density', uniforms.get('u_density') ?? 0.0012 / worldUnitScale());
         Material.setUniform(this.material, 'u_causticBodyOcean', bodies?.ocean ?? { x: 0, y: 0, z: 4, w: 0 });
+        // Read by the renderer, not by this shader: how strongly the receivers past the window take the procedural pattern.
+        Material.setUniform(this.material, 'u_farContrast', farContrast);
         if (bodies) Material.setUniform(this.material, 'u_causticBodyRect', bodies.rect);
         if (this.bodyTexture !== (bodies?.texture ?? 0)) {
             this.bodyTexture = bodies?.texture ?? 0;

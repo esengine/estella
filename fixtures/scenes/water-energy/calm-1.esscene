@@ -1,0 +1,215 @@
+{
+ "version": 4,
+ "name": "water-energy-0-1",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 3000,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.706489444943837,
+       "y": 0,
+       "z": 0,
+       "w": 0.7077235789366842
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 60,
+      "nearPlane": 5,
+      "farPlane": 20000,
+      "isActive": true,
+      "priority": 0
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "skyAtmosphere",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 1,
+         "u_haze": 0.6,
+         "u_sunBrightness": 30,
+         "u_clouds": 0,
+         "u_unitsPerKm": 100000
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.403,
+       "y": 0.2725,
+       "z": 0.1271,
+       "w": 0.8644
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.96,
+       "b": 0.9,
+       "a": 1
+      },
+      "intensity": 0.25,
+      "meshShadows": true,
+      "shadowExtent": 6000,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Floor",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -200,
+       "z": 0
+      },
+      "rotation": {
+       "x": 0,
+       "y": 0,
+       "z": -0.06786040862172929,
+       "w": 0.9976948255562379
+      },
+      "scale": {
+       "x": 32,
+       "y": 1,
+       "z": 32
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "color": {
+       "r": 0.42,
+       "g": 0.37,
+       "b": 0.28,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true,
+      "castShadows": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Zone",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterZone",
+     "data": {
+      "sizeX": 4000,
+      "sizeZ": 4000,
+      "resolution": 256,
+      "material": "/scenes/water-energy/strength-1.esmaterial",
+      "waveLength": 600,
+      "waveSpeed": 1,
+      "waveDirection": 30,
+      "surf": 0,
+      "ripples": 0,
+      "farDistance": false,
+      "cellSize": 20,
+      "cells": 64,
+      "rings": 6
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Sea",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterBody",
+     "data": {
+      "form": 0,
+      "waveHeight": 0,
+      "shoreWidth": 150,
+      "affectsTerrain": false
+     }
+    }
+   ]
+  }
+ ]
+}

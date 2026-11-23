@@ -56,7 +56,8 @@ void waterIncidentSun(inout Light lamp, vec3 position) {
         float out_ = max(max(-edge.x, -edge.y), 0.0);
         float near = 1.0 - smoothstep(1.0, 2.0, out_);
         float soften = 1.0 / (1.0 + depth / max(reach, 1e-4));
-        float far = (waterSunPattern(position.xz + u_waterSun.xy * depth, u_time.x * 0.35) * 1.25 - 0.25) * soften;
+        // Less the pattern's own mean (0.310, over 400 000 samples; its deviation is 0.34), so it moves light about and adds none; u_waterSun.w sets how far.
+        float far = (waterSunPattern(position.xz + u_waterSun.xy * depth, u_time.x * 0.35) - 0.310) * soften;
         lamp.color.rgb *= max(0.0, 1.0 + (1.0 - fade) * near * far * u_waterSun.w);
     }
     if (fade <= 0.0) return;
@@ -145,7 +146,7 @@ fn waterIncidentSun(input : Light, position : vec3f) -> Light {
         let out_ = max(max(-edge.x, -edge.y), 0.0);
         let near = 1.0 - smoothstep(1.0, 2.0, out_);
         let soften = 1.0 / (1.0 + depth / max(reach, 1e-4));
-        let far = (waterSunPattern(position.xz + lc.u_waterSun.xy * depth, tc.u_time.x * 0.35) * 1.25 - 0.25) * soften;
+        let far = (waterSunPattern(position.xz + lc.u_waterSun.xy * depth, tc.u_time.x * 0.35) - 0.310) * soften;
         lamp.color = vec4f(lamp.color.rgb * max(0.0, 1.0 + (1.0 - fade) * near * far * lc.u_waterSun.w), lamp.color.a);
     }
     if (fade <= 0.0) { return lamp; }

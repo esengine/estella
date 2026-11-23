@@ -78,6 +78,7 @@ export const CAUSTIC_PROJECTION = `#pragma shader "Water Forward Light Bundles"
 #pragma param u_causticBodyOcean vec4 default(0,0,4,0)
 #pragma param u_zoneSurfaceData texture default(white) texel(data)
 #pragma param u_bakeSun vec4 default(0,1,0,0)
+#pragma param u_farContrast float default(1.24)
 #pragma vertex
 precision highp float;
 layout(location=0) in vec2 a_position;
