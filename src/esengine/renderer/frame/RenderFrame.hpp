@@ -383,9 +383,9 @@ public:
 
 #ifdef ES_ENABLE_POSTPROCESS
     PostProcessPipeline* postProcess() { return post_process_.get(); }
+#endif
     /// Whether the open pass draws through the post chain: engaged, and not a data pass.
     bool postEngaged() const;
-#endif
     RenderTargetManager& targetManager() { return target_manager_; }
 
     /**

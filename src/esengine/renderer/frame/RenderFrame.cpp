@@ -505,8 +505,8 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     // it names pixels outside the capture, and a camera that does not start at the window's corner (the right half of a split,
     // a minimap) drew nothing at all whenever the frame was linear, tone mapped or post-processed.
     PassClear clear = camera_clear;
-    data_pass_ = camera_clear.data;
 #ifdef ES_ENABLE_POSTPROCESS
+    data_pass_ = camera_clear.data;
     if (post_process_) post_process_->setBackgroundSky(false);
     if (postEngaged()) {
         clear.x = 0;
@@ -565,11 +565,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 // one is engaged, the default surface otherwise. Bound EAGERLY, before the graph
 // runs, so a host draw between this call and end() lands in the scene.
 void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle target) {
-#ifdef ES_ENABLE_POSTPROCESS
     const bool usePostProcess = postEngaged();
-#else
-    const bool usePostProcess = false;
-#endif
 
     // The pass's load-op clear, values carried in the desc (never sticky device
     // state). Region-scoped when the caller renders one camera's viewport of a
@@ -829,11 +825,7 @@ void RenderFrame::end() {
         flush();
     }
 
-#ifdef ES_ENABLE_POSTPROCESS
     const bool usePostProcess = postEngaged();
-#else
-    const bool usePostProcess = false;
-#endif
 
     // Everything this camera draws, declared in one place and run once. The
     // scene is a pass like the effects that read it: the graph binds its target,
