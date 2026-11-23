@@ -25,6 +25,7 @@
 import { leaseBinding, type BindingLease } from './leaseBindings';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
+import { reserveLoad } from './AsyncCache';
 
 const noNames: readonly string[] = Object.freeze([]);
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
@@ -114,7 +115,11 @@ export class RegistryAssetSlots {
         // rejected. Preparation and publication belong to the slot once.
         slot.waiters++;
         try {
-            slot.loading ??= this.publishInitial_(kind, slot);
+            if (!slot.loading) {
+                const pending = reserveLoad<void>();
+                slot.loading = pending.promise;
+                pending.resolve(this.publishInitial_(kind, slot));
+            }
             await slot.loading;
             if (this.byName_.get(lookupKey(type, key)) !== slot) {
                 throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);

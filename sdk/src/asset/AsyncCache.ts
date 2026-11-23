@@ -14,6 +14,13 @@ interface FailedEntry {
     expiry: number;
 }
 
+/** Publish this promise before invoking a loader that can synchronously request the same asset. */
+export function reserveLoad<T>() {
+    let resolve!: (operation: Promise<T>) => void;
+    const promise = new Promise<T>(settle => { resolve = settle; });
+    return { promise, resolve };
+}
+
 export class AsyncCache<T> {
     private cache_ = new Map<string, T>();
     private pending_ = new Map<string, PendingEntry<T>>();
@@ -53,13 +60,11 @@ export class AsyncCache<T> {
         const existing = this.pendingRequest(key);
         if (existing) return existing;
 
-        // Loader setup can synchronously request or invalidate this key.
-        let resolvePending!: (work: Promise<T>) => void;
-        const promise = new Promise<T>(resolve => { resolvePending = resolve; });
-        const entry: PendingEntry<T> = { promise, aborted: false };
+        const pending = reserveLoad<T>();
+        const entry: PendingEntry<T> = { promise: pending.promise, aborted: false };
         this.pending_.set(key, entry);
-        resolvePending(this.load_(key, loader, timeout, entry));
-        return promise;
+        pending.resolve(this.load_(key, loader, timeout, entry));
+        return pending.promise;
     }
 
     /** The request another caller can join, including during synchronous loader setup. */

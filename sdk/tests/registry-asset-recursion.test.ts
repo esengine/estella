@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
+import type { AssetLease } from '../src/asset/AssetLease';
 import { Catalog } from '../src/asset/Catalog';
 import { ScriptGraphAssetLoader } from '../src/asset/loaders/ScriptGraphAssetLoader';
 import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
@@ -38,6 +39,25 @@ function barrier() {
 }
 
 describe('nested registry assets', () => {
+    it('joins a timeline requested synchronously by a loader observer and releases its child once', async () => {
+        let observed!: Promise<AssetLease>;
+        let preparations = 0;
+        const assets = realm(async path => path === 'parent' ? timeline('child') : timeline());
+        assets.register({ type: 'timeline', extensions: timelineLoader.extensions, registry: {
+            prepare(path, ctx) {
+                if (path === 'parent' && ++preparations === 1) observed = assets.acquireTyped('timeline', path);
+                return timelineLoader.registry.prepare(path, ctx);
+            },
+        } });
+        const first = await assets.acquireTyped('timeline', 'parent');
+        const second = await observed;
+        expect(preparations).toBe(1);
+        first.release();
+        expect(assets.resolveRegistryAsset('timeline', 'child')).toBeDefined();
+        second.release();
+        expect(assets.sizes().registrySlots).toBe(0);
+    });
+
     it('loads a child in the second realm while the first is preparing its own copy', async () => {
         const entered = barrier(), proceed = barrier();
         const first = realm(async path => {
