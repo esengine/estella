@@ -46,7 +46,7 @@ function underwaterScene(id, body, density, about) {
     const len = rayLength(SLOTS[i], TOPS[i]);
     return { x: p.x, y: p.y, rgb: encodeLinear8(c.map((v, k) => v * Math.exp(-ABSORPTION[k] * density * len))), tol: 4 };
   });
-  return { id, doc, colorSpace: 'linear', expect, about };
+  return { id, doc, colorSpace: 'linear', warm: true, expect, about };
 }
 
 export const WATER_SCENES = [

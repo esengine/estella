@@ -33,6 +33,7 @@ export const oracleEntry = (o) => ({
     // ORACLE_DUMP=1 adds a count that cannot hold, so the run fails and prints what every count measured (and every probe read).
     ...(o.count || process.env.ORACLE_DUMP ? { ESTELLA_VERIFY_COUNT: JSON.stringify([...(o.count ?? []), ...(process.env.ORACLE_DUMP ? [{ rgb: [1, 2, 3], tol: 0, atLeast: SIZE * SIZE + 1 }] : [])]) } : {}),
     ...(o.uniform ? { ESTELLA_VERIFY_UNIFORM: '1' } : {}),
+    ...(o.warm ? { ESTELLA_VERIFY_WARM: '1' } : {}),
     ...(o.play ? { ESTELLA_VERIFY_PLAY: '1' } : {}),
     ...(o.twins ? { ESTELLA_VERIFY_TWINS: JSON.stringify(o.twins) } : {}),
   },

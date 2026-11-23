@@ -18,6 +18,8 @@ import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin, WatersRes } from '..
 import { UnderwaterPlugin } from '../src/water/underwater';
 import { currentUnderwater } from '../src/postprocess/underwater';
 import { WaterZone } from '../src/water/zone';
+import { warmShaders } from '../src/render/shaderWarmup';
+import { bakesOf } from '../src/runtime/bakes';
 
 const grid: ZoneGrid = { minX: -100, minZ: -100, sizeX: 200, sizeZ: 200, nx: 201, nz: 201 };
 const ocean: ZoneOcean = { kind: 'ocean', key: 3, level: 0, waveHeight: 1, shoreWidth: 4 };
@@ -183,6 +185,31 @@ describe('basins and drainage', () => {
 });
 
 describe('the water in a running app with no renderer', () => {
+    it('keeps scene warm-up open until a budgeted water bake can answer a surface query', async () => {
+        setDefaultContext(new AppContext());
+        setEditorMode(false);
+        setPlayMode(false);
+        const app = App.new();
+        const module = Object.assign(createMockModule(), { renderer_getPendingShaders: () => 0 });
+        app.connectCpp(module.getRegistry(), module);
+        app.addPlugin(new WaterPlugin());
+        const sea = app.world.spawn();
+        app.world.insert(sea, Transform);
+        app.world.insert(sea, WaterBody, { ...WaterBody._default, form: WaterForm.Ocean, waveHeight: 0 });
+        const bakes = bakesOf(app);
+        bakes.budgetMs = 0;
+        const pendingByFrame: number[] = [];
+        const warmed = await warmShaders(app, {
+            onProgress: (_pending, making) => {
+                pendingByFrame.push(making);
+                if (pendingByFrame.length === 4) bakes.budgetMs = 100;
+            },
+        });
+        expect(warmed.timedOut).toBe(false);
+        expect(pendingByFrame.slice(0, 4)).toEqual([1, 1, 1, 1]);
+        expect(app.getResource(WatersRes).sample(0, 0, 0)?.entity).toBe(sea);
+    });
+
     it('names the body a place belongs to by the id the game gave it, the same in every session', async () => {
         setDefaultContext(new AppContext());
         setEditorMode(false);

@@ -31,6 +31,7 @@ import {
 import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
 import { Material, materialDeclaresUniform, MATERIAL_FORMAT_VERSION } from '../render/material';
+import { holdShaderWarmup } from '../render/shaderWarmup';
 import { createTextureFromPixels } from '../runtime/runtimeAssets';
 import { getResourceManager } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
@@ -774,6 +775,7 @@ export class WaterPlugin implements Plugin {
     private waters_: Waters = new Waters();
     private key_ = '';
     private surface_: Surface | null = null;
+    private releaseWarmup_?: () => void;
     private epoch_ = 0;
     /** The bake in hand, for the inputs `key` names; the field drawn until it lands is the last one baked. */
     private baking_: { key: string; cancel: () => void } | null = null;
@@ -787,6 +789,7 @@ export class WaterPlugin implements Plugin {
         this.waters_ = waters;
         waters.app_ = app;
         app.insertResource(WatersRes, waters);
+        this.releaseWarmup_ = holdShaderWarmup(app, () => waters.baking || Boolean(this.surface_?.pending));
         installWaterfalls(app);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
@@ -826,7 +829,10 @@ export class WaterPlugin implements Plugin {
                     this.key_ = key;
                     waters.field_ = field;
                     waters.revision_++;
-                }, (e) => { log.error('water', 'baking the water failed', e); });
+                }, (e) => {
+                    if (this.baking_?.key === key) waters.baking = false;
+                    log.error('water', 'baking the water failed', e);
+                });
             }
             if (!waters.field_) return;
             const eye = this.eye(app);
@@ -838,6 +844,8 @@ export class WaterPlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
+        this.releaseWarmup_?.();
+        this.releaseWarmup_ = undefined;
         if (app) this.carve(app, []);
         if (!app?.hasResource(WatersRes)) return;
         this.baking_?.cancel();
