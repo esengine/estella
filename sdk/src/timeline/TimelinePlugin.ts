@@ -10,10 +10,10 @@ import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { TimelineEvent, TimelinePlayback, type TimelineEventPayload, type TimelinePlaybackPayload } from './timelineEvents';
 import { TimelineAudioVoices } from './timelineAudio';
 import { TimelineSpawns, type TimelineSpawner } from './timelineSpawns';
+import { TimelineSpriteFrames } from './timelineSpriteFrames';
 import { TIMELINE_VIEW_SHAKE } from './timelineCameraShake';
 import { Prefabs } from '../prefab/prefabServer';
 import { Name } from '../ecs/component';
-import { writeProjection } from '../ecs/componentProjection';
 import { ensureEntityEvents } from '../ecs/entityEvents';
 import { resolveTimelinePath } from './timelineBindings';
 import { installTimeDilation } from './timeDilation';
@@ -22,8 +22,7 @@ import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { Audio, type AudioAPI } from '../audio/Audio';
-import { TrackType, type TimelineAsset,
-         type AnimFramesTrack, type PublishedTimeline } from './TimelineTypes';
+import type { PublishedTimeline } from './TimelineTypes';
 import { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './TimelinePlayerComponent';
 import { Timeline, TimelineAPI } from './TimelineControl';
 import { AnimatorController } from '../animation/Animator';
@@ -37,11 +36,6 @@ import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
 export { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './TimelinePlayerComponent';
-
-interface AnimFramesState {
-    tracks: AnimFramesTrack[];
-    lastFrameIndices: number[];
-}
 
 export class TimelinePlugin implements Plugin {
     name = 'timeline';
@@ -67,7 +61,7 @@ export class TimelinePlugin implements Plugin {
 class TimelinePlaybackSystem {
     private active_ = true;
     private timeline_: TimelineAPI | null = null;
-    private readonly animFramesStates_ = new Map<number, AnimFramesState>();
+    private readonly frames_ = new TimelineSpriteFrames();
     private offDespawn_: (() => void) | null = null;
     /** Each player's state as of last frame, to tell what it did this one. */
     private readonly lastPlayback_ = new Map<Entity, { playing: boolean; laps: number }>();
@@ -141,7 +135,7 @@ class TimelinePlaybackSystem {
 
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
-            this.animFramesStates_.delete(entity);
+            this.frames_.forget(entity);
             this.voices_.stop(entity);
             this.spawns_.forget(entity, this.spawner_);
             this.lastPlayback_.delete(entity);
@@ -176,13 +170,16 @@ class TimelinePlaybackSystem {
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
                     const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
                     current = entity;
-                    // A player with no timeline (or one that cannot be found) is not heard either.
-                    if (!player.timeline) { this.voices_.stop(entity); this.spawns_.forget(entity, this.spawner_); continue; }
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
-                    const asset = tl.getAsset(player.timeline);
-                    if (!asset) { this.voices_.stop(entity); this.spawns_.forget(entity, this.spawner_); continue; }
+                    const asset = player.timeline && tl.getAsset(player.timeline);
+                    if (!asset) {
+                        this.frames_.forget(entity);
+                        this.voices_.stop(entity);
+                        this.spawns_.forget(entity, this.spawner_);
+                        continue;
+                    }
                     const published = assets?.resolveRegistryAsset<PublishedTimeline>(
                         'timeline', player.timeline,
                     );
@@ -195,8 +192,6 @@ class TimelinePlaybackSystem {
                     const was = this.lastPlayback_.get(entity) ?? { playing: false, laps: state.laps ?? 0 };
                     state.wrapMode = wrapMode;
                     const rewound = applyPlayerFlags(player, state);
-
-                    this.ensureAnimFrames(entity, asset);
 
                     // Real time for a player that runs while the game is paused.
                     const dt = player.unscaledTime ? time.unscaledDelta : time.delta;
@@ -223,7 +218,7 @@ class TimelinePlaybackSystem {
                             }
                         },
                     });
-                    this.processAnimFrames(world, entity, state.time, published?.textureHandles);
+                    this.frames_.sync(world, entity, asset, state.time, published?.textureHandles, deps.resolveChild);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // Spawned entities: there while the playhead is inside their clip, gone once the timeline is stopped.
@@ -258,7 +253,7 @@ class TimelinePlaybackSystem {
     }
 
     clearHandles(): void {
-        this.animFramesStates_.clear();
+        this.frames_.clear();
     }
 
     dispose(): void {
@@ -266,63 +261,8 @@ class TimelinePlaybackSystem {
         this.offDespawn_?.();
         this.timeline_?.clearStates();
         this.lastPlayback_.clear();
-        this.animFramesStates_.clear();
+        this.frames_.clear();
         disposeAll([() => this.voices_.stopAll(), () => this.spawns_.stopAll(this.spawner_)], release => release());
-    }
-
-    private ensureAnimFrames(entity: Entity, asset: TimelineAsset): void {
-        if (this.animFramesStates_.has(entity)) return;
-        const afTracks = asset.tracks.filter(
-            (t): t is AnimFramesTrack => t.type === TrackType.AnimFrames,
-        );
-        if (afTracks.length > 0) {
-            this.animFramesStates_.set(entity, {
-                tracks: afTracks,
-                lastFrameIndices: afTracks.map(() => -1),
-            });
-        }
-    }
-
-    private processAnimFrames(
-        world: any, entity: Entity, currentTime: number,
-        textureHandles: ReadonlyMap<string, number> | undefined,
-    ): void {
-        const state = this.animFramesStates_.get(entity);
-        if (!state) return;
-
-        const Sprite = getComponent('Sprite');
-        if (!Sprite || !world.has(entity, Sprite)) return;
-
-        const DEFAULT_DURATION = 1.0 / 12;
-
-        for (let t = 0; t < state.tracks.length; t++) {
-            const frames = state.tracks[t].frames;
-            if (frames.length === 0) continue;
-
-            let elapsed = 0;
-            let frameIndex = 0;
-            for (let i = 0; i < frames.length; i++) {
-                const dur = frames[i].duration ?? DEFAULT_DURATION;
-                if (currentTime < elapsed + dur) {
-                    frameIndex = i;
-                    break;
-                }
-                elapsed += dur;
-                if (i === frames.length - 1) {
-                    frameIndex = frames.length - 1;
-                }
-            }
-
-            if (frameIndex !== state.lastFrameIndices[t]) {
-                state.lastFrameIndices[t] = frameIndex;
-                const textureHandle = textureHandles?.get(frames[frameIndex].texture) ?? 0;
-                if (textureHandle) {
-                    const sprite = world.get(entity, Sprite);
-                    sprite.texture = textureHandle;
-                    writeProjection(world, entity, Sprite, sprite);
-                }
-            }
-        }
     }
 }
 
