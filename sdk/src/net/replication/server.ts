@@ -30,12 +30,13 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, diffSchemas, isEntityRefShape, remapBaselineEntityFields, tableSchemas, EncodedRows, FrameWriter,
+    buildReplicationTable, cloneValue, diffSchemas, isEntityRefShape, remapBaselineEntityFields, tableSchemas, wireStepIndex, EncodedRows, FrameWriter,
     type FieldShape, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds, wireEntityRefs } from './NetIds';
 import { EntityReferenceIndex } from './EntityReferenceIndex';
+import { QuantizedBaselines } from './quantizedBaselines';
 import { ServerHierarchy, type ParentEntry } from './hierarchy';
 import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
 import { Histogram } from '../../metrics/histogram';
@@ -92,7 +93,7 @@ interface Connection {
      * connection, so a change costs the same however many connections see it.
      */
     sent: Map<Entity, SentState>;
-    /** Fields in this link's initial spawn that differed from the last shared sample. */
+    /** Exact spawn fields to reconcile for this link on the current sample. */
     initialDifferences?: Map<Entity, Map<ReplicationTableEntry, InitialFields>>;
     /** The tick its initial state was sent: nothing older is owed. */
     readyTick: number;
@@ -112,6 +113,17 @@ interface Connection {
 interface InitialFields {
     mask: number;
     seen: Record<string, unknown> | null;
+}
+
+function reconsiderBaseline(
+    c: Connection, entity: Entity, te: ReplicationTableEntry, mask: number, seen: Record<string, unknown> | null,
+): void {
+    const differences = c.initialDifferences ??= new Map();
+    let fields = differences.get(entity);
+    if (!fields) { fields = new Map(); differences.set(entity, fields); }
+    const previous = fields.get(te);
+    if (previous) previous.mask |= mask;
+    else fields.set(te, { mask, seen });
 }
 
 /** One connection's standing with one entity under a budget. */
@@ -257,23 +269,12 @@ function sameVisibility(held: VisibilityStamp | null, now: VisibilityStamp): boo
         && held.snapshot === now.snapshot && held.owned === now.owned;
 }
 
-/** Whether a shape holds a quantized number anywhere. */
-function hasStep(shape: FieldShape): boolean {
-    if (shape.kind === 'f32') return shape.step !== undefined;
-    if (shape.kind === 'object') return shape.shapes.some(hasStep);
-    return false;
-}
-
-/**
- * Whether two values of a quantized shape would arrive as the same value. The
- * shadow holds what was last SENT, so movement under a step accumulates until
- * it crosses one and is sent then: what a client holds is never more than half
- * a step from the truth, and a field drifting by less does not cost a row a tick.
- */
+/** Compare the quantized indices and unstepped leaves of a shared state field.
+ *  A viewer still holding an exact spawn tracks its own precision separately. */
 function sameOnWire(shape: FieldShape, a: unknown, b: unknown): boolean {
     if (shape.kind === 'f32' && shape.step !== undefined) {
         if (typeof a !== 'number' || typeof b !== 'number') return a === b;
-        return Math.round(a / shape.step) === Math.round(b / shape.step);
+        return wireStepIndex(a, shape.step) === wireStepIndex(b, shape.step);
     }
     if (shape.kind === 'object') {
         if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b;
@@ -297,15 +298,19 @@ function fieldEqual(a: unknown, b: unknown): boolean {
     return true;
 }
 
-/** Spawn payloads carry exact values, including fields whose later deltas are quantized. */
+function sameSampledField(te: ReplicationTableEntry, i: number, stepped: number, a: unknown, b: unknown): boolean {
+    return stepped & (1 << i) ? sameOnWire(te.shapes[i]!, a, b) : fieldEqual(a, b);
+}
+
+/** At join, compare against the shared wire shadow. At delivery, compare against the exact spawn. */
 function differingBaselineFields(
     te: ReplicationTableEntry, current: Record<string, unknown> | null, previous: Record<string, unknown> | null | undefined,
-    mask: number,
+    mask: number, stepped = 0,
 ): number {
     if (!current || !previous) return current || previous ? mask : 0;
     for (let i = 0; i < te.fields.length; i++) {
         const f = te.fields[i];
-        if ((mask & (1 << i)) && fieldEqual(current[f], previous[f])) mask &= ~(1 << i);
+        if ((mask & (1 << i)) && sameSampledField(te, i, stepped, current[f], previous[f])) mask &= ~(1 << i);
     }
     return mask;
 }
@@ -468,6 +473,7 @@ export class ReplicationServer {
         data: new Map<Entity, Map<number, Record<string, unknown> | null>>(),
     };
     private table_: ReplicationTable | null = null;
+    private quantized_: QuantizedBaselines<Connection> | undefined;
     /** Last broadcast value per entity × table entry: entity → componentId → field record. */
     private readonly shadow_ = new Map<Entity, Map<number, Record<string, unknown>>>();
     private readonly known_ = new Set<Entity>();
@@ -634,6 +640,8 @@ export class ReplicationServer {
             // freeze the table before the game's own components exist, and the
             // observation set would then describe a smaller world than the table.
             this.installObservation_(table);
+            const quantized = new QuantizedBaselines<Connection>(table);
+            if (quantized.enabled) this.quantized_ = quantized;
             this.table_ = table;
         }
         return this.table_;
@@ -854,18 +862,22 @@ export class ReplicationServer {
     }
 
     /** @internal It no longer does. */
-    private unwatch_(entity: Entity, connectionId: number): void {
+    private unwatch_(entity: Entity, conn: Connection): void {
+        this.quantized_?.leave(entity, conn);
         const seen = this.viewersByEntity_?.get(entity);
         if (!seen) return;
-        seen.delete(connectionId);
+        seen.delete(conn.id);
         if (seen.size === 0) this.viewersByEntity_!.delete(entity);
     }
 
     /** Everything a leaving connection was watching. O(its view), and a detach
      *  is not a steady-state path — twelve enters and leaves a sample are. */
     private forgetViewer_(conn: Connection): void {
+        // A spawn may have been sent before a later transport failure ended the
+        // batch, while the visibility set still describes the previous sample.
+        this.quantized_?.disconnect(conn);
         if (!this.viewersByEntity_) return;
-        for (const e of conn.interest) this.unwatch_(e, conn.id);
+        for (const e of conn.interest) this.unwatch_(e, conn);
     }
 
     /** Claim the write journal, then seed from what is already known — in that
@@ -1266,7 +1278,10 @@ export class ReplicationServer {
         // Update existing referrers before seeding new owners. Their spawn already
         // carries the current IDs, including forward references in this same sample.
         for (const entity of spawnedEntities) this.referenceFields_.targetChanged(entity);
-        for (const { entity } of despawned) this.referenceFields_.targetChanged(entity);
+        for (const { entity } of despawned) {
+            this.referenceFields_.targetChanged(entity);
+            this.quantized_?.despawn(entity);
+        }
         for (const entity of spawnedEntities) this.seedShadow_(entity);
         this.since_('registry', at);
 
@@ -1318,12 +1333,13 @@ export class ReplicationServer {
         parents: ParentEntry[],
     ): void {
         const { dirty, removals } = sample;
-        if (spawnedEntities.length || parents.length) {
+        let sentSpawns = spawnedEntities.length > 0;
+        if (sentSpawns || parents.length) {
             const entities = spawnedEntities.map((e) => this.spawnPayload_(e, this.knownNetIds_.get(e)!));
             const links = parents.map(p => p.link);
             this.broadcast_(c => {
-                if (links.length && c.parentUpdates) c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities, parents: links });
-                else if (entities.length) c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities });
+                if (links.length && c.parentUpdates) this.sendSpawn_(c, { tick, entities, parents: links });
+                else if (entities.length) this.sendSpawn_(c, { tick, entities });
             });
         }
         if (despawned.length > 0) {
@@ -1346,18 +1362,24 @@ export class ReplicationServer {
                     conn.interest.add(e);
                     missing.push(this.spawnPayload_(e, this.knownNetIds_.get(e)!));
                 }
-                if (missing.length && !this.sendTo_(conn, c => c.channel.send<ReplSpawnBatch>(
-                    ReplMsg.spawn, { tick, entities: missing }))) continue;
+                if (missing.length) {
+                    sentSpawns = true;
+                    if (!this.sendTo_(conn, c => this.sendSpawn_(c, { tick, entities: missing }))) continue;
+                }
             }
             if (removed || conn.initialDifferences) this.sendTo_(conn, c => {
-                if (removed) c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, removed);
+                if (removed) this.sendRemovals_(c, removed);
                 if (c.initialDifferences) this.reconcileInitial_(c, tick, sample, false);
             });
         }
 
         if (dirty.length > 0) {
             const frame = new FrameWriter(tick);
-            for (const d of dirty) frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
+            for (const d of dirty) {
+                frame.entry(d.netId, d.te, d.mask, d.data, this.refs_);
+                // A catch-up spawn in this broadcast also gets the shared frame.
+                if (sentSpawns) this.quantized_?.coverShared(d.entity, d.te, d.mask);
+            }
             const payload = frame.finish();
             this.broadcast_((c) => {
                 c.channel.sendBinary(REPLICATION_CHANNEL, payload);
@@ -1423,7 +1445,10 @@ export class ReplicationServer {
         for (const d of despawned) this.changes_.delete(d.entity);
         for (const r of removals) {
             const ch = this.changes_.get(r.entity);
-            if (ch) ch.comps = ch.comps.filter((c) => c.te.id !== r.componentId);
+            if (!ch) continue;
+            ch.comps = ch.comps.filter(c => c.te.id !== r.componentId);
+            if (ch.comps.length) ch.at = ch.comps.reduce((latest, c) => Math.max(latest, ...c.at), 0);
+            else this.changes_.delete(r.entity);
         }
         for (const d of dirty) {
             let ch = this.changes_.get(d.entity);
@@ -1676,7 +1701,7 @@ export class ReplicationServer {
                 const leaveIds: number[] = [];
                 for (const e of gone?.get(conn.id) ?? []) {
                     if (!conn.interest.delete(e)) continue;
-                    this.unwatch_(e, conn.id);
+                    this.unwatch_(e, conn);
                     conn.sent.delete(e);
                     const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
                     if (netId !== undefined) leaveIds.push(netId);
@@ -1706,7 +1731,7 @@ export class ReplicationServer {
             const leaveIds: number[] = [];
             for (const e of conn.interest) {
                 if (visible.has(e)) continue;
-                this.unwatch_(e, conn.id);
+                this.unwatch_(e, conn);
                 conn.sent.delete(e);
                 const netId = this.knownNetIds_.get(e) ?? despawnedNetIds.get(e);
                 if (netId !== undefined) leaveIds.push(netId);
@@ -1751,18 +1776,17 @@ export class ReplicationServer {
                 const spawning = enters.length > 0 ? enters.map(payloadOf) : null;
                 const control = this.mark_();
                 if (c.parentUpdates && mine.parents) {
-                    c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, {
+                    this.sendSpawn_(c, {
                         tick, entities: spawning ?? [], parents: mine.parents.map(i => parents[i]!.link),
                     });
                 } else if (spawning) {
-                    c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities: spawning });
+                    this.sendSpawn_(c, { tick, entities: spawning });
                 }
                 if (leaveIds.length > 0) {
                     c.channel.send<ReplDespawnBatch>(ReplMsg.despawn, { tick, netIds: leaveIds });
                 }
                 if (mine.removals.length > 0) {
-                    c.channel.send<ReplComponentRemoveBatch>(
-                        ReplMsg.componentRemove, removeBatch(tick, mine.removals.map((i) => removals[i]!)));
+                    this.sendRemovals_(c, removeBatch(tick, mine.removals.map(i => removals[i]!)));
                 }
                 if (c.initialDifferences) this.reconcileInitial_(c, tick, sample, budgeted);
                 this.since_('control send', control);
@@ -2130,12 +2154,9 @@ export class ReplicationServer {
             const data: Record<string, unknown> | null = live ? {} : null;
             if (live && data) for (const f of te.fields) data[f] = cloneValue(live[f]);
             if (joining && sampled) {
-                const mask = differingBaselineFields(te, data, sampled.get(te.id), 2 ** te.fields.length - 1);
+                const mask = differingBaselineFields(te, data, sampled.get(te.id), 2 ** te.fields.length - 1, this.quantized_?.mask(te));
                 if (mask) {
-                    const differences = joining.initialDifferences ??= new Map();
-                    let fields = differences.get(e);
-                    if (!fields) { fields = new Map(); differences.set(e, fields); }
-                    fields.set(te, { mask, seen: data && te.def.entityFields.length ? { ...data } : data });
+                    reconsiderBaseline(joining, e, te, mask, data && te.def.entityFields.length ? { ...data } : data);
                 }
             }
             if (!data) continue;
@@ -2193,7 +2214,7 @@ export class ReplicationServer {
             for (const e of this.world_.getRemovedEntitiesSince(te.def, floor)) candidates.add(e);
 
             this.dirtyCandidates += candidates.size;
-            const quantized = te.shapes.map(hasStep);
+            const stepped = this.quantized_?.mask(te) ?? 0;
             for (const e of candidates) {
                 const perComp = this.shadow_.get(e);
                 if (!perComp) continue;
@@ -2201,6 +2222,7 @@ export class ReplicationServer {
                 if (netId === undefined) continue;
                 const held = perComp.get(te.id);
                 if (!this.world_.has(e, te.def)) {
+                    if (stepped) this.quantized_!.sample(e, te, null, 0, reconsiderBaseline);
                     // The shadow is the record of what the clients were told
                     // exists. Its snapshot disappearing IS the removal — there
                     // is no other trace, since a gone component is never sampled.
@@ -2218,13 +2240,13 @@ export class ReplicationServer {
                 let mask = referenceMasks?.get(e) ?? 0;
                 for (let i = 0; i < te.fields.length; i++) {
                     const f = te.fields[i];
-                    if (!(f in snap) || !(quantized[i]
-                        ? sameOnWire(te.shapes[i]!, data[f], snap[f]) : fieldEqual(data[f], snap[f]))) {
+                    if (!(f in snap) || !sameSampledField(te, i, stepped, data[f], snap[f])) {
                         mask |= 1 << i;
                         snap[f] = cloneValue(data[f]);
                         if (isEntityRefShape(te.shapes[i])) this.referenceFields_.remember(e, te, i, snap[f]);
                     }
                 }
+                if (stepped) this.quantized_!.sample(e, te, data, mask, reconsiderBaseline);
                 if (mask !== 0) {
                     out.push({ entity: e, netId, te, mask, data });
                 }
@@ -2233,9 +2255,8 @@ export class ReplicationServer {
         return { dirty: out, removals };
     }
 
-    /** A join got live values immediately. At the next sample, ordinary deltas cover
-     *  everything that moved from the shared shadow. Only the remaining differences
-     *  need correcting, and only on the connection that saw the intermediate state. */
+    /** Pay the differences between this connection's exact spawn and the sample.
+     *  Shared deltas, interest changes and budget debt all participate in delivery. */
     private reconcileInitial_(c: Connection, tick: number, sample: DirtySample, budgeted: boolean): void {
         const differences = c.initialDifferences!;
         c.initialDifferences = undefined;
@@ -2259,24 +2280,27 @@ export class ReplicationServer {
             for (const [te, row] of fields) {
                 const data = this.world_.tryGet(entity, te.def) as Record<string, unknown> | null;
                 if (!data) {
+                    this.quantized_?.retire(entity, c, te, -1);
                     if (row.seen) removals.push({ entity, netId, componentId: te.id });
                     continue;
                 }
                 const mask = differingBaselineFields(te, data, row.seen, row.mask);
                 if (!mask) continue;
+                this.quantized_?.retire(entity, c, te, mask);
                 if (budgeted) {
                     let st = c.sent.get(entity);
                     if (!st) {
                         st = { tick: Math.max(this.budgetSince_, c.readyTick), urgency: 0 };
                         c.sent.set(entity, st);
                     }
-                    (st.initialFields ??= new Map()).set(te, mask);
+                    const owed = st.initialFields ??= new Map();
+                    owed.set(te, (owed.get(te) ?? 0) | mask);
                 } else {
                     (frame ??= new FrameWriter(tick)).entry(netId, te, mask, data, this.refs_);
                 }
             }
         }
-        if (removals.length) c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, removeBatch(tick, removals));
+        if (removals.length) this.sendRemovals_(c, removeBatch(tick, removals));
         if (frame) {
             const payload = frame.finish();
             c.channel.sendBinary(REPLICATION_CHANNEL, payload);
@@ -2301,8 +2325,7 @@ export class ReplicationServer {
         }
         // Sent even when empty: it is how a client that reconnected learns which
         // of the ghosts it still holds are gone.
-        if (!this.sendTo_(conn, (c) => c.channel.send<ReplSpawnBatch>(
-                ReplMsg.spawn, { tick: this.tick_, entities, initial: true, serverId: this.instanceId }))) {
+        if (!this.sendTo_(conn, c => this.sendSpawn_(c, { tick: this.tick_, entities, initial: true, serverId: this.instanceId }))) {
             // Never told the world, so never a participant in the next delta.
             return;
         }
@@ -2313,6 +2336,27 @@ export class ReplicationServer {
         // world is not a viewer of it, and the early return above is the only
         // other way out of this function.
         for (const e of visible) this.watch_(e, conn.id);
+    }
+
+    private sendSpawn_(c: Connection, batch: ReplSpawnBatch): void {
+        c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, batch);
+        if (!this.quantized_ || this.links_.get(c.linkId) !== c) return;
+        for (const spawn of batch.entities) {
+            const entity = this.netIds_.entityOf(spawn.netId);
+            if (entity !== undefined) this.quantized_.remember(entity, c, spawn);
+        }
+    }
+
+    private sendRemovals_(c: Connection, batch: ReplComponentRemoveBatch): void {
+        c.channel.send<ReplComponentRemoveBatch>(ReplMsg.componentRemove, batch);
+        if (!c.sent.size) return;
+        for (const { netId, componentIds } of batch.entries) {
+            const e = this.netIds_.entityOf(netId);
+            const st = e === undefined ? undefined : c.sent.get(e);
+            if (!st?.initialFields) continue;
+            for (const id of componentIds) st.initialFields.delete(this.table.entries[id]!);
+            if (!st.initialFields.size) st.initialFields = undefined;
+        }
     }
 
     private broadcast_(fn: (conn: Connection) => void): void {

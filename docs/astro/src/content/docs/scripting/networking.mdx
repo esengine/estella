@@ -376,17 +376,20 @@ import { quantizeReplicatedFields } from 'esengine/replication';
 quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
 ```
 
-- The value that arrives is the nearest multiple of the step. A field holding
-  an object (`position`'s `x, y, z`) quantizes every number in it.
-- A field that moves less than a step is not sent: the movement adds up against
-  what was last sent and goes out when it crosses a step, so a client is never
-  more than half a step from the server.
+- A state update carries the nearest multiple of the step for each number in
+  the field. For both 2D sprites and 3D meshes, a step on `Transform.position`
+  applies to its `x`, `y` and `z` coordinates.
+- Each viewer receives the exact value on spawn, including on reconnect or
+  re-entry into its interest area. If a coordinate moves more than half a step
+  from that exact value inside the same cell, the server schedules a correction
+  for that viewer when the decoded value is closer. After a quantized update,
+  crossing a cell boundary triggers the next update. Corrections share the
+  regular bandwidth budget.
 - Declare it at startup on **both** ends, before any connection. Each end builds
   its table the first time it is used, and the handshake refuses a client whose
   steps are not the server's.
-- Spawns still carry the exact value; only the per-tick deltas are quantized.
-  Interpolation and prediction smoothing treat a quantized field as the number
-  it is.
+- The receiver stores each quantized number as a 32-bit float. Interpolation
+  and prediction smoothing use that value.
 
 The row header (which entity, which component, which fields) is variable-length
 as well, so a row costs a few bytes before its values instead of ten. Measured

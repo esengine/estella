@@ -69,6 +69,17 @@ function buildShape(defaultValue: unknown): FieldShape {
 
 const quantization_ = new Map<string, Readonly<Record<string, number>>>();
 
+/** The signed step index representable by our safe-integer zigzag varint. */
+export function wireStepIndex(value: number, step: number): number {
+    const q = Math.round(value / step);
+    return Number.isSafeInteger(q) && Math.abs(q) < 2 ** 52 ? q : 0;
+}
+
+/** The f32 a receiver gets from a quantized index. */
+export function valueAtWireStep(index: number, step: number): number {
+    return Math.fround(index * step);
+}
+
 /**
  * Send some of a component's replicated number fields as whole numbers of a
  * step instead of 32-bit floats. A position in world units with step `1` (a
@@ -82,8 +93,8 @@ const quantization_ = new Map<string, Readonly<Record<string, number>>>();
  * component's quantization (for tables built after that).
  *
  * Applies to state frames, the per-tick deltas. A spawn still carries the exact
- * value. A value whose whole number of steps is beyond 2^53, or not finite, is
- * sent as 0.
+ * value. A non-finite step index or one whose absolute value is at least 2^52
+ * is sent as 0.
  *
  * @example
  * ```ts
@@ -387,9 +398,9 @@ export function encodeValue(w: ByteWriter, shape: FieldShape, value: unknown, re
         case 'f32': {
             const n = typeof value === 'number' ? value : 0;
             if (shape.step === undefined) { w.f32(n); break; }
-            const q = Math.round(n / shape.step);
+            const q = wireStepIndex(n, shape.step);
             // Zigzag: small magnitudes of either sign are small numbers.
-            w.varint(Number.isSafeInteger(q) && Math.abs(q) < 2 ** 52 ? (q >= 0 ? q * 2 : -q * 2 - 1) : 0);
+            w.varint(q >= 0 ? q * 2 : -q * 2 - 1);
             break;
         }
         case 'bool': w.u8(value ? 1 : 0); break;
@@ -418,7 +429,7 @@ export function decodeValue(r: ByteReader, shape: FieldShape, refs: EntityRefMap
             if (shape.step === undefined) return r.f32();
             const z = r.varint();
             // Zigzag back, then through f32: what the engine would hold.
-            return Math.fround((z % 2 === 0 ? z / 2 : -(z + 1) / 2) * shape.step);
+            return valueAtWireStep(z % 2 === 0 ? z / 2 : -(z + 1) / 2, shape.step);
         }
         case 'bool': return r.u8() !== 0;
         case 'string': return r.string();

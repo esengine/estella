@@ -288,3 +288,173 @@ it('compares exact initial values even when both ends of a movement quantize to 
     expect(late.world.get(ghost, spot)).toEqual({ x: 0, y: -0.49 });
     expect([early.messages, late.messages]).toEqual([[], ['state']]);
 });
+
+it.each(['broadcast', 'filtered', 'budgeted'])('keeps each viewer within half a step after an exact spawn (%s)', async route => {
+    const spot = defineComponent('ExactSpot', { at: { x: 0, y: 0, z: 0 }, weight: 0, name: '' },
+        { replicatedFields: ['at', 'weight', 'name'] });
+    quantizeReplicatedFields('ExactSpot', { at: 1, weight: 10 });
+    onTestFinished(() => quantizeReplicatedFields('ExactSpot', {}));
+    const h = host(), off = await join(h.server, 'first');
+    if (route === 'filtered') h.server.setInterestPolicy(() => 'all');
+    if (route === 'budgeted') h.server.setBandwidthBudget({ bytesPerSecond: 1 });
+    const e = h.world.spawn('actor');
+    h.world.insert(e, Replicated, {});
+    h.world.insert(e, spot, { at: { x: 0, y: 0, z: 0.49 }, weight: 4.5 });
+    await h.step();
+    off.client.applyPending();
+    const offGhost = off.world.findEntityByName('actor')!;
+    expect(off.world.get(offGhost, spot).at.z).toBe(0.49);
+    h.world.update(e, spot, d => { d.at.z = 0; d.weight = 0; });
+    await h.step();
+    const grid = await join(h.server, 'second');
+    const step = async () => { await h.step(); off.client.applyPending(); grid.client.applyPending(); };
+    grid.client.applyPending(); // The next write happens before this viewer's first sample.
+    const gridGhost = grid.world.findEntityByName('actor')!;
+    expect(grid.world.get(gridGhost, spot).at.z).toBe(0);
+    h.world.update(e, spot, d => { d.at.z = -0.01; d.weight = -0.5; });
+    await step();
+    expect([off.messages, grid.messages]).toEqual([[], []]); // Exactly half a step is still within tolerance.
+    h.world.update(e, spot, d => { d.name = 'running'; });
+    await step();
+    expect([off.messages, grid.messages]).toEqual([['state'], ['state']]);
+    h.world.update(e, spot, d => { d.at.z = -0.49; });
+    await step();
+    expect(off.world.get(offGhost, spot)).toEqual({ at: { x: 0, y: 0, z: 0 }, weight: 4.5, name: 'running' });
+    h.world.update(e, spot, d => { d.at.z = 0.35; d.weight = -4.5; });
+    await step();
+    expect(off.world.get(offGhost, spot).weight).toBe(0);
+    expect([off.messages.length, grid.messages.length]).toEqual([3, 1]);
+    for (const z of [-0.49, 0.49, 0]) {
+        h.world.update(e, spot, d => { d.at.z = z; });
+        await step();
+    }
+    expect([off.messages.length, grid.messages.length]).toEqual([3, 1]);
+});
+
+it('keeps corrections to different fields while two viewers of the same spawn spend different budgets', async () => {
+    const spot = defineComponent('SharedSpot', { x: 0, y: 0 }, { replicatedFields: ['x', 'y'] });
+    quantizeReplicatedFields('SharedSpot', { x: 1, y: 1 });
+    onTestFinished(() => quantizeReplicatedFields('SharedSpot', {}));
+    const h = host(), fast = await join(h.server, 'first'), waiting = await join(h.server, 'second');
+    const actor = h.world.spawn('actor'), blocker = h.world.spawn('blocker');
+    for (const e of [actor, blocker]) h.world.insert(e, Replicated, {});
+    h.world.insert(actor, spot, { x: 0.49, y: 0.49 });
+    h.world.insert(blocker, spot, {});
+    h.server.setBandwidthBudget({ bytesPerSecond: 1, priority: ({ connectionId, entity }) =>
+        entity === (connectionId === fast.id ? actor : blocker) ? 10 : 1 });
+    const step = async () => { await h.step(); fast.client.applyPending(); waiting.client.applyPending(); };
+    const position = (peer: typeof fast) => peer.world.get(peer.world.findEntityByName('actor')!, spot);
+    await step();
+    h.world.update(actor, spot, d => { d.x = -0.49; });
+    h.world.update(blocker, spot, d => { d.x = 1; });
+    await step();
+    expect(position(fast)).toEqual({ x: 0, y: 0.49 });
+    expect(position(waiting)).toEqual({ x: 0.49, y: 0.49 });
+    h.world.update(actor, spot, d => { d.y = -0.49; });
+    await step();
+    expect(position(fast)).toEqual({ x: 0, y: 0 });
+    expect(position(waiting)).toEqual({ x: 0, y: 0 });
+    expect(h.server.owedCount(waiting.id)).toBe(0);
+});
+
+it('uses the value from the latest interest entry and retires a spawn immediately covered by a broadcast', async () => {
+    const spot = defineComponent('ViewSpot', { x: 0 }, { replicatedFields: ['x'] });
+    quantizeReplicatedFields('ViewSpot', { x: 1 });
+    onTestFinished(() => quantizeReplicatedFields('ViewSpot', {}));
+    const h = host(), steady = await join(h.server, 'steady'), visitor = await join(h.server, 'visitor');
+    let visible = false;
+    h.server.setInterestPolicy(({ connectionId, candidates }) =>
+        connectionId === visitor.id && !visible ? new Set() : new Set(candidates));
+    const e = h.world.spawn('actor');
+    h.world.insert(e, Replicated, {});
+    h.world.insert(e, spot, { x: 0 });
+    const step = async () => { await h.step(); steady.client.applyPending(); visitor.client.applyPending(); };
+    await step();
+    h.world.update(e, spot, d => { d.x = 0.48; });
+    visible = true;
+    await step();
+    const old = visitor.world.findEntityByName('actor')!;
+    expect(visitor.world.get(old, spot).x).toBe(0.48);
+    visible = false;
+    h.world.update(e, spot, d => { d.x = -0.49; });
+    await step();
+    expect(visitor.world.valid(old)).toBe(false);
+    expect(visitor.messages).toEqual([]);
+    visible = true;
+    await step();
+    const returned = visitor.world.findEntityByName('actor')!;
+    expect(visitor.world.get(returned, spot).x).toBe(-0.49);
+    h.world.update(e, spot, d => { d.x = 0.49; });
+    await step();
+    expect(visitor.world.get(returned, spot).x).toBe(0);
+    expect([steady.messages, visitor.messages]).toEqual([[], ['state']]);
+
+    visible = false;
+    h.world.update(e, spot, d => { d.x = 1.1; });
+    await step();
+    h.server.setInterestPolicy(null);
+    h.world.update(e, spot, d => { d.x = 0.49; });
+    await step(); // The catch-up spawn is followed by this sample's shared binary row.
+    const again = visitor.world.findEntityByName('actor')!;
+    expect(visitor.world.get(again, spot).x).toBe(0);
+    h.world.update(e, spot, d => { d.x = -0.49; });
+    await step();
+    expect(visitor.messages).toEqual(['state', 'state']);
+});
+
+it.each(['exact spawn', 'regular delta'])('frees the bandwidth slot when a deferred component is removed (%s)', async source => {
+    const spot = defineComponent('BudgetSpot', { x: 0, revision: 0 }, { replicatedFields: ['x', 'revision'] });
+    quantizeReplicatedFields('BudgetSpot', { x: 1 });
+    onTestFinished(() => quantizeReplicatedFields('BudgetSpot', {}));
+    const h = host(), peer = await join(h.server, 'viewer');
+    h.server.setBandwidthBudget({ bytesPerSecond: 1, priority: () => 1 });
+    const names = ['one', 'two', 'three'];
+    const actors = names.map(name => {
+        const e = h.world.spawn(name);
+        h.world.insert(e, Replicated, {});
+        h.world.insert(e, spot, { x: source === 'exact spawn' ? 0.49 : 0 });
+        return e;
+    });
+    const step = async () => { await h.step(); peer.client.applyPending(); };
+    await step();
+    for (const e of actors) h.world.update(e, spot, d => { d.x = source === 'exact spawn' ? -0.49 : 1.2; });
+    await step();
+    const ghost = (name: string) => peer.world.findEntityByName(name)!;
+    const waiting = names.filter(name => peer.world.get(ghost(name), spot).x === (source === 'exact spawn' ? 0.49 : 0));
+    expect(waiting).toHaveLength(2);
+    expect(h.server.owedCount(peer.id)).toBe(2);
+    h.world.remove(h.world.findEntityByName(waiting[0]!)!, spot);
+    h.world.update(h.world.findEntityByName(waiting[1]!)!, spot, d => { d.x = 1.3; d.revision = 2; });
+    await step();
+    expect(peer.world.has(ghost(waiting[0]!), spot)).toBe(false);
+    expect(peer.world.get(ghost(waiting[1]!), spot)).toEqual({ x: 1, revision: 2 });
+    expect(h.server.owedCount(peer.id)).toBe(0);
+});
+
+it('replaces the high field bit with the returning player’s exact baseline', async () => {
+    const fields = Array.from({ length: 32 }, (_, i) => 'n' + i);
+    const wide = defineComponent('WideSpot', Object.fromEntries(fields.map(f => [f, 0])) as Record<string, number>,
+        { replicatedFields: fields });
+    quantizeReplicatedFields('WideSpot', { n31: 1 });
+    onTestFinished(() => quantizeReplicatedFields('WideSpot', {}));
+    const h = host(), peer = await join(h.server, 'player');
+    const e = h.world.spawn('wide');
+    h.world.insert(e, Replicated, {});
+    h.world.insert(e, wide, { n31: 0.49 });
+    await h.step();
+    peer.client.applyPending();
+    const ghost = peer.world.findEntityByName('wide')!;
+    h.server.detachConnection(peer.id);
+    h.world.update(e, wide, d => { d.n31 = -0.49; });
+    const [a, b] = MemoryTransport.pair();
+    h.server.attachConnection(a);
+    await peer.client.resume(b);
+    await h.step();
+    peer.client.applyPending();
+    expect(peer.world.get(ghost, wide).n31).toBe(-0.49);
+    h.world.update(e, wide, d => { d.n31 = 0.49; });
+    await h.step();
+    peer.client.applyPending();
+    expect(peer.world.findEntityByName('wide')).toBe(ghost);
+    expect(peer.world.get(ghost, wide).n31).toBe(0);
+});

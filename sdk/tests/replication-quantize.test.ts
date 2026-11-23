@@ -3,10 +3,9 @@
 /**
  * @file  Quantized replicated fields, and the variable-length row header.
  *
- * A quantized number travels as a whole number of steps: it arrives as the
- * nearest multiple, both ends must agree on the step, and movement under a
- * step is not worth a row — it accumulates against what was last sent and goes
- * out when it crosses one, so a client is never more than half a step off.
+ * A quantized number travels as a whole number of steps. Both endpoints use
+ * the same step. An exact spawn can need one correction inside its initial
+ * cell. Once on the grid, crossing a cell boundary produces the next update.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { App } from '../src/app/app';
@@ -115,7 +114,7 @@ describe('a quantized field on the wire', () => {
                 .find((x) => (app.world.tryGet(x, Name) as { value: string } | null)?.value === 'spot') as Entity;
             return (app.world.tryGet(g, Spot) as { at: { x: number; y: number } }).at;
         };
-        return { serverApp, server, e, step, ghostAt };
+        return { serverApp, app, server, e, step, ghostAt };
     }
 
     it('sends drift under a step only when it crosses one, and the client stays within half a step', async () => {
@@ -132,6 +131,26 @@ describe('a quantized field on the wire', () => {
         }
         // Forty ticks of a tenth of a step: four steps crossed, four frames.
         expect(h.server.stats.stateFrames - framesBefore).toBe(4);
+    });
+
+    it('uses the encoder fallback when comparing unrepresentable step indices', async () => {
+        quantizeReplicatedFields('Spot', { hp: 1 });
+        const h = await serverAndClient();
+        await h.step();
+        const set = async (hp: number) => {
+            h.serverApp.world.update(h.e, Spot, d => { d.hp = hp; });
+            await h.step();
+        };
+        const before = h.server.stats.stateFrames;
+        await set(1);
+        await set(2 ** 52);
+        expect(h.server.stats.stateFrames - before).toBe(2);
+        const ghost = h.app.world.findEntityByName('spot')!;
+        expect(h.app.world.get(ghost, Spot).hp).toBe(0);
+        await set(-(2 ** 53));
+        expect(h.server.stats.stateFrames - before).toBe(2);
+        await set(-2);
+        expect(h.app.world.get(ghost, Spot).hp).toBe(-2);
     });
 
     it('refuses a client whose steps are not the server’s', async () => {
