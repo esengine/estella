@@ -1,4 +1,4 @@
-// Bundles the engine's workers (the worlds' planning worker, the texture recipes' drawing worker) into the text they are started from, and writes each as a module:
+// Bundle each engine worker and write its executable text as an SDK module.
 //   node scripts/build-worker.mjs [--check]
 // `--check` writes nothing and exits 1 when a committed text is not what its source makes now.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';

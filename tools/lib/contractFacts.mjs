@@ -36,6 +36,8 @@
  * authority).
  */
 
+import { workerEntries } from '../../sdk/scripts/worker-source.mjs';
+
 export const FACTS = [
     {
         id: 'componentShapes',
@@ -359,12 +361,9 @@ export const RE_EXPORTS = {
 export const NOT_CONTRACT = {
     'sdk/etc/perf.snapshot.json':
         'a measured baseline, not a derivation — accepted with `perf-guard --update`.',
-    'sdk/src/runtime/planWorkerBundle.generated.ts':
-        'the compiled text of src/worldgen/planWorker.ts, built by sdk/scripts/build-worker.mjs — one source file bundled, not a projection of a fact two places must agree on.',
-    'sdk/src/sound/soundWorkerBundle.generated.ts':
-        'the compiled text of the sound worker, built by sdk/scripts/build-worker.mjs — one source file bundled, as the planning worker is.',
-    'sdk/src/image/recipeWorkerBundle.generated.ts':
-        'the compiled text of src/image/recipeWorker.ts, built by sdk/scripts/build-worker.mjs — one source file bundled, as the planning worker is.',
+    ...Object.fromEntries(workerEntries.map(({ out, entry }) => [
+        `sdk/${out}`, `the executable worker bundled from sdk/${entry} by sdk/scripts/build-worker.mjs.`,
+    ])),
     'native/spine/SpineCRename21.hpp':
         'the symbols a pinned vendored spine-c 2.1 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
     'native/spine/SpineCRename38.hpp':

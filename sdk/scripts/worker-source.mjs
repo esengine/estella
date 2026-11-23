@@ -1,12 +1,11 @@
 // The engine's workers, each bundled into one script, and the module that carries its text.
-import { rolldown } from 'rolldown';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const root = `${resolve(dirname(fileURLToPath(import.meta.url)), '..')}/`;
 
 /** Every worker: where its source is, the module its text is written to, and the name and the words that module gives it. */
-const WORKERS = [
+export const workerEntries = [
   { entry: 'src/worldgen/planWorker.ts', out: 'src/runtime/planWorkerBundle.generated.ts', name: 'PLAN_WORKER_SOURCE',
     doc: "The planning worker's script: what a pool of planning workers is started from." },
   { entry: 'src/image/recipeWorker.ts', out: 'src/image/recipeWorkerBundle.generated.ts', name: 'RECIPE_WORKER_SOURCE',
@@ -18,6 +17,7 @@ const WORKERS = [
 ];
 
 async function build(worker) {
+  const { rolldown } = await import('rolldown');
   const bundle = await rolldown({ input: `${root}${worker.entry}`, platform: 'browser', treeshake: { moduleSideEffects: () => true }, logLevel: 'silent' });
   const { output } = await bundle.generate({ format: 'iife', minify: true, codeSplitting: false });
   await bundle.close();
@@ -37,10 +37,10 @@ export const ${worker.name} = ${JSON.stringify(text)};
 
 /** The path of each generated module, and its source for the script the bundler makes now. */
 export async function workerModules() {
-  return Promise.all(WORKERS.map(build));
+  return Promise.all(workerEntries.map(build));
 }
 
 /** The planning worker's alone (the first of them). */
 export async function workerModule() {
-  return build(WORKERS[0]);
+  return build(workerEntries[0]);
 }
