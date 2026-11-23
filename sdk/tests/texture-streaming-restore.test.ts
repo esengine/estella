@@ -28,16 +28,18 @@ const KNOWN_FULL = new Map<number, number>();
 function harness(startedSmall = 0) {
     const profile = { ...defaultQualityProfile('high'), textureStreaming: true, textureStreamingBudget: 0 };
     const resized: [number, number][] = [];
+    const bindings = new Map([...FILES.keys()].map(handle => [handle, {}] as const));
     const loader = {
         startedSmall,
-        resizableHandles: () => FILES.keys(),
+        resizableHandles: () => bindings.keys(),
+        streamingBinding: (handle: number) => bindings.get(handle),
         fullSize: (handle: number) => { const edge = KNOWN_FULL.get(handle) ?? FILES.get(handle); return edge ? { width: edge, height: edge } : null; },
     };
     const assets = {
-        textureResizable: (handle: number) => FILES.has(handle),
+        textureResizable: (handle: number) => bindings.has(handle),
         textureFullSize: (handle: number) => loader.fullSize(handle),
         getTextureLoader: () => loader,
-        resizeTexture: async (handle: number, edge: number) => {
+        resizeTexture: async (handle: number, edge: number): Promise<{ width: number; height: number } | null> => {
             resized.push([handle, edge]);
             const full = FILES.get(handle)!;
             const size = Math.min(edge === 0 ? full : Math.min(full, edge), DECODES_AT_MOST.get(handle) ?? Infinity);
@@ -61,7 +63,7 @@ function harness(startedSmall = 0) {
         tick!();
         for (let i = 0; i < 10; i++) await Promise.resolve();
     };
-    return { profile, resized, run, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
+    return { profile, resized, run, bindings, assets, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
 }
 
 describe('textures streaming shrank, once the quality level stops streaming', () => {
@@ -119,6 +121,41 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         await run(1000);
         await run(2000);
         expect(resized).toEqual([]);
+    });
+
+    it('drops released handles from the byte budget and from the refused set', async () => {
+        const { profile, bindings, run, state } = harness(1);
+        dims.set(2, { width: 256, height: 256 });
+        DECODES_AT_MOST.set(2, 256);
+        profile.textureStreaming = false;
+        await run(1000);
+        expect(state().refused.has(2)).toBe(true);
+        profile.textureStreaming = true;
+        wants = '1:2048';
+        await run(2000);
+        expect(state().bytes().now).toBeGreaterThan(0);
+        bindings.delete(1);
+        bindings.delete(2);
+        await run(3000);
+        expect(state().bytes()).toEqual({ now: 0, full: 0 });
+        expect(state().refused.size).toBe(0);
+    });
+
+    it('lets the new holder restore after the previous holder released during a decode', async () => {
+        const { profile, bindings, assets, run, state, resized } = harness(1);
+        dims.set(2, { width: 256, height: 256 });
+        profile.textureStreaming = false;
+        let resume!: () => void;
+        const gate = new Promise<void>(resolve => { resume = resolve; });
+        const resize = vi.spyOn(assets, 'resizeTexture').mockImplementationOnce(async () => { await gate; return null; });
+        await run(1000);
+        expect(resize).toHaveBeenCalledWith(2, 0);
+        bindings.set(2, {});
+        resume();
+        await run(1200);
+        expect(state().refused.has(2)).toBe(false);
+        await run(2000);
+        expect(resized).toEqual([[2, 0]]);
     });
 });
 

@@ -233,9 +233,19 @@ export class TextureStreamingPlugin implements Plugin {
 
             const assets = app.getResource(Assets);
             const loader = assets.getTextureLoader();
+            for (const handle of state.textures.keys()) {
+                if (!assets.textureResizable(handle)) state.textures.delete(handle);
+            }
+            for (const handle of state.refused) {
+                if (!assets.textureResizable(handle)) state.refused.delete(handle);
+            }
             const putBack = (handle: number): void => {
+                const binding = loader.streamingBinding(handle);
+                if (!binding) return;
                 const full = loader.fullSize(handle);
-                const refuse = (): void => { state.failures++; state.refused.add(handle); };
+                const refuse = (): void => {
+                    if (loader.streamingBinding(handle) === binding) { state.failures++; state.refused.add(handle); }
+                };
                 state.restoring.add(handle);
                 state.inFlight++;
                 void assets.resizeTexture(handle, 0).then((size) => { if (!size || (full && (size.width < full.width || size.height < full.height))) refuse(); }, refuse)
@@ -284,23 +294,30 @@ export class TextureStreamingPlugin implements Plugin {
             }
 
             const options = textureStreamingOptionsOf(profile!);
-            for (const move of planStreaming([...state.textures.values()].filter((e) => !moving.has(e.handle)), now, options)) {
+            const available = [...state.textures.values()].filter(e => !moving.has(e.handle) && !state.restoring.has(e.handle));
+            for (const move of planStreaming(available, now, options)) {
                 if (state.inFlight >= inFlight) break;
                 const entry = state.textures.get(move.handle)!;
+                const binding = loader.streamingBinding(move.handle);
+                const current = () => loader.streamingBinding(move.handle) === binding && state.textures.get(move.handle) === entry;
                 const full = Math.max(entry.fullWidth, entry.fullHeight);
                 state.inFlight++;
                 moving.add(move.handle);
                 const was = entry.edge;
                 entry.edge = move.edge;  // claimed now, so the next pass does not ask again while this one decodes
+                const failed = (): void => {
+                    if (current()) { entry.edge = was; state.failures++; state.textures.delete(move.handle); }
+                };
                 void assets.resizeTexture(move.handle, move.edge >= full ? 0 : move.edge).then((size) => {
+                    if (!current()) return;
                     if (size && Math.max(size.width, size.height) > move.edge && move.edge < full) {
                         // It could not be made that small, and asking again would decode it again for nothing.
                         entry.edge = Math.max(size.width, size.height);
                         state.refused.add(move.handle);
                         state.textures.delete(move.handle);
                     } else if (size) { entry.edge = Math.max(size.width, size.height); state.moves++; }
-                    else { entry.edge = was; state.failures++; state.textures.delete(move.handle); }
-                }, () => { entry.edge = was; state.failures++; state.textures.delete(move.handle); })
+                    else failed();
+                }, failed)
                     .finally(() => { state.inFlight--; moving.delete(move.handle); });
             }
         }, { name: 'TextureStreamingSystem' }), { runIf: playModeOnly });

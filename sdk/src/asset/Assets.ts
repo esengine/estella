@@ -816,8 +816,7 @@ export class Assets {
     private releaseUnclaimedTexture_(load: TextureLoad): void {
         if (load.generation !== undefined) return;
         load.generation = null;
-        evictTextureDimensions(load.value.handle);
-        requireResourceManager().releaseTexture(load.value.handle);
+        this.textureLoader_.unload(load.value);
     }
 
     /**
@@ -2079,13 +2078,12 @@ export class Assets {
     private disposeTexture_(key: string, handle: number): void {
         // The pool decides what that means — free immediately (no budget), or
         // retain as an evictable cache entry that the next load revives by key.
-        evictTextureDimensions(handle);
         this.handleToPath_.delete(`texture:${handle}`);
         // Only when it is still the cached value: a superseded handle left the
         // cache when its generation ended, and the entry there now belongs to a
         // generation with holders of its own.
         if (this.textureCache_.get(key)?.value.handle === handle) this.textureCache_.delete(key);
-        requireResourceManager().releaseTexture(handle);
+        this.textureLoader_.releaseHandle(handle);
     }
 
     releaseFont(ref: string): void {
@@ -2562,12 +2560,7 @@ export class Assets {
                     }
                     this.textureCache_.clearAll();
                     for (const { value } of this.textureRefs_.drain()) handles.add(value);
-                    if (handles.size === 0) return;
-                    const rm = requireResourceManager();
-                    disposeAll([...handles], handle => {
-                        evictTextureDimensions(handle);
-                        rm.releaseTexture(handle);
-                    });
+                    disposeAll([...handles], handle => this.textureLoader_.releaseHandle(handle));
                 },
                 () => {
                     for (const cache of this.genericCache_.values()) cache.clearAll();

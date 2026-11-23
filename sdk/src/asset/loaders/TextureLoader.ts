@@ -5,7 +5,7 @@ import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
 import { decodeBlobBitmap, decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
-import { requireResourceManager } from '../../wasm/resourceManager';
+import { evictTextureDimensions, requireResourceManager } from '../../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
@@ -91,12 +91,34 @@ export function textureResidencyKey(path: string, flip: boolean): string {
 
 const isPng = (b: Uint8Array): boolean => b.byteLength > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
 
+interface TextureSource {
+    readonly handle: number;
+    readonly path: string;
+    readonly flip: boolean;
+    readonly settings?: TextureImportSettings;
+    fullWidth: number;
+    fullHeight: number;
+}
+
+interface HeldTextureSource {
+    readonly source: TextureSource;
+    references: number;
+    resize: number;
+}
+
 export class TextureLoader implements AssetLoader<TextureResult> {
     private readonly imageRevisions_ = new Map<string, number>();
 
     /** End this revision for browser image requests and pending residency publications. */
     invalidate(path: string): boolean {
         this.imageRevisions_.set(path, ++nextImageRevision);
+        const flipped = this.sourcesByKey_.delete(textureResidencyKey(path, true));
+        const raw = this.sourcesByKey_.delete(textureResidencyKey(path, false));
+        if (flipped || raw) {
+            for (const [handle, held] of this.held_) {
+                if (held.source.path === path) this.held_.delete(handle);
+            }
+        }
         return false;
     }
     readonly type = 'texture';
@@ -134,14 +156,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * took the decisions and cannot outlive the textures it describes.
      */
     private readonly formats_ = new TextureFormatLog();
-    /** Where each texture this loader decoded from a file came from: what a resize decodes again. */
-    private readonly sources_ = new Map<number, { path: string; flip: boolean; settings?: TextureImportSettings; fullWidth: number; fullHeight: number }>();
+    /** File-backed handles this realm currently owns and can resize. */
+    private readonly held_ = new Map<number, HeldTextureSource>();
     private pendingStartEdge_ = 0;
     /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
     startedSmall = 0;
     askedSmall = 0;
     /** The same sources by residency key, kept past a release: a texture revived from the warm cache is the same file at the size it was left at. */
-    private readonly sourcesByKey_ = new Map<string, { path: string; flip: boolean; settings?: TextureImportSettings; fullWidth: number; fullHeight: number }>();
+    private readonly sourcesByKey_ = new Map<string, TextureSource>();
     /** The decision the in-flight upload came to. Set by the one entry point that
      *  chooses a path (decodeAndUpload_) and read by the one that records. */
     private lastDecision_: TextureUploadDecision = RAW_PAYLOAD_UPLOAD;
@@ -210,10 +232,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         return { handle, width, height };
     }
 
-    unload(asset: TextureResult): void {
-        this.sources_.delete(asset.handle);
-        const rm = requireResourceManager();
-        rm.releaseTexture(asset.handle);
+    unload(asset: TextureResult): void { this.releaseHandle(asset.handle); }
+
+    /** @internal Give back one native acquisition, including its streaming source. */
+    releaseHandle(handle: number): void {
+        const held = this.held_.get(handle);
+        if (held && --held.references === 0) this.held_.delete(handle);
+        evictTextureDimensions(handle);
+        requireResourceManager().releaseTexture(handle);
     }
 
     /**
@@ -234,26 +260,32 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * The texture streamer's one move. False for a handle this loader did not decode from a file, or one the host cannot re-point.
      */
     async resize(handle: number, maxEdge: number, ctx: LoadContext): Promise<{ width: number; height: number } | null> {
-        const source = this.sources_.get(handle);
+        const held = this.held_.get(handle);
         const rm = requireResourceManager();
-        if (!source || !rm.adoptTextureContent) return null;
+        if (!held || !rm.adoptTextureContent) return null;
+        const request = ++held.resize;
+        const { source } = held;
         const fresh = await this.decodeAndUpload_(source.path, ctx, source.flip, source.settings, maxEdge);
-        const moved = rm.adoptTextureContent(handle, fresh.handle);
-        rm.releaseTexture(fresh.handle);
-        if (!moved) return null;
-        source.fullWidth = fresh.fullWidth ?? fresh.width;
-        source.fullHeight = fresh.fullHeight ?? fresh.height;
-        return { width: fresh.width, height: fresh.height };
+        try {
+            if (this.held_.get(handle) !== held || held.resize !== request) return null;
+            if (!rm.adoptTextureContent(handle, fresh.handle)) return null;
+            source.fullWidth = fresh.fullWidth ?? fresh.width;
+            source.fullHeight = fresh.fullHeight ?? fresh.height;
+            return { width: fresh.width, height: fresh.height };
+        } finally { rm.releaseTexture(fresh.handle); }
     }
 
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
-    resizable(handle: number): boolean { return this.sources_.has(handle); }
+    resizable(handle: number): boolean { return this.held_.has(handle); }
 
-    resizableHandles(): IterableIterator<number> { return this.sources_.keys(); }
+    /** @internal Identity of the current hold on a streamable texture. */
+    streamingBinding(handle: number): object | undefined { return this.held_.get(handle); }
+
+    resizableHandles(): IterableIterator<number> { return this.held_.keys(); }
 
     /** The size of the file behind @p handle, whatever size it is held at; null for one this loader did not decode from a file. */
     fullSize(handle: number): { width: number; height: number } | null {
-        const s = this.sources_.get(handle);
+        const s = this.held_.get(handle)?.source;
         return s ? { width: s.fullWidth, height: s.fullHeight } : null;
     }
 
@@ -263,7 +295,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** A texture the warm cache gave back under @p key is the one this loader decoded under it: resizable again. */
     adoptRevived(handle: number, key: string): void {
         const source = this.sourcesByKey_.get(key);
-        if (source) this.sources_.set(handle, source);
+        if (source?.handle === handle) this.holdSource_(source);
+    }
+
+    private holdSource_(source: TextureSource): void {
+        const held = this.held_.get(source.handle);
+        if (held?.source === source) held.references++;
+        else this.held_.set(source.handle, { source, references: 1, resize: 0 });
     }
 
     private async loadWithFlip(
@@ -274,12 +312,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         this.pendingStartEdge_ = 0;
         if (start > 0) this.askedSmall++;
         const result = await this.decodeAndUpload_(path, ctx, flip, settings, start);
-        const source = { path, flip, settings, fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height };
-        this.sources_.set(result.handle, source);
         if (result.fullWidth !== undefined) this.startedSmall++;
         // The original caller still owns its pixels. Only the current revision can publish them by path.
         if (revision !== this.imageRevisions_.get(path)) return result;
+        const source = { handle: result.handle, path, flip, settings, fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height };
         const key = textureResidencyKey(path, flip);
+        this.holdSource_(source);
         this.sourcesByKey_.set(key, source);
         // Recorded HERE, once, for every path into the loader — the compressed
         // paths, the pixel decoder and the <img> upload alike. A record kept only

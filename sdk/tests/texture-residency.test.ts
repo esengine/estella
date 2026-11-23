@@ -85,6 +85,8 @@ function createPoolFake() {
             return { width: 64, height: 64 };
         }),
         getTextureGLId: vi.fn(() => 1),
+        adoptTextureContent: vi.fn((target: number, source: number) =>
+            !!entries.get(target)?.refCount && !!entries.get(source)?.refCount),
         // Test-only inspection helpers.
         entryOf: (handle: number) => entries.get(handle) ?? null,
         isResident: (handle: number) => entries.has(handle),
@@ -181,6 +183,72 @@ describe('texture residency (Assets ↔ pool contract)', () => {
         assets.releaseTexture('tex/a.png');
         expect(pool.releaseTexture).toHaveBeenCalledTimes(1);
         expect(pool.entryOf(result.handle)?.evictable).toBe(true);
+    });
+
+    it.each(['typed', 'texture'] as const)('keeps streaming until the last native reference when %s releases first', async first => {
+        const assets = buildAssets();
+        const file = 'tex/shared.png';
+        const typed = await assets.acquireTyped<{ handle: number }>('texture', file);
+        const texture = await assets.acquireTexture(file);
+        const handle = texture.value.handle;
+        expect(typed.value.handle).toBe(handle);
+        const holders = { typed, texture };
+        holders[first].release();
+        expect(assets.textureResizable(handle)).toBe(true);
+        holders[first === 'typed' ? 'texture' : 'typed'].release();
+        expect([...assets.getTextureLoader().resizableHandles()]).toEqual([]);
+        const revived = await assets.acquireTexture(file);
+        expect(revived.value.handle).toBe(handle);
+        expect(assets.textureFullSize(handle)).toEqual({ width: 64, height: 64 });
+        assets.releaseAll();
+        expect(assets.textureResizable(handle)).toBe(false);
+        expect(pool.entryOf(handle)?.refCount).toBe(0);
+    });
+
+    it.each(['release and revive', 'teardown and revive', 'file edit', 'newer resize'] as const)(
+        'discards a late streaming upload after %s', async change => {
+            const assets = buildAssets();
+            const file = 'tex/racing.png';
+            const held = await assets.acquireTexture(file);
+            const handle = held.value.handle;
+            let enter!: () => void, resume!: () => void;
+            const entered = new Promise<void>(resolve => { enter = resolve; });
+            const gate = new Promise<void>(resolve => { resume = resolve; });
+            assets.getTextureLoader().setPixelDecoder(async (_path, _flip, edge) => {
+                if (edge === 4) { enter(); await gate; }
+                const width = edge || 64;
+                return { width, height: 1, pixels: new Uint8Array(width * 4) };
+            });
+            const resizing = assets.resizeTexture(handle, 4);
+            try {
+                await entered;
+                if (change === 'file edit') {
+                    assets.invalidate(file);
+                    expect(assets.textureResizable(handle)).toBe(false);
+                } else if (change === 'newer resize') {
+                    expect(await assets.resizeTexture(handle, 8)).toEqual({ width: 8, height: 1 });
+                } else {
+                    if (change === 'release and revive') held.release();
+                    else assets.releaseAll();
+                    expect((await assets.acquireTexture(file)).value.handle).toBe(handle);
+                }
+                resume();
+                expect(await resizing).toBeNull();
+                expect(pool.adoptTextureContent).toHaveBeenCalledTimes(change === 'newer resize' ? 1 : 0);
+                const temporary = pool.createTexture.mock.results.at(-1)!.value;
+                expect(pool.isResident(temporary)).toBe(false);
+            } finally { resume(); await resizing; assets.releaseAll(); }
+        });
+
+    it('gives back the temporary upload when a host refuses a resize by throwing', async () => {
+        const assets = buildAssets();
+        const held = await assets.acquireTexture('tex/refused.png');
+        pool.adoptTextureContent.mockImplementationOnce(() => { throw new Error('lost device'); });
+        await expect(assets.resizeTexture(held.value.handle, 4)).rejects.toThrow('lost device');
+        const temporary = pool.createTexture.mock.results.at(-1)!.value;
+        expect(pool.isResident(temporary)).toBe(false);
+        expect(assets.textureResizable(held.value.handle)).toBe(true);
+        held.release();
     });
 
     it('invalidate severs the residency identity — an evicted entry is never revived', async () => {
