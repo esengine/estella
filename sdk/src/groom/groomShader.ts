@@ -12,7 +12,7 @@
  * the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { PACK_NORMAL_GLSL } from '../render/shaderLib';
+import { HASH13_GLSL, PACK_NORMAL_GLSL } from '../render/shaderLib';
 
 const WIDTH_GLSL = `
 highp float strandWorldPerPixel(highp float dist) {
@@ -107,6 +107,7 @@ ${PACK_NORMAL_GLSL}
 out vec4 fragColor;
 #endif
 ${WIDTH_GLSL}
+${HASH13_GLSL}
 
 void main() {
     float t = clamp(v_texCoord.y, 0.0, 1.0);
@@ -125,6 +126,15 @@ void main() {
     if (u_strandMinPx > 0.0) {
         highp float need = u_strandMinPx * 0.5 * strandWorldPerPixel(max(length(P - u_camera.xyz), 1e-3));
         alpha = clamp(strandHalfWidth(v_color.a, t) / max(need, 1e-9), 0.0, 1.0);
+#ifndef SHADOW_DEPTH
+        // Coverage kept as a share of pixels, each strand at its own random threshold (how far along it is differs strand to strand where
+        // they cross): a pixel n strands of coverage c cross is covered 1 - (1 - c)^n of the time, as it is, rather than by whichever
+        // strand passes a cut. A temporal resolve turns the scatter into the fraction; multisample coverage would need a sample per strand.
+        if (alpha < 1.0) {
+            if (hash13(vec3(gl_FragCoord.xy, t * 4099.0 + v_color.a * 37.0)) >= alpha) discard;
+            alpha = 1.0;
+        }
+#endif
     }
 #else
     highp vec3 P = vec3(v_worldPos, 0.0);
