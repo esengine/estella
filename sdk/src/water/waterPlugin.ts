@@ -1084,7 +1084,7 @@ export class WaterPlugin implements Plugin {
         if (!app.hasResource(TerrainsRes)) return undefined;
         const terrains = app.getResource(TerrainsRes);
         if (terrains.built_.size === 0) return undefined;
-        return (x, z) => terrains.heightAt(x, z);
+        return terrains.heightSampler();
     }
 
     /** The material the surface is an instance of when the zone names none: the Water shader, compiled once. */

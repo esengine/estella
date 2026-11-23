@@ -412,6 +412,31 @@ export class Terrains {
     }
 
     /**
+     * {@link TerrainsRes.heightAt} for many points: which terrains there are and where they stand are read once, not at every point
+     * (a Transform read through the engine is an object made per call). For one pass over a grid; it does not follow the terrains after.
+     */
+    heightSampler(only?: Entity): (x: number, z: number) => number | null {
+        const world = this.app_?.world;
+        const grounds: Array<{ surface: TerrainSurface; at: { x: number; y: number; z: number } }> = [];
+        for (const [entity, built] of world ? this.built_ : []) {
+            if ((only !== undefined && only !== entity) || !built.surface || !world!.valid(entity)) continue;
+            const t = world!.tryGet(entity, Transform) as TransformData | null;
+            if (t) grounds.push({ surface: built.surface, at: { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z } });
+        }
+        if (grounds.length === 1) {
+            const { surface, at } = grounds[0]!;
+            return (x, z) => groundHeightAt(surface, at, x, z);
+        }
+        return (x, z) => {
+            for (const { surface, at } of grounds) {
+                const h = groundHeightAt(surface, at, x, z);
+                if (h !== null) return h;
+            }
+            return null;
+        };
+    }
+
+    /**
      * The weights of the terrain's layers at (x, z), as the ground is painted there (four, or as many as it has layers), or null where no terrain is:
      * what a world's rules read as the fields `paint.<layer>`.
      */

@@ -122,6 +122,33 @@ describe('a Terrain with no renderer (a server)', () => {
         expect(terrains.heightAt(322, -654)).toBeCloseTo(ground(noiseProvider(() => params)).height(322, -654)!, 6);
     });
 
+    it('samples many points as heightAt answers each, the terrains read once', async () => {
+        const app = boot();
+        const area = (x: number) => {
+            const e = app.world.spawn();
+            app.world.insert(e, Transform, { position: { x, y: 20, z: 0 }, worldPosition: { x, y: 20, z: 0 } });
+            app.world.insert(e, Terrain, { ...Terrain._default, ...params, erosion: 0, sizeX: 1000, sizeZ: 1000, resolution: 257, cellSize: 2 });
+            return e;
+        };
+        const near = area(0);
+        area(2000);
+        await settle(app);
+        const terrains = app.getResource(TerrainsRes);
+        const sample = terrains.heightSampler();
+        let hits = 0, misses = 0;
+        for (let x = -700; x <= 2700; x += 37) {
+            for (let z = -600; z <= 600; z += 41) {
+                const want = terrains.heightAt(x, z);
+                expect(sample(x, z)).toBe(want);
+                if (want === null) misses++; else hits++;
+            }
+        }
+        // Both terrains and the ground between and round them were sampled, not one of them alone.
+        expect(hits).toBeGreaterThan(200);
+        expect(misses).toBeGreaterThan(200);
+        expect(terrains.heightSampler(near)(2000, 0)).toBeNull();
+    });
+
     it('fails, and answers nothing, when its provider is not registered or its version is gone', async () => {
         const app = boot();
         const missing = app.world.spawn(), old = app.world.spawn();

@@ -12925,6 +12925,7 @@ groundEdit: (entity: Entity) => GroundEdit | TiledGroundEdit | null
 groundKnownAt: (x: number, z: number) => boolean
 heightAt: (x: number, z: number, only?: Entity) => number | null
 heightBeneathAt: (x: number, z: number) => number | null
+heightSampler: (only?: Entity) => (x: number, z: number) => number | null
 layerInfoAt: (x: number, z: number) => TerrainPaintTarget | null
 layerNames: () => string[]
 load: () => TerrainLoad
