@@ -15856,7 +15856,8 @@ Generator<number, T, void>
 @internal getRemovedEntitiesForReader: (component: AnyComponentDef, readerId: number) => Entity[]
 @internal getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getStorageSizes: () => { entities: number; indexSlots: number; spawnCallbacks: number; despawnCallbacks: number; coreDisconnectCallbacks: number; names: ReturnType<NameIndex["sizes"]>; scripts: ReturnType<ScriptStorage["sizes"]>; changes: ReturnType<ChangeTracker["sizes"]>; queryCacheEntries: number; }
-@internal getStoredScriptComponents: (entity: Entity) => Iterable<ComponentDef<any>>
+@internal getStoredComponentEntities: (component: AnyComponentDef) => Iterable<Entity>
+@internal getStoredScriptComponents: (entity?: Entity) => Iterable<ComponentDef<any>>
 @internal getTopologyChangedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getWasmModule: () => ESEngineModule | null
 @internal getWorldTick: () => number

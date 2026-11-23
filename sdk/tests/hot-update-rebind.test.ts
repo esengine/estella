@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
 import { World } from '../src/ecs/world';
-import { defineComponent, getComponent, getComponentRegistry, type AnyComponentDef } from '../src/ecs/component';
+import { defineComponent, getComponent, getComponentRegistry, unregisterComponent, type AnyComponentDef } from '../src/ecs/component';
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets } from '../src/asset/Assets';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
@@ -26,9 +26,9 @@ import { installHotUpdateRebind } from '../src/hotUpdateRebind';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
 import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
-import { Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
+import { Disabled, Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
 import { UIVisual } from '../src/ui/core/ui-visual';
-import { liveAssetBindings } from '../src/asset/liveAssetBindings';
+import { componentsBindingAssetTypes, liveAssetBindings, visitEntityAssetBindings } from '../src/asset/liveAssetBindings';
 import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
 
 /** The pool, modelled: every decode mints a handle, invalidate severs revival. */
@@ -328,6 +328,106 @@ describe('a replacement is a transaction per owning scope', () => {
         await manager.unload('room');
         expect(assets.sizes().refRows).toBe(0);
         expect(pool.releaseTexture).toHaveBeenCalledWith(handle);
+    });
+
+    it('migrates bindings on disabled entities and descendants before releasing a shared scene texture', async () => {
+        const { app, assets, manager } = sceneApp();
+        const world = app.world;
+        manager.register({ name: 'room', setup: sceneHolding(app, assets, 'shared.png', [
+            { component: Sprite, field: 'texture' },
+            { component: MeshRenderer, field: 'texture' },
+            { component: TrailRenderer, field: 'texture' },
+        ]) });
+        await manager.load('room');
+        const [sprite] = world.getEntitiesWithComponents([Sprite]);
+        const [mesh] = world.getEntitiesWithComponents([MeshRenderer]);
+        const before = world.get(mesh, MeshRenderer).texture;
+        world.setParent(mesh, sprite);
+        world.insert(sprite, Disabled, {});
+        expect(world.getEntitiesWithComponents([Sprite])).toEqual([]);
+        expect(world.getEntitiesWithComponents([MeshRenderer])).toEqual([]);
+
+        assets.invalidate('shared.png');
+        await settle(app);
+        const after = assets.getTexture('shared.png')!.handle;
+        expect(world.get(sprite, Sprite).texture).toBe(after);
+        expect(world.get(mesh, MeshRenderer).texture).toBe(after);
+        expect(pool.releaseTexture).toHaveBeenCalledWith(before);
+        expect(world.getEntitiesWithComponents([MeshRenderer])).toEqual([]);
+        world.remove(sprite, Disabled);
+        expect(boundValues(app, MeshRenderer, 'texture')).toEqual([after]);
+        expect(assets.sizes().refRows).toBe(1);
+        await manager.unload('room');
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('rebinds stored script definitions after the catalogue reuses their name', async () => {
+        const { app, assets, manager } = sceneApp();
+        const name = 'ReloadedVisualForAssetBinding';
+        const defaults = { icon: 0, tint: 0 };
+        const original = defineComponent(name, defaults, { assetFields: [{ field: 'icon', type: 'texture' }] });
+        const world = app.world;
+        try {
+            manager.register({ name: 'room', setup: sceneHolding(app, assets, 'shared.png', [{ component: original, field: 'icon' }]) });
+            const ctx = await manager.load('room');
+            const [entity] = world.getEntitiesWithComponents([original]);
+            const before = world.get(entity, original).icon;
+            world.update(entity, original, data => { data.tint = before; });
+            unregisterComponent(name);
+            expect(componentsBindingAssetTypes(world, ['texture'])).toContain(name);
+            const current = defineComponent(name, defaults, { assetFields: [{ field: 'tint', type: 'texture' }] });
+            const sibling = ctx.spawn();
+            world.insert(sibling, current, { icon: before, tint: before });
+            assets.invalidate('shared.png');
+            await settle(app);
+            const after = world.get(entity, original).icon;
+            expect(after).not.toBe(before);
+            expect(after).toBe(assets.getTexture('shared.png')!.handle);
+            expect(world.get(entity, original)).toMatchObject({ icon: after, tint: before });
+            expect(world.get(sibling, current)).toMatchObject({ icon: before, tint: after });
+            expect(pool.releaseTexture).toHaveBeenCalledWith(before);
+            expect(assets.sizes().refRows).toBe(1);
+            await manager.unload('room');
+            expect(assets.sizes().refRows).toBe(0);
+            expect([...world.getStoredScriptComponents()]).not.toContain(current);
+        } finally {
+            unregisterComponent(name);
+        }
+    });
+
+    it('rechecks the row declaration if a write observer replaces the next script binding', async () => {
+        const { app, assets, manager } = sceneApp();
+        const world = app.world, name = 'ObserverReloadedAssetBinding';
+        const defaults = { icon: 0, tint: 0 };
+        const original = defineComponent(name, defaults, { assetFields: [{ field: 'icon', type: 'texture' }] });
+        try {
+            manager.register({ name: 'room', setup: sceneHolding(app, assets, 'shared.png', [
+                { component: Sprite, field: 'texture' }, { component: original, field: 'icon' },
+            ]) });
+            await manager.load('room');
+            const [entity] = world.getEntitiesWithComponents([original]);
+            const before = world.get(entity, original).icon;
+            unregisterComponent(name);
+            const current = defineComponent(name, defaults, { assetFields: [{ field: 'tint', type: 'texture' }] });
+            const set = world.set.bind(world);
+            vi.spyOn(world, 'set').mockImplementation((e, component, data) => {
+                set(e, component, data);
+                if (component === Sprite) set(entity, current, { icon: before, tint: before });
+            });
+
+            assets.invalidate('shared.png');
+            await settle(app, 6);
+            const after = assets.getTexture('shared.png')!.handle;
+            expect(world.get(entity, current)).toMatchObject({ icon: before, tint: after });
+            const used: unknown[] = [];
+            visitEntityAssetBindings(world, entity, (_, value) => { used.push(value); }, original);
+            expect(used).toEqual([after]);
+            expect(assets.sizes().refRows).toBe(1);
+            await manager.unload('room');
+            expect(assets.sizes().refRows).toBe(0);
+        } finally {
+            unregisterComponent(name);
+        }
     });
 
     it('replaces a shared texture with bounded component reads and one load for independent owners', async () => {

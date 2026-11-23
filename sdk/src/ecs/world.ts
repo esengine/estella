@@ -1359,7 +1359,7 @@ export class World {
     }
 
     /** @internal Stored script definitions still describe their rows after the app catalogue reloads. */
-    getStoredScriptComponents(entity: Entity): Iterable<ComponentDef<any>> {
+    getStoredScriptComponents(entity?: Entity): Iterable<ComponentDef<any>> {
         return this.scripts_.componentsOf(entity);
     }
 
@@ -1501,6 +1501,12 @@ export class World {
         return this.queryEntities(components, withFilters, withoutFilters);
     }
 
+    /** @internal All rows of one component, including entities inactive through an ancestor. */
+    getStoredComponentEntities(component: AnyComponentDef): Iterable<Entity> {
+        if (!isBuiltinComponent(component)) return this.scripts_.entitiesOf(component);
+        return this.collectQueryEntities_([component], NO_COMPONENTS, NO_COMPONENTS, true);
+    }
+
     /**
      * @internal The same walk, with the cache key, dependency ids and predicate
      * filter supplied by the caller. `QueryInstance` computes those once per
@@ -1516,6 +1522,13 @@ export class World {
         filter?: QueryFilter,
         precomputedDepIds?: symbol[],
     ): readonly Entity[] {
+        return this.collectQueryEntities_(components, withFilters, withoutFilters, false, precomputedKey, filter, precomputedDepIds);
+    }
+
+    private collectQueryEntities_(
+        components: AnyComponentDef[], withFilters: AnyComponentDef[], withoutFilters: AnyComponentDef[],
+        includeInactive: boolean, precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[],
+    ): readonly Entity[] {
         this.syncActivityEpoch_();
         // The dep-id set is static per query; QueryInstance precomputes it (incl.
         // filter deps) so cache-hit iteration allocates nothing here.
@@ -1529,6 +1542,7 @@ export class World {
             depIds = plan.depIds;
         }
         cacheKey ??= computeQueryCacheKey(components, withFilters, withoutFilters);
+        if (includeInactive) cacheKey = 'stored|' + cacheKey;
         if (!depIds) {
             depIds = queryDepIds(components, withFilters, withoutFilters);
             if (filter) {
@@ -1547,7 +1561,7 @@ export class World {
         return this.queries_.getOrCompute(cacheKey, depIds, () => {
             const population = !components.length && !withFilters.length;
             if (population) this.tracksPopulation_ = true;
-            const off = namesDisabled ? null : this.inactiveEntities_();
+            const off = includeInactive || namesDisabled ? null : this.inactiveEntities_();
 
             const reqScript: Map<Entity, unknown>[] = [];
             const reqBuiltin: BuiltinMethods[] = [];

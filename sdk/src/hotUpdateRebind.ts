@@ -141,10 +141,7 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
         },
         {
             name: 'HotUpdateRebindSystem',
-            // The reach is every component declaring a handle-bound asset field,
-            // read from the registry at access time — a project component
-            // registered after this system was installed binds them too.
-            touches: () => ({ writes: componentsBindingAssetTypes(assets.handleBoundTypes()) }),
+            touches: () => ({ writes: componentsBindingAssetTypes(app.world, assets.handleBoundTypes()) }),
         },
     ));
 

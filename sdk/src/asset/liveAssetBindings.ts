@@ -17,7 +17,7 @@
  */
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { builtinComponentRegistry, getComponentRegistry, type AnyComponentDef } from '../ecs/component';
+import { builtinComponentRegistry, getComponentRegistry, isBuiltinComponent, type AnyComponentDef } from '../ecs/component';
 import type { AssetFieldType } from '../scene/scene';
 
 /** One field of one live component, bound to the asset being replaced. */
@@ -30,12 +30,31 @@ export interface LiveAssetBinding {
 
 /** Component names carrying at least one field of any of these asset types —
  *  what a system walking those bindings reaches for, from the same declaration. */
-export function componentsBindingAssetTypes(types: readonly string[]): string[] {
-    const names: string[] = [];
-    for (const [name, component] of getComponentRegistry()) {
-        if (component.assetFields.some((f) => types.includes(f.type))) names.push(name);
+export function componentsBindingAssetTypes(world: World, types: readonly string[]): string[] {
+    const names = new Set<string>();
+    const add = (name: string, component: AnyComponentDef): void => {
+        if (component.assetFields.some(f => types.includes(f.type))) names.add(name);
+    };
+    for (const [name, component] of getComponentRegistry()) add(name, component);
+    for (const component of world.getStoredScriptComponents()) add(component._name, component);
+    return [...names];
+}
+
+/** Native fields come from the core catalogue. Script rows retain their own declaration across reloads. */
+function* storedBindingComponents(world: World, entity?: Entity): Generator<AnyComponentDef> {
+    for (const component of builtinComponentRegistry().values()) {
+        if (isBuiltinComponent(component)) yield component;
     }
-    return names;
+    yield* world.getStoredScriptComponents(entity);
+}
+
+/** Script definitions share an id by name. A synchronous observer may replace the row with a new declaration. */
+export function hasBindingDeclaration(world: World, entity: Entity, component: AnyComponentDef): boolean {
+    if (isBuiltinComponent(component)) return true;
+    for (const stored of world.getStoredScriptComponents(entity)) {
+        if (stored._id === component._id) return stored === component;
+    }
+    return false;
 }
 
 /**
@@ -50,11 +69,11 @@ export function* liveAssetBindings(
 ): Generator<LiveAssetBinding> {
     if (!value) return;
 
-    for (const component of getComponentRegistry().values()) {
+    for (const component of storedBindingComponents(world)) {
         if (!component.assetFields.length) continue;
         const fields = component.assetFields.filter((f) => f.type === type);
         if (fields.length === 0) continue;
-        for (const entity of world.getEntitiesWithComponents([component])) {
+        for (const entity of world.getStoredComponentEntities(component)) {
             if (world.isDestructionPending(entity)) continue;
             const data = world.get(entity, component) as Record<string, number | string>;
             for (const { field } of fields) {
@@ -76,11 +95,8 @@ export function visitEntityAssetBindings(
         const data = world.get(entity, component) as Record<string, unknown>;
         return component.assetFields.some(({ field, type }) => visit(type, data[field]) === true);
     };
-    if (first && read(first)) return;
-    for (const component of builtinComponentRegistry().values()) {
-        if (component !== first && read(component)) return;
-    }
-    for (const component of world.getStoredScriptComponents(entity)) {
+    if (first && hasBindingDeclaration(world, entity, first) && read(first)) return;
+    for (const component of storedBindingComponents(world, entity)) {
         if (component !== first && read(component)) return;
     }
 }

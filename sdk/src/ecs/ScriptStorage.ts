@@ -24,8 +24,15 @@ export interface InsertResult<T> {
     isNew: boolean;
 }
 
+interface ScriptRows {
+    component: ComponentDef<any>;
+    rows: Map<Entity, unknown>;
+    /** Only allocated when different declarations of the same name coexist in this World. */
+    overrides?: Map<Entity, ComponentDef<any>>;
+}
+
 export class ScriptStorage {
-    private tsStorage_ = new Map<symbol, { component: ComponentDef<any>; rows: Map<Entity, unknown> }>();
+    private tsStorage_ = new Map<symbol, ScriptRows>();
     private entityComponents_ = new Map<Entity, Set<symbol>>();
     /**
      * Components held as rows rather than objects, by id. A component qualifies
@@ -165,6 +172,9 @@ export class ScriptStorage {
      * come through here or `getEntityComponentIds` starts answering a subset.
      */
     private note_(entity: Entity, component: ComponentDef<any>): void {
+        const table = this.tsStorage_.get(component._id)!;
+        if (component === table.component) table.overrides?.delete(entity);
+        else (table.overrides ??= new Map()).set(entity, component);
         let ids = this.entityComponents_.get(entity);
         if (!ids) {
             ids = new Set();
@@ -187,9 +197,7 @@ export class ScriptStorage {
     }
 
     remove<T>(entity: Entity, component: ComponentDef<T>): void {
-        const storage = this.getStorageById(component._id);
-        storage?.delete(entity);
-        if (this.pools_.get(component._id)?.delete(entity)) this.layoutEpoch_++;
+        this.deleteRow_(component._id, entity);
         const ids = this.entityComponents_.get(entity);
         if (ids) {
             ids.delete(component._id);
@@ -232,20 +240,56 @@ export class ScriptStorage {
     }
 
     getStorage(component: ComponentDef<any>): Map<Entity, unknown> {
-        let storage = this.getStorageById(component._id);
-        if (!storage) {
-            storage = new Map();
-            this.tsStorage_.set(component._id, { component, rows: storage });
+        let table = this.tsStorage_.get(component._id);
+        if (!table) {
+            table = { component, rows: new Map() };
+            this.tsStorage_.set(component._id, table);
         }
-        return storage;
+        if (!table.rows.size) table.component = component;
+        return table.rows;
     }
 
     getStorageById(id: symbol): Map<Entity, unknown> | undefined {
         return this.tsStorage_.get(id)?.rows;
     }
 
-    *componentsOf(entity: Entity): IterableIterator<ComponentDef<any>> {
-        for (const id of this.entityComponents_.get(entity) ?? []) yield this.tsStorage_.get(id)!.component;
+    *componentsOf(entity?: Entity): IterableIterator<ComponentDef<any>> {
+        if (entity === undefined) {
+            for (const { component, rows, overrides } of this.tsStorage_.values()) {
+                if (rows.size > (overrides?.size ?? 0)) yield component;
+                if (overrides?.size) yield* new Set(overrides.values());
+            }
+            return;
+        }
+        for (const id of this.entityComponents_.get(entity) ?? []) {
+            const table = this.tsStorage_.get(id)!;
+            yield table.overrides?.get(entity) ?? table.component;
+        }
+    }
+
+    *entitiesOf(component: ComponentDef<any>): IterableIterator<Entity> {
+        const table = this.tsStorage_.get(component._id);
+        if (!table) return;
+        if (table.component === component) {
+            if (!table.overrides?.size) {
+                yield* table.rows.keys();
+                return;
+            }
+            for (const entity of table.rows.keys()) {
+                if (!table.overrides.has(entity)) yield entity;
+            }
+        } else if (table.overrides) {
+            for (const [entity, stored] of table.overrides) {
+                if (stored === component) yield entity;
+            }
+        }
+    }
+
+    private deleteRow_(id: symbol, entity: Entity): void {
+        const table = this.tsStorage_.get(id);
+        table?.rows.delete(entity);
+        table?.overrides?.delete(entity);
+        if (this.pools_.get(id)?.delete(entity)) this.layoutEpoch_++;
     }
 
     getEntityComponentIds(entity: Entity): Set<symbol> | undefined {
@@ -263,8 +307,7 @@ export class ScriptStorage {
         if (!ids) return [];
         const removed: symbol[] = [];
         for (const id of ids) {
-            this.getStorageById(id)?.delete(entity);
-            if (this.pools_.get(id)?.delete(entity)) this.layoutEpoch_++;
+            this.deleteRow_(id, entity);
             removed.push(id);
         }
         this.entityComponents_.delete(entity);

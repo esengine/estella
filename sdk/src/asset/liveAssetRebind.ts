@@ -8,7 +8,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import type { AssetScope, AssetLease } from './AssetLease';
 import type { AssetFieldType } from '../scene/scene';
-import { liveAssetBindings, type LiveAssetBinding } from './liveAssetBindings';
+import { hasBindingDeclaration, liveAssetBindings, type LiveAssetBinding } from './liveAssetBindings';
 import { boundValueOf, sameAcquisition } from './leaseBindings';
 import { log } from '../util/logger';
 
@@ -16,6 +16,7 @@ type OwnerScopeResolver = (entity: Entity, create: boolean) => AssetScope | null
 
 function boundData(world: World, binding: LiveAssetBinding, expected: unknown): Record<string, unknown> | null {
     if (!world.valid(binding.entity) || world.isDestructionPending(binding.entity)) return null;
+    if (!hasBindingDeclaration(world, binding.entity, binding.component)) return null;
     const data = world.tryGet(binding.entity, binding.component) as Record<string, unknown> | null;
     return data && data[binding.field] === expected ? data : null;
 }
