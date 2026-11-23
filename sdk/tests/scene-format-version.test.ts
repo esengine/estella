@@ -11,16 +11,76 @@
  *          so the tenth revision of the format cannot count as older than the
  *          second.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { App } from '../src/app/app';
+import { Assets } from '../src/asset/AssetPlugin';
+import { EmbeddedBackend } from '../src/asset/Backend';
+import { MeshAssetLoader } from '../src/asset/loaders/MeshAssetLoader';
+import { MeshRenderer } from '../src/ecs/component';
+import { createRuntimeSceneConfig, loadRuntimeScene, sceneUsesPhysics } from '../src/runtime/runtimeLoader';
+import { connectFakeCpp } from './helpers/fakeEngine';
 import {
     SCENE_FORMAT_VERSION,
     parseSceneFormatVersion,
     migrateSceneData,
+    loadSceneWithAssets,
     type SceneData,
 } from '../src/scene/scene';
 
+vi.mock('../src/wasm/resourceManager', async importOriginal => ({
+    ...await importOriginal<typeof import('../src/wasm/resourceManager')>(), requireResourceManager: () => ({}),
+}));
+
 const scene = (version: unknown): SceneData =>
     ({ version, name: 'test', entities: [] } as unknown as SceneData);
+
+describe('packaged scene format', () => {
+    const legacy: SceneData = { version: '1.0', name: 'old', entities: [{ id: 17, name: 'body', parent: null,
+        children: [], components: [{ type: 'Mesh2D', data: { mesh: 'body.esmesh' } }, { type: 'RigidBody', data: {} }],
+    }] };
+    const source = { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } };
+
+    it('loads legacy geometry and requests its 2D physics before publishing, with the same handles as authoring', async () => {
+        const app = App.new(), acquire = vi.fn(async () => null);
+        connectFakeCpp(app.world);
+        app.setSideModules({ acquire });
+        const mesh = vi.spyOn(MeshAssetLoader.prototype, 'load').mockResolvedValue({ handle: 37 });
+        const original = JSON.stringify(legacy);
+        try {
+            await loadRuntimeScene({ app, module: null, source, sceneData: legacy });
+            const entity = app.world.findEntityByName('body')!;
+            expect(app.world.get(entity, MeshRenderer).mesh).toBe(37);
+            expect(acquire).toHaveBeenCalledWith('physics');
+            expect(sceneUsesPhysics(legacy)).toBe(true);
+            const assets = app.getResource(Assets);
+            expect(assets.sizes().refRows).toBe(1);
+            app.world.despawn(entity);
+            const map = await loadSceneWithAssets(app.world, legacy, { assets });
+            expect(app.world.get(map.get(17)!, MeshRenderer).mesh).toBe(37);
+            app.world.despawn(map.get(17)!);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(JSON.stringify(legacy)).toBe(original);
+        } finally { mesh.mockRestore(); app.quit(); }
+    });
+
+    it('refuses an unsupported document during preparation before asking for its assets', async () => {
+        const app = App.new();
+        const mesh = vi.spyOn(MeshAssetLoader.prototype, 'load').mockResolvedValue({ handle: 37 });
+        const fetchPrefab = vi.spyOn(source.backend, 'fetchText');
+        const instance = { ...legacy.entities[0]!, id: 18, components: [], prefab: 'future.esprefab', overrides: [] };
+        const data = { ...legacy, version: SCENE_FORMAT_VERSION + 1,
+            entities: [instance, { ...legacy.entities[0]!, components: [{ type: 'MeshRenderer', data: { mesh: 'body.esmesh' } }] }] };
+        const config = createRuntimeSceneConfig('future', data, { app, module: null, source });
+        try {
+            await expect(config.prepare!()).rejects.toThrow(/newer/);
+            await expect(loadSceneWithAssets(app.world, data, { assets: app.getResource(Assets) })).rejects.toThrow(/newer/);
+            expect(mesh).not.toHaveBeenCalled();
+            expect(fetchPrefab).not.toHaveBeenCalled();
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(config.discardPrepared!()).toBe(0);
+        } finally { config.discardPrepared!(); fetchPrefab.mockRestore(); mesh.mockRestore(); app.quit(); }
+    });
+});
 
 describe('scene format version', () => {
     it('is an integer, so ordering is ordering', () => {

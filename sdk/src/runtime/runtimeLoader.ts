@@ -7,8 +7,9 @@
 
 import { SceneOwner, Disabled, Parent } from '../ecs/component';
 import { bakesOf } from './bakes';
-import { loadSceneData, loadSceneDataJob, revealStagedEntities, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets,
-         type SceneData, type StagedSpawn } from '../scene/scene';
+import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
+         updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn } from '../scene/scene';
+import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, type SceneLoadAttempt } from '../scene/sceneLoadAttempt';
 import { prepareSpawnOwnership, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
@@ -317,7 +318,7 @@ async function installOnce(app: App, key: string, install: () => Promise<void>):
 export function sceneUsesPhysics(sceneData: SceneData): boolean {
     for (const entity of sceneData.entities ?? []) {
         for (const comp of entity.components ?? []) {
-            if (PHYSICS_COMPONENT_TYPES.has(comp.type)) return true;
+            if (PHYSICS_COMPONENT_TYPES.has(RENAMED_COMPONENT_TYPES.get(comp.type) ?? comp.type)) return true;
             if (comp.type === 'TilemapLayer') {
                 const data = comp.data as Record<string, unknown> | undefined;
                 const ids = data?.collidableTileIds;
@@ -390,19 +391,16 @@ async function readRuntimeScene(
     const spine = spineSupport();
     const spineManager = options.spineManager ?? spine?.manager(app) ?? null;
 
-    // Expand prefab instances up front: an exported scene keeps them as a prefab
-    // ref + overrides (the cook does not flatten them), and the rest of this
-    // pipeline — discovery, preload, the synchronous loadSceneData spawn — operates
-    // on plain entities and skips a prefab entry. This is the same expansion
-    // loadSceneWithAssets runs for the editor's play realm, so a packaged game
-    // spawns prefab instances exactly as Play does (play == ship), instead of
-    // silently dropping them.
+    // A cooked scene keeps prefab refs and overrides. Expand them through the
+    // same loader as authoring before discovery walks the resulting entities.
     const runtimeAssets = ensureRuntimeAssets(app, module, source);
     // A private copy: resolution below writes handles over the asset refs, and the
     // document given here is the one a registered scene loads from every time. A
     // reload of the mutated one found no ref to acquire and spawned the handles the
     // outgoing scene had just released, so a restarted scene drew its images white.
+    const copyBegan = onPhase ? performance.now() : 0;
     let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
+    const copyMs = onPhase ? performance.now() - copyBegan : 0;
     if (sceneHasPrefabEntries(sceneData)) {
         await turn();
         sceneData = await timed('prefab', () => expandScenePrefabAssets(sceneData, runtimeAssets));
@@ -410,6 +408,12 @@ async function readRuntimeScene(
     // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything
     // of it spawns.
     if (app.hasResource(WorldMemoryRes)) sceneData = app.getResource(WorldMemoryRes).adapt(sceneName ?? '', sceneData);
+
+    // Prefabs and remembered components can also carry older names. Discovery,
+    // subsystem selection and spawn all consume the same normalized document.
+    const migrationBegan = onPhase ? performance.now() : 0;
+    migrateOwnedSceneData(sceneData);
+    if (onPhase) onPhase('migrate', copyMs + performance.now() - migrationBegan);
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.
@@ -677,13 +681,13 @@ async function publishPreparedScene(
     if (spread) {
         const spawning: StagedSpawn = { entities: new Map(), hidden: [] };
         attempt.entities = spawning.entities;
-        const job = loadSceneDataJob(app.world, sceneData, externalEntities, onPhase, spawning);
+        const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning);
         try { staged = await spread(job); }
         finally { job.return(spawning); }
         entityMap = staged.entities;
     } else {
         entityMap = await timed('spawn', () => {
-            attempt.entities = loadSceneData(app.world, sceneData, externalEntities, onPhase);
+            attempt.entities = spawnAndLoadEntities(app.world, sceneData, externalEntities, onPhase);
             return attempt.entities;
         });
     }

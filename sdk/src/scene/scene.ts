@@ -333,6 +333,7 @@ export type PrefabAssetResolver = (ref: string) => Promise<PrefabData | null>;
 export async function expandScenePrefabAssets(
     scene: SceneData, assets: Pick<import('../asset/Assets').Assets, 'acquireTyped'>,
 ): Promise<SceneData> {
+    checkSceneFormat(scene);
     const sources = new AssetScope();
     try {
         return await expandScenePrefabs(scene, async ref => {
@@ -556,7 +557,8 @@ export function renumberEntityZero(data: SceneData): boolean {
     return true;
 }
 
-function migrateOwnedSceneData(data: SceneData, fromVersion = checkSceneFormat(data)): SceneMigrationResult {
+/** Normalize a document whose component records the loader owns. */
+export function migrateOwnedSceneData(data: SceneData, fromVersion = checkSceneFormat(data)): SceneMigrationResult {
     let migrated = false;
     const retired = new Set<string>();
     for (const entity of data.entities) {
@@ -727,7 +729,8 @@ export function revealStagedEntities(world: World, spawn: StagedSpawn): void {
     }
 }
 
-function spawnAndLoadEntities(
+/** Spawn private, migrated records. Binding entity references consumes those records. */
+export function spawnAndLoadEntities(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
     onPhase?: ScenePhaseSink,
 ): Map<number, Entity> {
@@ -744,25 +747,8 @@ export function loadSceneData(
 ): Map<number, Entity> {
     const began = onPhase ? performance.now() : 0;
     const { data } = migrateSceneData(sceneData);
-    // Named because it is a surprise: migration deep-clones the whole document
-    // so the caller's data is never mutated, and on a streamed cell that clone
-    // is paid at the door — after preparation already had the bytes in hand.
     if (onPhase) onPhase('spawn.migrate', performance.now() - began);
     return spawnAndLoadEntities(world, data, external, onPhase);
-}
-
-/**
- * {@link loadSceneData} as a job that stages what it spawns (see {@link spawnAndLoadEntitiesJob}): for a caller that spreads
- * it over frames and switches the result on whole with {@link revealStagedEntities}.
- */
-export function* loadSceneDataJob(
-    world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink, spawn?: StagedSpawn,
-): Generator<number, StagedSpawn, void> {
-    const began = onPhase ? performance.now() : 0;
-    const { data } = migrateSceneData(sceneData);
-    if (onPhase) onPhase('spawn.migrate', performance.now() - began);
-    return yield* spawnAndLoadEntitiesJob(world, data, external, onPhase, true, spawn);
 }
 
 /**
