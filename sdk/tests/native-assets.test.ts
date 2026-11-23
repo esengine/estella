@@ -193,6 +193,54 @@ describe('native Assets.loadTexture', () => {
         warm.release(); fresh.release();
     });
 
+    it('streams a whole-image bridge through the native pool and restores the same texture handle', async () => {
+        const { scope, textures, createSpy } = makeTextureScope();
+        const adopt = vi.fn((target: number, source: number) => {
+            const replacement = textures.get(source);
+            if (!textures.has(target) || !replacement) return false;
+            textures.set(target, replacement);
+            return true;
+        });
+        scope.es_rm_adoptTextureContent = adopt;
+        const bridge = makeBridge({ 'mesh.png': solidImage(9, 5), 'sprite.png': solidImage(9, 5) });
+        const app = createNativeApp(bridge, withRegistryOps(scope));
+        await app.tick(0);
+        const assets = app.getResource(Assets);
+        assets.noteMeshSurface({ texture: 'mesh.png' });
+        assets.setTextureStreamingStart(4);
+        const mesh = await assets.acquireTexture('mesh.png');
+        const sprite = await assets.acquireTexture('sprite.png');
+        try {
+            const handle = mesh.value.handle;
+            expect(assets.textureResizable(handle)).toBe(true);
+            expect(assets.textureFullSize(handle)).toEqual({ width: 9, height: 5 });
+            expect(createSpy.mock.calls.map(([w, h, , bytes]) => [w, h, bytes])).toEqual([[4, 2, 32], [9, 5, 180]]);
+            expect(await assets.resizeTexture(handle, 2)).toEqual({ width: 2, height: 1 });
+            expect(await assets.resizeTexture(handle, 0)).toEqual({ width: 9, height: 5 });
+            expect(textures.get(handle)).toMatchObject({ width: 9, height: 5 });
+            expect(adopt.mock.calls.map(([target]) => target)).toEqual([handle, handle]);
+            expect([...textures.keys()]).toEqual([handle, sprite.value.handle]);
+        } finally { mesh.release(); sprite.release(); }
+    });
+
+    it('loads the full image on older hosts that cannot replace the contents of a texture handle', async () => {
+        const { scope, createSpy } = makeTextureScope();
+        const app = createNativeApp(makeBridge({ 'mesh.png': solidImage(9, 5) }), withRegistryOps(scope));
+        await app.tick(0);
+        const assets = app.getResource(Assets);
+        assets.noteMeshSurface({ texture: 'mesh.png' });
+        assets.setTextureStreamingStart(4);
+        const mesh = await assets.acquireTexture('mesh.png');
+        try {
+            expect(createSpy.mock.calls.map(([w, h]) => [w, h])).toEqual([[9, 5]]);
+            expect(assets.textureResizable(mesh.value.handle)).toBe(false);
+            expect(assets.getTextureLoader().askedSmall).toBe(1);
+            expect(assets.getTextureLoader().startedSmall).toBe(0);
+            expect([...assets.getTextureLoader().resizableHandles()]).toEqual([]);
+            expect(await assets.resizeTexture(mesh.value.handle, 2)).toBeNull();
+        } finally { mesh.release(); }
+    });
+
     it('decodes through the bridge and uploads via the native ResourceManager', async () => {
         const { scope, createSpy, releaseSpy } = makeTextureScope();
         const bridge = makeBridge({ 'logo.png': solidImage(4, 2) });

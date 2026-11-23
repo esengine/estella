@@ -3,7 +3,8 @@
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
-import type { PlatformImage } from '../../platform/types';
+import type { ImageLoadResult, PlatformImage } from '../../platform/types';
+import { fitImagePixels } from '../../platform/imagePixels';
 import { decodeBlobBitmap, decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { evictTextureDimensions, requireResourceManager } from '../../wasm/resourceManager';
 import { provideTextureContent, withdrawTextureContent, type TextureRefill } from '../../wasm/textureRefill';
@@ -34,7 +35,7 @@ export type TexturePixelDecoder = (
     path: string,
     flip: boolean,
     maxEdge?: number,
-) => Promise<{ width: number; height: number; pixels: Uint8Array; sourceWidth?: number; sourceHeight?: number }>;
+) => Promise<ImageLoadResult>;
 
 /**
  * Where a host keeps its textures GPU-compressed: the KTX2 for `path`, `'pending'`
@@ -289,12 +290,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
-    resizable(handle: number): boolean { return this.held_.has(handle); }
+    resizable(handle: number): boolean { return this.held_.has(handle) && !!requireResourceManager().adoptTextureContent; }
 
     /** @internal Identity of the current hold on a streamable texture. */
     streamingBinding(handle: number): object | undefined { return this.held_.get(handle); }
 
-    resizableHandles(): IterableIterator<number> { return this.held_.keys(); }
+    *resizableHandles(): IterableIterator<number> {
+        if (this.held_.size && requireResourceManager().adoptTextureContent) yield* this.held_.keys();
+    }
 
     /** The size of the file behind @p handle, whatever size it is held at; null for one this loader did not decode from a file. */
     fullSize(handle: number): { width: number; height: number } | null {
@@ -341,8 +344,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const revision = this.imageRevisions_.get(path);
         const { settings, startEdge = 0 } = options ?? this.pendingOptions_;
         if (!options) this.pendingOptions_ = {};
-        const start = Math.max(0, startEdge);
-        if (start > 0) this.askedSmall++;
+        // A pool that cannot replace content in-place could never restore a streaming preview.
+        const start = startEdge > 0 && requireResourceManager().adoptTextureContent ? startEdge : 0;
+        if (startEdge > 0) this.askedSmall++;
         const { texture: result, decision } = await this.decodeAndUpload_(path, ctx, flip, settings, start);
         if (result.fullWidth !== undefined) this.startedSmall++;
         // The original caller still owns its pixels. Only the current revision can publish them by path.
@@ -389,8 +393,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // A recipe is drawn here, from its source, and is then a texture like any decoded one.
         if (isTextureRecipePath(buildPath)) {
             const drawn = await renderTextureRecipe(path, (p) => ctx.backend.fetchBinary(p === path ? buildPath : ctx.catalog?.getBuildPath(p) ?? p));
-            const handle = createTextureFromPixels(this.module_, drawn, TextureContent.Asset, flip, pixelParams(settings));
-            return { handle, width: drawn.width, height: drawn.height };
+            return this.uploadPixels_(drawn, flip, settings, maxEdge);
         }
         if (isKtx2Path(buildPath)) {
             const buf = await ctx.backend.fetchBinary(buildPath);
@@ -414,18 +417,21 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (this.pixelDecoder_) {
             // A decoder resolves a logical path itself; a copy is named by where it is.
             const result = await this.pixelDecoder_(copy ? buildPath : path, flip, edge);
-            const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
-            // A decoder that made it smaller says what it was made from; one that could not (a host decoding whole) answers with the
-            // file's own size, and the texture is simply whole.
-            return result.sourceWidth !== undefined && result.sourceHeight !== undefined
-                ? { handle, width: result.width, height: result.height, fullWidth: result.sourceWidth, fullHeight: result.sourceHeight }
-                : { handle, width: result.width, height: result.height };
+            return this.uploadPixels_(result, flip, settings, edge);
         }
         const url = ctx.backend.resolveUrl(buildPath);
         const full = { width: 0, height: 0 };
         const img = await this.loadImage(url, flip, edge, copy ? undefined : this.imageRevisions_.get(path), full);
-        const made = this.createTextureFromImage(img, flip, settings);
-        return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+        return this.uploadSizedImage_(img, full, flip, settings, edge);
+    }
+
+    private uploadPixels_(image: ImageLoadResult, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number): TextureResult {
+        const fitted = fitImagePixels(image, maxEdge);
+        const handle = createTextureFromPixels(this.module_, fitted, TextureContent.Asset, flip, pixelParams(settings));
+        const { width, height, sourceWidth, sourceHeight } = fitted;
+        return sourceWidth !== undefined && sourceHeight !== undefined
+            ? { handle, width, height, fullWidth: sourceWidth, fullHeight: sourceHeight }
+            : { handle, width, height };
     }
 
     private async uploadImageBytes_(
@@ -434,8 +440,19 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' });
         const full = { width: 0, height: 0 };
         const img = await this.decodeBlob_(blob, flip, maxEdge, full);
-        const made = this.createTextureFromImage(img, flip, settings);
-        return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+        return this.uploadSizedImage_(img, full, flip, settings, maxEdge);
+    }
+
+    private uploadSizedImage_(
+        img: PlatformImage | ImageBitmap, full: { width: number; height: number }, flip: boolean,
+        settings: TextureImportSettings | undefined, maxEdge: number,
+    ): TextureResult {
+        try {
+            const made = this.createTextureFromImage(img, flip, settings, maxEdge);
+            return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+        } finally {
+            if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) img.close();
+        }
     }
 
     private async decodeBlob_(blob: Blob, flip: boolean, maxEdge: number, full: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
@@ -588,10 +605,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private createTextureFromImage(
-        img: PlatformImage | ImageBitmap, flip: boolean, settings?: TextureImportSettings,
+        img: PlatformImage | ImageBitmap, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
     ): TextureResult {
         const { width, height } = img;
-        const gl = this.getWebGL2Context();
 
         // A bitmap is already oriented by loadImage (imageOrientation); flipping it
         // again at upload would double-flip it. Only raw <img>/pixel sources need
@@ -599,10 +615,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const uploadFlip = (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap)
             ? false : flip;
 
-        if (gl) {
+        const gl = this.getWebGL2Context();
+        if (gl && (!(maxEdge > 0) || Math.max(width, height) <= maxEdge)) {
             return this.createTextureWebGL2(gl, img, width, height, uploadFlip, settings);
         }
-        return this.createTextureFallback(img, width, height, uploadFlip, settings);
+        // Byte uploads also fit an image element on a host without bitmap resizing.
+        return this.uploadPixels_(readImagePixels(img, maxEdge), uploadFlip, settings, maxEdge);
     }
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
@@ -654,22 +672,5 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         return { handle, width, height };
     }
 
-    private createTextureFallback(
-        img: PlatformImage | ImageBitmap,
-        width: number, height: number, flip: boolean,
-        settings?: TextureImportSettings,
-    ): TextureResult {
-        // The 2D-canvas fallback is web-only: it decodes through an offscreen
-        // canvas + wasm heap upload. Native never reaches it — it sets a
-        // pixelDecoder, so decodeAndUpload_ takes the createTextureFromPixels
-        // (byte) path before this — so require the module rather than pretend.
-        if (!this.module_) {
-            throw new Error('TextureLoader: 2D-canvas fallback needs a wasm module (native uses the pixel-decode path)');
-        }
-        const { pixels } = readImagePixels(img);
-        const handle = createTextureFromPixels(this.module_, { width, height, pixels }, TextureContent.Asset, flip,
-            pixelParams(settings));
-        return { handle, width, height };
-    }
 }
 

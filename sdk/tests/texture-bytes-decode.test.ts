@@ -3,7 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoadContext } from '../src/asset/AssetLoader';
 
-const state = vi.hoisted(() => ({ elements: [] as string[] }));
+const state = vi.hoisted(() => ({
+    elements: [] as string[],
+    upload: vi.fn((_w: number, _h: number, _pixels: Uint8Array, _format: number, _flip: boolean) => 17),
+}));
 class ImageFake {
     width = 640;
     height = 320;
@@ -15,8 +18,15 @@ class ImageFake {
         queueMicrotask(() => this.onload?.());
     }
 }
-vi.mock('../src/platform/base', () => ({ platformCreateImage: () => new ImageFake() }));
-vi.mock('../src/wasm/resourceManager', () => ({ requireResourceManager: () => ({ registerTextureWithPath: vi.fn() }) }));
+vi.mock('../src/platform/base', () => ({
+    platformCreateImage: () => new ImageFake(),
+    platformCreateCanvas: (width: number, height: number) => ({
+        width, height, getContext: () => ({ drawImage: vi.fn(), getImageData: () => ({ data: new Uint8ClampedArray(width * height * 4) }) }),
+    }),
+}));
+vi.mock('../src/wasm/resourceManager', () => ({
+    requireResourceManager: () => ({ createTextureFromBytes: state.upload, registerTextureWithPath: vi.fn(), adoptTextureContent: vi.fn() }),
+}));
 import { imageBitmapOptions } from '../src/asset/imageDecode';
 import { TextureLoader } from '../src/asset/loaders/TextureLoader';
 
@@ -97,5 +107,26 @@ describe('a texture whose encoded bytes are already in memory', () => {
         expect([made.width, made.height]).toEqual([640, 320]);
         expect(fetched).not.toHaveBeenCalled();
         expect(state.elements).toHaveLength(1);
+    });
+
+    it.each([true, false])('fits a canvas upload when bitmap resizing is unavailable (bitmap decode %s)', async canDecode => {
+        class Bitmap {
+            width = 640;
+            height = 320;
+            close = vi.fn();
+        }
+        const bitmap = new Bitmap();
+        vi.stubGlobal('ImageBitmap', Bitmap);
+        vi.stubGlobal('createImageBitmap', canDecode ? async (source: unknown) => {
+            if (source instanceof Blob) return bitmap;
+            throw new Error('bitmap resizing unsupported');
+        } : undefined);
+        const textures = new TextureLoader(null);
+        textures.setCompressedSource(async () => PNG);
+        const made = await textures.load('panel.png', context, { startEdge: 63 });
+        expect([made.width, made.height, made.fullWidth, made.fullHeight]).toEqual([63, 32, 640, 320]);
+        const [width, height, pixels, , flip] = state.upload.mock.lastCall!;
+        expect([width, height, pixels.length, flip]).toEqual([63, 32, 63 * 32 * 4, !canDecode]);
+        expect(bitmap.close).toHaveBeenCalledTimes(canDecode ? 1 : 0);
     });
 });

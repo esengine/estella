@@ -23,10 +23,10 @@ export function wxLoadImage(path: string): Promise<MiniGameImage> {
     return mgLoadImage(g(), path);
 }
 
-export function wxGetImagePixels(img: MiniGameImage): ImageLoadResult {
-    return mgGetImagePixels(g(), img);
+export function wxGetImagePixels(img: MiniGameImage, maxEdge?: number): ImageLoadResult {
+    return mgGetImagePixels(g(), img, maxEdge);
 }
 
-export function wxLoadImagePixels(path: string): Promise<ImageLoadResult> {
-    return mgLoadImagePixels(g(), path);
+export function wxLoadImagePixels(path: string, maxEdge?: number): Promise<ImageLoadResult> {
+    return mgLoadImagePixels(g(), path, maxEdge);
 }

@@ -168,8 +168,8 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         }));
     }
 
-    async loadImagePixels(path: string): Promise<ImageLoadResult> {
-        return mgLoadImagePixels(this.g_, this.cachedFileOf_(path) ?? path);
+    async loadImagePixels(path: string, maxEdge = 0): Promise<ImageLoadResult> {
+        return mgLoadImagePixels(this.g_, this.cachedFileOf_(path) ?? path, maxEdge);
     }
 
     /** Where hot update stored @p url's bytes, when it did: an image drawn from the

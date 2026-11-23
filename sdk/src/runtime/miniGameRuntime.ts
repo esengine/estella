@@ -15,6 +15,7 @@
  */
 
 import { createWebApp } from './webAppFactory';
+import type { RenderOptions } from '../app/renderOptions';
 import { bootPercent, bootSays, type BootStage } from './bootStages';
 import { markIdentDone, playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
@@ -26,7 +27,7 @@ import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../p
 import { MiniGamePlatformAdapter } from '../platform/minigame';
 import {
     loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers,
-    registerPackagedSideModules, glContextAttributes,
+    registerPackagedSideModules, glContextAttributes, packagedAppOptions,
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
@@ -108,7 +109,7 @@ function instantiateModule<T>(
 // Public API
 // =============================================================================
 
-export interface MiniGameRuntimeConfig {
+export interface MiniGameRuntimeConfig extends RenderOptions {
     engineFactory: (opts: unknown) => Promise<ESEngineModule>;
     /** Package-relative path of the engine wasm binary. The exporter stages the
      *  runtime under wasm/ and knows which glue it shipped, so it passes the
@@ -138,15 +139,6 @@ export interface MiniGameRuntimeConfig {
     /** Project-declared mixer state (routing labels only on mini-games — the host
      *  hands out finished players, not a DSP graph). */
     audioConfig?: AudioProjectConfig;
-    /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
-    ySortLayers?: number;
-    /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
-    depthLayers?: number;
-    /** Project color space — 'linear' boots the linear-light pipeline (Project Settings → Rendering). */
-    colorSpace?: 'gamma' | 'linear';
-    /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
-     *  without a UI Canvas; absent = no fit (raw orthoSize). */
-    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createMiniGameSideModuleHost}. */
@@ -378,10 +370,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
 
     const app = createWebApp(module, {
         renderSurface: { kind: 'gl-context', handle: glHandle, glx: glx !== undefined },
-        ySortLayers: config.ySortLayers,
-        depthLayers: config.depthLayers,
-        colorSpace: config.colorSpace,
-        screenFit: config.screenFit,
+        ...packagedAppOptions(config),
         getViewportSize: () => ({
             width: canvas.width,
             height: canvas.height,

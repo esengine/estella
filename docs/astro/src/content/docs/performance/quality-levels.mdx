@@ -173,6 +173,10 @@ textures are as small as its closest tree allows; and the materials and textures
 like a scene's, though no scene names them. It is on at Low and Medium and off at High; **Texture streaming budget** caps what
 the streamed textures take together (128 MB at Low, 256 MB at Medium, 0 is no cap), and past it they are held a level softer.
 
+For a streamed PNG, JPEG or image recipe, the starting size limits the longest edge of the GPU upload. With a 64-texel
+limit, a 240 × 120 image starts at 64 × 32 and can return to 240 × 120 on the same handle. A texture used only by a sprite
+loads at its imported size. Older hosts that cannot replace a texture's contents in place load the full image immediately.
+
 Measured in the editor's Play at Low, in the `texture-streaming` editor check (the engine's own estimate of GPU memory):
 
 | Example | Streaming off | On: first frame | On: ten seconds in | The two pictures, settled |

@@ -11,8 +11,9 @@
  *          `ImageBitmap` sources (uploads every texture upside-down otherwise).
  */
 import { platformCreateCanvas } from '../platform/base';
+import { imageSizeAtEdge, readCanvasPixels } from '../platform/imagePixels';
 import { readBitmapTexels } from './glTextureUpload';
-import type { PlatformImage } from '../platform/types';
+import type { ImageLoadResult, PlatformImage } from '../platform/types';
 
 /**
  * Canonical `createImageBitmap` options. premultiply + colorspace conversion are
@@ -63,14 +64,7 @@ export async function fetchImageBitmap(url: string, flip: boolean): Promise<Imag
     }
 }
 
-export interface DecodedPixels {
-    width: number;
-    height: number;
-    pixels: Uint8Array;
-    /** The image's own size, where it was decoded smaller than that; absent when it is the image's size. */
-    sourceWidth?: number;
-    sourceHeight?: number;
-}
+export interface DecodedPixels extends ImageLoadResult {}
 
 /**
  * Decode a source into a top-first RGBA pixel buffer for the C++ `createTexture`
@@ -97,18 +91,22 @@ export async function decodeImagePixels(src: ImageBitmapSource, maxEdge = 0): Pr
  * the ground is mixed by has all over it. The bitmap given is closed when a smaller one is made.
  */
 export async function shrinkBitmap(bitmap: ImageBitmap, maxEdge: number): Promise<ImageBitmap> {
-    const longest = Math.max(bitmap.width, bitmap.height);
-    if (!(maxEdge > 0 && longest > maxEdge) || typeof createImageBitmap !== 'function') return bitmap;
-    const k = maxEdge / longest;
-    const smaller = await createImageBitmap(bitmap, {
-        resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
-        resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
-        resizeQuality: 'high',
-        premultiplyAlpha: 'none',
-        colorSpaceConversion: 'none',
-    });
-    bitmap.close?.();
-    return smaller;
+    const { width, height } = imageSizeAtEdge(bitmap.width, bitmap.height, maxEdge);
+    if ((width === bitmap.width && height === bitmap.height) || typeof createImageBitmap !== 'function') return bitmap;
+    try {
+        const smaller = await createImageBitmap(bitmap, {
+            resizeWidth: width,
+            resizeHeight: height,
+            resizeQuality: 'high',
+            premultiplyAlpha: 'none',
+            colorSpaceConversion: 'none',
+        });
+        bitmap.close?.();
+        return smaller;
+    } catch {
+        // Some hosts can decode the file but cannot resize a bitmap. The pixel reader fits the canvas.
+        return bitmap;
+    }
 }
 
 /**
@@ -119,9 +117,7 @@ export async function shrinkBitmap(bitmap: ImageBitmap, maxEdge: number): Promis
  * toward white, and an RGBM texel — whose alpha IS its brightness — to grey.
  */
 export function readImagePixels(image: PlatformImage | ImageBitmap, maxEdge = 0): DecodedPixels {
-    const scale = maxEdge > 0 ? Math.min(1, maxEdge / Math.max(image.width, image.height)) : 1;
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
+    const { width, height } = imageSizeAtEdge(image.width, image.height, maxEdge);
     // A bitmap of the size asked for is read as the texels it holds; anything else goes through a canvas, which scales and which is what hosts without GL have.
     if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && width === image.width && height === image.height) {
         const texels = readBitmapTexels(image, width, height);
@@ -132,10 +128,7 @@ export function readImagePixels(image: PlatformImage | ImageBitmap, maxEdge = 0)
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
-    ctx.drawImage(image, 0, 0, width, height);
-    const data = ctx.getImageData(0, 0, width, height);
-    const pixels = new Uint8Array(data.data.buffer);
-    return scale < 1 ? { width, height, pixels, sourceWidth: image.width, sourceHeight: image.height } : { width, height, pixels };
+    return readCanvasPixels(image, width, height, ctx);
 }
 
 /**

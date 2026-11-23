@@ -315,7 +315,7 @@ function installNativeAssets(app: App, scope: Record<string, unknown>): void {
     // Textures take the Path-2 pixel-decode route: the platform decodes the image
     // to RGBA (bridge.loadImagePixels), then TextureLoader uploads through the
     // native ResourceManager's createTextureFromBytes. `flip` is applied on upload.
-    assets.getTextureLoader().setPixelDecoder((path) => platformLoadImagePixels(path));
+    assets.getTextureLoader().setPixelDecoder((path, _flip, maxEdge) => platformLoadImagePixels(path, maxEdge));
     // The same binding the web and packaged factories make: references dropped
     // with their entity, and asset paths written at run time loaded into handles.
     bindAssetReferenceTracking(app.world, assets,

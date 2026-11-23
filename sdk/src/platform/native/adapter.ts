@@ -34,6 +34,7 @@ import type {
     PlatformInterstitialAd,
 } from '../types';
 import { NativeSocket } from './socket';
+import { fitImagePixels } from '../imagePixels';
 import { unavailableDevice } from '../../device/core';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
@@ -132,8 +133,9 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return this.bridge_.fileExists(path);
     }
 
-    loadImagePixels(path: string): Promise<ImageLoadResult> {
-        return this.bridge_.loadImagePixels(path);
+    async loadImagePixels(path: string, maxEdge = 0): Promise<ImageLoadResult> {
+        if (!(maxEdge > 0)) return this.bridge_.loadImagePixels(path);
+        return fitImagePixels(await this.bridge_.loadImagePixels(path, maxEdge), maxEdge);
     }
 
     async instantiateWasm(

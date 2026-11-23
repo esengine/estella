@@ -201,9 +201,8 @@ export interface NativeBridge {
     fileExists(path: string): Promise<boolean>;
     fetch(url: string, options?: PlatformRequestOptions): Promise<NativeFetchResult>;
 
-    /** Decode an image to top-first RGBA (the Path-2 / createTextureFromPixels
-     *  route the play realm and WeChat also use). */
-    loadImagePixels(path: string): Promise<ImageLoadResult>;
+    /** Decode an image to top-first RGBA. A bridge that decodes at maxEdge reports the original dimensions. */
+    loadImagePixels(path: string, maxEdge?: number): Promise<ImageLoadResult>;
 
     /** The app's own Java or Objective-C, by method name. Optional: a host built
      *  before the channel omits it, and the SDK then reports no native code. */

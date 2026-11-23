@@ -5,7 +5,8 @@
  * @brief   Base platform adapter - no platform-specific code
  */
 
-import type { PlatformAdapter } from './types';
+import type { ImageLoadResult, PlatformAdapter } from './types';
+import { fitImagePixels } from './imagePixels';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { NullAudioBackend } from '../audio/NullAudioBackend';
 import { log } from '../util/logger';
@@ -128,8 +129,10 @@ export async function platformFileExists(path: string): Promise<boolean> {
     return getPlatform().fileExists(path);
 }
 
-export async function platformLoadImagePixels(path: string): Promise<import('./types').ImageLoadResult> {
-    return getPlatform().loadImagePixels(path);
+export async function platformLoadImagePixels(path: string, maxEdge = 0): Promise<ImageLoadResult> {
+    const platform = getPlatform();
+    if (!(maxEdge > 0)) return platform.loadImagePixels(path);
+    return fitImagePixels(await platform.loadImagePixels(path, maxEdge), maxEdge);
 }
 
 export async function platformInstantiateWasm(

@@ -132,6 +132,8 @@ export function createNativeResourceManager(
         rm.acquireTextureByPath = path => acquire(path) as number;
         rm.invalidateTexturePath = path => invalidate(path) as boolean;
     }
+    const adopt = scope.es_rm_adoptTextureContent;
+    if (typeof adopt === 'function') rm.adoptTextureContent = (target, source) => adopt(target, source) as boolean;
     const trim = scope.es_rm_trimTextureCache;
     if (typeof trim === 'function') rm.trimTextureCache = () => trim() as number;
     const setRetained = scope.es_rm_setRetainedBudget;

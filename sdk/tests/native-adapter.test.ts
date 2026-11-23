@@ -14,7 +14,7 @@ import {
     type NativeBridge,
     type NativeInputListener,
 } from '../src/platform/native';
-import { getPlatformType, isNative, platformLanguage } from '../src/platform';
+import { getPlatformType, isNative, platformLanguage, platformLoadImagePixels } from '../src/platform';
 import type { InputEventCallbacks } from '../src/platform/types';
 import { InputState, inputEventCallbacks } from '../src/input/input';
 
@@ -106,6 +106,22 @@ describe('NativePlatformAdapter (mock bridge)', () => {
         expect(img.height).toBe(2);
         expect(img.pixels.length).toBe(16);
         expect(img.pixels[0]).toBe(255);
+    });
+
+    it('reuses an already fitted decode from the native bridge', async () => {
+        const fitted = { width: 2, height: 1, pixels: new Uint8Array(8), sourceWidth: 12, sourceHeight: 6 };
+        const decode = vi.spyOn(env.bridge, 'loadImagePixels').mockResolvedValue(fitted);
+        expect(await platformLoadImagePixels('art/hero.png', 2)).toBe(fitted);
+        expect(decode).toHaveBeenCalledWith('art/hero.png', 2);
+    });
+
+    it('honors the requested size with an older platform adapter that returns the whole image', async () => {
+        const whole = { width: 2, height: 2, pixels: new Uint8Array(16).fill(16) };
+        vi.spyOn(adapter, 'loadImagePixels').mockResolvedValue(whole);
+        expect(await platformLoadImagePixels('art/hero.png', 1)).toEqual({
+            width: 1, height: 1, pixels: Uint8Array.of(16, 16, 16, 16), sourceWidth: 2, sourceHeight: 2,
+        });
+        expect(await platformLoadImagePixels('art/hero.png')).toBe(whole);
     });
 
     it('instantiates wasm via the host JS engine WebAssembly (no bridge call)', async () => {

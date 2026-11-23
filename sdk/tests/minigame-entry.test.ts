@@ -7,6 +7,8 @@
 // WeChat or Douyin — if any of this needed a name the SDK enumerates, these
 // would fail.
 import { describe, it, expect, vi } from 'vitest';
+import type { MiniGameGlobal } from '../src/platform/minigame/api';
+import type { ESEngineModule } from '../src/wasm';
 
 /** A wx-shaped host global for a vendor that does not exist. */
 function makeHost() {
@@ -89,6 +91,37 @@ describe('esengine/minigame entry', () => {
         expect(platform.platformCreateCanvas(8, 9).width).toBe(8);
         expect(platform.platformCreateImage().height).toBe(4);
         expect(platform.getPlatform().createAudioBackend().name).toBe('ACME Play');
+    }, 30000);
+
+    it('boots with the packaged render settings and forwards the requested edge to its image decoder', async () => {
+        const mg = await import('../src/index.minigame');
+        const factory = await import('../src/runtime/webAppFactory');
+        const runtime = await import('../src/runtime/runtimeLoader');
+        const { setPlatform } = await import('../src/platform');
+        const { webAdapter } = await import('../src/platform/web');
+        const gl = { getExtension: () => null };
+        const host = { ...makeHost(), createCanvas: () => ({ width: 0, height: 0, getContext: () => gl }) };
+        const adapter = mg.installMiniGamePlatform({ id: 'acme-play', hostLabel: 'ACME Play', global: host as unknown as MiniGameGlobal });
+        vi.spyOn(adapter, 'readTextFile').mockImplementation(async path => path === 'asset-manifest.json'
+            ? JSON.stringify({ version: '2.0', groups: {} }) : JSON.stringify({ name: 'Main', entities: [] }));
+        const fitted = { width: 2, height: 1, pixels: new Uint8Array(8), sourceWidth: 8, sourceHeight: 4 };
+        const decode = vi.spyOn(adapter, 'loadImagePixels').mockResolvedValue(fitted);
+        const app = mg.App.new();
+        vi.spyOn(app, 'run').mockResolvedValue();
+        const create = vi.spyOn(factory, 'createWebApp').mockReturnValue(app);
+        const boot = vi.spyOn(runtime, 'initRuntime').mockResolvedValue();
+        const module = { GL: { registerContext: () => 1 } } as unknown as ESEngineModule;
+        const settings = {
+            quality: { mode: 'high', profiles: { high: { textureStreaming: true, textureStreamingStartEdge: 64 } } },
+            msaaSamples: 2, outputTransform: 'neutral', asyncCompute: false,
+        } as const;
+        try {
+            await mg.initMiniGameRuntime({ engineFactory: async () => module, engineWasmPath: 'wasm/core.wasm',
+                sceneNames: ['Main'], firstScene: 'Main', ...settings });
+            expect(create).toHaveBeenCalledWith(module, expect.objectContaining(settings));
+            expect(await boot.mock.calls[0]![0].source.decodePixels('mesh.png', true, 2)).toBe(fitted);
+            expect(decode).toHaveBeenCalledWith('mesh.png', 2);
+        } finally { vi.restoreAllMocks(); setPlatform(webAdapter); }
     }, 30000);
 
     it('initMiniGameRuntime refuses to guess at a host', async () => {

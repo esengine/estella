@@ -11,6 +11,7 @@
 import { TextureContent, type ESEngineModule, type CppResourceManager } from '../wasm';
 import { samplesAsSrgb } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
+import type { ImageLoadResult } from '../platform/types';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { withMalloc } from '../wasm/wasmScratch';
@@ -30,7 +31,7 @@ import { withMalloc } from '../wasm/wasmScratch';
  */
 export interface RuntimeAssetSource {
     backend: Backend;
-    decodePixels(path: string, flip: boolean, maxEdge?: number): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+    decodePixels(path: string, flip: boolean, maxEdge?: number): Promise<ImageLoadResult>;
     resolveRef?(ref: string): string;
     /**
      * The LOGICAL source path a ref was authored at (e.g. `assets/spine/hero.atlas`),

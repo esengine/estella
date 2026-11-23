@@ -89,6 +89,9 @@ export interface ImageLoadResult {
     width: number;
     height: number;
     pixels: Uint8Array;
+    /** Dimensions of the original image when these pixels were decoded at a smaller size. */
+    sourceWidth?: number;
+    sourceHeight?: number;
 }
 
 // =============================================================================
@@ -393,7 +396,8 @@ export interface PlatformAdapter {
 
     fileExists(path: string): Promise<boolean>;
 
-    loadImagePixels(path: string): Promise<ImageLoadResult>;
+    /** Top-first RGBA, optionally limited to a longest edge in texels. Zero requests the original. */
+    loadImagePixels(path: string, maxEdge?: number): Promise<ImageLoadResult>;
 
     instantiateWasm(
         pathOrBuffer: string | ArrayBuffer,

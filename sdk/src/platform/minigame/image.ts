@@ -7,6 +7,7 @@
  */
 
 import type { ImageLoadResult, PlatformCanvas2DContext } from '../types';
+import { imageSizeAtEdge, readCanvasPixels } from '../imagePixels';
 import type { MiniGameGlobal, MiniGameImage } from './api';
 
 function getOffscreenCanvas(g: MiniGameGlobal, width: number, height: number): {
@@ -31,20 +32,15 @@ export function mgLoadImage(g: MiniGameGlobal, path: string): Promise<MiniGameIm
 }
 
 /** Extract RGBA pixel data from a loaded image. */
-export function mgGetImagePixels(g: MiniGameGlobal, img: MiniGameImage): ImageLoadResult {
-    const { width, height } = img;
+export function mgGetImagePixels(g: MiniGameGlobal, img: MiniGameImage, maxEdge = 0): ImageLoadResult {
+    const { width, height } = imageSizeAtEdge(img.width, img.height, maxEdge);
     const { ctx } = getOffscreenCanvas(g, width, height);
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = new Uint8Array(imageData.data.buffer);
-
-    return { width, height, pixels };
+    return readCanvasPixels(img, width, height, ctx);
 }
 
 /** Load an image and read its pixels in one call. */
-export async function mgLoadImagePixels(g: MiniGameGlobal, path: string): Promise<ImageLoadResult> {
+export async function mgLoadImagePixels(g: MiniGameGlobal, path: string, maxEdge = 0): Promise<ImageLoadResult> {
     const img = await mgLoadImage(g, path);
-    return mgGetImagePixels(g, img);
+    return mgGetImagePixels(g, img, maxEdge);
 }

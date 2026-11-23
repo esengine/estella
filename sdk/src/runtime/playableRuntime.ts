@@ -21,6 +21,7 @@ import { log } from '../util/logger';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
+import { platformLoadImagePixels } from '../platform/base';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import { Catalog, type CatalogData } from '../asset/Catalog';
@@ -95,23 +96,6 @@ function decodeDataUrlBinary(dataUrl: string): Uint8Array {
     return bytes;
 }
 
-function loadImagePixels(dataUrl: string): Promise<{ width: number; height: number; pixels: Uint8Array }> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const cv = document.createElement('canvas');
-            cv.width = img.width;
-            cv.height = img.height;
-            const ctx = cv.getContext('2d')!;
-            ctx.drawImage(img, 0, 0);
-            const id = ctx.getImageData(0, 0, img.width, img.height);
-            resolve({ width: img.width, height: img.height, pixels: new Uint8Array(id.data.buffer) });
-        };
-        img.onerror = reject;
-        img.src = dataUrl;
-    });
-}
-
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
     const { app, module, scenes, firstScene } = config;
 
@@ -150,7 +134,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         backend,
         resolveRef: resolveRefToPath,
         resolveAddress: resolveRefToPath,
-        decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
+        decodePixels: (path, _flip, maxEdge) => platformLoadImagePixels(backend.resolveUrl(path), maxEdge),
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.
         listAssetPaths: () => Object.keys(assets),

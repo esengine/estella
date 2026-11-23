@@ -995,7 +995,7 @@ async function boot(): Promise<void> {
   // fetch+blob rather than the platform's Image path.
   const packaged = createPackagedAssetSource(index, {
     backend: new HttpBackend({ baseUrl: '' }),
-    decodePixels: (path) => fetchDecodePixels(path),
+    decodePixels: (path, _flip, maxEdge) => fetchDecodePixels(path, maxEdge),
   });
   let source = packaged;
   if (cfg.modelBakes) {

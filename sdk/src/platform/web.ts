@@ -30,6 +30,7 @@ import { createPrimaryPointer } from './primaryPointer';
 import { createWebRecorder } from './webRecorder';
 import { WebDevice } from '../device/web';
 import { cacheEntryName } from './cacheEntryName';
+import { imageSizeAtEdge, readCanvasPixels } from './imagePixels';
 import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCacheWrite } from './webCacheStore';
 
 const WHEEL_LINE_HEIGHT = 16;
@@ -114,7 +115,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         }
     }
 
-    async loadImagePixels(path: string): Promise<ImageLoadResult> {
+    async loadImagePixels(path: string, maxEdge = 0): Promise<ImageLoadResult> {
         const img = this.createImage();
         await new Promise<void>((resolve, reject) => {
             img.crossOrigin = 'anonymous';
@@ -122,11 +123,10 @@ class WebPlatformAdapter implements PlatformAdapter {
             img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
             img.src = path;
         });
-        const cv = this.createCanvas(img.width, img.height);
+        const { width, height } = imageSizeAtEdge(img.width, img.height, maxEdge);
+        const cv = this.createCanvas(width, height);
         const ctx = cv.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const id = ctx.getImageData(0, 0, img.width, img.height);
-        return { width: img.width, height: img.height, pixels: new Uint8Array(id.data.buffer) };
+        return readCanvasPixels(img, width, height, ctx);
     }
 
     async instantiateWasm(

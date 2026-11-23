@@ -7306,7 +7306,7 @@ hasCacheStorage: () => boolean
 instantiateWasm: (pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult>
 language: () => string
 listCacheFiles: () => Promise<{ name: string; size: number; lastAccess: number; }[]>
-loadImagePixels: (path: string) => Promise<ImageLoadResult>
+loadImagePixels: (path: string, maxEdge?: number) => Promise<ImageLoadResult>
 loadSubpackage: (name: string) => Promise<void>
 login: () => Promise<string>
 name: PlatformName
@@ -7363,6 +7363,7 @@ url: string
 ## MiniGameRuntimeConfig — interface @experimental
 ```
 aot: { module: string; manifest: AotManifest; } | undefined
+asyncCompute: boolean | undefined
 audioConfig: AudioProjectConfig | undefined
 colorSpace: "gamma" | "linear" | undefined
 debugChannel: DebugChannelConfig | undefined
@@ -7372,17 +7373,21 @@ engineWasmPath: string
 firstScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
 ident: boolean | undefined
+msaaSamples: number | undefined
+outputTransform: OutputTransform | undefined
 physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
+quality: QualityConfig | undefined
 runtime: RuntimeBuildConfig | undefined
 runtimeConfig: RuntimeBuildConfig | undefined
 sceneNames: string[]
-screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
+screenFit: ScreenScalingData | undefined
 sideModuleFactories: Partial<Record<SideModuleId, EmscriptenFactory>> | undefined
 sideModuleSuffix: string | undefined
 sideModules: { id: string; file: string; globalName?: string; }[] | undefined
+skinCache: SkinCacheConfig | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ySortLayers: number | undefined
@@ -7810,7 +7815,7 @@ textureImport: (ref: string) => ParsedTextureImportSettings | undefined
 ## PackagedAssetSourceOptions — interface @experimental
 ```
 backend: Backend | undefined
-decodePixels: ((path: string, flip: boolean, maxEdge?: number) => Promise<{ width: number; height: number; pixels: Uint8Array; }>) | undefined
+decodePixels: ((path: string, flip: boolean, maxEdge?: number) => Promise<ImageLoadResult>) | undefined
 ```
 
 ## PackagedGameConfig — interface @experimental
@@ -8747,7 +8752,7 @@ instantiateWasm: (pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Impor
 isHandheld: (() => boolean) | undefined
 language: (() => string) | undefined
 listCacheFiles: (() => Promise<{ name: string; size: number; lastAccess: number; }[]>) | undefined
-loadImagePixels: (path: string) => Promise<ImageLoadResult>
+loadImagePixels: (path: string, maxEdge?: number) => Promise<ImageLoadResult>
 loadSubpackage: ((name: string) => Promise<void>) | undefined
 login: (() => Promise<string>) | undefined
 name: PlatformName
@@ -10650,7 +10655,7 @@ rotation: Quat
 ```
 backend: Backend
 compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
-decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
+decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<ImageLoadResult>
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined

@@ -7359,7 +7359,7 @@ fileExists: (path: string) => Promise<boolean>
 getStorageItem: (key: string) => string | null
 isHandheld: (() => boolean) | undefined
 language: (() => string) | undefined
-loadImagePixels: (path: string) => Promise<ImageLoadResult>
+loadImagePixels: (path: string, maxEdge?: number) => Promise<ImageLoadResult>
 now: (() => number) | undefined
 onContextLost: ((callback: () => void) => () => void) | undefined
 onHide: ((callback: () => void) => () => void) | undefined
@@ -7530,7 +7530,7 @@ hasCacheStorage: () => boolean
 instantiateWasm: (pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult>
 isHandheld: () => boolean
 language: () => string
-loadImagePixels: (path: string) => Promise<ImageLoadResult>
+loadImagePixels: (path: string, maxEdge?: number) => Promise<ImageLoadResult>
 name: "native"
 nativeChannel: () => PlatformNativeChannel | null
 now: () => number
@@ -7733,7 +7733,7 @@ textureImport: (ref: string) => ParsedTextureImportSettings | undefined
 ## PackagedAssetSourceOptions — interface @experimental
 ```
 backend: Backend | undefined
-decodePixels: ((path: string, flip: boolean, maxEdge?: number) => Promise<{ width: number; height: number; pixels: Uint8Array; }>) | undefined
+decodePixels: ((path: string, flip: boolean, maxEdge?: number) => Promise<ImageLoadResult>) | undefined
 ```
 
 ## PackagedGameConfig — interface @experimental
@@ -8670,7 +8670,7 @@ instantiateWasm: (pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Impor
 isHandheld: (() => boolean) | undefined
 language: (() => string) | undefined
 listCacheFiles: (() => Promise<{ name: string; size: number; lastAccess: number; }[]>) | undefined
-loadImagePixels: (path: string) => Promise<ImageLoadResult>
+loadImagePixels: (path: string, maxEdge?: number) => Promise<ImageLoadResult>
 loadSubpackage: ((name: string) => Promise<void>) | undefined
 login: (() => Promise<string>) | undefined
 name: PlatformName
@@ -10588,7 +10588,7 @@ rotation: Quat
 ```
 backend: Backend
 compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
-decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
+decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<ImageLoadResult>
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined

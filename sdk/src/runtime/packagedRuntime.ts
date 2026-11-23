@@ -381,7 +381,7 @@ export function createPackagedAssetSource(
 ): RuntimeAssetSource {
     return {
         backend: options.backend ?? new FileSystemBackend(),
-        decodePixels: options.decodePixels ?? ((path) => platformLoadImagePixels(path)),
+        decodePixels: options.decodePixels ?? ((path, _flip, maxEdge) => platformLoadImagePixels(path, maxEdge)),
         resolveRef: index.resolvePath,
         resolveAddress: index.addressOf,
         listAssetPaths: index.assetPaths,

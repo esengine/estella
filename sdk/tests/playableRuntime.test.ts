@@ -105,6 +105,17 @@ describe('initPlayableRuntime', () => {
         expect((plain.app as any).stepFrames).not.toHaveBeenCalled();
     });
 
+    it('passes an embedded image and its requested edge to the platform decoder', async () => {
+        const platform = await import('../src/platform/base');
+        const fitted = { width: 2, height: 1, pixels: new Uint8Array(8), sourceWidth: 8, sourceHeight: 4 };
+        const decode = vi.spyOn(platform, 'platformLoadImagePixels').mockResolvedValue(fitted);
+        const url = 'data:image/png;base64,AA==';
+        await initPlayableRuntime(createMockConfig({ assets: { '@uuid:tex': url }, assetPathMap: { 'art/mesh.png': '@uuid:tex' } }));
+        const { source } = vi.mocked(initRuntime).mock.calls[0]![0];
+        expect(await source.decodePixels('art/mesh.png', true, 2)).toBe(fitted);
+        expect(decode).toHaveBeenCalledWith(url, 2);
+    });
+
     it('passes scenes array and firstScene to initRuntime', async () => {
         const scenes = [
             { name: 'level1', data: { version: '1', name: 'level1', entities: [] } as any },

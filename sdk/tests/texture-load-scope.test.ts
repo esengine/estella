@@ -13,6 +13,7 @@ import type { ESEngineModule } from '../src/wasm';
 
 const uploads: { width: number; format: number; flip: boolean; filter: number; wrap: number }[] = [];
 const manager = {
+    adoptTextureContent: vi.fn(() => true),
     createTextureFromBytes(width: number, _height: number, _bytes: Uint8Array, format: number, flip: boolean,
         _content: number, filter: number, wrap: number): number {
         return uploads.push({ width, format, flip, filter, wrap });
