@@ -9,6 +9,7 @@ import { Pose } from '../src/animation/pose';
 import { getComponent, Name, Sprite, Transform } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
 import { World } from '../src/ecs/world';
+import { linearKey } from '../src/math/keyframes';
 import { q } from '../src/math/quat';
 import { v3 } from '../src/math/vec3';
 import {
@@ -86,6 +87,33 @@ function playback(clip: string, mode: string): AnimatorControllerDef {
     }
     return def;
 }
+
+describe('seek a joint curve for 16 actors', () => {
+    const clip = example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline');
+    const rotations = clip.tracks.flatMap(track => track.type === TrackType.Property
+        ? track.channels.filter(channel => channel.property === 'rotation.y') : []);
+    const authored = rotations.sort((a, b) => b.keyframes.length - a.keyframes.length)[0];
+    if (!authored) throw new Error('Jog clip has no joint rotation channel');
+    // A baked capture keeps a key at every sample. Resample the checked-in motion
+    // so both densities can be replayed without downloading a model.
+    const dense = Array.from({ length: 1309 }, (_, i) => {
+        const time = i / 37.5;
+        return linearKey(time, evaluateChannel(authored, time % clip.duration));
+    });
+    for (const keyframes of [authored.keyframes, dense]) {
+        const channel = { ...authored, keyframes };
+        const duration = keyframes[keyframes.length - 1].time;
+        const values = new Float64Array(16);
+        let frame = 0;
+        bench(`${keyframes.length} keys`, () => {
+            frame = (frame + 19) % 113;
+            for (let actor = 0; actor < values.length; actor++) {
+                const phase = ((frame + actor * 7) % 113 + 0.25) / 113;
+                values[actor] = evaluateChannel(channel, duration * phase);
+            }
+        }, { time: 500, warmupTime: 100 });
+    }
+});
 
 describe('authored dodge root motion, 16 actors', () => {
     for (const edit of [false, true]) {

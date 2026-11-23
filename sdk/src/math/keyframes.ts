@@ -58,6 +58,57 @@ function easeInOut(t: number): number {
     return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
 }
 
+// Short authored curves are cheaper to scan. Only longer arrays need an order
+// check. Cache that fact alone so time, tangent and value edits stay live.
+const LINEAR_SEARCH_LIMIT = 32;
+const LINEAR_SEARCH_WINDOW = 4;
+const orderedCurves = new WeakMap<readonly Keyframe[], boolean>();
+
+function hasOrderedTimes(keys: readonly Keyframe[]): boolean {
+    let ordered = orderedCurves.get(keys);
+    if (ordered !== undefined) return ordered;
+    ordered = true;
+    for (let i = 1; i < keys.length; i++) {
+        if (!(keys[i - 1].time <= keys[i].time)) {
+            ordered = false;
+            break;
+        }
+    }
+    orderedCurves.set(keys, ordered);
+    return ordered;
+}
+
+/** Copy stored keys and record their order before the first playback frame. */
+export function loadKeyframes(
+    raw: readonly (Pick<Keyframe, 'time' | 'value'> & Partial<Keyframe>)[],
+): Keyframe[] {
+    let previousTime = -Infinity;
+    let ordered = true;
+    const keys = raw.map(key => {
+        ordered = ordered && previousTime <= key.time;
+        previousTime = key.time;
+        // Missing Hermite tangents on hand-authored keys mean zero slope.
+        return { ...key, inTangent: key.inTangent ?? 0, outTangent: key.outTangent ?? 0 };
+    });
+    if (keys.length > LINEAR_SEARCH_LIMIT) orderedCurves.set(keys, ordered);
+    return keys;
+}
+
+function denseSearchStart(keys: readonly Keyframe[], at: number): number {
+    // The first few keys are already close enough to scan. An unordered legacy
+    // curve must always start at zero to preserve its first-later-key behavior.
+    if (at < keys[LINEAR_SEARCH_WINDOW].time || !hasOrderedTimes(keys)) return 0;
+
+    let left = 0;
+    let right = keys.length - 1;
+    while (right - left > LINEAR_SEARCH_WINDOW) {
+        const middle = left + ((right - left) >>> 1);
+        if (keys[middle].time <= at) left = middle;
+        else right = middle;
+    }
+    return left;
+}
+
 /**
  * @brief The value @p keys hold at @p at. Endpoints CLAMP — a curve states what it
  *        states and nothing beyond, which is what lets a caller sample any time.
@@ -68,16 +119,21 @@ function easeInOut(t: number): number {
  */
 export function sampleKeyframes(keys: readonly Keyframe[], at: number): number {
     if (!keys || keys.length === 0) return 0;
-    if (keys.length === 1) return keys[0].value;
+    let k0 = keys[0];
+    if (keys.length === 1 || at <= k0.time) return k0.value;
+    const last = keys[keys.length - 1];
+    if (at >= last.time) return last.value;
 
-    if (at <= keys[0].time) return keys[0].value;
-    if (at >= keys[keys.length - 1].time) return keys[keys.length - 1].value;
-
-    let i = 0;
-    while (i < keys.length - 1 && keys[i + 1].time <= at) i++;
-
-    const k0 = keys[i];
-    const k1 = keys[i + 1];
+    let i = 1;
+    if (keys.length > LINEAR_SEARCH_LIMIT) {
+        i = denseSearchStart(keys, at) + 1;
+        k0 = keys[i - 1];
+    }
+    let k1 = keys[i];
+    while (k1.time <= at) {
+        k0 = k1;
+        k1 = keys[++i];
+    }
     const dt = k1.time - k0.time;
     if (dt <= 0) return k0.value;
 

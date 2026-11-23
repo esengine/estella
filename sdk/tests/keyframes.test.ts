@@ -8,8 +8,9 @@
  * lines. Whichever a caller relies on, it is decided here now.
  */
 import { describe, it, expect } from 'vitest';
-import { sampleKeyframes, linearKey, InterpType, type Keyframe } from '../src/math/keyframes';
+import { sampleKeyframes, linearKey, loadKeyframes, InterpType, type Keyframe } from '../src/math/keyframes';
 import { evaluateChannel } from '../src/timeline/TimelineEvaluator';
+import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 
 const key = (time: number, value: number, interpolation?: InterpType, tangents = 0): Keyframe =>
     ({ time, value, inTangent: tangents, outTangent: tangents, interpolation });
@@ -83,5 +84,57 @@ describe('sampleKeyframes', () => {
 
     it('holds a segment of zero width rather than dividing by it', () => {
         expect(sampleKeyframes([linearKey(1, 5), linearKey(1, 9)], 1)).toBe(5);
+    });
+
+    it('scrubs a dense curve across mixed interpolation and repeated timestamps', () => {
+        const modes = Object.values(InterpType);
+        const keys = Array.from({ length: 195 }, (_, i) =>
+            key(Math.floor(i / 3) ** 2, Math.sin(i), modes[Math.floor(i / 3) % modes.length], i / 100));
+        const last = keys[keys.length - 1];
+        expect(sampleKeyframes(keys, 0)).toBe(keys[0].value);
+        expect(sampleKeyframes(keys, last.time)).toBe(last.value);
+        for (let frame = 0; frame < 64; frame++) {
+            const index = 3 * (frame * 37 % 64) + 2;
+            const left = keys[index], right = keys[index + 1];
+            const at = left.time + (right.time - left.time) * 0.375;
+            expect(sampleKeyframes(keys, at)).toBe(sampleKeyframes([left, right], at));
+            if (left.time > 0) expect(sampleKeyframes(keys, left.time)).toBe(left.value);
+        }
+    });
+
+    it('reads time, value and interpolation edits and removed keys on the next sample', () => {
+        const keys = Array.from({ length: 257 }, (_, i) => linearKey(i, i));
+        expect(sampleKeyframes(keys, 128.75)).toBe(128.75);
+        keys[128] = key(128.5, 75, InterpType.Step);
+        expect(sampleKeyframes(keys, 127.75)).toBe(101);
+        expect(sampleKeyframes(keys, 128.75)).toBe(75);
+        keys.splice(128, 1);
+        expect(sampleKeyframes(keys, 128.75)).toBe(128.75);
+    });
+
+    it('retains first-later-key behavior for a dense curve authored out of order', () => {
+        const keys = Array.from({ length: 190 }, (_, i) => key(i, i, InterpType.Step));
+        keys[9].time = 150;
+        for (const curve of [keys, loadKeyframes(keys)]) {
+            expect(sampleKeyframes(curve, 100)).toBe(8);
+            expect(sampleKeyframes(curve, 151)).toBe(151);
+        }
+    });
+
+    it('can seek near the end of a long imported curve on its first playback frame', () => {
+        const asset = parseTimelineAsset({ version: '1.3', tracks: [{
+            type: 'property', component: 'Transform', channels: [{
+                property: 'position.x', keyframes: Array.from({ length: 2048 }, (_, i) => linearKey(i, i)),
+            }],
+        }] });
+        const track = asset.tracks[0];
+        if (track.type !== 'property') throw new Error('Expected a property track');
+        const channel = track.channels[0];
+        let reads = 0;
+        channel.keyframes.forEach((key, i) => Object.defineProperty(key, 'time', {
+            get() { reads++; return i; },
+        }));
+        expect(evaluateChannel(channel, 2045.75)).toBe(2045.75);
+        expect(reads).toBeLessThan(32);
     });
 });
