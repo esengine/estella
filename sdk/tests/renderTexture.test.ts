@@ -184,11 +184,15 @@ describe('RenderTexture', () => {
     });
 
     describe('begin / end', () => {
-        it('calls Renderer.begin with viewProjection and handle', () => {
+        it.each([
+            ['the default colour pass', undefined, 0],
+            ['an explicit colour pass', { data: false }, 0],
+            ['a data pass', { data: true }, 4],
+        ] as const)('forwards the projection, target and flags for %s', (_label, options, flags) => {
             const vp = new Float32Array(16);
             const rt = { _handle: 7, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
-            RenderTexture.begin(rt, vp);
-            expect(Renderer.begin).toHaveBeenCalledWith(vp, 7);
+            RenderTexture.begin(rt, vp, options);
+            expect(Renderer.begin).toHaveBeenCalledWith(vp, 7, flags);
         });
 
         it('calls Renderer.end', () => {
