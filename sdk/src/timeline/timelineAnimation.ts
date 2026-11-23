@@ -23,6 +23,7 @@
 import { TrackType, type AnimationClipItem, type AnimationExtrapolation, type AnimationTrack, type TimelineAsset } from './TimelineTypes';
 import { sampleTimelineIntoPose, type SampleDeps } from './TimelineEvaluator';
 import { Pose, type PoseTrack, type PoseWorld } from '../animation/pose';
+import { writeProjection } from '../ecs/componentProjection';
 import { mixPoses, type WeightedPose } from '../animation/poseMix';
 import { overlayPose, addPoseOver } from '../animation/layerStack';
 import { MaskReach } from '../animation/animatorMask';
@@ -233,7 +234,7 @@ function moveRoot(world: PoseWorld, rig: Entity, track: AnimationTrack, time: nu
     let base = byRig.get(rig);
     if (!base) byRig.set(rig, (base = { position: { ...now.position }, rotation: { ...now.rotation } }));
     const at = rootPlacementAt(track, time, base, lookup, animationClipWeights, extrapolatedTime);
-    world.set(rig, def, { ...now, position: at.position, rotation: at.rotation });
+    writeProjection(world, rig, def, { ...now, position: at.position, rotation: at.rotation });
 }
 
 /** Composes `layers` on `rig` over its own pose and writes the result once. */
@@ -283,7 +284,7 @@ function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
         overlayPose(composed, mixed, Math.min(1, layer.total) * w, world, layer.reach);
         pool.push(mixed);
     }
-    composed.applyTo(world);
+    composed.applyEvaluatedTo(world);
     for (const layer of layers) {
         for (const { pose } of layer.sources) pool.push(pose);
         for (const ref of layer.refs) pool.push(ref);

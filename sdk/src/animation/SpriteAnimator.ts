@@ -11,6 +11,7 @@ import { getDefaultContext } from '../ecs/context';
 import type { Entity, TextureHandle } from '../types';
 import type { World } from '../ecs/world';
 import { Sprite, type SpriteData } from '../ecs/component';
+import { writeProjection } from '../ecs/componentProjection';
 
 // =============================================================================
 // Sprite Animation Clip
@@ -370,7 +371,7 @@ export class SpriteAnimationAPI {
                 if (direct) {
                     writeSprite(entity, sprite);
                     world.markChanged(entity, Sprite);
-                } else world.set(entity, Sprite, sprite);
+                } else writeProjection(world, entity, Sprite, sprite);
             }
 
             if (frameChanged) {

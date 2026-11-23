@@ -33,12 +33,9 @@ import {
 // =============================================================================
 
 /**
- * Rewrite color-typed fields from the WASM {x,y,z,w} shape into the SDK
- * {r,g,b,a} shape. The outer object comes fresh from embind on every
- * Registry method call and has no outside aliases, so we mutate it in
- * place; the inner color objects are likewise fresh. Setting r/g/b/a
- * on the same object leaves ghost x/y/z/w properties, but consumers
- * only read r/g/b/a — net zero allocations per get().
+ * Add SDK r/g/b/a channels to fresh registry color records in place.
+ * The records retain their identity and x/y/z/w aliases. The component's
+ * reflected color fields distinguish them from rotations.
  */
 export function convertFromWasm(
     obj: Record<string, unknown>,
@@ -928,15 +925,18 @@ export class BuiltinBridge {
         return { merged, isNew: isNew || !tracked };
     }
 
-    set<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>): void {
+    set<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>, projection = false): void {
         if (data == null) throw new TypeError('Expected component data');
-        this.replace(entity, component, mergeIntoDefaults(component._default as Record<string, unknown>, data, 'declared'));
+        if (projection && this.getBuiltinMethods(component._cppName).addFields?.(entity, data)) return;
+        const complete = mergeIntoDefaults(component._default as Record<string, unknown>, data, 'declared');
+        // A rejected projection falls through to the object binding once.
+        this.replace(entity, component, complete, !projection);
     }
 
     /** Both add and replace hand the same complete SDK value to the registry. */
-    replace<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>): void {
+    replace<T>(entity: Entity, component: BuiltinComponentDef<T>, data: Record<string, unknown>, tryFields = true): void {
         const methods = this.getBuiltinMethods(component._cppName);
-        if (methods.addFields?.(entity, data)) return;
+        if (tryFields && methods.addFields?.(entity, data)) return;
         const payload = convertForWasm(data, component.colorKeys);
         const numberFields = numberListFieldsOf(component._cppName);
         const entityFields = component.entityFields ?? [];

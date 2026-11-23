@@ -16,6 +16,7 @@ import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
+import { componentProjection } from './componentProjection';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
@@ -882,6 +883,21 @@ export class World {
      * reads. Insert-or-replace: an entity that lacks the component gets it.
      */
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
+        this.storeComponent_(entity, component, data, false);
+    }
+
+    /** @internal Commit the complete component values produced by the animation runtime. */
+    [componentProjection]<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
+        if (this.set !== worldSet || this.get !== worldGet) {
+            this.set(entity, component, data);
+            return;
+        }
+        this.storeComponent_(entity, component, data, true);
+    }
+
+    private storeComponent_<C extends AnyComponentDef>(
+        entity: Entity, component: C, data: ComponentData<C>, projection: boolean,
+    ): void {
         this.speculation_?.record(this, entity, component);
         if (this.isHierarchyComponent_(component)) {
             this.insertHierarchy_(entity, component, data);
@@ -904,7 +920,7 @@ export class World {
             }
             if (this.builtin_.hasCpp) {
                 try {
-                    this.builtin_.set(entity, component, data as Record<string, unknown>);
+                    this.builtin_.set(entity, component, data as Record<string, unknown>, projection);
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
@@ -2015,6 +2031,10 @@ export class World {
     /** Cleared with the bridge, because a reconnect may serve other memory. */
     private readonly addressOf_ = new Map<symbol, (entity: Entity) => number | undefined>();
 }
+
+// A world adapter can intercept reads and writes on either the instance or the prototype.
+const worldSet = World.prototype.set;
+const worldGet = World.prototype.get;
 
 /** A component whose backend serves no flat memory: never has an address. */
 const NO_ADDRESS = (): undefined => undefined;

@@ -870,7 +870,7 @@ export class AnimatorControllerAPI {
             }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
-            if (wrote) rt.composed.applyTo(world);
+            if (wrote) rt.composed.applyEvaluatedTo(world);
         }
     }
 

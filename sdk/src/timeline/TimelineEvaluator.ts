@@ -19,6 +19,7 @@ import { sampleKeyframes } from '../math/keyframes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Pose, PoseTrack, PoseWorld } from '../animation/pose';
+import { writeProjection } from '../ecs/componentProjection';
 import { q } from '../math/quat';
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
@@ -170,11 +171,7 @@ export function sampleRootPlacement(
 // ---------------------------------------------------------------------------
 
 /** Minimal world surface the sampler needs (component get/set by definition). */
-export interface SampleWorld {
-    has(entity: Entity, def: AnyComponentDef): boolean;
-    get(entity: Entity, def: AnyComponentDef): Record<string, unknown>;
-    set(entity: Entity, def: AnyComponentDef, data: Record<string, unknown>): void;
-}
+export interface SampleWorld extends PoseWorld {}
 
 export interface SampleDeps {
     world: SampleWorld;
@@ -206,7 +203,7 @@ export interface SampleSink {
 export function worldSink(world: SampleWorld): SampleSink {
     return {
         open: (entity, def) => (world.has(entity, def) ? world.get(entity, def) : null),
-        close: (entity, def, data) => { world.set(entity, def, data); },
+        close: (entity, def, data) => { writeProjection(world, entity, def, data); },
     };
 }
 

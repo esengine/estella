@@ -17,12 +17,17 @@
 
 import type { Entity } from '../types';
 import type { AnyComponentDef } from '../ecs/component';
+import { writeProjection } from '../ecs/componentProjection';
 
 /** The world surface a pose is seeded from and written back to. */
 export interface PoseWorld {
     has(entity: Entity, def: AnyComponentDef): boolean;
     get(entity: Entity, def: AnyComponentDef): Record<string, unknown>;
     set(entity: Entity, def: AnyComponentDef, data: Record<string, unknown>): void;
+}
+
+function writeComponent(world: PoseWorld, entity: Entity, def: AnyComponentDef, data: Record<string, unknown>): void {
+    world.set(entity, def, data);
 }
 
 /** One component on one entity, as some motion posed it. */
@@ -103,8 +108,17 @@ export class Pose {
 
     /** Write this pose's touched fields to the world. */
     applyTo(world: PoseWorld): void {
+        this.writeTracks_(world, writeComponent);
+    }
+
+    /** @internal Apply the animation runtime's own fully evaluated buffers. */
+    applyEvaluatedTo(world: PoseWorld): void {
+        this.writeTracks_(world, writeProjection);
+    }
+
+    private writeTracks_(world: PoseWorld, write: typeof writeComponent): void {
         for (const track of this.live_) {
-            if (track.touched.size > 0) world.set(track.entity, track.def, track.data);
+            if (track.touched.size > 0) write(world, track.entity, track.def, track.data);
         }
     }
 }

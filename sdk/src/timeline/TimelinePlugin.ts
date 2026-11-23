@@ -11,6 +11,7 @@ import { TimelineSpawns, type TimelineSpawner } from './timelineSpawns';
 import { TIMELINE_VIEW_SHAKE } from './timelineCameraShake';
 import { Prefabs } from '../prefab/prefabServer';
 import { Name } from '../ecs/component';
+import { writeProjection } from '../ecs/componentProjection';
 import { ensureEntityEvents } from '../ecs/entityEvents';
 import { resolveTimelinePath } from './timelineBindings';
 import { installTimeDilation } from './timeDilation';
@@ -291,7 +292,7 @@ export class TimelinePlugin implements Plugin {
                 if (textureHandle) {
                     const sprite = world.get(entity, Sprite);
                     sprite.texture = textureHandle;
-                    world.set(entity, Sprite, sprite);
+                    writeProjection(world, entity, Sprite, sprite);
                 }
             }
         }

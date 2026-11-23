@@ -124,6 +124,20 @@ function scanFile(rel, text) {
         /\.(tsx|jsx)$/.test(rel) ? ts.ScriptKind.TSX : undefined);
     const findings = [];
     const at = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+    const projectionWriters = new Set();
+    for (const statement of sf.statements) {
+        if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly) continue;
+        const source = path.posix.join(path.posix.dirname(rel), statement.moduleSpecifier.text);
+        const bindings = statement.importClause?.namedBindings;
+        if (source !== 'sdk/src/ecs/componentProjection' || !bindings || !ts.isNamedImports(bindings)) continue;
+        for (const binding of bindings.elements) {
+            if (!binding.isTypeOnly && (binding.propertyName ?? binding.name).text === 'writeProjection') {
+                projectionWriters.add(binding.name.text);
+            }
+        }
+    }
+    const projectedValue = (call) => ts.isIdentifier(call.expression) && projectionWriters.has(call.expression.text)
+        && call.arguments.length === 4 ? unwrap(call.arguments[3]) : undefined;
 
     // Bindings that hold a value obtained from a read path, and everything
     // derived from them by property access — `const p = c.inner` keeps p live.
@@ -139,6 +153,9 @@ function scanFile(rel, text) {
 
     const collectBindings = () => {
         const visit = (node) => {
+            // An ambiguous local name cannot prove that the engine writer ran.
+            if (ts.isIdentifier(node) && projectionWriters.has(node.text) && ts.isDeclarationName(node)
+                && !ts.isImportSpecifier(node.parent)) projectionWriters.delete(node.text);
             if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)) {
                 const init = unwrap(node.initializer);
                 const kind = worldReadKind(init) ?? (isTracked(init)?.origin ?? null);
@@ -252,6 +269,9 @@ function scanFile(rel, text) {
                         return ts.isIdentifier(u) && names.has(u.text);
                     })) found = true;
                 } else if (m === 'markChanged') found = true;
+            } else if (ts.isCallExpression(n)) {
+                const value = projectedValue(n);
+                if (value && ts.isIdentifier(value) && names.has(value.text)) found = true;
             }
             ts.forEachChild(n, look);
         };
@@ -311,7 +331,7 @@ function scanFile(rel, text) {
         if (ts.isCallExpression(node) && !written.has(node)) {
             for (const arg of node.arguments) {
                 const a = unwrap(arg);
-                if (!ts.isIdentifier(a)) continue;
+                if (!ts.isIdentifier(a) || a === projectedValue(node)) continue;
                 const callee = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : '';
                 if (callee === 'set' || callee === 'insert') continue;
                 const hit = tracked.find((t) => t.name === a.text && within(node, t.scope));
@@ -338,6 +358,8 @@ function scanFile(rel, text) {
  */
 const CALIBRATION = `
     import { Query, Mut, defineSystem } from 'estella';
+    import { writeProjection as project, writeProjection as shadowed } from '../src/ecs/componentProjection';
+    import { writeProjection as other } from './unrelated';
     function a(world, e, C) { world.get(e, C).v = 1; }
     function b(world, e, C) { world.tryGet(e, C).v = 1; }
     function c(world, e, C) { const h = world.get(e, C); h.v += 1; }
@@ -353,14 +375,18 @@ const CALIBRATION = `
     function stored(world, e, C) { const h = world.get(e, C); h.v = 1; world.set(e, C, h); }
     function silent(world, e, C) { const h = world.get(e, C); h.v = 1; }
     function viaChild(world, e, C) { const h = world.tryGet(e, C); const p = h.position; p.x = 1; world.set(e, C, h); }
+    function projected(world, e, C) { const h = world.get(e, C); h.v = 1; project(world, e, C, h); }
+    function wrongSlot(world, e, C) { const h = world.get(e, C); h.v = 1; project(world, h, C, {}); }
+    function otherImport(world, e, C) { const h = world.get(e, C); h.v = 1; other(world, e, C, h); }
+    function shadow(world, e, C, shadowed) { const h = world.get(e, C); h.v = 1; shadowed(world, e, C, h); }
 `;
 
 if (SELF_TEST) {
-    const got = scanFile('calibration.ts', CALIBRATION);
+    const got = scanFile('sdk/tests/calibration.ts', CALIBRATION);
     const count = (c) => got.filter((f) => f.category === c).length;
     const expected = {
-        'direct-write': 2, 'alias-write': 5, 'method-write': 1,
-        'assign-write': 1, 'escapes': 1, 'row-write': 2,
+        'direct-write': 2, 'alias-write': 9, 'method-write': 1,
+        'assign-write': 1, 'escapes': 4, 'row-write': 2,
     };
     let bad = 0;
     for (const [cat, n] of Object.entries(expected)) {
@@ -373,7 +399,10 @@ if (SELF_TEST) {
     // reports, the same edit without the write-back does not.
     const inFn = (name) => got.filter((f) => CALIBRATION.split('\n')
         .findIndex((l) => l.includes(`function ${name}(`)) + 1 === f.line);
-    for (const [fn, want] of [['stored', true], ['silent', false], ['viaChild', true]]) {
+    for (const [fn, want] of [
+        ['stored', true], ['silent', false], ['viaChild', true], ['projected', true],
+        ['wrongSlot', false], ['otherImport', false], ['shadow', false],
+    ]) {
         const hits = inFn(fn).filter((f) => f.category === 'alias-write');
         const ok = hits.length === 1 && hits[0].storedBack === want;
         if (!ok) bad++;

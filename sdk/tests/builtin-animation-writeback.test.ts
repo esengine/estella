@@ -2,7 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
-import { Sprite, Transform } from '../src/ecs/component';
+import { Sprite, Transform, getComponent } from '../src/ecs/component';
+import { writeProjection } from '../src/ecs/componentProjection';
+import { Pose } from '../src/animation/pose';
+import { Animator, AnimatorControllerAPI } from '../src/animation/Animator';
+import { TimelineAPI } from '../src/timeline/TimelineControl';
+import { sampleTimeline } from '../src/timeline/TimelineEvaluator';
+import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
+import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline/timelineMotion';
 import { speculate } from '../src/ecs/speculation';
 import { ResourceStorage } from '../src/ecs/resource';
 import { getDefaultContext } from '../src/ecs/context';
@@ -76,6 +83,106 @@ describe.skipIf(!HAS_WASM)('animation component replacement', () => {
             // The first input specifies a new world pose. The next carries the composer's existing output.
             expect(direct.transform.mock.results.map(result => result.value)).toEqual([false, true]);
         } finally { direct.dispose(); legacy.dispose(); }
+    });
+
+    it('submits direct timeline and animator output without rebuilding defaults on each track', () => {
+        const clip = parseTimelineAsset({
+            version: '1.3', type: 'timeline', duration: 2, wrapMode: 'loop',
+            tracks: [
+                ['Transform', 'scale.z', 3], ['Sprite', 'color.a', 0.25],
+            ].map(([component, property, value]) => ({
+                type: 'property', name: component, component, childPath: '',
+                channels: [{ property, keyframes: [{ time: 0, value, interpolation: 'linear' }] }],
+            })),
+        });
+        const context = getDefaultContext(), previous = context.editorBridge;
+        for (const fields of [false, true]) {
+            const { world, entity, dispose } = scene(fields);
+            const changed = vi.fn();
+            world.insert(entity, Transform);
+            world.insert(entity, Sprite);
+            world.insert(entity, Animator, { controller: 'controller', enabled: true });
+            const timeline = new TimelineAPI(), controller = new AnimatorControllerAPI();
+            timeline.registerAsset('clip', clip);
+            controller.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+            controller.registerController('controller', {
+                initialState: 'play', parameters: [],
+                states: [{ name: 'play', motion: { kind: TIMELINE_MOTION, clip: 'clip' }, transitions: [] }],
+            });
+            world.enableChangeSequenceTracking(Transform, false);
+            const transformDefaults = vi.spyOn(Transform, '_default', 'get');
+            const spriteDefaults = vi.spyOn(Sprite, '_default', 'get');
+            context.editorBridge = { registerComponent() {}, onComponentChanged: changed };
+            try {
+                for (const sample of [
+                    () => sampleTimeline(clip, 0.25, entity, { world, getComponent, resolveChild: root => root }),
+                    () => controller.update(world, 0.25),
+                ]) {
+                    const cursor = world.getChangeSequence();
+                    sample();
+                    expect(world.get(entity, Transform).scale.z).toBe(3);
+                    expect(world.get(entity, Sprite).color.a).toBe(0.25);
+                    expect(world.isChangedAfterSequence(entity, Transform, cursor)).toBe(true);
+                    expect(changed).toHaveBeenCalledWith(entity, 'Transform');
+                    expect(changed).toHaveBeenCalledWith(entity, 'Sprite');
+                    expect(transformDefaults).toHaveBeenCalledTimes(fields ? 0 : 1);
+                    expect(spriteDefaults).toHaveBeenCalledTimes(fields ? 0 : 1);
+                    changed.mockClear(); transformDefaults.mockClear(); spriteDefaults.mockClear();
+                }
+            } finally {
+                transformDefaults.mockRestore(); spriteDefaults.mockRestore();
+                context.editorBridge = previous; dispose();
+            }
+        }
+    });
+
+    it('preserves authored pose accessors and intercepted writes', () => {
+        const { world, entity, dispose } = scene(true);
+        try {
+            world.insert(entity, Transform);
+            const pose = new Pose(), track = pose.track(world, entity, Transform)!;
+            const read = vi.fn(() => ({ x: 7, y: 2 }));
+            Object.defineProperty(track.data, 'position', { enumerable: true, get: read });
+            track.touched.add('position');
+            pose.applyTo(world);
+            expect(read).toHaveBeenCalledTimes(1);
+            expect(world.get(entity, Transform).position).toEqual({ x: 7, y: 2, z: 0 });
+
+            const row = world.get(entity, Transform), observed = vi.spyOn(world, 'set');
+            writeProjection(world, entity, Transform, row);
+            expect(observed.mock.calls).toEqual([[entity, Transform, row]]);
+            observed.mockRestore();
+
+            const get = vi.spyOn(world, 'get');
+            read.mockClear();
+            writeProjection(world, entity, Transform, track.data as never);
+            expect(read).toHaveBeenCalledTimes(1);
+            get.mockRestore();
+        } finally { dispose(); }
+    });
+
+    it('completes partial projections and delegates a rejected computed value exactly once', () => {
+        const { world, entity, transform, dispose } = scene(true);
+        try {
+            world.insert(entity, Transform);
+            transform.mockClear();
+            writeProjection(world, entity, Transform, { position: { x: 2, y: 3 } } as never);
+            expect(world.get(entity, Transform).position).toEqual({ x: 2, y: 3, z: 0 });
+            expect(transform).not.toHaveBeenCalled();
+            const row = world.get(entity, Transform);
+            row.worldPosition.z = 17;
+            writeProjection(world, entity, Transform, row);
+            expect(transform.mock.results.map(r => r.value)).toEqual([false]);
+            expect(world.get(entity, Transform).worldPosition.z).toBe(17);
+            speculate({ world, resources: new ResourceStorage() }, () => {
+                const edit = world.get(entity, Transform);
+                edit.position.x = 18;
+                writeProjection(world, entity, Transform, edit);
+                expect(world.get(entity, Transform).position.x).toBe(18);
+                return 'abandon';
+            });
+            expect(world.get(entity, Transform)).toEqual(row);
+        } finally { dispose(); }
     });
 
     it('leaves a malformed vector to the object binding and can roll back a later valid write', () => {
