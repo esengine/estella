@@ -1260,8 +1260,10 @@ export class WaterPlugin implements Plugin {
         const lowY = Math.min(range.heightMin,field.ocean?.level ?? range.heightMin)-rise;
         const highY = Math.max(range.heightMin+range.heightSpan,field.ocean?.level ?? lowY)+rise;
         const camera = app.hasResource(UICameraInfo) ? app.getResource(UICameraInfo) : null;
-        // The one mesh serves offscreen and split-screen views as well.
-        const single = app.world.getEntitiesWithComponents([Camera]).filter(e => app.world.get(e,Camera).isActive).length <= 1;
+        // The one mesh serves offscreen and split-screen views as well. While the editor's own eye looks, the scene's camera is a second
+        // view (its preview in Details draws the same mesh): culled to the editor eye, the water there had holes where that eye did not see.
+        const editorLooks = app.hasResource(EditorView) && app.getResource(EditorView).active;
+        const single = !editorLooks && app.world.getEntitiesWithComponents([Camera]).filter(e => app.world.get(e,Camera).isActive).length <= 1;
         const planes = single && camera?.valid ? waterViewPlanes(camera.viewProjection) : [];
         const tiles = selectWaterTiles(layout,ox,oz,eye,lowY,highY,s.coverage!,planes);
         const selection = [ox,oz,Number(this.waters_.meshView>0),...tiles.map(t=>(t.level*1024+t.z)*1024+t.x)].join(',');
