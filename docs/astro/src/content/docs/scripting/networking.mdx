@@ -138,10 +138,13 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
   rather than at a fresh default. A client that has no builder for the key
   refuses the spawn rather than showing half an entity.
 
-- **Structure replicates, not just values**: adding a replicated component to a
-  live entity sends its full state; removing one removes it from every ghost.
-  Spawn → component add → updates → component remove → despawn all cross the
-  wire, and arrive in the order the authority sent them.
+- **Replicated components can be added and removed at runtime.** Adding one
+  sends its declared fields. Removing it also removes the component from ghosts
+  that received it. Clients apply spawns, updates and removals in send order.
+  On reconnect, a retained ghost drops components the server
+  removed while it was away. Its local-only components and the local fields
+  of components still present keep their values. Prediction rebuilds from the
+  latest fields the client received.
 - **A server defends itself**: every connection has limits by default. A frame
   over 256 KiB is dropped unread; control messages (the hello, input commands)
   past 120 a second (240 at once) are refused; a connection that does either

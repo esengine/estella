@@ -5,7 +5,7 @@
  * @brief   Scene loading utilities
  */
 
-import { World } from '../ecs/world';
+import { patchComponentFields, World } from '../ecs/world';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
@@ -877,13 +877,22 @@ function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, 
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
+    importComponentData(world, entity, compData, 'replace', entityName);
+}
+
+/** Authored scenes contain whole components. Replication baselines supply partial
+ *  records to the same validation and codec pipeline. */
+export function importComponentData(
+    world: World, entity: Entity, compData: SceneComponentData,
+    mode: 'replace' | 'patch', entityName?: string,
+): boolean {
     // Legacy-format normalization happens once up-front in migrateSceneData;
     // by here compData is already current-shape.
     const comp = getComponent(compData.type);
     if (!comp) {
         const context = entityName ? ` on entity "${entityName}"` : '';
         log.warn('scene', `Unknown component type: ${compData.type}${context}`);
-        return;
+        return false;
     }
 
     // Strip out-of-band fields (e.g. TilemapLayer's tile-chunk blob) before
@@ -918,27 +927,31 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         // those without a word, and so does this.
         const stale = compData.type.startsWith('Cocos.') && errors.every((e) => e.actual === 'unknown field');
         const report = stale ? log.debug : log.warn;
+        const recovery = mode === 'patch' ? 'invalid replication fields skipped'
+            : 'invalid fields dropped, their defaults apply (fix the scene file to silence this)';
         report.call(
             log,
             'scene',
-            `${formatValidationErrors(compData.type + context, errors)}\n  → invalid fields dropped, their defaults apply (fix the scene file to silence this)`
+            `${formatValidationErrors(compData.type + context, errors)}\n  → ${recovery}`
         );
     }
     try {
-        world.insert(entity, comp, compData.data);
+        if (mode === 'patch') patchComponentFields(world, entity, comp, compData.data);
+        else world.insert(entity, comp, compData.data);
     } catch (err) {
         // Defense in depth: a deeper boundary rejection costs THIS component, not
         // the scene.
         log.error(
             'scene',
-            `component "${compData.type}"${context} failed to insert — skipped: ${err instanceof Error ? err.message : String(err)}`
+            `component "${compData.type}"${context} failed to ${mode === 'patch' ? 'patch' : 'insert'} — skipped: ${err instanceof Error ? err.message : String(err)}`
         );
-        return;
+        return false;
     }
 
     if (codec?.importData && outOfBand) {
         codec.importData(entity as unknown as number, outOfBand);
     }
+    return true;
 }
 
 // =============================================================================

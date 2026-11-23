@@ -3,8 +3,8 @@
 /**
  * @file    client.ts
  * @brief   The replica endpoint. Handshakes schema + ABI, spawns NetGhost
- *          proxies from server spawn batches (via loadComponent, so codecs and
- *          validation are the scene-loading ones), and queues binary delta
+ *          proxies from server spawn batches using the scene loader's codecs
+ *          and validation, and queues binary delta
  *          frames to apply at the FixedPreUpdate boundary — state lands at a
  *          deterministic point in the frame, not mid-schedule on socket
  *          timing.
@@ -21,12 +21,12 @@
  *          authoritative value before the replay. Owned entities bypass
  *          snapshot interpolation entirely.
  */
-import type { World } from '../../ecs/world';
+import { patchComponentFields, type World } from '../../ecs/world';
 import { replay, type ReplayReport, type SpeculationScope } from '../../ecs/speculation';
 import type { Entity } from '../../types';
-import { getComponent } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
-import { loadComponent } from '../../scene/scene';
+import { importComponentData } from '../../scene/scene';
+import { hasOwn } from '../../util/ownProperties';
 import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
 import { log } from '../../util/logger';
 import {
@@ -208,6 +208,13 @@ function isRedialable(t: ReliableOrderedTransport): t is RedialableSocket {
 
 type SpawnedEntity = { spawn: ReplSpawnEntity; entity: Entity };
 
+/** Presence is tracked for every ghost. Only owned ghosts keep the actual wire
+ *  fields as well, so prediction can start after the client has presented or edited them. */
+interface ReceivedGhost {
+    owned: boolean;
+    components: Map<ReplicationTableEntry, Record<string, unknown> | null>;
+}
+
 /** One received message, tagged so the inbox can stay a single ordered queue. */
 type PendingOp =
     | { kind: 'spawn'; batch: ReplSpawnBatch }
@@ -239,10 +246,7 @@ export class ReplicationClient {
     /** Sent-but-unacknowledged input commands, oldest first (replay order). */
     private readonly pendingInputs_: ReplInputMsg[] = [];
     private ackedSeq_ = 0;
-    /** Last authoritative value of every replicated field of every OWNED
-     *  entity: netId → componentId → field record. Deltas land here (never in
-     *  the live components); reconciliation rebuilds live = this ⊕ replay. */
-    private readonly authority_ = new Map<number, Map<number, Record<string, unknown>>>();
+    private readonly received_ = new Map<number, ReceivedGhost>();
     private fixedDelta_ = 1 / 60;
     private readonly credentials_: unknown;
     private readonly reconnect_: Required<ReplicationReconnectOptions> | null;
@@ -603,7 +607,7 @@ export class ReplicationClient {
         this.hierarchy_.clear();
         const all = this.netIds_.netIdList();
         if (all.length > 0) this.applyDespawnBatch_({ tick: this.serverTick_, netIds: all });
-        this.authority_.clear();
+        this.received_.clear();
         this.serverTick_ = 0;
     }
 
@@ -691,11 +695,10 @@ export class ReplicationClient {
      */
     enablePrediction(options: PredictionOptions): void {
         this.prediction_ = options;
-        for (const e of this.ownedEntities_()) {
-            const netId = this.netIds_.netIdOf(e);
-            if (netId !== undefined && !this.authority_.has(netId)) {
-                this.seedAuthority_(netId, e);
-            }
+        for (const [netId, ghost] of this.received_) {
+            if (!ghost.owned) continue;
+            this.interp_?.drop(netId);
+            this.referenceFields_.drop(netId);
         }
     }
 
@@ -715,7 +718,7 @@ export class ReplicationClient {
         this.netIds_.clear();
         this.hierarchy_.clear();
         this.referenceFields_.clear();
-        this.authority_.clear();
+        this.received_.clear();
         this.inbox_.length = 0;
         this.pendingInputs_.length = 0;
     }
@@ -802,41 +805,30 @@ export class ReplicationClient {
         // Smoothing: what the player SAW before this rebuild. The snap below
         // replaces field references (never mutates them), so these stay valid.
         const smoothing = this.prediction_!.smoothing;
-        const seen = smoothing ? new Map<Entity, Map<number, Record<string, unknown>>>() : null;
-        if (seen) {
-            for (const e of owned) {
-                const perComp = new Map<number, Record<string, unknown>>();
-                for (const te of this.table.entries) {
-                    if (!this.world_.has(e, te.def)) continue;
-                    const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
-                    const prev: Record<string, unknown> = {};
-                    for (const f of te.fields) prev[f] = data[f];
-                    perComp.set(te.id, prev);
-                }
-                seen.set(e, perComp);
-            }
-        }
+        const seen = smoothing ? new Map<Entity, Map<ReplicationTableEntry, Record<string, unknown>>>() : null;
 
         for (const e of owned) {
             const netId = this.netIds_.netIdOf(e);
             if (netId === undefined) continue;
-            const perComp = this.authority_.get(netId);
-            if (!perComp) continue;
-            for (const [componentId, snap] of perComp) {
-                const te = this.table.entries[componentId];
-                if (!te) continue;
-                const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
-                const target = existing ?? {};
-                for (const f of te.fields) {
-                    // Clone: replay mutates live objects in place; the
-                    // authority copy must never alias them.
-                    if (f in snap) target[f] = cloneValue(snap[f]);
+            const ghost = this.received_.get(netId);
+            if (!ghost) continue;
+            const before = seen && new Map<ReplicationTableEntry, Record<string, unknown>>();
+            if (before) seen?.set(e, before);
+            for (const [te, snap] of ghost.components) {
+                if (!snap) continue;
+                const current = before && this.world_.tryGet(e, te.def);
+                const prev: Record<string, unknown> | null = current ? {} : null;
+                const patch: Record<string, unknown> = {};
+                for (let i = 0; i < te.fields.length; i++) {
+                    const f = te.fields[i];
+                    if (!hasOwn(snap, f)) continue;
+                    if (prev) prev[f] = current[f];
+                    // Resolve against today's view. Replay may mutate the live copy.
+                    patch[f] = isEntityRefShape(te.shapes[i])
+                        ? mapNetworkEntityField(snap[f], this.refs_.fromWire) : cloneValue(snap[f]);
                 }
-                if (existing) {
-                    this.world_.set(e, te.def, target);
-                } else {
-                    this.world_.insert(e, te.def, target);
-                }
+                if (prev) before?.set(te, prev);
+                patchComponentFields(this.world_, e, te.def, patch);
             }
         }
         // Replay tick-by-tick across all owned entities — the same order the
@@ -854,25 +846,19 @@ export class ReplicationClient {
             const keep = Math.pow(0.5, this.fixedDelta_ / smoothing.halfLife);
             const maxError = smoothing.maxError ?? Infinity;
             for (const e of owned) {
-                // Annotated: some tsc releases flag this chain as circular
-                // inference (TS7022) without them.
-                const perComp: Map<number, Record<string, unknown>> | undefined = seen.get(e);
+                const perComp = seen.get(e);
                 if (!perComp) continue;
-                for (const [componentId, prev] of perComp) {
-                    const te: ReplicationTableEntry | undefined = this.table.entries[componentId];
-                    if (!te || !this.world_.has(e, te.def)) continue;
-                    const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
-                    let changed = false;
+                for (const [te, prev] of perComp) {
+                    const data = this.world_.tryGet(e, te.def);
+                    if (!data) continue;
+                    const patch: Record<string, unknown> = {};
                     for (let i = 0; i < te.fields.length; i++) {
                         const f = te.fields[i];
-                        if (!(f in prev)) continue;
+                        if (!hasOwn(prev, f)) continue;
                         const blended = smoothValue(te.shapes[i], prev[f], data[f], keep, maxError);
-                        if (blended !== data[f]) {
-                            data[f] = blended;
-                            changed = true;
-                        }
+                        if (blended !== data[f]) patch[f] = blended;
                     }
-                    if (changed) this.world_.set(e, te.def, data);
+                    if (Object.keys(patch).length) patchComponentFields(this.world_, e, te.def, patch);
                 }
             }
         }
@@ -886,15 +872,6 @@ export class ReplicationClient {
             if (repl && repl.owner === this.connectionId_) out.push(e);
         }
         return out;
-    }
-
-    /** Whether this netId's state is under local prediction (owned + enabled). */
-    private isPredicted_(netId: number): boolean {
-        if (!this.prediction_) return false;
-        const e = this.netIds_.entityOf(netId);
-        if (e === undefined || !this.world_.valid(e)) return false;
-        const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
-        return repl !== null && repl.owner === this.connectionId_;
     }
 
     /**
@@ -947,23 +924,34 @@ export class ReplicationClient {
         // A held ghost may point at one that only appeared while the link was down.
         const received = held?.length ? held.concat(fresh) : fresh;
         for (const { spawn, entity } of received) {
+            const previous = this.received_.get(spawn.netId);
+            const ghost: ReceivedGhost = { owned: this.ownsEntity(entity), components: new Map() };
             for (const comp of spawn.baseline) {
-                const data = { ...comp.data };
                 const te = this.table.byName.get(comp.type);
-                const def = te?.def ?? getComponent(comp.type);
-                if (def?.entityFields.length) {
-                    remapBaselineEntityFields(data, def.entityFields, this.refs_.fromWire, (name, wire) => {
-                        const i = te?.fields.indexOf(name) ?? -1;
-                        if (te && i >= 0) this.referenceFields_.remember(spawn.netId, te, i, wire);
-                    });
+                if (!te) continue;
+                const data: Record<string, unknown> = {};
+                for (const f of te.fields) if (hasOwn(comp.data, f)) data[f] = comp.data[f];
+                remapBaselineEntityFields(data, te.def.entityFields, this.refs_.fromWire);
+                if (!importComponentData(this.world_, entity, { type: comp.type, data }, 'patch', spawn.name)) continue;
+                const snap: Record<string, unknown> | null = ghost.owned ? {} : null;
+                for (let i = 0; i < te.fields.length; i++) {
+                    const f = te.fields[i];
+                    if (!hasOwn(data, f)) continue; // validation can discard a field
+                    const wire = comp.data[f];
+                    if (snap) snap[f] = cloneValue(wire);
+                    if (!(ghost.owned && this.prediction_) && isEntityRefShape(te.shapes[i])) {
+                        this.referenceFields_.remember(spawn.netId, te, i, wire);
+                    }
                 }
-                loadComponent(this.world_, entity, { type: comp.type, data }, spawn.name);
+                ghost.components.set(te, snap);
             }
+            if (previous) {
+                for (const te of previous.components.keys()) {
+                    if (!ghost.components.has(te)) this.removeComponent_(spawn.netId, entity, te);
+                }
+            }
+            this.received_.set(spawn.netId, ghost);
         }
-        // Baseline before hierarchy, as it has always been: reparenting runs
-        // through the C++ registry and the prediction baseline must be the
-        // state the authority sent, not whatever that leaves behind.
-        for (const { spawn, entity } of received) this.seedAuthority_(spawn.netId, entity);
         this.hierarchy_.apply(received.map(r => r.spawn), fresh.map(r => r.spawn.netId), batch.parents);
     }
 
@@ -983,35 +971,10 @@ export class ReplicationClient {
             if (e === undefined || !this.world_.valid(e)) continue;
             this.world_.insert(e, Replicated, { netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype });
             this.interp_?.drop(spawn.netId);
-            this.authority_.delete(spawn.netId);
             this.referenceFields_.drop(spawn.netId);
             held.push({ spawn, entity: e });
         }
         return held;
-    }
-
-    /** A fresh owned ghost starts at its spawn baseline. Enabling prediction on
-     *  an existing ghost also takes over any newer samples awaiting presentation. */
-    private seedAuthority_(netId: number, e: Entity): void {
-        if (!this.isPredicted_(netId)) return;
-        const perComp = new Map<number, Record<string, unknown>>();
-        const history = this.interp_?.buffers.get(netId);
-        for (const te of this.table.entries) {
-            const data = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
-            const series = history?.get(te.id)?.byField;
-            if (!data && !series) continue;
-            const snap: Record<string, unknown> = {};
-            for (let i = 0; i < te.fields.length; i++) {
-                const field = te.fields[i], buffered = series?.get(i);
-                if (buffered) {
-                    const newest = buffered.sample(te.shapes[i], this.interp_!.newestTick);
-                    snap[field] = cloneValue(this.projectField_(netId, te, i, newest));
-                } else if (data) snap[field] = cloneValue(data[field]);
-            }
-            perComp.set(te.id, snap);
-        }
-        if (history) this.interp_!.drop(netId);
-        this.authority_.set(netId, perComp);
     }
 
     /** A replicated component left an entity that lives on. The ghost keeps
@@ -1020,17 +983,19 @@ export class ReplicationClient {
     private applyComponentRemoveBatch_(batch: ReplComponentRemoveBatch): void {
         for (const entry of batch.entries) {
             const e = this.netIds_.entityOf(entry.netId);
+            const ghost = this.received_.get(entry.netId);
+            if (e === undefined || !ghost) continue;
             for (const componentId of entry.componentIds) {
                 const te = this.table.entries[componentId];
-                if (!te) continue;
-                this.interp_?.dropComponent(entry.netId, componentId);
-                this.authority_.get(entry.netId)?.delete(componentId);
-                this.referenceFields_.drop(entry.netId, te);
-                if (e !== undefined && this.world_.valid(e) && this.world_.has(e, te.def)) {
-                    this.world_.remove(e, te.def);
-                }
+                if (te && ghost.components.delete(te)) this.removeComponent_(entry.netId, e, te);
             }
         }
+    }
+
+    private removeComponent_(netId: number, entity: Entity, te: ReplicationTableEntry): void {
+        this.interp_?.dropComponent(netId, te.id);
+        this.referenceFields_.drop(netId, te);
+        if (this.world_.has(entity, te.def)) this.world_.remove(entity, te.def);
     }
 
     private applyDespawnBatch_(batch: ReplDespawnBatch): void {
@@ -1049,7 +1014,7 @@ export class ReplicationClient {
         this.hierarchy_.forget(netId);
         this.netIds_.unregister(netId);
         this.interp_?.drop(netId);
-        this.authority_.delete(netId);
+        this.received_.delete(netId);
         this.referenceFields_.drop(netId);
         this.referenceFields_.targetChanged(netId);
     }
@@ -1070,9 +1035,7 @@ export class ReplicationClient {
                         }
                     }
                 };
-                const snap = this.authority_.get(owner)?.get(te.id);
-                if (snap && this.isPredicted_(owner)) write(snap);
-                else if (this.world_.has(e, te.def)) this.world_.update(e, te.def, write);
+                if (this.world_.has(e, te.def)) this.world_.update(e, te.def, write);
             }
         }
     }
@@ -1086,67 +1049,27 @@ export class ReplicationClient {
     private applyStateFrame_(frame: StateFrame): void {
         if (frame.tick > this.serverTick_) this.serverTick_ = frame.tick;
         for (const entry of frame.entries) {
-            if (this.netIds_.entityOf(entry.netId) === undefined) continue;
-            // Predicted (owned) entities: authoritative values land in the
-            // authority copy — never the live components, never interpolation.
-            // Reconciliation rebuilds the live state at the end of the flush.
-            if (this.isPredicted_(entry.netId)) {
-                this.updateAuthority_(entry.netId, entry.componentId, entry.fieldMask, entry.values);
-                continue;
+            const { netId, componentId, fieldMask, values } = entry;
+            const ghost = this.received_.get(netId);
+            const te = this.table.entries[componentId];
+            const e = this.netIds_.entityOf(netId);
+            if (!ghost || !te || e === undefined) continue;
+            let snap = ghost.components.get(te);
+            if (snap === undefined) {
+                snap = ghost.owned ? {} : null;
+                ghost.components.set(te, snap);
             }
-            if (this.interp_) {
-                let v = 0;
-                const te = this.table.entries[entry.componentId];
-                if (!te) continue;
-                for (let i = 0; i < te.fields.length; i++) {
-                    if (entry.fieldMask & (1 << i)) {
-                        this.interp_.push(entry.netId, entry.componentId, i, frame.tick, entry.values[v++]);
-                    }
-                }
-            } else {
-                this.applyEntryNow_(entry.netId, entry.componentId, entry.fieldMask, entry.values);
+            const predicted = ghost.owned && this.prediction_ !== null;
+            const patch: Record<string, unknown> | null = !predicted && !this.interp_ ? {} : null;
+            let v = 0;
+            for (let i = 0; i < te.fields.length; i++) {
+                if (!(fieldMask & (1 << i))) continue;
+                const wire = values[v++];
+                if (snap) snap[te.fields[i]] = cloneValue(wire);
+                if (patch) patch[te.fields[i]] = this.projectField_(netId, te, i, wire);
+                else if (!predicted) this.interp_!.push(netId, componentId, i, frame.tick, wire);
             }
-        }
-    }
-
-    private updateAuthority_(netId: number, componentId: number, fieldMask: number, values: unknown[]): void {
-        const te = this.table.entries[componentId];
-        if (!te) return;
-        let perComp = this.authority_.get(netId);
-        if (!perComp) {
-            perComp = new Map();
-            this.authority_.set(netId, perComp);
-        }
-        let snap = perComp.get(componentId);
-        if (!snap) {
-            snap = {};
-            perComp.set(componentId, snap);
-        }
-        let v = 0;
-        for (let i = 0; i < te.fields.length; i++) {
-            if (fieldMask & (1 << i)) {
-                snap[te.fields[i]] = this.projectField_(netId, te, i, values[v++]);
-            }
-        }
-    }
-
-    private applyEntryNow_(netId: number, componentId: number, fieldMask: number, values: unknown[]): void {
-        const e = this.netIds_.entityOf(netId);
-        if (e === undefined || !this.world_.valid(e)) return;
-        const te = this.table.entries[componentId];
-        if (!te) return;
-        const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
-        const target = existing ?? {};
-        let v = 0;
-        for (let i = 0; i < te.fields.length; i++) {
-            if (fieldMask & (1 << i)) {
-                target[te.fields[i]] = this.projectField_(netId, te, i, values[v++]);
-            }
-        }
-        if (existing) {
-            this.world_.set(e, te.def, target);
-        } else {
-            this.world_.insert(e, te.def, target);
+            if (patch) patchComponentFields(this.world_, e, te.def, patch);
         }
     }
 
@@ -1161,23 +1084,17 @@ export class ReplicationClient {
             for (const [componentId, buf] of perComp) {
                 const te = this.table.entries[componentId];
                 if (!te) continue;
-                const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
-                const target = existing ?? {};
+                const patch: Record<string, unknown> = {};
                 let changed = false;
                 for (const [fieldIndex, series] of buf.byField) {
                     const value = series.sample(te.shapes[fieldIndex], t);
                     if (value !== undefined) {
                         // Keep queued samples in wire space until the render clock presents them.
-                        target[te.fields[fieldIndex]] = this.projectField_(netId, te, fieldIndex, value);
+                        patch[te.fields[fieldIndex]] = this.projectField_(netId, te, fieldIndex, value);
                         changed = true;
                     }
                 }
-                if (!changed) continue;
-                if (existing) {
-                    this.world_.set(e, te.def, target);
-                } else {
-                    this.world_.insert(e, te.def, target);
-                }
+                if (changed) patchComponentFields(this.world_, e, te.def, patch);
             }
         }
     }

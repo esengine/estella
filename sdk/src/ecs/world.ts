@@ -2149,6 +2149,12 @@ export class World {
     private readonly addressOf_ = new Map<symbol, (entity: Entity) => number | undefined>();
 }
 
+/** Apply a partial record, preserving other fields and their pending asset loads. */
+export function patchComponentFields(world: World, entity: Entity, def: AnyComponentDef, fields: Record<string, unknown>): void {
+    if (world.has(entity, def)) world.update(entity, def, draft => Object.assign(draft, fields));
+    else world.insert(entity, def, fields);
+}
+
 // A world adapter can intercept reads and writes on either the instance or the prototype.
 const worldSet = World.prototype.set;
 const worldGet = World.prototype.get;
