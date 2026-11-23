@@ -14,6 +14,7 @@ import { disposeAll } from '../util/disposeAll';
 import { firstBindingLease, leaseBinding, LeaseBindings, type BindingLease } from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
+const releaseBatch = (leases: AssetLease[]): void => disposeAll(leases, releaseLease, true);
 
 /** One acquisition, and the right to end it. */
 export interface AssetLease<T = unknown> {
@@ -64,10 +65,15 @@ export function ownedAssetLease<T>(key: string, generation: number, value: T, di
  */
 export class AssetScope {
     private leases_: AssetLease[] = [];
+    private closed_ = false;
     /** Null after the first search. Repeated lookups share an index until a receipt is removed. */
     private bindings_?: LeaseBindings | null;
 
     add<T>(lease: AssetLease<T>): AssetLease<T> {
+        if (this.closed_) {
+            lease.release();
+            throw new Error('Cannot add an acquisition to a closed asset scope');
+        }
         this.leases_.push(lease as AssetLease);
         return lease;
     }
@@ -76,11 +82,23 @@ export class AssetScope {
      * A failure is reported after cleanup; acquisitions made by cleanup belong
      * to the next batch. */
     releaseAll(): void {
+        releaseBatch(this.take_());
+    }
+
+    private take_(): AssetLease[] {
         const leases = this.leases_;
         this.leases_ = [];
         this.bindings_ = undefined;
-        // Detach before callbacks: a reentrant release cannot spend this batch.
-        disposeAll(leases, releaseLease, true);
+        return leases;
+    }
+
+    /** @internal End these owners' lifetimes together. Detach all their receipts before any unloader can reenter. */
+    static closeAll(scopes: readonly AssetScope[]): void {
+        const batches = scopes.map(scope => {
+            scope.closed_ = true;
+            return scope.take_();
+        });
+        disposeAll(batches, releaseBatch);
     }
 
     /**
@@ -92,6 +110,7 @@ export class AssetScope {
      */
     absorb(other: AssetScope): void {
         if (other === this) return;
+        if (this.closed_) throw new Error('Cannot transfer acquisitions to a closed asset scope');
         for (const lease of other.leases_) this.leases_.push(lease);
         other.leases_ = [];
         other.bindings_ = undefined;

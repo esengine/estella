@@ -115,6 +115,38 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
         } finally { dispose(); }
     });
 
+    it('does not publish a prepared handle after the same asset service resets', async () => {
+        const { world, entity, assets, waiting, settle, released, dispose } = realm();
+        let ready!: () => void, resume!: () => void;
+        const prepared = new Promise<void>(resolve => { ready = resolve; }), gate = new Promise<void>(resolve => { resume = resolve; });
+        const preload = vi.mocked(assets.preloadSceneAssets);
+        preload.mockImplementationOnce(async (...args) => {
+            const result = await Assets.prototype.preloadSceneAssets.apply(assets, args);
+            ready(); await gate; return result;
+        });
+        try {
+            world.insert(entity, Sprite, { texture: 'frame.png' as never });
+            await vi.waitFor(() => expect(waiting.has('frame.png')).toBe(true));
+            waiting.get('frame.png')!(11); await prepared;
+            assets.releaseAll(); resume(); await preload.mock.results[0]!.value; await Promise.resolve();
+            expect(world.get(entity, Sprite)).toMatchObject({ texture: 0, uvScale: { x: 1, y: 1 } });
+            expect(released.mock.calls).toEqual([['frame.png']]); expect(assets.entityScopes.size).toBe(0);
+            world.update(entity, Sprite, draft => { draft.texture = 'new.png' as never; });
+            await settle('new.png', 22, 1); expect(world.get(entity, Sprite).texture).toBe(22);
+        } finally { resume(); dispose(); }
+    });
+
+    it('continues a live path across a successful refresh of the same registry', async () => {
+        const { world, entity, assets, settle, dispose } = realm();
+        try {
+            world.insert(entity, Sprite, { texture: 'old.png' as never });
+            world.connectCpp(world.getCppRegistry()!, core, { strict: true });
+            await settle('old.png', 11, 0);
+            expect(world.get(entity, Sprite).texture).toBe(11);
+            expect(assets.entityScopes.scopeFor(entity, world)?.size).toBe(1);
+        } finally { dispose(); }
+    });
+
     it('returns the preload receipt if conversion to handles throws', async () => {
         const { world, entity, assets, settle, released, dispose } = realm();
         try {

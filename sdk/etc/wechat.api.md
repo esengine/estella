@@ -1057,6 +1057,7 @@ add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean
 releaseAll: () => void
 size: number
+static @internal closeAll: (scopes: readonly AssetScope[]) => void
 static new (): AssetScope
 static prototype: AssetScope
 ```

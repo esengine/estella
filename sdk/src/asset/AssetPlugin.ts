@@ -97,9 +97,7 @@ export class AssetPlugin implements Plugin {
         if (app) this.states_.delete(app);
         if (state === this.latestState_) this.latestState_ = null;
         const current = state.current();
-        disposeAll(current && current !== state.created ? [state.created, current] : [state.created], assets => {
-            try { assets.releaseAll(); } finally { assets.getRefCounter()?.clear(); }
-        });
+        disposeAll(current && current !== state.created ? [state.created, current] : [state.created], assets => assets.releaseAll());
     }
 
     /**

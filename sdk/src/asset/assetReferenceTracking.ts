@@ -49,7 +49,8 @@ async function resolveAssetFields(
         version: SCENE_FORMAT_VERSION, name: `${component._name}@${entity}`,
         entities: [{ id: 0, name: '', parent: null, children: [], components: [row], visible: true }],
     };
-    const present = () => current() === assets && world.valid(entity) && !world.isDestructionPending(entity)
+    const epoch = assets.epoch;
+    const present = () => current() === assets && assets.epoch === epoch && world.valid(entity) && !world.isDestructionPending(entity)
         && world.has(entity, component);
     try {
         if (!present()) return;

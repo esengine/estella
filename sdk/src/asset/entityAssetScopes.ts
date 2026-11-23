@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    entityAssetScopes.ts
- * @brief   What an entity owns outside a scene, ending at its despawn.
+ * @brief   Resources owned by an entity in one World, registry and asset realm.
  *
  * @details A runtime entity can have no scene; a persistent entity leaves its
  *          scene and keeps rendering. Somebody
@@ -10,16 +10,30 @@
  *          answers that existed were both wrong: the scene's scope is about to
  *          be given back, and the app's never ends while an entity's does.
  *
- *          So the entity is the owner, and the acquisition ends when the entity
- *          does — `World.onDespawn`, which fires for a whole subtree, before the
- *          component storage goes.
+ *          Despawn, registry departure and asset reset all retire that ownership.
  */
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import { AssetScope } from './AssetLease';
 
+interface WorldScopes {
+    scopes: Map<Entity, AssetScope>;
+    unbind(): void;
+}
+
+function closeWorlds(entries: Iterable<WorldScopes>): void {
+    const scopes: AssetScope[] = [];
+    for (const entry of entries) {
+        entry.unbind();
+        for (const scope of entry.scopes.values()) scopes.push(scope);
+        entry.scopes.clear();
+    }
+    AssetScope.closeAll(scopes);
+}
+
 export class EntityAssetScopes {
-    private worlds_ = new Map<World, { scopes: Map<Entity, AssetScope>; unbind: () => void }>();
+    private readonly worlds_ = new Map<World, WorldScopes>();
+    private closed_ = false;
 
     /**
      * The scope this entity owns, created on first use.
@@ -29,6 +43,7 @@ export class EntityAssetScopes {
      * here — before any scope exists there is nothing that could be missed.
      */
     ensure(world: World, entity: Entity): AssetScope {
+        if (this.closed_) throw new Error('Cannot own resources in a retired asset realm');
         if (!world.valid(entity) || world.isDestructionPending(entity)) {
             throw new Error(`Cannot own resources for entity ${entity}: destroyed or pending destruction`);
         }
@@ -62,22 +77,35 @@ export class EntityAssetScopes {
         return total;
     }
 
+    /** End this asset realm across all its Worlds before invoking user unloaders. */
+    close(): void {
+        this.closed_ = true;
+        const entries = [...this.worlds_.values()];
+        this.worlds_.clear();
+        closeWorlds(entries);
+    }
+
     private bind_(world: World): Map<Entity, AssetScope> {
         const existing = this.worlds_.get(world);
         if (existing) return existing.scopes;
-        const entry = { scopes: new Map<Entity, AssetScope>(), unbind: () => {} };
-        this.worlds_.set(world, entry);
-        entry.unbind = world.onDespawn((entity) => {
-            const scope = entry.scopes.get(entity);
+        const scopes = new Map<Entity, AssetScope>();
+        const offDespawn = world.onDespawn(entity => {
+            const scope = scopes.get(entity);
             if (!scope) return;
-            entry.scopes.delete(entity);
-            try { scope.releaseAll(); } finally {
-                if (!entry.scopes.size && this.worlds_.get(world) === entry) {
-                    this.worlds_.delete(world);
-                    entry.unbind();
-                }
+            scopes.delete(entity);
+            if (!scopes.size) {
+                this.worlds_.delete(world);
+                entry.unbind();
             }
+            AssetScope.closeAll([scope]);
         });
-        return entry.scopes;
+        const offCore = world.onCoreDisconnect(() => {
+            if (this.worlds_.get(world) !== entry) return;
+            this.worlds_.delete(world);
+            closeWorlds([entry]);
+        });
+        const entry = { scopes, unbind() { offDespawn(); offCore(); } };
+        this.worlds_.set(world, entry);
+        return scopes;
     }
 }

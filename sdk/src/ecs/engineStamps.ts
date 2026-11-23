@@ -11,8 +11,9 @@
 const flushers = new WeakMap<object, () => void>();
 
 /** @internal A world says how its stamps for @p registry are handed over. */
-export function registerEngineStampFlush(registry: object, flush: () => void): void {
+export function registerEngineStampFlush(registry: object, flush: () => void): () => void {
     flushers.set(registry, flush);
+    return () => { if (flushers.get(registry) === flush) flushers.delete(registry); };
 }
 
 /** @internal Hands over the stamps a world holds for @p registry, if any: call before the engine reads what changed. */

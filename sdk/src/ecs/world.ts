@@ -22,6 +22,7 @@ import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
 import { registerEngineStampFlush } from './engineStamps';
 import { withScratch } from '../wasm/wasmScratch';
+import { disposeAll } from '../util/disposeAll';
 import { log } from '../util/logger';
 import { PendingAssetFields, assetEditsOf, finishAssetDraft, rememberAssetDraft, trackAssetEdits, type AssetFieldResolver } from './pendingAssetFields';
 import { getDefaultContext, type EditorBridge } from './context';
@@ -190,7 +191,7 @@ export type { AssetFieldResolver } from './pendingAssetFields';
  * @public
  */
 export class World {
-    private readonly builtin_ = new BuiltinBridge();
+    private readonly builtin_ = new BuiltinBridge(() => this.releaseCore_());
     private readonly scripts_ = new ScriptStorage();
     private readonly names_ = new NameIndex();
     /** @internal */
@@ -235,7 +236,8 @@ export class World {
         module?: ESEngineModule,
         options?: BridgeConnectOptions,
     ): void {
-        if (this.getCppRegistry()) this.notifyCoreDisconnect_();
+        // A populated JS-only World can already have entity owners before a host attaches its first registry.
+        if (!this.hasCpp && this.entities_.size && this.coreDisconnect_.size) this.builtin_.disconnect();
         this.addressOf_.clear();
         this.builtin_.connect(cppRegistry, module, options);
         for (const e of this.scripts_.getStorageById(Disabled._id)?.keys() ?? []) cppRegistry.setEntityEnabled?.(e, false);
@@ -245,14 +247,7 @@ export class World {
 
     /** @internal */
     disconnectCpp(): void {
-        // What a script wrote is the engine's to know before the engine goes; and the buffer it is handed over in is its heap's.
-        this.flushEngineStamps();
-        this.releaseStampBuffer_();
-        this.notifyCoreDisconnect_();
-        this.addressOf_.clear();
         this.builtin_.disconnect();
-        this.coreActivityEpoch_ = -1;
-        this.queries_.markComponentDirty(Disabled._id);
     }
 
     /** @internal Whether an engine core is bound — false in a pure-JS world. */
@@ -271,10 +266,28 @@ export class World {
         return () => { this.coreDisconnect_.delete(dispose); };
     }
 
-    private notifyCoreDisconnect_(): void {
+    private releaseCore_(): void {
         this.pendingAssetFields_?.clear();
-        for (const dispose of [...this.coreDisconnect_]) {
-            try { dispose(); } catch (error) { log.warn('world', 'Core disconnect callback error', error); }
+        try {
+            disposeAll([
+                () => this.flushEngineStamps(),
+                () => {
+                    for (const dispose of [...this.coreDisconnect_]) {
+                        try { dispose(); } catch (error) { log.warn('world', 'Core disconnect callback error', error); }
+                    }
+                },
+                // Disconnect listeners may have made a final engine write of their own.
+                () => this.flushEngineStamps(),
+                () => this.releaseStampBuffer_(),
+            ], dispose => dispose());
+        } finally {
+            this.clearStampFlusher_?.();
+            this.clearStampFlusher_ = undefined;
+            this.engineTypeIdsFor_ = null;
+            this.engineTypeIds_.clear();
+            this.addressOf_.clear();
+            this.coreActivityEpoch_ = -1;
+            this.queries_.markComponentDirty(Disabled._id);
         }
     }
 
@@ -534,9 +547,9 @@ export class World {
         return this.entities_.has(entity);
     }
 
-    /** @internal True throughout subtree teardown, including queued ancestors. */
+    /** @internal True while the entity's subtree or its owning core is being torn down. */
     isDestructionPending(entity: Entity): boolean {
-        return !!this.despawning_?.has(entity)
+        return this.builtin_.disconnecting || !!this.despawning_?.has(entity)
             || !!this.builtin_.getCppRegistry()?.destructionPending?.(entity);
     }
 
@@ -1594,6 +1607,7 @@ export class World {
     /** Engine type id by component, -1 where the engine has none; dropped when the engine's registry is replaced. */
     private readonly engineTypeIds_ = new Map<AnyComponentDef, number>();
     private engineTypeIdsFor_: unknown = null;
+    private clearStampFlusher_?: () => void;
 
     /** The engine-heap block stamps are handed over in, its room in pairs, and whose heap it is in. */
     private stampBuffer_ = 0;
@@ -1601,10 +1615,11 @@ export class World {
     private stampBufferApi_: ReturnType<typeof worldEngineApi> = null;
 
     private releaseStampBuffer_(): void {
-        if (this.stampBuffer_ !== 0) this.stampBufferApi_?._free?.(this.stampBuffer_);
+        const ptr = this.stampBuffer_, api = this.stampBufferApi_;
         this.stampBuffer_ = 0;
         this.stampBufferPairs_ = 0;
         this.stampBufferApi_ = null;
+        if (ptr !== 0) api?._free?.(ptr);
     }
 
     /** (engine type id, entity) pairs waiting to be stamped in the engine; see flushEngineStamps. */
@@ -1625,7 +1640,7 @@ export class World {
             this.flushEngineStamps();
             this.engineTypeIds_.clear();
             this.engineTypeIdsFor_ = registry;
-            registerEngineStampFlush(registry, () => this.flushEngineStamps());
+            this.clearStampFlusher_ = registerEngineStampFlush(registry, () => this.flushEngineStamps());
         }
         let id = this.engineTypeIds_.get(component);
         if (id === undefined) {

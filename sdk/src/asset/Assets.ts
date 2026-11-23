@@ -493,7 +493,7 @@ export class Assets {
     private invalidateListeners_ = new Set<InvalidateListener>();
     private sourceListeners_ = new Set<(path: string) => void>();
     private readonly appScope_ = new AssetScope();
-    private readonly entityScopes_ = new EntityAssetScopes();
+    private entityScopes_ = new EntityAssetScopes();
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
     private readonly handlePaths_ = new Map<string, Map<number, string>>();
@@ -2646,6 +2646,7 @@ export class Assets {
         this.resetEpoch_++;
         try {
             disposeAll([
+                () => this.entityScopes_.close(),
                 () => {
                     const pending = [...this.preparations_];
                     this.preparations_.clear();
@@ -2670,14 +2671,14 @@ export class Assets {
                     const generations = this.genericRefs_.drain();
                     disposeAll(generations, ({ value }) => this.retire_(value));
                 },
+                () => disposeAll([...this.builtMeshes_.keys()], handle => this.releaseBuiltMesh(handle)),
+                () => this.refCounter_?.clear(),
             ], dispose => dispose());
         } finally {
-            try { disposeAll([...this.builtMeshes_.keys()], handle => this.releaseBuiltMesh(handle)); }
-            finally {
-                this.meshOwners_ = undefined;
-                this.handlePaths_.clear();
-                this.releasing_ = false;
-            }
+            this.meshOwners_ = undefined;
+            this.handlePaths_.clear();
+            this.entityScopes_ = new EntityAssetScopes();
+            this.releasing_ = false;
         }
     }
 

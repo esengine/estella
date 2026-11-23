@@ -18,6 +18,7 @@ import type { BuiltinComponentDef } from '../component';
 import { copyComponentData } from '../componentProjection';
 import type { CppRegistry, ESEngineModule } from '../../wasm';
 import { validateComponentData, formatValidationErrors } from '../../util/validation';
+import { log } from '../../util/logger';
 import { handleWasmError } from '../../wasm/wasmError';
 import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../../wasm/moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
@@ -472,6 +473,7 @@ function formatBridgeDiagnostic(v: BridgeVerification): string {
 // =============================================================================
 
 export class BuiltinBridge {
+    private disconnecting_ = false;
     private cppRegistry_: CppRegistry | null = null;
     private module_: ESEngineModule | null = null;
     private transformEpochWord_ = -1;
@@ -482,6 +484,10 @@ export class BuiltinBridge {
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
     /** One heap reader per component for {@link readHeap}; null where the component has no heap layout. */
     private heapReaders_ = new Map<string, ((entity: Entity) => unknown) | null>();
+
+    constructor(private readonly beforeDisconnect_?: () => void) {}
+
+    get disconnecting(): boolean { return this.disconnecting_; }
 
     /**
      * Bind to a C++ Registry.
@@ -501,8 +507,23 @@ export class BuiltinBridge {
         module?: ESEngineModule,
         options: BridgeConnectOptions = {},
     ): void {
+        if (this.disconnecting_) throw new Error('Cannot connect a registry during core disconnect');
+        const same = this.cppRegistry_ === cppRegistry && this.module_ === (module ?? null);
+        if (this.cppRegistry_ && !same) this.disconnect();
         this.cppRegistry_ = cppRegistry;
         this.module_ = module ?? null;
+        try {
+            this.configure_(cppRegistry, module, options);
+        } catch (error) {
+            // A rejected refresh ends an established binding. A rejected new binding has never owned a lease.
+            if (same) {
+                try { this.disconnect(); } catch (cleanup) { log.warn('world', 'Rejected registry cleanup failed', cleanup); }
+            } else this.clearBinding_();
+            throw error;
+        }
+    }
+
+    private configure_(cppRegistry: CppRegistry, module: ESEngineModule | undefined, options: BridgeConnectOptions): void {
         // The ADDRESS is stable; the view over it is not. Emscripten replaces
         // every HEAP view when memory grows, and a cached one writes nowhere
         // while looking like it worked — so only the word offset is kept.
@@ -537,16 +558,21 @@ export class BuiltinBridge {
         // in unit tests keep working. Mock registries never expose
         // getAbiLayoutHash, so they never hit the fatal path.
         if (verification.abiMismatch || (options.strict && !verification.ok)) {
-            this.cppRegistry_ = null;
-            this.module_ = null;
-            this.memory_ = null;
-            this.builtinMethodCache_.clear();
-            this.extraMethodCache_.clear();
             throw new Error(formatBridgeDiagnostic(verification));
         }
     }
 
     disconnect(): void {
+        if (this.disconnecting_) return;
+        this.disconnecting_ = true;
+        try { this.beforeDisconnect_?.(); }
+        finally {
+            this.clearBinding_();
+            this.disconnecting_ = false;
+        }
+    }
+
+    private clearBinding_(): void {
         this.cppRegistry_ = null;
         this.module_ = null;
         this.memory_ = null;
