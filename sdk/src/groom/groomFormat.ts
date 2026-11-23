@@ -15,6 +15,8 @@
  *        Positions are in metres, Y up, in the groom's own space: the loader scales them by the project's world units a metre.
  */
 
+import type { GrowRecipe } from './groomGrow';
+
 /** Magic 'ESCV', little-endian. */
 export const CURVES_MAGIC = 0x56435345;
 export const CURVES_VERSION = 1;
@@ -74,8 +76,10 @@ export interface GroomGroupSettings {
 export interface GroomDocument {
     version: number;
     type: 'groom';
-    /** The `.escurves` file, relative to this one. */
+    /** The `.escurves` file, relative to this one; empty where the groom is grown from `grow`. */
     curves: string;
+    /** The parameters the groom is grown from in the engine (groomGrow.ts), in place of a curves file. */
+    grow?: GrowRecipe;
     groups: GroomGroupSettings[];
 }
 
@@ -111,11 +115,14 @@ export function groupSettings(raw: Partial<GroomGroupSettings> | undefined): Gro
 export function parseGroomDocument(text: string): GroomDocument {
     const raw = JSON.parse(text) as Partial<GroomDocument>;
     if (raw.type !== 'groom') throw new Error('not a groom: its "type" is not "groom"');
-    if (typeof raw.curves !== 'string' || !raw.curves) throw new Error('a groom names its curves file in "curves"');
+    const grow = raw.grow && typeof raw.grow === 'object' ? raw.grow : undefined;
+    const curves = typeof raw.curves === 'string' ? raw.curves : '';
+    if (!curves && !grow) throw new Error('a groom names its curves file in "curves", or grows them from "grow"');
     return {
         version: typeof raw.version === 'number' ? raw.version : GROOM_FORMAT_VERSION,
         type: 'groom',
-        curves: raw.curves,
+        curves,
+        ...(grow ? { grow } : {}),
         groups: Array.isArray(raw.groups) ? raw.groups.map((g) => groupSettings(g)) : [],
     };
 }

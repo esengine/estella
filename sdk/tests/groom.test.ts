@@ -14,6 +14,7 @@ import {
 import { buildStrandMesh } from '../src/groom/groomMesh';
 import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
+import { growGroom } from '../src/groom/groomGrow';
 
 /** `curves` straight up from x = 0, 1, 2…, each of `points` points 1 cm apart, the radius narrowing from 0.5 mm to 0.25 mm. */
 function upright(curves: number, points: number): CurveSet {
@@ -178,5 +179,67 @@ describe('a group\'s settings on its material', () => {
         for (const name of Object.keys(groupUniforms(DEFAULT_GROUP_SETTINGS, 0, 100))) expect(source).toContain(`#pragma param ${name} `);
         expect(source).toContain('#pragma coverage u_strandMinPx');
         expect(source).toContain('#pragma hairshadow u_hairShadow');
+    });
+});
+
+describe('a groom grown from parameters', () => {
+    const head = { center: [0, 0, 0] as [number, number, number], radii: [0.08, 0.1, 0.095] as [number, number, number] };
+    const recipe = (over: Record<string, unknown> = {}) => ({ seed: 3, groups: [{
+        name: 'Hair', scalp: { ...head, hairline: { front: 30, side: -5, back: -45 } }, strands: 1500, guides: 120, points: 16, length: 0.5,
+        part: { azimuth: 0, crown: 60 }, collide: [{ center: [0, -0.45, 0] as [number, number, number], radii: [0.2, 0.25, 0.11] as [number, number, number] }], ...over,
+    }] });
+
+    it('grows the same hair from the same recipe, and other hair from another seed', () => {
+        const a = growGroom(recipe()), b = growGroom(recipe());
+        expect([...a.groups[0]!.strands.positions]).toEqual([...b.groups[0]!.strands.positions]);
+        const c = growGroom({ ...recipe(), seed: 4 });
+        expect([...c.groups[0]!.strands.positions]).not.toEqual([...a.groups[0]!.strands.positions]);
+    });
+
+    it('roots every strand on the scalp above the hairline, and no point sinks into the head', () => {
+        const s = growGroom(recipe()).groups[0]!.strands;
+        expect(s.counts.length).toBeGreaterThan(1400);
+        let first = 0;
+        for (let c = 0; c < s.counts.length; c++) {
+            const n = s.counts[c]!;
+            const [x, y, z] = [s.positions[first * 3]!, s.positions[first * 3 + 1]!, s.positions[first * 3 + 2]!];
+            // On the ellipsoid.
+            expect(Math.hypot(x / 0.08, y / 0.1, z / 0.095)).toBeCloseTo(1, 4);
+            // Above the lowest hairline (the nape, -45 degrees).
+            expect(Math.asin(Math.max(-1, Math.min(1, y / 0.1)))).toBeGreaterThan(-45.5 * Math.PI / 180);
+            for (let k = 1; k < n; k++) {
+                const i = (first + k) * 3;
+                expect(Math.hypot(s.positions[i]! / 0.08, s.positions[i + 1]! / 0.1, s.positions[i + 2]! / 0.095)).toBeGreaterThan(0.999);
+            }
+            first += n;
+        }
+    });
+
+    it('combs hair away from the part: a root right of it hangs right, one left of it hangs left', () => {
+        const s = growGroom(recipe({ lengthJitter: 0, frizz: 0, flyaway: 0 })).groups[0]!.strands;
+        let first = 0, wrong = 0, checked = 0;
+        for (let c = 0; c < s.counts.length; c++) {
+            const n = s.counts[c]!;
+            const rx = s.positions[first * 3]!, ry = s.positions[first * 3 + 1]!, rz = s.positions[first * 3 + 2]!;
+            // Roots on top, in front of the crown, clearly off the part.
+            if (ry > 0.07 && rz > 0 && Math.abs(rx) > 0.015) {
+                checked++;
+                const tx = s.positions[(first + n - 1) * 3]!;
+                if (Math.sign(tx) !== Math.sign(rx)) wrong++;
+            }
+            first += n;
+        }
+        expect(checked).toBeGreaterThan(20);
+        expect(wrong).toBe(0);
+    });
+
+    it('cuts at the height it says, and reads back as a groom document', () => {
+        const s = growGroom(recipe({ length: 0.8, cut: { y: -0.3, jitter: 0 }, frizz: 0, flyaway: 0 })).groups[0]!.strands;
+        for (let i = 1; i < s.positions.length; i += 3) expect(s.positions[i]!).toBeGreaterThan(-0.301);
+        const doc = parseGroomDocument(JSON.stringify({ version: 1, type: 'groom', grow: recipe(), groups: [{ overrideWidth: false }] }));
+        expect(doc.curves).toBe('');
+        expect(doc.grow?.groups[0]?.name).toBe('Hair');
+        expect(() => parseGroomDocument(JSON.stringify({ version: 1, type: 'groom' }))).toThrow(/curves|grow/);
+        expect(() => growGroom({ groups: [{ scalp: { center: [0, 0, 0], radii: [0, 1, 1] } }] })).toThrow(/radii/);
     });
 });

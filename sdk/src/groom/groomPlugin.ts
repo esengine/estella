@@ -20,8 +20,9 @@ import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
 import { holdShaderWarmup } from '../render/shaderWarmup';
 import { log } from '../util/logger';
-import { decodeCurves, parseGroomDocument, settingsForGroups, type GroomCurves, type GroomGroupSettings } from './groomFormat';
+import { decodeCurves, parseGroomDocument, settingsForGroups, type GroomCurves, type GroomDocument, type GroomGroupSettings } from './groomFormat';
 import { buildStrandMesh } from './groomMesh';
+import { growGroom } from './groomGrow';
 
 /** The fields of the `Groom` component. @experimental */
 export interface GroomData {
@@ -72,6 +73,15 @@ export function besideFile(from: string, path: string): string {
         else if (part !== '.' && part !== '') parts.push(part);
     }
     return lead + parts.join('/');
+}
+
+/**
+ * The curves a groom draws: grown from its `grow` parameters where it has them, read from its curves file (beside `path`) where not.
+ * @experimental
+ */
+export async function loadGroomCurves(doc: GroomDocument, path: string, fetchBinary: (path: string) => Promise<ArrayBuffer | Uint8Array>): Promise<GroomCurves> {
+    if (doc.grow) return growGroom(doc.grow);
+    return decodeCurves(await fetchBinary(besideFile(path, doc.curves)));
 }
 
 interface Built {
@@ -130,7 +140,7 @@ function letGo(app: App, res: GroomRes, entity: Entity): void {
 async function build(app: App, res: GroomRes, entity: Entity, path: string, key: string): Promise<void> {
     const assets = app.getResource(Assets);
     const doc = parseGroomDocument(await assets.fetchText(path));
-    const curves: GroomCurves = decodeCurves(await assets.fetchBinary(besideFile(path, doc.curves)));
+    const curves = await loadGroomCurves(doc, path, (p) => assets.fetchBinary(p));
     const settings = settingsForGroups(doc, curves.groups.length);
     const stock = await stockMaterial(assets, res);
     // The component may have gone, or changed to another groom, while the files were read.

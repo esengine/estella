@@ -1,0 +1,341 @@
+{
+ "version": 4,
+ "name": "GroomGrown",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 149,
+       "z": 150
+      },
+      "rotation": {
+       "x": -0.05233595624294383,
+       "y": 0,
+       "z": 0,
+       "w": 0.9986295347545738
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 40,
+      "nearPlane": 5,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Key",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.3261904081870283,
+       "y": -0.28257102082169233,
+       "z": -0.10284744064531129,
+       "w": 0.8962007809365465
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.97,
+       "b": 0.92,
+       "a": 1
+      },
+      "intensity": 1.3,
+      "meshShadows": true,
+      "shadowExtent": 200
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Rim",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.037584344535285516,
+       "y": 0.9614638770465722,
+       "z": 0.2131514098652129,
+       "w": 0.16953202249987695
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 0.85,
+       "g": 0.9,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 0.9,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Fill",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.07547908730517333,
+       "y": 0.4980973490458727,
+       "z": 0.043577871373829076,
+       "w": 0.862729915662821
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 0.7,
+       "g": 0.78,
+       "b": 0.95,
+       "a": 1
+      },
+      "intensity": 0.3,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Head",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 160,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.158,
+       "y": 0.2,
+       "z": 0.194
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "color": {
+       "r": 0.82,
+       "g": 0.62,
+       "b": 0.52,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Jaw",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 154,
+       "z": 1.2
+      },
+      "scale": {
+       "x": 0.128,
+       "y": 0.17,
+       "z": 0.16
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "color": {
+       "r": 0.82,
+       "g": 0.62,
+       "b": 0.52,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Body0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 144,
+       "z": -1
+      },
+      "scale": {
+       "x": 0.11,
+       "y": 0.2,
+       "z": 0.12
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "color": {
+       "r": 0.82,
+       "g": 0.62,
+       "b": 0.52,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Body1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 114,
+       "z": -1
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 0.5,
+       "z": 0.23
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "color": {
+       "r": 0.12,
+       "g": 0.12,
+       "b": 0.14,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "Hair",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 160,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Groom",
+     "data": {
+      "groom": "/scenes/groom-grown/hair.esgroom"
+     }
+    }
+   ]
+  }
+ ]
+}
