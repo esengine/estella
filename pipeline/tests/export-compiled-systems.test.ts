@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PackagedGameConfig } from 'esengine';
 import { exportGame } from '../src/export/exportGame';
+import { readSizeRecord } from '../src/export/sizeHistory';
 import { resolveEmcc } from '../src/bundle/emccPath';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
@@ -142,6 +143,7 @@ describe('what a package carries for a compiled system', () => {
     try {
       const res = await runWeChat(f);
       expect(res.errors).toEqual([]);
+      expect((await readSizeRecord(f.root, 'wechat'))?.settings.compileAllSystems).toBe(true);
       expect(existsSync(path.join(f.out, 'aot', 'systems.wasm'))).toBe(true);
       // A mini-game has no game.config.json — its configuration IS the generated
       // boot call, and WXWebAssembly takes the PATH, never the bytes.
@@ -157,21 +159,26 @@ describe('what a package carries for a compiled system', () => {
       const res = await run(f);
       expect(res.errors).toEqual([]);
       expect(config(f.out).aot?.manifest.systems.map((x) => x.name)).toEqual(['ExportDriftSystem']);
+      expect((await readSizeRecord(f.root, 'web'))?.settings.compileAllSystems).toBe(true);
       expect(existsSync(path.join(f.out, 'aot'))).toBe(true);
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
-  it('carries nothing when the project compiles only what it marked, and marked nothing', async () => {
+  it.each([
+    { aotMode: 'release' as const, compileAllSystems: false },
+    { aotMode: 'dev' as const, compileAllSystems: true },
+  ])('leaves an unmarked system interpreted in $aotMode with compileAllSystems=$compileAllSystems', async (options) => {
     const f = project(UNMARKED);
     try {
       const res = await exportGame({
         root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
         scriptsEntry: 'src/main.ts', sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
-        outDir: f.out, compileAllSystems: false,
+        outDir: f.out, ...options,
       });
       expect(res.errors).toEqual([]);
       // Not an empty module and not an empty key: a project that asked for none of this pays nothing for it.
       expect(config(f.out).aot).toBeUndefined();
+      expect((await readSizeRecord(f.root, 'web'))?.settings.compileAllSystems).toBe(false);
       expect(existsSync(path.join(f.out, 'aot'))).toBe(false);
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);

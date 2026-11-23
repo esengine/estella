@@ -34,6 +34,7 @@ export interface SizeSettings {
   webpImages?: WebpImages;
   minify?: boolean;
   minifyScripts?: boolean;
+  compileAllSystems?: boolean;
   sourcemap?: boolean;
   compressWasm?: boolean;
   engineSubpackage?: boolean;
@@ -52,6 +53,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     config: 'minify',
     sourceMaps: 'sourcemap',
     minifyScripts: 'minifyScripts',
+    compileAllSystems: 'compileAllSystems',
     frameDebugger: 'content',
     openFolder: 'inert',
     orientation: 'inert',
@@ -81,7 +83,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
 export function sizeSettingsOf(opts: SizeSettings): SizeSettings {
     const keys: (keyof SizeSettings)[] = [
         'contentAddressed', 'compressTextures', 'compressAudio', 'atlasTextures', 'webpImages',
-        'minify', 'minifyScripts', 'sourcemap', 'compressWasm', 'engineSubpackage', 'profile',
+        'minify', 'minifyScripts', 'compileAllSystems', 'sourcemap', 'compressWasm', 'engineSubpackage', 'profile',
     ];
     const out: Record<string, unknown> = {};
     for (const k of keys) if (opts[k] !== undefined) out[k] = opts[k];

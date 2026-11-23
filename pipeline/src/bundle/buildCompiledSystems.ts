@@ -83,6 +83,11 @@ export interface CompiledSystemsManifest {
  */
 export type BuildMode = 'dev' | 'release' | 'ship';
 
+/** Whether this build attempts to compile systems without an explicit marker. */
+export function compilesUnmarkedSystems(mode: BuildMode = 'release', compileAll = true): boolean {
+  return mode !== 'dev' && compileAll;
+}
+
 /**
  * Which machine the systems are compiled FOR.
  *
@@ -229,7 +234,7 @@ export async function buildCompiledSystems(
   if (files.length === 0) {
     return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
-  const compileAll = opts.compileAll ?? true;
+  const compileAll = compilesUnmarkedSystems(opts.mode, opts.compileAll);
   // Only marked systems, and none marked: there is nothing to decide, so no TypeScript Program is paid for.
   if (!compileAll && !anyPromise(files)) {
     return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };

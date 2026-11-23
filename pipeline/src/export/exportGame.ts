@@ -57,7 +57,7 @@ import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS, esengineAlias } from '../bundle/e
 import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { drawsOnlyThroughGL, glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import type { RpkSigningKey } from './rpk';
-import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
+import { buildCompiledSystems, compilesUnmarkedSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
@@ -782,7 +782,11 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       // read as content that grew.
       history: {
         projectRoot: opts.root,
-        settings: sizeSettingsOf(opts),
+        settings: sizeSettingsOf({
+          ...opts,
+          compileAllSystems: compileTargetFor(result.platform) !== null
+            ? compilesUnmarkedSystems(opts.aotMode, opts.compileAllSystems) : undefined,
+        }),
       },
     });
     return { ...result, size, inclusion: undefined };
