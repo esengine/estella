@@ -131,9 +131,7 @@ public:
         }
         residentBytes_ += bytes;
         auto handle = Handle<T>::fromParts(index, gen);
-        if (!path.empty()) {
-            pathToId_[path] = handle.id();
-        }
+        claimPath_(handle);
         enforceBudget_();  // the new resource is held; this evicts OTHER evictables if over budget
         return handle;
     }
@@ -220,12 +218,12 @@ public:
         u32 idx = handle.index();
         if (idx >= entries_.size()) return;
         auto& entry = entries_[idx];
-        if (entry.refCount > 0 && entry.generation == handle.generation() && !path.empty()) {
+        if (entry.refCount > 0 && entry.generation == handle.generation() && !path.empty() && entry.path != path) {
             if (!entry.path.empty()) {
                 pathToId_.erase(entry.path);
             }
             entry.path = path;
-            pathToId_[path] = handle.id();
+            claimPath_(handle);
         }
     }
 
@@ -408,17 +406,21 @@ public:
     }
 
 private:
+    // Only the current owner has a path. A displaced holder keeps its resource
+    // until release, and a displaced warm entry can be freed immediately.
+    void claimPath_(Handle<T> handle) {
+        const auto& path = entries_[handle.index()].path;
+        if (path.empty()) return;
+        invalidatePath(path);
+        pathToId_[path] = handle.id();
+    }
+
     /** Actually free an entry: drop its resource + path, recycle the slot. */
     void freeEntry_(u32 index) {
         auto& entry = entries_[index];
         if (entry.evictable) lruRemove_(index);
-        // Only drop the path mapping if it still points here — a later add() of the
-        // same path (while this entry lingered evictable) may have re-bound it.
         if (!entry.path.empty()) {
-            auto it = pathToId_.find(entry.path);
-            if (it != pathToId_.end() && Handle<T>::extractIndex(it->second) == index) {
-                pathToId_.erase(it);
-            }
+            pathToId_.erase(entry.path);
         }
         residentBytes_ -= entry.bytes;
         entry.resource.reset();

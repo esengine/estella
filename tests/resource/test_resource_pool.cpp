@@ -1,7 +1,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest.h>
 
-#include <esengine/ESEngine.hpp>
 #include <esengine/resource/ResourcePool.hpp>
 #include <string>
 #include <memory>
@@ -194,6 +193,49 @@ TEST_CASE("pool_path_cleared_on_release") {
 
     auto found = pool.findByPath("asset.png");
     CHECK(!found.isValid());
+}
+
+TEST_CASE("reassigning a displaced handle preserves the new owner of its old path") {
+    test::DummyPool pool;
+    pool.setBudget(1024);
+    auto old = pool.add(esengine::makeUnique<test::DummyResource>(1), "page.png", 64);
+    auto current = pool.add(esengine::makeUnique<test::DummyResource>(2), "page.png", 128);
+
+    CHECK(pool.getPath(old).empty());
+    REQUIRE(pool.get(old) != nullptr);
+    CHECK_EQ(pool.get(old)->value, 1);
+    pool.setPath(old, "preview.png");
+    CHECK(pool.findByPath("page.png") == current);
+    CHECK(pool.findByPath("preview.png") == old);
+
+    pool.setPath(current, pool.getPath(old));
+    CHECK(pool.getPath(old).empty());
+    CHECK_FALSE(pool.findByPath("page.png").isValid());
+    pool.release(old.id());
+    CHECK_EQ(pool.residentBytes(), 128u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(pool.findByPath("preview.png") == current);
+}
+
+TEST_CASE("replacing a cached path immediately frees its previous evictable resource") {
+    test::DummyPool pool;
+    pool.setBudget(1024);
+    auto cached = pool.add(esengine::makeUnique<test::DummyResource>(1), "page.png", 64);
+    pool.release(cached.id());
+    REQUIRE(pool.isEvictable(cached));
+
+    auto fresh = pool.add(esengine::makeUnique<test::DummyResource>(2), "other.png", 128);
+    SUBCASE("add under the cached path") {
+        fresh = pool.add(esengine::makeUnique<test::DummyResource>(3), "page.png", 16);
+        CHECK_EQ(pool.residentBytes(), 144u);
+    }
+    SUBCASE("rename a live resource to the cached path") {
+        pool.setPath(fresh, "page.png");
+        CHECK_EQ(pool.residentBytes(), 128u);
+    }
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK_FALSE(pool.isEvictable(cached));
+    CHECK(pool.findByPath("page.png") == fresh);
 }
 
 TEST_CASE("pool_clear") {

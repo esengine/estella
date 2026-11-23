@@ -283,7 +283,7 @@ add_test(NAME test_view_api_matrix COMMAND test_view_api_matrix)
 add_executable(test_resource_pool
     resource/test_resource_pool.cpp
 )
-target_link_libraries(test_resource_pool PRIVATE esengine)
+target_include_directories(test_resource_pool PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_resource_pool COMMAND test_resource_pool)
 
 # Shader-vs-device decoupling: compiles the converted Shader.cpp against a
