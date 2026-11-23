@@ -201,7 +201,7 @@ struct LightConstants {
     // Render-relative optical window and depth decoder. A zero span disables it.
     glm::vec4 waterRect{};
     glm::vec4 waterDepth{}; // surface datum, top margin, full depth span, slice spacing
-    glm::vec4 waterSun{};   // mean refracted X/Z slopes, selected light slot, reserved
+    glm::vec4 waterSun{};   // mean refracted X/Z slopes, selected light slot, caustic strength (for receivers past the window)
 };
 
 /**

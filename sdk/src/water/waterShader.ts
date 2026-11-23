@@ -386,6 +386,10 @@ const SURFACE_SLOPE = `vec2 surfaceSlope(vec2 wp, float time, float waterDist, v
 // behind it and how far each pixel of that is from the eye, which the frame takes before it draws a material that declares them, so
 // the depth of the water at a pixel is what is measured, not a number the author guessed. Where the device cannot hold the distances
 // (no float target) it falls back to `u_fallbackDepth` as the depth everywhere.
+/** How much of the light a world unit of water takes out (times each colour's absorption), at the engine's reference of 100 units a
+ *  metre: 0.12 a metre, clear sea water. What the Water shader's `u_density` defaults to, and what a reader of it falls back to. */
+export const WATER_DENSITY = 0.0012;
+
 const WATER = `#pragma shader "Water"
 #pragma version 300 es
 #pragma domain Lit
@@ -395,7 +399,7 @@ const WATER = `#pragma shader "Water"
 #pragma param u_deepColor color default(0.01,0.08,0.15,1)
 // How fast each colour is absorbed along the way through the water (red goes first), and how thick the water is, per world unit.
 #pragma param u_absorption color default(0.45,0.09,0.05,1)
-#pragma param u_density float default(0.0012) range(0,0.04) ui(slider) unit(perLength)
+#pragma param u_density float default(${WATER_DENSITY}) range(0,0.04) ui(slider) unit(perLength)
 // How soon the water's own colour turns from the shallow one to the deep one, as a share of the density: lower keeps a lagoon its shallow colour over deeper water.
 #pragma param u_deepening float default(0.5) range(0,4) ui(slider)
 // How much the bed is dimmed by the water its light came down through, as well as by the water it is seen through: 1 is what water does
@@ -434,6 +438,8 @@ const WATER = `#pragma shader "Water"
 #pragma param u_refractionStrength float default(1) range(0,4) ui(slider)
 #pragma param u_distortionRange float default(1200) range(10,20000) ui(slider) unit(length)
 // Foam: its colour, how deep the water is where it begins at the shore (world units), and how much of the wave crests carry it.
+// Sunlight through the thin top of a wave toward an eye looking into the sun: the crest glows in the shallow colour. 0 draws none.
+#pragma param u_crestScatter float default(1) range(0,4) ui(slider)
 #pragma param u_foamColor color default(0.95,0.97,1,1)
 #pragma param u_foamWidth float default(120) range(0,2000) ui(slider) unit(length)
 #pragma param u_foamCrest float default(0.5) range(0,1) ui(slider)
@@ -663,6 +669,12 @@ ${WATER_ZONE_LAYER_GLSL}
 ${WATER_BEND_GLSL}
 /// How far the opaque scene is at a texel of the frame's copy of it: r while a 16-bit float holds the distance, b (the same in units of 1024) past that.
 float sceneFar(vec4 t) { return t.r < 65000.0 ? t.r : t.b * 1024.0; }
+// The copy of the scene's distances, read texel by texel: filtered, a texel on the edge of something against the sky blends a distance
+// and a sky flag that are neither (a 'far' bed that never was), and the water there turns deep in single pixels.
+vec4 sceneDepthAt(vec2 uv) {
+    ivec2 size = textureSize(u_sceneDepthMap, 0);
+    return texelFetch(u_sceneDepthMap, clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1)), 0);
+}
 vec3 waterReceiverAt(vec2 uv, float distance_) {
     vec3 point = worldFromDepth(uv, 0.5);
     return point - viewDirection(point) * (distance_ - distanceToEye(point));
@@ -739,7 +751,7 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
         float qDist = u_camera.w > 0.5 ? length(q - u_camera.xyz) : -dot(q, u_camera.xyz);
         // r how far the picture is, g whether it holds nothing there (the sky, painted after this copy was taken): nothing to meet, and the sky the lighting gave stays.
-        vec4 scene = textureLod(u_sceneDepthMap, uv, 0.0);
+        vec4 scene = sceneDepthAt(uv);
         float sceneDist = sceneFar(scene);
         // The ray has gone behind something the picture holds: that is what it met, if it did not skip clean through a thin one.
         // Fading toward the picture's edge: a reflection that runs off screen thins away instead of stopping on a line.
@@ -824,7 +836,7 @@ void main() {
     bool haveDepth = haveColor && texture(u_sceneDepthMap, vec2(0.5)).a < 0.75;
     vec4 clip0 = u_projection * vec4(P, 1.0);
     vec2 uv0 = clip0.xy / max(clip0.w, 1e-4) * 0.5 + 0.5;
-    float behindDist = haveDepth ? sceneFar(texture(u_sceneDepthMap, clamp(uv0, vec2(0.001), vec2(0.999)))) : waterDist + u_fallbackDepth;
+    float behindDist = haveDepth ? sceneFar(sceneDepthAt(clamp(uv0, vec2(0.001), vec2(0.999)))) : waterDist + u_fallbackDepth;
     float column0 = max(behindDist - waterDist, 0.0);
     // Past the shore only the surf's film is water: over ground no lower than the water, within its height of the rest level (further off
     // it is the mesh stretched between two waters' heights); the depth test cuts it where the ground rises above it. Asked here, before the
@@ -858,7 +870,12 @@ void main() {
     vec3 bentFlat = refract(-viewDir, Ngeo, RATIO);
     // Past the critical angle (about 49 degrees) nothing gets out of the water: refract gives nothing, and the surface is a mirror.
     if (below && (dot(bentWave, bentWave) < 0.5 || dot(bentFlat, bentFlat) < 0.5)) { bentWave = bentFlat = vec3(0.0); }
-    float reach = min(column0, u_distortionRange) * u_refractionStrength;
+    // How far the bent ray runs in the water before it meets what is behind: the depth over the refracted ray's slope, which is never more than
+    // 49 degrees off straight down, not the eye's own line to the bed. Seen low across shallow water that line is many times the depth, and an
+    // offset that long threw single pixels of the shallows off the far edge of what they lie on (specks of deep water over the sand).
+    float slantIn = sqrt(max(1.0 - viewDir.y * viewDir.y, 0.0)) / WATER_IOR;
+    float path = below ? column0 : column0 * abs(viewDir.y) / sqrt(max(1.0 - slantIn * slantIn, 1e-4));
+    float reach = min(path, u_distortionRange) * u_refractionStrength;
     // The lateral offset arrives at the opaque receiver. Projecting that offset at the
     // interface instead magnifies it without bound as the camera approaches the water.
     vec2 straightUv = clamp(uv0, vec2(0.001), vec2(0.999));
@@ -870,11 +887,14 @@ void main() {
     float column = column0;
     if (haveColor) {
         uv1 = clamp(uv1, vec2(0.001), vec2(0.999));
-        vec4 depthSample = texture(u_sceneDepthMap, uv1);
+        vec4 depthSample = sceneDepthAt(uv1);
         float dist1 = haveDepth ? sceneFar(depthSample) : behindDist;
         // Something standing in front of the water cannot be what is seen through it: keep the straight-through lookup.
-        if (dist1 < waterDist || (haveDepth && depthSample.g > 0.5 && texture(u_sceneDepthMap, straightUv).g < 0.5)) { uv1 = straightUv; dist1 = behindDist; depthSample = texture(u_sceneDepthMap, uv1); }
+        if (dist1 < waterDist || (haveDepth && depthSample.g > 0.5 && sceneDepthAt(straightUv).g < 0.5)) { uv1 = straightUv; dist1 = behindDist; depthSample = sceneDepthAt(uv1); }
         behind = texture(u_sceneColor, uv1).rgb;
+        // From below, what is seen through the window is the air above, and where that is open sky the picture does not hold it yet (the sky
+        // is drawn after the water): it is the sky's own light, along the ray as it left the water.
+        if (below && haveDepth && depthSample.g > 0.5 && dot(bentWave, bentWave) > 0.5) behind = envRadiance(normalize(bentWave), 0.0, reflectionColumn(), P);
         column = max(dist1 - waterDist, 0.0);
         // The material refracts a scene-colour texel. Its depth belongs to its own view ray:
         // the same point that the underwater pass reconstructs when the lens crosses the surface.
@@ -982,10 +1002,32 @@ void main() {
     vec3 mirror = vec3(0.0);
     if (below && fresnel > 0.02 && haveColor && haveDepth && u_mirror > 0.5) {
         vec4 met = waterReflect(P, reflect(-viewDir, N), waterDist);
-        mirror = mix(mix(shallowColor, deepColor, 0.5) * indirectIrradiance(Nbody) * 0.25, met.rgb, met.a);
+        // Where the mirrored ray leaves the picture it meets only more water: the light the water itself scatters, as the underwater
+        // effect fogs with (the sky's light and the sun's, given back in the water's colour), not a dark stand-in that turns the
+        // underside black wherever the trace misses.
+        vec4 sunDir, sunCol;
+        ivec2 sunTiles;
+        waterSun(sunDir, sunCol, sunTiles);
+        vec3 skyIn = max(u_ambient.rgb + 0.282095 * u_envIrradiance[0].rgb * u_envTint.rgb, vec3(0.0));
+        vec3 sunIn = sunDir.w > 0.5 ? sunCol.rgb * sunCol.a * max(sunDir.y, 0.0) : vec3(0.0);
+        vec3 medium = mix(shallowColor, deepColor, 0.5) * (skyIn + sunIn);
+        mirror = mix(medium, met.rgb, met.a);
     }
     seen += mirror * fresnel * (1.0 - foam);
     vec3 color = lit + seen;
+    // Light through the crests: a wave's top is thin, and seen against a low sun the light that came through it is the water's own colour,
+    // brightest where the eye looks into the sun and across the water (a crest seen from above is all depth), out of the sun's shadow.
+    if (!below && u_crestScatter > 0.0 && crest > 0.25) {
+        vec4 sunAt, sunLight;
+        ivec2 sunTiles;
+        waterSun(sunAt, sunLight, sunTiles);
+        float toward = max(dot(-viewDir, sunAt.xyz), 0.0);
+        if (sunAt.w > 0.5 && toward > 0.0) {
+            float glow = toward * toward * toward * toward * smoothstep(0.25, 0.9, crest) * (1.0 - abs(viewDir.y))
+                       * (1.0 - fresnel) * (1.0 - foam);
+            color += sunLight.rgb * sunLight.a * shallowColor * glow * u_crestScatter * waterSunVisibility(P, sunTiles.x, sunTiles.y);
+        }
+    }
     // From above, what the surface mirrors is the world as well as the sky: the reflected ray followed through the picture. Where it meets
     // something on screen that takes the reflected share's place; where it leaves the screen, the sky the lighting gave stays.
     if (!below && fresnel > 0.03 && haveColor && haveDepth && u_mirror > 0.5) {

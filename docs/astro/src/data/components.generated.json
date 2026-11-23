@@ -11746,30 +11746,6 @@
       "source": "ts",
       "fields": [
         {
-          "key": "waterMaterial",
-          "type": "Asset<material>",
-          "default": "none",
-          "doc": "Material instance on the shared water surface. Empty inherits the zone water."
-        },
-        {
-          "key": "riverToLakeMaterial",
-          "type": "Asset<material>",
-          "default": "none",
-          "doc": "Water material on the shared surface where this river meets a lake."
-        },
-        {
-          "key": "riverToOceanMaterial",
-          "type": "Asset<material>",
-          "default": "none",
-          "doc": "Water material on the shared surface where this river meets the open sea."
-        },
-        {
-          "key": "underwaterMaterial",
-          "type": "Asset<material>",
-          "default": "none",
-          "doc": "Post-process material for the submerged part of the lens. Empty uses the built-in underwater shader."
-        },
-        {
           "key": "form",
           "type": "enum",
           "default": "Lake",
@@ -11830,11 +11806,30 @@
           "range": "≥ 0"
         },
         {
-          "key": "flowSpeed",
+          "key": "bedDepth",
           "type": "number",
-          "default": "200",
-          "doc": "A river's current, in world units a second where it is as wide as its widest. A narrower reach runs faster.",
-          "range": "0–5000"
+          "default": "0",
+          "doc": "How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "shapeDilation",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "excludeAllOverlapping",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Keeps every body whose water overlaps this volume out of it: none drawn inside it, and a point inside it is in no water, so a base or a tunnel under the sea is dry. Off, it keeps out only the bodies listed below."
+        },
+        {
+          "key": "excludeBodies",
+          "type": "Entity",
+          "default": "",
+          "doc": "The bodies this volume keeps out when it does not keep out all of them: inside it their water is not drawn and a point is in none of it, while any other body runs on through."
         },
         {
           "key": "waveHeight",
@@ -11844,11 +11839,18 @@
           "range": "0–800"
         },
         {
-          "key": "bedDepth",
+          "key": "waveAttenuationDepth",
           "type": "number",
-          "default": "0",
-          "doc": "How deep the water cuts into the terrain under its surface: a river its bed at its middle, its banks blending back into the ground; a lake its floor under its outline, sloping down from the shore. Only cuts; 0 leaves the ground as it is.",
+          "default": "300",
+          "doc": "How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water’s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).",
           "range": "≥ 0"
+        },
+        {
+          "key": "flowSpeed",
+          "type": "number",
+          "default": "200",
+          "doc": "A river's current, in world units a second where it is as wide as its widest. A narrower reach runs faster.",
+          "range": "0–5000"
         },
         {
           "key": "surfaceLook",
@@ -11865,6 +11867,43 @@
           "type": "Color",
           "default": "#1a6b75",
           "doc": "The colour of this body’s shallow water. Deep water darkens it the way the zone material’s deep colour darkens its shallow one."
+        },
+        {
+          "key": "overlapPriority",
+          "type": "number",
+          "default": "0",
+          "doc": "Where this body’s water overlaps another’s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.",
+          "range": "-8192–8191, step 1"
+        },
+        {
+          "key": "waterMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Material instance on the shared water surface. Empty inherits the zone water."
+        },
+        {
+          "key": "underwaterMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Post-process material for the submerged part of the lens. Empty uses the built-in underwater shader."
+        },
+        {
+          "key": "riverToLakeMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Water material on the shared surface where this river meets a lake."
+        },
+        {
+          "key": "riverToOceanMaterial",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "Water material on the shared surface where this river meets the open sea."
+        },
+        {
+          "key": "underwaterEnabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether the camera under this body’s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it."
         },
         {
           "key": "underwaterLook",
@@ -11892,8 +11931,8 @@
           "key": "underwaterDensity",
           "type": "number",
           "default": "0.12",
-          "doc": "How thick the water is: how soon what is seen through it fades into its colour.",
-          "range": "0–4"
+          "doc": "How thick the water is, per metre: how soon what is seen through it fades into its colour. 0.12 is clear sea water: with the default absorption, ten metres of it keep about 58% of red, 90% of green and 94% of blue.",
+          "range": "0–4, step 0.01"
         },
         {
           "key": "underwaterCaustics",
@@ -11901,6 +11940,27 @@
           "default": "0.6",
           "doc": "How bright the web of sunlight through the waves is on what is under the water. 0 draws none.",
           "range": "0–4"
+        },
+        {
+          "key": "underwaterPriority",
+          "type": "number",
+          "default": "0",
+          "doc": "Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority’s underwater look is laid over the lower one’s, by its Blend Weight. Equal ones are laid in no set order.",
+          "range": "-8192–8191, step 1"
+        },
+        {
+          "key": "underwaterBlendRadius",
+          "type": "number",
+          "default": "0",
+          "doc": "How far out past the body’s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "underwaterBlendWeight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of this body’s underwater look there is: 1 all of it, 0 none.",
+          "range": "0–1"
         },
         {
           "key": "affectsTerrain",
@@ -12069,87 +12129,30 @@
           "default": "0",
           "doc": "How far out from the water’s edge the terraces’ span starts, in world units.",
           "range": "≥ 0"
-        },
-        {
-          "key": "waveAttenuationDepth",
-          "type": "number",
-          "default": "300",
-          "doc": "How shallow the water must be for its waves to start calming, in world units: the shallower it is, the more they calm, flat at the water’s edge. 0 calms them by no depth (the Shore Width still calms them toward the shore).",
-          "range": "≥ 0"
-        },
-        {
-          "key": "overlapPriority",
-          "type": "number",
-          "default": "0",
-          "doc": "Where this body’s water overlaps another’s, the higher priority gives the water its colour, blending only across its own edge. Equal priorities blend their colours by how far inside each the water is, the way a river runs into its lake.",
-          "range": "-8192–8191, step 1"
-        },
-        {
-          "key": "shapeDilation",
-          "type": "number",
-          "default": "0",
-          "doc": "How far the water reaches past its outline, in world units. The zone draws water from a field of texels: a body narrower than a few of them (a stream, a small pond) can come out thin or broken, and growing it holds it.",
-          "range": "≥ 0"
-        },
-        {
-          "key": "underwaterEnabled",
-          "type": "boolean",
-          "default": "true",
-          "doc": "Whether the camera under this body’s water sees it as under water at all. Off for water a game never goes under: no underwater look is worked out for it."
-        },
-        {
-          "key": "underwaterPriority",
-          "type": "number",
-          "default": "0",
-          "doc": "Where the camera is under two bodies at once (a lake in a sea, a river running into it), the higher priority’s underwater look is laid over the lower one’s, by its Blend Weight. Equal ones are laid in no set order.",
-          "range": "-8192–8191, step 1"
-        },
-        {
-          "key": "underwaterBlendRadius",
-          "type": "number",
-          "default": "0",
-          "doc": "How far out past the body’s outline its underwater look fades in, in world units: swimming from one body into another blends their looks across this.",
-          "range": "≥ 0"
-        },
-        {
-          "key": "underwaterBlendWeight",
-          "type": "number",
-          "default": "1",
-          "doc": "How much of this body’s underwater look there is: 1 all of it, 0 none.",
-          "range": "0–1"
-        },
-        {
-          "key": "excludeAllOverlapping",
-          "type": "boolean",
-          "default": "true",
-          "doc": "Keeps every body whose water overlaps this volume out of it: none drawn inside it, and a point inside it is in no water, so a base or a tunnel under the sea is dry. Off, it keeps out only the bodies listed below."
-        },
-        {
-          "key": "excludeBodies",
-          "type": "Entity",
-          "default": "",
-          "doc": "The bodies this volume keeps out when it does not keep out all of them: inside it their water is not drawn and a point is in none of it, while any other body runs on through."
         }
       ],
       "animatable": [
-        "waterMaterial",
-        "riverToLakeMaterial",
-        "riverToOceanMaterial",
-        "underwaterMaterial",
         "form",
         "sizeX",
         "sizeZ",
         "sizeY",
         "shapeMesh",
         "shoreWidth",
-        "flowSpeed",
-        "waveHeight",
         "bedDepth",
+        "shapeDilation",
+        "waveHeight",
+        "waveAttenuationDepth",
+        "flowSpeed",
         "surfaceLook",
         "waterColor.r",
         "waterColor.g",
         "waterColor.b",
         "waterColor.a",
+        "overlapPriority",
+        "waterMaterial",
+        "underwaterMaterial",
+        "riverToLakeMaterial",
+        "riverToOceanMaterial",
         "underwaterLook",
         "underwaterColor.r",
         "underwaterColor.g",
@@ -12161,6 +12164,9 @@
         "underwaterAbsorption.a",
         "underwaterDensity",
         "underwaterCaustics",
+        "underwaterPriority",
+        "underwaterBlendRadius",
+        "underwaterBlendWeight",
         "channelShape",
         "channelEdgeOffset",
         "curveRampWidth",
@@ -12181,13 +12187,7 @@
         "innerSmoothDistance",
         "outerSmoothDistance",
         "terraceMaskLength",
-        "terraceMaskStartOffset",
-        "waveAttenuationDepth",
-        "overlapPriority",
-        "shapeDilation",
-        "underwaterPriority",
-        "underwaterBlendRadius",
-        "underwaterBlendWeight"
+        "terraceMaskStartOffset"
       ]
     },
     {
@@ -12264,27 +12264,6 @@
           "range": "0–1"
         },
         {
-          "key": "cellSize",
-          "type": "number",
-          "default": "100",
-          "doc": "The cell size of the finest ring of the surface. Waves shorter than six cells are not drawn as geometry there (the shading still shows them).",
-          "range": "≥ 0.05"
-        },
-        {
-          "key": "cells",
-          "type": "number",
-          "default": "64",
-          "doc": "Cells along a ring's side.",
-          "range": "4–256, step 4"
-        },
-        {
-          "key": "rings",
-          "type": "number",
-          "default": "5",
-          "doc": "Rings of the surface, each twice as coarse as the one inside it.",
-          "range": "1–10, step 1"
-        },
-        {
           "key": "tileSize",
           "type": "number",
           "default": "0",
@@ -12317,6 +12296,27 @@
           "default": "-1",
           "doc": "First level allowed to merge partially wet tiles. -1 retains the shoreline silhouette.",
           "range": "-1–9, step 1"
+        },
+        {
+          "key": "cellSize",
+          "type": "number",
+          "default": "100",
+          "doc": "Used while Tile Size is 0. The cell size of the finest ring of the surface. Waves shorter than six cells are not drawn as geometry there (the shading still shows them).",
+          "range": "≥ 0.05"
+        },
+        {
+          "key": "cells",
+          "type": "number",
+          "default": "64",
+          "doc": "Cells along a ring's side.",
+          "range": "4–256, step 4"
+        },
+        {
+          "key": "rings",
+          "type": "number",
+          "default": "5",
+          "doc": "Rings of the surface, each twice as coarse as the one inside it.",
+          "range": "1–10, step 1"
         },
         {
           "key": "ripples",
@@ -12390,15 +12390,15 @@
         "surf",
         "surfLength",
         "surfSpread",
-        "cellSize",
-        "cells",
-        "rings",
         "tileSize",
         "extentInTiles.x",
         "extentInTiles.y",
         "tessellationFactor",
         "lodScale",
         "forceCollapseDensityLevel",
+        "cellSize",
+        "cells",
+        "rings",
         "ripples",
         "rippleSize",
         "rippleSpeed",

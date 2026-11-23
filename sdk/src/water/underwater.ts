@@ -21,7 +21,8 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Camera, Transform, type CameraData, type TransformData } from '../ecs/component';
 import type { Entity } from '../types';
-import { worldUnitScale } from '../ecs/worldUnits';
+import { worldUnitScale, worldUnitsPerMeter } from '../ecs/worldUnits';
+import { WATER_DENSITY } from './waterShader';
 import { Material } from '../render/material';
 import { CAUSTICS_GLSL, CAUSTIC_PARAMS, CAUSTIC_FIELD_PARAMS, WATER_ZONE_LAYER_GLSL, WATER_CAUSTICS } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
@@ -36,7 +37,7 @@ export const UNDERWATER_SHADER = `#pragma shader "PP Underwater"
 #pragma domain PostProcess
 #pragma param u_absorption color default(0.45,0.09,0.05,1)
 #pragma param u_scatterColor color default(0.03,0.2,0.28,1)
-#pragma param u_density float default(0.12) range(0,4)
+#pragma param u_density float default(${WATER_DENSITY}) range(0,0.04)
 #pragma param u_amount float default(1) range(0,1)
 #pragma param u_cameraDepth float default(0) range(0,100000)
 #pragma param u_lightFalloff float default(0.004) range(0,1)
@@ -146,7 +147,10 @@ void main() {
     // Shafts: the sun scattered toward the eye by the water along the ray, wherever the shadow map says it gets in and in the pattern the waves throw.
     if (sunny && u_shaftStrength > 0.0) {
         float span = min(len, u_shaftRange);
-        float steps = clamp(floor(u_shaftSteps + 0.5), 1.0, float(SHAFT_STEPS));
+        // The step a ray through the whole range takes: a shorter ray (the bed a metre off) takes as many of them as it needs, not all of
+        // them, so the water near the eye is sampled as finely as far off and the pixels that see something close are cheap.
+        float most = clamp(floor(u_shaftSteps + 0.5), 1.0, float(SHAFT_STEPS));
+        float steps = clamp(ceil(span / (u_shaftRange / most)), min(4.0, most), most);
         float ds = span / steps;
         float jitter = ign(gl_FragCoord.xy);
         float through = 1.0;
@@ -189,8 +193,8 @@ export function registerUnderwaterEffect(): void {
         qualityGroup: 'water',
         factory: () => Material.compileShader(UNDERWATER_SHADER),
         uniforms: [
-            // Per WORLD unit of water: how much of the light a unit takes out (times each colour's absorption).
-            { name: 'u_density', label: 'Density', min: 0, max: 4, step: 0.005, defaultValue: 0.12, neutralValue: 0 },
+            // Per WORLD unit of water: how much of the light a unit takes out (times each colour's absorption). The Water shader's own default.
+            { name: 'u_density', label: 'Density', min: 0, max: 0.04, step: 0.0001, defaultValue: WATER_DENSITY, neutralValue: 0 },
             { name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
             // How far under the surface the camera is; the water module sets it.
             { name: 'u_cameraDepth', label: 'Camera Depth', min: 0, max: 100000, step: 1, defaultValue: 0 },
@@ -247,12 +251,12 @@ function lookOf(body: WaterBodyData | null, instance: number): UnderLook {
     instance = body?.waterMaterial || instance;
     const own = body && body.underwaterLook === UnderwaterLook.Own ? body : null;
     if (!own) {
-        return { absorption: triple(instance, 'u_absorption', [0.45, 0.09, 0.05]), density: single(instance, 'u_density', 0.12),
+        return { absorption: triple(instance, 'u_absorption', [0.45, 0.09, 0.05]), density: single(instance, 'u_density', WATER_DENSITY / worldUnitScale()),
             shallow: triple(instance, 'u_shallowColor', [0.10, 0.42, 0.46]), deep: triple(instance, 'u_deepColor', [0.01, 0.08, 0.15]),
             caustics: single(instance, 'u_causticStrength', WATER_CAUSTICS.strength.value) };
     }
     const shallow: [number, number, number] = [own.underwaterColor.r, own.underwaterColor.g, own.underwaterColor.b];
-    return { absorption: [own.underwaterAbsorption.r, own.underwaterAbsorption.g, own.underwaterAbsorption.b], density: own.underwaterDensity,
+    return { absorption: [own.underwaterAbsorption.r, own.underwaterAbsorption.g, own.underwaterAbsorption.b], density: own.underwaterDensity / worldUnitsPerMeter(),
         shallow, deep: [shallow[0] * 0.15, shallow[1] * 0.3, shallow[2] * 0.45], caustics: own.underwaterCaustics };
 }
 

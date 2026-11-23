@@ -37,8 +37,9 @@ export function probeFrom(x, z, drop, fov) {
 }
 
 let nextId;
-const entity = (name, components) => ({ id: nextId++, name, parent: null, children: [], visible: true, components });
-const transform = (position, rotation, scale) => ({
+/** An entity of the scene being built, numbered in the order made: for components the helpers below do not cover. */
+export const entity = (name, components) => ({ id: nextId++, name, parent: null, children: [], visible: true, components });
+export const transform = (position, rotation, scale) => ({
   type: 'Transform',
   data: { position: { x: position[0], y: position[1], z: position[2] }, ...(rotation ? { rotation } : {}), ...(scale ? { scale: { x: scale[0], y: scale[1], z: scale[2] } } : {}) },
 });

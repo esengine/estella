@@ -182,18 +182,19 @@ export const UnderwaterLook = { Zone: UNDER_ZONE, Own: UNDER_OWN } as const;
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
-    waterMaterial: 0, riverToLakeMaterial: 0, riverToOceanMaterial: 0, underwaterMaterial: 0,
-    form: LAKE, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
-    surfaceLook: SURFACE_ZONE, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 },
-    underwaterLook: UNDER_ZONE, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
-    underwaterDensity: 0.12, underwaterCaustics: DEFAULT_CAUSTIC_STRENGTH,
+    // In the order the Details panel shows them: what the body is, its waves, its colour, what it is drawn with, how it looks from
+    // under it, and what it does to the terrain. A group's place is its first field's, so this order is the panel's.
+    form: LAKE, bodyId: '', sizeX: 10000, sizeZ: 10000, sizeY: 10000, shapeMesh: 0, boundary: [] as Point2[], shoreWidth: 300, bedDepth: 0, shapeDilation: 0,
+    excludeAllOverlapping: true, excludeBodies: [] as number[],
+    waveHeight: 30, waveAttenuationDepth: 300, flowSpeed: 200,
+    surfaceLook: SURFACE_ZONE, waterColor: { r: 0.10, g: 0.42, b: 0.46, a: 1 }, overlapPriority: 0,
+    waterMaterial: 0, underwaterMaterial: 0, riverToLakeMaterial: 0, riverToOceanMaterial: 0,
+    underwaterEnabled: true, underwaterLook: UNDER_ZONE, underwaterColor: { r: 0.03, g: 0.2, b: 0.28, a: 1 }, underwaterAbsorption: { r: 0.45, g: 0.09, b: 0.05, a: 1 },
+    underwaterDensity: 0.12, underwaterCaustics: DEFAULT_CAUSTIC_STRENGTH, underwaterPriority: 0, underwaterBlendRadius: 0, underwaterBlendWeight: 1,
     affectsTerrain: true, channelShape: SHAPE_BUILT_IN, elevationCurve: S_CURVE, channelEdgeOffset: 0, curveRampWidth: 1500,
     terrainBlend: BLEND_ALPHA, falloffWidth: 300, terrainZOffset: 0, terraceAlpha: 0, terraceSpacing: 100, terraceSmoothness: 0,
     falloffMode: FALLOFF_WIDTH, falloffAngle: 45, falloffEdgeOffset: 0, blurRadius: 0, curlAmount1: 0, curlTiling1: 2000, curlAmount2: 0,
     curlTiling2: 500, innerSmoothDistance: 0, outerSmoothDistance: 0, terraceMaskLength: 0, terraceMaskStartOffset: 0,
-    waveAttenuationDepth: 300, overlapPriority: 0, shapeDilation: 0,
-    underwaterEnabled: true, underwaterPriority: 0, underwaterBlendRadius: 0, underwaterBlendWeight: 1,
-    excludeAllOverlapping: true, excludeBodies: [] as number[],
 }, {
     worldUnitFields: ['sizeX', 'sizeZ', 'sizeY', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth', 'channelEdgeOffset', 'curveRampWidth', 'falloffWidth', 'terrainZOffset', 'terraceSpacing', 'falloffEdgeOffset', 'blurRadius', 'curlAmount1', 'curlTiling1', 'curlAmount2', 'curlTiling2', 'innerSmoothDistance', 'outerSmoothDistance', 'terraceMaskLength', 'terraceMaskStartOffset', 'waveAttenuationDepth', 'shapeDilation', 'underwaterBlendRadius'],
     assetFields: [{ field: 'waterMaterial', type: 'material' }, { field: 'underwaterMaterial', type: 'material' },
@@ -221,7 +222,7 @@ export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComp
         underwaterLook: { enum: [{ label: 'Zone Material', value: UNDER_ZONE }, { label: 'Own', value: UNDER_OWN }], category: 'Underwater', tooltip: 'What the world looks like from under this body: the look of the zone water material, as its surface is drawn, or the settings below, so a murky pond and a clear sea in one zone each look their own from inside.', shownWhen: { field: 'form', values: [OCEAN, LAKE, RIVER, CUSTOM] } },
         underwaterColor: { category: 'Underwater', tooltip: 'The colour the water gives back from under it, deepening with the depth of the camera.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
         underwaterAbsorption: { category: 'Underwater', tooltip: 'What the water takes out of the light, colour by colour, as it crosses it: red first in clear sea water.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
-        underwaterDensity: { min: 0, max: 4, category: 'Underwater', tooltip: 'How thick the water is: how soon what is seen through it fades into its colour.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
+        underwaterDensity: { min: 0, max: 4, step: 0.01, unit: '/m', category: 'Underwater', tooltip: 'How thick the water is, per metre: how soon what is seen through it fades into its colour. 0.12 is clear sea water: with the default absorption, ten metres of it keep about 58% of red, 90% of green and 94% of blue.', shownWhen: { field: 'underwaterLook', values: [UNDER_OWN] } },
         affectsTerrain: { category: 'Terrain', tooltip: 'Whether this body changes the terrain under and round it: a lake cutting its floor, a river its bed, an island raising its ground. Off, the terrain is left as it is and the water lies over it.', shownWhen: { field: 'form', values: [LAKE, RIVER, ISLAND] } },
         channelShape: { enum: [{ label: 'Built In', value: SHAPE_BUILT_IN }, { label: 'Curve Channel', value: SHAPE_CURVE }], category: 'Terrain', tooltip: 'How the bed is cut: the built-in profile (a lake\u2019s floor sloping in from its shore, a river\u2019s rounded trough), or the Curve Channel below: an elevation curve across a ramp from the shore, laid over the ground as its blend mode says, with terraces if asked.', shownWhen: { field: 'form', values: [LAKE, RIVER] } },
         elevationCurve: { curve: true, category: 'Terrain', tooltip: 'The bed\u2019s profile across the ramp: from the curve\u2019s start (0, at the shore plus the edge offset) to the end of the ramp (1), how much of the full depth it is cut to. Keep its end at 1 so the depth set on the body (or on a river\u2019s points) is the depth reached.', shownWhen: { field: 'channelShape', values: [SHAPE_CURVE] } },

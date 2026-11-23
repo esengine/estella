@@ -4,6 +4,7 @@
  * @file  Which water a place is: the sea only where it reaches, a lake only over its own ground, the same whatever order bodies come in;
  *        and the basins and drainage a game decides its lakes and rivers by.
  */
+import { worldUnitsPerMeter } from '../src/ecs/worldUnits';
 import { describe, expect, it } from 'vitest';
 import { WaterField, type ZoneExclusion, type ZoneGrid, type ZoneLake, type ZoneOcean, type ZoneRiver } from '../src/water/zone';
 import { drainPath, findBasins } from '../src/water/basins';
@@ -224,7 +225,8 @@ describe('the water in a running app with no renderer', () => {
         await step();
         const own = currentUnderwater()!;
         expect(own.absorption).toEqual([0.1, 0.2, 0.9]);
-        expect(own.density).toBe(2);
+        // The body's density is per metre; the effect takes it per world unit (100 a metre here).
+        expect(own.density).toBeCloseTo(2 / worldUnitsPerMeter(), 9);
         expect(own.causticStrength).toBe(0);
         expect(own.scatter[0]).toBeGreaterThan(own.scatter[2]);
         app.world.despawn(eye);

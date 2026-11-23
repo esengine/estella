@@ -2942,7 +2942,14 @@ void RenderFrame::declareMaterialBakes(ecs::Registry& registry) {
                 field.sunDirection = glm::vec3(sun);
                 field.rect = {bake.a.x, bake.a.y, bake.a.z, bake.a.z / bake.w};
                 field.depth = {bake.b.z, top, top + bake.b.w, bake.b.w / 15.0f};
-                field.sun = {ray.x / ray.y, ray.z / ray.y, 0, 0};
+                // w: the material's caustic strength, for the receivers past the measured window, which draw the pattern without it.
+                f32 strength = 1.0f;
+                if (const auto* record = context_.materials().find(bake.projection)) {
+                    for (usize p = 0; p < layout->params.size(); ++p) {
+                        if (layout->params[p].name == "u_causticStrength") { strength = MaterialStore::paramValue(*record, *layout, static_cast<i32>(p)); break; }
+                    }
+                }
+                field.sun = {ray.x / ray.y, ray.z / ray.y, 0, strength};
             }
         }
         rg::PassDesc pass;

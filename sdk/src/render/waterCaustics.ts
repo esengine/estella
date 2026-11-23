@@ -117,12 +117,21 @@ bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float tim
             focus = causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers);
         return true;
     }
+    // Past the baked field (outside its window, or deeper than its slices) the pattern is the procedural one the cheapest tier draws, so the
+    // bed does not end its light in a square round the camera; the baked field fades into it over its border.
+    // Only a receiver asks for it (a shaft's march would pay for it at every step), and only where the bake does not fully cover it.
+    bool wantFar = surface && depth > 0.0;
     float planeDepth = u_causticElevation.z - receiver.y;
     float stepDepth = u_causticElevation.w;
-    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES-1}.0 * stepDepth) return true;
+    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES-1}.0 * stepDepth) {
+        if (wantFar) focus = causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers);
+        return true;
+    }
     vec2 uv = (receiver.xz + meanRay.xz * (planeDepth/max(meanRay.y,0.08)) - u_causticRect.xy) / u_causticRect.z;
     vec2 edge = min(uv, 1.0-uv);
     float fade = smoothstep(0.025,0.09,min(edge.x,edge.y)) * (1.0-smoothstep(${CAUSTIC_SLICES-2}.0,${CAUSTIC_SLICES-1}.0,planeDepth/stepDepth));
+    float far = wantFar && fade < 1.0 ? causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers) : 0.0;
+    focus = far;
     if (fade <= 0.0) return true;
     int n = textureSize(u_causticField,0).y;
     ivec2 texel = clamp(ivec2(uv*float(n)),ivec2(0),ivec2(n-1));
@@ -147,12 +156,12 @@ bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float tim
             m = mix(waterMoment(uv - part*drift,base), waterMoment(uv + (1.0-part)*drift,nextLayer), part);
         }
     }
-    if (m.r <= 1e-4) return true;
+    if (m.r <= 1e-4) { focus = far * (1.0 - fade); return true; }
     vec3 arriving = waterMomentRay(m);
     ray = normalize(mix(meanRay,arriving,fade));
     float projectedPath = max(planeDepth,0.0)/max(meanRay.y,0.08) + (m.a/m.r-1.0)*(16.0*stepDepth);
     travel = max(mix(travel, projectedPath, fade), 0.0);
-    focus = fade * max(m.r-1.0,0.0);
+    focus = mix(far, max(m.r-1.0,0.0), fade);
     return true;
 }
 
