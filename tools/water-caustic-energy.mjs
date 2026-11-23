@@ -112,6 +112,6 @@ try {
       + ` contrast ${baked.std.toFixed(3)} vs ${fallback.std.toFixed(3)} (x${contrast.toFixed(2)})`);
   }
 } finally {
-  rmSync(work, { recursive: true, force: true });
+  rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }
 process.exit(failed ? 1 : 0);
