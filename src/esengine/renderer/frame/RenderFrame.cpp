@@ -486,6 +486,14 @@ void RenderFrame::applySceneDepthNeed() {
 #endif
 }
 
+bool RenderFrame::postEngaged() const {
+#ifdef ES_ENABLE_POSTPROCESS
+    return !data_pass_ && post_process_ && post_process_->isEngaged();
+#else
+    return false;
+#endif
+}
+
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target) {
     begin(view_projection, target, PassClear{});
 }
@@ -497,9 +505,10 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     // it names pixels outside the capture, and a camera that does not start at the window's corner (the right half of a split,
     // a minimap) drew nothing at all whenever the frame was linear, tone mapped or post-processed.
     PassClear clear = camera_clear;
+    data_pass_ = camera_clear.data;
 #ifdef ES_ENABLE_POSTPROCESS
     if (post_process_) post_process_->setBackgroundSky(false);
-    if (post_process_ && post_process_->isEngaged()) {
+    if (postEngaged()) {
         clear.x = 0;
         clear.y = 0;
     }
@@ -542,7 +551,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     // frame's own target is imported, and the graph culls back from it.
     scene_resource_ = rg::kNoResource;
 #ifdef ES_ENABLE_POSTPROCESS
-    if (post_process_ && post_process_->isEngaged()) {
+    if (postEngaged()) {
         scene_resource_ = post_process_->sceneResource();
     }
 #endif
@@ -557,7 +566,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 // runs, so a host draw between this call and end() lands in the scene.
 void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle target) {
 #ifdef ES_ENABLE_POSTPROCESS
-    const bool usePostProcess = post_process_ && post_process_->isEngaged();
+    const bool usePostProcess = postEngaged();
 #else
     const bool usePostProcess = false;
 #endif
@@ -572,8 +581,8 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
     // load-op. A frame keeping last frame's stencil cuts along a mask that has since moved;
     // a camera deliberately keeping depth means to keep that cut too.
     pass.clearStencil = clear.depth;
-    // Authored clear colors are sRGB; the linear frame clears in linear light.
-    const glm::vec3 clearRgb = linear_color_
+    // Authored clear colors are sRGB; the linear frame clears in linear light. A data pass clears to the numbers it was given.
+    const glm::vec3 clearRgb = linear_color_ && !clear.data
         ? srgbToLinearCpu({clear.colorValue.r, clear.colorValue.g, clear.colorValue.b})
         : glm::vec3{clear.colorValue.r, clear.colorValue.g, clear.colorValue.b};
     pass.clearColorValue[0] = clearRgb.r;
@@ -821,7 +830,7 @@ void RenderFrame::end() {
     }
 
 #ifdef ES_ENABLE_POSTPROCESS
-    const bool usePostProcess = post_process_ && post_process_->isEngaged();
+    const bool usePostProcess = postEngaged();
 #else
     const bool usePostProcess = false;
 #endif

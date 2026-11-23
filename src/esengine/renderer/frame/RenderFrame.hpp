@@ -195,6 +195,9 @@ public:
         glm::vec4 colorValue{0.0f, 0.0f, 0.0f, 1.0f};
         i32 x = 0, y = 0;
         u32 w = 0, h = 0;
+        /// The pass writes DATA into its target (a mask, a baked texture): numbers stored as they are drawn, never
+        /// captured, tone mapped or encoded by the post chain the frame's cameras use.
+        bool data = false;
     };
 
     /**
@@ -380,6 +383,8 @@ public:
 
 #ifdef ES_ENABLE_POSTPROCESS
     PostProcessPipeline* postProcess() { return post_process_.get(); }
+    /// Whether the open pass draws through the post chain: engaged, and not a data pass.
+    bool postEngaged() const;
 #endif
     RenderTargetManager& targetManager() { return target_manager_; }
 
@@ -715,6 +720,8 @@ private:
 
 #ifdef ES_ENABLE_POSTPROCESS
     Unique<PostProcessPipeline> post_process_;
+    /// The pass open now writes data (PassClear::data): the post chain sits it out.
+    bool data_pass_ = false;
 #endif
 #ifdef ES_ENABLE_GPU_PARTICLES
     /// The compute-simulated particles' buffers live here, across frames: their state is the point of them.

@@ -870,10 +870,11 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
     if (!matrixData) return;
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
+    // Bit 1 clears colour, bit 2 depth; bit 4 says the pass writes data, which the post chain leaves alone.
     g_renderFrame->begin(viewProjection, targetHandle,
                          RenderFrame::PassClear{(clearFlags & 1) != 0, (clearFlags & 2) != 0,
                                                 glm::vec4(r, g, b, a),
-                                                clearX, clearY, clearW, clearH});
+                                                clearX, clearY, clearW, clearH, (clearFlags & 4) != 0});
 }
 
 void renderer_flush() {

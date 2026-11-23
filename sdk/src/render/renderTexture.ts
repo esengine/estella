@@ -6,6 +6,9 @@ import { warn } from '../util/logger';
 
 let warnedNoTarget = false;
 
+/** `Renderer.begin`'s flag for a pass that writes data (bit 4; 1 and 2 clear colour and depth). */
+const RENDER_PASS_DATA = 4;
+
 export interface RenderTextureOptions {
     width: number;
     height: number;
@@ -90,8 +93,12 @@ export const RenderTexture = {
         return RenderTexture.create({ width, height, depth: rt._depth, filter: rt._filter, floatColor: rt._floatColor });
     },
 
-    begin(rt: RenderTextureHandle, viewProjection: Float32Array): void {
-        Renderer.begin(viewProjection, rt._handle);
+    /**
+     * Opens a pass that draws into the target. `data`: what is drawn is numbers (a mask, a baked texture), stored as drawn: the
+     * project's post chain (its linear capture, output transform, exposure) sits the pass out, as it must for anything read as data.
+     */
+    begin(rt: RenderTextureHandle, viewProjection: Float32Array, options?: { data?: boolean }): void {
+        Renderer.begin(viewProjection, rt._handle, options?.data ? RENDER_PASS_DATA : 0);
     },
 
     end(): void {
