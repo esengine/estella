@@ -57,6 +57,7 @@ toWire: (entity: number) => number
     | { kind: 'bool' }
     | { kind: 'string' }
     | { kind: 'entity' }
+    | { kind: 'entity[]' }
     | { kind: 'object'; keys: string[]; shapes: FieldShape[] }
     | { kind: 'json' }
 ```

@@ -133,26 +133,33 @@ describe('with authenticate', () => {
     });
 
     it('reconciles held ghosts: what left is dropped, what came is spawned', async () => {
+        const Links = defineComponent('HeldLinks', { target: 0, members: [] as number[] }, {
+            entityFields: ['target', 'members'], replicatedFields: ['target', 'members'],
+        });
         const { app, server } = makeServer({ authenticate: tokens });
         const ana = await join(server, { token: 'ana' });
+        ana.app.world.spawn('client only');
         const stays = spawn(app, 'stays');
         const leaves = spawn(app, 'leaves');
+        app.world.insert(stays, Links, { target: leaves, members: [leaves] });
         await step([app, ana.app], 2);
         const staysGhost = ghostByName(ana.app, 'stays')!;
         expect(ghostByName(ana.app, 'leaves')).toBeDefined();
 
         server.detachConnection(ana.link);
         app.world.despawn(leaves);
-        spawn(app, 'arrives');
+        const arrives = spawn(app, 'arrives');
+        app.world.update(stays, Links, v => { v.target = arrives; v.members = [arrives, stays, arrives]; });
         await step([app], 2);
 
         await rejoin(server, ana.client);
         await step([app, ana.app], 2);
         expect(ghostByName(ana.app, 'stays')).toBe(staysGhost);
         expect(ghostByName(ana.app, 'leaves')).toBeUndefined();
-        expect(ghostByName(ana.app, 'arrives')).toBeDefined();
+        const arrivesGhost = ghostByName(ana.app, 'arrives')!;
+        expect(arrivesGhost).toBeDefined();
+        expect(ana.app.world.get(staysGhost, Links)).toEqual({ target: arrivesGhost, members: [arrivesGhost, staysGhost, arrivesGhost] });
         expect(ana.app.world.getEntitiesWithComponents([Replicated])).toHaveLength(2);
-        void stays;
     });
 
     it('forgets a player whose grace ran out', async () => {

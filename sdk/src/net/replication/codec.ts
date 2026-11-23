@@ -25,6 +25,8 @@
  *          ends), anything else → JSON string fallback.
  */
 import { getComponentRegistry, type AnyComponentDef } from '../../ecs/component';
+import { mapEntityRefField } from '../../ecs/entityRefField';
+import { hasOwn } from '../../util/ownProperties';
 import { REPLICATION_PROTOCOL_VERSION, type ReplComponentSchema } from './protocol';
 
 const FRAME_MAGIC = 0x45535250; // 'ESRP'
@@ -39,6 +41,7 @@ export type FieldShape =
     | { kind: 'bool' }
     | { kind: 'string' }
     | { kind: 'entity' }
+    | { kind: 'entity[]' }
     | { kind: 'object'; keys: string[]; shapes: FieldShape[] }
     | { kind: 'json' };
 
@@ -163,7 +166,10 @@ export function buildReplicationTable(): ReplicationTable {
         }
         const defaults = def._default as Record<string, unknown>;
         const entityFields = new Set(def.entityFields);
-        const shapes = fields.map((f): FieldShape => (entityFields.has(f) ? { kind: 'entity' } : buildShape(defaults[f])));
+        const shapes = fields.map((field): FieldShape => {
+            if (!entityFields.has(field)) return buildShape(defaults[field]);
+            return { kind: Array.isArray(defaults[field]) ? 'entity[]' : 'entity' };
+        });
         for (const [field, step] of Object.entries(quantization_.get(name) ?? {})) {
             const i = fields.indexOf(field);
             if (i < 0) throw new Error(`[repl] "${name}.${field}" is quantized but is not one of its replicated fields`);
@@ -353,6 +359,13 @@ export interface EntityRefMap {
     fromWire(netId: number): number;
 }
 
+/** Translate just the authored entity references in a detached spawn baseline. */
+export function remapBaselineEntityFields(data: Record<string, unknown>, fields: readonly string[], resolve: (id: number) => number): void {
+    for (const field of fields) {
+        if (hasOwn(data, field)) data[field] = mapEntityRefField(data[field], ref => typeof ref === 'number' ? resolve(ref) : ref);
+    }
+}
+
 const IDENTITY_REFS: EntityRefMap = { toWire: (e) => e, fromWire: (n) => n };
 
 export function encodeValue(w: ByteWriter, shape: FieldShape, value: unknown, refs: EntityRefMap = IDENTITY_REFS): void {
@@ -368,6 +381,12 @@ export function encodeValue(w: ByteWriter, shape: FieldShape, value: unknown, re
         case 'bool': w.u8(value ? 1 : 0); break;
         case 'string': w.string(typeof value === 'string' ? value : ''); break;
         case 'entity': w.u32(refs.toWire(typeof value === 'number' ? value : 0)); break;
+        case 'entity[]': {
+            const list = Array.isArray(value) ? value : [];
+            w.varint(list.length);
+            for (const id of list) w.u32(typeof id === 'number' ? refs.toWire(id) : 0);
+            break;
+        }
         case 'object': {
             const rec = (value ?? {}) as Record<string, unknown>;
             for (let i = 0; i < shape.keys.length; i++) {
@@ -390,6 +409,13 @@ export function decodeValue(r: ByteReader, shape: FieldShape, refs: EntityRefMap
         case 'bool': return r.u8() !== 0;
         case 'string': return r.string();
         case 'entity': return refs.fromWire(r.u32());
+        case 'entity[]': {
+            const count = r.varint();
+            if (count > Math.floor(r.remaining / 4)) throw new RangeError('[repl] entity list runs past the end of the frame');
+            const list: number[] = [];
+            for (let i = 0; i < count; i++) list.push(refs.fromWire(r.u32()));
+            return list;
+        }
         case 'object': {
             const out: Record<string, unknown> = {};
             for (let i = 0; i < shape.keys.length; i++) {

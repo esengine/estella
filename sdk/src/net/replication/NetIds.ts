@@ -8,6 +8,15 @@
  *          and each endpoint keeps this bidirectional table.
  */
 import type { Entity } from '../../types';
+import type { EntityRefMap } from './codec';
+
+/** The same live table translates spawn baselines and state frames for the life of a connection. */
+export function wireEntityRefs(ids: NetIds): EntityRefMap {
+    return {
+        toWire: entity => ids.netIdOf(entity) ?? 0,
+        fromWire: netId => ids.entityOf(netId) ?? 0,
+    };
+}
 
 export class NetIds {
     private readonly byNetId_ = new Map<number, Entity>();

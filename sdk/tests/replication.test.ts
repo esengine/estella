@@ -364,6 +364,7 @@ describe('codec round trip', () => {
         const shapes: [FieldShape, unknown][] = [
             [{ kind: 'f32' }, 1.5],
             [{ kind: 'bool' }, true],
+            [{ kind: 'entity[]' }, Array.from({ length: 150 }, (_, i) => i + 1)],
             [{ kind: 'string' }, '你好 world'],
             [{ kind: 'object', keys: ['x', 'y'], shapes: [{ kind: 'f32' }, { kind: 'f32' }] }, { x: -2.25, y: 8 }],
             [{ kind: 'json' }, [1, 'two', { three: 3 }]],
@@ -380,6 +381,15 @@ describe('codec round trip', () => {
         encodeValue(w, { kind: 'entity' }, 12345, { toWire: () => 7, fromWire: (n) => n });
         const r = new ByteReader(w.finish());
         expect(decodeValue(r, { kind: 'entity' }, { toWire: (e) => e, fromWire: (n) => n + 1 })).toBe(8);
+    });
+
+    it('negotiates ordered entity lists separately from scalar references and ordinary arrays', () => {
+        defineComponent('Squad', { members: [] as number[], leader: 0, scores: [] as number[] }, {
+            entityFields: ['members', 'leader'], replicatedFields: ['members', 'leader', 'scores'],
+        });
+        const schema = tableSchemas(buildReplicationTable()).find(s => s.name === 'Squad')!;
+        expect(schema.shapes).toEqual(['entity[]', 'entity', 'json']);
+        expect(diffSchemas([schema], [{ ...schema, shapes: ['entity', 'entity', 'json'] }])).toContain('members');
     });
 
     it('state frames round-trip mask-selected fields through the table', () => {
@@ -516,6 +526,30 @@ describe('inbound timeline', () => {
 });
 
 describe('spawn batch references', () => {
+    it('translates ordered lists on spawn and on subsequent frames without changing ordinary numbers', async () => {
+        const Squad = defineComponent('Squad', { members: [] as number[], scores: [] as number[] }, {
+            entityFields: ['members'], replicatedFields: ['members', 'scores'],
+        });
+        const { serverApp, clientApp } = await makePair();
+        const sw = serverApp.world, cw = clientApp.world;
+        const step = async () => { await serverApp.tick(STEP); await clientApp.tick(STEP); };
+        for (let i = 0; i < 7; i++) cw.spawn();
+        const local = sw.spawn(), holder = sw.spawn('squad'), target = sw.spawn('member');
+        sw.insert(holder, Replicated, {}); sw.insert(target, Replicated, {});
+        const values = [target, 0, local, holder, target];
+        sw.insert(holder, Squad, { members: values, scores: values });
+        await step();
+        const ghost = cw.findEntityByName('squad')!, member = cw.findEntityByName('member')!;
+        expect(member).not.toBe(target);
+        expect(cw.get(ghost, Squad)).toEqual({ members: [member, 0, 0, ghost, member], scores: values });
+        sw.update(holder, Squad, v => { v.members = [local, target, target, holder]; });
+        await step();
+        expect(cw.get(ghost, Squad)).toEqual({ members: [0, member, member, ghost], scores: values });
+        sw.update(holder, Squad, v => { v.members = []; });
+        await step();
+        expect(cw.get(ghost, Squad).members).toEqual([]);
+    });
+
     it('an entity reference to something later in the same batch resolves', async () => {
         // Hydrating entity-by-entity looked up a netId that had not been
         // registered yet and wrote 0 — a reference to nothing, never revisited.

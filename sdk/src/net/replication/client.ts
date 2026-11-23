@@ -36,12 +36,12 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
-    type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry, type StateFrame,
+    buildReplicationTable, cloneValue, decodeStateFrame, remapBaselineEntityFields, tableSchemas,
+    type FieldShape, type ReplicationTable, type ReplicationTableEntry, type StateFrame,
 } from './codec';
 import { NetGhost, Replicated, type ReplicatedData } from './components';
 import { getReplicationArchetype } from './archetype';
-import { NetIds } from './NetIds';
+import { NetIds, wireEntityRefs } from './NetIds';
 import { InterpolationState } from './interpolation';
 
 /**
@@ -204,6 +204,8 @@ function isRedialable(t: ReliableOrderedTransport): t is RedialableSocket {
     return typeof s.connect === 'function' && typeof s.close === 'function' && typeof s.readyState === 'string';
 }
 
+type SpawnedEntity = { spawn: ReplSpawnEntity; entity: Entity };
+
 /** One received message, tagged so the inbox can stay a single ordered queue. */
 type PendingOp =
     | { kind: 'spawn'; batch: ReplSpawnBatch }
@@ -216,6 +218,7 @@ type PendingOp =
 export class ReplicationClient {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
+    private readonly refs_ = wireEntityRefs(this.netIds_);
     private offDespawn_: (() => void) | null = null;
     private channel_: NetChannel | null = null;
     private table_: ReplicationTable | null = null;
@@ -352,13 +355,6 @@ export class ReplicationClient {
     /** The tick stamped on the newest applied state (server time axis). */
     get serverTick(): number {
         return this.serverTick_;
-    }
-
-    private get refs_(): EntityRefMap {
-        return {
-            toWire: (entity) => this.netIds_.netIdOf(entity as Entity) ?? 0,
-            fromWire: (netId) => (this.netIds_.entityOf(netId) as number | undefined) ?? 0,
-        };
     }
 
     /** Handshake over the transport; rejects (and detaches) on any mismatch. */
@@ -899,11 +895,12 @@ export class ReplicationClient {
             if (this.ghostsFrom_ !== undefined && batch.serverId !== this.ghostsFrom_) this.resetWorld_();
             this.ghostsFrom_ = batch.serverId;
         }
+        let held: SpawnedEntity[] | undefined;
         if (batch.initial && this.resyncing_) {
             this.resyncing_ = false;
-            this.reconcileHeld_(batch);
+            held = this.reconcileHeld_(batch);
         }
-        const fresh: { spawn: ReplSpawnEntity; entity: Entity }[] = [];
+        const fresh: SpawnedEntity[] = [];
         for (const spawn of batch.entities) {
             if (this.netIds_.entityOf(spawn.netId) !== undefined) continue; // duplicate delivery
             // Refused BEFORE anything exists: a ghost the client cannot build is
@@ -931,16 +928,20 @@ export class ReplicationClient {
             if (spawn.archetype === '') continue;
             getReplicationArchetype(spawn.archetype)!(this.world_, entity);
         }
-        for (const { spawn, entity } of fresh) {
+        // A held ghost may point at one that only appeared while the link was down.
+        const received = held?.length ? held.concat(fresh) : fresh;
+        for (const { spawn, entity } of received) {
             for (const comp of spawn.baseline) {
-                const data = this.remapEntityRefs_(comp.type, comp.data);
+                const data = { ...comp.data };
+                const def = this.table.byName.get(comp.type)?.def ?? getComponent(comp.type);
+                if (def) remapBaselineEntityFields(data, def.entityFields, this.refs_.fromWire);
                 loadComponent(this.world_, entity, { type: comp.type, data }, spawn.name);
             }
         }
         // Baseline before hierarchy, as it has always been: reparenting runs
         // through the C++ registry and the prediction baseline must be the
         // state the authority sent, not whatever that leaves behind.
-        for (const { spawn, entity } of fresh) this.seedAuthority_(spawn.netId, entity);
+        for (const { spawn, entity } of received) this.seedAuthority_(spawn.netId, entity);
         for (const { spawn, entity } of fresh) {
             if (spawn.parentNetId === 0) continue;
             const parent = this.netIds_.entityOf(spawn.parentNetId);
@@ -951,12 +952,11 @@ export class ReplicationClient {
     /**
      * After a reconnect: the initial batch is everything the server says this
      * connection can see. A ghost it names stays the same entity and takes the
-     * new baseline; one it does not name is gone. What is new falls through to
-     * the ordinary spawn path, which skips the ones handled here.
+     * new baseline once every new netId is registered. One it does not name is gone.
      */
-    private reconcileHeld_(batch: ReplSpawnBatch): void {
-        const named = new Map<number, ReplSpawnEntity>();
-        for (const spawn of batch.entities) named.set(spawn.netId, spawn);
+    private reconcileHeld_(batch: ReplSpawnBatch): SpawnedEntity[] {
+        const named = new Set(batch.entities.map(spawn => spawn.netId));
+        const held: SpawnedEntity[] = [];
         const gone: number[] = [];
         for (const netId of this.netIds_.netIdList()) if (!named.has(netId)) gone.push(netId);
         if (gone.length > 0) this.applyDespawnBatch_({ tick: batch.tick, netIds: gone });
@@ -966,12 +966,9 @@ export class ReplicationClient {
             this.world_.insert(e, Replicated, { netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype });
             this.interp_?.drop(spawn.netId);
             this.authority_.delete(spawn.netId);
-            for (const comp of spawn.baseline) {
-                const data = this.remapEntityRefs_(comp.type, comp.data);
-                loadComponent(this.world_, e, { type: comp.type, data }, spawn.name);
-            }
-            this.seedAuthority_(spawn.netId, e);
+            held.push({ spawn, entity: e });
         }
+        return held;
     }
 
     /** Seed the authority copy for a freshly spawned OWNED entity from its
@@ -987,18 +984,6 @@ export class ReplicationClient {
             perComp.set(te.id, snap);
         }
         this.authority_.set(netId, perComp);
-    }
-
-    private remapEntityRefs_(type: string, data: Record<string, unknown>): Record<string, unknown> {
-        const entityFields = getComponent(type)?.entityFields ?? [];
-        if (entityFields.length === 0) return { ...data };
-        const out = { ...data };
-        for (const f of entityFields) {
-            if (typeof out[f] === 'number') {
-                out[f] = (this.netIds_.entityOf(out[f] as number) as number | undefined) ?? 0;
-            }
-        }
-        return out;
     }
 
     /** A replicated component left an entity that lives on. The ghost keeps

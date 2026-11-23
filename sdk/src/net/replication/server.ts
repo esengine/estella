@@ -18,7 +18,7 @@
  */
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { Name, Parent, getComponent, type AnyComponentDef } from '../../ecs/component';
+import { Name, Parent, type AnyComponentDef } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import type { SceneComponentData } from '../../scene/scene';
 import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
@@ -30,11 +30,11 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, EncodedRows, FrameWriter,
-    type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry,
+    buildReplicationTable, cloneValue, diffSchemas, remapBaselineEntityFields, tableSchemas, EncodedRows, FrameWriter,
+    type FieldShape, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
-import { NetIds } from './NetIds';
+import { NetIds, wireEntityRefs } from './NetIds';
 import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
 import { Histogram } from '../../metrics/histogram';
 
@@ -375,6 +375,7 @@ function refusal(err: unknown): ReplHelloResponse & { ok: false } {
 export class ReplicationServer {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
+    private readonly refs_ = wireEntityRefs(this.netIds_);
     /** Live connections by public id. */
     private readonly connections_ = new Map<number, Connection>();
     /** Live connections by the id their link was attached under. */
@@ -740,13 +741,6 @@ export class ReplicationServer {
         this.release_(conn, 'transfer', message, target);
         this.forgetPlayer_(connectionId);
         return true;
-    }
-
-    private get refs_(): EntityRefMap {
-        return {
-            toWire: (entity) => this.netIds_.netIdOf(entity as Entity) ?? 0,
-            fromWire: (netId) => (this.netIds_.entityOf(netId) as number | undefined) ?? 0,
-        };
     }
 
     /**
@@ -2067,7 +2061,8 @@ export class ReplicationServer {
             if (!live) continue;
             const data: Record<string, unknown> = {};
             for (const f of te.fields) data[f] = cloneValue(live[f]);
-            baseline.push(this.rewriteEntityRefs_({ type: te.name, data }));
+            remapBaselineEntityFields(data, te.def.entityFields, this.refs_.toWire);
+            baseline.push({ type: te.name, data });
         }
         // Name/Parent are structural; scene records carry them beside the
         // component list, and so does this.
@@ -2083,18 +2078,6 @@ export class ReplicationServer {
             archetype: repl?.archetype ?? '',
             baseline,
         };
-    }
-
-    private rewriteEntityRefs_(c: SceneComponentData): SceneComponentData {
-        const entityFields = getComponent(c.type)?.entityFields ?? [];
-        if (entityFields.length === 0) return c;
-        const data = { ...c.data };
-        for (const f of entityFields) {
-            if (typeof data[f] === 'number') {
-                data[f] = this.netIds_.netIdOf(data[f] as Entity) ?? 0;
-            }
-        }
-        return { type: c.type, data };
     }
 
     /** Diff every known entity against its shadow (updating the shadow), and
