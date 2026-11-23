@@ -8,7 +8,7 @@
  * esbuild, and a DOM in that process breaks it.
  */
 import { describe, it, expect } from 'vitest';
-import { BOOT_STAGES, BOOT_PROGRESS_EVENT, FIRST_FRAME_EVENT, PAGE_BACKGROUND, attachSplash, splashCss, splashHtml, splashScript } from '../src/export/splash';
+import { BOOT_STAGES, BOOT_PROGRESS_EVENT, FIRST_FRAME_EVENT, PAGE_BACKGROUND, attachSplash, showBootError, splashCss, splashHtml, splashScript } from '../src/export/splash';
 import { IDENT_SECONDS } from '../src/export/splashIdent';
 
 describe('driving the start screen', () => {
@@ -18,6 +18,15 @@ describe('driving the start screen', () => {
       + '<div id="es-splash-label"></div></div>';
     return document;
   };
+
+  it('shows the original boot error as text and ends the loading screen', () => {
+    const doc = mount();
+    const message = 'Could not load <game-scene>';
+    showBootError(new Error(message), doc);
+    expect(doc.getElementById('es-splash')).toBeNull();
+    expect(doc.querySelector('[role=alert]')?.textContent).toBe(message);
+    expect(doc.querySelector('game-scene')).toBeNull();
+  });
 
   it('announces every stage it reaches, and never goes backwards', () => {
     const seen: { stage: string; progress: number }[] = [];

@@ -11,7 +11,7 @@
 // host renders. No wasm module: entity generations fall back to World's JS path.
 
 import { bindAssetReferenceTracking } from '../../asset/assetReferenceTracking';
-import { App, setAppSurfaceSize } from '../../app/app';
+import { constructApp, setAppSurfaceSize, type App } from '../../app/app';
 import { World } from '../world';
 import { inputPlugin } from '../../input/input';
 import { prefabsPlugin } from '../../prefab/prefabServer';
@@ -128,46 +128,46 @@ export function createNativeApp(
     // getPlatform().bindInputEvents in build()).
     installNativePlatform(bridge);
 
-    const app = App.new();
-    app.connectCpp(createNativeRegistry(scope), undefined, {
-        memory: new NativeMemoryProvider(scope),
-        transformComposition: nativeTransformComposition(scope),
+    return constructApp(app => {
+        app.connectCpp(createNativeRegistry(scope), undefined, {
+            memory: new NativeMemoryProvider(scope),
+            transformComposition: nativeTransformComposition(scope),
+        });
+        // The optional subsystems (physics today) come from the host binary rather than
+        // a fetched wasm side module, through the same acquirer the web realms use — so
+        // the runtime's own self-gating installs them without knowing the difference.
+        app.setSideModules(createNativeSideModules(scope), { owned: true });
+        // The same order the web app builds in (see _createWebApp): the frame first,
+        // then assets, then the gameplay stack. assetPlugin is the one plugin that
+        // cannot be shared as-is — it wires the wasm heap — so installNativeAssets
+        // builds the equivalent over the native ResourceManager; prefabs and scene
+        // loading declare Assets as a required resource, so it precedes them.
+        installNativeEngine(scope);
+        // What the project declares about its frame, at the same moments the web app applies it (renderOptions.ts).
+        const api = engineApi(app);
+        if (api) applyColorSpace(api, options);
+        installNativeRenderer(app, scope);
+        if (api) applyFrameOptions(api, options);
+        installNativeAssets(app, scope);
+        installNativeUI(app, scope);
+        app.addPlugin(inputPlugin);
+        app.addPlugin(prefabsPlugin);
+        app.addPlugin(breakablePlugin);
+        app.addPlugin(sceneManagerPlugin);
+        app.addPlugins(headlessBasePlugins());
+        // The presentation stack — the same list the web factory installs. These used to
+        // be absent on a device, which is why a scene's tilemaps, particles, trails,
+        // meshes and post-process volumes did nothing there: not because the engine
+        // cannot draw them (it is the same C++) but because the plugins that drive them
+        // reached the core as `app.wasmModule`. They go through `engineApi(app)` now, and
+        // each one reports a core that compiles its subsystem out.
+        installNativeCoreApis(app);
+        // Ordered with the base set, exactly as the web factory does it: every
+        // optional subsystem reaches an App through `entryPlugins`, and a factory
+        // that names a couple of them by hand ships a device the rest never reach.
+        app.addPlugins(inBuildOrder([...presentationBasePlugins(), ...entryPlugins()]));
+        applyAppOptions(app, options);
     });
-    // The optional subsystems (physics today) come from the host binary rather than
-    // a fetched wasm side module, through the same acquirer the web realms use — so
-    // the runtime's own self-gating installs them without knowing the difference.
-    app.setSideModules(createNativeSideModules(scope));
-    // The same order the web app builds in (see _createWebApp): the frame first,
-    // then assets, then the gameplay stack. assetPlugin is the one plugin that
-    // cannot be shared as-is — it wires the wasm heap — so installNativeAssets
-    // builds the equivalent over the native ResourceManager; prefabs and scene
-    // loading declare Assets as a required resource, so it precedes them.
-    installNativeEngine(scope);
-    // What the project declares about its frame, at the same moments the web app applies it (renderOptions.ts).
-    const api = engineApi(app);
-    if (api) applyColorSpace(api, options);
-    installNativeRenderer(app, scope);
-    if (api) applyFrameOptions(api, options);
-    installNativeAssets(app, scope);
-    installNativeUI(app, scope);
-    app.addPlugin(inputPlugin);
-    app.addPlugin(prefabsPlugin);
-    app.addPlugin(breakablePlugin);
-    app.addPlugin(sceneManagerPlugin);
-    app.addPlugins(headlessBasePlugins());
-    // The presentation stack — the same list the web factory installs. These used to
-    // be absent on a device, which is why a scene's tilemaps, particles, trails,
-    // meshes and post-process volumes did nothing there: not because the engine
-    // cannot draw them (it is the same C++) but because the plugins that drive them
-    // reached the core as `app.wasmModule`. They go through `engineApi(app)` now, and
-    // each one reports a core that compiles its subsystem out.
-    installNativeCoreApis(app);
-    // Ordered with the base set, exactly as the web factory does it: every
-    // optional subsystem reaches an App through `entryPlugins`, and a factory
-    // that names a couple of them by hand ships a device the rest never reach.
-    app.addPlugins(inBuildOrder([...presentationBasePlugins(), ...entryPlugins()]));
-    applyAppOptions(app, options);
-    return app;
 }
 
 /**

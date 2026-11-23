@@ -358,5 +358,5 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     // Stopped while it loaded: the App was released, and running it now would bring the game
     // back with nothing left to stop it.
     life.throwIfAborted();
-    app.run();
+    await app.run();
 }

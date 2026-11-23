@@ -58,6 +58,17 @@ describe('createNativeApp', () => {
         expect(listener()).not.toBeNull();
         next.quit();
     });
+
+    it('unwinds already installed plugins when a later native plugin fails to build', () => {
+        const { bridge, listener } = makeBridge();
+        const failure = new Error('visibility service stopped');
+        const off = vi.fn();
+        bridge.onHide = vi.fn().mockReturnValueOnce(off).mockImplementation(() => { throw failure; });
+        expect(() => createNativeApp(bridge, hostWithRegistryOps())).toThrow(failure);
+        expect(listener()).toBeNull();
+        expect(off).toHaveBeenCalledOnce();
+    });
+
     it('routes host touch through the real input plugin to the Input resource', async () => {
         const { bridge, listener } = makeBridge();
         const app = createNativeApp(bridge, hostWithRegistryOps());

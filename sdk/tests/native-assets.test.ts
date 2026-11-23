@@ -94,6 +94,23 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
+    it('releases the native game when the entry scene cannot be read', async () => {
+        const bridge = makeBridge({});
+        const releaseInput = vi.fn();
+        const releaseShow = vi.fn();
+        bridge.registerInput = () => releaseInput;
+        bridge.onShow = () => releaseShow;
+        const failure = new Error('entry scene unavailable');
+        bridge.readFile = async path => {
+            if (path === 'menu.json') throw failure;
+            const json = path === 'game.config.json' ? { entryScene: 'menu.json' } : { version: '2.0', groups: {} };
+            return new TextEncoder().encode(JSON.stringify(json)).buffer as ArrayBuffer;
+        };
+        await expect(initNativeGame({ bridge, scope: withRegistryOps({}), width: 32, height: 32 })).rejects.toThrow('entry scene unavailable');
+        expect(releaseInput).toHaveBeenCalledOnce();
+        expect(releaseShow).toHaveBeenCalledOnce();
+    });
+
     it('reads a world on first use, retries a bad manifest, and gives residency only to the active scene', async () => {
         const scenes = ['menu', 'levels/a', 'levels/b'].map(name => ({ name, path: name + '.json' }));
         const worlds = scenes.slice(1).map(({ name }) => ({ scene: name, manifest: name + '.world.json' }));

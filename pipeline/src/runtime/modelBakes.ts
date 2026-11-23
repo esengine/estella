@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { Backend, LoadWork, LoadWorkProgress } from 'esengine';
+import { loadWork, setLoadWork, type Backend, type LoadWork, type LoadWorkProgress } from 'esengine';
 import { TIER_SIZE, bakeTierOf, deviceFacts, type BakeStage, type ModelBakesFile, type ModelMapName, type ModelProductRole } from '../modeling/loadBakeFile';
 import type { BakeAsk, BakeReply } from './modelBakeWorker';
 import { halveRgba } from '../assets/ktx2Mips';
@@ -39,9 +39,20 @@ type Reply<K extends string> = Extract<BakeReply, Record<K, unknown>>;
 
 export interface ModelBakes {
     work: LoadWork;
+    dispose(): void;
     serve<S extends { backend: Backend; decodePixels?: (path: string, ...rest: never[]) => Promise<Pixels> }>(source: S): S;
     /** How a map that was drawn as a placeholder is drawn again once it is baked: the host asks its texture to be decoded anew. */
     refreshWith(refresh: (path: string) => Promise<void>): void;
+}
+
+/** Publish this game's work until it quits, including a quit during startup. */
+export function attachModelBakes(life: AbortSignal, bakes: ModelBakes): void {
+    if (life.aborted) { bakes.dispose(); return; }
+    setLoadWork(bakes.work);
+    life.addEventListener('abort', () => {
+        if (loadWork() === bakes.work) setLoadWork(null);
+        bakes.dispose();
+    }, { once: true });
 }
 
 const plain = (path: string): string => (path.startsWith('@') ? path : path.replace(/[?#].*$/, '').replace(/^(\.?\/)+/, ''));
@@ -75,6 +86,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     const roles: Set<string>[] = models.map(() => new Set());
     const readBack: (Promise<Map<string, Pixels>> | null)[] = models.map(() => null);
     let released = false;
+    let stopped: Error | undefined;
     const shown = models.map(() => new Set<string>());
     const took: string[] = [];
     const watchers = new Set<(progress: LoadWorkProgress) => void>();
@@ -126,9 +138,11 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         return worker;
     };
     const ask = <T extends BakeReply>(index: number, part: 'shape' | 'maps'): Promise<T> => new Promise<T>((resolve, reject) => {
+        if (stopped) throw stopped;
         const id = ++asks;
         answers.set(id, { index, resolve: resolve as (reply: BakeReply) => void, reject });
-        workerFor(index).postMessage({ id, model: index, part, text: models[index]!.text, limit } satisfies BakeAsk);
+        try { workerFor(index).postMessage({ id, model: index, part, text: models[index]!.text, limit } satisfies BakeAsk); }
+        catch (error) { answers.delete(id); throw error; }
     });
 
     const mapsOf = (reply: Reply<'maps'>): Map<string, Pixels> => new Map(reply.maps.map((map) => [map.name, { width: map.size, height: map.size, pixels: map.rgba }]));
@@ -146,13 +160,17 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     };
 
     const begin = (): void => {
+        if (stopped) throw stopped;
         if (started) return;
         started = true;
         const order = models.map((_, index) => index).sort((a, b) => weights[b]! - weights[a]!);
         const began = performance.now();
         for (const index of order) meshes[index] = ask<Reply<'mesh'>>(index, 'shape').then((reply) => reply.mesh);
+        // Mesh jobs start eagerly, including ones no scene will request before it quits.
+        void Promise.allSettled(meshes);
         for (const index of order) {
             maps[index] = ask<Reply<'maps'>>(index, 'maps').then(async (reply) => {
+                if (stopped) throw stopped;
                 const baked = mapsOf(reply);
                 for (const name of baked.keys()) roles[index]!.add(name);
                 ready[index] = baked;
@@ -161,7 +179,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
                 console.info(`[model-bake] ${took[took.length - 1]}`);
                 latest = names[index]!;
                 tell();
-                if (refresh) for (const path of shown[index]!) await refresh(path).catch(() => undefined);
+                for (const path of shown[index]!) await refresh?.(path).catch(() => undefined);
                 shown[index]!.clear();
                 if (released) baked.clear();
                 return baked;
@@ -173,7 +191,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     };
 
     const work: LoadWork = {
-        get pending() { return ready.some((done) => done === null); },
+        get pending() { return !stopped && ready.some((done) => done === null); },
         release() {
             released = true;
             for (const baked of ready) baked?.clear();
@@ -193,6 +211,20 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
 
     return {
         work,
+        dispose() {
+            if (stopped) return;
+            stopped = new Error('The game ended during model baking');
+            refresh = null;
+            watchers.clear();
+            for (const waiting of answers.values()) waiting.reject(stopped);
+            answers.clear();
+            for (const worker of pool) worker?.terminate();
+            pool.length = 0;
+            meshes.length = 0;
+            maps.length = 0;
+            ready.fill(null);
+            readBack.fill(null);
+        },
         refreshWith(next) {
             refresh = next;
         },
@@ -201,6 +233,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
             const inner = source.backend;
             const backend = Object.create(inner) as Backend;
             backend.fetchBinary = async (path: string): Promise<ArrayBuffer> => {
+                if (stopped) throw stopped;
                 const hit = owner.get(plain(path));
                 if (!hit) return inner.fetchBinary(path);
                 if (hit.role !== 'mesh') throw new Error(`${models[hit.model]!.source}: its ${hit.role} map is a picture, not a file`);
@@ -209,6 +242,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
             };
             const decode = source.decodePixels;
             const decodePixels = async (path: string, ...rest: never[]): Promise<Pixels> => {
+                if (stopped) throw stopped;
                 const hit = owner.get(plain(path));
                 if (!hit || hit.role === 'mesh') return decode!(path, ...rest);
                 const edge = Number((rest as unknown[])[1]) || 0;

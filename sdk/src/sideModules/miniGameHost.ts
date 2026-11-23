@@ -11,7 +11,8 @@
  *          divergence already lives.
  */
 import { platformInstantiateWasm } from '../platform';
-import { createSideModuleHost, type EmscriptenFactory, type SideModule, type SideModuleHost } from './host';
+import { createSideModuleHost, type EmscriptenFactory, type SideModuleHost } from './host';
+import { instantiateWasmModule } from '../wasm/instantiateModule';
 import type { SideModuleId } from './registry';
 
 /** id → the emscripten factory `require('./wasm/<file>.js')` returned. */
@@ -30,23 +31,6 @@ export function createMiniGameSideModuleHost(
         if (!factory) throw new Error(`side module "${id}" (${descriptor.file}) has no mini-game factory`);
         // The exporter stages every runtime artifact under wasm/ — same registry,
         // same layout, so the binary sits beside the glue game.js require()'d.
-        return instantiateViaPlatform(factory, `wasm/${descriptor.file}${binarySuffix}`);
+        return instantiateWasmModule(factory, imports => platformInstantiateWasm(`wasm/${descriptor.file}${binarySuffix}`, imports));
     });
-}
-
-function instantiateViaPlatform(factory: EmscriptenFactory, wasmPath: string): Promise<SideModule> {
-    let rejectOnError: (e: unknown) => void = () => {};
-    const errorGate = new Promise<never>((_, reject) => {
-        rejectOnError = reject;
-    });
-    const opts: Record<string, unknown> = {
-        instantiateWasm(imports: WebAssembly.Imports, cb: (inst: WebAssembly.Instance, mod?: WebAssembly.Module) => void) {
-            platformInstantiateWasm(wasmPath, imports).then(
-                (r) => cb(r.instance, r.module),
-                (e) => rejectOnError(e),
-            );
-            return {};
-        },
-    };
-    return Promise.race([factory(opts), errorGate]);
 }

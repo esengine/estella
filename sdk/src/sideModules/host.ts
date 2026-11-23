@@ -12,6 +12,7 @@
  *          / WeChat transports live in sibling files.
  */
 import { log } from '../util/logger';
+import { instantiateWasmModule } from '../wasm/instantiateModule';
 import { SIDE_MODULES, sideModuleDescriptor, type SideModuleDescriptor, type SideModuleId } from './registry';
 
 /** The instantiated emscripten module. Consumers cwrap their own `_*` exports. */
@@ -184,21 +185,7 @@ export function instantiateWithBytes(
     wasmBytes: ArrayBuffer,
     extraOpts: Record<string, unknown> = {},
 ): Promise<SideModule> {
-    let rejectOnError: (e: unknown) => void = () => {};
-    const errorGate = new Promise<never>((_, reject) => {
-        rejectOnError = reject;
-    });
-    const opts: Record<string, unknown> = {
-        ...extraOpts,
-        instantiateWasm(imports: WebAssembly.Imports, cb: (inst: WebAssembly.Instance, mod?: WebAssembly.Module) => void) {
-            WebAssembly.instantiate(wasmBytes, imports).then(
-                (r) => cb(r.instance, r.module),
-                (e) => rejectOnError(e),
-            );
-            return {};
-        },
-    };
-    return Promise.race([factory(opts), errorGate]);
+    return instantiateWasmModule(factory, imports => WebAssembly.instantiate(wasmBytes, imports), extraOpts);
 }
 
 /**

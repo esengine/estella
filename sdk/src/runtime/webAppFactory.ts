@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { App, createWebApp as _createWebApp, type Plugin, type WebAppOptions } from '../app/app';
+import { App, constructApp, createWebApp as _createWebApp, type Plugin, type WebAppOptions } from '../app/app';
 import type { CppRegistry, ESEngineModule } from '../wasm';
-import { log } from '../util/logger';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
 import { breakablePlugin } from '../breakable/breakable';
@@ -36,7 +35,7 @@ const basePlugins = webBasePlugins();
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     // A host built here is this App's alone and ends with it; one passed in may serve others.
-    const ownsSideModules = !options?.sideModules && Boolean(options?.wasmBaseUrl);
+    const ownsSideModules = options?.sideModules ? options.ownsSideModules : Boolean(options?.wasmBaseUrl);
     const sideModules: SideModuleHost | undefined = options?.sideModules
         ?? (options?.wasmBaseUrl ? createFetchSideModuleHost(options.wasmBaseUrl) : undefined);
     // Spine and DragonBones each fetch their wasm only when asked, so installing
@@ -72,10 +71,9 @@ export const headlessBasePlugins = (): Plugin[] => simulationBasePlugins();
  */
 export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppOptions): App {
     seedEngineComponents();
-    const app = App.new();
-    if (options?.sideModules) app.setSideModules(options.sideModules);
-    const cppRegistry = new module.Registry() as unknown as CppRegistry;
-    try {
+    return constructApp(app => {
+        if (options?.sideModules) app.setSideModules(options.sideModules);
+        const cppRegistry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(cppRegistry, module, { strict: true, ownedRegistry: true });
 
         // No corePlugin: it wires the render facades (ResourceManager, draw,
@@ -88,12 +86,7 @@ export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppO
         // installed run here too.
         app.addPlugins(inBuildOrder([...headlessBasePlugins(), ...entryPlugins()]));
         if (options?.plugins) app.addPlugins(options.plugins);
-        return app;
-    } catch (error) {
-        try { app.quit({ keepRenderer: true }); }
-        catch (releaseError) { log.warn('app', 'Failed headless App construction cleanup error', releaseError); }
-        throw error;
-    }
+    });
 }
 
 /**

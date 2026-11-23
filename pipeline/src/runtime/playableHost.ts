@@ -12,9 +12,9 @@
  *        (play == ship). Nothing is fetched — the whole game is one self-contained
  *        .html (ad-network ready).
  */
-import { setLoadWork } from 'esengine';
+import { instantiateWasmModule, runGameStartup, type GameStartup } from 'esengine';
 import type { ModelBakesFile } from '../modeling/loadBakeFile';
-import { createModelBakes, sizeLimit, type ModelBakes } from './modelBakes';
+import { attachModelBakes, createModelBakes, sizeLimit, type ModelBakes } from './modelBakes';
 import {
   Assets, createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
   packagedAppOptions, packagedRuntimeInit, glContextAttributes,
@@ -23,7 +23,7 @@ import type { SceneData, EmbeddedSideModuleRegistry, EmbeddedSideModuleEntry } f
 import type { ESEngineModule as EngineModule } from 'esengine/wasm';
 import type { PackagedRuntimeFields } from '../project/runtimeConfig';
 import { inflateRaw } from './inflate';
-import { attachSplash } from '../export/splash';
+import { attachSplash, showBootError } from '../export/splash';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
@@ -108,7 +108,7 @@ function unpackSideModules(): EmbeddedSideModuleRegistry {
   return registry as EmbeddedSideModuleRegistry;
 }
 
-async function boot(): Promise<void> {
+async function boot(startup: GameStartup): Promise<void> {
   // An export built before this global simply has no settings to apply.
   const runtimeConfig: PackagedRuntimeFields =
     typeof __GAME_RUNTIME__ !== 'undefined' ? __GAME_RUNTIME__ : {};
@@ -126,25 +126,22 @@ async function boot(): Promise<void> {
     canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
     canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
   };
+  const stopResize = () => window.removeEventListener('resize', resize);
   window.addEventListener('resize', resize);
+  const resizeAdopted = startup.onFailure(stopResize);
   resize();
 
   if (!__ENGINE_GLUE__?.n || !__ENGINE_WASM__?.n) throw new Error('Engine runtime not inlined — re-export the playable.');
   // The esengine.js glue is ESM, so run it via a blob module (own scope); feed the
   // embedded wasm through instantiateWasm so nothing is fetched (single-file).
   const blobUrl = URL.createObjectURL(new Blob([unpackText(__ENGINE_GLUE__)], { type: 'text/javascript' }));
+  const revokeGlue = () => URL.revokeObjectURL(blobUrl);
+  const glueAdopted = startup.onFailure(revokeGlue);
   const { default: createEngine } = (await import(/* @vite-ignore */ blobUrl)) as { default: EngineFactory };
   const wasmBytes = unpack(__ENGINE_WASM__);
-  const module = await createEngine({
-    canvas,
-    instantiateWasm(imports: WebAssembly.Imports, cb: (inst: WebAssembly.Instance, mod?: WebAssembly.Module) => void) {
-      WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports).then(
-        (r) => cb(r.instance, r.module),
-        (err) => console.error('[playable] wasm instantiate failed', err),
-      );
-      return {};
-    },
-  });
+  const module = await instantiateWasmModule(createEngine,
+    imports => WebAssembly.instantiate(wasmBytes.buffer as ArrayBuffer, imports), { canvas });
+  const rendererAdopted = startup.onFailure(() => module.shutdownRenderer?.());
 
   splash.reach('engine');
 
@@ -157,7 +154,7 @@ async function boot(): Promise<void> {
   if (!gl) throw new Error('WebGL2 is not available.');
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
 
-  const app = createWebApp(module, {
+  const app = startup.createApp(() => createWebApp(module, {
     renderSurface: { kind: 'gl-context', handle: glHandle },
     // Older exports predate the color-space global; treat it as optional.
     // Everything the config says an App must be BUILT with (see packagedAppOptions).
@@ -166,7 +163,13 @@ async function boot(): Promise<void> {
     // Physics + spine resolve from the inlined registry (no fetch). Unpacked
     // here rather than in the SDK: the transport is this page's business.
     sideModules: createEmbeddedSideModuleHost(unpackSideModules()),
-  });
+    ownsSideModules: true,
+  }));
+  rendererAdopted();
+  app.signal.addEventListener('abort', stopResize, { once: true });
+  app.signal.addEventListener('abort', revokeGlue, { once: true });
+  resizeAdopted();
+  glueAdopted();
   setEditorMode(false);
   setPlayMode(true);
   splash.reach('app');
@@ -176,7 +179,7 @@ async function boot(): Promise<void> {
   // playable is a single inlined file, so the only way to tell one that renders
   // from one that boots and draws nothing is to read its framebuffer.
   if (headless) {
-    (window as unknown as { __estellaPlayable?: unknown }).__estellaPlayable = {
+    const playable = {
       capture(): { width: number; height: number; rgba: Uint8Array } {
         const w = canvas.width, h = canvas.height;
         const rgba = new Uint8Array(w * h * 4);
@@ -184,6 +187,9 @@ async function boot(): Promise<void> {
         return { width: w, height: h, rgba };
       },
     };
+    const probe = window as unknown as { __estellaPlayable?: unknown };
+    probe.__estellaPlayable = playable;
+    app.signal.addEventListener('abort', () => { if (probe.__estellaPlayable === playable) delete probe.__estellaPlayable; }, { once: true });
   }
 
   // The scene's stage in three stretches. Loading has no count to follow (the runtime reads and makes what the scene names in one
@@ -193,6 +199,7 @@ async function boot(): Promise<void> {
   const loading = setInterval(() => {
     splash.within('assets', LOAD_SHARE * (1 - Math.exp(-(performance.now() - loadStarted) / LOAD_EASE_MS)));
   }, 200);
+  startup.onFailure(() => clearInterval(loading));
   let mostCompiling = 0, mostMaking = 0;
   const warming = (pending: number, making: number): void => {
     clearInterval(loading);
@@ -207,8 +214,9 @@ async function boot(): Promise<void> {
   let bakes: ModelBakes | null = null;
   if (typeof __GAME_MODEL_BAKES__ !== 'undefined' && typeof __GAME_BAKE_WORKER__ !== 'undefined' && __GAME_MODEL_BAKES__ && __GAME_BAKE_WORKER__) {
     const worker = URL.createObjectURL(new Blob([unpack(__GAME_BAKE_WORKER__) as BlobPart], { type: 'text/javascript' }));
+    app.signal.addEventListener('abort', () => URL.revokeObjectURL(worker), { once: true });
     bakes = createModelBakes(JSON.parse(unpackText(__GAME_MODEL_BAKES__)) as ModelBakesFile, worker, sizeLimit(location.search), navigator.hardwareConcurrency || 4);
-    setLoadWork(bakes.work);
+    attachModelBakes(app.signal, bakes);
     bakes.refreshWith(async (path) => {
       const assets = app.getResource(Assets);
       const texture = assets.getTexture(path);
@@ -238,10 +246,7 @@ async function boot(): Promise<void> {
   });
 }
 
-boot().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  if (err === 'unwind' || message.includes('unwind')) return; // emscripten loop took over — success
+runGameStartup(boot).catch((err) => {
   console.error('[playable] boot failed', err);
-  // A start screen left over a boot that failed would say it is still loading.
-  document.getElementById('es-splash')?.remove();
+  showBootError(err);
 });

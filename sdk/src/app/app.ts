@@ -1431,13 +1431,23 @@ export class App {
         if (this.isExecutionHeld()) return;
         const version = this.loopVersion_;
         this.frame_paused_ = false;
-        this.boot_();
-        await this.flushStartupSystems_();
+        try {
+            this.boot_();
+            await this.flushStartupSystems_();
+            if (!this.running_ || this.isExecutionHeld() || version !== this.loopVersion_) return;
 
-        if (!this.running_ || this.isExecutionHeld() || version !== this.loopVersion_) return;
-
-        this.lastTime_ = platformNow();
-        this.mainLoop();
+            this.lastTime_ = platformNow();
+            // The host can step or stop an in-flight first frame after run() returns.
+            void this.mainLoop();
+        } catch (error) {
+            // Emscripten can transfer control to the loop with this literal.
+            if (error === 'unwind') return;
+            if (version === this.loopVersion_) {
+                this.running_ = false;
+                this.invalidateLoop_();
+            }
+            throw error;
+        }
     }
 
     private invalidateLoop_(): void {
@@ -2237,16 +2247,29 @@ export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | nu
     }
 }
 
+/** Construct an App over a host-owned engine. All factories unwind the plugins and ECS
+ *  resources they installed if a later construction step throws. @internal */
+export function constructApp(build: (app: App) => void): App {
+    const app = App.new();
+    const life = app.signal;
+    try {
+        build(app);
+        return app;
+    } catch (error) {
+        try { if (app.signal === life) app.quit({ keepRenderer: true }); }
+        catch (releaseError) { log.warn('app', 'Failed App construction cleanup error', releaseError); }
+        throw error;
+    }
+}
+
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     // Restore any engine components a prior project hot-reload's clearUserComponents
     // wiped, so the scene about to load can still resolve them (no-op before the SDK
     // entry snapshots the baseline — e.g. in unit tests that never load it).
     seedEngineComponents();
-    const app = App.new();
-    if (options?.sideModules) app.setSideModules(options.sideModules, { owned: options.ownsSideModules });
-    const cppRegistry = new module.Registry() as unknown as CppRegistry;
-
-    try {
+    return constructApp(app => {
+        if (options?.sideModules) app.setSideModules(options.sideModules, { owned: options.ownsSideModules });
+        const cppRegistry = new module.Registry() as unknown as CppRegistry;
         app.connectCpp(cppRegistry, module, { strict: true, ownedRegistry: true });
 
         // BEFORE renderer init: shader compilation reads the color-space global.
@@ -2308,12 +2331,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         }
 
         applyAppOptions(app, options);
-        return app;
-    } catch (error) {
-        try { app.quit({ keepRenderer: true }); }
-        catch (releaseError) { log.warn('app', 'Failed web App construction cleanup error', releaseError); }
-        throw error;
-    }
+    });
 }
 
 /**

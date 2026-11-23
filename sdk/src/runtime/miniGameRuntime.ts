@@ -20,6 +20,8 @@ import { bootPercent, bootSays, type BootStage } from './bootStages';
 import { markIdentDone, playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
+import { instantiateWasmModule } from '../wasm/instantiateModule';
+import { runGameStartup, type GameStartup } from './gameStartup';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../platform';
@@ -37,25 +39,6 @@ import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
-
-// =============================================================================
-// Emscripten WASM Instantiation
-// =============================================================================
-
-function createWasmInstantiator(wasmPath: string, tag: string, onError?: (e: unknown) => void) {
-    return (imports: WebAssembly.Imports, successCallback: Function) => {
-        platformInstantiateWasm(wasmPath, imports).then((result) => {
-            successCallback(result.instance, result.module);
-        }).catch((e) => {
-            log.error(tag, `WASM instantiation failed: ${describeError(e)}`);
-            // emscripten's instantiateWasm has no failure channel: on a failed
-            // async instantiation successCallback is never called and the factory
-            // promise hangs forever. Surface the error so the caller can reject.
-            onError?.(e);
-        });
-        return {};
-    };
-}
 
 /**
  * WebGL1 extensions WebGL2 made core. Emscripten asks for each unconditionally and
@@ -82,23 +65,6 @@ function describeError(e: unknown): string {
         try { return JSON.stringify(e); } catch { /* fall through */ }
     }
     return String(e);
-}
-
-// Wraps an emscripten module factory so an async instantiateWasm failure rejects
-// the returned promise instead of hanging the module load indefinitely.
-function instantiateModule<T>(
-    factory: (opts: unknown) => Promise<T>,
-    wasmPath: string,
-    tag: string,
-    extraOpts: Record<string, unknown> = {},
-): Promise<T> {
-    let rejectOnError: (e: unknown) => void = () => {};
-    const errorGate = new Promise<never>((_, reject) => { rejectOnError = reject; });
-    const modulePromise = factory({
-        ...extraOpts,
-        instantiateWasm: createWasmInstantiator(wasmPath, tag, rejectOnError),
-    });
-    return Promise.race([modulePromise, errorGate]);
 }
 
 // =============================================================================
@@ -264,7 +230,11 @@ export function startGlx(module: GlxModule, glx: GlxContext | undefined): void {
     module.ccall('glxInitBufferDataAndGlState', null, ['number', 'number'], [glx.isWebGL2 ? 2 : 1, glx.platform]);
 }
 
-export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
+export function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
+    return runGameStartup(startup => bootMiniGame(config, startup));
+}
+
+async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup): Promise<void> {
     // Before the engine boots, so a boot that fails is still heard by the editor.
     if (config.debugChannel) startDebugChannel(config.debugChannel);
     // Before the app exists, so a plugin that acquires during build finds them.
@@ -291,6 +261,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         reach(stage: BootStage): void { reached.push(stage); toast.reach(stage); },
         finish(): void { booted = true; toast.finish(); },
     };
+    startup.onFailure(() => { progress.finish(); ident?.stop(); });
     if (ident) {
         void ident.finished.then(() => {
             if (booted) return;
@@ -307,7 +278,14 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const { model: manifestModel, catalog } = index;
     progress.reach('manifest');
 
-    const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
+    const module = await instantiateWasmModule(config.engineFactory, async imports => {
+        try { return await platformInstantiateWasm(config.engineWasmPath, imports); }
+        catch (error) {
+            log.error(tag, `WASM instantiation failed: ${describeError(error)}`);
+            throw error;
+        }
+    }, { canvas });
+    const rendererAdopted = startup.onFailure(() => module.shutdownRenderer?.());
     progress.reach('engine');
     if (ident) {
         await ident.finished;
@@ -326,10 +304,9 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         // The renderer is GLSL ES 3.0 throughout, so a WebGL1 context would boot
         // to shader failures and a black screen; this says why instead.
         const offersWebGL1 = canvas.getContext('webgl') !== null;
-        log.error(tag, offersWebGL1
+        throw new Error(offersWebGL1
             ? 'This host offers only WebGL1, and the engine renders on WebGL2 — the game cannot start here'
             : 'Failed to create a WebGL2 context');
-        return;
     }
 
     const glx = (gl as { emscriptenGLX?: GlxContext }).emscriptenGLX;
@@ -344,7 +321,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     });
     if (glx) (module as unknown as GlxModule).ccall('glxUpdateContextId', 'number', ['number'], [glx.ctxid]);
 
-    const app = createWebApp(module, {
+    const app = startup.createApp(() => createWebApp(module, {
         renderSurface: { kind: 'gl-context', handle: glHandle, glx: glx !== undefined },
         ...packagedAppOptions(config),
         getViewportSize: () => ({
@@ -355,7 +332,9 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         sideModules: config.sideModuleFactories
             ? createMiniGameSideModuleHost(config.sideModuleFactories, config.sideModuleSuffix)
             : undefined,
-    });
+        ownsSideModules: true,
+    }));
+    rendererAdopted();
 
     if (config.runtimeConfig) {
         applyBuildRuntimeConfig(app, config.runtimeConfig);
@@ -408,6 +387,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
     if (ident) {
         const drawn = countDraws(gl);
+        startup.onFailure(() => drawn.release());
         let seen = 0, frames = 0;
         const off = app.onFrameEnd(() => {
             if (drawn.count === seen) return;
@@ -418,7 +398,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
             markIdentDone(true);
         });
     }
-    app.run();
+    await app.run();
 }
 
 const DRAWS = ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer'] as const;

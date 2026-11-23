@@ -18,6 +18,7 @@
 import { startDebugChannel } from './debugChannelHook';
 import type { App } from '../app/app';
 import { initRuntime } from './runtimeLoader';
+import { runGameStartup, type GameStartup } from './gameStartup';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
 import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { platformReadTextFile } from '../platform';
@@ -45,7 +46,11 @@ export interface NativeGame {
  * Boot the exported project: read the config + manifest off the device, index
  * the assets, register every shipped scene and load the entry one.
  */
-export async function initNativeGame(options: NativeGameOptions): Promise<NativeGame> {
+export function initNativeGame(options: NativeGameOptions): Promise<NativeGame> {
+    return runGameStartup(startup => bootNativeGame(options, startup));
+}
+
+async function bootNativeGame(options: NativeGameOptions, startup: GameStartup): Promise<NativeGame> {
     const { bridge, scope, width, height } = options;
     // Read before the app is made, as a web host does: shaders compile against what it declares. The file comes through the platform, so
     // that goes in first.
@@ -53,7 +58,7 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
     const config = JSON.parse(
         await platformReadTextFile(options.configPath ?? 'game.config.json'),
     ) as PackagedGameConfig;
-    const app = createNativeApp(bridge, scope, packagedAppOptions(config));
+    const app = startup.createApp(() => createNativeApp(bridge, scope, packagedAppOptions(config)));
     if (config.debugChannel) startDebugChannel(config.debugChannel);
 
     const index = await loadPackagedAssetIndex();

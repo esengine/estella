@@ -143,6 +143,15 @@ export interface Splash {
 export const BOOT_PROGRESS_EVENT = 'esengine:bootprogress';
 export const FIRST_FRAME_EVENT = 'esengine:firstframe';
 
+/** Replace a failed game's loading screen with the original diagnostic. */
+export function showBootError(error: unknown, doc: Document = document): void {
+  const message = doc.createElement('pre');
+  message.setAttribute('role', 'alert');
+  message.style.cssText = 'color:#d65a5a;padding:20px;font:13px monospace;white-space:pre-wrap';
+  message.textContent = error instanceof Error ? error.message : String(error);
+  doc.body.replaceChildren(message);
+}
+
 /**
  * Drive the page's start screen and announce the boot.
  *

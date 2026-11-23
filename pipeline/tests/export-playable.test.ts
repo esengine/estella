@@ -54,6 +54,25 @@ function inlinedText(html: string, global: string, pick?: (v: PackedModules) => 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
+// The structural fixtures bundle the actual host against the same small SDK surface.
+const PLAYABLE_SDK = `
+export function createWebApp() { return { signal: new AbortController().signal }; }
+export function setEditorMode() {}
+export function setPlayMode() {}
+export function setLoadWork() {}
+export function loadWork() { return null; }
+export const Assets = {};
+export function initPlayableRuntime() { return Promise.resolve(); }
+export function createEmbeddedSideModuleHost() { return { acquire: () => Promise.resolve(null) }; }
+export function defineComponent() {}
+export function parseThemeOverrides() {}
+export function packagedAppOptions(config) { return config; }
+export function packagedRuntimeInit(config) { return config; }
+export function glContextAttributes() { return {}; }
+export function runGameStartup(boot) { return boot({ createApp: build => build(), onFailure: () => () => {} }); }
+export function instantiateWasmModule(factory, load, options) { return factory({ ...options, instantiateWasm: load }); }
+`;
+
 let root: string;
 let out: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -78,11 +97,7 @@ beforeAll(() => {
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', {});\n`);
   // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.js'),
-    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
-export function packagedAppOptions(c){return c;}
-export function packagedRuntimeInit(c){return c;}
-export function glContextAttributes(){return {};}\n`);
+  writeFileSync(path.join(root, '_sdk', 'index.js'), PLAYABLE_SDK);
   // Stub web wasm runtime (glue text + wasm) — playable inlines these, no separate build.
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), `export default function(){}/*WEB_GLUE*/\n`);
@@ -598,11 +613,7 @@ describe('exportGame (playable) — side-module embedding', () => {
       mkdirSync(path.join(r, '_sdk', part), { recursive: true });
       writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
     }
-    writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
-export function packagedAppOptions(c){return c;}
-export function packagedRuntimeInit(c){return c;}
-export function glContextAttributes(){return {};}\n`);
+    writeFileSync(path.join(r, '_sdk', 'index.js'), PLAYABLE_SDK);
     mkdirSync(path.join(r, '_wasm'), { recursive: true });
     writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
     writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');
@@ -707,11 +718,7 @@ describe('exportGame (playable) — spine embedding', () => {
       mkdirSync(path.join(r, '_sdk', part), { recursive: true });
       writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
     }
-    writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
-export function packagedAppOptions(c){return c;}
-export function packagedRuntimeInit(c){return c;}
-export function glContextAttributes(){return {};}\n`);
+    writeFileSync(path.join(r, '_sdk', 'index.js'), PLAYABLE_SDK);
     mkdirSync(path.join(r, '_wasm'), { recursive: true });
     writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
     writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');

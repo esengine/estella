@@ -12,6 +12,7 @@
 import type { BasisTranscoder, CompressedTextureFormat, TranscodeResult, RgbaResult } from './compressed';
 import { FORMAT_CODE, RGBA_CODE, transcodeKtx2Levels, transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
 import type { SideModuleHost, SideModuleSource } from '../sideModules/host';
+import { instantiateWasmModule } from '../wasm/instantiateModule';
 import { log } from '../util/logger';
 
 
@@ -23,6 +24,7 @@ interface Pending {
 function workerScript(): string {
     return `'use strict';
 const transcodeKtx2Levels = ${transcodeKtx2Levels.toString()};
+const instantiateWasmModule = ${instantiateWasmModule.toString()};
 let ready = null;
 self.onmessage = (e) => {
     const m = e.data;
@@ -32,14 +34,7 @@ self.onmessage = (e) => {
         // rather than leaving it waiting.
         ready = (async () => {
             importScripts(URL.createObjectURL(new Blob([m.glueText], { type: 'text/javascript' })));
-            let fail;
-            const gate = new Promise((_, reject) => { fail = reject; });
-            const mod = await Promise.race([self[m.globalName]({
-                instantiateWasm(imports, cb) {
-                    WebAssembly.instantiate(m.wasmBytes, imports).then((r) => cb(r.instance, r.module), fail);
-                    return {};
-                },
-            }), gate]);
+            const mod = await instantiateWasmModule(self[m.globalName], imports => WebAssembly.instantiate(m.wasmBytes, imports));
             mod._es_basis_init();
             return mod;
         })();

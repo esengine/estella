@@ -2,15 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Backend } from 'esengine';
-import { createModelBakes } from '../src/runtime/modelBakes';
+import { loadWork } from 'esengine';
+import { attachModelBakes, createModelBakes } from '../src/runtime/modelBakes';
 import type { BakeAsk } from '../src/runtime/modelBakeWorker';
 import type { ModelBakesFile } from '../src/modeling/loadBakeFile';
 
 const SIZE = 16;
 const asked: BakeAsk[] = [];
+const terminate = vi.fn();
 let hold: Promise<void> | null = null;
 
 class FakeWorker {
+    terminate = terminate;
     private readonly listeners: ((event: { data: unknown }) => void)[] = [];
     addEventListener(type: string, listener: (event: { data: unknown }) => void): void {
         if (type === 'message') this.listeners.push(listener);
@@ -54,6 +57,28 @@ describe('a model baked at load, once the game lets its maps go', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.unstubAllGlobals();
+    });
+
+    it('ends unfinished work and keeps the replacement game’s model baker installed', async () => {
+        terminate.mockClear();
+        let open!: () => void;
+        hold = new Promise<void>(resolve => { open = resolve; });
+        const old = served(), next = served();
+        const first = new AbortController(), replacement = new AbortController();
+        attachModelBakes(first.signal, old.bakes);
+        const pending = old.bakes.work.run();
+        attachModelBakes(replacement.signal, next.bakes);
+        first.abort();
+        await expect(pending).rejects.toThrow('game ended');
+        expect(old.bakes.work.pending).toBe(false);
+        expect(terminate).toHaveBeenCalledOnce();
+        expect(loadWork()).toBe(next.bakes.work);
+        await expect(old.decode('assets/models/hull_color.png')).rejects.toThrow('game ended');
+        open();
+        await next.bakes.work.run();
+        replacement.abort();
+        expect(terminate).toHaveBeenCalledTimes(2);
+        expect(loadWork()).not.toBe(next.bakes.work);
     });
 
     it('draws a placeholder while it bakes and asks for the map again once it is baked', async () => {

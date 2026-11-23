@@ -60,10 +60,10 @@ import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource,
 } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
-import { attachSplash, type Splash } from '../export/splash';
-import { setLoadWork } from 'esengine';
+import { attachSplash, showBootError, type Splash } from '../export/splash';
+import { instantiateWasmModule, runGameStartup, type GameStartup } from 'esengine';
 import type { ModelBakesFile } from '../modeling/loadBakeFile';
-import { createModelBakes, sizeLimit } from './modelBakes';
+import { attachModelBakes, createModelBakes, sizeLimit } from './modelBakes';
 import { countedStream, engineDownloadTotal } from './engineDownload';
 import { initializePoki, type PokiSdk } from './pokiProfile';
 import { initializeCrazyGames, type CrazyGamesSdk } from './crazyGamesProfile';
@@ -75,26 +75,19 @@ import { initializeYouTube, type YouTubeSdk } from './youtubeProfile';
  * sees the bytes. Re-wrapping the body keeps `instantiateStreaming`: reading it
  * to an ArrayBuffer first would buy the bar at the cost of what it measures.
  */
-function engineInstantiator(url: string, splash: Splash | null, engineBytes: number | undefined) {
-  return (imports: WebAssembly.Imports,
-    ok: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void): Record<string, never> => {
-    void (async () => {
-      const res = await fetch(url);
-      const total = engineDownloadTotal(res.headers, engineBytes);
-      // No length or no stream ⇒ the honest answer is the stage weight alone.
-      const source = total > 0 && res.body
-        ? new Response(countedStream(res.body, total, (f) => splash?.within('engine', f)), {
-          headers: { 'content-type': 'application/wasm' },
-        })
-        : res;
-      const { instance, module } = await WebAssembly.instantiateStreaming(source, imports);
-      ok(instance, module);
-    })();
-    return {};
-  };
+async function loadEngineWasm(url: string, imports: WebAssembly.Imports, splash: Splash | null, engineBytes?: number) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Engine download failed (${res.status}): ${url}`);
+  const total = engineDownloadTotal(res.headers, engineBytes);
+  const source = total > 0 && res.body
+    ? new Response(countedStream(res.body, total, (f) => splash?.within('engine', f)), {
+      headers: { 'content-type': 'application/wasm' },
+    })
+    : res;
+  return WebAssembly.instantiateStreaming(source, imports);
 }
 
-async function boot(): Promise<void> {
+async function boot(startup: GameStartup): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   // Null on a page without one, and every call below is then a no-op: a start
   // screen is something a boot shows, never something a boot depends on.
@@ -113,7 +106,9 @@ async function boot(): Promise<void> {
     if (workerResize) workerResize(surfaceWidth, surfaceHeight);
     else { canvas.width = surfaceWidth; canvas.height = surfaceHeight; }
   };
+  const stopResize = () => window.removeEventListener('resize', resize);
   window.addEventListener('resize', resize);
+  const resizeAdopted = startup.onFailure(stopResize);
   resize();
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
@@ -122,6 +117,7 @@ async function boot(): Promise<void> {
     ? initializeYouTube((window as unknown as { ytgame?: YouTubeSdk }).ytgame, (message, error) => console.warn(message, error))
     : null;
   if (youtube) {
+    startup.onFailure(() => youtube.dispose());
     await youtube.waitActive();
     // A painted loading screen qualifies as the first frame; it precedes cloud loading.
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -219,17 +215,22 @@ async function boot(): Promise<void> {
   if (wantsWebGPU && !threaded && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
   // A shader is written in GLSL; drawing through WebGPU, the ones with no WGSL of their own are given it as they compile. Loaded
   // here, where the device is WebGPU, so a game that draws through WebGL never fetches it.
-  if (gpu.device) await import('esengine/wgsl');
+  if (gpu.device) {
+    const device = gpu.device as { destroy(): void };
+    startup.onFailure(() => device.destroy());
+    await import('esengine/wgsl');
+  }
 
-  const module = await createModule({
+  const moduleOptions = {
     canvas,
     locateFile: (p: string) => `${wasmBase}${p}`,
-    // The JavaScript engine is the whole module in its own file: nothing to instantiate.
-    ...(engineAsJs ? {} : { instantiateWasm: engineInstantiator(`${wasmBase}${engineName}.wasm`, splash, threaded ? undefined : cfg.engineBytes) }),
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
     ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),
-  });
+  };
+  const module = engineAsJs ? await createModule(moduleOptions) : await instantiateWasmModule(createModule,
+    imports => loadEngineWasm(`${wasmBase}${engineName}.wasm`, imports, splash, threaded ? undefined : cfg.engineBytes), moduleOptions);
+  const rendererAdopted = startup.onFailure(() => module.shutdownRenderer?.());
 
   splash?.reach('engine');
 
@@ -252,13 +253,16 @@ async function boot(): Promise<void> {
     };
   }
 
-  const app = createWebApp(module, {
+  const app = startup.createApp(() => createWebApp(module, {
     renderSurface,
     // Everything the config says an App must be BUILT with (see packagedAppOptions).
     ...packagedAppOptions(cfg),
     getViewportSize: () => ({ width: surfaceWidth, height: surfaceHeight }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
-  });
+  }));
+  rendererAdopted();
+  app.signal.addEventListener('abort', stopResize, { once: true });
+  resizeAdopted();
   if (poki?.provider) app.getResource(Ads)?.setProvider(poki.provider);
   if (crazyGames?.provider) app.getResource(Ads)?.setProvider(crazyGames.provider);
   if (youtube) app.addPlugin({ name: 'YouTubeHost', build(host) {
@@ -969,7 +973,9 @@ async function boot(): Promise<void> {
       typeof (module as unknown as Record<string, unknown>)[name] === 'function';
     if (has('engine_prepareMeshPrograms')) cooked.prepareMeshPrograms = prepareMeshPrograms;
     if (has('engine_prewarmMeshVariants')) cooked.prewarmMeshVariants = prewarmMeshVariants;
-    (window as unknown as { __estellaCooked?: unknown }).__estellaCooked = cooked;
+    const probe = window as unknown as { __estellaCooked?: unknown };
+    probe.__estellaCooked = cooked;
+    app.signal.addEventListener('abort', () => { if (probe.__estellaCooked === cooked) delete probe.__estellaCooked; }, { once: true });
   }
   // physics.wasm sits next to esengine.wasm; the runtime loads it when a scene
   // uses physics, or when the project declared physics on for bodies it spawns
@@ -986,7 +992,7 @@ async function boot(): Promise<void> {
       (await (await fetch(`./${cfg.modelBakes.recipes}`)).json()) as ModelBakesFile,
       new URL(cfg.modelBakes.worker, location.href).href, sizeLimit(location.search), navigator.hardwareConcurrency || 4,
     );
-    setLoadWork(bakes.work);
+    attachModelBakes(app.signal, bakes);
     bakes.refreshWith(async (path) => {
       const assets = app.getResource(Assets);
       const texture = assets.getTexture(path);
@@ -1046,13 +1052,10 @@ async function boot(): Promise<void> {
     });
   }
   if (typeof __ESTELLA_LAN_PREVIEW__ !== 'undefined' && __ESTELLA_LAN_PREVIEW__) installDevicePreview(app, cfg.scripts);
-  app.run();
+  await app.run();
 }
 
-boot().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  if (err === 'unwind' || message.includes('unwind')) return; // emscripten loop took over — success
+runGameStartup(boot).catch((err) => {
   console.error('[game] boot failed', err);
-  // The game realm has no editor stylesheet — this literal mirrors --error.
-  document.body.innerHTML = `<pre style="color:#d65a5a;padding:20px;font:13px monospace">${message}</pre>`;
+  showBootError(err);
 });
