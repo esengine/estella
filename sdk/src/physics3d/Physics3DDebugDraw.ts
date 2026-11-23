@@ -18,7 +18,7 @@ import { Transform } from '../ecs/component';
 import type { TransformData } from '../ecs/component.generated';
 import { Draw } from '../render/draw';
 import { defineResource } from '../ecs/resource';
-import { registerDrawCallback } from '../render/customDraw';
+import { registerWorldDrawCallback } from '../render/customDraw';
 import { RigidBody3D } from './Physics3DComponents';
 import type { RigidBody3DData } from './Physics3DComponents';
 import {
@@ -107,11 +107,11 @@ export function drawPhysics3DDebug(app: App, contacts?: readonly Contact3D[]): v
 }
 
 /** Installed by the 3D physics plugin; the resource decides whether it draws. */
-export function setupPhysics3DDebugDraw(app: App, contacts: () => readonly Contact3D[]): void {
+export function setupPhysics3DDebugDraw(app: App, contacts: () => readonly Contact3D[]): () => void {
     app.insertResource(Physics3DDebugDraw, {
         enabled: false, showColliders: true, showContacts: false,
     });
-    registerDrawCallback('physics3d-debug-draw', () => {
+    return registerWorldDrawCallback('physics3d-debug-draw', app.world, () => {
         drawPhysics3DDebug(app, contacts());
     });
 }

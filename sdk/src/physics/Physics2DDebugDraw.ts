@@ -9,7 +9,7 @@ import type { Physics2DEventsData } from './Physics2DPlugin';
 import { Transform, Canvas } from '../ecs/component';
 import { Draw } from '../render/draw';
 import { defineResource } from '../ecs/resource';
-import { registerDrawCallback } from '../render/customDraw';
+import { registerWorldDrawCallback } from '../render/customDraw';
 import { RigidBody2D, BodyType } from './PhysicsComponents';
 import { readCollider2DShapes, shapeCenter, collider2DOutline } from './ColliderShape2D';
 
@@ -170,7 +170,7 @@ export function setupPhysics2DDebugDraw(
     app: App,
     physicsApiRes: ResourceDef<VelocityProvider>,
     physicsEventsRes: ResourceDef<Physics2DEventsData>,
-): void {
+): () => void {
     app.insertResource(Physics2DDebugDraw, {
         enabled: false,
         showColliders: true,
@@ -178,7 +178,7 @@ export function setupPhysics2DDebugDraw(
         showContacts: false,
     });
 
-    registerDrawCallback('physics-debug-draw', () => {
+    return registerWorldDrawCallback('physics-debug-draw', app.world, () => {
         drawPhysics2DDebug(app, physicsApiRes, physicsEventsRes);
     });
 }

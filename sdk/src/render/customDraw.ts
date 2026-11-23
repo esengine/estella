@@ -4,6 +4,7 @@
  * @file    customDraw.ts
  * @brief   Custom draw callback registration for the render pipeline
  */
+import type { World } from '../ecs/world';
 
 /** The camera facts used by the draw pass invoking a callback. */
 export interface DrawFrameInfo {
@@ -16,8 +17,10 @@ export interface DrawFrameInfo {
 
 export type DrawCallback = (elapsed: number, frame: DrawFrameInfo) => void;
 
-type DrawEntry = { fn: DrawCallback; scene: string; registry?: unknown };
+type DrawEntry = { fn: DrawCallback; scene: string; readonly registry?: unknown; world?: World };
 const callbacks = new Map<string, DrawEntry>();
+const worldIds = new WeakMap<World, number>();
+let nextWorldId = 0;
 
 export function registerDrawCallback(id: string, fn: DrawCallback, scene?: string): void {
     callbacks.set(id, { fn, scene: scene ?? '' });
@@ -28,12 +31,37 @@ export function registerScopedDrawCallback(id: string, registry: unknown, fn: Dr
     callbacks.set(id,{fn,scene:'',registry});
 }
 
+/** Replace this world's overlay by name. Its registry can connect after installation. @internal */
+export function registerWorldDrawCallback(name: string, world: World, fn: DrawCallback): () => void {
+    let worldId = worldIds.get(world);
+    if (worldId === undefined) {
+        worldId = ++nextWorldId;
+        worldIds.set(world, worldId);
+    }
+    const id = `${name}:${worldId}`;
+    const entry: DrawEntry = { fn, scene: '', world, get registry() { return world.getCppRegistry(); } };
+    callbacks.set(id, entry);
+    return () => { if (callbacks.get(id) === entry) callbacks.delete(id); };
+}
+
 export function unregisterDrawCallback(id: string): void {
     callbacks.delete(id);
 }
 
 export function clearDrawCallbacks(): void {
     callbacks.clear();
+}
+
+/** Core teardown also clears game callbacks registered without an owner. @internal */
+export function clearWorldDrawCallbacks(world: World): void {
+    const registry = world.getCppRegistry();
+    for (const [id, entry] of callbacks) {
+        if (entry.world) {
+            if (entry.world === world) callbacks.delete(id);
+        } else if (entry.registry === undefined || (registry !== null && entry.registry === registry)) {
+            callbacks.delete(id);
+        }
+    }
 }
 
 export function clearSceneDrawCallbacks(sceneName: string): void {

@@ -69,6 +69,7 @@ vi.mock('../src/render/draw', () => ({
 const mockCallbacks = new Map<string, {
     fn: (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void;
     scene: string;
+    registry?: unknown;
 }>();
 const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
 const mockOverScreenCallbacks = new Map<string, (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void>();
@@ -326,6 +327,20 @@ describe('RenderPipeline', () => {
 
             expect(cb1).toHaveBeenCalled();
             expect(cb2).not.toHaveBeenCalled();
+        });
+
+        it('draws each world overlay only during a pass for its own registry', () => {
+            const preview: typeof registry = { _cpp: {} };
+            const first = vi.fn(), second = vi.fn();
+            mockCallbacks.set('first', { fn: first, scene: '', registry: registry._cpp });
+            mockCallbacks.set('second', { fn: second, scene: '', registry: preview._cpp });
+
+            pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
+            expect(first).toHaveBeenCalledOnce();
+            expect(second).not.toHaveBeenCalled();
+            pipeline.render({ registry: preview, viewProjection, width: 800, height: 600, elapsed: 0 });
+            expect(first).toHaveBeenCalledOnce();
+            expect(second).toHaveBeenCalledOnce();
         });
 
         it('logs error and unregisters throwing callback', () => {

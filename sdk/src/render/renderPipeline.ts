@@ -421,7 +421,8 @@ export class RenderPipeline {
             beginPresentedDraw(viewProjection, viewport.w, viewport.h);
             const failed: string[] = [];
             for (const [id, entry] of cbs.entries()) {
-                if (entry.registry !== undefined && entry.registry !== registry) continue;
+                const owner = entry.registry;
+                if (owner !== undefined && owner !== registry) continue;
                 if (entry.scene && this.activeScenes_ && !this.activeScenes_.has(entry.scene)) continue;
                 try {
                     entry.fn(elapsed, {

@@ -7,7 +7,7 @@ import { RuntimeConfig } from '../defaults';
 import { pollDeviceRestored, resetDeviceRestoredWatch } from '../render/renderer';
 import { Schedule, defineSystem } from '../ecs/system';
 import { initDrawAPI, shutdownDrawAPI } from '../render/draw';
-import { clearDrawCallbacks } from '../render/customDraw';
+import { clearDrawCallbacks, clearWorldDrawCallbacks } from '../render/customDraw';
 import { initMaterialAPI, shutdownMaterialAPI } from '../render/material';
 import { initGeometryAPI, shutdownGeometryAPI } from '../render/geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from '../postprocess';
@@ -45,11 +45,12 @@ export const corePlugin: Plugin = {
                                                             { name: 'DeviceRestoredWatch' }));
     },
 
-    cleanup() {
+    cleanup(app) {
         resetDeviceRestoredWatch();
         offMemoryWarning?.();
         offMemoryWarning = null;
-        clearDrawCallbacks();
+        if (app) clearWorldDrawCallbacks(app.world);
+        else clearDrawCallbacks();
         shutdownGLDebugAPI();
         shutdownRendererAPI();
         shutdownPostProcessAPI();

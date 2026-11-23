@@ -396,13 +396,15 @@ describe('setupPhysics2DDebugDraw', () => {
         const resources = new Map<symbol, any>();
         const app = createMockApp([], resources);
 
-        setupPhysics2DDebugDraw(app, MockPhysicsAPI, MockPhysicsEvents);
+        const removeOverlay = setupPhysics2DDebugDraw(app, MockPhysicsAPI, MockPhysicsEvents);
 
         expect(app.insertResource).toHaveBeenCalledWith(Physics2DDebugDraw, {
             enabled: false, showColliders: true, showVelocity: false, showContacts: false,
         });
 
         const callbacks = getDrawCallbacks();
-        expect(callbacks.has('physics-debug-draw')).toBe(true);
+        expect(callbacks.size).toBe(1);
+        removeOverlay();
+        expect(callbacks.size).toBe(0);
     });
 });

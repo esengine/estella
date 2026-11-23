@@ -757,7 +757,7 @@ twistMinAngle: number
 
 ## setupPhysics3DDebugDraw — function @experimental
 ```
-(app: App, contacts: () => readonly Contact3D[]): void
+(app: App, contacts: () => readonly Contact3D[]): () => void
 ```
 
 ## stepPhysics3D — function @experimental

@@ -812,7 +812,7 @@ upperTranslation: number
 
 ## setupPhysics2DDebugDraw — function @experimental
 ```
-(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<Physics2DEventsData>): void
+(app: App, physicsApiRes: ResourceDef<VelocityProvider>, physicsEventsRes: ResourceDef<Physics2DEventsData>): () => void
 ```
 
 ## shapeCenter — function @experimental

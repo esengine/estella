@@ -117,6 +117,7 @@ interface Physics2DInstance {
     module: PhysicsWasmModule | null;
     runtime: Physics2DRuntimeData;
     disposeSystems: (() => void) | null;
+    disposeOverlay?: () => void;
 }
 
 export class Physics2DPlugin implements Plugin {
@@ -194,7 +195,7 @@ export class Physics2DPlugin implements Plugin {
                 // Contacts also reach the entity event channel, so a trigger area
                 // can be wired by an authored EventBinding row like a button is.
                 registerPhysics2DEventBridge(app);
-                setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents);
+                instance.disposeOverlay = setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
                 // Module loaded, world initialized, systems registered.
                 app.subsystems.transition('physics', 'ready');
@@ -222,9 +223,12 @@ export class Physics2DPlugin implements Plugin {
         const module = instance.module;
         instance.module = null;
         instance.runtime.module = null;
-        instance.disposeSystems?.();
-        instance.disposeSystems = null;
-        module?._physics_shutdown();
+        try {
+            instance.disposeOverlay?.();
+            instance.disposeSystems?.();
+        } finally {
+            module?._physics_shutdown();
+        }
     }
 }
 

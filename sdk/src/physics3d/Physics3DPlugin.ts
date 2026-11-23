@@ -61,6 +61,7 @@ export class Physics3DPlugin implements Plugin {
         let released = false;
         let queries: Physics3DQueries | null = null;
         let stepId: symbol | undefined;
+        let disposeOverlay: (() => void) | undefined;
         let unbindQueries: (() => void) | undefined;
         this.cleanups_.set(app, () => {
             released = true;
@@ -72,6 +73,7 @@ export class Physics3DPlugin implements Plugin {
             runtime.joints.clear();
             runtime.pieces.clear();
             try {
+                disposeOverlay?.();
                 if (stepId) app.removeSystem(stepId);
                 unbindQueries?.();
             } finally {
@@ -146,7 +148,7 @@ export class Physics3DPlugin implements Plugin {
             app.addSystemToSchedule(Schedule.FixedUpdate, step, { profileDomain: 'physics3d' });
             // Installed with the world, drawn only once a game turns the resource
             // on — a scene that never asks for it pays a resource and nothing else.
-            setupPhysics3DDebugDraw(app, () => events.contactEnters);
+            disposeOverlay = setupPhysics3DDebugDraw(app, () => events.contactEnters);
             app.setFixedTimestep?.(config.fixedTimestep);
             app.subsystems?.transition?.('physics3d', 'ready');
         });
