@@ -13,6 +13,8 @@ const WORKERS = [
     doc: "The recipe worker's script: what the workers that draw texture recipes are started from." },
   { entry: 'src/sound/soundWorker.ts', out: 'src/sound/soundWorkerBundle.generated.ts', name: 'SOUND_WORKER_SOURCE',
     doc: "The sound worker's script: what the worker that makes audio recipes is started from." },
+  { entry: 'src/water/zoneBakeWorker.ts', out: 'src/water/zoneBakeWorkerBundle.generated.ts', name: 'ZONE_BAKE_WORKER_SOURCE',
+    doc: "The water zone's baking worker's script: what the worker that bakes a zone's field is started from." },
 ];
 
 async function build(worker) {

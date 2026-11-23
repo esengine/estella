@@ -52,7 +52,7 @@ try {
   const r = runElectron(['tools/render-host/run.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 240000, env: {
     ESTELLA_VERIFY_HOST: 'engine', ESTELLA_VERIFY_TIMEOUT_MS: '200000', ESTELLA_VERIFY_BACKEND: backend,
     ESTELLA_VERIFY_SCENE: '/scenes/water-river/river.esscene', ESTELLA_VERIFY_W: '320', ESTELLA_VERIFY_H: '320',
-    ESTELLA_VERIFY_STEPS: String(STEPS), ESTELLA_VERIFY_OUT: path.join(work, 'frame.png'),
+    ESTELLA_VERIFY_STEPS: String(STEPS), ESTELLA_VERIFY_WARM: '1', ESTELLA_VERIFY_OUT: path.join(work, 'frame.png'),
     ESTELLA_VERIFY_WATER_DISTURB: JSON.stringify([0, 0, 150, -30]), ESTELLA_VERIFY_WATER_PROBE: '[[0,0]]' } });
   const text = `${r.stdout}${r.stderr}`;
   const at = Number(text.match(/\[verify:water-disturb\] (-?\d+)/)?.[1]);

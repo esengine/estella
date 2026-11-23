@@ -36,6 +36,12 @@ export interface BakeProgress {
 /** A job: yields its progress (0 to 1) whenever it may be paused, and returns what it made. */
 export type WorkJob<T> = Generator<number, T, void>;
 
+/**
+ * What a job yields while its work runs elsewhere (a worker it posted to): its progress, and no more turns this frame. Stepping it
+ * again would only ask the same question until the frame's budget was gone.
+ */
+export const elsewhere = (progress: number): number => -1 - Math.min(Math.max(progress, 0), 1);
+
 interface Running {
     label: string;
     progress: number;
@@ -167,6 +173,8 @@ export class Bakes {
                     for (;;) {
                         const next = entry.job.next();
                         if (next.done) { entry.done(next.value); return; }
+                        // Waiting on a worker: nothing here can finish it now, so it goes back to the frames.
+                        if (next.value < 0) { this.running_.add(entry); return; }
                     }
                 } catch (e) {
                     entry.fail(e);
@@ -289,6 +297,7 @@ export class Bakes {
                     r.done(next.value);
                     break;
                 }
+                if (next.value < 0) { r.progress = -1 - next.value; break; }
                 r.progress = Math.min(Math.max(next.value, 0), 1);
             } while (now() < end);
             if (now() >= end) break;

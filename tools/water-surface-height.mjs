@@ -70,7 +70,7 @@ try {
     const r = runElectron(['tools/render-host/run.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 240000, env: {
       ESTELLA_VERIFY_HOST: 'engine', ESTELLA_VERIFY_TIMEOUT_MS: '200000', ESTELLA_VERIFY_BACKEND: backend,
       ESTELLA_VERIFY_SCENE: `/scenes/water-surface/slice${camX}.esscene`, ESTELLA_VERIFY_W: String(W), ESTELLA_VERIFY_H: String(H),
-      ESTELLA_VERIFY_STEPS: String(steps), ESTELLA_VERIFY_OUT: out,
+      ESTELLA_VERIFY_STEPS: String(steps), ESTELLA_VERIFY_WARM: '1', ESTELLA_VERIFY_OUT: out,
       ESTELLA_VERIFY_WATER_PROBE: JSON.stringify(columns.map((c) => [worldX(c), Z0])) } });
     const text = `${r.stdout}${r.stderr}`;
     const probe = text.match(/\[verify:water\] (.*)/);

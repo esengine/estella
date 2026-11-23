@@ -38,7 +38,11 @@ import { TextureContent } from '../wasm';
 import { TerrainsRes } from '../terrain/terrainPlugin';
 import { BlendMode } from '../render/blend';
 import { log } from '../util/logger';
-import { bakesOf } from '../runtime/bakes';
+import { bakesOf, elsewhere, type WorkJob } from '../runtime/bakes';
+import { createJobPool, type JobPool } from '../runtime/jobs';
+import { placedSpace, placementOf, type Placement } from './zonePlacement';
+import { zoneBakeJob, zoneBakeTransfer } from './zoneBake';
+import { ZONE_BAKE_WORKER_SOURCE } from './zoneBakeWorkerBundle.generated';
 import type { Entity } from '../types';
 import { breakingCrest, surfHeight, surfPhase, waveHeight, waveSlope, waterGravity, WAVE_SET_SIZE, type WaveParams } from './waves';
 import { oceanReach } from './waterMesh';
@@ -52,7 +56,7 @@ import { SplineCurve } from '../spline/curve';
 import { GpuRipples, type RippleCurrent } from './rippleGpu';
 import {
     WaterField, WaterZone, currentShare, inExclusion, insideBody,
-    type FieldSample, type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
+    type FieldSample, type WaterFieldParts, type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
 import { invertMatrix4 } from '../math/mat4';
@@ -658,18 +662,37 @@ function channelKey(d: WaterBodyData): unknown[] {
 }
 
 /** A body's outline with the way into and out of its plane, for what it does to the ground. */
-function outlineSpace(t: TransformData, outline: readonly Point2[], scale: number): OutlineSpace {
-    return {
-        outline, scale,
-        toLocal: (x, z) => { const q = toLocal(t, x, t.worldPosition.y, z, scale); return [q[0], q[2]]; },
-        toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
-    };
+/** The worker a zone is baked on; null where this host has none, and the bake runs in place. One is enough: a scene has one zone. */
+let bakePool: JobPool | null | undefined;
+
+/**
+ * A zone's bake: the ground's heights read here, where the scene is, and the rest on the worker, so it takes the time its work takes
+ * rather than as many frames as fit its slices (seconds more in an editor drawing a few frames a second). While one bake is out a newer
+ * one waits for it rather than queueing behind it: a lake dragged across the editor asks for many, and only the last is wanted.
+ * Where it cannot go (no worker, a body without its placement) it runs in place, sliced as before.
+ */
+function* bakeField(grid: ZoneGrid, bodies: readonly ZoneBody[], ground: ZoneGround | undefined, surfLength = 0,
+    exclusions: readonly ZoneExclusion[] = [], surfSpread = 0): WorkJob<WaterField> {
+    const grounds = yield* WaterField.groundsUnder(grid, ground);
+    if (bakePool === undefined) bakePool = createJobPool(ZONE_BAKE_WORKER_SOURCE, 1);
+    const pool = bakePool;
+    const job = pool ? zoneBakeJob(grid, bodies, exclusions, grounds, surfLength, surfSpread) : null;
+    if (!pool || !job) return yield* WaterField.bakingOver(grid, bodies, grounds, surfLength, exclusions, surfSpread);
+    while (pool.inFlight > 0) yield elsewhere(0.3);
+    const reply: { parts?: WaterFieldParts; error?: unknown; settled?: boolean } = {};
+    pool.run<WaterFieldParts>(0, { ...job }, zoneBakeTransfer(job))
+        .then((parts) => { reply.parts = parts; }, (error) => { reply.error = error; })
+        .finally(() => { reply.settled = true; });
+    while (!reply.settled) yield elsewhere(0.3);
+    if (reply.parts) return WaterField.fromParts(reply.parts);
+    // The worker is gone (or refused the job): the grounds went with it, so they are read again and the bake is done here.
+    log.warn('water', 'the water could not be baked on a worker, so it is baked here', reply.error);
+    if (bakePool === pool) bakePool = null;
+    return yield* WaterField.baking(grid, bodies, ground, surfLength, exclusions, surfSpread);
 }
 
-function toLocal(t: TransformData, x: number, y: number, z: number, scale: number): [number, number, number] {
-    const inv = { x: -t.worldRotation.x, y: -t.worldRotation.y, z: -t.worldRotation.z, w: t.worldRotation.w };
-    const r = rotate(inv, x - t.worldPosition.x, y - t.worldPosition.y, z - t.worldPosition.z);
-    return [r[0] / scale, r[1] / scale, r[2] / scale];
+function outlineSpace(t: TransformData, outline: readonly Point2[], scale: number): OutlineSpace & { placement: Placement } {
+    return { outline, scale, ...placedSpace(placementOf(t, scale, t.worldPosition.y)) };
 }
 
 function fromLocal(t: TransformData, x: number, y: number, z: number, scale: number): [number, number, number] {
@@ -780,6 +803,8 @@ export class WaterPlugin implements Plugin {
     private epoch_ = 0;
     /** The bake in hand, for the inputs `key` names; the field drawn until it lands is the last one baked. */
     private baking_: { key: string; cancel: () => void } | null = null;
+    /** A bake overtaken before any water was shown, let run so its water is shown until the newer one's is ready. */
+    private interim_: { key: string; cancel: () => void } | null = null;
     /** The beds cut into the terrain, by river: what they were cut from, and the ids of their modifiers. */
     private beds_ = new Map<number, { signature: string; ids: string[] }>();
     /** Custom bodies' shapes, by mesh handle: read once, the geometry being asked for the first time it is named (null: it has no shape to give). */
@@ -809,6 +834,8 @@ export class WaterPlugin implements Plugin {
             if (inputs.bodies.length === 0) {
                 this.baking_?.cancel();
                 this.baking_ = null;
+                this.interim_?.cancel();
+                this.interim_ = null;
                 waters.baking = false;
                 waters.field_ = null;
                 this.key_ = '';
@@ -817,20 +844,28 @@ export class WaterPlugin implements Plugin {
                 return;
             }
             if (inputs.key !== this.key_ && this.baking_?.key !== inputs.key) {
-                // A big zone is a second or more of work: it is spread over frames and shown while it runs.
-                this.baking_?.cancel();
+                // A big zone is a second or more of work: it is spread over frames and shown while it runs. One overtaken while no water
+                // is shown yet is let finish (only the first): the scene's ground settling as it loads overtook it, and the water waited
+                // for the second to come round rather than showing the first's at once.
+                if (this.baking_ && !waters.field_ && !this.interim_) this.interim_ = this.baking_;
+                else this.baking_?.cancel();
                 const key = inputs.key;
-                const job = bakesOf(app).run('Baking the water', WaterField.baking(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength, inputs.exclusions, inputs.zone.surfSpread));
+                const job = bakesOf(app).run('Baking the water', bakeField(inputs.grid, inputs.bodies, this.ground(app), inputs.zone.surfLength, inputs.exclusions, inputs.zone.surfSpread));
                 this.baking_ = { key, cancel: job.cancel };
                 waters.baking = true;
                 void job.done.then((field) => {
-                    if (this.baking_?.key !== key) return;
-                    this.baking_ = null;
-                    waters.baking = false;
-                    this.key_ = key;
+                    if (this.interim_?.key === key) this.interim_ = null;
+                    const latest = this.baking_?.key === key;
+                    if (!latest && waters.field_) return;
+                    if (latest) {
+                        this.baking_ = null;
+                        waters.baking = false;
+                        this.key_ = key;
+                    }
                     waters.field_ = field;
                     waters.revision_++;
                 }, (e) => {
+                    if (this.interim_?.key === key) this.interim_ = null;
                     if (this.baking_?.key === key) waters.baking = false;
                     log.error('water', 'baking the water failed', e);
                 });
@@ -851,6 +886,8 @@ export class WaterPlugin implements Plugin {
         if (!app?.hasResource(WatersRes)) return;
         this.baking_?.cancel();
         this.baking_ = null;
+        this.interim_?.cancel();
+        this.interim_ = null;
         app.getResource(WatersRes).baking = false;
         this.dropRipples();
         this.dropSurface(app);
@@ -906,8 +943,7 @@ export class WaterPlugin implements Plugin {
                 const outline = outlineOf(d);
                 bodies.push({
                     kind: 'lake', key, level: t.worldPosition.y, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline, ...commonOf(d, scale), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
-                    toLocal: (x, z) => { const q = toLocal(t, x, t.worldPosition.y, z, scale); return [q[0], q[2]]; },
-                    toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
+                    ...placedSpace(placementOf(t, scale, t.worldPosition.y)),
                 });
                 keyParts.push([key, d.form, outline, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
                 if (d.affectsTerrain !== false && d.bedDepth > 0) {
@@ -929,9 +965,9 @@ export class WaterPlugin implements Plugin {
                 const level = fromLocal(t, 0, shape.top, 0, scale)[1];
                 bodies.push({
                     kind: 'lake', key, level, waveHeight: d.waveHeight, shoreWidth: d.shoreWidth * scale, outline: shape.hull, ...commonOf(d, scale), ...(d.surfaceLook === SurfaceLook.Own ? { color: [d.waterColor.r, d.waterColor.g, d.waterColor.b] as const } : {}),
-                    toLocal: (x, z) => { const q = toLocal(t, x, level, z, scale); return [q[0], q[2]]; },
-                    toWorld: (x, z) => { const w = fromLocal(t, x, 0, z, scale); return [w[0], w[2]]; },
+                    ...placedSpace(placementOf(t, scale, level)),
                     inside: (x, z) => shape.sdf(x, z),
+                    footprint: shape.source,
                 });
                 keyParts.push([key, d.form, d.shapeMesh, 'shape', d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale, d.surfaceLook, d.waterColor, commonKey(d)]);
             } else if (d.form === WaterForm.Exclusion) {

@@ -15500,6 +15500,7 @@ materialTable: Uint32Array<ArrayBufferLike> | undefined
 materials: Set<number>
 ocean: ZoneOcean | null
 owner: Int32Array<ArrayBufferLike>
+parts: () => WaterFieldParts
 query: () => WaterQuery
 ranges: (shoreReach?: number) => ZoneRanges
 sample: (x: number, z: number) => FieldSample | null
@@ -15510,7 +15511,10 @@ surf: Float32Array<ArrayBufferLike>
 swell: Float32Array<ArrayBufferLike>
 static bake: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number, exclusions?: readonly ZoneExclusion[], surfSpread?: number) => WaterField
 static baking: (grid: ZoneGrid, bodies: readonly ZoneBody[], ground?: ZoneGround, surfLength?: number, exclusions?: readonly ZoneExclusion[], surfSpread?: number) => Generator<number, WaterField, void>
-static new (grid: ZoneGrid, ocean: ZoneOcean | null): WaterField
+static bakingOver: (grid: ZoneGrid, bodies: readonly ZoneBody[], grounds: Float64Array, surfLength?: number, exclusions?: readonly ZoneExclusion[], surfSpread?: number) => Generator<number, WaterField, void>
+static fromParts: (p: WaterFieldParts) => WaterField
+static groundsUnder: (grid: ZoneGrid, ground?: ZoneGround) => Generator<number, Float64Array, void>
+static new (grid: ZoneGrid, ocean: ZoneOcean | null, given?: Partial<FieldArrays>): WaterField
 static prototype: WaterField
 ```
 

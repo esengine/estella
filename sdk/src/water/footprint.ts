@@ -13,6 +13,7 @@
  */
 import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat';
 import type { Point2 } from './shore';
+import type { FootprintSource } from './zoneField';
 
 /** Cells a side of the grid triangles are found by. */
 const GRID = 32;
@@ -23,6 +24,8 @@ export class Footprint {
     readonly hull: Point2[];
     /** The highest point of the mesh, on its own y: the height the water stands to. */
     readonly top: number;
+    /** What it was made from: a worker that bakes the water makes the same footprint of it ({@link Footprint.of}). */
+    readonly source: FootprintSource;
     private readonly tris: Float64Array;
     private readonly rims: Float64Array;
     private readonly cells: number[][];
@@ -53,6 +56,7 @@ export class Footprint {
     }
 
     private constructor(xyz: ArrayLike<number>, indices: ArrayLike<number>) {
+        this.source = { xyz: Float64Array.from(xyz), indices: Uint32Array.from(indices) };
         let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, top = -Infinity;
         for (let v = 0; v < xyz.length; v += 3) {
             minX = Math.min(minX, xyz[v]!); maxX = Math.max(maxX, xyz[v]!);
