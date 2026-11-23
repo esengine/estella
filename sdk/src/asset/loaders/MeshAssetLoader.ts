@@ -52,8 +52,9 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
      * second `load` would mint a new one that nothing in the world points at. The
      * collision data is CPU-side and survived the loss, so it is not rebuilt.
      */
-    async rematerialize(handle: number, path: string, ctx: LoadContext): Promise<boolean> {
-        return this.upload_(await this.decode_(path, ctx), handle) !== 0;
+    async rematerialize(handle: number, path: string, ctx: LoadContext, stillOwned?: () => boolean): Promise<boolean> {
+        const mesh = await this.readSource(path, ctx);
+        return (!stillOwned || stillOwned()) && this.uploadData(mesh, handle) !== 0;
     }
 
     /** The decoded source behind a mesh path — what a tool that rebuilds geometry (a static batch) starts from. */

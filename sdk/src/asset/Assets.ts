@@ -387,6 +387,15 @@ function warnAmbiguousRelease_(key: string): void {
 
 const streamingDefaults = new WeakMap<Assets, () => number>();
 
+interface MeshRecoverySource {
+    readonly owner: Assets;
+    readonly loader: MeshAssetLoader;
+    pending?: Promise<boolean>;
+}
+
+/** The device reports a pool-wide list of mesh handles. Their source data belongs to individual loaders. */
+const meshOwnersByPool = new WeakMap<CppResourceManager, Map<number, MeshRecoverySource>>();
+
 /** @internal The owning App supplies its current quality level until this Assets leaves its resource slot. */
 export function bindTextureStreamingStart(assets: Assets, provider: () => number): () => void {
     streamingDefaults.set(assets, provider);
@@ -490,6 +499,7 @@ export class Assets {
      * from, so the data itself is kept: a device loss puts it back from here.
      */
     private builtMeshes_ = new Map<number, MeshData>();
+    private meshOwners_?: Map<number, MeshRecoverySource>;
     private builtTextures_ = new Set<number>();
 
     private constructor(options: AssetsOptions) {
@@ -683,32 +693,50 @@ export class Assets {
      * @return How many came back. The rest stay owed.
      */
     async rematerializeMeshesAfterDeviceLoss(): Promise<number> {
-        const loader = this.getLoader<MeshResult>('mesh');
-        if (!(loader instanceof MeshAssetLoader)) return 0;
-
+        const owners = meshOwnersByPool.get(requireResourceManager());
         let restored = 0;
         for (const handle of this.meshesAwaitingRematerialization()) {
-            const built = this.builtMeshes_.get(handle);
-            if (built) {
-                if (loader.uploadData(built, handle) !== 0) restored++;
-                else log.error('assets', `Device recovery: the engine refused built geometry ${handle}`);
-                continue;
-            }
-            const path = this.pathForHandle('mesh', handle);
-            if (!path) {
-                log.error('assets', `Device recovery: mesh ${handle} is declared replayable and`
-                    + ' has no recorded source — its provenance was lost, so it cannot come back');
+            const source = owners?.get(handle);
+            if (!source) {
+                log.error('assets', `Device recovery: mesh ${handle} is declared replayable and has no recorded source`);
                 continue;
             }
             try {
-                if (await loader.rematerialize(handle, path, this.getLoadContext_())) restored++;
-                else log.error('assets', `Device recovery: the engine refused geometry for ${path}`);
+                source.pending ??= Promise.resolve().then(() => source.owner.replayMesh_(handle, source))
+                    .finally(() => { delete source.pending; });
+                if (await source.pending) restored++;
+                else if (owners?.get(handle) === source) log.error('assets', `Device recovery: could not restore mesh ${handle}`);
             } catch (e) {
-                log.error('assets', `Device recovery: replaying ${path} failed`, e);
+                log.error('assets', `Device recovery: replaying mesh ${handle} failed`, e);
             }
         }
         log.info('assets', `Device recovery: ${restored} mesh(es) rematerialized`);
         return restored;
+    }
+
+    private async replayMesh_(handle: number, source: MeshRecoverySource): Promise<boolean> {
+        if (this.meshOwners_?.get(handle) !== source) return false;
+        const { loader } = source;
+        const built = this.builtMeshes_.get(handle);
+        if (built) return loader.uploadData(built, handle) !== 0;
+        const path = this.pathForHandle('mesh', handle);
+        if (!path) return false;
+        return loader.rematerialize(handle, path, this.getLoadContext_(),
+            () => this.meshOwners_?.get(handle) === source && this.pathForHandle('mesh', handle) === path);
+    }
+
+    private rememberMeshOwner_(handle: number, loader: MeshAssetLoader): void {
+        if (!this.meshOwners_) {
+            const rm = this.loadContext_?.resourceManager ?? getResourceManager();
+            if (!rm) return;
+            this.meshOwners_ = meshOwnersByPool.get(rm) ?? new Map();
+            meshOwnersByPool.set(rm, this.meshOwners_);
+        }
+        if (this.meshOwners_.get(handle)?.owner !== this) this.meshOwners_.set(handle, { owner: this, loader });
+    }
+
+    private forgetMeshOwner_(handle: number): void {
+        if (this.meshOwners_?.get(handle)?.owner === this) this.meshOwners_.delete(handle);
     }
 
     /**
@@ -744,17 +772,22 @@ export class Assets {
 
     /** Uploads geometry built at run time. Returns its handle, or 0 when the engine refused it. */
     createMesh(data: MeshData): number {
+        this.assertLoading_();
         const loader = this.getLoader<MeshResult>('mesh');
         if (!(loader instanceof MeshAssetLoader)) return 0;
         const handle = loader.uploadData(data);
-        if (handle !== 0) this.builtMeshes_.set(handle, data);
+        if (handle !== 0) {
+            this.builtMeshes_.set(handle, data);
+            this.rememberMeshOwner_(handle, loader);
+        }
         return handle;
     }
 
     /** Gives back geometry {@link createMesh} made. */
     releaseBuiltMesh(handle: number): void {
         if (!this.builtMeshes_.delete(handle)) return;
-        const loader = this.getLoader<MeshResult>('mesh');
+        const loader = this.meshOwners_?.get(handle)?.loader ?? this.getLoader<MeshResult>('mesh');
+        this.forgetMeshOwner_(handle);
         if (loader instanceof MeshAssetLoader) loader.releaseData(handle);
     }
 
@@ -899,7 +932,12 @@ export class Assets {
 
     /** Record a handle→path pair, dropped on invalidation or final release. */
     private recordHandlePath_(kind: string, handle: number, path: string): void {
-        if (handle !== 0) this.handleToPath_.set(`${kind}:${handle}`, path);
+        if (!handle) return;
+        this.handleToPath_.set(`${kind}:${handle}`, path);
+        if (kind === 'mesh') {
+            const loader = this.loaders_.get(kind);
+            if (loader instanceof MeshAssetLoader) this.rememberMeshOwner_(handle, loader);
+        }
     }
 
     /** {@link acquireSpine} without the receipt, for a caller that will let the
@@ -2214,7 +2252,10 @@ export class Assets {
         if (era.generation === null) return;
         era.generation = null;
         const handle = (era.value as { handle?: unknown } | null)?.handle;
-        if (typeof handle === 'number') this.handleToPath_.delete(`${type}:${handle}`);
+        if (typeof handle === 'number') {
+            this.handleToPath_.delete(`${type}:${handle}`);
+            if (type === 'mesh') this.forgetMeshOwner_(handle);
+        }
         disposeAll([
             () => this.loaders_.get(type)?.unload?.(era.value),
             () => era.dependencies.releaseAll(),
@@ -2596,11 +2637,12 @@ export class Assets {
                 },
             ], dispose => dispose());
         } finally {
-            const meshLoader = this.getLoader<MeshResult>('mesh');
-            if (meshLoader instanceof MeshAssetLoader) for (const handle of this.builtMeshes_.keys()) meshLoader.releaseData(handle);
-            this.builtMeshes_.clear();
-            this.handleToPath_.clear();
-            this.releasing_ = false;
+            try { disposeAll([...this.builtMeshes_.keys()], handle => this.releaseBuiltMesh(handle)); }
+            finally {
+                this.meshOwners_ = undefined;
+                this.handleToPath_.clear();
+                this.releasing_ = false;
+            }
         }
     }
 
