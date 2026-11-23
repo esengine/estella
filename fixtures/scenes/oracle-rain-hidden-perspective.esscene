@@ -1,6 +1,6 @@
 {
  "version": 4,
- "name": "oracle-rain-layers-near-ortho",
+ "name": "oracle-rain-hidden-perspective",
  "entities": [
   {
    "id": 0,
@@ -14,7 +14,7 @@
      "data": {
       "position": {
        "x": 0,
-       "y": 105,
+       "y": 25,
        "z": 0
       },
       "rotation": {
@@ -28,19 +28,20 @@
     {
      "type": "Camera",
      "data": {
-      "projectionType": 1,
+      "projectionType": 0,
       "orthoSize": 100,
       "nearPlane": 1,
       "farPlane": 8000,
       "isActive": true,
-      "priority": 0
+      "priority": 0,
+      "fov": 40
      }
     }
    ]
   },
   {
    "id": 1,
-   "name": "Floor",
+   "name": "Slab",
    "parent": null,
    "children": [],
    "visible": true,
@@ -54,9 +55,9 @@
        "z": 0
       },
       "scale": {
-       "x": 3.2,
+       "x": 6,
        "y": 0.1,
-       "z": 3.2
+       "z": 6
       }
      }
     },

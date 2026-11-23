@@ -1,6 +1,6 @@
 {
  "version": 4,
- "name": "oracle-rain-layers-near-perspective",
+ "name": "oracle-rain-falls-ortho",
  "entities": [
   {
    "id": 0,
@@ -14,34 +14,33 @@
      "data": {
       "position": {
        "x": 0,
-       "y": 105,
+       "y": 200,
        "z": 0
       },
       "rotation": {
-       "x": -0.7071067811865476,
+       "x": 0,
        "y": 0,
        "z": 0,
-       "w": 0.7071067811865476
+       "w": 1
       }
      }
     },
     {
      "type": "Camera",
      "data": {
-      "projectionType": 0,
+      "projectionType": 1,
       "orthoSize": 100,
       "nearPlane": 1,
       "farPlane": 8000,
       "isActive": true,
-      "priority": 0,
-      "fov": 40
+      "priority": 0
      }
     }
    ]
   },
   {
    "id": 1,
-   "name": "Floor",
+   "name": "Wall",
    "parent": null,
    "children": [],
    "visible": true,
@@ -52,12 +51,12 @@
       "position": {
        "x": 0,
        "y": 0,
-       "z": 0
+       "z": -1000
       },
       "scale": {
-       "x": 3.2,
-       "y": 0.1,
-       "z": 3.2
+       "x": 8,
+       "y": 8,
+       "z": 0.1
       }
      }
     },

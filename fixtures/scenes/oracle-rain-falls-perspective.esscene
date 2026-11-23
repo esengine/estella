@@ -1,6 +1,6 @@
 {
  "version": 4,
- "name": "oracle-rain-layers-far-perspective",
+ "name": "oracle-rain-falls-perspective",
  "entities": [
   {
    "id": 0,
@@ -55,9 +55,9 @@
        "z": 0
       },
       "scale": {
-       "x": 21.83821405597214,
+       "x": 16,
        "y": 0.1,
-       "z": 21.83821405597214
+       "z": 16
       }
      }
     },

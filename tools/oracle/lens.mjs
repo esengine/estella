@@ -44,22 +44,37 @@ function rainWet({ id, ortho }) {
 }
 
 /**
- * The streak layers stand 120, 450 and 1400 units in front of the camera, and a layer is drawn only over a surface farther than it.
- * A floor 100 units below the eye has all three behind it, so with the heaviest rain there is not one streak anywhere and the whole
- * frame is the floor's colour. A floor 2000 units down has all three in front of it, so streaks are drawn across it.
+ * Falling rain is drops in the world (sdk/src/postprocess/rainDrops.ts), drawn in the scene with its depth.
+ *   - hidden: a slab 20 units under a perspective eye fills the view. Behind it every drop is hidden by the depth test, and in front of it
+ *     there is none (a drop nearer the eye than 30 units is thinned to nothing), so with the heaviest rain the frame is the slab's
+ *     colour at every pixel.
+ *   - falls: over a floor 2000 units down (perspective, looking down) or a wall 1000 units off (orthographic, looking level), drops
+ *     fall in front of it and add light: some pixels are brighter than the surface.
  */
-function rainLayers({ id, ortho, drop, streaks }) {
-  const size = ortho ? 3.2 : Math.max(3.2, ((drop * Math.tan((40 * Math.PI) / 360)) / 100) * 3);
+function rainHidden({ id }) {
   const doc = scene(id, () => [
-    eye(ortho), mesh('Floor', 'cube', [0, 0, 0], [size, 0.1, size], [FLOOR, FLOOR, FLOOR], { lit: false }),
+    eye(false), mesh('Slab', 'cube', [0, 0, 0], [6, 0.1, 6], [FLOOR, FLOOR, FLOOR], { lit: false }),
     volume([fx('rain', { u_intensity: 2, u_wetness: 0 })]),
   ]);
-  placeCamera(doc, drop);
-  const total = SIZE * SIZE, rgb = encodeLinear8([FLOOR, FLOOR, FLOOR]);
-  // Streaks add light, so a streaked pixel is brighter than the floor: count the pixels that are exactly the floor.
-  const count = streaks ? [{ rgb, tol: 2, atMost: Math.floor(total * 0.98) }] : [{ rgb, tol: 2, atLeast: total }];
-  return { id, doc, colorSpace: 'linear', count, uniform: !streaks,
-    about: `Rain layers ${streaks ? 'in front of' : 'behind'} a floor ${drop} units down, ${ortho ? 'orthographic' : 'perspective'}` };
+  placeCamera(doc, 20);
+  return { id, doc, colorSpace: 'linear', count: [{ rgb: encodeLinear8([FLOOR, FLOOR, FLOOR]), tol: 2, atLeast: SIZE * SIZE }], uniform: true,
+    about: 'Rain behind a slab 20 units under a perspective eye is hidden by it, and none falls in front of it' };
+}
+
+function rainFalls({ id, ortho }) {
+  const doc = scene(id, () => ortho
+    ? [eye(true), mesh('Wall', 'cube', [0, 0, -1000], [8, 8, 0.1], [FLOOR, FLOOR, FLOOR], { lit: false }), volume([fx('rain', { u_intensity: 2, u_wetness: 0 })])]
+    : [eye(false), mesh('Floor', 'cube', [0, 0, 0], [16, 0.1, 16], [FLOOR, FLOOR, FLOOR], { lit: false }), volume([fx('rain', { u_intensity: 2, u_wetness: 0 })])]);
+  const cam = doc.entities.find((e) => e.name === 'Camera');
+  if (ortho) {
+    // Level, looking along -z at the wall, standing in the rain.
+    cam.components[0].data.position = { x: 0, y: 200, z: 0 };
+    cam.components[0].data.rotation = { x: 0, y: 0, z: 0, w: 1 };
+  } else {
+    placeCamera(doc, 2000);
+  }
+  return { id, doc, colorSpace: 'linear', count: [{ rgb: encodeLinear8([FLOOR, FLOOR, FLOOR]), tol: 2, atMost: Math.floor(SIZE * SIZE * 0.98) }], uniform: false,
+    about: `Rain falls in front of ${ortho ? 'a wall, seen level through an orthographic camera' : 'a floor 2000 units down, seen through a perspective camera'}` };
 }
 
 // ---- depth of field --------------------------------------------------------------------------------------------------------------
@@ -149,10 +164,9 @@ function lightShafts({ id, ortho, sunElevation, tint = [1, 0.85, 0.6], intensity
 export const LENS_SCENES = [
   rainWet({ id: 'oracle-rain-wet-ortho', ortho: true }),
   rainWet({ id: 'oracle-rain-wet-perspective', ortho: false }),
-  rainLayers({ id: 'oracle-rain-layers-near-ortho', ortho: true, drop: 100, streaks: false }),
-  rainLayers({ id: 'oracle-rain-layers-near-perspective', ortho: false, drop: 100, streaks: false }),
-  rainLayers({ id: 'oracle-rain-layers-far-ortho', ortho: true, drop: 2000, streaks: true }),
-  rainLayers({ id: 'oracle-rain-layers-far-perspective', ortho: false, drop: 2000, streaks: true }),
+  rainHidden({ id: 'oracle-rain-hidden-perspective' }),
+  rainFalls({ id: 'oracle-rain-falls-perspective', ortho: false }),
+  rainFalls({ id: 'oracle-rain-falls-ortho', ortho: true }),
   depthOfField({ id: 'oracle-dof-ortho', ortho: true }),
   depthOfField({ id: 'oracle-dof-perspective', ortho: false }),
   lightShafts({ id: 'oracle-shafts-perspective', ortho: false, sunElevation: 20 }),
