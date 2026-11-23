@@ -6234,4 +6234,6 @@ export const NOTED = {
     { note: "Water is ready when scene warm-up finishes." },
   "fix(water): a waterfall with no other water is drawn and ships, and rain rings are their own size whatever the wind's ripples":
     { note: "A waterfall on its own is drawn, and ships." },
+  "fix(scene): register pending operations before invoking scene callbacks":
+    { note: "Scene callbacks can request the same scene while it is loading or unloading." },
 };

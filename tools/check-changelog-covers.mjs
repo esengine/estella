@@ -99,6 +99,10 @@ function writtenInPlace() {
     .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
   const notes = added('CHANGELOG.md');
   if (notes.some((line) => /^\+## \[\d+\.\d+\.\d+\]/.test(line))) return [];
+  // A release being re-cut before its tag is out (the tag was withdrawn to take later commits) adds notes to the newest version
+  // heading, which is already there: that is still the release writing them.
+  const newest = /^## \[(\d+\.\d+\.\d+)\]/m.exec(readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8'))?.[1];
+  if (newest && !git(['tag', '--list', `v${newest}`]).trim() && !git(['ls-remote', '--tags', 'origin', `v${newest}`]).trim()) return [];
   const found = [];
   if (notes.some((line) => line.startsWith('+- '))) found.push('CHANGELOG.md gained a note');
   if (added('tools/releaseNotes.mjs').some((line) => /^\+\s*\{\s*(note|internal):/.test(line))) found.push('tools/releaseNotes.mjs gained an entry');
