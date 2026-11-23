@@ -58,14 +58,14 @@ export function isNonContentPath(rel: string, exclude?: readonly string[]): bool
  * Content Browser and the asset scan), but they are the input to plugin hot reload —
  * two different questions, so two predicates rather than one loosened rule.
  *
- * Dot-prefixed entries INSIDE the plugin dir stay excluded: `.types` is written by
- * the editor itself, and watching it would loop.
+ * Below the plugin root the usual content exclusions apply: a dependency install
+ * or the editor's own generated typings must not trigger a plugin reload.
  */
 export function isPluginSourcePath(rel: string): boolean {
   const p = rel.replace(/\\/g, '/');
   if (!p.startsWith(`${PROJECT_PLUGIN_REL}/`)) return false;
   const rest = p.slice(PROJECT_PLUGIN_REL.length + 1);
-  return rest.length > 0 && !rest.startsWith('.');
+  return rest.length > 0 && !isNonContentPath(rest);
 }
 
 /** What the project watcher reports: content, plus plugin sources. */

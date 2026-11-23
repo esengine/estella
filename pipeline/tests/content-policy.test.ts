@@ -82,4 +82,13 @@ describe('plugin sources are watched but are not content', () => {
   it('handles windows separators in plugin paths', () => {
     expect(isPluginSourcePath('.esengine\\plugins\\acme.tools\\src\\editor.ts')).toBe(true);
   });
+
+  it('ignores dependency directories and their contents even when a recursive watcher reports them', () => {
+    const plugin = '.esengine/plugins/acme.tools';
+    for (const tail of ['node_modules', 'node_modules/dep/index.js', 'src/.cache/stamp', 'dist-web/out.js']) {
+      expect(isWatchedPath(`${plugin}/${tail}`)).toBe(false);
+      expect(isWatchedPath(`${plugin}/${tail}`.replaceAll('/', '\\'))).toBe(false);
+    }
+    expect(isWatchedPath(`${plugin}/src/node_modules_helpers.ts`)).toBe(true);
+  });
 });
