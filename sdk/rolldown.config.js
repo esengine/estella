@@ -111,6 +111,7 @@ export default defineConfig([
             'fx-lighting/index': 'src/postprocess/fxLighting.ts',
             'fx-agx/index': 'src/postprocess/fxAgx.ts',
             'foliage/index': 'src/foliage/index.ts',
+            'groom/index': 'src/groom/index.ts',
             'worldgen/index': 'src/worldgen/entry.ts',
             'water/index': 'src/water/index.ts',
             'wgsl/index': 'src/shaders/wgsl/index.ts',

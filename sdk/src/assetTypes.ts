@@ -104,6 +104,10 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // point of a grid instead of once. No transitive dep — a volume names no image.
     // Binary since version 2 (lightmap/probeFile); a version 1 grid is JSON and loads the same way, as bytes.
     { extensions: ['esprobes'], contentType: 'binary', editorType: 'unknown', wechatPackInclude: true, hasTransitiveDeps: false },
+    // A groom (groom/groomFormat.ts): per group, the settings authored in the engine, and the path of the curves file that is its
+    // geometry — hence the transitive dep. The curves are fs-read as bytes, so both need the WeChat pack whitelist.
+    { extensions: ['esgroom'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
+    { extensions: ['escurves'], contentType: 'binary', editorType: 'unknown', wechatPackInclude: true, hasTransitiveDeps: false },
 ];
 
 const MIME_MAP: Record<string, string> = {

@@ -31,6 +31,7 @@ import * as FxAtmosphereModule from '../postprocess/fxAtmosphere';
 import * as FxLightingModule from '../postprocess/fxLighting';
 import * as FxAgxModule from '../postprocess/fxAgx';
 import * as FoliageModule from '../foliage';
+import * as GroomModule from '../groom';
 import * as WorldGenModule from '../worldgen';
 import * as WaterModule from '../water';
 import * as ImageModule from '../image';
@@ -68,6 +69,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/fx-lighting': FxLightingModule,
     'esengine/fx-agx': FxAgxModule,
     'esengine/foliage': FoliageModule,
+    'esengine/groom': GroomModule,
     'esengine/worldgen': WorldGenModule,
     'esengine/water': WaterModule,
     'esengine/image': ImageModule,

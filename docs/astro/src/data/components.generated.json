@@ -3738,6 +3738,18 @@
       ]
     },
     {
+      "name": "Groom",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "groom",
+          "type": "string",
+          "default": "empty",
+          "doc": "The .esgroom to draw: its curves, in groups, each with its own material and width."
+        }
+      ]
+    },
+    {
       "name": "GroupFraming",
       "source": "ts",
       "fields": [

@@ -1,0 +1,41 @@
+{
+ "version": 4,
+ "name": "GroomStrands",
+ "entities": [
+  {
+   "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
+   "components": [
+    { "type": "Transform", "data": { "position": { "x": 2, "y": 4, "z": 42 } } },
+    { "type": "Camera", "data": { "projectionType": 0, "fov": 45, "nearPlane": 1, "farPlane": 1000, "isActive": true, "priority": 0 } }
+   ]
+  },
+  {
+   "id": 1, "name": "Meerkat", "parent": null, "children": [], "visible": true,
+   "components": [
+    { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+    { "type": "Groom", "data": { "groom": "/scenes/groom/fur.esgroom" } }
+   ]
+  },
+  {
+   "id": 3, "name": "Skin", "parent": null, "children": [], "visible": true,
+   "components": [
+    { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 }, "scale": { "x": 0.274, "y": 0.134, "z": 0.134 } } },
+    { "type": "MeshRenderer", "data": { "mesh": "builtin:sphere", "color": { "r": 0.32, "g": 0.22, "b": 0.14, "a": 1 }, "lit": true, "opaque": true, "enabled": true } }
+   ]
+  },
+  {
+   "id": 4, "name": "Fill", "parent": null, "children": [], "visible": true,
+   "components": [
+    { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+    { "type": "Light", "data": { "type": 1, "color": { "r": 0.7, "g": 0.8, "b": 1, "a": 1 }, "intensity": 0.8, "direction": { "x": -0.5, "y": -0.2 }, "meshShadows": false } }
+   ]
+  },
+  {
+   "id": 2, "name": "Sun", "parent": null, "children": [], "visible": true,
+   "components": [
+    { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+    { "type": "Light", "data": { "type": 1, "color": { "r": 1, "g": 0.97, "b": 0.92, "a": 1 }, "intensity": 2.5, "direction": { "x": 0.4, "y": -0.8 }, "meshShadows": true, "shadowExtent": 200 } }
+   ]
+  }
+ ]
+}

@@ -891,6 +891,8 @@ export {
 export {
     Foliage, FoliageField, FoliageRes, FoliagePlugin, foliagePlugin, type FoliageData,
 } from './foliage/foliagePlugin';
+// Grooms are an optional module too (`esengine/groom`).
+export { Groom, GroomRes, GroomResource, GroomPlugin, groomPlugin, type GroomData } from './groom/groomPlugin';
 // Generated worlds are an optional module too (`esengine/worldgen`).
 export {
     WorldGen, WorldZone, PlacedObject, ZoneShapeKind, WorldGens, WorldGenRes, WorldGenPlugin, worldGenPlugin,

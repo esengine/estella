@@ -28,6 +28,7 @@ import { registerSkeletalAnimationSupport } from '../animation/skeletalAnimation
 import { registerTimelineSupport } from '../timeline/timelineSupport';
 import { registerTerrainSupport } from '../terrain/terrainSupport';
 import { registerFoliageSupport } from '../foliage/foliageSupport';
+import { registerGroomSupport } from '../groom/groomSupport';
 import { registerWorldGenSupport } from '../worldgen/worldgenSupport';
 import { registerWaterSupport } from '../water/waterSupport';
 import { registerSplineSupport } from '../spline/splineSupport';
@@ -55,6 +56,7 @@ export function installOptionalPlugins(): void {
     registerAgxEffectSources();
     registerTerrainSupport();
     registerFoliageSupport();
+    registerGroomSupport();
     registerWorldGenSupport();
     registerWaterSupport();
     registerSplineSupport();

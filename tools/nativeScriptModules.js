@@ -72,6 +72,7 @@ export const MODULES = {
     'esengine/fx-lighting': { disposition: 'native-subpath' },
     'esengine/fx-agx': { disposition: 'native-subpath' },
     'esengine/foliage': { disposition: 'native-subpath' },
+    'esengine/groom': { disposition: 'native-subpath' },
     'esengine/worldgen': { disposition: 'native-subpath' },
     'esengine/water': { disposition: 'native-subpath' },
     'esengine/image': { disposition: 'native-subpath' },

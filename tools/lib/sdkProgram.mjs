@@ -66,6 +66,7 @@ export const ENTRIES = {
     'fx-lighting': 'src/postprocess/fxLighting.ts',
     'fx-agx': 'src/postprocess/fxAgx.ts',
     'foliage': 'src/foliage/index.ts',
+    'groom': 'src/groom/index.ts',
     'worldgen': 'src/worldgen/entry.ts',
     'water': 'src/water/index.ts',
     'wgsl': 'src/shaders/wgsl/index.ts',

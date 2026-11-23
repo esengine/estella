@@ -27,7 +27,7 @@ import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
 export type Subsystem =
-    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'fxAgx' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
+    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'groom' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'fxAgx' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
     | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay' | 'textureRecipe';
 
 /**
@@ -49,6 +49,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     fxLighting: [],
     fxAgx: [],
     foliage: ['Foliage', 'PlacedFoliage', 'FoliageContact', 'PlantProxy'],
+    groom: ['Groom'],
     worldgen: ['WorldGen', 'WorldZone'],
     water: ['WaterBody', 'WaterZone', 'Floating'],
     spline: ['Spline', 'PathFollower', 'TerrainBand2D', 'RoadDecal'],
@@ -106,7 +107,7 @@ export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
  * uses the module that ships it — with no component in a scene to say so (a Water material on a plain mesh, a character's Hair).
  */
 export const SHADER_SUBSYSTEM: Readonly<Record<string, Subsystem>> = {
-    'builtin:water': 'water', 'builtin:underwater': 'water', 'builtin:terrain': 'terrain', 'builtin:terrain-layers': 'terrain', 'builtin:foliage': 'foliage', 'builtin:voxel-ground': 'voxel',
+    'builtin:water': 'water', 'builtin:underwater': 'water', 'builtin:terrain': 'terrain', 'builtin:terrain-layers': 'terrain', 'builtin:foliage': 'foliage', 'builtin:strands': 'groom', 'builtin:voxel-ground': 'voxel',
     'builtin:hair': 'characterShaders', 'builtin:skin': 'characterShaders', 'builtin:eye': 'characterShaders',
 };
 
@@ -122,6 +123,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     fxLighting: 'Post-process effects (occlusion, reflections, exposure)',
     fxAgx: 'Post-process effect (AgX view transform and its tables)',
     foliage: 'Foliage',
+    groom: 'Grooms (hair and fur strands)',
     worldgen: 'Generated worlds (biomes, zones, placement)',
     water: 'Water',
     spline: 'Splines',
@@ -162,6 +164,7 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     fxLighting: 'esengine/fx-lighting',
     fxAgx: 'esengine/fx-agx',
     foliage: 'esengine/foliage',
+    groom: 'esengine/groom',
     worldgen: 'esengine/worldgen',
     water: 'esengine/water',
     spline: 'esengine/spline',

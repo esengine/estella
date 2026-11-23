@@ -408,6 +408,16 @@ export const SUBSYSTEMS = [
         entry: ['AnimatorController', 'GripPose'],
     },
     {
+        id: 'groom',
+        title: 'Grooms',
+        titleZh: '发束',
+        source: ['groom'],
+        tier: 'experimental',
+        why: 'strands are read from a Blender export and drawn as ribbons that face the eye, group by group with their own width and material, but nothing simulates them and they do not follow a skinned mesh yet',
+        whyZh: '发束从 Blender 导出读入，按组画成朝向视线的细带，每组有自己的宽度和材质；但还没有模拟，也还不能跟随蒙皮网格',
+        entry: ['Groom', 'GroomResource'],
+    },
+    {
         id: 'water',
         title: 'Water',
         titleZh: '水体',

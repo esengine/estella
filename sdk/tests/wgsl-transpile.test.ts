@@ -11,6 +11,7 @@ import { BUILTIN_SHADER_TEMPLATES, MODEL } from '../src/render/builtinShaders';
 import { deriveVoxelGround } from '../src/voxel/voxelShader';
 import { CHARACTER_SHADER_TEMPLATES } from '../src/character/characterShaders';
 import { FOLIAGE_SHADER_TEMPLATE } from '../src/foliage/foliageShader';
+import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 import { PARTICLE, DISTORTION } from '../src/render/vfxShaders';
 
 const shader = (domain: string, body: string, params = ''): string =>
@@ -160,7 +161,7 @@ describe('the built-in shaders written in GLSL alone', () => {
     const sources: [string, string][] = [
         ...BUILTIN_SHADER_TEMPLATES.map((x) => [x.label, x.source] as [string, string]),
         ...CHARACTER_SHADER_TEMPLATES.map((x) => [x.label, x.source] as [string, string]),
-        ['Foliage', FOLIAGE_SHADER_TEMPLATE.source], ['Particle', PARTICLE], ['Distortion', DISTORTION],
+        ['Foliage', FOLIAGE_SHADER_TEMPLATE.source], ['Strands', STRANDS_SHADER_TEMPLATE.source], ['Particle', PARTICLE], ['Distortion', DISTORTION],
         ['Voxel Ground', deriveVoxelGround(MODEL)],
         ['Terrain', TERRAIN_SHADER_TEMPLATE.source], ['Terrain Layers', TERRAIN_LAYERS_SHADER_TEMPLATE.source],
         ['Planet', PLANET_SHADER_TEMPLATE.source], ['Water', WATER_SHADER_TEMPLATE.source],
@@ -170,7 +171,7 @@ describe('the built-in shaders written in GLSL alone', () => {
 
     it('are the ones whose twin was taken out', () => {
         expect(glslOnly.map(([n]) => n).sort()).toEqual(
-            ['Distortion', 'Eye', 'Foliage', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Terrain Layers', 'Toon', 'Voxel Ground', 'Water'].sort());
+            ['Distortion', 'Eye', 'Foliage', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Strands', 'Terrain Layers', 'Toon', 'Voxel Ground', 'Water'].sort());
     });
 
     it.each(glslOnly)('%s transpiles', (_, source) => {

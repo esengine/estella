@@ -25,6 +25,7 @@
     "./dist/fx-lighting/index.js",
     "./dist/fx-agx/index.js",
     "./dist/foliage/index.js",
+    "./dist/groom/index.js",
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
     "./dist/wgsl/index.js",
@@ -124,6 +125,10 @@
     "./foliage": {
       "import": "./dist/foliage/index.js",
       "types": "./dist/foliage/index.d.ts"
+    },
+    "./groom": {
+      "import": "./dist/groom/index.js",
+      "types": "./dist/groom/index.d.ts"
     },
     "./worldgen": {
       "import": "./dist/worldgen/index.js",

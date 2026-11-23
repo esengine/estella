@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "type": "groom",
+  "curves": "fur.escurves",
+  "groups": [
+    { "overrideWidth": false, "hairRootScale": 1, "hairTipScale": 1, "stableRasterization": true },
+    { "overrideWidth": false, "hairRootScale": 1, "hairTipScale": 0.3, "stableRasterization": true },
+    { "overrideWidth": true, "hairWidth": 0.04, "hairRootScale": 1, "hairTipScale": 0.25, "castShadows": false, "stableRasterization": true }
+  ]
+}

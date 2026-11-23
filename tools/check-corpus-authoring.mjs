@@ -159,6 +159,7 @@ const DISPOSITION = {
   VoxelTerrain: ['owed', 'no example digs in a volume yet; a small mine is where the first one goes'],
   RoadDecal: ['owed', 'no example lays a road over a terrain yet; wilds is where the first one goes'],
   PlantProxy: ['derived', 'the plant interaction makes it for a plant near a contact, and takes it away again; a scene never holds one'],
+  Groom: ['owed', 'no example has a furred or long-haired character yet; the groom-strands render fixture draws one, and an example gains one when a character is groomed'],
   FoliageContact: ['owed', 'no example has a character walking through plants yet; wilds gains one when it gets a player'],
   PlacedFoliage: ['derived', 'a generated world grows its plants through the same machinery without the component, and a project that places plants by hand writes the kinds and records with a script from its own rules; the lists are generated data, not something a scene is authored by hand with'],
   PlacedObject: ['derived', 'a generated world writes it on what it places for the game to interact with; authored, it would name a placement no rule made'],
