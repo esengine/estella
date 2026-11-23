@@ -13,7 +13,7 @@ import { defineComponent, clearUserComponents, Name } from '../src/ecs/component
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import {
     replicationPlugin, Net, Replicated, radiusInterest,
-    type InterestPolicy,
+    type InterestPolicy, type ReplicationClientOptions,
 } from '../src/net/replication';
 import type { Entity } from '../src/types';
 import type { World } from '../src/ecs/world';
@@ -40,14 +40,14 @@ const posOf = (world: World, e: Entity): { x: number; y: number; z: number } | n
     return p ? { x: p.x, y: p.y, z: p.z } : null;
 };
 
-async function makePair(policy?: InterestPolicy) {
+async function makePair(policy?: InterestPolicy, options: ReplicationClientOptions = {}) {
     const serverApp = makeApp();
     const clientApp = makeApp();
     const server = serverApp.getResource(Net).startServer();
     if (policy) server.setInterestPolicy(policy);
     const [ta, tb] = MemoryTransport.pair();
     const connId = server.attachConnection(ta);
-    const client = await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
+    const client = await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0, ...options });
     return { serverApp, clientApp, server, client, connId };
 }
 
@@ -70,6 +70,189 @@ async function step(serverApp: App, clientApp: App, n = 1): Promise<void> {
         await clientApp.tick(STEP);
     }
 }
+
+describe('entity references across changes in visibility and network identity', () => {
+    it.each(['immediate', 'interpolated', 'predicted'])('resolves current reference fields as targets enter and leave (%s)', async mode => {
+        const Links = defineComponent('ViewLinks', { focus: 0, members: [] as number[], weights: [] as number[] }, {
+            entityFields: ['focus', 'members'], replicatedFields: ['focus', 'members', 'weights'],
+        });
+        const { serverApp, clientApp, connId } = await makePair(radiusInterest(50, { position: posOf }), {
+            interpolationDelayTicks: mode === 'interpolated' ? 2 : 0,
+            prediction: mode === 'predicted' ? { apply() {} } : undefined,
+        });
+        const sw = serverApp.world, cw = clientApp.world;
+        cw.spawn('client only');
+        const holder = spawnAt(serverApp, 'holder', 0, 0, connId);
+        const first = spawnAt(serverApp, 'first', 300, 0), next = spawnAt(serverApp, 'next', 400, 0);
+        sw.insert(holder, Links, { focus: first, members: [first, holder, first, 0], weights: [first, next] });
+        const tick = () => step(serverApp, clientApp, 6);
+        const move = (entity: Entity, x: number) => sw.update(entity, NetPos, pos => { pos.x = x; });
+        await tick();
+        const ghost = cw.findEntityByName('holder')!;
+        const expectLinks = (focus: number, members: number[]) => {
+            expect(cw.get(ghost, Links)).toEqual({ focus, members, weights: [first, next] });
+        };
+        expectLinks(0, [0, ghost, 0, 0]);
+
+        move(first, 5);
+        await tick();
+        const firstGhost = cw.findEntityByName('first')!;
+        expect(firstGhost).toBeDefined();
+        expectLinks(firstGhost, [firstGhost, ghost, firstGhost, 0]);
+        move(first, 300);
+        await tick();
+        expect(cw.valid(firstGhost)).toBe(false);
+        expectLinks(0, [0, ghost, 0, 0]);
+
+        // The new state frame points outside the view. The old target entering
+        // again must only fill the slots the new state still assigns to it.
+        sw.update(holder, Links, links => { links.focus = next; links.members = [next, first, next]; });
+        await tick();
+        move(first, 5);
+        await tick();
+        const returned = cw.findEntityByName('first')!;
+        expect(returned).toBeDefined();
+        expect(returned).not.toBe(firstGhost);
+        expectLinks(0, [0, returned, 0]);
+        move(next, 10);
+        await tick();
+        const nextGhost = cw.findEntityByName('next')!;
+        expect(nextGhost).toBeDefined();
+        expectLinks(nextGhost, [nextGhost, returned, nextGhost]);
+        sw.despawn(next);
+        await tick();
+        expectLinks(0, [0, returned, 0]);
+
+        sw.remove(holder, Links);
+        await tick();
+        move(first, 300);
+        await tick();
+        move(first, 5);
+        await tick();
+        expect(cw.has(ghost, Links)).toBe(false);
+    });
+
+    it('resolves an interpolated reference against the ghost present at presentation time', async () => {
+        const Link = defineComponent('DelayedLink', { focus: 0 }, { entityFields: ['focus'], replicatedFields: ['focus'] });
+        const { serverApp, clientApp, client, connId } = await makePair(radiusInterest(50, { position: posOf }), {
+            interpolationDelayTicks: 3,
+        });
+        const sw = serverApp.world, cw = clientApp.world;
+        const holder = spawnAt(serverApp, 'holder', 0, 0, connId);
+        const target = spawnAt(serverApp, 'target', 5, 0);
+        sw.insert(holder, Link, { focus: holder });
+        await step(serverApp, clientApp);
+        const ghost = cw.findEntityByName('holder')!, before = cw.findEntityByName('target')!;
+        const receive = async () => { await serverApp.tick(STEP); client.applyPending(); };
+        sw.update(holder, Link, data => { data.focus = target; });
+        await receive();
+        sw.update(target, NetPos, pos => { pos.x = 150; });
+        await receive();
+        sw.update(target, NetPos, pos => { pos.x = 5; });
+        await receive();
+        const after = cw.findEntityByName('target')!;
+        expect(after).toBeDefined();
+        expect(after).not.toBe(before);
+        client.sampleInterpolation(0);
+        expect(cw.get(ghost, Link).focus).toBe(ghost);
+        for (let i = 0; i < 12; i++) client.sampleInterpolation(1);
+        expect(cw.get(ghost, Link).focus).toBe(after);
+    });
+
+    it('hands the newest buffered references to prediction when an interpolated owner takes control', async () => {
+        const Link = defineComponent('PredictedViewLink', { focus: 0, marks: [] as number[] }, {
+            entityFields: ['focus'], replicatedFields: ['focus', 'marks'],
+        });
+        const { serverApp, clientApp, client, connId } = await makePair(undefined, { interpolationDelayTicks: 4 });
+        const sw = serverApp.world, cw = clientApp.world;
+        const holder = spawnAt(serverApp, 'holder', 0, 0, connId), target = spawnAt(serverApp, 'target', 5, 0);
+        sw.insert(holder, Link, { focus: holder });
+        await step(serverApp, clientApp);
+        const ghost = cw.findEntityByName('holder')!, other = cw.findEntityByName('target')!;
+        sw.update(holder, Link, data => { data.marks = [3]; });
+        await step(serverApp, clientApp, 12);
+        expect(cw.get(ghost, Link).marks).toEqual([3]);
+        sw.update(holder, Link, data => { data.focus = target; });
+        await serverApp.tick(STEP);
+        client.applyPending();
+        client.sampleInterpolation(0);
+        expect(cw.get(ghost, Link).focus).toBe(ghost);
+        client.enablePrediction({ apply() {} });
+        cw.get(ghost, Link).marks.push(9);
+        await clientApp.tick(STEP);
+        expect(cw.get(ghost, Link).focus).toBe(other);
+        expect(cw.get(ghost, Link).marks).toEqual([3]);
+        sw.update(holder, Link, data => { data.focus = holder; });
+        await step(serverApp, clientApp, 12);
+        expect(cw.get(ghost, Link).focus).toBe(ghost);
+    });
+
+    it('resolves a new predicted component when its target enters in the same client step', async () => {
+        const Link = defineComponent('PredictedLink', { focus: 0 }, { entityFields: ['focus'], replicatedFields: ['focus'] });
+        const { serverApp, clientApp, connId } = await makePair(radiusInterest(50, { position: posOf }), {
+            prediction: { apply() {} },
+        });
+        const sw = serverApp.world, cw = clientApp.world;
+        const holder = spawnAt(serverApp, 'holder', 0, 0, connId), target = spawnAt(serverApp, 'target', 150, 0);
+        await step(serverApp, clientApp);
+        const ghost = cw.findEntityByName('holder')!;
+        expect(cw.has(ghost, Link)).toBe(false);
+        sw.insert(holder, Link, { focus: target });
+        await serverApp.tick(STEP);
+        sw.update(target, NetPos, pos => { pos.x = 5; });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        const arrived = cw.findEntityByName('target')!;
+        expect(arrived).toBeDefined();
+        expect(cw.get(ghost, Link).focus).toBe(arrived);
+    });
+
+    it.each(['broadcast', 'filtered', 'budgeted'])('updates references when an existing entity gains a new network ID (%s)', async route => {
+        const Link = defineComponent('RegistrationLinks', { focus: 0, members: [] as number[], numbers: [] as number[] }, {
+            entityFields: ['focus', 'members'], replicatedFields: ['focus', 'members', 'numbers'],
+        });
+        const { serverApp, clientApp, server } = await makePair();
+        if (route === 'filtered') server.setInterestPolicy(() => 'all');
+        if (route === 'budgeted') server.setBandwidthBudget({ bytesPerSecond: 16384 });
+        const sw = serverApp.world, cw = clientApp.world;
+        cw.spawn('local only');
+        const holder = spawnAt(serverApp, 'holder', 0, 0), target = sw.spawn('target');
+        sw.insert(holder, Link, { focus: target, members: [target, holder, target], numbers: [target] });
+        const tick = () => step(serverApp, clientApp, 3);
+        await tick();
+        const ghost = cw.findEntityByName('holder')!;
+        const check = (local: number) => expect(cw.get(ghost, Link)).toEqual({
+            focus: local, members: [local, ghost, local], numbers: [target],
+        });
+        check(0);
+        sw.insert(target, Replicated, {});
+        await tick();
+        const original = cw.findEntityByName('target')!;
+        expect(original).toBeDefined();
+        check(original);
+        sw.remove(target, Replicated);
+        await tick();
+        expect(cw.valid(original)).toBe(false);
+        check(0);
+        sw.insert(target, Replicated, {});
+        await tick();
+        const next = cw.findEntityByName('target')!;
+        expect(next).toBeDefined();
+        expect(next).not.toBe(original);
+        check(next);
+
+        sw.update(holder, Link, links => { links.focus = 0; links.members.length = 0; });
+        await tick();
+        const frames = server.stats.stateFrames;
+        sw.remove(target, Replicated);
+        await tick();
+        sw.insert(target, Replicated, {});
+        await tick();
+        expect(server.stats.stateFrames).toBe(frames);
+        expect(cw.get(ghost, Link)).toEqual({ focus: 0, members: [], numbers: [target] });
+    });
+
+});
 
 describe('interest management (radius policy)', () => {
     it('spawns only relevant ghosts, despawns on leave, respawns with current state on re-enter', async () => {

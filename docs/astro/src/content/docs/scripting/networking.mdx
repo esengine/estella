@@ -246,6 +246,10 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 
 - **Owned entities are never culled** — a policy can't hide a client's own pawn.
 - **Re-entering is seamless**: the respawn carries the entity's *current* state.
+- A replicated entity reference reads `0` while its target is outside this client's view.
+  When the target enters or returns, the field resolves to its current local entity.
+  The field also updates when the server adds or removes `Replicated` on the target.
+  Lists of references follow the same rule for each slot and preserve their order.
 - `radiusInterest` reads the composed **world** position of `Transform` by
   default (override with `{ position }`); placeless entities are always relevant,
   and it fails open while a connection owns no positioned entity yet.

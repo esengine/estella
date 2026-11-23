@@ -359,10 +359,24 @@ export interface EntityRefMap {
     fromWire(netId: number): number;
 }
 
+export function isEntityRefShape(shape: FieldShape): boolean {
+    return shape.kind === 'entity' || shape.kind === 'entity[]';
+}
+
+export function mapNetworkEntityField(value: unknown, resolve: (id: number) => number): unknown {
+    return mapEntityRefField(value, ref => typeof ref === 'number' ? resolve(ref) : ref);
+}
+
 /** Translate just the authored entity references in a detached spawn baseline. */
-export function remapBaselineEntityFields(data: Record<string, unknown>, fields: readonly string[], resolve: (id: number) => number): void {
+export function remapBaselineEntityFields(
+    data: Record<string, unknown>, fields: readonly string[], resolve: (id: number) => number,
+    remember?: (field: string, source: unknown) => void,
+): void {
     for (const field of fields) {
-        if (hasOwn(data, field)) data[field] = mapEntityRefField(data[field], ref => typeof ref === 'number' ? resolve(ref) : ref);
+        if (!hasOwn(data, field)) continue;
+        const source = data[field];
+        remember?.(field, source);
+        data[field] = mapNetworkEntityField(source, resolve);
     }
 }
 

@@ -30,11 +30,12 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, diffSchemas, remapBaselineEntityFields, tableSchemas, EncodedRows, FrameWriter,
+    buildReplicationTable, cloneValue, diffSchemas, isEntityRefShape, remapBaselineEntityFields, tableSchemas, EncodedRows, FrameWriter,
     type FieldShape, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds, wireEntityRefs } from './NetIds';
+import { EntityReferenceIndex } from './EntityReferenceIndex';
 import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
 import { Histogram } from '../../metrics/histogram';
 
@@ -376,6 +377,7 @@ export class ReplicationServer {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
     private readonly refs_ = wireEntityRefs(this.netIds_);
+    private readonly referenceFields_ = new EntityReferenceIndex();
     /** Live connections by public id. */
     private readonly connections_ = new Map<number, Connection>();
     /** Live connections by the id their link was attached under. */
@@ -667,6 +669,7 @@ export class ReplicationServer {
         }
         if (this.interest_?.kind === 'provider') this.interest_.value.dispose?.();
         this.interest_ = null;
+        this.referenceFields_.clear();
         this.offDespawn_();
     }
 
@@ -1225,6 +1228,11 @@ export class ReplicationServer {
         const started = this.mark_();
         let at = started;
         const { spawnedEntities, despawned } = this.reconcileRegistryIncremental_();
+        // Update existing referrers before seeding new owners. Their spawn already
+        // carries the current IDs, including forward references in this same sample.
+        for (const entity of spawnedEntities) this.referenceFields_.targetChanged(entity);
+        for (const { entity } of despawned) this.referenceFields_.targetChanged(entity);
+        for (const entity of spawnedEntities) this.seedShadow_(entity);
         this.since_('registry', at);
 
         // Before anything reads ownership: an owner that changed this frame must
@@ -1985,6 +1993,7 @@ export class ReplicationServer {
                 this.known_.delete(e);
                 this.knownNetIds_.delete(e);
                 this.shadow_.delete(e);
+                this.referenceFields_.drop(e);
             } else if (isKnown && isLive) {
                 this.restoreNetId_(e);
             }
@@ -2000,6 +2009,7 @@ export class ReplicationServer {
      */
     private rebaseRegistry_(): void {
         this.reconcileRegistryFromWorld_();
+        this.referenceFields_.clear();
         for (const e of this.known_) this.seedShadow_(e);
         // The shadow is now the world, so both windows start here too.
         this.advanceObservationFloor_();
@@ -2032,7 +2042,6 @@ export class ReplicationServer {
         this.netIds_.register(repl.netId, e);
         this.known_.add(e);
         this.knownNetIds_.set(e, repl.netId);
-        this.seedShadow_(e);
     }
 
     private seedShadow_(e: Entity): void {
@@ -2041,7 +2050,11 @@ export class ReplicationServer {
             if (!this.world_.has(e, te.def)) continue;
             const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
             const snap: Record<string, unknown> = {};
-            for (const f of te.fields) snap[f] = cloneValue(data[f]);
+            for (let i = 0; i < te.fields.length; i++) {
+                const f = te.fields[i];
+                snap[f] = cloneValue(data[f]);
+                if (isEntityRefShape(te.shapes[i])) this.referenceFields_.remember(e, te, i, snap[f]);
+            }
             perComp.set(te.id, snap);
         }
         this.shadow_.set(e, perComp);
@@ -2092,8 +2105,11 @@ export class ReplicationServer {
         const out: DirtyEntry[] = [];
         const removals: RemovalEntry[] = [];
         const floor = this.changeFloor_;
+        const referenceChanges = this.referenceFields_.takeChanges();
         for (const te of this.table.entries) {
             const candidates = new Set<Entity>();
+            const referenceMasks = referenceChanges?.get(te);
+            if (referenceMasks) for (const entity of referenceMasks.keys()) candidates.add(entity);
             // The cheaper of two projections, per sample: the journal costs its
             // rows (the whole world's writes, not this server's), the scan costs
             // the population however few moved. Buffered rows bound the first.
@@ -2125,7 +2141,10 @@ export class ReplicationServer {
                     // The shadow is the record of what the clients were told
                     // exists. Its snapshot disappearing IS the removal — there
                     // is no other trace, since a gone component is never sampled.
-                    if (perComp.delete(te.id)) removals.push({ entity: e, netId, componentId: te.id });
+                    if (perComp.delete(te.id)) {
+                        this.referenceFields_.drop(e, te);
+                        removals.push({ entity: e, netId, componentId: te.id });
+                    }
                     continue;
                 }
                 const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
@@ -2133,13 +2152,14 @@ export class ReplicationServer {
                 // exists, whether it arrived now or came back: send every field.
                 const snap = held ?? {};
                 if (!held) perComp.set(te.id, snap);
-                let mask = 0;
+                let mask = referenceMasks?.get(e) ?? 0;
                 for (let i = 0; i < te.fields.length; i++) {
                     const f = te.fields[i];
                     if (!(f in snap) || !(quantized[i]
                         ? sameOnWire(te.shapes[i]!, data[f], snap[f]) : fieldEqual(data[f], snap[f]))) {
                         mask |= 1 << i;
                         snap[f] = cloneValue(data[f]);
+                        if (isEntityRefShape(te.shapes[i])) this.referenceFields_.remember(e, te, i, snap[f]);
                     }
                 }
                 if (mask !== 0) {

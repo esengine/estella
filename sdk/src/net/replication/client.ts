@@ -36,12 +36,13 @@ import {
     type ReplComponentRemoveBatch, type ReplClosedMsg, type ReplCloseReason, type ReplGameMsg,
 } from './protocol';
 import {
-    buildReplicationTable, cloneValue, decodeStateFrame, remapBaselineEntityFields, tableSchemas,
+    buildReplicationTable, cloneValue, decodeStateFrame, isEntityRefShape, mapNetworkEntityField, remapBaselineEntityFields, tableSchemas,
     type FieldShape, type ReplicationTable, type ReplicationTableEntry, type StateFrame,
 } from './codec';
 import { NetGhost, Replicated, type ReplicatedData } from './components';
 import { getReplicationArchetype } from './archetype';
 import { NetIds, wireEntityRefs } from './NetIds';
+import { EntityReferenceIndex } from './EntityReferenceIndex';
 import { InterpolationState } from './interpolation';
 
 /**
@@ -219,6 +220,7 @@ export class ReplicationClient {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
     private readonly refs_ = wireEntityRefs(this.netIds_);
+    private readonly referenceFields_ = new EntityReferenceIndex();
     private offDespawn_: (() => void) | null = null;
     private channel_: NetChannel | null = null;
     private table_: ReplicationTable | null = null;
@@ -286,7 +288,10 @@ export class ReplicationClient {
         const delay = options.interpolationDelayTicks ?? 2;
         this.interp_ = delay > 0 ? new InterpolationState(delay) : null;
         this.prediction_ = options.prediction ?? null;
-        this.offDespawn_ = world.onDespawn((e) => this.netIds_.unregisterEntity(e));
+        this.offDespawn_ = world.onDespawn(e => {
+            const netId = this.netIds_.netIdOf(e);
+            if (netId !== undefined) this.forgetGhost_(netId);
+        });
     }
 
     get table(): ReplicationTable {
@@ -590,6 +595,7 @@ export class ReplicationClient {
 
     /** Drop every ghost and everything kept about them: they belonged to a server this client left. */
     private resetWorld_(): void {
+        this.referenceFields_.clear();
         const all = this.netIds_.netIdList();
         if (all.length > 0) this.applyDespawnBatch_({ tick: this.serverTick_, netIds: all });
         this.authority_.clear();
@@ -675,7 +681,8 @@ export class ReplicationClient {
      * game code whose connection a HOST made (the editor's multiplayer
      * preview connects the client realm itself, options-free): call from a
      * fixed-tick system once the session is a client. Owned entities that
-     * already spawned get their authority copies seeded from current state.
+     * already spawned start from their newest received state, including updates
+     * still waiting on the interpolation clock.
      */
     enablePrediction(options: PredictionOptions): void {
         this.prediction_ = options;
@@ -701,6 +708,7 @@ export class ReplicationClient {
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.netIds_.clear();
+        this.referenceFields_.clear();
         this.authority_.clear();
         this.inbox_.length = 0;
         this.pendingInputs_.length = 0;
@@ -765,10 +773,11 @@ export class ReplicationClient {
                 case 'spawn': this.applySpawnBatch_(op.batch); break;
                 case 'despawn': this.applyDespawnBatch_(op.batch); break;
                 case 'remove': this.applyComponentRemoveBatch_(op.batch); break;
-                case 'state': this.applyStateFrame_(decodeStateFrame(op.frame, this.table, this.refs_)); break;
+                case 'state': this.applyStateFrame_(decodeStateFrame(op.frame, this.table)); break;
                 case 'reset': this.resetWorld_(); break;
             }
         }
+        this.refreshReferences_();
         if (this.prediction_) {
             while (this.pendingInputs_.length > 0 && this.pendingInputs_[0].seq <= this.ackedSeq_) {
                 this.pendingInputs_.shift();
@@ -919,6 +928,7 @@ export class ReplicationClient {
                 netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype,
             });
             this.netIds_.register(spawn.netId, e);
+            this.referenceFields_.targetChanged(spawn.netId);
             fresh.push({ spawn, entity: e });
         }
         // Construction first, then the baseline on top: what the authority
@@ -933,8 +943,14 @@ export class ReplicationClient {
         for (const { spawn, entity } of received) {
             for (const comp of spawn.baseline) {
                 const data = { ...comp.data };
-                const def = this.table.byName.get(comp.type)?.def ?? getComponent(comp.type);
-                if (def) remapBaselineEntityFields(data, def.entityFields, this.refs_.fromWire);
+                const te = this.table.byName.get(comp.type);
+                const def = te?.def ?? getComponent(comp.type);
+                if (def?.entityFields.length) {
+                    remapBaselineEntityFields(data, def.entityFields, this.refs_.fromWire, (name, wire) => {
+                        const i = te?.fields.indexOf(name) ?? -1;
+                        if (te && i >= 0) this.referenceFields_.remember(spawn.netId, te, i, wire);
+                    });
+                }
                 loadComponent(this.world_, entity, { type: comp.type, data }, spawn.name);
             }
         }
@@ -966,23 +982,33 @@ export class ReplicationClient {
             this.world_.insert(e, Replicated, { netId: spawn.netId, owner: spawn.owner, archetype: spawn.archetype });
             this.interp_?.drop(spawn.netId);
             this.authority_.delete(spawn.netId);
+            this.referenceFields_.drop(spawn.netId);
             held.push({ spawn, entity: e });
         }
         return held;
     }
 
-    /** Seed the authority copy for a freshly spawned OWNED entity from its
-     *  just-loaded state (the spawn payload IS the authoritative baseline). */
+    /** A fresh owned ghost starts at its spawn baseline. Enabling prediction on
+     *  an existing ghost also takes over any newer samples awaiting presentation. */
     private seedAuthority_(netId: number, e: Entity): void {
         if (!this.isPredicted_(netId)) return;
         const perComp = new Map<number, Record<string, unknown>>();
+        const history = this.interp_?.buffers.get(netId);
         for (const te of this.table.entries) {
-            if (!this.world_.has(e, te.def)) continue;
-            const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
+            const data = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
+            const series = history?.get(te.id)?.byField;
+            if (!data && !series) continue;
             const snap: Record<string, unknown> = {};
-            for (const f of te.fields) snap[f] = cloneValue(data[f]);
+            for (let i = 0; i < te.fields.length; i++) {
+                const field = te.fields[i], buffered = series?.get(i);
+                if (buffered) {
+                    const newest = buffered.sample(te.shapes[i], this.interp_!.newestTick);
+                    snap[field] = cloneValue(this.projectField_(netId, te, i, newest));
+                } else if (data) snap[field] = cloneValue(data[field]);
+            }
             perComp.set(te.id, snap);
         }
+        if (history) this.interp_!.drop(netId);
         this.authority_.set(netId, perComp);
     }
 
@@ -997,6 +1023,7 @@ export class ReplicationClient {
                 if (!te) continue;
                 this.interp_?.dropComponent(entry.netId, componentId);
                 this.authority_.get(entry.netId)?.delete(componentId);
+                this.referenceFields_.drop(entry.netId, te);
                 if (e !== undefined && this.world_.valid(e) && this.world_.has(e, te.def)) {
                     this.world_.remove(e, te.def);
                 }
@@ -1007,18 +1034,54 @@ export class ReplicationClient {
     private applyDespawnBatch_(batch: ReplDespawnBatch): void {
         for (const netId of batch.netIds) {
             const e = this.netIds_.entityOf(netId);
-            this.netIds_.unregister(netId);
-            this.interp_?.drop(netId);
-            this.authority_.delete(netId);
+            this.forgetGhost_(netId);
             if (e !== undefined && this.world_.valid(e)) {
                 this.world_.despawn(e);
             }
         }
     }
 
+    private forgetGhost_(netId: number): void {
+        this.netIds_.unregister(netId);
+        this.interp_?.drop(netId);
+        this.authority_.delete(netId);
+        this.referenceFields_.drop(netId);
+        this.referenceFields_.targetChanged(netId);
+    }
+
+    /** Reproject just the fields whose displayed target entered or left this view. */
+    private refreshReferences_(): void {
+        const changes = this.referenceFields_.takeChanges();
+        if (!changes) return;
+        for (const [te, owners] of changes) {
+            for (const [owner, mask] of owners) {
+                const e = this.netIds_.entityOf(owner);
+                if (e === undefined) continue;
+                const write = (data: Record<string, unknown>) => {
+                    for (let i = 0; i < te.fields.length; i++) {
+                        if (mask & (1 << i)) {
+                            const wire = this.referenceFields_.get(owner, te, i);
+                            if (wire !== undefined) data[te.fields[i]] = mapNetworkEntityField(wire, this.refs_.fromWire);
+                        }
+                    }
+                };
+                const snap = this.authority_.get(owner)?.get(te.id);
+                if (snap && this.isPredicted_(owner)) write(snap);
+                else if (this.world_.has(e, te.def)) this.world_.update(e, te.def, write);
+            }
+        }
+    }
+
+    private projectField_(netId: number, te: ReplicationTableEntry, index: number, wire: unknown): unknown {
+        if (!isEntityRefShape(te.shapes[index])) return wire;
+        this.referenceFields_.remember(netId, te, index, wire);
+        return mapNetworkEntityField(wire, this.refs_.fromWire);
+    }
+
     private applyStateFrame_(frame: StateFrame): void {
         if (frame.tick > this.serverTick_) this.serverTick_ = frame.tick;
         for (const entry of frame.entries) {
+            if (this.netIds_.entityOf(entry.netId) === undefined) continue;
             // Predicted (owned) entities: authoritative values land in the
             // authority copy — never the live components, never interpolation.
             // Reconciliation rebuilds the live state at the end of the flush.
@@ -1057,7 +1120,7 @@ export class ReplicationClient {
         let v = 0;
         for (let i = 0; i < te.fields.length; i++) {
             if (fieldMask & (1 << i)) {
-                snap[te.fields[i]] = values[v++];
+                snap[te.fields[i]] = this.projectField_(netId, te, i, values[v++]);
             }
         }
     }
@@ -1072,7 +1135,7 @@ export class ReplicationClient {
         let v = 0;
         for (let i = 0; i < te.fields.length; i++) {
             if (fieldMask & (1 << i)) {
-                target[te.fields[i]] = values[v++];
+                target[te.fields[i]] = this.projectField_(netId, te, i, values[v++]);
             }
         }
         if (existing) {
@@ -1099,7 +1162,8 @@ export class ReplicationClient {
                 for (const [fieldIndex, series] of buf.byField) {
                     const value = series.sample(te.shapes[fieldIndex], t);
                     if (value !== undefined) {
-                        target[te.fields[fieldIndex]] = value;
+                        // Keep queued samples in wire space until the render clock presents them.
+                        target[te.fields[fieldIndex]] = this.projectField_(netId, te, fieldIndex, value);
                         changed = true;
                     }
                 }
