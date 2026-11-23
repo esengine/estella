@@ -2,7 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
+import { reservePromise } from '../util/reservePromise';
 import { preparationFailureReason } from './dependencies';
+
+export { reservePromise as reserveLoad };
 
 interface PendingEntry<T> {
     promise: Promise<T>;
@@ -12,13 +15,6 @@ interface PendingEntry<T> {
 interface FailedEntry {
     error: Error;
     expiry: number;
-}
-
-/** Publish this promise before invoking a loader that can synchronously request the same asset. */
-export function reserveLoad<T>() {
-    let resolve!: (operation: Promise<T>) => void;
-    const promise = new Promise<T>(settle => { resolve = settle; });
-    return { promise, resolve };
 }
 
 export class AsyncCache<T> {
@@ -60,7 +56,7 @@ export class AsyncCache<T> {
         const existing = this.pendingRequest(key);
         if (existing) return existing;
 
-        const pending = reserveLoad<T>();
+        const pending = reservePromise<T>();
         const entry: PendingEntry<T> = { promise: pending.promise, aborted: false };
         this.pending_.set(key, entry);
         pending.resolve(this.load_(key, loader, timeout, entry));

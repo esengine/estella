@@ -29,6 +29,7 @@ import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
 import { createAbort } from '../util/abort';
+import { reservePromise } from '../util/reservePromise';
 
 // =============================================================================
 // Types
@@ -318,8 +319,8 @@ export class SceneManagerState {
     private switching_: string | null = null;
     private lifetime_ = createAbort();
     private loadPromises_ = new Map<string, Promise<SceneContext>>();
-    /** Staggered unloads in flight: a load of the same name waits, rather than taking up a scene half torn down. */
-    private unloadPromises_ = new Map<string, Promise<void>>();
+    /** A same-name load waits through cleanup and any remaining retirement frames. */
+    private unloadPromises_ = new Map<string, { done: Promise<void>; config: SceneConfig; staggered: boolean }>();
     private stopEntityTracking_: (() => void) | null = null;
 
     constructor(app: App) {
@@ -483,7 +484,7 @@ export class SceneManagerState {
     async prepare(name: string): Promise<void> {
         if (this.scenes_.has(name)) return;
         const config = this.configs_.get(name);
-        if (config?.prepare) await this.untilReset_(name, () => config.prepare!());
+        if (config?.prepare) await this.reserveOperation_<void>(name).start(() => config.prepare!());
     }
 
     /**
@@ -494,7 +495,7 @@ export class SceneManagerState {
     async readyRenderPrograms(name: string): Promise<RenderReadiness> {
         if (this.scenes_.has(name)) return { applicable: false };
         const ready = this.configs_.get(name)?.readyRenderPrograms;
-        return ready ? this.untilReset_(name, ready) : { applicable: false };
+        return ready ? this.reserveOperation_<RenderReadiness>(name).start(ready) : { applicable: false };
     }
 
     /**
@@ -508,12 +509,16 @@ export class SceneManagerState {
 
     /** Finish, now, what of `name`'s arrival or departure is being spread over frames (see `SceneConfig.rush`). */
     rush(name: string): void {
-        this.configs_.get(name)?.rush?.();
+        this.workingConfig_(name)?.rush?.();
     }
 
     /** Says whether a player would see `name` missing (see `SceneConfig.urge`). */
     urge(name: string, urgent: boolean): void {
-        this.configs_.get(name)?.urge?.(urgent);
+        this.workingConfig_(name)?.urge?.(urgent);
+    }
+
+    private workingConfig_(name: string): SceneConfig | undefined {
+        return this.unloadPromises_.get(name)?.config ?? this.scenes_.get(name)?.config ?? this.configs_.get(name);
     }
 
     /**
@@ -534,7 +539,7 @@ export class SceneManagerState {
         };
         const leaving = this.unloadPromises_.get(name);
         if (leaving) {
-            await leaving.catch(() => undefined);
+            await leaving.done.catch(() => undefined);
             if (signal.aborted) throw new SceneLoadCancelled(name);
         }
 
@@ -589,16 +594,15 @@ export class SceneManagerState {
             this.loadOrder_.push(name);
             return ctx;
         };
-        const loadPromise = this.untilReset_(name, () => populate().catch(err => {
-            this.rollbackFailedLoad_(name, instance);
-            throw err;
-        }));
-
-        if (!signal.aborted) this.loadPromises_.set(name, loadPromise);
+        const load = this.reserveOperation_<SceneContext>(name);
+        this.loadPromises_.set(name, load.done);
         try {
-            return await loadPromise;
+            return await load.start(() => populate().catch(err => {
+                this.rollbackFailedLoad_(name, instance);
+                throw err;
+            }));
         } finally {
-            if (this.loadPromises_.get(name) === loadPromise) this.loadPromises_.delete(name);
+            if (this.loadPromises_.get(name) === load.done) this.loadPromises_.delete(name);
         }
     }
 
@@ -773,8 +777,8 @@ export class SceneManagerState {
     async unload(name: string, options?: TransitionOptions): Promise<void> {
         const pending = this.unloadPromises_.get(name);
         if (pending) {
-            if (!options?.staggered) this.rush(name);
-            return pending;
+            if (!options?.staggered && pending.staggered) pending.config.rush?.();
+            return pending.done;
         }
         const instance = this.scenes_.get(name);
         if (!instance) return;
@@ -785,55 +789,44 @@ export class SceneManagerState {
         const wasSleeping = instance.status === 'sleeping';
         instance.status = 'unloading';
 
-        if (instance.config.cleanup) {
+        const unload = this.reserveOperation_<void>(name);
+        const departure = { done: unload.done, config: instance.config, staggered: options?.staggered === true };
+        this.unloadPromises_.set(name, departure);
+        return unload.start(async () => {
             try {
-                instance.config.cleanup(ctx);
-            } catch (err) {
-                // A throwing user cleanup must NOT abort the teardown below —
-                // that would leak every entity/system/texture the scene owns.
-                log.error('scene', `Scene "${name}" cleanup callback threw; continuing teardown`, err);
-            }
-        }
-
-        if (this.scenes_.get(name) !== instance) return;
-        const retire = options?.staggered ? instance.config.retire : undefined;
-        const survival = options?.keepPersistent === false ? 'none' : 'persistent';
-        if (!retire) {
-            try { this.disposeSceneOwnedState_(instance, survival, wasSleeping); }
-            finally { this.removeSceneSlot_(name, instance); }
-            return;
-        }
-        const leaving = this.untilReset_(name, async () => {
-            try {
-                await this.disposeSceneOwnedState_(instance, survival, wasSleeping, retire);
+                try { instance.config.cleanup?.(ctx); }
+                catch (err) { log.error('scene', `Scene "${name}" cleanup callback threw; continuing teardown`, err); }
+                if (this.scenes_.get(name) !== instance) return;
+                const retire = options?.staggered ? instance.config.retire : undefined;
+                const survival = options?.keepPersistent === false ? 'none' : 'persistent';
+                const retiring = this.disposeSceneOwnedState_(instance, survival, wasSleeping, retire);
+                if (retiring) await retiring;
             } finally {
                 this.removeSceneSlot_(name, instance);
+                if (this.unloadPromises_.get(name) === departure) this.unloadPromises_.delete(name);
             }
         });
-        if (this.scenes_.get(name) === instance) this.unloadPromises_.set(name, leaving);
-        try {
-            await leaving;
-        } finally {
-            if (this.unloadPromises_.get(name) === leaving) this.unloadPromises_.delete(name);
-        }
     }
 
     private acceptsSceneWork_(instance: SceneInstance): boolean {
         return !instance.retirement && this.scenes_.get(instance.config.name) === instance;
     }
 
-    /** A reset settles callers even when a loader or a custom frame scheduler is still waiting outside the engine. */
-    private untilReset_<T>(name: string, start: () => Promise<T>): Promise<T> {
+    /** A joinable operation exists before its callbacks run. Reset settles it even while external work is pending. */
+    private reserveOperation_<T>(name: string) {
         const { signal } = this.lifetime_;
-        return new Promise<T>((resolve, reject) => {
-            const cancel = () => {
-                signal.removeEventListener('abort', cancel);
-                reject(new SceneLoadCancelled(name));
-            };
-            signal.addEventListener('abort', cancel);
-            try { start().then(resolve, reject).finally(() => signal.removeEventListener('abort', cancel)); }
-            catch (error) { signal.removeEventListener('abort', cancel); reject(error); }
-        });
+        const { promise, resolve, reject } = reservePromise<T>();
+        const cancel = () => reject(new SceneLoadCancelled(name));
+        signal.addEventListener('abort', cancel);
+        const done = promise.finally(() => signal.removeEventListener('abort', cancel));
+        return {
+            done,
+            start(work: () => Promise<T>) {
+                try { work().then(resolve, reject); }
+                catch (error) { reject(error); }
+                return done;
+            },
+        };
     }
 
     /**

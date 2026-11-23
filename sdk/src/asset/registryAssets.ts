@@ -25,7 +25,7 @@
 import { leaseBinding, type BindingLease } from './leaseBindings';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
-import { reserveLoad } from './AsyncCache';
+import { reservePromise } from '../util/reservePromise';
 import { assetPairKey } from './assetPairKey';
 
 const noNames: readonly string[] = Object.freeze([]);
@@ -112,7 +112,7 @@ export class RegistryAssetSlots {
         slot.waiters++;
         try {
             if (!slot.loading) {
-                const pending = reserveLoad<void>();
+                const pending = reservePromise<void>();
                 slot.loading = pending.promise;
                 pending.resolve(this.publishInitial_(kind, slot));
             }

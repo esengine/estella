@@ -52,6 +52,78 @@ describe('overlapping registered scene loads', () => {
         return { ...state, manager, config };
     }
 
+    it('lets a synchronous setup callback join the load that invoked it', async () => {
+        const { app, manager, assets } = await registered();
+        const gate = barrier();
+        let joined!: ReturnType<typeof manager.load>, settled = false;
+        manager.register({ name: 'cell', async setup(ctx) {
+            joined = manager.loadAdditive('cell');
+            void manager.whenLoadsSettle().then(() => { settled = true; });
+            await gate.promise;
+            ctx.spawn();
+        } });
+        try {
+            const first = manager.load('cell');
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(settled).toBe(false);
+            gate.open();
+            const context = await first;
+            expect(await joined).toBe(context);
+            expect(context.entities.size).toBe(1);
+        } finally { gate.open(); assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['immediate', 'staggered'])('queues same-name requests during %s unload', async mode => {
+        const { app, manager, assets } = await registered();
+        const turn = barrier(), cleanup = vi.fn();
+        let queued!: ReturnType<typeof manager.load>, joined!: Promise<void>;
+        manager.register({ name: 'cell', setup(ctx) { ctx.spawn(); }, cleanup() {
+            cleanup();
+            if (cleanup.mock.calls.length > 1) return;
+            queued = manager.load('cell');
+            joined = manager.unload('cell', { staggered: true });
+        }, async retire() { await turn.promise; } });
+        try {
+            const previous = await manager.load('cell');
+            const leaving = manager.unload('cell', { staggered: mode === 'staggered' });
+            turn.open();
+            await Promise.all([leaving, joined]);
+            const next = await queued;
+            expect(cleanup).toHaveBeenCalledOnce();
+            expect(next).not.toBe(previous);
+            expect(manager.getScene('cell')).toBe(next);
+            expect(next.entities.size).toBe(1);
+            expect(previous.entities.size).toBe(0);
+        } finally { turn.open(); assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['unload', 'rush'])('queues loads from a retirement hook and directs %s to the retiring registration', async method => {
+        const { app, assets, config, manager } = await registered();
+        const gate = barrier(), oldRush = vi.fn(gate.open), newRush = vi.fn(), newUrge = vi.fn();
+        let queued!: ReturnType<typeof manager.load>;
+        config.rush = oldRush;
+        config.urge = vi.fn();
+        config.retire = async () => {
+            manager.register({ name: 'cell', rush: newRush, urge: newUrge });
+            queued = manager.load('cell');
+            await gate.promise;
+        };
+        try {
+            const first = await manager.load('cell');
+            const leaving = manager.unload('cell', { staggered: true });
+            manager.urge('cell', true);
+            const immediate = method === 'unload' ? manager.unload('cell') : manager.rush('cell');
+            expect(oldRush).toHaveBeenCalledOnce();
+            expect(newRush).not.toHaveBeenCalled();
+            expect(config.urge).toHaveBeenCalledWith(true);
+            expect(newUrge).not.toHaveBeenCalled();
+            await Promise.all([leaving, immediate]);
+            const next = await queued;
+            expect(next).not.toBe(first);
+            expect(manager.getScene('cell')).toBe(next);
+        } finally { gate.open(); assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['publish', 'discard'])('shares one in-flight preparation through %s', async finish => {
         const { app, assets, manager, unloaded } = await registered();
         const preload = vi.spyOn(assets, 'preloadSceneAssets');
