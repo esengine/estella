@@ -12,6 +12,7 @@ import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
+import { discardSceneEntities, runSceneLoad, scenePhaseRunner } from './sceneLoadAttempt';
 import { getComponent, Name, Camera, RuntimeOnly, Disabled } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
 import { AssetScope } from '../asset/AssetLease';
@@ -328,6 +329,24 @@ export function sceneHasPrefabEntries(scene: SceneData): boolean {
 /** Resolves a prefab asset ref to its PrefabData, or null when unresolvable. */
 export type PrefabAssetResolver = (ref: string) => Promise<PrefabData | null>;
 
+/** Expansion copies the prefab documents. Their asset receipts end when the copy is complete. */
+export async function expandScenePrefabAssets(
+    scene: SceneData, assets: Pick<import('../asset/Assets').Assets, 'acquireTyped'>,
+): Promise<SceneData> {
+    const sources = new AssetScope();
+    try {
+        return await expandScenePrefabs(scene, async ref => {
+            try {
+                const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
+                return (lease.value.data as PrefabData) ?? null;
+            } catch (error) {
+                log.warn('scene', `Failed to load prefab "${ref}": ${error}`);
+                return null;
+            }
+        });
+    } finally { sources.releaseAll(); }
+}
+
 const toSceneEntityData = (e: ProcessedEntity): SceneEntityData => ({
     id: e.id,
     name: e.name,
@@ -596,7 +615,7 @@ export interface StagedSpawn {
  */
 export function* spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink, staged = false,
+    onPhase?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
 ): Generator<number, StagedSpawn, void> {
     // One clock reading per component rather than two: the end of one write is
     // the start of the next, so attribution costs a call and not a pair. The
@@ -612,11 +631,11 @@ export function* spawnAndLoadEntitiesJob(
     const resume = (): void => { if (onPhase) mark = performance.now(); };
     checkLoadable(sceneData);
     if (onPhase) onPhase('spawn.validate', since());
-    const entityMap = new Map<number, Entity>();
-    const hidden: Entity[] = [];
+    const { entities: entityMap, hidden } = spawn;
     const rows = sceneData.entities.filter((entityData) => entityData.visible !== false && !isPrefabEntry(entityData));
     const total = Math.max(1, rows.length * 3);
     let done = 0;
+    let completed = false;
     try {
         let skipped = 0;
         for (const entityData of sceneData.entities) {
@@ -688,14 +707,11 @@ export function* spawnAndLoadEntitiesJob(
             }
         }
         if (onPhase) onPhase('spawn.hierarchy', since());
-    } catch (e) {
-        for (const entity of entityMap.values()) {
-            try { world.despawn(entity); } catch { /* ignore cleanup errors */ }
-        }
-        throw e;
+        completed = true;
+        return spawn;
+    } finally {
+        if (!completed) discardSceneEntities(world, entityMap.values());
     }
-
-    return { entities: entityMap, hidden };
 }
 
 /**
@@ -741,12 +757,12 @@ export function loadSceneData(
  */
 export function* loadSceneDataJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink,
+    onPhase?: ScenePhaseSink, spawn?: StagedSpawn,
 ): Generator<number, StagedSpawn, void> {
     const began = onPhase ? performance.now() : 0;
     const { data } = migrateSceneData(sceneData);
     if (onPhase) onPhase('spawn.migrate', performance.now() - began);
-    return yield* spawnAndLoadEntitiesJob(world, data, external, onPhase, true);
+    return yield* spawnAndLoadEntitiesJob(world, data, external, onPhase, true, spawn);
 }
 
 /**
@@ -779,30 +795,12 @@ export async function loadSceneWithAssets(
     let scene = sceneData;
     if (options?.assets && sceneHasPrefabEntries(scene)) {
         const assets = options.assets;
-        const sources = new AssetScope();
-        try {
-            scene = await timed('prefab', () => expandScenePrefabs(scene, async (ref) => {
-                try {
-                    const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
-                    return (lease.value.data as PrefabData) ?? null;
-                } catch (e) {
-                    log.warn('scene', `Failed to load prefab "${ref}": ${e}`);
-                    return null;
-                }
-            }));
-        } finally {
-            // Expansion copies source JSON into scene records. Only those records'
-            // asset dependencies outlive this phase, acquired by the preload below.
-            sources.releaseAll();
-        }
+        scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets));
     }
     // Migrate up-front to a private copy; asset resolution + spawn all operate
     // on it, so the caller's SceneData is never mutated.
     const { data } = migrateSceneData(scene);
-    const deferred = scene.deferredInstances;
-    const entities = await loadSceneAssetsAndSpawn(world, data, options, timed);
-    registerDeferredInstances(world, deferred, entities);
-    return entities;
+    return loadSceneAssetsAndSpawn(world, data, options, timed, scene.deferredInstances);
 }
 
 /**
@@ -820,64 +818,48 @@ export async function loadOwnedSceneWithAssets(
     return loadSceneAssetsAndSpawn(world, data, options, timed);
 }
 
-function scenePhaseRunner(onPhase?: ScenePhaseSink) {
-    return async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
-        if (!onPhase) return run();
-        const began = performance.now();
-        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
-    };
-}
-
 async function loadSceneAssetsAndSpawn(
     world: World, data: SceneData, options: SceneLoadOptions | undefined,
-    timed: <T>(phase: string, run: () => Promise<T> | T) => Promise<T>,
+    timed: ReturnType<typeof scenePhaseRunner>, deferred?: readonly DeferredRecord[],
 ): Promise<Map<number, Entity>> {
-    let ownership: PreparedSpawnOwnership | undefined;
-    let releasePreload: (() => void) | undefined;
-    let spawned: Map<number, Entity> | undefined;
-    try {
-        if (options?.assets) {
-            const assets = options.assets;
-            const result = await timed('assets', () => assets.preloadSceneAssets(data, options.onProgress));
-            if (!options.collectAssets && assets.entityScopes) {
-                releasePreload = () => result.scope.releaseAll();
-                ownership = prepareSpawnOwnership(data, result, assets.entityScopes, assets.resolveRef.bind(assets))?.();
-            }
-            if (options.onMissingAssets) {
-                options.onMissingAssets(result.missing);
-            }
-            if (options.abortOnMissingAssets && result.missing.length > 0) {
-                throw new MissingAssetsError(result.missing);
-            }
-            assets.resolveSceneAssetPaths(data, result);
-            applyTextureMetadata(data, result.textureHandles);
-            if (options.collectAssets) {
-                // The receipts MOVE to the owner (absorb, not add): two scopes each
-                // holding every receipt leaves "which one releases it" unanswered.
-                // Materials keep their handle set too, but the RELEASE rides the scope.
-                options.collectAssets.scope?.absorb(result.scope);
-                for (const handle of result.materialHandles.values()) {
-                    if (handle) options.collectAssets.materialHandles.add(handle);
+    return runSceneLoad(world, async attempt => {
+        const assets = options?.assets, collector = options?.collectAssets;
+        let ownership: PreparedSpawnOwnership | undefined;
+        try {
+            if (assets) {
+                const result = await timed('assets', async () => {
+                    attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress);
+                    return attempt.assets;
+                });
+                if (!collector && assets.entityScopes) {
+                    ownership = prepareSpawnOwnership(data, result, assets.entityScopes, assets.resolveRef.bind(assets))?.();
                 }
+                options?.onMissingAssets?.(result.missing);
+                if (options?.abortOnMissingAssets && result.missing.length > 0) {
+                    throw new MissingAssetsError(result.missing);
+                }
+                assets.resolveSceneAssetPaths(data, result);
+                applyTextureMetadata(data, result.textureHandles);
             }
+            const entities = await timed('spawn', () => {
+                attempt.entities = spawnAndLoadEntities(world, data, options?.externalEntities, options?.onPhase);
+                return attempt.entities;
+            });
+            ownership?.attach(world, entities);
+            assets?.trackSceneAssetReferences(data, entities);
+            registerDeferredInstances(world, deferred, entities);
+            const result = attempt.assets;
+            if (result && collector) {
+                for (const handle of result.materialHandles.values()) if (handle) collector.materialHandles.add(handle);
+                collector.scope?.absorb(result.scope);
+            } else if (assets?.entityScopes) {
+                result?.scope.releaseAll();
+            }
+            return entities;
+        } finally {
+            ownership?.release();
         }
-        const entities = await timed('spawn', () => {
-            spawned = spawnAndLoadEntities(world, data, options?.externalEntities, options?.onPhase);
-            return spawned;
-        });
-        ownership?.attach(world, entities);
-        options?.assets?.trackSceneAssetReferences(data, entities);
-        return entities;
-    } catch (error) {
-        if (spawned) for (const entity of spawned.values()) {
-            try { if (world.valid(entity)) world.despawn(entity); }
-            catch { /* A cleanup callback must not hide the original load failure. */ }
-        }
-        throw error;
-    } finally {
-        ownership?.release();
-        releasePreload?.();
-    }
+    });
 }
 
 function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {

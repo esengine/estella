@@ -9,6 +9,9 @@ import type { PrefabResult } from '../src/asset/AssetLoader';
 import { World } from '../src/ecs/world';
 import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
 import { createMockModule } from './mocks/wasm';
+import { App } from '../src/app/app';
+import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
+import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({}),
@@ -60,6 +63,27 @@ function harness(missingChild = false) {
 }
 
 describe('scene prefab source ownership', () => {
+    it('releases the packaged scene’s nested source documents after expansion, including on failure', async () => {
+        const { assets: reader, scene } = harness();
+        const app = App.new(), options = { app, module: null, source: { backend: reader.backend,
+            decodePixels: async () => { throw new Error('unexpected image'); } } };
+        try {
+            await loadRuntimeScene({ ...options, sceneData: { ...scene, entities: [] } });
+            const assets = app.getResource(AssetsResource);
+            const held = await assets.acquireTyped<PrefabResult>('prefab', 'tree.esprefab');
+            try {
+                await expect(loadRuntimeScene({ ...options, sceneData: scene, onPhase: phase => {
+                    if (phase === 'prefab') throw new Error('interrupted');
+                } })).rejects.toThrow('interrupted');
+                expect(assets.sizes().refRows).toBe(1);
+                expect(app.world.getAllEntities()).toHaveLength(0);
+                await loadRuntimeScene({ ...options, sceneData: scene });
+                expect(app.world.getAllEntities()).toHaveLength(4);
+            } finally { held.release(); }
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { app.quit(); reader.releaseAll(); }
+    });
+
     it('repeated loads release repeated and nested source acquisitions while keeping expanded entities alive', async () => {
         const { world, assets, scene, options, unloaded } = harness();
         const original = JSON.stringify(scene);

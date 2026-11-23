@@ -7,13 +7,14 @@
 
 import { SceneOwner, Disabled, Parent } from '../ecs/component';
 import { bakesOf } from './bakes';
-import { loadSceneData, loadSceneDataJob, revealStagedEntities, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs,
+import { loadSceneData, loadSceneDataJob, revealStagedEntities, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets,
          type SceneData, type StagedSpawn } from '../scene/scene';
 import { registerDeferredInstances } from '../scene/deferredInstances';
+import { runSceneLoad, scenePhaseRunner, type SceneLoadAttempt } from '../scene/sceneLoadAttempt';
+import { prepareSpawnOwnership, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
-import type { PrefabData } from '../prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import type { ESEngineModule } from '../wasm';
@@ -30,7 +31,7 @@ import { bindAssetReferenceTracking } from '../asset/assetReferenceTracking';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
-import { SceneManager, type SceneConfig } from '../scene/sceneManager';
+import { SceneManager, type SceneConfig, type SceneContext } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
 import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
@@ -343,12 +344,16 @@ export interface PreparedRuntimeScene {
     readonly options: LoadRuntimeSceneOptions;
     readonly sceneData: SceneData;
     readonly assetResult: SceneAssetResult;
+    readonly retainEntityAssets?: () => PreparedSpawnOwnership;
     readonly spineManager: SpineManager | null;
     readonly spineAssetInfo: Map<string, SpineAssetInfo>;
     readonly dragonBonesManager: DragonBonesManager | null;
     readonly dragonBonesAssetInfo: Map<string, DragonBonesAssetInfo>;
     readonly discovered: ReturnType<typeof discoverSceneAssets>;
 }
+
+/** Apps already told that physics is not installed (see prepareRuntimeScene). */
+const saidNoPhysics = new WeakSet<App>();
 
 /**
  * Everything a scene load can do before the world can tell: fetch, expand,
@@ -359,19 +364,16 @@ export interface PreparedRuntimeScene {
  *
  * @experimental
  */
-/** Apps already told that physics is not installed (see prepareRuntimeScene). */
-const saidNoPhysics = new WeakSet<App>();
+export function prepareRuntimeScene(options: LoadRuntimeSceneOptions, sceneOwned = false): Promise<PreparedRuntimeScene> {
+    return runSceneLoad(options.app.world, attempt => readRuntimeScene(options, attempt, sceneOwned));
+}
 
-export async function prepareRuntimeScene(
-    options: LoadRuntimeSceneOptions,
+async function readRuntimeScene(
+    options: LoadRuntimeSceneOptions, attempt: SceneLoadAttempt, sceneOwned: boolean,
 ): Promise<PreparedRuntimeScene> {
     const { app, module, source, physicsConfig, physicsEnabled, sceneName } = options;
     const onPhase = options.onPhase;
-    const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
-        if (!onPhase) return run();
-        const began = performance.now();
-        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
-    };
+    const timed = scenePhaseRunner(onPhase);
     // Waiting for a turn is not work: a phase is charged its own time and not the frames it waited (`wait`).
     const gate = options.gate;
     const turn = async (): Promise<void> => {
@@ -403,14 +405,7 @@ export async function prepareRuntimeScene(
     let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
     if (sceneHasPrefabEntries(sceneData)) {
         await turn();
-        sceneData = await timed('prefab', () => expandScenePrefabs(sceneData, async (ref) => {
-            try {
-                return ((await runtimeAssets.loadPrefab(ref))?.data as PrefabData) ?? null;
-            } catch (e) {
-                log.warn('scene', `Failed to load prefab "${ref}": ${e instanceof Error ? e.message : String(e)}`);
-                return null;
-            }
-        }));
+        sceneData = await timed('prefab', () => expandScenePrefabAssets(sceneData, runtimeAssets));
     }
     // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything
     // of it spawns.
@@ -446,11 +441,15 @@ export async function prepareRuntimeScene(
     // they scale with the cell and not with what it references, which is not
     // what "asset discovery" sounds like it costs.
     if (onPhase) onPhase('discover', performance.now() - discoverBegan);
-    const assetResult = await timed('assets',
-        // A streamed cell's preload is one of hundreds, and its numbers are in the residency report (`delivery`): not a console
-        // line each.
-        () => sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info' }));
+    const assetResult = await timed('assets', async () => {
+        attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, undefined, {
+            skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info',
+        });
+        return attempt.assets;
+    });
     await turn();
+    const retainEntityAssets = sceneOwned ? undefined
+        : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneAssets.resolveRef.bind(sceneAssets));
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
@@ -609,11 +608,18 @@ export async function prepareRuntimeScene(
     // document reference resolves to nothing, quietly.
 
     return {
-        name: sceneName, options, sceneData, assetResult,
+        name: sceneName, options, sceneData, assetResult, retainEntityAssets,
         spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered,
     };
 }
 
+
+interface PublicationTarget {
+    externalEntities?: ReadonlyMap<number, Entity> | (() => ReadonlyMap<number, Entity> | undefined);
+    context?: SceneContext | null;
+}
+
+type SpreadSceneSpawn = (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>;
 
 /**
  * Bring a prepared scene into the world.
@@ -624,31 +630,36 @@ export async function prepareRuntimeScene(
  *
  * @experimental
  */
-export async function publishRuntimeScene(
+export function publishRuntimeScene(
     prepared: PreparedRuntimeScene,
     // Resolved HERE and not at preparation: between the two the target may have
     // gone, the world may have switched, a generation may have moved. A prepared
     // scene holding a runtime handle would be holding a guess.
-    now?: { externalEntities?: ReadonlyMap<number, Entity> },
+    now?: PublicationTarget,
     /**
      * Spread the spawn over frames (a streamed cell): handed the staged spawn as a job, it runs it under the frame's budget.
      * The scene's roots stay switched off until the end of this call and are switched on whole, so nothing sees it half
      * arrived — time-sliced, with the level visible only once it returns true.
      */
-    spread?: (job: Generator<number, StagedSpawn, void>) => Promise<StagedSpawn>,
+    spread?: SpreadSceneSpawn,
+): Promise<void> {
+    return runSceneLoad(prepared.options.app.world, attempt =>
+        publishPreparedScene(prepared, attempt, now, spread), prepared.assetResult);
+}
+
+async function publishPreparedScene(
+    prepared: PreparedRuntimeScene, attempt: SceneLoadAttempt,
+    now?: PublicationTarget, spread?: SpreadSceneSpawn,
 ): Promise<void> {
     const { sceneData, assetResult, spineManager, spineAssetInfo,
-            dragonBonesManager, dragonBonesAssetInfo, discovered } = prepared;
-    const options = now?.externalEntities
-        ? { ...prepared.options, externalEntities: now.externalEntities }
-        : prepared.options;
-    const { app, module, uiTheme, uiThemeOverrides, sceneName } = options;
-    const onPhase = options.onPhase;
-    const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
-        if (!onPhase) return run();
-        const began = performance.now();
-        try { return await run(); } finally { onPhase(phase, performance.now() - began); }
-    };
+            dragonBonesManager, dragonBonesAssetInfo } = prepared;
+    const { app, module, uiTheme, uiThemeOverrides, sceneName, onPhase } = prepared.options;
+    const links = now?.externalEntities;
+    const externalEntities = (typeof links === 'function' ? links() : links) ?? prepared.options.externalEntities;
+    const timed = scenePhaseRunner(onPhase);
+    const hasSceneManager = !!sceneName && app.hasResource(SceneManager);
+    const ctx = now?.context !== undefined ? now.context
+        : hasSceneManager ? app.getResource(SceneManager).getScene(sceneName) : null;
     /**
      * The synchronous sibling of `timed`, for the steps that ARE synchronous.
      *
@@ -661,13 +672,21 @@ export async function publishRuntimeScene(
         const began = performance.now();
         try { return run(); } finally { onPhase(phase, performance.now() - began); }
     };
-    void discovered;
-
     let staged: StagedSpawn | null = null;
-    const entityMap = spread
-        // Not timed as one phase: its own phases (spawn.*) are charged their work, and not the frames between.
-        ? (staged = await spread(loadSceneDataJob(app.world, sceneData, options.externalEntities, onPhase))).entities
-        : await timed('spawn', () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
+    let entityMap: Map<number, Entity>;
+    if (spread) {
+        const spawning: StagedSpawn = { entities: new Map(), hidden: [] };
+        attempt.entities = spawning.entities;
+        const job = loadSceneDataJob(app.world, sceneData, externalEntities, onPhase, spawning);
+        try { staged = await spread(job); }
+        finally { job.return(spawning); }
+        entityMap = staged.entities;
+    } else {
+        entityMap = await timed('spawn', () => {
+            attempt.entities = loadSceneData(app.world, sceneData, externalEntities, onPhase);
+            return attempt.entities;
+        });
+    }
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
@@ -699,19 +718,14 @@ export async function publishRuntimeScene(
         }));
     }
 
-    if (sceneName && app.hasResource(SceneManager)) {
+    if (hasSceneManager) {
         // Adopt into the SceneManager's instance set so unload/switchTo actually
         // despawns these entities — SceneOwner alone is only the persistence tag.
-        const ctx = app.getResource(SceneManager).getScene(sceneName);
         mark('adopt', () => {
             for (const entity of entityMap.values()) {
                 if (ctx) ctx.adopt(entity);
                 else app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
             }
-            // The RECEIPTS, not the paths: after a hot update a path-addressed
-            // release gives back the oldest era, which belongs to whoever loaded
-            // before the update.
-            ctx?.trackAssetScope(assetResult.scope);
         });
     }
 
@@ -720,6 +734,14 @@ export async function publishRuntimeScene(
         const whole = staged;
         mark('reveal', () => revealStagedEntities(app.world, whole));
     }
+    if (ctx) {
+        ctx.trackAssetScope(assetResult.scope);
+    } else {
+        const ownership = prepared.retainEntityAssets?.();
+        try { ownership?.attach(app.world, entityMap); }
+        finally { ownership?.release(); }
+        assetResult.scope.releaseAll();
+    }
 }
 
 /**
@@ -727,7 +749,9 @@ export async function publishRuntimeScene(
  * the shape the two halves are defined against.
  */
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    await publishRuntimeScene(await prepareRuntimeScene(options));
+    const { app, sceneName } = options;
+    const context = sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
+    await publishRuntimeScene(await prepareRuntimeScene(options, !!context), { context });
 }
 
 
@@ -809,7 +833,7 @@ export function createRuntimeSceneConfig(
         }
         return prepareRuntimeScene({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
-        });
+        }, options.app.hasResource(SceneManager));
     };
     const config: SceneConfig = {
         name,
@@ -837,10 +861,10 @@ export function createRuntimeSceneConfig(
             hurried = false;
             return owed;
         },
-        async setup() {
+        async setup(context) {
             const ready = prepared ?? await readied();
             prepared = null;
-            await publishRuntimeScene(ready, { externalEntities: config.externalEntities?.() },
+            await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },
     };

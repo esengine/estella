@@ -173,8 +173,8 @@ const preloadClock = (): number => (typeof performance !== 'undefined' ? perform
 /**
  * Run an array of lazy task thunks with at most `maxConcurrent` in
  * flight. Calls `onEach` once per task completion (success or failure)
- * so callers can drive a progress indicator. Never rejects — individual
- * task errors are expected to be handled inside the thunk itself.
+ * so callers can drive a progress indicator. On error, active tasks settle
+ * before their caller can roll back the batch.
  */
 async function runWithConcurrency(
     tasks: ReadonlyArray<() => Promise<void>>,
@@ -184,14 +184,17 @@ async function runWithConcurrency(
     if (tasks.length === 0) return;
     let cursor = 0;
     const workers: Promise<void>[] = [];
+    let failure: { error: unknown } | undefined;
     const worker = async (): Promise<void> => {
-        while (cursor < tasks.length) {
-            const i = cursor++;
-            try {
-                await tasks[i]();
-            } finally {
-                onEach();
+        try {
+            while (cursor < tasks.length) {
+                const task = tasks[cursor++]!;
+                try { await task(); }
+                finally { if (!failure) onEach(); }
             }
+        } catch (error) {
+            failure ??= { error };
+            cursor = tasks.length;
         }
     };
     const slots = Math.min(maxConcurrent, tasks.length);
@@ -199,6 +202,7 @@ async function runWithConcurrency(
         workers.push(worker());
     }
     await Promise.all(workers);
+    if (failure) throw failure.error;
 }
 
 export interface AssetsOptions {
@@ -1873,23 +1877,25 @@ export class Assets {
 
         const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
         const began = preloadClock();
-        await runWithConcurrency(tasks, maxConcurrent, () => {
-            onProgress?.(++loadedCount, totalCount);
-        });
-        const wallMs = preloadClock() - began;
-        if (totalCount > 0) {
-            const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
-                .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
-            log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+        try {
+            await runWithConcurrency(tasks, maxConcurrent, () => {
+                onProgress?.(++loadedCount, totalCount);
+            });
+            const wallMs = preloadClock() - began;
+            if (totalCount > 0) {
+                const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
+                    .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
+                log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+            }
+            warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
+
+            return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
+                     probeVolumeHandles, releaseCallbacks, scope, acquisitions, missing, timings, wallMs };
+        } catch (error) {
+            try { scope.releaseAll(); }
+            catch (cleanupError) { log.warn('asset', 'Scene preload cleanup failed', cleanupError); }
+            throw error;
         }
-
-        // `unresolved` refs warn above; a load that THREW only reached `missing`,
-        // which callers may ignore — so a scene drew with no textures and no
-        // complaint, indistinguishable from a scene that has none.
-        warnFailedLoads(missing.filter((m) => m.reason === 'load-failed'));
-
-        return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                 probeVolumeHandles, releaseCallbacks, scope, acquisitions, missing, timings, wallMs };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
