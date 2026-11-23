@@ -267,6 +267,69 @@ describe('a replacement is a transaction per owning scope', () => {
         return { acquire, finish, load };
     }
 
+    it.each([Sprite, MeshRenderer])('keeps scene and entity textures with their respective owners on $_name', async component => {
+        const { app, assets, manager } = sceneApp();
+        const world = app.world;
+        manager.register({ name: 'room', setup: sceneHolding(app, assets, 'scene.png', [{ component, field: 'texture' }]) });
+        await manager.load('room');
+        const [entity] = world.getEntitiesWithComponents([component]);
+        const scene = manager.assetScopeFor('room')!;
+        const local = assets.entityScopes.ensure(world, entity);
+        const privateTexture = local.add(await assets.acquireTexture('local.png')).value.handle;
+        world.insert(entity, TrailRenderer, { texture: privateTexture });
+        const original = world.get(entity, component).texture;
+
+        assets.invalidate('scene.png');
+        await settle(app);
+        const sceneTexture = assets.getTexture('scene.png')!.handle;
+        expect(world.get(entity, component).texture).toBe(sceneTexture);
+        expect(world.get(entity, TrailRenderer).texture).toBe(privateTexture);
+        expect(scene.bindingLease('texture', sceneTexture)).toBeDefined();
+        expect(local.bindingLease('texture', sceneTexture)).toBeUndefined();
+        expect(pool.releaseTexture).toHaveBeenCalledWith(original);
+
+        assets.invalidate('local.png');
+        await settle(app);
+        const nextPrivate = assets.getTexture('local.png')!.handle;
+        expect(world.get(entity, TrailRenderer).texture).toBe(nextPrivate);
+        expect(local.bindingLease('texture', nextPrivate)).toBeDefined();
+        expect(pool.releaseTexture).toHaveBeenCalledWith(privateTexture);
+        expect([scene.size, local.size]).toEqual([1, 1]);
+        world.despawn(entity);
+        expect(pool.releaseTexture).toHaveBeenCalledWith(nextPrivate);
+        expect(pool.releaseTexture).not.toHaveBeenCalledWith(sceneTexture);
+        await manager.unload('room');
+        expect(pool.releaseTexture).toHaveBeenCalledWith(sceneTexture);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('preserves the scene receipt when the entity already holds the incoming generation', async () => {
+        const { app, assets, manager } = sceneApp();
+        const world = app.world;
+        manager.register({ name: 'room', setup: sceneHolding(app, assets, 'shared.png', [{ component: MeshRenderer, field: 'texture' }]) });
+        await manager.load('room');
+        const [entity] = world.getEntitiesWithComponents([MeshRenderer]);
+        const { acquire, finish } = delayNextTexture(assets);
+        assets.invalidate('shared.png');
+        await app.tick(1 / 60);
+        const replacement = await acquire('shared.png');
+        const handle = replacement.value.handle;
+        const local = assets.entityScopes.ensure(world, entity);
+        local.add(replacement.retain()!);
+        world.update(entity, MeshRenderer, data => { data.normalMap = handle; });
+        finish(replacement);
+        await settle(app);
+
+        expect(world.get(entity, MeshRenderer)).toMatchObject({ texture: handle, normalMap: handle });
+        expect(manager.assetScopeFor('room')!.bindingLease('texture', handle)).toBeDefined();
+        expect([local.size, assets.sizes().refRows]).toEqual([1, 2]);
+        world.despawn(entity);
+        expect(pool.releaseTexture).not.toHaveBeenCalledWith(handle);
+        await manager.unload('room');
+        expect(assets.sizes().refRows).toBe(0);
+        expect(pool.releaseTexture).toHaveBeenCalledWith(handle);
+    });
+
     it('replaces a shared texture with bounded component reads and one load for independent owners', async () => {
         const { app, assets } = sceneApp();
         const source = await assets.acquireTexture('shared.png');

@@ -30,9 +30,8 @@ import type { World } from './ecs/world';
 import { defineResource } from './ecs/resource';
 import { Schedule, defineSystem, GetWorld } from './ecs/system';
 import { assetScopeForEntity } from './scene/sceneManager';
-import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
-import type { AssetScope, AssetLease } from './asset/AssetLease';
+import type { AssetLease } from './asset/AssetLease';
 import type { AssetFieldType } from './scene/scene';
 import { componentsBindingAssetTypes, liveAssetBindings } from './asset/liveAssetBindings';
 import { migrateLiveBindings } from './asset/liveAssetRebind';
@@ -94,12 +93,6 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
         }
     });
 
-    // Who owns what an entity holds is answered in ONE place, not here: a
-    // promoted entity carries no scene tag and owns its assets itself, and a
-    // second copy of this rule is how it came to be handed to the app instead.
-    const ownerScopeOf = (entity: Entity, create: boolean): AssetScope | null =>
-        assetScopeForEntity(app, assets, entity, create);
-
     function publish(world: World, change: BindingChange, lease: AssetLease): void {
         try {
             if (change.epoch !== assets.epoch) return;
@@ -109,7 +102,9 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
                 pending.push(change);
                 return;
             }
-            const { moved, revisit } = migrateLiveBindings(world, type, oldValue, lease, ownerScopeOf);
+            // The outgoing receipt identifies the owner even if another field already owns the replacement.
+            const { moved, revisit } = migrateLiveBindings(world, type, oldValue, lease,
+                (entity, create) => assetScopeForEntity(app, assets, entity, type, oldValue, create));
             if (revisit) pending.push(change);
             else if (!moved) log.warn('asset', `hot-update rebind: placed nothing for "${type}" at ${String(oldValue)}`);
         } finally {

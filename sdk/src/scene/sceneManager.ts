@@ -7,7 +7,7 @@
 
 import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
-import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
+import type { AssetFieldType, SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import { visitEntityAssetBindings } from '../asset/liveAssetBindings';
 import { sameAcquisition } from '../asset/leaseBindings';
@@ -1184,20 +1184,16 @@ export const SceneManager = defineResource<SceneManagerState>(
     'SceneManager'
 );
 
-/**
- * Prefer the entity's own asset scope, then its scene. Promoted entities retain their own scope after unloading.
- * A lookup may create a scope ending at despawn. With `create` disabled it returns null for an untracked entity.
- */
-export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity): AssetScope;
-export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity, create: boolean): AssetScope | null;
-export function assetScopeForEntity(app: App, assets: AssetsData, entity: Entity, create = true): AssetScope | null {
+/** Resolve the receipt being replaced. A scene entity can own other bindings independently. */
+export function assetScopeForEntity(
+    app: App, assets: AssetsData, entity: Entity, type: AssetFieldType, outgoing: number | string, create: boolean,
+): AssetScope | null {
     const own = assets.entityScopes.scopeFor(entity, app.world);
-    if (own) return own;
-    const owner = app.world.tryGet(entity, SceneOwner);
-    const scene = owner?.scene && app.hasResource(SceneManager)
-        ? app.getResource(SceneManager).assetScopeFor(owner.scene)
-        : null;
-    return scene ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
+    if (own && assets.leaseForBinding(own, type, outgoing)) return own;
+    const name = app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
+    const scene = name ? app.getResource(SceneManager).assetScopeFor(name) : null;
+    if (scene && (!own || assets.leaseForBinding(scene, type, outgoing))) return scene;
+    return own ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
 }
 
 // =============================================================================
