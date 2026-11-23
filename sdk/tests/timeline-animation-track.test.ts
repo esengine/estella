@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { World } from '../src/ecs/world';
-import { Transform, getComponent } from '../src/ecs/component';
+import { Sprite, Transform, getComponent } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
 import { animationClipWeights, clipLocalTime, sampleAnimationTracks } from '../src/timeline/timelineAnimation';
 import { WrapMode, TrackType, type AnimationTrack, type TimelineAsset } from '../src/timeline/TimelineTypes';
@@ -187,6 +187,30 @@ describe('sampleAnimationTracks', () => {
             for (let i = 0; i < 3; i++) sampleAnimationTracks(tl, 1, rig, deps(), lookupMore);
             expect(x()).toBeCloseTo(107, 6);
         });
+    });
+
+    it('keeps a separate rest for movement and tint on the same joint until the preview rebinds', () => {
+        const move = hold(14);
+        const take = parseTimelineAsset({ ...move, tracks: [...move.tracks, {
+            type: 'property', name: 'Tint', childPath: 'Arm', component: 'Sprite',
+            channels: [{ property: 'color.a', keyframes: [{ time: 0, value: .25 }] }],
+        }] });
+        const tl = timeline({ weight: .5, clips: [clip({ clip: 'both' })] });
+        const sample = () => sampleAnimationTracks(tl, .5, rig, deps(), () => take);
+        const place = (position: number, alpha: number) => {
+            world.insert(arm, Transform, { position: { x: position, y: 0, z: 0 } });
+            world.insert(arm, Sprite, { color: { r: 1, g: 1, b: 1, a: alpha } });
+        };
+        place(2, .75);
+        sample();
+        sample();
+        expect(x()).toBe(8);
+        expect(world.get(arm, Sprite).color.a).toBe(.5);
+        forgetAnimationRests(world);
+        place(10, 1);
+        sample();
+        expect(x()).toBe(12);
+        expect(world.get(arm, Sprite).color.a).toBe(.625);
     });
 
     it('plays from Clip In at the clip’s speed', () => {

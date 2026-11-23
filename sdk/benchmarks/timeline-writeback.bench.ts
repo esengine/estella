@@ -4,11 +4,13 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bench, describe } from 'vitest';
-import { Animator, AnimatorControllerAPI } from '../src/animation/Animator';
+import { Animator, AnimatorControllerAPI, type AnimatorControllerDef } from '../src/animation/Animator';
 import { Pose } from '../src/animation/pose';
 import { getComponent, Name, Sprite, Transform } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
 import { World } from '../src/ecs/world';
+import { q } from '../src/math/quat';
+import { v3 } from '../src/math/vec3';
 import {
     createRootPlacement, evaluateChannel, sampleRootPlacement, sampleTimeline, sampleTimelineIntoPose, type SampleDeps,
 } from '../src/timeline/TimelineEvaluator';
@@ -23,8 +25,9 @@ import { HAS_WASM, loadWasmModule } from '../tests/helpers/loadWasm';
 const examples = resolve(dirname(fileURLToPath(import.meta.url)), '../../examples');
 const example = (file: string) => parseTimelineAsset(JSON.parse(readFileSync(resolve(examples, file), 'utf8')));
 
-function spriteFades() {
+function spriteHierarchy() {
     const paths: string[] = [];
+    const tips: string[] = [];
     const extend = (parent: string) => {
         const path = (parent ? parent + '/' : '') + 'Node' + paths.length;
         paths.push(path);
@@ -35,23 +38,54 @@ function spriteFades() {
     for (let branch = 0; branch < 8; branch++) {
         let tip = trunk;
         for (let i = 0; i < 6; i++) tip = extend(tip);
+        tips.push(tip);
     }
+    return { paths, tips };
+}
+
+const sprites = spriteHierarchy();
+const aimTarget = { x: 50, y: 45, z: 10 };
+
+function spriteFades(withMovement = false, reverse = false) {
+    const targets = [{ component: 'Sprite', property: 'color.a' }];
+    if (withMovement) targets.push({ component: 'Transform', property: 'position.x' });
     return parseTimelineAsset({
         version: '1.3', type: 'timeline', duration: 1, wrapMode: 'loop',
-        tracks: paths.map((childPath, index) => ({
-            type: 'property', name: 'Tint' + index, childPath, component: 'Sprite',
-            channels: [{ property: 'color.a', keyframes: [0, 1].map(time => ({
-                time, value: time, inTangent: 0, outTangent: 0, interpolation: 'linear',
+        tracks: sprites.paths.flatMap((childPath, index) => targets.map(({ component, property }) => ({
+            type: 'property', name: component + index, childPath, component,
+            channels: [{ property, keyframes: [0, 1].map(time => ({
+                time, value: reverse ? 1 - time : time, inTangent: 0, outTangent: 0, interpolation: 'linear',
             })) }],
-        })),
+        }))),
     });
 }
 
-const clips = {
-    'authored 2D intro': () => example('cutscene/assets/timelines/intro.estimeline'),
-    'authored 3D jog': () => example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline'),
-    '2D sprite fades': spriteFades,
-};
+const sampleModes = ['direct', 'pose', 'controller', 'reload'];
+const clips = [
+    { name: 'authored 2D intro', load: () => example('cutscene/assets/timelines/intro.estimeline'), modes: sampleModes },
+    { name: 'authored 3D jog', load: () => example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline'), modes: sampleModes },
+    { name: '2D sprite fades', load: spriteFades, modes: sampleModes },
+    { name: 'moving and fading sprites', load: () => spriteFades(true), modes: ['additive', 'blend', 'look-at'] },
+];
+
+function playback(clip: string, mode: string): AnimatorControllerDef {
+    const motion = { kind: TIMELINE_MOTION, clip, loop: true };
+    const state = { name: 'play', motion, transitions: [] };
+    const def: AnimatorControllerDef = { initialState: 'play', parameters: [], states: [state] };
+    const reverse = { ...motion, clip: 'reverse' };
+    if (mode === 'blend') {
+        def.parameters.push({ name: 'mix', type: 'float', default: .25 });
+        def.states[0].motion = { kind: 'blend1d', parameter: 'mix', thresholds: [
+            { value: 0, motion }, { value: 1, motion: reverse },
+        ] };
+    } else if (mode === 'additive') {
+        def.layers = [{ name: 'reverse', weight: .25, blend: 'additive',
+            initialState: 'play', states: [{ ...state, motion: reverse }] }];
+    } else if (mode === 'look-at') {
+        def.ik = sprites.tips.map(tip => ({ kind: 'look-at', tip, target: 'AimTarget', axis: 'z' }));
+    }
+    return def;
+}
 
 describe('authored dodge root motion, 16 actors', () => {
     for (const edit of [false, true]) {
@@ -85,12 +119,13 @@ describe('authored dodge root motion, 16 actors', () => {
     }
 });
 
-for (const [name, load] of Object.entries(clips)) {
+for (const { name, load, modes } of clips) {
     describe.skipIf(!HAS_WASM)(`${name}, 16 actors`, () => {
         const asset = load();
         const tracks = asset.tracks.filter(track => track.type === TrackType.Property);
-        for (const mode of ['direct', 'pose', 'controller', 'reload']) {
+        for (const mode of modes) {
             const reload = mode === 'reload';
+            const composed = mode === 'additive' || mode === 'blend';
             let registry: CppRegistry, world: World, frame: number;
             const actors: { root: Entity; pose: Pose }[] = [];
             let bindings: SampleDeps;
@@ -120,22 +155,24 @@ for (const [name, load] of Object.entries(clips)) {
                     bindings = {
                         world, getComponent, resolveChild: (root, path) => resolveChildEntity(world, root, path),
                     };
-                    if (mode === 'controller' || reload) {
+                    if (mode !== 'direct' && mode !== 'pose') {
                         timeline = new TimelineAPI();
                         timeline.registerAsset(name, reload ? parseTimelineAsset(asset) : asset);
+                        if (composed) timeline.registerAsset('reverse', spriteFades(true, true));
                         controller = new AnimatorControllerAPI();
                         controller.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
-                        controller.registerController('playback', {
-                            initialState: 'play', parameters: [], states: [{
-                                name: 'play', motion: { kind: TIMELINE_MOTION, clip: name, loop: true }, transitions: [],
-                            }],
-                        });
+                        controller.registerController('playback', playback(name, mode));
                     }
                     frame = 0;
                     for (let i = 0; i < 16; ++i) {
                         const root = world.spawn();
                         if (controller) world.insert(root, Animator, { controller: 'playback', enabled: true });
                         actors.push({ root, pose: new Pose() });
+                        if (mode === 'look-at') {
+                            const target = world.spawn('AimTarget');
+                            world.insert(target, Transform, { position: aimTarget });
+                            world.setParent(target, root);
+                        }
                         const nodes = new Map([['', root]]);
                         for (const track of tracks) {
                             let parent = root, path = '';
@@ -158,10 +195,24 @@ for (const [name, load] of Object.entries(clips)) {
                         controller.update(world, 0);
                         controller.update(world, asset.duration / 3);
                     } else sampleAt(asset.duration / 3);
-                    const tint = tracks[0].component === 'Sprite';
-                    for (const track of tint ? tracks : [tracks[0]]) {
+                    if (mode === 'look-at') {
+                        world.ensureTransformsComposed();
+                        for (const { root } of actors) for (const path of sprites.tips) {
+                            const joint = bindings.resolveChild(root, path);
+                            if (joint === null) throw new Error('Missing look-at joint: ' + path);
+                            const { worldPosition, worldRotation } = world.get(joint, Transform);
+                            const direction = v3.normalize(v3.sub(aimTarget, worldPosition));
+                            const facing = q.rotate(worldRotation, { x: 0, y: 0, z: 1 });
+                            if (!v3.equals(facing, direction, .0001)) throw new Error('Incorrect joint orientation: ' + path);
+                        }
+                    }
+                    for (const track of tracks[0].component === 'Sprite' ? tracks : [tracks[0]]) {
+                        const tint = track.component === 'Sprite';
                         const channel = track.channels.find(c => c.property === (tint ? 'color.a' : 'position.x'))!;
-                        const expected = evaluateChannel(channel, asset.duration / 3);
+                        const base = evaluateChannel(channel, asset.duration / 3);
+                        let expected = base;
+                        if (mode === 'additive') expected = base - .25 * base;
+                        if (mode === 'blend') expected = .75 * base + .25 * (1 - base);
                         for (const { root } of actors) {
                             const target = bindings.resolveChild(root, track.childPath);
                             if (target === null) throw new Error('Missing animation target: ' + track.childPath);

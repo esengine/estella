@@ -5,7 +5,7 @@
  * does not depend on which motion was sampled first.
  */
 import { describe, it, expect } from 'vitest';
-import { Pose, mixPoses, Animator, AnimatorControllerAPI,
+import { Pose, mixPoses, addPoseOver, Animator, AnimatorControllerAPI,
          type AnimatorData, type AnimatorControllerDef } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
@@ -75,6 +75,63 @@ const read = (world: any) => world.get(E, probe()) as {
 };
 
 describe('the pose mixer', () => {
+    it('finds only live tracks by full entity handle and registered component name', () => {
+        const world = seedWorld(), pose = new Pose();
+        const def = probe(), alias = { ...def, _id: Symbol('another definition') };
+        const other = defineComponent('SecondMixProbe', { lift: 0 });
+        // The same entity index in a later generation, beyond the signed 32-bit range.
+        const recycled = 0x80000001;
+        world.insert(recycled, def, { lift: 7 });
+
+        const original = pose.track(world, E, def)!;
+        const later = pose.track(world, recycled, def)!;
+        expect(pose.findTrack(E, alias)).toBe(original);
+        expect(pose.track(world, E, alias)).toBe(original);
+        expect(pose.findTrack(recycled, def)).toBe(later);
+        expect(original).not.toBe(later);
+        expect(pose.track(world, E, other)).toBeNull();
+        world.insert(E, other, { lift: 3 });
+        const second = pose.track(world, E, other)!;
+        expect(pose.tracks).toEqual([original, later, second]);
+
+        pose.reset();
+        expect(pose.findTrack(E, def)).toBeUndefined();
+        expect(pose.findTrack(E, other)).toBeUndefined();
+        expect(pose.findTrack(recycled, def)).toBeUndefined();
+        expect(pose.tracks).toHaveLength(0);
+        world.set(E, other, { lift: 11 });
+        expect(pose.track(world, E, other)).toBe(second);
+        expect(second.data.lift).toBe(11);
+        expect(pose.findTrack(E, alias)).toBeUndefined();
+    });
+
+    it('preserves first appearance across component types and ignores stale additive references', () => {
+        const world = seedWorld(), a = new Pose(), b = new Pose(), out = new Pose();
+        const def = probe(), other = defineComponent('OtherMixProbe', { lift: 0 });
+        world.insert(E, other, { lift: 0 });
+        world.insert(E + 1, def, { lift: 0 });
+        const state = (pose: Pose, entity: number, component: typeof def | typeof other, value: number) => {
+            const track = pose.track(world, entity, component)!;
+            track.data.lift = value;
+            track.touched.add('lift');
+        };
+        state(a, E, def, 2);
+        state(a, E, other, 6);
+        state(a, E + 1, def, 10);
+        state(b, E + 1, def, 12);
+        state(b, E, other, 8);
+        mixPoses([{ pose: a, weight: 1 }, { pose: b, weight: 1 }], out, world);
+        expect(out.tracks.map(t => [t.entity, t.def._name, t.data.lift])).toEqual([
+            [E, def._name, 2], [E, other._name, 7], [E + 1, def._name, 11],
+        ]);
+
+        b.reset();
+        state(b, E + 1, def, 4);
+        addPoseOver(out, a, b, .5, world, null);
+        expect(out.tracks.map(t => t.data.lift)).toEqual([2, 7, 14]);
+        expect(b.tracks).toHaveLength(1);
+    });
+
     it('averages scalars and vectors by weight', () => {
         const world = seedWorld();
         const a = poseStating(world, { lift: 0, pos: { x: 0, y: 10, z: 0 } });

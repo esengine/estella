@@ -103,6 +103,23 @@ function reach(targetAt: Vec3, ik: Partial<AnimatorIK> = {}): { world: any; hand
 }
 
 describe('two-bone IK', () => {
+    it('reads an unposed target from the world after reset without adding it to the pose', () => {
+        const world = makeWorld(), pose = new Pose();
+        const target = { x: 1, y: 1.2, z: 0 };
+        const ids = arm(world, target);
+        const old = pose.track(world, ids.target, Transform)!;
+        old.data.position = { x: 0, y: 0, z: 5 };
+        old.touched.add('position');
+        pose.reset();
+
+        solveAnimatorIK(world, RIG, pose, [{
+            kind: 'two-bone', tip: 'Upper/Fore/Hand', target: 'Target',
+        }], {});
+        expect(pose.tracks.map(track => track.entity)).toEqual([ids.upper, ids.fore]);
+        pose.applyTo(world);
+        expect(dist(placeOf(world, 'Upper/Fore/Hand'), target)).toBeLessThan(1e-3);
+    });
+
     it('puts the tip on a target inside its reach', () => {
         // The arm is 2 units long and the target is 1.5 away: a triangle exists,
         // so the hand lands ON it, not near it.

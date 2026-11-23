@@ -16,7 +16,7 @@
  *          and the reason sampling writes here rather than into the world.
  */
 
-import type { Pose, PoseTrack, PoseWorld } from './pose';
+import { PoseTrackIndex, type Pose, type PoseTrack, type PoseWorld } from './pose';
 import {
     accumulateQuat, canonicalizeQuat, isQuatLike as isQuat, isQuaternionField, normalizeQuat,
     type QuatLike as Quat,
@@ -100,20 +100,26 @@ export function mixPoses(
 ): void {
     out.reset();
 
-    const byComponent = new Map<string, Contribution[]>();
+    const byComponent = new PoseTrackIndex<Contribution[]>();
+    // Keep seeding and writeback in first-contributor order across components.
+    const groups: Contribution[][] = [];
     for (let i = 0; i < count; i++) {
         const { pose, weight } = sources[i]!;
         if (weight <= 0) continue;
         for (const track of pose.tracks) {
             if (track.touched.size === 0) continue;
-            const key = `${track.entity} ${track.def._name}`;
-            const list = byComponent.get(key);
-            if (list) list.push({ track, weight });
-            else byComponent.set(key, [{ track, weight }]);
+            const part = { track, weight };
+            const list = byComponent.lookup(track.entity, track.def);
+            if (list) list.push(part);
+            else {
+                const group = [part];
+                byComponent.set(track.entity, track.def, group);
+                groups.push(group);
+            }
         }
     }
 
-    for (const parts of byComponent.values()) {
+    for (const parts of groups) {
         const first = parts[0]!;
         const target = out.track(world, first.track.entity, first.track.def);
         if (!target) continue;

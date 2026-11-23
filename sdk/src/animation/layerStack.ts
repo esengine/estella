@@ -127,13 +127,10 @@ export function addPoseOver(
     world: PoseWorld, reach: LayerReach | null,
 ): void {
     if (weight <= 0) return;
-    const rest = new Map<string, PoseTrack>();
-    for (const track of reference.tracks) rest.set(`${track.entity} ${track.def._name}`, track);
-
     for (const src of layer.tracks) {
         if (src.touched.size === 0) continue;
         if (reach && !reach.admits(src)) continue;
-        const ref = rest.get(`${src.entity} ${src.def._name}`);
+        const ref = reference.findTrack(src.entity, src.def);
         if (!ref) continue;
         const dst = acc.track(world, src.entity, src.def);
         if (!dst) continue;

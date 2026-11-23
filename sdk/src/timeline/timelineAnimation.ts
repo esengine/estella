@@ -22,7 +22,7 @@
  */
 import { TrackType, type AnimationClipItem, type AnimationExtrapolation, type AnimationTrack, type TimelineAsset } from './TimelineTypes';
 import { sampleTimelineIntoPose, type SampleDeps } from './TimelineEvaluator';
-import { Pose, type PoseTrack, type PoseWorld } from '../animation/pose';
+import { Pose, PoseTrackIndex, type PoseTrack, type PoseWorld } from '../animation/pose';
 import { writeProjection } from '../ecs/componentProjection';
 import { mixPoses, type WeightedPose } from '../animation/poseMix';
 import { overlayPose, addPoseOver } from '../animation/layerStack';
@@ -34,7 +34,7 @@ import { getComponent } from '../ecs/component';
 import type { Entity } from '../types';
 
 /** Per world, what each (joint, component) held before an animation track first wrote it. */
-const rests = new WeakMap<object, Map<string, Record<string, unknown>>>();
+const rests = new WeakMap<object, PoseTrackIndex<Record<string, unknown>>>();
 /** Per world, where each rig stood before a root-motion track first moved it. */
 const rootRests = new WeakMap<object, Map<Entity, { position: { x: number; y: number; z: number }; rotation: { w: number; x: number; y: number; z: number } }>>();
 
@@ -241,13 +241,12 @@ function moveRoot(world: PoseWorld, rig: Entity, track: AnimationTrack, time: nu
 function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
     // The rest pose of every joint a clip moves, recorded before a track writes it the first time.
     let rest = rests.get(world as object);
-    if (!rest) rests.set(world as object, (rest = new Map()));
+    if (!rest) rests.set(world as object, (rest = new PoseTrackIndex()));
     for (const { sources } of layers) {
         for (const { pose } of sources) {
             for (const tr of pose.tracks) {
-                const key = `${tr.entity} ${tr.def._name}`;
-                if (tr.touched.size > 0 && !rest.has(key) && world.has(tr.entity, tr.def)) {
-                    rest.set(key, copyData(world.get(tr.entity, tr.def) as Record<string, unknown>));
+                if (tr.touched.size > 0 && !rest.lookup(tr.entity, tr.def) && world.has(tr.entity, tr.def)) {
+                    rest.set(tr.entity, tr.def, copyData(world.get(tr.entity, tr.def)));
                 }
             }
         }
@@ -260,7 +259,7 @@ function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
     const seed = (tr: PoseTrack) => {
         const into = composed.track(world, tr.entity, tr.def);
         if (!into) return;
-        const was = animator ? undefined : restOf.get(`${tr.entity} ${tr.def._name}`);
+        const was = animator ? undefined : restOf.lookup(tr.entity, tr.def);
         for (const f of tr.touched) {
             if (into.touched.has(f)) continue;
             if (was && f in was) into.data[f] = typeof was[f] === 'object' && was[f] !== null ? { ...(was[f] as object) } : was[f];

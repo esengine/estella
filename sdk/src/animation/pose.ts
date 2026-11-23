@@ -46,14 +46,31 @@ interface PoseSlot {
     stamp: number;
 }
 
-const keyOf = (entity: Entity, def: AnyComponentDef): string => `${entity} ${def._name}`;
+/** @internal Components with the same registered name address the same track.
+ *  Keep the full entity handle, including its generation, as the numeric key. */
+export class PoseTrackIndex<T> {
+    private readonly components_ = new Map<string, Map<Entity, T>>();
+
+    lookup(entity: Entity, def: AnyComponentDef): T | undefined {
+        return this.components_.get(def._name)?.get(entity);
+    }
+
+    set(entity: Entity, def: AnyComponentDef, value: T): void {
+        let entities = this.components_.get(def._name);
+        if (!entities) {
+            entities = new Map();
+            this.components_.set(def._name, entities);
+        }
+        entities.set(entity, value);
+    }
+}
 
 /**
  * One motion's evaluated result. {@link reset} retains the track records and
  * their nested values for the next frame.
  */
 export class Pose {
-    private readonly slots_ = new Map<string, PoseSlot>();
+    private readonly slots_ = new PoseTrackIndex<PoseSlot>();
     private readonly live_: PoseTrack[] = [];
     private stamp_ = 0;
 
@@ -67,14 +84,19 @@ export class Pose {
         return this.live_;
     }
 
+    /** @internal Look up a track sampled since reset, without reading the world. */
+    findTrack(entity: Entity, def: AnyComponentDef): PoseTrack | undefined {
+        const slot = this.slots_.lookup(entity, def);
+        return slot?.stamp === this.stamp_ ? slot.track : undefined;
+    }
+
     /**
      * The track for this component, seeded from the world the first time this
      * frame asks for it. The seed is what makes an untouched field survive: a
      * motion animating only position must not zero the rotation beside it.
      */
     track(world: PoseWorld, entity: Entity, def: AnyComponentDef): PoseTrack | null {
-        const key = keyOf(entity, def);
-        const slot = this.slots_.get(key);
+        const slot = this.slots_.lookup(entity, def);
         if (slot && slot.stamp === this.stamp_) return slot.track;
         if (!world.has(entity, def)) return null;
 
@@ -82,7 +104,7 @@ export class Pose {
         readProjection(world, entity, def, track.data);
         track.touched.clear();
         if (slot) slot.stamp = this.stamp_;
-        else this.slots_.set(key, { track, stamp: this.stamp_ });
+        else this.slots_.set(entity, def, { track, stamp: this.stamp_ });
         this.live_.push(track);
         return track;
     }

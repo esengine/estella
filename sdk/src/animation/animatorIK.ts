@@ -126,11 +126,8 @@ function angleBetween(a: Vec3, b: Vec3): number {
  * layers have already replaced.
  */
 function localOf(world: World, pose: Pose, entity: Entity): TransformData | null {
-    for (const track of pose.tracks) {
-        if (track.entity === entity && track.def === Transform) {
-            return track.data as unknown as TransformData;
-        }
-    }
+    const track = pose.findTrack(entity, Transform);
+    if (track?.def === Transform) return track.data as unknown as TransformData;
     return world.has(entity, Transform) ? world.get(entity, Transform) as TransformData : null;
 }
 
