@@ -25,7 +25,7 @@ export interface InsertResult<T> {
 }
 
 export class ScriptStorage {
-    private tsStorage_ = new Map<symbol, Map<Entity, unknown>>();
+    private tsStorage_ = new Map<symbol, { component: ComponentDef<any>; rows: Map<Entity, unknown> }>();
     private entityComponents_ = new Map<Entity, Set<symbol>>();
     /**
      * Components held as rows rather than objects, by id. A component qualifies
@@ -174,7 +174,7 @@ export class ScriptStorage {
     }
 
     get<T>(entity: Entity, component: ComponentDef<T>): T {
-        const storage = this.tsStorage_.get(component._id);
+        const storage = this.getStorageById(component._id);
         if (!storage) {
             throw new Error(`Component not found: ${component._name}`);
         }
@@ -182,12 +182,12 @@ export class ScriptStorage {
     }
 
     has<T>(entity: Entity, component: ComponentDef<T>): boolean {
-        const storage = this.tsStorage_.get(component._id);
+        const storage = this.getStorageById(component._id);
         return storage?.has(entity) ?? false;
     }
 
     remove<T>(entity: Entity, component: ComponentDef<T>): void {
-        const storage = this.tsStorage_.get(component._id);
+        const storage = this.getStorageById(component._id);
         storage?.delete(entity);
         if (this.pools_.get(component._id)?.delete(entity)) this.layoutEpoch_++;
         const ids = this.entityComponents_.get(entity);
@@ -232,16 +232,20 @@ export class ScriptStorage {
     }
 
     getStorage(component: ComponentDef<any>): Map<Entity, unknown> {
-        let storage = this.tsStorage_.get(component._id);
+        let storage = this.getStorageById(component._id);
         if (!storage) {
             storage = new Map();
-            this.tsStorage_.set(component._id, storage);
+            this.tsStorage_.set(component._id, { component, rows: storage });
         }
         return storage;
     }
 
     getStorageById(id: symbol): Map<Entity, unknown> | undefined {
-        return this.tsStorage_.get(id);
+        return this.tsStorage_.get(id)?.rows;
+    }
+
+    *componentsOf(entity: Entity): IterableIterator<ComponentDef<any>> {
+        for (const id of this.entityComponents_.get(entity) ?? []) yield this.tsStorage_.get(id)!.component;
     }
 
     getEntityComponentIds(entity: Entity): Set<symbol> | undefined {
@@ -251,7 +255,7 @@ export class ScriptStorage {
     /** Re-order every component's storage so queries iterate in rank order — the
      *  script half of {@link World.applyEntityOrder}. */
     reorderStorages(rankOf: RankOf): void {
-        for (const storage of this.tsStorage_.values()) reorderMapByRank(storage, rankOf);
+        for (const { rows } of this.tsStorage_.values()) reorderMapByRank(rows, rankOf);
     }
 
     removeEntity(entity: Entity): symbol[] {
@@ -259,7 +263,7 @@ export class ScriptStorage {
         if (!ids) return [];
         const removed: symbol[] = [];
         for (const id of ids) {
-            this.tsStorage_.get(id)?.delete(entity);
+            this.getStorageById(id)?.delete(entity);
             if (this.pools_.get(id)?.delete(entity)) this.layoutEpoch_++;
             removed.push(id);
         }
@@ -276,7 +280,7 @@ export class ScriptStorage {
      */
     sizes(): { storages: number; rows: number; entities: number } {
         let rows = 0;
-        for (const storage of this.tsStorage_.values()) rows += storage.size;
+        for (const storage of this.tsStorage_.values()) rows += storage.rows.size;
         return { storages: this.tsStorage_.size, rows, entities: this.entityComponents_.size };
     }
 }

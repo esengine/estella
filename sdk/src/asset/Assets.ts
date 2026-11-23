@@ -59,7 +59,8 @@ import type { PrefabOverride } from '../prefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
-import { getComponentDefaults } from '../ecs/component';
+import { getComponent, getComponentDefaults, type AnyComponentDef } from '../ecs/component';
+import { observesAssetReferences } from './assetReferenceTracking';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { indexSceneAssets, sceneAcquisitionPaths, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
@@ -68,6 +69,7 @@ import { type ReleaseCallback } from './SceneHandle';
 import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import type { World } from '../ecs/world';
+import type { Entity } from '../types';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
@@ -1969,24 +1971,30 @@ export class Assets {
         }
     }
 
+    private readonly referencePath_ = (type: string, handle: number) => this.pathForHandle(type, handle);
+    /** @internal Project this component's stored handles into the optional usage monitor. */
+    readonly syncAssetFieldReferences = (world: World, entity: Entity, component: AnyComponentDef): void => {
+        if (!this.refCounter_ || this.releasing_ || !this.handlePaths_.size || world.isDestructionPending(entity)) return;
+        const data = world.tryGet(entity, component) as Record<string, unknown> | null;
+        this.refCounter_.syncComponent(world, entity, component, data, this.referencePath_);
+    };
+
     /** Record scene users only after source IDs have been mapped to live World entities.
      * Resolution is preparation; source IDs cannot be removed by World.onDespawn. */
     trackSceneAssetReferences(scene: SceneData, entities: ReadonlyMap<number, number>, world?: World): void {
         const counter = this.refCounter_;
         if (!counter) return;
+        const standalone = world && !observesAssetReferences(world, this);
         for (const source of scene.entities) {
             const entity = entities.get(source.id);
             if (entity === undefined || (world && !world.valid(entity)) || !Array.isArray(source.components)) continue;
             for (const comp of source.components) {
-                for (const { field, type } of getComponentAssetFieldDescriptors(comp.type)) {
-                    const handle = comp.data[field];
-                    if (typeof handle !== 'number' || !handle) continue;
-                    const path = this.pathForHandle(type, handle);
-                    if (path === null) continue;
-                    if (type === 'texture') counter.addTextureRef(path, entity, world);
-                    else if (type === 'material') counter.addMaterialRef(path, entity, world);
-                    else if (type === 'font') counter.addFontRef(path, entity, world);
-                }
+                const component = getComponent(comp.type);
+                if (!component?.assetFields.length) continue;
+                if (world) {
+                    if (standalone) counter.observeEntity(world, entity, this.syncAssetFieldReferences);
+                    this.syncAssetFieldReferences(world, entity, component);
+                } else counter.syncComponent(undefined, entity, component, comp.data, this.referencePath_);
             }
         }
     }

@@ -10,7 +10,7 @@
  * pair that got a non-zero handle.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { defineComponent, clearUserComponents, getComponent } from '../src/ecs/component';
 import { Assets } from '../src/asset/Assets';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import type { Backend } from '../src/asset/Backend';
@@ -123,6 +123,36 @@ describe('Assets.resolveSceneAssetPaths → AssetRefCounter', () => {
         expect(counter.getTextureRefs('assets/player.png')).toEqual([entity]);
         world.despawn(entity);
         expect(counter.getTotalRefRows()).toBe(0);
+    });
+    it('follows a standalone component through an empty field and synchronous numeric reassignment', async () => {
+        const assets = makeAssets(), counter = new AssetRefCounter(), world = new World();
+        assets.setRefCounter(counter);
+        const path = 'assets/shared.png', component = getComponent(SPRITE)!;
+        const result = emptyResult();
+        result.textureHandles.set(path, 42);
+        result.materialHandles.set('surface.mat', 42);
+        result.fontHandles.set('text.font', 42);
+        vi.spyOn(assets, 'preloadSceneAssets').mockResolvedValue(result);
+        const scene = sceneWith(7, { texture: path, material: 'surface.mat' });
+        scene.entities[0].components.push({ type: LABEL, data: { font: 'text.font' } });
+        const [entity] = (await loadSceneWithAssets(world, scene, { assets })).values();
+        expect(counter.getTextureRefs(path, world)).toEqual([entity]);
+        world.update(entity, component, data => { data.texture = 0; });
+        expect(counter.getTextureRefs(path, world)).toEqual([]);
+        expect(counter.getMaterialRefs('surface.mat', world)).toEqual([entity]);
+        expect(counter.getFontRefs('text.font', world)).toEqual([entity]);
+        world.remove(entity, getComponent(LABEL)!);
+        expect(counter.getTotalRefRows()).toBe(1);
+        world.resolveSetter(component)!(entity, { ...world.get(entity, component), texture: 42 });
+        expect(counter.getTextureRefs(path, world)).toEqual([entity]);
+        counter.removeTextureRef(path, entity);
+        expect(counter.getTextureRefs(path, world)).toEqual([]);
+        world.update(entity, component, data => { data.texture = 42; });
+        expect(counter.getTextureRefs(path, world)).toEqual([entity]);
+        world.remove(entity, component);
+        expect(counter.getTotalRefRows()).toBe(0);
+        world.despawn(entity);
+        expect(world.getStorageSizes().despawnCallbacks).toBe(0);
     });
     it('records texture refs against the entity id when a handle resolves', () => {
         const assets = makeAssets();

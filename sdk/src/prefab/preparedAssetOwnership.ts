@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { AssetScope, type AssetLease } from '../asset/AssetLease';
+import { AssetScope, type AssetLease, type FieldLeaseBinding } from '../asset/AssetLease';
 import type { SceneAssetResult } from '../asset/Assets';
 import { indexSceneAssets, SceneAssetOwners, type RefResolver } from '../asset/discoverAssets';
 import type { EntityAssetScopes } from '../asset/entityAssetScopes';
 import type { World } from '../ecs/world';
+import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
 import type { SceneData } from '../scene/scene';
 
@@ -37,6 +38,12 @@ export function prepareSpawnOwnership(
         }
     }
     if (!sources.size) return undefined;
+    const components = new Map<number, AnyComponentDef[]>();
+    for (const source of scene.entities) {
+        if (!sources.has(source.id)) continue;
+        const bound = source.components.map(row => getComponent(row.type)).filter((def): def is AnyComponentDef => !!def?.assetFields.length);
+        components.set(source.id, bound);
+    }
     return () => {
         const retained = new Map<number, AssetScope>();
         const release = (): void => {
@@ -57,7 +64,20 @@ export function prepareSpawnOwnership(
             attach(world, entities) {
                 for (const [id, scope] of retained) {
                     const entity = entities.get(id);
-                    if (entity !== undefined && world.valid(entity)) owners.ensure(world, entity).absorb(scope);
+                    if (entity === undefined || !world.valid(entity)) continue;
+                    const owner = owners.ensure(world, entity);
+                    const fields = new Map<AssetLease, FieldLeaseBinding>();
+                    for (const component of components.get(id) ?? []) {
+                        const data = world.tryGet(entity, component);
+                        if (!data) continue;
+                        for (const { type, field } of component.assetFields) {
+                            const handle = data[field];
+                            if (typeof handle !== 'number' || !handle) continue;
+                            const held = scope.bindingLease(type, handle);
+                            if (held) fields.set(held, { type, handle });
+                        }
+                    }
+                    owner.absorbFieldLeases(scope, fields);
                 }
                 // Unspawned entities release their receipts; absorbed scopes are empty.
                 release();

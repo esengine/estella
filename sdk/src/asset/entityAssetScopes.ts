@@ -14,7 +14,10 @@
  */
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
+import type { AnyComponentDef } from '../ecs/component';
 import { AssetScope } from './AssetLease';
+import { visitEntityAssetBindings } from './liveAssetBindings';
+import { log } from '../util/logger';
 
 interface WorldScopes {
     scopes: Map<Entity, AssetScope>;
@@ -89,6 +92,25 @@ export class EntityAssetScopes {
         const existing = this.worlds_.get(world);
         if (existing) return existing.scopes;
         const scopes = new Map<Entity, AssetScope>();
+        let pending: Map<Entity, { owner: AssetScope; component: AnyComponentDef }> | undefined;
+        const offFields = world.onAssetFieldsChanged((entity, component) => {
+            const scope = scopes.get(entity);
+            if (!scope?.hasFieldLeases) return;
+            if (!pending) {
+                pending = new Map();
+                // Observers and hot reload can roll a synchronous edit back. Read the committed fields.
+                void Promise.resolve().then(() => {
+                    const batch = pending!;
+                    pending = undefined;
+                    for (const [id, { owner, component }] of batch) {
+                        if (scopes.get(id) !== owner || world.isDestructionPending(id)) continue;
+                        try { owner.releaseUnusedFieldLeases(read => visitEntityAssetBindings(world, id, read, component)); }
+                        catch (error) { log.warn('asset', `Could not settle field acquisitions for entity ${id}`, error); }
+                    }
+                });
+            }
+            pending.set(entity, { owner: scope, component });
+        });
         const offDespawn = world.onDespawn(entity => {
             const scope = scopes.get(entity);
             if (!scope) return;
@@ -104,7 +126,7 @@ export class EntityAssetScopes {
             this.worlds_.delete(world);
             closeWorlds([entry]);
         });
-        const entry = { scopes, unbind() { offDespawn(); offCore(); } };
+        const entry = { scopes, unbind() { offDespawn(); offCore(); offFields(); pending?.clear(); } };
         this.worlds_.set(world, entry);
         return scopes;
     }

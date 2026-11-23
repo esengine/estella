@@ -172,6 +172,23 @@ describe.skipIf(!HAS_WASM)('spawned prefab entities own their resource generatio
             expect(assets.sizes()).toMatchObject({ refRows: 0, registrySlots: 0, genericCached: 0 });
         } finally { dispose(); }
     });
+    it('releases a spawned field independently while another instance and the preparation still own it', async () => {
+        const { assets, world, dispose } = spawnedRealm();
+        try {
+            const prepared = await preparePrefab(assets, 'root.esprefab');
+            const first = spawnPrepared(world, prepared).root, second = spawnPrepared(world, prepared).root;
+            world.remove(first, Sprite);
+            await Promise.resolve();
+            expect(assets.entityScopes.scopeFor(first, world)?.size).toBe(0);
+            prepared.release();
+            expect(pool.liveTextures()).toBe(1);
+            expect(world.get(second, Sprite).texture).toBeGreaterThan(0);
+            world.update(second, Sprite, draft => { draft.texture = 0; });
+            await Promise.resolve();
+            expect(pool.liveTextures()).toBe(0);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { dispose(); }
+    });
     it.each([false, true])('standalone preparation releases raw sources and preserves its spawned resource (overrides: %s)', async (override) => {
         const { assets, world, dispose } = spawnedRealm();
         try { const prepared = await preparePrefab(assets, 'root.esprefab', override ? [{ prefabEntityId: 'root', type: 'property',

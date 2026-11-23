@@ -11,10 +11,12 @@
  */
 
 import { disposeAll } from '../util/disposeAll';
-import { firstBindingLease, leaseBinding, LeaseBindings, type BindingLease } from './leaseBindings';
+import { firstBindingLease, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease } from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
 const releaseBatch = (leases: AssetLease[]): void => disposeAll(leases, releaseLease, true);
+
+export interface FieldLeaseBinding { readonly type: string; readonly handle: number }
 
 /** One acquisition, and the right to end it. */
 export interface AssetLease<T = unknown> {
@@ -68,6 +70,7 @@ export class AssetScope {
     private closed_ = false;
     /** Null after the first search. Repeated lookups share an index until a receipt is removed. */
     private bindings_?: LeaseBindings | null;
+    private fieldLeases_?: Map<AssetLease, FieldLeaseBinding>;
 
     add<T>(lease: AssetLease<T>): AssetLease<T> {
         if (this.closed_) {
@@ -76,6 +79,36 @@ export class AssetScope {
         }
         this.leases_.push(lease as AssetLease);
         return lease;
+    }
+
+    /** @internal A receipt acquired for a component field. Numeric fields identify a specific native handle. */
+    addFieldLease<T>(type: string, value: unknown, lease: AssetLease<T>): AssetLease<T> {
+        this.add(lease);
+        if (typeof value === 'number' && value) (this.fieldLeases_ ??= new Map()).set(lease, { type, handle: value });
+        return lease;
+    }
+
+    /** @internal Explicit acquisitions and opaque loader dependencies have independent lifetimes. */
+    get hasFieldLeases(): boolean { return !!this.fieldLeases_?.size; }
+
+    /** @internal End field acquisitions that no stored field uses, keeping one receipt per generation. */
+    releaseUnusedFieldLeases(visit: (read: (type: string, value: unknown) => boolean) => void): void {
+        const bindings = this.fieldLeases_;
+        if (!bindings?.size) return;
+        const kept: AssetLease[] = [];
+        visit((type, value) => {
+            for (const [lease, binding] of bindings) {
+                if (binding.type !== type || binding.handle !== value) continue;
+                if (!kept.some(other => {
+                    const held = bindings.get(other)!;
+                    return held.type === type && held.handle === value && sameAcquisition(other, lease);
+                })) kept.push(lease);
+            }
+            return kept.length === bindings.size;
+        });
+        if (this.fieldLeases_ !== bindings || kept.length === bindings.size) return;
+        const unused = [...bindings.keys()].filter(lease => !kept.includes(lease) && this.forget(lease));
+        releaseBatch(unused);
     }
 
     /** Hand back the current batch in reverse order, attempting all releases.
@@ -89,6 +122,7 @@ export class AssetScope {
         const leases = this.leases_;
         this.leases_ = [];
         this.bindings_ = undefined;
+        this.fieldLeases_ = undefined;
         return leases;
     }
 
@@ -112,8 +146,32 @@ export class AssetScope {
         if (other === this) return;
         if (this.closed_) throw new Error('Cannot transfer acquisitions to a closed asset scope');
         for (const lease of other.leases_) this.leases_.push(lease);
+        if (other.fieldLeases_) {
+            this.fieldLeases_ ??= new Map();
+            for (const [lease, binding] of other.fieldLeases_) this.fieldLeases_.set(lease, binding);
+            other.fieldLeases_ = undefined;
+        }
         other.leases_ = [];
         other.bindings_ = undefined;
+    }
+
+    /** @internal Transfer a publication in acquisition order. A full publication takes the whole loader scope. */
+    absorbFieldLeases(source: AssetScope, fields: ReadonlyMap<AssetLease, FieldLeaseBinding>, auxiliary?: ReadonlySet<AssetLease>): void {
+        if (!auxiliary) {
+            this.absorb(source);
+            if (fields.size) {
+                this.fieldLeases_ ??= new Map();
+                for (const [lease, binding] of fields) this.fieldLeases_.set(lease, binding);
+            }
+            return;
+        }
+        for (const lease of [...source.leases_]) {
+            const binding = fields.get(lease);
+            if (!binding && !auxiliary.has(lease)) continue;
+            if (!source.forget(lease)) continue;
+            if (binding) this.addFieldLease(binding.type, binding.handle, lease);
+            else this.add(lease);
+        }
     }
 
     /** Stop tracking one lease without releasing it — for an ownership transfer. */
@@ -121,6 +179,7 @@ export class AssetScope {
         const i = this.leases_.indexOf(lease);
         if (i < 0) return false;
         this.leases_.splice(i, 1);
+        this.fieldLeases_?.delete(lease);
         this.bindings_ = undefined;
         return true;
     }

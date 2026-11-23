@@ -5,11 +5,17 @@ import type { AnyComponentDef, AssetFieldMeta } from '../ecs/component';
 import type { Entity } from '../types';
 import type { Assets, SceneAssetResult } from './Assets';
 import { AssetRefCounter } from './AssetRefCounter';
+import type { AssetLease, FieldLeaseBinding } from './AssetLease';
 import { SCENE_FORMAT_VERSION, type SceneData } from '../scene/scene';
 import { log } from '../util/logger';
 import { getResourceManager } from '../wasm/resourceManager';
 
-const subscribed = new WeakSet<World>();
+const sources = new WeakMap<World, () => Assets | null | undefined>();
+
+/** Whether an app already follows this realm's published fields on the World. */
+export function observesAssetReferences(world: World, assets: Assets): boolean {
+    return sources.get(world)?.() === assets;
+}
 
 /**
  * Bind a World to the asset layer of its App — one call on every core (web,
@@ -18,7 +24,7 @@ const subscribed = new WeakSet<World>();
  *   * an asset PATH written into an engine-backed component at run time
  *     (`cmds.spawn().insert(Sprite, { texture: 'assets/hero.png' })`) is loaded
  *     and replaced by its handle, through the same preload and resolve a scene
- *     file goes through, and held for as long as the entity is.
+ *     file goes through, and held while an entity field uses it.
  * `current` is read at notification time, so a replaced Assets is the one used.
  */
 export function bindAssetReferenceTracking(
@@ -28,22 +34,25 @@ export function bindAssetReferenceTracking(
     const counter = existing ?? new AssetRefCounter();
     if (!existing) assets.setRefCounter(counter);
     counter.bindDefaultWorld(world);
-    if (subscribed.has(world)) return;
-    subscribed.add(world);
+    const installed = sources.has(world);
+    sources.set(world, current);
+    if (installed) return;
+    const activeAssets = () => sources.get(world)?.();
+    world.onAssetFieldsChanged((entity, component) => activeAssets()?.syncAssetFieldReferences(world, entity, component));
     // An embedder can replace the app resource with an independently populated counter.
     world.onDespawn(entity => {
-        const active = current()?.getRefCounter();
+        const active = activeAssets()?.getRefCounter();
         if (active?.bindDefaultWorld(world)) active.removeAllRefsForEntity(entity, world);
     });
-    world.onCoreDisconnect(() => { current()?.getRefCounter()?.bindDefaultWorld(world); });
+    world.onCoreDisconnect(() => { activeAssets()?.getRefCounter()?.bindDefaultWorld(world); });
     world.setAssetFieldResolver((entity, component, authored, currentFields) => {
-        const live = current();
+        const live = activeAssets();
         // A core with no resource manager (a headless server, a test world) loads
         // nothing: asking it to turned every authored path into a failed load with
         // an Error behind it — 6000 a scene in the scale suite, where the JS heap
         // budget then failed and a worker ran out of memory.
         if (!live || !getResourceManager()) return;
-        return resolveAssetFields(world, live, entity, component, authored, currentFields, current);
+        return resolveAssetFields(world, live, entity, component, authored, currentFields, activeAssets);
     });
 }
 
@@ -126,14 +135,15 @@ function retainPublished(
     requests: RequestedField[], accepted: RequestedField[], stored: Record<string, unknown>,
 ): void {
     const owner = assets.entityScopes.ensure(world, entity);
-    if (accepted.length === requests.length) {
-        owner.absorb(result.scope);
-        return;
+    // Find all accepted receipts before moving any of them. Several fields can share one handle.
+    const fields = new Map<AssetLease, FieldLeaseBinding>();
+    for (const { type, field } of accepted) {
+        const handle = stored[field] as number;
+        const lease = assets.leaseForBinding(result.scope, type, handle);
+        if (lease) fields.set(lease, { type, handle });
     }
-    const bound = new Set(accepted.map(({ type, field }) => assets.leaseForBinding(result.scope, type, stored[field])));
-    for (const { type, path, lease } of result.acquisitions ?? []) {
-        // Custom discovery can also declare dependencies outside the handle fields. Keep them with a published component.
-        const auxiliary = !requests.some(request => request.type === type && request.path === path);
-        if ((bound.has(lease) || auxiliary) && result.scope.forget(lease)) owner.add(lease);
-    }
+    // A partial publication still owns the dependencies that discovery reported outside the requested fields.
+    const auxiliary = accepted.length === requests.length ? undefined : new Set((result.acquisitions ?? [])
+        .filter(({ type, path }) => !requests.some(request => request.type === type && request.path === path)).map(a => a.lease));
+    owner.absorbFieldLeases(result.scope, fields, auxiliary);
 }

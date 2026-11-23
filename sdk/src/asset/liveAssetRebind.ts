@@ -108,7 +108,7 @@ export function migrateLiveBindings(
                 const share = replacement.retain();
                 if (!share) break;
                 // A write may synchronously despawn its owner. Register the share before notifying the world.
-                group.added = scope.add(share);
+                group.added = scope.addFieldLease(type, newValue, share);
             }
             // Another owner's observer may have moved these fields already. The final walk decides what is still held.
             if (outgoing && !sameAcquisition(outgoing, replacement)) group.outgoing = outgoing;

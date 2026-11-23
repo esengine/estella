@@ -6,7 +6,8 @@ import { EmbeddedBackend } from '../src/asset/Backend';
 import { Catalog, atlasCatalogFields } from '../src/asset/Catalog';
 import { ownedAssetLease } from '../src/asset/AssetLease';
 import { bindAssetReferenceTracking } from '../src/asset/assetReferenceTracking';
-import { MeshRenderer, Sprite } from '../src/ecs/component';
+import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
+import { defineComponent, MeshRenderer, Sprite, unregisterComponent } from '../src/ecs/component';
 import { World } from '../src/ecs/world';
 import { Mut, Query, QueryInstance } from '../src/ecs/query';
 import { getDefaultContext } from '../src/ecs/context';
@@ -51,6 +52,26 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
     }
 
     for (const component of [Sprite, MeshRenderer] as const) {
+        it(`${component._name} retires a published path on replacement and removal`, async () => {
+            const { world, entity, assets, settle, released, dispose } = realm();
+            const refs = assets.getRefCounter()!;
+            try {
+                world.insert(entity, component, { texture: 'old.png' as never });
+                await settle('old.png', 11, 0);
+                expect(refs.getTextureRefs('old.png', world)).toEqual([entity]);
+                world.update(entity, component, draft => { draft.texture = 'new.png' as never; });
+                await settle('new.png', 22, 1);
+                expect(released.mock.calls).toEqual([['old.png']]);
+                expect(assets.entityScopes.scopeFor(entity, world)?.size).toBe(1);
+                expect(refs.getAllTextureRefs(world)).toEqual([{ assetPath: 'new.png', refCount: 1, entities: [entity] }]);
+                world.remove(entity, component);
+                expect(refs.getTotalRefRows()).toBe(0);
+                await Promise.resolve();
+                expect(released.mock.calls).toEqual([['old.png'], ['new.png']]);
+                expect(assets.entityScopes.scopeFor(entity, world)?.size).toBe(0);
+            } finally { dispose(); }
+        });
+
         it.each([true, false])(`${component._name} publishes the latest path (old finishes first: %s)`, async oldFirst => {
             const { world, entity, released, settle, dispose } = realm();
             try {
@@ -103,6 +124,109 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
             expect(released.mock.calls).toEqual([['old.png']]);
             expect(assets.entityScopes.scopeFor(entity, world)?.size).toBe(2);
         } finally { dispose(); }
+    });
+
+    it('keeps shared field and explicit ownership independent across component and query edits', async () => {
+        const { world, entity, assets, settle, released, dispose } = realm();
+        const refs = assets.getRefCounter()!;
+        try {
+            world.insert(entity, MeshRenderer, { texture: 'shared.png' as never, normalMap: 'shared.png' as never });
+            await settle('shared.png', 33, 0);
+            const scope = assets.entityScopes.scopeFor(entity, world)!;
+            const manual = scope.add(scope.leases()[0].retain()!);
+            refs.addTextureRef('shared.png', entity, world);
+            world.insert(entity, Sprite, { texture: 33 });
+            world.resolveSetter(MeshRenderer)!(entity, { ...world.get(entity, MeshRenderer), texture: 0 });
+            await Promise.resolve();
+            expect(scope.size).toBe(2);
+            world.remove(entity, MeshRenderer);
+            await Promise.resolve();
+            expect(scope.size).toBe(2);
+            expect(refs.getTextureRefs('shared.png', world)).toEqual([entity]);
+            refs.removeTextureRef('shared.png', entity, world);
+            expect(refs.getTextureRefs('shared.png', world)).toEqual([entity]);
+            refs.addTextureRef('shared.png', entity, world);
+            new QueryInstance(world, Query(Mut(Sprite))).forEach((_e, sprite) => { sprite.texture = 0; });
+            await Promise.resolve();
+            expect(scope.leases()).toEqual([manual]);
+            expect(refs.getTextureRefs('shared.png', world)).toEqual([entity]);
+            expect(released).not.toHaveBeenCalled();
+            scope.releaseAll();
+            expect(released.mock.calls).toEqual([['shared.png']]);
+            refs.removeTextureRef('shared.png', entity, world);
+            expect(refs.getTotalRefRows()).toBe(0);
+        } finally { dispose(); }
+    });
+
+    it('settles the final fields after synchronous rollback and after a hot replacement', async () => {
+        const { world, entity, assets, released, settle, dispose } = realm();
+        try {
+            world.insert(entity, Sprite, { texture: 'source.png' as never });
+            await settle('source.png', 12, 0);
+            const scope = assets.entityScopes.scopeFor(entity, world)!;
+            const replacement = ownedAssetLease('updated', 2, 25, () => released('updated'), 'texture');
+            const set = world.set.bind(world);
+            vi.spyOn(world, 'set').mockImplementationOnce((e, component, data) => {
+                set(e, component, data);
+                throw Error('observer rejected the edit');
+            });
+            expect(migrateLiveBindings(world, 'texture', 12, replacement, () => scope).moved).toBe(0);
+            await Promise.resolve();
+            expect(world.get(entity, Sprite).texture).toBe(12);
+            expect(scope.size).toBe(1);
+            expect(assets.getRefCounter()!.getTextureRefs('source.png', world)).toEqual([entity]);
+            expect(released).not.toHaveBeenCalled();
+            expect(migrateLiveBindings(world, 'texture', 12, replacement, () => scope).moved).toBe(1);
+            replacement.release();
+            await Promise.resolve();
+            expect(scope.size).toBe(1);
+            world.remove(entity, Sprite);
+            await Promise.resolve();
+            expect(scope.size).toBe(0);
+            expect(released.mock.calls).toEqual([['source.png'], ['updated']]);
+        } finally { dispose(); }
+    });
+
+    it('holds one shared generation when two components separately load the same path', async () => {
+        const { world, entity, assets, released, dispose } = realm();
+        const source = ownedAssetLease('shared.png', 7, { handle: 42, width: 8, height: 8 }, () => released('shared.png'), 'texture');
+        vi.mocked(assets.acquireTexture).mockImplementation(async () => source.retain()!);
+        try {
+            world.insert(entity, Sprite, { texture: 'shared.png' as never });
+            await vi.waitFor(() => expect(world.get(entity, Sprite).texture).toBe(42));
+            world.insert(entity, MeshRenderer, { texture: 'shared.png' as never });
+            await vi.waitFor(() => expect(world.get(entity, MeshRenderer).texture).toBe(42));
+            source.release();
+            const scope = assets.entityScopes.scopeFor(entity, world)!;
+            expect(scope.size).toBe(1);
+            world.remove(entity, Sprite);
+            await Promise.resolve();
+            expect(scope.size).toBe(1);
+            expect(released).not.toHaveBeenCalled();
+            world.remove(entity, MeshRenderer);
+            await Promise.resolve();
+            expect(scope.size).toBe(0);
+            expect(released.mock.calls).toEqual([['shared.png']]);
+        } finally { source.release(); dispose(); }
+    });
+
+    it('keeps a handle used by a stored script component across a catalogue reload', async () => {
+        const { world, entity, assets, settle, released, dispose } = realm();
+        const slot = defineComponent('LiveFieldReloadSlot', { texture: 0 }, { assetFields: [{ field: 'texture', type: 'texture' }] });
+        try {
+            world.insert(entity, Sprite, { texture: 'shared.png' as never });
+            await settle('shared.png', 33, 0);
+            world.insert(entity, slot, { texture: 33 });
+            unregisterComponent(slot._name);
+            world.remove(entity, Sprite);
+            await Promise.resolve();
+            expect(world.get(entity, slot).texture).toBe(33);
+            expect(assets.entityScopes.scopeFor(entity, world)?.size).toBe(1);
+            expect(assets.getRefCounter()!.getTextureRefs('shared.png', world)).toEqual([entity]);
+            world.remove(entity, slot);
+            await Promise.resolve();
+            expect(released.mock.calls).toEqual([['shared.png']]);
+        } finally { unregisterComponent(slot._name); dispose(); }
     });
 
     it('composes the atlas frame with the current authored UVs', async () => {

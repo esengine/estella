@@ -1019,6 +1019,8 @@ type: string
 ## AssetRefCounter — class @experimental
 ```
 @internal bindDefaultWorld: (world: World) => boolean
+@internal observeEntity: (world: World, entity: Entity, observer: FieldObserver) => void
+@internal syncComponent: (world: World | undefined, entity: Entity, component: AnyComponentDef, data: Record<string, unknown> | null, pathFor: (type: string, handle: number) => string | null) => void
 addFontRef: (path: string, entity: number, world?: World) => void
 addMaterialRef: (path: string, entity: number, world?: World) => void
 addTextureRef: (path: string, entity: number, world?: World) => void
@@ -1051,8 +1053,12 @@ refCount: number
 
 ## AssetScope — class @experimental
 ```
+@internal absorbFieldLeases: (source: AssetScope, fields: ReadonlyMap<AssetLease, FieldLeaseBinding>, auxiliary?: ReadonlySet<AssetLease>) => void
+@internal addFieldLease: <T>(type: string, value: unknown, lease: AssetLease<T>) => AssetLease<T>
 @internal bindingLease: (type: string, value: number | string, slot?: object) => AssetLease | undefined
+@internal hasFieldLeases: boolean
 @internal leases: () => readonly AssetLease[]
+@internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void) => void
 absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean
@@ -1098,6 +1104,7 @@ ResourceDef<AssetsClass>
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
+@internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
 @internal takeTrackedAsset: (type: string, ref: string, scope: AssetScope) => boolean
 acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
 acquireTexture: (ref: string, flipY?: boolean) => Promise<AssetLease<TextureResult>>
@@ -15640,6 +15647,7 @@ send: (data: string | ArrayBuffer) => void
 @internal getRemovedEntitiesForReader: (component: AnyComponentDef, readerId: number) => Entity[]
 @internal getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getStorageSizes: () => { entities: number; indexSlots: number; spawnCallbacks: number; despawnCallbacks: number; coreDisconnectCallbacks: number; names: ReturnType<NameIndex["sizes"]>; scripts: ReturnType<ScriptStorage["sizes"]>; changes: ReturnType<ChangeTracker["sizes"]>; queryCacheEntries: number; }
+@internal getStoredScriptComponents: (entity: Entity) => Iterable<ComponentDef<any>>
 @internal getTopologyChangedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getWasmModule: () => ESEngineModule | null
 @internal getWorldTick: () => number
@@ -15661,6 +15669,7 @@ send: (data: string | ArrayBuffer) => void
 @internal mutationRevision: (component: AnyComponentDef, kind: "topology" | "write") => number
 @internal mutationSequence: (kind: "topology" | "write") => number
 @internal mutationsForCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number) => Entity[]
+@internal onAssetFieldsChanged: (observer: (entity: Entity, component: AnyComponentDef) => void) => () => void
 @internal onCoreDisconnect: (dispose: () => void) => () => void
 @internal openSpeculation: (log: { record(world: World, entity: Entity, component: AnyComponentDef): void; }) => void
 @internal queries_: QueryCache

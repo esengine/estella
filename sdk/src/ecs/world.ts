@@ -216,6 +216,7 @@ export class World {
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
     private assetFieldResolver_: AssetFieldResolver | null = null;
+    private assetFieldObservers_?: Set<(entity: Entity, component: AnyComponentDef) => void>;
     private pendingAssetFields_?: PendingAssetFields;
     private despawning_: Set<Entity> | null = null;
 
@@ -301,6 +302,7 @@ export class World {
             this.queries_.markStructuralChange();
         }
         this.queries_.markComponentDirty(component._id);
+        this.notifyAssetFields_(entity, component);
     }
 
     /** @internal */
@@ -970,6 +972,24 @@ export class World {
         this.assetFieldResolver_ = resolver;
     }
 
+    /** @internal Observe stored asset fields after a component write or removal. */
+    onAssetFieldsChanged(observer: (entity: Entity, component: AnyComponentDef) => void): () => void {
+        (this.assetFieldObservers_ ??= new Set()).add(observer);
+        return () => {
+            this.assetFieldObservers_?.delete(observer);
+            if (!this.assetFieldObservers_?.size) this.assetFieldObservers_ = undefined;
+        };
+    }
+
+    private notifyAssetFields_(entity: Entity, component: AnyComponentDef): void {
+        if (this.assetFieldObservers_ && component.assetFields?.length) {
+            for (const observer of this.assetFieldObservers_) {
+                try { observer(entity, component); }
+                catch (error) { log.warn('world', `Asset field observer failed for ${component._name}`, error); }
+            }
+        }
+    }
+
     /**
      * An engine-backed component's asset fields hold handles, and the engine
      * cannot store a string there: written straight through, `texture` read
@@ -1151,6 +1171,7 @@ export class World {
             this.changes_.recordRemoved(component, entity);
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
+            this.notifyAssetFields_(entity, component);
             notifyBridge('onComponentRemoved', entity, component._name);
         } else {
             this.removeScript_(entity, component as ComponentDef<any>);
@@ -1207,6 +1228,7 @@ export class World {
         this.changes_.recordRemoved(component, entity);
         this.queries_.markComponentDirty(component._id);
         this.queries_.markStructuralChange();
+        this.notifyAssetFields_(entity, component);
         notifyBridge('onComponentRemoved', entity, component._name);
     }
 
@@ -1288,6 +1310,7 @@ export class World {
                 write(entity, refs?.clean ?? raw);
                 const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, true, edited);
                 finishAssetDraft(raw, component, refs?.clean);
+                this.notifyAssetFields_(entity, component);
                 start?.();
             };
         }
@@ -1296,7 +1319,10 @@ export class World {
         // object would leave the row behind.
         const storage = this.scripts_.getStorageById(component._id);
         if (!storage) return null;
-        return (e, d) => { this.scripts_.set(e, component as ComponentDef<any>, d); };
+        return (e, d) => {
+            this.scripts_.set(e, component as ComponentDef<any>, d);
+            this.notifyAssetFields_(e, component);
+        };
     }
 
     private resolveBuiltinSetter_(component: BuiltinComponentDef<any>): (entity: Entity, data: unknown) => void {
@@ -1330,6 +1356,11 @@ export class World {
      *  a system asks {@link has} about the definitions it knows. */
     getComponentTypes(entity: Entity): string[] {
         return this.componentTypes_(entity);
+    }
+
+    /** @internal Stored script definitions still describe their rows after the app catalogue reloads. */
+    getStoredScriptComponents(entity: Entity): Iterable<ComponentDef<any>> {
+        return this.scripts_.componentsOf(entity);
     }
 
     /**
@@ -1925,6 +1956,7 @@ export class World {
             this.builtin_.invalidateTransformComposition();
         }
         this.changes_.recordChanged(component, entity);
+        this.notifyAssetFields_(entity, component);
     }
 
     private syncActivityEpoch_(): void {

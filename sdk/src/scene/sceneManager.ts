@@ -778,17 +778,17 @@ export class SceneManagerState {
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
         if (!instance.assetScope.size || !this.app_.hasResource(Assets)) return;
         const assets = this.app_.getResource(Assets);
-        const sources = new Set<AssetLease>();
+        const sources = new Map<AssetLease, { type: string; value: unknown }>();
         visitEntityAssetBindings(this.app_.world, entity, (type, value) => {
             const held = assets.leaseForBinding(instance.assetScope, type, value);
-            if (held) sources.add(held);
+            if (held && (!sources.has(held) || typeof value === 'string')) sources.set(held, { type, value });
         });
         if (sources.size === 0) return;
         const scope = assets.entityScopes.ensure(this.app_.world, entity);
-        for (const source of sources) {
+        for (const [source, { type, value }] of sources) {
             if (scope.leases().some(held => sameAcquisition(held, source))) continue;
             const retained = source.retain();
-            if (retained) scope.add(retained);
+            if (retained) scope.addFieldLease(type, value, retained);
         }
     }
 
