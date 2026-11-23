@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    rainDrops.ts
- * @brief   The 3D rain's falling drops: streaks in the world, drawn on the GPU from nothing but their number and the time.
+ * @brief   The 3D rain's falling drops and snow's flakes: in the world, drawn on the GPU from nothing but their number and the time.
  *
  * @details A drop has no state to step. Its place is a hash of its number spread over a box round the eye, moved by how far rain has
  *          fallen (and the wind carried it) since the start, wrapped into the box: so the drops stay where they are in the world as the
@@ -16,7 +16,8 @@
  *
  *          The rain effect (the 'rain' volume effect, or the weather's) says how much falls (u_intensity), how fast (u_speed), how far
  *          the wind leans it (u_wind, toward where the sky's clouds go), how long the streaks are (u_streakLength) and their colour.
- *          The effect itself draws the wet ground, the puddles and the splashes; the drops are drawn here.
+ *          Its snowfall (u_snowfall) falls the same way as flakes: soft round ones a metre a second, swaying, the wind carrying them
+ *          further. The effect itself draws the wet ground, the puddles and the splashes; what falls is drawn here.
  */
 import type { App } from '../app/app';
 import type { Entity } from '../types';
@@ -60,6 +61,10 @@ export const RAIN_DROPS_SHADER = `#pragma shader "Rain Drops"
 #pragma param u_rainFall vec4 default(0,-900,0,27)
 #pragma param u_rainShape vec4 default(0.5,1.2,0.35,60)
 #pragma param u_rainTint color default(0.78,0.82,0.9,1)
+// What falls: 0 rain (a streak along its fall), 1 snow (a soft round flake that sways as it falls, u_rainSway: how far, in world
+// units, how many times a second, and the time it is reckoned from: seconds within a thousand, so a long session keeps it smooth).
+#pragma param u_rainMode float default(0) range(0,1)
+#pragma param u_rainSway vec4 default(0,0,0,0)
 // The map of what stands over each place (the frame's rain cover) and the matrix it was drawn through.
 #pragma param u_rainCover texture default(white) texel(data)
 #pragma param u_rainCoverOn float default(0) range(0,1)
@@ -98,6 +103,12 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     vec3 low = eye - vec3(u_rainEye.w, u_rainBelow, u_rainEye.w);
     // Where it is in the world: its place, moved as far as rain has gone, put into the box round the eye.
     vec3 head = low + mod(rainHash3(id + 0.5) * size + u_rainShift.xyz - low, size);
+    // A flake drifts from side to side as it falls, each at its own pace and on its own path round the line it falls on.
+    if (u_rainSway.x > 0.0) {
+        vec3 own = rainHash3(id + 3.17);
+        float pace = u_rainSway.y * (0.7 + 0.6 * own.x) * 6.2831853 * u_rainSway.z + own.y * 6.2831853;
+        head.xz += vec2(sin(pace), cos(pace * 0.83 + own.z * 3.0)) * (u_rainSway.x * (0.5 + 0.5 * own.z));
+    }
     vec3 vel = u_rainFall.xyz;
     vec3 dir = vel / max(length(vel), 1e-3);
     vec3 tail = head - dir * u_rainFall.w;
@@ -131,10 +142,17 @@ in vec2 v_texCoord;
 out vec4 fragColor;
 
 void main() {
-    // Bright down its middle and at its head, faint at its tail: the drop is at the head, and the streak is where it was.
-    float across = 1.0 - abs(v_texCoord.x * 2.0 - 1.0);
-    float along = smoothstep(0.0, 0.3, v_texCoord.y) * (0.5 + 0.5 * v_texCoord.y);
-    float a = across * across * along * u_rainShape.z;
+    float a;
+    if (u_rainMode > 0.5) {
+        // A flake: soft and round.
+        float r = length(v_texCoord * 2.0 - 1.0);
+        a = (1.0 - smoothstep(0.35, 1.0, r)) * u_rainShape.z;
+    } else {
+        // A drop: bright down its middle and at its head, faint at its tail; the drop is at the head, the streak is where it was.
+        float across = 1.0 - abs(v_texCoord.x * 2.0 - 1.0);
+        float along = smoothstep(0.0, 0.3, v_texCoord.y) * (0.5 + 0.5 * v_texCoord.y);
+        a = across * across * along * u_rainShape.z;
+    }
     if (a < 0.002) discard;
     fragColor = vec4(u_rainTint.rgb, a);
 }
@@ -168,39 +186,79 @@ export function buildRainDrops(count: number): MeshData {
     return { vertices, vertexStride, vertexCount: count * 4, channels, indices, aabbMin: [-1e9, -1e9, -1e9], aabbMax: [1e9, 1e9, 1e9] };
 }
 
-/** What the effect's values make of the drops this frame, in world units. */
+/** What the effect's values make of one kind of precipitation this frame, in world units. */
 export interface RainFall {
-    /** Share of the drops falling, 0 to 1. */
+    /** 0 rain, 1 snow (see the shader's u_rainMode). */
+    mode: number;
+    /** Share of the drops (or flakes) falling, 0 to 1. */
     share: number;
     velocity: [number, number, number];
+    /** How long a drop's streak is; 0 for a flake. */
     streak: number;
+    /** How far a flake sways from its line and how many times a second; 0 for rain. */
+    sway: [number, number];
+    /** How wide a drop or a flake is drawn, and how bright. */
+    width: number;
+    brightness: number;
 }
+
+const leanToward = (windDirection: number, lean: number, down: number): [number, number, number] => {
+    const a = (windDirection * Math.PI) / 180;
+    return [Math.sin(a) * lean, -down, Math.cos(a) * lean];
+};
 
 /** The drops' fall from the rain effect's values: terminal velocity at the default speed, leaned by the wind toward `windDirection` degrees. */
 export function rainFall(effect: Pick<ViewRain['effect'], 'uniforms'>, windDirection: number, unitsPerMetre: number): RainFall {
     const get = (name: string, fallback: number): number => effect.uniforms.get(name) ?? fallback;
     const down = TERMINAL_SPEED * unitsPerMetre * (get('u_speed', DEFAULT_EFFECT_SPEED) / DEFAULT_EFFECT_SPEED);
     const lean = get('u_wind', 0.15) * down;
-    const a = (windDirection * Math.PI) / 180;
-    const speed = Math.hypot(down, lean);
     return {
+        mode: 0,
         share: Math.min(Math.max(get('u_intensity', 1) * 0.5, 0), 1),
-        velocity: [Math.sin(a) * lean, -down, Math.cos(a) * lean],
-        streak: speed * SHUTTER_PER_LENGTH * (get('u_streakLength', 0.3) / 0.3),
+        velocity: leanToward(windDirection, lean, down),
+        streak: Math.hypot(down, lean) * SHUTTER_PER_LENGTH * (get('u_streakLength', 0.3) / 0.3),
+        sway: [0, 0],
+        width: 0.012 * unitsPerMetre,
+        brightness: 0.35,
+    };
+}
+
+/** A snowflake's fall, metres a second, how far it sways and how often, and its size, metres. */
+const SNOW_SPEED = 1, SNOW_SWAY = 0.3, SNOW_SWAY_RATE = 0.5, SNOW_SIZE = 0.04;
+
+/** The flakes' fall from the effect's snowfall: a metre a second, swaying, and carried twice as far by the wind as rain is, being light. */
+export function snowFall(effect: Pick<ViewRain['effect'], 'uniforms'>, windDirection: number, unitsPerMetre: number): RainFall {
+    const get = (name: string, fallback: number): number => effect.uniforms.get(name) ?? fallback;
+    const down = SNOW_SPEED * unitsPerMetre;
+    return {
+        mode: 1,
+        share: Math.min(Math.max(get('u_snowfall', 0), 0), 1),
+        velocity: leanToward(windDirection, 2 * get('u_wind', 0.15) * down, down),
+        streak: 0,
+        sway: [SNOW_SWAY * unitsPerMetre, SNOW_SWAY_RATE],
+        width: SNOW_SIZE * unitsPerMetre,
+        brightness: 0.9,
     };
 }
 
 /** `v` into [0, span): the drops' shift is taken round the box in double precision, so a long session keeps the GPU's float exact. */
 const wrap = (v: number, span: number): number => ((v % span) + span) % span;
 
-/** Draws the 3D rain's drops for the view being drawn. One entity, made while rain falls and despawned when it stops. */
+/** One kind of precipitation drawn: its material (an instance of the one shader) and the entity that draws the shared mesh with it. */
+interface Layer { name: string; material: MaterialHandle; entity: Entity }
+
+/**
+ * Draws the 3D rain's drops and its snow's flakes for the view being drawn: one entity each, made while it falls and despawned when it
+ * stops, sharing one mesh and one shader.
+ */
 export function rainDropsSystem(app: App) {
-    let shader: ShaderHandle = 0, material: MaterialHandle = 0, mesh = 0, entity = 0 as Entity, generation = -1, failed = false;
+    let shader: ShaderHandle = 0, mesh = 0, generation = -1, failed = false;
     let cover = { id: 0, texture: 0 };
     const scratch = { matrix: 0, size: 0 };
-    const letGo = (): void => {
-        if (entity && app.world.valid(entity)) app.world.despawn(entity);
-        entity = 0 as Entity;
+    const layers: Layer[] = [{ name: 'Rain', material: 0, entity: 0 as Entity }, { name: 'Snow', material: 0, entity: 0 as Entity }];
+    const letGo = (layer: Layer): void => {
+        if (layer.entity && app.world.valid(layer.entity)) app.world.despawn(layer.entity);
+        layer.entity = 0 as Entity;
     };
     const coverOf = (module: ESEngineModule | null): Float32Array | null => {
         const m = module as (ESEngineModule & { renderer_rainCover?(a: number, b: number): number; _malloc?(n: number): number }) | null;
@@ -220,47 +278,56 @@ export function rainDropsSystem(app: App) {
         const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
         const rain = resolvedRain(app.getResource(PostProcess), !!view?.active);
         const unit = worldUnitsPerMeter();
-        const fall = rain ? rainFall(rain.effect, rain.windDirection, unit) : null;
-        if (!rain || !fall || fall.share <= 0) { letGo(); return; }
+        const falls = rain ? [rainFall(rain.effect, rain.windDirection, unit), snowFall(rain.effect, rain.windDirection, unit)] : [];
+        if (!rain || !falls.some((f) => f.share > 0)) { layers.forEach(letGo); return; }
         if (deviceGeneration() !== generation) {
             // A lost device took the mesh and the cover's wrapper with it.
             generation = deviceGeneration();
-            letGo();
+            layers.forEach(letGo);
             mesh = 0;
             cover = { id: 0, texture: 0 };
         }
         if (!shader) {
             shader = Material.compileShader(RAIN_DROPS_SHADER);
-            material = shader ? Material.create({ shader, blendMode: BlendMode.Additive, depthTest: true, depthWrite: false, cull: 0 }) : 0;
-            if (!material) { failed = true; log.warn('weather', 'the rain\'s drops could not be made: no rain falls'); return; }
+            for (const layer of layers) {
+                layer.material = shader ? Material.create({ shader, blendMode: BlendMode.Additive, depthTest: true, depthWrite: false, cull: 0 }) : 0;
+            }
+            if (!layers.every((l) => l.material)) { failed = true; log.warn('weather', 'the drops and flakes could not be made: no rain or snow falls'); return; }
         }
         if (!mesh) mesh = app.getResource(Assets).createMesh(buildRainDrops(RAIN_DROP_COUNT));
         if (!mesh) return;
-        if (!entity || !app.world.valid(entity)) {
-            entity = app.world.spawn('Rain');
-            app.world.insert(entity, Transform, { position: { x: 0, y: 0, z: 0 } });
-            app.world.insert(entity, RuntimeOnly);
-            app.world.insert(entity, MeshRenderer, {
-                mesh, material, lit: false, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
-            } as Partial<MeshRendererData>);
-        }
+        const matrix = coverOf(app.wasmModule);
         const half = BOX_HALF * unit, height = BOX_HEIGHT * unit;
         const t = app.getResource(Time).elapsed;
-        const [vx, vy, vz] = fall.velocity;
-        Material.setUniform(material, 'u_rainEye', { x: rain.eye.x, y: rain.eye.y, z: rain.eye.z, w: half });
-        Material.setUniform(material, 'u_rainBelow', height * BOX_BELOW);
-        Material.setUniform(material, 'u_rainShift', { x: wrap(vx * t, 2 * half), y: wrap(vy * t, height), z: wrap(vz * t, 2 * half), w: height });
-        Material.setUniform(material, 'u_rainFall', { x: vx, y: vy, z: vz, w: fall.streak });
-        Material.setUniform(material, 'u_rainShape', { x: fall.share, y: 0.012 * unit, z: 0.35, w: 0.6 * unit });
         const tint = rain.effect.colors.get('u_streakColor');
-        if (tint) Material.setUniform(material, 'u_rainTint', { x: tint.r, y: tint.g, z: tint.b, w: tint.a });
-        const matrix = coverOf(app.wasmModule);
-        Material.setUniform(material, 'u_rainCoverOn', matrix ? 1 : 0);
-        if (matrix) {
-            Material.setUniform(material, 'u_rainCover', Material.tex(cover.texture));
-            for (let c = 0; c < 4; c++) {
-                Material.setUniform(material, `u_rainCover${c}`, { x: matrix[c * 4]!, y: matrix[c * 4 + 1]!, z: matrix[c * 4 + 2]!, w: matrix[c * 4 + 3]! });
+        layers.forEach((layer, i) => {
+            const fall = falls[i]!;
+            if (fall.share <= 0) { letGo(layer); return; }
+            const material = layer.material;
+            if (!layer.entity || !app.world.valid(layer.entity)) {
+                layer.entity = app.world.spawn(layer.name);
+                app.world.insert(layer.entity, Transform, { position: { x: 0, y: 0, z: 0 } });
+                app.world.insert(layer.entity, RuntimeOnly);
+                app.world.insert(layer.entity, MeshRenderer, {
+                    mesh, material, lit: false, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
+                } as Partial<MeshRendererData>);
             }
-        }
+            const [vx, vy, vz] = fall.velocity;
+            Material.setUniform(material, 'u_rainMode', fall.mode);
+            Material.setUniform(material, 'u_rainEye', { x: rain.eye.x, y: rain.eye.y, z: rain.eye.z, w: half });
+            Material.setUniform(material, 'u_rainBelow', height * BOX_BELOW);
+            Material.setUniform(material, 'u_rainShift', { x: wrap(vx * t, 2 * half), y: wrap(vy * t, height), z: wrap(vz * t, 2 * half), w: height });
+            Material.setUniform(material, 'u_rainFall', { x: vx, y: vy, z: vz, w: fall.streak });
+            Material.setUniform(material, 'u_rainShape', { x: fall.share, y: fall.width, z: fall.brightness, w: 0.6 * unit });
+            Material.setUniform(material, 'u_rainSway', { x: fall.sway[0], y: fall.sway[1], z: t % 1000, w: 0 });
+            if (tint) Material.setUniform(material, 'u_rainTint', { x: tint.r, y: tint.g, z: tint.b, w: tint.a });
+            Material.setUniform(material, 'u_rainCoverOn', matrix ? 1 : 0);
+            if (matrix) {
+                Material.setUniform(material, 'u_rainCover', Material.tex(cover.texture));
+                for (let c = 0; c < 4; c++) {
+                    Material.setUniform(material, `u_rainCover${c}`, { x: matrix[c * 4]!, y: matrix[c * 4 + 1]!, z: matrix[c * 4 + 2]!, w: matrix[c * 4 + 3]! });
+                }
+            }
+        });
     }, { name: 'RainDropsSystem', runWhenPaused: true });
 }

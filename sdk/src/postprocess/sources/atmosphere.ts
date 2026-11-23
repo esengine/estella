@@ -1245,19 +1245,7 @@ void main() {
         const GLSL = `
 ${HASH11_GLSL}
 ${HASH21_GLSL}
-
-
-/// One layer of falling snow: soft round flakes on a grid of @p cols columns that drifts down at @p speed and sways.
-float flakes(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
-    vec2 q = vec2(uv.x * aspect, uv.y) * cols;
-    q.y += T * speed * cols * 0.25;
-    q.x += sin(T * 0.8 + q.y * 0.45 + seed) * 0.35 - u_wind * q.y * 0.5;
-    vec2 id = floor(q);
-    if (hash21(id + seed) > u_snowfall * 0.35) return 0.0;
-    vec2 at = (vec2(hash21(id + seed + 3.0), hash21(id + seed + 7.0)) - 0.5) * 0.6;
-    float r = mix(0.07, 0.16, hash21(id + seed + 11.0));
-    return 1.0 - smoothstep(r * 0.35, r, length(fract(q) - 0.5 - at));
-}`;
+`;
         const source = `#pragma shader "PP Rain"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -1328,14 +1316,12 @@ float rainSplash(vec2 g, float T) {
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
-    vec2 sz = vec2(textureSize(u_texture, 0));
-    float aspect = sz.x / sz.y;
     float T = u_time.x * u_timeScale + u_phase;
     ivec2 size = textureSize(u_sceneDepth, 0);
     ivec2 c = screenTexel(v_texCoord, size);
     float d = depthAt(c, size);
     vec3 entry = rayStart(v_texCoord);
-    // How far the surface here is, measured along the same ray as the streak layers are.
+    // How far the surface here is, from where the view ray starts.
     float dist = d >= 1.0 ? 1e9 : length(worldFromDepth(uvOfTexel(c, size), d) - entry);
 
     vec3 tint = u_streakColor.rgb;
@@ -1393,16 +1379,7 @@ void main() {
         col += tint * rainSplash(P.xz / (u_rippleScale * 0.8), T) * 1.2 * u_wetness * up * near * falling * (1.0 - pool);
     }
 
-    // The falling drops are not drawn here: they are streaks in the world (rainDrops.ts), which this effect's values drive.
-    vec3 along = normalize(worldFromDepth(v_texCoord, d < 1.0 ? d : 1.0) - entry);
-    // Snow falls in the same three layers, and as little under a roof.
-    if (u_snowfall > 0.0) {
-        float snow = 0.0;
-        if (dist > 120.0)  snow += flakes(v_texCoord, aspect, 9.0,  0.5,  1.0, T) * 0.9  * (1.0 - shelteredAt(entry + along * 120.0));
-        if (dist > 450.0)  snow += flakes(v_texCoord, aspect, 18.0, 0.4,  2.0, T) * 0.65 * (1.0 - shelteredAt(entry + along * 450.0));
-        if (dist > 1400.0) snow += flakes(v_texCoord, aspect, 34.0, 0.3,  3.0, T) * 0.45 * (1.0 - shelteredAt(entry + along * 1400.0));
-        col += tint * 1.2 * snow;
-    }
+    // Neither the falling drops nor the snow's flakes are drawn here: they fall in the world (rainDrops.ts), as this effect's values say.
     fragColor = vec4(col, src.a);
 }
 #pragma end

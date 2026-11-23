@@ -13,9 +13,12 @@
  *     line up with the line to the middle better than with the picture's vertical, by DOWN_MARGIN (streaks painted down the screen
  *     do the opposite);
  *   - under the roof, looking up at it, no drop falls between the eye and the roof (none of its streak pixels, where with no roof the
- *     same view has more than OPEN_MIN).
- * A streak pixel is one that changes by more than STREAK_STEP from one frame to the next (what stands still cancels: the horizon,
- * the ground); a streak's direction is the principal axis of the streak pixels within RADIUS of it, where they make a line.
+ *     same view has more than OPEN_MIN);
+ *   - snow (the weather's Snow) falls as flakes, not streaks: seen level, what moves has no direction down the picture to speak of
+ *     (its mean |cos| against the vertical beats the horizontal's by less than FLAKE_MARGIN, where rain's beats it by LEVEL_MARGIN);
+ *     and none falls under the roof either, where with none the view has more than OPEN_MIN.
+ * A streak pixel is one brighter by more than STREAK_STEP than the next frame (what stands still cancels: the horizon, the ground;
+ * where a streak or a flake went is darker, so only where it was is kept); a streak's direction is the principal axis of the streak pixels within RADIUS of it, where they make a line.
  *
  *   node tools/weather-rain-drops.mjs --write     writes the scenes into fixtures/scenes/weather-rain/
  *   node tools/weather-rain-drops.mjs [--backend webgpu] [--no-build]
@@ -30,7 +33,7 @@ import { readPNG } from './lib/png.mjs';
 
 const DIR = path.join(ROOT, 'fixtures', 'scenes', 'weather-rain');
 const W = 640, H = 400, STREAK_STEP = 30, RADIUS = 8;
-const LEVEL_MARGIN = 0.25, DOWN_MARGIN = 0.1, OPEN_MIN = 200;
+const LEVEL_MARGIN = 0.25, DOWN_MARGIN = 0.1, OPEN_MIN = 200, FLAKE_MARGIN = 0.15;
 
 let nextId = 0;
 const ent = (name, components) => ({ id: nextId++, name, parent: null, children: [], visible: true, components });
@@ -41,6 +44,9 @@ const VIEWS = {
   down: { eye: [0, 1200, 0], turn: pitch(-89.9), roof: true },
   under: { eye: [-250, 60, 0], turn: pitch(89.9), roof: true },
   open: { eye: [-250, 60, 0], turn: pitch(89.9), roof: false },
+  'snow-level': { eye: [0, 170, 900], turn: pitch(-5), roof: true, snow: true },
+  'snow-under': { eye: [-250, 60, 0], turn: pitch(89.9), roof: true, snow: true },
+  'snow-open': { eye: [-250, 60, 0], turn: pitch(89.9), roof: false, snow: true },
 };
 
 function sceneFor(view) {
@@ -52,7 +58,7 @@ function sceneFor(view) {
         uniforms: { u_intensity: 1, u_haze: 0.6, u_sunBrightness: 10, u_clouds: 0, u_unitsPerKm: 100000 } }] } }]),
     ent('Sun', [tf([0, 0, 0], { x: -0.403, y: 0.2725, z: 0.1271, w: 0.8644 }), { type: 'Light', data: { type: 1, color: { r: 1, g: 1, b: 1, a: 1 }, intensity: 2, enabled: true } }]),
     // Rain alone: the weather's lights, fog and grade would change the picture under the streaks.
-    ent('Weather', [tf([0, 0, 0]), { type: 'Weather', data: { preset: 3, target: -1, progress: 0, drive: 4 } }]),
+    ent('Weather', [tf([0, 0, 0]), { type: 'Weather', data: { preset: v.snow ? 5 : 3, target: -1, progress: 0, drive: 4 } }]),
     ent('Ground', [tf([0, 0, 0], null, [60, 1, 60]), { type: 'MeshRenderer', data: { mesh: 'builtin:plane', color: { r: 0.25, g: 0.25, b: 0.27, a: 1 }, lit: true, opaque: true, enabled: true, castShadows: true } }]),
     // builtin:cube is a metre on a side: a roof 3 by 6 m, 10 cm thick, 2.5 m up.
     ...(v.roof ? [ent('Roof', [tf([-250, 250, 0], null, [3, 0.1, 6]), { type: 'MeshRenderer', data: { mesh: 'builtin:cube', color: { r: 0.5, g: 0.2, b: 0.15, a: 1 }, lit: true, opaque: true, enabled: true, castShadows: true } }])] : []),
@@ -88,7 +94,8 @@ function streaks(view, [x0, y0, x1, y1] = [8, 8, W - 8, H - 8]) {
   let n = 0;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
-      if (Math.abs(l(a, x, y) - l(b, x, y)) > STREAK_STEP) { out[y * W + x] = 1; n++; }
+      // Where it was brighter the frame before: what fell is there in that frame (where it went is not), so a flake stays round.
+      if (l(a, x, y) - l(b, x, y) > STREAK_STEP) { out[y * W + x] = 1; n++; }
     }
   }
   return { mask: out, n };
@@ -134,6 +141,13 @@ try {
   const box = [140, 40, 500, 360];
   const under = streaks('under', box).n, open = streaks('open', box).n;
   report(under === 0 && open > OPEN_MIN, `under the roof: ${under} streak pixels between the eye and the roof (none allowed); with no roof the same view has ${open} (more than ${OPEN_MIN})`);
+  const snowLevel = streaks('snow-level');
+  const flakeDown = alignment(snowLevel, () => [0, 1]).mean, flakeAcross = alignment(snowLevel, () => [1, 0]).mean;
+  report(snowLevel.n > 50 && flakeDown - flakeAcross < FLAKE_MARGIN, `snow falls as flakes: what moves runs down the picture`
+    + ` (${flakeDown.toFixed(3)}) hardly more than across it (${flakeAcross.toFixed(3)}): by less than ${FLAKE_MARGIN}, where rain's does by`
+    + ` ${(level.mean - across.mean).toFixed(3)}`);
+  const snowUnder = streaks('snow-under', box).n, snowOpen = streaks('snow-open', box).n;
+  report(snowUnder === 0 && snowOpen > OPEN_MIN, `snow under the roof: ${snowUnder} moving pixels (none allowed); with no roof ${snowOpen} (more than ${OPEN_MIN})`);
 } finally {
   rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { buildRainDrops, rainFall, RAIN_DROPS_SHADER } from '../src/postprocess/rainDrops';
+import { buildRainDrops, rainFall, snowFall, RAIN_DROPS_SHADER } from '../src/postprocess/rainDrops';
 import { MeshChannel } from '../src/asset/meshFormat';
 
 const effect = (values: Record<string, number>) => ({ uniforms: new Map(Object.entries(values)) });
@@ -32,6 +32,19 @@ describe('the 3D rain\'s drops', () => {
         const fall = rainFall(effect({ u_wind: 0, u_streakLength: 0.3 }), 0, 100);
         expect(fall.streak).toBeCloseTo(90, 6);
         expect(rainFall(effect({ u_wind: 0, u_streakLength: 0.6 }), 0, 100).streak).toBeCloseTo(180, 6);
+    });
+
+    it('are snow\'s flakes too: a metre a second, swaying, carried twice as far by the wind, as many as the snowfall, and no streak', () => {
+        const snow = snowFall(effect({ u_wind: 0.5, u_snowfall: 1 }), 90, 100);
+        expect(snow.mode).toBe(1);
+        expect(snow.velocity[1]).toBeCloseTo(-100, 6);
+        expect(snow.velocity[0]).toBeCloseTo(100, 6);
+        expect(snow.streak).toBe(0);
+        expect(snow.sway[0]).toBeGreaterThan(0);
+        expect(snow.share).toBe(1);
+        expect(snowFall(effect({}), 0, 100).share).toBe(0);
+        expect(rainFall(effect({}), 0, 100).mode).toBe(0);
+        expect(rainFall(effect({}), 0, 100).sway[0]).toBe(0);
     });
 
     it('are a quad each, numbered in the x of every corner, with bounds no camera culls', () => {
