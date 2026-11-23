@@ -495,7 +495,7 @@ export async function prepareRuntimeScene(
                     : 'DragonBones assets present but this build ships without the runtime');
             } else {
                 dragonBonesAssetInfo = await dragonBonesSupport()!.load(
-                    module, source, discovered.dragonBones, transcoderProvider, sceneAssets);
+                    module, source, discovered.dragonBones, transcoderProvider, sceneAssets, assetResult.scope);
             }
         }
     }

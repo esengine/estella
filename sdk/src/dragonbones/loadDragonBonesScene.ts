@@ -30,10 +30,11 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import type { RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { Assets } from '../asset/Assets';
+import type { AssetLease, AssetScope } from '../asset/AssetLease';
 import { atlasPagePath, withAtlasPages, type AcquireAtlasPage } from '../runtime/atlasPages';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { DragonBonesManager } from './DragonBonesManager';
-import { ownAtlas, bindAtlasOwner, releaseUnusedAtlases } from './atlasOwnership';
+import { ownAtlas, bindAtlasTexture, releaseUnusedAtlases } from './atlasOwnership';
 
 /** Lazily yields the realm's Basis transcoder, or null where a cook cannot have
  *  produced a compressed page (editor, uncooked dev). Same seam as Spine's. */
@@ -100,14 +101,16 @@ export async function loadDragonBonesAssets(
     pairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     transcoderProvider?: TranscoderProvider,
     assets?: Pick<Assets, 'acquireTexture'>,
+    /** Holds each page until an armature takes it or the prepared scene is discarded. */
+    scope?: AssetScope,
 ): Promise<Map<string, DragonBonesAssetInfo>> {
     return withAtlasPages(module, source, transcoderProvider,
-        acquire => readDragonBonesPairs(source, pairs, acquire), assets);
+        acquire => readDragonBonesPairs(source, pairs, acquire, scope), assets);
 }
 
 async function readDragonBonesPairs(
     source: RuntimeAssetSource, pairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
-    acquire: AcquireAtlasPage,
+    acquire: AcquireAtlasPage, scope?: AssetScope,
 ): Promise<Map<string, DragonBonesAssetInfo>> {
     const assetInfo = new Map<string, DragonBonesAssetInfo>();
     const resolveRef = source.resolveRef ?? ((r: string) => r);
@@ -132,7 +135,7 @@ async function readDragonBonesPairs(
                 atlasJson,
                 textureId: page.textureId,
             };
-            if (page.release) ownAtlas(info, page.release);
+            if (page.lease) ownAtlas(info, page.lease, scope);
             assetInfo.set(cacheKey, info);
         } catch (err) {
             log.warn('runtime',
@@ -145,7 +148,7 @@ async function readDragonBonesPairs(
 /** Acquire the page a `_tex.json` names; its release follows the skeleton's lifetime. */
 async function acquireAtlasImage(
     logicalAtlas: string, atlasJson: string, acquire: AcquireAtlasPage,
-): Promise<{ textureId: number; release?: () => void }> {
+): Promise<{ textureId: number; lease?: AssetLease }> {
     const image = atlasImageName(atlasJson);
     if (!image) {
         log.warn('runtime', `DragonBones atlas names no image: ${logicalAtlas}`);
@@ -154,7 +157,7 @@ async function acquireAtlasImage(
     const path = atlasPagePath(logicalAtlas, image);
     try {
         const lease = await acquire(path);
-        try { return { textureId: requireResourceManager().getTextureGLId(lease.value.handle), release: () => lease.release() }; }
+        try { return { textureId: requireResourceManager().getTextureGLId(lease.value.handle), lease }; }
         catch (error) { lease.release(); throw error; }
     } catch (err) {
         log.warn('runtime', `Failed to load DragonBones atlas image: ${path}`, err);
@@ -202,8 +205,7 @@ export function applyDragonBonesEntities(opts: {
                 const handle = manager.loadSkeleton(info.skeletonData, info.atlasJson, assetKey);
                 if (handle < 0) continue;
                 touched.add(assetKey);
-                if (info.textureId >= 0) manager.setAtlasTexture(handle, info.textureId);
-                bindAtlasOwner(info, manager, handle);
+                bindAtlasTexture(info, manager, handle);
 
                 // An unspecified armature selects the file's first armature.
                 const named = typeof data.armature === 'string' ? data.armature : '';

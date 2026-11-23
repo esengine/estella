@@ -14,7 +14,16 @@ import { DragonBonesManager } from '../src/dragonbones/DragonBonesManager';
 import { DragonBonesModuleController } from '../src/dragonbones/DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModuleLoader';
 import type { Entity } from '../src/types';
-import { ownAtlas, bindAtlasOwner } from '../src/dragonbones/atlasOwnership';
+import { ownAtlas, bindAtlasTexture } from '../src/dragonbones/atlasOwnership';
+import { App } from '../src/app/app';
+import { Assets } from '../src/asset/Assets';
+import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
+import { EmbeddedBackend } from '../src/asset/Backend';
+import { DragonBonesPlugin } from '../src/dragonbones/DragonBonesPlugin';
+import { registerDragonBonesSupport } from '../src/dragonbones/dragonBonesSupport';
+import { createRuntimeSceneConfig, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
+import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
+import type { CppResourceManager } from '../src/wasm';
 
 const DB_JS = resolve(WASM_DIR, 'dragonbones.js');
 const DB_WASM = resolve(WASM_DIR, 'dragonbones.wasm');
@@ -41,9 +50,60 @@ describe.skipIf(!HAS_ASSETS)('DragonBonesManager', () => {
     const load = (m: DragonBonesManager, key?: string): number =>
         m.loadSkeleton(new Uint8Array(readFileSync(SKE)), readFileSync(TEX, 'utf8'), key);
 
+    const bindPage = (manager: DragonBonesManager, handle: number, release: () => void): void => {
+        const info = { textureId: 7 };
+        ownAtlas(info, ownedAssetLease('page.png', 1, 7, release));
+        bindAtlasTexture(info, manager, handle);
+    };
+
+    it('releases discarded scene preparations and transfers published pages to their armatures', async () => {
+        const app = App.new(), manager = fresh();
+        registerDragonBonesSupport();
+        app.setSideModules({ acquire: async () => null });
+        app.addPlugin(new DragonBonesPlugin(manager));
+        const skeletonPath = 'DragonBoy_ske.json', atlasPath = 'DragonBoy_tex.json';
+        const backend = new EmbeddedBackend({
+            [skeletonPath]: 'data:application/json;base64,' + readFileSync(SKE).toString('base64'),
+            [atlasPath]: readFileSync(TEX, 'utf8'),
+        });
+        const source = { backend, decodePixels: async () => { throw new Error('unexpected decode'); } };
+        const sceneData = { version: 1, name: 'dragon', entities: [{
+            id: 1, name: 'Dragon', parent: null, children: [],
+            components: [{ type: 'DragonBonesAnimation', data: { skeletonPath, atlasPath, armature: 'Dragon' } }],
+        }] };
+        const release = vi.fn();
+        const acquire = vi.spyOn(Assets.prototype, 'acquireTexture').mockImplementation(async path =>
+            ownedAssetLease(path, 1, { handle: 7, width: 1, height: 1 }, release));
+        initResourceManager({ getTextureGLId: (handle: number) => handle } as CppResourceManager);
+        try {
+            const options = { app, module: null, source };
+            const config = createRuntimeSceneConfig('dragon', sceneData, options);
+            await config.prepare!();
+            expect(acquire).toHaveBeenCalledOnce();
+            expect(config.discardPrepared!()).toBe(1);
+            expect(config.discardPrepared!()).toBe(0);
+            expect(release).toHaveBeenCalledTimes(1);
+
+            const prepared = await prepareRuntimeScene({ ...options, sceneData });
+            expect(prepared.assetResult.scope.size).toBe(1);
+            await publishRuntimeScene(prepared);
+            expect(prepared.assetResult.scope.size).toBe(0);
+            prepared.assetResult.scope.releaseAll();
+            const entity = app.world.getAllEntities().find(e => manager.hasInstance(e));
+            expect(entity).toBeDefined();
+            expect(release).toHaveBeenCalledTimes(1);
+            app.world.despawn(entity!);
+            expect(release).toHaveBeenCalledTimes(2);
+        } finally {
+            app.quit();
+            acquire.mockRestore();
+            shutdownResourceManager();
+        }
+    });
+
     it('releases a shared atlas only after its last instance is removed', () => {
-        const m = fresh(), handle = load(m, 'shared-atlas'), info = {}, release = vi.fn();
-        ownAtlas(info, release); bindAtlasOwner(info, m, handle);
+        const m = fresh(), handle = load(m, 'shared-atlas'), release = vi.fn();
+        bindPage(m, handle, release);
         expect(m.addEntity(e(101), handle, { armature: 'Dragon', assetKey: 'shared-atlas' })).toBe(true);
         expect(m.addEntity(e(102), handle, { armature: 'Dragon', assetKey: 'shared-atlas' })).toBe(true);
         m.removeEntity(e(101)); expect(release).not.toHaveBeenCalled();
@@ -52,15 +112,35 @@ describe.skipIf(!HAS_ASSETS)('DragonBonesManager', () => {
     });
     it('replacement releases the old atlas and disposal releases the current one once', () => {
         const m = fresh(), handle = load(m, 'replace-atlas'), old = vi.fn(), next = vi.fn();
-        const first = {}, second = {};
-        ownAtlas(first, old); bindAtlasOwner(first, m, handle);
-        ownAtlas(second, next); bindAtlasOwner(second, m, handle);
+        bindPage(m, handle, old);
+        bindPage(m, handle, next);
         expect(old).toHaveBeenCalledOnce(); expect(next).not.toHaveBeenCalled();
         m.dispose(); m.dispose(); expect(next).toHaveBeenCalledOnce();
     });
+
+    it('keeps a refused page in its scene scope and never binds it after discard', () => {
+        const manager = fresh(), handle = load(manager, 'refused-page');
+        const page = { textureId: 8 }, scope = new AssetScope(), release = vi.fn();
+        const current = vi.fn();
+        bindPage(manager, handle, current);
+        ownAtlas(page, ownedAssetLease('new.png', 2, 8, release), scope);
+        const bind = vi.spyOn(manager, 'setAtlasTexture').mockImplementationOnce(() => { throw new Error('device lost'); });
+        try {
+            expect(() => bindAtlasTexture(page, manager, handle)).toThrow('device lost');
+            expect(scope.size).toBe(1);
+            scope.releaseAll();
+            bindAtlasTexture(page, manager, handle);
+            expect(bind).toHaveBeenCalledOnce();
+            expect(page.textureId).toBe(-1);
+            expect(current).not.toHaveBeenCalled();
+            expect(release).toHaveBeenCalledOnce();
+        } finally { manager.dispose(); }
+        expect(current).toHaveBeenCalledOnce();
+    });
+
     it('a refused armature releases its otherwise unbound skeleton and atlas', () => {
-        const m = fresh(), handle = load(m, 'refused'), info = {}, release = vi.fn();
-        ownAtlas(info, release); bindAtlasOwner(info, m, handle);
+        const m = fresh(), handle = load(m, 'refused'), release = vi.fn();
+        bindPage(m, handle, release);
         expect(m.addEntity(e(103), handle, { armature: 'missing', assetKey: 'refused' })).toBe(false);
         m.discardUnboundSkeleton('refused'); expect(release).toHaveBeenCalledOnce();
         m.dispose(); expect(release).toHaveBeenCalledOnce();
