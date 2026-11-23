@@ -8,11 +8,11 @@
 import { describe, expect, it } from 'vitest';
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../src/asset/meshFormat';
 import {
-    decodeCurves, encodeCurves, groupStats, parseGroomDocument, settingsForGroups, emptyCurveSet, DEFAULT_GROUP_SETTINGS,
+    decodeCurves, encodeCurves, groupStats, parseGroomDocument, settingsForGroups, emptyCurveSet, DEFAULT_GROUP_SETTINGS, DEFAULT_CARDS_SCREEN_SIZE,
     type CurveSet, type GroomCurves,
 } from '../src/groom/groomFormat';
 import { buildStrandMesh } from '../src/groom/groomMesh';
-import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
+import { besideFile, Groom, groupUniforms, screenSizeOf, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 import { growGroom } from '../src/groom/groomGrow';
 import { meshSurface, projectStrands, SEGMENT_FLOATS } from '../src/groom/groomTextures';
@@ -319,5 +319,25 @@ describe('hair cards along a groom', () => {
             const [a0, b0, c0, d0] = boxes[i]!, [a1, b1, c1, d1] = boxes[j]!;
             expect(c0! <= a1! + 1e-9 || c1! <= a0! + 1e-9 || d0! <= b1! + 1e-9 || d1! <= b0! + 1e-9).toBe(true);
         }
+    });
+});
+
+describe('a groom drawn as its cards when small', () => {
+    it('reads its cards from the .esgroom, at a screen size of its own or the default', () => {
+        const doc = parseGroomDocument(JSON.stringify({ version: 1, type: 'groom', curves: 'a.escurves', cards: { mesh: 'a_Cards.esmesh', material: 'a_Cards.esmaterial' } }));
+        expect(doc.cards).toEqual({ mesh: 'a_Cards.esmesh', material: 'a_Cards.esmaterial', screenSize: DEFAULT_CARDS_SCREEN_SIZE });
+        expect(parseGroomDocument(JSON.stringify({ version: 1, type: 'groom', curves: 'a.escurves', cards: { mesh: 'a.esmesh', material: 'a.esmaterial', screenSize: 0.4 } })).cards?.screenSize).toBe(0.4);
+        // Cards without both files are no cards.
+        expect(parseGroomDocument(JSON.stringify({ version: 1, type: 'groom', curves: 'a.escurves', cards: { mesh: 'a.esmesh' } })).cards).toBeUndefined();
+    });
+
+    it('measures how much of the view height a sphere covers, smaller as it goes further', () => {
+        // A perspective of 90 degrees vertical (y stretched by 1) looking down -z, from the origin: column-major.
+        const vp = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, -1, 0, 0, -0.2, 0]);
+        expect(screenSizeOf(vp, [0, 0, -10], 1)).toBeCloseTo(0.1, 6);
+        expect(screenSizeOf(vp, [0, 0, -20], 1)).toBeCloseTo(0.05, 6);
+        expect(screenSizeOf(vp, [3, 2, -10], 1)).toBeCloseTo(0.1, 6);
+        // Behind the eye it is not small: nothing switches on a groom the camera has turned from.
+        expect(screenSizeOf(vp, [0, 0, 10], 1)).toBe(Infinity);
     });
 });

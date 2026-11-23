@@ -9,7 +9,7 @@
  */
 import type { App, Plugin } from '../app/app';
 import type { Entity } from '../types';
-import { defineComponent, MeshRenderer, RuntimeOnly, Transform, type ComponentDef, type MeshRendererData } from '../ecs/component';
+import { Camera, defineComponent, MeshRenderer, RuntimeOnly, Transform, type CameraData, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
@@ -21,6 +21,8 @@ import { BlendMode } from '../render/blend';
 import { holdShaderWarmup } from '../render/shaderWarmup';
 import { log } from '../util/logger';
 import { decodeCurves, parseGroomDocument, settingsForGroups, type GroomCurves, type GroomDocument, type GroomGroupSettings } from './groomFormat';
+import { CameraCommit } from '../camera/CameraCommit';
+import type { AssetLease } from '../asset/AssetLease';
 import { buildStrandMesh } from './groomMesh';
 import { growGroom } from './groomGrow';
 
@@ -89,6 +91,39 @@ interface Built {
     children: Entity[];
     meshes: number[];
     materials: number[];
+    /** The cards drawn in place of the strands when small, and what they are held by. */
+    cards: { entity: Entity; screenSize: number; leases: AssetLease[] } | null;
+    /** The strands' bounding sphere in the groom's own space, in world units. */
+    centre: [number, number, number];
+    radius: number;
+    /** Which is drawn now. */
+    showing: 'strands' | 'cards';
+}
+
+/** How far past `screenSize` either way a groom must go before it switches, so one standing at the line does not flicker. */
+export const GROOM_LOD_HYSTERESIS = 0.1;
+
+/** The bounding sphere of every point of the curves, in metres. */
+function boundsOf(curves: GroomCurves): { centre: [number, number, number]; radius: number } {
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (const g of curves.groups) {
+        const p = g.strands.positions;
+        for (let i = 0; i < p.length; i += 3) for (let k = 0; k < 3; k++) { const v = p[i + k]!; if (v < min[k]!) min[k] = v; if (v > max[k]!) max[k] = v; }
+    }
+    if (!(min[0]! <= max[0]!)) return { centre: [0, 0, 0], radius: 0 };
+    const centre: [number, number, number] = [(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2];
+    return { centre, radius: Math.hypot(max[0]! - centre[0], max[1]! - centre[1], max[2]! - centre[2]) };
+}
+
+/**
+ * How much of the view's height a sphere covers, through a view-projection (column-major): its radius over its depth, scaled
+ * by how the projection stretches the height. An orthographic view has no depth to divide by.
+ */
+export function screenSizeOf(viewProjection: ArrayLike<number>, centre: readonly number[], radius: number): number {
+    const m = viewProjection;
+    const w = m[3]! * centre[0]! + m[7]! * centre[1]! + m[11]! * centre[2]! + m[15]!;
+    const stretch = Math.hypot(m[1]!, m[5]!, m[9]!);
+    return w > 1e-6 ? (radius * stretch) / w : Infinity;
 }
 
 /** Every `Groom`'s groups, kept as their files say. */
@@ -104,6 +139,10 @@ export class GroomRes {
     failure(entity: Entity): string | null { return this.failed_.get(entity)?.why ?? null; }
     /** The entities drawing each group of an entity's groom, in group order. */
     groups(entity: Entity): readonly Entity[] { return this.built_.get(entity)?.children ?? []; }
+    /** What an entity's groom is drawn as now: its strands, or its cards (where its `.esgroom` has cards and it is small in the view). */
+    drawnAs(entity: Entity): 'strands' | 'cards' | null { return this.built_.get(entity)?.showing ?? null; }
+    /** The entity drawing an entity's cards, where its groom has them. */
+    cards(entity: Entity): Entity | null { return this.built_.get(entity)?.cards?.entity ?? null; }
 }
 
 /**
@@ -132,6 +171,10 @@ function letGo(app: App, res: GroomRes, entity: Entity): void {
     res.built_.delete(entity);
     if (!held) return;
     for (const child of held.children) if (app.world.valid(child)) app.world.despawn(child);
+    if (held.cards) {
+        if (app.world.valid(held.cards.entity)) app.world.despawn(held.cards.entity);
+        for (const lease of held.cards.leases) lease.release();
+    }
     const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
     for (const mesh of held.meshes) assets?.releaseBuiltMesh(mesh);
     for (const material of held.materials) Material.release(material);
@@ -143,12 +186,33 @@ async function build(app: App, res: GroomRes, entity: Entity, path: string, key:
     const curves = await loadGroomCurves(doc, path, (p) => assets.fetchBinary(p));
     const settings = settingsForGroups(doc, curves.groups.length);
     const stock = await stockMaterial(assets, res);
+    // The cards, where it has them: a mesh and a material of the project, held for as long as the groom is.
+    const leases: AssetLease[] = [];
+    let cardsMesh = 0, cardsMaterial = 0;
+    if (doc.cards) {
+        try {
+            const m = await assets.acquireTyped<{ handle: number }>('mesh', besideFile(path, doc.cards.mesh));
+            leases.push(m);
+            const mat = await assets.acquireTyped<{ handle: number }>('material', besideFile(path, doc.cards.material));
+            leases.push(mat);
+            cardsMesh = m.value.handle; cardsMaterial = mat.value.handle;
+        } catch (e) {
+            log.warn('groom', `${path}: its cards (${doc.cards.mesh}, ${doc.cards.material}) cannot be loaded, so it draws as strands at every distance`, e);
+        }
+    }
     // The component may have gone, or changed to another groom, while the files were read.
     const world = app.world;
-    if (!world.valid(entity) || !world.has(entity, Groom) || (world.get(entity, Groom) as GroomData).groom !== path) return;
+    if (!world.valid(entity) || !world.has(entity, Groom) || (world.get(entity, Groom) as GroomData).groom !== path) {
+        for (const lease of leases) lease.release();
+        return;
+    }
     letGo(app, res, entity);
     const scale = worldUnitsPerMeter();
-    const held: Built = { key, children: [], meshes: [], materials: [] };
+    const bounds = boundsOf(curves);
+    const held: Built = {
+        key, children: [], meshes: [], materials: [], cards: null, showing: 'strands',
+        centre: [bounds.centre[0] * scale, bounds.centre[1] * scale, bounds.centre[2] * scale], radius: bounds.radius * scale,
+    };
     res.built_.set(entity, held);
     for (let g = 0; g < curves.groups.length; g++) {
         const group = curves.groups[g]!;
@@ -180,6 +244,87 @@ async function build(app: App, res: GroomRes, entity: Entity, path: string, key:
         } as Partial<MeshRendererData>);
         world.setParent(child, entity);
         held.children.push(child);
+    }
+    if (cardsMesh && cardsMaterial && doc.cards) {
+        const child = world.spawn('Groom Cards');
+        world.insert(child, RuntimeOnly);
+        world.insert(child, Transform, {});
+        world.insert(child, MeshRenderer, {
+            mesh: cardsMesh, material: cardsMaterial, lit: true, opaque: true, cullBackfaces: false, castShadows: true, enabled: false,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+        } as Partial<MeshRendererData>);
+        world.setParent(child, entity);
+        held.cards = { entity: child, screenSize: doc.cards.screenSize, leases };
+    } else {
+        for (const lease of leases) lease.release();
+    }
+}
+
+function setEnabled(app: App, entity: Entity, enabled: boolean): void {
+    const world = app.world;
+    if (!world.valid(entity) || !world.has(entity, MeshRenderer)) return;
+    const data = world.get(entity, MeshRenderer) as MeshRendererData;
+    if (data.enabled !== enabled) world.insert(entity, MeshRenderer, { ...data, enabled });
+}
+
+/**
+ * How much of the view's height a sphere covers, from the camera the last frame was drawn with where the host publishes it (it is
+ * the editor's eye in the edit viewport), and from the scene's active camera of highest priority where it does not. Null with no camera.
+ */
+function viewMeasure(app: App): ((centre: number[], radius: number) => number) | null {
+    if (app.hasResource(CameraCommit)) {
+        const view = app.getResource(CameraCommit);
+        if (view.valid) return (centre, radius) => screenSizeOf(view.viewProjection, centre, radius);
+    }
+    const world = app.world;
+    let best: Entity | null = null, bestPriority = -Infinity;
+    for (const e of world.getEntitiesWithComponents([Camera, Transform])) {
+        const cam = world.get(e, Camera) as CameraData;
+        if (cam.isActive && cam.priority > bestPriority) { best = e; bestPriority = cam.priority; }
+    }
+    if (best === null) return null;
+    const cam = world.get(best, Camera) as CameraData;
+    const t = world.get(best, Transform) as TransformData;
+    const q = t.worldRotation ?? { x: 0, y: 0, z: 0, w: 1 };
+    // The camera looks down its own -z.
+    const f = [-(2 * (q.x * q.z + q.w * q.y)), -(2 * (q.y * q.z - q.w * q.x)), -(1 - 2 * (q.x * q.x + q.y * q.y))];
+    const ortho = cam.projectionType === 1;
+    const halfHeight = Math.tan(((cam.fov || 60) * Math.PI) / 360);
+    return (centre, radius) => {
+        if (ortho) return cam.orthoSize > 0 ? radius / cam.orthoSize : Infinity;
+        const depth = (centre[0]! - t.worldPosition.x) * f[0]! + (centre[1]! - t.worldPosition.y) * f[1]! + (centre[2]! - t.worldPosition.z) * f[2]!;
+        return depth > 1e-6 ? radius / (depth * halfHeight) : Infinity;
+    };
+}
+
+/** Draws each groom that has cards as its cards where it covers less of the view than they say, and as its strands where more. */
+function chooseLevels(app: App, res: GroomRes): void {
+    const world = app.world;
+    const measure = viewMeasure(app);
+    if (!measure) return;
+    for (const [entity, held] of res.built_) {
+        if (!held.cards || !world.valid(entity) || !world.has(entity, Transform)) continue;
+        const t = world.get(entity, Transform) as TransformData;
+        const sc = t.worldScale ?? { x: 1, y: 1, z: 1 };
+        const q = t.worldRotation ?? { x: 0, y: 0, z: 0, w: 1 };
+        const local = [held.centre[0] * sc.x, held.centre[1] * sc.y, held.centre[2] * sc.z];
+        // The centre turned with the groom: v + 2w(q x v) + 2 q x (q x v).
+        const cx = q.y * local[2]! - q.z * local[1]!, cy = q.z * local[0]! - q.x * local[2]!, cz = q.x * local[1]! - q.y * local[0]!;
+        const centre = [
+            t.worldPosition.x + local[0]! + 2 * (q.w * cx + q.y * cz - q.z * cy),
+            t.worldPosition.y + local[1]! + 2 * (q.w * cy + q.z * cx - q.x * cz),
+            t.worldPosition.z + local[2]! + 2 * (q.w * cz + q.x * cy - q.y * cx),
+        ];
+        const size = measure(centre, held.radius * Math.max(Math.abs(sc.x), Math.abs(sc.y), Math.abs(sc.z)));
+        const line = held.cards.screenSize;
+        const next = held.showing === 'strands'
+            ? (size < line * (1 - GROOM_LOD_HYSTERESIS) ? 'cards' : 'strands')
+            : (size > line * (1 + GROOM_LOD_HYSTERESIS) ? 'strands' : 'cards');
+        // Built showing its strands with its cards hidden, so only a change has anything to do.
+        if (next === held.showing) continue;
+        held.showing = next;
+        for (const child of held.children) setEnabled(app, child, next === 'strands');
+        setEnabled(app, held.cards.entity, next === 'cards');
     }
 }
 
@@ -219,6 +364,7 @@ export class GroomPlugin implements Plugin {
                     })
                     .finally(() => { res.loading_.delete(entity); });
             }
+            chooseLevels(app, res);
         // It builds what the files say rather than simulating, so it runs in the editor's paused viewport too.
         }, { name: 'GroomSystem', runWhenPaused: true }));
     }

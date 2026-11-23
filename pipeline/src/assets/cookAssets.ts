@@ -327,8 +327,11 @@ function rewriteGroomRefs(
   docPath: string,
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as { curves?: unknown; groups?: { material?: unknown }[] };
-  if (typeof json.curves === 'string') json.curves = logicalRef(json.curves, docPath, byPath);
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as { curves?: unknown; groups?: { material?: unknown }[]; cards?: { mesh?: unknown; material?: unknown } };
+  if (typeof json.curves === 'string' && json.curves) json.curves = logicalRef(json.curves, docPath, byPath);
+  // Its cards, the far level of detail: a mesh and a material beside it, moved by staging like the curves.
+  if (json.cards && typeof json.cards.mesh === 'string') json.cards.mesh = logicalRef(json.cards.mesh, docPath, byPath);
+  if (json.cards && typeof json.cards.material === 'string') json.cards.material = logicalRef(json.cards.material, docPath, byPath);
   for (const group of Array.isArray(json.groups) ? json.groups : []) {
     if (group && typeof group.material === 'string' && group.material) group.material = logicalRef(group.material, docPath, byPath);
   }

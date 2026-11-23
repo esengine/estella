@@ -73,6 +73,20 @@ export interface GroomGroupSettings {
     stableRasterization: boolean;
 }
 
+/**
+ * The groom's cards, its far level of detail: a mesh of hair cards and the material that draws them (both relative to the
+ * `.esgroom`, as its curves file is). Where the groom covers less of the view's height than `screenSize` (0..1), the cards draw
+ * in place of the strands. Create Hair Cards writes it.
+ */
+export interface GroomCardsLod {
+    mesh: string;
+    material: string;
+    screenSize: number;
+}
+
+/** Where the cards take over when a groom does not say: a head of hair a fifth of the view's height. */
+export const DEFAULT_CARDS_SCREEN_SIZE = 0.2;
+
 export interface GroomDocument {
     version: number;
     type: 'groom';
@@ -80,6 +94,8 @@ export interface GroomDocument {
     curves: string;
     /** The parameters the groom is grown from in the engine (groomGrow.ts), in place of a curves file. */
     grow?: GrowRecipe;
+    /** Its cards, drawn in place of the strands where the groom is small in the view. */
+    cards?: GroomCardsLod;
     groups: GroomGroupSettings[];
 }
 
@@ -118,11 +134,16 @@ export function parseGroomDocument(text: string): GroomDocument {
     const grow = raw.grow && typeof raw.grow === 'object' ? raw.grow : undefined;
     const curves = typeof raw.curves === 'string' ? raw.curves : '';
     if (!curves && !grow) throw new Error('a groom names its curves file in "curves", or grows them from "grow"');
+    const c = raw.cards as Partial<GroomCardsLod> | undefined;
+    const cards = c && typeof c.mesh === 'string' && c.mesh && typeof c.material === 'string' && c.material
+        ? { mesh: c.mesh, material: c.material, screenSize: typeof c.screenSize === 'number' && Number.isFinite(c.screenSize) ? Math.max(0, c.screenSize) : DEFAULT_CARDS_SCREEN_SIZE }
+        : undefined;
     return {
         version: typeof raw.version === 'number' ? raw.version : GROOM_FORMAT_VERSION,
         type: 'groom',
         curves,
         ...(grow ? { grow } : {}),
+        ...(cards ? { cards } : {}),
         groups: Array.isArray(raw.groups) ? raw.groups.map((g) => groupSettings(g)) : [],
     };
 }

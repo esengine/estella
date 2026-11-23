@@ -38,7 +38,10 @@ const GROOM = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const CURVES = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
 // A groom names its curves as a sibling file, as Blender's exporter writes it.
-const groom = JSON.stringify({ version: 1, type: 'groom', curves: 'fur.escurves', groups: [{}] });
+// And its cards, the far level of detail, as Create Hair Cards writes them beside it.
+const groom = JSON.stringify({ version: 1, type: 'groom', curves: 'fur.escurves', groups: [{}], cards: { mesh: 'fur_Cards.esmesh', material: 'fur_Cards.esmaterial', screenSize: 0.2 } });
+const CARDS_MESH = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01';
+const CARDS_MATERIAL = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02';
 
 function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = ''): void {
   const abs = path.join(root, rel);
@@ -138,6 +141,8 @@ beforeAll(() => {
   writeAsset('assets/fonts/old.png', 'texture', OLD_FNT_PAGE, 'PNG');
   writeAsset('assets/fonts/old.fnt', 'bitmapFont', OLD_FNT, fnt.replace('tiny.png', 'old.png'));
   writeAsset('assets/fur/fur.escurves', metaTypeForExt('.escurves')!, CURVES, new Uint8Array([1, 2, 3, 4]));
+  writeAsset('assets/fur/fur_Cards.esmesh', 'mesh', CARDS_MESH, new Uint8Array([5, 6, 7, 8]));
+  writeAsset('assets/fur/fur_Cards.esmaterial', 'material', CARDS_MATERIAL, JSON.stringify({ version: '1.0', type: 'material', shader: 'builtin:hair', properties: {} }));
   writeAsset('assets/fur/fur.esgroom', metaTypeForExt('.esgroom')!, GROOM, groom);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
 });
@@ -175,7 +180,7 @@ describe('assets named only inside another document are cooked', () => {
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE, GROOM, CURVES]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE, GROOM, CURVES, CARDS_MESH, CARDS_MATERIAL]));
     expect(res.unused).toEqual([]);
   });
 
@@ -220,8 +225,9 @@ describe('assets named only inside another document are cooked', () => {
 
     // A groom's curves are the same kind of sibling: left as authored, the strands 404 in the package.
     const fur = manifest.entries.find((e) => e.uuid === GROOM)!;
-    const stagedGroom = JSON.parse(readFileSync(path.join(res.outDir, fur.path), 'utf8')) as { curves: string };
+    const stagedGroom = JSON.parse(readFileSync(path.join(res.outDir, fur.path), 'utf8')) as { curves: string; cards: { mesh: string; material: string } };
     expect(stagedGroom.curves).toBe('assets/fur/fur.escurves');
+    expect(stagedGroom.cards).toMatchObject({ mesh: 'assets/fur/fur_Cards.esmesh', material: 'assets/fur/fur_Cards.esmaterial' });
     expect(manifest.entries.some((e) => e.sourcePath === stagedGroom.curves)).toBe(true);
 
     // And the package is self-consistent: nothing it staged names a path it lacks.
