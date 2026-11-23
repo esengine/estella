@@ -47,6 +47,7 @@ vi.mock('../src/ecs/resource', () => ({
 
 vi.mock('../src/ecs/component', () => ({
     SceneOwner: Symbol('SceneOwner'),
+    Children: Symbol('Children'),
     Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
     renderableComponents: () => [],
     defineBuiltin: (name: string) => Symbol(name),

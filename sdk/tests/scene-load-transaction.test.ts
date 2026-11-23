@@ -22,7 +22,7 @@ import { Assets } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
 import { PostProcess } from '../src/postprocess';
 import { getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
-import { Disabled, Parent, Transform, defineComponent } from '../src/ecs/component';
+import { Disabled, Parent, SceneOwner, Transform, defineComponent } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
@@ -266,6 +266,64 @@ describe('unload decides who lives before it destroys anything', () => {
         position: { x, y, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
         worldPosition: { x, y, z: 0 }, worldRotation: { x: 0, y: 0, z: 0, w: 1 },
         worldScale: { x: 1, y: 1, z: 1 },
+    });
+
+    it.each(['unload', 'force', 'rollback'] as const)('keeps other scenes alive below unowned hierarchy nodes during %s', async mode => {
+        const { app, manager } = hierarchyApp(), world = app.world;
+        manager.register({ name: 'other' });
+        const other = await manager.load('other'), guest = other.spawn(), guestChild = other.spawn();
+        let root!: Entity, joint!: Entity, own!: Entity, promoted!: Entity;
+        const fault = new Error('setup interrupted');
+        manager.register({ name: 'level', setup(ctx) {
+            root = ctx.spawn(); joint = world.spawn(); own = ctx.spawn(); promoted = ctx.spawn();
+            world.setParent(joint, root);
+            world.setParent(guest, joint);
+            world.setParent(guestChild, guest);
+            world.setParent(own, guest);
+            world.setParent(promoted, joint);
+            ctx.setPersistent(promoted, true);
+            world.insert(guest, Transform, { ...at(220, 310), position: { x: 20, y: 10, z: 0 } });
+            if (mode === 'rollback') throw fault;
+        } });
+        try {
+            if (mode === 'rollback') await expect(manager.loadAdditive('level')).rejects.toBe(fault);
+            else {
+                await manager.loadAdditive('level');
+                await manager.unload('level', { keepPersistent: mode !== 'force' });
+            }
+            expect(world.valid(guest)).toBe(true);
+            expect(world.has(guest, Parent)).toBe(false);
+            expect(world.get(guest, Transform).position).toEqual({ x: 220, y: 310, z: 0 });
+            expect(world.get(guestChild, Parent).entity).toBe(guest);
+            expect(other.entities).toEqual(new Set([guest, guestChild]));
+            expect([root, joint, own].map(e => world.valid(e))).toEqual([false, false, false]);
+            expect(world.valid(promoted)).toBe(mode === 'unload');
+            if (mode === 'unload') {
+                expect(world.has(promoted, Parent)).toBe(false);
+                expect(world.get(promoted, SceneOwner).scene).toBe('');
+            }
+            await manager.unload('other');
+            expect(world.valid(guest)).toBe(false);
+        } finally { app.quit(); }
+    });
+
+    it('keeps an adopted parent’s previous-scene children when its new scene unloads first', async () => {
+        const { app, manager } = hierarchyApp(), world = app.world;
+        manager.register({ name: 'source' }); manager.register({ name: 'target' });
+        try {
+            const source = await manager.load('source'), target = await manager.loadAdditive('target');
+            const parent = source.spawn(), child = source.spawn(), helper = world.spawn();
+            world.setParent(helper, parent); world.setParent(child, helper);
+            target.adopt(parent);
+            await manager.unload('target');
+            expect(world.valid(parent)).toBe(false);
+            expect(world.valid(helper)).toBe(false);
+            expect(world.valid(child)).toBe(true);
+            expect(world.has(child, Parent)).toBe(false);
+            expect(source.entities.has(child)).toBe(true);
+            await manager.unload('source');
+            expect(world.valid(child)).toBe(false);
+        } finally { app.quit(); }
     });
 
     it('a persistent child of a doomed parent survives, where it was', async () => {

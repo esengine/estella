@@ -313,6 +313,7 @@ export {
     wrapSceneSystem,
     type SceneConfig,
     type SceneContext,
+    type SceneRetirement,
     type SceneStatus,
     type TransitionOptions,
 } from './scene/sceneManager';

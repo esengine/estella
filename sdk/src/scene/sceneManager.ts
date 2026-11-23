@@ -17,12 +17,13 @@ import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';
 import { loadSceneWithAssets } from './scene';
 import { recordSceneOrigins } from './sceneOrigins';
+import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
+import { discardSceneEntities } from './sceneLoadAttempt';
 import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { defineResource } from '../ecs/resource';
 import { SceneTransitionController } from './SceneTransitionController';
-import { SceneOwner, Disabled, Parent, renderableComponents, type RenderableComponentDef } from '../ecs/component';
-import { detachPreservingWorldTransform } from '../ecs/entityUtils';
+import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef } from '../ecs/component';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
@@ -35,6 +36,14 @@ import { log } from '../util/logger';
  *  does not — see {@link SceneManagerState.pause} and `sleep`.
  *  @beta */
 export type SceneStatus = 'loading' | 'running' | 'paused' | 'sleeping' | 'unloading';
+
+/** Operations supplied to a scene's staggered unload hook. @beta */
+export interface SceneRetirement {
+    /** Hide the remaining roots until they are adopted or destroyed. */
+    hideRoots(): void;
+    /** Destroy the entity if it still belongs to this unload, preserving other scenes' descendants. */
+    despawn(entity: Entity): void;
+}
 
 /**
  * A scene as registered: where its data comes from, the systems that run while it
@@ -72,11 +81,10 @@ export interface SceneConfig {
      */
     readyRenderPrograms?: () => Promise<RenderReadiness>;
     /**
-     * How this scene's entities are destroyed by a STAGGERED unload (`unload(name, { staggered: true })`): handed the
-     * doomed entities after survivors were decided, it hides them at once and takes them out over frames, and the rest of
-     * the teardown (systems, assets) waits for it. Absent, a staggered unload is an ordinary one.
+     * Schedule destruction across frames during a staggered unload. The manager supplies ownership-aware operations
+     * so another scene can adopt an entity between frames. Systems and assets remain available until retirement ends.
      */
-    retire?: (doomed: readonly Entity[]) => Promise<void>;
+    retire?: (doomed: readonly Entity[], retirement?: SceneRetirement) => Promise<void>;
     /** Finish, now, whatever of this scene's arrival or departure is being spread over frames. */
     rush?: () => void;
     /** Says whether a player would see this scene missing, so work spread over frames for it may take more of a frame. */
@@ -149,7 +157,8 @@ class SceneInstance {
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, DrawCallback>();
     readonly postProcessBindings = new Map<Entity, PostProcessStack>();
-    readonly savedEnabled = new Map<Entity, Map<RenderableComponentDef, boolean>>();
+    readonly savedEnabled = new Map<Entity, { wasDisabled: boolean; renderables: Map<RenderableComponentDef, boolean> }>();
+    retirement: SceneEntityBatch | null = null;
     readonly systemIds: symbol[] = [];
     /**
      * What this scene's preload actually acquired, receipt by receipt. Released
@@ -538,7 +547,7 @@ export class SceneManagerState {
         this.scenes_.set(name, instance);
 
         const ctx = new SceneContextImpl(instance, this.app_,
-            entity => this.adoptInto_(instance, entity), () => this.scenes_.get(name) === instance);
+            entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance));
         this.contexts_.set(name, ctx);
 
         const loadPromise = (async (): Promise<SceneContext> => {
@@ -597,14 +606,13 @@ export class SceneManagerState {
      */
     private disposeSceneOwnedState_(
         instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean,
-        retire?: (doomed: Entity[]) => Promise<void>,
+        retire?: SceneConfig['retire'],
     ): Promise<void> | void {
-        const world = this.app_.world;
-        const doomed = this.settleSurvivors_(instance, keepPersistent, wasSleeping);
+        const { survivors, doomed } = this.partitionOnUnload_(instance, keepPersistent);
+        const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed);
+        for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
         const finish = (): void => {
-            for (const entity of doomed) {
-                if (world.valid(entity)) world.despawn(entity);
-            }
+            for (const entity of doomed) batch.despawn(entity);
             instance.entities.clear();
             instance.savedEnabled.clear();
 
@@ -629,29 +637,12 @@ export class SceneManagerState {
         if (!retire) return finish();
         return (async () => {
             try {
-                await retire(doomed);
+                batch.detachSurvivors();
+                await retire(doomed, batch);
             } finally {
                 finish();
             }
         })();
-    }
-
-    /**
-     * Decide who outlives the scene and move them out of its way, answering who does not. Decide first, destroy after:
-     * `despawn` takes the whole subtree with it, so a survivor under a doomed parent was being killed by its parent's turn
-     * in the loop — whether it lived at all came down to iteration order.
-     */
-    private settleSurvivors_(instance: SceneInstance, keepPersistent: boolean, wasSleeping: boolean): Entity[] {
-        const world = this.app_.world;
-        const { survivors, doomed } = this.partitionOnUnload_(instance, keepPersistent);
-        const doomedSet = new Set(doomed);
-        for (const survivor of survivors) {
-            if (!world.has(survivor, Parent)) continue;
-            const parent = world.get(survivor, Parent).entity as Entity;
-            if (doomedSet.has(parent)) detachPreservingWorldTransform(world, survivor);
-        }
-        for (const survivor of survivors) this.promoteToGlobal_(instance, survivor, wasSleeping);
-        return doomed;
     }
 
     /**
@@ -722,14 +713,14 @@ export class SceneManagerState {
 
     private adoptInto_(target: SceneInstance, entity: Entity): void {
         const world = this.app_.world;
-        if (!world.valid(entity)) throw new Error('Cannot adopt a destroyed entity');
+        if (!world.valid(entity) || world.isDestructionPending?.(entity)) throw new Error('Cannot adopt a destroyed entity');
         const alreadyOwned = target.entities.has(entity);
         for (const previous of this.scenes_.values()) {
             if (previous === target || !previous.entities.has(entity)) continue;
             this.promoteAssetOwnership_(previous, entity);
-            const parent = world.tryGet(entity, Parent)?.entity as Entity | undefined;
-            if (parent !== undefined && previous.entities.has(parent)) detachPreservingWorldTransform(world, entity);
-            if (previous.status === 'sleeping') this.restoreSleepState_(previous, entity);
+            previous.retirement?.release(entity);
+            detachFromSceneParent(world, entity, previous.entities);
+            if (this.sleepingScenes_.has(previous.config.name)) this.restoreSleepState_(previous, entity);
             const stack = previous.postProcessBindings.get(entity);
             if (stack) {
                 previous.postProcessBindings.delete(entity);
@@ -765,6 +756,11 @@ export class SceneManagerState {
     }
 
     async unload(name: string, options?: TransitionOptions): Promise<void> {
+        const pending = this.unloadPromises_.get(name);
+        if (pending) {
+            if (!options?.staggered) this.rush(name);
+            return pending;
+        }
         const instance = this.scenes_.get(name);
         if (!instance) return;
 
@@ -803,6 +799,10 @@ export class SceneManagerState {
         } finally {
             if (this.unloadPromises_.get(name) === leaving) this.unloadPromises_.delete(name);
         }
+    }
+
+    private acceptsSceneWork_(instance: SceneInstance): boolean {
+        return !instance.retirement && this.scenes_.get(instance.config.name) === instance;
     }
 
     /**
@@ -851,10 +851,8 @@ export class SceneManagerState {
             // this scene slot while our assets were in flight, the entities we just
             // spawned would orphan in the world under a scene that no longer exists.
             // Despawn them and abort instead of committing to a dead scene.
-            if (this.scenes_.get(name) !== instance) {
-                for (const entity of entityMap.values()) {
-                    if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
-                }
+            if (!this.acceptsSceneWork_(instance)) {
+                discardSceneEntities(this.app_.world, entityMap.values());
                 throw new SceneLoadCancelled(name);
             }
 
@@ -870,7 +868,7 @@ export class SceneManagerState {
 
         // Same token check for the data-less path (systems/setup only) and to fail
         // cleanly before setup() dereferences a context an unload already dropped.
-        if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
+        if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
 
         if (config.systems) {
             for (const { schedule, system } of config.systems) {
@@ -886,7 +884,7 @@ export class SceneManagerState {
             // setup() is user code and can await for as long as it likes. An
             // unload during it means everything above — and everything setup
             // itself spawned — belongs to a scene that no longer exists.
-            if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
+            if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
         }
     }
 
@@ -950,7 +948,8 @@ export class SceneManagerState {
     private sleepEntity_(instance: SceneInstance, entity: Entity, renderables: ReturnType<typeof renderableComponents>): void {
         const world = this.app_.world;
         if (!world.valid(entity)) return;
-        world.insert(entity, Disabled, {});
+        const wasDisabled = world.has(entity, Disabled);
+        if (!wasDisabled) world.insert(entity, Disabled, {});
         const entitySaved = new Map<RenderableComponentDef, boolean>();
         for (const comp of renderables) {
             if (world.has(entity, comp)) {
@@ -963,7 +962,7 @@ export class SceneManagerState {
                 }
             }
         }
-        if (entitySaved.size > 0) instance.savedEnabled.set(entity, entitySaved);
+        if (wasDisabled || entitySaved.size) instance.savedEnabled.set(entity, { wasDisabled, renderables: entitySaved });
     }
 
     wake(name: string): void {
@@ -983,10 +982,10 @@ export class SceneManagerState {
     private restoreSleepState_(instance: SceneInstance, entity: Entity): void {
         const world = this.app_.world;
         if (!world.valid(entity)) return;
-        world.remove(entity, Disabled);
         const entitySaved = instance.savedEnabled.get(entity);
+        if (!entitySaved?.wasDisabled) world.remove(entity, Disabled);
         if (!entitySaved) return;
-        for (const [comp, wasEnabled] of entitySaved) {
+        for (const [comp, wasEnabled] of entitySaved.renderables) {
             if (!world.has(entity, comp)) continue;
             const data = world.get(entity, comp) as Record<string, unknown>;
             data[comp.renderableField] = wasEnabled;

@@ -5,7 +5,8 @@
  * @brief   Runtime scene loader for builder targets (WeChat, Playable, etc.)
  */
 
-import { SceneOwner, Disabled, Parent } from '../ecs/component';
+import { SceneOwner } from '../ecs/component';
+import { SceneEntityBatch } from '../scene/sceneHierarchy';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
          updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn } from '../scene/scene';
@@ -32,7 +33,7 @@ import { bindAssetReferenceTracking } from '../asset/assetReferenceTracking';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
-import { SceneLoadCancelled, SceneManager, type SceneConfig, type SceneContext } from '../scene/sceneManager';
+import { SceneLoadCancelled, SceneManager, type SceneConfig, type SceneContext, type SceneRetirement } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
 import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
@@ -766,10 +767,9 @@ export interface StreamedSceneOptions {
 }
 
 /** Despawns `doomed` one entity a step, yielding how far along it is. */
-function* despawnJob(world: App['world'], doomed: readonly Entity[]): Generator<number, void, void> {
+function* despawnJob(retirement: SceneRetirement, doomed: readonly Entity[]): Generator<number, void, void> {
     for (let i = 0; i < doomed.length; i++) {
-        const entity = doomed[i]!;
-        if (world.valid(entity)) world.despawn(entity);
+        retirement.despawn(doomed[i]!);
         yield (i + 1) / doomed.length;
     }
 }
@@ -911,16 +911,9 @@ export function createRuntimeSceneConfig(
     if (streamed) {
         // Hidden at once, every top of the doomed set switched off in this frame, then destroyed under the budget:
         // incremental unregistration (`s.LevelStreamingUnregisterComponentsTimeLimit`), with the place gone the moment it goes.
-        config.retire = async (doomed) => {
-            const world = options.app.world;
-            const going = new Set(doomed);
-            for (const entity of doomed) {
-                if (!world.valid(entity)) continue;
-                const parent = world.has(entity, Parent) ? (world.get(entity, Parent).entity as Entity) : null;
-                if (parent !== null && going.has(parent)) continue;
-                if (!world.has(entity, Disabled)) world.insert(entity, Disabled, {});
-            }
-            await overFrames('Taking out', despawnJob(world, doomed));
+        config.retire = async (doomed, retirement = new SceneEntityBatch(options.app.world, doomed)) => {
+            retirement.hideRoots();
+            await overFrames('Taking out', despawnJob(retirement, doomed));
         };
         config.rush = () => {
             // Its preparation waits for no more turns either: rushed is wanted now, or the frames have stopped.

@@ -62,12 +62,16 @@ if (!dispose || !releaseAssets) {
   console.error(`${FILE}  disposeSceneOwnedState_ / releaseSceneAssets_ is gone — the scene teardown protocol has no single implementation to hold.`);
   process.exit(1);
 }
-// The protocol is the two together: dispose runs releaseSceneAssets_.
+const batchFile = 'sdk/src/scene/sceneHierarchy.ts';
+const batch = stripComments(readFileSync(path.join(ROOT, batchFile), 'utf8'));
+if (!/\bbatch\.despawn\s*\(/.test(dispose.text) || !/\bthis\.world\.despawn\s*\(/.test(batch)) {
+  findings.push(`${FILE} / ${batchFile}  the shared retirement must despawn entities through the ownership-aware batch.`);
+}
 const protocol = dispose.text + releaseAssets.text;
 
 // --- 1. neither door tears down on its own ---------------------------------
 const TEARDOWN_OPS = [
-  /\bworld\.despawn\s*\(/,
+  /\b(?:world|batch)\.despawn\s*\(/,
   /\bunregisterDrawCallback\s*\(/,
   /\bremoveSystem\s*\(/,
   /\bunbind\s*\(/,

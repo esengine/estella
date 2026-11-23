@@ -57,6 +57,7 @@ vi.mock('../src/ecs/component', () => {
     return {
         SceneOwner: Symbol('SceneOwner'),
         Parent: Symbol('Parent'),
+        Children: Symbol('Children'),
         Disabled: { _id: Symbol('Disabled'), _name: 'Disabled', _builtin: false, _default: {} },
         ...Object.fromEntries(renderables.map((d) => [d._name, d])),
         renderableComponents: () => renderables,

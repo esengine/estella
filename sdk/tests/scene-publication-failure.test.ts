@@ -12,6 +12,8 @@ import { App } from '../src/app/app';
 import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
 import { SceneLoadCancelled, SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { bakesOf } from '../src/runtime/bakes';
+import { Disabled, MeshRenderer, Parent } from '../src/ecs/component';
+import { connectFakeCpp } from './helpers/fakeEngine';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: () => false }),
@@ -145,9 +147,118 @@ describe('overlapping registered scene loads', () => {
             expect(unloaded).toHaveBeenCalledTimes(2);
         } finally { for (const gate of gates) gate.open(); assets.releaseAll(); app.quit(); }
     });
+
+    it.each(['running', 'sleeping'])('preserves transfers between the unload frames of a %s cell', async status => {
+        const { app, assets, options, unloaded } = await runtime();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const hidden = { ...scene.entities[0]!, id: 2, name: 'already hidden',
+            components: [...scene.entities[0]!.components, { type: 'Disabled', data: {} }] };
+        const cell = createRuntimeSceneConfig('cell', { ...scene, entities: [...scene.entities, hidden] }, options, undefined, {});
+        const cleanup = vi.fn();
+        cell.cleanup = cleanup;
+        manager.register(cell); manager.register({ name: 'destination' });
+        try {
+            manager.rush('cell');
+            const source = await manager.load('cell'), destination = await manager.loadAdditive('destination');
+            const visible = app.world.findEntityByName('new')!, invisible = app.world.findEntityByName('already hidden')!;
+            const root = source.spawn(), joint = app.world.spawn(), nested = source.spawn(), guest = destination.spawn();
+            const leavingChild = source.spawn();
+            app.world.setParent(leavingChild, visible);
+            app.world.setParent(joint, root);
+            app.world.setParent(nested, joint);
+            if (status === 'sleeping') manager.sleep('cell');
+            manager.urge('cell', false);
+            const leaving = manager.unload('cell', { staggered: true });
+            const joining = manager.unload('cell', { staggered: true });
+            expect(app.world.has(visible, Disabled)).toBe(true);
+            expect(() => source.spawn()).toThrow(SceneLoadCancelled);
+            app.world.setParent(guest, joint);
+            destination.adopt(visible); destination.adopt(invisible); destination.adopt(nested);
+            expect(app.world.has(leavingChild, Disabled)).toBe(true);
+            expect(app.world.has(nested, Parent)).toBe(false);
+            expect(app.world.has(nested, Disabled)).toBe(false);
+            await Promise.all([leaving, joining, manager.unload('cell')]);
+            expect(cleanup).toHaveBeenCalledOnce();
+            expect([...source.entities]).toEqual([]);
+            expect(destination.entities).toEqual(new Set([visible, invisible, nested, guest]));
+            expect(app.world.has(guest, Parent)).toBe(false);
+            expect(app.world.valid(joint)).toBe(false);
+            expect(app.world.valid(root)).toBe(false);
+            expect(app.world.valid(leavingChild)).toBe(false);
+            expect(app.world.has(visible, Disabled)).toBe(false);
+            expect(app.world.has(invisible, Disabled)).toBe(true);
+            expect(app.world.get(visible, MeshRenderer).mesh).toBe(7);
+            expect(app.world.get(visible, MeshRenderer).enabled).toBe(true);
+            expect(assets.sizes().refRows).toBe(2);
+            expect(unloaded).not.toHaveBeenCalled();
+            await manager.unload('destination');
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { manager.rush('cell'); assets.releaseAll(); app.quit(); }
+    });
+
+    it('finishes a rejected custom retirement and leaves transferred entities with their new owner', async () => {
+        const { app, assets, manager, config, unloaded } = await registered();
+        connectFakeCpp(app.world);
+        const turn = barrier(), fault = new Error('scheduler stopped');
+        config.retire = async (entities, retirement) => {
+            retirement!.hideRoots();
+            await turn.promise;
+            retirement!.despawn(entities[0]!);
+            throw fault;
+        };
+        manager.register({ name: 'next' });
+        try {
+            const source = await manager.load('cell'), next = await manager.loadAdditive('next');
+            const mesh = app.world.findEntityByName('new')!, retiring = source.spawn();
+            const leaving = expect(manager.unload('cell', { staggered: true })).rejects.toBe(fault);
+            next.adopt(mesh);
+            turn.open();
+            await leaving;
+            expect(app.world.valid(retiring)).toBe(false);
+            expect(app.world.has(mesh, Disabled)).toBe(false);
+            expect(next.entities).toEqual(new Set([mesh]));
+            expect(assets.sizes().refRows).toBe(1);
+            await manager.unload('next');
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { turn.open(); assets.releaseAll(); app.quit(); }
+    });
 });
 
 describe('scene publication failures', () => {
+    it.each(['authoring', 'runtime'])('keeps another scene’s subtree through a failed %s spawn', async entry => {
+        const { app, options, assets, unloaded } = await runtime();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        manager.register({ name: 'other' });
+        const other = await manager.load('other'), guest = other.spawn(), leaf = other.spawn();
+        app.world.setParent(leaf, guest);
+        const fault = new Error('after attachment');
+        const onPhase = (phase: string) => {
+            if (phase !== 'spawn') return;
+            const helper = app.world.spawn();
+            app.world.setParent(helper, app.world.findEntityByName('new')!);
+            app.world.setParent(guest, helper);
+            throw fault;
+        };
+        try {
+            const load = entry === 'authoring'
+                ? loadSceneWithAssets(app.world, scene, { assets, onPhase })
+                : loadRuntimeScene({ ...options, sceneData: scene, onPhase });
+            await expect(load).rejects.toBe(fault);
+            expect(new Set(app.world.getAllEntities())).toEqual(new Set([guest, leaf]));
+            expect(app.world.has(guest, Parent)).toBe(false);
+            expect(app.world.get(leaf, Parent).entity).toBe(guest);
+            expect(other.entities).toEqual(new Set([guest, leaf]));
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['assets', 'subsystems', 'spawn', 'origins'])('rolls the packaged load back if %s fails and can retry', async phase => {
         const { app, options, assets, unloaded } = await runtime();
         const existing = app.world.spawn(), refused = new Error(phase);

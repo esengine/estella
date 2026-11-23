@@ -5,6 +5,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
 import type { ScenePhaseSink } from './scene';
+import { SceneEntityBatch } from './sceneHierarchy';
 
 /** Resources and entities owned by one load until publication succeeds. */
 export interface SceneLoadAttempt {
@@ -13,8 +14,10 @@ export interface SceneLoadAttempt {
 }
 
 export function discardSceneEntities(world: World, entities: Iterable<Entity>): void {
-    for (const entity of entities) {
-        try { if (world.valid(entity)) world.despawn(entity); }
+    const doomed = Array.from(entities);
+    const batch = new SceneEntityBatch(world, doomed);
+    for (const entity of doomed) {
+        try { batch.despawn(entity); }
         catch (error) { log.warn('scene', `Failed to discard scene entity ${entity}`, error); }
     }
 }
