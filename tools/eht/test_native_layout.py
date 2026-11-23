@@ -22,6 +22,7 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertIn('c.text.assign(s.c_str(), s.size())', code)
         self.assertIn('esjs::string(std::string_view(c->text.data(), c->text.size()))', code)
         self.assertIn('es_get_Fixture', code)
+        self.assertNotIn('es_Fixture_readInto', code)
         # Engine-neutral: the generated TU names no engine API.
         self.assertNotIn('JS_', code)
         self.assertNotIn('JSContext', code)
@@ -43,6 +44,10 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertNotIn('c.worldPosition.x =', code)
         self.assertIn('c->worldPosition.x', code)
         self.assertIn('esengine::ecs::invalidateTransformComposition();', code)
+        reader = code.split('static esjs::Val es_Transform_readInto(', 1)[1].split('\n}', 1)[0]
+        self.assertIn('tryGet<esengine::ecs::Transform>', reader)
+        self.assertIn('dest.size != 24', reader)
+        self.assertLess(reader.index('c->ensureDecomposed()'), reader.index('std::memmove(dest.data, c, 24)'))
 
 
 if __name__ == '__main__':

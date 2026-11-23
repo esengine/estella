@@ -18,7 +18,7 @@ from typing import List
 from ..registry_ops import REGISTRY_OPS
 from ..data import Component, Enum, READ_HOOKS, WRITE_HOOKS
 from ..type_system import TypeSystem
-from .ptr_layout import PtrLayoutGenerator
+from .ptr_layout import PtrLayoutGenerator, scalar_write_fields
 
 # Numeric primitives written straight through (via a double), by cleaned type.
 _FLOAT = {'f32', 'f64', 'float', 'double'}
@@ -215,6 +215,21 @@ class NativeBindingsGenerator:
             out.append(f'    c.{read_hook}();   // lazily derived fields, see READ_HOOKS')
         out.append(f'    return esn_arraybuffer(&c, sizeof({full}));')
         out.append('}')
+        layout = self.layouts.get(comp.name)
+        if layout and scalar_write_fields(layout):
+            # Copy only the reflected prefix; e.g. Transform's cached matrix is private.
+            size = layout['fieldBytes']
+            out += [f'static esjs::Val es_{comp.name}_readInto(const esjs::Args& a) {{',
+                    '    if (a.size() < 2) return esjs::undefined();',
+                    '    const auto e = esn_entity(a[0]);',
+                    '    esjs::Bytes dest;',
+                    f'    if (!esjs::bytesOf(a[1], &dest) || !dest.data || dest.size != {size}) return esjs::undefined();',
+                    f'    auto* c = esn_reg().tryGet<{full}>(e);',
+                    '    if (!c) return esjs::boolean(false);']
+            if read_hook:
+                out.append(f'    c->{read_hook}();')
+            out += [f'    std::memmove(dest.data, c, {size});',
+                    '    return esjs::boolean(true);', '}']
         # Lifecycle: the native siblings of the embind Registry's has/remove. With
         # the buffer (getOrEmplace = add) + ptrAccessors (fields), these complete the
         # component API the SDK's BuiltinBridge drives (getBuiltinMethods).
@@ -268,6 +283,7 @@ class NativeBindingsGenerator:
             f'#include "{self.shim_header}"',
             '#include <type_traits>',
             '#include <cstddef>',
+            '#include <cstring>',
             '#include <string>',
             '',
         ]
@@ -337,8 +353,14 @@ class NativeBindingsGenerator:
                 for f in layout['fields']:
                     checks += [f'offsetof(decltype({full}::{f["name"]}), {m["name"]}) == {m["offset"]}'
                                for m in f.get('members', [])]
+                project = scalar_write_fields(layout)
+                if project:
+                    checks.append(f'sizeof({full}) >= {layout["fieldBytes"]}')
                 lines.append(f'    if constexpr ({" && ".join(checks)}) {{')
                 lines.append(f'        esjs::setFunction(global, "{buffer}", {buffer}, 1);')
+                if project:
+                    read_into = f'es_{comp.name}_readInto'
+                    lines.append(f'        esjs::setFunction(global, "{read_into}", {read_into}, 2);')
                 lines.append('    }')
             lines.append(f'    esjs::setFunction(global, "{has}", {has}, 1);')
             lines.append(f'    esjs::setFunction(global, "{remove}", {remove}, 1);')

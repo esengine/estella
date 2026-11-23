@@ -3183,6 +3183,7 @@ export interface PtrAccessor<T> {
     fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;
     write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;
     create: () => T;
+    projectionBytes?: number;
     project?: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T, vectorColorAliases: boolean) => void;
     acceptsFields?: (data: T) => boolean;
     storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;
@@ -3232,11 +3233,11 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     SpringBone: { fill: fillSpringBone, write: writeSpringBone, create: createSpringBoneData },
     SpringBoneCollider: { fill: fillSpringBoneCollider, write: writeSpringBoneCollider, create: createSpringBoneColliderData },
-    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData, project: projectSprite, acceptsFields: acceptsSpriteFields, storeFields: storeSpriteFields },
+    Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData, projectionBytes: 97, project: projectSprite, acceptsFields: acceptsSpriteFields, storeFields: storeSpriteFields },
     SpriteMask: { fill: fillSpriteMask, write: writeSpriteMask, create: createSpriteMaskData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
     TrailRenderer: { fill: fillTrailRenderer, write: writeTrailRenderer, create: createTrailRendererData },
-    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData, project: projectTransform, acceptsFields: acceptsTransformFields, storeFields: storeTransformFields },
+    Transform: { fill: fillTransform, write: writeTransform, create: createTransformData, projectionBytes: 80, project: projectTransform, acceptsFields: acceptsTransformFields, storeFields: storeTransformFields },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },

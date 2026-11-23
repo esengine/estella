@@ -150,19 +150,40 @@ export class WasmMemoryProvider implements MemoryProvider {
     }
 }
 
-/** A host-injected zero-copy accessor: `entity -> ArrayBuffer` over the native
- *  ECS component, or a nullish value when the entity has no live component. */
+/** Acquires live native storage. The generated host can emplace a row for a write. */
 export type NativeComponentBufferFn = (entity: number) => ArrayBuffer | null | undefined;
 
+function viewNativeBuffer(buffer: ArrayBuffer, out: ComponentHeap): void {
+    const words = Math.floor(buffer.byteLength / 4);
+    out.f32 = new Float32Array(buffer, 0, words);
+    out.u32 = new Uint32Array(buffer, 0, words);
+    out.u8 = new Uint8Array(buffer);
+    out.ptr = 0;
+}
+
+/** Snapshot a projected row into JS-owned storage, valid until the next read. */
+export function resolveNativeProjectionSource(
+    scope: Record<string, unknown>, cppName: string, fallback: ComponentSource,
+): ComponentSource {
+    const bytes = PTR_ACCESSORS[cppName]?.projectionBytes;
+    const read = scope[`es_${cppName}_readInto`] as
+        ((entity: Entity, target: ArrayBuffer) => boolean | undefined) | undefined;
+    if (!bytes || typeof read !== 'function') return fallback;
+    const buffer = new ArrayBuffer(bytes);
+    const heap = createComponentHeap();
+    viewNativeBuffer(buffer, heap);
+    return (entity) => {
+        const found = read(entity, buffer);
+        // A host built for a different reflected byte count declines the buffer.
+        if (found === undefined) return fallback(entity);
+        return found ? heap : null;
+    };
+}
+
 /**
- * Native (embedded-Dawn) backend: each component is reached through the host's
- * generated `es_<Component>_buffer(entity)` binding, which hands back a zero-copy
- * ArrayBuffer over that entity's native component. The accessors then write it at
- * offset 0. `scope` is where those globals live (the QuickJS global object on a
- * device; a plain object in tests).
- *
- * The buffer is re-fetched on every access on purpose: a SparseSet growth moves
- * the dense array, invalidating any previously handed-out ArrayBuffer.
+ * Native accessors read and write at offset zero. Live buffers must be reacquired
+ * on every access because growing a SparseSet moves its rows. Projected reads
+ * can copy the reflected fields into reusable JS storage.
  */
 export class NativeMemoryProvider implements MemoryProvider {
     constructor(
@@ -180,11 +201,7 @@ export class NativeMemoryProvider implements MemoryProvider {
         return (entity: Entity, out: ComponentHeap): boolean => {
             const buf = bufFn(entity);
             if (!buf) return false;
-            const words = Math.floor(buf.byteLength / 4);
-            out.f32 = new Float32Array(buf, 0, words);
-            out.u32 = new Uint32Array(buf, 0, words);
-            out.u8 = new Uint8Array(buf);
-            out.ptr = 0;
+            viewNativeBuffer(buf, out);
             return true;
         };
     }

@@ -312,6 +312,45 @@ describe('createNativeRegistry', () => {
         } finally { bridge.disconnect(); }
     });
 
+    it('reuses one native snapshot across nested sprite projections and preserves both rows', () => {
+        const scope = mockNativeScope(), bridge = new BuiltinBridge();
+        const buffer = scope.es_Sprite_buffer as (entity: number) => ArrayBuffer;
+        const has = scope.es_Sprite_has as (entity: number) => boolean;
+        const snapshot = vi.fn((entity: number, target: ArrayBuffer): boolean | undefined => {
+            if (!has(entity)) return false;
+            new Uint8Array(target).set(new Uint8Array(buffer(entity), 0, target.byteLength));
+            return true;
+        });
+        const legacyBuffer = vi.fn(buffer);
+        const legacyHas = vi.fn(has);
+        Object.assign(scope, { es_Sprite_buffer: legacyBuffer, es_Sprite_has: legacyHas, es_Sprite_readInto: snapshot });
+        bridge.connect(createNativeRegistry(scope), undefined, { memory: new NativeMemoryProvider(scope) });
+        try {
+            bridge.insert(1, Sprite, { color: { r: .25, g: .5, b: .75, a: 1 }, enabled: true });
+            bridge.insert(2, Sprite, { color: { r: 1, g: .75, b: .5, a: .25 }, enabled: false });
+            const first = bridge.get(1, Sprite), second = bridge.get(2, Sprite);
+            legacyBuffer.mockClear();
+            legacyHas.mockClear();
+            const inner: Record<string, unknown> = {};
+            const outer = Object.defineProperty({}, 'texture', { set() { bridge.readProjection(2, Sprite, inner); } });
+            bridge.readProjection(1, Sprite, outer);
+            expect(outer).toMatchObject({ color: first.color, enabled: true });
+            expect(inner).toEqual(second);
+            bridge.readProjection(3, Sprite, inner);
+            expect(has(3)).toBe(false);
+            expect(inner.color).toMatchObject({ r: 0, g: 0, b: 0, a: 0 });
+            expect(snapshot.mock.calls.map(([e]) => e)).toEqual([1, 2, 3]);
+            expect(new Set(snapshot.mock.calls.map(([, target]) => target)).size).toBe(1);
+            expect(legacyBuffer).not.toHaveBeenCalled();
+            expect(legacyHas).not.toHaveBeenCalled();
+
+            snapshot.mockReturnValueOnce(undefined);  // different host layout
+            bridge.readProjection(1, Sprite, inner);
+            expect(inner).toEqual(first);
+            expect(legacyBuffer.mock.calls).toEqual([[1]]);
+        } finally { bridge.disconnect(); }
+    });
+
     it('get never creates a component (has stays false)', () => {
         const scope = mockNativeScope();
         const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;

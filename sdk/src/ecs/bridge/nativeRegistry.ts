@@ -20,7 +20,10 @@ import { PTR_ACCESSORS } from './ptrAccessors.generated';
 import { REGISTRY_BINDINGS, REGISTRY_OPS, SCENE_QUERY_BINDINGS, INSPECTION_BINDINGS } from './nativeBindings';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
-import { NativeMemoryProvider, nativeComponentSource, createComponentHeap, type NativeComponentGetter } from './memoryProvider';
+import {
+    NativeMemoryProvider, nativeComponentSource, createComponentHeap, resolveNativeProjectionSource,
+    type NativeComponentGetter,
+} from './memoryProvider';
 
 type HasFn = (entity: number) => boolean;
 type RemoveFn = (entity: number) => void;
@@ -253,7 +256,8 @@ export function createNativeRegistry(
             return colorFields.length ? convertForWasm(out, colorFields) : out;
         };
         if (accessor.project && !listFields.length) {
-            get[nativeComponentSource] = (e: Entity) => hasFn(e) && storage(e, heap) ? heap : null;
+            get[nativeComponentSource] = resolveNativeProjectionSource(scope, cppName,
+                (e) => hasFn(e) && storage(e, heap) ? heap : null);
         }
         reg[`get${cppName}`] = get;
 

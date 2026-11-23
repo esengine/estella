@@ -212,6 +212,7 @@ class PtrLayoutGenerator:
                     'name': comp.name,
                     'cpp_full': full,
                     'ptrFn': f'get{comp.name}Ptr' if complete else None,
+                    'fieldBytes': offset,
                     'fields': fields,
                 })
 
@@ -523,6 +524,7 @@ class PtrLayoutGenerator:
         lines.append('    fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;')
         lines.append('    write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;')
         lines.append('    create: () => T;')
+        lines.append('    projectionBytes?: number;')
         lines.append('    project?: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T, vectorColorAliases: boolean) => void;')
         lines.append('    acceptsFields?: (data: T) => boolean;')
         lines.append('    storeFields?: (write: ScalarWrite, entity: number, data: T) => boolean;')
@@ -533,7 +535,7 @@ class PtrLayoutGenerator:
         lines.append('export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {')
         for layout in self.layouts:
             name = layout['name']
-            store = f', project: project{name}, acceptsFields: accepts{name}Fields, storeFields: store{name}Fields' if scalar_write_fields(layout) else ''
+            store = f', projectionBytes: {layout["fieldBytes"]}, project: project{name}, acceptsFields: accepts{name}Fields, storeFields: store{name}Fields' if scalar_write_fields(layout) else ''
             lines.append(f'    {name}: {{ fill: fill{name}, write: write{name}, create: create{name}Data{store} }},')
         lines.append('};')
         lines.append('')
