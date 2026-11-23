@@ -137,29 +137,52 @@ export function distanceToCell(cell: WorldCell, x: number, z: number): number {
     return Math.hypot(dx, dz);
 }
 
+interface SourceReach { x: number; z: number; reach: number }
+
 export interface SourceBounds {
     minX: number; minZ: number; maxX: number; maxZ: number;
     /** Radius at which an idle cell can start work. Active cells are always reconciled. */
     reach: number;
+    /** Multiple sources may leave gaps inside their enclosing box. */
+    individual?: SourceReach[];
 }
 
 /** Conservative bounds for one reconciliation. Exact membership and ordering still use distanceToCell. */
 export function sourceBounds(sources: readonly ResidencySource[]): SourceBounds {
+    if (sources.length === 1) {
+        const { x, z, loadRadius, prefetchRadius } = sources[0]!;
+        return { minX: x, minZ: z, maxX: x, maxZ: z, reach: Math.max(loadRadius, prefetchRadius) };
+    }
     let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, reach = -Infinity;
+    const individual: SourceReach[] = [];
     for (const { x, z, loadRadius, prefetchRadius } of sources) {
+        const sourceReach = Math.max(loadRadius, prefetchRadius);
         minX = Math.min(minX, x);
         minZ = Math.min(minZ, z);
         maxX = Math.max(maxX, x);
         maxZ = Math.max(maxZ, z);
-        reach = Math.max(reach, loadRadius, prefetchRadius);
+        reach = Math.max(reach, sourceReach);
+        individual.push({ x, z, reach: sourceReach });
     }
-    return { minX, minZ, maxX, maxZ, reach };
+    return { minX, minZ, maxX, maxZ, reach, individual };
 }
 
 /** Only reject a box when even the separation on one axis exceeds every source's reach. */
 export function outsideSourceReach(cell: WorldCell, bounds: SourceBounds, radius: number): boolean {
     return cell.minX - bounds.maxX > radius || bounds.minX - cell.maxX > radius ||
         cell.minZ - bounds.maxZ > radius || bounds.minZ - cell.maxZ > radius;
+}
+
+/** Refine a multi-source box. Far proxies supply the same radius for every source. */
+export function withinIndividualReach(cell: WorldCell, sources: readonly SourceReach[], radius?: number): boolean {
+    for (let i = 0; i < sources.length; i++) {
+        const source = sources[i]!;
+        const sourceReach = radius ?? source.reach;
+        if (cell.minX - source.x > sourceReach || source.x - cell.maxX > sourceReach ||
+            cell.minZ - source.z > sourceReach || source.z - cell.maxZ > sourceReach) continue;
+        return true;
+    }
+    return false;
 }
 
 /**

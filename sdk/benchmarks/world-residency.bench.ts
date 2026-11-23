@@ -5,7 +5,7 @@ import { WorldStreamer } from '../src/residency/WorldStreamer';
 import type { ResidencySource, WorldCell } from '../src/residency/cells';
 
 // Time reconciliation after publication has settled. Scene I/O and status reporting are outside the timed loop.
-async function settledWorld(side: number, radius: number) {
+async function settledWorld(side: number, radius: number, centers: readonly number[]) {
     const cells: WorldCell[] = Array.from({ length: side * side }, (_, i) => {
         const x = i % side, z = Math.floor(i / side);
         return {
@@ -20,10 +20,10 @@ async function settledWorld(side: number, radius: number) {
         isLoaded: name => loaded.has(name),
     });
     await streamer.loadManifest({ version: 1, scene: 'main', cellSize: 600, persistentRefs: [], cells });
-    const center = (Math.floor(side / 2) + 0.5) * 600;
-    const poses: ResidencySource[][] = [-12, -6, 6, 12].map(dx => [{
-        x: center + dx, z: center - dx, loadRadius: radius, unloadRadius: radius * 1.05, prefetchRadius: radius,
-    }]);
+    const poses: ResidencySource[][] = [-12, -6, 6, 12].map(dx => centers.map(index => {
+        const center = (index + 0.5) * 600;
+        return { x: center + dx, z: center - dx, loadRadius: radius, unloadRadius: radius * 1.05, prefetchRadius: radius };
+    }));
     streamer.update(poses[0]!);
     await new Promise(resolve => setTimeout(resolve, 0));
     streamer.update(poses[0]!);
@@ -34,9 +34,13 @@ async function settledWorld(side: number, radius: number) {
     return { streamer, poses };
 }
 
-for (const [side, radius] of [[4, 500], [10, 500], [32, 500], [10, Infinity]] as const) {
-    describe(`world residency / ${side * side} cells / radius ${radius}`, async () => {
-        const { streamer, poses } = await settledWorld(side, radius);
+const workloads = [
+    [4, 500, [2]], [10, 500, [5]], [32, 500, [16]],
+    [10, Infinity, [5]], [32, 500, [2, 29]],
+] as const;
+for (const [side, radius, centers] of workloads) {
+    describe(`world residency / ${side * side} cells / radius ${radius} / ${centers.length} source(s)`, async () => {
+        const { streamer, poses } = await settledWorld(side, radius, centers);
         let position = 0;
         bench('stationary source', () => { streamer.update(poses[0]!); });
         bench('moving within the resident neighbourhood', () => {

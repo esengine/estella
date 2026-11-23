@@ -87,6 +87,15 @@ describe('a far proxy', () => {
         expect(t.loaded.size).toBe(0);
     });
 
+    it('uses the proxy radius around each of two separated sources', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        await streamer.loadManifest(world(400, cell(0), cell(15), cell(30)));
+        streamer.update([at(500), at(2600)]);
+        await t.settle();
+        expect(streamer.status().residentCells).toEqual([]);
+        expect(streamer.status().proxyCells).toEqual(['c_0_0', 'c_30_0']);
+    });
+
     it('leaves only once its cell is in, so walking into a place never shows a hole', async () => {
         const t = host();
         const streamer = new WorldStreamer(t.h);

@@ -18,7 +18,7 @@
  */
 
 import {
-    desiredResidency, distanceToCell, outsideSourceReach, sourceBounds,
+    desiredResidency, distanceToCell, outsideSourceReach, sourceBounds, withinIndividualReach,
     type ResidencySource, type SourceBounds, type WorldCell, type WorldManifest,
 } from './cells';
 import { farProxySceneName } from './farProxy';
@@ -463,7 +463,8 @@ export class WorldStreamer {
             state.desired = wanted;
             state.speculated = speculated.has(name);
         }
-        this.order_ = [...decision.toLoad, ...decision.prefetch.filter((name) => !target.has(name))];
+        const order = [...decision.toLoad, ...decision.prefetch.filter((name) => !target.has(name))];
+        this.order_ = order;
         this.judgeUrgency_(sources, candidates);
         // Which stand-ins are wanted is settled before any cell steps: a cell stepped on the way (a prefetch of one that is
         // leaving) reads its proxy's want to decide whether it may go.
@@ -479,17 +480,20 @@ export class WorldStreamer {
                 this.step_(state.registeredName);
             }
         }
-        this.judgeHold_(candidates);
+        // A host callback can run a newer update with an urgent cell outside these candidates.
+        this.judgeHold_(this.order_ === order ? candidates : undefined);
     }
 
     private relevantCells_(bounds: SourceBounds): CellState[] {
         const candidates: CellState[] = [];
+        const individual = bounds.individual;
         for (const state of this.cells_.values()) {
             // Registrations keep their keys even if a caller edits a manifest in place.
             // A renamed box can address a different registration in the exact decision.
             if (state.registeredName !== state.cell.name) return Array.from(this.cells_.values());
             if (state.residency !== 'unloaded' || state.desired || state.speculated || state.urgent ||
-                !outsideSourceReach(state.cell, bounds, bounds.reach)) candidates.push(state);
+                (!outsideSourceReach(state.cell, bounds, bounds.reach) &&
+                 (!individual || withinIndividualReach(state.cell, individual)))) candidates.push(state);
         }
         return candidates;
     }
@@ -558,7 +562,8 @@ export class WorldStreamer {
         for (const [name, proxy] of this.proxies_) {
             const state = this.cells_.get(name)!;
             let near = false;
-            if (!outsideSourceReach(state.cell, bounds, far)) {
+            if (!outsideSourceReach(state.cell, bounds, far) &&
+                (!bounds.individual || withinIndividualReach(state.cell, bounds.individual, far))) {
                 for (const source of sources) {
                     if (distanceToCell(state.cell, source.x, source.z) <= far) { near = true; break; }
                 }

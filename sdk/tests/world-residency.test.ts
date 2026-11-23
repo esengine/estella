@@ -486,6 +486,20 @@ describe('WorldStreamer', () => {
         expect(reads).toBeLessThan(16);
     });
 
+    it('skips the gap between distant sources with different radii', async () => {
+        const streamer = new WorldStreamer(recordingHost().host);
+        const cells = Array.from({ length: 1024 }, (_, i) => cell(i % 32, Math.floor(i / 32)));
+        await streamer.loadManifest(manifest(...cells));
+        const cameras = [source(250, 250, 75, 90), source(2950, 2950, 0, 5)];
+        const expected = desiredResidency(cells, cameras, new Set()).target;
+        streamer.update(cameras);
+        await vi.waitFor(() => expect(streamer.status().residentCells).toEqual(expected));
+        expect(expected).toHaveLength(10);
+        let reads = 0;
+        streamer.update(cameras.map(camera => ({ ...camera, get x() { reads++; return camera.x; } })));
+        expect(reads).toBeLessThan(30);
+    });
+
     it('matches the complete decision as sources move and registered bounds change', async () => {
         const streamer = new WorldStreamer(recordingHost().host);
         const overhang = cell(200, 8);
@@ -510,6 +524,28 @@ describe('WorldStreamer', () => {
         overhang.minX = 20000;
         await reconcile([source(NaN, 0, 5, 5), source(-150, 50, 0, 10)]);
         await reconcile([]);
+    });
+
+    it('keeps the latest urgent demand held when preparation starts another reconciliation', async () => {
+        const { host, defer, settle } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        const prepare = host.prepare.bind(host);
+        const left = cell(0, 0), right = cell(30, 0);
+        host.prepare = name => {
+            const pending = prepare(name);
+            if (name === left.name) streamer.update([source(3050, 50, 10, 20)]);
+            return pending;
+        };
+        defer(true);
+        await streamer.loadManifest(manifest(left, right));
+        streamer.update([source(50, 50, 10, 20)]);
+        const status = streamer.status();
+        defer(false);
+        settle();
+        await streamer.clear();
+        expect(status.desiredCells).toEqual([right.name]);
+        expect(status.urgentCells).toEqual([right.name]);
+        expect(status.holding).toBe(true);
     });
 
     it('resolves an edited box name against the original scene registrations', async () => {
