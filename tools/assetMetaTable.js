@@ -121,6 +121,9 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esterrainlayerinfo': 'terrain-layer-info',
     '.esphysmat': 'physical-material',
     '.esterrain': 'terrain-tiles',
+    // Hair or fur as strands: the groom a Groom component names, and the curves it names in turn.
+    '.esgroom': 'groom',
+    '.escurves': 'curves',
     '.inputmap': 'inputmap',
     // Fonts
     '.fnt': 'bitmapfont',

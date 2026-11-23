@@ -238,6 +238,8 @@ const JSON_REF_TYPES = new Set([
   'scriptgraph',
   'environment', 'animatorcontroller', 'avatar',
   'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-layer-info', 'physical-material', 'terrain-tiles',
+  // A groom names its curves file beside it, and each group its material.
+  'groom',
 ]);
 
 const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && isTextureRecipePath(e.path);

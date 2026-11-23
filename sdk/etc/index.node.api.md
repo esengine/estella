@@ -967,7 +967,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab'
+'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom'
 ```
 
 ## AssetGroupDef — interface @experimental

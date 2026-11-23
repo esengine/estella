@@ -34,6 +34,11 @@ const FNT_PAGE = '77777777-7777-4777-8777-777777777777';
 const OLD_FNT = '99999999-9999-4999-8999-999999999999';
 const OLD_FNT_PAGE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SCENE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const GROOM = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const CURVES = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+// A groom names its curves as a sibling file, as Blender's exporter writes it.
+const groom = JSON.stringify({ version: 1, type: 'groom', curves: 'fur.escurves', groups: [{}] });
 
 function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = ''): void {
   const abs = path.join(root, rel);
@@ -112,6 +117,10 @@ const scene = JSON.stringify({
       id: 4, name: 'OldLabel', parent: null, children: [],
       components: [{ type: 'BitmapText', data: { text: 'B', font: 'assets/fonts/old.fnt' } }],
     },
+    {
+      id: 5, name: 'Fur', parent: null, children: [],
+      components: [{ type: 'Groom', data: { groom: `@uuid:${GROOM}` } }],
+    },
   ],
 });
 
@@ -128,6 +137,8 @@ beforeAll(() => {
   writeAsset('assets/fonts/tiny.fnt', metaTypeForExt('.fnt')!, FNT, fnt);
   writeAsset('assets/fonts/old.png', 'texture', OLD_FNT_PAGE, 'PNG');
   writeAsset('assets/fonts/old.fnt', 'bitmapFont', OLD_FNT, fnt.replace('tiny.png', 'old.png'));
+  writeAsset('assets/fur/fur.escurves', metaTypeForExt('.escurves')!, CURVES, new Uint8Array([1, 2, 3, 4]));
+  writeAsset('assets/fur/fur.esgroom', metaTypeForExt('.esgroom')!, GROOM, groom);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
 });
 
@@ -164,7 +175,7 @@ describe('assets named only inside another document are cooked', () => {
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE, GROOM, CURVES]));
     expect(res.unused).toEqual([]);
   });
 
@@ -206,6 +217,12 @@ describe('assets named only inside another document are cooked', () => {
     const layerRef = stagedCtrl.layers[0]!.states[0]!.motion.clip;
     expect(layerRef).toBe('assets/anim/wave.estimeline');
     expect(manifest.entries.some((e) => e.sourcePath === layerRef)).toBe(true);
+
+    // A groom's curves are the same kind of sibling: left as authored, the strands 404 in the package.
+    const fur = manifest.entries.find((e) => e.uuid === GROOM)!;
+    const stagedGroom = JSON.parse(readFileSync(path.join(res.outDir, fur.path), 'utf8')) as { curves: string };
+    expect(stagedGroom.curves).toBe('assets/fur/fur.escurves');
+    expect(manifest.entries.some((e) => e.sourcePath === stagedGroom.curves)).toBe(true);
 
     // And the package is self-consistent: nothing it staged names a path it lacks.
     expect(res.warnings.filter((w) => /does not carry/.test(w))).toEqual([]);

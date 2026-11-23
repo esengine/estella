@@ -35,6 +35,7 @@ export interface GroomData {
  * @experimental
  */
 export const Groom: ComponentDef<GroomData> = /* @__PURE__ */ defineComponent<GroomData>('Groom', { groom: '' }, {
+    assetFields: [{ field: 'groom', type: 'groom' }],
     fields: {
         groom: { tooltip: 'The .esgroom to draw: its curves, in groups, each with its own material and width.' },
     },
@@ -59,8 +60,12 @@ export function groupUniforms(settings: GroomGroupSettings, maxRadius: number, u
 /** Where a path named inside `from` points: relative to its folder, unless it is already from the project's root. */
 export function besideFile(from: string, path: string): string {
     if (path.startsWith('/') || path.startsWith('assets/') || /^[a-z]+:/i.test(path)) return path;
-    const lead = from.startsWith('/') ? '/' : '';
-    const dir = from.includes('/') ? from.slice(0, from.lastIndexOf('/') + 1) : '';
+    // A groom a scene named by uuid arrives as a URL (estella://project/...): its origin is kept whole, not
+    // folded into the path, where `//` would collapse and the curves resolve under the page again.
+    const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(from)?.[0] ?? '';
+    const rest = from.slice(origin.length);
+    const lead = origin ? `${origin}/` : rest.startsWith('/') ? '/' : '';
+    const dir = rest.includes('/') ? rest.slice(0, rest.lastIndexOf('/') + 1) : '';
     const parts: string[] = [];
     for (const part of (dir + path).split('/')) {
         if (part === '..') parts.pop();
@@ -204,7 +209,8 @@ export class GroomPlugin implements Plugin {
                     })
                     .finally(() => { res.loading_.delete(entity); });
             }
-        }, { name: 'GroomSystem' }));
+        // It builds what the files say rather than simulating, so it runs in the editor's paused viewport too.
+        }, { name: 'GroomSystem', runWhenPaused: true }));
     }
 }
 

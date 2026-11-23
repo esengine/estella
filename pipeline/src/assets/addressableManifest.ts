@@ -47,13 +47,15 @@ export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object
   'terrain-tiles': 'json',
   'terrain-layer-info': 'json',
   'physical-material': 'json',
+  // The Groom plugin fetches a groom as text, by path; the curves it names are bytes (unloaded, below).
+  groom: 'json',
 });
 
 export const UNLOADED_TYPE = 'binary';
 
 export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
   'video', 'dragonbones',
-  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'rig',
+  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'rig', 'curves',
 ]);
 
 export const addrType = (metaType: string): string =>

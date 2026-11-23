@@ -319,6 +319,23 @@ function rewriteFontRefs(
 }
 
 /**
+ * A groom names its curves file beside it (groom/groomFormat.ts), which staging moves out from under it: the
+ * groom then loads and its strands 404. Each group's material is rewritten the same way.
+ */
+function rewriteGroomRefs(
+  bytes: Uint8Array,
+  docPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as { curves?: unknown; groups?: { material?: unknown }[] };
+  if (typeof json.curves === 'string') json.curves = logicalRef(json.curves, docPath, byPath);
+  for (const group of Array.isArray(json.groups) ? json.groups : []) {
+    if (group && typeof group.material === 'string' && group.material) group.material = logicalRef(group.material, docPath, byPath);
+  }
+  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
+/**
  * An animator controller names the clips its motions play as sibling files, which
  * staging moves out from under it. The controller then loads and every state
  * plays nothing, which reads as a broken graph rather than a missing asset.
@@ -975,6 +992,14 @@ export async function cookAssets(
           data = rewriteEnvironmentRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: environment ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Grooms: the curves file beside them, and each group's material → logical project paths.
+      if (ext.toLowerCase() === '.esgroom') {
+        try {
+          data = rewriteGroomRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: groom ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Animator controllers: the clips their motions play → logical project paths.

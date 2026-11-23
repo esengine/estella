@@ -162,7 +162,7 @@ export class MissingAssetsError extends Error {
  *
  * @public
  */
-export type AssetFieldType = 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab';
+export type AssetFieldType = 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom';
 
 // =============================================================================
 // Component Query Helpers (read from self-describing ComponentDef)

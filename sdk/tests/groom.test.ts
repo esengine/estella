@@ -12,7 +12,7 @@ import {
     type CurveSet, type GroomCurves,
 } from '../src/groom/groomFormat';
 import { buildStrandMesh } from '../src/groom/groomMesh';
-import { besideFile, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
+import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/groom/groomPlugin';
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 
 /** `curves` straight up from x = 0, 1, 2…, each of `points` points 1 cm apart, the radius narrowing from 0.5 mm to 0.25 mm. */
@@ -115,6 +115,17 @@ describe('a groom document', () => {
         expect(besideFile('assets/fur/meerkat.esgroom', '../shared/a.escurves')).toBe('assets/shared/a.escurves');
         expect(besideFile('assets/fur/meerkat.esgroom', 'assets/other/b.escurves')).toBe('assets/other/b.escurves');
         expect(besideFile('/scenes/groom/fur.esgroom', 'fur.escurves')).toBe('/scenes/groom/fur.escurves');
+    });
+
+    it('keeps the origin of a groom named by URL, as a scene naming it by uuid resolves to one', () => {
+        expect(besideFile('estella://project/assets/fur2/fur.esgroom', 'fur.escurves'))
+            .toBe('estella://project/assets/fur2/fur.escurves');
+        expect(besideFile('https://cdn.example.com/game/fur/a.esgroom', '../shared/a.escurves'))
+            .toBe('https://cdn.example.com/game/shared/a.escurves');
+    });
+
+    it('is an asset field, so the editor offers a picker and a scene stores a uuid', () => {
+        expect(Groom.assetFields).toEqual([{ field: 'groom', type: 'groom' }]);
     });
 });
 

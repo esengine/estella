@@ -3743,8 +3743,8 @@
       "fields": [
         {
           "key": "groom",
-          "type": "string",
-          "default": "empty",
+          "type": "Asset<groom>",
+          "default": "none",
           "doc": "The .esgroom to draw: its curves, in groups, each with its own material and width."
         }
       ]

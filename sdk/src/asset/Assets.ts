@@ -1901,7 +1901,9 @@ export class Assets {
                     }
 
                     switch (type) {
-                        case 'image': {
+                        // Read by their own component from the path (an image source, a groom's files).
+                        case 'image':
+                        case 'groom': {
                             comp.data[field] = path;
                             break;
                         }
