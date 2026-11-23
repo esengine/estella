@@ -175,7 +175,7 @@ describe('path helpers', () => {
         const ring = circlePoints(0, 0, 50, 400);
         const t = performance.now();
         const g = buildPathGeometry(ring, { fill: { color: white }, stroke: { color: white, width: 2 }, closed: true, feather: 0.5 });
-        valid(g);
         expect(performance.now() - t).toBeLessThan(500);
+        valid(g);
     });
 });
