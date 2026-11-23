@@ -10,8 +10,9 @@
  */
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { Name } from '../ecs/component';
+import { getComponent, Name } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
+import { cloneJsonValue } from '../util/cloneJsonValue';
 import { loadComponent, visitSerializedComponents, type SceneComponentData } from '../scene/scene';
 
 export interface EntitySnapshot {
@@ -31,6 +32,11 @@ export interface EntitySnapshotOptions {
 /** What a snapshot never carries: identity that belongs to the running process. */
 const PROCESS_STATE = new Set(['NetGhost', 'Persistent']);
 
+/** A restored replica gets its identity from the new process. Only its archetype travels. */
+function replicaSnapshot(comp: SceneComponentData): SceneComponentData {
+    return { type: comp.type, data: { netId: 0, owner: 0, archetype: comp.data.archetype ?? '' } };
+}
+
 /**
  * Snapshot one entity. A field that refers to another entity is written as 0:
  * entity handles mean nothing in another process, so a reference that has to
@@ -41,11 +47,10 @@ export function snapshotEntity(world: World, entity: Entity, options: EntitySnap
     const exclude = new Set(options.exclude ?? []);
     const components: SceneComponentData[] = [];
     visitSerializedComponents(world, entity, (comp, definition) => {
-        if (PROCESS_STATE.has(comp.type) || exclude.has(comp.type)) return;
+        if (PROCESS_STATE.has(definition._name) || exclude.has(comp.type)) return;
         if (include && !include.has(comp.type)) return;
-        if (comp.type === 'Replicated') {
-            // Still replicated after a restart, under a new netId, owned by the server.
-            components.push({ type: comp.type, data: { netId: 0, owner: 0, archetype: comp.data.archetype ?? '' } });
+        if (definition._name === 'Replicated') {
+            components.push(replicaSnapshot(comp));
             return;
         }
         for (const field of definition.entityFields) {
@@ -59,16 +64,20 @@ export function snapshotEntity(world: World, entity: Entity, options: EntitySnap
 
 /**
  * Put a snapshot's state onto `into`, or onto a new entity. Components the
- * snapshot names are written over; others the entity has are left alone. A
- * type this process has not registered is skipped with the loader's warning.
+ * snapshot names are written over. An existing replica keeps its identity,
+ * and process-local markers in older saves are discarded. The loader warns
+ * about unregistered types.
  */
 export function restoreEntity(world: World, snapshot: EntitySnapshot, into?: Entity): Entity {
     const e = into ?? world.spawn(snapshot.name || undefined);
-    const had = into !== undefined ? new Set(world.getComponentTypes(into)) : null;
     for (const comp of snapshot.components) {
-        // An entity already replicating keeps its own netId and owner.
-        if (comp.type === 'Replicated' && had?.has('Replicated')) continue;
-        loadComponent(world, e, { type: comp.type, data: { ...comp.data } }, snapshot.name);
+        const definition = getComponent(comp.type);
+        if (PROCESS_STATE.has(definition?._name ?? comp.type)) continue;
+        if (definition?._name === 'Replicated') {
+            if (into === undefined || !world.has(e, definition)) loadComponent(world, e, replicaSnapshot(comp), snapshot.name);
+        } else {
+            loadComponent(world, e, { type: comp.type, data: cloneJsonValue(comp.data) }, snapshot.name);
+        }
     }
     return e;
 }

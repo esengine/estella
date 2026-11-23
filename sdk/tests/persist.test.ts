@@ -15,7 +15,7 @@ import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { App } from '../src/app/app';
-import { clearUserComponents, defineComponent, unregisterComponent, Name } from '../src/ecs/component';
+import { clearUserComponents, defineComponent, getUserComponents, unregisterComponent, Name } from '../src/ecs/component';
 import {
     MemoryStore, FileStore, PersistConflict, RecordBook, PlayerPersistence, WorldPersistence, Persistent,
     snapshotEntity, restoreEntity, type PersistStore,
@@ -206,6 +206,36 @@ describe('PlayerPersistence', () => {
 });
 
 describe('entity snapshots', () => {
+    it('keeps process-local identity out of saves and restores through component aliases', () => {
+        const world = App.new().world, entity = world.spawn();
+        for (const def of [Replicated, Persistent]) unregisterComponent(def._name);
+        getUserComponents().set('NetworkIdentity', Replicated);
+        getUserComponents().set('SaveMarker', Persistent);
+        world.insert(entity, Replicated, { netId: 91, owner: 17, archetype: 'hero' });
+        world.insert(entity, Persistent, { key: 'local' });
+        const saved = snapshotEntity(world, entity);
+        expect(saved.components).toEqual([{ type: 'NetworkIdentity', data: { netId: 0, owner: 0, archetype: 'hero' } }]);
+        restoreEntity(world, saved, entity);
+        expect(world.get(entity, Replicated)).toEqual({ netId: 91, owner: 17, archetype: 'hero' });
+        const legacy = { components: [
+            { type: 'NetworkIdentity', data: { netId: 23, owner: 5, archetype: 'saved' } },
+            { type: 'SaveMarker', data: { key: 'old-process' } },
+        ] };
+        const fresh = restoreEntity(world, legacy);
+        expect(world.get(fresh, Replicated)).toEqual({ netId: 0, owner: 0, archetype: 'saved' });
+        expect(world.has(fresh, Persistent)).toBe(false);
+    });
+
+    it('restores independent copies of the nested data in a reusable snapshot', () => {
+        const w = App.new().world;
+        const template = { components: [{ type: 'Bag', data: { gold: 9, items: ['key'] } }] };
+        const first = restoreEntity(w, template), second = restoreEntity(w, template);
+        w.update(first, Bag, bag => { bag.items.push('coin'); });
+        expect(w.get(first, Bag).items).toEqual(['key', 'coin']);
+        expect(template.components[0].data.items).toEqual(['key']);
+        expect(w.get(second, Bag).items).toEqual(['key']);
+    });
+
     it('clears scalar and list references using the declaration that supplied each row', () => {
         const world = App.new().world, actor = world.spawn('Actor'), other = world.spawn('Other');
         const type = 'PersistentTargetList', defaults = { targets: [] as number[], values: [] as number[] };

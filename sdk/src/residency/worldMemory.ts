@@ -24,6 +24,7 @@ import { visitSerializedComponents, type SceneComponentData, type SceneData, typ
 import { SceneManager } from '../scene/sceneManager';
 import { sceneOriginOf } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
+import { cloneJsonValue } from '../util/cloneJsonValue';
 import type { WorldManifest } from './cells';
 
 /** The fields of the `RememberState` component. @experimental */
@@ -82,14 +83,14 @@ export class WorldMemory {
 
     /** The memory as a save holds it. */
     toJSON(): WorldMemoryData {
-        return { version: 1, world: this.manifest_()?.scene ?? this.world_, entries: Object.fromEntries(this.entries_) };
+        return { version: 1, world: this.manifest_()?.scene ?? this.world_, entries: cloneJsonValue(Object.fromEntries(this.entries_)) };
     }
 
     /** Take a save's memory in place of this one. Cells already in keep what they are; the next one brought in reads it. */
     read(data: WorldMemoryData): void {
         if (data?.version !== 1) throw new Error('WorldMemory: not a world memory this version reads');
+        this.entries_ = new Map(Object.entries(cloneJsonValue(data.entries ?? {})));
         this.world_ = data.world;
-        this.entries_ = new Map(Object.entries(data.entries ?? {}));
     }
 
     /**
@@ -121,12 +122,13 @@ export class WorldMemory {
         for (const entity of entities) {
             if (doomed.has(entity.id)) continue;
             const left = this.entries_.get(`${sceneName}:${entity.id}`)?.components;
-            if (!left) { kept.push(entity); continue; }
-            const components = entity.components.filter((c) => !left.some((l) => l.type === c.type));
-            kept.push({ ...entity, components: [...components, ...left.map((c) => ({ type: c.type, data: structuredClone(c.data) }))] });
-        }
-        for (const entity of kept) {
-            if (entity.children?.some((c) => doomed.has(c))) entity.children = entity.children.filter((c) => !doomed.has(c));
+            let row = entity;
+            if (left) {
+                const components = entity.components.filter((c) => !left.some((l) => l.type === c.type));
+                row = { ...row, components: [...components, ...cloneJsonValue(left)] };
+            }
+            if (entity.children?.some(id => doomed.has(id))) row = { ...row, children: entity.children.filter(id => !doomed.has(id)) };
+            kept.push(row);
         }
         return { ...data, entities: kept };
     }
@@ -175,7 +177,7 @@ export class WorldMemory {
                 return;
             }
             if (def._builtin) return;
-            const data = structuredClone(component.data) as Record<string, unknown>;
+            const data = cloneJsonValue(component.data);
             for (const field of def.entityFields) {
                 if (field in data) data[field] = mapEntityRefField(data[field], target =>
                     typeof target === 'number' && target !== 0 ? sceneOriginOf(this.app_, target as Entity) ?? 0 : target);

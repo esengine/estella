@@ -31,12 +31,34 @@ function remembered(entries: WorldMemoryData['entries'], world = 'w'): WorldMemo
 }
 
 describe('a cell brought back from memory', () => {
+    it('can reuse the authored hierarchy after clearing a remembered deletion', () => {
+        const rows = document(), memory = remembered({ 'w.cell_1_0:3': { gone: true } });
+        const parent = (scene: SceneData) => scene.entities.find(e => e.id === 2)!;
+        expect(parent(memory.adapt(cell.name, rows)).children).toEqual([]);
+        memory.clear();
+        expect(parent(memory.adapt(cell.name, rows)).children).toEqual([3]);
+    });
+
+    it('keeps remembered data independent of imported saves, exported saves and loaded cells', () => {
+        const key = 'w.cell_1_0:1', items = ['key'];
+        const memory = remembered({ [key]: { components: [{ type: 'Bag', data: { items } }] } });
+        const exportedItems = () => memory.toJSON().entries[key].components![0].data.items as string[];
+        items.push('input');
+        expect(exportedItems()).toEqual(['key']);
+        exportedItems().push('output');
+        const loadItems = () => memory.adapt(cell.name, document()).entities[0].components.find(c => c.type === 'Bag')!.data.items as string[];
+        expect(loadItems()).toEqual(['key']);
+        loadItems().push('cell');
+        expect(exportedItems()).toEqual(['key']);
+    });
+
     it('restores remembered target lists by authored id after the cell receives new entity handles', () => {
         const app = App.new(), w = app.world, memory = new WorldMemory(app, () => manifest);
         const type = 'RememberedTargetList', defaults = { targets: [] as number[], values: [] as number[] };
         const definition = defineComponent(type, defaults, { entityFields: ['targets'] });
         enableSceneOrigins(app);
-        const rows = document(), actor = w.spawn(), target = w.spawn(), dynamic = w.spawn();
+        const rows = { ...document(), entities: [entity(1, [], []), entity(3, [], [])] };
+        const actor = w.spawn(), target = w.spawn(), dynamic = w.spawn();
         memory.adapt(cell.name, rows);
         recordSceneOrigins(app, new Map([[1, actor], [3, target]]));
         const values = [target, dynamic, 0, target];
