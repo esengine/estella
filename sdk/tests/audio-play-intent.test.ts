@@ -108,6 +108,54 @@ it('stopAll cancels pending effect and track starts while retaining their loaded
     expect(audio.playSFX('effect.wav').isPlaying).toBe(true);
 });
 
+it('starts both video tracks when they finish loading together over the cache budget', async () => {
+    const { audio, backend } = create();
+    audio.setBufferBudget(32);
+    const urls = ['video/intro.esv.m4a', 'video/credits.esv.m4a'];
+    const tracks = urls.map(url => audio.playTrack(url, { bus: 'video' }));
+    urls.forEach((url, i) => loads.get(url)!({ id: i + 1, duration: 3, bytes: 64 }));
+
+    const voices = await Promise.all(tracks);
+    expect(backend.play.mock.calls.map(([buffer, config]) => [buffer.id, config.bus])).toEqual([[1, 'video'], [2, 'video']]);
+    expect(audio.getBufferStats().bufferBytes).toBe(64);
+    expect(audio.trimBufferCache()).toBe(1);
+    expect(voices.map(v => v?.isPlaying)).toEqual([true, true]);
+});
+
+it.each([0, 32])('keeps a waiting video track through its last asset release and a memory trim (budget %s)', async budget => {
+    const { audio } = create();
+    const url = 'video/intro.esv.m4a';
+    audio.setBufferBudget(budget);
+    await audio.preloadFromData(url, new ArrayBuffer(8));
+    expect(audio.retainBuffer(url)).toBe(true);
+    const track = audio.playTrack(url);
+    audio.releaseBuffer(url);
+
+    expect(audio.getBufferStats().evictableCount).toBe(0);
+    expect(audio.trimBufferCache()).toBe(0);
+    expect((await track)?.isPlaying).toBe(true);
+    expect(audio.trimBufferCache()).toBe(budget === 0 ? 0 : 1);
+    expect(audio.getBufferStats().bufferCount).toBe(0);
+});
+
+it.each(['video', 'effect'])('an invalidated %s start cannot play or evict a freshly preloaded replacement', async kind => {
+    const { audio, backend } = create();
+    const url = 'changed.wav';
+    audio.setBufferBudget(0);
+    const start = kind === 'video' ? audio.playTrack(url) : audio.playSFX(url);
+    const finishOld = loads.get(url)!;
+    expect(audio.invalidateBuffer(url)).toBe(true);
+    await audio.preloadFromData(url, new ArrayBuffer(8));
+    const replacement = audio.getBufferHandle(url);
+    expect(replacement).toBeDefined();
+    finishOld({ id: 9, duration: 1 });
+    await start;
+    await vi.waitFor(() => expect(backend.unloadBuffer).toHaveBeenCalledWith({ id: 9, duration: 1 }));
+    expect(backend.play).not.toHaveBeenCalled();
+    expect(audio.getBufferHandle(url)).toBe(replacement);
+    expect(audio.trimBufferCache()).toBe(1);
+});
+
 it('does not send a new buffer voice to a disposed device', () => {
     const { audio, backend } = create();
     audio.dispose();

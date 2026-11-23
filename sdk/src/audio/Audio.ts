@@ -191,10 +191,10 @@ export class AudioAPI {
     private readonly bufferCache_ = new Map<string, BufferEntry>();
     private readonly loadingBuffers_ = new Map<string, PendingAudioBuffer>();
     private readonly bufferSources_: AudioSourceMap<SharedAudioBuffer> = new Map();
-    /** refCount==0 urls in eviction order (oldest first); access re-appends. */
+    /** Unheld refs with no pending use, oldest first. Access refreshes their position. */
     private readonly evictOrder_ = new Set<string>();
     /** Keep an arriving buffer resident until its waiting voices start and its asset owners pin it. */
-    private readonly awaitingUse_ = new Map<string, number>();
+    private readonly awaitingUse_ = new Map<string, { count: number }>();
     /** Clips already reported as larger than the whole budget. */
     private readonly oversizeReported_ = new Set<string>();
     private residentBytes_ = 0;
@@ -296,14 +296,9 @@ export class AudioAPI {
     releaseBuffer(url: string): void {
         const entry = this.bufferCache_.get(url);
         if (!entry || entry.refCount === 0) return;
-        if (--entry.refCount === 0) {
-            if (this.bufferBudget === 0) {
-                this.freeBuffer_(url, entry);
-            } else {
-                this.evictOrder_.add(url);
-                this.enforceBudget_();
-            }
-        }
+        if (--entry.refCount > 0 || this.awaitingUse_.has(url)) return;
+        this.finishUse_(url, entry);
+        this.enforceBudget_();
     }
 
     /** End cached and pending loads for changed source bytes. Playing sources
@@ -319,7 +314,10 @@ export class AudioAPI {
         // Detach every old alias before invalidation or unload can reenter the API.
         for (const source of profiles.values()) {
             for (const alias of source.requests) {
-                if (this.loadingBuffers_.get(alias)?.source === source) this.loadingBuffers_.delete(alias);
+                if (this.loadingBuffers_.get(alias)?.source === source) {
+                    this.loadingBuffers_.delete(alias);
+                    this.awaitingUse_.delete(alias);
+                }
             }
             for (const alias of source.aliases) {
                 const entry = this.bufferCache_.get(alias);
@@ -416,7 +414,7 @@ export class AudioAPI {
             this.reportOversize_(url, handle);
             this.enforceBudget_();
         }
-        this.evictOrder_.add(url);
+        if (!this.awaitingUse_.has(url)) this.evictOrder_.add(url);
     }
 
     /**
@@ -452,9 +450,15 @@ export class AudioAPI {
         return this.releaseSource_(entry.source);
     }
 
+    private finishUse_(ref: string, entry: BufferEntry): void {
+        if (this.bufferBudget === 0) this.freeBuffer_(ref, entry);
+        else this.evictOrder_.add(ref);
+    }
+
     private detachEntry_(url: string, entry: BufferEntry): void {
         this.bufferCache_.delete(url);
         this.evictOrder_.delete(url);
+        this.awaitingUse_.delete(url);
         const source = entry.source;
         source.aliases.delete(url);
         if (source.aliases.size === 0 && source.charged) {
@@ -474,13 +478,11 @@ export class AudioAPI {
 
     /** Evict oldest warm-cache entries until resident bytes fit the budget.
      *  Held (refCount > 0) entries are never evicted. */
-    private enforceBudget_(): void {
+    private enforceBudget_(newest?: string): void {
         const budget = this.bufferBudget;
         if (budget === 0) return;
         for (const url of this.evictOrder_) {
-            if (this.residentBytes_ <= budget) break;
-            // A play is about to start on it: evicting it now is a sound that never happens.
-            if (this.awaitingUse_.has(url)) continue;
+            if (this.residentBytes_ <= budget || url === newest) break;
             const entry = this.bufferCache_.get(url);
             if (entry) this.freeBuffer_(url, entry);
         }
@@ -620,9 +622,9 @@ export class AudioAPI {
      */
     private async loadThenPlay_(url: string, what: string, play: (buffer: AudioBufferHandle) => void): Promise<void> {
         try {
-            await this.withPendingUse_(url, async () => {
+            await this.withPendingUse_(url, async current => {
                 await this.preload(url);
-                if (this.disposed_) return;
+                if (this.disposed_ || !current()) return;
                 const buffer = this.lookupBuffer_(url);
                 if (buffer) play(buffer);
                 else log.warn('audio', `${what} did not play: ${url} loaded, but was gone from the audio cache before it could start`);
@@ -632,14 +634,24 @@ export class AudioAPI {
         }
     }
 
-    private async withPendingUse_<T>(ref: string, use: () => Promise<T>): Promise<T> {
-        this.awaitingUse_.set(ref, (this.awaitingUse_.get(ref) ?? 0) + 1);
+    private async withPendingUse_<T>(ref: string, use: (current: () => boolean) => Promise<T>): Promise<T> {
+        const pending = this.awaitingUse_.get(ref) ?? { count: 0 };
+        pending.count++;
+        this.awaitingUse_.set(ref, pending);
+        this.evictOrder_.delete(ref);
+        const current = () => this.awaitingUse_.get(ref) === pending;
         try {
-            return await use();
+            return await use(current);
         } finally {
-            const left = this.awaitingUse_.get(ref)! - 1;
-            if (left > 0) this.awaitingUse_.set(ref, left);
-            else this.awaitingUse_.delete(ref);
+            if (--pending.count === 0 && current()) {
+                this.awaitingUse_.delete(ref);
+                const entry = this.bufferCache_.get(ref);
+                if (entry?.refCount === 0) {
+                    this.finishUse_(ref, entry);
+                    // As on insertion, older warm entries make room for the clip just used.
+                    this.enforceBudget_(ref);
+                }
+            }
         }
     }
 
@@ -676,16 +688,18 @@ export class AudioAPI {
     async playTrack(url: string, config: PlayConfig = {}): Promise<AudioHandle | null> {
         if (this.disposed_) return null;
         const epoch = this.playbackEpoch_;
-        try {
-            await this.ensureBuffer_(url, this.loadOptions_(url, url), (source, options) => this.loadFile_(source, options), url);
-        } catch {
-            return null;
-        }
-        if (this.disposed_ || epoch !== this.playbackEpoch_) return null;
-        const buffer = this.lookupBuffer_(url);
-        if (!buffer) return null;
-        if (config.bus) this.ensureBus(config.bus);
-        return this.playVoice_(buffer, config);
+        return this.withPendingUse_(url, async () => {
+            let buffer: AudioBufferHandle | undefined;
+            try {
+                buffer = await this.ensureBuffer_(url, this.loadOptions_(url, url),
+                    (source, options) => this.loadFile_(source, options), url);
+            } catch {
+                return null;
+            }
+            if (!buffer || this.disposed_ || epoch !== this.playbackEpoch_ || this.bufferCache_.get(url)?.handle !== buffer) return null;
+            if (config.bus) this.ensureBus(config.bus);
+            return this.playVoice_(buffer, config);
+        });
     }
 
     playSFX(url: string, config?: {
@@ -1259,7 +1273,13 @@ export class AudioAPI {
         disposeAll([() => this.stopAll(), () => this.playbackStops_.clear(), () => {
             this.loadingBuffers_.clear();
             try { disposeAll([...this.bufferCache_], ([url, entry]) => { this.freeBuffer_(url, entry); }); }
-            finally { this.bufferCache_.clear(); this.bufferSources_.clear(); this.evictOrder_.clear(); this.residentBytes_ = 0; }
+            finally {
+                this.bufferCache_.clear();
+                this.bufferSources_.clear();
+                this.evictOrder_.clear();
+                this.awaitingUse_.clear();
+                this.residentBytes_ = 0;
+            }
         }, () => this.backend_?.dispose()], action => action());
     }
 
