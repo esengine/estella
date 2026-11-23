@@ -16,6 +16,7 @@ import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';
 import { loadSceneWithAssets } from './scene';
+import { SceneAssetProgress } from './sceneAssetProgress';
 import { recordSceneOrigins } from './sceneOrigins';
 import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
 import { discardSceneEntities } from './sceneLoadAttempt';
@@ -44,6 +45,7 @@ type SceneSurvival = 'all' | 'persistent' | 'none';
 
 interface SceneLoadRequest {
     readonly done: Promise<SceneContext>;
+    readonly progress: SceneAssetProgress;
     activate: boolean;
     instance?: SceneInstance;
 }
@@ -118,6 +120,8 @@ export interface SceneConfig {
 export interface SceneContext {
     readonly name: string;
     readonly entities: ReadonlySet<Entity>;
+    /** Report asset counts from a custom scene loader to callers observing this load. */
+    readonly reportAssetProgress?: SceneLoadProgressCallback;
     spawn(): Entity;
     /** Track an entity as scene-owned, transferring it from its previous scene. */
     adopt(entity: Entity): void;
@@ -201,7 +205,8 @@ class SceneContextImpl implements SceneContext {
     private readonly adopt_: (entity: Entity) => void;
     private readonly isCurrent_: () => boolean;
 
-    constructor(instance: SceneInstance, app: App, adopt: (entity: Entity) => void, isCurrent: () => boolean) {
+    constructor(instance: SceneInstance, app: App, adopt: (entity: Entity) => void, isCurrent: () => boolean,
+                readonly reportAssetProgress: SceneLoadProgressCallback) {
         this.instance_ = instance;
         this.app_ = app;
         this.adopt_ = adopt;
@@ -550,6 +555,7 @@ export class SceneManagerState {
             settled: settled.promise,
             finish: () => {
                 if (!arrivals.delete(arrival)) return;
+                arrival.request?.progress.close();
                 if (!arrivals.size) this.arrivals_.delete(name);
                 settled.resolve();
             },
@@ -593,6 +599,7 @@ export class SceneManagerState {
 
         const pending = this.loadArrival_(name);
         if (pending?.request) {
+            pending.request.progress.observe(onProgress);
             if (mode === 'exclusive') pending.request.activate = true;
             if (swap) void pending.settled.then(swap.finish);
             return pending.request.done;
@@ -600,7 +607,9 @@ export class SceneManagerState {
 
         const { signal } = this.lifetime_;
         const load = this.reserveOperation_<SceneContext>(name);
-        const request: SceneLoadRequest = { done: load.done, activate: mode === 'exclusive' };
+        const progress = new SceneAssetProgress();
+        progress.observe(onProgress);
+        const request: SceneLoadRequest = { done: load.done, activate: mode === 'exclusive', progress };
         const arrival = swap ?? this.trackArrival_(name);
         arrival.request = request;
         try {
@@ -609,13 +618,13 @@ export class SceneManagerState {
                     await leaving.done.catch(() => undefined);
                     if (signal.aborted) throw new SceneLoadCancelled(name);
                 }
-                return this.publishScene_(name, request, onProgress);
+                return this.publishScene_(name, request);
             });
         } finally { arrival.finish(); }
     }
 
     private async publishScene_(
-        name: string, request: SceneLoadRequest, onProgress?: SceneLoadProgressCallback,
+        name: string, request: SceneLoadRequest,
     ): Promise<SceneContext> {
         const config = this.configs_.get(name);
         if (!config) {
@@ -628,7 +637,7 @@ export class SceneManagerState {
         this.scenes_.set(name, instance);
 
         const ctx = new SceneContextImpl(instance, this.app_,
-            entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance));
+            entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance), request.progress.report);
         this.contexts_.set(name, ctx);
 
         try {
@@ -647,7 +656,7 @@ export class SceneManagerState {
                 config.onPhase?.('fetch', performance.now() - began);
             }
 
-            await this.loadSceneData_(instance, name, config, sceneData, onProgress);
+            await this.loadSceneData_(instance, name, config, sceneData, ctx);
             if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
             instance.status = 'running';
             if (request.activate) this.activeScene_ = name;
@@ -901,7 +910,7 @@ export class SceneManagerState {
         name: string,
         config: SceneConfig,
         sceneData: SceneData | undefined,
-        onProgress?: SceneLoadProgressCallback,
+        ctx: SceneContextImpl,
     ): Promise<void> {
         if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
         if (sceneData) {
@@ -920,11 +929,11 @@ export class SceneManagerState {
 
             const loadOptions: SceneLoadOptions = {
                 collectAssets,
+                onProgress: ctx.reportAssetProgress,
                 assertCurrent: () => {
                     if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
                 },
             };
-            if (onProgress) loadOptions.onProgress = onProgress;
             if (config.externalEntities) loadOptions.externalEntities = config.externalEntities();
             if (config.onPhase) loadOptions.onPhase = config.onPhase;
             if (this.app_.hasResource(Assets)) {
@@ -966,7 +975,6 @@ export class SceneManagerState {
             }
         }
 
-        const ctx = this.contexts_.get(name)!;
         if (config.setup) {
             await config.setup(ctx);
             // setup() is user code and can await for as long as it likes. An

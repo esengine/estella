@@ -6603,6 +6603,7 @@ externalEntities: ReadonlyMap<number, number> | undefined
 gate: (() => Promise<void>) | undefined
 module: ESEngineModule | null
 onPhase: ((phase: string, ms: number) => void) | undefined
+onProgress: SceneLoadProgressCallback | undefined
 physics3dBackend: Physics3DBackend | undefined
 physics3dModule: Physics3DWasmModule | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
@@ -10949,6 +10950,7 @@ despawn: (entity: Entity) => void
 entities: ReadonlySet<number>
 name: string
 registerDrawCallback: (id: string, fn: DrawCallback) => void
+reportAssetProgress: SceneLoadProgressCallback | undefined
 setPersistent: (entity: Entity, persistent: boolean) => void
 spawn: () => Entity
 trackAssetScope: (scope: AssetScope) => void

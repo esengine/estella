@@ -76,15 +76,18 @@ describe.skipIf(!HAS_ASSETS)('DragonBonesManager', () => {
             ownedAssetLease(path, 1, { handle: 7, width: 1, height: 1 }, release));
         initResourceManager({ getTextureGLId: (handle: number) => handle } as CppResourceManager);
         try {
-            const options = { app, module: null, source };
+            const progress = vi.fn(), options = { app, module: null, source, onProgress: progress };
             const config = createRuntimeSceneConfig('dragon', sceneData, options);
             await config.prepare!();
+            expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
             expect(acquire).toHaveBeenCalledOnce();
             expect(config.discardPrepared!()).toBe(1);
             expect(config.discardPrepared!()).toBe(0);
             expect(release).toHaveBeenCalledTimes(1);
 
+            progress.mockClear();
             const prepared = await prepareRuntimeScene({ ...options, sceneData });
+            expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
             expect(prepared.assetResult.scope.size).toBe(1);
             await publishRuntimeScene(prepared);
             expect(prepared.assetResult.scope.size).toBe(0);

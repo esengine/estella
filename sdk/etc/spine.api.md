@@ -448,7 +448,7 @@ mixY: number
 
 ## loadSpineAssets — function @experimental
 ```
-(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, owner?: SpineAssetOwner, onPairSettled?: () => void): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function @experimental

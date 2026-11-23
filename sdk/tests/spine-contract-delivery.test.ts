@@ -23,7 +23,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
-import { AssetScope } from '../src/asset/AssetLease';
+import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
@@ -183,6 +183,20 @@ function offscreenCamera() {
 }
 
 beforeEach(() => { pool = createPoolFake(); });
+
+it('returns only this Spine batch when its progress observer throws', async () => {
+    const assets = realm(), scope = new AssetScope(), unrelated = vi.fn();
+    scope.add(ownedAssetLease('previous', 1, 1, unrelated));
+    const refused = new Error('observer refused');
+    try {
+        const pairs = [{ skeleton: SKEL_REF, atlas: ATLAS_REF }];
+        await expect(loadSpineAssets(null, shippedSource(shippedManifest()), null, pairs, undefined,
+            { assets, scope }, () => { throw refused; })).rejects.toBe(refused);
+        expect(scope.size).toBe(1);
+        expect(assets.sizes().refRows).toBe(0);
+        expect(unrelated).not.toHaveBeenCalled();
+    } finally { scope.releaseAll(); assets.releaseAll(); }
+});
 
 describe('an author\'s promise reaches a running scene', () => {
     it('arrives certified at the era a uuid-referencing scene loads', async () => {

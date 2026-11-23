@@ -41,6 +41,185 @@ function barrier() {
     return { open, promise };
 }
 
+describe('scene asset progress', () => {
+    async function setup(entry: string) {
+        const state = await runtime();
+        const { app, assets, options } = state, manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const started = barrier(), resume = barrier(), fast = barrier();
+        const read = vi.fn(async (path: string) => {
+            if (path === 'slow.esmesh') { started.open(); await resume.promise; }
+            else await fast.promise;
+            return { handle: path === 'slow.esmesh' ? 2 : 1 };
+        });
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: read, unload: state.unloaded });
+        const data = { ...scene, entities: ['fast.esmesh', 'slow.esmesh'].map((mesh, id) => ({
+            ...scene.entities[0]!, id, components: [{ type: 'MeshRenderer', data: { mesh } }],
+        })) };
+        manager.register(entry === 'authoring' ? { name: 'cell', data } : createRuntimeSceneConfig('cell', data, options));
+        return { ...state, manager, started, resume, fast, read, data };
+    }
+
+    it.each(['authoring', 'runtime'])('replays actual %s counts to late and reentrant callers', async entry => {
+        const { app, assets, manager, started, resume, fast, read, unloaded } = await setup(entry);
+        const joined = vi.fn(), reentrant = vi.fn();
+        const first = manager.loadAdditive('cell');
+        let nested: ReturnType<typeof manager.load> | undefined;
+        try {
+            await started.promise;
+            const half = barrier();
+            const listener = (done: number, total: number) => {
+                joined(done, total);
+                if (done === 1) { nested = manager.load('cell', reentrant); half.open(); }
+            };
+            const second = manager.loadAdditive('cell', listener);
+            expect(joined.mock.calls).toEqual([[0, 2]]);
+            fast.open(); await half.promise;
+            expect(reentrant.mock.calls).toEqual([[1, 2]]);
+            resume.open();
+            const [ctx, other, active] = await Promise.all([first, second, nested]);
+            expect(ctx).toBe(other); expect(ctx).toBe(active);
+            expect(manager.getActive()).toBe('cell');
+            expect(joined.mock.calls).toEqual([[0, 2], [1, 2], [2, 2]]);
+            expect(reentrant.mock.calls).toEqual([[1, 2], [2, 2]]);
+            expect(read).toHaveBeenCalledTimes(2);
+            await manager.unload('cell');
+            expect(unloaded).toHaveBeenCalledTimes(2);
+        } finally { fast.open(); resume.open(); await first; assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['loading', 'ready'])('hands the %s preparation count to the scene without rereading', async phase => {
+        const { app, assets, manager, started, resume, fast, read } = await setup('runtime');
+        const prepared = manager.prepare('cell'), progress = vi.fn();
+        let loading: ReturnType<typeof manager.load> | undefined;
+        try {
+            await started.promise;
+            if (phase === 'ready') { fast.open(); resume.open(); await prepared; }
+            loading = manager.load('cell', progress);
+            expect(progress.mock.calls).toEqual(phase === 'ready' ? [[2, 2]] : [[0, 2]]);
+            fast.open(); resume.open(); await Promise.all([prepared, loading]);
+            expect(progress.mock.calls).toEqual(phase === 'ready' ? [[2, 2]] : [[0, 2], [1, 2], [2, 2]]);
+            expect(read).toHaveBeenCalledTimes(2);
+            await manager.unload('cell'); expect(assets.sizes().refRows).toBe(0);
+        } finally { fast.open(); resume.open(); await Promise.allSettled([prepared, loading]); assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['authoring', 'runtime'])('stops reporting %s reads when the scene is cancelled', async entry => {
+        const { app, assets, manager, started, resume, fast } = await setup(entry);
+        const progress = vi.fn(), failed = expect(manager.load('cell', progress)).rejects.toBeInstanceOf(SceneLoadCancelled);
+        try {
+            await started.promise; expect(progress.mock.calls).toEqual([[0, 2]]);
+            await manager.unload('cell');
+            fast.open(); resume.open(); await failed;
+            expect(progress.mock.calls).toEqual([[0, 2]]);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally {
+            await manager.unload('cell'); fast.open(); resume.open();
+            await Promise.allSettled([failed]); assets.releaseAll(); app.quit();
+        }
+    });
+
+    it('releases a prepared batch when replaying its count throws and can retry', async () => {
+        const { app, assets, manager, fast, resume, unloaded } = await setup('runtime');
+        const refused = new Error('loading screen rejected progress');
+        fast.open(); resume.open();
+        try {
+            await manager.prepare('cell');
+            await expect(manager.load('cell', () => { throw refused; })).rejects.toBe(refused);
+            expect(unloaded).toHaveBeenCalledTimes(2); expect(assets.sizes().refRows).toBe(0);
+            const progress = vi.fn(); await manager.load('cell', progress);
+            expect(progress.mock.calls).toEqual([[0, 2], [1, 2], [2, 2]]);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('keeps an additive load running when a joining listener throws on replay', async () => {
+        const { app, assets, manager, started, resume, fast } = await setup('runtime');
+        const active = vi.fn(), refused = new Error('join refused');
+        const failed = vi.fn(() => { throw refused; });
+        const original = manager.loadAdditive('cell', active);
+        try {
+            await started.promise;
+            await expect(manager.load('cell', failed)).rejects.toBe(refused);
+            fast.open(); resume.open(); await original;
+            expect(failed).toHaveBeenCalledOnce();
+            expect(active.mock.calls).toEqual([[0, 2], [1, 2], [2, 2]]);
+            expect(manager.getActive()).toBeNull();
+        } finally { fast.open(); resume.open(); await original; assets.releaseAll(); app.quit(); }
+    });
+
+    it('drains in-flight preparation receipts before returning a replay failure', async () => {
+        const { app, assets, manager, started, fast, resume, unloaded } = await setup('runtime');
+        const refused = new Error('handoff refused');
+        const preparation = expect(manager.prepare('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
+        let loading: Promise<unknown> | undefined;
+        try {
+            await started.promise;
+            const rejected = vi.fn();
+            loading = manager.load('cell', () => { throw refused; }).catch(rejected);
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(rejected).not.toHaveBeenCalled();
+            fast.open(); resume.open(); await Promise.all([loading, preparation]);
+            expect(rejected).toHaveBeenCalledWith(refused);
+            expect(unloaded).toHaveBeenCalledTimes(2);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(manager.getLoading()).toEqual([]);
+        } finally { fast.open(); resume.open(); await Promise.allSettled([loading, preparation]); assets.releaseAll(); app.quit(); }
+    });
+
+    it('reports a direct packaged load inside a custom setup to both observers', async () => {
+        const { app, assets, options, manager, data, fast, resume } = await setup('runtime');
+        const direct = vi.fn(), caller = vi.fn();
+        manager.register({ name: 'cell', setup: () => loadRuntimeScene({
+            ...options, sceneName: 'cell', sceneData: data, onProgress: direct,
+        }) });
+        fast.open(); resume.open();
+        try {
+            await manager.load('cell', caller);
+            expect(caller.mock.calls).toEqual([[0, 2], [1, 2], [2, 2]]);
+            expect(direct.mock.calls).toEqual(caller.mock.calls);
+            await manager.unload('cell'); expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('detaches both observers of a direct packaged load when its owning setup is cancelled', async () => {
+        const { app, assets, options, manager, data, started, fast, resume } = await setup('runtime');
+        const direct = vi.fn(), caller = vi.fn();
+        manager.register({ name: 'cell', setup: () => loadRuntimeScene({
+            ...options, sceneName: 'cell', sceneData: data, onProgress: direct,
+        }) });
+        const failed = expect(manager.load('cell', caller)).rejects.toBeInstanceOf(SceneLoadCancelled);
+        try {
+            await started.promise; await manager.unload('cell');
+            fast.open(); resume.open(); await failed;
+            expect(direct.mock.calls).toEqual([[0, 2]]);
+            expect(caller.mock.calls).toEqual(direct.mock.calls);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { fast.open(); resume.open(); await Promise.allSettled([failed]); assets.releaseAll(); app.quit(); }
+    });
+
+    it('counts shared meshes and unique skeletal pairs on the same asset scale', async () => {
+        const { registerSpineSupport } = await import('../src/spine/spineSupport');
+        const { registerDragonBonesSupport } = await import('../src/dragonbones/dragonBonesSupport');
+        registerSpineSupport(); registerDragonBonesSupport();
+        const { app, assets, options } = await runtime();
+        app.setSideModules({ acquire: async () => null });
+        const skeletal = (id: number, type: string, file: string) => ({
+            ...scene.entities[0]!, id, components: [{ type, data: { skeletonPath: file + '.json', atlasPath: file + '.atlas' } }],
+        });
+        const sceneData = { ...scene, entities: [
+            ...scene.entities, skeletal(2, 'SpineAnimation', 'one'), skeletal(3, 'SpineAnimation', 'one'),
+            skeletal(4, 'SpineAnimation', 'two'), skeletal(5, 'DragonBonesAnimation', 'dragon'),
+        ] };
+        const progress = vi.fn();
+        try {
+            const ready = await prepareRuntimeScene({ ...options, sceneData, onProgress: progress });
+            expect(progress.mock.calls).toEqual([[0, 4], [1, 4], [2, 4], [3, 4], [4, 4]]);
+            expect(ready.assetResult.scope.size).toBe(1);
+            ready.assetResult.scope.releaseAll(); expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+});
+
 describe('overlapping registered scene loads', () => {
     async function registered(streamed = false) {
         const state = await runtime();

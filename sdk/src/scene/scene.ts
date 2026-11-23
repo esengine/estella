@@ -94,7 +94,7 @@ export interface LoadedSceneAssets {
     scope?: import('../asset/AssetLease').AssetScope;
 }
 
-/** Progress during a scene load, in assets: how many are done of how many.
+/** Settled asset preparations and their total. Joining an in-flight scene load replays its latest counts.
  *  @beta */
 export type SceneLoadProgressCallback = (loaded: number, total: number) => void;
 

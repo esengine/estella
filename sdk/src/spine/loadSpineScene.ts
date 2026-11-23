@@ -31,7 +31,8 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { atlasPagePath, withAtlasPages } from '../runtime/atlasPages';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { AssetsData } from '../asset/AssetPlugin';
-import { AssetScope } from '../asset/AssetLease';
+import { AssetScope, type AssetLease } from '../asset/AssetLease';
+import { disposeAll } from '../util/disposeAll';
 import { spineCertificatesFrom } from './spineCertificates';
 
 /**
@@ -102,14 +103,23 @@ export async function loadSpineAssets(
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     transcoderProvider?: TranscoderProvider,
     owner?: SpineAssetOwner,
+    /** Runs after each attempted pair, including a pair that failed to read. */
+    onPairSettled?: () => void,
 ): Promise<Map<string, SpineAssetInfo>> {
     if (owner) {
         const certificates = spineCertificatesFrom(source);
-        return readSpinePairs(spinePairs, spineManager, async pair => {
-            const lease = owner.scope.add(await owner.assets.acquireSpine(pair.skeleton, pair.atlas));
-            const culling = certificates.envelopeFor(pair.skeleton, pair.atlas);
-            return { era: spineEraOf(pair, lease, culling), preparation: null };
-        });
+        const acquired: AssetLease[] = [];
+        try {
+            return await readSpinePairs(spinePairs, spineManager, async pair => {
+                const lease = owner.scope.add(await owner.assets.acquireSpine(pair.skeleton, pair.atlas));
+                acquired.push(lease);
+                const culling = certificates.envelopeFor(pair.skeleton, pair.atlas);
+                return { era: spineEraOf(pair, lease, culling), preparation: null };
+            }, onPairSettled);
+        } catch (error) {
+            disposeAll(acquired, lease => { if (owner.scope.forget(lease)) lease.release(); }, true);
+            throw error;
+        }
     }
     return withAtlasPages(module, source, transcoderProvider, acquirePage =>
         readSpinePairs(spinePairs, spineManager, async pair => {
@@ -122,12 +132,13 @@ export async function loadSpineAssets(
                 pages.releaseAll();
                 throw error;
             }
-        }));
+        }, onPairSettled));
 }
 
 async function readSpinePairs(
     pairs: ReadonlyArray<SpinePair>, manager: SpineManager | null | undefined,
     prepare: (pair: SpinePair) => Promise<Pick<SpineAssetInfo, 'era' | 'preparation'>>,
+    onPairSettled?: () => void,
 ): Promise<Map<string, SpineAssetInfo>> {
     const assets = new Map<string, SpineAssetInfo>();
     for (const pair of pairs) {
@@ -147,6 +158,11 @@ async function readSpinePairs(
         } catch (err) {
             preparation?.release();
             log.warn('runtime', `Failed to load spine asset: skel=${pair.skeleton} atlas=${pair.atlas}`, err);
+        }
+        try { onPairSettled?.(); }
+        catch (error) {
+            disposeAll([...assets.values()], info => info.preparation?.release());
+            throw error;
         }
     }
     return assets;

@@ -193,6 +193,19 @@ describe('standalone atlas ownership', () => {
         expect(textureRefill(102)).toBeUndefined();
     });
 
+    it.each(['spine', 'dragonbones'])('releases the %s atlas if its progress observer rejects the batch', async kind => {
+        const source = makeSource({});
+        const refused = new Error('pair refused'), notify = vi.fn(() => { throw refused; });
+        rm.releaseTexture.mockClear(); rm.createTextureFromBytes.mockReturnValueOnce(105);
+        if (kind === 'dragonbones') source.backend.fetchText = async () => '{"imagePath":"page.png"}';
+        const pending = kind === 'spine' ? loadSpineAssets(null, source, null, PAIR, undefined, undefined, notify)
+            : loadDragonBonesAssets(null, source, PAIR, undefined, undefined, undefined, notify);
+        await expect(pending).rejects.toBe(refused);
+        expect(notify).toHaveBeenCalledOnce();
+        expect(rm.releaseTexture.mock.calls).toEqual([[105]]);
+        expect(textureRefill(105)).toBeUndefined();
+    });
+
     it('retires a DragonBones refill while its image decode is in flight', async () => {
         const source = makeSource({});
         source.backend.fetchText = async () => '{"imagePath":"page.png"}';

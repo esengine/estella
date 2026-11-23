@@ -103,14 +103,17 @@ export async function loadDragonBonesAssets(
     assets?: Pick<Assets, 'acquireTexture'>,
     /** Holds each page until an armature takes it or the prepared scene is discarded. */
     scope?: AssetScope,
+    /** Runs after each attempted pair, including a pair that failed to read. */
+    onPairSettled?: () => void,
 ): Promise<Map<string, DragonBonesAssetInfo>> {
     return withAtlasPages(module, source, transcoderProvider,
-        acquire => readDragonBonesPairs(source, pairs, acquire, scope), assets);
+        acquire => readDragonBonesPairs(source, pairs, acquire, scope, onPairSettled), assets);
 }
 
 async function readDragonBonesPairs(
     source: RuntimeAssetSource, pairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     acquire: AcquireAtlasPage, scope?: AssetScope,
+    onPairSettled?: () => void,
 ): Promise<Map<string, DragonBonesAssetInfo>> {
     const assetInfo = new Map<string, DragonBonesAssetInfo>();
     const resolveRef = source.resolveRef ?? ((r: string) => r);
@@ -141,6 +144,8 @@ async function readDragonBonesPairs(
             log.warn('runtime',
                 `Failed to load DragonBones asset: skeleton=${pair.skeleton} atlas=${pair.atlas}`, err);
         }
+        try { onPairSettled?.(); }
+        catch (error) { releaseUnusedAtlases(assetInfo.values()); throw error; }
     }
     return assetInfo;
 }

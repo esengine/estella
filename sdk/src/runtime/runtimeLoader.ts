@@ -7,9 +7,11 @@
 
 import { SceneOwner } from '../ecs/component';
 import { SceneEntityBatch } from '../scene/sceneHierarchy';
+import { SceneAssetProgress } from '../scene/sceneAssetProgress';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
-         updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn } from '../scene/scene';
+         updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
+         type SceneLoadProgressCallback } from '../scene/scene';
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, type SceneLoadAttempt } from '../scene/sceneLoadAttempt';
@@ -200,6 +202,8 @@ function applyTextureMetadata(
 // =============================================================================
 
 export interface LoadRuntimeSceneOptions {
+    /** Completed asset preparations and their total, reported as this scene is read. */
+    onProgress?: SceneLoadProgressCallback;
     /**
      * Awaited between the pieces of a preparation (a streamed cell's): resolves when a frame has time for the next piece, so
      * what runs after a fetch answers runs inside a frame's budget and not whenever the network answers. Absent: at once.
@@ -446,8 +450,19 @@ async function readRuntimeScene(
     // they scale with the cell and not with what it references, which is not
     // what "asset discovery" sounds like it costs.
     if (onPhase) onPhase('discover', performance.now() - discoverBegan);
+    const dragonBones = dragonBonesSupport();
+    const spineCount = app.sideModules && spine ? discovered.spines.length : 0;
+    const dragonBonesCount = app.sideModules && dragonBones ? discovered.dragonBones.length : 0;
+    const report = options.onProgress;
+    let completed = 0, total = 0;
+    const regularProgress: SceneLoadProgressCallback | undefined = report && ((loaded, regularTotal) => {
+        completed = loaded;
+        total = regularTotal + spineCount + dragonBonesCount;
+        report(completed, total);
+    });
+    const finishPairs = report && ((count = 1) => { completed += count; report(completed, total); });
     const assetResult = await timed('assets', async () => {
-        attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, undefined, {
+        attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, regularProgress, {
             skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info',
         });
         return attempt.assets;
@@ -479,7 +494,7 @@ async function readRuntimeScene(
     }
     const spineAssetInfo = app.sideModules && spine
         ? await spine.load(module, source, spineManager, discovered.spines, transcoderProvider,
-                           { assets: sceneAssets, scope: assetResult.scope })
+                           { assets: sceneAssets, scope: assetResult.scope }, finishPairs)
         : new Map<string, SpineAssetInfo>();
 
     // DragonBones, the same two phases. The manager is acquired only when the
@@ -492,14 +507,15 @@ async function readRuntimeScene(
             log.warn('scene', `${discovered.dragonBones.length} DragonBones asset(s) skipped — `
                 + 'this realm has no optional-module host to load the DragonBones runtime from');
         } else {
-            dragonBonesManager = (await dragonBonesSupport()?.acquire(app)) ?? null;
+            dragonBonesManager = (await dragonBones?.acquire(app)) ?? null;
             if (!dragonBonesManager) {
-                log.warn('scene', dragonBonesSupport()
+                log.warn('scene', dragonBones
                     ? 'DragonBones assets present but the runtime could not be loaded'
                     : 'DragonBones assets present but this build ships without the runtime');
+                if (dragonBonesCount) finishPairs?.(dragonBonesCount);
             } else {
-                dragonBonesAssetInfo = await dragonBonesSupport()!.load(
-                    module, source, discovered.dragonBones, transcoderProvider, sceneAssets, assetResult.scope);
+                dragonBonesAssetInfo = await dragonBones!.load(
+                    module, source, discovered.dragonBones, transcoderProvider, sceneAssets, assetResult.scope, finishPairs);
             }
         }
     }
@@ -632,6 +648,17 @@ function assertSceneContext(app: App, context?: SceneContext | null): void {
     if (manager.getScene(context.name) !== context || manager.getSceneStatus(context.name) === 'unloading') {
         throw new SceneLoadCancelled(context.name);
     }
+}
+
+function guardedAssetProgress(
+    assertCurrent: () => void, observer?: SceneLoadProgressCallback, scene?: SceneLoadProgressCallback,
+): SceneLoadProgressCallback | undefined {
+    if (!observer && !scene) return undefined;
+    return (loaded, total) => {
+        assertCurrent();
+        observer?.(loaded, total);
+        if (scene !== observer) scene?.(loaded, total);
+    };
 }
 
 /**
@@ -767,7 +794,9 @@ async function publishPreparedScene(
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
     const { app, sceneName } = options;
     const context = sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
-    await publishRuntimeScene(await prepareRuntimeScene(options, !!context), { context });
+    const onProgress = guardedAssetProgress(() => assertSceneContext(app, context), options.onProgress, context?.reportAssetProgress);
+    const prepared = await prepareRuntimeScene({ ...options, onProgress }, !!context);
+    await publishRuntimeScene(prepared, { context });
 }
 
 
@@ -800,6 +829,7 @@ export function createRuntimeSceneConfig(
     // place to live and one owner to release it.
     interface Preparation {
         done: Promise<PreparedRuntimeScene>;
+        progress: SceneAssetProgress;
         ready?: PreparedRuntimeScene;
         discarded: boolean;
         assertOwner?: () => void;
@@ -832,9 +862,12 @@ export function createRuntimeSceneConfig(
     const gate = streamed
         ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
         : undefined;
-    const readied = async (sceneOwned?: boolean, assertActive?: () => void): Promise<PreparedRuntimeScene> => {
-        assertActive?.();
-        const nextTurn = gate && assertActive ? async () => { assertActive(); await gate(); assertActive(); } : gate;
+    const readied = async (
+        sceneOwned: boolean | undefined, assertActive: () => void,
+        observer?: SceneLoadProgressCallback, sceneProgress?: SceneLoadProgressCallback,
+    ): Promise<PreparedRuntimeScene> => {
+        assertActive();
+        const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
         let data = sceneData;
         if (!data) {
             // Lazy scene: fetched by path through the per-App runtime Assets, so
@@ -843,7 +876,7 @@ export function createRuntimeSceneConfig(
             if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
             const began = performance.now();
             const text = await options.app.getResource(AssetsResource).fetchText(scenePath);
-            assertActive?.();
+            assertActive();
             config.onPhase?.('fetch', performance.now() - began);
             // Parsed in a frame's turn: a cell's document is the largest single piece of its preparation.
             if (nextTurn) {
@@ -857,7 +890,17 @@ export function createRuntimeSceneConfig(
         }
         return prepareRuntimeScene({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
+            onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
         }, sceneOwned ?? options.app.hasResource(SceneManager));
+    };
+    const discard = (pending: Preparation): number => {
+        pending.discarded = true;
+        pending.progress.close();
+        if (streamed) bakesOf(options.app).release(config);
+        const scope = pending.ready?.assetResult.scope;
+        const owed = scope?.size ?? 0;
+        scope?.releaseAll();
+        return owed;
     };
     const config: SceneConfig = {
         name,
@@ -867,12 +910,13 @@ export function createRuntimeSceneConfig(
                 // same promise even when the assets it needs are still arriving.
                 const pending: Preparation = {
                     discarded: false,
+                    progress: new SceneAssetProgress(),
                     done: Promise.resolve().then(async () => {
                         const assertActive = (): void => {
                             if (pending.discarded) throw new SceneLoadCancelled(name);
                             pending.assertOwner?.();
                         };
-                        const ready = await readied(undefined, assertActive);
+                        const ready = await readied(undefined, assertActive, pending.progress.report);
                         if (pending.discarded) {
                             ready.assetResult.scope.releaseAll();
                             throw new SceneLoadCancelled(name);
@@ -880,11 +924,13 @@ export function createRuntimeSceneConfig(
                         pending.ready = ready;
                         return ready;
                     }).catch(error => {
+                        pending.progress.close();
                         if (preparation === pending) preparation = undefined;
                         throw error;
                     }),
                 };
                 preparation = pending;
+                pending.progress.observe(options.onProgress);
             }
             await preparation.done;
         },
@@ -907,20 +953,26 @@ export function createRuntimeSceneConfig(
             const pending = preparation;
             preparation = undefined;
             hurried = false;
-            if (!pending) return 0;
-            pending.discarded = true;
-            if (streamed) bakesOf(options.app).release(config);
-            const scope = pending.ready?.assetResult.scope;
-            const owed = scope?.size ?? 0;
-            scope?.releaseAll();
-            return owed;
+            return pending ? discard(pending) : 0;
         },
         async setup(context) {
             const pending = preparation;
             preparation = undefined;
             const assertOwner = () => assertSceneContext(options.app, context);
-            if (pending) pending.assertOwner = assertOwner;
-            const ready = await (pending?.done ?? readied(!!context, assertOwner));
+            let ready: PreparedRuntimeScene;
+            if (pending) {
+                pending.assertOwner = assertOwner;
+                try { pending.progress.observe(context?.reportAssetProgress); }
+                catch (error) {
+                    discard(pending);
+                    await pending.done.catch(() => undefined);
+                    throw error;
+                }
+                ready = await pending.done;
+                pending.progress.close();
+            } else {
+                ready = await readied(!!context, assertOwner, options.onProgress, context?.reportAssetProgress);
+            }
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },
