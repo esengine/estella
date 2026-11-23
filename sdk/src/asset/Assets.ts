@@ -67,6 +67,7 @@ import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
 import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
+import type { World } from '../ecs/world';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
@@ -1970,21 +1971,21 @@ export class Assets {
 
     /** Record scene users only after source IDs have been mapped to live World entities.
      * Resolution is preparation; source IDs cannot be removed by World.onDespawn. */
-    trackSceneAssetReferences(scene: SceneData, entities: ReadonlyMap<number, number>): void {
+    trackSceneAssetReferences(scene: SceneData, entities: ReadonlyMap<number, number>, world?: World): void {
         const counter = this.refCounter_;
         if (!counter) return;
         for (const source of scene.entities) {
             const entity = entities.get(source.id);
-            if (entity === undefined || !Array.isArray(source.components)) continue;
+            if (entity === undefined || (world && !world.valid(entity)) || !Array.isArray(source.components)) continue;
             for (const comp of source.components) {
                 for (const { field, type } of getComponentAssetFieldDescriptors(comp.type)) {
                     const handle = comp.data[field];
                     if (typeof handle !== 'number' || !handle) continue;
                     const path = this.pathForHandle(type, handle);
                     if (path === null) continue;
-                    if (type === 'texture') counter.addTextureRef(path, entity);
-                    else if (type === 'material') counter.addMaterialRef(path, entity);
-                    else if (type === 'font') counter.addFontRef(path, entity);
+                    if (type === 'texture') counter.addTextureRef(path, entity, world);
+                    else if (type === 'material') counter.addMaterialRef(path, entity, world);
+                    else if (type === 'font') counter.addFontRef(path, entity, world);
                 }
             }
         }
@@ -2617,7 +2618,7 @@ export class Assets {
 
     /**
      * What entities own for themselves — runtime entities with no scene and
-     * persistent entities that outlived theirs. Ends at the entity's despawn.
+     * persistent entities that outlived theirs. Despawn, core departure and asset reset end ownership.
      *
      * @internal
      */
@@ -2728,11 +2729,9 @@ export class Assets {
     }
 
     /**
-     * Attach optional usage monitoring. Scene publication records runtime
-     * entity IDs through trackSceneAssetReferences; the shared World binding
-     * removes them on despawn and follows the active asset resource. Plugin
-     * and runtime factories install it; manually created Assets default to
-     * no tracking until a counter is attached.
+     * Attach optional usage monitoring. Scene publication records the World and
+     * runtime entity ID. Despawn and core departure retire that World's rows.
+     * Plugin and runtime factories install a counter by default.
      */
     setRefCounter(counter: AssetRefCounter): void {
         this.refCounter_ = counter;
@@ -3106,7 +3105,7 @@ export class Assets {
             loadPrefab: async (ref) => (await ctx.acquireAsset<PrefabResult>('prefab', ref)).value,
             preloadSceneAssets: (scene, progress, options) => this.preloadSceneAssets_(scene, progress, options, ctx.recorder),
             resolveSceneAssetPaths: (scene, result) => this.resolveSceneAssetPaths(scene, result),
-            trackSceneAssetReferences: (scene, entities) => this.trackSceneAssetReferences(scene, entities),
+            trackSceneAssetReferences: (scene, entities, world) => this.trackSceneAssetReferences(scene, entities, world),
             resolveRef: ref => this.resolveRef(ref),
             entityScopes: this.entityScopes,
         }, path, overrides);

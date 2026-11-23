@@ -47,7 +47,7 @@ export interface PreparedPrefab {
     /** @internal Retain exact resource generations before creating a spawned copy. */
     retainSpawnAssets?(): PreparedSpawnOwnership;
     /** @internal Record references against this copy's runtime IDs after spawning. */
-    trackSpawnReferences?(entities: ReadonlyMap<number, number>): void;
+    trackSpawnReferences?(entities: ReadonlyMap<number, number>, world?: World): void;
 }
 
 /**
@@ -111,7 +111,7 @@ export async function preparePrefabFromSource(
         missing: result.missing.map((m) => m.ref),
         release: () => result.scope.releaseAll(),
         retainSpawnAssets,
-        trackSpawnReferences: entities => assets.trackSceneAssetReferences?.(scene, entities),
+        trackSpawnReferences: (entities, world) => assets.trackSceneAssetReferences?.(scene, entities, world),
     };
 }
 
@@ -138,7 +138,7 @@ export function spawnPrepared(
     try {
         entities = loadSceneData(world, prepared.scene);
         ownership?.attach(world, entities);
-        prepared.trackSpawnReferences?.(entities);
+        prepared.trackSpawnReferences?.(entities, world);
         const root = entities.get(prepared.rootId)!;
         if (options?.parent !== undefined && !world.trySetParent(root, options.parent)) {
             throw new Error(`Prepared prefab "${prepared.scene.name}" could not attach to parent ${options.parent}`);

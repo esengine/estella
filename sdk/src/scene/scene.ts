@@ -847,7 +847,7 @@ async function loadSceneAssetsAndSpawn(
             });
             assertCurrent?.();
             ownership?.attach(world, entities);
-            assets?.trackSceneAssetReferences(data, entities);
+            assets?.trackSceneAssetReferences(data, entities, world);
             registerDeferredInstances(world, deferred, entities);
             const result = attempt.assets;
             if (result && collector) {

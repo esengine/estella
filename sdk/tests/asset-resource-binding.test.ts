@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Assets as AssetsClass } from '../src/asset/Assets';
+import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import { AssetPlugin, Assets } from '../src/asset/AssetPlugin';
 import { bindAssetReferenceTracking } from '../src/asset/assetReferenceTracking';
 import { Time } from '../src/ecs/resource';
@@ -30,6 +31,25 @@ describe('current asset resource binding', () => {
             expect(current.getRefCounter()!.getTotalRefRows()).toBe(0);
         }
         expect(world.getStorageSizes().despawnCallbacks).toBe(1);
+    });
+
+    it('retires rows on the previous and replacement counters when the core disconnects', () => {
+        const world = new World(), first = makeAssets();
+        let current = first;
+        bindAssetReferenceTracking(world, first, () => current);
+        const entity = world.spawn();
+        first.getRefCounter()!.addTextureRef('original', entity);
+        current = makeAssets();
+        const replacement = new AssetRefCounter();
+        current.setRefCounter(replacement);
+        replacement.addTextureRef('replacement', entity);
+        world.disconnectCpp();
+        expect([first.getRefCounter()!.getTotalRefRows(), replacement.getTotalRefRows()]).toEqual([0, 0]);
+        const next = world.spawn();
+        replacement.addFontRef('new', next);
+        expect(replacement.getFontRefs('new', world)).toEqual([next]);
+        world.despawn(next);
+        expect(replacement.getTotalRefRows()).toBe(0);
     });
 
     function pluginHost() {

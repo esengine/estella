@@ -1023,25 +1023,26 @@ type: string
 
 ## AssetRefCounter — class @experimental
 ```
-addFontRef: (path: string, entity: number) => void
-addMaterialRef: (path: string, entity: number) => void
-addTextureRef: (path: string, entity: number) => void
+@internal bindDefaultWorld: (world: World) => boolean
+addFontRef: (path: string, entity: number, world?: World) => void
+addMaterialRef: (path: string, entity: number, world?: World) => void
+addTextureRef: (path: string, entity: number, world?: World) => void
 clear: () => void
-getAllFontRefs: () => AssetRefInfo[]
-getAllMaterialRefs: () => AssetRefInfo[]
-getAllTextureRefs: () => AssetRefInfo[]
-getFontRefCount: (path: string) => number
-getFontRefs: (path: string) => number[]
-getMaterialRefCount: (path: string) => number
-getMaterialRefs: (path: string) => number[]
-getTextureRefCount: (path: string) => number
-getTextureRefs: (path: string) => number[]
+getAllFontRefs: (world?: World) => AssetRefInfo[]
+getAllMaterialRefs: (world?: World) => AssetRefInfo[]
+getAllTextureRefs: (world?: World) => AssetRefInfo[]
+getFontRefCount: (path: string, world?: World) => number
+getFontRefs: (path: string, world?: World) => number[]
+getMaterialRefCount: (path: string, world?: World) => number
+getMaterialRefs: (path: string, world?: World) => number[]
+getTextureRefCount: (path: string, world?: World) => number
+getTextureRefs: (path: string, world?: World) => number[]
 getTotalRefCount: () => { textures: number; fonts: number; materials: number; }
 getTotalRefRows: () => number
-removeAllRefsForEntity: (entity: number) => void
-removeFontRef: (path: string, entity: number) => void
-removeMaterialRef: (path: string, entity: number) => void
-removeTextureRef: (path: string, entity: number) => void
+removeAllRefsForEntity: (entity: number, world?: World) => void
+removeFontRef: (path: string, entity: number, world?: World) => void
+removeMaterialRef: (path: string, entity: number, world?: World) => void
+removeTextureRef: (path: string, entity: number, world?: World) => void
 static new (): AssetRefCounter
 static prototype: AssetRefCounter
 ```
@@ -1192,7 +1193,7 @@ textureFormatReport: () => TextureFormatReport
 textureFullSize: (handle: number) => { width: number; height: number; } | null
 textureResizable: (handle: number) => boolean
 texturesAwaitingReupload: () => { handle: number; content: TextureContent; path: string; }[]
-trackSceneAssetReferences: (scene: SceneData, entities: ReadonlyMap<number, number>) => void
+trackSceneAssetReferences: (scene: SceneData, entities: ReadonlyMap<number, number>, world?: World) => void
 updateStatus: () => UpdateStatus
 static create: (options: AssetsOptions) => AssetsClass
 static new (options: AssetsOptions): AssetsClass

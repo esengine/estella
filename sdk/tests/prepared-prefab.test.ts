@@ -53,6 +53,7 @@ describe.skipIf(!HAS_WASM)('prepared prefabs use the same dependency graph as as
             expect(assets.trackSceneAssetReferences).toHaveBeenCalledTimes(2);
             expect(vi.mocked(assets.trackSceneAssetReferences).mock.calls[0][1]).toBe(first.entities);
             expect(vi.mocked(assets.trackSceneAssetReferences).mock.calls[1][1]).toBe(second.entities);
+            expect(vi.mocked(assets.trackSceneAssetReferences).mock.calls.map(call => call[2])).toEqual([w, w]);
             expect(first.entities.size).toBe(3);
             for (const e of first.entities.values()) if (e !== first.root) expect(w.get(e, Parent).entity).toBe(first.root);
             expect(w.get(first.root, Transform).position.x).toBe(2);

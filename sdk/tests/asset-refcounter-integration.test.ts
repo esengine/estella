@@ -18,7 +18,7 @@ import type { SceneData } from '../src/scene/scene';
 import type { SceneAssetResult } from '../src/asset/Assets';
 import { AssetScope } from '../src/asset/AssetLease';
 import { World } from '../src/ecs/world';
-import { loadSceneData } from '../src/scene/scene';
+import { loadSceneData, loadSceneWithAssets } from '../src/scene/scene';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn() }),
@@ -87,6 +87,26 @@ beforeEach(() => {
 });
 
 describe('Assets.resolveSceneAssetPaths → AssetRefCounter', () => {
+    it('preserves the other scene user when two standalone Worlds allocate the same ID', async () => {
+        const assets = makeAssets(), counter = new AssetRefCounter();
+        const a = new World(), b = new World();
+        assets.setRefCounter(counter);
+        const path = 'assets/shared.png';
+        vi.spyOn(assets, 'preloadSceneAssets').mockImplementation(async () => {
+            const result = emptyResult();
+            result.textureHandles.set(path, 42);
+            return result;
+        });
+        const scene = sceneWith(7, { texture: path });
+        const first = (await loadSceneWithAssets(a, scene, { assets })).get(7)!;
+        const second = (await loadSceneWithAssets(b, scene, { assets })).get(7)!;
+        expect(first).toBe(second);
+        expect(counter.getTextureRefs(path)).toEqual([first, second]);
+        a.despawn(first);
+        expect(counter.getAllTextureRefs(b)).toEqual([{ assetPath: path, refCount: 1, entities: [second] }]);
+        b.disconnectCpp();
+        expect(assets.sizes().trackedRefRows).toBe(0);
+    });
     it('records runtime IDs after spawning and removes the rows when those entities despawn', () => {
         const assets = makeAssets(), counter = new AssetRefCounter(), world = new World();
         assets.setRefCounter(counter);

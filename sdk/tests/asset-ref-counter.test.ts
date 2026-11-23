@@ -2,8 +2,57 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
+import { World } from '../src/ecs/world';
 
 describe('AssetRefCounter', () => {
+    it('counts world-local users and retires only the departing world', () => {
+        const counter = new AssetRefCounter(), a = new World(), b = new World();
+        const first = a.spawn(), second = b.spawn();
+        expect(first).toBe(second);
+        for (const world of [a, b]) {
+            counter.addTextureRef('shared', first, world);
+            counter.addTextureRef('shared', first, world);
+            counter.addMaterialRef('material', first, world);
+            counter.addFontRef('font', first, world);
+        }
+        expect(counter.getAllTextureRefs()).toEqual([{ assetPath: 'shared', refCount: 2, entities: [first, second] }]);
+        expect(counter.getTextureRefs('shared', b)).toEqual([second]);
+        expect(counter.getTotalRefCount()).toEqual({ textures: 1, materials: 1, fonts: 1 });
+        expect(counter.getTotalRefRows()).toBe(6);
+        counter.removeAllRefsForEntity(first);
+        expect(counter.getTotalRefRows()).toBe(6);
+        counter.removeMaterialRef('material', first, a);
+        a.disconnectCpp();
+        expect(counter.getTotalRefRows()).toBe(3);
+        expect(counter.getFontRefCount('font', a)).toBe(0);
+        expect(counter.getFontRefCount('font', b)).toBe(1);
+        counter.removeFontRef('font', second);
+        expect(counter.getFontRefCount('font')).toBe(0);
+        expect(a.getStorageSizes().despawnCallbacks).toBe(0);
+        b.despawn(second);
+        expect(counter.getTotalRefRows()).toBe(0);
+        expect(b.getStorageSizes().despawnCallbacks).toBe(0);
+    });
+
+    it('adopts legacy rows into the app world and merges records already published there', () => {
+        const counter = new AssetRefCounter(), a = new World(), b = new World();
+        const entity = a.spawn(); b.spawn();
+        counter.addTextureRef('paint', entity);
+        counter.addTextureRef('paint', entity, a);
+        counter.addTextureRef('paint', entity, b);
+        counter.bindDefaultWorld(a);
+        counter.bindDefaultWorld(b);
+        expect(counter.getTotalRefRows()).toBe(2);
+        counter.removeAllRefsForEntity(entity);
+        expect(counter.getTextureRefs('paint', b)).toEqual([entity]);
+        counter.addFontRef('font', entity);
+        counter.clear();
+        expect([a, b].map(w => w.getStorageSizes().despawnCallbacks)).toEqual([0, 0]);
+        counter.addFontRef('fresh', entity);
+        expect(counter.getFontRefs('fresh', a)).toEqual([entity]);
+        a.despawn(entity);
+        expect(counter.getTotalRefRows()).toBe(0);
+    });
     it('keeps bidirectional usage consistent through duplicate, partial and entity-wide removal', () => {
         const counter = new AssetRefCounter();
         counter.addTextureRef('shared', 1); counter.addTextureRef('shared', 2);

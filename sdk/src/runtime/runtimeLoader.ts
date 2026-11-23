@@ -737,7 +737,7 @@ async function publishPreparedScene(
         });
     }
     assertCurrent?.();
-    app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
+    app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap, app.world);
     registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
     // (an editor inspecting its own running game). No-op otherwise.

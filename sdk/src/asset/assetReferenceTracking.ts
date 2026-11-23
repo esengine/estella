@@ -24,10 +24,18 @@ const subscribed = new WeakSet<World>();
 export function bindAssetReferenceTracking(
     world: World, assets: Assets, current: () => Assets | null | undefined,
 ): void {
-    if (!assets.getRefCounter()) assets.setRefCounter(new AssetRefCounter());
+    const existing = assets.getRefCounter();
+    const counter = existing ?? new AssetRefCounter();
+    if (!existing) assets.setRefCounter(counter);
+    counter.bindDefaultWorld(world);
     if (subscribed.has(world)) return;
     subscribed.add(world);
-    world.onDespawn(entity => current()?.getRefCounter()?.removeAllRefsForEntity(entity));
+    // An embedder can replace the app resource with an independently populated counter.
+    world.onDespawn(entity => {
+        const active = current()?.getRefCounter();
+        if (active?.bindDefaultWorld(world)) active.removeAllRefsForEntity(entity, world);
+    });
+    world.onCoreDisconnect(() => { current()?.getRefCounter()?.bindDefaultWorld(world); });
     world.setAssetFieldResolver((entity, component, authored, currentFields) => {
         const live = current();
         // A core with no resource manager (a headless server, a test world) loads
