@@ -12,7 +12,7 @@ import { qualityUniformMax, qualityUniformParam } from '../qualityParams';
 import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { starfieldEffects } from './starfield';
-import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, RAY_START_GLSL, RAIN_STREAKS_GLSL } from './shared';
+import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, RAY_START_GLSL } from './shared';
 import { HASH11_GLSL, HASH13_GLSL, HASH21_GLSL, IGN_GLSL, PHASE_HG_GLSL, VALUE_NOISE3_GLSL } from '../../render/shaderLib';
 
 const SKY_LEVEL_PARAMS = ['skyScatterSteps', 'skyLightDepthSteps', 'cloudSteps', 'cloudUpperSteps', 'cloudShadowSamples'].map(qualityUniformParam).join(String.fromCharCode(10));
@@ -1239,18 +1239,13 @@ void main() {
         return Material.compileShader(source);
     },
     /**
-     * Rain, in two parts that a real storm has. Falling streaks: three layers of thin slanted lines
-     * scrolling down the screen, each standing at a different distance, so a streak is hidden by a
-     * surface nearer than the layer it belongs to and drawn over one farther away — the sky counts as
-     * infinitely far. And a wet ground: a surface that faces up is darkened, and rings spread over it
+     * Rain on what it falls on: a surface that faces up is darkened, rings spread over its puddles and drops splash off the rest.
      */
     createRain(): ShaderHandle {
         const GLSL = `
 ${HASH11_GLSL}
 ${HASH21_GLSL}
 
-/// One layer of streaks: columns across the screen, one streak per cell at most, scrolling down.
-${RAIN_STREAKS_GLSL}
 
 /// One layer of falling snow: soft round flakes on a grid of @p cols columns that drifts down at @p speed and sways.
 float flakes(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
@@ -1398,14 +1393,8 @@ void main() {
         col += tint * rainSplash(P.xz / (u_rippleScale * 0.8), T) * 1.2 * u_wetness * up * near * falling * (1.0 - pool);
     }
 
-    // Three layers, nearest last: a layer is drawn only over what is farther than it.
-    // And a layer's drops fall where the layer stands: under a roof there are none.
+    // The falling drops are not drawn here: they are streaks in the world (rainDrops.ts), which this effect's values drive.
     vec3 along = normalize(worldFromDepth(v_texCoord, d < 1.0 ? d : 1.0) - entry);
-    float rain = 0.0;
-    if (dist > 120.0)  rain += streaks(v_texCoord, aspect,  70.0, u_speed * 1.0, 1.0, T) * 0.35 * (1.0 - shelteredAt(entry + along * 120.0));
-    if (dist > 450.0)  rain += streaks(v_texCoord, aspect, 130.0, u_speed * 1.4, 2.0, T) * 0.28 * (1.0 - shelteredAt(entry + along * 450.0));
-    if (dist > 1400.0) rain += streaks(v_texCoord, aspect, 230.0, u_speed * 1.9, 3.0, T) * 0.22 * (1.0 - shelteredAt(entry + along * 1400.0));
-    col += tint * rain * u_intensity;
     // Snow falls in the same three layers, and as little under a roof.
     if (u_snowfall > 0.0) {
         float snow = 0.0;

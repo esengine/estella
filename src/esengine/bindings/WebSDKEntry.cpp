@@ -992,6 +992,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_captureNextFrame", ES_RENDER_BIND(renderer_captureNextFrame));
     emscripten::function("renderer_captureFrame", ES_RENDER_BIND(renderer_captureFrame));
     emscripten::function("renderer_captureTarget", ES_RENDER_BIND(renderer_captureTarget));
+    emscripten::function("renderer_rainCover", ES_RENDER_BIND(renderer_rainCover));
     emscripten::function("renderer_takeTargetCapture", ES_RENDER_BIND(renderer_takeTargetCapture));
     emscripten::function("renderer_pollFrameCapture", ES_RENDER_BIND(renderer_pollFrameCapture));
     emscripten::function("renderer_takeFrameCapture", ES_RENDER_BIND(renderer_takeFrameCapture));

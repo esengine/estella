@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include <cmath>
+#include <cstring>
 #include "UIBindings.hpp"
 #include "RendererBindings.hpp"
 #include "TestProbeBindings.hpp"
@@ -2004,6 +2005,22 @@ u32 renderer_captureFrame(u32 w, u32 h) {
     auto* device = g_device;
     if (!device) return 0;
     return static_cast<u32>(device->captureNextFrame(w, h));
+}
+
+u32 renderer_rainCover(uintptr_t matrixOut, uintptr_t sizeOut) {
+#ifdef ES_ENABLE_POSTPROCESS
+    if (!g_renderFrame || !matrixOut || !sizeOut) return 0;
+    auto* post = g_renderFrame->postProcess();
+    glm::mat4 m(1.0f);
+    u32 texture = 0, size = 0;
+    if (!post || !post->lastCover(m, texture, size)) return 0;
+    std::memcpy(reinterpret_cast<void*>(matrixOut), &m[0][0], sizeof(f32) * 16);
+    *reinterpret_cast<u32*>(sizeOut) = size;
+    return texture;
+#else
+    (void)matrixOut; (void)sizeOut;
+    return 0;
+#endif
 }
 
 u32 renderer_captureTarget(u32 target, u32 w, u32 h) {

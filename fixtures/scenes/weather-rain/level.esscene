@@ -1,0 +1,210 @@
+{
+ "version": 4,
+ "name": "weather-rain-level",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 170,
+       "z": 900
+      },
+      "rotation": {
+       "x": -0.043619387365336,
+       "y": 0,
+       "z": 0,
+       "w": 0.9990482215818578
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 60,
+      "nearPlane": 5,
+      "farPlane": 20000,
+      "isActive": true,
+      "priority": 0
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "skyAtmosphere",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 1,
+         "u_haze": 0.6,
+         "u_sunBrightness": 10,
+         "u_clouds": 0,
+         "u_unitsPerKm": 100000
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.403,
+       "y": 0.2725,
+       "z": 0.1271,
+       "w": 0.8644
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 2,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Weather",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Weather",
+     "data": {
+      "preset": 3,
+      "target": -1,
+      "progress": 0,
+      "drive": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Ground",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 60,
+       "y": 1,
+       "z": 60
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "color": {
+       "r": 0.25,
+       "g": 0.25,
+       "b": 0.27,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true,
+      "castShadows": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Roof",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -250,
+       "y": 250,
+       "z": 0
+      },
+      "scale": {
+       "x": 3,
+       "y": 0.1,
+       "z": 6
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.2,
+       "b": 0.15,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true,
+      "castShadows": true
+     }
+    }
+   ]
+  }
+ ]
+}

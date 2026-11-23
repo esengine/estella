@@ -21,6 +21,7 @@ import { noteCloudBakeFrame } from './cloudBake';
 import { noteSkyStillFrame, stillSkyKey } from './skyStill';
 import { probeCaptureSystem } from './probeCapture';
 import { dynamicGISystem } from '../gi/dynamicGISystem';
+import { rainDropsSystem } from './rainDrops';
 
 /** Toward the sun from the first directional light that shines: the way the sky's shader finds it (the light's aim reversed). */
 function sunFromLights(lights: Iterable<[Entity, LightData, TransformData]>): [number, number, number] | null {
@@ -97,6 +98,8 @@ export class PostProcessPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PostUpdate, weatherSystem);
         app.addSystemToSchedule(Schedule.PostUpdate, postProcessVolumeSystem);
         app.addSystemToSchedule(Schedule.PostUpdate, editorViewVolumeSystem(app));
+        // After the volumes: the 3D rain's drops fall in the world, as the rain they resolved says.
+        app.addSystemToSchedule(Schedule.PostUpdate, rainDropsSystem(app));
         // After the volumes: it lights the scene with the sky they resolved.
         const sky = new SkyEnvironment(() => ({
             interval: api.levelValues.skyEnvironmentInterval,

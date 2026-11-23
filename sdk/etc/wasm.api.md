@@ -576,6 +576,7 @@ renderer_pollSnapshotReadback: () => number
 renderer_programEpoch: (() => number) | undefined
 renderer_projectMaterialBake: ((ticket: number, material: number, target: number, instances: number) => boolean) | undefined
 renderer_queueMaterialBake: (material: number, shader: number, target: number, x: number, y: number, w: number, h: number, a0: number, a1: number, a2: number, a3: number, b0: number, b1: number, b2: number, b3: number) => number
+renderer_rainCover: ((matrixOut: number, sizeOut: number) => number) | undefined
 renderer_releaseTarget: (handle: number) => void
 renderer_renderMaterialPreview: (materialId: number, w: number, h: number, meshId: number, textureId: number) => void
 renderer_renderMeshPreview: (meshId: number, w: number, h: number) => void

@@ -355,8 +355,20 @@ public:
     /// The map's target for this frame, declared in the graph (kNoResource when it cannot be made).
     rg::ResourceId declareCover(u32 size);
     /// The matrix the map was drawn through, for the effect to put a world point in it.
-    void setCoverMatrix(const glm::mat4& viewProjection) { cover_matrix_ = viewProjection; }
+    void setCoverMatrix(const glm::mat4& viewProjection) { cover_matrix_ = viewProjection; cover_last_matrix_ = viewProjection; }
     u32 coverTargetId() const { return cover_serial_; }
+    /**
+     * @brief The overhead cover map as the last frame left it, for what reads it outside the chain (falling rain, drawn in the scene):
+     *        its colour texture, its side in texels and the matrix it was drawn through. False when no frame has drawn one, or the
+     *        target was made again since (a device loss, a new size) and holds nothing yet.
+     */
+    bool lastCover(glm::mat4& viewProjection, u32& texture, u32& size) const {
+        if (!cover_fbo_ || cover_last_serial_ != cover_serial_) return false;
+        viewProjection = cover_last_matrix_;
+        texture = static_cast<u32>(cover_fbo_->getColorAttachment());
+        size = cover_fbo_->getWidth();
+        return true;
+    }
 
     /**
      * @brief Whether this frame's scene target carries a second attachment for the surface's material.
@@ -834,6 +846,9 @@ private:
     resource::ShaderHandle rgbmShader_;
     bool cover_active_ = false;
     glm::mat4 cover_matrix_{1.0f};
+    /// The matrix of the map the target holds and the target it was declared on (see lastCover): kept across chainDone.
+    glm::mat4 cover_last_matrix_{1.0f};
+    u32 cover_last_serial_ = 0;
     Unique<Framebuffer> velocity_fbo_;
     rg::ResourceId velocity_resource_ = rg::kNoResource;
     bool velocity_active_ = false;

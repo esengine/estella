@@ -596,6 +596,7 @@ rg::ResourceId PostProcessPipeline::declareCover(u32 size) {
     cover_resource_ = graph_->importTarget(cover_fbo_->handle(), size, size, /*output=*/false,
                                            cover_fbo_->getColorAttachment());
     cover_active_ = true;
+    cover_last_serial_ = cover_serial_;
     return cover_resource_;
 }
 

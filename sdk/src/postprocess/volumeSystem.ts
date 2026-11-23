@@ -363,13 +363,16 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
 /** A sky that lights the scene: Sky Atmosphere, or one a project defined (customSky.ts), and what the volumes resolved for it. */
 export interface LightingSky { type: string; effect: BlendedEffect }
 
-/** The sky a view resolved this frame, where it asks to light the scene: the game's camera and the editor's eye each. */
-interface ResolvedSkies { game: LightingSky | null; editor: LightingSky | null }
+/** The 3D rain a view resolved this frame and where the view is: what the falling drops are drawn from (rainDrops.ts). */
+export interface ViewRain { effect: BlendedEffect; eye: { x: number; y: number; z: number }; windDirection: number }
+
+/** The sky a view resolved this frame, where it asks to light the scene, and its rain: the game's camera and the editor's eye each. */
+interface ResolvedSkies { game: LightingSky | null; editor: LightingSky | null; gameRain: ViewRain | null; editorRain: ViewRain | null }
 const resolvedSkies = new WeakMap<PostProcessAPI, ResolvedSkies>();
 
 function skiesOf(api: PostProcessAPI): ResolvedSkies {
     let s = resolvedSkies.get(api);
-    if (!s) { s = { game: null, editor: null }; resolvedSkies.set(api, s); }
+    if (!s) { s = { game: null, editor: null, gameRain: null, editorRain: null }; resolvedSkies.set(api, s); }
     return s;
 }
 
@@ -390,6 +393,20 @@ export function resolvedLightingSky(api: PostProcessAPI, editorLooking: boolean)
     return editorLooking ? s.editor : s.game;
 }
 
+/** The 3D rain resolved for the view being drawn (the editor's eye while it looks, else the first game camera's), null where none falls. */
+export function resolvedRain(api: PostProcessAPI, editorLooking: boolean): ViewRain | null {
+    const s = skiesOf(api);
+    return editorLooking ? s.editorRain : s.gameRain;
+}
+
+const rainOf = (effects: ResolvedEffects, eye: { x: number; y: number; z: number }): ViewRain | null => {
+    const effect = effects.get('rain');
+    // The wind the clouds go with, where the sky says one: the rain leans the same way.
+    const sky = effects.get('skyAtmosphere');
+    const windDirection = sky?.enabled ? (sky.uniforms.get('u_windDirection') ?? 60) : 0;
+    return effect && effect.enabled ? { effect, eye: { x: eye.x, y: eye.y, z: eye.z }, windDirection } : null;
+};
+
 export const postProcessVolumeSystem = defineSystem(
     [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera, Transform)],
     (
@@ -408,6 +425,7 @@ export const postProcessVolumeSystem = defineSystem(
         // Recomputed per camera: a local volume's weight depends on the camera position.
         const skies = skiesOf(api);
         skies.game = null;
+        skies.gameRain = null;
         let first = true;
         for (const [cameraEntity, cameraData, cameraTransform] of cameraQuery) {
             if (!cameraData.isActive) continue;
@@ -422,7 +440,7 @@ export const postProcessVolumeSystem = defineSystem(
             const p = cameraTransform.worldPosition ?? cameraTransform.position;
             const effects = effectsAt(volumes, p.x, p.y, p.z);
             // The scene has one environment: the first camera's sky lights it.
-            if (first) { skies.game = lightingSky(effects); first = false; }
+            if (first) { skies.game = lightingSky(effects); skies.gameRain = rainOf(effects, p); first = false; }
             applyBlendedEffects(api, cameraEntity, effects, cameraData.projectionType !== ProjectionType.Orthographic);
         }
     },
@@ -441,6 +459,7 @@ export function editorViewVolumeSystem(app: App) {
             const eye = EDITOR_VIEW_ENTITY as Entity;
             if (!view || !view.active || !app.getResource(PostProcessVolumeConfigResource).enabled) {
                 skiesOf(api).editor = null;
+                skiesOf(api).editorRain = null;
                 if (api.volumeStacks.has(eye)) applyBlendedEffects(api, eye, new Map() as ResolvedEffects, false);
                 return;
             }
@@ -451,6 +470,7 @@ export function editorViewVolumeSystem(app: App) {
             const at = view.perspective ? editorViewEye(view) : { x: view.x, y: view.y, z: view.z };
             const effects = effectsAt(volumes, at.x, at.y, at.z);
             skiesOf(api).editor = lightingSky(effects);
+            skiesOf(api).editorRain = rainOf(effects, at);
             applyBlendedEffects(api, eye, effects, view.perspective);
         },
         { name: 'EditorViewVolumeSystem', runWhenPaused: true },

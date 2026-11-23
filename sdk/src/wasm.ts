@@ -856,6 +856,8 @@ export interface ESEngineModule {
     /** Books the next completed frame for readback; poll + take it (frameCapture.ts). */
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureTarget?(target: number, w: number, h: number): number;
+    /** The overhead cover map the last frame drew: its matrix (16 floats) at matrixOut, its side at sizeOut; its texture id, 0 when none. */
+    renderer_rainCover?(matrixOut: number, sizeOut: number): number;
     renderer_takeTargetCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;

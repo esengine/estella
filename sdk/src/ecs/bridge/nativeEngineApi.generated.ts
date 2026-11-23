@@ -241,6 +241,7 @@ export interface NativeEngineApi {
     renderer_programEpoch?(): number;
     renderer_projectMaterialBake?(ticket: number, material: number, target: number, instances: number): boolean;
     renderer_queueMaterialBake?(material: number, shader: number, target: number, x: number, y: number, w: number, h: number, a0: number, a1: number, a2: number, a3: number, b0: number, b1: number, b2: number, b3: number): number;
+    renderer_rainCover?(matrixOut: number, sizeOut: number): number;
     renderer_releaseTarget?(handle: number): void;
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number, meshId: number, textureId: number): void;
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
@@ -645,6 +646,7 @@ export function createNativeEngineApi(
     bind('renderer_programEpoch', 'es_renderer_programEpoch', false);
     bind('renderer_projectMaterialBake', 'es_renderer_projectMaterialBake', false);
     bind('renderer_queueMaterialBake', 'es_renderer_queueMaterialBake', false);
+    bind('renderer_rainCover', 'es_renderer_rainCover', false);
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
     bind('renderer_renderMaterialPreview', 'es_renderer_renderMaterialPreview', false);
     bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);
