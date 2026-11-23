@@ -13506,8 +13506,8 @@ wrapMode: string
 ## TimelinePlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
-clearHandles: () => void
+cleanup: (app?: App) => void
+clearHandles: (app?: App) => void
 name: string
 static new (): TimelinePlugin
 static prototype: TimelinePlugin

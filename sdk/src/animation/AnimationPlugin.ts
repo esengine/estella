@@ -8,6 +8,8 @@
  */
 
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
+import { disposeAll } from '../util/disposeAll';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
@@ -30,8 +32,7 @@ import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
-    private readonly despawnCleanups_ = new WeakMap<App, () => void>();
-    private latestDespawnCleanup_: (() => void) | null = null;
+    private readonly cleanups_ = new PluginInstallations<Array<() => void>>();
 
     build(app: App): void {
         this.cleanup(app);
@@ -49,22 +50,21 @@ export class AnimationPlugin implements Plugin {
         app.insertResource(SpriteAnimation, anim);
         const world = app.world;
 
-        const offDespawn = world.onDespawn((entity: Entity) => {
+        const cleanups: Array<() => void> = [];
+        this.cleanups_.set(app, cleanups);
+        cleanups.push(world.onDespawn((entity: Entity) => {
             tween.cancelAll(entity);
             anim.removeEntityListeners(entity);
-        });
+        }));
         // A roof or a crown with a CoverFade thins out over what stands under it; with none in the scene the system finds nothing and returns.
-        const offCoverFade = installCoverFade(app);
-        const offRainShelter = installRainShelter(app);
-        const offSight = installSight(app);
+        cleanups.push(installCoverFade(app));
+        cleanups.push(installRainShelter(app));
+        cleanups.push(installSight(app));
         // After the sight system, whose walls it casts rays against.
-        const offFog = installFogOfWar(app);
-        const offSwayPush = installSwayPush(app);
-        const offWind = installWindField(app);
-        const offFootsteps = installFootsteps(app);
-        const release = (): void => { offDespawn(); offCoverFade(); offRainShelter(); offSight(); offFog(); offSwayPush(); offWind(); offFootsteps(); };
-        this.despawnCleanups_.set(app, release);
-        this.latestDespawnCleanup_ = release;
+        cleanups.push(installFogOfWar(app));
+        cleanups.push(installSwayPush(app));
+        cleanups.push(installWindField(app));
+        cleanups.push(installFootsteps(app));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(Tween)],
@@ -89,11 +89,8 @@ export class AnimationPlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
-        const release = app ? this.despawnCleanups_.get(app) : this.latestDespawnCleanup_;
-        if (!release) return;
-        if (app) this.despawnCleanups_.delete(app);
-        if (release === this.latestDespawnCleanup_) this.latestDespawnCleanup_ = null;
-        release();
+        const cleanups = this.cleanups_.take(app);
+        if (cleanups) disposeAll(cleanups, release => release());
     }
 }
 

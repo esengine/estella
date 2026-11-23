@@ -20,6 +20,16 @@ it('quitting an older app releases only its animation despawn subscription', () 
     second.world.despawn(entity); expect(cancel).toHaveBeenCalledWith(entity); expect(remove).toHaveBeenCalledWith(entity);
     second.quit(); expect(second.world.getStorageSizes().despawnCallbacks).toBe(0);
 });
+it('withdraws the despawn listener if installing an animation system fails', () => {
+    const plugin = new AnimationPlugin();
+    const main = build(plugin);
+    const preview = App.new();
+    apps.push(preview);
+    vi.spyOn(preview, 'addSystemToSchedule').mockImplementationOnce(() => { throw Error('system rejected'); });
+    expect(() => preview.addPlugin(plugin)).toThrow('system rejected');
+    expect(preview.world.getStorageSizes().despawnCallbacks).toBe(0);
+    expect(main.world.getStorageSizes().despawnCallbacks).toBe(1);
+});
 it('preview shutdowns leave the main animation listener active without accumulating old subscriptions', () => {
     const plugin = new AnimationPlugin(), main = build(plugin);
     for (let cycle = 0; cycle < 100; cycle++) {

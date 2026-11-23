@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
+import { disposeAll } from '../util/disposeAll';
 import { defineSystem, Schedule } from '../ecs/system';
 import { SystemLabel } from '../ecs/systemLabels';
 import { Res } from '../ecs/resource';
@@ -43,8 +45,29 @@ interface AnimFramesState {
 
 export class TimelinePlugin implements Plugin {
     name = 'timeline';
+    private readonly installations_ = new PluginInstallations<TimelinePlaybackSystem>();
 
-    private animFramesStates_ = new Map<number, AnimFramesState>();
+    build(app: App): void {
+        this.cleanup(app);
+        const system = new TimelinePlaybackSystem();
+        this.installations_.set(app, system);
+        system.install(app);
+    }
+
+    clearHandles(app?: App): void {
+        this.installations_.get(app)?.clearHandles();
+    }
+
+    cleanup(app?: App): void {
+        this.installations_.take(app)?.dispose();
+    }
+}
+
+/** Each App advances and releases the players in its own World. Entity IDs are local to that World. */
+class TimelinePlaybackSystem {
+    private active_ = true;
+    private timeline_: TimelineAPI | null = null;
+    private readonly animFramesStates_ = new Map<number, AnimFramesState>();
     private offDespawn_: (() => void) | null = null;
     /** Each player's state as of last frame, to tell what it did this one. */
     private readonly lastPlayback_ = new Map<Entity, { playing: boolean; laps: number }>();
@@ -54,7 +77,7 @@ export class TimelinePlugin implements Plugin {
     private readonly spawns_ = new TimelineSpawns();
     private spawner_: TimelineSpawner | null = null;
 
-    build(app: App): void {
+    install(app: App): void {
         const world = app.world;
 
         // The api's play/pause/stop write through to the component flags (the
@@ -67,13 +90,15 @@ export class TimelinePlugin implements Plugin {
             if (clearFinished) player.finished = false;
             world.insert(entity, TimelinePlayer, player);
         };
-        app.insertResource(Timeline, new TimelineAPI({
+        const timeline = new TimelineAPI({
             raise: entity => setFlags(entity, true, false),
             lower: entity => setFlags(entity, false, false),
             reset: entity => setFlags(entity, false, true),
-        }));
+        });
+        this.timeline_ = timeline;
+        app.insertResource(Timeline, timeline);
         // A `.estimeline` comes from THIS app's realm; a code registration wins.
-        app.getResource(Timeline).useAssetTimelines(
+        timeline.useAssetTimelines(
             (ref) => (app.hasResource(Assets)
                 ? app.getResource(Assets).resolveRegistryAsset<PublishedTimeline>('timeline', ref)?.asset
                 : undefined),
@@ -135,6 +160,7 @@ export class TimelinePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), EventWriter(TimelineEvent), EventWriter(TimelinePlayback)],
             (time: TimeData, events: EventWriterInstance<TimelineEventPayload>, playback: EventWriterInstance<TimelinePlaybackPayload>) => {
+                if (!this.active_) return;
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
                 const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
@@ -235,12 +261,13 @@ export class TimelinePlugin implements Plugin {
         this.animFramesStates_.clear();
     }
 
-    cleanup(): void {
+    dispose(): void {
+        this.active_ = false;
         this.offDespawn_?.();
-        this.offDespawn_ = null;
-        this.voices_.stopAll();
-        this.spawns_.stopAll(this.spawner_);
+        this.timeline_?.clearStates();
+        this.lastPlayback_.clear();
         this.animFramesStates_.clear();
+        disposeAll([() => this.voices_.stopAll(), () => this.spawns_.stopAll(this.spawner_)], release => release());
     }
 
     private ensureAnimFrames(entity: Entity, asset: TimelineAsset): void {

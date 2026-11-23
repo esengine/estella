@@ -16,6 +16,7 @@
  */
 
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
@@ -31,8 +32,7 @@ import { installGripHold } from './gripHold';
 
 export class SkeletalAnimationPlugin implements Plugin {
     name = 'skeletalAnimation';
-    private readonly despawnCleanups_ = new WeakMap<App, () => void>();
-    private latestDespawnCleanup_: (() => void) | null = null;
+    private readonly despawnCleanups_ = new PluginInstallations<() => void>();
 
     build(app: App): void {
         this.cleanup(app);
@@ -44,7 +44,6 @@ export class SkeletalAnimationPlugin implements Plugin {
             animator.removeEntity(entity);
         });
         this.despawnCleanups_.set(app, offDespawn);
-        this.latestDespawnCleanup_ = offDespawn;
 
         // A `.esanimator` / `.esavatar` comes from THIS app's realm, whose slots
         // answer to the authored ref as well as the resolved path. A code
@@ -73,11 +72,7 @@ export class SkeletalAnimationPlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
-        const release = app ? this.despawnCleanups_.get(app) : this.latestDespawnCleanup_;
-        if (!release) return;
-        if (app) this.despawnCleanups_.delete(app);
-        if (release === this.latestDespawnCleanup_) this.latestDespawnCleanup_ = null;
-        release();
+        this.despawnCleanups_.take(app)?.();
     }
 }
 
