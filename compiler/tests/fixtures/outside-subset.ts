@@ -138,3 +138,12 @@ export const integerField = defineSystem(
     },
     { name: 'FixtureIntegerField' },
 );
+
+/** A composite written whole with `z` left out: the interpreter would store undefined there. */
+export const partialWhole = defineSystem(
+    [Query(Mut(Transform))],
+    (query) => {
+        for (const [, transform] of query) transform.position = { x: 1, y: 2 };
+    },
+    { name: 'FixturePartialWhole' },
+);

@@ -149,20 +149,45 @@ const COMMAND_RECORDS: Record<string, number | undefined> = { despawn: 1 };
  */
 export type ConstValue = number | boolean | { readonly [k: string]: ConstValue };
 
-/** `const X = 800` / `const F = { damping: 5 }` -> a value, or null if not literal. */
-function constValue(node: ts.Expression): ConstValue | null {
+/** Arithmetic a constant initializer may use: JS's own double operations, so folding them here is exact. */
+const CONST_ARITH: ReadonlyMap<ts.SyntaxKind, (a: number, b: number) => number> = new Map([
+    [ts.SyntaxKind.PlusToken, (a, b) => a + b],
+    [ts.SyntaxKind.MinusToken, (a, b) => a - b],
+    [ts.SyntaxKind.AsteriskToken, (a, b) => a * b],
+    [ts.SyntaxKind.SlashToken, (a, b) => a / b],
+    [ts.SyntaxKind.PercentToken, (a, b) => a % b],
+]);
+
+/**
+ * `const X = 800`, `const F = { damping: 5 }`, `const Y = HALF + 60` -> a value, or null if it is not one.
+ * `named` resolves another module constant by name (null when there is none, or it is not a value).
+ */
+function constValue(node: ts.Expression, named: (name: string) => ConstValue | null = () => null): ConstValue | null {
+    const value = (n: ts.Expression): ConstValue | null => constValue(n, named);
+    if (ts.isParenthesizedExpression(node)) return value(node.expression);
     if (ts.isNumericLiteral(node)) return Number(node.text);
     if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
     if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
+    if (ts.isIdentifier(node)) return named(node.text);
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'Math'
+        && MATH_CONSTS.includes(node.name.text)) {
+        return (Math as unknown as Record<string, number>)[node.name.text]!;
+    }
     if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.MinusToken) {
-        const inner = constValue(node.operand);
+        const inner = value(node.operand);
         return typeof inner === 'number' ? -inner : null;
+    }
+    if (ts.isBinaryExpression(node)) {
+        const op = CONST_ARITH.get(node.operatorToken.kind);
+        const l = op ? value(node.left) : null;
+        const r = op ? value(node.right) : null;
+        return op && typeof l === 'number' && typeof r === 'number' ? op(l, r) : null;
     }
     if (ts.isObjectLiteralExpression(node)) {
         const out: Record<string, ConstValue> = {};
         for (const prop of node.properties) {
             if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) return null;
-            const v = constValue(prop.initializer);
+            const v = value(prop.initializer);
             if (v === null) return null;
             out[prop.name.text] = v;
         }
@@ -402,7 +427,7 @@ class SystemLowerer {
         if (ts.isForOfStatement(node)) return [this.rowLoop(node)];
         if (ts.isExpressionStatement(node)) {
             if (ts.isCallExpression(node.expression)) return this.callStmt(node.expression);
-            return [this.assignment(node.expression)];
+            return this.assignment(node.expression);
         }
         if (ts.isBlock(node)) return this.scoped(() => node.statements.flatMap((s) => this.stmt(s)));
         if (ts.isVariableStatement(node)) return this.declarations(node);
@@ -550,7 +575,7 @@ class SystemLowerer {
                 this.scopes[this.scopes.length - 1]!.set(name.text, target);
                 return ts.isBlock(fn.body)
                     ? fn.body.statements.flatMap((st) => this.stmt(st))
-                    : [this.assignment(fn.body)];
+                    : this.assignment(fn.body);
             });
         } finally {
             this.inModify--;
@@ -652,10 +677,19 @@ class SystemLowerer {
         return { s: 'emit', channel: { p: 'local', id: writer.id }, record: 'send', args };
     }
 
-    private assignment(node: ts.Expression): Stmt {
+    private assignment(node: ts.Expression): Stmt[] {
         if (!ts.isBinaryExpression(node)) {
             throw new NotInSubset(node, 'only assignments are statements in this subset');
         }
+        let right: ts.Expression = node.right;
+        while (ts.isParenthesizedExpression(right)) right = right.expression;
+        if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isObjectLiteralExpression(right)) {
+            return this.compositeAssign(node, right);
+        }
+        return [this.plainAssignment(node)];
+    }
+
+    private plainAssignment(node: ts.BinaryExpression): Stmt {
         const compound = COMPOUND.get(node.operatorToken.kind);
         const target = this.place(node.left);
         this.refuseBareResourceWrite(node.left, target);
@@ -673,6 +707,70 @@ class SystemLowerer {
         // here, which coverage.test.ts calls a frontend bug.
         this.placeType(node.left);
         return { s: 'assign', target, value: this.expr(node.right) };
+    }
+
+    /**
+     * `transform.position = { x: a, y: b, z: c }` — a composite field written whole, as one store per member.
+     *
+     * Every member must be given: a member the literal leaves out is `undefined` in the interpreter, which no
+     * store can reproduce. The values are all read before any is stored, in the literal's order, as JS evaluates
+     * the object before the assignment: `p = { x: p.y, y: p.x }` swaps.
+     */
+    private compositeAssign(node: ts.BinaryExpression, literal: ts.ObjectLiteralExpression): Stmt[] {
+        const target = this.place(node.left);
+        if (target.p !== 'field') {
+            throw new NotInSubset(node, 'only a field can be assigned an object literal here', 'permanent');
+        }
+        this.refuseBareResourceWrite(node.left, target);
+        const base = this.locals.find((l) => l.id === (target.base as { p: 'local'; id: number }).id)!;
+        const key = target.path.join('.');
+        const shape = base.type.k === 'comp' || base.type.k === 'res' ? this.comps.get(base.type.name) : undefined;
+        const members = shape
+            ? [...shape.fields.keys()].filter((f) => f.startsWith(`${key}.`)).map((f) => f.slice(key.length + 1))
+            : [];
+        // Not a composite: whatever placeType says about the field is the honest refusal.
+        if (members.length === 0 || members.some((m) => m.includes('.'))) {
+            this.placeType(node.left);
+            throw new NotInSubset(node, `'${base.name}.${key}' is not a composite field an object literal can fill`);
+        }
+        const given = new Map<string, ts.Expression>();
+        for (const prop of literal.properties) {
+            let name: string, value: ts.Expression;
+            if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) [name, value] = [prop.name.text, prop.initializer];
+            else if (ts.isShorthandPropertyAssignment(prop)) [name, value] = [prop.name.text, prop.name];
+            else throw new NotInSubset(prop, 'a member must be `name: value`');
+            if (!members.includes(name)) throw new NotInSubset(prop, `'${base.name}.${key}' has no member '${name}'`);
+            given.set(name, value);
+        }
+        const missing = members.filter((m) => !given.has(m));
+        if (missing.length > 0) {
+            throw new NotInSubset(node, `'${base.name}.${key}' is written whole but '${missing.join("', '")}' is not given:`
+                + ' the interpreter would store undefined there', 'permanent');
+        }
+        const out: Stmt[] = [];
+        const temps = new Map<string, number>();
+        for (const [member, value] of given) {
+            const want = this.placeTypeOf(node.left, base, `${key}.${member}`);
+            const v = this.expr(value);
+            if (v.type.k !== want.k) throw new NotInSubset(value, `'${key}.${member}' takes a ${want.k}, not a ${v.type.k}`);
+            const temp = this.define(`_${member}${this.next}`, v.type);
+            out.push({ s: 'let', id: temp.id, value: v });
+            temps.set(member, temp.id);
+        }
+        for (const member of members) {
+            const id = temps.get(member)!;
+            const type = this.locals.find((l) => l.id === id)!.type;
+            out.push({ s: 'assign', target: { ...target, path: [...target.path, member] }, value: { e: 'read', place: { p: 'local', id }, type } });
+        }
+        return out;
+    }
+
+    /** A leaf's type by its path on a component or resource local, with placeType's refusals. */
+    private placeTypeOf(node: ts.Node, base: Local, key: string): EirType {
+        const shape = this.comps.get((base.type as { name: string }).name);
+        const f = shape?.fields.get(key);
+        if (!f) throw new NotInSubset(node, `'${(base.type as { name: string }).name}' has no field '${key}'`);
+        return this.leafType(node, `${(base.type as { name: string }).name}.${key}`, f);
     }
 
     /**
@@ -1127,14 +1225,36 @@ export function lowerProgram(files: readonly string[], builtins: ReadonlyMap<str
     };
 
     // Constants and components first: a system in one file names both from another.
+    // Only top-level `const`: a module `let` is state another system writes, folding it compiles a stale value.
+    // A name two files declare folds only when both give the same value: a system names it unqualified.
+    const initializers = new Map<string, ts.Expression[]>();
     for (const sf of sources) {
-        walkTop(sf, (node) => {
-            // The declaration's own name, not the binding walkTop passes DOWN to
-            // an initializer: at the declaration node itself that is still null.
-            if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !node.initializer) return;
-            const v = constValue(node.initializer);
-            if (v !== null) consts.set(node.name.text, v);
-        });
+        for (const st of sf.statements) {
+            if (!ts.isVariableStatement(st) || !(st.declarationList.flags & ts.NodeFlags.Const)) continue;
+            for (const d of st.declarationList.declarations) {
+                if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+                const list = initializers.get(d.name.text);
+                if (list) list.push(d.initializer); else initializers.set(d.name.text, [d.initializer]);
+            }
+        }
+    }
+    const resolving = new Set<string>();
+    const resolved = new Map<string, ConstValue | null>();
+    const named = (name: string): ConstValue | null => {
+        if (resolved.has(name)) return resolved.get(name)!;
+        const inits = initializers.get(name);
+        if (!inits || resolving.has(name)) return null;
+        resolving.add(name);
+        const values = inits.map((init) => constValue(init, named));
+        resolving.delete(name);
+        const first = values[0] ?? null;
+        const agreed = first !== null && values.every((v) => JSON.stringify(v) === JSON.stringify(first)) ? first : null;
+        resolved.set(name, agreed);
+        return agreed;
+    };
+    for (const name of initializers.keys()) {
+        const v = named(name);
+        if (v !== null) consts.set(name, v);
     }
     // Interfaces first: an event's payload may name one declared in another file.
     const interfaces = new Map<string, ts.InterfaceDeclaration>();

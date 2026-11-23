@@ -204,3 +204,30 @@ export const trigSystem = defineSystem(
     },
     { name: 'FixtureTrig' },
 );
+
+// Constants derived from constants fold; a module `let` is state, never a constant.
+const HALF = 60;
+const EDGE = HALF * 2 + 0.5;
+export let edgeHits = 0;
+
+/** A composite field written whole, its members read before any is stored, so the swap swaps. */
+export const wholeSystem = defineSystem(
+    [Query(Mut(Transform), Drift)],
+    (query) => {
+        for (const [, transform, drift] of query) {
+            const s = drift.enabled ? 2 : 0.5;
+            transform.position = { x: transform.position.y, y: transform.position.x + EDGE / drift.wrap, z: -HALF };
+            transform.scale = { z: s, y: s, x: 1 };
+        }
+    },
+    { name: 'FixtureWhole' },
+);
+
+/** Reads module state: must be refused, or it would compile the value it had at build time. */
+export const stateSystem = defineSystem(
+    [Query(Mut(Drift))],
+    (query) => {
+        for (const [, drift] of query) drift.rate = edgeHits;
+    },
+    { name: 'FixtureState' },
+);

@@ -24,7 +24,7 @@ import { printSystem } from '../src/eir';
 
 import {
     driftSystem, clampSystem, tunedSystem, helperSystem, mathSystem, gateSystem,
-    pingSystem, pongSystem,
+    pingSystem, pongSystem, wholeSystem,
 } from './fixtures/in-subset';
 import { PROBE, probeRow } from './probe';
 import type { StubSystem } from './stubs/esengine';
@@ -504,5 +504,57 @@ describe('conformance — the Math the subset admits', () => {
         // min picking the negative zero, which fmin is free not to do.
         expect(rows.some((r) => Object.is(r['lo'], -0))).toBe(true);
         expect(rows.some((r) => Object.is(r['signum'], -0))).toBe(true);
+    });
+});
+
+describe('conformance — a composite written whole, and constants made of constants', () => {
+    const whole = module.systems.find((s) => s.name === 'FixtureWhole');
+
+    const runWholeNative = (world: EirWorld): void => {
+        const transforms = world.comps.get('Transform')!;
+        const drifts = world.comps.get('FixtureDrift')!;
+        const query = {
+            *[Symbol.iterator]() {
+                for (const e of world.entities) yield [e, transforms.get(e)!, drifts.get(e)!];
+            },
+        };
+        (wholeSystem as unknown as StubSystem).fn(query);
+    };
+
+    it('compiles and verifies', () => {
+        expect(diagnostics.filter((d) => d.system === 'FixtureWhole').map((d) => d.message)).toEqual([]);
+        expect(whole).toBeDefined();
+        expect(verifySystem(whole!, module.comps, module.fns)).toEqual([]);
+    });
+
+    it('reads every member before storing any, and folds EDGE from HALF', () => {
+        const text = printSystem(whole!);
+        // 60 * 2 + 0.5, folded at compile time.
+        expect(text).toContain('120.5');
+        const lines = text.split('\n').map((l) => l.trim());
+        const firstStore = lines.findIndex((l) => l.startsWith('transform.position.'));
+        const lastRead = lines.reduce((at, l, i) => (l.startsWith('let ') && l.includes('transform.position') ? i : at), -1);
+        expect(lastRead).toBeGreaterThan(-1);
+        expect(firstStore).toBeGreaterThan(lastRead);
+    });
+
+    it('agrees with node over 20 frames, swap included', () => {
+        const byNode = makeWorld();
+        const byEir = makeWorld();
+        for (let f = 0; f < 20; f++) {
+            runWholeNative(byNode);
+            runSystem(whole!, byEir);
+        }
+        expect(byEir.comps.get('Transform')).toEqual(byNode.comps.get('Transform'));
+        // The swap moved values between members: x took what y held.
+        const row = byEir.comps.get('Transform')!.get(1)! as { position: { x: number; y: number }; scale: { z: number } };
+        expect(row.position.x).not.toBe(row.position.y);
+        expect([0.5, 2]).toContain(row.scale.z);
+    });
+
+    it('refuses a system that reads a module `let`: it is state, not a value known at build time', () => {
+        const d = diagnostics.find((x) => x.system === 'FixtureState');
+        expect(d?.message).toContain("'edgeHits'");
+        expect(module.systems.find((s) => s.name === 'FixtureState')).toBeUndefined();
     });
 });
