@@ -47,6 +47,7 @@ export type CellResidency =
  */
 export interface WorldStreamHost {
     register(config: SceneConfig): void;
+    unregister?(config: SceneConfig): void;
     prepare(name: string): Promise<void>;
     /**
      * Make the render programs a prepared cell requires ready. Absent on a host
@@ -228,8 +229,11 @@ export interface CellDelivery {
 }
 
 export class WorldStreamer {
+    /** Installed by a runtime that registers several maps in one scene manager. @internal */
+    sourceSceneAllowed?: (scene: string) => boolean;
     private readonly host_: WorldStreamHost;
     private manifest_: WorldManifest | null = null;
+    private readonly registrations_: SceneConfig[] = [];
     /** In manifest order, so every list this produces is stable. */
     private readonly cells_ = new Map<string, CellState>();
     /** Cell name → its far proxy, for cells the cook baked one. */
@@ -264,23 +268,31 @@ export class WorldStreamer {
         this.host_ = host;
     }
 
-    /** Adopt a cooked world after the previous world's operations and receipts drain. The latest request wins. */
+    /** Adopt a cooked world, or detach it, after the previous world's operations drain. The latest request wins. */
     async loadManifest(
-        manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig,
+        manifest: WorldManifest | null, sceneConfig?: (cell: WorldCell) => SceneConfig,
         proxyConfig?: (cell: WorldCell, scene: string, path: string) => SceneConfig,
     ): Promise<void> {
         const request = ++this.manifestRequest_;
         if (this.cells_.size > 0 || this.clearing_) await this.clearCells_();
         if (request !== this.manifestRequest_) return;
+        for (const config of this.registrations_) this.host_.unregister?.(config);
+        this.registrations_.length = 0;
         this.manifest_ = manifest;
+        this.sourceCount_ = 0;
         this.residencyEpoch_++;
         this.cells_.clear();
         this.proxies_.clear();
+        if (!manifest) return;
+        const register = (config: SceneConfig): void => {
+            this.host_.register(config);
+            this.registrations_.push(config);
+        };
         for (const cell of manifest.cells) {
-            this.host_.register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
+            register(sceneConfig?.(cell) ?? { name: cell.name, path: cell.path });
             if (cell.proxy && manifest.farDistance !== undefined) {
                 const scene = farProxySceneName(cell.name);
-                this.host_.register(proxyConfig?.(cell, scene, cell.proxy) ?? { name: scene, path: cell.proxy });
+                register(proxyConfig?.(cell, scene, cell.proxy) ?? { name: scene, path: cell.proxy });
                 this.proxies_.set(cell.name, { scene, residency: 'unloaded', wanted: false, failed: false });
             }
             this.cells_.set(cell.name, {
@@ -422,7 +434,7 @@ export class WorldStreamer {
      * the world the first is standing in.
      */
     update(sources: readonly ResidencySource[]): void {
-        if (this.clearing_) return;
+        if (this.clearing_ || !this.manifest_) return;
         this.sourceCount_ = sources.length;
         if (this.cells_.size === 0) return;
         const resident = new Set<string>();

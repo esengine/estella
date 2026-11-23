@@ -27,6 +27,8 @@ import { parseThemeOverrides } from '../ui/theme/tokens';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
+import type { RuntimeInitConfig } from './runtimeLoader';
+import type { SceneData } from '../scene/scene';
 import { registerSideModule } from '../sideModules/registry';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
@@ -283,6 +285,28 @@ export async function loadPackagedAssetIndex(
 ): Promise<PackagedAssetIndex> {
     const manifest = JSON.parse(await platformReadTextFile(manifestPath)) as AddressableManifest;
     return indexPackagedManifest(manifest);
+}
+
+/** Register the selected document under its own scene name and leave its siblings on disk until requested. */
+export async function loadPackagedScenes(
+    config: Pick<PackagedGameConfig, 'entryScene' | 'scenes' | 'worlds'>,
+    index: Pick<PackagedAssetIndex, 'resolvePath'>, fallbackName: string, requested?: string | null,
+): Promise<Pick<RuntimeInitConfig, 'scenes' | 'firstScene'>> {
+    const declared = config.scenes ?? [];
+    const entry = declared.find(scene => scene.path === config.entryScene) ?? { name: fallbackName, path: config.entryScene };
+    const available = [entry, ...declared.filter(scene => scene.name !== entry.name)];
+    const selected = requested ? available.find(scene => scene.name === requested) : entry;
+    if (!selected) throw new Error(`[estella] no scene named "${requested}" in this package`);
+    const data = JSON.parse(await platformReadTextFile(index.resolvePath(selected.path))) as SceneData;
+    const worlds = new Map(config.worlds?.map(world => [world.scene, world.manifest]));
+    return {
+        firstScene: selected.name,
+        scenes: available.map(scene => ({
+            name: scene.name,
+            ...(scene === selected ? { data } : { path: index.resolvePath(scene.path) }),
+            ...(worlds.has(scene.name) ? { worldPath: worlds.get(scene.name) } : {}),
+        })),
+    };
 }
 
 /** {@link loadPackagedAssetIndex} over an already-parsed manifest. */

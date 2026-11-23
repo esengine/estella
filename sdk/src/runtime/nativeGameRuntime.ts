@@ -21,8 +21,7 @@ import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
 import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { platformReadTextFile } from '../platform';
-import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers, packagedAppOptions, packagedRuntimeInit, type PackagedGameConfig } from './packagedRuntime';
-import type { SceneData } from '../scene/scene';
+import { loadPackagedAssetIndex, loadPackagedScenes, createPackagedAssetSource, applyAssetRefResolvers, packagedAppOptions, packagedRuntimeInit, type PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 
 export interface NativeGameOptions {
@@ -61,11 +60,7 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
     const source = createPackagedAssetSource(index);
     applyAssetRefResolvers(app, index.resolvePath);
 
-    const scenes = config.scenes ?? [{ name: 'main', path: config.entryScene }];
-    const entry = scenes.find((s) => s.path === config.entryScene) ?? scenes[0];
-    const entryData = JSON.parse(
-        await platformReadTextFile(index.resolvePath(config.entryScene)),
-    ) as SceneData;
+    const selection = await loadPackagedScenes(config, index, 'main');
 
     await initRuntime({
         app,
@@ -75,17 +70,13 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
         catalog: index.catalog,
         remoteRoot: config.hotUpdate?.remoteRoot,
         persistUpdateKey: config.hotUpdate?.persistUpdateKey,
-        scenes: [
-            { name: entry.name, data: entryData },
-            ...scenes.filter((s) => s.name !== entry.name).map((s) => ({ name: s.name, path: s.path })),
-        ],
-        firstScene: entry.name,
+        ...selection,
         aspectRatio: height > 0 ? width / height : undefined,
         // The projection, not a hand-written list: a host that names the fields it
         // knows about is a host the next field never reaches.
         ...packagedRuntimeInit(config),
     });
 
-    log.info('native', `game up — ${scenes.length} scene(s), entry "${entry.name}"`);
+    log.info('native', `game up — ${selection.scenes.length} scene(s), entry "${selection.firstScene}"`);
     return { app, config };
 }

@@ -136,8 +136,10 @@ main.esscene ──cook──▶ main.esscene          持久世界
                        world/main.cell_1_0.json ...
 ```
 
-包体启动的入口场景,是把格子取走之后剩下的东西——residency 永远不会移除的那部分。格子
-**不是**可切换的场景:它们是 residency 带进来的内容,游戏永远不会点名其中任何一个。
+每张流送地图的场景文件都保留自己的常驻实体。在编辑器 Play、Web 和原生导出包里，调用 `SceneManager.switchTo(name)`
+会先卸载上一张地图的格子和远景代理，再开始流送新地图。切回普通菜单也会卸载旧地图的格子和代理。
+用 `loadAdditive` 叠加 HUD 时，当前地图继续流送。调用 `load(name)` 可以激活已经加载的地图，它的流送源会在激活时开始生效。
+`WorldMemory.toJSON()` 保存当前世界记住的实体，回到先前的世界时会恢复它自己的记录。
 
 格子只在一个平面上切。默认是地面(世界 x 与 z):一个格子是一根垂直柱体,所以一座塔的各层是同一个地方。2D 世界躺在屏幕平面里,所有实体的 z 都一样,这时把 `plane` 设为 **Screen (x, y)**(`StreamPlane.Screen`),格子就沿世界 x 与 y 切,流送源也按 x、y 读取。不设的话,2D 世界会落进沿 x 的一行格子里。烘焙后的清单里也有同一个字段(`WorldManifest.plane`,值为 `'xy'`),此时格子的 `z` 就是世界 y。
 
@@ -205,7 +207,7 @@ const loaded = saves.load<{ world: WorldMemoryData }>('slot1');
 if (loaded) memory.read(loaded.world);                     // 读档时,在世界流入之前
 ```
 
-`read` 会替换现有记忆;已经在世界里的格子保持原样,下一个加载的格子读取新的记忆。`clear()` 清空一切,用于新游戏。
+`read` 会替换存档所指世界的记忆，每个格子在下次加载时读取这些记录。`clear()` 会清空所有已访问世界的记忆，用于开始新游戏。
 
 ## 程序化区块
 
@@ -257,6 +259,7 @@ report.loadCount;            // 启动以来带进来过多少个地方
 替换世界时,等待 `streamer.loadManifest(manifest, sceneConfig)`。它会先清理旧格子,再注册新清单,
 两个清单使用相同格子名称时也遵守这个顺序。并发替换以最后一次请求为准;显式调用 `clear()` 会取消尚未完成的替换请求。
 如果卸载失败,操作会拒绝完成,防止新世界接管仍有旧内容存活的名称。
+调用 `await streamer.loadManifest(null)` 可卸载当前世界，同时移除格子和远景代理的注册信息。
 
 ## 这一版不做什么
 

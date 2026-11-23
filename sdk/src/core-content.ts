@@ -486,6 +486,7 @@ export {
 // export pipeline writes and every runtime reads.
 export {
     loadPackagedAssetIndex,
+    loadPackagedScenes,
     indexPackagedManifest,
     catalogFromManifest,
     createPackagedAssetSource,

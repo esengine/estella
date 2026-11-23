@@ -101,6 +101,11 @@ function hasComponent(entry: SceneEntry, type: string): boolean {
     );
 }
 
+/** Includes declarations added as prefab overrides. A plain scene can skip resolving prefab assets for a world cut. */
+export function streamedWorldDeclaration(scene: SceneData): SceneEntry | undefined {
+    return ((scene.entities ?? []) as unknown as SceneEntry[]).find(entry => hasComponent(entry, 'StreamedWorld'));
+}
+
 function componentData(entry: SceneEntry, type: string): Record<string, unknown> | null {
     for (const component of componentsOf(entry)) {
         if (component.type === type) return component.data as Record<string, unknown>;
@@ -204,25 +209,16 @@ export function partitionWorld(
     scene: SceneData, sceneName: string, options: PartitionOptions,
 ): WorldPartition | null {
     const entries = (scene.entities ?? []) as unknown as SceneEntry[];
-    let cellSize = 0;
-    let plane: 'xz' | 'xy' = 'xz';
-    for (const entry of entries) {
-        if (!hasComponent(entry, 'StreamedWorld')) continue;
-        const declaration = componentData(entry, 'StreamedWorld');
-        cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
-        if (declaration?.plane === StreamPlane.Screen) plane = 'xy';
-        break;
-    }
+    const declared = streamedWorldDeclaration(scene);
+    if (!declared) return null;
+    const declaration = componentData(declared, 'StreamedWorld');
+    const cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
+    const plane = declaration?.plane === StreamPlane.Screen ? 'xy' : 'xz';
     if (cellSize <= 0) {
-        // A declaration with no usable size is a mistake worth naming, but a
-        // scene with no declaration at all is simply not a streamed world.
-        return entries.some((entry) => hasComponent(entry, 'StreamedWorld'))
-            ? {
-                cellSize: 0, plane, persistent: scene, cells: [], persistentRefs: [],
-                errors: [`StreamedWorld in "${sceneName}" declares no positive cellSize`],
-                warnings: [],
-            }
-            : null;
+        return {
+            cellSize: 0, plane, persistent: scene, cells: [], persistentRefs: [],
+            errors: [`StreamedWorld in "${sceneName}" declares no positive cellSize`], warnings: [],
+        };
     }
 
     const errors: string[] = [];

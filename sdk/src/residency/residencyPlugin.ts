@@ -16,7 +16,7 @@ import { manifestPlane, planeSecond, type ResidencySource } from './cells';
 import { WorldStreamingSource, type WorldStreamingSourceData } from './components';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
 import { Res } from '../ecs/resource';
-import { Transform, type TransformData } from '../ecs/component';
+import { SceneOwner, Transform, type TransformData } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import type { World } from '../ecs/world';
 
@@ -42,6 +42,10 @@ export const worldResidencySystem = defineSystem(
         for (const entity of world.getEntitiesWithComponents([WorldStreamingSource, Transform])) {
             const source = world.get(entity, WorldStreamingSource) as WorldStreamingSourceData;
             if (!source.enabled) continue;
+            if (streamer.sourceSceneAllowed) {
+                const owner = world.tryGet(entity, SceneOwner)?.scene;
+                if (owner && !streamer.sourceSceneAllowed(owner)) continue;
+            }
             const transform = world.get(entity, Transform) as TransformData;
             const at = transform.worldPosition ?? transform.position;
             sources.push({

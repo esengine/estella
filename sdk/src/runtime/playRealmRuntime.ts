@@ -21,6 +21,7 @@ import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
+import { streamedWorldDeclaration } from '../residency/partitionWorld';
 import { registryEntityFields } from '../residency/componentRefs';
 import { deferFarProxies, farProxySceneName, farProxySettings, type FarProxyHost } from '../residency/farProxy';
 import { decodeMesh, encodeMesh } from '../asset/meshFormat';
@@ -249,6 +250,7 @@ function withUrlSettings(settings: Partial<RuntimeAssetSource>, manifest: Record
 export async function cutPlayWorld(
     scene: SceneData, sceneName: string, resolveRef: (ref: string) => string,
 ): Promise<CutWorld | null> {
+    if (!streamedWorldDeclaration(scene)) return null;
     const resolvePrefab = await resolvePrefabRoots(scene, async (ref) => {
         const response = await fetch(resolveRef(ref));
         return response.ok ? await response.json() as unknown : null;
@@ -315,9 +317,7 @@ export async function addPlayFarProxies(
 }
 
 /**
- * Boot the shipping runtime against a single in-memory scene snapshot. The host
- * page has already created `app` (createWebApp) + bound a GL context; here we
- * register the snapshot as the sole scene, wire a fetch-backed source, and run.
+ * Boot the shipping runtime against an in-memory entry snapshot and the project's other authored scenes.
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
@@ -325,17 +325,9 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     const made: PlayMade = { bytes: new Map(), later: new Map() };
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
                                          config.compressedTexture, made);
-    applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
+    const resolveRef = (ref: string) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap);
+    applyAssetRefResolvers(app, resolveRef);
     const entryName = config.entrySceneName ?? '__play';
-    const cut = await cutPlayWorld(
-        sceneData, entryName,
-        (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
-    );
-    if (cut) {
-        await addPlayFarProxies(cut, sceneData, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap), made,
-            config.simplifyFarProxy);
-    }
-    life.throwIfAborted();
     await initRuntime({
         app,
         module,
@@ -345,12 +337,17 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         persistUpdateKey: config.persistUpdateKey,
         catalog: config.catalogData ? Catalog.fromJson(config.catalogData) : undefined,
         scenes: [
-            // The persistent world when there is one: what a package boots is the
-            // part residency never removes, and the places arrive as it asks.
-            { name: entryName, data: cut?.persistent ?? sceneData },
+            { name: entryName, data: sceneData },
             ...(config.extraScenes ?? []).filter((s) => s.name !== entryName),
         ],
-        ...(cut ? { worlds: [cut.manifest], cellDocuments: cut.documents } : {}),
+        async prepareWorld(data, name) {
+            const cut = await cutPlayWorld(data, name, resolveRef);
+            if (cut) {
+                life.throwIfAborted();
+                await addPlayFarProxies(cut, data, resolveRef, made, config.simplifyFarProxy);
+            }
+            return cut;
+        },
         firstScene: entryName,
         aspectRatio: canvas.width / canvas.height,
         ...runtimeProjectSettings(config),

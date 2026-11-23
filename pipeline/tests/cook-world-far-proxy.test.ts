@@ -68,6 +68,40 @@ async function cook(root: string) {
 }
 
 describe('cooking a world with far proxies', () => {
+    it('keeps manifests, cells, proxies and meshes distinct for nested names, literal escapes and Unicode', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const names = ['levels/second', 'levels_second', 'levels~2f~second', '地图一', '地图二'];
+        const original = await readFile(path.join(root, 'assets/scenes/main.esscene'), 'utf8');
+        const scenes = names.map(name => ({ name, path: `assets/scenes/${name}.esscene` }));
+        for (const scene of scenes) {
+            const file = path.join(root, scene.path);
+            await mkdir(path.dirname(file), { recursive: true });
+            await writeFile(file, original);
+        }
+        const cooked = await cookWorlds(root, root, scenes);
+        expect(cooked.worlds.map(world => world.scene)).toEqual(names);
+        const paths = new Set<string>();
+        for (const world of cooked.worlds) {
+            const readUnique = async (file: string) => {
+                expect(paths.has(file), file).toBe(false);
+                paths.add(file);
+                return readFile(path.join(root, file));
+            };
+            const manifest = JSON.parse((await readUnique(world.manifest)).toString()) as WorldManifest;
+            expect(manifest.scene).toBe(world.scene);
+            for (const cell of manifest.cells) {
+                expect(JSON.parse((await readUnique(cell.path)).toString()).name).toBe(cell.name);
+                if (!cell.proxy) continue;
+                const proxy = JSON.parse((await readUnique(cell.proxy)).toString()) as SceneData;
+                for (const entity of proxy.entities) {
+                    const renderer = entity.components.find(c => c.type === 'MeshRenderer')!;
+                    const mesh = await readUnique((renderer.data as { mesh: string }).mesh);
+                    expect(decodeMesh(mesh).indices.length).toBeGreaterThan(0);
+                }
+            }
+        }
+    });
+
     it('writes a proxy for each cell with static meshes, one renderer per material, and names it on the manifest', async () => {
         const root = await world({ farProxies: true, farDistance: 5000 });
         const { result, manifest } = await cook(root);

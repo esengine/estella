@@ -821,6 +821,28 @@ describe('world residency teardown and replacement', () => {
         expect(h.readied.size).toBe(0);
     });
 
+    it('detaches a world and its far proxies after outstanding work, without bringing them back on the next update', async () => {
+        const h = recordingHost();
+        h.defer(true);
+        const unregister = vi.fn();
+        const streamer = new WorldStreamer({ ...h.host, unregister });
+        const old = { ...manifest({ ...cell(0, 0), proxy: 'far.json' }), farDistance: 1000 };
+        await streamer.loadManifest(old);
+        streamer.update([source(50, 50, 10, 20)]);
+        const replacement = streamer.loadManifest(manifest(cell(3, 0)));
+        const detach = streamer.loadManifest(null);
+        h.settle();
+        h.defer(false);
+        await Promise.all([replacement, detach]);
+        expect(streamer.manifest).toBeNull();
+        expect(unregister.mock.calls.map(([config]) => config.path)).toEqual([old.cells[0]!.path, 'far.json']);
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(h.loaded.size).toBe(0);
+        expect(h.readied.size).toBe(0);
+        expect(h.calls).not.toContain('register:c_3_0');
+    });
+
     it('reports a failed unload without spinning or adopting a replacement over live content', async () => {
         const h = recordingHost();
         const unload = h.host.unload;

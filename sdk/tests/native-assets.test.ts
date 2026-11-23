@@ -12,6 +12,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { initNativeGame } from '../src/runtime/nativeGameRuntime';
+import { loadPackagedScenes, type PackagedGameConfig } from '../src/runtime/packagedRuntime';
+import { SceneManager } from '../src/scene/sceneManager';
+import { WorldStreaming } from '../src/residency/WorldStreamer';
 import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
 import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
@@ -86,6 +90,62 @@ afterEach(() => {
     shutdownResourceManager();
     // Drop the native platform this suite installed so it can't leak into others.
     setPlatform(null as never);
+});
+
+describe('packaged scene files', () => {
+    it('reads a world on first use, retries a bad manifest, and gives residency only to the active scene', async () => {
+        const scenes = ['menu', 'levels/a', 'levels/b'].map(name => ({ name, path: name + '.json' }));
+        const worlds = scenes.slice(1).map(({ name }) => ({ scene: name, manifest: name + '.world.json' }));
+        const config: PackagedGameConfig = { entryScene: 'menu.json', scenes, worlds };
+        const files = new Map<string, unknown>([
+            ['game.config.json', config], ['asset-manifest.json', { version: '2.0', groups: {} }],
+        ]);
+        for (const scene of scenes) files.set(scene.path, { version: 4, name: scene.name, entities: [] });
+        const manifest = (scene: string) => ({ version: 1, scene, cells: [], persistentRefs: [], cellSize: 100 });
+        files.set(worlds[0]!.manifest, manifest('levels/a'));
+        files.set(worlds[1]!.manifest, manifest('wrong'));
+        const bridge = makeBridge({});
+        const read = vi.fn(async (path: string) => {
+            if (!files.has(path)) throw new Error(path);
+            return new TextEncoder().encode(JSON.stringify(files.get(path))).buffer;
+        });
+        bridge.readFile = read;
+        const scope = withRegistryOps({ es_Camera_buffer: () => null, es_Camera_has: () => false, es_Camera_remove: () => {} });
+        const { app } = await initNativeGame({ bridge, scope, width: 640, height: 360 });
+        try {
+            const manager = app.getResource(SceneManager), streamer = app.getResource(WorldStreaming);
+            expect(manager.getActive()).toBe('menu');
+            expect(streamer.manifest).toBeNull();
+            expect(read.mock.calls.flat()).not.toContain(worlds[0]!.manifest);
+            await manager.loadAdditive('levels/a');
+            expect(streamer.manifest).toBeNull();
+            await manager.load('levels/a');
+            expect(streamer.manifest?.scene).toBe('levels/a');
+            expect(read.mock.calls.flat()).not.toContain(worlds[1]!.manifest);
+            await expect(manager.load('levels/b')).rejects.toThrow(/Invalid world manifest/);
+            expect(manager.getActive()).toBe('levels/a');
+            expect(manager.isLoaded('levels/b')).toBe(false);
+            files.set(worlds[1]!.manifest, manifest('levels/b'));
+            await manager.switchTo('levels/b');
+            expect(streamer.manifest?.scene).toBe('levels/b');
+            await manager.loadAdditive('levels/a');
+            expect(streamer.sourceSceneAllowed?.('levels/a')).toBe(false);
+            expect(streamer.sourceSceneAllowed?.('levels/b')).toBe(true);
+            expect(streamer.sourceSceneAllowed?.('menu')).toBe(true);
+            await manager.reload();
+            expect(read.mock.calls.flat().filter(path => path === worlds[1]!.manifest)).toHaveLength(2);
+            await manager.switchTo('menu');
+            expect(streamer.manifest).toBeNull();
+
+            const index = { resolvePath: (path: string) => path };
+            const selected = await loadPackagedScenes(config, index, '__play', 'levels/a');
+            expect(selected.firstScene).toBe('levels/a');
+            expect(selected.scenes.find(scene => scene.name === 'menu')).toEqual({ name: 'menu', path: 'menu.json' });
+            expect(selected.scenes.find(scene => scene.name === 'levels/a')?.data?.name).toBe('levels/a');
+            await expect(loadPackagedScenes(config, index, '__play', 'absent')).rejects.toThrow(/no scene named/);
+            expect((await loadPackagedScenes({ entryScene: 'menu.json' }, index, 'main')).firstScene).toBe('main');
+        } finally { app.quit(); }
+    });
 });
 
 describe('createNativeResourceManager', () => {

@@ -18,7 +18,7 @@
 
 import type { App } from '../app/app';
 import type { Entity } from '../types';
-import { defineComponent, type ComponentDef } from '../ecs/component';
+import { defineComponent, SceneOwner, type ComponentDef } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
 import { visitSerializedComponents, type SceneComponentData, type SceneData, type SceneEntityData } from '../scene/scene';
 import { SceneManager } from '../scene/sceneManager';
@@ -61,36 +61,50 @@ export interface WorldMemoryData {
 
 /** What a streamed world remembers of its cells. @experimental */
 export class WorldMemory {
-    private entries_ = new Map<string, Remembered>();
-    /** Every authored id a cell's document held when it was last brought in, to the cells holding it. */
+    private readonly saved_ = new Map<string, Map<string, Remembered>>();
+    /** Authored row ids are local to the current world. */
     private readonly cellsOf_ = new Map<number, Set<string>>();
     private world_ = '';
+    private indexed_: WorldManifest | null = null;
 
     constructor(private readonly app_: App, private readonly manifest_: () => WorldManifest | null) {}
 
+    private entries_(): Map<string, Remembered> {
+        const manifest = this.manifest_();
+        if (manifest !== this.indexed_) {
+            this.indexed_ = manifest;
+            this.cellsOf_.clear();
+        }
+        if (manifest) this.world_ = manifest.scene;
+        let entries = this.saved_.get(this.world_);
+        if (!entries) this.saved_.set(this.world_, entries = new Map());
+        return entries;
+    }
+
     /** How many entities are remembered, gone ones included. */
-    get size(): number { return this.entries_.size; }
+    get size(): number { return this.entries_().size; }
 
     /** Whether the entity authored as `id` in `cell` was destroyed and stays so. */
     isGone(cell: string, id: number): boolean {
-        return this.entries_.get(`${cell}:${id}`)?.gone === true;
+        return this.entries_().get(`${cell}:${id}`)?.gone === true;
     }
 
     /** Forget everything: a new game. */
     clear(): void {
-        this.entries_.clear();
+        this.saved_.clear();
     }
 
     /** The memory as a save holds it. */
     toJSON(): WorldMemoryData {
-        return { version: 1, world: this.manifest_()?.scene ?? this.world_, entries: cloneJsonValue(Object.fromEntries(this.entries_)) };
+        const entries = this.entries_();
+        return { version: 1, world: this.world_, entries: cloneJsonValue(Object.fromEntries(entries)) };
     }
 
     /** Take a save's memory in place of this one. Cells already in keep what they are; the next one brought in reads it. */
     read(data: WorldMemoryData): void {
         if (data?.version !== 1) throw new Error('WorldMemory: not a world memory this version reads');
-        this.entries_ = new Map(Object.entries(cloneJsonValue(data.entries ?? {})));
-        this.world_ = data.world;
+        this.saved_.set(data.world, new Map(Object.entries(cloneJsonValue(data.entries ?? {}))));
+        if (!this.manifest_()) this.world_ = data.world;
     }
 
     /**
@@ -100,14 +114,14 @@ export class WorldMemory {
     adapt(sceneName: string, data: SceneData): SceneData {
         const manifest = this.manifest_();
         if (!manifest || !manifest.cells.some((c) => c.name === sceneName)) return data;
-        if (this.world_ && this.world_ !== manifest.scene) return data;
+        const entries = this.entries_();
         const entities = data.entities ?? [];
         for (const entity of entities) {
             let cells = this.cellsOf_.get(entity.id);
             if (!cells) this.cellsOf_.set(entity.id, cells = new Set());
             cells.add(sceneName);
         }
-        if (this.entries_.size === 0) return data;
+        if (entries.size === 0) return data;
         const byId = new Map(entities.map((e) => [e.id, e]));
         const doomed = new Set<number>();
         const take = (id: number): void => {
@@ -116,12 +130,12 @@ export class WorldMemory {
             for (const child of byId.get(id)?.children ?? []) take(child);
         };
         for (const entity of entities) {
-            if (this.entries_.get(`${sceneName}:${entity.id}`)?.gone) take(entity.id);
+            if (entries.get(`${sceneName}:${entity.id}`)?.gone) take(entity.id);
         }
         const kept: SceneEntityData[] = [];
         for (const entity of entities) {
             if (doomed.has(entity.id)) continue;
-            const left = this.entries_.get(`${sceneName}:${entity.id}`)?.components;
+            const left = entries.get(`${sceneName}:${entity.id}`)?.components;
             let row = entity;
             if (left) {
                 const components = entity.components.filter((c) => !left.some((l) => l.type === c.type));
@@ -138,7 +152,8 @@ export class WorldMemory {
         const world = this.app_.world;
         if (!world.has(entity, RememberState)) return;
         const id = sceneOriginOf(this.app_, entity);
-        if (id === undefined) return;
+        if (id === undefined || !this.manifest_()) return;
+        const entries = this.entries_();
         const cell = this.cellOf_(entity, id);
         if (!cell) return;
         const manager = this.app_.hasResource(SceneManager) ? this.app_.getResource(SceneManager) : null;
@@ -146,16 +161,18 @@ export class WorldMemory {
         const key = `${cell.name}:${id}`;
         // Destroyed while its cell is in: gone for good. Taken out with its cell: remembered as it is now.
         if (status !== null && status !== 'unloading') {
-            this.entries_.set(key, { gone: true });
+            entries.set(key, { gone: true });
             return;
         }
-        this.entries_.set(key, { components: this.snapshot_(entity) });
+        entries.set(key, { components: this.snapshot_(entity) });
     }
 
     /** The cell an entity was brought in with: the one of the cells holding its id whose scene owns it. */
     private cellOf_(entity: Entity, id: number): { name: string } | null {
         const cells = this.cellsOf_.get(id);
         if (!cells) return null;
+        const owner = this.app_.world.tryGet(entity, SceneOwner);
+        if (owner) return cells.has(owner.scene) ? { name: owner.scene } : null;
         const manager = this.app_.hasResource(SceneManager) ? this.app_.getResource(SceneManager) : null;
         for (const name of cells) {
             if (manager?.getScene(name)?.entities.has(entity)) return { name };

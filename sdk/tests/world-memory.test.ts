@@ -108,4 +108,20 @@ describe('a cell brought back from memory', () => {
         expect(again.adapt('w.cell_1_0', document()).entities.map((e) => e.id)).toEqual([1]);
         expect(() => again.read({ version: 2 } as never)).toThrow();
     });
+
+    it('keeps a separate save for each visited world even when their cell names and authored ids match', () => {
+        let active: WorldManifest | null = manifest;
+        const memory = new WorldMemory({} as never, () => active);
+        const entries = { [cell.name + ':2']: { gone: true as const } };
+        memory.read({ version: 1, world: 'w', entries });
+        expect(memory.adapt(cell.name, document()).entities).toHaveLength(1);
+        active = { ...manifest, scene: 'other' };
+        expect(memory.adapt(cell.name, document()).entities).toHaveLength(3);
+        expect(memory.toJSON()).toEqual({ version: 1, world: 'other', entries: {} });
+        active = null;
+        expect(memory.size).toBe(0);
+        active = manifest;
+        expect(memory.toJSON()).toEqual({ version: 1, world: 'w', entries });
+        expect(memory.adapt(cell.name, document()).entities).toHaveLength(1);
+    });
 });

@@ -15,7 +15,7 @@ import { composeTRS } from '../math/mat4';
 import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat';
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
-import { WORLD_DIR, type CutWorld } from './cutWorld';
+import { worldFileStem, type CutWorld } from './cutWorld';
 import type { WorldCell } from './cells';
 
 /** How a world's far proxies are baked and how far they are shown, from its `StreamedWorld`. @experimental */
@@ -48,12 +48,12 @@ type Quat = Vec3 & { w: number };
 
 /** Package-relative path of a cell's far proxy document. @experimental */
 export function farProxyPath(cellName: string): string {
-    return `${WORLD_DIR}/${cellName.replace(/[^A-Za-z0-9_.-]/g, '_')}.far.json`;
+    return `${worldFileStem(cellName)}.far.json`;
 }
 
 /** Package-relative path of one baked mesh of a cell's far proxy. @experimental */
 export function farProxyMeshPath(cellName: string, index: number): string {
-    return `${WORLD_DIR}/${cellName.replace(/[^A-Za-z0-9_.-]/g, '_')}.far.${index}.esmesh`;
+    return `${worldFileStem(cellName)}.far.${index}.esmesh`;
 }
 
 /** The scene name a cell's far proxy is registered under. @experimental */

@@ -20,9 +20,10 @@ import type { SceneData } from '../scene/scene';
 /** Where cooked world content goes, package-relative. */
 export const WORLD_DIR = 'world';
 
-/** A file name that survives a scene living in a subdirectory. */
-function fileSafe(name: string): string {
-    return name.replace(/[^A-Za-z0-9_.-]/g, '_');
+/** A package-relative file stem shared by a world's documents and meshes. Escape the marker too so names stay distinct. */
+export function worldFileStem(name: string): string {
+    const stem = name.replace(/[^\p{L}\p{N}_.-]/gu, char => `~${char.codePointAt(0)!.toString(16)}~`);
+    return `${WORLD_DIR}/${stem}`;
 }
 
 /**
@@ -31,12 +32,12 @@ function fileSafe(name: string): string {
  * field one side ignores are still two manifests, and nothing would catch it.
  */
 export function cellDocumentPath(cellName: string): string {
-    return `${WORLD_DIR}/${fileSafe(cellName)}.json`;
+    return `${worldFileStem(cellName)}.json`;
 }
 
 /** Where a world's manifest ships, package-relative. */
 export function worldManifestPath(sceneName: string): string {
-    return `${WORLD_DIR}/${fileSafe(sceneName)}.world.json`;
+    return `${worldFileStem(sceneName)}.world.json`;
 }
 
 /** An authored world, cut into what ships and what arrives. @experimental */

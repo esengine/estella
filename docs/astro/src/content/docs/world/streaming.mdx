@@ -174,9 +174,13 @@ main.esscene ──cook──▶ main.esscene          the persistent world
                        world/main.cell_1_0.json ...
 ```
 
-The entry scene the package boots is what is left after the cells are taken out
-of it — the things residency never removes. Cells are **not** switchable scenes:
-they are content residency brings in, and a game never names one.
+Each streamed scene keeps its persistent entities in its own scene document. Game code names the map, and residency loads its cells.
+In editor Play and in Web and native packages,
+`SceneManager.switchTo(name)` releases the old map's cells and far proxies before the new map begins streaming. Switching to
+a menu releases them too. Use `loadAdditive` for a HUD that should leave the active map streaming. To make an already loaded
+map active, call `load(name)`. Streaming sources belonging to that map start contributing when it becomes active.
+`WorldMemory.toJSON()` saves the current world's remembered entities, and returning to a
+previous world restores its own memory.
 
 Cells are cut on one plane. By default that is the ground (world x and z): a cell is a vertical column, so a tower's floors are one place. A 2D world
 lies in the screen plane, where every entity has the same z, so set `plane` to **Screen (x, y)** (`StreamPlane.Screen`) and the cells are cut along
@@ -262,8 +266,8 @@ const loaded = saves.load<{ world: WorldMemoryData }>('slot1');
 if (loaded) memory.read(loaded.world);                     // when loading, before the world streams in
 ```
 
-`read` replaces what is remembered; cells already in the world keep how they are, and the
-next one brought in reads the new memory. `clear()` forgets everything, for a new game.
+`read` replaces the memory of the world named in the save. Each cell reads that memory the next time it loads.
+`clear()` clears the memory of all visited worlds for a new game.
 
 ## Procedural chunks
 
@@ -330,6 +334,7 @@ the old cells before registering the replacement, including when both manifests 
 the same cell names. The latest concurrent replacement request wins; an explicit
 `clear()` cancels pending replacement requests. Failed teardown rejects the operation
 so the replacement cannot take ownership of a name that still has live content.
+Use `await streamer.loadManifest(null)` to detach the world and release its cell and proxy registrations.
 
 ## What this version does not do
 

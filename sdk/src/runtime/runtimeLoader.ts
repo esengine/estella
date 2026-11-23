@@ -44,6 +44,7 @@ import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
 import { WorldMemoryRes } from '../residency/worldMemory';
 import type { WorldManifest } from '../residency/cells';
+import type { CutWorld } from '../residency/cutWorld';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
@@ -831,7 +832,9 @@ function* despawnJob(retirement: SceneRetirement, doomed: readonly Entity[]): Ge
 export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData | undefined,
-    options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
+    options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> & {
+        prepareDocument?: (data: SceneData, assertActive: () => void) => Promise<SceneData>;
+    },
     scenePath?: string,
     /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
     streamed?: StreamedSceneOptions,
@@ -901,6 +904,10 @@ export function createRuntimeSceneConfig(
             const parsed = performance.now();
             data = JSON.parse(text) as SceneData;
             config.onPhase?.('parse', performance.now() - parsed);
+        }
+        if (options.prepareDocument) {
+            data = await options.prepareDocument(data, assertActive);
+            assertActive();
         }
         return prepareRuntimeScene({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
@@ -1044,13 +1051,11 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
     /** Every scene the game can switch to. `data` loads eagerly at register
      *  time; `path` registers a lazy scene fetched through the runtime Assets
      *  on first {@link SceneManagerState.switchTo}/load. One of the two. */
-    scenes: Array<{ name: string; data?: SceneData; path?: string }>;
-    /**
-     * Cooked worlds the build carries. The one belonging to `firstScene` is
-     * adopted by the streamer after that scene is up — its cells are content
-     * residency brings in, so they are deliberately not in `scenes`.
-     */
+    scenes: Array<{ name: string; data?: SceneData; path?: string; worldPath?: string }>;
+    /** Preloaded world manifests keyed by their persistent scene's registered name. */
     worlds?: WorldManifest[];
+    /** Cut an authored scene on first use when the host serves source documents (editor Play). */
+    prepareWorld?: (scene: SceneData, name: string) => Promise<Pick<CutWorld, 'persistent' | 'manifest' | 'documents'> | null>;
     /**
      * Cell name → its document, for a host that already holds them: an editor
      * Play session cuts the unsaved scene in memory and has nowhere to fetch a
@@ -1088,6 +1093,68 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
 export function applyFixedTimestep(app: Pick<App, 'setFixedTimestep'>, physics: { fixedTimestep?: number } | undefined): void {
     const step = physics?.fixedTimestep;
     if (typeof step === 'number' && Number.isFinite(step) && step > 0) app.setFixedTimestep(step);
+}
+
+/** Prepare the persistent document and its world together, then hand its cells to the streamer only while it is active. */
+function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>): void {
+    const { app } = config;
+    const manager = app.getResource(SceneManager);
+    const worlds = new Map<string, { manifest: WorldManifest; documents?: ReadonlyMap<string, SceneData> }>();
+    for (const manifest of config.worlds ?? []) worlds.set(manifest.scene, { manifest, documents: config.cellDocuments });
+    if (worlds.size > 0) enableSceneOrigins(app);
+    for (const scene of config.scenes) {
+        const { worldPath } = scene;
+        const prepareDocument = async (data: SceneData, assertActive: () => void): Promise<SceneData> => {
+            if (worldPath) {
+                if (!worlds.has(scene.name)) {
+                    const manifest = JSON.parse(await config.source.backend.fetchText(worldPath)) as WorldManifest;
+                    assertActive();
+                    if (manifest?.version !== 1 || manifest.scene !== scene.name || !Array.isArray(manifest.cells)
+                        || !Array.isArray(manifest.persistentRefs)) {
+                        throw new Error(`Invalid world manifest "${worldPath}" for scene "${scene.name}"`);
+                    }
+                    worlds.set(scene.name, { manifest, documents: config.cellDocuments });
+                }
+            } else if (config.prepareWorld) {
+                const cut = await config.prepareWorld(data, scene.name);
+                assertActive();
+                if (!cut) {
+                    worlds.delete(scene.name);
+                    return data;
+                }
+                worlds.set(scene.name, { manifest: cut.manifest, documents: cut.documents });
+                data = cut.persistent;
+            }
+            // Authored ids are recorded when persistent entities are published, before a cell needs to resolve them.
+            enableSceneOrigins(app);
+            return data;
+        };
+        const sceneOptions = worldPath || config.prepareWorld ? { ...options, prepareDocument } : options;
+        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, scene.path);
+        if (config.prepareWorld && !worldPath) registration.cleanup = () => { worlds.delete(scene.name); };
+        manager.register(registration);
+    }
+    if (!app.hasResource(WorldStreaming) || !(worlds.size || config.prepareWorld || config.scenes.some(scene => scene.worldPath))) return;
+
+    const streamer = app.getResource(WorldStreaming);
+    let ownsWorld = false;
+    streamer.sourceSceneAllowed = scene => !ownsWorld || !worlds.has(scene) || scene === streamer.manifest?.scene;
+    manager.setActiveSceneHandler(name => {
+        const world = name === null ? undefined : worlds.get(name);
+        if (!world) {
+            if (!ownsWorld) return;
+            return streamer.loadManifest(null).then(() => { if (!streamer.manifest) ownsWorld = false; });
+        }
+        ownsWorld = true;
+        const { manifest, documents } = world;
+        const piece = { ...options, streamedPiece: true };
+        return streamer.loadManifest(manifest, cell => {
+            const scene = createRuntimeSceneConfig(cell.name, documents?.get(cell.name), piece, cell.path, { label: cell.name });
+            scene.externalEntities = () => persistentEntityRows(app, manifest);
+            scene.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
+            return scene;
+        }, (_cell, name, path) => createRuntimeSceneConfig(name, documents?.get(name), piece, path));
+    });
 }
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
@@ -1172,45 +1239,12 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         uiThemeOverrides: config.uiThemeOverrides,
     };
 
-    const mgr = app.getResource(SceneManager);
-    for (const scene of config.scenes) {
-        mgr.register(createRuntimeSceneConfig(scene.name, scene.data, sceneOpts, scene.path));
-    }
-
-    // Identity before the world exists: a streamed entity's authored id is what
-    // survives its cell leaving, and the table only records what loads after this.
-    const world = (config.worlds ?? []).find((candidate) => candidate.scene === firstScene) ?? null;
-    for (const other of config.worlds ?? []) {
-        if (other !== world) {
-            log.warn('residency', `world "${other.scene}" is cooked but only the entry scene's is adopted`);
-        }
-    }
-    if (world) enableSceneOrigins(app);
+    registerRuntimeScenes(config, sceneOpts);
 
     if (firstScene) {
+        const mgr = app.getResource(SceneManager);
         mgr.setInitial(firstScene);
         await mgr.load(firstScene);
-        life.throwIfAborted();
-    }
-
-    if (world && app.hasResource(WorldStreaming)) {
-        // A cell loads the way every other scene in this build does, and resolves
-        // the persistent rows the cook said it names — freshly each time, because
-        // the entities behind those rows are only the ones alive right now.
-        const streamer = app.getResource(WorldStreaming);
-        // Read out here: inside the callback `config` is the scene's, not this one's.
-        const documents = config.cellDocuments;
-        await streamer.loadManifest(world, (cell) => {
-            // Set ON the config, not spread into a copy of it: the setup that
-            // loads the cell closes over the object this returns, so a copy
-            // carries the fields somewhere nothing reads them.
-            const config = createRuntimeSceneConfig(
-                cell.name, documents?.get(cell.name), { ...sceneOpts, streamedPiece: true }, cell.path, { label: cell.name },
-            );
-            config.externalEntities = () => persistentEntityRows(app, world);
-            config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
-            return config;
-        }, (_cell, scene, path) => createRuntimeSceneConfig(scene, documents?.get(scene), { ...sceneOpts, streamedPiece: true }, path));
         life.throwIfAborted();
     }
 

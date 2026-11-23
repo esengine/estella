@@ -86,6 +86,84 @@ const Drawn = defineComponent('SleepPromotionDrawn', { visible: true }, { render
 describe('a scene load that fails leaves nothing of itself behind', () => {
     beforeEach(() => { clearDrawCallbacks(); });
 
+    it('keeps persistent entities and the active name when releasing residency fails, then retries the handoff', async () => {
+        const { app, manager } = harness();
+        try {
+            const cleanup = vi.fn(() => manager.getActive());
+            manager.register({ name: 'map', cleanup });
+            manager.register({ name: 'hud' });
+            const handoff = vi.fn(async (_scene: string | null) => {});
+            manager.setActiveSceneHandler(handoff);
+            const map = await manager.load('map');
+            const player = map.spawn();
+            await manager.loadAdditive('hud');
+            await manager.load('map');
+            expect(handoff.mock.calls).toEqual([['map']]);
+            handoff.mockRejectedValueOnce(new Error('cell still in use'));
+            await expect(manager.unload('map')).rejects.toThrow('cell still in use');
+            expect(manager.getActive()).toBe('map');
+            expect(manager.getSceneStatus('map')).toBe('running');
+            expect(app.world.valid(player)).toBe(true);
+            expect(cleanup).not.toHaveBeenCalled();
+            await manager.unload('map');
+            expect(manager.getActive()).toBeNull();
+            expect(app.world.valid(player)).toBe(false);
+            expect(cleanup).toHaveReturnedWith('map');
+            expect(handoff.mock.calls).toEqual([['map'], [null], [null]]);
+        } finally { app.quit(); }
+    });
+
+    it('cancels a load unloaded during its residency handoff and runs its cleanup once', async () => {
+        const { app, manager } = harness();
+        let started!: () => void, finish!: () => void, restore!: () => void;
+        const entering = new Promise<void>(resolve => { started = resolve; });
+        const handoff = new Promise<void>(resolve => { finish = resolve; });
+        const returning = new Promise<void>(resolve => { restore = resolve; });
+        const cleanup = vi.fn();
+        try {
+            manager.register({ name: 'home' });
+            manager.register({ name: 'next', cleanup });
+            await manager.load('home');
+            manager.setActiveSceneHandler(name => {
+                if (name === 'next') { started(); return handoff; }
+                if (name === 'home') return returning;
+                return undefined;
+            });
+            const arrival = manager.load('next');
+            const outcome = arrival.then(() => 'loaded', () => 'cancelled');
+            await entering;
+            const leaving = manager.unload('next');
+            finish();
+            await new Promise(resolve => setTimeout(resolve, 0));
+            restore();
+            await leaving;
+            expect(await outcome).toBe('cancelled');
+            expect(cleanup).toHaveBeenCalledTimes(1);
+            expect(manager.getActive()).toBe('home');
+            expect(manager.getScene('next')).toBeNull();
+        } finally { app.quit(); }
+    });
+
+    it('settles an already loaded scene promotion on reset while its old handoff is pending', async () => {
+        const { app, manager } = harness();
+        let finish!: () => void;
+        const handoff = new Promise<void>(resolve => { finish = resolve; });
+        try {
+            manager.register({ name: 'map' });
+            await manager.loadAdditive('map');
+            manager.setActiveSceneHandler(name => name === 'map' ? handoff : undefined);
+            const promotion = manager.load('map');
+            manager.reset();
+            await expect(promotion).rejects.toThrow(/cancel/i);
+            finish();
+            await handoff;
+            expect(manager.getActive()).toBeNull();
+        } finally {
+            finish();
+            app.quit();
+        }
+    });
+
     it('reset removes the old systems before a scene of the same name runs', async () => {
         const { app, manager } = harness();
         const old = vi.fn(), current = vi.fn();

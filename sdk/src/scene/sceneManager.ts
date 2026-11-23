@@ -330,6 +330,8 @@ export class SceneManagerState {
     private readonly sleepingScenes_ = new Set<string>();
     private readonly loadOrder_: string[] = [];
     private activeScene_: string | null = null;
+    private activeSceneHandler_?: (scene: string | null) => Promise<void> | void;
+    private activeChange_?: { name: string | null; done: Promise<void> };
     private initialScene_: string | null = null;
     private readonly transitionController_ = new SceneTransitionController();
     private switching_: string | null = null;
@@ -363,13 +365,16 @@ export class SceneManagerState {
         this.stopEntityTracking_ = null;
         if (this.switching_ !== null) this.transitionController_.reset(new SceneLoadCancelled(this.switching_));
 
+        this.changeActiveScene_(null)?.catch(error => log.error('scene', 'Could not release the active scene during reset', error));
+        this.activeSceneHandler_ = undefined;
+        this.activeChange_ = undefined;
+        this.activeScene_ = null;
         this.configs_.clear();
         this.scenes_.clear();
         this.contexts_.clear();
         this.pausedScenes_.clear();
         this.sleepingScenes_.clear();
         this.loadOrder_.length = 0;
-        this.activeScene_ = null;
         this.initialScene_ = null;
         this.switching_ = null;
         for (const arrivals of this.arrivals_.values()) {
@@ -396,6 +401,43 @@ export class SceneManagerState {
         const previous = this.configs_.get(config.name);
         this.configs_.set(config.name, config);
         if (previous && previous !== config) previous.discardPrepared?.();
+    }
+
+    /** Release a temporary registration if its owner still holds it. @internal */
+    unregister(config: SceneConfig): void {
+        if (this.configs_.get(config.name) === config) {
+            this.configs_.delete(config.name);
+            config.discardPrepared?.();
+        }
+    }
+
+    /** Bind the runtime's residency handoff to exclusive scene changes. @internal */
+    setActiveSceneHandler(handler: (scene: string | null) => Promise<void> | void): void {
+        this.activeSceneHandler_ = handler;
+    }
+
+    private changeActiveScene_(name: string | null, retiring = false): Promise<void> | undefined {
+        if (this.activeChange_?.name === name) return this.activeChange_.done;
+        if (!this.activeChange_ && this.activeScene_ === name) return;
+        const handoff = this.activeSceneHandler_?.(name);
+        if (!handoff) {
+            this.activeChange_ = undefined;
+            if (!retiring) this.activeScene_ = name;
+            return;
+        }
+        const change = { name, done: handoff.then(() => {
+            if (this.activeChange_ === change && !retiring) this.activeScene_ = name;
+        }).finally(() => {
+            if (this.activeChange_ === change) this.activeChange_ = undefined;
+        }) };
+        this.activeChange_ = change;
+        return change.done;
+    }
+
+    private assertSceneCanActivate_(instance: SceneInstance): void {
+        if (!this.acceptsSceneWork_(instance) || this.unloadPromises_.has(instance.config.name)) {
+            throw new SceneLoadCancelled(instance.config.name);
+        }
     }
 
     setInitial(name: string): void {
@@ -593,7 +635,11 @@ export class SceneManagerState {
             if (existing.status === 'sleeping') this.wake(name);
             else if (existing.status === 'paused') this.resume(name);
             existing.status = 'running';
-            if (mode === 'exclusive') this.activeScene_ = name;
+            const change = mode === 'exclusive' && this.changeActiveScene_(name);
+            if (change) {
+                await this.reserveOperation_<void>(name).start(() => change);
+                this.assertSceneCanActivate_(existing);
+            }
             return this.contexts_.get(name)!;
         }
 
@@ -657,12 +703,19 @@ export class SceneManagerState {
             }
 
             await this.loadSceneData_(instance, name, config, sceneData, ctx);
-            if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
+            this.assertSceneCanActivate_(instance);
+            const change = request.activate && this.changeActiveScene_(name);
+            if (change) {
+                await change;
+                this.assertSceneCanActivate_(instance);
+            }
             instance.status = 'running';
-            if (request.activate) this.activeScene_ = name;
             this.loadOrder_.push(name);
             return ctx;
         } catch (error) {
+            // A concurrent unload owns cleanup until its residency handoff finishes.
+            const leaving = this.unloadPromises_.get(name);
+            if (leaving && this.scenes_.get(name) === instance) await leaving.done.catch(() => undefined);
             this.rollbackFailedLoad_(name, instance);
             throw error;
         }
@@ -847,8 +900,9 @@ export class SceneManagerState {
         const ctx = this.contexts_.get(name)!;
         // Read before the status becomes 'unloading': what a promoted entity
         // needs put back is what sleep() took, and only the old status says so.
-        const wasSleeping = instance.status === 'sleeping';
-        const wasLoading = instance.status === 'loading';
+        const previousStatus = instance.status;
+        const wasSleeping = previousStatus === 'sleeping';
+        const wasLoading = previousStatus === 'loading';
         instance.status = 'unloading';
         const arrival = this.loadArrival_(name);
         if (arrival?.request?.instance === instance) arrival.finish();
@@ -858,7 +912,25 @@ export class SceneManagerState {
         const departure = { done: unload.done, config: instance.config, staggered };
         this.unloadPromises_.set(name, departure);
         return unload.start(async () => {
+            // A failed residency release leaves the world and its persistent references available for a retry.
             try {
+                if (this.activeScene_ === name && this.activeChange_ && this.activeChange_.name !== name) {
+                    await this.activeChange_.done;
+                }
+                const requested = this.activeChange_ ? this.activeChange_.name : this.activeScene_;
+                if (requested === name && this.activeSceneHandler_) {
+                    // Cleanup still sees its active scene until removeSceneSlot_ commits the unload.
+                    const retiring = this.activeScene_ === name;
+                    const release = this.changeActiveScene_(retiring ? null : this.activeScene_, retiring);
+                    if (release) await release;
+                }
+            } catch (error) {
+                if (this.scenes_.get(name) === instance) instance.status = previousStatus;
+                if (this.unloadPromises_.get(name) === departure) this.unloadPromises_.delete(name);
+                throw error;
+            }
+            try {
+                if (this.scenes_.get(name) !== instance) return;
                 try { instance.config.cleanup?.(ctx); }
                 catch (err) { log.error('scene', `Scene "${name}" cleanup callback threw; continuing teardown`, err); }
                 if (this.scenes_.get(name) !== instance) return;

@@ -152,25 +152,23 @@ describe('what Play hands the shipping runtime', () => {
         expect(config.steamAppId).toBeUndefined();
     });
 
-    it('is the world, its cells and their documents — not the scene played whole', async () => {
-        const config = await boot(scene(
+    it.each(['main', 'levels/next'])('cuts the requested scene %s into its persistent rows and cell documents', async name => {
+        const data = scene(
             entity(0, 'World', null, { components: [declaration] }),
             entity(1, 'Player', [10, 0, 10], { components: [{ type: 'WorldPersistent', data: {} }] }),
             entity(2, 'RockA', [500, 0, 500]),
             entity(3, 'RockB', [1500, 0, 500]),
-        ));
-
-        // The entry is the persistent half. Handing over the whole document is
-        // exactly the gap this closes, and it would leave everything else here
-        // true — the streamer would simply publish a second copy of the world.
-        expect(names(config.scenes[0].data!).sort()).toEqual(['Player', 'World']);
-        expect(config.worlds).toHaveLength(1);
-        expect(config.worlds![0].cells.map((c) => c.name))
-            .toEqual(['main.cell_0_0', 'main.cell_1_0']);
+        );
+        const config = await boot(data, { extraScenes: [{ name: 'levels/next', data }] });
+        const requested = config.scenes.find(scene => scene.name === name)!;
+        const cut = (await config.prepareWorld!(requested.data!, name))!;
+        expect(names(cut.persistent).sort()).toEqual(['Player', 'World']);
+        expect(cut.manifest.scene).toBe(name);
+        expect(cut.manifest.cells.map(c => c.name)).toEqual([`${name}.cell_0_0`, `${name}.cell_1_0`]);
         // Registered by path and delivered from memory: without the documents the
         // realm would reach for `world/main.cell_0_0.json`, which only a package has.
-        for (const cell of config.worlds![0].cells) {
-            expect(config.cellDocuments?.get(cell.name)).toBeDefined();
+        for (const cell of cut.manifest.cells) {
+            expect(cut.documents.get(cell.name)).toBeDefined();
         }
     });
 
@@ -184,7 +182,7 @@ describe('what Play hands the shipping runtime', () => {
             entity(2, 'RockA', [500, 0, 500], { components: [cube] }),
             entity(3, 'RockB', [1500, 0, 500]),
         ), { simplifyFarProxy: simplify });
-        const world = config.worlds![0];
+        const world = (await config.prepareWorld!(config.scenes[0].data!, 'main'))!.manifest;
         expect(world.farDistance).toBe(4000);
         expect(world.cells.map((c) => c.proxy)).toEqual(['world/main.cell_0_0.far.json', undefined]);
         // Nothing simplified before the game starts: a large world would make it wait.
@@ -198,8 +196,7 @@ describe('what Play hands the shipping runtime', () => {
 
     it('carries no world at all for a scene that is not one', async () => {
         const config = await boot(scene(entity(0, 'Ground', [0, 0, 0])));
-        expect(config.worlds).toBeUndefined();
-        expect(config.cellDocuments).toBeUndefined();
+        expect(await config.prepareWorld!(config.scenes[0].data!, 'main')).toBeNull();
         expect(names(config.scenes[0].data!)).toEqual(['Ground']);
     });
 });

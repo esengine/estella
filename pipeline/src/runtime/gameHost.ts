@@ -13,13 +13,13 @@
  */
 import {
   createWebApp, setEditorMode, setPlayMode, Assets, Ads, extendPlatform, getPlatform,
-  indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
+  indexPackagedManifest, loadPackagedScenes, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, UINode,
   acquireWebGPUDevice, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle,
   AnimatorRootMotion, Playthrough, Name,
-  worldResidencyReport, PostProcess, Renderer, Audio, Camera,
+  worldResidencyReport, WorldStreaming, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
   startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats, TextureStreamingRes,
 } from 'esengine';
@@ -57,7 +57,7 @@ function optionalRead(app: { world: { has(e: number, c: never): boolean; get(e: 
   return app.world.get(entity, def) as Record<string, never>;
 }
 import type {
-  SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
+  SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource,
 } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { attachSplash, type Splash } from '../export/splash';
@@ -184,21 +184,9 @@ async function boot(): Promise<void> {
   // harness can drive a fixture scene in the real package rather than needing a
   // project of its own. Unknown names are refused rather than silently ignored.
   const wanted = new URLSearchParams(location.search).get('scene');
-  const chosen = wanted
-    ? (cfg.scenes ?? []).find((s) => s.name === wanted)?.path
-    : cfg.entryScene;
-  if (!chosen) throw new Error(`[estella] no scene named "${wanted}" in this package`);
   await youtube?.waitActive();
-  const sceneData = (await (await fetch(`./${chosen}`)).json()) as SceneData;
+  const selection = await loadPackagedScenes(cfg, index, '__play', wanted);
   await youtube?.waitActive();
-
-  // The cooked worlds this build carries. Fetched beside the entry scene because
-  // residency answers for the entry scene from its first frame, and a manifest
-  // that arrived later would be a world that popped in.
-  const worlds: WorldManifest[] = [];
-  for (const world of cfg.worlds ?? []) {
-    worlds.push((await (await fetch(`./${world.manifest}`)).json()) as WorldManifest);
-  }
 
   splash?.reach('scene');
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
@@ -360,7 +348,7 @@ async function boot(): Promise<void> {
      * claim about the two derivations agreeing, not about this call succeeding.
      */
     const prepareMeshPrograms = async (cell: string): Promise<Record<string, number>> => {
-      const found = worlds.flatMap((w) => w.cells).find((c) => c.name === cell);
+      const found = app.getResource(WorldStreaming).manifest?.cells.find(c => c.name === cell);
       if (!found) throw new Error(`[estella] no cooked cell "${cell}"`);
       const doc = (await (await fetch(`./${found.path}`)).json()) as SceneData;
       const assets = app.getResource(Assets);
@@ -986,11 +974,6 @@ async function boot(): Promise<void> {
   // physics.wasm sits next to esengine.wasm; the runtime loads it when a scene
   // uses physics, or when the project declared physics on for bodies it spawns
   // from script (packagedRuntimeInit carries that flag).
-  // The entry scene boots eagerly (already fetched); every other shipped scene
-  // registers lazily by path, so SceneManager.switchTo('name') fetches it on
-  // first use — the same registration shape the WeChat runtime uses.
-  const sceneList = cfg.scenes ?? [];
-  const entryName = sceneList.find((s) => s.path === cfg.entryScene)?.name ?? '__play';
   // Cross-origin images taint a canvas, so a cooked build decodes through
   // fetch+blob rather than the platform's Image path.
   const packaged = createPackagedAssetSource(index, {
@@ -1023,12 +1006,7 @@ async function boot(): Promise<void> {
     catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,
     persistUpdateKey: cfg.hotUpdate?.persistUpdateKey,
-    scenes: [
-      { name: entryName, data: sceneData },
-      ...sceneList.filter((s) => s.path !== cfg.entryScene).map((s) => ({ name: s.name, path: s.path })),
-    ],
-    ...(worlds.length > 0 ? { worlds } : {}),
-    firstScene: entryName,
+    ...selection,
     aspectRatio: surfaceWidth / surfaceHeight,
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(cfg),
