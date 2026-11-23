@@ -31,7 +31,7 @@ import { bindAssetReferenceTracking } from '../asset/assetReferenceTracking';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
-import { SceneManager, type SceneConfig, type SceneContext } from '../scene/sceneManager';
+import { SceneLoadCancelled, SceneManager, type SceneConfig, type SceneContext } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
 import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
@@ -783,7 +783,12 @@ export function createRuntimeSceneConfig(
     // another, a cell's reference to the persistent world resolved to nothing.
     // Held by the config, which IS the per-scene object: a prepared cell has one
     // place to live and one owner to release it.
-    let prepared: PreparedRuntimeScene | null = null;
+    interface Preparation {
+        done: Promise<PreparedRuntimeScene>;
+        ready?: PreparedRuntimeScene;
+        discarded: boolean;
+    }
+    let preparation: Preparation | undefined;
     // A streamed cell's work over frames: the one job in hand (its arrival or its departure), and whether a player would
     // see it missing. Urgency is said to the budget only while there is work for it to speed.
     let spreading: { finish: () => void } | null = null;
@@ -811,7 +816,8 @@ export function createRuntimeSceneConfig(
     const gate = streamed
         ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
         : undefined;
-    const readied = async (): Promise<PreparedRuntimeScene> => {
+    const readied = async (sceneOwned?: boolean, assertActive?: () => void): Promise<PreparedRuntimeScene> => {
+        const nextTurn = gate && assertActive ? async () => { assertActive(); await gate(); assertActive(); } : gate;
         let data = sceneData;
         if (!data) {
             // Lazy scene: fetched by path through the per-App runtime Assets, so
@@ -820,11 +826,12 @@ export function createRuntimeSceneConfig(
             if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
             const began = performance.now();
             const text = await options.app.getResource(AssetsResource).fetchText(scenePath);
+            assertActive?.();
             config.onPhase?.('fetch', performance.now() - began);
             // Parsed in a frame's turn: a cell's document is the largest single piece of its preparation.
-            if (gate) {
+            if (nextTurn) {
                 const waited = performance.now();
-                await gate();
+                await nextTurn();
                 config.onPhase?.('wait', performance.now() - waited);
             }
             const parsed = performance.now();
@@ -832,38 +839,67 @@ export function createRuntimeSceneConfig(
             config.onPhase?.('parse', performance.now() - parsed);
         }
         return prepareRuntimeScene({
-            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
-        }, options.app.hasResource(SceneManager));
+            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
+        }, sceneOwned ?? options.app.hasResource(SceneManager));
     };
     const config: SceneConfig = {
         name,
         async prepare() {
-            if (prepared === null) prepared = await readied();
+            if (!preparation) {
+                // Install the slot before a read or observer can reenter. Setup takes this
+                // same promise even when the assets it needs are still arriving.
+                const pending: Preparation = {
+                    discarded: false,
+                    done: Promise.resolve().then(async () => {
+                        const assertActive = (): void => { if (pending.discarded) throw new SceneLoadCancelled(name); };
+                        assertActive();
+                        const ready = await readied(undefined, assertActive);
+                        if (pending.discarded) {
+                            ready.assetResult.scope.releaseAll();
+                            throw new SceneLoadCancelled(name);
+                        }
+                        pending.ready = ready;
+                        return ready;
+                    }).catch(error => {
+                        if (preparation === pending) preparation = undefined;
+                        throw error;
+                    }),
+                };
+                preparation = pending;
+            }
+            await preparation.done;
         },
         // The second obligation. It runs on what `prepare` decoded, so the mesh
         // references are already handles; readying from an unprepared scene would
         // describe requirements for geometry nothing has acquired.
         async readyRenderPrograms() {
-            if (prepared === null) return { applicable: false } as RenderReadiness;
+            const prepared = preparation?.ready;
+            if (!prepared) return { applicable: false } as RenderReadiness;
             if (gate) await gate();
-            if (prepared === null) return { applicable: false } as RenderReadiness;
-            const readied = readyMeshPrograms(options.module, prepared.sceneData);
+            if (preparation?.ready !== prepared) return { applicable: false } as RenderReadiness;
+            const result = readyMeshPrograms(options.module, prepared.sceneData);
             // Queued compiles are not ready programs: where shaders compile in the background, the claim waits for them.
-            if (readied.applicable) await shadersCompiled(options.module);
-            return readied;
+            if (result.applicable) await shadersCompiled(options.module);
+            return preparation?.ready === prepared ? result : { applicable: false };
         },
         discardPrepared() {
             // Speculation is not authority: what nobody asked for is given back,
             // receipts included, rather than published because it was ready.
-            const owed = prepared?.assetResult.scope.size ?? 0;
-            prepared?.assetResult.scope.releaseAll();
-            prepared = null;
+            const pending = preparation;
+            preparation = undefined;
             hurried = false;
+            if (!pending) return 0;
+            pending.discarded = true;
+            if (streamed) bakesOf(options.app).release(config);
+            const scope = pending.ready?.assetResult.scope;
+            const owed = scope?.size ?? 0;
+            scope?.releaseAll();
             return owed;
         },
         async setup(context) {
-            const ready = prepared ?? await readied();
-            prepared = null;
+            const pending = preparation;
+            preparation = undefined;
+            const ready = await (pending?.done ?? readied(!!context));
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
         },

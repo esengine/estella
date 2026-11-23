@@ -572,7 +572,7 @@ export class SceneManagerState {
             this.rollbackFailedLoad_(name, instance);
             throw err;
         } finally {
-            this.loadPromises_.delete(name);
+            if (this.loadPromises_.get(name) === loadPromise) this.loadPromises_.delete(name);
         }
     }
 

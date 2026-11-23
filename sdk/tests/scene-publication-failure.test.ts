@@ -10,7 +10,8 @@ import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { App } from '../src/app/app';
 import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
-import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
+import { SceneLoadCancelled, SceneManager, SceneManagerState } from '../src/scene/sceneManager';
+import { bakesOf } from '../src/runtime/bakes';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: () => false }),
@@ -31,6 +32,120 @@ async function runtime() {
     assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async () => ({ handle: 7 }), unload: unloaded });
     return { app, options, assets, unloaded };
 }
+
+function barrier() {
+    let open!: () => void;
+    const promise = new Promise<void>(resolve => { open = resolve; });
+    return { open, promise };
+}
+
+describe('overlapping registered scene loads', () => {
+    async function registered(streamed = false) {
+        const state = await runtime();
+        const { app, options } = state;
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const config = createRuntimeSceneConfig('cell', scene, options, undefined, streamed ? {} : undefined);
+        manager.register(config);
+        return { ...state, manager, config };
+    }
+
+    it.each(['publish', 'discard'])('shares one in-flight preparation through %s', async finish => {
+        const { app, assets, manager, unloaded } = await registered();
+        const preload = vi.spyOn(assets, 'preloadSceneAssets');
+        try {
+            const first = manager.prepare('cell'), second = manager.prepare('cell');
+            if (finish === 'publish') {
+                const loading = manager.load('cell');
+                await Promise.all([first, second]);
+                const ctx = await loading;
+                expect(ctx.entities.size).toBe(1);
+                expect(assets.sizes().refRows).toBe(1);
+                await manager.unload('cell');
+            } else {
+                await Promise.all([first, second]);
+                expect(manager.discardPrepared('cell')).toBe(1);
+            }
+            expect(preload).toHaveBeenCalledTimes(1);
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('releases a discarded acquisition without consuming the preparation that replaced it', async () => {
+        const { app, assets, manager, unloaded } = await registered();
+        const began = barrier(), finish = barrier();
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], unload: unloaded, load: async () => {
+            began.open(); await finish.promise; return { handle: 19 };
+        } });
+        const first = manager.prepare('cell');
+        try {
+            await began.promise;
+            expect(manager.discardPrepared('cell')).toBe(0);
+            const cancelled = expect(first).rejects.toBeInstanceOf(SceneLoadCancelled);
+            const replacement = manager.prepare('cell');
+            finish.open();
+            await Promise.all([cancelled, replacement]);
+            expect(assets.sizes().refRows).toBe(1);
+            const ctx = await manager.load('cell');
+            expect(ctx.entities.size).toBe(1);
+            await manager.unload('cell');
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { finish.open(); assets.releaseAll(); app.quit(); }
+    });
+
+    it('cancels a streamed preparation parked between frames', async () => {
+        const { app, assets, manager } = await registered(true);
+        const bakes = bakesOf(app), turn = bakes.turn.bind(bakes), parked = barrier();
+        vi.spyOn(bakes, 'turn').mockImplementation(owner => { parked.open(); return turn(owner); });
+        const first = manager.prepare('cell');
+        try {
+            await parked.promise;
+            const rejected = vi.fn();
+            const settled = first.catch(rejected);
+            expect(manager.discardPrepared('cell')).toBe(0);
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(rejected).toHaveBeenCalledWith(expect.any(SceneLoadCancelled));
+            expect(bakes.turn).toHaveBeenCalledTimes(1);
+            await settled;
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { manager.rush('cell'); await first.catch(() => {}); assets.releaseAll(); app.quit(); }
+    });
+
+    it('keeps newer callers joined when an unloaded instance finishes under the same name', async () => {
+        const { app, assets, manager, config, unloaded } = await registered();
+        const arrivals = [barrier(), barrier()], gates = [barrier(), barrier()];
+        const publish = config.setup!;
+        let calls = 0;
+        config.setup = async ctx => {
+            const index = calls++;
+            arrivals[index]!.open();
+            await gates[index]!.promise;
+            await publish(ctx);
+        };
+        try {
+            const first = manager.load('cell');
+            const cancelled = expect(first).rejects.toBeInstanceOf(SceneLoadCancelled);
+            await arrivals[0]!.promise;
+            await manager.unload('cell');
+            const second = manager.loadAdditive('cell');
+            await arrivals[1]!.promise;
+            gates[0]!.open(); await cancelled;
+            expect(manager.getLoading()).toEqual(['cell']);
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(assets.sizes().refRows).toBe(0);
+            const third = manager.load('cell');
+            gates[1]!.open();
+            const ctx = await second;
+            expect(await third).toBe(ctx);
+            expect(ctx.entities.size).toBe(1);
+            await manager.unload('cell');
+            expect(unloaded).toHaveBeenCalledTimes(2);
+        } finally { for (const gate of gates) gate.open(); assets.releaseAll(); app.quit(); }
+    });
+});
 
 describe('scene publication failures', () => {
     it.each(['assets', 'subsystems', 'spawn', 'origins'])('rolls the packaged load back if %s fails and can retry', async phase => {
