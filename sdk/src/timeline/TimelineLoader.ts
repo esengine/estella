@@ -22,7 +22,7 @@ import {
     type CameraShakeTrack,
 } from './TimelineTypes';
 import { log } from '../util/logger';
-import { loadKeyframes } from '../math/keyframes';
+import { adoptDecodedKeyframes, loadKeyframes } from '../math/keyframes';
 
 const STEP_TANGENT_THRESHOLD = 1e5;
 
@@ -77,7 +77,7 @@ function migrateAsset(raw: any): void {
 
 const finite = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
-function parseTrack(raw: any): Track {
+function parseTrack(raw: any, readKeys: typeof adoptDecodedKeyframes): Track {
     const base = {
         name: raw.name ?? '',
         childPath: raw.childPath ?? '',
@@ -95,7 +95,7 @@ function parseTrack(raw: any): Track {
                 channels: (raw.channels ?? []).map((ch: any) => ({
                     property: ch.property,
                     ...(ch.muted === true ? { muted: true } : {}),
-                    keyframes: loadKeyframes(ch.keyframes ?? []),
+                    keyframes: readKeys(ch.keyframes ?? []),
                 })),
             } as PropertyTrack;
 
@@ -251,17 +251,32 @@ function parseTrack(raw: any): Track {
     }
 }
 
-export function parseTimelineAsset(rawJson: unknown): TimelineAsset {
-    const raw = (rawJson ?? {}) as Record<string, any>;
+/** Read a timeline from file text or from a caller's object. The clip reader also accepts flipbooks. */
+export function readTimelineDocument(
+    source: unknown,
+    readLegacy?: (raw: Record<string, any>) => TimelineAsset | undefined,
+): TimelineAsset {
+    const fromText = typeof source === 'string';
+    const raw = ((fromText ? JSON.parse(source) : source) ?? {}) as Record<string, any>;
+    const legacy = readLegacy?.(raw);
+    if (legacy) return legacy;
     migrateAsset(raw);
+    const readKeys = fromText ? adoptDecodedKeyframes : loadKeyframes;
 
     return {
         version: TIMELINE_FORMAT_VERSION,
         type: 'timeline',
         duration: raw.duration ?? 0,
         wrapMode: wrapModeFromName(raw.wrapMode),
-        tracks: (raw.tracks ?? []).map(parseTrack).filter((t: Track | null) => t !== null),
+        tracks: (raw.tracks ?? [])
+            .map((track: any) => parseTrack(track, readKeys))
+            .filter((t: Track | null) => t !== null),
     };
+}
+
+/** Parse a timeline document or its JSON text. Object inputs keep their own keyframe storage. */
+export function parseTimelineAsset(rawJson: unknown): TimelineAsset {
+    return readTimelineDocument(rawJson);
 }
 
 export interface TimelineAssetPaths {

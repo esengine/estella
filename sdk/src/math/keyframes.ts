@@ -78,10 +78,10 @@ function hasOrderedTimes(keys: readonly Keyframe[]): boolean {
     return ordered;
 }
 
+type StoredKeyframe = Pick<Keyframe, 'time' | 'value'> & Partial<Keyframe>;
+
 /** Copy stored keys and record their order before the first playback frame. */
-export function loadKeyframes(
-    raw: readonly (Pick<Keyframe, 'time' | 'value'> & Partial<Keyframe>)[],
-): Keyframe[] {
+export function loadKeyframes(raw: readonly StoredKeyframe[]): Keyframe[] {
     let previousTime = -Infinity;
     let ordered = true;
     const keys = raw.map(key => {
@@ -91,6 +91,24 @@ export function loadKeyframes(
         return { ...key, inTangent: key.inTangent ?? 0, outTangent: key.outTangent ?? 0 };
     });
     if (keys.length > LINEAR_SEARCH_LIMIT) orderedCurves.set(keys, ordered);
+    return keys;
+}
+
+/** File decoding owns these arrays and objects. Fill missing tangents in place. */
+export function adoptDecodedKeyframes(raw: StoredKeyframe[]): Keyframe[] {
+    for (let i = 0; i < raw.length; i++) {
+        const key = raw[i];
+        if (key.inTangent != null && key.outTangent != null) continue;
+        if (typeof key === 'object' && !Array.isArray(key)) {
+            key.inTangent ??= 0;
+            key.outTangent ??= 0;
+        } else {
+            // Match the object-input reader for a non-record entry in an older file.
+            raw[i] = { ...key, inTangent: key.inTangent ?? 0, outTangent: key.outTangent ?? 0 };
+        }
+    }
+    const keys = raw as Keyframe[];
+    if (keys.length > LINEAR_SEARCH_LIMIT) hasOrderedTimes(keys);
     return keys;
 }
 

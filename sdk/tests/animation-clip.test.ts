@@ -5,6 +5,14 @@ import { parseAnimationClip } from '../src/timeline/AnimationClip';
 import { WrapMode, TrackType } from '../src/timeline/TimelineTypes';
 
 describe('parseAnimationClip (unified .esanim loader)', () => {
+  it('reads rich clips and legacy flipbooks from file text with the same precedence as objects', () => {
+    const flipbook = { fps: 10, frames: [{ texture: 'walk-a' }, { texture: 'walk-b' }] };
+    expect(parseAnimationClip(JSON.stringify(flipbook))).toEqual(parseAnimationClip(flipbook));
+    const rich = { ...flipbook, version: '1.3', tracks: [{ type: 'property', channels: [] }] };
+    expect(parseAnimationClip(JSON.stringify(rich))).toEqual(parseAnimationClip(rich));
+    expect(parseAnimationClip(JSON.stringify(rich)).tracks[0].type).toBe(TrackType.Property);
+  });
+
   it('passes a rich multi-track clip straight through', () => {
     const clip = parseAnimationClip({
       version: '1.1', type: 'timeline', duration: 3, wrapMode: 'loop',

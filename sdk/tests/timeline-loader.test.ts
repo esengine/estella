@@ -88,6 +88,38 @@ const FULL_TIMELINE = {
 
 describe('TimelineLoader', () => {
     describe('parseTimelineAsset', () => {
+        it('keeps caller-owned keys independent across channels and preserves their metadata', () => {
+            const key = Object.freeze({ time: 0, value: 3, label: 'contact' });
+            const keyframes = Object.freeze([key]);
+            const doc = { version: '1.3', tracks: [{ type: 'property', channels: [
+                { property: 'position.x', keyframes }, { property: 'position.y', keyframes },
+            ] }] };
+            const track = parseTimelineAsset(doc).tracks[0];
+            if (track.type !== TrackType.Property) throw new Error('Expected a property track');
+            const [x, y] = track.channels;
+            expect(x.keyframes).not.toBe(keyframes);
+            expect(x.keyframes[0]).toEqual({ ...key, inTangent: 0, outTangent: 0 });
+            x.keyframes[0].value = 8;
+            x.keyframes.pop();
+            expect(y.keyframes[0].value).toBe(3);
+            expect(keyframes[0]).toEqual({ time: 0, value: 3, label: 'contact' });
+        });
+
+        it('migrates serialized legacy keys and rejects malformed JSON at the file boundary', () => {
+            const doc = { version: '1.0', tracks: [{ type: 'property', channels: [{
+                property: 'rotation.z', keyframes: [{ time: 0, value: 3, outTangent: 1e6, note: 'turn' }],
+            }] }] };
+            const decoded = parseTimelineAsset(JSON.stringify(doc));
+            expect(decoded).toEqual(parseTimelineAsset(doc));
+            const track = decoded.tracks[0];
+            if (track.type !== TrackType.Property) throw new Error('Expected a property track');
+            expect(track.channels[0].property).toBe('rotation.angle');
+            expect(track.channels[0].keyframes[0]).toMatchObject({
+                interpolation: 'step', inTangent: 0, outTangent: 0, note: 'turn',
+            });
+            expect(() => parseTimelineAsset('{')).toThrow(SyntaxError);
+        });
+
         it('should parse a minimal timeline with property track', () => {
             const result = parseTimelineAsset(MINIMAL_TIMELINE);
             expect(result.type).toBe('timeline');

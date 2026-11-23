@@ -39,6 +39,45 @@ function barrier() {
 }
 
 describe('nested registry assets', () => {
+    it('publishes the decoded keyframe storage once per file load', async () => {
+        const text = JSON.stringify({ version: '1.3', tracks: [{ type: 'property', channels: [{
+            property: 'position.x', keyframes: [{ time: 0, value: 1 }, { time: 2, value: 4, outTangent: 3 }],
+        }] }] });
+        const assets = realm(async () => text);
+        const decoded: { keys: unknown[]; first: unknown; second: unknown }[] = [];
+        const parse = JSON.parse;
+        const spy = vi.spyOn(JSON, 'parse').mockImplementation((input, reviver) => {
+            const doc = parse(input, reviver);
+            if (input === text) {
+                const keys = doc.tracks[0].channels[0].keyframes;
+                decoded.push({ keys, first: keys[0], second: keys[1] });
+            }
+            return doc;
+        });
+        try {
+            for (let load = 0; load < 2; load++) {
+                const lease = await assets.acquireTyped('timeline', 'walk.estimeline');
+                try {
+                    const track = assets.resolveRegistryAsset<PublishedTimeline>('timeline', 'walk.estimeline')!.asset.tracks[0];
+                    if (track.type !== 'property') throw new Error('Expected a property track');
+                    const keys = track.channels[0].keyframes;
+                    expect(decoded).toHaveLength(load + 1);
+                    expect(keys).toBe(decoded[load].keys);
+                    expect(keys[0]).toBe(decoded[load].first);
+                    expect(keys[1]).toBe(decoded[load].second);
+                    expect(keys[0]).toEqual({ time: 0, value: 1, inTangent: 0, outTangent: 0 });
+                    expect(keys[1].outTangent).toBe(3);
+                    keys[0].value = 99;
+                } finally {
+                    lease.release();
+                }
+            }
+            expect(decoded[1].keys).not.toBe(decoded[0].keys);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
     it('joins a timeline requested synchronously by a loader observer and releases its child once', async () => {
         let observed!: Promise<AssetLease>;
         let preparations = 0;

@@ -14,13 +14,14 @@
  * format. (The engine's two RUNTIMES merge in P4; this is the format seam.)
  */
 
-import { parseTimelineAsset } from './TimelineLoader';
+import { readTimelineDocument } from './TimelineLoader';
 import { WrapMode, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 
 /** Convert a legacy flipbook AnimClip (frames + fps) to a single sprite-frame track. */
-function flipbookToClip(raw: any): TimelineAsset {
+function readLegacyFlipbook(raw: Record<string, any>): TimelineAsset | undefined {
+    if (Array.isArray(raw.tracks) || !Array.isArray(raw.frames)) return undefined;
     const fps = typeof raw.fps === 'number' && raw.fps > 0 ? raw.fps : 12;
-    const frames = (raw.frames ?? []).map((f: any) => ({
+    const frames = raw.frames.map((f: any) => ({
         texture: f.texture ?? '',
         duration: f.duration ?? 1 / fps,
     }));
@@ -41,13 +42,10 @@ function flipbookToClip(raw: any): TimelineAsset {
 }
 
 /**
- * Parse any `.esanim` / legacy `.estimeline` document into the unified clip model.
+ * Parse any `.esanim` / legacy `.estimeline` document or its JSON text into the unified clip model.
  * Discriminates by shape: a `tracks` array is the rich multi-track clip; a `frames`
  * array is the legacy flipbook.
  */
 export function parseAnimationClip(rawJson: unknown): TimelineAsset {
-    const raw = rawJson as { tracks?: unknown; frames?: unknown } | null | undefined;
-    if (raw && Array.isArray(raw.tracks)) return parseTimelineAsset(raw);
-    if (raw && Array.isArray(raw.frames)) return flipbookToClip(raw);
-    return parseTimelineAsset(raw ?? {});
+    return readTimelineDocument(rawJson, readLegacyFlipbook);
 }

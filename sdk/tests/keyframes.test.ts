@@ -15,6 +15,10 @@ import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 const key = (time: number, value: number, interpolation?: InterpType, tangents = 0): Keyframe =>
     ({ time, value, inTangent: tangents, outTangent: tangents, interpolation });
 
+const timelineWithKeys = (keyframes: Keyframe[]) => ({ version: '1.3', tracks: [{
+    type: 'property', component: 'Transform', channels: [{ property: 'position.x', keyframes }],
+}] });
+
 describe('sampleKeyframes', () => {
     it('answers 0 for nothing and the lone value for one key', () => {
         expect(sampleKeyframes([], 0.5)).toBe(0);
@@ -115,18 +119,17 @@ describe('sampleKeyframes', () => {
     it('retains first-later-key behavior for a dense curve authored out of order', () => {
         const keys = Array.from({ length: 190 }, (_, i) => key(i, i, InterpType.Step));
         keys[9].time = 150;
-        for (const curve of [keys, loadKeyframes(keys)]) {
+        const track = parseTimelineAsset(JSON.stringify(timelineWithKeys(keys))).tracks[0];
+        if (track.type !== 'property') throw new Error('Expected a property track');
+        for (const curve of [keys, loadKeyframes(keys), track.channels[0].keyframes]) {
             expect(sampleKeyframes(curve, 100)).toBe(8);
             expect(sampleKeyframes(curve, 151)).toBe(151);
         }
     });
 
-    it('can seek near the end of a long imported curve on its first playback frame', () => {
-        const asset = parseTimelineAsset({ version: '1.3', tracks: [{
-            type: 'property', component: 'Transform', channels: [{
-                property: 'position.x', keyframes: Array.from({ length: 2048 }, (_, i) => linearKey(i, i)),
-            }],
-        }] });
+    it.each(['object', 'text'])('can seek on the first playback frame after loading a dense curve from %s', source => {
+        const doc = timelineWithKeys(Array.from({ length: 2048 }, (_, i) => linearKey(i, i)));
+        const asset = parseTimelineAsset(source === 'text' ? JSON.stringify(doc) : doc);
         const track = asset.tracks[0];
         if (track.type !== 'property') throw new Error('Expected a property track');
         const channel = track.channels[0];

@@ -19,7 +19,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly registry: RegistryAssetLoader<TimelineResult> = {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<TimelineResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
-            const asset = parseTimelineAsset(JSON.parse(text));
+            const asset = parseTimelineAsset(text);
             const textureHandles = new Map<string, number>();
 
             const { timelines, textures } = extractTimelineAssetPaths(asset);

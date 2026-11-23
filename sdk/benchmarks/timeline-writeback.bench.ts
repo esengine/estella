@@ -24,7 +24,8 @@ import type { CppRegistry } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from '../tests/helpers/loadWasm';
 
 const examples = resolve(dirname(fileURLToPath(import.meta.url)), '../../examples');
-const example = (file: string) => parseTimelineAsset(JSON.parse(readFileSync(resolve(examples, file), 'utf8')));
+const exampleText = (file: string) => readFileSync(resolve(examples, file), 'utf8');
+const example = (file: string) => parseTimelineAsset(exampleText(file));
 
 function spriteHierarchy() {
     const paths: string[] = [];
@@ -87,6 +88,19 @@ function playback(clip: string, mode: string): AnimatorControllerDef {
     }
     return def;
 }
+
+describe('load an authored timeline', () => {
+    for (const [name, file] of [
+        ['2D cutscene', 'cutscene/assets/timelines/intro.estimeline'],
+        ['3D jog', 'character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline'],
+    ]) {
+        const text = exampleText(file);
+        bench(`${name} from file text`, () => { parseTimelineAsset(text); }, { time: 500, warmupTime: 100 });
+        bench(`${name} through a caller-owned document`, () => {
+            parseTimelineAsset(JSON.parse(text));
+        }, { time: 500, warmupTime: 100 });
+    }
+});
 
 describe('seek a joint curve for 16 actors', () => {
     const clip = example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline');
