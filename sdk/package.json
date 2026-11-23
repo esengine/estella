@@ -28,6 +28,7 @@
     "./dist/groom/index.js",
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
+    "./dist/shared/water.js",
     "./dist/wgsl/index.js",
     "./dist/spline/index.js",
     "./dist/image/index.js",

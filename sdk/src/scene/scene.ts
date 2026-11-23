@@ -308,7 +308,9 @@ export function sceneOutOfBandFields(type: string): readonly string[] {
     return sceneComponentCodecs.get(type)?.outOfBandFields ?? declaredOutOfBand.get(type) ?? [];
 }
 
-const declaredOutOfBand = new Map<string, readonly string[]>();
+// MeshRenderer's inline geometry, said here rather than by a top-level call in render/meshRenderer.ts: a statement there
+// rides whichever shared chunk the bundler puts it in, and is lost with it when a game uses none of that chunk's names.
+const declaredOutOfBand = new Map<string, readonly string[]>([['MeshRenderer', ['geometry']]]);
 
 /**
  * @internal Say which data a component carries beside its fields before its codec

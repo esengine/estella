@@ -12,7 +12,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
 import type { MeshRendererGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { declareSceneOutOfBandFields, registerSceneComponentCodec } from '../scene/scene';
+import { registerSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
 import { installBlobShadows } from './blobShadow';
 
@@ -24,9 +24,8 @@ function packRgba(colors: number[], v: number): number {
         | (clamp(colors[v * 4 + 3] ?? 1) << 24)) >>> 0;
 }
 
-/** The inline vertices are the codec's, not a field's — known before the plugin builds. */
+/** The inline vertices are the codec's, not a field's — known before the plugin builds (scene.ts declares them as well). */
 const OUT_OF_BAND = ['geometry'] as const;
-declareSceneOutOfBandFields('MeshRenderer', OUT_OF_BAND);
 
 export class MeshRendererAPI {
     /** Entity → authored geometry, so scene save round-trips what was uploaded. */
