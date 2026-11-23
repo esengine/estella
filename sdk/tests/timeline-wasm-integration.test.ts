@@ -20,6 +20,7 @@ import {
 import { setNestedProperty } from '../src/timeline/TimelinePlugin';
 import { createRootPlacement, sampleRootPlacement, sampleTimelineInWorld } from '../src/timeline/TimelineEvaluator';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
+import { sampleAnimationTracks } from '../src/timeline/timelineAnimation';
 
 describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
     let module: ESEngineModule;
@@ -93,6 +94,34 @@ describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
 
             disposeWorld(world, registry);
         });
+    });
+
+    it('keeps untouched script fields in their own world when timelines alternate', () => {
+        const probe = defineComponent('TimelineWorldProbe', { value: 0, samples: [] as number[] });
+        const worlds = [createWorld(), createWorld()];
+        try {
+            const layer = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1, tracks: [{
+                type: 'animation', clips: [{ start: 0, duration: 1, clip: 'motion' }],
+            }] });
+            const scenes = worlds.map(({ world }, index) => {
+                const actor = world.spawn();
+                world.insert(actor, probe, { samples: [index] });
+                const motion = parseTimelineAsset({ type: 'timeline', version: '1.3', duration: 1, tracks: [{
+                    type: 'property', component: probe._name,
+                    channels: [{ property: 'value', keyframes: [{ time: 0, value: index + 10 }] }],
+                }] });
+                return { world, actor, motion };
+            });
+            expect(scenes[0]!.actor).toBe(scenes[1]!.actor);
+            for (const { world, actor, motion } of [...scenes, ...scenes.slice().reverse()]) {
+                sampleAnimationTracks(layer, 0.5, actor, { world, getComponent, resolveChild: root => root }, () => motion);
+                scenes.forEach((s, index) => expect(s.world.get(s.actor, probe).samples).toEqual([index]));
+            }
+            scenes.forEach((s, index) => expect(s.world.get(s.actor, probe).value).toBe(index + 10));
+        } finally {
+            for (const { world, registry } of worlds) disposeWorld(world, registry);
+            unregisterComponent(probe._name);
+        }
     });
 
     it('reuses a channel across actors and root motion and picks the writer for the current component', () => {
