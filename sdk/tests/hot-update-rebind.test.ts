@@ -303,28 +303,50 @@ describe('a replacement is a transaction per owning scope', () => {
         expect(assets.sizes().refRows).toBe(0);
     });
 
-    it('preserves the scene receipt when the entity already holds the incoming generation', async () => {
+    it.each([
+        { entitySource: false, restore: false }, { entitySource: false, restore: true },
+        { entitySource: true, restore: false }, { entitySource: true, restore: true },
+    ])('preserves separate receipts when a second field already holds the replacement (entity source $entitySource, restore $restore)', async ({ entitySource, restore }) => {
         const { app, assets, manager } = sceneApp();
         const world = app.world;
         manager.register({ name: 'room', setup: sceneHolding(app, assets, 'shared.png', [{ component: MeshRenderer, field: 'texture' }]) });
         await manager.load('room');
         const [entity] = world.getEntitiesWithComponents([MeshRenderer]);
+        const before = world.get(entity, MeshRenderer).texture;
+        const scene = manager.assetScopeFor('room')!;
+        const local = assets.entityScopes.ensure(world, entity);
+        const source = entitySource ? local : scene;
+        const prebound = entitySource ? scene : local;
+        if (entitySource) {
+            const receipt = scene.bindingLease('texture', before)!;
+            scene.forget(receipt);
+            local.add(receipt);
+        }
         const { acquire, finish } = delayNextTexture(assets);
         assets.invalidate('shared.png');
         await app.tick(1 / 60);
         const replacement = await acquire('shared.png');
         const handle = replacement.value.handle;
-        const local = assets.entityScopes.ensure(world, entity);
-        local.add(replacement.retain()!);
+        prebound.add(replacement.retain()!);
         world.update(entity, MeshRenderer, data => { data.normalMap = handle; });
+        if (restore) {
+            const set = world.set.bind(world);
+            vi.spyOn(world, 'set').mockImplementation((e, component, data) => {
+                set(e, component, data);
+                if (e === entity && component === MeshRenderer) set(e, MeshRenderer, { ...world.get(e, MeshRenderer), texture: before });
+            });
+        }
         finish(replacement);
         await settle(app);
 
-        expect(world.get(entity, MeshRenderer)).toMatchObject({ texture: handle, normalMap: handle });
-        expect(manager.assetScopeFor('room')!.bindingLease('texture', handle)).toBeDefined();
-        expect([local.size, assets.sizes().refRows]).toEqual([1, 2]);
+        const texture = restore ? before : handle;
+        expect(world.get(entity, MeshRenderer)).toMatchObject({ texture, normalMap: handle });
+        expect(source.bindingLease('texture', texture)).toBeDefined();
+        expect(prebound.bindingLease('texture', handle)).toBeDefined();
+        expect([scene.size, local.size, assets.sizes().refRows]).toEqual([1, 1, 2]);
         world.despawn(entity);
-        expect(pool.releaseTexture).not.toHaveBeenCalledWith(handle);
+        if (restore && !entitySource) expect(pool.releaseTexture).toHaveBeenCalledWith(handle);
+        else expect(pool.releaseTexture).not.toHaveBeenCalledWith(handle);
         await manager.unload('room');
         expect(assets.sizes().refRows).toBe(0);
         expect(pool.releaseTexture).toHaveBeenCalledWith(handle);

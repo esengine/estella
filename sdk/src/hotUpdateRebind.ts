@@ -102,9 +102,8 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
                 pending.push(change);
                 return;
             }
-            // The outgoing receipt identifies the owner even if another field already owns the replacement.
             const { moved, revisit } = migrateLiveBindings(world, type, oldValue, lease,
-                (entity, create) => assetScopeForEntity(app, assets, entity, type, oldValue, create));
+                (entity, create, value, preferred) => assetScopeForEntity(app, assets, entity, type, value, create, preferred));
             if (revisit) pending.push(change);
             else if (!moved) log.warn('asset', `hot-update rebind: placed nothing for "${type}" at ${String(oldValue)}`);
         } finally {

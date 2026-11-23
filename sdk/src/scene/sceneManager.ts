@@ -1184,16 +1184,19 @@ export const SceneManager = defineResource<SceneManagerState>(
     'SceneManager'
 );
 
-/** Resolve the receipt being replaced. A scene entity can own other bindings independently. */
+/** Keep a field's prior owner while it still holds the receipt and the entity still belongs to it. */
 export function assetScopeForEntity(
-    app: App, assets: AssetsData, entity: Entity, type: AssetFieldType, outgoing: number | string, create: boolean,
+    app: App, assets: AssetsData, entity: Entity, type: AssetFieldType, value: number | string, create: boolean,
+    preferred?: AssetScope,
 ): AssetScope | null {
     const own = assets.entityScopes.scopeFor(entity, app.world);
-    if (own && assets.leaseForBinding(own, type, outgoing)) return own;
+    const ownHolds = own && assets.leaseForBinding(own, type, value);
+    if (ownHolds && (!preferred || preferred === own)) return own;
     const name = app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
     const scene = name ? app.getResource(SceneManager).assetScopeFor(name) : null;
-    if (scene && (!own || assets.leaseForBinding(scene, type, outgoing))) return scene;
-    return own ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
+    if (!own) return scene ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
+    if (scene && (!ownHolds || preferred === scene) && assets.leaseForBinding(scene, type, value)) return scene;
+    return own;
 }
 
 // =============================================================================

@@ -12,7 +12,7 @@ import { hasBindingDeclaration, liveAssetBindings, type LiveAssetBinding } from 
 import { boundValueOf, sameAcquisition } from './leaseBindings';
 import { log } from '../util/logger';
 
-type OwnerScopeResolver = (entity: Entity, create: boolean) => AssetScope | null;
+type OwnerScopeResolver = (entity: Entity, create: boolean, value: number | string, preferred?: AssetScope) => AssetScope | null;
 
 function boundData(world: World, binding: LiveAssetBinding, expected: unknown): Record<string, unknown> | null {
     if (!world.valid(binding.entity) || world.isDestructionPending(binding.entity)) return null;
@@ -34,7 +34,7 @@ function replaceFields(
     try {
         for (const binding of bindings) {
             const data = boundData(world, binding, oldValue);
-            if (!data || ownerOf(binding.entity, false) !== scope) continue;
+            if (!data || ownerOf(binding.entity, false, oldValue, scope) !== scope) continue;
             attempted.push(binding);
             writeBinding(world, binding, data, newValue);
         }
@@ -57,21 +57,9 @@ interface OwnerBindings {
     fields: LiveAssetBinding[];
     outgoing?: AssetLease;
     added?: AssetLease;
-    byEntity?: Map<Entity, LiveAssetBinding[]>;
 }
 
-/** Only needed if a field still holds the outgoing value after the writes. */
-function originallyBound(owner: OwnerBindings, binding: LiveAssetBinding): boolean {
-    if (!owner.byEntity) {
-        owner.byEntity = new Map();
-        for (const field of owner.fields) {
-            const fields = owner.byEntity.get(field.entity);
-            if (fields) fields.push(field);
-            else owner.byEntity.set(field.entity, [field]);
-        }
-    }
-    return owner.byEntity.get(binding.entity)?.some(field => field.component === binding.component && field.field === binding.field) ?? false;
-}
+interface ScopedBinding extends LiveAssetBinding { readonly scope: AssetScope }
 
 function releaseHeld(scope: AssetScope, lease: AssetLease | undefined): void {
     if (!lease || !scope.forget(lease)) return;
@@ -91,12 +79,20 @@ export function migrateLiveBindings(
     }
 
     const owners = new Map<AssetScope, OwnerBindings>();
-    for (const binding of liveAssetBindings(world, type, oldValue)) {
-        const scope = ownerOf(binding.entity, true);
+    const before = new Map<Entity, ScopedBinding[]>();
+    for (const binding of liveAssetBindings(world, type, oldValue, newValue)) {
+        const outgoing = binding.value === oldValue;
+        const scope = ownerOf(binding.entity, outgoing, binding.value);
         if (!scope) continue;
+        // A field already using the incoming generation can have a different owner on this same entity.
+        const prior = { ...binding, scope };
+        const fields = before.get(binding.entity);
+        if (fields) fields.push(prior);
+        else before.set(binding.entity, [prior]);
+        if (!outgoing) continue;
         const group = owners.get(scope);
-        if (group) group.fields.push(binding);
-        else owners.set(scope, { fields: [binding] });
+        if (group) group.fields.push(prior);
+        else owners.set(scope, { fields: [prior] });
     }
     if (!owners.size) return result;
     for (const [scope, group] of owners) {
@@ -123,13 +119,15 @@ export function migrateLiveBindings(
 
     // Observers may edit other fields or transfer entities during a write. Reconcile all scopes in one walk.
     for (const binding of liveAssetBindings(world, type, oldValue, newValue)) {
-        const scope = ownerOf(binding.entity, false);
+        const prior = before.get(binding.entity)?.find(f => f.component === binding.component && f.field === binding.field);
+        const value = binding.value === newValue && prior ? prior.value : binding.value;
+        const scope = ownerOf(binding.entity, false, value, prior?.scope);
         const group = scope && owners.get(scope);
         if (binding.value === newValue) {
             if (group) group.added = undefined;
         } else {
             if (group) group.outgoing = undefined;
-            if (!result.revisit && (!group || !originallyBound(group, binding))) result.revisit = true;
+            if (!group || prior?.value !== oldValue || prior.scope !== scope) result.revisit = true;
         }
     }
     for (const [scope, group] of owners) {
