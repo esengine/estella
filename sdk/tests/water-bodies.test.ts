@@ -13,8 +13,9 @@ import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Camera, Transform } from '../src/ecs/component';
+import { DEFAULT_EDITOR_VIEW, EditorView } from '../src/camera/EditorView';
 import { createMockModule } from './mocks/wasm';
-import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin, WatersRes } from '../src/water/waterPlugin';
+import { UnderwaterLook, WaterBody, WaterForm, WaterPlugin, WatersRes, waterHasSingleView } from '../src/water/waterPlugin';
 import { UnderwaterPlugin } from '../src/water/underwater';
 import { currentUnderwater } from '../src/postprocess/underwater';
 import { WaterZone } from '../src/water/zone';
@@ -185,6 +186,28 @@ describe('basins and drainage', () => {
 });
 
 describe('the water in a running app with no renderer', () => {
+    it('culls a lone editor view and keeps the mesh shared with a camera preview or second game view', () => {
+        setDefaultContext(new AppContext());
+        const app = App.new(), module = createMockModule();
+        app.connectCpp(module.getRegistry(), module);
+        const view = { ...DEFAULT_EDITOR_VIEW, active: true };
+        app.insertResource(EditorView, view);
+        expect(waterHasSingleView(app)).toBe(true);
+        const camera = app.world.spawn();
+        app.world.insert(camera, Camera, { isActive: false });
+        expect(waterHasSingleView(app)).toBe(false);
+        view.active = false;
+        app.world.update(camera, Camera, data => { data.isActive = true; });
+        expect(waterHasSingleView(app)).toBe(true);
+        const other = app.world.spawn();
+        app.world.insert(other, Camera, { isActive: true });
+        expect(waterHasSingleView(app)).toBe(false);
+        app.world.despawn(camera);
+        app.world.despawn(other);
+        view.active = true;
+        expect(waterHasSingleView(app)).toBe(true);
+    });
+
     it('keeps scene warm-up open until a budgeted water bake can answer a surface query', async () => {
         setDefaultContext(new AppContext());
         setEditorMode(false);
