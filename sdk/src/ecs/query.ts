@@ -458,8 +458,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.allRequired_, descriptor._with, descriptor._without,
             this.compiledFilter_?.deps ?? [],
         );
-        this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'borrowed'));
-        this.gettersRetained_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'retained'));
+        this.getters_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'borrowed', descriptor._mutIndices.includes(i)));
+        this.gettersRetained_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'retained', descriptor._mutIndices.includes(i)));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>
             world.resolveSetter(this.actualComponents_[idx])
         );

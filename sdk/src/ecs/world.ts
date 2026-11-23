@@ -23,6 +23,7 @@ import { worldEngineApi } from './bridge/engineApi';
 import { registerEngineStampFlush } from './engineStamps';
 import { withScratch } from '../wasm/wasmScratch';
 import { log } from '../util/logger';
+import { PendingAssetFields, assetEditsOf, finishAssetDraft, rememberAssetDraft, trackAssetEdits, type AssetFieldResolver } from './pendingAssetFields';
 import { getDefaultContext, type EditorBridge } from './context';
 
 /** The slice of a core {@link World.applyEntityOrder} needs: the entry point plus
@@ -177,8 +178,7 @@ export function queryDepIds(
 }
 
 
-/** @internal Loads the asset paths an engine-backed component was handed; see World.setAssetFieldResolver. */
-export type AssetFieldResolver = (entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>) => void;
+export type { AssetFieldResolver } from './pendingAssetFields';
 
 /**
  * The entity store, as `GetWorld()` hands it to a system — the escape hatch for
@@ -215,6 +215,7 @@ export class World {
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
     private assetFieldResolver_: AssetFieldResolver | null = null;
+    private pendingAssetFields_?: PendingAssetFields;
     private despawning_: Set<Entity> | null = null;
 
     /** @internal */
@@ -271,6 +272,7 @@ export class World {
     }
 
     private notifyCoreDisconnect_(): void {
+        this.pendingAssetFields_?.clear();
         for (const dispose of [...this.coreDisconnect_]) {
             try { dispose(); } catch (error) { log.warn('world', 'Core disconnect callback error', error); }
         }
@@ -450,6 +452,7 @@ export class World {
     private abortedReported_ = false;
 
     private despawnOne_(entity: Entity, cppRegistry: CppRegistry | null): void {
+        this.pendingAssetFields_?.remove(entity);
         notifyBridge('onEntityDespawned', entity);
 
         for (const cb of this.despawnCallbacks_) {
@@ -870,10 +873,7 @@ export class World {
             return this.insertHierarchy_(entity, component, data) as ComponentData<C>;
         }
         if (isBuiltinComponent(component)) {
-            const refs = this.takeAssetRefs_(component, data as Record<string, unknown> | undefined);
-            const merged = this.insertBuiltin_(entity, component, (refs?.clean ?? data) as Partial<ComponentData<C>>) as ComponentData<C>;
-            if (refs?.authored) this.resolveAssetRefs_(entity, component, refs.authored);
-            return merged;
+            return this.insertBuiltin_(entity, component, data) as ComponentData<C>;
         }
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
@@ -881,9 +881,10 @@ export class World {
     /**
      * Store a whole component value and stamp the change tick a `Changed` filter
      * reads. Insert-or-replace: an entity that lacks the component gets it.
+     * Replacing the value supersedes any asset paths still loading for this component.
      */
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
-        this.storeComponent_(entity, component, data, false);
+        this.storeComponent_(entity, component, data, 'replace');
     }
 
     /** @internal Commit the complete component values produced by the animation runtime. */
@@ -892,11 +893,12 @@ export class World {
             this.set(entity, component, data);
             return;
         }
-        this.storeComponent_(entity, component, data, true);
+        this.storeComponent_(entity, component, data, 'projection');
     }
 
     private storeComponent_<C extends AnyComponentDef>(
-        entity: Entity, component: C, data: ComponentData<C>, projection: boolean,
+        entity: Entity, component: C, data: ComponentData<C>, kind: 'replace' | 'edit' | 'projection',
+        edited?: ReadonlySet<string>,
     ): void {
         this.speculation_?.record(this, entity, component);
         if (this.isHierarchyComponent_(component)) {
@@ -904,12 +906,6 @@ export class World {
             return;
         }
         if (isBuiltinComponent(component)) {
-            const refs = this.takeAssetRefs_(component, data as Record<string, unknown>);
-            if (refs) {
-                this.set(entity, component, refs.clean as ComponentData<C>);
-                if (refs.authored) this.resolveAssetRefs_(entity, component, refs.authored);
-                return;
-            }
             // `set` is insert-or-replace: adding a builtin the entity LACKS must run
             // the full structural bookkeeping (entity set + query dirty + recordAdded),
             // or the C++ side holds it while queries / has() (entity-set fast path)
@@ -918,15 +914,19 @@ export class World {
                 this.insert(entity, component, data as Partial<ComponentData<C>>);
                 return;
             }
+            const raw = data as Record<string, unknown>;
+            const refs = this.takeAssetRefs_(component, raw);
             if (this.builtin_.hasCpp) {
                 try {
-                    this.builtin_.set(entity, component, data as Record<string, unknown>, projection);
+                    this.builtin_.set(entity, component, refs?.clean ?? raw, kind === 'projection');
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
             }
             this.recordComponentWrite_(entity, component);
+            const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, kind !== 'replace', edited);
             notifyBridge('onComponentChanged', entity, component._name);
+            start?.();
             return;
         }
         // Insert-or-replace means the ADD case owes the same bookkeeping insert
@@ -953,6 +953,7 @@ export class World {
      * asset layer on every core; see bindAssetReferenceTracking.
      */
     setAssetFieldResolver(resolver: AssetFieldResolver | null): void {
+        if (resolver !== this.assetFieldResolver_) this.pendingAssetFields_?.clear();
         this.assetFieldResolver_ = resolver;
     }
 
@@ -989,20 +990,25 @@ export class World {
         return { clean, authored };
     }
 
-    private resolveAssetRefs_(entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>): void {
+    private assetFieldsWritten_(
+        entity: Entity, component: AnyComponentDef, raw: Record<string, unknown> | undefined,
+        authored: Record<string, unknown> | null | undefined, keepPlaceholders: boolean, edited?: ReadonlySet<string>,
+    ): (() => void) | undefined {
+        this.pendingAssetFields_?.supersede(entity, component, raw, keepPlaceholders, edited);
+        if (!authored) return;
         if (this.assetFieldResolver_) {
-            this.assetFieldResolver_(entity, component, authored);
-            return;
+            this.pendingAssetFields_ ??= new PendingAssetFields();
+            return this.pendingAssetFields_.reserve(entity, component, authored, this.assetFieldResolver_);
         }
         log.warn('world', `${component._name} on entity ${entity} was given an asset path, but this world has no asset layer `
             + 'to load it: the field holds no handle. Load it first (await assets.loadTexture(path)) and write the handle.');
+        return undefined;
     }
 
     /**
-     * Edit a component in place and report the change — the write path for
-     * "read it, adjust a field, keep the rest". The draft is BORROWED for the
-     * call, and for a script component it IS the stored object, so nothing may
-     * keep it. Reporting is unconditional; a false positive costs one look.
+     * Edit a borrowed component and report the write even if the callback throws. A script draft is the stored object.
+     * A pending asset path reads as its default handle. Assigning that field, including zero, supersedes the path.
+     * Edits to other fields preserve it.
      *
      * @throws if `entity` does not carry `component`.
      */
@@ -1021,10 +1027,13 @@ export class World {
             // A projection, so the write-back is what stores it; `set` owns that
             // for every builtin shape, hierarchy included, and records the change.
             const draft = this.builtin_.get(entity, component) as ComponentData<C>;
+            if (this.pendingAssetFields_?.has(entity, component)) trackAssetEdits(draft, component);
             try {
                 edit(draft);
             } finally {
-                this.set(entity, component, draft);
+                if (this.pendingAssetFields_ && this.set === worldSet) {
+                    this.storeComponent_(entity, component, draft, 'edit', assetEditsOf(draft, component));
+                } else this.set(entity, component, draft);
             }
             return;
         }
@@ -1125,6 +1134,7 @@ export class World {
 
         if (isBuiltinComponent(component)) {
             this.builtin_.remove(entity, component);
+            this.pendingAssetFields_?.supersede(entity, component);
             this.changes_.recordRemoved(component, entity);
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
@@ -1139,7 +1149,10 @@ export class World {
     // =========================================================================
 
     private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
-        const { merged, isNew } = this.builtin_.insert(entity, component, data);
+        const raw = data as Record<string, unknown> | undefined;
+        const refs = this.takeAssetRefs_(component, raw);
+        const { merged, isNew } = this.builtin_.insert(entity, component, (refs?.clean ?? data) as Partial<T>);
+        const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, false);
         if (isNew) {
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
@@ -1148,6 +1161,7 @@ export class World {
         }
         this.recordComponentWrite_(entity, component);
         notifyBridge('onComponentChanged', entity, component._name);
+        start?.();
         return merged;
     }
 
@@ -1194,25 +1208,38 @@ export class World {
     }
 
     /** @internal Pre-resolve a component to its direct storage/getter for fast iteration. */
-    resolveGetter(component: AnyComponentDef, mode: 'borrowed' | 'retained' = 'borrowed'):
+    resolveGetter(component: AnyComponentDef, mode: 'borrowed' | 'retained' = 'borrowed', mutable = false):
     ((entity: Entity) => unknown) | null {
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
 
-            if (this.builtin_.getWasmModule()) {
-                const ptrGetter = this.builtin_.resolvePtrGetter(component._cppName, mode);
-                if (ptrGetter) return ptrGetter;
-            }
-
-            const methods = this.builtin_.getBuiltinMethods(component._cppName);
-            const plain = component.colorKeys.length === 0 && component.entityFields.length === 0
-                && numberListFieldsOf(component._cppName).length === 0;
-            if (plain) return (e) => methods.get(e);
-            return (e) => builtinFromWasm(methods.get(e), component);
+            const read = this.resolveBuiltinGetter_(component, mode);
+            if (!mutable || !component.assetFields?.length) return read;
+            return entity => {
+                let draft = read(entity) as Record<string, unknown>;
+                if (this.pendingAssetFields_?.has(entity, component)) {
+                    // The pointer getter reuses a borrowed object on the next entity.
+                    if (mode === 'borrowed') draft = { ...draft };
+                    trackAssetEdits(draft, component);
+                } else if (mode === 'retained' && this.assetFieldResolver_) rememberAssetDraft(draft);
+                return draft;
+            };
         }
         const storage = this.scripts_.getStorageById(component._id);
         if (!storage) return null;
         return (e) => storage.get(e);
+    }
+
+    private resolveBuiltinGetter_(component: BuiltinComponentDef<any>, mode: 'borrowed' | 'retained'): (entity: Entity) => unknown {
+        if (this.builtin_.getWasmModule()) {
+            const ptrGetter = this.builtin_.resolvePtrGetter(component._cppName, mode);
+            if (ptrGetter) return ptrGetter;
+        }
+        const methods = this.builtin_.getBuiltinMethods(component._cppName);
+        const plain = component.colorKeys.length === 0 && component.entityFields.length === 0
+            && numberListFieldsOf(component._cppName).length === 0;
+        if (plain) return e => methods.get(e);
+        return e => builtinFromWasm(methods.get(e), component);
     }
 
     /** @internal Pre-resolve a component to a direct has-check for fast query matching. */
@@ -1231,26 +1258,25 @@ export class World {
     resolveSetter(component: AnyComponentDef): ((entity: Entity, data: unknown) => void) | null {
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
-
-            if (this.builtin_.getWasmModule()) {
-                const ptrSetter = this.builtin_.resolvePtrSetter(component._cppName);
-                // The pointer setter writes the engine's heap and calls nothing, so the stamp the engine's readers of changes
-                // go by (composition recomposes only the Transforms stamped since its last pass) is said here, for every caller.
-                if (ptrSetter) {
-                    if (!feedsTransformComposition(component)) return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); };
-                    return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); this.builtin_.invalidateTransformComposition(); };
+            const write = this.resolveBuiltinSetter_(component);
+            if (!component.assetFields?.length) return write;
+            return (entity, data) => {
+                const raw = data as Record<string, unknown>;
+                const edited = assetEditsOf(raw, component);
+                if (edited && this.has(entity, component)) {
+                    // A retained row can outlive publication. Keep the current handles wherever the row has no edit.
+                    const live = this.builtin_.get(entity, component);
+                    for (const { field } of component.assetFields) if (!edited.has(field) && raw[field] !== live[field]) {
+                        raw[field] = live[field];
+                        edited.delete(field);
+                    }
                 }
-            }
-
-            const name = component._cppName;
-            const { colorKeys, entityFields } = component;
-            if (colorKeys.length === 0 && entityFields.length === 0 && numberListFieldsOf(name).length === 0) {
-                const methods = this.builtin_.getBuiltinMethods(name);
-                return (e, d) => methods.add(e, d);
-            }
-            // The one marshalled write, as world.set and insert take it: a list field crosses as the vector embind
-            // registered, never as the JS array a row holds.
-            return (e, d) => this.builtin_.replace(e, component, d as Record<string, unknown>);
+                const refs = this.takeAssetRefs_(component, raw);
+                write(entity, refs?.clean ?? raw);
+                const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, true, edited);
+                finishAssetDraft(raw, component, refs?.clean);
+                start?.();
+            };
         }
         // Through ScriptStorage, not into the map: a pooled component's stored
         // value is a live view onto its row, and replacing it with a plain
@@ -1258,6 +1284,24 @@ export class World {
         const storage = this.scripts_.getStorageById(component._id);
         if (!storage) return null;
         return (e, d) => { this.scripts_.set(e, component as ComponentDef<any>, d); };
+    }
+
+    private resolveBuiltinSetter_(component: BuiltinComponentDef<any>): (entity: Entity, data: unknown) => void {
+        if (this.builtin_.getWasmModule()) {
+            const ptrSetter = this.builtin_.resolvePtrSetter(component._cppName);
+            // Pointer writes bypass the engine's own change stamp, including the one transform composition reads.
+            if (ptrSetter) {
+                if (!feedsTransformComposition(component)) return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); };
+                return (e, d) => { ptrSetter(e, d); this.stampEngineWrite(e, component); this.builtin_.invalidateTransformComposition(); };
+            }
+        }
+        const name = component._cppName;
+        if (component.colorKeys.length === 0 && component.entityFields.length === 0 && numberListFieldsOf(name).length === 0) {
+            const methods = this.builtin_.getBuiltinMethods(name);
+            return (e, d) => methods.add(e, d);
+        }
+        // Lists and other marshalled fields use the same conversion as world.set and insert.
+        return (e, d) => this.builtin_.replace(e, component, d as Record<string, unknown>);
     }
 
     // =========================================================================

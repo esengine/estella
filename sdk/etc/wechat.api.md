@@ -15681,7 +15681,7 @@ Generator<number, T, void>
 @internal resetQueryCacheStats: () => void
 @internal resetQueryPool: () => void
 @internal resolveChangeSequenceMatcher: (component: AnyComponentDef, added: boolean) => (entity: Entity, after: number) => boolean
-@internal resolveGetter: (component: AnyComponentDef, mode?: "borrowed" | "retained") => ((entity: Entity) => unknown) | null
+@internal resolveGetter: (component: AnyComponentDef, mode?: "borrowed" | "retained", mutable?: boolean) => ((entity: Entity) => unknown) | null
 @internal resolveHas: (component: AnyComponentDef) => ((entity: Entity) => boolean) | null
 @internal resolveSetter: (component: AnyComponentDef) => ((entity: Entity, data: unknown) => void) | null
 @internal restampAdded: (entity: Entity) => void
