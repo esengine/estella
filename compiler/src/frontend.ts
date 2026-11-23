@@ -389,17 +389,26 @@ class SystemLowerer {
         });
     }
 
+    /**
+     * A query names only components whose shape is known, even one the body never reads: the runtime checks
+     * every queried component's fields against the module, and a shape left out on this side refuses the
+     * whole module there (a string field, or a component the SDK declares).
+     */
     private queryArg(node: ts.Expression): QueryArg {
+        let arg: QueryArg;
         if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
             if (node.expression.text !== 'Mut') {
                 throw new NotInSubset(node, `'${node.expression.text}(...)' is not a query argument this subset lowers`);
             }
             const inner = node.arguments[0];
             if (!inner || !ts.isIdentifier(inner)) throw new NotInSubset(node, 'Mut(...) needs a named component');
-            return { comp: this.compName(inner.text), mut: true };
+            arg = { comp: this.compName(inner.text), mut: true };
+        } else {
+            if (!ts.isIdentifier(node)) throw new NotInSubset(node, 'a query argument must be a named component');
+            arg = { comp: this.compName(node.text), mut: false };
         }
-        if (!ts.isIdentifier(node)) throw new NotInSubset(node, 'a query argument must be a named component');
-        return { comp: this.compName(node.text), mut: false };
+        if (!this.comps.has(arg.comp)) throw new NotInSubset(node, `no declared shape for component '${arg.comp}'`);
+        return arg;
     }
 
     lower(name: string, params: ts.Expression, fn: ts.ArrowFunction): EirSystem {
