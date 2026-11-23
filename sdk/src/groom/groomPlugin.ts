@@ -91,16 +91,25 @@ export class GroomRes {
     groups(entity: Entity): readonly Entity[] { return this.built_.get(entity)?.children ?? []; }
 }
 
+/**
+ * A material of the stock Strands shader, which a group with no material of its own draws an instance of. The caller owns it
+ * (`Material.release`). An editor previewing a groom makes its own, as the Groom component does.
+ * @experimental
+ */
+export async function createStrandsMaterial(assets: AssetsApi): Promise<number> {
+    const source = await assets.load<MaterialShaderSource>('material-shader', 'builtin:strands');
+    return Material.createFromAsset({
+        version: MATERIAL_FORMAT_VERSION, type: 'material', shader: 'builtin:strands', blendMode: BlendMode.Normal,
+        depthTest: true, depthWrite: true, cull: 0, properties: {},
+    }, source.compile([]));
+}
+
 async function stockMaterial(assets: AssetsApi, res: GroomRes): Promise<number> {
     if (res.stock_) return res.stock_;
-    const source = await assets.load<MaterialShaderSource>('material-shader', 'builtin:strands');
-    if (!res.stock_) {
-        res.stock_ = Material.createFromAsset({
-            version: MATERIAL_FORMAT_VERSION, type: 'material', shader: 'builtin:strands', blendMode: BlendMode.Normal,
-            depthTest: true, depthWrite: true, cull: 0, properties: {},
-        }, source.compile([]));
-    }
-    return res.stock_;
+    const made = await createStrandsMaterial(assets);
+    if (res.stock_) { Material.release(made); return res.stock_; }
+    res.stock_ = made;
+    return made;
 }
 
 function letGo(app: App, res: GroomRes, entity: Entity): void {

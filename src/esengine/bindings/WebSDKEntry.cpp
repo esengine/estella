@@ -1024,6 +1024,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getSkeletalPreviewHeight", ES_RENDER_BIND(renderer_getSkeletalPreviewHeight));
     emscripten::function("renderer_destroySkeletalPreview", ES_RENDER_BIND(renderer_destroySkeletalPreview));
     emscripten::function("renderer_renderMeshPreview", ES_RENDER_BIND(renderer_renderMeshPreview));
+    emscripten::function("renderer_renderMeshSetPreview", ES_RENDER_BIND(renderer_renderMeshSetPreview));
     emscripten::function("renderer_setPreviewOrbit", ES_RENDER_BIND(renderer_setPreviewOrbit));
     emscripten::function("renderer_pollPreviewReadback", ES_RENDER_BIND(renderer_pollPreviewReadback));
     emscripten::function("renderer_getPreviewPtr", ES_RENDER_BIND(renderer_getPreviewPtr));

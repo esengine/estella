@@ -579,6 +579,7 @@ renderer_queueMaterialBake: (material: number, shader: number, target: number, x
 renderer_releaseTarget: (handle: number) => void
 renderer_renderMaterialPreview: (materialId: number, w: number, h: number, meshId: number, textureId: number) => void
 renderer_renderMeshPreview: (meshId: number, w: number, h: number) => void
+renderer_renderMeshSetPreview: ((meshesPtr: number, materialsPtr: number, count: number, w: number, h: number) => void) | undefined
 renderer_renderSkeletalPreview: (preview: number, viewProjectionPtr: number) => number
 renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_requestProbeCapture: ((x: number, y: number, z: number, face: number) => void) | undefined

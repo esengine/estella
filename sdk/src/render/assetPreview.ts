@@ -86,3 +86,33 @@ export async function renderMeshPreview(
     if (!m || typeof m.renderer_renderMeshPreview !== 'function' || !mesh) return null;
     return drawPreview(m, () => { aimPreview(m, orbit); return m.renderer_renderMeshPreview(mesh, w, h); });
 }
+
+/** One mesh of a preview made of several, and the material it is drawn with. @experimental */
+export interface PreviewDraw { mesh: number; material: number }
+
+/**
+ * Several meshes, each with its own material, in one picture framed to all of them: an asset drawn as more than one mesh (a
+ * groom's groups) seen whole, from off-axis or from `orbit`. Null if the engine has no such preview or draws nothing.
+ * @experimental
+ */
+export async function renderMeshSetPreview(
+    module: unknown, draws: readonly PreviewDraw[], w: number, h: number, orbit?: PreviewOrbit,
+): Promise<ImageData | null> {
+    const m = previewCore(module) as (PreviewCore & {
+        renderer_renderMeshSetPreview?(meshes: number, materials: number, count: number, w: number, h: number): void;
+        _malloc?(n: number): number; _free?(p: number): void; HEAPU32?: Uint32Array;
+    }) | null;
+    const live = draws.filter((d) => d.mesh !== 0);
+    if (!m || typeof m.renderer_renderMeshSetPreview !== 'function' || !m._malloc || !m._free || live.length === 0) return null;
+    const malloc = m._malloc, free = m._free;
+    return drawPreview(m, () => {
+        const bytes = live.length * 4;
+        const meshes = malloc(bytes), materials = malloc(bytes);
+        try {
+            const heap = new Uint32Array(m.HEAPU8.buffer);
+            live.forEach((d, i) => { heap[(meshes >>> 2) + i] = d.mesh; heap[(materials >>> 2) + i] = d.material; });
+            aimPreview(m, orbit);
+            m.renderer_renderMeshSetPreview!(meshes, materials, live.length, w, h);
+        } finally { free(meshes); free(materials); }
+    });
+}

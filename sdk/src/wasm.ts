@@ -900,6 +900,7 @@ export interface ESEngineModule {
     renderer_getSkeletalPreviewHeight(preview: number): number;
     renderer_destroySkeletalPreview(preview: number): void;
     renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
+    renderer_renderMeshSetPreview?(meshesPtr: number, materialsPtr: number, count: number, w: number, h: number): void;
     renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
     /** Scene draws the last frame left out because a program they use was still compiling. */
     renderer_getDrawsWaitingForProgram?(): number;

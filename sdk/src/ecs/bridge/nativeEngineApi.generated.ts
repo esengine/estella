@@ -244,6 +244,7 @@ export interface NativeEngineApi {
     renderer_releaseTarget?(handle: number): void;
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number, meshId: number, textureId: number): void;
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
+    renderer_renderMeshSetPreview?(meshesPtr: number, materialsPtr: number, count: number, w: number, h: number): void;
     renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_requestProbeCapture?(x: number, y: number, z: number, face: number): void;
@@ -647,6 +648,7 @@ export function createNativeEngineApi(
     bind('renderer_releaseTarget', 'es_renderer_releaseTarget', false);
     bind('renderer_renderMaterialPreview', 'es_renderer_renderMaterialPreview', false);
     bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);
+    bind('renderer_renderMeshSetPreview', 'es_renderer_renderMeshSetPreview', false);
     bind('renderer_renderSkeletalPreview', 'es_renderer_renderSkeletalPreview', false);
     bind('renderer_replayToDrawCall', 'es_renderer_replayToDrawCall', false);
     bind('renderer_requestProbeCapture', 'es_renderer_requestProbeCapture', false);

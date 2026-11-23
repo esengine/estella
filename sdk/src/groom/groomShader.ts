@@ -56,6 +56,8 @@ const STRANDS = `#pragma shader "Strands"
 // Light that comes through the strands from behind, and how much of the diffuse is the strand's own (Kajiya-Kay) against a surface's.
 #pragma param u_translucency float default(0.4) range(0,1) ui(slider)
 #pragma param u_strandDiffuse float default(0.8) range(0,1) ui(slider)
+// Above zero alpha, the strands are this one colour, unlit: an editor showing which group is which.
+#pragma param u_groupColor color default(0,0,0,0)
 // How much darker the roots are than the tips.
 #pragma param u_rootDark float default(0.35) range(0,1) ui(slider)
 // How much of the light a depth of strands takes, per world unit along it. The Groom component writes it from the group's Hair Shadow Density.
@@ -141,6 +143,7 @@ void main() {
     ext.trans = vec4(u_translucency, 0.25, 0.0, 0.0);
     g_hairShadow = u_hairShadow;
     vec3 lit = applyLightingSurface(base, N, P, viewDir, 0.0, u_roughness, u_specular, mix(0.6, 1.0, t), ext);
+    if (u_groupColor.a > 0.0) lit = u_groupColor.rgb;
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), u_roughness, 0.75);

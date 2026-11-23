@@ -2274,6 +2274,64 @@ void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h) {
     g_renderFrame->renderToTarget(reg, proj * view, static_cast<u32>(w), static_cast<u32>(h));
 }
 
+/**
+ * Several meshes, each with its own material, in one preview: an asset that is drawn as more than one mesh (a groom, a group
+ * per mesh) seen whole, framed to all of them together, through the same throwaway scene and collect path as the others.
+ * @p meshesPtr and @p materialsPtr are @p count u32s each; a pair whose mesh is not loaded is left out.
+ */
+void renderer_renderMeshSetPreview(uintptr_t meshesPtr, uintptr_t materialsPtr, i32 count, i32 w, i32 h) {
+    if (!g_renderFrame || w <= 0 || h <= 0 || count <= 0) return;
+    auto* meshes = boundarySpan<u32>(meshesPtr, static_cast<u64>(count), "renderer_renderMeshSetPreview.meshes");
+    auto* mats = boundarySpan<u32>(materialsPtr, static_cast<u64>(count), "renderer_renderMeshSetPreview.materials");
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!meshes || !mats || !rm) return;
+    const WaitForPrograms wait;
+
+    ecs::Registry reg;
+    glm::vec3 lo{std::numeric_limits<f32>::max()}, hi{-std::numeric_limits<f32>::max()};
+    bool any = false;
+    for (i32 i = 0; i < count; ++i) {
+        const Mesh* res = rm->getMesh(resource::MeshHandle{meshes[i]});
+        if (!res) continue;
+        auto entity = reg.create();
+        reg.emplace<ecs::Transform>(entity);
+        auto& mesh = reg.emplace<ecs::MeshRenderer>(entity);
+        mesh.mesh = resource::MeshHandle{meshes[i]};
+        mesh.material = mats[i];
+        mesh.lit = true;
+        mesh.opaque = true;
+        lo = glm::min(lo, res->localMin);
+        hi = glm::max(hi, res->localMax);
+        any = true;
+    }
+    if (!any) return;
+    auto light = reg.create();
+    reg.emplace<ecs::Transform>(light).position = glm::vec3(0.0f, 0.0f, 1.0f);
+    reg.emplace<ecs::Light>(light).type = static_cast<i32>(ecs::LightType::Directional);
+
+    if (g_transformSystem) {
+        esengine::World world{reg, ctx().services(), 0.0f};
+        g_transformSystem->update(world);
+    }
+
+    const glm::vec3 centre = (lo + hi) * 0.5f;
+    const f32 radius = std::max(glm::length(hi - lo) * 0.5f, 1e-4f);
+    const glm::vec3 eye = centre + previewEyeDirection() * (radius * 4.0f);
+    const glm::mat4 view = glm::lookAt(eye, centre, glm::vec3(0.0f, 1.0f, 0.0f));
+    f32 half = 1e-4f;
+    for (i32 corner = 0; corner < 8; ++corner) {
+        const glm::vec3 at{(corner & 1) ? hi.x : lo.x, (corner & 2) ? hi.y : lo.y, (corner & 4) ? hi.z : lo.z};
+        const glm::vec3 v = glm::vec3(view * glm::vec4(at, 1.0f));
+        half = std::max({half, std::abs(v.x), std::abs(v.y)});
+    }
+    half *= 1.08f;
+    // As wide as the target, so a preview that is not square is not stretched.
+    const f32 aspect = static_cast<f32>(w) / static_cast<f32>(h);
+    const f32 hx = aspect >= 1.0f ? half * aspect : half, hy = aspect >= 1.0f ? half : half / aspect;
+    const glm::mat4 proj = math::ortho(-hx, hx, -hy, hy, 0.01f, radius * 8.0f);
+    g_renderFrame->renderToTarget(reg, proj * view, static_cast<u32>(w), static_cast<u32>(h));
+}
+
 // Same 0/1/2 contract as renderer_pollSnapshotReadback, for the material preview.
 i32 renderer_pollPreviewReadback() {
     return g_renderFrame ? g_renderFrame->pollPreviewReadback() : 2;
