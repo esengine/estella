@@ -178,6 +178,19 @@ const SLOPES_GLSL = WAVE_SET.map((w, i) => i === 0
     ? `    vec3 sum = peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)});\n    float weightSum = ${num(w[2])};`
     : `    if (u_waveCount > ${i}.5) { sum += peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)}); weightSum += ${num(w[2])}; }`).join('\n');
 
+const WATER_RIPPLE_HEIGHT_GLSL = `// The height the ripples lift the surface by at p, fading out toward the edge of their window as the shading's slope does. A mesh of
+// cell-sized cells draws them as the waves are drawn (waveFade): their shortest, four grid cells, not at all below three mesh cells to it
+// and wholly from six; a coarser ring keeps them in its shading only, where a ring too coarse for them would fold into faces turned away.
+float waterRippleHeight(vec2 p, float cell) {
+    if (u_rippleOn < 0.5) return 0.0;
+    vec2 ru = (p - u_rippleOrigin) / max(u_rippleSize, 1e-4);
+    vec2 edge = min(ru, 1.0 - ru);
+    if (min(edge.x, edge.y) <= 0.0) return 0.0;
+    float fade = cell > 0.0 ? clamp((4.0 * u_rippleSize * u_rippleTexel / cell - 3.0) / 3.0, 0.0, 1.0) : 1.0;
+    if (fade <= 0.0) return 0.0;
+    return textureLod(u_rippleMap, ru, 0.0).r * smoothstep(0.0, 0.15, min(edge.x, edge.y)) * fade;
+}`;
+
 const WAVE_HEIGHT = `float waterWaveHeight(vec2 p, float time, float cell) {
     vec2 at = waterBend(p, u_waveLength).xy;
     ${WAVES_GLSL}
@@ -355,7 +368,7 @@ const SURFACE_SLOPE = `vec2 surfaceSlope(vec2 wp, float time, float waterDist, v
         // The window follows the camera: its edge fades out, so where it ends the ripples thin away instead of stopping on a line.
         vec2 ripEdge = min(ripUv, 1.0 - ripUv);
         float ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
-        ripSlope = vec2(ripR - ripL, ripU - ripD) * u_rippleRange / ripCell * ripFade;
+        ripSlope = vec2(ripR - ripL, ripU - ripD) / (2.0 * ripCell) * ripFade;
         ripFoam = textureLod(u_rippleMap, ripUv, 0.0).g * ripFade;
     }
     vec2 slope;
@@ -455,7 +468,7 @@ const WATER = `#pragma shader "Water"
 #pragma param u_origin vec2 default(0,0)
 // The cell size of the mesh's finest ring: a vertex in a coarser ring (its colour's red says which) fades the waves it cannot draw, those shorter
 // than six of its cells. 0 draws every wave at every vertex.
-#pragma param u_cellSize float default(0) range(0,100) ui(slider)
+#pragma param u_cellSize float default(0) range(0,100000) ui(slider)
 // A WaterZone's baked water (zone.ts encode): heights texel by texel (rg height over u_zoneHeight, b depth, a waves' height), field filtered
 // (r shore distance, 0.5 at it, as a signed square root so it is fine near the shore; gb current; a calm share), over u_zoneRange (shore, waves, current, depth). Below the shore there is no
 // water; past the region there is the ocean where u_oceanOn says so.
@@ -498,8 +511,9 @@ ${CAUSTIC_PARAMS}
 #pragma param u_reflectSteps float default(${MOST_WATER_REFLECTION_STEPS}) range(1,${MOST_WATER_REFLECTION_STEPS}) ui(slider)
 #pragma param u_reflectGrowth float default(${REFLECTION_GROWTH}) range(1,${MOST_REFLECTION_GROWTH}) ui(slider)
 #pragma param u_causticLayers float default(${MOST_WATER_CAUSTIC_LAYERS}) range(1,${MOST_WATER_CAUSTIC_LAYERS}) ui(slider)
-// The disturbance the water keeps (WaterZone ripples): a window of the xz plane, red the height of the ripples (0.5 at rest, u_rippleRange above or below at 1 and 0)
-// and green the foam they left, as the CPU stepped them. u_rippleSize is the window's side, u_rippleTexel one texel of it.
+// The disturbance the water keeps (WaterZone ripples): a window of the xz plane the GPU steps (rippleGpu.ts), red the height of the ripples in
+// world units, green the foam they left. The vertices are lifted by the height and the pixels shaded by its slope, from the one texture.
+// u_rippleSize is the window's side, u_rippleTexel one texel of it.
 #pragma param u_rippleOn float default(0) range(0,1) ui(slider)
 // Two tiled normal maps that scroll over the surface, for the sparkle the sun makes of a water's small slopes, in the one texture a material has room
 // for: red and green the first's slope (x and z, 0.5 flat), blue and alpha the second's, read as data. Each is u_detailTile world units to a repeat,
@@ -515,7 +529,6 @@ ${CAUSTIC_PARAMS}
 #pragma param u_rippleOrigin vec2 default(0,0)
 #pragma param u_rippleSize float default(64) range(0.01,100000) ui(slider)
 #pragma param u_rippleTexel float default(0.0156) range(0,1) ui(slider)
-#pragma param u_rippleRange float default(1) range(0.0001,1000) ui(slider)
 #pragma param u_sceneColor texture default(white)
 #pragma param u_sceneDepthMap texture default(white) texel(data)
 // What the foam is made of: a tiled texture whose red says how much foam a texel holds where foam is wanted (bubbles, threads, a web),
@@ -551,6 +564,7 @@ ${WATER_ZONE_STEEP_GLSL}
 // The surf (waves.ts surfHeight): its crests are lines of phase (the distance the surf runs in by), and it rises, breaks and runs up by
 // shore, the real distance to the shore. x its height, y how broken it is (white water on and behind a breaking crest).
 ${WATER_SURF_GLSL}
+${WATER_RIPPLE_HEIGHT_GLSL}
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     if (u_waveSpace < 0.5) return;
     if (u_farSurface > 0.5) { local.y += u_oceanLevel; return; }
@@ -575,7 +589,7 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     // The apron past the rings (green 0, see waterMesh.ts) is the open sea out to the horizon: an edge vertex that stands over a river on a
     // cliff, or on the land beside one, would lift a strip of sea eighty kilometres long to the river's height.
     float rest = es_vertexColor.g < 0.5 && u_oceanOn > 0.5 ? u_oceanLevel : zone.x;
-    local.y += rest + (waterWaveHeight(p, u_time.x, cell) * zone.z * field.w + surf) * u_geoWaves * (es_vertexColor.g < 0.5 || u_waterMeshView > 1.5 ? 0.0 : 1.0);
+    local.y += rest + (waterWaveHeight(p, u_time.x, cell) * zone.z * field.w + surf + waterRippleHeight(p, cell)) * u_geoWaves * (es_vertexColor.g < 0.5 || u_waterMeshView > 1.5 ? 0.0 : 1.0);
 }
 #pragma end
 
@@ -611,6 +625,16 @@ ${WATER_ZONE_STILL_WGSL}
 // How steep the shore is at p: 0 a gentle beach (waves wash up it), 1 rock or a cliff (they burst white on it).
 ${WATER_ZONE_STEEP_WGSL}
 ${WATER_SURF_WGSL}
+fn waterRippleHeight(p : vec2f, cell : f32) -> f32 {
+    if (mc.u_rippleOn < 0.5) { return 0.0; }
+    let ru = (p - mc.u_rippleOrigin) / max(mc.u_rippleSize, 1e-4);
+    let edge = min(ru, vec2f(1.0) - ru);
+    if (min(edge.x, edge.y) <= 0.0) { return 0.0; }
+    var fade = 1.0;
+    if (cell > 0.0) { fade = clamp((4.0 * mc.u_rippleSize * mc.u_rippleTexel / cell - 3.0) / 3.0, 0.0, 1.0); }
+    if (fade <= 0.0) { return 0.0; }
+    return textureSampleLevel(u_rippleMap, u_rippleMap_s, ru, 0.0).r * smoothstep(0.0, 0.15, min(edge.x, edge.y)) * fade;
+}
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
     if (mc.u_waveSpace < 0.5) { return; }
     if (mc.u_farSurface > 0.5) { (*local).y += mc.u_oceanLevel; return; }
@@ -636,7 +660,7 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
     let surf = waterSurf(surfAt, field.x, mc.u_surfHeight * mc.u_waveHeight * zone.z * zone.w * still, tc.u_time.x).x;
     var rest = zone.x;
     if (es_vertexColor.g < 0.5 && mc.u_oceanOn > 0.5) { rest = mc.u_oceanLevel; }
-    (*local).y = (*local).y + rest + (waterWaveHeight(p, tc.u_time.x, cell) * zone.z * field.w + surf) * mc.u_geoWaves * select(1.0,0.0,es_vertexColor.g < 0.5 || mc.u_waterMeshView > 1.5);
+    (*local).y = (*local).y + rest + (waterWaveHeight(p, tc.u_time.x, cell) * zone.z * field.w + surf + waterRippleHeight(p, cell)) * mc.u_geoWaves * select(1.0,0.0,es_vertexColor.g < 0.5 || mc.u_waterMeshView > 1.5);
 }
 #pragma end
 
@@ -1065,7 +1089,7 @@ void main() {
 export const WATER_CAUSTIC_BAKE = `#pragma shader "Water Optical Surface"
 #pragma version 300 es
 #pragma domain PostProcess
-${WATER.split('\n').filter(line => line.startsWith('#pragma param ') && /u_(wave|ripple|gust|detail|zone|ocean|surf|geoWaves|flowCycle|rain)/.test(line) && !/u_(zoneLook|oceanLook)/.test(line)).join('\n')}
+${WATER.split('\n').filter(line => line.startsWith('#pragma param ') && /u_(wave|ripple|gust|detail|zone|ocean|surf|geoWaves|flowCycle|rain|cellSize)/.test(line) && !/u_(zoneLook|oceanLook)/.test(line)).join('\n')}
 #pragma param u_bakeA vec4 default(0,0,1,0)
 #pragma param u_bakeB vec4 default(0,1,256,0)
 #pragma fragment
@@ -1081,6 +1105,7 @@ ${WATER_ZONE_STILL_GLSL}
 ${WATER_SURF_GLSL}
 ${SURFACE_WAVES}
 ${SURFACE_SLOPE}
+${WATER_RIPPLE_HEIGHT_GLSL}
 void main() {
     vec2 wp = u_bakeA.xy + v_texCoord * u_bakeA.z;
     float time = u_bakeA.w;
@@ -1093,7 +1118,8 @@ void main() {
     vec2 slope = surfaceSlope(wp, time, 0.0, vec4(stepSize, 0.0, 0.0, stepSize), zone, zoneOn, zoneRead, shoreDist,
                               flow, damp, calm, surfStep, crest, foam, surf, toSea);
     vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
-    float height = zone.x + (waterWaveHeight(wp, time, 0.0) * damp + surf.x) * u_geoWaves;
+    // The surface as the mesh's finest ring draws it, and Waters.sample reads it: waves it cannot hold are in the normal only.
+    float height = zone.x + (waterWaveHeight(wp, time, u_cellSize) * damp + surf.x + waterRippleHeight(wp, u_cellSize)) * u_geoWaves;
     float code = floor(clamp((height - u_bakeB.x) / u_bakeB.y, 0.0, 1.0) * 65535.0 + 0.5);
     fragColor = vec4((normal.xz * 127.0 + 128.0) / 255.0, floor(code / 256.0) / 255.0, mod(code, 256.0) / 255.0);
 }

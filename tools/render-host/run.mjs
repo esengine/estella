@@ -52,6 +52,7 @@
  *   ESTELLA_VERIFY_PROBES_PER_OBJECT  1: read probe volumes one value per object, holding no atlas (the low quality level)
  *   ESTELLA_VERIFY_TEXTURES  "runtime": images upload through the engine, as a shipped game's do
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
+ *   ESTELLA_VERIFY_WATER_PROBE  the water's CPU surface height at points (JSON [[x,z],...]), printed at the captured frame
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
@@ -398,6 +399,17 @@ app.whenReady().then(async () => {
         }
       })()`);
     } else {
+      // ESTELLA_VERIFY_WATER_DISTURB = [x, z, radius, strength]: a script's Waters.disturb just before the steps, for a ripple check.
+      if (process.env.ESTELLA_VERIFY_WATER_DISTURB) {
+        const [dx, dz, dr, ds] = JSON.parse(process.env.ESTELLA_VERIFY_WATER_DISTURB);
+        // The water bakes off the main thread and keeps no ripples before: step until the disturbance is taken.
+        const taken = await exec(`(async () => {
+          const api = window.__estellaHeadless.api;
+          for (let n = 0; n < 600; n++) { const at = api.waterDisturb(${dx}, ${dz}, ${dr}, ${ds}); if (at > 0) return at; await api.step(1, 1 / 60); }
+          return -1;
+        })()`);
+        console.log(`[verify:water-disturb] ${taken}`);
+      }
       await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
     }
 
@@ -1013,6 +1025,14 @@ app.whenReady().then(async () => {
         return cv.toDataURL('image/png');
       `);
       await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
+    }
+    // ESTELLA_VERIFY_WATER_PROBE = [[x, z], ...]: the water's CPU surface height at each point at the instant of the frame ESTELLA_VERIFY_OUT holds: read after it,
+    // as the readback draws that frame itself and every capture before it moved the clock on
+    // (what Waters.sample gives a floating body), printed as one [verify:water] line for a check to set against the drawn surface.
+    if (process.env.ESTELLA_VERIFY_WATER_PROBE) {
+      const water = await exec(`window.__estellaHeadless.api.waterSurface(${process.env.ESTELLA_VERIFY_WATER_PROBE})`);
+      console.log(`[verify:water] ${JSON.stringify(water)}`);
+      console.log(`[verify:water-ripples] ${JSON.stringify(await exec('window.__estellaHeadless.api.waterRipples()'))}`);
     }
     // Optional resize assertion (ESTELLA_VERIFY_RESIZE = "WxH"): shrink the
     // canvas mid-run, step, and re-capture — the backbuffer must follow the

@@ -122,8 +122,8 @@ export function waveHeight(p: WaveParams, x: number, z: number, time: number, ce
     return height;
 }
 
-/** The slope of the surface at (x, z): how fast its height changes along x and along z. */
-export function waveSlope(p: WaveParams, x: number, z: number, time: number): [number, number] {
+/** The slope of the surface at (x, z): how fast its height changes along x and along z. `cell` fades the waves as {@link waveHeight} does. */
+export function waveSlope(p: WaveParams, x: number, z: number, time: number, cell = 0): [number, number] {
     let sx = 0, sz = 0;
     const base = p.direction * Math.PI / 180;
     const gravity = waterGravity();
@@ -131,12 +131,13 @@ export function waveSlope(p: WaveParams, x: number, z: number, time: number): [n
     let used = waveCount(p);
     for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
         if (used-- <= 0) break;
-        const k = TAU / (p.length * lengthShare);
+        const length = p.length * lengthShare;
+        const k = TAU / length;
         const a = base + heading * Math.PI / 180;
         const dx = Math.sin(a), dz = Math.cos(a);
         const omega = Math.sqrt(gravity * k) * p.speed * speedShare;
         const theta = k * (dx * bx + dz * bz) - omega * time;
-        const rise = p.height * heightShare * Math.exp(Math.sin(theta) - 1) * Math.cos(theta) * k;
+        const rise = p.height * heightShare * Math.exp(Math.sin(theta) - 1) * Math.cos(theta) * k * waveFade(length, cell);
         sx += dx * rise;
         sz += dz * rise;
     }

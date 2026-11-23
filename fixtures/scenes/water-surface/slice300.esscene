@@ -1,0 +1,175 @@
+{
+ "version": 4,
+ "name": "water-surface-300",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 300,
+       "y": 100,
+       "z": 537
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 41.11209043916693,
+      "nearPlane": 399,
+      "farPlane": 6000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.403,
+       "y": 0.2725,
+       "z": 0.1271,
+       "w": 0.8644
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 6,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Wall",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 300,
+       "y": 0,
+       "z": 135.5
+      },
+      "scale": {
+       "x": 4000,
+       "y": 2000,
+       "z": 0.01
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 1,
+       "g": 0,
+       "b": 0,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Zone",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterZone",
+     "data": {
+      "sizeX": 4000,
+      "sizeZ": 4000,
+      "resolution": 256,
+      "material": "/scenes/water-surface/hard.esmaterial",
+      "waveSpeed": 1,
+      "waveDirection": 30,
+      "surf": 0,
+      "ripples": 0,
+      "farDistance": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Sea",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterBody",
+     "data": {
+      "form": 0,
+      "waveHeight": 40,
+      "affectsTerrain": false,
+      "underwaterEnabled": false
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,143 @@
+{
+ "version": 4,
+ "name": "water-ripples",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 2500,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.706489444943837,
+       "y": 0,
+       "z": 0,
+       "w": 0.7077235789366842
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 50,
+      "nearPlane": 5,
+      "farPlane": 20000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.403,
+       "y": 0.2725,
+       "z": 0.1271,
+       "w": 0.8644
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 3,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Zone",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterZone",
+     "data": {
+      "sizeX": 4000,
+      "sizeZ": 4000,
+      "resolution": 128,
+      "waveLength": 600,
+      "surf": 0,
+      "ripples": 64,
+      "rippleSize": 2000,
+      "rippleSpeed": 600,
+      "rippleDamping": 0.8,
+      "foamFade": 0.4,
+      "farDistance": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Sea",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterBody",
+     "data": {
+      "form": 0,
+      "waveHeight": 20,
+      "affectsTerrain": false
+     }
+    }
+   ]
+  }
+ ]
+}

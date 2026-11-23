@@ -31,8 +31,8 @@ import {
 import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
 import { Material, materialDeclaresUniform, MATERIAL_FORMAT_VERSION } from '../render/material';
-import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
-import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
+import { createTextureFromPixels } from '../runtime/runtimeAssets';
+import { getResourceManager } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { TerrainsRes } from '../terrain/terrainPlugin';
 import { BlendMode } from '../render/blend';
@@ -48,12 +48,13 @@ import { installWaterfalls } from './waterfall';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
-import { RippleField } from './ripples';
+import { GpuRipples } from './rippleGpu';
 import {
     WaterField, WaterZone, currentShare, inExclusion, insideBody,
     type FieldSample, type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
 } from './zone';
 import { Quality } from '../render/qualityRuntime';
+import { invertMatrix4 } from '../math/mat4';
 import { MOST_WATER_CAUSTIC_LAYERS, MOST_WATER_REFLECTION_STEPS } from '../render/qualitySettings/water';
 import { WaterOpticalField, type OpticalField, type CausticBodies } from './opticalField';
 import { DEFAULT_CAUSTIC_STRENGTH, MAX_CAUSTIC_STRENGTH } from '../render/waterCaustics';
@@ -381,7 +382,7 @@ export class Waters {
         return { islands: (got?.islands ?? []) as Entity[], exclusions: (got?.exclusions ?? []) as Entity[], zone: this.zoneEntity_ as Entity | null };
     }
     /** The ripples the zone keeps, where it asks for them. @internal */
-    ripples_: RippleField | null = null;
+    ripples_: GpuRipples | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
     instance_ = 0;
     /** Water inspection: shaded, displaced wire, or rest-height wire. @experimental */
@@ -432,8 +433,11 @@ export class Waters {
         // Surf is swell come in from open water: sheltered water has as little of it as it is sheltered.
         const surf = this.surfAt(s, time);
         // The lite water is flat: its waves are in the shading, so the height code reads is the rest plane's.
-        const h = s.height + (this.quality.displacement ? waveHeight(params, x, z, time) + surf : 0) + (this.ripples_?.heightAt(x, z) ?? 0);
-        let [sx, sz] = this.quality.displacement ? waveSlope(params, x, z, time) : [0, 0];
+        // No ripples: they follow the camera, so differ by machine and a server has none. A look reads rippleAt instead.
+        // The waves the surface is drawn with: one shorter than its finest mesh can hold is in the shading only, and holds nothing up.
+        const cell = this.finestCell();
+        const h = s.height + (this.quality.displacement ? waveHeight(params, x, z, time, cell) + surf : 0);
+        let [sx, sz] = this.quality.displacement ? waveSlope(params, x, z, time, cell) : [0, 0];
         if (surf > 0 && this.quality.displacement) {
             const step = Math.max(zone.surfLength / 128, 1e-5);
             const localSurf = (px: number, pz: number): number => {
@@ -466,7 +470,7 @@ export class Waters {
         if (height <= 0) return null;
         const time = this.app_.getResource(Time).elapsed;
         const rise = this.surfAt(s, time);
-        const y = s.height + waveHeight(this.waves(s.amp, s.exposure), x, z, time) + rise + (this.ripples_?.heightAt(x, z) ?? 0);
+        const y = s.height + waveHeight(this.waves(s.amp, s.exposure), x, z, time, this.finestCell()) + rise;
         if (this.exclusions_.some(e => inExclusion(e, x, y, z, s.key))) return null;
         const step = Math.max(field.grid.sizeX / (field.grid.nx - 1), field.grid.sizeZ / (field.grid.nz - 1));
         const dx = ((field.at(x - step, z)?.surf ?? s.surf) - (field.at(x + step, z)?.surf ?? s.surf)) / (2 * step);
@@ -490,7 +494,10 @@ export class Waters {
         return true;
     }
 
-    /** The height the ripples add to the surface at the world point, where the zone keeps them; 0 elsewhere. */
+    /**
+     * The height the ripples add to the surface at the world point, where the zone keeps them; 0 elsewhere. It is read back from the GPU,
+     * which steps them, and is a frame or two old: for what looks at them, not for physics (see {@link Waters.sample}).
+     */
     rippleAt(x: number, _y: number, z: number): number {
         return this.ripples_?.heightAt(x, z) ?? 0;
     }
@@ -528,6 +535,16 @@ export class Waters {
     }
 
     /** The waves as they stand where the zone says they are `amp` high: the zone's, at that height, raised by the weather as far as the water is open to it. */
+    /**
+     * The cell of the surface mesh's finest ring, where the waves are drawn as geometry in full (the shader's waveFade per vertex): the
+     * same on every machine, whatever the camera, so what floats floats alike everywhere.
+     */
+    private finestCell(): number {
+        // waterTileLayout's tile over its divisions, without the rest of the layout.
+        const z = this.zone_;
+        return z.tileSize > 0 ? z.tileSize / 2 ** Math.max(1, Math.min(6, Math.round(z.tessellationFactor ?? 3))) : Math.max(z.cellSize, 1e-4);
+    }
+
     private waves(amp: number, exposure = 1): WaveParams {
         return { ...waveParamsOf(this.zone_), height: amp * grown(exposure), count: this.quality.waves };
     }
@@ -733,8 +750,8 @@ interface Surface {
     surfaceData: number;
     /** Which bake the textures hold. */
     baked: WaterField | null;
+    /** The ripple state texture the Water shader was last pointed at. */
     ripple: number;
-    rippleBytes: Uint8Array | null;
     epoch: number;
     pending: boolean;
     /** Why the surface could not be made, once it could not: it is asked for again only when its mesh or material changes. */
@@ -1047,7 +1064,7 @@ export class WaterPlugin implements Plugin {
             s = null;
         }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
         if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone, far);
@@ -1289,63 +1306,78 @@ export class WaterPlugin implements Plugin {
     }
 
     /**
-     * Keeps the zone's ripples: makes the grid when `ripples` asks for one, moves its window to the camera, steps it, and (where drawn) puts it where the shader reads it.
-     * It runs headless too, so the surface a test or a server asks about has them.
+     * Keeps the zone's ripples: makes the grid when `ripples` asks for one, moves its window to the camera and queues the GPU passes that
+     * step it, then points the Water shader at the state they end on. Ripples are drawn, so a host that draws nothing keeps none.
      */
     private ripple(app: App, zone: WaterZoneData, eye: [number, number, number] | null, dt: number): void {
         const waters = this.waters_;
-        if (zone.ripples <= 0 || waters.quality.rippleCells <= 0) { this.dropRipples(); return; }
+        const s = this.surface_;
+        if (zone.ripples <= 0 || waters.quality.rippleCells <= 0 || !s || !s.instance || !app.hasResource(Assets)) { this.dropRipples(); return; }
         // The level holds the grid to its own side; a zone that asks for more gets the level's.
         const n = Math.max(8, Math.floor(Math.min(zone.ripples, waters.quality.rippleCells))), size = Math.max(zone.rippleSize, 1e-3);
         if (!waters.ripples_ || waters.ripples_.n !== n || waters.ripples_.size !== size) {
             this.dropRipples();
-            waters.ripples_ = new RippleField(n, size);
+            waters.ripples_ = new GpuRipples(n, size);
             const grid = waters.field_!.grid;
             waters.ripples_.recenter(grid.minX + grid.sizeX / 2, grid.minZ + grid.sizeZ / 2);
         }
         const field = waters.ripples_;
-        if (eye) field.recenter(eye[0], eye[2]);
-        const step = Math.min(Math.max(dt, 0), 0.1);
-        field.step(step, zone.rippleSpeed, zone.rippleDamping, zone.foamFade);
-        const s = this.surface_;
-        if (!s || !s.instance || !app.hasResource(Assets)) return;
-        // The height the grid holds and its encoding spans either side of rest: twice the tallest waves, or a fiftieth of the window where the water is calm.
-        const range = Math.max((waters.field_ ? waters.field_.ranges().amp : 0) * weatherWaves() * 2, zone.rippleSize * 0.02);
-        field.limit = range;
-        const bytes = field.encode(range, s.rippleBytes ?? undefined);
-        s.rippleBytes = bytes;
-        if (!s.ripple) {
-            s.ripple = createTextureFromPixels(app.wasmModule, { width: n, height: n, pixels: bytes }, TextureContent.Retained, false,
-                { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
-            const handle = s.ripple;
-            provideTextureContent(handle, () => {
-                if (s.ripple !== handle || !s.rippleBytes) return false;
-                updateTextureSubregion(app.wasmModule, handle, 0, 0, n, n, s.rippleBytes);
-                return true;
-            });
-            for (const i of drawnWith(s)) Material.setUniform(i, 'u_rippleMap', Material.tex(handle));
-        } else {
-            updateTextureSubregion(app.wasmModule, s.ripple, 0, 0, n, n, bytes);
-        }
+        if (!field.usable) return;
+        if (eye) { const [cx, cz] = this.rippleCentre(app, eye, field.size); field.recenter(cx, cz); }
+        // The most height a cell holds either way: twice the tallest waves, or a fiftieth of the window where the water is calm.
+        field.limit = Math.max((waters.field_ ? waters.field_.ranges().amp : 0) * weatherWaves() * 2, zone.rippleSize * 0.02);
         const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
+        if (!field.update(app.wasmModule, Math.min(Math.max(dt, 0), 0.1), zone.rippleSpeed, zone.rippleDamping, zone.foamFade) || !field.texture) {
+            set('u_rippleOn', 0);
+            return;
+        }
+        // Every frame: the passes end on either target, and a material made since (a body's own) has not been told.
+        s.ripple = field.texture;
+        for (const i of drawnWith(s)) Material.setUniform(i, 'u_rippleMap', Material.tex(field.texture));
         set('u_rippleOn', 1);
         set('u_rippleOrigin', { x: field.originX, y: field.originZ });
         set('u_rippleSize', field.size);
         set('u_rippleTexel', 1 / n);
-        set('u_rippleRange', range);
     }
+
+    /**
+     * Where the ripple window is centred: from the point under the eye toward where the view looks onto the water, by at most 0.3 of
+     * the window, so what is near stays in it and what the camera looks at is in it too. A camera looking at the horizon from a shore
+     * would otherwise keep its ripples behind it.
+     */
+    private rippleCentre(app: App, eye: [number, number, number], size: number): [number, number] {
+        const camera = app.hasResource(UICameraInfo) ? app.getResource(UICameraInfo) : null;
+        if (!camera?.valid) return [eye[0], eye[2]];
+        const inv = invertMatrix4(camera.viewProjection, this.rippleInverse_);
+        const at = (z: number): [number, number, number] => {
+            const w = inv[11]! * z + inv[15]!;
+            return [(inv[8]! * z + inv[12]!) / w, (inv[9]! * z + inv[13]!) / w, (inv[10]! * z + inv[14]!) / w];
+        };
+        const near = at(-1), far = at(1);
+        const level = this.waters_.field_?.sample(eye[0], eye[2])?.height ?? 0;
+        const dy = far[1] - near[1];
+        let hx = far[0] - near[0], hz = far[2] - near[2];
+        // Where the middle of the view meets the water's rest plane; looking level or up, as far along the view as the window allows.
+        if (dy < 0 && near[1] > level) {
+            const t = (near[1] - level) / -dy;
+            hx = near[0] + hx * t - eye[0];
+            hz = near[2] + hz * t - eye[2];
+        }
+        const reach = Math.hypot(hx, hz), most = size * 0.3;
+        if (!(reach > 1e-6)) return [eye[0], eye[2]];
+        const k = Math.min(reach, most) / reach;
+        return [eye[0] + hx * k, eye[2] + hz * k];
+    }
+
+    private readonly rippleInverse_ = new Float32Array(16);
 
     private dropRipples(): void {
         const s = this.surface_;
-        if (s?.ripple) {
-            withdrawTextureContent(s.ripple);
-            getResourceManager()?.releaseTexture(s.ripple);
-        }
         if (s) {
             s.ripple = 0;
-            s.rippleBytes = null;
             for (const i of drawnWith(s)) Material.setUniform(i, 'u_rippleOn', 0);
         }
+        this.waters_.ripples_?.release();
         this.waters_.ripples_ = null;
     }
 
@@ -1374,7 +1406,7 @@ export class WaterPlugin implements Plugin {
         if (s.farEntity && app.world.valid(s.farEntity)) app.world.despawn(s.farEntity);
         if (s.farInstance) Material.release(s.farInstance);
         if (s.farMesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(s.farMesh);
-        if (s.ripple) { withdrawTextureContent(s.ripple); getResourceManager()?.releaseTexture(s.ripple); }
+        this.waters_.ripples_?.release();
         this.waters_.ripples_ = null;
         this.dropFieldTextures(s);
         for (const group of s.groups.values()) {

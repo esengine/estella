@@ -360,7 +360,7 @@ z: number
 @internal instance_: number
 @internal opticalField_: OpticalField | null
 @internal revision_: number
-@internal ripples_: RippleField | null
+@internal ripples_: GpuRipples | null
 @internal zoneEntity_: number | null
 @internal zoneLevel_: number
 @internal zone_: WaterZoneData
@@ -490,6 +490,6 @@ Plugin
 
 ## waveSlope — function @experimental
 ```
-(p: WaveParams, x: number, z: number, time: number): [number, number]
+(p: WaveParams, x: number, z: number, time: number, cell?: number): [number, number]
 ```
 

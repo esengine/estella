@@ -29,7 +29,7 @@ import {
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
-    textureImportSettingsFrom, shadersCompiled, warmShaders, defineSkyEffect,
+    textureImportSettingsFrom, shadersCompiled, warmShaders, defineSkyEffect, WatersRes,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -707,6 +707,31 @@ const api = {
         const capture = profiler.take();
         profiler.stop();
         return capture;
+    },
+
+    /**
+     * What the water's CPU surface says at each (x, z), at the frame's instant: the height `Waters.sample` gives (what a floating body and a
+     * game read), null where there is no water. The time is returned with it, so a check compares it with the frame drawn at that time.
+     */
+    waterSurface(points: Array<[number, number]>): { time: number; heights: Array<number | null> } {
+        const waters = app!.hasResource(WatersRes) ? app!.getResource(WatersRes) : null;
+        return { time: app!.getResource(Time).elapsed,
+            heights: points.map(([x, z]) => waters?.sample(x, 1e5, z)?.surface[1] ?? null) };
+    },
+
+    /** Disturbs the water at (x, z) as a script would (Waters.disturb): the ripple frame that takes it in, -1 where none keeps ripples. */
+    waterDisturb(x: number, z: number, radius: number, strength: number): number {
+        const waters = app!.hasResource(WatersRes) ? app!.getResource(WatersRes) : null;
+        // The frame the ripples will take it in, or -1 where nothing keeps ripples.
+        return waters?.disturb(x, 0, z, radius, strength) ? waters.ripples_!.frames + 1 : -1;
+    },
+
+    /** The ripple grid as last read back from the GPU, with the frame it is the state after; null before one lands. */
+    waterRipples(): { n: number; size: number; limit: number; frame: number; originX: number; originZ: number; heights: number[] } | null {
+        const field = app!.hasResource(WatersRes) ? app!.getResource(WatersRes).ripples_ : null;
+        const last = field?.lastReadback();
+        if (!field || !last) return null;
+        return { n: field.n, size: field.size, limit: field.limit, frame: last.frame, originX: last.originX, originZ: last.originZ, heights: Array.from(last.heights) };
     },
 
     /** Runs the gameplay systems the authoring mode freezes. */
