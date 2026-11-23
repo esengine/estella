@@ -137,6 +137,31 @@ export function distanceToCell(cell: WorldCell, x: number, z: number): number {
     return Math.hypot(dx, dz);
 }
 
+export interface SourceBounds {
+    minX: number; minZ: number; maxX: number; maxZ: number;
+    /** Radius at which an idle cell can start work. Active cells are always reconciled. */
+    reach: number;
+}
+
+/** Conservative bounds for one reconciliation. Exact membership and ordering still use distanceToCell. */
+export function sourceBounds(sources: readonly ResidencySource[]): SourceBounds {
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, reach = -Infinity;
+    for (const { x, z, loadRadius, prefetchRadius } of sources) {
+        minX = Math.min(minX, x);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxZ = Math.max(maxZ, z);
+        reach = Math.max(reach, loadRadius, prefetchRadius);
+    }
+    return { minX, minZ, maxX, maxZ, reach };
+}
+
+/** Only reject a box when even the separation on one axis exceeds every source's reach. */
+export function outsideSourceReach(cell: WorldCell, bounds: SourceBounds, radius: number): boolean {
+    return cell.minX - bounds.maxX > radius || bounds.minX - cell.maxX > radius ||
+        cell.minZ - bounds.maxZ > radius || bounds.minZ - cell.maxZ > radius;
+}
+
 /**
  * Which cells should exist, given where the sources are and what is resident.
  *

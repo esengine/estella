@@ -472,6 +472,56 @@ describe('WorldStreamer', () => {
         expect(status.residentCells).toEqual(['c_0_0']);
     });
 
+    it('keeps exact queries local even when the unload radius covers the whole map', async () => {
+        const streamer = new WorldStreamer(recordingHost().host);
+        const cells = Array.from({ length: 1024 }, (_, i) => cell(i % 32, Math.floor(i / 32)));
+        await streamer.loadManifest(manifest(...cells));
+        const camera = source(1650, 1650, 10, Infinity, 20);
+        streamer.update([camera]);
+        await flush();
+        let reads = 0;
+        streamer.update([{ ...camera, get x() { reads++; return camera.x; } }]);
+        expect(streamer.status().residentCells).toEqual(['c_16_16']);
+        // A linear number of source reads means every idle box took the exact distance path.
+        expect(reads).toBeLessThan(16);
+    });
+
+    it('matches the complete decision as sources move and registered bounds change', async () => {
+        const streamer = new WorldStreamer(recordingHost().host);
+        const overhang = cell(200, 8);
+        const cells = [cell(0, 0), cell(1, 1), cell(-2, 0), cell(20, 4), overhang];
+        await streamer.loadManifest(manifest(...cells));
+        const camera = source(103, 104, 5, 25, 10);
+        async function reconcile(sources: ResidencySource[]) {
+            const expected = desiredResidency(cells, sources, new Set(streamer.status().residentCells));
+            streamer.update(sources);
+            const status = streamer.status();
+            expect(status.desiredCells).toEqual(expected.target);
+            expect(new Set(status.prefetchCells)).toEqual(new Set(expected.prefetch));
+            await vi.waitFor(() => expect(streamer.status().residentCells).toEqual(expected.target));
+        }
+        await reconcile([camera]); // Exactly on a circular corner.
+        camera.x = 120;
+        await reconcile([camera, source(2050, 450, 3, 50, 160)]);
+        overhang.minX = 120;
+        overhang.minZ = 104;
+        await reconcile([camera]);
+        expect(streamer.status().residentCells).toContain(overhang.name);
+        overhang.minX = 20000;
+        await reconcile([source(NaN, 0, 5, 5), source(-150, 50, 0, 10)]);
+        await reconcile([]);
+    });
+
+    it('resolves an edited box name against the original scene registrations', async () => {
+        const streamer = new WorldStreamer(recordingHost().host);
+        const near = cell(0, 0), far = cell(50, 50);
+        await streamer.loadManifest(manifest(near, far));
+        near.name = far.name;
+        streamer.update([source(50, 50, 1, 2)]);
+        await flush();
+        expect(streamer.status().residentCells).toEqual([far.name]);
+    });
+
     it('asks once while a preparation is in flight, and drops what the source undid', async () => {
         const { host, calls, settle, defer } = recordingHost();
         defer(true);

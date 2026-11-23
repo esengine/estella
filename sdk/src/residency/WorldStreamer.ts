@@ -17,7 +17,10 @@
  *          of things to hide.
  */
 
-import { desiredResidency, distanceToCell, type ResidencySource, type WorldCell, type WorldManifest } from './cells';
+import {
+    desiredResidency, distanceToCell, outsideSourceReach, sourceBounds,
+    type ResidencySource, type SourceBounds, type WorldCell, type WorldManifest,
+} from './cells';
 import { farProxySceneName } from './farProxy';
 import type { SceneConfig } from '../scene/sceneManager';
 import {
@@ -155,6 +158,7 @@ export interface WorldStreamerStatus {
 }
 
 interface CellState {
+    readonly registeredName: string;
     cell: WorldCell;
     residency: CellResidency;
     /**
@@ -296,7 +300,7 @@ export class WorldStreamer {
                 this.proxies_.set(cell.name, { scene, residency: 'unloaded', wanted: false, failed: false });
             }
             this.cells_.set(cell.name, {
-                cell, residency: 'unloaded', desired: false, speculated: false,
+                registeredName: cell.name, cell, residency: 'unloaded', desired: false, speculated: false,
                 assetsReady: false, renderReadiness: null, readinessInFlight: false,
                 restamps: 0,
                 phases: {}, issuedAt: 0, delivery: 0,
@@ -437,42 +441,57 @@ export class WorldStreamer {
         if (this.clearing_ || !this.manifest_) return;
         this.sourceCount_ = sources.length;
         if (this.cells_.size === 0) return;
+        const bounds = sourceBounds(sources);
+        const candidates = this.relevantCells_(bounds);
+        const cells: WorldCell[] = [];
         const resident = new Set<string>();
-        for (const [name, state] of this.cells_) {
+        for (const state of candidates) {
+            cells.push(state.cell);
             // Publishing counts as resident so the decision does not ask twice, and
             // unloading does not, so a source that came back re-issues the load.
-            if (state.residency === 'resident' || state.residency === 'publishing') resident.add(name);
+            if (state.residency === 'resident' || state.residency === 'publishing') resident.add(state.registeredName);
         }
-        const cells: WorldCell[] = [];
-        for (const state of this.cells_.values()) cells.push(state.cell);
         const decision = desiredResidency(cells, sources, resident);
 
         const target = new Set(decision.target);
         const speculated = new Set(decision.prefetch);
         const now = performance.now();
-        for (const [name, state] of this.cells_) {
+        for (const state of candidates) {
+            const name = state.registeredName;
             const wanted = target.has(name);
             if (wanted && !state.desired) this.demand_(state, now);
             state.desired = wanted;
             state.speculated = speculated.has(name);
         }
         this.order_ = [...decision.toLoad, ...decision.prefetch.filter((name) => !target.has(name))];
-        this.judgeUrgency_(sources);
+        this.judgeUrgency_(sources, candidates);
         // Which stand-ins are wanted is settled before any cell steps: a cell stepped on the way (a prefetch of one that is
         // leaving) reads its proxy's want to decide whether it may go.
-        this.wantProxies_(sources);
+        this.wantProxies_(sources, bounds);
         // Demanded first and nearest first: a place a player is walking into
         // outranks one they might. Then speculation, then what nobody needs.
         for (const name of decision.toLoad) this.step_(name);
         for (const name of decision.prefetch) if (!target.has(name)) this.step_(name);
         for (const proxy of this.proxies_.values()) this.stepProxy_(proxy);
         for (const name of decision.toUnload) this.step_(name);
-        for (const [name, state] of this.cells_) {
+        for (const state of candidates) {
             if ((state.residency === 'prepared' || state.residency === 'preparing') && !state.desired && !state.speculated) {
-                this.step_(name);
+                this.step_(state.registeredName);
             }
         }
-        this.judgeHold_();
+        this.judgeHold_(candidates);
+    }
+
+    private relevantCells_(bounds: SourceBounds): CellState[] {
+        const candidates: CellState[] = [];
+        for (const state of this.cells_.values()) {
+            // Registrations keep their keys even if a caller edits a manifest in place.
+            // A renamed box can address a different registration in the exact decision.
+            if (state.registeredName !== state.cell.name) return Array.from(this.cells_.values());
+            if (state.residency !== 'unloaded' || state.desired || state.speculated || state.urgent ||
+                !outsideSourceReach(state.cell, bounds, bounds.reach)) candidates.push(state);
+        }
+        return candidates;
     }
 
     /**
@@ -480,9 +499,10 @@ export class WorldStreamer {
      * (distance to the cell over load radius). An urgent cell's work may take the budget's priority extra; under `wait` and `publish`
      * its publication is finished at once.
      */
-    private judgeUrgency_(sources: readonly ResidencySource[]): void {
+    private judgeUrgency_(sources: readonly ResidencySource[], candidates: readonly CellState[]): void {
         const ratio = this.policy_.slowStreamingRatio;
-        for (const [name, state] of this.cells_) {
+        for (const state of candidates) {
+            const name = state.registeredName;
             let urgent = false;
             if (state.desired && state.residency !== 'resident') {
                 for (const source of sources) {
@@ -504,10 +524,10 @@ export class WorldStreamer {
     }
 
     /** Under `wait`, the game is held while any urgent cell that can still arrive is not in. */
-    private judgeHold_(): void {
+    private judgeHold_(candidates?: readonly CellState[]): void {
         let held = false;
         if (this.policy_.slowStreaming === 'wait' && !this.clearing_) {
-            for (const state of this.cells_.values()) {
+            for (const state of candidates ?? this.cells_.values()) {
                 if (state.urgent && !state.failed && state.residency !== 'resident') { held = true; break; }
             }
         }
@@ -533,13 +553,15 @@ export class WorldStreamer {
      * A proxy is wanted where a source is within the far distance and its cell is not shown and staying: absent, still on its
      * way, or about to leave. So it is in before its cell goes, and goes only once its cell is in: the place is never empty.
      */
-    private wantProxies_(sources: readonly ResidencySource[]): void {
+    private wantProxies_(sources: readonly ResidencySource[], bounds: SourceBounds): void {
         const far = this.manifest_?.farDistance ?? 0;
         for (const [name, proxy] of this.proxies_) {
             const state = this.cells_.get(name)!;
             let near = false;
-            for (const source of sources) {
-                if (distanceToCell(state.cell, source.x, source.z) <= far) { near = true; break; }
+            if (!outsideSourceReach(state.cell, bounds, far)) {
+                for (const source of sources) {
+                    if (distanceToCell(state.cell, source.x, source.z) <= far) { near = true; break; }
+                }
             }
             proxy.wanted = !this.clearing_ && near && !(state.residency === 'resident' && state.desired);
         }

@@ -67,6 +67,26 @@ describe('a far proxy', () => {
         expect(streamer.status().proxyCells).toEqual(['c_0_0']);
     });
 
+    it('uses the current far distance independently of the cell radii', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        const manifest = world(399, cell(0), ...Array.from({ length: 100 }, (_, i) => cell(10 + i)));
+        await streamer.loadManifest(manifest);
+        let reads = 0;
+        const focus = { ...at(500), get x() { reads++; return 500; } };
+        streamer.update([focus]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual([]);
+        manifest.farDistance = 400;
+        streamer.update([focus]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual(['c_0_0']);
+        expect(reads).toBeLessThan(16);
+        manifest.farDistance = 0;
+        streamer.update([focus]);
+        await t.settle();
+        expect(t.loaded.size).toBe(0);
+    });
+
     it('leaves only once its cell is in, so walking into a place never shows a hole', async () => {
         const t = host();
         const streamer = new WorldStreamer(t.h);
