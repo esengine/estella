@@ -711,12 +711,14 @@ const api = {
 
     /**
      * What the water's CPU surface says at each (x, z), at the frame's instant: the height `Waters.sample` gives (what a floating body and a
-     * game read), null where there is no water. The time is returned with it, so a check compares it with the frame drawn at that time.
+     * game read) and the current there (x, z, world units a second), null where there is no water. The time is returned with it, so a
+     * check compares it with the frame drawn at that time.
      */
-    waterSurface(points: Array<[number, number]>): { time: number; heights: Array<number | null> } {
+    waterSurface(points: Array<[number, number]>): { time: number; heights: Array<number | null>; flows: Array<[number, number] | null> } {
         const waters = app!.hasResource(WatersRes) ? app!.getResource(WatersRes) : null;
-        return { time: app!.getResource(Time).elapsed,
-            heights: points.map(([x, z]) => waters?.sample(x, 1e5, z)?.surface[1] ?? null) };
+        const samples = points.map(([x, z]) => waters?.sample(x, 1e5, z) ?? null);
+        return { time: app!.getResource(Time).elapsed, heights: samples.map((s) => s?.surface[1] ?? null),
+            flows: samples.map((s) => (s ? [s.flow[0], s.flow[2]] as [number, number] : null)) };
     },
 
     /** Disturbs the water at (x, z) as a script would (Waters.disturb): the ripple frame that takes it in, -1 where none keeps ripples. */

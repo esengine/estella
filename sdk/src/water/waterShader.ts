@@ -335,7 +335,13 @@ const ZONE_SAMPLE = `    vec2 zoneUv = (wp - u_zoneOrigin) / max(u_zoneSize, vec
     float damp = zoneOn ? zone.z * calm : 1.0;
     vec2 flow = zoneOn && zoneIn ? (zoneTex.gb - 0.5) * 2.0 * u_zoneRange.z : vec2(0.0);`;
 
-const SURFACE_SLOPE = `vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool zoneOn, bool zoneRead, float shoreDist, vec2 flow,
+const SURFACE_SLOPE = `// How far the two copies a current carries have gone (x, y, in seconds of the current) and how much of the first is seen (z).
+vec3 waterFlowPhase(float time) {
+    float cycle = max(u_flowCycle, 0.1);
+    float ph0 = fract(time / cycle);
+    return vec3(ph0 * cycle, fract(time / cycle + 0.5) * cycle, 1.0 - abs(2.0 * ph0 - 1.0));
+}
+vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool zoneOn, bool zoneRead, float shoreDist, vec2 flow,
                   float damp, float calm, float surfStep, out float crest, out float ripFoam, out vec2 surf, out vec2 toSea) {
     // The surf: its height across the shore distance gives its slope along the way to the shore, and where it breaks it is white.
     float still = zoneRead ? waterZoneStill(wp) : 1.0;
@@ -371,26 +377,24 @@ const SURFACE_SLOPE = `vec2 surfaceSlope(vec2 wp, float time, float waterDist, v
         ripSlope = vec2(ripR - ripL, ripU - ripD) / (2.0 * ripCell) * ripFade;
         ripFoam = textureLod(u_rippleMap, ripUv, 0.0).g * ripFade;
     }
-    vec2 slope;
-    if (dot(flow, flow) > 1e-6) {
-        // A current: the surface rides it. Two copies of it are carried downstream a cycle at a time, each fading in as the other fades
-        // out, so the moment one is put back at its start is hidden by the other.
-        float cycle = max(u_flowCycle, 0.1);
-        float ph0 = fract(time / cycle);
-        float ph1 = fract(time / cycle + 0.5);
-        float w0 = 1.0 - abs(2.0 * ph0 - 1.0);
-        float crest0, crest1;
-        // Named copy0/copy1 because a t or s followed by a number is a texture unit's name (ShaderParser::materialOverflowUnits).
-        vec2 copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, px, damp, calm, crest0);
-        vec2 copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, px, damp, calm, crest1);
-        slope = mix(copy1, copy0, w0);
-        crest = mix(crest1, crest0, w0);
-    } else {
-        slope = waterSurface(wp, time, waterDist, px, damp, calm, crest);
-    }
     // Rain rings are fine: where a pixel grows past a ring's crests they would shimmer, so they fade out before it.
     float rainFade = 1.0 - smoothstep(u_rippleLength * 8.0, u_rippleLength * 20.0, waterDist);
-    slope += ripSlope + toSea * (surfRise * u_geoWaves) + rainRings(wp, time, u_rain) * rainFade + detailSlope(wp, time) * calm;
+    vec2 slope;
+    if (dot(flow, flow) > 1e-6) {
+        // A current: what lies on the surface rides it (the waves, the wind's ripples, the rain's rings, the detail). Two copies of it are
+        // carried downstream a cycle at a time, each fading in as the other fades out, so the moment one is put back is hidden by the other.
+        vec3 phase = waterFlowPhase(time);
+        float crest0, crest1;
+        // Named copy0/copy1 because a t or s followed by a number is a texture unit's name (ShaderParser::materialOverflowUnits).
+        vec2 at0 = wp - flow * phase.x, at1 = wp - flow * phase.y;
+        vec2 copy0 = waterSurface(at0, time, waterDist, px, damp, calm, crest0) + rainRings(at0, time, u_rain) * rainFade + detailSlope(at0, time) * calm;
+        vec2 copy1 = waterSurface(at1, time, waterDist, px, damp, calm, crest1) + rainRings(at1, time, u_rain) * rainFade + detailSlope(at1, time) * calm;
+        slope = mix(copy1, copy0, phase.z);
+        crest = mix(crest1, crest0, phase.z);
+    } else {
+        slope = waterSurface(wp, time, waterDist, px, damp, calm, crest) + rainRings(wp, time, u_rain) * rainFade + detailSlope(wp, time) * calm;
+    }
+    slope += ripSlope + toSea * (surfRise * u_geoWaves);
     return slope;
 }`;
 
@@ -998,7 +1002,16 @@ void main() {
     // The texture as coverage: a texel holding c of foam shows where the foam asked for is more than 1 - c, rising to full over the rest,
     // so thin foam keeps only the texture's densest marks and thick foam fills it. c = 1 leaves the foam as it was, and no foam stays none whatever c is.
     if (foam > 0.0) {
-        float foamCover = textureGrad(u_foamMap, foamUv, foamDx, foamDy).r;
+        float foamCover;
+        // Foam on a current is carried with it, as the surface is (surfaceSlope).
+        if (dot(flow, flow) > 1e-6) {
+            vec3 phase = waterFlowPhase(time);
+            vec2 along = flow / max(u_foamTile, 1e-4);
+            foamCover = mix(textureGrad(u_foamMap, foamUv - along * phase.y, foamDx, foamDy).r,
+                            textureGrad(u_foamMap, foamUv - along * phase.x, foamDx, foamDy).r, phase.z);
+        } else {
+            foamCover = textureGrad(u_foamMap, foamUv, foamDx, foamDy).r;
+        }
         foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
     }
     // Foam floats on top: from under the water it is a thin shadow on the light, not a white sheet.

@@ -8,7 +8,8 @@
  *          one step before (the scheme's velocity). Each frame runs, as material bakes before the scene:
  *            - one INJECT pass: moves the window by whole cells (the contents shift with it), puts the frame's disturbances into the height
  *              and the step before alike (so each starts at rest and spreads), feeds and fades the foam;
- *            - as many STEP passes as the frame needs substeps of one fixed length (see {@link RippleField.step} for why it is fixed);
+ *            - as many STEP passes as the frame needs substeps of one fixed length (see {@link RippleField.step} for why it is fixed),
+ *              each carrying the grid along the current first where the zone has one (a wake in a river drifts downstream);
  *            - one PACK pass into an RGBA8 target: the height as 16 bits either side of rest, read back for {@link GpuRipples.heightAt}.
  *          The Water shader reads the last state for the height it lifts each vertex by, the slope it shades with and the foam: what is
  *          drawn and what is read back are one texture. The read back lands a frame or two late; it is for what looks at the ripples (a
@@ -25,6 +26,7 @@ import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runt
 import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../wasm';
 import { log } from '../util/logger';
+import { WATER_ZONE_LAYER_GLSL } from '../render/waterCaustics';
 
 /** The most disturbances one frame puts in; past it the weakest are left out. */
 export const MAX_RIPPLE_DROPS = 128;
@@ -43,10 +45,31 @@ export const RIPPLE_SHADER = `#pragma shader "Water Ripples"
 #pragma param u_rippleDrops texture default(black) texel(data)
 #pragma param u_bakeA vec4 default(0,0,0,0)
 #pragma param u_bakeB vec4 default(0,1,1,1)
+#pragma param u_zoneSurfaceData texture default(white) texel(data)
+#pragma param u_zoneOrigin vec2 default(0,0)
+#pragma param u_zoneSize vec2 default(1,1)
+#pragma param u_zoneRange vec4 default(0,0,0,0)
+#pragma param u_rippleWindow vec4 default(0,0,1,0)
+#pragma param u_rippleCurrent float default(0)
 #pragma fragment
 precision highp float;
 in vec2 v_texCoord;
 out vec4 fragColor;
+${WATER_ZONE_LAYER_GLSL}
+// The current at the middle of cell p, in cells a substep: u_rippleWindow is (origin x, z, cell, substep seconds).
+vec2 rippleDrift(ivec2 p) {
+    if (u_rippleCurrent < 0.5) return vec2(0.0);
+    vec2 world = u_rippleWindow.xy + (vec2(p) + 0.5) * u_rippleWindow.z;
+    vec2 uv = (world - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec2(0.0);
+    vec2 flow = (waterZoneLayer(uv, 0.0).gb - 0.5) * 2.0 * u_zoneRange.z;
+    return flow * u_rippleWindow.w / max(u_rippleWindow.z, 1e-6);
+}
+// The state that the current brings to cell p this substep: what was a drift upstream of it, read between cells.
+vec4 rippleCarried(ivec2 p, vec2 drift, int n) {
+    if (p.x <= 0 || p.y <= 0 || p.x >= n - 1 || p.y >= n - 1) return vec4(0.0);
+    return textureLod(u_rippleState, (vec2(p) + 0.5 - drift) / float(n), 0.0);
+}
 vec4 rippleCell(ivec2 q, int n) {
     return (q.x < 0 || q.y < 0 || q.x >= n || q.y >= n) ? vec4(0.0) : texelFetch(u_rippleState, q, 0);
 }
@@ -89,6 +112,16 @@ void main() {
     }
     // A step of the wave equation: pulled toward the mean of four neighbours, carrying the velocity it had, a little damped. The edge is
     // held at rest, which lets waves out of the window rather than reflecting them.
+    vec2 drift = rippleDrift(p);
+    if (dot(drift, drift) > 1e-8) {
+        // Carried first, then stepped: the stencil reads the grid as the current left it, so the rings spread about a moving centre.
+        vec4 c = rippleCarried(p, drift, n);
+        if (p.x == 0 || p.y == 0 || p.x == n - 1 || p.y == n - 1) { fragColor = vec4(0.0, c.g, c.r, 1.0); return; }
+        float around = rippleCarried(p - ivec2(1, 0), drift, n).r + rippleCarried(p + ivec2(1, 0), drift, n).r
+                     + rippleCarried(p - ivec2(0, 1), drift, n).r + rippleCarried(p + ivec2(0, 1), drift, n).r - 4.0 * c.r;
+        fragColor = vec4((2.0 * c.r - c.b + u_bakeB.x * around) * u_bakeB.y, c.g, c.r, 1.0);
+        return;
+    }
     vec4 c = rippleCell(p, n);
     if (p.x == 0 || p.y == 0 || p.x == n - 1 || p.y == n - 1) { fragColor = vec4(0.0, c.g, c.r, 1.0); return; }
     float around = rippleCell(p - ivec2(1, 0), n).r + rippleCell(p + ivec2(1, 0), n).r
@@ -106,6 +139,9 @@ function word(v: number, out: Uint8Array, at: number): void {
 }
 
 interface Drop { x: number; z: number; radius: number; strength: number }
+
+/** A zone's current, as its Water shader reads it: the field texture (flow in green and blue), where it lies, and its flow range. */
+export interface RippleCurrent { texture: number; origin: { x: number; y: number }; size: { x: number; y: number }; flowRange: number }
 
 /** The ripple grid on the GPU: one per water zone that keeps ripples. */
 export class GpuRipples {
@@ -199,10 +235,11 @@ export class GpuRipples {
      * Queues this frame's passes: `dt` seconds of waves at `speed` world units a second, losing `damping` of their height a second, the
      * foam fading by `foamFade` a second. False where the device cannot run them.
      */
-    update(module: ESEngineModule | null, dt: number, speed: number, damping: number, foamFade: number): boolean {
+    update(module: ESEngineModule | null, dt: number, speed: number, damping: number, foamFade: number, current: RippleCurrent | null = null): boolean {
         if (this.failed) return false;
         if (!this.ensure(module)) return false;
         const h = Math.min((0.5 * this.cell) / Math.max(speed, 1e-6), 1 / 60);
+        this.carry_(current, h);
         this.carry += Math.max(dt, 0);
         const substeps = Math.min(Math.floor(this.carry / h), Math.ceil(0.25 / h));
         this.carry = Math.min(this.carry - substeps * h, h);
@@ -261,6 +298,20 @@ export class GpuRipples {
         }
         this.current = 0;
         return true;
+    }
+
+    /** Points both materials at the zone's current (or none) for this frame's passes. */
+    private carry_(current: RippleCurrent | null, h: number): void {
+        const on = !!current && current.flowRange > 0 && current.texture > 0;
+        for (const m of this.materials) {
+            Material.setUniform(m, 'u_rippleCurrent', on ? 1 : 0);
+            if (!on) continue;
+            Material.setUniform(m, 'u_zoneSurfaceData', Material.tex(current!.texture));
+            Material.setUniform(m, 'u_zoneOrigin', current!.origin);
+            Material.setUniform(m, 'u_zoneSize', current!.size);
+            Material.setUniform(m, 'u_zoneRange', { x: 0, y: 0, z: current!.flowRange, w: 0 });
+            Material.setUniform(m, 'u_rippleWindow', { x: this.originX, y: this.originZ, z: this.cell, w: h });
+        }
     }
 
     /** Writes the queued disturbances into the drop texture, in window coordinates; returns how many. */

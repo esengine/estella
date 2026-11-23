@@ -48,7 +48,7 @@ import { installWaterfalls } from './waterfall';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
-import { GpuRipples } from './rippleGpu';
+import { GpuRipples, type RippleCurrent } from './rippleGpu';
 import {
     WaterField, WaterZone, currentShare, inExclusion, insideBody,
     type FieldSample, type RiverStation, type ZoneBodyCommon, type ZoneExclusion, type WaterZoneData, type ZoneBody, type ZoneGrid, type ZoneGround,
@@ -752,6 +752,8 @@ interface Surface {
     baked: WaterField | null;
     /** The ripple state texture the Water shader was last pointed at. */
     ripple: number;
+    /** The zone's current as the shaders read it, for the ripples to be carried by; null where nothing flows. */
+    current: RippleCurrent | null;
     epoch: number;
     pending: boolean;
     /** Why the surface could not be made, once it could not: it is asked for again only when its mesh or material changes. */
@@ -1064,7 +1066,7 @@ export class WaterPlugin implements Plugin {
             s = null;
         }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, epoch: ++this.epoch_, pending: false, failure: null };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, layout, groups: new Map(), instance: 0, farEntity: 0 as Entity, farMesh: 0, farInstance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, look: 0, surfaceData: 0, baked: null, ripple: 0, current: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
         if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone, far);
@@ -1189,6 +1191,8 @@ export class WaterPlugin implements Plugin {
         set('u_zoneHeight', { x: ranges.heightMin, y: ranges.heightSpan });
         set('u_zoneRange', { x: ranges.shore, y: ranges.amp, z: ranges.flow, w: ranges.depth });
         set('u_zoneOn', 1);
+        s.current = empty || !(ranges.flow > 0) ? null
+            : { texture: s.surfaceData, origin: { x: minX, y: minZ }, size: { x: sizeX, y: sizeZ }, flowRange: ranges.flow };
     }
 
     private readonly opticalField = new WaterOpticalField();
@@ -1327,7 +1331,7 @@ export class WaterPlugin implements Plugin {
         // The most height a cell holds either way: twice the tallest waves, or a fiftieth of the window where the water is calm.
         field.limit = Math.max((waters.field_ ? waters.field_.ranges().amp : 0) * weatherWaves() * 2, zone.rippleSize * 0.02);
         const set = (name: string, value: number | { x: number; y: number }): void => { for (const i of drawnWith(s)) Material.setUniform(i, name, value); };
-        if (!field.update(app.wasmModule, Math.min(Math.max(dt, 0), 0.1), zone.rippleSpeed, zone.rippleDamping, zone.foamFade) || !field.texture) {
+        if (!field.update(app.wasmModule, Math.min(Math.max(dt, 0), 0.1), zone.rippleSpeed, zone.rippleDamping, zone.foamFade, s.current) || !field.texture) {
             set('u_rippleOn', 0);
             return;
         }
@@ -1389,6 +1393,7 @@ export class WaterPlugin implements Plugin {
         if (s.look) rm?.releaseTexture(s.look);
         if (s.surfaceData) rm?.releaseTexture(s.surfaceData);
         s.surfaceData = 0;
+        s.current = null;
         this.waters_.causticBodies_ = null;
         s.look = 0;
         s.heights = 0;

@@ -1,0 +1,164 @@
+{
+ "version": 4,
+ "name": "water-river",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 2500,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.706489444943837,
+       "y": 0,
+       "z": 0,
+       "w": 0.7077235789366842
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 50,
+      "nearPlane": 5,
+      "farPlane": 20000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.403,
+       "y": 0.2725,
+       "z": 0.1271,
+       "w": 0.8644
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 3,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Zone",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "WaterZone",
+     "data": {
+      "sizeX": 40000,
+      "sizeZ": 40000,
+      "resolution": 256,
+      "surf": 0,
+      "ripples": 64,
+      "rippleSize": 2000,
+      "rippleSpeed": 600,
+      "rippleDamping": 0.8,
+      "foamFade": 0.4,
+      "farDistance": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "River",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Spline",
+     "data": {
+      "points": [
+       {
+        "x": -11490.66664678467,
+        "y": 0,
+        "z": -9641.814145298089,
+        "width": 5000
+       },
+       {
+        "x": 11490.66664678467,
+        "y": 0,
+        "z": 9641.814145298089,
+        "width": 5000
+       }
+      ],
+      "closed": false
+     }
+    },
+    {
+     "type": "WaterBody",
+     "data": {
+      "form": 2,
+      "flowSpeed": 300,
+      "waveHeight": 0,
+      "shoreWidth": 60,
+      "affectsTerrain": false
+     }
+    }
+   ]
+  }
+ ]
+}
