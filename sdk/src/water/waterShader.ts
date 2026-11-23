@@ -397,140 +397,140 @@ const WATER = `#pragma shader "Water"
 #pragma domain Lit
 #pragma lighting direct
 // The colour the water scatters back: lighter where it is shallow, darker where it is deep.
-#pragma param u_shallowColor color default(0.10,0.42,0.46,1)
-#pragma param u_deepColor color default(0.01,0.08,0.15,1)
+#pragma param u_shallowColor color default(0.10,0.42,0.46,1) group(Colour)
+#pragma param u_deepColor color default(0.01,0.08,0.15,1) group(Colour)
 // How fast each colour is absorbed along the way through the water (red goes first), and how thick the water is, per world unit.
-#pragma param u_absorption color default(0.45,0.09,0.05,1)
-#pragma param u_density float default(${WATER_DENSITY}) range(0,0.04) ui(slider) unit(perLength)
+#pragma param u_absorption color default(0.45,0.09,0.05,1) group(Colour)
+#pragma param u_density float default(${WATER_DENSITY}) range(0,0.04) ui(slider) unit(perLength) group(Colour)
 // How soon the water's own colour turns from the shallow one to the deep one, as a share of the density: lower keeps a lagoon its shallow colour over deeper water.
-#pragma param u_deepening float default(0.5) range(0,4) ui(slider)
+#pragma param u_deepening float default(0.5) range(0,4) ui(slider) group(Colour)
 // How much the bed is dimmed by the water its light came down through, as well as by the water it is seen through: 1 is what water does
 // (a bed ten metres down is lit by what ten metres let through), 0 lights it as if it were dry.
-#pragma param u_bedShade float default(1) range(0,1) ui(slider)
+#pragma param u_bedShade float default(1) range(0,1) ui(slider) group(Colour)
 // The waves: height, length of the longest, how sharp their crests are drawn, how fast they travel and which way (degrees).
-#pragma param u_waveHeight float default(30) range(0,800) ui(slider) unit(length)
-#pragma param u_waveLength float default(1400) range(50,30000) ui(slider) unit(length)
-#pragma param u_waveGravity float default(981) unit(length)
+#pragma param u_waveHeight float default(30) range(0,800) unit(length) ui(hidden)
+#pragma param u_waveLength float default(1400) range(50,30000) unit(length) ui(hidden)
+#pragma param u_waveGravity float default(981) unit(length) ui(hidden)
 // The project's world units a metre: what is a raindrop's size whatever the scale.
-#pragma param u_metre float default(100) unit(length)
-#pragma param u_waveSpeed float default(1) range(0,4) ui(slider)
-#pragma param u_waveDirection float default(30) range(0,360) ui(slider)
+#pragma param u_metre float default(100) unit(length) ui(hidden)
+#pragma param u_waveSpeed float default(1) range(0,4) ui(hidden)
+#pragma param u_waveDirection float default(30) range(0,360) ui(hidden)
 // The small ripples the long waves carry: how steep and how long each is.
-#pragma param u_rippleStrength float default(0.3) range(0,1) ui(slider)
-#pragma param u_rippleLength float default(250) range(10,4000) ui(slider) unit(length)
+#pragma param u_rippleStrength float default(0.3) range(0,1) ui(slider) group(Ripples)
+#pragma param u_rippleLength float default(250) range(10,4000) ui(slider) unit(length) group(Ripples)
 // The ripples' three layers: the map's repeat in ripple lengths, the fine and the wide layer's size as shares of it, each layer's weight, and how far
 // off the wind (degrees) the fine and the wide one run. Then the gusts: how much of them, what a slick and a ruffled patch multiply the ripples by, a patch's size.
-#pragma param u_rippleTile float default(9) range(1,64) ui(slider)
-#pragma param u_rippleFineSize float default(0.317) range(0.05,1) ui(slider)
-#pragma param u_rippleWideSize float default(2.65) range(1,16) ui(slider)
-#pragma param u_rippleWeight float default(1.26) range(0,4) ui(slider)
-#pragma param u_rippleFineWeight float default(0.84) range(0,4) ui(slider)
-#pragma param u_rippleWideWeight float default(0.98) range(0,4) ui(slider)
-#pragma param u_rippleTurn float default(25) range(0,90) ui(slider)
-#pragma param u_rippleGusts float default(0.6) range(0,1) ui(slider)
-#pragma param u_gustCalm float default(0.35) range(0,1) ui(slider)
-#pragma param u_gustRuffle float default(1.45) range(1,3) ui(slider)
-#pragma param u_gustSize float default(2200) range(100,100000) ui(slider) unit(length)
+#pragma param u_rippleTile float default(9) range(1,64) ui(slider) group(Ripples)
+#pragma param u_rippleFineSize float default(0.317) range(0.05,1) ui(slider) group(Ripples)
+#pragma param u_rippleWideSize float default(2.65) range(1,16) ui(slider) group(Ripples)
+#pragma param u_rippleWeight float default(1.26) range(0,4) ui(slider) group(Ripples)
+#pragma param u_rippleFineWeight float default(0.84) range(0,4) ui(slider) group(Ripples)
+#pragma param u_rippleWideWeight float default(0.98) range(0,4) ui(slider) group(Ripples)
+#pragma param u_rippleTurn float default(25) range(0,90) ui(slider) group(Ripples)
+#pragma param u_rippleGusts float default(0.6) range(0,1) ui(slider) group(Ripples)
+#pragma param u_gustCalm float default(0.35) range(0,1) ui(slider) group(Ripples)
+#pragma param u_gustRuffle float default(1.45) range(1,3) ui(slider) group(Ripples)
+#pragma param u_gustSize float default(2200) range(100,100000) ui(slider) unit(length) group(Ripples)
 // How much the ripples shade the water's own colour (1: wholly, as a painted surface; 0: not at all, as light from under one), and what the surface
 // mirrors seen straight on (water's 0.0204).
-#pragma param u_bodyShading float default(0.25) range(0,1) ui(slider)
-#pragma param u_reflectance float default(0.0204) range(0,0.2) ui(slider)
+#pragma param u_bodyShading float default(0.25) range(0,1) ui(slider) group(Colour)
+#pragma param u_reflectance float default(0.0204) range(0,0.2) ui(slider) group(Surface)
 // How hard it rains on the water (the weather writes it), and how its rings look: speed (m/s), life (s), crest width (m), strength.
 // Both come from the rain effect while it rains (render/precipitation.ts), so the water rings as the puddles do.
-#pragma param u_rain float default(0) range(0,4) ui(slider)
-#pragma param u_rainRing vec4 default(0.25,0.5,0.006,1)
-#pragma param u_roughness float default(0.04) range(0,1) ui(slider)
+#pragma param u_rain float default(0) range(0,4) ui(hidden)
+#pragma param u_rainRing vec4 default(0.25,0.5,0.006,1) ui(hidden)
+#pragma param u_roughness float default(0.04) range(0,1) ui(slider) group(Surface)
 // How far what is seen through the water is shifted by its waves, and the depth of water at which that stops growing.
-#pragma param u_refractionStrength float default(1) range(0,4) ui(slider)
-#pragma param u_distortionRange float default(1200) range(10,20000) ui(slider) unit(length)
+#pragma param u_refractionStrength float default(1) range(0,4) ui(slider) group(Surface)
+#pragma param u_distortionRange float default(1200) range(10,20000) ui(slider) unit(length) group(Surface)
 // Foam: its colour, how deep the water is where it begins at the shore (world units), and how much of the wave crests carry it.
 // Sunlight through the thin top of a wave toward an eye looking into the sun: the crest glows in the shallow colour. 0 draws none.
-#pragma param u_crestScatter float default(1) range(0,4) ui(slider)
-#pragma param u_foamColor color default(0.95,0.97,1,1)
-#pragma param u_foamWidth float default(120) range(0,2000) ui(slider) unit(length)
-#pragma param u_foamCrest float default(0.5) range(0,1) ui(slider)
+#pragma param u_crestScatter float default(1) range(0,4) ui(slider) group(Surface)
+#pragma param u_foamColor color default(0.95,0.97,1,1) group(Foam)
+#pragma param u_foamWidth float default(120) range(0,2000) ui(slider) unit(length) group(Foam)
+#pragma param u_foamCrest float default(0.5) range(0,1) ui(slider) group(Foam)
 // How deep, in world units, the water is where it has thinned to nothing at its edge: over that last depth the ground behind shows through
 // more and more, so the water meets it along a soft line. 0 keeps a hard edge.
-#pragma param u_edgeSoftness float default(30) range(0,100000) ui(slider) unit(length)
+#pragma param u_edgeSoftness float default(30) range(0,100000) ui(slider) unit(length) group(Surface)
 // The depth taken where the device could not measure one.
-#pragma param u_fallbackDepth float default(400) range(0,20000) ui(slider) unit(length)
+#pragma param u_fallbackDepth float default(400) range(0,20000) ui(slider) unit(length) group(Surface)
 // Where the waves are measured. 0 is the world's xz plane, which is what a plain mesh of water wants. 1 is the surface a WaterZone draws: the mesh's uv
 // is its x and z (plus u_origin, which the zone moves as the mesh follows the camera, so the waves stay put in the world), and the vertices are lifted
 // to the zone's water and its waves.
-#pragma param u_waveSpace float default(0) range(0,1) ui(slider)
-#pragma param u_origin vec2 default(0,0)
+#pragma param u_waveSpace float default(0) range(0,1) ui(hidden)
+#pragma param u_origin vec2 default(0,0) ui(hidden)
 // The cell size of the mesh's finest ring: a vertex in a coarser ring (its colour's red says which) fades the waves it cannot draw, those shorter
 // than six of its cells. 0 draws every wave at every vertex.
-#pragma param u_cellSize float default(0) range(0,100000) ui(slider)
+#pragma param u_cellSize float default(0) range(0,100000) ui(hidden)
 // A WaterZone's baked water (zone.ts encode): heights texel by texel (rg height over u_zoneHeight, b depth, a waves' height), field filtered
 // (r shore distance, 0.5 at it, as a signed square root so it is fine near the shore; gb current; a calm share), over u_zoneRange (shore, waves, current, depth). Below the shore there is no
 // water; past the region there is the ocean where u_oceanOn says so.
-#pragma param u_zoneOn float default(0) range(0,1) ui(slider)
-#pragma param u_zoneHeights texture default(white) texel(data)
-#pragma param u_zoneSurfaceData texture default(white) texel(data)
+#pragma param u_zoneOn float default(0) range(0,1) ui(hidden)
+#pragma param u_zoneHeights texture default(white) texel(data) ui(hidden)
+#pragma param u_zoneSurfaceData texture default(white) texel(data) ui(hidden)
 // How open each place's water is to the wind (its fetch), 0 to 1: the weather raises the waves that much of the way. The sea is open.
-#pragma param u_zoneExposure texture default(white) texel(data)
-#pragma param u_zoneOrigin vec2 default(0,0)
-#pragma param u_zoneSize vec2 default(1,1)
-#pragma param u_zoneHeight vec2 default(0,1)
-#pragma param u_zoneRange vec4 default(16,1,1,16)
-#pragma param u_oceanOn float default(0) range(0,1) ui(slider)
-#pragma param u_oceanLevel float default(0) range(-100000,100000) ui(slider)
-#pragma param u_oceanWaves float default(1) range(0,100) ui(slider)
+#pragma param u_zoneExposure texture default(white) texel(data) ui(hidden)
+#pragma param u_zoneOrigin vec2 default(0,0) ui(hidden)
+#pragma param u_zoneSize vec2 default(1,1) ui(hidden)
+#pragma param u_zoneHeight vec2 default(0,1) ui(hidden)
+#pragma param u_zoneRange vec4 default(16,1,1,16) ui(hidden)
+#pragma param u_oceanOn float default(0) range(0,1) ui(hidden)
+#pragma param u_oceanLevel float default(0) range(-100000,100000) ui(hidden)
+#pragma param u_oceanWaves float default(1) range(0,100) ui(hidden)
 // Each body's own colour where it has one (rgb times its share, alpha one less the share), filtered, so bodies blend where they meet;
 // past the region the ocean's own (rgb, a its share: 0 for none).
-#pragma param u_oceanLook vec4 default(0,0,0,0)
+#pragma param u_oceanLook vec4 default(0,0,0,0) ui(hidden)
 // The surf (the WaterZone writes these): how high a breaker stands against its body's waves (with the weather in), how long the surf's waves
 // are, and a multiplier on their speed. 0 draws none.
-#pragma param u_surfHeight float default(0) range(0,4) ui(slider)
-#pragma param u_surfLength float default(1000) range(10,10000000) ui(slider) unit(length)
-#pragma param u_surfSpeed float default(1) range(0,4) ui(slider)
+#pragma param u_surfHeight float default(0) range(0,4) ui(hidden)
+#pragma param u_surfLength float default(1000) range(10,10000000) unit(length) ui(hidden)
+#pragma param u_surfSpeed float default(1) range(0,4) ui(hidden)
 // How long, in seconds, each of the two copies of the surface the shader carries down a current lives before the other takes over.
-#pragma param u_flowCycle float default(2) range(0.2,20) ui(slider)
+#pragma param u_flowCycle float default(2) range(0.2,20) ui(slider) group(Ripples)
 // How much of the waves lifts the geometry: 0 draws the surface flat and moves it only in the shading (the lite water).
-#pragma param u_tileMorph vec4 default(0,1,0,0)
-#pragma param u_tileEye vec2 default(0,0)
-#pragma param u_waterMeshView float default(0)
-#pragma param u_farSurface float default(0)
-#pragma param u_geoWaves float default(1) range(0,1) ui(slider)
+#pragma param u_tileMorph vec4 default(0,1,0,0) ui(hidden)
+#pragma param u_tileEye vec2 default(0,0) ui(hidden)
+#pragma param u_waterMeshView float default(0) ui(hidden)
+#pragma param u_farSurface float default(0) ui(hidden)
+#pragma param u_geoWaves float default(1) range(0,1) ui(hidden)
 // The net of light the waves throw on what is under the water: how strong it is, how large one cell of it is (world units), and how fast it swims. The Underwater
 // effect draws the same one from below, with these numbers, so the two halves of the picture agree.
 ${CAUSTIC_PARAMS}
 // What the quality level allows (the WaterZone writes these): how many of the four waves are summed, whether the surface seen from below mirrors the world under it,
 // and whether the sun's web of light is drawn on what lies under the water.
-#pragma param u_waveCount float default(${WAVE_SET_SIZE}) range(1,${WAVE_SET_SIZE}) ui(slider)
-#pragma param u_mirror float default(1) range(0,1) ui(slider)
-#pragma param u_causticOn float default(1) range(0,1) ui(slider)
-#pragma param u_reflectSteps float default(${MOST_WATER_REFLECTION_STEPS}) range(1,${MOST_WATER_REFLECTION_STEPS}) ui(slider)
-#pragma param u_reflectGrowth float default(${REFLECTION_GROWTH}) range(1,${MOST_REFLECTION_GROWTH}) ui(slider)
-#pragma param u_causticLayers float default(${MOST_WATER_CAUSTIC_LAYERS}) range(1,${MOST_WATER_CAUSTIC_LAYERS}) ui(slider)
+#pragma param u_waveCount float default(${WAVE_SET_SIZE}) range(1,${WAVE_SET_SIZE}) ui(hidden)
+#pragma param u_mirror float default(1) range(0,1) ui(hidden)
+#pragma param u_causticOn float default(1) range(0,1) ui(hidden)
+#pragma param u_reflectSteps float default(${MOST_WATER_REFLECTION_STEPS}) range(1,${MOST_WATER_REFLECTION_STEPS}) ui(hidden)
+#pragma param u_reflectGrowth float default(${REFLECTION_GROWTH}) range(1,${MOST_REFLECTION_GROWTH}) ui(hidden)
+#pragma param u_causticLayers float default(${MOST_WATER_CAUSTIC_LAYERS}) range(1,${MOST_WATER_CAUSTIC_LAYERS}) ui(hidden)
 // The disturbance the water keeps (WaterZone ripples): a window of the xz plane the GPU steps (rippleGpu.ts), red the height of the ripples in
 // world units, green the foam they left. The vertices are lifted by the height and the pixels shaded by its slope, from the one texture.
 // u_rippleSize is the window's side, u_rippleTexel one texel of it.
-#pragma param u_rippleOn float default(0) range(0,1) ui(slider)
+#pragma param u_rippleOn float default(0) range(0,1) ui(hidden)
 // Two tiled normal maps that scroll over the surface, for the sparkle the sun makes of a water's small slopes, in the one texture a material has room
 // for: red and green the first's slope (x and z, 0.5 flat), blue and alpha the second's, read as data. Each is u_detailTile world units to a repeat,
 // u_detailStrength times as steep as drawn (0 leaves it out), and slides u_detailFlow world units a second.
-#pragma param u_detailMap texture default(ripples) texel(data)
-#pragma param u_detailTile0 float default(2) range(0.01,100000) ui(slider)
-#pragma param u_detailTile1 float default(4.3) range(0.01,100000) ui(slider)
-#pragma param u_detailStrength0 float default(0) range(0,8) ui(slider)
-#pragma param u_detailStrength1 float default(0) range(0,8) ui(slider)
-#pragma param u_detailFlow0 vec2 default(0.05,0.02)
-#pragma param u_detailFlow1 vec2 default(-0.03,0.04)
-#pragma param u_rippleMap texture default(white) texel(data)
-#pragma param u_rippleOrigin vec2 default(0,0)
-#pragma param u_rippleSize float default(64) range(0.01,100000) ui(slider)
-#pragma param u_rippleTexel float default(0.0156) range(0,1) ui(slider)
-#pragma param u_sceneColor texture default(white)
-#pragma param u_sceneDepthMap texture default(white) texel(data)
+#pragma param u_detailMap texture default(ripples) texel(data) group(Detail)
+#pragma param u_detailTile0 float default(2) range(0.01,100000) ui(slider) group(Detail)
+#pragma param u_detailTile1 float default(4.3) range(0.01,100000) ui(slider) group(Detail)
+#pragma param u_detailStrength0 float default(0) range(0,8) ui(slider) group(Detail)
+#pragma param u_detailStrength1 float default(0) range(0,8) ui(slider) group(Detail)
+#pragma param u_detailFlow0 vec2 default(0.05,0.02) group(Detail)
+#pragma param u_detailFlow1 vec2 default(-0.03,0.04) group(Detail)
+#pragma param u_rippleMap texture default(white) texel(data) ui(hidden)
+#pragma param u_rippleOrigin vec2 default(0,0) ui(hidden)
+#pragma param u_rippleSize float default(64) range(0.01,100000) ui(hidden)
+#pragma param u_rippleTexel float default(0.0156) range(0,1) ui(hidden)
+#pragma param u_sceneColor texture default(white) ui(hidden)
+#pragma param u_sceneDepthMap texture default(white) texel(data) ui(hidden)
 // What the foam is made of: a tiled texture whose red says how much foam a texel holds where foam is wanted (bubbles, threads, a web),
 // u_foamTile world units to a repeat, sliding u_foamFlow world units a second. Read as coverage, so the foam the shore, crests and ripples
 // ask for thins out through the texture's own pattern instead of dimming evenly; the default white keeps the foam exactly as computed.
 // Declared after every other texture, on purpose: the material units above it were full, and this one takes a unit the water never reads.
-#pragma param u_foamMap texture default(white) texel(data)
-#pragma param u_foamTile float default(3) range(0.01,100000) ui(slider)
-#pragma param u_foamFlow vec2 default(0.04,0.03)
+#pragma param u_foamMap texture default(white) texel(data) group(Foam)
+#pragma param u_foamTile float default(3) range(0.01,100000) ui(slider) group(Foam)
+#pragma param u_foamFlow vec2 default(0.04,0.03) group(Foam)
 
 ${CAUSTIC_FIELD_PARAMS}
 

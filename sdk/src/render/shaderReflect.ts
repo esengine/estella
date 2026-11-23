@@ -37,7 +37,7 @@ export interface ShaderParam {
     defaultTexture?: string;
     /** Optional slider bounds from `range(min,max)`. */
     range?: { min: number; max: number };
-    /** Optional UI hint from `ui(...)`, e.g. "slider". */
+    /** Optional UI hint from `ui(...)`, e.g. "slider"; "hidden" is one the engine writes each frame, which a material inspector does not show. */
     ui?: string;
     /**
      * `group(Name)`: the parameter group an inspector shows it under (Base,

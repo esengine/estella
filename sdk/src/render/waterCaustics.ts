@@ -13,15 +13,16 @@ export const WATER_CAUSTICS = {
     speed: { value: 0.35, max: 4 },
 } as const;
 
-export const CAUSTIC_PARAMS = `#pragma param u_causticStrength float default(${WATER_CAUSTICS.strength.value}) range(0,${WATER_CAUSTICS.strength.max}) ui(slider)
-#pragma param u_causticScale float default(${WATER_CAUSTICS.scale.value}) range(${WATER_CAUSTICS.scale.min},${WATER_CAUSTICS.scale.max}) ui(slider) unit(length)
-#pragma param u_causticSpeed float default(${WATER_CAUSTICS.speed.value}) range(0,${WATER_CAUSTICS.speed.max}) ui(slider)`;
+export const CAUSTIC_PARAMS = `#pragma param u_causticStrength float default(${WATER_CAUSTICS.strength.value}) range(0,${WATER_CAUSTICS.strength.max}) ui(slider) group(Caustics)
+#pragma param u_causticScale float default(${WATER_CAUSTICS.scale.value}) range(${WATER_CAUSTICS.scale.min},${WATER_CAUSTICS.scale.max}) ui(slider) unit(length) group(Caustics)
+#pragma param u_causticSpeed float default(${WATER_CAUSTICS.speed.value}) range(0,${WATER_CAUSTICS.speed.max}) ui(slider) group(Caustics)`;
 
-export const CAUSTIC_FIELD_PARAMS = `#pragma param u_causticBodyRect vec4 default(0,0,1,1)
-#pragma param u_causticBodyOcean vec4 default(0,0,4,0)
-#pragma param u_causticField texture default(black) texel(data)
-#pragma param u_causticRect vec4 default(0,0,0,0)
-#pragma param u_causticElevation vec4 default(0,1,0,0)`;
+// Written by the water each frame (where its caustic field lies, and the bodies' own looks): hidden from a material inspector.
+export const CAUSTIC_FIELD_PARAMS = `#pragma param u_causticBodyRect vec4 default(0,0,1,1) ui(hidden)
+#pragma param u_causticBodyOcean vec4 default(0,0,4,0) ui(hidden)
+#pragma param u_causticField texture default(black) texel(data) ui(hidden)
+#pragma param u_causticRect vec4 default(0,0,0,0) ui(hidden)
+#pragma param u_causticElevation vec4 default(0,1,0,0) ui(hidden)`;
 
 // Three filtered data layers share one sampler, including on devices with sixteen units.
 // Clamp within each layer's outer texel centres so the neighbouring layer never bleeds in.

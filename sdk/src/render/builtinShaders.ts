@@ -44,7 +44,8 @@ export interface BuiltinShaderTemplate {
 function templateDefaults(source: string): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const param of reflectEsshader(source).params) {
-        if (param.type === 'texture') continue;
+        // A hidden parameter is the engine's to write each frame; a material holding it would only hold a stale copy.
+        if (param.type === 'texture' || param.ui === 'hidden') continue;
         out[param.name] = paramDefaultValue(param);
     }
     return out;
