@@ -28,7 +28,9 @@ import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
-import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
+import type { RuntimeAssetSource } from '../runtime/runtimeAssets';
+import type { Assets } from '../asset/Assets';
+import { atlasPagePath, withAtlasPages, type AcquireAtlasPage } from '../runtime/atlasPages';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { DragonBonesManager } from './DragonBonesManager';
 import { ownAtlas, bindAtlasOwner, releaseUnusedAtlases } from './atlasOwnership';
@@ -97,6 +99,15 @@ export async function loadDragonBonesAssets(
     source: RuntimeAssetSource,
     pairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
     transcoderProvider?: TranscoderProvider,
+    assets?: Pick<Assets, 'acquireTexture'>,
+): Promise<Map<string, DragonBonesAssetInfo>> {
+    return withAtlasPages(module, source, transcoderProvider,
+        acquire => readDragonBonesPairs(source, pairs, acquire), assets);
+}
+
+async function readDragonBonesPairs(
+    source: RuntimeAssetSource, pairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
+    acquire: AcquireAtlasPage,
 ): Promise<Map<string, DragonBonesAssetInfo>> {
     const assetInfo = new Map<string, DragonBonesAssetInfo>();
     const resolveRef = source.resolveRef ?? ((r: string) => r);
@@ -114,7 +125,8 @@ export async function loadDragonBonesAssets(
                     ? new Uint8Array(await source.backend.fetchBinary(skelPath))
                     : await source.backend.fetchText(skelPath);
 
-            const page = await uploadAtlasImage_(module, source, pair.atlas, atlasJson, resolveRef, transcoderProvider);
+            const logicalAtlas = source.resolveAddress?.(pair.atlas) ?? resolveRef(pair.atlas);
+            const page = await acquireAtlasImage(logicalAtlas, atlasJson, acquire);
             const info = {
                 skeletonData,
                 atlasJson,
@@ -131,43 +143,21 @@ export async function loadDragonBonesAssets(
 }
 
 /** Acquire the page a `_tex.json` names; its release follows the skeleton's lifetime. */
-async function uploadAtlasImage_(
-    module: ESEngineModule | null,
-    source: RuntimeAssetSource,
-    atlasRef: string,
-    atlasJson: string,
-    resolveRef: (ref: string) => string,
-    transcoderProvider?: TranscoderProvider,
+async function acquireAtlasImage(
+    logicalAtlas: string, atlasJson: string, acquire: AcquireAtlasPage,
 ): Promise<{ textureId: number; release?: () => void }> {
-    const imageName = atlasImageName(atlasJson);
-    if (!imageName) {
-        log.warn('runtime', `DragonBones atlas names no image: ${atlasRef}`);
+    const image = atlasImageName(atlasJson);
+    if (!image) {
+        log.warn('runtime', `DragonBones atlas names no image: ${logicalAtlas}`);
         return { textureId: -1 };
     }
-
-    // The image is named relative to where the atlas was AUTHORED, not to where a
-    // content-addressed build staged it — recover that directory from the atlas's
-    // logical address so `<dir>/page.png` resolves through the manifest like every
-    // other ref (the same recovery Spine's page loop does).
-    const atlasLogical = source.resolveAddress?.(atlasRef) ?? resolveRef(atlasRef);
-    const slash = atlasLogical.lastIndexOf('/');
-    const imagePath = slash >= 0 ? `${atlasLogical.substring(0, slash)}/${imageName}` : imageName;
-
+    const path = atlasPagePath(logicalAtlas, image);
     try {
-        const staged = resolveRef(imagePath);
-        const rm = requireResourceManager();
-        const existing = typeof rm.acquireTextureByPath === 'function' ? rm.acquireTextureByPath(imagePath) : 0;
-        if (existing) return { textureId: rm.getTextureGLId(existing), release: () => rm.releaseTexture(existing) };
-        const page = await createAtlasPageTexture(
-            staged,
-            (p) => source.backend.fetchBinary(p),
-            (p) => source.decodePixels(p, false),
-            transcoderProvider, module,
-        );
-        rm.registerTextureWithPath(page.handle, imagePath);
-        return { textureId: rm.getTextureGLId(page.handle), release: () => rm.releaseTexture(page.handle) };
+        const lease = await acquire(path);
+        try { return { textureId: requireResourceManager().getTextureGLId(lease.value.handle), release: () => lease.release() }; }
+        catch (error) { lease.release(); throw error; }
     } catch (err) {
-        log.warn('runtime', `Failed to load DragonBones atlas image: ${imagePath}`, err);
+        log.warn('runtime', `Failed to load DragonBones atlas image: ${path}`, err);
         return { textureId: -1 };
     }
 }
@@ -264,11 +254,12 @@ export async function loadDragonBonesSceneEntities(opts: {
     sceneData: SceneData;
     entityMap: Map<number, Entity>;
     transcoderProvider?: TranscoderProvider;
+    assets?: Pick<Assets, 'acquireTexture'>;
 }): Promise<void> {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.dragonBones.length === 0) return;
     const assetInfo = await loadDragonBonesAssets(
-        opts.module, opts.source, discovered.dragonBones, opts.transcoderProvider);
+        opts.module, opts.source, discovered.dragonBones, opts.transcoderProvider, opts.assets);
     applyDragonBonesEntities({
         manager: opts.manager,
         sceneData: opts.sceneData,

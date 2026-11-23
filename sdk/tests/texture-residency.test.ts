@@ -10,6 +10,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
+import { loadDragonBonesAssets } from '../src/dragonbones/loadDragonBonesScene';
+import { releaseUnusedAtlases } from '../src/dragonbones/atlasOwnership';
 
 interface PoolEntry {
     refCount: number;
@@ -43,7 +45,14 @@ function createPoolFake() {
         registerExternalTexture: vi.fn((): number => rm.createTexture()),
         registerTextureWithPath: vi.fn((handle: number, path: string): void => {
             const e = entries.get(handle);
-            if (!e || e.refCount === 0) return;
+            if (!e || e.refCount === 0 || e.path === path) return;
+            if (e.path !== null) byPath.delete(e.path);
+            const previous = byPath.get(path);
+            if (previous !== undefined) {
+                const displaced = entries.get(previous)!;
+                displaced.path = null;
+                if (displaced.evictable) free(previous);
+            }
             e.path = path;
             byPath.set(path, handle);
         }),
@@ -84,7 +93,7 @@ function createPoolFake() {
             if (!e || e.refCount === 0) return null;
             return { width: 64, height: 64 };
         }),
-        getTextureGLId: vi.fn(() => 1),
+        getTextureGLId: vi.fn((handle: number) => handle + 1000),
         adoptTextureContent: vi.fn((target: number, source: number) =>
             !!entries.get(target)?.refCount && !!entries.get(source)?.refCount),
         // Test-only inspection helpers.
@@ -134,10 +143,10 @@ const mockModule = {
     FS: null,
 } as never;
 
-function buildAssets(): Assets {
+function buildAssets(text: Backend['fetchText'] = async () => '{}'): Assets {
     const backend: Backend = {
         fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
-        fetchText: vi.fn(async () => '{}'),
+        fetchText: vi.fn(text),
         resolveUrl: (path: string) => `http://test/${path}`,
     } as unknown as Backend;
     return Assets.create({ backend, module: mockModule });
@@ -340,12 +349,48 @@ describe('texture residency (Assets ↔ pool contract)', () => {
         expect(pool.registerTextureWithPath).toHaveBeenCalledWith(raw.handle, 'tex/a.png:n');
     });
 
-    it('invalidates a released skeletal atlas page outside the SDK texture cache', () => {
+    it('shares raw pages with both skeleton formats and revives only the owning App’s version', async () => {
+        const file = 'rig/page.png', skel = 'rig/hero.skel', atlas = 'rig/hero.atlas';
+        const text = async (p: string) => p.endsWith(atlas) ? 'page.png\nsize: 64,64\n' : '{"imagePath":"page.png"}';
+        const a = buildAssets(text), b = buildAssets(text);
+        const pairs = [{ skeleton: 'rig/dragon.json', atlas: 'rig/dragon.atlas' }];
+        const dragon = (assets: Assets) => loadDragonBonesAssets(null,
+            { backend: assets.backend, decodePixels: async () => { throw Error('unexpected standalone upload'); } },
+            pairs, undefined, assets);
+        try {
+            const spine = await a.acquireSpine(skel, atlas);
+            const aRaw = await a.acquireTexture(file, false), bRaw = await b.acquireTexture(file, false);
+            const aDragon = await dragon(a), bDragon = await dragon(b);
+            const renderId = (h: number) => pool.getTextureGLId(h);
+            expect(spine.value.textures.get('page.png')?.glId).toBe(renderId(aRaw.value.handle));
+            expect([...aDragon.values()][0]!.textureId).toBe(renderId(aRaw.value.handle));
+            expect([...bDragon.values()][0]!.textureId).toBe(renderId(bRaw.value.handle));
+            expect(aRaw.value.handle).not.toBe(bRaw.value.handle);
+            expect(pool.createTexture).toHaveBeenCalledTimes(2);
+
+            releaseUnusedAtlases(aDragon.values()); releaseUnusedAtlases(bDragon.values());
+            spine.release(); aRaw.release(); bRaw.release();
+            const warmA = await a.acquireTexture(file, false);
+            expect(warmA.value.handle).toBe(aRaw.value.handle);
+            a.invalidate(file);
+            const updated = await a.acquireTexture(file, false), warmB = await b.acquireTexture(file, false);
+            expect(updated.value.handle).not.toBe(warmA.value.handle);
+            expect(warmB.value.handle).toBe(bRaw.value.handle);
+            expect(pool.createTexture).toHaveBeenCalledTimes(3);
+            warmA.release(); updated.release(); warmB.release();
+        } finally { a.releaseAll(); b.releaseAll(); }
+    });
+
+    it('allows the primary loader to invalidate a native host’s plain path', () => {
         const assets = buildAssets();
+        const other = buildAssets();
+        assets.invalidate('establish-primary');
         const atlas = pool.createTexture();
         pool.registerTextureWithPath(atlas, 'tex/atlas.png');
         pool.releaseTexture(atlas);
 
+        expect(other.invalidate('tex/atlas.png')).toBe(false);
+        expect(pool.isResident(atlas)).toBe(true);
         expect(assets.invalidate('tex/atlas.png')).toBe(true);
         expect(pool.isResident(atlas)).toBe(false);
         expect(pool.acquireTextureByPath('tex/atlas.png')).toBe(0);

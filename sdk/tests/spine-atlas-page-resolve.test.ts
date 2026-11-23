@@ -11,22 +11,26 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-// The page-form decision (KTX2 through the realm's decoder, else the image path)
-// lives in runtimeAssets and is the thing under test, so only the upload below it
-// is stood in for — a ResourceManager that takes bytes, as a native host's does.
-const { rm } = vi.hoisted(() => ({
+// The host takes bytes at the GPU boundary while the real atlas loader chooses the decoder.
+const { rm, device } = vi.hoisted(() => ({
+    device: { connected: true },
     rm: {
         registerTextureWithPath: vi.fn(),
         getTextureGLId: vi.fn(() => 7),
         createTextureFromBytes: vi.fn(() => 11),
+        adoptTextureContent: vi.fn(() => true),
+        releaseTexture: vi.fn(),
     },
 }));
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => rm,
-    provideTextureContent: () => {},
+    getResourceManager: () => device.connected ? rm : null,
 }));
 
 import { loadSpineAssets } from '../src/spine/loadSpineScene';
+import { textureRefill } from '../src/wasm/textureRefill';
+import { loadDragonBonesAssets } from '../src/dragonbones/loadDragonBonesScene';
+import { releaseUnusedAtlases } from '../src/dragonbones/atlasOwnership';
 import { SpineAssetLoader } from '../src/asset/loaders/SpineAssetLoader';
 import { Catalog } from '../src/asset/Catalog';
 import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
@@ -55,8 +59,13 @@ function makeSource(resolved: Record<string, string>): RuntimeAssetSource & {
 
 const PAIR = [{ skeleton: 'assets/spine/boy.skel', atlas: 'assets/spine/boy.atlas' }];
 
+async function readAndRelease(...args: Parameters<typeof loadSpineAssets>) {
+    const info = await loadSpineAssets(...args);
+    for (const pair of info.values()) pair.preparation?.release();
+}
+
 describe('loadSpineAssets resolves atlas page paths through the manifest', () => {
-    it('transcodes a KTX2-staged page via the basis provider, keyed by logical path', async () => {
+    it('transcodes a KTX2-staged page and binds it under the authored page name', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const transcoder: BasisTranscoder = {
             transcode: vi.fn(() => null),
@@ -67,10 +76,9 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         expect(source.decodePixels).not.toHaveBeenCalled();
         expect(source.fetchedBinaries).toContain('assets/spine/spineboy.ktx2');
         expect(transcoder.transcodeToRgba).toHaveBeenCalledTimes(1);
-        // Registered under the LOGICAL path — the atlas's stable identity.
-        expect(rm.registerTextureWithPath).toHaveBeenCalledWith(11, 'assets/spine/spineboy.png');
         const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.get('spineboy.png');
         expect(tex).toEqual({ glId: 7, w: 2, h: 2 });
+        for (const pair of info.values()) pair.preparation?.release();
     });
 
     it('recognizes the WeChat .ktx2.bin staging spelling as KTX2', async () => {
@@ -79,14 +87,14 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
             transcode: vi.fn(() => null),
             transcodeToRgba: vi.fn(() => ({ width: 2, height: 2, data: new Uint8Array(16) })),
         };
-        await loadSpineAssets({} as never, source, null, PAIR, async () => transcoder);
+        await readAndRelease({} as never, source, null, PAIR, async () => transcoder);
         expect(source.decodePixels).not.toHaveBeenCalled();
         expect(transcoder.transcodeToRgba).toHaveBeenCalledTimes(1);
     });
 
     it('decodes a content-addressed page from its STAGED path', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/1234abcd.png' });
-        await loadSpineAssets({} as never, source, null, PAIR);
+        await readAndRelease({} as never, source, null, PAIR);
         expect(source.decodePixels).toHaveBeenCalledWith('assets/1234abcd.png', false);
     });
 
@@ -98,13 +106,13 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
             '@uuid:skel': 'assets/spine/boy.skel',
             '@uuid:atlas': 'assets/spine/boy.atlas',
         });
-        await loadSpineAssets({} as never, source, null, [{ skeleton: '@uuid:skel', atlas: '@uuid:atlas' }]);
+        await readAndRelease({} as never, source, null, [{ skeleton: '@uuid:skel', atlas: '@uuid:atlas' }]);
         expect(source.decodePixels).toHaveBeenCalledWith('assets/spine/spineboy.png', false);
     });
 
     it('a dirless atlas path yields the bare page name, never a leading slash', async () => {
         const source = makeSource({});
-        await loadSpineAssets({} as never, source, null, [{ skeleton: 'boy.skel', atlas: 'boy.atlas' }]);
+        await readAndRelease({} as never, source, null, [{ skeleton: 'boy.skel', atlas: 'boy.atlas' }]);
         expect(source.decodePixels).toHaveBeenCalledWith('spineboy.png', false);
     });
 
@@ -119,9 +127,9 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
 
             expect(createTextureFromKTX2).toHaveBeenCalledTimes(1);
             expect(source.decodePixels).not.toHaveBeenCalled();
-            expect(rm.registerTextureWithPath).toHaveBeenCalledWith(21, 'assets/spine/spineboy.png');
             const tex = info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.get('spineboy.png');
             expect(tex).toEqual({ glId: 7, w: 8, h: 8 });
+            for (const pair of info.values()) pair.preparation?.release();
         } finally {
             delete (rm as { createTextureFromKTX2?: unknown }).createTextureFromKTX2;
         }
@@ -131,6 +139,80 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const info = await loadSpineAssets({} as never, source, null, PAIR, async () => null);
         expect(info.get('assets/spine/boy.skel:assets/spine/boy.atlas')!.era.value.textures.size).toBe(0);
+    });
+});
+
+describe('standalone atlas ownership', () => {
+    it('discards pixels decoded after their resource manager was retired', async () => {
+        const source = makeSource({});
+        source.decodePixels.mockImplementationOnce(async () => {
+            device.connected = false;
+            return { width: 4, height: 4, pixels: new Uint8Array(64) };
+        });
+        rm.createTextureFromBytes.mockClear();
+        rm.releaseTexture.mockClear();
+        try {
+            const info = await loadSpineAssets(null, source, null, PAIR);
+            const pair = [...info.values()][0]!;
+            expect(pair.era.value.textures.size).toBe(0);
+            pair.preparation!.release();
+            expect(rm.createTextureFromBytes).not.toHaveBeenCalled();
+            expect(rm.releaseTexture).not.toHaveBeenCalled();
+        } finally { device.connected = true; }
+    });
+
+    it('shares one page across a batch and releases it after the last live skeleton', async () => {
+        const source = makeSource({});
+        rm.releaseTexture.mockClear();
+        rm.createTextureFromBytes.mockReturnValueOnce(101);
+        const another = { skeleton: 'assets/spine/other.skel', atlas: PAIR[0]!.atlas };
+        const info = await loadSpineAssets(null, source, null, [...PAIR, another, another]);
+        const [first, second] = [...info.values()];
+        expect(info.size).toBe(2);
+        expect(source.decodePixels).toHaveBeenCalledTimes(1);
+        const retained = first!.era.retain()!;
+        first!.preparation!.release(); first!.preparation!.release();
+        const joined = first!.era.retain()!;
+        retained.release(); joined.release();
+        expect(first!.era.retain()).toBeNull();
+        expect(rm.releaseTexture).not.toHaveBeenCalled();
+        expect(textureRefill(101)).toBeDefined();
+        second!.preparation!.release();
+        expect(textureRefill(101)).toBeUndefined();
+        expect(rm.releaseTexture.mock.calls).toEqual([[101]]);
+    });
+
+    it('gives back an uploaded page when reading the skeleton fails', async () => {
+        const source = makeSource({});
+        source.backend.fetchBinary = async () => { throw Error('skeleton missing'); };
+        rm.releaseTexture.mockClear();
+        rm.createTextureFromBytes.mockReturnValueOnce(102);
+        const info = await loadSpineAssets(null, source, null, PAIR);
+        expect(info.size).toBe(0);
+        expect(rm.releaseTexture.mock.calls).toEqual([[102]]);
+        expect(textureRefill(102)).toBeUndefined();
+    });
+
+    it('retires a DragonBones refill while its image decode is in flight', async () => {
+        const source = makeSource({});
+        source.backend.fetchText = async () => '{"imagePath":"page.png"}';
+        rm.createTextureFromBytes.mockReturnValueOnce(103).mockReturnValueOnce(104);
+        rm.releaseTexture.mockClear(); rm.adoptTextureContent.mockClear();
+        const info = await loadDragonBonesAssets(null, source, PAIR);
+        const refill = textureRefill(103)!;
+        let finish!: () => void;
+        source.decodePixels.mockImplementationOnce(async () => {
+            await new Promise<void>(resolve => { finish = resolve; });
+            return { width: 4, height: 4, pixels: new Uint8Array(64) };
+        });
+        const pending = refill();
+        releaseUnusedAtlases(info.values());
+        finish();
+        expect(await pending).toBe(false);
+        expect(await refill()).toBe(false);
+        expect(rm.releaseTexture.mock.calls).toEqual([[103], [104]]);
+        expect(rm.adoptTextureContent).not.toHaveBeenCalled();
+        expect(rm.registerTextureWithPath).not.toHaveBeenCalled();
     });
 });
 
@@ -156,6 +238,7 @@ describe('SpineAssetLoader page paths', () => {
     function ctxOver(catalog: Catalog, acquired: string[]) {
         return {
             catalog,
+            resourceManager: rm,
             loadText: async () => ATLAS,
             loadBinary: async () => new Uint8Array([1, 2, 3]).buffer,
             acquireTexture: async (path: string) => {

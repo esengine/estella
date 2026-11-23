@@ -20,7 +20,6 @@
  *          the atlas names, where they live, what is read and what is acquired
  *          is decided once, here.
  */
-import { requireResourceManager } from '../wasm/resourceManager';
 import { spinePairKey } from '../asset/spinePairKey';
 export { spinePairKey } from '../asset/spinePairKey';
 import type { AssetLease } from '../asset/AssetLease';
@@ -56,6 +55,8 @@ export interface SpineIO {
     text(ref: string): Promise<string>;
     binary(ref: string): Promise<ArrayBuffer>;
     page(path: string): Promise<{ handle: number; width: number; height: number }>;
+    /** The rendering id of a page held by this source. */
+    renderId(handle: number): number;
     /** Where the page the atlas names `name` actually lives. */
     pagePath(name: string): string;
     /** Whether the skeleton document is bytes rather than text — the extension
@@ -131,15 +132,13 @@ export async function prepareSpine(
     io: SpineIO, skeletonRef: string, atlasRef: string,
 ): Promise<SpineAssetValue> {
     const atlasText = await io.text(atlasRef);
-    const rm = requireResourceManager();
     const textures = new Map<string, SpinePage>();
 
     for (const name of parseSpineAtlasPages(atlasText)) {
         const path = io.pagePath(name);
         try {
             const page = await io.page(path);
-            rm.registerTextureWithPath(page.handle, path);
-            textures.set(name, { glId: rm.getTextureGLId(page.handle), w: page.width, h: page.height });
+            textures.set(name, { glId: io.renderId(page.handle), w: page.width, h: page.height });
         } catch (e) {
             log.warn('spine', `atlas page "${path}" did not load`, e);
         }

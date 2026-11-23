@@ -26,11 +26,12 @@ import { SpineManager, type SpineVersion } from './SpineManager';
 import { prepareSpine, spineEraOf, spinePairKey,
          type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO,
          type SpinePair } from './prepareSpine';
-import { requireResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
-import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
+import type { RuntimeAssetSource } from '../runtime/runtimeAssets';
+import { requireResourceManager } from '../wasm/resourceManager';
+import { atlasPagePath, withAtlasPages } from '../runtime/atlasPages';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { AssetsData } from '../asset/AssetPlugin';
-import type { AssetScope } from '../asset/AssetLease';
+import { AssetScope } from '../asset/AssetLease';
 import { spineCertificatesFrom } from './spineCertificates';
 
 /**
@@ -102,47 +103,53 @@ export async function loadSpineAssets(
     transcoderProvider?: TranscoderProvider,
     owner?: SpineAssetOwner,
 ): Promise<Map<string, SpineAssetInfo>> {
-    // Read from the SOURCE that serves the assets, not handed in: a promise
-    // about an asset travels with the asset, and a caller that could pass a
-    // different set is a second place a contract can come from.
-    const certificates = spineCertificatesFrom(source);
-    const assetInfoMap = new Map<string, SpineAssetInfo>();
-
-    for (const pair of spinePairs) {
-        try {
-            const key = spinePairKey(pair.skeleton, pair.atlas);
-            let era: SpineEraBinding;
-            let preparation: SpineEraClaim | null = null;
-            if (owner) {
-                // The realm's era: a second scene of this pair joins it rather
-                // than uploading its pages again, and the receipt is the
-                // scene's, so the pages go back when the scene does.
-                const lease = await owner.assets.acquireSpine(pair.skeleton, pair.atlas);
-                owner.scope.add(lease);
-                era = spineEraOf(pair, lease as never,
-                                 certificates.envelopeFor(pair.skeleton, pair.atlas));
-            } else {
-                const pages: number[] = [];
-                const value = await prepareSpine(
-                    hostSpineIo(module, source, pair.atlas, transcoderProvider, pages),
-                    pair.skeleton, pair.atlas,
-                );
-                const host = hostEra(`${key}#${++preparations}`, pair, value, pages);
-                era = host.era;
-                preparation = host.preparation;
+    if (owner) {
+        const certificates = spineCertificatesFrom(source);
+        return readSpinePairs(spinePairs, spineManager, async pair => {
+            const lease = owner.scope.add(await owner.assets.acquireSpine(pair.skeleton, pair.atlas));
+            const culling = certificates.envelopeFor(pair.skeleton, pair.atlas);
+            return { era: spineEraOf(pair, lease, culling), preparation: null };
+        });
+    }
+    return withAtlasPages(module, source, transcoderProvider, acquirePage =>
+        readSpinePairs(spinePairs, spineManager, async pair => {
+            const pages = new AssetScope();
+            try {
+                const io = hostSpineIo(source, pair.atlas, async path => pages.add(await acquirePage(path)).value);
+                const value = await prepareSpine(io, pair.skeleton, pair.atlas);
+                return hostEra(pair, value, pages);
+            } catch (error) {
+                pages.releaseAll();
+                throw error;
             }
-            const { skelData } = era.value;
-            const version = spineManager
+        }));
+}
+
+async function readSpinePairs(
+    pairs: ReadonlyArray<SpinePair>, manager: SpineManager | null | undefined,
+    prepare: (pair: SpinePair) => Promise<Pick<SpineAssetInfo, 'era' | 'preparation'>>,
+): Promise<Map<string, SpineAssetInfo>> {
+    const assets = new Map<string, SpineAssetInfo>();
+    for (const pair of pairs) {
+        const key = spinePairKey(pair.skeleton, pair.atlas);
+        if (assets.has(key)) continue;
+        let preparation: SpineEraClaim | null = null;
+        try {
+            const prepared = await prepare(pair);
+            preparation = prepared.preparation;
+            const { skelData } = prepared.era.value;
+            const version = manager
                 ? (typeof skelData === 'string'
                     ? SpineManager.detectVersionJson(skelData)
                     : SpineManager.detectVersion(skelData))
                 : null;
-            assetInfoMap.set(key, { version, era, preparation });
+            assets.set(key, { ...prepared, version });
         } catch (err) {
+            preparation?.release();
             log.warn('runtime', `Failed to load spine asset: skel=${pair.skeleton} atlas=${pair.atlas}`, err);
         }
     }
-    return assetInfoMap;
+    return assets;
 }
 
 /**
@@ -159,63 +166,39 @@ let preparations = 0;
  * after which the runtimes posing it are the only holders.
  */
 function hostEra(
-    id: string, pair: SpinePair, value: SpineAssetValue, pages: number[],
+    pair: SpinePair, value: SpineAssetValue, pages: AssetScope,
 ): { era: SpineEraBinding; preparation: SpineEraClaim } {
-    let claims = 1;
-    const drop = (): void => {
-        if (--claims > 0) return;
-        const rm = requireResourceManager();
-        for (const handle of pages) {
-            withdrawTextureContent(handle);
-            rm.releaseTexture(handle);
-        }
-        pages.length = 0;
+    let holders = 0;
+    const claim = (): SpineEraClaim => {
+        holders++;
+        let live = true;
+        return {
+            release() {
+                if (!live) return;
+                live = false;
+                if (--holders === 0) pages.releaseAll();
+            },
+        };
     };
     return {
-        // A host preparation has no project metadata to read a promise from.
-        era: { id, pair, value, culling: { kind: 'unknown' },
-               retain: () => { claims++; return { release: drop }; } },
-        preparation: { release: drop },
+        era: { id: `${spinePairKey(pair.skeleton, pair.atlas)}#${++preparations}`, pair, value,
+            culling: { kind: 'unknown' }, retain: () => holders ? claim() : null },
+        preparation: claim(),
     };
 }
 
-/**
- * A host's own file access as a spine transport — the editor, and any target
- * driving this loader without an asset layer. Same algorithm as the asset
- * layer's; what differs is where the bytes come from and that a page taken here
- * has no receipt, so the host's own teardown is what ends it.
- */
-function hostSpineIo(
-    module: ESEngineModule | null,
-    source: RuntimeAssetSource,
-    atlasRef: string,
-    transcoderProvider: TranscoderProvider | undefined,
-    /** The page handles this preparation uploaded — what its era gives back. */
-    pages: number[],
-): SpineIO {
-    const resolveRef = source.resolveRef ?? ((r: string) => r);
-    // Pages are named relative to the atlas's AUTHORED location, not its staged
-    // one — a content-addressed build renamed the atlas to a hash under assets/,
-    // so the staged path's directory is not where the pages were.
-    const atlasLogical = source.resolveAddress?.(atlasRef) ?? resolveRef(atlasRef);
-    const dir = atlasLogical.substring(0, atlasLogical.lastIndexOf('/'));
+/** A standalone host supplies the documents and a receipt for each atlas page. */
+function hostSpineIo(source: RuntimeAssetSource, atlas: string, page: SpineIO['page']): SpineIO {
+    const resolveRef = source.resolveRef ?? ((ref: string) => ref);
+    const logical = source.resolveAddress?.(atlas) ?? resolveRef(atlas);
+    const rm = requireResourceManager();
     return {
-        text: (ref) => source.backend.fetchText(resolveRef(ref)),
-        binary: (ref) => source.backend.fetchBinary(resolveRef(ref)),
-        page: async (path) => {
-            const page = await createAtlasPageTexture(
-                resolveRef(path),
-                (p) => source.backend.fetchBinary(p),
-                (p) => source.decodePixels(p, false),
-                transcoderProvider, module,
-            );
-            pages.push(page.handle);
-            return page;
-        },
-        // No dir ⇒ the page name IS the path (never a leading-slash "/page.png",
-        // which resolves to nothing).
-        pagePath: (name) => (dir ? `${dir}/${name}` : name),
-        isBinary: (ref) => getAssetTypeEntry(resolveRef(ref))?.contentType === 'binary',
+        text: ref => source.backend.fetchText(resolveRef(ref)),
+        binary: ref => source.backend.fetchBinary(resolveRef(ref)),
+        page,
+        renderId: handle => rm.getTextureGLId(handle),
+        pagePath: name => atlasPagePath(logical, name),
+        isBinary: ref => getAssetTypeEntry(resolveRef(ref))?.contentType === 'binary',
     };
 }
 
@@ -285,14 +268,12 @@ export async function loadSpineSceneEntities(opts: {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.spines.length === 0) return;
     const assetInfo = await loadSpineAssets(opts.module, opts.source, opts.spineManager, discovered.spines, opts.transcoderProvider);
-    await applySpineEntities({
-        spineManager: opts.spineManager,
-        sceneData: opts.sceneData,
-        entityMap: opts.entityMap,
-        registry: opts.registry,
-        assetInfo,
-    });
-    // The bound eras are held by the runtimes posing them now; a pair no entity
-    // took goes back here rather than living as long as the host does.
-    for (const info of assetInfo.values()) info.preparation?.release();
+    try {
+        await applySpineEntities({
+            spineManager: opts.spineManager, sceneData: opts.sceneData,
+            entityMap: opts.entityMap, registry: opts.registry, assetInfo,
+        });
+    } finally {
+        for (const info of assetInfo.values()) info.preparation?.release();
+    }
 }

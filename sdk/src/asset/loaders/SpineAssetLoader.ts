@@ -11,6 +11,7 @@
  *          posing it.
  */
 import type { AssetLoader, LoadContext } from '../AssetLoader';
+import { atlasPagePath } from '../../runtime/atlasPages';
 import { getAssetTypeEntry } from '../../assetTypes';
 import { prepareSpine, type SpineAssetValue, type SpineIO } from '../../spine/prepareSpine';
 
@@ -43,7 +44,6 @@ function spineIo(ctx: LoadContext, atlasRef: string): SpineIO {
     // put it — content-addressing renames it to a hash under one flat directory,
     // and a sibling resolved against THAT is a file nobody shipped.
     const logical = ctx.catalog.addressOf(atlasRef) ?? atlasRef;
-    const dir = logical.substring(0, logical.lastIndexOf('/'));
     return {
         // Read, not loaded: what these bytes say decides what the asset becomes,
         // which is exactly when a change to them must rebuild it.
@@ -56,9 +56,10 @@ function spineIo(ctx: LoadContext, atlasRef: string): SpineIO {
         // flipY false: an atlas page's rows are a layout, and the atlas's
         // coordinates are top-first.
         page: async (path) => (await ctx.acquireTexture(path, false)).value,
+        renderId: handle => ctx.resourceManager.getTextureGLId(handle),
         // Named relative to where the atlas was AUTHORED; the acquisition
         // resolves that through the manifest like any other ref.
-        pagePath: (name) => (dir ? `${dir}/${name}` : name),
+        pagePath: name => atlasPagePath(logical, name),
         isBinary: (ref) => getAssetTypeEntry(ref)?.contentType === 'binary',
     };
 }

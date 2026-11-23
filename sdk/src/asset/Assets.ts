@@ -2012,14 +2012,11 @@ export class Assets {
     // =========================================================================
 
     /**
-     * Load a texture and get the receipt for THIS acquisition.
-     *
-     * The difference from {@link loadTexture} is who can be released correctly
-     * afterwards: a path names an asset, a lease names the instance this caller
-     * was handed. After `invalidate()` those are no longer the same thing.
+     * The receipt releases this version even after a file edit.
+     * Set flipY to false to keep the authored row order for an atlas.
      */
-    async acquireTexture(ref: string): Promise<AssetLease<TextureResult>> {
-        const { result, lease } = await this.acquireTextureVariant_(ref, true);
+    async acquireTexture(ref: string, flipY = true): Promise<AssetLease<TextureResult>> {
+        const { result, lease } = await this.acquireTextureVariant_(ref, flipY);
         return this.textureLease_(lease, result);
     }
 
@@ -2421,9 +2418,9 @@ export class Assets {
                     dropped = true;
                 }
             }
-            // Skeletal atlas pages register the image path without a flip suffix.
-            // End their residency too, even when no SDK texture cache holds them.
-            if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(path)) {
+            // The pool's primary loader also sees files a native host published under a plain path.
+            if (typeof rm?.invalidateTexturePath === 'function' && this.textureLoader_.poolKey(path, rm) === path
+                && rm.invalidateTexturePath(path)) {
                 dropped = true;
             }
         } else {
@@ -3185,10 +3182,7 @@ export class Assets {
                 }
                 return self.loadTexture(path);
             },
-            async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
-                const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
-                return self.textureLease_(lease, result);
-            },
+            acquireTexture: (path, flipY) => self.acquireTexture(path, flipY),
             noteAssetProblems(asset: string, problems: readonly string[]): void {
                 const path = self.resolveLoadPath_(asset);
                 const same = (self.assetProblems_.get(path) ?? []).join('\n') === problems.join('\n');

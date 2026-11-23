@@ -1097,7 +1097,7 @@ ResourceDef<AssetsClass>
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
-acquireTexture: (ref: string) => Promise<AssetLease<TextureResult>>
+acquireTexture: (ref: string, flipY?: boolean) => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>
 applyUpdate: (onProgress?: (loaded: number, total: number) => void) => Promise<ApplyUpdateResult>
 backend: Backend
