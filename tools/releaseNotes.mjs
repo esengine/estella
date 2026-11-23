@@ -6106,4 +6106,132 @@ export const NOTED = {
     { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
   "fix(water): restore generated surface entities after a scene reload":
     { note: "Water tiles meet at the shoreline and sunlight follows the waves across the waterline." },
+  "perf(ecs): streamline animated component writes across runtimes":
+    { note: "Writing animated sprites and transforms takes less CPU time." },
+  "fix(animation): blend reflected colors as channels on every runtime":
+    { note: "Sprite fades keep their authored opacity on native players." },
+  "perf(animation): read reflected components into reusable pose buffers":
+    { note: "Animation controllers reuse pose buffers when reading sprites and transforms." },
+  "perf(animation): commit evaluated component values without rebuilding defaults":
+    { note: "Writing animated sprites and transforms takes less CPU time." },
+  "fix(assets): preserve ownership during cache loads and texture teardown":
+    { note: "Asset requests made during loader setup share one load." },
+  "fix(assets): keep handle-bound assets with their producing loader":
+    { note: "Scenes can keep using assets after a plugin replaces their loader." },
+  "perf(assets): plan shared hot reloads from live dependency receipts":
+    { note: "Shared maps and materials reload in dependency order when several files change together." },
+  "perf(ecs): reuse complete descendant paths within a hierarchy revision":
+    { note: "Repeated lookups of named sprite and bone paths take less time." },
+  "fix(scene): release DragonBones atlas pages when a preload is discarded":
+    { note: "Discarding a preloaded scene now releases its DragonBones atlas pages." },
+  "perf(ecs): track world membership and narrow sparse entity queries":
+    { note: "Entity queries stay current as the scene changes." },
+  "perf(ecs): reuse query validation across unchanged component revisions":
+    { note: "Repeated entity queries cost less in 2D and 3D systems." },
+  "fix(editor): await asynchronous command writes before closing undo steps":
+    { note: "Saving painted terrain keeps its weight map and undo record together." },
+  "feat(groom): several meshes in one preview, and a colour per group for the Strands shader":
+    { note: "A groom opens in its own editor." },
+  "feat(editor): a Groom editor, the strands previewed beside a Strands panel of each group's figures and settings":
+    { note: "A groom opens in its own editor." },
+  "feat(groom): hair and fur as strands, read from a Blender export and drawn group by group":
+    { note: "Hair and fur can be strands, not only cards." },
+  "fix(editor): persist painted ground from a single snapshot":
+    { note: "Saving painted terrain keeps its height and layer weights together." },
+  "fix(terrain): save landscape images as one edit":
+    { note: "Saving painted terrain keeps its height and layer weights together." },
+  "fix(scene): migrate packaged documents before discovering assets and physics":
+    { note: "Packaged games now load meshes and 2D physics from older scenes the same way the editor does." },
+  "perf(assets): share hot reload across live sprite and mesh owners":
+    { note: "Shared textures and other handle-based assets update faster in running games." },
+  "fix(assets): restore mesh geometry through its owning loader":
+    { note: "Device recovery restores 3D meshes even when a different asset loader starts the recovery." },
+  "fix(native): retire socket resources before reporting closure":
+    { note: "Native WebSocket connections release their transport before delivering the final close event." },
+  "fix(native): use the engine texture cache on supported hosts":
+    { note: "Native games can reuse recently released textures within their configured cache budget." },
+  "fix(render): identify the module for every optional built-in shader":
+    { note: "Materials that use an uninstalled waterfall, planet, terrain surface bake or voxel ground shader now name the module to import." },
+  "fix(render): scope 2D and 3D physics debug overlays to their world":
+    { note: "Two running previews can each show their own physics debug view." },
+  "fix(physics): bind 3D solver lifetime and contacts to the owning app":
+    { note: "Each running preview owns its 3D physics world." },
+  "fix(render): exclude precipitation from its own cover capture":
+    { note: "Rain and snow stop at the surfaces that shelter them." },
+  "perf(profiler): read the live entity count without copying the scene":
+    { note: "Sampling the profiler costs less in large scenes." },
+  "fix(water): waves, waterfalls and rain rings take the project's gravity and units, as its physics does":
+    { note: "Water falls as the project's physics falls." },
+  "fix(editor): the editor's waves and waterfalls take the project's gravity, as its physics does":
+    { note: "Water falls as the project's physics falls." },
+  "fix(assets): keep plugin types distinct across release and hot reload":
+    { note: "Plugin asset types can use namespaces safely alongside paths containing colons." },
+  "feat(weather): 3D rain falls as streaks in the world, drawn on the GPU, and stops on what stands over it":
+    { note: "3D rain falls in the world." },
+  "feat(weather): rain splashes are particles in the world and its rings ring as raindrops do, every look a value of the Rain effect":
+    { note: "Rain splashes are particles in the world, its rings are a raindrop's, and how all of it looks is the Rain effect's to set." },
+  "fix(assets): track nested registry acquisitions by their owning slot":
+    { note: "Concurrent timeline loads keep each preview's nested clips available until their last owner releases them." },
+  "fix(assets): share registry loads before calling loader observers":
+    { note: "A loader callback can request the same timeline without preparing its children twice." },
+  "fix(resources): preserve the current owner when rebinding cache paths":
+    { note: "Replacing a resource at the same path keeps the new resource available by name." },
+  "fix(water): a river's banks roll over into the ground instead of folding, so the terrain draws them without a saw":
+    { note: "River banks no longer saw-tooth." },
+  "perf(scene): index the assets that persistent entities carry between scenes":
+    { note: "Switching scenes with many persistent entities is faster." },
+  "fix(scene): roll back failed scene loads across authoring and runtime":
+    { note: "An interrupted scene load now releases its entities and asset references in both authoring and packaged games." },
+  "perf(assets): retire scene assets through their own lookup keys":
+    { note: "Scenes with many tilemaps or character rigs unload faster." },
+  "fix(scene): reset scene services without orphaning live assets":
+    { note: "Resetting the scene manager keeps loaded sprites and meshes drawable." },
+  "fix(scene): preserve cross-scene ownership during unload and rollback":
+    { note: "Entities can move between scenes while a streamed cell unloads." },
+  "fix(scene): share and retire in-flight scene preparations":
+    { note: "Overlapping requests to prepare and load the same scene now share its assets." },
+  "fix(assets): share skeletal atlas pages with their texture owner":
+    { note: "Spine and DragonBones share atlas pages with the textures loaded by their App." },
+  "feat(weather): 3D snow falls as flakes in the world, swaying, and none under a roof":
+    { note: "3D snow falls in the world." },
+  "fix(spine): share skeleton acquisitions and reload changed binary sources":
+    { note: "Spine animations pick up edits to binary skeletons as well as atlases." },
+  "fix(render): bind streaming resizes to held texture generations":
+    { note: "A late texture resize can no longer shrink a sprite or mesh that has reacquired the image." },
+  "fix(assets): scope texture load settings to their request and app":
+    { note: "Each App uses its own quality level when decoding mesh textures." },
+  "fix(assets): isolate resident textures and restore them through their owner":
+    { note: "Asset loaders sharing a graphics device can load the same texture path with different content, color spaces and resolutions." },
+  "fix(assets): publish texture residency only for the current file revision":
+    { note: "Editing a texture while it decodes now gives subsequent sprite and material loads the updated pixels." },
+  "fix(assets): keep the effective GPU format with each texture upload":
+    { note: "The texture inspector reports each image’s actual GPU format during concurrent loads and after streaming changes its size." },
+  "fix(animation): isolate plugin playback and cleanup per app":
+    { note: "Apps can share animation plugins and play their timelines independently." },
+  "perf(timeline): reuse parsed property paths across channel samples":
+    { note: "Timeline playback spends less time resolving animated fields." },
+  "perf(timeline): share field bindings across reloaded clips":
+    { note: "Timeline playback spends less time resolving animated fields." },
+  "fix(timeline): resolve sprite frames against the current track target and asset":
+    { note: "Sprite frame tracks animate the sprite named by their child path or player binding." },
+  "fix(assets): track dependencies across registry slots and prepared generations":
+    { note: "Circular material inheritance reports the two materials as soon as the cycle is found." },
+  "fix(assets): share texture acquisitions across SDK entry points":
+    { note: "Loading a texture through `acquireTyped('texture', ref)` and `acquireTexture(ref)` shares one upload and honors the same import settings and streaming quality." },
+  "fix(water): the front of a breaker seen from behind no longer draws an even grey line of sky along every wave":
+    { note: "Water looks right from under it, through it and across the floor." },
+  "fix(water): caustics past the measured window add no light and are as strong as the measured ones, so the window no longer shows as a square":
+    { note: "Water looks right from under it, through it and across the floor." },
+  "fix(water): the underwater look, the surface seen from below, refraction and caustics drawn as the water is, and the light through wave crests":
+    { note: "Water looks right from under it, through it and across the floor." },
+  "fix(editor): the water outline row lines up with the Details rows":
+    { note: "Water looks right from under it, through it and across the floor." },
+  "fix(water): ripples stepped on the GPU and drawn as geometry, and what floats is held up by the waves the mesh draws":
+    { note: "Ripples are stepped on the GPU, and a floating body sits on the water it is drawn on." },
+  "fix(water): a river carries its foam, rain rings, detail and ripples downstream at its current":
+    { note: "What lies on a river is carried by it." },
+  "fix(water): wait for the water bake and surface during scene warm-up":
+    { note: "Water is ready when scene warm-up finishes." },
+  "fix(water): a waterfall with no other water is drawn and ships, and rain rings are their own size whatever the wind's ripples":
+    { note: "A waterfall on its own is drawn, and ships." },
 };

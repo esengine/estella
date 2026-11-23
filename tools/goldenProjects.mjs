@@ -1661,6 +1661,10 @@ export const SHIPPED = {
     { notCertifiable: "The controls and exported configuration are inspected by desktop/tests/render-scheduling-settings.test.tsx and pipeline/tests/runtime-config.test.ts." },
   "Native and web games can render on a dedicated CPU thread.":
     { notCertifiable: "Thread identity, fences and resource disposal require runtime instrumentation. tests/renderer/test_render_thread.cpp covers the native thread and tools/verify-render-thread.mjs exercises the web worker." },
+  "A groom opens in its own editor.":
+    { notCertifiable: "The Groom editor is an editor panel no game act opens, and no editor check drives it yet. sdk/tests/groom.test.ts covers groupStats, the figures its Strands panel shows." },
+  "Hair and fur can be strands, not only cards.":
+    { notCertifiable: "Strand ribbons are a look, not a game act. sdk/tests/groom.test.ts covers the .esgroom format and groups, and fixtures/scenes/groom-strands.esscene renders strands under verify-render." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
