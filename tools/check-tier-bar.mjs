@@ -51,7 +51,6 @@ import { SUBSYSTEMS } from './apiSubsystems.mjs';
 const OWED = {
     'input-raw': ['TouchPoint is named by no SDK test'],
     scene: [
-        'SceneConfig is named by no SDK test',
         'transitionTo is named by no SDK test',
         'SceneManagerState is called by no golden project',
     ],
