@@ -48,6 +48,16 @@ describe('propertyPath', () => {
             expect(setNestedProperty(obj, 'visible', false)).toBe(true);
             expect(obj.visible).toBe(false);
         });
+
+        it('assigns the authored value without reading the destination getter', () => {
+            let stored: unknown = false;
+            const obj = { options: {
+                get visible(): unknown { throw new Error('unexpected read'); },
+                set visible(value: unknown) { stored = value; },
+            } };
+            expect(setNestedProperty(obj, 'options.visible', 1)).toBe(true);
+            expect(stored).toBe(1);
+        });
     });
 
     describe('parsePropertyPath', () => {

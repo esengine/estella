@@ -6,9 +6,9 @@
  * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { World } from '../src/ecs/world';
-import { Transform, Children, Name, getComponent } from '../src/ecs/component';
+import { Transform, defineComponent, getComponent, unregisterComponent } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import {
@@ -18,6 +18,7 @@ import {
     type PropertyTrack,
 } from '../src/timeline/TimelineTypes';
 import { setNestedProperty } from '../src/timeline/TimelinePlugin';
+import { createRootPlacement, sampleRootPlacement, sampleTimelineInWorld } from '../src/timeline/TimelineEvaluator';
 
 describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
     let module: ESEngineModule;
@@ -91,6 +92,64 @@ describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
 
             disposeWorld(world, registry);
         });
+    });
+
+    it('reuses a channel across actors and root motion and picks the writer for the current component', () => {
+        const { world, registry } = createWorld();
+        const probe = defineComponent('TimelineFieldProbe', { rotation: { angle: 0 }, flags: { visible: true } });
+        try {
+            const actors = [world.spawn(), world.spawn()];
+            for (const actor of actors) {
+                world.insert(actor, Transform);
+                world.insert(actor, probe);
+            }
+            const key = { time: 0, value: Math.PI / 2, inTangent: 0, outTangent: 0 };
+            const channel = { property: 'rotation.angle', keyframes: [key] };
+            const track: PropertyTrack = {
+                type: TrackType.Property, name: 'Spin', childPath: '', component: 'Transform', channels: [channel],
+            };
+            const asset: TimelineAsset = {
+                version: '1.1', type: 'timeline', duration: 1, wrapMode: WrapMode.Once,
+                tracks: [track, { ...track, component: probe._name }],
+            };
+            const root = createRootPlacement();
+            sampleTimelineInWorld(asset, 0, world, actors[0]);
+            const split = vi.spyOn(String.prototype, 'split');
+            let parsed: string[];
+            try {
+                for (const actor of actors) {
+                    track.channels[0] = { ...channel };
+                    sampleTimelineInWorld(asset, 0, world, actor);
+                }
+                sampleRootPlacement(asset, 0, root);
+                parsed = split.mock.contexts.map(String);
+            } finally { split.mockRestore(); }
+            track.channels[0] = channel;
+            expect(parsed).not.toContain('rotation.angle');
+            expect(root.rotation.z).toBeCloseTo(Math.SQRT1_2);
+            for (const actor of actors) {
+                expect(world.get(actor, Transform).rotation.z).toBeCloseTo(Math.SQRT1_2);
+                expect(world.get(actor, probe).rotation.angle).toBe(key.value);
+            }
+
+            channel.property = 'flags.visible';
+            key.value = 0;
+            sampleTimelineInWorld(asset, 0, world, actors[0]);
+            expect(world.get(actors[0], probe).flags.visible).toBe(false);
+            expect(world.get(actors[1], probe).flags.visible).toBe(true);
+            expect(sampleRootPlacement(asset, 0, root)).toBe(false);
+
+            channel.property = 'position.x';
+            Object.freeze(channel);
+            key.value = 7;
+            expect(sampleRootPlacement(asset, 0, root)).toBe(true);
+            expect(root.position.x).toBe(7);
+            sampleTimelineInWorld(asset, 0, world, actors[1]);
+            expect(world.get(actors[1], Transform).position.x).toBe(7);
+        } finally {
+            disposeWorld(world, registry);
+            unregisterComponent(probe._name);
+        }
     });
 
     describe('getComponent resolves Transform', () => {

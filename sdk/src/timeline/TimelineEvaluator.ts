@@ -14,9 +14,9 @@
  * runtime and the editor preview bridge.
  */
 
-import { TrackType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
+import { TrackType, WrapMode, type TimelineAsset, type PropertyChannel, type PropertyTrack } from './TimelineTypes';
 import { sampleKeyframes } from '../math/keyframes';
-import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
+import { setNestedPropertyParts, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Pose, PoseTrack, PoseWorld } from '../animation/pose';
 import { writeProjection } from '../ecs/componentProjection';
@@ -68,11 +68,34 @@ type FieldWriter = (data: any, value: number) => void;
  * survive it, so a clip turning a model about Z cannot flatten its pose. The
  * four components are written raw, normalized in {@link finishQuaternions}.
  */
-const WRITER_OVERRIDES: Record<string, FieldWriter> = {
+const WRITER_OVERRIDES: Partial<Record<string, FieldWriter>> = {
     'Transform.rotation.angle': (data, v) => {
         data.rotation = q.setAngleZ(data.rotation, v * RAD2DEG);
     },
 };
+
+interface ChannelField {
+    readonly property: string;
+    readonly parts: readonly string[];
+    readonly component: string;
+    readonly writer: FieldWriter | undefined;
+}
+
+const channelFields = /* @__PURE__ */ new WeakMap<PropertyChannel, ChannelField>();
+const lastTrackFields = /* @__PURE__ */ new WeakMap<PropertyTrack, ChannelField>();
+
+function channelField(track: PropertyTrack, channel: PropertyChannel, component: string, property: string): ChannelField {
+    const cached = channelFields.get(channel);
+    if (cached?.property === property && cached.component === component) return cached;
+    // A track can receive a new channel object for the same field during editing.
+    const previous = lastTrackFields.get(track);
+    if (previous?.property === property && previous.component === component) return previous;
+    const parts = cached?.property === property ? cached.parts : property.split('.');
+    const field = { property, parts, component, writer: WRITER_OVERRIDES[`${component}.${property}`] };
+    channelFields.set(channel, field);
+    lastTrackFields.set(track, field);
+    return field;
+}
 
 /** Component fields written component-wise that must end up unit length. */
 const QUATERNION_FIELDS: Record<string, readonly string[]> = {
@@ -92,13 +115,18 @@ function finishQuaternions(data: any, component: string, touched: Set<string>): 
     }
 }
 
-function applyField(data: any, component: string, property: string, value: number): boolean {
-    const override = WRITER_OVERRIDES[`${component}.${property}`];
+function applyField(
+    data: Record<string, any>, field: ChannelField, channel: PropertyChannel, value: number, touched: Set<string>,
+): void {
+    const override = field.writer;
     if (override) {
         override(data, value);
-        return true;
+    } else if (!setNestedPropertyParts(data, field.parts, value)) {
+        return;
     }
-    return setNestedProperty(data, property, value);
+    // A destination setter can edit the channel during the write.
+    const current = channel.property;
+    touched.add(current === field.property ? field.parts[0]! : current.split('.')[0]!);
 }
 
 // ---------------------------------------------------------------------------
@@ -154,9 +182,9 @@ export function sampleRootPlacement(
         for (const ch of track.channels) {
             if (!ch.keyframes || ch.keyframes.length === 0) continue;
             if (!isRootPlacementChannel(track.childPath, track.component, ch.property)) continue;
-            if (applyField(out, 'Transform', ch.property, evaluateChannel(ch, time))) {
-                touched.add(ch.property.split('.')[0]!);
-            }
+            const property = ch.property;
+            const value = evaluateChannel(ch, time);
+            applyField(out, channelField(track, ch, 'Transform', property), ch, value, touched);
         }
         if (touched.size > 0) {
             finishQuaternions(out, 'Transform', touched);
@@ -245,18 +273,14 @@ export function sampleTimelineInto(
         const data = sink.open(entity, def);
         if (!data) continue;
 
-        let changed = false;
         const touched = new Set<string>();
         for (const ch of track.channels) {
             if (!ch.keyframes || ch.keyframes.length === 0) continue;
             if (opts?.skipChannel?.(track.childPath, track.component, ch.property)) continue;
             const v = evaluateChannel(ch, time);
-            if (applyField(data, track.component, ch.property, v)) {
-                changed = true;
-                touched.add(ch.property.split('.')[0]!);
-            }
+            applyField(data, channelField(track, ch, track.component, ch.property), ch, v, touched);
         }
-        if (changed) {
+        if (touched.size > 0) {
             finishQuaternions(data, track.component, touched);
             sink.close(entity, def, data, touched);
         }

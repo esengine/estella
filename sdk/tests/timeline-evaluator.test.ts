@@ -5,6 +5,7 @@ import {
     evaluateChannel,
     applyWrapMode,
     sampleTimeline,
+    sampleTimelineInto,
     type SampleDeps,
 } from '../src/timeline/TimelineEvaluator';
 import {
@@ -145,15 +146,48 @@ describe('sampleTimeline', () => {
     expect(store.get('Transform').position.y).toBe(0); // muted → untouched
   });
 
-  /** A one-track clip on Transform, its channels given by the caller. */
-  const rotationClip = (channels: PropertyChannel[]): TimelineAsset => ({
+  /** A one-track clip with the given property channels. */
+  const rotationClip = (channels: PropertyChannel[], component = 'Transform'): TimelineAsset => ({
       version: '1.2',
       type: 'timeline',
       duration: 1,
       wrapMode: WrapMode.Once,
       tracks: [{
-          type: TrackType.Property, name: 'Spin', childPath: '', component: 'Transform', channels,
+          type: TrackType.Property, name: 'Spin', childPath: '', component, channels,
       }],
+  });
+
+  it('observes edits made by a destination setter when reporting touched fields', () => {
+        const channel = ch([{ time: 0, value: 7, inTangent: 0, outTangent: 0 }], 'first.value');
+        const asset = rotationClip([channel]);
+        let first = 0;
+        const data = {
+            first: { set value(value: number) { first = value; channel.property = 'second.value'; } },
+            second: { value: 0 },
+        };
+        const deps = mockDeps(new Map(), { Transform: { __name: 'Transform' } });
+        const touched: string[][] = [];
+        const sample = () => sampleTimelineInto(asset, 0, 1, deps, {
+            open: () => data,
+            close: (_entity, _def, _data, fields) => touched.push([...fields]),
+        });
+        sample();
+        expect(first).toBe(7);
+        expect(data.second.value).toBe(0);
+        sample();
+        expect(data.second.value).toBe(7);
+        expect(touched).toEqual([['second'], ['second']]);
+  });
+
+  it('preserves fully qualified writer names when a component name contains a dot', () => {
+        const channel = ch([{ time: 0, value: Math.PI / 2, inTangent: 0, outTangent: 0 }], 'angle');
+        const component = 'Transform.rotation';
+        const asset = rotationClip([channel], component);
+        const data = { angle: 0, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+        const deps = mockDeps(new Map([[component, data]]), { [component]: { __name: component } });
+        sampleTimeline(asset, 0, 1, deps);
+        expect(data.angle).toBe(0);
+        expect(data.rotation.z).toBeCloseTo(Math.SQRT1_2);
   });
 
   it('rotation.angle writes a half-angle quaternion (matches the C++ runtime)', () => {

@@ -9,10 +9,9 @@
  * It grew up under `ui/util/` but nothing in it is UI — it speaks the component
  * registry — so it lives here, where a core action can reach it.
  *
- * NOT the same as `timeline/TimelineRuntime.setNestedProperty`, and deliberately
- * so: the timeline's writer is numeric-only and knows about channels a plain dot
- * path would corrupt (see TimelineEvaluator). Merging them is a real change, not
- * a rename.
+ * UI writes preserve the authored value. Timeline curves share the field lookup
+ * and convert numbers for boolean destinations. TimelineEvaluator handles fields
+ * such as Transform.rotation.angle with their component-specific writer.
  */
 import type { World } from './world';
 import type { Entity } from '../types';
@@ -28,16 +27,21 @@ export function getNestedProperty(obj: Record<string, any>, path: string): unkno
     return target;
 }
 
-export function setNestedProperty(obj: Record<string, any>, path: string, value: unknown): boolean {
-    const parts = path.split('.');
+/** @internal Resolve the object receiving an assignment to an existing field. */
+export function resolvePropertyTarget(obj: Record<string, any>, parts: readonly string[]): Record<string, any> | null {
     let target = obj;
     for (let i = 0; i < parts.length - 1; i++) {
         target = target[parts[i]];
-        if (target == null || typeof target !== 'object') return false;
+        if (target == null || typeof target !== 'object') return null;
     }
-    const lastKey = parts[parts.length - 1];
-    if (!(lastKey in target)) return false;
-    target[lastKey] = value;
+    return parts[parts.length - 1] in target ? target : null;
+}
+
+export function setNestedProperty(obj: Record<string, any>, path: string, value: unknown): boolean {
+    const parts = path.split('.');
+    const target = resolvePropertyTarget(obj, parts);
+    if (!target) return false;
+    target[parts[parts.length - 1]] = value;
     return true;
 }
 

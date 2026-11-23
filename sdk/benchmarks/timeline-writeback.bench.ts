@@ -9,7 +9,9 @@ import { Pose } from '../src/animation/pose';
 import { getComponent, Name, Sprite, Transform } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
 import { World } from '../src/ecs/world';
-import { evaluateChannel, sampleTimeline, sampleTimelineIntoPose, type SampleDeps } from '../src/timeline/TimelineEvaluator';
+import {
+    createRootPlacement, evaluateChannel, sampleRootPlacement, sampleTimeline, sampleTimelineIntoPose, type SampleDeps,
+} from '../src/timeline/TimelineEvaluator';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline/timelineMotion';
@@ -50,6 +52,38 @@ const clips = {
     'authored 3D jog': () => example('character-rig/assets/models/hero_Jog_Fwd_Loop.estimeline'),
     '2D sprite fades': spriteFades,
 };
+
+describe('authored dodge root motion, 16 actors', () => {
+    for (const edit of [false, true]) {
+        const asset = example('third-person-3d/assets/models/dodge.estimeline');
+        const channel = asset.tracks.flatMap(track =>
+            track.type === TrackType.Property && track.component === 'Transform' && track.childPath === ''
+                ? track.channels : [],
+        ).find(channel => channel.property === 'position.z');
+        if (!channel) throw new Error('Missing dodge root translation channel');
+        const placements = Array.from({ length: 16 }, createRootPlacement);
+        let frame = 0;
+        bench(edit ? 'retarget the curve before each sample' : 'sample the same curve', () => {
+            if (edit) channel.property = frame % 2 === 0 ? 'position.x' : 'position.z';
+            const time = asset.duration * ((frame++ * 19) % 61) / 61;
+            for (const out of placements) sampleRootPlacement(asset, time, out);
+        }, {
+            time: 500, warmupTime: 100,
+            setup: () => {
+                frame = 0;
+                const time = asset.duration / 2;
+                const expected = evaluateChannel(channel, time);
+                for (const axis of ['x', 'z'] as const) {
+                    channel.property = `position.${axis}`;
+                    const out = placements[0];
+                    if (!sampleRootPlacement(asset, time, out) || out.position[axis] !== expected) {
+                        throw new Error('Dodge root motion missed the edited axis');
+                    }
+                }
+            },
+        });
+    }
+});
 
 for (const [name, load] of Object.entries(clips)) {
     describe.skipIf(!HAS_WASM)(`${name}, 16 actors`, () => {

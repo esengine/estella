@@ -3,6 +3,7 @@
 import { getComponent, SpineAnimation } from '../ecs/component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import { setEntityActive, isEntityActive } from '../ecs/entityUtils';
+import { resolvePropertyTarget } from '../ecs/propertyPath';
 // Straight from the generated enum module (the C++ ES_ENUM is the single source), not
 // via the UI barrel: this file is core runtime and must not pull the UI module in.
 import { UIDisplay } from '../wasm/wasm.generated';
@@ -31,14 +32,14 @@ export const TimelineEventType = {
 export { resolveChildEntity } from '../ecs/childPath';
 
 export function setNestedProperty(obj: Record<string, any>, path: string, value: number): boolean {
-    const parts = path.split('.');
-    let target = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-        target = target[parts[i]];
-        if (target == null || typeof target !== 'object') return false;
-    }
+    return setNestedPropertyParts(obj, path.split('.'), value);
+}
+
+/** @internal Write a numeric channel using its already parsed property path. */
+export function setNestedPropertyParts(obj: Record<string, any>, parts: readonly string[], value: number): boolean {
+    const target = resolvePropertyTarget(obj, parts);
+    if (!target) return false;
     const lastKey = parts[parts.length - 1];
-    if (!(lastKey in target)) return false;
     target[lastKey] = typeof target[lastKey] === 'boolean' ? value !== 0 : value;
     return true;
 }
