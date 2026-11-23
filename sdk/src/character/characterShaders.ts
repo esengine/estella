@@ -7,7 +7,7 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { PACK_NORMAL_GLSL } from '../render/shaderLib';
+import { HASH13_GLSL, PACK_NORMAL_GLSL, STRAND_LOOK_GLSL } from '../render/shaderLib';
 
 
 // Hair: lit as strands. The flow map gives the strand direction; the lighting does Kajiya-Kay diffuse and two shifted highlights along it
@@ -75,6 +75,12 @@ const HAIR = `#pragma shader "Hair"
 // How far each strand's own value lightens or darkens it, and moves its highlight along it, so no two strands of a card match.
 #pragma param u_strandTone float default(0) range(0,0.6) ui(slider)
 #pragma param u_strandShift float default(0) range(0,1) ui(slider)
+// 1 lights each texel as the groom's strands are lit (shaderLib STRAND_LOOK_GLSL): the normal round the strand, a texel at a time
+// at its own place on it, the roots shaded and occluded as the Strands shader shades them by how far along the strand (the
+// attribute map's red). Cards baked from a groom then look as its strands do from every side. 0 is the card's own surface.
+#pragma param u_strandNormal float default(0) range(0,1) ui(slider)
+// The colour at the strand's root, toward the tint at its tip by how far along (the attribute map's red). White changes nothing.
+#pragma param u_rootColor color default(1,1,1,1)
 
 #pragma fragment
 precision highp float;
@@ -98,19 +104,27 @@ ${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
+${HASH13_GLSL}
+${STRAND_LOOK_GLSL}
 
 void main() {
 #ifdef MESH_NORMALS
     highp vec3 Ng = normalize(v_worldNormal);
     highp vec3 P = v_worldXYZ;
     highp vec3 N = perturbNormal(Ng, P, v_texCoord, scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale));
-    if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
-    // The strand: the flow map's direction across the texture, put onto the surface and made to lie across the normal.
+    // The strand: the flow map's direction across the texture, put onto the surface. Read with the face's own normal, before a
+    // back face turns it: the frame turns with it, and the strand would run the other way on the far side of a two-sided card.
     vec2 flow = texture(u_flowMap, v_texCoord).rg * 2.0 - 1.0;
     highp vec3 T = perturbNormal(Ng, P, v_texCoord, vec3(flow, 0.0));
+    if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
     T -= N * dot(N, T);
     if (dot(T, T) < 1e-6) T = cross(N, abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
     T = normalize(T);
+    if (u_strandNormal > 0.0) {
+        // A texel of a card is many strands seen at every place round them: each pixel takes one, and a temporal resolve the rest.
+        float round_ = hash13(vec3(gl_FragCoord.xy, texture(u_attributeMap, v_texCoord).g * 97.0)) * 2.0 - 1.0;
+        N = normalize(mix(N, strandNormal(T, viewDirection(P), round_), u_strandNormal));
+    }
 #else
     highp vec3 P = vec3(v_worldPos, 0.0);
     highp vec3 N = vec3(0.0, 0.0, 1.0);
@@ -135,8 +149,10 @@ void main() {
 #endif
     float root = texture(u_ormMap, v_texCoord).r * strandAttr.r;
     float ao = mix(1.0, root, u_occlusionStrength);
+    base.rgb *= mix(u_rootColor.rgb, vec3(1.0), strandAttr.r);
+    ao *= mix(1.0, strandOcclusion(strandAttr.r), u_strandNormal);
     ao *= mix(1.0 - u_depthShade, 1.0, texture(u_depthMap, v_texCoord).r);
-    base.rgb *= mix(1.0, 0.35 + 0.65 * root, u_rootDark);
+    base.rgb *= strandRootShade(root, u_rootDark);
     float noise = (texture(u_shiftMap, v_texCoord * u_shiftTile).r - 0.5) * u_shiftAmount;
     base.rgb *= 1.0 + (strandAttr.g - 0.5) * 2.0 * u_strandTone;
     noise += (strandAttr.g - 0.5) * u_strandShift;

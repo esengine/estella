@@ -12,7 +12,7 @@
  * the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { HASH13_GLSL, PACK_NORMAL_GLSL } from '../render/shaderLib';
+import { HASH13_GLSL, PACK_NORMAL_GLSL, STRAND_LOOK_GLSL } from '../render/shaderLib';
 
 const WIDTH_GLSL = `
 highp float strandWorldPerPixel(highp float dist) {
@@ -108,6 +108,7 @@ out vec4 fragColor;
 #endif
 ${WIDTH_GLSL}
 ${HASH13_GLSL}
+${STRAND_LOOK_GLSL}
 
 void main() {
     float t = clamp(v_texCoord.y, 0.0, 1.0);
@@ -116,12 +117,8 @@ void main() {
     // The strand's direction came in the normal; the normal it is lit with lies across it, facing the eye.
     highp vec3 T = normalize(v_worldNormal + vec3(1e-9, 0.0, 0.0));
     vec3 viewDir = viewDirection(P);
-    highp vec3 N = viewDir - T * dot(viewDir, T);
-    N = dot(N, N) > 1e-8 ? normalize(N) : cross(T, abs(T.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
     // Rounded: across the ribbon the normal turns from one side of the strand to the other, as it would on a cylinder.
-    float across = v_texCoord.x * 2.0 - 1.0;
-    highp vec3 B = normalize(cross(T, N));
-    N = normalize(N * sqrt(max(1.0 - across * across, 0.0)) + B * across);
+    highp vec3 N = strandNormal(T, viewDir, v_texCoord.x * 2.0 - 1.0);
     float alpha = 1.0;
     if (u_strandMinPx > 0.0) {
         highp float need = u_strandMinPx * 0.5 * strandWorldPerPixel(max(length(P - u_camera.xyz), 1e-3));
@@ -144,7 +141,7 @@ void main() {
     float alpha = 1.0;
 #endif
     vec3 base = mix(u_rootColor.rgb, u_tipColor.rgb, t) * v_color.rgb;
-    base *= mix(1.0, 0.35 + 0.65 * t, u_rootDark);
+    base *= strandRootShade(t, u_rootDark);
     SurfaceExt ext = surfaceExtNone(N);
     ext.aniso = vec4(T, 0.0);
     ext.misc = vec4(0.046, max(u_lobeGain, 0.001), u_shiftPrimary, u_shiftSecondary);
@@ -152,7 +149,7 @@ void main() {
     ext.scatter = vec4(base * u_secondaryTint.rgb * 1.6, 0.35);
     ext.trans = vec4(u_translucency, 0.25, 0.0, 0.0);
     g_hairShadow = u_hairShadow;
-    vec3 lit = applyLightingSurface(base, N, P, viewDir, 0.0, u_roughness, u_specular, mix(0.6, 1.0, t), ext);
+    vec3 lit = applyLightingSurface(base, N, P, viewDir, 0.0, u_roughness, u_specular, strandOcclusion(t), ext);
     if (u_groupColor.a > 0.0) lit = u_groupColor.rgb;
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER

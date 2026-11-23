@@ -11,7 +11,9 @@
  *        or hair for a device that does not draw strands.
  */
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../asset/meshFormat';
-import type { CurveSet, GroomCurves } from './groomFormat';
+import type { CurveSet, GroomCurves, GroomGroupSettings } from './groomFormat';
+import { STRANDS_SHADER_TEMPLATE } from './groomShader';
+import { groupUniforms } from './groomPlugin';
 
 export interface GroomCardsOptions {
     /** The width of a card at its root, in metres. */
@@ -143,10 +145,66 @@ export function buildGroomCards(curves: GroomCurves, opts: GroomCardsOptions = {
             }
             if (k < segs) {
                 const a = i * perCard + k * 2;
-                indices[ix++] = a; indices[ix++] = a + 2; indices[ix++] = a + 1;
-                indices[ix++] = a + 1; indices[ix++] = a + 2; indices[ix++] = a + 3;
+                // Counter-clockwise seen from the side the card faces (its normal, out from the head).
+                indices[ix++] = a; indices[ix++] = a + 1; indices[ix++] = a + 2;
+                indices[ix++] = a + 1; indices[ix++] = a + 3; indices[ix++] = a + 2;
             }
         }
     });
     return { channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max };
+}
+
+/** The Strands shader's params a card is lit with too: the strand lobes, light through the strands, the strand's own diffuse. */
+const SHARED_LOOK = ['u_roughness', 'u_specular', 'u_lobeGain', 'u_shiftPrimary', 'u_shiftSecondary', 'u_secondaryTint', 'u_translucency', 'u_strandDiffuse'] as const;
+
+/** The colours a groom's strands carry at the root and at the tip, averaged, sRGB 0..1; white where they carry none. */
+export function strandColours(curves: GroomCurves, groups?: number[]): { root: number[]; tip: number[] } {
+    const root = [0, 0, 0], tip = [0, 0, 0];
+    let n = 0;
+    curves.groups.forEach((g, i) => {
+        if (groups?.length && !groups.includes(i)) return;
+        const set = g.strands;
+        if (!set.colors) return;
+        let first = 0;
+        for (let c = 0; c < set.counts.length; c++) {
+            const last = first + set.counts[c]! - 1;
+            for (let k = 0; k < 3; k++) { root[k] += set.colors[first * 4 + k]! / 255; tip[k] += set.colors[last * 4 + k]! / 255; }
+            n++;
+            first = last + 1;
+        }
+    });
+    if (n === 0) return { root: [1, 1, 1], tip: [1, 1, 1] };
+    return { root: root.map((v) => v / n), tip: tip.map((v) => v / n) };
+}
+
+const r3 = (v: number): number => Math.round(v * 1000) / 1000;
+
+/**
+ * What a Hair material drawing a groom's cards sets, so the cards look like the strands they stand in for: lit as strands are
+ * (u_strandNormal 1: the shared strand look, and the Strands shader's own defaults for every lobe, for light through the hair and for
+ * the darkening toward the root), shadowed with the density the groom's strands are, in their colours (the tip's as the tint, the
+ * root's as a share of it), and cut from the baked coverage. Textures not included.
+ */
+export function cardsMaterialProperties(curves: GroomCurves, settings: GroomGroupSettings, unitsPerMeter: number, groups?: number[]): Record<string, unknown> {
+    const strands = STRANDS_SHADER_TEMPLATE.defaults as Record<string, unknown>;
+    const look: Record<string, unknown> = {};
+    for (const key of SHARED_LOOK) if (key in strands) look[key] = strands[key];
+    const { root, tip } = strandColours(curves, groups);
+    // The root's colour as a share of the tip's, for the Hair shader to mix toward along the strand as the strands' own colours do.
+    const share = root.map((v, k) => r3(Math.min(1, v / Math.max(tip[k]!, 1e-3))));
+    return {
+        ...look,
+        u_strandNormal: 1,
+        u_tint: { r: r3(tip[0]!), g: r3(tip[1]!), b: r3(tip[2]!), a: 1 },
+        u_rootColor: { r: share[0]!, g: share[1]!, b: share[2]!, a: 1 },
+        u_rootDark: typeof strands.u_rootDark === 'number' ? strands.u_rootDark : 0,
+        u_occlusionStrength: 0,
+        u_hairShadow: r3(groupUniforms(settings, 0, unitsPerMeter).u_hairShadow!),
+        u_alphaCutoff: 0.35,
+        u_tipSoftness: 0.25,
+        // The strands' own shadow darkens the layers under others; the depth map adds only a touch of it, where cards hide strands.
+        u_depthShade: 0.15,
+        u_strandTone: 0.1,
+        u_strandShift: 0.15,
+    };
 }

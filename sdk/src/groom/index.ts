@@ -11,7 +11,7 @@ export {
     meshSurface, projectStrands, bakeStrandsTextures, bakeFollicleMask, SEGMENT_FLOATS, MIN_TEXEL_COVERAGE,
     type MeshPlacement, type MeshSurface, type ProjectedStrands, type StrandsProjectionOptions, type TraceType, type BakedTexture, type FollicleGroom, type Bvh,
 } from './groomTextures';
-export { buildGroomCards, type GroomCardsOptions } from './groomCards';
+export { buildGroomCards, cardsMaterialProperties, strandColours, type GroomCardsOptions } from './groomCards';
 export { buildStrandMesh, type StrandMesh } from './groomMesh';
 export { STRANDS_SHADER_TEMPLATE } from './groomShader';
 

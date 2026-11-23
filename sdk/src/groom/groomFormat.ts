@@ -56,7 +56,7 @@ export interface GroomCurves { groups: CurveGroup[] }
 
 /** What the engine adds to a group: the Strands panel's settings. */
 export interface GroomGroupSettings {
-    /** The material the strands draw with; empty for the stock Strands material. */
+    /** The material the strands draw with, relative to the `.esgroom` as its curves are (or from the project's root); empty for the stock Strands material. */
     material: string;
     /** On: every strand is `hairWidth` wide. Off: each takes the width its curves carry. */
     overrideWidth: boolean;

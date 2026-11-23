@@ -9,7 +9,7 @@
  *          surface within the trace distance, outside it, inside it or either), and the strands are drawn there as the mesh's
  *          texels see them. Four pictures: Depth (how far from the surface the nearest strand is, 0 on it, 1 at the trace distance),
  *          Coverage (how much of a texel strands cover), Tangent (the strand's direction in the mesh's tangent space, as a normal map
- *          writes one) and Attribute (R how far along its strand, G a value per strand, B and A the strand's root UV). A hair-card
+ *          writes one) and Attribute (R how far along, averaged over the strands a texel holds; G a value per strand and B, A the root UV, of the nearest). A hair-card
  *          or hair-shell mesh drawn with them looks like the groom from a distance, for far LODs and for devices that cannot draw strands.
  *
  *        Finding strands on the mesh is a nearest-point query per strand point, against a bounding-volume tree of the mesh's
@@ -366,6 +366,9 @@ function hash01(i: number): number {
 
 // ─── Drawn on the GPU ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** How many strands' weights the averaged attribute sums before a texel's 8 bits are full. */
+const ALONG_STEPS = 16;
+
 /** RGBA bytes, rows from the top (v = 1) down, as a PNG is written. */
 export interface BakedTexture { width: number; height: number; rgba: Uint8Array }
 
@@ -453,6 +456,15 @@ Promise<{ depth: BakedTexture; coverage: BakedTexture; tangent: BakedTexture; at
         const tangent = await readTarget(module, target);
         drawSegments(target, d, order, BlendMode.None, (s, at, c) => c.set([s[at + 10]!, s[at + 11]!, s[at + 12]!, s[at + 13]!]), [0, 0, 0, 0]);
         const attribute = await readTarget(module, target);
+        // How far along the strand is the average of every strand crossing a texel, each by the share of it it covers: the nearest
+        // strand to a card is most often near its root, where all of them gather, and a texel shaded by that one alone is a root.
+        // Summed in two channels (t times its weight, and the weight) a sixteenth at a time, and divided here.
+        drawSegments(target, d, order, BlendMode.PmaAdditive, (s, at, c) => { const w = s[at + 5]! / ALONG_STEPS; c.set([s[at + 10]! * w, w, 0, 1]); }, [0, 0, 0, 1]);
+        const along = await readTarget(module, target);
+        for (let i = 0; i < along.rgba.length; i += 4) {
+            const weight = along.rgba[i + 1]!;
+            if (weight > 0) attribute.rgba[i] = Math.min(255, Math.round((along.rgba[i]! / weight) * 255));
+        }
         return { depth, coverage, tangent, attribute };
     } finally {
         RenderTexture.release(target);

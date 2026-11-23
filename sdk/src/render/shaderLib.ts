@@ -24,6 +24,20 @@ export const PACK_NORMAL_WGSL = `fn packNormal(n : vec3f) -> vec2f {
     if (a.z < 0.0) { e = (vec2f(1.0) - abs(a.yx)) * sgn; }
     return e * 0.5 + 0.5;
 }`;
+/**
+ * How a strand of hair is lit, one definition for the Strands shader's ribbons and the Hair shader's baked cards, so both look alike.
+ * strandNormal: across the strand toward the eye, turned `across` (-1..1) round it; strandRootShade and strandOcclusion: how much
+ * darker, and how occluded, a strand is at `t` (0 the root, 1 the tip).
+ */
+export const STRAND_LOOK_GLSL = `highp vec3 strandNormal(highp vec3 T, highp vec3 viewDir, float across) {
+    highp vec3 N = viewDir - T * dot(viewDir, T);
+    N = dot(N, N) > 1e-8 ? normalize(N) : cross(T, abs(T.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
+    highp vec3 B = normalize(cross(T, N));
+    return normalize(N * sqrt(max(1.0 - across * across, 0.0)) + B * across);
+}
+float strandRootShade(float t, float rootDark) { return mix(1.0, 0.35 + 0.65 * t, rootDark); }
+float strandOcclusion(float t) { return mix(0.6, 1.0, t); }`;
+
 /** Interleaved gradient noise (Jimenez 2014): a per-pixel dither in [0, 1) from a pixel coordinate, the jitter behind every ray-marched effect. */
 export const IGN_GLSL = `float ign(vec2 p) {
     return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));

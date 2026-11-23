@@ -62,7 +62,7 @@ export function groupUniforms(settings: GroomGroupSettings, maxRadius: number, u
 
 /** Where a path named inside `from` points: relative to its folder, unless it is already from the project's root. */
 export function besideFile(from: string, path: string): string {
-    if (path.startsWith('/') || path.startsWith('assets/') || /^[a-z]+:/i.test(path)) return path;
+    if (path.startsWith('/') || path.startsWith('assets/') || path.startsWith('@uuid:') || /^[a-z]+:/i.test(path)) return path;
     // A groom a scene named by uuid arrives as a URL (estella://project/...): its origin is kept whole, not
     // folded into the path, where `//` would collapse and the curves resolve under the page again.
     const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(from)?.[0] ?? '';
@@ -224,7 +224,7 @@ async function build(app: App, res: GroomRes, entity: Entity, path: string, key:
         held.meshes.push(mesh);
         let source = stock;
         if (s.material) {
-            try { source = (await assets.loadMaterial(s.material)).handle || stock; } catch (e) { log.warn('groom', `group ${g} of ${path}: its material ${s.material} cannot be loaded, so it draws with the stock one`, e); }
+            try { source = (await assets.loadMaterial(besideFile(path, s.material))).handle || stock; } catch (e) { log.warn('groom', `group ${g} of ${path}: its material ${s.material} cannot be loaded, so it draws with the stock one`, e); }
         }
         const material = Material.createInstance(source);
         if (material === 0) continue;

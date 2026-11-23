@@ -116,6 +116,7 @@ describe('a groom document', () => {
     it('names its curves relative to itself', () => {
         expect(besideFile('assets/fur/meerkat.esgroom', 'meerkat.escurves')).toBe('assets/fur/meerkat.escurves');
         expect(besideFile('assets/fur/meerkat.esgroom', '../shared/a.escurves')).toBe('assets/shared/a.escurves');
+        expect(besideFile('/assets/fur/fur.esgroom', '@uuid:0f9a2c1e-1111-4222-8333-444455556666')).toBe('@uuid:0f9a2c1e-1111-4222-8333-444455556666');
         expect(besideFile('assets/fur/meerkat.esgroom', 'assets/other/b.escurves')).toBe('assets/other/b.escurves');
         expect(besideFile('/scenes/groom/fur.esgroom', 'fur.escurves')).toBe('/scenes/groom/fur.escurves');
     });
@@ -307,6 +308,19 @@ describe('hair cards along a groom', () => {
         const a = pos(0), b = pos(1), root = [guides.positions[0]! * 100, guides.positions[1]! * 100, guides.positions[2]! * 100];
         expect((a[0]! + b[0]!) / 2).toBeCloseTo(root[0]!, 3);
         expect(Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)).toBeCloseTo(2, 3);
+        // Each triangle faces where its normals say: counter-clockwise from outside, so the front face is the side lit as the front.
+        // (A card twists where its guide turns sharply, so a triangle or so may face the other way; the rest face out.)
+        const nrm = (v: number) => read(mesh, MeshChannel.Normal, v, 3);
+        let outward = 0;
+        for (let tri = 0; tri < 12; tri++) {
+            const [i0, i1, i2] = [mesh.indices[tri * 3]!, mesh.indices[tri * 3 + 1]!, mesh.indices[tri * 3 + 2]!];
+            const p0 = pos(i0), p1 = pos(i1), p2 = pos(i2);
+            const e1 = [p1[0]! - p0[0]!, p1[1]! - p0[1]!, p1[2]! - p0[2]!], e2 = [p2[0]! - p0[0]!, p2[1]! - p0[1]!, p2[2]! - p0[2]!];
+            const g = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+            const n = nrm(i0);
+            if (g[0]! * n[0]! + g[1]! * n[1]! + g[2]! * n[2]! > 0) outward++;
+        }
+        expect(outward).toBeGreaterThanOrEqual(10);
         // No two cards share UV: every card's box in UV is apart from every other's.
         const boxes: number[][] = [];
         for (let c = 0; c < guides.counts.length; c++) {
