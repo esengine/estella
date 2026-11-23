@@ -104,9 +104,10 @@ if (records !== 1) {
 }
 for (const [what, re] of [
   ['the native host upload', /hostUploadDecision\(/],
-  ['the WebGL2 upload', /this\.lastDecision_ = r\.decision/],
-  ['the engine upload', /this\.lastDecision_ = compressedUploadDecision\(/],
-  ['an ordinary image', /this\.lastDecision_ = RAW_PAYLOAD_UPLOAD/],
+  ['the WebGL2 upload', /return loadCompressedTexture\(/],
+  ['compressed engine blocks', /decision: compressedUploadDecision\(target, true\)/],
+  ['the engine RGBA fallback', /decision: compressedUploadDecision\(target, false\)/],
+  ['an ordinary image', /\{ decision = RAW_PAYLOAD_UPLOAD, \.\.\.texture \} = await this\.decodeFile_/],
 ]) {
   if (!re.test(loader)) {
     problems.push(`${LOADER} no longer records ${what} — a path that says nothing is read as the`

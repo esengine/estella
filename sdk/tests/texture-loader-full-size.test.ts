@@ -12,8 +12,8 @@ const context = { catalog: { getBuildPath: (p: string) => p } } as unknown as Lo
 
 function loaderDecoding(results: TextureResult[]) {
     const loader = new TextureLoader(null);
-    const internal = loader as unknown as { decodeAndUpload_: (...args: unknown[]) => Promise<TextureResult> };
-    vi.spyOn(internal, 'decodeAndUpload_').mockImplementation(async () => results.shift()!);
+    const internal = loader as unknown as { decodeFile_: (...args: unknown[]) => Promise<TextureResult> };
+    vi.spyOn(internal, 'decodeFile_').mockImplementation(async () => results.shift()!);
     return loader;
 }
 
