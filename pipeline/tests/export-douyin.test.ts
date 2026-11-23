@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { runInNewContext } from 'node:vm';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { builtinSizeBudgets } from '../src/project/sizeBudget';
@@ -38,8 +39,14 @@ beforeAll(() => {
   // index.wechat.js would still satisfy a test that only counted files.
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.minigame.js'),
-    'export function initMiniGameRuntime(){return Promise.resolve();}\n'
-    + 'export function installMiniGamePlatform(){}\n');
+    'let platform;\n'
+    + 'export function installMiniGamePlatform(p){ platform=p; globalThis.trace.push("host:"+p.id); }\n'
+    + 'export function getPlatform(){ if (!platform) throw Error("platform not installed"); return platform; }\n'
+    + 'export function initMiniGameRuntime(){ globalThis.trace.push("runtime"); return Promise.resolve(); }\n');
+  writeFileSync(path.join(root, 'player.ts'),
+    'import { getPlatform } from "esengine";\n'
+    + 'globalThis.trace.push("project:"+getPlatform().id);\n'
+    + 'if (globalThis.failProject) throw Error("project startup failed");\n');
   mkdirSync(path.join(root, '_sdk', 'douyin'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'douyin', 'index.js'),
     'export const douyinProfile = { id: "douyin", hostLabel: "\\u6296\\u97f3" };\n');
@@ -55,11 +62,12 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (douyin)', () => {
-  it('writes the vendor config Douyin reads, not the one WeChat reads', async () => {
+  beforeAll(async () => {
     const res = await exportGame({
       minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
+      scriptsEntry: 'player.ts',
       hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -73,7 +81,9 @@ describe('exportGame (douyin)', () => {
 
     expect(res.ok, res.errors.join('\n')).toBe(true);
     expect(res.platform).toBe('douyin');
+  }, 180_000);
 
+  it('writes the vendor config Douyin reads, not the one WeChat reads', () => {
     // The vendor's contract, not this exporter's habit: Douyin's own CLI and its
     // adaptation doc both name `project.config.json`, and nothing
     // published names `project.tt.json`.
@@ -86,7 +96,7 @@ describe('exportGame (douyin)', () => {
     // This vendor's id, not the other one's: a WeChat appid in a Douyin package
     // is refused at upload with "不存在此 AppID".
     expect(cfg.appid).toBe('tt0123456789abcdef');
-  }, 180_000);
+  });
 
   it('boots through the vendor-neutral entry and names its host', () => {
     // The whole point of the family: Douyin ships no SDK entry of its own, so the
@@ -96,6 +106,25 @@ describe('exportGame (douyin)', () => {
     expect(bundle).toContain('index.minigame.js');
     expect(bundle).toContain('installMiniGamePlatform');
     expect(bundle).toContain('douyin');
+  });
+
+  it('runs the bundled project after host installation and before runtime startup', async () => {
+    const bundle = readFileSync(path.join(out, 'game-bundle.js'), 'utf8');
+    for (const failProject of [false, true]) {
+      const trace: string[] = [];
+      const module = { exports: {} as { boot: () => Promise<void> } };
+      runInNewContext(bundle, { module, trace, failProject });
+      expect(trace).toEqual([]);
+      if (failProject) {
+        await expect(module.exports.boot()).rejects.toThrow('project startup failed');
+        expect(trace).toEqual(['host:douyin', 'project:douyin']);
+        await expect(module.exports.boot()).rejects.toThrow('project startup failed');
+        expect(trace).toEqual(['host:douyin', 'project:douyin']);
+      } else {
+        await Promise.all([module.exports.boot(), module.exports.boot()]);
+        expect(trace).toEqual(['host:douyin', 'project:douyin', 'runtime', 'runtime']);
+      }
+    }
   });
 
   it('requires the mini-game engine build, which is the one a `tt` host can load', () => {

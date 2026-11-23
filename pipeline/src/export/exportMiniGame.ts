@@ -587,14 +587,22 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const lean = !!leanEntry && plan.lean;
   const installs = lean ? plan.subpaths : [];
 
+  // The project can read its host at module scope. Defer its evaluation until
+  // the vendor adapter is installed. esbuild keeps this literal import in the
+  // single CommonJS bundle. A repeat boot shares the project and its adapter.
+  const projectScript = scriptsAbs && existsSync(scriptsAbs) ? JSON.stringify(scriptsAbs) : null;
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
     `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(platformProfileModule)};\n` : '') +
-    (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
-    `export function boot(engineFactory, sideModuleFactories) {\n` +
+    `let projectReady;\n` +
+    `async function prepareProject() {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
+    (projectScript ? `  await import(${projectScript});\n` : '') +
+    `}\n` +
+    `export async function boot(engineFactory, sideModuleFactories) {\n` +
+    `  await (projectReady ??= prepareProject());\n` +
     `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
