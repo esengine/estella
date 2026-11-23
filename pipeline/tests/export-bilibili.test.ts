@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { bilibiliExportProfile } from '../src/export/miniGameExportProfile';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { builtinSizeBudgets } from '../src/project/sizeBudget';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
@@ -29,9 +30,7 @@ beforeAll(() => {
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), 'async function later(): Promise<number> { await null; return 1; }\nlater().then((n) => console.log(n));\n');
   mkdirSync(path.join(root, '_sdk', 'bilibili'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.minigame.js'),
-    'export function initMiniGameRuntime(){return Promise.resolve();}\n'
-    + 'export function installMiniGamePlatform(){}\n');
+  writeFileSync(path.join(root, '_sdk', 'index.minigame.js'), miniGameSdkStub(bilibiliExportProfile));
   writeFileSync(path.join(root, '_sdk', 'bilibili', 'index.js'), 'export const bilibiliProfile = { id: "bilibili" };\n');
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');

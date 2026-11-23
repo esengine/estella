@@ -38,7 +38,7 @@ import type { DebugChannelConfig } from './debugChannelProtocol';
 import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
-import type { App } from '../app/app';
+import type { App, Plugin } from '../app/app';
 
 /**
  * WebGL1 extensions WebGL2 made core. Emscripten asks for each unconditionally and
@@ -72,6 +72,8 @@ function describeError(e: unknown): string {
 // =============================================================================
 
 export interface MiniGameRuntimeConfig extends RenderOptions, RuntimeProjectSettings {
+    /** Reuse the bundled project's registrations on each start. */
+    projectPlugin?: Plugin;
     engineFactory: (opts: unknown) => Promise<ESEngineModule>;
     /** Package-relative path of the engine wasm binary. The exporter stages the
      *  runtime under wasm/ and knows which glue it shipped, so it passes the
@@ -367,6 +369,7 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
     progress.reach('assets');
     await initRuntime({
         app,
+        projectPlugin: config.projectPlugin,
         module,
         source,
         manifest: manifestModel,

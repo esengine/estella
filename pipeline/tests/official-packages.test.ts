@@ -16,6 +16,8 @@ import path from 'node:path';
 import { buildProjectScripts } from '../src/bundle/buildScripts';
 import { buildOpenDataContext } from '../src/bundle/buildOpenData';
 import { exportGame } from '../src/export/exportGame';
+import { douyinExportProfile } from '../src/export/miniGameExportProfile';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
@@ -106,8 +108,7 @@ describe('an official package in an export', () => {
     writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'),
       JSON.stringify({ uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', version: '2.0', type: 'scene', importer: {} }));
     mkdirSync(path.join(root, '_sdk', 'douyin'), { recursive: true });
-    writeFileSync(path.join(root, '_sdk', 'index.minigame.js'),
-      'export function initMiniGameRuntime(){return Promise.resolve();}\nexport function installMiniGamePlatform(){}\n');
+    writeFileSync(path.join(root, '_sdk', 'index.minigame.js'), miniGameSdkStub(douyinExportProfile));
     writeFileSync(path.join(root, '_sdk', 'douyin', 'index.js'), 'export const douyinProfile = { id: "douyin" };\n');
     mkdirSync(path.join(root, '_wasm'), { recursive: true });
     writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');

@@ -10,7 +10,7 @@
  * numbers looking sensible.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, addPlugin, flushPendingRegistrations } from '../src/app/app';
+import { App, addPlugin, captureProjectRegistrations, flushPendingRegistrations } from '../src/app/app';
 import {
     Schedule, defineSystem, defineSystemSet, addStartupSystem,
     addSystemToSchedule, addSystemSetToSchedule,
@@ -65,6 +65,42 @@ describe('schedule vocabulary', () => {
 });
 
 describe('module-level registration', () => {
+    it('installs a resident project on each App even after a plugin failed on the first', async () => {
+        const seen: string[] = [];
+        let fail = true;
+        addPlugin({
+            build() {
+                seen.push('build');
+                addStartupSystem(trace('from-plugin', seen));
+            },
+            cleanup() { seen.push('cleanup'); },
+        });
+        addPlugin({ build() { if (fail) throw Error('first start'); } });
+        addStartupSystem(trace('startup', seen));
+        const project = captureProjectRegistrations();
+        addStartupSystem(trace('other-game', seen));
+
+        const failed = App.new();
+        expect(() => failed.addPlugin(project)).toThrow('first start');
+        failed.quit();
+        expect(seen).toEqual(['build', 'cleanup']);
+
+        fail = false;
+        const first = App.new().addPlugin(project).addPlugin(project);
+        const second = App.new().addPlugin(project);
+        await first.tick(1 / 60);
+        first.quit();
+        await second.tick(1 / 60);
+        second.quit();
+        // A game outside the package can still use the original one-shot registration API.
+        const other = App.new();
+        flushPendingRegistrations(other);
+        await other.tick(1 / 60);
+        other.quit();
+        expect(seen).toEqual(['build', 'cleanup', 'build', 'build',
+            'startup', 'from-plugin', 'cleanup', 'startup', 'from-plugin', 'cleanup', 'other-game']);
+    });
+
     it('carries a project bundle\'s systems into the app that flushes them', async () => {
         const order: string[] = [];
         addStartupSystem(trace('bundle-startup', order));

@@ -16,7 +16,7 @@
  */
 
 import { startDebugChannel } from './debugChannelHook';
-import type { App } from '../app/app';
+import type { App, Plugin } from '../app/app';
 import { initRuntime } from './runtimeLoader';
 import { runGameStartup, type GameStartup } from './gameStartup';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
@@ -26,6 +26,8 @@ import { loadPackagedAssetIndex, loadPackagedScenes, createPackagedAssetSource, 
 import { log } from '../util/logger';
 
 export interface NativeGameOptions {
+    /** Reuse registrations when an embedding host evaluates the project only once. */
+    projectPlugin?: Plugin;
     /** The host's capability bridge (packaged files, image decode, input). */
     bridge: NativeBridge;
     /** Where the host installed its `es_*` bindings; the JS global by default. */
@@ -69,6 +71,7 @@ async function bootNativeGame(options: NativeGameOptions, startup: GameStartup):
 
     await initRuntime({
         app,
+        projectPlugin: options.projectPlugin,
         module: null,             // the engine core is native here
         source,
         manifest: index.manifest,

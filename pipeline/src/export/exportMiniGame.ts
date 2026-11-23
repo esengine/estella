@@ -593,17 +593,17 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const projectScript = scriptsAbs && existsSync(scriptsAbs) ? JSON.stringify(scriptsAbs) : null;
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
-    `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
+    `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''}${projectScript ? ', captureProjectRegistrations' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(platformProfileModule)};\n` : '') +
     `let projectReady;\n` +
     `async function prepareProject() {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    (projectScript ? `  await import(${projectScript});\n` : '') +
+    (projectScript ? `  await import(${projectScript});\n  return captureProjectRegistrations();\n` : '') +
     `}\n` +
     `export async function boot(engineFactory, sideModuleFactories) {\n` +
-    `  await (projectReady ??= prepareProject());\n` +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  const projectPlugin = await (projectReady ??= prepareProject());\n` +
+    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */

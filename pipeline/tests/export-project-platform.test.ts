@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { loadProjectPlatform } from '../src/export/platformCatalog';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const TEX = '11111111-1111-4111-8111-111111111111';
@@ -72,7 +73,7 @@ export default {
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(
     path.join(root, '_sdk', 'index.minigame.js'),
-    `export function initMiniGameRuntime(){return Promise.resolve();}\nexport function installMiniGamePlatform(){}\nexport function defineComponent(){}\n`,
+    miniGameSdkStub({ runtimeInit: 'initMiniGameRuntime' }, ['defineComponent']),
   );
   // Stub engine runtime — the default glue candidate is the standard esengine.js.
   mkdirSync(path.join(root, '_wasm'), { recursive: true });

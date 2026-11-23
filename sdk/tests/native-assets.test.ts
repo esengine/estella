@@ -12,6 +12,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
+import { addPlugin, captureProjectRegistrations } from '../src/app/app';
 import { initNativeGame } from '../src/runtime/nativeGameRuntime';
 import { loadPackagedScenes, type PackagedGameConfig } from '../src/runtime/packagedRuntime';
 import { SceneManager } from '../src/scene/sceneManager';
@@ -94,6 +95,29 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
+    it('starts the captured project repeatedly and leaves the next project queued', async () => {
+        const bridge = makeBridge({});
+        bridge.readFile = async path => {
+            const document = path === 'game.config.json' ? { entryScene: 'menu.json' }
+                : path === 'asset-manifest.json' ? { version: '2.0', groups: {} }
+                : { version: '1.0', entities: [] };
+            return new TextEncoder().encode(JSON.stringify(document)).buffer;
+        };
+        const build = vi.fn(), nextBuild = vi.fn();
+        addPlugin({ build });
+        const project = captureProjectRegistrations();
+        addPlugin({ build: nextBuild });
+        try {
+            for (const projectPlugin of [project, project, undefined]) {
+                const scope = withRegistryOps({ es_Camera_buffer: () => null, es_Camera_has: () => false, es_Camera_remove: () => {} });
+                const { app } = await initNativeGame({ bridge, scope, width: 32, height: 32, projectPlugin });
+                try { expect(nextBuild).toHaveBeenCalledTimes(projectPlugin ? 0 : 1); }
+                finally { app.quit(); }
+            }
+            expect(build).toHaveBeenCalledTimes(2);
+        } finally { captureProjectRegistrations(); }
+    });
+
     it('releases the native game when the entry scene cannot be read', async () => {
         const bridge = makeBridge({});
         const releaseInput = vi.fn();

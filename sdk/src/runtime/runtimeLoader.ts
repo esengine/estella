@@ -53,7 +53,7 @@ import { getPlatform } from '../platform/base';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
-import { flushPendingRegistrations } from '../app/app';
+import { flushPendingRegistrations, type Plugin } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
@@ -1024,6 +1024,8 @@ export function createRuntimeSceneConfig(
 
 export interface RuntimeInitConfig extends RuntimeProjectSettings {
     app: App;
+    /** Declarations captured from a project the host evaluated once for multiple game sessions. */
+    projectPlugin?: Plugin;
     /** The wasm module, or null on a native host (see LoadRuntimeSceneOptions). */
     module: ESEngineModule | null;
     source: RuntimeAssetSource;
@@ -1163,7 +1165,8 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // loading a scene into, and handing a loop to, an App that was released under it.
     const life = app.signal;
 
-    flushPendingRegistrations(app);
+    if (config.projectPlugin) app.addPlugin(config.projectPlugin);
+    else flushPendingRegistrations(app);
 
     // Before any scene: what a component's default fills in is in the project's units (ecs/worldUnits.ts).
     setWorldUnitsPerMeter(config.physics3dWorld?.unitsPerMeter ?? REFERENCE_UNITS_PER_METER);

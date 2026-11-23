@@ -2346,6 +2346,38 @@ export function addPlugin(plugin: Plugin): void {
 }
 
 /**
+ * Take a loaded project's module-level declarations and keep them in a plugin.
+ * A host that evaluates its project once can install this plugin on every new App.
+ * Each App installs the captured systems into its own schedules.
+ * @experimental
+ */
+export function captureProjectRegistrations(): Plugin {
+    const context = getDefaultContext();
+    const plugins = context.drainPendingPlugins() as Plugin[];
+    const systems = context.drainPendingSystems();
+    return {
+        build(app) {
+            // A plugin can queue more declarations while it builds. Only the ones
+            // added in this synchronous install belong to this game.
+            const active = getDefaultContext();
+            const firstPlugin = active.pendingPlugins.length;
+            const firstSystem = active.pendingSystems.length;
+            try {
+                for (const plugin of plugins) app.addPlugin(plugin);
+                for (let i = firstPlugin; i < active.pendingPlugins.length; i++) {
+                    app.addPlugin(active.pendingPlugins[i] as Plugin);
+                }
+                const all = systems.concat(active.pendingSystems.slice(firstSystem));
+                app.addBundleSystems(all as Parameters<App['addBundleSystems']>[0]);
+            } finally {
+                active.pendingPlugins.splice(firstPlugin);
+                active.pendingSystems.splice(firstSystem);
+            }
+        },
+    };
+}
+
+/**
  * Install everything a project bundle registered at module level. One door, so a
  * host cannot drain half of it — plugins first, because a project's own system
  * may read a resource one of them inserts.

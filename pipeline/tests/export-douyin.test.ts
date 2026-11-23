@@ -42,7 +42,8 @@ beforeAll(() => {
     'let platform;\n'
     + 'export function installMiniGamePlatform(p){ platform=p; globalThis.trace.push("host:"+p.id); }\n'
     + 'export function getPlatform(){ if (!platform) throw Error("platform not installed"); return platform; }\n'
-    + 'export function initMiniGameRuntime(){ globalThis.trace.push("runtime"); return Promise.resolve(); }\n');
+    + 'export function captureProjectRegistrations(){ globalThis.trace.push("capture"); return {build(){ globalThis.trace.push("install"); }}; }\n'
+    + 'export function initMiniGameRuntime(config){ config.projectPlugin.build(); globalThis.trace.push("runtime"); return Promise.resolve(); }\n');
   writeFileSync(path.join(root, 'player.ts'),
     'import { getPlatform } from "esengine";\n'
     + 'globalThis.trace.push("project:"+getPlatform().id);\n'
@@ -122,7 +123,7 @@ describe('exportGame (douyin)', () => {
         expect(trace).toEqual(['host:douyin', 'project:douyin']);
       } else {
         await Promise.all([module.exports.boot(), module.exports.boot()]);
-        expect(trace).toEqual(['host:douyin', 'project:douyin', 'runtime', 'runtime']);
+        expect(trace).toEqual(['host:douyin', 'project:douyin', 'capture', 'install', 'runtime', 'install', 'runtime']);
       }
     }
   });
