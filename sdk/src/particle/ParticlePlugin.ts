@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
@@ -13,13 +14,11 @@ import { particleQueryResolver } from './ParticleCollisionBridge';
 import { ParticleCollisionEvent, type ParticleCollisionEventPayload } from './collision';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Draw } from '../render/draw';
-import { registerScopedDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import { registerWorldDrawCallback } from '../render/customDraw';
 import type { QualityController } from '../render/quality';
 
 import { bakeGradient, type Gradient } from './gradient';
 import { bakeCurve, type Curve } from './curve';
-
-let overlayId = 0;
 
 export class ParticlePlugin implements Plugin {
     name = 'particle';
@@ -30,7 +29,7 @@ export class ParticlePlugin implements Plugin {
     private readonly sizeCurves_ = new Map<number, Curve>();
     /** Entity → authored burst schedule (out-of-band; handed to the sim as (time, count) pairs). */
     private readonly bursts_ = new Map<number, { time: number; count: number }[]>();
-    private overlay_: string | null = null;
+    private readonly overlays_ = new PluginInstallations<() => void>();
     private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
@@ -42,15 +41,15 @@ export class ParticlePlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         const api = new ParticleAPI(engine, registry, particleQueryResolver(app));
         app.insertResource(Particle, api);
-        this.overlay_ = `particle-collision:${++overlayId}`;
-        registerScopedDrawCallback(this.overlay_,registry,()=>{
+        this.overlays_.take(app)?.();
+        this.overlays_.set(app, registerWorldDrawCallback(Particle._id, app.world, () => {
             if (!api.debugNormals) return;
             for (const hit of api.collisionContacts) {
                 Draw.line3D({x:hit.x,y:hit.y,z:hit.z},
                     {x:hit.x+hit.normalX*20,y:hit.y+hit.normalY*20,z:hit.z+hit.normalZ*20},
                     {r:.2,g:.9,b:.7,a:1},1);
             }
-        });
+        }));
 
         // The color gradient is authored as stops in the component data but isn't a
         // C++ field — carry it out-of-band and bake it into the sim's LUT on load.
@@ -109,9 +108,8 @@ export class ParticlePlugin implements Plugin {
         ), { runIf: fxPreviewOrPlayMode });
     }
 
-    cleanup(): void {
-        if (this.overlay_) unregisterDrawCallback(this.overlay_);
-        this.overlay_ = null;
+    cleanup(app?: App): void {
+        this.overlays_.take(app)?.();
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.gradients_.clear();

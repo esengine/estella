@@ -6,11 +6,6 @@ vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 
-vi.mock('../src/render/customDraw', async (original) => {
-    const draw = await original<typeof import('../src/render/customDraw')>();
-    return { ...draw, registerDrawCallback: vi.fn(draw.registerDrawCallback), unregisterDrawCallback: vi.fn(draw.unregisterDrawCallback) };
-});
-
 vi.mock('../src/postprocess', () => ({
     PostProcess: Symbol('PostProcess'),
 }));
@@ -76,7 +71,7 @@ vi.mock('../src/defaults', () => ({
 import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem, type SceneContext } from '../src/scene/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText, TilemapLayer } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene/scene';
-import { registerDrawCallback, unregisterDrawCallback, getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
+import { getDrawCallbacks, clearDrawCallbacks } from '../src/render/customDraw';
 import { PostProcess } from '../src/postprocess';
 import { PostProcessAPI } from '../src/postprocess/PostProcessAPI';
 import type { Entity } from '../src/types';
@@ -390,9 +385,9 @@ describe('SceneManager', () => {
             const ctx = await manager.load('level1');
 
             ctx.registerDrawCallback('myDraw', () => {});
-            expect(getDrawCallbacks().has('myDraw')).toBe(true);
+            expect([...getDrawCallbacks().values()].some(entry => entry.name === 'myDraw')).toBe(true);
             await manager.unload('level1');
-            expect(getDrawCallbacks().has('myDraw')).toBe(false);
+            expect([...getDrawCallbacks().values()].some(entry => entry.name === 'myDraw')).toBe(false);
         });
 
         it('unload() unbinds postprocess stacks', async () => {
@@ -500,10 +495,7 @@ describe('SceneManager', () => {
 
             await manager.switchTo('level2', { transition: 'none' });
             expect(manager.getActive()).toBe('level2');
-            expect(registerDrawCallback).not.toHaveBeenCalledWith(
-                '__scene_transition_overlay__',
-                expect.any(Function)
-            );
+            expect(getDrawCallbacks().size).toBe(0);
         });
 
         it('switching_ is reset even if load fails', async () => {
@@ -960,10 +952,7 @@ describe('SceneManager', () => {
 
             expect(manager.isTransitioning()).toBe(true);
             expect(onStart).toHaveBeenCalled();
-            expect(registerDrawCallback).toHaveBeenCalledWith(
-                '__scene_transition_overlay__',
-                expect.any(Function)
-            );
+            expect(getDrawCallbacks().size).toBe(1);
         });
 
         it('updateTransition with dt progresses elapsed', async () => {
@@ -1026,7 +1015,7 @@ describe('SceneManager', () => {
 
             expect(manager.isTransitioning()).toBe(false);
             expect(onComplete).toHaveBeenCalled();
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('__scene_transition_overlay__');
+            expect(getDrawCallbacks().size).toBe(0);
 
             await promise;
         });
@@ -1146,9 +1135,9 @@ describe('SceneManager', () => {
             const ctx = await manager.load('level1');
             ctx.registerDrawCallback('myDraw', () => {});
 
-            expect(getDrawCallbacks().has('myDraw')).toBe(true);
+            expect([...getDrawCallbacks().values()].some(entry => entry.name === 'myDraw')).toBe(true);
             manager.reset();
-            expect(getDrawCallbacks().has('myDraw')).toBe(false);
+            expect([...getDrawCallbacks().values()].some(entry => entry.name === 'myDraw')).toBe(false);
         });
 
         it('unbinds post process from loaded scenes', async () => {
@@ -1186,7 +1175,7 @@ describe('SceneManager', () => {
             manager.reset();
             await cancelled;
             expect(manager.isTransitioning()).toBe(false);
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('__scene_transition_overlay__');
+            expect(getDrawCallbacks().size).toBe(0);
         });
 
         it('allows re-registration and loading after reset', async () => {

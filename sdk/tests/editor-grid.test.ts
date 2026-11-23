@@ -10,6 +10,7 @@
  * pre-scene seam, and that the grid stays a safe no-op until enabled + active.
  */
 import { describe, expect, it, beforeEach } from 'vitest';
+import { World } from '../src/ecs/world';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from '../src/camera/EditorGrid';
 import { EditorView } from '../src/camera/EditorView';
 import { installEditorGrid } from '../src/camera/editorGridRenderer';
@@ -23,6 +24,7 @@ import {
 function stubApp() {
   const res = new Map<unknown, unknown>();
   return {
+    world: new World(),
     hasResource: (d: unknown) => res.has(d),
     insertResource: (d: unknown, v: unknown) => {
       res.set(d, v);
@@ -51,7 +53,7 @@ describe('pre-scene draw registry', () => {
       /* noop */
     };
     registerPreSceneDrawCallback('t', fn);
-    expect(getPreSceneDrawCallbacks().get('t')).toBe(fn);
+    expect(getPreSceneDrawCallbacks().get('t')?.fn).toBe(fn);
     unregisterPreSceneDrawCallback('t');
     expect(getPreSceneDrawCallbacks().has('t')).toBe(false);
   });
@@ -66,7 +68,7 @@ describe('installEditorGrid', () => {
     const app = stubApp();
     installEditorGrid(app as never);
     expect(app.hasResource(EditorGrid)).toBe(true);
-    expect(getPreSceneDrawCallbacks().has('editor:grid')).toBe(true);
+    expect([...getPreSceneDrawCallbacks().values()].some(entry => entry.world === app.world)).toBe(true);
   });
 
   it('does not overwrite an existing EditorGrid resource', () => {
@@ -80,7 +82,7 @@ describe('installEditorGrid', () => {
     const app = stubApp();
     app.insertResource(EditorView, { active: true, x: 0, y: 0, orthoSize: 360 });
     installEditorGrid(app as never); // inserts EditorGrid disabled by default
-    const cb = getPreSceneDrawCallbacks().get('editor:grid')!;
+    const cb = [...getPreSceneDrawCallbacks().values()].find(entry => entry.world === app.world)!.fn;
     expect(() => cb({ width: 800, height: 600, elapsed: 0 })).not.toThrow();
   });
 });

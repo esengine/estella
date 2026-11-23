@@ -301,7 +301,7 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
         expect(app.world.valid(spawned), 'the entity it spawned').toBe(false);
         expect(assets.sizes().refRows, 'the receipts it acquired').toBe(base);
         expect(unloaded).toEqual(['gen1']);
-        expect(getDrawCallbacks().has('ghost'), 'the draw callback it registered').toBe(false);
+        expect([...getDrawCallbacks().values()].some(entry => entry.name === 'ghost'), 'the draw callback it registered').toBe(false);
         expect(pp.getStack(CAMERA), 'the post-process it bound').toBeNull();
 
         // The system needs a SUCCEEDING load to show: a scene-scoped system is
@@ -348,7 +348,7 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
         expect(app.world.valid(spawned)).toBe(false);
         expect(assets.sizes().refRows).toBe(base);
         expect(unloaded).toEqual(['gen1']);
-        expect(getDrawCallbacks().has('ghost')).toBe(false);
+        expect([...getDrawCallbacks().values()].some(entry => entry.name === 'ghost')).toBe(false);
         expect(pp.getStack(CAMERA)).toBeNull();
         expect(manager.getScene('level')).toBeNull();
     });
@@ -386,7 +386,7 @@ describe('a scene load that fails leaves nothing of itself behind', () => {
         expect(app.world.valid(spawned)).toBe(false);
         expect(assets.sizes().refRows, 'what it acquired after the unload').toBe(base);
         expect(unloaded, 'freed once, not twice').toEqual(['gen1']);
-        expect(getDrawCallbacks().has('ghost')).toBe(false);
+        expect([...getDrawCallbacks().values()].some(entry => entry.name === 'ghost')).toBe(false);
         expect(pp.getStack(CAMERA)).toBeNull();
         expect(manager.getScene('level')).toBeNull();
     });

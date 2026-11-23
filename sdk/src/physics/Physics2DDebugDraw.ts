@@ -178,7 +178,7 @@ export function setupPhysics2DDebugDraw(
         showContacts: false,
     });
 
-    return registerWorldDrawCallback('physics-debug-draw', app.world, () => {
+    return registerWorldDrawCallback(Physics2DDebugDraw._id, app.world, () => {
         drawPhysics2DDebug(app, physicsApiRes, physicsEventsRes);
     });
 }

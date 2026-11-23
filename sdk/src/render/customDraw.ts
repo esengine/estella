@@ -5,6 +5,7 @@
  * @brief   Custom draw callback registration for the render pipeline
  */
 import type { World } from '../ecs/world';
+import { log } from '../util/logger';
 
 /** The camera facts used by the draw pass invoking a callback. */
 export interface DrawFrameInfo {
@@ -17,67 +18,127 @@ export interface DrawFrameInfo {
 
 export type DrawCallback = (elapsed: number, frame: DrawFrameInfo) => void;
 
-type DrawEntry = { fn: DrawCallback; scene: string; readonly registry?: unknown; world?: World };
-const callbacks = new Map<string, DrawEntry>();
-const worldIds = new WeakMap<World, number>();
-let nextWorldId = 0;
-
-export function registerDrawCallback(id: string, fn: DrawCallback, scene?: string): void {
-    registerOwnedDrawCallback(id, { fn, scene: scene ?? '' });
+/**
+ * Limit a draw callback to this world's cameras and this active scene. Two worlds
+ * can use the same name. A registration without a world replaces that name globally.
+ * @experimental
+ */
+export interface DrawCallbackOptions {
+    readonly world?: World;
+    readonly scene?: string;
 }
 
-/** Release only this installation, even if its name and function have both been reused. @internal */
-export function registerOwnedDrawCallback(id: string, entry: DrawEntry): () => void {
-    callbacks.set(id, entry);
-    return () => { if (callbacks.get(id) === entry) callbacks.delete(id); };
+/** @internal */
+export interface DrawRegistration<T> {
+    readonly name: string;
+    readonly fn: T;
+    readonly scene: string;
+    readonly world?: World;
+    readonly registry: ReturnType<World['getCppRegistry']> | undefined;
+    release(): void;
 }
 
-/** An engine-owned overlay belongs to one world's render passes. @internal */
-export function registerScopedDrawCallback(id: string, registry: unknown, fn: DrawCallback): void {
-    callbacks.set(id,{fn,scene:'',registry});
-}
+type DrawKey = string | symbol;
 
-/** Replace this world's overlay by name. Its registry can connect after installation. @internal */
-export function registerWorldDrawCallback(name: string, world: World, fn: DrawCallback): () => void {
-    let worldId = worldIds.get(world);
-    if (worldId === undefined) {
-        worldId = ++nextWorldId;
-        worldIds.set(world, worldId);
+/** Each name has a global installation or one per world. Stable slots preserve drawing order on replacement. */
+class DrawCallbacks<T> {
+    readonly entries = new Map<DrawKey, DrawRegistration<T>>();
+    private ordered_?: ReadonlyArray<[DrawKey, DrawRegistration<T>]>;
+    constructor(private readonly phase_: string) {}
+
+    /** Capture the pass order once per change. A callback can release or replace itself while drawing. */
+    dispatch(registry: NonNullable<ReturnType<World['getCppRegistry']>>, scenes: ReadonlySet<string> | null,
+            begin: () => void, draw: (fn: T) => void): boolean {
+        const ordered = this.ordered_ ??= Array.from(this.entries);
+        let started = false;
+        for (const [key, entry] of ordered) {
+            if (this.entries.get(key) !== entry || (entry.world && entry.registry !== registry)) continue;
+            if (entry.scene && scenes && !scenes.has(entry.scene)) continue;
+            if (!started) { begin(); started = true; }
+            try { draw(entry.fn); }
+            catch (error) {
+                log.error('render', `${this.phase_}callback '${entry.name}' error`, error);
+                entry.release();
+            }
+        }
+        return started;
     }
-    const id = `${name}:${worldId}`;
-    return registerOwnedDrawCallback(id, { fn, scene: '', world, get registry() { return world.getCppRegistry(); } });
+
+    private readonly slots_ = new Map<DrawKey, Map<World | undefined, DrawKey>>();
+
+    register(name: DrawKey, fn: T, { world, scene = '' }: DrawCallbackOptions = {}): () => void {
+        let slots = this.slots_.get(name);
+        if (!slots) this.slots_.set(name, slots = new Map());
+        let key = slots.get(world) ?? slots.get(undefined);
+        if (world) {
+            slots.delete(undefined);
+        } else {
+            // An explicit global registration replaces the name everywhere, just like global removal.
+            for (const prior of slots.values()) {
+                key ??= prior;
+                if (prior !== key) this.entries.delete(prior);
+            }
+            slots.clear();
+        }
+        const label = typeof name === 'string' ? name : name.description ?? '';
+        const slot = key ?? (world ? Symbol(label) : name);
+        slots.set(world, slot);
+        const entry: DrawRegistration<T> = {
+            name: label, fn, scene, world,
+            get registry() { return world?.getCppRegistry(); },
+            release: () => {
+                if (this.entries.get(slot) !== entry) return;
+                this.entries.delete(slot);
+                this.ordered_ = undefined;
+                slots.delete(world);
+                if (slots.size === 0) this.slots_.delete(name);
+            },
+        };
+        this.entries.set(slot, entry);
+        this.ordered_ = undefined;
+        return entry.release;
+    }
+
+    remove(name: string): void {
+        const slots = this.slots_.get(name);
+        if (slots) for (const key of slots.values()) this.entries.get(key)?.release();
+    }
+}
+
+/** @internal */
+export const sceneDrawCallbacks = new DrawCallbacks<DrawCallback>('');
+
+/** Install or replace a named draw callback. The returned function releases this installation. */
+export function registerDrawCallback(id: string, fn: DrawCallback, scene?: string | DrawCallbackOptions): () => void {
+    return sceneDrawCallbacks.register(id, fn, typeof scene === 'string' ? { scene } : scene);
+}
+
+/** An engine overlay has a private name and follows its world even when the registry connects later. @internal */
+export function registerWorldDrawCallback(name: symbol, world: World, fn: DrawCallback): () => void {
+    return sceneDrawCallbacks.register(name, fn, { world });
 }
 
 export function unregisterDrawCallback(id: string): void {
-    callbacks.delete(id);
+    sceneDrawCallbacks.remove(id);
 }
 
 export function clearDrawCallbacks(): void {
-    callbacks.clear();
+    for (const entry of sceneDrawCallbacks.entries.values()) entry.release();
 }
 
-/** Core teardown also clears game callbacks registered without an owner. @internal */
-export function clearWorldDrawCallbacks(world: World): void {
-    const registry = world.getCppRegistry();
-    for (const [id, entry] of callbacks) {
-        if (entry.world) {
-            if (entry.world === world) callbacks.delete(id);
-        } else if (entry.registry === undefined || (registry !== null && entry.registry === registry)) {
-            callbacks.delete(id);
-        }
-    }
+/** A core teardown also clears legacy game callbacks registered without an owner. @internal */
+export function clearWorldDrawCallbacks(world: World, includeGlobal = false): void {
+    for (const entry of sceneDrawCallbacks.entries.values()) if (entry.world === world || (includeGlobal && !entry.world)) entry.release();
+    for (const entry of preSceneCallbacks.entries.values()) if (entry.world === world) entry.release();
+    for (const entry of overScreenCallbacks.entries.values()) if (entry.world === world) entry.release();
 }
 
 export function clearSceneDrawCallbacks(sceneName: string): void {
-    for (const [id, entry] of callbacks) {
-        if (entry.scene === sceneName) {
-            callbacks.delete(id);
-        }
-    }
+    for (const entry of sceneDrawCallbacks.entries.values()) if (entry.scene === sceneName) entry.release();
 }
 
-export function getDrawCallbacks(): ReadonlyMap<string, DrawEntry> {
-    return callbacks;
+export function getDrawCallbacks(): ReadonlyMap<DrawKey, DrawRegistration<DrawCallback>> {
+    return sceneDrawCallbacks.entries;
 }
 
 // =============================================================================
@@ -87,18 +148,19 @@ export function getDrawCallbacks(): ReadonlyMap<string, DrawEntry> {
 // Run once a frame AFTER the screen overlay, through the last camera's view: over
 // the scene, the post chain and the screen's UI alike, as an editor's handles must be.
 
-const overScreenCallbacks = new Map<string, DrawCallback>();
+/** @internal */
+export const overScreenCallbacks = new DrawCallbacks<DrawCallback>('over-screen ');
 
-export function registerOverScreenDrawCallback(id: string, fn: DrawCallback): void {
-    overScreenCallbacks.set(id, fn);
+export function registerOverScreenDrawCallback(id: string, fn: DrawCallback, options?: DrawCallbackOptions): () => void {
+    return overScreenCallbacks.register(id, fn, options);
 }
 
 export function unregisterOverScreenDrawCallback(id: string): void {
-    overScreenCallbacks.delete(id);
+    overScreenCallbacks.remove(id);
 }
 
-export function getOverScreenDrawCallbacks(): ReadonlyMap<string, DrawCallback> {
-    return overScreenCallbacks;
+export function getOverScreenDrawCallbacks(): ReadonlyMap<DrawKey, DrawRegistration<DrawCallback>> {
+    return overScreenCallbacks.entries;
 }
 
 // =============================================================================
@@ -121,16 +183,17 @@ export interface PreSceneDrawInfo {
 
 export type PreSceneDrawCallback = (info: PreSceneDrawInfo) => void;
 
-const preSceneCallbacks = new Map<string, PreSceneDrawCallback>();
+/** @internal */
+export const preSceneCallbacks = new DrawCallbacks<PreSceneDrawCallback>('pre-scene ');
 
-export function registerPreSceneDrawCallback(id: string, fn: PreSceneDrawCallback): void {
-    preSceneCallbacks.set(id, fn);
+export function registerPreSceneDrawCallback(id: string, fn: PreSceneDrawCallback, options?: DrawCallbackOptions): () => void {
+    return preSceneCallbacks.register(id, fn, options);
 }
 
 export function unregisterPreSceneDrawCallback(id: string): void {
-    preSceneCallbacks.delete(id);
+    preSceneCallbacks.remove(id);
 }
 
-export function getPreSceneDrawCallbacks(): ReadonlyMap<string, PreSceneDrawCallback> {
-    return preSceneCallbacks;
+export function getPreSceneDrawCallbacks(): ReadonlyMap<DrawKey, DrawRegistration<PreSceneDrawCallback>> {
+    return preSceneCallbacks.entries;
 }

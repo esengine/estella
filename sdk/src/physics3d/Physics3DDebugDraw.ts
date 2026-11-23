@@ -111,7 +111,7 @@ export function setupPhysics3DDebugDraw(app: App, contacts: () => readonly Conta
     app.insertResource(Physics3DDebugDraw, {
         enabled: false, showColliders: true, showContacts: false,
     });
-    return registerWorldDrawCallback('physics3d-debug-draw', app.world, () => {
+    return registerWorldDrawCallback(Physics3DDebugDraw._id, app.world, () => {
         drawPhysics3DDebug(app, contacts());
     });
 }

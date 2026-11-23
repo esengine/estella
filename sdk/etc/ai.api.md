@@ -557,6 +557,7 @@ status: "complete" | "partial" | "unavailable" | "unknown"
 ```
 activeWhen: (ComponentDef<NavAgentData> | ComponentDef<NavVolumeData>)[]
 build: (app: App) => void
+cleanup: (app?: App) => void
 name: string
 static new (): NavPlugin
 static prototype: NavPlugin

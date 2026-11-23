@@ -49,7 +49,7 @@ export const corePlugin: Plugin = {
         resetDeviceRestoredWatch();
         offMemoryWarning?.();
         offMemoryWarning = null;
-        if (app) clearWorldDrawCallbacks(app.world);
+        if (app) clearWorldDrawCallbacks(app.world, true);
         else clearDrawCallbacks();
         shutdownGLDebugAPI();
         shutdownRendererAPI();

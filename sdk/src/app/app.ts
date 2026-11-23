@@ -41,6 +41,7 @@ import {
 import { accessOf, conflicts, type SystemAccess } from './access';
 import { platformNow } from '../platform';
 import { RenderPipeline } from '../render/renderPipeline';
+import { clearWorldDrawCallbacks } from '../render/customDraw';
 import type { SceneConfig } from '../scene/sceneManager';
 import { SceneManager } from '../scene/sceneManager';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
@@ -1584,6 +1585,8 @@ export class App {
         this.executionObservers_.length = 0;
         this.installedPluginSet_.clear();
         this.installedPluginNames_.clear();
+
+        clearWorldDrawCallbacks(this.world_);
 
         for (const entity of this.world_.getAllEntities()) {
             try { this.world_.despawn(entity); } catch (e) { log.warn('app', 'Shutdown despawn error', e); }

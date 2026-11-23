@@ -13,7 +13,6 @@ vi.mock('../src/scene/scene', () => ({
         return Promise.resolve(new Map());
     }),
 }));
-vi.mock('../src/render/customDraw', () => ({ registerDrawCallback: vi.fn(), unregisterDrawCallback: vi.fn() }));
 vi.mock('../src/postprocess', () => ({ PostProcess: { bind: vi.fn(), unbind: vi.fn() }, PostProcessStack: vi.fn() }));
 vi.mock('../src/render/material', () => ({ Material: { release: vi.fn(), createShader: vi.fn() }, defineResource: vi.fn() }));
 

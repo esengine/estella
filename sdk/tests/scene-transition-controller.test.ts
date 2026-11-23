@@ -13,8 +13,10 @@ const drawCalls = {
 };
 
 vi.mock('../src/render/customDraw', () => ({
-    registerDrawCallback: (id: string, fn: () => void) => drawCalls.register(id, fn),
-    unregisterDrawCallback: (id: string) => drawCalls.unregister(id),
+    registerWorldDrawCallback: (id: symbol, world: World, fn: () => void) => {
+        drawCalls.register(id, world, fn);
+        return drawCalls.unregister;
+    },
 }));
 
 vi.mock('../src/render/draw', () => ({
@@ -25,11 +27,12 @@ vi.mock('../src/render/draw', () => ({
     },
 }));
 
+import { World } from '../src/ecs/world';
 import { SceneTransitionController } from '../src/scene/SceneTransitionController';
 
 describe('SceneTransitionController', () => {
     it('rejects a completion callback failure and permits the next transition', async () => {
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         const error = new Error('completion failed');
         const options = { duration: 1, color: { r: 0, g: 0, b: 0, a: 1 } };
         const pending = ctrl.start({ ...options, onComplete: () => { throw error; } }, async () => {});
@@ -44,7 +47,7 @@ describe('SceneTransitionController', () => {
         expect(ctrl.isTransitioning()).toBe(false);
     });
     it('a failing callback does not tear down the transition it just started', async () => {
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         const error = new Error('completion failed');
         const options = { duration: 1, color: { r: 0, g: 0, b: 0, a: 1 } };
         let next!: Promise<void>;
@@ -63,7 +66,7 @@ describe('SceneTransitionController', () => {
     it('resolves after fade-out → loading → fade-in on a successful swap', async () => {
         drawCalls.register.mockClear();
         drawCalls.unregister.mockClear();
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         let swapped = false;
         const p = ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 } },
@@ -91,7 +94,7 @@ describe('SceneTransitionController', () => {
     it('rejects with the swap error and cleans up', async () => {
         drawCalls.register.mockClear();
         drawCalls.unregister.mockClear();
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         const boom = new Error('swap failed');
         const p = ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 } },
@@ -114,7 +117,7 @@ describe('SceneTransitionController', () => {
     it('holds the overlay fully opaque while the swap is pending', async () => {
         drawCalls.register.mockClear();
         drawCalls.unregister.mockClear();
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         let release: (() => void) | null = null;
         void ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 } },
@@ -137,7 +140,7 @@ describe('SceneTransitionController', () => {
     it('reset() clears the overlay and rejects the pending transition', async () => {
         drawCalls.register.mockClear();
         drawCalls.unregister.mockClear();
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         const cancelled = new Error('reset');
         const waiting = expect(ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 } },
@@ -153,7 +156,7 @@ describe('SceneTransitionController', () => {
 
     it('lets onStart reset its own transition before installing the overlay', async () => {
         drawCalls.register.mockClear();
-        const ctrl = new SceneTransitionController(), cancelled = new Error('reset');
+        const ctrl = new SceneTransitionController(new World()), cancelled = new Error('reset');
         const swap = vi.fn(async () => {});
         await expect(ctrl.start({ duration: 1, color: { r: 0, g: 0, b: 0, a: 1 },
             onStart: () => ctrl.reset(cancelled) }, swap)).rejects.toBe(cancelled);
@@ -164,7 +167,7 @@ describe('SceneTransitionController', () => {
     });
 
     it('lets a swap reset the transition during the frame that starts it', async () => {
-        const ctrl = new SceneTransitionController(), cancelled = new Error('reset');
+        const ctrl = new SceneTransitionController(new World()), cancelled = new Error('reset');
         const pending = ctrl.start({ duration: 1, color: { r: 0, g: 0, b: 0, a: 1 } },
             async () => ctrl.reset(cancelled));
         const rejected = expect(pending).rejects.toBe(cancelled);
@@ -176,7 +179,7 @@ describe('SceneTransitionController', () => {
     it('invokes onStart at start and onComplete only on success', async () => {
         const onStart = vi.fn();
         const onComplete = vi.fn();
-        const ctrl = new SceneTransitionController();
+        const ctrl = new SceneTransitionController(new World());
         const p = ctrl.start(
             { duration: 1.0, color: { r: 0, g: 0, b: 0, a: 1 }, onStart, onComplete },
             async () => { /* noop */ },

@@ -385,6 +385,7 @@ export {
     unregisterDrawCallback,
     clearDrawCallbacks,
     type DrawCallback,
+    type DrawCallbackOptions,
     type DrawFrameInfo,
     registerPreSceneDrawCallback,
     unregisterPreSceneDrawCallback,

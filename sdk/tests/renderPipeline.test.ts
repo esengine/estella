@@ -66,28 +66,16 @@ vi.mock('../src/render/draw', () => ({
     isDrawAPIReady: () => true,
 }));
 
-const mockCallbacks = new Map<string, {
-    fn: (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void;
-    scene: string;
-    registry?: unknown;
-}>();
-const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
-const mockOverScreenCallbacks = new Map<string, (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void>();
-vi.mock('../src/render/customDraw', () => ({
-    getDrawCallbacks: vi.fn(() => mockCallbacks),
-    unregisterDrawCallback: vi.fn(),
-    getOverScreenDrawCallbacks: vi.fn(() => mockOverScreenCallbacks),
-    unregisterOverScreenDrawCallback: vi.fn(),
-    getPreSceneDrawCallbacks: vi.fn(() => mockPreSceneCallbacks),
-    unregisterPreSceneDrawCallback: vi.fn(),
-}));
-
 import { RenderPipeline } from '../src/render/renderPipeline';
 import { Renderer } from '../src/render/renderer';
 import { PostProcess, type PostProcessAPI } from '../src/postprocess';
 import { Draw, beginPresentedDraw, endPresentedDraw } from '../src/render/draw';
 import { defaultScreenOverlay } from '../src/ui/core/screen-overlay';
-import { unregisterDrawCallback } from '../src/render/customDraw';
+import {
+    clearDrawCallbacks, getDrawCallbacks, getOverScreenDrawCallbacks, getPreSceneDrawCallbacks,
+    registerDrawCallback, registerOverScreenDrawCallback, registerPreSceneDrawCallback,
+} from '../src/render/customDraw';
+import { World } from '../src/ecs/world';
 const postProcessFixture = PostProcess as unknown as PostProcessAPI;
 
 describe('RenderPipeline', () => {
@@ -103,8 +91,9 @@ describe('RenderPipeline', () => {
             vi.mocked(postProcessFixture.isInitialized).mockReturnValue(true);
             return true;
         });
-        mockCallbacks.clear();
-        mockOverScreenCallbacks.clear();
+        clearDrawCallbacks();
+        for (const entry of getOverScreenDrawCallbacks().values()) entry.release();
+        for (const entry of getPreSceneDrawCallbacks().values()) entry.release();
         vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(true);
         pipeline = new RenderPipeline();
         // PostProcess is now injected (no longer a global the pipeline reaches for).
@@ -118,7 +107,7 @@ describe('RenderPipeline', () => {
         vi.mocked(Renderer.endScreenOverlay).mockImplementation(() => { order.push('overlay'); });
         vi.mocked(Renderer.drawOverScreen).mockImplementation(() => { order.push('over-screen pass'); });
         const seen: Float32Array[] = [];
-        mockOverScreenCallbacks.set('handles', (_e, frame) => { order.push('handles'); seen.push(frame.viewProjection); });
+        registerOverScreenDrawCallback('handles', (_e, frame) => { order.push('handles'); seen.push(frame.viewProjection); });
         const projection = new Float32Array(16); projection[12] = 5;
 
         pipeline.beginFrame(0);
@@ -141,7 +130,7 @@ describe('RenderPipeline', () => {
     it('draws the over-screen callbacks with the scene on a core with no over-screen pass', () => {
         vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(false);
         const handles = vi.fn();
-        mockOverScreenCallbacks.set('handles', handles);
+        registerOverScreenDrawCallback('handles', handles);
         pipeline.beginFrame(0);
         pipeline.renderCamera({ registry, viewProjection,
             viewportPixels: { x: 0, y: 0, w: 800, h: 600 }, clearFlags: 3, elapsed: 0 });
@@ -149,6 +138,67 @@ describe('RenderPipeline', () => {
         pipeline.renderOverScreen();
         expect(handles).toHaveBeenCalledTimes(1);
         expect(Renderer.drawOverScreen).not.toHaveBeenCalled();
+    });
+
+    it.each(['pre-scene', 'scene', 'over-screen', 'over-screen fallback'])('keeps a %s callback reinstalled before its predecessor throws', phase => {
+        const register = phase === 'pre-scene' ? registerPreSceneDrawCallback
+            : phase === 'scene' ? registerDrawCallback : registerOverScreenDrawCallback;
+        vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(phase !== 'over-screen fallback');
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        let draws = 0;
+        const draw = () => {
+            if (++draws === 1) {
+                register('hud', draw);
+                throw new Error('old registration failed');
+            }
+        };
+        register('hud', draw);
+        try {
+            for (let i = 0; i < 2; i++) {
+                pipeline.beginFrame(i);
+                pipeline.renderCamera({ registry, viewProjection, viewportPixels: { x: 0, y: 0, w: 80, h: 60 }, clearFlags: 3, elapsed: i });
+                pipeline.renderOverScreen();
+            }
+            expect(draws).toBe(2);
+            expect(error).toHaveBeenCalledOnce();
+        } finally { error.mockRestore(); }
+    });
+
+    it('starts new registrations on the following pass when a draw removes and reinstalls itself', () => {
+        const seen: number[] = [];
+        let stop: () => void;
+        const draw = () => {
+            seen.push(seen.length);
+            if (seen.length === 1) { stop(); stop = registerDrawCallback('hud', draw); }
+        };
+        stop = registerDrawCallback('hud', draw);
+        const render = () => pipeline.render({ registry, viewProjection, width: 80, height: 60, elapsed: 0 });
+        render();
+        expect(seen).toEqual([0]);
+        render();
+        expect(seen).toEqual([0, 1]);
+    });
+
+    it('uses the camera registry and active scene in all three draw phases', () => {
+        const a = new World(), b = new World(), preview = { _cpp: {} as typeof registry._cpp };
+        vi.spyOn(a, 'getCppRegistry').mockReturnValue(registry._cpp);
+        vi.spyOn(b, 'getCppRegistry').mockReturnValue(preview._cpp);
+        const calls: string[] = [];
+        for (const [label, world] of [['a', a], ['b', b]] as const) {
+            registerPreSceneDrawCallback('grid', () => calls.push(label + ' grid'), { world, scene: 'map' });
+            registerDrawCallback('hud', () => calls.push(label + ' hud'), { world, scene: 'map' });
+            registerOverScreenDrawCallback('handles', () => calls.push(label + ' handles'), { world, scene: 'map' });
+        }
+        for (const [scene, view] of [['other', registry], ['map', preview], ['map', registry]] as const) {
+            pipeline.beginFrame(0);
+            pipeline.setActiveScenes(new Set([scene]));
+            pipeline.renderCamera({ registry: view, viewProjection, viewportPixels: { x: 0, y: 0, w: 80, h: 60 }, clearFlags: 3, elapsed: 0 });
+            pipeline.renderOverScreen();
+        }
+        expect(Draw.begin).toHaveBeenCalledTimes(2);
+        expect(beginPresentedDraw).toHaveBeenCalledTimes(4);
+        expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(2);
+        expect(calls).toEqual(['b grid', 'b hud', 'b handles', 'a grid', 'a hud', 'a handles']);
     });
 
     it('passes each camera projection and the independent overlay projection to glyph callbacks', () => {
@@ -283,7 +333,7 @@ describe('RenderPipeline', () => {
 
         it('collects a presented draw around callbacks', () => {
             const cb = vi.fn();
-            mockCallbacks.set('test-cb', { fn: cb, scene: '' });
+            registerDrawCallback('test-cb', cb);
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
@@ -294,7 +344,7 @@ describe('RenderPipeline', () => {
 
         it('hands callbacks the exact draw-frame camera facts', () => {
             const cb = vi.fn();
-            mockCallbacks.set('test-cb', { fn: cb, scene: '' });
+            registerDrawCallback('test-cb', cb);
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 7 });
 
@@ -308,8 +358,8 @@ describe('RenderPipeline', () => {
             (beginPresentedDraw as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('beginPresentedDraw'));
             (endPresentedDraw as ReturnType<typeof vi.fn>)
                 .mockImplementation(() => callOrder.push('endPresentedDraw'));
-            mockCallbacks.set('cb1', { fn: () => callOrder.push('cb1'), scene: '' });
-            mockCallbacks.set('cb2', { fn: () => callOrder.push('cb2'), scene: '' });
+            registerDrawCallback('cb1', () => callOrder.push('cb1'));
+            registerDrawCallback('cb2', () => callOrder.push('cb2'));
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
@@ -319,8 +369,8 @@ describe('RenderPipeline', () => {
         it('filters callbacks by activeScenes', () => {
             const cb1 = vi.fn();
             const cb2 = vi.fn();
-            mockCallbacks.set('cb1', { fn: cb1, scene: 'scene-a' });
-            mockCallbacks.set('cb2', { fn: cb2, scene: 'scene-b' });
+            registerDrawCallback('cb1', cb1, 'scene-a');
+            registerDrawCallback('cb2', cb2, 'scene-b');
 
             pipeline.setActiveScenes(new Set(['scene-a']));
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
@@ -332,8 +382,11 @@ describe('RenderPipeline', () => {
         it('draws each world overlay only during a pass for its own registry', () => {
             const preview: typeof registry = { _cpp: {} };
             const first = vi.fn(), second = vi.fn();
-            mockCallbacks.set('first', { fn: first, scene: '', registry: registry._cpp });
-            mockCallbacks.set('second', { fn: second, scene: '', registry: preview._cpp });
+            const a = new World(), b = new World();
+            vi.spyOn(a, 'getCppRegistry').mockReturnValue(registry._cpp);
+            vi.spyOn(b, 'getCppRegistry').mockReturnValue(preview._cpp);
+            registerDrawCallback('overlay', first, { world: a });
+            registerDrawCallback('overlay', second, { world: b });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
             expect(first).toHaveBeenCalledOnce();
@@ -346,7 +399,7 @@ describe('RenderPipeline', () => {
         it('logs error and unregisters throwing callback', () => {
             const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
             const error = new Error('test error');
-            mockCallbacks.set('bad-cb', { fn: () => { throw error; }, scene: '' });
+            registerDrawCallback('bad-cb', () => { throw error; });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
@@ -354,13 +407,13 @@ describe('RenderPipeline', () => {
                 expect.stringContaining("callback 'bad-cb' error"),
                 error,
             );
-            expect(unregisterDrawCallback).toHaveBeenCalledWith('bad-cb');
+            expect(getDrawCallbacks().has('bad-cb')).toBe(false);
             errorSpy.mockRestore();
         });
 
         it('still closes the presented draw when a callback throws', () => {
             vi.spyOn(console, 'error').mockImplementation(() => {});
-            mockCallbacks.set('bad-cb', { fn: () => { throw new Error('fail'); }, scene: '' });
+            registerDrawCallback('bad-cb', () => { throw new Error('fail'); });
 
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 0 });
 
@@ -390,7 +443,7 @@ describe('RenderPipeline', () => {
 
         it('executes draw callbacks in renderCamera', () => {
             const cb = vi.fn();
-            mockCallbacks.set('cam-cb', { fn: cb, scene: '' });
+            registerDrawCallback('cam-cb', cb);
 
             pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 16 });
 

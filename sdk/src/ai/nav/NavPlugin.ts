@@ -44,6 +44,7 @@ import { NavMesh, type NavLinkSegment } from './NavMesh';
 import { NavLink } from './NavLink';
 import { NavArea } from './NavArea';
 import { setupNavDebugDraw } from './NavDebugDraw';
+import { PluginInstallations } from '../../app/pluginInstallations';
 import { advanceAlongPath } from './follow';
 import { avoidVelocity, type AvoidanceNeighbour } from './avoidance';
 import { planNavigation } from './navPlanning';
@@ -577,6 +578,7 @@ const WAYPOINT_REACH = 8;
 
 export class NavPlugin implements Plugin {
     name = 'nav';
+    private readonly overlays_ = new PluginInstallations<() => void>();
     /** A volume to bake or an agent to move; the frame after the last one goes still runs, so a mesh is let go. */
     readonly activeWhen = [NavVolume, NavAgent];
 
@@ -584,7 +586,7 @@ export class NavPlugin implements Plugin {
         app.insertResource(Nav, new Navigation());
         // Installed with the surface, drawn only once a game turns the resource
         // on — the same bargain the 3D physics overlay makes.
-        setupNavDebugDraw(app);
+        this.overlays_.set(app, setupNavDebugDraw(app));
 
         const runtimes = new Map<Entity, AgentRuntime>();
         const baked = new Set<Entity>();
@@ -640,6 +642,10 @@ export class NavPlugin implements Plugin {
             ),
             { runIf: playModeOnly },
         );
+    }
+
+    cleanup(app?: App): void {
+        this.overlays_.take(app)?.();
     }
 }
 

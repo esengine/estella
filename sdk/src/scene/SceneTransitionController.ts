@@ -10,7 +10,8 @@
  * of this controller and drives it from `updateTransition()`.
  */
 import type { Color } from '../types';
-import { registerDrawCallback, unregisterDrawCallback } from '../render/customDraw';
+import type { World } from '../ecs/world';
+import { registerWorldDrawCallback } from '../render/customDraw';
 import { Draw } from '../render/draw';
 import { log } from '../util/logger';
 
@@ -50,11 +51,14 @@ interface TransitionState {
     outcome: SwitchOutcome;
 }
 
-const TRANSITION_CALLBACK_ID = '__scene_transition_overlay__';
+const TRANSITION_CALLBACK_ID = Symbol('scene-transition');
 const OVERLAY_SIZE = 20000;
 
 export class SceneTransitionController {
     private state_: TransitionState | null = null;
+    private releaseOverlay_: (() => void) | null = null;
+
+    constructor(private readonly world_: World) {}
 
     isTransitioning(): boolean {
         return this.state_ !== null;
@@ -85,7 +89,9 @@ export class SceneTransitionController {
             this.performSwap_ = performSwap;
             try {
                 options.onStart?.();
-                if (this.state_ === state) registerDrawCallback(TRANSITION_CALLBACK_ID, () => this.drawOverlay_());
+                if (this.state_ === state) {
+                    this.releaseOverlay_ = registerWorldDrawCallback(TRANSITION_CALLBACK_ID, this.world_, () => this.drawOverlay_());
+                }
             } catch (error) {
                 if (this.state_ === state) this.teardown_();
                 reject(error);
@@ -179,7 +185,8 @@ export class SceneTransitionController {
     private teardown_(): void {
         this.state_ = null;
         this.performSwap_ = null;
-        unregisterDrawCallback(TRANSITION_CALLBACK_ID);
+        this.releaseOverlay_?.();
+        this.releaseOverlay_ = null;
     }
 
     private drawOverlay_(): void {

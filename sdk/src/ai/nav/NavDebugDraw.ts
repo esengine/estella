@@ -18,7 +18,7 @@ import type { App } from '../../app/app';
 import type { Color, Vec3 } from '../../types';
 import { Draw } from '../../render/draw';
 import { defineResource } from '../../ecs/resource';
-import { registerDrawCallback } from '../../render/customDraw';
+import { registerWorldDrawCallback } from '../../render/customDraw';
 import { Nav, type Navigation } from './Navigation';
 import type { NavSurface } from './NavSurface';
 
@@ -95,10 +95,10 @@ export function drawNavDebug(surface: NavSurface | null, cfg: NavDebugDrawConfig
 }
 
 /** Install the overlay. Off until a game turns the resource on. */
-export function setupNavDebugDraw(app: App): void {
+export function setupNavDebugDraw(app: App): () => void {
     app.insertResource(NavDebugDraw,
         { enabled: false, showFaces: true, showBorders: true, showLinks: true });
-    registerDrawCallback('nav-debug-draw', () => {
+    return registerWorldDrawCallback(NavDebugDraw._id, app.world, () => {
         const cfg = app.getResource<NavDebugDrawConfig>(NavDebugDraw);
         if (!cfg?.enabled) return;
         drawNavDebug(app.getResource<Navigation>(Nav)?.surface ?? null, cfg);

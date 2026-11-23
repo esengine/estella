@@ -27,10 +27,6 @@ vi.mock('../src/scene/scene', () => ({
         return new Map();
     }),
 }));
-vi.mock('../src/render/customDraw', () => ({
-    registerDrawCallback: vi.fn(),
-    unregisterDrawCallback: vi.fn(),
-}));
 vi.mock('../src/postprocess', () => ({
     PostProcess: { bind: vi.fn(), unbind: vi.fn() },
     PostProcessStack: vi.fn(),

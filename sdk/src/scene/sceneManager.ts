@@ -20,7 +20,7 @@ import { SceneAssetProgress } from './sceneAssetProgress';
 import { recordSceneOrigins } from './sceneOrigins';
 import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
 import { discardSceneEntities } from './sceneLoadAttempt';
-import { registerOwnedDrawCallback } from '../render/customDraw';
+import { registerDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { bindSceneCamera } from '../postprocess/PostProcessAPI';
 import type { SceneCameraBinding } from '../postprocess/PostProcessStack';
@@ -284,7 +284,7 @@ class SceneContextImpl implements SceneContext {
 
     registerDrawCallback(id: string, fn: DrawCallback): void {
         this.assertCurrent_();
-        this.instance_.drawCallbacks.set(id, registerOwnedDrawCallback(id, { fn, scene: this.name }));
+        this.instance_.drawCallbacks.set(id, registerDrawCallback(id, fn, { scene: this.name, world: this.app_.world }));
     }
 
     bindPostProcess(camera: Entity, stack: PostProcessStack): void {
@@ -350,7 +350,7 @@ export class SceneManagerState {
     private activeSceneHandler_?: (scene: string | null) => Promise<void> | void;
     private activeChange_?: { name: string | null; done: Promise<void> };
     private initialScene_: string | null = null;
-    private readonly transitionController_ = new SceneTransitionController();
+    private readonly transitionController_: SceneTransitionController;
     private switching_: string | null = null;
     private lifetime_ = createAbort();
     private readonly arrivals_ = new Map<string, Set<SceneArrival>>();
@@ -360,6 +360,7 @@ export class SceneManagerState {
 
     constructor(app: App) {
         this.app_ = app;
+        this.transitionController_ = new SceneTransitionController(app.world);
     }
 
     private trackEntityDestruction_(): void {

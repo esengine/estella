@@ -292,5 +292,5 @@ export function installEditorGrid(app: App): void {
     setParam('u_axisVColor', axisV[0], axisV[1], axisV[2], axisV[3]);
 
     Draw.drawMeshWithMaterial(quad_, material_);
-  });
+  }, { world: app.world });
 }

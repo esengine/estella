@@ -20,10 +20,6 @@ vi.mock('../src/scene/scene', () => ({
     loadSceneWithAssets: vi.fn().mockResolvedValue(new Map()),
 }));
 
-vi.mock('../src/render/customDraw', () => ({
-    registerDrawCallback: vi.fn(),
-    unregisterDrawCallback: vi.fn(),
-}));
 
 vi.mock('../src/postprocess', () => ({
     PostProcess: { bind: vi.fn(), unbind: vi.fn() },
