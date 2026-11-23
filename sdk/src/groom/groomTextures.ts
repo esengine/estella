@@ -272,13 +272,20 @@ export interface ProjectedStrands {
     count: number;
     /**
      * {@link SEGMENT_FLOATS} per segment: u0, v0, u1, v1, its half width in UV, how much of that width it covers (0..1; a strand
-     * narrower than a texel is drawn a texel wide at that share), depth (0..1 of the trace distance), tangent x, y, z (-1..1), how far
+     * narrower than a texel is drawn a texel wide at that share, and never less than {@link MIN_TEXEL_COVERAGE}), depth (0..1 of the trace distance), tangent x, y, z (-1..1), how far
      * along its strand (0..1), the strand's own value (0..1), and its root's UV.
      */
     data: Float32Array;
 }
 
 export const SEGMENT_FLOATS = 14;
+
+/**
+ * The least a strand covers of a texel it crosses. A texel of the textures is seen from where a card is drawn, far enough that it
+ * holds many strands: one strand alone shows (above a cut-out of a third), two crossing it fill it. At its own width a strand is a
+ * few hundredths of a texel, and a card baked that way is nearly clear.
+ */
+export const MIN_TEXEL_COVERAGE = 0.5;
 
 function strandsOf(curves: GroomCurves, groups: number[] | undefined): CurveSet[] {
     return curves.groups.filter((_, i) => !groups || groups.length === 0 || groups.includes(i)).map((g) => g.strands);
@@ -339,7 +346,7 @@ export function projectStrands(curves: GroomCurves, surface: MeshSurface, resolu
                         const width = (set.radii[first + k - 1]! + set.radii[first + k]!) ; // two half widths averaged, doubled
                         const texels = (width / mpu) * resolution;
                         const half = Math.max(texels, 1) / resolution / 2;
-                        out.push(pu, pv, u, v, half, Math.min(1, texels), (pDepth + depth) / 2, tx / tl, ty / tl, tz / tl, (k - 0.5) / (n - 1), seed, ru, rv);
+                        out.push(pu, pv, u, v, half, Math.min(1, Math.max(texels, MIN_TEXEL_COVERAGE)), (pDepth + depth) / 2, tx / tl, ty / tl, tz / tl, (k - 0.5) / (n - 1), seed, ru, rv);
                     }
                 }
                 prevOk = ok;

@@ -65,6 +65,16 @@ const HAIR = `#pragma shader "Hair"
 // after them falls off with the depth of hair it passed through.
 #pragma param u_hairShadow float default(0) range(0,2000) ui(slider)
 #pragma hairshadow u_hairShadow
+// A groom's baked strands textures (the direction goes in u_flowMap): coverage (red, times the colour's alpha), depth under the card
+// (red: 0 on it, 1 at the trace distance), attributes (red along the strand from the root, green per strand). White changes nothing.
+#pragma param u_coverageMap texture default(white) texel(data)
+#pragma param u_depthMap texture default(white) texel(data)
+#pragma param u_attributeMap texture default(white) texel(data)
+// How much darker the strands deepest under the card are than those on its surface: the layers of a lock shading the ones under them.
+#pragma param u_depthShade float default(0.5) range(0,1) ui(slider)
+// How far each strand's own value lightens or darkens it, and moves its highlight along it, so no two strands of a card match.
+#pragma param u_strandTone float default(0) range(0,0.6) ui(slider)
+#pragma param u_strandShift float default(0) range(0,1) ui(slider)
 
 #pragma fragment
 precision highp float;
@@ -107,6 +117,8 @@ void main() {
     highp vec3 T = vec3(0.0, 1.0, 0.0);
 #endif
     vec4 base = texture(u_textures[0], v_texCoord, u_sharpen) * v_color * u_tint;
+    base.a *= texture(u_coverageMap, v_texCoord, u_sharpen).r;
+    vec4 strandAttr = texture(u_attributeMap, v_texCoord);
     // Before any discard: a derivative needs every fragment of its quad.
     float alpha = 1.0;
 #ifdef ES_TIP_PASS
@@ -121,10 +133,13 @@ void main() {
         alpha = min(alpha, 1.0);
     }
 #endif
-    float root = texture(u_ormMap, v_texCoord).r;
+    float root = texture(u_ormMap, v_texCoord).r * strandAttr.r;
     float ao = mix(1.0, root, u_occlusionStrength);
+    ao *= mix(1.0 - u_depthShade, 1.0, texture(u_depthMap, v_texCoord).r);
     base.rgb *= mix(1.0, 0.35 + 0.65 * root, u_rootDark);
     float noise = (texture(u_shiftMap, v_texCoord * u_shiftTile).r - 0.5) * u_shiftAmount;
+    base.rgb *= 1.0 + (strandAttr.g - 0.5) * 2.0 * u_strandTone;
+    noise += (strandAttr.g - 0.5) * u_strandShift;
     if (u_clumpCount > 0.0) {
         float cu = v_texCoord.x * u_clumpCount;
         float cr = fract(sin(floor(cu) * 127.1 + 311.7) * 43758.5453);

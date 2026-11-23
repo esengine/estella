@@ -16,6 +16,7 @@ import { besideFile, Groom, groupUniforms, GROOM_SHADOW_PER_UNIT } from '../src/
 import { STRANDS_SHADER_TEMPLATE } from '../src/groom/groomShader';
 import { growGroom } from '../src/groom/groomGrow';
 import { meshSurface, projectStrands, SEGMENT_FLOATS } from '../src/groom/groomTextures';
+import { buildGroomCards } from '../src/groom/groomCards';
 
 /** `curves` straight up from x = 0, 1, 2…, each of `points` points 1 cm apart, the radius narrowing from 0.5 mm to 0.25 mm. */
 function upright(curves: number, points: number): CurveSet {
@@ -280,8 +281,8 @@ describe('strands laid onto a mesh for its textures', () => {
         expect(s(5, 2)).toBeCloseTo(0.8, 4);
         expect(s(0, 6)).toBeCloseTo(0.5, 3);
         expect([s(0, 7), s(0, 8), s(0, 9)].map((v) => Math.round(v * 1000) / 1000)).toEqual([1, 0, 0]);
-        // A strand 1 mm wide on a metre of UV at 256 texels is a quarter of a texel: drawn a texel wide at a quarter.
-        expect(s(0, 5)).toBeCloseTo(0.256, 2);
+        // A strand 1 mm wide on a metre of UV at 256 texels is a quarter of a texel: drawn a texel wide, at the least a strand covers.
+        expect(s(0, 5)).toBe(0.5);
         expect(s(0, 12)).toBeCloseTo(0.25, 5);
     });
 
@@ -290,5 +291,33 @@ describe('strands laid onto a mesh for its textures', () => {
         expect(projectStrands(strand(0.01), surface, 256, { trace: 'inside', traceDistance: 0.02 }).count).toBe(0);
         expect(projectStrands(strand(-0.01), surface, 256, { trace: 'inside', traceDistance: 0.02 }).count).toBe(6);
         expect(projectStrands(strand(0.05), surface, 256, { trace: 'both', traceDistance: 0.02 }).count).toBe(0);
+    });
+});
+
+describe('hair cards along a groom', () => {
+    it('makes a card along each guide, in the scene\'s units, each in a UV cell of its own', () => {
+        const curves = growGroom({ seed: 1, groups: [{ scalp: { center: [0, 0, 0], radii: [0.08, 0.1, 0.095] }, strands: 300, guides: 40, points: 12, length: 0.3 }] });
+        const guides = curves.groups[0]!.guides;
+        const mesh = buildGroomCards(curves, { width: 0.02, segments: 6, unitsPerMeter: 100 });
+        expect(mesh.vertexCount).toBe(guides.counts.length * 7 * 2);
+        expect(mesh.indices.length).toBe(guides.counts.length * 6 * 6);
+        const pos = (v: number) => read(mesh, MeshChannel.Position, v, 3);
+        const uv = (v: number) => read(mesh, MeshChannel.TexCoord0, v, 2);
+        // Card 0's root edge straddles guide 0's root, 2 cm apart, at 100 units a metre.
+        const a = pos(0), b = pos(1), root = [guides.positions[0]! * 100, guides.positions[1]! * 100, guides.positions[2]! * 100];
+        expect((a[0]! + b[0]!) / 2).toBeCloseTo(root[0]!, 3);
+        expect(Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)).toBeCloseTo(2, 3);
+        // No two cards share UV: every card's box in UV is apart from every other's.
+        const boxes: number[][] = [];
+        for (let c = 0; c < guides.counts.length; c++) {
+            const us: number[] = [], vs: number[] = [];
+            for (let k = 0; k < 14; k++) { const t = uv(c * 14 + k); us.push(t[0]!); vs.push(t[1]!); }
+            expect(Math.min(...us)).toBeGreaterThanOrEqual(0); expect(Math.max(...vs)).toBeLessThanOrEqual(1);
+            boxes.push([Math.min(...us), Math.min(...vs), Math.max(...us), Math.max(...vs)]);
+        }
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+            const [a0, b0, c0, d0] = boxes[i]!, [a1, b1, c1, d1] = boxes[j]!;
+            expect(c0! <= a1! + 1e-9 || c1! <= a0! + 1e-9 || d0! <= b1! + 1e-9 || d1! <= b0! + 1e-9).toBe(true);
+        }
     });
 });

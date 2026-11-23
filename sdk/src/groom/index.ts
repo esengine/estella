@@ -8,9 +8,10 @@ export {
 } from './groomFormat';
 export { growGroom, checkGrowRecipe, GROW_LIMITS, type GrowRecipe, type GrowGroup, type GrowScalp, type GrowEllipsoid } from './groomGrow';
 export {
-    meshSurface, projectStrands, bakeStrandsTextures, bakeFollicleMask, SEGMENT_FLOATS,
+    meshSurface, projectStrands, bakeStrandsTextures, bakeFollicleMask, SEGMENT_FLOATS, MIN_TEXEL_COVERAGE,
     type MeshPlacement, type MeshSurface, type ProjectedStrands, type StrandsProjectionOptions, type TraceType, type BakedTexture, type FollicleGroom, type Bvh,
 } from './groomTextures';
+export { buildGroomCards, type GroomCardsOptions } from './groomCards';
 export { buildStrandMesh, type StrandMesh } from './groomMesh';
 export { STRANDS_SHADER_TEMPLATE } from './groomShader';
 
