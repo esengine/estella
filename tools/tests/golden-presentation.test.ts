@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { expect, it } from 'vitest';
 import { build } from 'esbuild';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,7 @@ it.each(['ci', 'local', 'worker', 'display', 'timeout'])('golden package present
   const temp = mkdtempSync(path.join(os.tmpdir(), 'estella-golden-presentation-'));
   const log = path.join(temp, 'launches.log');
   try {
-    const entry = path.join(temp, 'golden.mjs');
+    const entry = path.join(realpathSync(temp), 'golden.mjs');
     const compiled = await build({ entryPoints: ['tools/verify-golden.mjs'], outfile: entry,
       bundle: true, platform: 'node', format: 'esm', metafile: true, plugins: [{
         name: 'isolated-package-contract', setup(builder) {

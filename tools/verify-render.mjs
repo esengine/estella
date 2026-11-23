@@ -16,7 +16,6 @@ import { existsSync } from 'node:fs';
 import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, resultMeasured } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
-import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
 import { ROOT } from './lib/repo.mjs';
@@ -69,6 +68,13 @@ if (BUDGET && !(Number(BUDGET) > 0)) {
   console.error(`verify-render: --budget takes minutes, not "${BUDGET}"`);
   process.exit(2);
 }
+// The launcher reads the display environment on import, after --no-xvfb takes effect.
+const { NEEDS_XVFB, runWithElectronDisplay, runElectron } = await import('./lib/electronRun.mjs');
+if (NEEDS_XVFB) {
+  const run = runWithElectronDisplay(process.argv.slice(1), { cwd: ROOT, stdio: 'inherit' });
+  if (run.error) throw run.error;
+  process.exit(run.status ?? 1);
+}
 // Minutes the whole run may spend before it stops and says what it never
 // measured. A tier that outgrows its runner is a report either way; without one
 // the report is a killed process, which names no scene at all.
@@ -98,31 +104,20 @@ if (shardMatch && !only) console.log(`shard ${SHARD}: ${selected.length} scene(s
 if (!only && needsGpu.length > 0) {
   console.log(`not run on this machine's software rasteriser: ${needsGpu.map((s) => s.id).join(', ')}`);
 }
-const scenes = selected.map((s) => ({
-  id: s.id,
-  // Which host answers this scene's driving surface. The engine's is the
-  // default; a scene names the editor's only when its SUBJECT is an editor door.
-  host: s.host ?? 'engine',
-  env: BACKEND === 'webgpu'
-    ? {
-      ...s.env,
-      ...(typeof s.webgpu === 'object' ? s.webgpu : {}),
-      ESTELLA_VERIFY_BACKEND: 'webgpu',
-      // The adapter Dawn picks for itself: a real driver is the only kind that
-      // answers the portability question. `swiftshader` names the bundled software
-      // one, for a machine with no GPU. The boot log says which it got.
-      ESTELLA_VERIFY_WEBGPU_ADAPTER: process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER ?? '',
-    }
-    : s.env,
+const configured = selected.map((scene) => ({
+  ...scene,
+  host: scene.host ?? 'engine',
+  env: BACKEND === 'webgpu' ? {
+    ...scene.env,
+    ...(typeof scene.webgpu === 'object' ? scene.webgpu : {}),
+    ESTELLA_VERIFY_BACKEND: 'webgpu',
+    ESTELLA_VERIFY_WEBGPU_ADAPTER: process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER ?? '',
+  } : scene.env,
 }));
-const hosted = HOST_FILTER ? scenes.filter((s) => s.host === HOST_FILTER) : scenes;
-if (HOST_FILTER) {
-  const dropped = scenes.length - hosted.length;
-  if (dropped) console.log(`  not on this host: ${dropped} scene(s)`);
-  scenes.length = 0;
-  scenes.push(...hosted);
-}
-const hostsUsed = new Set(scenes.map((s) => s.host));
+const scenes = HOST_FILTER ? configured.filter((scene) => scene.host === HOST_FILTER) : configured;
+const dropped = selected.length - scenes.length;
+if (dropped) console.log(`  not on this host: ${dropped} scene(s)`);
+const hostsUsed = new Set(scenes.map((scene) => scene.host));
 console.log(`render ${only ? `${scenes.length} named scene(s)` : `${TIER}: ${scenes.length} scene(s)`} on ${BACKEND}`
   + ` (host: ${[...hostsUsed].sort().join(' + ')})`);
 
@@ -214,7 +209,7 @@ function runScene(scene) {
 
 // Published assets a scene draws (tools/corpora.mjs), fetched and imported before
 // any scene runs: a download inside a scene's watchdog would be timed as rendering.
-const corporaNeeded = [...new Set(selected.flatMap((s) => s.corpora ?? []))];
+const corporaNeeded = [...new Set(scenes.flatMap((s) => s.corpora ?? []))];
 if (corporaNeeded.length) {
   const { importedCorpus } = await import('./corpora.mjs');
   for (const id of corporaNeeded) await importedCorpus(id);
