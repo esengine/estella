@@ -7127,7 +7127,7 @@ uvs: number[] | undefined
 ## MeshRendererPlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 profileDomain: "render"
 static new (): MeshRendererPlugin

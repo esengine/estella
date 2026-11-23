@@ -263,36 +263,38 @@ export interface SceneComponentCodec {
 }
 
 const sceneComponentCodecs = new Map<string, SceneComponentCodec>();
-const worldComponentCodecs = new WeakMap<World, Map<string, SceneComponentCodec>>();
+type WorldHooks<K, V> = WeakMap<World, Map<K, { value: V }>>;
+
+function installWorldHook<K, V>(worlds: WorldHooks<K, V>, world: World, key: K, value: V): () => void {
+    let hooks = worlds.get(world);
+    if (!hooks) worlds.set(world, hooks = new Map());
+    const installation = { value };
+    hooks.set(key, installation);
+    return () => {
+        if (hooks.get(key) !== installation) return;
+        hooks.delete(key);
+        if (hooks.size === 0) worlds.delete(world);
+    };
+}
+
+const worldComponentCodecs: WorldHooks<string, SceneComponentCodec> = new WeakMap();
 
 /** @internal A world's component codecs take precedence over host defaults. */
 export function registerWorldSceneComponentCodec(world: World, type: string, codec: SceneComponentCodec): () => void {
-    let codecs = worldComponentCodecs.get(world);
-    if (!codecs) worldComponentCodecs.set(world, codecs = new Map());
-    codecs.set(type, codec);
-    return () => {
-        if (codecs.get(type) === codec) codecs.delete(type);
-        if (codecs.size === 0) worldComponentCodecs.delete(world);
-    };
+    return installWorldHook(worldComponentCodecs, world, type, codec);
 }
 
 export type SceneExportFilter = (entity: Entity, component: string, data: Record<string, unknown>) => void;
 
-const worldExportFilters = new WeakMap<World, Set<SceneExportFilter>>();
+const worldExportFilters: WorldHooks<SceneExportFilter, SceneExportFilter> = new WeakMap();
 
 /** @internal */
 export function registerWorldSceneExportFilter(world: World, filter: SceneExportFilter): () => void {
-    let filters = worldExportFilters.get(world);
-    if (!filters) worldExportFilters.set(world, filters = new Set());
-    filters.add(filter);
-    return () => {
-        filters.delete(filter);
-        if (filters.size === 0) worldExportFilters.delete(world);
-    };
+    return installWorldHook(worldExportFilters, world, filter, filter);
 }
 
 function sceneComponentCodec(world: World, type: string): SceneComponentCodec | undefined {
-    return worldComponentCodecs.get(world)?.get(type) ?? sceneComponentCodecs.get(type);
+    return worldComponentCodecs.get(world)?.get(type)?.value ?? sceneComponentCodecs.get(type);
 }
 
 /** Register a custom (de)serializer for a component type. Idempotent. */
@@ -993,7 +995,7 @@ export function visitSerializedComponents(
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
-        for (const filter of worldExportFilters.get(world) ?? []) filter(entity, typeName, payload);
+        for (const filter of worldExportFilters.get(world)?.keys() ?? []) filter(entity, typeName, payload);
         visit({ type: typeName, data: payload }, comp);
     };
     const scriptNames = new Map<symbol, string>();

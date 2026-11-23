@@ -6,13 +6,15 @@
  * out-of-band field (variable-size payloads are not C++ component fields).
  */
 import type { App, Plugin } from '../app/app';
+import { PluginInstallations } from '../app/pluginInstallations';
+import { disposeAll } from '../util/disposeAll';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
 import type { MeshRendererGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { registerSceneComponentCodec } from '../scene/scene';
+import { registerWorldSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
 import { installBlobShadows } from './blobShadow';
 
@@ -49,7 +51,6 @@ export class MeshRendererAPI {
         // The heap is wasm linear memory on the web and the host's arena on a
         // device — the writes below are identical either way.
         if (!upload || !m._malloc || !m._free || !m.HEAPU8) return;
-        const heap = m.HEAPU8;
         const allocator = { _malloc: m._malloc, _free: m._free };
         const vertexCount = Math.floor(geometry.positions.length / 2);
         const indexCount = geometry.indices.length;
@@ -59,8 +60,15 @@ export class MeshRendererAPI {
         }
 
         withScratch(allocator, alloc => {
+            const colors = geometry.colors;
+            const hasColors = !!colors?.length;
             const posUvPtr = alloc(vertexCount * 4 * 4);
-            const posUv = new Float32Array(heap.buffer, posUvPtr, vertexCount * 4);
+            const colorsPtr = hasColors ? alloc(vertexCount * 4) : 0;
+            const indicesPtr = alloc(indexCount * 4);
+            if (!posUvPtr || !indicesPtr || (hasColors && !colorsPtr)) throw new Error('Could not allocate mesh geometry');
+            // Any allocation can grow linear memory and detach earlier heap views.
+            const buffer = m.HEAPU8!.buffer;
+            const posUv = new Float32Array(buffer, posUvPtr, vertexCount * 4);
             const uvs = geometry.uvs;
             for (let v = 0; v < vertexCount; v++) {
                 posUv[v * 4 + 0] = geometry.positions[v * 2 + 0] ?? 0;
@@ -69,16 +77,12 @@ export class MeshRendererAPI {
                 posUv[v * 4 + 3] = uvs?.[v * 2 + 1] ?? 0;
             }
 
-            let colorsPtr = 0;
-            const colors = geometry.colors;
-            if (colors && colors.length > 0) {
-                colorsPtr = alloc(vertexCount * 4);
-                const packed = new Uint32Array(heap.buffer, colorsPtr, vertexCount);
+            if (hasColors) {
+                const packed = new Uint32Array(buffer, colorsPtr, vertexCount);
                 for (let v = 0; v < vertexCount; v++) packed[v] = packRgba(colors, v);
             }
 
-            const indicesPtr = alloc(indexCount * 4);
-            new Uint32Array(heap.buffer, indicesPtr, indexCount).set(geometry.indices);
+            new Uint32Array(buffer, indicesPtr, indexCount).set(geometry.indices);
 
             upload(this.registry_, entity, posUvPtr, vertexCount,
                    colorsPtr, indicesPtr, indexCount);
@@ -103,10 +107,12 @@ export const MeshRenderers = defineResource<MeshRendererAPI>(null!, 'MeshRendere
 export class MeshRendererPlugin implements Plugin {
     name = 'meshRenderer';
     readonly profileDomain = 'render';
-    private offDespawn_: (() => void) | null = null;
-    private offBlobShadows_: (() => void) | null = null;
+    private readonly cleanups_ = new PluginInstallations<Array<() => void>>();
 
     build(app: App): void {
+        this.cleanup(app);
+        const cleanups: Array<() => void> = [];
+        this.cleanups_.set(app, cleanups);
         // `?? {}`: an app with no engine core (a test, a pure-logic host) still gets
         // the resource, and every call through it no-ops.
         const engine = engineApi(app) ?? {};
@@ -114,16 +120,16 @@ export class MeshRendererPlugin implements Plugin {
         const api = new MeshRendererAPI(engine, registry);
         app.insertResource(MeshRenderers, api);
         // A BlobShadow on an entity is a mesh this plugin draws; with none in the scene its system finds nothing and returns.
-        this.offBlobShadows_ = installBlobShadows(app);
+        cleanups.push(installBlobShadows(app));
 
-        this.offDespawn_ = app.world.onDespawn((entity: Entity) => {
+        cleanups.push(app.world.onDespawn((entity: Entity) => {
             if (api.getGeometry(entity)) api.clearGeometry(entity);
-        });
+        }));
 
         // The geometry payload is authored in the component data but isn't a C++
         // field — carry it out-of-band and upload it through the validated entry
         // point on load (the same pattern as particle gradients / tilemap chunks).
-        registerSceneComponentCodec('MeshRenderer', {
+        cleanups.push(registerWorldSceneComponentCodec(app.world, 'MeshRenderer', {
             outOfBandFields: OUT_OF_BAND,
             importData: (entity, outOfBand) => {
                 const g = outOfBand.geometry as MeshRendererGeometry | undefined;
@@ -137,14 +143,11 @@ export class MeshRendererPlugin implements Plugin {
                 const g = api.getGeometry(entity);
                 if (g) data.geometry = g;
             },
-        });
+        }));
     }
 
-    cleanup(): void {
-        this.offBlobShadows_?.();
-        this.offBlobShadows_ = null;
-        this.offDespawn_?.();
-        this.offDespawn_ = null;
+    cleanup(app?: App): void {
+        disposeAll(this.cleanups_.take(app) ?? [], release => release(), true);
     }
 }
 
