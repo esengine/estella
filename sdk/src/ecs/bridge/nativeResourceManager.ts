@@ -43,21 +43,8 @@ function hostCallOpt(scope: Record<string, unknown>, name: string, args: unknown
 }
 
 /**
- * Build the CppResourceManager over the host's native texture bindings. `scope`
- * holds the globals (the QuickJS global object on a device; a plain object in
- * tests): the host binds
- *   * es_rm_createTextureEx(w, h, pixels, len, format, flip, filter, wrap) -> handle
- *   * es_rm_releaseTexture(handle)
- *   * es_getTextureDimensions(handle) -> { width, height } | null
- * and optionally es_rm_updateTextureSubregion / es_setTextureBudget. The `rm_`
- * names are the engine's own entry points, generated for QuickJS from the same
- * declarations embind registers — see {@link RESOURCE_BINDINGS}.
- *
- * Only the methods the native asset path actually calls are implemented; the
- * wasm-specific ones (heap-pointer createTexture, registerExternalTexture,
- * bitmap-font glyph upload) throw if reached, and the residency /
- * stats hooks the SDK optional-chains are simply omitted — so a texture that lost
- * its last reference re-decodes instead of reviving (correct, just not yet cached).
+ * The host's QuickJS globals supply the texture operations in {@link RESOURCE_BINDINGS}.
+ * Hosts with both path lookup and invalidation can revive a released texture after a scene change.
  */
 export function createNativeResourceManager(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
@@ -114,12 +101,7 @@ export function createNativeResourceManager(
         wrapDeviceTexture: (textureId, width, height): number =>
             (hostCallOpt(scope, RESOURCE_BINDINGS.wrapDeviceTexture, [textureId, width, height]) as number | undefined) ?? 0,
 
-        // Register the handle under a logical path so a later load-by-path revives
-        // the same texture instead of re-decoding. The web RM does this in its
-        // loaders; the Spine loader calls it directly (not through the optional
-        // TextureLoader path), so the native RM must answer it or Spine textures
-        // fail to bind. hostCallOpt: a host that did not compile the entry point
-        // simply skips the cache registration.
+        // Publish the residency key chosen by the texture loader on hosts with a native cache.
         registerTextureWithPath: (handle, path): void => {
             hostCallOpt(scope, RESOURCE_BINDINGS.registerTextureWithPath, [handle, path]);
         },
@@ -138,9 +120,22 @@ export function createNativeResourceManager(
         // The engine applies RuntimeConfig.textureCacheBudget at startup; forward it
         // to the native pool when the host wires it, else no-op (eviction off).
         setTextureBudget: (bytes): void => {
-            hostCallOpt(scope, 'es_setTextureBudget', [bytes]);
+            const binding = typeof scope.es_rm_setTextureBudget === 'function' ? 'es_rm_setTextureBudget' : 'es_setTextureBudget';
+            hostCallOpt(scope, binding, [bytes]);
         },
     };
+
+    // A warm hit is valid only on hosts that can sever the same key after an edit.
+    const acquire = scope.es_rm_acquireTextureByPath;
+    const invalidate = scope.es_rm_invalidateTexturePath;
+    if (typeof acquire === 'function' && typeof invalidate === 'function') {
+        rm.acquireTextureByPath = path => acquire(path) as number;
+        rm.invalidateTexturePath = path => invalidate(path) as boolean;
+    }
+    const trim = scope.es_rm_trimTextureCache;
+    if (typeof trim === 'function') rm.trimTextureCache = () => trim() as number;
+    const setRetained = scope.es_rm_setRetainedBudget;
+    if (typeof setRetained === 'function') rm.setRetainedBudget = bytes => { setRetained(bytes); };
 
     // The heap-pointer / GL / bitmap-font surface is not reachable on native (the
     // asset path takes the byte upload above); fail loud rather than silently

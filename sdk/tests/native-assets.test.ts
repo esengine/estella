@@ -16,6 +16,7 @@ import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
 import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
 import { Assets } from '../src/asset/AssetPlugin';
+import { RuntimeConfig } from '../src/defaults';
 import { shutdownResourceManager } from '../src/wasm/resourceManager';
 import { TextureContent } from '../src/wasm';
 import { setPlatform } from '../src/platform/base';
@@ -88,6 +89,25 @@ afterEach(() => {
 });
 
 describe('createNativeResourceManager', () => {
+    it('uses the generated cache budget and trim bindings when present', () => {
+        const budget = vi.fn(), legacy = vi.fn(), trim = vi.fn(() => 3);
+        const rm = createNativeResourceManager({ es_rm_setTextureBudget: budget, es_setTextureBudget: legacy,
+            es_rm_trimTextureCache: trim });
+        rm.setTextureBudget(512);
+        expect(budget).toHaveBeenCalledWith(512);
+        expect(legacy).not.toHaveBeenCalled();
+        expect(rm.trimTextureCache!()).toBe(3);
+        createNativeResourceManager({ es_setTextureBudget: legacy }).setTextureBudget(256);
+        expect(legacy).toHaveBeenCalledWith(256);
+    });
+
+    it.each(['es_rm_acquireTextureByPath', 'es_rm_invalidateTexturePath'])(
+        'keeps a host with only %s on the decode path', name => {
+            const rm = createNativeResourceManager({ [name]: vi.fn() });
+            expect(rm.acquireTextureByPath).toBeUndefined();
+            expect(rm.invalidateTexturePath).toBeUndefined();
+        });
+
     it('uploads bytes through es_rm_createTextureEx and reads dims / releases', () => {
         const { scope, createSpy, releaseSpy } = makeTextureScope();
         const rm = createNativeResourceManager(scope);
@@ -129,6 +149,50 @@ describe('createNativeResourceManager', () => {
 });
 
 describe('native Assets.loadTexture', () => {
+    it('applies startup budgets and trims this pool on memory pressure until the App quits', () => {
+        const { scope } = makeTextureScope();
+        const budget = vi.fn(), retained = vi.fn(), trim = vi.fn(() => 1);
+        Object.assign(scope, { es_rm_setTextureBudget: budget, es_rm_setRetainedBudget: retained, es_rm_trimTextureCache: trim });
+        const subscribers = new Set<() => void>();
+        const bridge = makeBridge({});
+        bridge.onMemoryWarning = fn => { subscribers.add(fn); return () => { subscribers.delete(fn); }; };
+        const app = createNativeApp(bridge, withRegistryOps(scope));
+        expect(budget).toHaveBeenCalledWith(RuntimeConfig.textureCacheBudget);
+        expect(retained).toHaveBeenCalledWith(RuntimeConfig.retainedBudget);
+        for (const warn of subscribers) warn();
+        expect(trim).toHaveBeenCalledTimes(1);
+        app.quit({ keepRenderer: true });
+        for (const warn of subscribers) warn();
+        expect(trim).toHaveBeenCalledTimes(1);
+    });
+
+    it('revives a raw page by its native path and decodes its replacement after an edit', async () => {
+        const { scope, createSpy } = makeTextureScope();
+        const paths = new Map<string, number>();
+        Object.assign(scope, {
+            es_rm_registerTextureWithPath: (h: number, p: string) => paths.set(p, h),
+            es_rm_acquireTextureByPath: (p: string) => paths.get(p) ?? 0,
+            es_rm_invalidateTexturePath: (p: string) => paths.delete(p),
+            es_rm_releaseTexture: vi.fn(), // The native budget keeps the released image warm.
+        });
+        const images = { 'page.png': solidImage(4, 2) };
+        const app = createNativeApp(makeBridge(images), withRegistryOps(scope));
+        await app.tick(0);
+        const assets = app.getResource(Assets);
+        const first = await assets.acquireTexture('page.png', false);
+        first.release();
+        const warm = await assets.acquireTexture('page.png', false);
+        expect(warm.value.handle).toBe(first.value.handle);
+        expect(createSpy).toHaveBeenCalledTimes(1);
+        images['page.png'] = solidImage(8, 2);
+        assets.invalidate('page.png');
+        const fresh = await assets.acquireTexture('page.png', false);
+        expect(fresh.value.handle).not.toBe(first.value.handle);
+        expect([warm.value.width, fresh.value.width]).toEqual([4, 8]);
+        expect(createSpy).toHaveBeenCalledTimes(2);
+        warm.release(); fresh.release();
+    });
+
     it('decodes through the bridge and uploads via the native ResourceManager', async () => {
         const { scope, createSpy, releaseSpy } = makeTextureScope();
         const bridge = makeBridge({ 'logo.png': solidImage(4, 2) });

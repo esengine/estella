@@ -45,7 +45,7 @@ import { applyAppOptions, applyColorSpace, applyFrameOptions, type RenderOptions
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
 import { ScreenLayout } from '../../ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../../ui/core/screen-overlay';
-import { DEFAULT_UI_CAMERA_INFO } from '../../app/corePlugin';
+import { bindResourceBudgets, DEFAULT_UI_CAMERA_INFO } from '../../app/corePlugin';
 import { uiPlugin } from '../../ui/ui-plugin';
 import { setNativeTextSubmit } from '../../ui/text/submit';
 import { initResourceManager } from '../../wasm/resourceManager';
@@ -306,6 +306,7 @@ function installNativeAssets(app: App, scope: Record<string, unknown>): void {
     // The host's es_* texture bindings back the SDK's resource surface, so
     // requireResourceManager() resolves for the whole asset path.
     initResourceManager(createNativeResourceManager(scope));
+    app.signal.addEventListener('abort', bindResourceBudgets(), { once: true });
 
     const assets = AssetsClass.create({
         backend: new FileSystemBackend(),

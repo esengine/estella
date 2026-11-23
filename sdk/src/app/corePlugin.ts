@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Plugin } from './app';
-import { initResourceManager, shutdownResourceManager, setRetainedBudget, setTextureBudget, trimTextureCache } from '../wasm/resourceManager';
+import { initResourceManager, requireResourceManager, shutdownResourceManager, setRetainedBudget, setTextureBudget } from '../wasm/resourceManager';
 import { platformOnMemoryWarning } from '../platform/base';
 import { RuntimeConfig } from '../defaults';
 import { pollDeviceRestored, resetDeviceRestoredWatch } from '../render/renderer';
@@ -16,22 +16,22 @@ import { initGLDebugAPI, shutdownGLDebugAPI } from '../render/glDebug';
 
 let offMemoryWarning: (() => void) | null = null;
 
+/** Apply the App's budgets and route memory pressure to the pool serving it. */
+export function bindResourceBudgets(): () => void {
+    setTextureBudget(RuntimeConfig.textureCacheBudget);
+    setRetainedBudget(RuntimeConfig.retainedBudget);
+    const pool = requireResourceManager();
+    return platformOnMemoryWarning(() => pool.trimTextureCache?.());
+}
+
 export const corePlugin: Plugin = {
     name: 'engineCore',
 
     build(app) {
         const module = app.wasmModule!;
         initResourceManager(module.getResourceManager(), module);
-        // Texture residency cache: released textures stay evictable in the C++
-        // pool up to this byte budget, so the next load revives them instead of
-        // re-decoding. Without this call the pool default (0) frees at once.
-        setTextureBudget(RuntimeConfig.textureCacheBudget);
-        setRetainedBudget(RuntimeConfig.retainedBudget);
-        // OS memory pressure → drop the texture warm cache. Held textures are
-        // untouched; only the revive shortcut is sacrificed until it refills.
-        offMemoryWarning = platformOnMemoryWarning(() => {
-            trimTextureCache();
-        });
+        offMemoryWarning?.();
+        offMemoryWarning = bindResourceBudgets();
         initDrawAPI(module);
         initGeometryAPI(module);
         initMaterialAPI(module);      // the module IS the core here (see engineApi)
