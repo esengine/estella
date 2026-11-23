@@ -231,7 +231,7 @@ export function withReducedDynamicGI(api: PostProcessAPI, effects: ResolvedEffec
 function releaseStack(api: PostProcessAPI, camera: Entity): void {
     const existing = api.volumeStacks.get(camera);
     if (!existing) return;
-    api.unbind(camera);
+    // destroy() detaches this stack wherever it is still bound. The camera may already use a custom stack.
     existing.destroy();
     api.volumeStacks.delete(camera);
 }
@@ -244,12 +244,7 @@ function applyBlendedEffects(
 ): void {
     const effects = withReducedDynamicGI(api, withTemporalAntialiasing(api, blended, perspective));
     if (effects.size === 0) {
-        const existing = api.volumeStacks.get(camera);
-        if (existing) {
-            api.unbind(camera);
-            existing.destroy();
-            api.volumeStacks.delete(camera);
-        }
+        releaseStack(api, camera);
         return;
     }
 
@@ -335,7 +330,7 @@ function applyBlendedEffects(
     // A stack with only a display look has no pass, and is still the camera's.
     if (stack.enabledPassCount > 0 || stack.displayLut.amount > 0) {
         api.bind(camera, stack);
-    } else {
+    } else if (api.getStack(camera) === stack) {
         api.unbind(camera);
     }
 }
@@ -483,11 +478,7 @@ export function editorViewVolumeSystem(app: App) {
 }
 
 export function cleanupVolumeSystem(api: PostProcessAPI): void {
-    for (const [camera, stack] of api.volumeStacks) {
-        api.unbind(camera);
-        stack.destroy();
-    }
-    api.volumeStacks.clear();
+    for (const camera of api.volumeStacks.keys()) releaseStack(api, camera);
 
     for (const shader of api.volumeShaders.values()) {
         Material.releaseShader(shader);

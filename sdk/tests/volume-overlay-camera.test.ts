@@ -9,25 +9,16 @@
  * player was placed at its LOCAL position, near the origin, for the weight of a local volume.
  */
 import { describe, it, expect } from 'vitest';
-import { postProcessVolumeSystem } from '../src/postprocess/volumeSystem';
+import { postProcessVolumeSystem, cleanupVolumeSystem } from '../src/postprocess/volumeSystem';
+import { PostProcessAPI } from '../src/postprocess/PostProcessAPI';
 import type { Entity } from '../src/types';
+import type { ShaderHandle } from '../src/render/material';
 
-/** A stack that takes every call, and an API that records which camera holds one. */
-function fakeApi() {
-    const anyCall: ProxyHandler<object> = { get: (_t, key) => (key === 'then' ? undefined : () => undefined) };
-    const bound = new Set<number>();
-    const base = {
-        volumeStacks: new Map<Entity, unknown>(),
-        // Every effect's shader already made: the test is about which camera gets a stack, not about compiling one.
-        volumeShaders: { get: () => 1, set: () => undefined },
-        // A stack that reports a pass, as one built from the volume's effects would.
-        createStack: () => new Proxy({ destroy: () => undefined, enabledPassCount: 1, displayLut: { amount: 0 } },
-            { get: (t, key) => (key in t ? (t as Record<string | symbol, unknown>)[key] : anyCall.get!(t, key, t)) }),
-        bind: (camera: Entity) => { bound.add(camera as number); },
-        unbind: (camera: Entity) => { bound.delete(camera as number); },
-    };
-    const api = new Proxy(base, { get: (t, key) => (key in t ? (t as Record<string | symbol, unknown>)[key] : undefined) });
-    return { api, bound };
+function volumeApi() {
+    const api = new PostProcessAPI();
+    // Exercise the real camera bindings without opening a graphics device.
+    api.volumeShaders.set('vignette', 0 as ShaderHandle);
+    return api;
 }
 
 const at = (x: number, y: number, z: number, world?: { x: number; y: number; z: number }) => ({
@@ -41,26 +32,53 @@ const run = (api: unknown, volumes: unknown[], cameras: unknown[]) =>
 
 describe('which cameras a volume gives a stack to', () => {
     it('gives none to a camera that draws over another camera (clears depth only, or nothing)', () => {
-        const { api, bound } = fakeApi();
+        const api = volumeApi();
         const volume = [1, { isGlobal: true, priority: 0, weight: 1, effects: [vignette] }, at(0, 0, 0)];
         run(api, [volume], [[10, camera(3), at(0, 1, 0)], [11, camera(2), at(0, 1, 0)], [12, camera(0), at(0, 1, 0)]]);
-        expect([...bound]).toEqual([10]);
+        expect([...api.state.cameraBindings.keys()]).toEqual([10]);
     });
 
     it('lets go of a stack a camera held before it became an overlay', () => {
-        const { api, bound } = fakeApi();
+        const api = volumeApi();
         const volume = [1, { isGlobal: true, priority: 0, weight: 1, effects: [vignette] }, at(0, 0, 0)];
         run(api, [volume], [[11, camera(3), at(0, 1, 0)]]);
-        expect(bound.has(11)).toBe(true);
+        expect(api.getStack(11 as Entity)).not.toBeNull();
         run(api, [volume], [[11, camera(2), at(0, 1, 0)]]);
-        expect(bound.has(11)).toBe(false);
+        expect(api.getStack(11 as Entity)).toBeNull();
     });
 
     it('weighs a local volume where a child camera is in the world, not at its local position', () => {
-        const { api, bound } = fakeApi();
+        const api = volumeApi();
         const local = [1, { isGlobal: false, shape: 0, size: { x: 4, y: 4, z: 4 }, blendDistance: 0, priority: 0, weight: 1, effects: [vignette] }, at(50, 0, 0)];
         // An eye 0.7 above its player, the player standing inside the volume at x = 50.
         run(api, [local], [[10, camera(3), at(0, 0.7, 0, { x: 50, y: 0.7, z: 0 })]]);
-        expect(bound.has(10)).toBe(true);
+        expect(api.getStack(10 as Entity)).not.toBeNull();
+    });
+
+    it.each(['leave', 'overlay', 'empty chain', 'plugin cleanup'])('preserves a replacement stack on %s', transition => {
+        const api = volumeApi(), eye = 11 as Entity;
+        const view = [eye, camera(3), at(0, 0, 0)];
+        const data = { isGlobal: true, priority: 0, weight: 1, effects: [vignette] };
+        const volume = [1, data, at(0, 0, 0)];
+        run(api, [volume], [view]);
+        const generated = api.getStack(eye)!;
+        expect(generated).toBeTruthy();
+        const custom = api.createStack();
+        api.bind(eye, custom);
+        switch (transition) {
+            case 'leave': run(api, [], [view]); break;
+            case 'overlay': run(api, [volume], [[eye, camera(2), at(0, 0, 0)]]); break;
+            case 'empty chain':
+                data.effects = [{ ...vignette, type: 'unavailable-effect' }];
+                run(api, [volume], [view]);
+                break;
+            case 'plugin cleanup': cleanupVolumeSystem(api); break;
+        }
+        expect(api.getStack(eye)).toBe(custom);
+        expect(custom.isDestroyed).toBe(false);
+        cleanupVolumeSystem(api);
+        expect(generated.isDestroyed).toBe(true);
+        expect(api.volumeStacks.size).toBe(0);
+        expect(api.getStack(eye)).toBe(custom);
     });
 });
