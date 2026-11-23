@@ -14,7 +14,7 @@
  * runtime and the editor preview bridge.
  */
 
-import { TrackType, WrapMode, type TimelineAsset, type PropertyChannel, type PropertyTrack } from './TimelineTypes';
+import { TrackType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
 import { sampleKeyframes } from '../math/keyframes';
 import { setNestedPropertyParts, resolveChildEntity } from './TimelineRuntime';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
@@ -68,32 +68,46 @@ type FieldWriter = (data: any, value: number) => void;
  * survive it, so a clip turning a model about Z cannot flatten its pose. The
  * four components are written raw, normalized in {@link finishQuaternions}.
  */
-const WRITER_OVERRIDES: Partial<Record<string, FieldWriter>> = {
-    'Transform.rotation.angle': (data, v) => {
+const WRITER_OVERRIDES: readonly [string, FieldWriter][] = [
+    ['Transform.rotation.angle', (data, v) => {
         data.rotation = q.setAngleZ(data.rotation, v * RAD2DEG);
-    },
-};
+    }],
+];
 
 interface ChannelField {
     readonly property: string;
     readonly parts: readonly string[];
-    readonly component: string;
-    readonly writer: FieldWriter | undefined;
+    readonly writersByComponent: ReadonlyMap<string, FieldWriter> | undefined;
 }
 
-const channelFields = /* @__PURE__ */ new WeakMap<PropertyChannel, ChannelField>();
-const lastTrackFields = /* @__PURE__ */ new WeakMap<PropertyTrack, ChannelField>();
+function parseChannelField(property: string): ChannelField {
+    let writersByComponent: Map<string, FieldWriter> | undefined;
+    const suffix = '.' + property;
+    // Component names can contain dots as well, so match the whole field suffix.
+    for (const [qualifiedName, write] of WRITER_OVERRIDES) {
+        if (!qualifiedName.endsWith(suffix)) continue;
+        writersByComponent ??= new Map();
+        writersByComponent.set(qualifiedName.slice(0, -suffix.length), write);
+    }
+    return { property, parts: property.split('.'), writersByComponent };
+}
 
-function channelField(track: PropertyTrack, channel: PropertyChannel, component: string, property: string): ChannelField {
+// Freshly decoded clips share these paths. A live channel can still use its own entry after eviction.
+const SHARED_FIELD_LIMIT = 32;
+const sharedFields = /* @__PURE__ */ new Map<string, ChannelField>();
+const channelFields = /* @__PURE__ */ new WeakMap<PropertyChannel, ChannelField>();
+
+function channelField(channel: PropertyChannel, property: string): ChannelField {
+    const shared = sharedFields.get(property);
+    if (shared) return shared;
     const cached = channelFields.get(channel);
-    if (cached?.property === property && cached.component === component) return cached;
-    // A track can receive a new channel object for the same field during editing.
-    const previous = lastTrackFields.get(track);
-    if (previous?.property === property && previous.component === component) return previous;
-    const parts = cached?.property === property ? cached.parts : property.split('.');
-    const field = { property, parts, component, writer: WRITER_OVERRIDES[`${component}.${property}`] };
+    if (cached?.property === property) return cached;
+    const field = parseChannelField(property);
+    if (sharedFields.size === SHARED_FIELD_LIMIT) {
+        sharedFields.delete(sharedFields.keys().next().value!);
+    }
+    sharedFields.set(property, field);
     channelFields.set(channel, field);
-    lastTrackFields.set(track, field);
     return field;
 }
 
@@ -116,9 +130,11 @@ function finishQuaternions(data: any, component: string, touched: Set<string>): 
 }
 
 function applyField(
-    data: Record<string, any>, field: ChannelField, channel: PropertyChannel, value: number, touched: Set<string>,
+    data: Record<string, any>, component: string, channel: PropertyChannel,
+    property: string, value: number, touched: Set<string>,
 ): void {
-    const override = field.writer;
+    const field = channelField(channel, property);
+    const override = field.writersByComponent?.get(component);
     if (override) {
         override(data, value);
     } else if (!setNestedPropertyParts(data, field.parts, value)) {
@@ -184,7 +200,7 @@ export function sampleRootPlacement(
             if (!isRootPlacementChannel(track.childPath, track.component, ch.property)) continue;
             const property = ch.property;
             const value = evaluateChannel(ch, time);
-            applyField(out, channelField(track, ch, 'Transform', property), ch, value, touched);
+            applyField(out, 'Transform', ch, property, value, touched);
         }
         if (touched.size > 0) {
             finishQuaternions(out, 'Transform', touched);
@@ -278,7 +294,7 @@ export function sampleTimelineInto(
             if (!ch.keyframes || ch.keyframes.length === 0) continue;
             if (opts?.skipChannel?.(track.childPath, track.component, ch.property)) continue;
             const v = evaluateChannel(ch, time);
-            applyField(data, channelField(track, ch, track.component, ch.property), ch, v, touched);
+            applyField(data, track.component, ch, ch.property, v, touched);
         }
         if (touched.size > 0) {
             finishQuaternions(data, track.component, touched);

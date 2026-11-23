@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     evaluateChannel,
     applyWrapMode,
@@ -155,6 +155,24 @@ describe('sampleTimeline', () => {
       tracks: [{
           type: TrackType.Property, name: 'Spin', childPath: '', component, channels,
       }],
+  });
+
+  it('keeps live curve paths in a clip with many distinct morph weights', () => {
+      const key = { time: 0, value: 1, inTangent: 0, outTangent: 0 };
+      const weights = Object.fromEntries(Array.from({ length: 96 }, (_, i) => ['morph' + i, 0]));
+      const channels = Object.keys(weights).map(name => ch([key], 'weights.' + name));
+      const asset = rotationClip(channels, 'Morphs');
+      const deps = mockDeps(new Map([['Morphs', { weights }]]), { Morphs: { __name: 'Morphs' } });
+      sampleTimeline(asset, 0, 1, deps);
+      key.value = 2;
+      const split = vi.spyOn(String.prototype, 'split');
+      let parsed: string[];
+      try {
+          sampleTimeline(asset, 0, 1, deps);
+          parsed = split.mock.contexts.map(String).filter(path => path.startsWith('weights.morph'));
+      } finally { split.mockRestore(); }
+      expect(parsed).toEqual([]);
+      expect(Object.values(weights)).toEqual(Array(96).fill(2));
   });
 
   it('observes edits made by a destination setter when reporting touched fields', () => {

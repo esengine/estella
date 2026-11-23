@@ -19,6 +19,7 @@ import {
 } from '../src/timeline/TimelineTypes';
 import { setNestedProperty } from '../src/timeline/TimelinePlugin';
 import { createRootPlacement, sampleRootPlacement, sampleTimelineInWorld } from '../src/timeline/TimelineEvaluator';
+import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 
 describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
     let module: ESEngineModule;
@@ -120,6 +121,9 @@ describe.skipIf(!HAS_WASM)('Timeline WASM Integration', () => {
                 for (const actor of actors) {
                     track.channels[0] = { ...channel };
                     sampleTimelineInWorld(asset, 0, world, actor);
+                    const reloaded = parseTimelineAsset(asset);
+                    sampleTimelineInWorld(reloaded, 0, world, actor);
+                    sampleRootPlacement(reloaded, 0, root);
                 }
                 sampleRootPlacement(asset, 0, root);
                 parsed = split.mock.contexts.map(String);

@@ -89,10 +89,12 @@ for (const [name, load] of Object.entries(clips)) {
     describe.skipIf(!HAS_WASM)(`${name}, 16 actors`, () => {
         const asset = load();
         const tracks = asset.tracks.filter(track => track.type === TrackType.Property);
-        for (const mode of ['direct', 'pose', 'controller']) {
+        for (const mode of ['direct', 'pose', 'controller', 'reload']) {
+            const reload = mode === 'reload';
             let registry: CppRegistry, world: World, frame: number;
             const actors: { root: Entity; pose: Pose }[] = [];
             let bindings: SampleDeps;
+            let timeline: TimelineAPI;
             let controller: AnimatorControllerAPI | undefined;
             const sampleAt = (time: number) => {
                 for (const { root, pose } of actors) {
@@ -104,7 +106,11 @@ for (const [name, load] of Object.entries(clips)) {
                     }
                 }
             };
-            bench(mode, () => controller ? controller.update(world, 1 / 60) : sampleAt(asset.duration * ((frame++ * 19) % 61) / 61), {
+            bench(reload ? 'reload clip and update controller' : mode, () => {
+                if (!controller) return sampleAt(asset.duration * ((frame++ * 19) % 61) / 61);
+                if (reload) timeline.registerAsset(name, parseTimelineAsset(asset));
+                controller.update(world, 1 / 60);
+            }, {
                 time: 500, warmupTime: 100,
                 setup: async () => {
                     const engine = await loadWasmModule();
@@ -114,9 +120,9 @@ for (const [name, load] of Object.entries(clips)) {
                     bindings = {
                         world, getComponent, resolveChild: (root, path) => resolveChildEntity(world, root, path),
                     };
-                    if (mode === 'controller') {
-                        const timeline = new TimelineAPI();
-                        timeline.registerAsset(name, asset);
+                    if (mode === 'controller' || reload) {
+                        timeline = new TimelineAPI();
+                        timeline.registerAsset(name, reload ? parseTimelineAsset(asset) : asset);
                         controller = new AnimatorControllerAPI();
                         controller.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
                         controller.registerController('playback', {
