@@ -21,30 +21,34 @@
  *          holds now would be the track's own last frame, and an ease in would close in on itself.
  */
 import { TrackType, type AnimationClipItem, type AnimationExtrapolation, type AnimationTrack, type TimelineAsset } from './TimelineTypes';
-import { sampleTimelineIntoPose, type SampleDeps } from './TimelineEvaluator';
+import { isRootPlacementChannel, sampleTimelineIntoPose, type RootPlacement, type SampleDeps } from './TimelineEvaluator';
 import { Pose, PoseTrackIndex, type PoseTrack, type PoseWorld } from '../animation/pose';
 import { writeProjection } from '../ecs/componentProjection';
 import { mixPoses, type WeightedPose } from '../animation/poseMix';
 import { overlayPose, addPoseOver } from '../animation/layerStack';
 import { MaskReach } from '../animation/animatorMask';
 import type { World } from '../ecs/world';
-import { isRootPlacementChannel } from './TimelineEvaluator';
 import { rootPlacementAt } from './timelineRootMotion';
 import { getComponent } from '../ecs/component';
 import type { Entity } from '../types';
 
-/** Per world, what each (joint, component) held before an animation track first wrote it. */
-const rests = new WeakMap<object, PoseTrackIndex<Record<string, unknown>>>();
-/** Per world, where each rig stood before a root-motion track first moved it. */
-const rootRests = new WeakMap<object, Map<Entity, { position: { x: number; y: number; z: number }; rotation: { w: number; x: number; y: number; z: number } }>>();
+interface TimelinePoses {
+    pool: Pose[];
+    /** What a component held before the first track wrote it. */
+    rests: PoseTrackIndex<Record<string, unknown>>;
+    /** Where each rig stood before its first root-motion track. */
+    rootRests: Map<Entity, RootPlacement>;
+}
+
+// Reusable poses hold component data and definitions from the world that seeded them.
+const posesByWorld = new WeakMap<object, TimelinePoses>();
 
 /**
- * Forgets what every joint and rig in `world` held before an animation track moved it, so the next sample takes them
- * afresh: the editor's preview does this when it binds, after putting the scene's own values back.
+ * Releases this world's pose buffers and rest values. The editor calls this after restoring the scene
+ * when it binds a preview, so the next sample starts from the new binding's components.
  */
 export function forgetAnimationRests(world: object): void {
-    rests.delete(world);
-    rootRests.delete(world);
+    posesByWorld.delete(world);
 }
 
 const copyData = (data: Record<string, unknown>): Record<string, unknown> => {
@@ -143,8 +147,7 @@ export function animationClipWeights(
 }
 
 /** Poses lent per frame; returned at the end of it. */
-const pool: Pose[] = [];
-const borrow = (): Pose => pool.pop() ?? new Pose();
+const borrow = (pool: Pose[]): Pose => pool.pop() ?? new Pose();
 
 /** One track's part in a rig's stack this frame: its clips' poses, what they start from, and how the layer applies. */
 interface Layer {
@@ -183,7 +186,13 @@ export function sampleAnimationTracks(
         const list = rigs.get(rig);
         if (list) list.push(track); else rigs.set(rig, [track]);
     }
+    if (rigs.size === 0) return;
     const world = deps.world as unknown as PoseWorld;
+    let poses = posesByWorld.get(world);
+    if (!poses) {
+        poses = { pool: [], rests: new PoseTrackIndex(), rootRests: new Map() };
+        posesByWorld.set(world, poses);
+    }
     for (const [rig, tracks] of rigs) {
         const layers: Layer[] = [];
         for (const track of tracks) {
@@ -196,7 +205,7 @@ export function sampleAnimationTracks(
                 const c = track.clips[index]!;
                 const anim = c.clip ? lookup(c.clip) : undefined;
                 if (!anim) continue;
-                const pose = borrow();
+                const pose = borrow(poses.pool);
                 pose.reset();
                 // With root motion the clip's root track says where the rig goes, not a pose: it is left out here.
                 sampleTimelineIntoPose(anim, local, rig, deps, pose, track.rootMotion ? ROOT_LEFT_OUT : undefined);
@@ -204,7 +213,7 @@ export function sampleAnimationTracks(
                 layer.total += weight;
                 if (additive) {
                     // An additive clip says how far its animation moves from where the clip starts in it.
-                    const ref = borrow();
+                    const ref = borrow(poses.pool);
                     ref.reset();
                     sampleTimelineIntoPose(anim, clipLocalTime(c, c.start, lengthOf(c)), rig, deps, ref, track.rootMotion ? ROOT_LEFT_OUT : undefined);
                     layer.refs.push(ref);
@@ -212,11 +221,11 @@ export function sampleAnimationTracks(
             }
             if (layer.sources.length > 0) layers.push(layer);
         }
-        if (layers.length > 0) composeRig(world, rig, layers);
+        if (layers.length > 0) composeRig(world, rig, layers, poses);
         // The rig's travel: the last root-motion track on it says where it is.
         for (let i = tracks.length - 1; i >= 0; i--) {
             if (!tracks[i]!.rootMotion) continue;
-            moveRoot(world, rig, tracks[i]!, time, lookup);
+            moveRoot(world, rig, tracks[i]!, time, lookup, poses.rootRests);
             break;
         }
     }
@@ -225,41 +234,39 @@ export function sampleAnimationTracks(
 const ROOT_LEFT_OUT = { skipChannel: isRootPlacementChannel };
 
 /** Places `rig` where `track`'s root motion has brought it at `time`, from where it stood before the track moved it. */
-function moveRoot(world: PoseWorld, rig: Entity, track: AnimationTrack, time: number, lookup: (ref: string) => TimelineAsset | undefined): void {
+function moveRoot(
+    world: PoseWorld, rig: Entity, track: AnimationTrack, time: number,
+    lookup: (ref: string) => TimelineAsset | undefined, rootRests: Map<Entity, RootPlacement>,
+): void {
     const def = getComponent('Transform');
     if (!def || !world.has(rig, def)) return;
-    const now = world.get(rig, def) as { position: { x: number; y: number; z: number }; rotation: { w: number; x: number; y: number; z: number } };
-    let byRig = rootRests.get(world as object);
-    if (!byRig) rootRests.set(world as object, (byRig = new Map()));
-    let base = byRig.get(rig);
-    if (!base) byRig.set(rig, (base = { position: { ...now.position }, rotation: { ...now.rotation } }));
+    const now = world.get(rig, def) as RootPlacement & Record<string, unknown>;
+    let base = rootRests.get(rig);
+    if (!base) rootRests.set(rig, (base = { position: { ...now.position }, rotation: { ...now.rotation } }));
     const at = rootPlacementAt(track, time, base, lookup, animationClipWeights, extrapolatedTime);
     writeProjection(world, rig, def, { ...now, position: at.position, rotation: at.rotation });
 }
 
 /** Composes `layers` on `rig` over its own pose and writes the result once. */
-function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
+function composeRig(world: PoseWorld, rig: Entity, layers: Layer[], { pool, rests }: TimelinePoses): void {
     // The rest pose of every joint a clip moves, recorded before a track writes it the first time.
-    let rest = rests.get(world as object);
-    if (!rest) rests.set(world as object, (rest = new PoseTrackIndex()));
     for (const { sources } of layers) {
         for (const { pose } of sources) {
             for (const tr of pose.tracks) {
-                if (tr.touched.size > 0 && !rest.lookup(tr.entity, tr.def) && world.has(tr.entity, tr.def)) {
-                    rest.set(tr.entity, tr.def, copyData(world.get(tr.entity, tr.def)));
+                if (tr.touched.size > 0 && !rests.lookup(tr.entity, tr.def) && world.has(tr.entity, tr.def)) {
+                    rests.set(tr.entity, tr.def, copyData(world.get(tr.entity, tr.def)));
                 }
             }
         }
     }
     // Under the layers, the rig's own pose for every field a layer may write: its Animator's, or its rest.
     const animator = animatedByAnimator(world, rig);
-    const composed = borrow();
+    const composed = borrow(pool);
     composed.reset();
-    const restOf = rest;
     const seed = (tr: PoseTrack) => {
         const into = composed.track(world, tr.entity, tr.def);
         if (!into) return;
-        const was = animator ? undefined : restOf.lookup(tr.entity, tr.def);
+        const was = animator ? undefined : rests.lookup(tr.entity, tr.def);
         for (const f of tr.touched) {
             if (into.touched.has(f)) continue;
             if (was && f in was) into.data[f] = typeof was[f] === 'object' && was[f] !== null ? { ...(was[f] as object) } : was[f];
@@ -278,7 +285,7 @@ function composeRig(world: PoseWorld, rig: Entity, layers: Layer[]): void {
             continue;
         }
         // The clips mixed among themselves, then leaned in by as much of them as there is.
-        const mixed = borrow();
+        const mixed = borrow(pool);
         mixPoses(layer.sources, mixed, world);
         overlayPose(composed, mixed, Math.min(1, layer.total) * w, world, layer.reach);
         pool.push(mixed);

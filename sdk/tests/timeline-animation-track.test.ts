@@ -4,7 +4,7 @@
  * @file  Animation tracks: clips ease in over what the rig holds, crossfade where they overlap, hold their last frame
  *        when asked, and leave the rig alone between clips. Over a mock world with a real Transform.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Sprite, Transform, getComponent } from '../src/ecs/component';
 import { resolveChildEntity } from '../src/ecs/childPath';
@@ -14,6 +14,7 @@ import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
 import type { Entity } from '../src/types';
 import { createMockModule } from './mocks/wasm';
 import { Animator } from '../src/animation/Animator';
+import { Pose } from '../src/animation/pose';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { composePlacement } from '../src/timeline/timelineRootMotion';
@@ -82,23 +83,52 @@ describe('animationClipWeights', () => {
 describe('sampleAnimationTracks', () => {
     let world: World;
     let rig: Entity, arm: Entity;
-    beforeEach(() => {
-        world = new World();
+    function makeRig() {
+        const world = new World();
         const mod = createMockModule();
         world.connectCpp(mod.getRegistry(), mod);
-        rig = world.spawn('rig');
+        const rig = world.spawn('rig');
         world.insert(rig, Transform, {});
-        arm = world.spawn('Arm');
+        const arm = world.spawn('Arm');
         world.insert(arm, Transform, {});
         world.setParent(arm, rig);
+        return { world, rig, arm };
+    }
+    beforeEach(() => { ({ world, rig, arm } = makeRig()); });
+    const deps = (target = world): SampleDeps => ({
+        world: target as never, getComponent, resolveChild: (r, p) => resolveChildEntity(target, r, p),
     });
-    const deps = (): SampleDeps => ({ world: world as never, getComponent, resolveChild: (r, p) => resolveChildEntity(world, r, p) });
     const anims: Record<string, TimelineAsset> = { a: hold(10, 2), b: hold(50, 2), r: ramp };
     const lookup = (ref: string) => anims[ref];
     const x = () => world.get(arm, Transform).position.x;
     const timeline = (track: Partial<AnimationTrack>): TimelineAsset => ({
         version: '1.3', type: 'timeline', duration: 5, wrapMode: WrapMode.Once,
         tracks: [{ type: TrackType.Animation, name: '', childPath: '', hold: false, clips: [], ...track } as AnimationTrack],
+    });
+
+    it('reuses buffers within one world and releases only that world’s buffers on rebind', () => {
+        const other = makeRig();
+        expect(other.rig).toBe(rig);
+        const take = timeline({ clips: [clip({ clip: 'a' })] });
+        const track = vi.spyOn(Pose.prototype, 'track');
+        const buffers = (w: World, root: Entity) => {
+            track.mockClear();
+            sampleAnimationTracks(take, .5, root, deps(w), lookup);
+            const live = new Set(track.mock.results.map(r => r.value).filter(Boolean));
+            expect(live.size).toBeGreaterThan(0);
+            return live;
+        };
+        try {
+            const first = buffers(world, rig), second = buffers(other.world, other.rig);
+            expect([...second].some(t => first.has(t))).toBe(false);
+            expect([...buffers(world, rig)].every(t => first.has(t))).toBe(true);
+            forgetAnimationRests(world);
+            expect([...buffers(world, rig)].some(t => first.has(t))).toBe(false);
+            expect([...buffers(other.world, other.rig)].every(t => second.has(t))).toBe(true);
+        } finally {
+            track.mockRestore();
+            other.world.disconnectCpp();
+        }
     });
 
     it('blends an easing clip with what the rig holds, then plays it whole, and crossfades into the next', () => {
