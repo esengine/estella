@@ -140,8 +140,7 @@ export interface LoadContext {
      */
     acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>>;
     /**
-     * The path an asset ref names, or null when it names nothing known. Optional: a loader that wants to
-     * compare two spellings of one asset (a timeline deciding whether a clip plays itself) asks it.
+     * Resolve an asset ref through the host's resolver. Null means the resolver could not identify it.
      */
     resolveRef?(ref: string): string | null;
     /**

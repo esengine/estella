@@ -29,7 +29,7 @@ import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
 import { leaseBinding, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
-import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
+import { RegistryAssetSlots, type RegistryAssetKind, type RegistrySlotOwner } from './registryAssets';
 import {
     DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable,
     cachedPaths, matchingDependents, ownedDependents, rebuildPlan,
@@ -1981,10 +1981,10 @@ export class Assets {
         catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireTypedLease_<T>(type: string, ref: string): Promise<AssetLease<T>> {
+    private async acquireTypedLease_<T>(type: string, ref: string, owner?: RegistrySlotOwner): Promise<AssetLease<T>> {
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
-        const slot = await this.acquireSlot_<T>(type, ref);
+        const slot = await this.acquireSlot_<T>(type, ref, owner);
         try { this.assertLoading_(epoch); }
         catch (error) { slot?.release(); throw error; }
         if (slot) return slot;
@@ -1998,7 +1998,7 @@ export class Assets {
      * carries that spelling and looks the asset up by it, while the load path is
      * whatever this realm resolved it to.
      */
-    private async acquireSlot_<T>(type: string, ref: string): Promise<AssetLease<T> | null> {
+    private async acquireSlot_<T>(type: string, ref: string, owner?: RegistrySlotOwner): Promise<AssetLease<T> | null> {
         const kind = this.registryKind_<T>(type);
         if (!kind) return null;
         // Keyed by identity, never by the locator: a content-addressed url is
@@ -2008,7 +2008,7 @@ export class Assets {
         // Answering to the ref as the caller spelled it too: a component looks
         // the asset up by the spelling a scene serialized.
         const names = ref === identity ? [identity] : [identity, ref];
-        return this.registrySlots_.acquire(kind, type, identity, names);
+        return this.registrySlots_.acquire(kind, type, identity, names, owner);
     }
 
     /**
@@ -2992,8 +2992,8 @@ export class Assets {
         // and where that asset is served from is a property of the revision the
         // preparation runs in.
         return {
-            prepare: (identity) => this.prepared_(
-                (ctx) => registry.prepare(this.resolveLoadPath_(identity), ctx),
+            prepare: (identity, owner) => this.prepared_(
+                (ctx) => registry.prepare(this.resolveLoadPath_(identity), ctx), owner,
             ),
         };
     }
@@ -3022,13 +3022,13 @@ export class Assets {
      * it does not exist.
      */
     private async prepared_<T extends object>(
-        work: (ctx: LoadContext) => Promise<T>,
+        work: (ctx: LoadContext) => Promise<T>, owner?: RegistrySlotOwner,
     ): Promise<T & Preparation> {
         this.assertLoading_();
         const recorder = new DependencyRecorder();
         this.preparations_.add(recorder);
         try {
-            return recorder.commit(await work(this.recordingContext_(recorder)));
+            return recorder.commit(await work(this.recordingContext_(recorder, owner)));
         } catch (e) {
             throw recorder.abort(e);
         } finally { this.preparations_.delete(recorder); }
@@ -3036,7 +3036,7 @@ export class Assets {
 
     /** The load context one preparation sees: every door that takes something
      *  reports it, and the plain readers stay plain. */
-    private recordingContext_(recorder: DependencyRecorder): LoadContext & { recorder: DependencyRecorder } {
+    private recordingContext_(recorder: DependencyRecorder, owner?: RegistrySlotOwner): LoadContext & { recorder: DependencyRecorder } {
         const base = this.getLoadContext_();
         const epoch = this.resetEpoch_;
         const attempt = async <T>(ref: string, work: () => Promise<T>): Promise<T> => {
@@ -3064,7 +3064,7 @@ export class Assets {
             decodePixels: path => read(path, () => base.decodePixels!(path)),
             acquireTexture: async (path, flipY) =>
                 take(path, () => base.acquireTexture(path, flipY), 'texture'),
-            acquireAsset: async (type, ref) => take(ref, () => this.acquireTypedLease_(type, ref), type),
+            acquireAsset: async (type, ref) => take(ref, () => this.acquireTypedLease_(type, ref, owner), type),
             resolveRef: ref => this.resolveRef(ref),
             preparePrefab: async (ref) => take(ref, () => this.preparePrefabLease_(ref), 'prepared-prefab'),
             createOwnedTexture: async (width, height, pixels, flipY) => {

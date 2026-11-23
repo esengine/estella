@@ -12,9 +12,6 @@ import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/Ti
 import type { PublishedTimeline } from '../../timeline/TimelineTypes';
 import { log } from '../../util/logger';
 
-/** Timelines being prepared right now: a clip that names one of them is a cycle, and waiting on it would never end. */
-const preparing = new Set<string>();
-
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly type = 'timeline';
     readonly extensions = ['.estimeline'];
@@ -25,26 +22,16 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             const asset = parseTimelineAsset(JSON.parse(text));
             const textureHandles = new Map<string, number>();
 
-            // The timelines its sequence clips play must be resolvable when it runs. One that is already being
-            // prepared further up is a cycle: left out, and the player skips it the same way.
-            preparing.add(path);
-            try {
-                for (const ref of extractTimelineAssetPaths(asset).timelines) {
-                    if (preparing.has(ctx.resolveRef?.(ref) ?? ref)) {
-                        log.warn('asset', `${path}: a sequence clip plays ${ref}, which is already playing this timeline — skipped`);
-                        continue;
-                    }
-                    try {
-                        await ctx.acquireAsset('timeline', ref);
-                    } catch (e) {
-                        log.warn('asset', `${path}: failed to load the sequence ${ref}`, e);
-                    }
+            const { timelines, textures } = extractTimelineAssetPaths(asset);
+            for (const ref of timelines) {
+                try {
+                    await ctx.acquireAsset('timeline', ref);
+                } catch (e) {
+                    log.warn('asset', `${path}: failed to load the sequence ${ref}`, e);
                 }
-            } finally {
-                preparing.delete(path);
             }
 
-            for (const texPath of extractTimelineAssetPaths(asset).textures) {
+            for (const texPath of textures) {
                 try {
                     const lease = await ctx.acquireTexture(texPath, true);
                     textureHandles.set(texPath, lease.value.handle);

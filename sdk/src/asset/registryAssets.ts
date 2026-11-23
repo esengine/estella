@@ -44,7 +44,7 @@ export type PreparedEra<T> = RegistryEra<T> & Preparation;
 /** How one kind of registry-backed asset is prepared. Publishing is the slot's:
  *  it holds the era and answers the lookup, so there is nowhere else to write. */
 export interface RegistryAssetKind<T> {
-    prepare(path: string): Promise<PreparedEra<T>>;
+    prepare(path: string, owner: RegistrySlotOwner): Promise<PreparedEra<T>>;
 }
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
@@ -67,11 +67,45 @@ class Slot<T> {
     /** Which refresh is the current one. A preparation that started before the
      *  count moved is answering a question nobody is asking any more. */
     refresh = 0;
+    private claims_?: Set<{ target: Slot<unknown> }>;
 
     constructor(readonly type: string, readonly key: string, readonly id: number) {}
 
     get published(): unknown { return this.era?.published; }
+
+    /** Each pending acquisition becomes one receipt, including when two eras acquire the same target. */
+    claim(target: Slot<unknown>): () => void {
+        if (target.reaches_(this)) {
+            throw new Error(`Circular asset dependency: ${this.type} "${this.key}" cannot acquire ${target.type} "${target.key}".`);
+        }
+        const claims = this.claims_ ??= new Set();
+        const claim = { target };
+        claims.add(claim);
+        return () => { claims.delete(claim); };
+    }
+
+    private reaches_(target: Slot<unknown>): boolean {
+        if (this === target) return true;
+        if (!this.claims_?.size) return false;
+        const pending: Slot<unknown>[] = [this];
+        const seen = new Set<Slot<unknown>>([this]);
+        while (pending.length) {
+            const claims = pending.pop()!.claims_;
+            if (!claims) continue;
+            for (const { target: child } of claims) {
+                if (child === target) return true;
+                if (!seen.has(child)) {
+                    seen.add(child);
+                    pending.push(child);
+                }
+            }
+        }
+        return false;
+    }
 }
+
+/** A preparation can acquire other slots on behalf of this slot. */
+export type RegistrySlotOwner = Pick<Slot<unknown>, 'claim'>;
 
 /**
  * Every registry-backed asset this Assets has published, by every name that
@@ -104,12 +138,13 @@ export class RegistryAssetSlots {
      * than to a copy of the object.
      */
     async acquire<T>(
-        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[],
+        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[], owner?: RegistrySlotOwner,
     ): Promise<RegistrySlotLease<T>> {
         const slot = this.slotFor_(type, key) as Slot<T>;
+        const unclaim = owner?.claim(slot);
         for (const name of names) this.name_(slot, name);
 
-        if (slot.era) return this.lease_(slot);
+        if (slot.era) return this.lease_(slot, unclaim);
         // Each caller reserves the slot until it has received its own lease or
         // rejected. Preparation and publication belong to the slot once.
         slot.waiters++;
@@ -119,7 +154,10 @@ export class RegistryAssetSlots {
             if (this.byName_.get(lookupKey(type, key)) !== slot) {
                 throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);
             }
-            return this.lease_(slot);
+            return this.lease_(slot, unclaim);
+        } catch (error) {
+            unclaim?.();
+            throw error;
         } finally {
             if (--slot.waiters === 0) {
                 slot.loading = null;
@@ -129,7 +167,7 @@ export class RegistryAssetSlots {
     }
 
     private async publishInitial_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): Promise<void> {
-        const era = await kind.prepare(slot.key);
+        const era = await kind.prepare(slot.key, slot);
         if (this.byName_.get(lookupKey(slot.type, slot.key)) !== slot) {
             era.dependencies.releaseAll();
             throw new Error(`"${slot.key}" was released while it was loading; it has no owner. Load it again.`);
@@ -151,7 +189,7 @@ export class RegistryAssetSlots {
         const slot = this.byName_.get(key) as Slot<T> | undefined;
         if (!slot?.era) return false;
         const ticket = ++slot.refresh;
-        const era = await kind.prepare(slot.key);
+        const era = await kind.prepare(slot.key, slot);
         if (era.failedDependencies?.length) {
             era.dependencies.releaseAll();
             throw new Error(`Cannot refresh "${name}": dependencies did not load: ${era.failedDependencies.join(', ')}`);
@@ -243,7 +281,7 @@ export class RegistryAssetSlots {
         return true;
     }
 
-    private lease_<T>(slot: Slot<T>): RegistrySlotLease<T> {
+    private lease_<T>(slot: Slot<T>, unclaim?: () => void): RegistrySlotLease<T> {
         slot.refs++;
         let spent = false;
         const lease: RegistrySlotLease<T> = {
@@ -256,6 +294,7 @@ export class RegistryAssetSlots {
             release: () => {
                 if (spent) return;
                 spent = true;
+                unclaim?.();
                 this.drop_(slot);
             },
             retain: () => slot.lookupKeys.size && slot.era ? this.lease_(slot) : null,
