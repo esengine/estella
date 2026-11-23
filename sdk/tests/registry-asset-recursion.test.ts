@@ -5,6 +5,7 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import { ScriptGraphAssetLoader } from '../src/asset/loaders/ScriptGraphAssetLoader';
 import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
+import { RuntimeConfig } from '../src/defaults';
 import { SCRIPT_GRAPH_VERSION } from '../src/logic/types';
 import type { PublishedTimeline } from '../src/timeline/TimelineTypes';
 
@@ -135,6 +136,83 @@ describe('nested registry assets', () => {
             expect(assets.resolveRegistryAsset('timeline', 'a')).toBeDefined();
             fresh.release();
             expect(assets.publishedRegistryAssets('timeline')).toEqual([]);
+        } finally { proceed.open(); }
+    });
+});
+
+describe('generation-bound asset dependencies', () => {
+    it('hands a nested reader a live generation if the last external holder releases during its acquire', async () => {
+        const assets = realm(async () => '');
+        const live = new Set<number>();
+        let id = 0;
+        assets.register<{ handle: number }>({
+            type: 'child', extensions: [],
+            async load() { const handle = ++id; live.add(handle); return { handle }; },
+            unload(value) { live.delete(value.handle); },
+        });
+        const first = await assets.acquireTyped('child', 'same');
+        assets.register<{ handle: number }>({ type: 'parent', extensions: [], async load(_path, ctx) {
+            const acquiring = ctx.acquireAsset<{ handle: number }>('child', 'same');
+            // Let the typed lookup select the cached generation before its waiter resumes.
+            await Promise.resolve();
+            first.release();
+            return (await acquiring).value;
+        } });
+        const parent = await assets.acquireTyped<{ handle: number }>('parent', 'same');
+        expect(live.has(parent.value.handle)).toBe(true);
+        parent.release();
+        expect(live.size).toBe(0);
+        expect(assets.sizes()).toMatchObject({ pendingLoads: 0, refRows: 0, genericCached: 0 });
+    });
+
+    it('reports a material inheritance cycle to both concurrent readers', async () => {
+        vi.useFakeTimers();
+        try {
+            const catalog = Catalog.fromJson({ version: 1, entries: {}, addresses: { first: 'a.esmaterial' } });
+            const assets = realm(async path => JSON.stringify({
+                type: 'material', properties: {}, instanceOf: path === 'a.esmaterial' ? 'b.esmaterial' : 'first',
+            }), catalog);
+            const errors = Promise.allSettled(['a.esmaterial', 'b.esmaterial'].map(ref => assets.acquireTyped('material', ref)));
+            await vi.advanceTimersByTimeAsync(RuntimeConfig.assetLoadTimeout + 1);
+            for (const result of await errors) {
+                expect(result.status).toBe('rejected');
+                if (result.status === 'rejected') {
+                    expect(String(result.reason)).toMatch(/Circular asset dependency: material/);
+                    expect(String(result.reason)).toContain('a.esmaterial');
+                    expect(String(result.reason)).toContain('b.esmaterial');
+                }
+            }
+            expect(assets.sizes()).toMatchObject({ pendingLoads: 0, refRows: 0, genericCached: 0 });
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('lets a superseded preparation acquire a new generation at its own path', async () => {
+        const assets = realm(async () => '');
+        const entered = barrier(), proceed = barrier();
+        let generation = 0;
+        const unload = vi.fn();
+        assets.register<{ revision: number }>({ type: 'revision', extensions: [], async load(path, ctx) {
+            const revision = ++generation;
+            if (revision === 1) {
+                entered.open();
+                await proceed.wait;
+                const child = await ctx.acquireAsset<{ revision: number }>('revision', path);
+                expect(child.value.revision).toBe(2);
+            }
+            return { revision };
+        }, unload });
+        const older = assets.acquireTyped<{ revision: number }>('revision', 'asset');
+        await entered.wait;
+        assets.invalidate('asset');
+        try {
+            const current = await assets.acquireTyped<{ revision: number }>('revision', 'asset');
+            proceed.open();
+            const previous = await older;
+            current.release();
+            expect(unload).not.toHaveBeenCalled();
+            previous.release();
+            expect(unload.mock.calls.map(([value]) => value.revision)).toEqual([1, 2]);
+            expect(assets.sizes().refRows).toBe(0);
         } finally { proceed.open(); }
     });
 });

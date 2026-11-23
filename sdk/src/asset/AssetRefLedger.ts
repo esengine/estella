@@ -30,6 +30,11 @@ export interface AssetRefLease<T> {
     readonly value: T;
 }
 
+/** The generation shared by the waiters of one cache load. Null after retirement. */
+export interface LoadGeneration {
+    generation?: number | null;
+}
+
 interface LeaseImpl<T> extends AssetRefLease<T> {
     /** A receipt spends once; giving it back twice must not drop a stranger's reference. */
     spent: boolean;
@@ -47,6 +52,17 @@ export interface AssetRefGeneration<T> {
 export class AssetRefLedger<T> {
     private byKey_ = new Map<string, Array<AssetRefGeneration<T>>>();
     private nextId_ = 1;
+
+    /** The first waiter registers the load. Later waiters join that exact generation. */
+    acquireLoad(key: string, value: T, load: LoadGeneration): AssetRefLease<T> | undefined {
+        if (load.generation === undefined) {
+            const first = this.acquire(key, value);
+            load.generation = first.generation;
+            return first;
+        }
+        if (load.generation === null) return undefined;
+        return this.retainGeneration_(key, load.generation);
+    }
 
     /**
      * Record one more holder of `value` under `key` and hand back its receipt.
@@ -82,12 +98,15 @@ export class AssetRefLedger<T> {
      * An owner SPLITTING what it holds is a second owner of the one already bound.
      */
     retain(lease: AssetRefLease<T>): AssetRefLease<T> | undefined {
-        const generations = this.byKey_.get(lease.key);
-        const generation = generations?.find((g) => g.id === lease.generation);
+        return this.retainGeneration_(lease.key, lease.generation);
+    }
+
+    private retainGeneration_(key: string, id: number): AssetRefLease<T> | undefined {
+        const generation = this.byKey_.get(key)?.find(g => g.id === id);
         if (!generation) return undefined;
         generation.count++;
         const child: LeaseImpl<T> = {
-            key: lease.key, generation: generation.id, value: generation.value, spent: false,
+            key, generation: generation.id, value: generation.value, spent: false,
         };
         return child;
     }

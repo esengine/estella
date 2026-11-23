@@ -18,22 +18,23 @@ import type {
     LocaleResult, FsmResult, BtResult, AnimatorControllerResult, JsonResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
+import { PreparedAssetCache } from './PreparedAssetCache';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
 import type { TextureImportSettingsResolver } from './loaders/TextureLoader';
 import type { TextureFormatReport } from './textureFormatReport';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
-import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
+import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './AssetRefLedger';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
 import { leaseBinding, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
-import { RegistryAssetSlots, type RegistryAssetKind, type RegistrySlotOwner } from './registryAssets';
+import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import {
     DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable,
     cachedPaths, matchingDependents, ownedDependents, rebuildPlan,
-    type AssetIdentity, type AssetWithReceipts, type DependencyReceipt, type Preparation, type PreparedLoad,
+    type AssetDependencyOwner, type AssetIdentity, type AssetWithReceipts, type DependencyReceipt, type Preparation, type PreparedLoad,
 } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { spinePairKey } from './spinePairKey';
@@ -158,11 +159,9 @@ interface PendingUpdate {
     remoteRoot: string | null;
 }
 
-/** One native acquisition. Every waiter for this cache entry joins the same
- *  ledger generation. A null receipt marks a load returned at teardown or timeout. */
-interface TextureLoad {
+/** One native reference acquired by decoding or reviving a texture. */
+interface TextureLoad extends LoadGeneration {
     readonly value: TextureResult;
-    receipt?: AssetRefLease<number> | null;
 }
 
 
@@ -457,15 +456,12 @@ export class Assets {
             throw new Error('Assets were released while loading; this request has no owner. Load it again.');
         }
     }
-    private genericCache_ = new Map<string, AsyncCache<PreparedLoad<unknown>>>();
+    private genericCache_ = new Map<string, PreparedAssetCache>();
     /** Per-asset reference counts for the generic caches, keyed `type:path`.
      *  Same contract as textures: every load*() increments, every release*()
      *  decrements, and the loader's unload runs only at zero — so an asset
      *  shared by two scenes survives the first scene's unload. */
     private genericRefs_ = new AssetRefLedger<PreparedLoad<unknown>>();
-    /** Eras already given back, so N callers abandoning one shared load hand it
-     *  over once between them rather than unloading it N times. */
-    private retired_ = new WeakSet<PreparedLoad<unknown>>();
     /** Propagations in flight — what {@link assetGraphSettled} waits on. */
     private settling_ = new Set<Promise<void>>();
     private loadContext_: LoadContext | null = null;
@@ -801,16 +797,9 @@ export class Assets {
             );
         }
         const result = load.value;
-        let lease: AssetRefLease<number>;
-        if (load.receipt === undefined) {
-            lease = this.textureRefs_.acquire(cacheKey, result.handle);
-            load.receipt = lease;
-        } else {
-            const retained = load.receipt && this.textureRefs_.retain(load.receipt);
-            // The last holder may release between a cache hit and this continuation.
-            if (!retained) return this.acquireTextureVariant_(ref, flip);
-            lease = retained;
-        }
+        const lease = this.textureRefs_.acquireLoad(cacheKey, result.handle, load);
+        // The last holder may release between a cache hit and this continuation.
+        if (!lease) return this.acquireTextureVariant_(ref, flip);
         this.recordHandlePath_('texture', result.handle, path);
         // The 9-slice border belongs to the IMAGE, so it rides its import
         // settings and is stamped onto the handle here — the one place every
@@ -825,8 +814,8 @@ export class Assets {
     }
 
     private releaseUnclaimedTexture_(load: TextureLoad): void {
-        if (load.receipt !== undefined) return;
-        load.receipt = null;
+        if (load.generation !== undefined) return;
+        load.generation = null;
         evictTextureDimensions(load.value.handle);
         requireResourceManager().releaseTexture(load.value.handle);
     }
@@ -915,15 +904,14 @@ export class Assets {
         catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireSpineLease_(skeletonRef: string, atlasRef?: string): Promise<AssetLease<SpineResult>> {
+    private async acquireSpineLease_(skeletonRef: string, atlasRef?: string, owner?: AssetDependencyOwner): Promise<AssetLease<SpineResult>> {
         const skeleton = this.resolveLoadPath_(skeletonRef);
         const atlas = this.spineAtlasOf_(skeleton, atlasRef);
         const key = spinePairKey(skeleton, atlas);
-        const { value, lease } = await this.acquirePrepared_<SpineResult>(
+        return this.acquirePrepared_<SpineResult>(
             'spine', key, skeletonRef,
-            (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx),
+            (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx), owner,
         );
-        return this.typedLease_('spine', lease, value);
     }
 
     /** The atlas of a pair the caller named only half of: a skeleton's atlas is
@@ -1752,11 +1740,11 @@ export class Assets {
                 t.slowestMs = Math.max(t.slowestMs, ms);
             });
         };
-        const pushAcquire = <T>(
+        const pushAcquire = (
             paths: Set<string>,
-            acquire: (p: string) => Promise<AssetLease<T>>,
             label: string,
             handles?: Map<string, number>,
+            acquire: (path: string) => Promise<AssetLease> = path => this.acquireTypedLease_(label, path, recorder?.owner),
         ): void => {
             for (const path of paths) {
                 tasks.push(() =>
@@ -1787,26 +1775,22 @@ export class Assets {
         // feeding it the resolved path only strips the lookup of its key.
         pushAcquire(
             texturePaths,
-            p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
             'texture',
             textureHandles,
+            p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
         );
-        pushAcquire(materialPaths, p => this.acquireTypedLease_<MaterialResult>('material', p),
-                    'material', materialHandles);
-        pushAcquire(fontPaths, p => this.acquireTypedLease_<FontResult>('font', p), 'font', fontHandles);
-        pushAcquire(meshPaths, p => this.acquireTypedLease_<{ handle: number }>('mesh', p),
-                    'mesh', meshHandles);
-        pushAcquire(environmentPaths, p => this.acquireTypedLease_<{ handle: number }>('environment', p),
-                    'environment', environmentHandles);
-        pushAcquire(probeVolumePaths, p => this.acquireTypedLease_<{ handle: number }>('probeVolume', p),
-                    'probeVolume', probeVolumeHandles);
+        pushAcquire(materialPaths, 'material', materialHandles);
+        pushAcquire(fontPaths, 'font', fontHandles);
+        pushAcquire(meshPaths, 'mesh', meshHandles);
+        pushAcquire(environmentPaths, 'environment', environmentHandles);
+        pushAcquire(probeVolumePaths, 'probeVolume', probeVolumeHandles);
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
         // the scene's exactly as every other one is. The runtime scene loader
         // opts out: its second phase binds to entities that do not exist yet.
         if (!options?.skipSpine) {
             for (const pair of spinePairs) {
                 tasks.push(() =>
-                    this.acquireSpineLease_(pair.skeleton, pair.atlas).then((lease) => {
+                    this.acquireSpineLease_(pair.skeleton, pair.atlas, recorder?.owner).then((lease) => {
                         if (recorder) recorder.own(spinePairKey(pair.skeleton, pair.atlas), lease, 'spine');
                         else scope.add(lease);
                         acquisitions.push({ type: 'spine', path: spinePairKey(pair.skeleton, pair.atlas), lease });
@@ -1818,21 +1802,21 @@ export class Assets {
                 );
             }
         }
-        pushAcquire(animClipPaths, p => this.acquireTypedLease_('anim-clip', p), 'anim-clip');
-        pushAcquire(tilemapPaths, p => this.acquireTypedLease_('tilemap', p), 'tilemap');
-        pushAcquire(tilesetPaths, p => this.acquireTypedLease_('tileset', p), 'tileset');
-        pushAcquire(timelinePaths, p => this.acquireTypedLease_('timeline', p), 'timeline');
-        pushAcquire(audioPaths, p => this.acquireTypedLease_('audio', p), 'audio');
-        pushAcquire(soundEventPaths, p => this.acquireTypedLease_('sound-event', p), 'sound-event');
+        pushAcquire(animClipPaths, 'anim-clip');
+        pushAcquire(tilemapPaths, 'tilemap');
+        pushAcquire(tilesetPaths, 'tileset');
+        pushAcquire(timelinePaths, 'timeline');
+        pushAcquire(audioPaths, 'audio');
+        pushAcquire(soundEventPaths, 'sound-event');
         // FSM/BT loaders register the parsed definition into the shared AI store
         // under the asset path, so a StateMachineAgent/BehaviorTreeAgent whose
         // fsm/bt is that path resolves once the scene finishes preloading.
-        pushAcquire(fsmPaths, p => this.acquireTypedLease_('statemachine', p), 'statemachine');
-        pushAcquire(btPaths, p => this.acquireTypedLease_('behaviortree', p), 'behaviortree');
-        pushAcquire(graphPaths, p => this.acquireTypedLease_('scriptgraph', p), 'scriptgraph');
-        pushAcquire(animatorPaths, p => this.acquireTypedLease_('animatorcontroller', p), 'animatorcontroller');
-        pushAcquire(avatarPaths, p => this.acquireTypedLease_('avatar', p), 'avatar');
-        pushAcquire(prefabPaths, p => this.acquireTypedLease_('prefab', p), 'prefab');
+        pushAcquire(fsmPaths, 'statemachine');
+        pushAcquire(btPaths, 'behaviortree');
+        pushAcquire(graphPaths, 'scriptgraph');
+        pushAcquire(animatorPaths, 'animatorcontroller');
+        pushAcquire(avatarPaths, 'avatar');
+        pushAcquire(prefabPaths, 'prefab');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -1995,24 +1979,16 @@ export class Assets {
         catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireTypedLease_<T>(type: string, ref: string, owner?: RegistrySlotOwner): Promise<AssetLease<T>> {
+    private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T>> {
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
         const slot = await this.acquireSlot_<T>(type, ref, owner);
         try { this.assertLoading_(epoch); }
         catch (error) { slot?.release(); throw error; }
-        if (slot) return slot;
-        const { value, lease } = await this.acquireTyped_<T>(type, ref);
-        return this.typedLease_(type, lease, value);
+        return slot ?? this.acquireHandle_<T>(type, ref, owner);
     }
 
-    /**
-     * A claim on the slot for a registry-backed asset, or null when this type is
-     * not one. The ref the caller spelled is an ALIAS of the slot: a component
-     * carries that spelling and looks the asset up by it, while the load path is
-     * whatever this realm resolved it to.
-     */
-    private async acquireSlot_<T>(type: string, ref: string, owner?: RegistrySlotOwner): Promise<AssetLease<T> | null> {
+    private async acquireSlot_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T> | null> {
         const kind = this.registryKind_<T>(type);
         if (!kind) return null;
         // Keyed by identity, never by the locator: a content-addressed url is
@@ -2060,13 +2036,13 @@ export class Assets {
 
     /** {@link textureLease_} for everything that goes through a typed loader. */
     private typedLease_<T>(
-        type: string, lease: AssetRefLease<PreparedLoad<unknown>>, value: T,
+        type: string, lease: AssetRefLease<PreparedLoad<unknown>>, value: T, unclaim?: () => void,
     ): BindingLease<T> {
         return {
             [leaseBinding]: type,
             key: lease.key, generation: lease.generation, value,
             failedDependencies: lease.value.failedDependencies,
-            release: () => this.releaseTypedLease(type, lease),
+            release: () => { unclaim?.(); this.releaseTypedLease(type, lease); },
             retain: () => {
                 const child = this.genericRefs_.retain(lease);
                 return child ? this.typedLease_(type, child, value) : null;
@@ -2211,8 +2187,8 @@ export class Assets {
      *  preparation acquired goes back — in that order, since the value is what
      *  is still using it. */
     private retire_(type: string, era: PreparedLoad<unknown>): void {
-        if (this.retired_.has(era)) return;
-        this.retired_.add(era);
+        if (era.generation === null) return;
+        era.generation = null;
         const handle = (era.value as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number') this.handleToPath_.delete(`${type}:${handle}`);
         disposeAll([
@@ -2581,7 +2557,7 @@ export class Assets {
                 () => {
                     const handles = new Set<number>();
                     for (const load of this.textureCache_.values()) {
-                        load.receipt = null;
+                        load.generation = null;
                         handles.add(load.value.handle);
                     }
                     this.textureCache_.clearAll();
@@ -2800,16 +2776,16 @@ export class Assets {
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
         try {
-            const { value } = this.registryKind_(type)
+            const lease = this.getLoader<T>(type)?.registry
                 ? await this.acquireTypedLease_<T>(type, ref)
-                : await this.acquireTyped_<T>(type, ref);
-            return value;
+                : await this.acquireHandle_<T>(type, ref);
+            return lease.value;
         } catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireTyped_<T>(
-        type: string, ref: string,
-    ): Promise<{ value: T; lease: AssetRefLease<PreparedLoad<unknown>> }> {
+    private async acquireHandle_<T>(
+        type: string, ref: string, owner?: AssetDependencyOwner,
+    ): Promise<AssetLease<T>> {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         if (!loader) {
             throw new Error(`No loader registered for type: ${type}`);
@@ -2819,7 +2795,7 @@ export class Assets {
         }
         const load = loader.load.bind(loader);
         const path = this.resolveLoadPath_(ref);
-        return this.acquirePrepared_<T>(type, path, ref, (ctx) => load(path, ctx));
+        return this.acquirePrepared_<T>(type, path, ref, (ctx) => load(path, ctx), owner);
     }
 
     /**
@@ -2829,36 +2805,41 @@ export class Assets {
      * algorithm, differing only in what it calls one asset.
      */
     private async acquirePrepared_<T>(
-        type: string, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>,
-    ): Promise<{ value: T; lease: AssetRefLease<PreparedLoad<unknown>> }> {
+        type: string, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>, parent?: AssetDependencyOwner,
+    ): Promise<AssetLease<T>> {
         this.assertLoading_();
         const epoch = this.resetEpoch_;
-        const era = await this.genericCacheFor_(type).getOrLoad(key, () =>
-            this.prepared_(async (ctx) => ({ value: await prepare(ctx) as unknown })),
+        const { ready, unclaim } = this.genericCacheFor_(type).acquire(key, parent, owner =>
+            this.prepared_(async ctx => ({ value: await prepare(ctx), owner }), owner),
         );
-        // BEFORE acquiring, as with textures: a realm that let go while this
-        // loaded has drained the ledger this row would go in, so nothing would
-        // ever unload it.
-        if (epoch !== this.resetEpoch_) {
-            this.retire_(type, era);
-            throw new Error(
-                `Assets were released while "${ref}" was loading; it has no owner. Load it again.`,
-            );
+        try {
+            const era = await ready;
+            if (epoch !== this.resetEpoch_) {
+                this.retire_(type, era);
+                throw new Error(`Assets were released while "${ref}" was loading; it has no owner. Load it again.`);
+            }
+            const lease = this.genericRefs_.acquireLoad(`${type}:${key}`, era, era);
+            if (!lease) {
+                unclaim?.();
+                return this.acquirePrepared_(type, key, ref, prepare, parent);
+            }
+            const result = era.value as T;
+            const handle = (result as { handle?: unknown } | null)?.handle;
+            if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, key);
+            return this.typedLease_(type, lease, result, unclaim);
+        } catch (error) {
+            unclaim?.();
+            throw error;
         }
-        const lease = this.genericRefs_.acquire(`${type}:${key}`, era);
-        const result = era.value as T;
-        const handle = (result as { handle?: unknown } | null)?.handle;
-        if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, key);
-        return { value: result, lease };
     }
 
     /** The cache of current eras for one handle-bound type. A load that lands
      *  after its own deadline was never handed to anyone, so this is the last
      *  place that knows it and what it acquired. */
-    private genericCacheFor_(type: string): AsyncCache<PreparedLoad<unknown>> {
+    private genericCacheFor_(type: string): PreparedAssetCache {
         let cache = this.genericCache_.get(type);
         if (!cache) {
-            cache = new AsyncCache<PreparedLoad<unknown>>((era) => this.retire_(type, era));
+            cache = new PreparedAssetCache(type, era => this.retire_(type, era));
             this.genericCache_.set(type, cache);
         }
         return cache;
@@ -3014,11 +2995,6 @@ export class Assets {
         };
     }
 
-    /** A generation-bound recipe through the ordinary typed-asset door. */
-    private preparePrefabLease_(ref: string): Promise<AssetLease<PreparedPrefab>> {
-        return this.acquireTypedLease_<PreparedPrefab>('prepared-prefab', ref);
-    }
-
     private bakePrefab_(path: string, ctx: LoadContext & { recorder: DependencyRecorder },
                         overrides: readonly PrefabOverride[] = []): Promise<PreparedPrefab> {
         return preparePrefabFromSource({
@@ -3038,13 +3014,13 @@ export class Assets {
      * it does not exist.
      */
     private async prepared_<T extends object>(
-        work: (ctx: LoadContext) => Promise<T>, owner?: RegistrySlotOwner,
+        work: (ctx: LoadContext) => Promise<T>, owner?: AssetDependencyOwner,
     ): Promise<T & Preparation> {
         this.assertLoading_();
-        const recorder = new DependencyRecorder();
+        const recorder = new DependencyRecorder(owner);
         this.preparations_.add(recorder);
         try {
-            return recorder.commit(await work(this.recordingContext_(recorder, owner)));
+            return recorder.commit(await work(this.recordingContext_(recorder)));
         } catch (e) {
             throw recorder.abort(e);
         } finally { this.preparations_.delete(recorder); }
@@ -3052,7 +3028,7 @@ export class Assets {
 
     /** The load context one preparation sees: every door that takes something
      *  reports it, and the plain readers stay plain. */
-    private recordingContext_(recorder: DependencyRecorder, owner?: RegistrySlotOwner): LoadContext & { recorder: DependencyRecorder } {
+    private recordingContext_(recorder: DependencyRecorder): LoadContext & { recorder: DependencyRecorder } {
         const base = this.getLoadContext_();
         const epoch = this.resetEpoch_;
         const attempt = async <T>(ref: string, work: () => Promise<T>): Promise<T> => {
@@ -3071,6 +3047,8 @@ export class Assets {
             this.assertLoading_(epoch);
             return lease;
         };
+        const acquireAsset = <T>(type: string, ref: string) =>
+            take(ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner), type);
         return {
             ...base,
             recorder,
@@ -3080,9 +3058,9 @@ export class Assets {
             decodePixels: path => read(path, () => base.decodePixels!(path)),
             acquireTexture: async (path, flipY) =>
                 take(path, () => base.acquireTexture(path, flipY), 'texture'),
-            acquireAsset: async (type, ref) => take(ref, () => this.acquireTypedLease_(type, ref, owner), type),
+            acquireAsset,
             resolveRef: ref => this.resolveRef(ref),
-            preparePrefab: async (ref) => take(ref, () => this.preparePrefabLease_(ref), 'prepared-prefab'),
+            preparePrefab: ref => acquireAsset<PreparedPrefab>('prepared-prefab', ref),
             createOwnedTexture: async (width, height, pixels, flipY) => {
                 this.assertLoading_(epoch);
                 const lease = await base.createOwnedTexture!(width, height, pixels, flipY);

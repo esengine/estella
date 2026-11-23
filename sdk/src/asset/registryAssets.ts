@@ -23,7 +23,7 @@
  *          today that is only prevented by the file extensions differing.
  */
 import { leaseBinding, type BindingLease } from './leaseBindings';
-import type { AssetWithReceipts, DependencyReceipt, Preparation } from './dependencies';
+import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 
 const noNames: readonly string[] = Object.freeze([]);
@@ -44,7 +44,7 @@ export type PreparedEra<T> = RegistryEra<T> & Preparation;
 /** How one kind of registry-backed asset is prepared. Publishing is the slot's:
  *  it holds the era and answers the lookup, so there is nowhere else to write. */
 export interface RegistryAssetKind<T> {
-    prepare(path: string, owner: RegistrySlotOwner): Promise<PreparedEra<T>>;
+    prepare(path: string, owner: AssetDependencyOwner): Promise<PreparedEra<T>>;
 }
 
 /** A holder's claim on a slot. Its `generation` names the SLOT, not an era —
@@ -54,7 +54,7 @@ export interface RegistrySlotLease<T> extends BindingLease<T> {
     readonly names: readonly string[];
 }
 
-class Slot<T> {
+class Slot<T> extends AssetDependencyOwner {
     /** What a lookup asks for. Distinct from `key`, which is what an OWNER
      *  holds: a registry answers to a ref, not to an ownership identity. */
     readonly names: string[] = [];
@@ -67,45 +67,10 @@ class Slot<T> {
     /** Which refresh is the current one. A preparation that started before the
      *  count moved is answering a question nobody is asking any more. */
     refresh = 0;
-    private claims_?: Set<{ target: Slot<unknown> }>;
-
-    constructor(readonly type: string, readonly key: string, readonly id: number) {}
+    constructor(type: string, key: string, readonly id: number) { super(type, key); }
 
     get published(): unknown { return this.era?.published; }
-
-    /** Each pending acquisition becomes one receipt, including when two eras acquire the same target. */
-    claim(target: Slot<unknown>): () => void {
-        if (target.reaches_(this)) {
-            throw new Error(`Circular asset dependency: ${this.type} "${this.key}" cannot acquire ${target.type} "${target.key}".`);
-        }
-        const claims = this.claims_ ??= new Set();
-        const claim = { target };
-        claims.add(claim);
-        return () => { claims.delete(claim); };
-    }
-
-    private reaches_(target: Slot<unknown>): boolean {
-        if (this === target) return true;
-        if (!this.claims_?.size) return false;
-        const pending: Slot<unknown>[] = [this];
-        const seen = new Set<Slot<unknown>>([this]);
-        while (pending.length) {
-            const claims = pending.pop()!.claims_;
-            if (!claims) continue;
-            for (const { target: child } of claims) {
-                if (child === target) return true;
-                if (!seen.has(child)) {
-                    seen.add(child);
-                    pending.push(child);
-                }
-            }
-        }
-        return false;
-    }
 }
-
-/** A preparation can acquire other slots on behalf of this slot. */
-export type RegistrySlotOwner = Pick<Slot<unknown>, 'claim'>;
 
 /**
  * Every registry-backed asset this Assets has published, by every name that
@@ -138,7 +103,7 @@ export class RegistryAssetSlots {
      * than to a copy of the object.
      */
     async acquire<T>(
-        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[], owner?: RegistrySlotOwner,
+        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[], owner?: AssetDependencyOwner,
     ): Promise<RegistrySlotLease<T>> {
         const slot = this.slotFor_(type, key) as Slot<T>;
         const unclaim = owner?.claim(slot);

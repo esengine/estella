@@ -26,12 +26,12 @@
  *          parent's semantic value. Reading a log setting or an editor
  *          preference during a load is not a dependency.
  *
- *          Cycles are not refused here. `A imports B` while `B`'s metadata names
- *          `A` is a real shape; what has to be acyclic is a BUILD PLAN, which is
- *          this graph's condensation and not this graph.
+ *          Source reads can form cycles. Rebuilds group those readers together.
+ *          Owned acquisitions check the concrete slots and generations before waiting.
  */
 import type { AssetLease } from './AssetLease';
 import { AssetScope } from './AssetLease';
+import type { LoadGeneration } from './AssetRefLedger';
 import { log } from '../util/logger';
 
 export type DependencyKind = 'owned' | 'source';
@@ -50,6 +50,43 @@ export interface DependencyReceipt {
 export interface AssetIdentity {
     readonly type: string;
     readonly path: string;
+}
+
+/** One ownership identity: a registry slot, or one generation of a handle-bound asset. */
+export class AssetDependencyOwner {
+    private claims_?: Set<{ target: AssetDependencyOwner }>;
+
+    constructor(readonly type: string, readonly key: string) {}
+
+    /** Each pending acquisition becomes one receipt, including overlapping preparations. */
+    claim(target: AssetDependencyOwner): () => void {
+        if (target.reaches_(this)) {
+            throw new Error(`Circular asset dependency: ${this.type} "${this.key}" cannot acquire ${target.type} "${target.key}".`);
+        }
+        const claims = this.claims_ ??= new Set();
+        const claim = { target };
+        claims.add(claim);
+        return () => { claims.delete(claim); };
+    }
+
+    private reaches_(target: AssetDependencyOwner): boolean {
+        if (this === target) return true;
+        if (!this.claims_?.size) return false;
+        const pending: AssetDependencyOwner[] = [this];
+        const seen = new Set<AssetDependencyOwner>([this]);
+        while (pending.length) {
+            const claims = pending.pop()!.claims_;
+            if (!claims) continue;
+            for (const { target: child } of claims) {
+                if (child === target) return true;
+                if (!seen.has(child)) {
+                    seen.add(child);
+                    pending.push(child);
+                }
+            }
+        }
+        return false;
+    }
 }
 
 /**
@@ -192,7 +229,7 @@ export function rebuildPlan(
  * sealing an era gets, for the asset kind whose current value lives in a cache
  * rather than under a slot's name.
  */
-export type PreparedLoad<T> = Preparation & { readonly value: T };
+export type PreparedLoad<T> = Preparation & LoadGeneration & { readonly value: T; readonly owner: AssetDependencyOwner };
 
 /** Internal rejection transport. Its sources belong to this preparation, not
  * to an Error object that several concurrent loaders may reuse. Public doors
@@ -223,6 +260,8 @@ export class DependencyRecorder {
     private readonly acquired_ = new AssetScope();
     private readonly failed_ = new Set<string>();
     private state_: 'open' | 'committed' | 'rolled-back' = 'open';
+
+    constructor(readonly owner?: AssetDependencyOwner) {}
 
     /** A runtime resource this preparation now holds. */
     own<T>(path: string, lease: AssetLease<T>, type?: string): AssetLease<T> {

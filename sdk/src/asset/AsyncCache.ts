@@ -50,10 +50,8 @@ export class AsyncCache<T> {
         }
         this.failed_.delete(key);
 
-        const existing = this.pending_.get(key);
-        if (existing && !existing.aborted) {
-            return existing.promise;
-        }
+        const existing = this.pendingRequest(key);
+        if (existing) return existing;
 
         // Loader setup can synchronously request or invalidate this key.
         let resolvePending!: (work: Promise<T>) => void;
@@ -62,6 +60,12 @@ export class AsyncCache<T> {
         this.pending_.set(key, entry);
         resolvePending(this.load_(key, loader, timeout, entry));
         return promise;
+    }
+
+    /** The request another caller can join, including during synchronous loader setup. */
+    protected pendingRequest(key: string): Promise<T> | undefined {
+        const entry = this.pending_.get(key);
+        return entry && !entry.aborted ? entry.promise : undefined;
     }
 
     private async load_(key: string, loader: () => Promise<T>, timeout: number, entry: PendingEntry<T>): Promise<T> {

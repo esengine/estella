@@ -27,11 +27,11 @@ function seedTexture(assets: Assets, path: string, handle: number, flip = false)
     const internal = assets as unknown as {
         textureCache_: { set(key: string, load: unknown): void };
         textureCacheKey_: (path: string, flip: boolean) => string;
-        textureRefs_: { acquire(key: string, handle: number): unknown };
+        textureRefs_: { acquire(key: string, handle: number): { generation: number } };
     };
     const key = internal.textureCacheKey_(path, flip);
-    const receipt = internal.textureRefs_.acquire(key, handle);
-    internal.textureCache_.set(key, { value: { handle, width: 1, height: 1 }, receipt });
+    const { generation } = internal.textureRefs_.acquire(key, handle);
+    internal.textureCache_.set(key, { value: { handle, width: 1, height: 1 }, generation });
 }
 
 describe('Assets.onInvalidate', () => {

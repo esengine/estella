@@ -5,6 +5,7 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import { seedEngineComponents, defineComponent } from '../src/ecs/component';
 import { ScriptGraphAssetLoader } from '../src/asset/loaders/ScriptGraphAssetLoader';
+import { RuntimeConfig } from '../src/defaults';
 import type { CompiledScriptGraph } from '../src/logic/ScriptGraphRunner';
 import type { Backend } from '../src/asset/Backend';
 import type { PrefabData } from '../src/prefab';
@@ -26,7 +27,7 @@ function realm(root: PrefabData = leaf('before')) {
     const assets = Assets.create({ catalog: Catalog.empty(), module: null as never, backend: {
         resolveUrl: (p: string) => p,
         fetchText: async (p: string) => {
-            if (p.endsWith('.esgraph')) return JSON.stringify({ version: '1.0', name: p,
+            if (p.endsWith('.esgraph') && !docs.has(p)) return JSON.stringify({ version: '1.0', name: p,
                 nodes: [{ id: 'spawn', kind: 'entity.spawn', literals: { prefab: REF } }], edges: [] });
             const text = docs.get(p); if (!text) throw new Error(`Missing ${p}`); return text;
         }, fetchBinary: async () => new ArrayBuffer(0),
@@ -37,6 +38,45 @@ function realm(root: PrefabData = leaf('before')) {
 }
 
 describe('prepared prefab ownership through the real Assets and graph loaders', () => {
+    it('prepares the rest of a prefab when its agent points back to the spawning graph', async () => {
+        const root = leaf('recursive spawn');
+        root.entities[0].components.push({ type: 'ScriptGraphAgent', data: { graph: 'a.esgraph' } });
+        const { assets, docs, graph } = realm(root);
+        vi.useFakeTimers();
+        try {
+            const loading = assets.acquireTyped('scriptgraph', 'a.esgraph');
+            await vi.advanceTimersByTimeAsync(RuntimeConfig.assetLoadTimeout + 1);
+            const lease = await loading;
+            expect(graph('a.esgraph').prefabs.get(REF)?.missing).toEqual(['a.esgraph']);
+            expect(lease.failedDependencies).toContain('a.esgraph');
+            docs.set(REF, JSON.stringify(leaf('repaired')));
+            assets.invalidate(REF);
+            await assets.assetGraphSettled();
+            expect(graph('a.esgraph').prefabs.get(REF)?.missing).toEqual([]);
+            expect(lease.failedDependencies).toEqual([]);
+            lease.release();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0, genericCached: 0, pendingLoads: 0 });
+        } finally { assets.releaseAll(); vi.useRealTimers(); }
+    });
+
+    it('keeps a published graph when a refresh would make it hold its own live recipe', async () => {
+        const root = leaf('live agent');
+        root.entities[0].components.push({ type: 'ScriptGraphAgent', data: { graph: 'a.esgraph' } });
+        const { assets, docs, graph } = realm(root);
+        docs.set('a.esgraph', JSON.stringify({ version: '1.0', nodes: [], edges: [] }));
+        try {
+            const recipe = await assets.acquireTyped('prepared-prefab', REF);
+            const original = graph('a.esgraph');
+            expect(original).toBeDefined();
+            docs.delete('a.esgraph');
+            assets.invalidate('a.esgraph');
+            await assets.assetGraphSettled();
+            expect(graph('a.esgraph')).toBe(original);
+            recipe.release();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0, genericCached: 0 });
+        } finally { assets.releaseAll(); }
+    });
+
     it.each(['nested', 'base', 'deep-nested'] as const)('recovers an initially missing %s source without reloading its held graph', async (kind) => {
         const nested = (name: string, path: string) => {
             const root = leaf(name); root.entities[0].children = ['slot'];
