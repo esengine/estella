@@ -19,7 +19,7 @@ import {
   acquireWebGPUDevice, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle,
   AnimatorRootMotion, Playthrough, Name,
-  worldResidencyReport, WorldStreaming, PostProcess, Renderer, Audio, Camera,
+  worldResidencyReport, worldCellDocumentPath, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
   startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats, TextureStreamingRes,
 } from 'esengine';
@@ -348,9 +348,9 @@ async function boot(): Promise<void> {
      * claim about the two derivations agreeing, not about this call succeeding.
      */
     const prepareMeshPrograms = async (cell: string): Promise<Record<string, number>> => {
-      const found = app.getResource(WorldStreaming).manifest?.cells.find(c => c.name === cell);
-      if (!found) throw new Error(`[estella] no cooked cell "${cell}"`);
-      const doc = (await (await fetch(`./${found.path}`)).json()) as SceneData;
+      const path = worldCellDocumentPath(app, cell);
+      if (path === undefined) throw new Error(`[estella] no cooked cell "${cell}"`);
+      const doc = (await (await fetch(`./${path}`)).json()) as SceneData;
       const assets = app.getResource(Assets);
       // The same channel preparation loads through, so the handles are the ones
       // it already acquired rather than a second decode.

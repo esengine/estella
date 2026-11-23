@@ -16,11 +16,17 @@
 
 import type { App } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
-import { WorldStreaming, type CellDelivery } from './WorldStreamer';
+import { WorldStreaming, worldResidencyView, type CellDelivery } from './WorldStreamer';
 import type { RenderReadinessStamp } from '../render/renderReadiness';
 import { stableEntityId } from './identity';
 import { manifestPlane } from './cells';
 import { renderableComponents } from '../ecs/component';
+
+/** Package-relative document for a cell of the active world. @experimental */
+export function worldCellDocumentPath(app: App, name: string): string | undefined {
+    const manifest = worldResidencyView(app)?.manifest;
+    return manifest?.cells.find(cell => cell.name === name)?.path;
+}
 
 /** @experimental */
 export interface WorldResidencyReport {

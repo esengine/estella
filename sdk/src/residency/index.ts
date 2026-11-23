@@ -19,7 +19,7 @@ export {
     type StreamingPolicy, type SlowStreamingPolicy,
 } from './WorldStreamer';
 export { worldResidencyPlugin, worldResidencySystem } from './residencyPlugin';
-export { worldResidencyReport, type WorldResidencyReport } from './report';
+export { worldCellDocumentPath, worldResidencyReport, type WorldResidencyReport } from './report';
 export { persistentEntityRows, stableEntityId } from './identity';
 export {
     partitionWorld,

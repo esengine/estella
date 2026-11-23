@@ -16,6 +16,7 @@ import { initNativeGame } from '../src/runtime/nativeGameRuntime';
 import { loadPackagedScenes, type PackagedGameConfig } from '../src/runtime/packagedRuntime';
 import { SceneManager } from '../src/scene/sceneManager';
 import { WorldStreaming } from '../src/residency/WorldStreamer';
+import { worldCellDocumentPath } from '../src/residency/report';
 import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
 import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
@@ -101,7 +102,11 @@ describe('packaged scene files', () => {
             ['game.config.json', config], ['asset-manifest.json', { version: '2.0', groups: {} }],
         ]);
         for (const scene of scenes) files.set(scene.path, { version: 4, name: scene.name, entities: [] });
-        const manifest = (scene: string) => ({ version: 1, scene, cells: [], persistentRefs: [], cellSize: 100 });
+        const manifest = (scene: string) => ({
+            version: 1, scene, persistentRefs: [], cellSize: 100,
+            cells: [{ name: 'shared', path: `${scene}/shared.json`, x: 0, z: 0,
+                minX: 0, minZ: 0, maxX: 100, maxZ: 100, entityCount: 0 }],
+        });
         files.set(worlds[0]!.manifest, manifest('levels/a'));
         files.set(worlds[1]!.manifest, manifest('wrong'));
         const bridge = makeBridge({});
@@ -119,8 +124,10 @@ describe('packaged scene files', () => {
             expect(read.mock.calls.flat()).not.toContain(worlds[0]!.manifest);
             await manager.loadAdditive('levels/a');
             expect(streamer.manifest).toBeNull();
+            expect(worldCellDocumentPath(app, 'shared')).toBeUndefined();
             await manager.load('levels/a');
             expect(streamer.manifest?.scene).toBe('levels/a');
+            expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
             expect(read.mock.calls.flat()).not.toContain(worlds[1]!.manifest);
             await expect(manager.load('levels/b')).rejects.toThrow(/Invalid world manifest/);
             expect(manager.getActive()).toBe('levels/a');
@@ -128,6 +135,8 @@ describe('packaged scene files', () => {
             files.set(worlds[1]!.manifest, manifest('levels/b'));
             await manager.switchTo('levels/b');
             expect(streamer.manifest?.scene).toBe('levels/b');
+            expect(worldCellDocumentPath(app, 'shared')).toBe('levels/b/shared.json');
+            expect(worldCellDocumentPath(app, 'absent')).toBeUndefined();
             await manager.loadAdditive('levels/a');
             expect(streamer.sourceSceneAllowed?.('levels/a')).toBe(false);
             expect(streamer.sourceSceneAllowed?.('levels/b')).toBe(true);
@@ -136,6 +145,7 @@ describe('packaged scene files', () => {
             expect(read.mock.calls.flat().filter(path => path === worlds[1]!.manifest)).toHaveLength(2);
             await manager.switchTo('menu');
             expect(streamer.manifest).toBeNull();
+            expect(worldCellDocumentPath(app, 'shared')).toBeUndefined();
 
             const index = { resolvePath: (path: string) => path };
             const selected = await loadPackagedScenes(config, index, '__play', 'levels/a');

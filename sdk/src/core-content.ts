@@ -356,6 +356,7 @@ export {
     planeSecond,
     worldResidencyPlugin,
     worldResidencySystem,
+    worldCellDocumentPath,
     worldResidencyReport,
     persistentEntityRows,
     stableEntityId,
