@@ -19,6 +19,7 @@ import type {
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
+import { assetPairKey } from './assetPairKey';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
@@ -483,10 +484,8 @@ export class Assets {
     private readonly appScope_ = new AssetScope();
     private readonly entityScopes_ = new EntityAssetScopes();
     private readonly registrySlots_ = new RegistryAssetSlots();
-    /** `"<kind>:<handle>"` → resolved load path, recorded on every handle-yielding
-     *  load. The REVERSE of resolution — inspectors and tooling that only hold a
-     *  live World handle use it to name the asset (see {@link pathForHandle}). */
-    private handleToPath_ = new Map<string, string>();
+    /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
+    private readonly handlePaths_ = new Map<string, Map<number, string>>();
     /** Textures a mesh draws, by resolved path, directly or through a material: what texture streaming may load small to begin with. */
     private readonly meshTextures_ = new Set<string>();
     /** Materials a mesh draws with, by resolved path: their textures join {@link meshTextures_} as the material loads them. */
@@ -911,7 +910,7 @@ export class Assets {
      * slot is wearing (a raw handle number names nothing to a human).
      */
     pathForHandle(kind: string, handle: number): string | null {
-        return this.handleToPath_.get(`${kind}:${handle}`) ?? null;
+        return this.handlePaths_.get(kind)?.get(handle) ?? null;
     }
 
     /**
@@ -922,10 +921,8 @@ export class Assets {
     pathForRenderedTexture(renderId: number): string | null {
         const rm = getResourceManager();
         if (!rm || renderId === 0) return null;
-        for (const [key, path] of this.handleToPath_) {
-            if (key.startsWith('texture:') && rm.getTextureGLId(Number(key.slice('texture:'.length))) === renderId) {
-                return path;
-            }
+        for (const [handle, path] of this.handlePaths_.get('texture') ?? []) {
+            if (rm.getTextureGLId(handle) === renderId) return path;
         }
         return null;
     }
@@ -933,7 +930,12 @@ export class Assets {
     /** Record a handle→path pair, dropped on invalidation or final release. */
     private recordHandlePath_(kind: string, handle: number, path: string, loader?: AssetLoader<unknown>): void {
         if (!handle) return;
-        this.handleToPath_.set(`${kind}:${handle}`, path);
+        let paths = this.handlePaths_.get(kind);
+        if (!paths) {
+            paths = new Map();
+            this.handlePaths_.set(kind, paths);
+        }
+        paths.set(handle, path);
         if (loader instanceof MeshAssetLoader) this.rememberMeshOwner_(handle, loader);
     }
 
@@ -2031,7 +2033,7 @@ export class Assets {
     private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T>> {
         if (type === 'texture' && this.loaders_.get(type) === this.textureLoader_) {
             const { result, lease, path } = await this.acquireTextureVariant_(ref, true);
-            const receipt: AssetLease = this.textureLease_(lease, result, `texture:${path}`);
+            const receipt: AssetLease = this.textureLease_(lease, result, assetPairKey('texture', path));
             return receipt as AssetLease<T>;
         }
         const epoch = this.resetEpoch_;
@@ -2135,7 +2137,7 @@ export class Assets {
     private disposeTexture_(key: string, handle: number): void {
         // The pool decides what that means — free immediately (no budget), or
         // retain as an evictable cache entry that the next load revives by key.
-        this.handleToPath_.delete(`texture:${handle}`);
+        this.handlePaths_.get('texture')?.delete(handle);
         // Only when it is still the cached value: a superseded handle left the
         // cache when its generation ended, and the entry there now belongs to a
         // generation with holders of its own.
@@ -2217,7 +2219,7 @@ export class Assets {
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
-        const key = `${type}:${path}`;
+        const key = assetPairKey(type, path);
         const dropped = this.genericRefs_.releaseOldest(key);
         if (!dropped) return;
         if (dropped.ambiguous) warnAmbiguousRelease_(key);
@@ -2231,8 +2233,7 @@ export class Assets {
     releaseTypedLease(type: string, lease: AssetRefLease<PreparedLoad<unknown>>): void {
         const dropped = this.genericRefs_.release(lease);
         if (!dropped?.exhausted) return;
-        const path = lease.key.slice(type.length + 1);
-        this.disposeGeneric_(type, path, dropped.value);
+        this.disposeGeneric_(type, dropped.value.owner.key, dropped.value);
     }
 
     /** The last reference to a typed asset is gone: hand it to its loader. */
@@ -2251,7 +2252,7 @@ export class Assets {
         const type = era.owner.type;
         const handle = (era.value as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number') {
-            this.handleToPath_.delete(`${type}:${handle}`);
+            this.handlePaths_.get(type)?.delete(handle);
             if (type === 'mesh') this.forgetMeshOwner_(handle);
         }
         disposeAll([
@@ -2409,7 +2410,7 @@ export class Assets {
                 if (cache.invalidate(path)) dropped = true;
             }
             // The ledger stays, for the same reason as a texture's.
-            this.genericRefs_.supersede(`${type}:${path}`);
+            this.genericRefs_.supersede(assetPairKey(type, path));
         }
 
         // A registry-backed asset has no cache entry to drop and no handle to
@@ -2423,8 +2424,11 @@ export class Assets {
 
         // The reverse handle→path records of this kind are stale now: a reload
         // mints new handles, and the old ones must stop naming the asset.
-        for (const [key, held] of this.handleToPath_) {
-            if (held === path && key.startsWith(`${type}:`)) this.handleToPath_.delete(key);
+        const handlePaths = this.handlePaths_.get(type);
+        if (handlePaths) {
+            for (const [handle, held] of handlePaths) {
+                if (held === path) handlePaths.delete(handle);
+            }
         }
 
         if (dropped) {
@@ -2546,6 +2550,8 @@ export class Assets {
         const tex = this.textureCache_.sizes();
         let genericCached = 0;
         let pending = tex.pending;
+        let handlePaths = 0;
+        for (const paths of this.handlePaths_.values()) handlePaths += paths.size;
         for (const cache of this.genericCache_.values()) {
             const s = cache.sizes();
             genericCached += s.cached;
@@ -2559,7 +2565,7 @@ export class Assets {
             refRows: this.textureRefs_.rows + this.genericRefs_.rows,
             genericCaches: this.genericCache_.size,
             genericCached,
-            handlePaths: this.handleToPath_.size,
+            handlePaths,
             invalidateListeners: this.invalidateListeners_.size,
             registrySlots: this.registrySlots_.size,
             trackedRefRows: this.refCounter_?.getTotalRefRows() ?? 0,
@@ -2638,7 +2644,7 @@ export class Assets {
             try { disposeAll([...this.builtMeshes_.keys()], handle => this.releaseBuiltMesh(handle)); }
             finally {
                 this.meshOwners_ = undefined;
-                this.handleToPath_.clear();
+                this.handlePaths_.clear();
                 this.releasing_ = false;
             }
         }
@@ -2878,7 +2884,7 @@ export class Assets {
                 this.retire_(era);
                 throw new Error(`Assets were released while "${ref}" was loading; it has no owner. Load it again.`);
             }
-            const lease = this.genericRefs_.acquireLoad(`${type}:${key}`, era, era);
+            const lease = this.genericRefs_.acquireLoad(assetPairKey(type, key), era, era);
             if (!lease) {
                 unclaim?.();
                 return this.acquirePrepared_(loader, key, ref, prepare, parent);

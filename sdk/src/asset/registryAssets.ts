@@ -26,6 +26,7 @@ import { leaseBinding, type BindingLease } from './leaseBindings';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 import { reserveLoad } from './AsyncCache';
+import { assetPairKey } from './assetPairKey';
 
 const noNames: readonly string[] = Object.freeze([]);
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
@@ -77,11 +78,6 @@ class Slot<T> extends AssetDependencyOwner {
  * Every registry-backed asset this Assets has published, by every name that
  * resolves to it.
  */
-/** One lookup identity. `\0` cannot occur in a path or a ref. */
-function lookupKey(type: string, name: string): string {
-    return `${type}\0${name}`;
-}
-
 export class RegistryAssetSlots {
     /** By (type, name) — see the note on lookup identity above. */
     private readonly byName_ = new Map<string, Slot<unknown>>();
@@ -121,7 +117,7 @@ export class RegistryAssetSlots {
                 pending.resolve(this.publishInitial_(kind, slot));
             }
             await slot.loading;
-            if (this.byName_.get(lookupKey(type, key)) !== slot) {
+            if (this.byName_.get(assetPairKey(type, key)) !== slot) {
                 throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);
             }
             return this.lease_(slot, unclaim);
@@ -138,7 +134,7 @@ export class RegistryAssetSlots {
 
     private async publishInitial_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): Promise<void> {
         const era = await kind.prepare(slot.key, slot);
-        if (this.byName_.get(lookupKey(slot.type, slot.key)) !== slot) {
+        if (this.byName_.get(assetPairKey(slot.type, slot.key)) !== slot) {
             era.dependencies.releaseAll();
             throw new Error(`"${slot.key}" was released while it was loading; it has no owner. Load it again.`);
         }
@@ -155,7 +151,7 @@ export class RegistryAssetSlots {
      * the answer to any live question.
      */
     async republish<T>(kind: RegistryAssetKind<T>, type: string, name: string): Promise<boolean> {
-        const key = lookupKey(type, name);
+        const key = assetPairKey(type, name);
         const slot = this.byName_.get(key) as Slot<T> | undefined;
         if (!slot?.era) return false;
         const ticket = ++slot.refresh;
@@ -180,13 +176,13 @@ export class RegistryAssetSlots {
 
     /** Whether this name is one a slot of this type answers to. */
     has(type: string, name: string): boolean {
-        return this.byName_.has(lookupKey(type, name));
+        return this.byName_.has(assetPairKey(type, name));
     }
 
     /** What the current era of (type, name) took — the graph, as a projection
      *  of acquisitions rather than a table anyone maintains. */
     dependenciesOf(type: string, name: string): readonly DependencyReceipt[] {
-        return this.byName_.get(lookupKey(type, name))?.era?.edges ?? [];
+        return this.byName_.get(assetPairKey(type, name))?.era?.edges ?? [];
     }
 
     /** Every live era, by the key its slot is filed under. What a reverse walk
@@ -209,7 +205,7 @@ export class RegistryAssetSlots {
 
     /** The same slot an engine-issued receipt identifies, including after a refresh. */
     slot(type: string, name: string): { readonly type: string; readonly published: unknown } | undefined {
-        return this.byName_.get(lookupKey(type, name));
+        return this.byName_.get(assetPairKey(type, name));
     }
 
     /** Everything published of one type. What a schedule analysis reads to learn
@@ -245,7 +241,7 @@ export class RegistryAssetSlots {
     /** Drop one claim on the slot `name` resolves to, without its receipt. The
      *  compatibility door for a caller that only ever had a path. */
     releaseByName(type: string, name: string): boolean {
-        const slot = this.byName_.get(lookupKey(type, name));
+        const slot = this.byName_.get(assetPairKey(type, name));
         if (!slot || slot.refs === 0) return false;
         this.drop_(slot);
         return true;
@@ -288,7 +284,7 @@ export class RegistryAssetSlots {
     }
 
     private slotFor_(type: string, key: string): Slot<unknown> {
-        const id = lookupKey(type, key);
+        const id = assetPairKey(type, key);
         let slot = this.byName_.get(id);
         if (!slot) {
             slot = new Slot<unknown>(type, key, this.nextId_++);
@@ -307,7 +303,7 @@ export class RegistryAssetSlots {
      * known" left the list — which is what gets published — empty.
      */
     private name_(slot: Slot<unknown>, name: string): void {
-        const key = lookupKey(slot.type, name);
+        const key = assetPairKey(slot.type, name);
         const previous = this.byName_.get(key);
         if (!slot.names.includes(name)) slot.names.push(name);
         if (previous === slot) return;

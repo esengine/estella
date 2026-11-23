@@ -94,6 +94,24 @@ describe('Assets.pathForHandle', () => {
     expect(assets.pathForHandle('material', 9)).toBeNull();
   });
 
+  it('keeps the handle of a namespaced type when a source invalidates its parent type', async () => {
+    const assets = createAssets();
+    assets.register({
+      type: 'paint', extensions: [],
+      load: async (_path, ctx) => { await ctx.readSource!('pigment.json'); return { handle: 42 }; },
+    });
+    assets.register({ type: 'paint:palette', extensions: [], load: async () => ({ handle: 42 }) });
+    const first = await assets.acquireTyped('paint', 'shared.asset');
+    const other = await assets.acquireTyped('paint:palette', 'shared.asset');
+    assets.invalidate('pigment.json');
+    await assets.assetGraphSettled();
+    expect(assets.pathForHandle('paint', 42)).toBeNull();
+    expect(assets.pathForHandle('paint:palette', 42)).toBe('shared.asset');
+    first.release();
+    other.release();
+    expect(assets.sizes().handlePaths).toBe(0);
+  });
+
   it('releaseAll clears every record', async () => {
     const assets = createAssets();
     assets.register({

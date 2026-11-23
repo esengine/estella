@@ -113,6 +113,39 @@ describe('asset ownership is generation-exact', () => {
         expect(unload.mock.calls).toEqual([['palette']]);
     });
 
+    it('releases the requested type when a different type and path have the same spelling', async () => {
+        const assets = makeAssets([]);
+        const retired: string[] = [];
+        for (const type of ['paint', 'paint:palette', 'paint%3Apalette']) {
+            assets.register({
+                type, extensions: [], load: async () => type,
+                unload: (value: string) => { retired.push(value); },
+            });
+        }
+        const [base, namespaced, percent] = await Promise.all([
+            assets.acquireTyped('paint', 'palette:sky'),
+            assets.acquireTyped('paint:palette', 'sky'),
+            assets.acquireTyped('paint%3Apalette', 'sky'),
+        ]);
+        assets.releaseTyped('paint:palette', 'sky');
+        expect(retired).toEqual(['paint:palette']);
+        expect(new Set([base.key, namespaced.key, percent.key]).size).toBe(3);
+        expect(base.key).toBe('paint:palette:sky');
+        expect(assets.sizes()).toMatchObject({ refCounts: 2, genericCached: 2 });
+        assets.invalidate('palette:sky');
+        const fresh = await assets.acquireTyped('paint', 'palette:sky');
+        expect(fresh.generation).not.toBe(base.generation);
+        const retained = base.retain();
+        expect(retained?.generation).toBe(base.generation);
+        retained!.release();
+        percent.release();
+        base.release();
+        namespaced.release();
+        fresh.release();
+        expect(retired).toEqual(['paint:palette', 'paint%3Apalette', 'paint', 'paint']);
+        expect(assets.sizes()).toMatchObject({ refRows: 0, genericCached: 0 });
+    });
+
     it('returns a late result to its original loader after teardown', async () => {
         const assets = makeAssets([]);
         const original = vi.fn(), replacement = vi.fn();

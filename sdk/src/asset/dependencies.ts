@@ -34,6 +34,7 @@ import { AssetScope } from './AssetLease';
 import type { AssetLoader } from './AssetLoader';
 import type { LoadGeneration } from './AssetRefLedger';
 import { log } from '../util/logger';
+import { assetPairKey } from './assetPairKey';
 
 export type DependencyKind = 'owned' | 'source';
 
@@ -183,7 +184,6 @@ export function rebuildPlan(
     const pending: Visit[] = [];
     const open: Visit[] = [];
     const groups: AssetIdentity[][] = [];
-    const keyOf = (id: AssetIdentity): string => `${id.type}\0${id.path}`;
     function enter(asset: AssetIdentity, key: string): void {
         const index = visited.size;
         const node: Visit = { asset, index, low: index, parents: parentsOf(asset), nextParent: 0, open: true };
@@ -202,14 +202,14 @@ export function rebuildPlan(
         groups.push(group);
     }
     function walk(root: AssetIdentity): void {
-        const key = keyOf(root);
+        const key = assetPairKey(root.type, root.path);
         if (visited.has(key)) return;
         enter(root, key);
         while (pending.length) {
             const node = pending[pending.length - 1];
             if (node.nextParent < node.parents.length) {
                 const parent = node.parents[node.nextParent++];
-                const parentKey = keyOf(parent);
+                const parentKey = assetPairKey(parent.type, parent.path);
                 const seen = visited.get(parentKey);
                 if (!seen) enter(parent, parentKey);
                 else if (seen.open) node.low = Math.min(node.low, seen.index);
