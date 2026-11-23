@@ -46,6 +46,24 @@ export function worldUnitsPerMeter(): number {
     return unitsPerMeter;
 }
 
+/** Standard gravity, metres a second squared: what a project that states none falls at (the 3D physics' default). */
+export const STANDARD_GRAVITY = 9.81;
+let gravity = STANDARD_GRAVITY;
+
+/**
+ * Set how hard the project's world pulls down, metres a second squared: the length of its 3D physics gravity. Set where the units are
+ * (the runtime from the project's config, the editor when a project opens), so what falls without a physics body (water's waves, a
+ * waterfall) falls as what has one does.
+ */
+export function setWorldGravity(metresPerSecondSquared: number): void {
+    gravity = Number.isFinite(metresPerSecondSquared) && metresPerSecondSquared > 0 ? metresPerSecondSquared : STANDARD_GRAVITY;
+}
+
+/** The project's gravity, metres a second squared. */
+export function worldGravity(): number {
+    return gravity;
+}
+
 /** What a reference-scale default is multiplied by: 1 in a centimetre project, 0.01 in a metre one. */
 export function worldUnitScale(): number {
     return unitsPerMeter / REFERENCE_UNITS_PER_METER;

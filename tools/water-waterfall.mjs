@@ -21,7 +21,7 @@ import { runTool } from './lib/runTool.mjs';
 import { readPNG } from './lib/png.mjs';
 
 const DIR = path.join(ROOT, 'fixtures', 'scenes', 'water-fall');
-const LIP = 2000, SPEED = 500, MAX_DROP = 2500, SIZE = 600, HALF = 1500, CY = 800, G = 980;
+const LIP = 2000, SPEED = 500, MAX_DROP = 2500, SIZE = 600, HALF = 1500, CY = 800, G = 981; // standard gravity: the scene's project states none
 /** Measured 99.6% and 98.2% of g t; the foot on its row. */
 const SPEED_TOL = 0.08, FOOT_TOL = 3;
 

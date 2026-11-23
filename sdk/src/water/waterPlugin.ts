@@ -43,7 +43,7 @@ import type { Entity } from '../types';
 import { breakingCrest, surfHeight, surfPhase, waveHeight, waveSlope, waterGravity, WAVE_SET_SIZE, type WaveParams } from './waves';
 import { oceanReach } from './waterMesh';
 import { waterTileLayout, waterCoverage, waterViewPlanes, selectWaterTiles, buildWaterTiles, buildWaterApron, waterMaterialMeshes, type TileLayout } from './waterTiles';
-import { worldUnitScale } from '../ecs/worldUnits';
+import { worldUnitScale, worldUnitsPerMeter } from '../ecs/worldUnits';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { installWaterfalls, Waterfall } from './waterfall';
 import { type Point2 } from './shore';
@@ -1284,6 +1284,7 @@ export class WaterPlugin implements Plugin {
         set('u_waveLength', waves.length);
         set('u_waveSpeed', waves.speed);
         set('u_waveGravity', waterGravity());
+        set('u_metre', worldUnitsPerMeter());
         set('u_waveDirection', waves.direction);
         set('u_oceanOn', ocean ? 1 : 0);
         set('u_oceanLevel', ocean ? ocean.level : 0);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { worldUnitsPerMeter, setWorldUnitsPerMeter } from '../src/ecs/worldUnits';
+import { worldUnitsPerMeter, setWorldUnitsPerMeter, worldGravity } from '../src/ecs/worldUnits';
 import { WAVE_SET, surfHeight, waveBend, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
 import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
 import { withWgslTwin } from '../src/shaders/wgsl/twin';
@@ -59,7 +59,7 @@ describe('the waves', () => {
         for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
             const k = 2 * Math.PI / (params.length * lengthShare);
             const a = (params.direction + heading) * Math.PI / 180;
-            const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(9.8 * worldUnitsPerMeter() * k) * params.speed * speedShare * t;
+            const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(worldGravity() * worldUnitsPerMeter() * k) * params.speed * speedShare * t;
             expected += params.height * heightShare * Math.exp(Math.sin(theta) - 1);
         }
         expect(waveHeight(params, 3.7, -2.2, t)).toBeCloseTo(expected, 10);

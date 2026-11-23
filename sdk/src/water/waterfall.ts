@@ -22,7 +22,7 @@ import type { App } from '../app/app';
 import type { Entity } from '../types';
 import { Children, defineComponent, MeshRenderer, Transform, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
 import { defineSystem, Schedule } from '../ecs/system';
-import { worldUnitsPerMeter } from '../ecs/worldUnits';
+import { worldGravity, worldUnitsPerMeter } from '../ecs/worldUnits';
 import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../asset/meshFormat';
@@ -97,7 +97,7 @@ export const WaterfallAnchor: ComponentDef<WaterfallAnchorData> = /* @__PURE__ *
 /** Where an anchor sits in the fall's own space (the throw along -z), on a fall that takes `seconds` to come down. */
 export function waterfallAnchorPoint(fall: WaterfallData, seconds: number, anchor: WaterfallAnchorData): [number, number, number] {
     const t = Math.max(0, Math.min(1, anchor.at)) * seconds;
-    return [0, anchor.lift - 0.5 * GRAVITY * worldUnitsPerMeter() * t * t, -fall.speed * t];
+    return [0, anchor.lift - 0.5 * worldGravity() * worldUnitsPerMeter() * t * t, -fall.speed * t];
 }
 
 /**
@@ -112,8 +112,6 @@ export interface WaterfallLanding {
 /** The lip in the world: where it is and the level direction the water leaves along (unit, on xz). */
 export interface WaterfallLip { x: number; y: number; z: number; dirX: number; dirZ: number }
 
-/** Gravity, in metres a second squared. */
-const GRAVITY = 9.8;
 /** How far a sheet has to have dropped, in metres, before what it meets ends it: at the lip it is still in the water it left. */
 const CLEAR = 0.5;
 /** The share of the middle sheet's width the others have. */
@@ -123,7 +121,7 @@ const BOW = 0.14;
 
 /** The seconds a sheet thrown from `lip`, `ahead` along the throw, falls before it lands, and the drop that is. */
 export function waterfallFlight(fall: WaterfallData, lip: WaterfallLip, landing: WaterfallLanding | null, ahead = 0): { seconds: number; drop: number } {
-    const g = GRAVITY * worldUnitsPerMeter();
+    const g = worldGravity() * worldUnitsPerMeter();
     const most = Math.sqrt((2 * Math.max(fall.maxDrop, 1e-3)) / g);
     const clear = CLEAR * worldUnitsPerMeter();
     const steps = 512;
@@ -147,7 +145,7 @@ export function waterfallFlight(fall: WaterfallData, lip: WaterfallLip, landing:
  */
 export function buildWaterfall(fall: WaterfallData, lip: WaterfallLip, landing: WaterfallLanding | null): MeshData | null {
     if (!(fall.width > 0) || !(fall.maxDrop > 0)) return null;
-    const g = GRAVITY * worldUnitsPerMeter();
+    const g = worldGravity() * worldUnitsPerMeter();
     const sheets = Math.max(1, Math.min(5, Math.floor(fall.sheets)));
     const rows = Math.max(2, Math.min(256, Math.floor(fall.rows)));
     const cells = Math.max(1, Math.min(32, Math.floor(fall.across)));

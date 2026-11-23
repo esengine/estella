@@ -5,7 +5,8 @@
  * @brief   A Waterfall's sheets: the path they take, what ends them, and what their vertices carry for the shader.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setWorldUnitsPerMeter } from '../src/ecs/worldUnits';
+import { setWorldUnitsPerMeter, setWorldGravity, worldGravity, worldUnitsPerMeter, STANDARD_GRAVITY } from '../src/ecs/worldUnits';
+import { waterGravity } from '../src/water/waves';
 import { MeshChannel, type MeshData } from '../src/asset/meshFormat';
 import { Waterfall, WaterfallAnchor, buildWaterfall, waterfallAnchorPoint, waterfallFlight, waterfallHeading, type WaterfallData, type WaterfallLip } from '../src/water/waterfall';
 import { WATERFALL_SHADER_TEMPLATE } from '../src/water/waterfallShader';
@@ -29,7 +30,18 @@ describe('a waterfall\'s flight', () => {
         const { seconds, drop } = waterfallFlight(fall(), lip, { heightAt: () => 20 });
         expect(drop).toBeGreaterThanOrEqual(80);
         expect(drop).toBeLessThan(83);
-        expect(seconds).toBeCloseTo(Math.sqrt((2 * drop) / 9.8), 5);
+        expect(seconds).toBeCloseTo(Math.sqrt((2 * drop) / worldGravity()), 5);
+    });
+
+    it('falls as the project\'s gravity pulls, the same one its physics and its waves take', () => {
+        try {
+            setWorldGravity(3.71);
+            const { seconds, drop } = waterfallFlight(fall(), lip, { heightAt: () => 20 });
+            expect(seconds).toBeCloseTo(Math.sqrt((2 * drop) / 3.71), 5);
+            expect(waterGravity()).toBeCloseTo(3.71 * worldUnitsPerMeter(), 9);
+        } finally {
+            setWorldGravity(STANDARD_GRAVITY);
+        }
     });
 
     it('ends in water of another body, and not in the water it left, which reaches past the lip', () => {

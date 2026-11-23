@@ -249,8 +249,8 @@ vec2 rippleSlope(vec2 p, float time, vec4 px) {
 vec2 rainRings(vec2 p, float time, float rain) {
     vec2 slope = vec2(0.0);
     if (rain <= 0.0) return slope;
-    // A raindrop's ring is the size it is in metres (u_waveGravity is g in this project's units): 0.875 m cells, a ring out to 0.4 m.
-    float cellSize = u_waveGravity / 9.8 * 0.875;
+    // A raindrop's ring is the size it is in metres (u_metre, the project's units a metre): 0.875 m cells, a ring out to 0.4 m.
+    float cellSize = u_metre * 0.875;
     const float K = 52.0;
     for (int layer = 0; layer < 2; layer++) {
         vec2 q = p / cellSize + float(layer) * vec2(0.37, 0.71);
@@ -379,8 +379,7 @@ vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool
         ripFoam = textureLod(u_rippleMap, ripUv, 0.0).g * ripFade;
     }
     // Rain rings are fine: where a pixel grows past a ring's crests they would shimmer, so they fade out before it.
-    float metre = u_waveGravity / 9.8;
-    float rainFade = 1.0 - smoothstep(20.0 * metre, 50.0 * metre, waterDist);
+    float rainFade = 1.0 - smoothstep(20.0 * u_metre, 50.0 * u_metre, waterDist);
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
         // A current: what lies on the surface rides it (the waves, the wind's ripples, the rain's rings, the detail). Two copies of it are
@@ -427,7 +426,9 @@ const WATER = `#pragma shader "Water"
 // The waves: height, length of the longest, how sharp their crests are drawn, how fast they travel and which way (degrees).
 #pragma param u_waveHeight float default(30) range(0,800) ui(slider) unit(length)
 #pragma param u_waveLength float default(1400) range(50,30000) ui(slider) unit(length)
-#pragma param u_waveGravity float default(980) unit(length)
+#pragma param u_waveGravity float default(981) unit(length)
+// The project's world units a metre: what is a raindrop's size whatever the scale.
+#pragma param u_metre float default(100) unit(length)
 #pragma param u_waveSpeed float default(1) range(0,4) ui(slider)
 #pragma param u_waveDirection float default(30) range(0,360) ui(slider)
 // The small ripples the long waves carry: how steep and how long each is.
@@ -1104,7 +1105,7 @@ void main() {
 export const WATER_CAUSTIC_BAKE = `#pragma shader "Water Optical Surface"
 #pragma version 300 es
 #pragma domain PostProcess
-${WATER.split('\n').filter(line => line.startsWith('#pragma param ') && /u_(wave|ripple|gust|detail|zone|ocean|surf|geoWaves|flowCycle|rain|cellSize)/.test(line) && !/u_(zoneLook|oceanLook)/.test(line)).join('\n')}
+${WATER.split('\n').filter(line => line.startsWith('#pragma param ') && /u_(wave|ripple|gust|detail|zone|ocean|surf|geoWaves|flowCycle|rain|cellSize|metre)/.test(line) && !/u_(zoneLook|oceanLook)/.test(line)).join('\n')}
 #pragma param u_bakeA vec4 default(0,0,1,0)
 #pragma param u_bakeB vec4 default(0,1,256,0)
 #pragma fragment

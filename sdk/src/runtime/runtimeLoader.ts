@@ -67,7 +67,7 @@ import type { AddressableManifest, ManifestModel } from '../asset/AddressableMan
 import type { Catalog } from '../asset/Catalog';
 import { physics3dModuleId, type Physics3DBackend } from '../sideModules/registry';
 import { physics3DInstallConfig, type Physics3DWorldConfig } from '../physics3d/worldConfig';
-import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../ecs/worldUnits';
+import { setWorldUnitsPerMeter, setWorldGravity, REFERENCE_UNITS_PER_METER, STANDARD_GRAVITY } from '../ecs/worldUnits';
 
 // =============================================================================
 // Public Interface
@@ -1046,6 +1046,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
 
     // Before any scene: what a component's default fills in is in the project's units (ecs/worldUnits.ts).
     setWorldUnitsPerMeter(config.physics3dWorld?.unitsPerMeter ?? REFERENCE_UNITS_PER_METER);
+    // And how hard it pulls: what falls with no physics body (waves, a waterfall) falls as a body does.
+    const g = config.physics3dWorld?.gravity;
+    setWorldGravity(g ? Math.hypot(g.x, g.y, g.z) : STANDARD_GRAVITY);
 
     applyFixedTimestep(app, config.physicsConfig);
 

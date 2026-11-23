@@ -16,11 +16,11 @@
  *          Everything here is in the body's own space: x and z along its surface, the height along its up.
  */
 
-import { worldUnitsPerMeter } from '../ecs/worldUnits';
+import { worldGravity, worldUnitsPerMeter } from '../ecs/worldUnits';
 
-/** Gravitational acceleration in the project's length units per second squared. */
+/** Gravitational acceleration in the project's length units per second squared: the project's gravity (its 3D physics'). */
 export function waterGravity(): number {
-    return 9.8 * worldUnitsPerMeter();
+    return worldGravity() * worldUnitsPerMeter();
 }
 
 /** How many waves a sea is the sum of at most. */
