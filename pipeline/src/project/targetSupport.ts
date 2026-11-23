@@ -51,7 +51,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     foliage: ['Foliage', 'PlacedFoliage', 'FoliageContact', 'PlantProxy'],
     groom: ['Groom'],
     worldgen: ['WorldGen', 'WorldZone'],
-    water: ['WaterBody', 'WaterZone', 'Floating'],
+    water: ['WaterBody', 'WaterZone', 'Floating', 'Waterfall', 'WaterfallAnchor'],
     spline: ['Spline', 'PathFollower', 'TerrainBand2D', 'RoadDecal'],
     voxel: ['VoxelTerrain'],
     rig2d: ['Bone2D', 'IK2D', 'BoneConstraint2D'],
@@ -107,7 +107,7 @@ export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
  * uses the module that ships it — with no component in a scene to say so (a Water material on a plain mesh, a character's Hair).
  */
 export const SHADER_SUBSYSTEM: Readonly<Record<string, Subsystem>> = {
-    'builtin:water': 'water', 'builtin:underwater': 'water', 'builtin:terrain': 'terrain', 'builtin:terrain-layers': 'terrain', 'builtin:foliage': 'foliage', 'builtin:strands': 'groom', 'builtin:voxel-ground': 'voxel',
+    'builtin:water': 'water', 'builtin:underwater': 'water', 'builtin:waterfall': 'water', 'builtin:terrain': 'terrain', 'builtin:terrain-layers': 'terrain', 'builtin:foliage': 'foliage', 'builtin:strands': 'groom', 'builtin:voxel-ground': 'voxel',
     'builtin:hair': 'characterShaders', 'builtin:skin': 'characterShaders', 'builtin:eye': 'characterShaders',
 };
 

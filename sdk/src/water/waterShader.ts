@@ -244,12 +244,13 @@ vec2 rippleSlope(vec2 p, float time, vec4 px) {
     return slope * (u_rippleStrength * gust);
 }
 
-/// The slope rain adds at p: in every cell of two offset grids a third of u_rippleLength across, a drop lands at a place and a moment of
+/// The slope rain adds at p: in every cell of two offset grids 0.875 m across, a drop lands at a place and a moment of
 /// its own once a cycle, and a ring runs out from it and dies away. Harder rain wets more of the cells. No foam: a raindrop makes none.
 vec2 rainRings(vec2 p, float time, float rain) {
     vec2 slope = vec2(0.0);
     if (rain <= 0.0) return slope;
-    float cellSize = u_rippleLength * 0.35;
+    // A raindrop's ring is the size it is in metres (u_waveGravity is g in this project's units): 0.875 m cells, a ring out to 0.4 m.
+    float cellSize = u_waveGravity / 9.8 * 0.875;
     const float K = 52.0;
     for (int layer = 0; layer < 2; layer++) {
         vec2 q = p / cellSize + float(layer) * vec2(0.37, 0.71);
@@ -378,7 +379,8 @@ vec2 surfaceSlope(vec2 wp, float time, float waterDist, vec4 px, vec4 zone, bool
         ripFoam = textureLod(u_rippleMap, ripUv, 0.0).g * ripFade;
     }
     // Rain rings are fine: where a pixel grows past a ring's crests they would shimmer, so they fade out before it.
-    float rainFade = 1.0 - smoothstep(u_rippleLength * 8.0, u_rippleLength * 20.0, waterDist);
+    float metre = u_waveGravity / 9.8;
+    float rainFade = 1.0 - smoothstep(20.0 * metre, 50.0 * metre, waterDist);
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
         // A current: what lies on the surface rides it (the waves, the wind's ripples, the rain's rings, the detail). Two copies of it are

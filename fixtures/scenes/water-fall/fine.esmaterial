@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:waterfall",
+  "blendMode": 1,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_run": 20,
+    "u_strands": 12,
+    "u_veil": 0.3
+  }
+}

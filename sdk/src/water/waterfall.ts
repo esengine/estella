@@ -28,6 +28,7 @@ import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetL
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../asset/meshFormat';
 import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
+import { log } from '../util/logger';
 
 /** The fields of the `Waterfall` component. @experimental */
 export interface WaterfallData {
@@ -270,7 +271,7 @@ export function installWaterfalls(app: App): void {
                     version: MATERIAL_FORMAT_VERSION, type: 'material', shader: 'builtin:waterfall', blendMode: BlendMode.Normal,
                     depthTest: true, depthWrite: false, cull: 0, properties: {},
                 }, source.compile([]));
-            });
+            }, (e: unknown) => { log.error('water', 'the stock Waterfall shader could not be loaded: no fall without a material of its own is drawn', e); });
         }
         const landing = landingOf(app);
         // Thrown over a ground or a water still being made, it would fall through and be thrown again a moment later.

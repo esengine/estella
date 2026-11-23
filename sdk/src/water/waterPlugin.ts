@@ -44,7 +44,7 @@ import { oceanReach } from './waterMesh';
 import { waterTileLayout, waterCoverage, waterViewPlanes, selectWaterTiles, buildWaterTiles, buildWaterApron, waterMaterialMeshes, type TileLayout } from './waterTiles';
 import { worldUnitScale } from '../ecs/worldUnits';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
-import { installWaterfalls } from './waterfall';
+import { installWaterfalls, Waterfall } from './waterfall';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
@@ -762,8 +762,11 @@ interface Surface {
 
 export class WaterPlugin implements Plugin {
     name = 'water';
-    /** Nothing to bake, carve or draw without a body or a zone; the frame after the last one goes still runs, and lets go. */
-    readonly activeWhen = [WaterBody, WaterZone];
+    /**
+     * Nothing to bake, carve or draw without a body, a zone or a fall; the frame after the last one goes still runs, and lets go. A
+     * Waterfall is drawn by a system this plugin installs, so a scene with only a fall keeps it running too.
+     */
+    readonly activeWhen = [WaterBody, WaterZone, Waterfall];
 
     /** The stock material the surface is an instance of when the zone names none, made once from the Water shader. */
     private stock_ = 0;
