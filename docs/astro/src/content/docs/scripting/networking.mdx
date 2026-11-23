@@ -250,6 +250,10 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
   When the target enters or returns, the field resolves to its current local entity.
   The field also updates when the server adds or removes `Replicated` on the target.
   Lists of references follow the same rule for each slot and preserve their order.
+- A visible child keeps its local entity and attachments when its replicated parent leaves
+  the view. Its local transform is evaluated at the root until the parent returns.
+  The server also sends live reparenting and detachment to clients that support parent
+  updates. On reconnect, each retained ghost takes the parent in its new spawn baseline.
 - `radiusInterest` reads the composed **world** position of `Transform` by
   default (override with `{ position }`); placeless entities are always relevant,
   and it fails open while a connection owns no positioned entity yet.

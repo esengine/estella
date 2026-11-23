@@ -8,6 +8,7 @@ export {
     type ReplHelloRequest,
     type ReplHelloResponse,
     type ReplSpawnEntity,
+    type ReplParentUpdate,
     type ReplSpawnBatch,
     type ReplDespawnBatch,
     type ReplComponentRemoveBatch,

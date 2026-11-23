@@ -43,6 +43,7 @@ import { NetGhost, Replicated, type ReplicatedData } from './components';
 import { getReplicationArchetype } from './archetype';
 import { NetIds, wireEntityRefs } from './NetIds';
 import { EntityReferenceIndex } from './EntityReferenceIndex';
+import { GhostHierarchy } from './hierarchy';
 import { InterpolationState } from './interpolation';
 
 /**
@@ -221,6 +222,7 @@ export class ReplicationClient {
     private readonly netIds_ = new NetIds();
     private readonly refs_ = wireEntityRefs(this.netIds_);
     private readonly referenceFields_ = new EntityReferenceIndex();
+    private readonly hierarchy_: GhostHierarchy;
     private offDespawn_: (() => void) | null = null;
     private channel_: NetChannel | null = null;
     private table_: ReplicationTable | null = null;
@@ -275,6 +277,7 @@ export class ReplicationClient {
 
     constructor(world: World, options: ReplicationClientOptions = {}) {
         this.world_ = world;
+        this.hierarchy_ = new GhostHierarchy(world, this.netIds_);
         this.credentials_ = options.credentials;
         this.dial_ = options.dial ?? null;
         this.entries_ = options.entry === undefined ? [] : typeof options.entry === 'string' ? [options.entry] : [...options.entry];
@@ -446,6 +449,7 @@ export class ReplicationClient {
 
         const hello: ReplHelloRequest = {
             protocolVersion: REPLICATION_PROTOCOL_VERSION,
+            parentUpdates: true,
             abiHash: ABI_LAYOUT_HASH,
             components: tableSchemas(this.table),
             ...(this.credentials_ !== undefined ? { credentials: this.credentials_ } : {}),
@@ -596,6 +600,7 @@ export class ReplicationClient {
     /** Drop every ghost and everything kept about them: they belonged to a server this client left. */
     private resetWorld_(): void {
         this.referenceFields_.clear();
+        this.hierarchy_.clear();
         const all = this.netIds_.netIdList();
         if (all.length > 0) this.applyDespawnBatch_({ tick: this.serverTick_, netIds: all });
         this.authority_.clear();
@@ -708,6 +713,7 @@ export class ReplicationClient {
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.netIds_.clear();
+        this.hierarchy_.clear();
         this.referenceFields_.clear();
         this.authority_.clear();
         this.inbox_.length = 0;
@@ -958,11 +964,7 @@ export class ReplicationClient {
         // through the C++ registry and the prediction baseline must be the
         // state the authority sent, not whatever that leaves behind.
         for (const { spawn, entity } of received) this.seedAuthority_(spawn.netId, entity);
-        for (const { spawn, entity } of fresh) {
-            if (spawn.parentNetId === 0) continue;
-            const parent = this.netIds_.entityOf(spawn.parentNetId);
-            if (parent !== undefined) this.world_.setParent(entity, parent);
-        }
+        this.hierarchy_.apply(received.map(r => r.spawn), fresh.map(r => r.spawn.netId), batch.parents);
     }
 
     /**
@@ -1032,6 +1034,7 @@ export class ReplicationClient {
     }
 
     private applyDespawnBatch_(batch: ReplDespawnBatch): void {
+        const detached = this.hierarchy_.detachSurvivors(batch.netIds);
         for (const netId of batch.netIds) {
             const e = this.netIds_.entityOf(netId);
             this.forgetGhost_(netId);
@@ -1039,9 +1042,11 @@ export class ReplicationClient {
                 this.world_.despawn(e);
             }
         }
+        this.hierarchy_.project(detached);
     }
 
     private forgetGhost_(netId: number): void {
+        this.hierarchy_.forget(netId);
         this.netIds_.unregister(netId);
         this.interp_?.drop(netId);
         this.authority_.delete(netId);

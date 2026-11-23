@@ -292,7 +292,9 @@ describe('unload decides who lives before it destroys anything', () => {
         const fault = new Error('setup interrupted');
         manager.register({ name: 'level', setup(ctx) {
             root = ctx.spawn(); joint = world.spawn(); own = ctx.spawn(); promoted = ctx.spawn();
-            world.setParent(joint, root);
+            // A native importer can attach its joint without populating the SDK membership cache.
+            if (mode === 'rollback') world.getCppRegistry()!.setParent(joint, root);
+            else world.setParent(joint, root);
             world.setParent(guest, joint);
             world.setParent(guestChild, guest);
             world.setParent(own, guest);

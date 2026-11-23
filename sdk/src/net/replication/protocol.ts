@@ -69,6 +69,8 @@ export interface ReplComponentSchema {
 
 export interface ReplHelloRequest {
     protocolVersion: number;
+    /** The client accepts structural parent updates alongside spawn baselines. */
+    parentUpdates?: boolean;
     /** EHT layout hash — builtins replicate by heap layout, so both ends must
      *  run the same component ABI. */
     abiHash: string;
@@ -137,9 +139,13 @@ export interface ReplSpawnEntity {
     baseline: SceneComponentData[];
 }
 
+export type ReplParentUpdate = Pick<ReplSpawnEntity, 'netId' | 'parentNetId'>;
+
 export interface ReplSpawnBatch {
     tick: number;
     entities: ReplSpawnEntity[];
+    /** Current links for existing ghosts, when the client requested parent updates. */
+    parents?: ReplParentUpdate[];
     /**
      * The whole of what the connection can see, sent once right after the
      * hello. A client that already holds ghosts (it reconnected) keeps the ones

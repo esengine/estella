@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Children, Disabled, Parent, SceneOwner } from '../ecs/component';
 import { detachPreservingWorldTransform } from '../ecs/entityUtils';
+import { detachSurvivingDescendants } from '../ecs/hierarchy';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 
@@ -28,14 +29,8 @@ export class SceneEntityBatch {
     }
 
     detachSurvivors(roots: Iterable<Entity> = this.pending): void {
-        const parents = new Set(roots);
-        for (const parent of parents) {
-            if (!this.world.valid(parent) || !this.world.has(parent, Children)) continue;
-            for (const child of this.world.get(parent, Children).entities) {
-                if (this.pending.has(child) || !this.world.has(child, SceneOwner)) parents.add(child);
-                else detachPreservingWorldTransform(this.world, child);
-            }
-        }
+        detachSurvivingDescendants(this.world, roots,
+            child => !this.pending.has(child) && this.world.has(child, SceneOwner), detachPreservingWorldTransform);
     }
 
     hideRoots(candidates: Iterable<Entity> = this.pending): void {
@@ -59,7 +54,7 @@ export class SceneEntityBatch {
     despawn(entity: Entity): void {
         if (!this.pending.has(entity)) return;
         if (this.world.valid(entity)) {
-            if (this.world.has(entity, Children)) this.detachSurvivors([entity]);
+            this.detachSurvivors([entity]);
             if (this.pending.has(entity)) this.world.despawn(entity);
         }
         this.pending.delete(entity);

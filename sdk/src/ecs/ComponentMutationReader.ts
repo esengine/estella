@@ -109,7 +109,10 @@ export class ComponentMutationReader {
         const unchanged = this.checkpoint !== null && checkpoint.every((value, index) => value >= 0 && value === this.checkpoint![index]);
         let full = reset || this.first && !unchanged;
         let refreshPoses = false;
-        if (nativeSequence !== this.cursor && !(this.first && unchanged && !reset)) {
+        // A component-only consumer needs no descendant expansion. Its revisions
+        // can also rule out an entire window of unrelated native writes.
+        const tracksSubtrees = this.subtree.length > 0;
+        if (nativeSequence !== this.cursor && !(unchanged && !reset && (this.first || !tracksSubtrees))) {
             withMalloc({ _malloc: api._malloc!.bind(api), _free: api._free!.bind(api) },
                 ENTITY_CHANGE_CAPACITY * ENTITY_CHANGE_WORDS * 4, ptr => {
                     if (!ptr) { full ||= !unchanged; refreshPoses = true; return; }
@@ -121,7 +124,7 @@ export class ComponentMutationReader {
                         const at = (ptr >>> 2) + i * ENTITY_CHANGE_WORDS;
                         const entity = heap[at] as Entity, flags = heap[at + 1], type = heap[at + 2];
                         if (flags & ENTITY_CHANGE_RESET) { full = true; refreshPoses = true; continue; }
-                        if (flags & ENTITY_CHANGE_SUBTREE) roots.add(entity);
+                        if (tracksSubtrees && (flags & ENTITY_CHANGE_SUBTREE)) roots.add(entity);
                         if (type === ENTITY_CHANGE_NO_COMPONENT) {
                             entities.add(entity);
                             if (!(flags & ENTITY_CHANGE_SUBTREE)) {

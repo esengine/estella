@@ -18,7 +18,7 @@
  */
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { Name, Parent, type AnyComponentDef } from '../../ecs/component';
+import { Name, type AnyComponentDef } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
 import type { SceneComponentData } from '../../scene/scene';
 import { NetChannel, type ReliableOrderedTransport } from '../NetChannel';
@@ -36,6 +36,7 @@ import {
 import { Replicated, type ReplicatedData } from './components';
 import { NetIds, wireEntityRefs } from './NetIds';
 import { EntityReferenceIndex } from './EntityReferenceIndex';
+import { ServerHierarchy, type ParentEntry } from './hierarchy';
 import { transformPosition, type InterestPolicy, type InterestPoint, type InterestProvider } from './interest';
 import { Histogram } from '../../metrics/histogram';
 
@@ -50,6 +51,7 @@ interface Connection {
     transport: ReliableOrderedTransport;
     /** Handshake completed and the initial world spawn has been sent. */
     ready: boolean;
+    parentUpdates: boolean;
     /** Latest input command from this connection (stale seq never overwrites). */
     input: ReplInputMsg | null;
     /** Queued input commands, consumed exactly one per fixed tick (beginTick). */
@@ -221,6 +223,8 @@ interface DirtySample {
     removals: RemovalEntry[];
 }
 
+interface RoutedRows { dirty: number[]; removals: number[]; parents?: number[] }
+
 /** Group removals into the wire batch, one entry per entity. */
 function removeBatch(tick: number, removals: readonly RemovalEntry[]): ReplComponentRemoveBatch {
     const byNetId = new Map<number, number[]>();
@@ -378,6 +382,7 @@ export class ReplicationServer {
     private readonly netIds_ = new NetIds();
     private readonly refs_ = wireEntityRefs(this.netIds_);
     private readonly referenceFields_ = new EntityReferenceIndex();
+    private readonly hierarchy_: ServerHierarchy;
     /** Live connections by public id. */
     private readonly connections_ = new Map<number, Connection>();
     /** Live connections by the id their link was attached under. */
@@ -574,6 +579,7 @@ export class ReplicationServer {
 
     constructor(world: World, options: ReplicationServerOptions = {}) {
         this.world_ = world;
+        this.hierarchy_ = new ServerHierarchy(world, this.netIds_);
         this.authenticate_ = options.authenticate ?? null;
         this.graceMs_ = Math.max(0, options.reconnectGraceMs ?? 30_000);
         const l = options.limits;
@@ -670,6 +676,7 @@ export class ReplicationServer {
         if (this.interest_?.kind === 'provider') this.interest_.value.dispose?.();
         this.interest_ = null;
         this.referenceFields_.clear();
+        this.hierarchy_.dispose();
         this.offDespawn_();
     }
 
@@ -908,7 +915,7 @@ export class ReplicationServer {
             lastSeq: 0, droppedInputs: 0,
             interest: new Set(), provenance: null, viewedAt: -1, viewSource: 0, viewOwned: 0,
             sent: new Map(), readyTick: 0, tokens: 0,
-            helloed: false, helloTimer: null, violations: 0, violationWindow: Date.now(),
+            helloed: false, parentUpdates: false, helloTimer: null, violations: 0, violationWindow: Date.now(),
         } as Omit<Connection, 'channel'> as Connection;
         const limits = this.limits_;
         conn.channel = new NetChannel(transport, {
@@ -980,6 +987,7 @@ export class ReplicationServer {
             if (mismatch) {
                 return { ok: false, error: `replication schema mismatch: ${mismatch}` };
             }
+            conn.parentUpdates = req.parentUpdates === true;
             let playerId: string | undefined;
             if (this.authenticate_) {
                 try {
@@ -1064,6 +1072,7 @@ export class ReplicationServer {
         conn.channel.dispose();
         if (this.connections_.get(conn.id) === conn) this.connections_.delete(conn.id);
         this.links_.delete(conn.linkId);
+        if (this.connections_.size === 0) this.hierarchy_.pause();
     }
 
     /** The id is nobody's any more: no player, no wait, no owned-set history. */
@@ -1244,12 +1253,13 @@ export class ReplicationServer {
         // Diff once against the shadow; frames below share the result.
         at = this.mark_();
         const sample = this.collectDirty_();
+        const parents = this.hierarchy_.changes(this.known_, spawnedEntities, despawned);
         this.since_('dirty discovery', at);
 
         if (!this.interest_ && !this.budget_ && !this.owing_) {
-            this.sampleBroadcast_(tick, spawnedEntities, despawned, sample);
+            this.sampleBroadcast_(tick, spawnedEntities, despawned, sample, parents);
         } else {
-            this.sampleWithInterest_(tick, spawnedEntities, despawned, sample);
+            this.sampleWithInterest_(tick, spawnedEntities, despawned, sample, parents);
         }
 
         // Acknowledge consumed inputs: this tick's state incorporates each
@@ -1279,10 +1289,15 @@ export class ReplicationServer {
         spawnedEntities: Entity[],
         despawned: { entity: Entity; netId: number }[],
         { dirty, removals }: DirtySample,
+        parents: ParentEntry[],
     ): void {
-        if (spawnedEntities.length > 0) {
+        if (spawnedEntities.length || parents.length) {
             const entities = spawnedEntities.map((e) => this.spawnPayload_(e, this.knownNetIds_.get(e)!));
-            this.broadcast_((c) => c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities }));
+            const links = parents.map(p => p.link);
+            this.broadcast_(c => {
+                if (links.length && c.parentUpdates) c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities, parents: links });
+                else if (entities.length) c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities });
+            });
         }
         if (despawned.length > 0) {
             const netIds = despawned.map((d) => d.netId);
@@ -1560,6 +1575,7 @@ export class ReplicationServer {
         spawnedEntities: Entity[],
         despawned: { entity: Entity; netId: number }[],
         { dirty, removals }: DirtySample,
+        parents: ParentEntry[],
     ): void {
         const despawnedNetIds = new Map(despawned.map((d) => [d.entity, d.netId]));
         const budgeted = this.budget_ !== null || this.owing_;
@@ -1674,7 +1690,7 @@ export class ReplicationServer {
         const routing = this.mark_();
         // Under a budget the server's change record says who is owed which
         // field; only removals, which ride the control plane, are routed.
-        const routed = this.route_(plans, budgeted ? [] : dirty, removals);
+        const routed = this.route_(plans, budgeted ? [] : dirty, removals, parents);
         this.since_('routing', routing);
 
         // The wire. Spawn payloads serialize once per entity per tick, however
@@ -1703,7 +1719,11 @@ export class ReplicationServer {
                 // phase of its own and would otherwise be counted twice.
                 const spawning = enters.length > 0 ? enters.map(payloadOf) : null;
                 const control = this.mark_();
-                if (spawning) {
+                if (c.parentUpdates && mine.parents) {
+                    c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, {
+                        tick, entities: spawning ?? [], parents: mine.parents.map(i => parents[i]!.link),
+                    });
+                } else if (spawning) {
                     c.channel.send<ReplSpawnBatch>(ReplMsg.spawn, { tick, entities: spawning });
                 }
                 if (leaveIds.length > 0) {
@@ -1753,9 +1773,8 @@ export class ReplicationServer {
      * and a removal is one reverse lookup and one map probe, not three, and the
      * wire still carries removals before the delta.
      */
-    private static byEntity(dirty: DirtyEntry[], removals: RemovalEntry[]):
-    Map<Entity, { dirty: number[]; removals: number[] }> {
-        const affected = new Map<Entity, { dirty: number[]; removals: number[] }>();
+    private static byEntity(dirty: DirtyEntry[], removals: RemovalEntry[], parents: ParentEntry[]): Map<Entity, RoutedRows> {
+        const affected = new Map<Entity, RoutedRows>();
         const of = (e: Entity) => {
             let debt = affected.get(e);
             if (!debt) { debt = { dirty: [], removals: [] }; affected.set(e, debt); }
@@ -1763,6 +1782,7 @@ export class ReplicationServer {
         };
         for (let i = 0; i < removals.length; i++) of(removals[i]!.entity).removals.push(i);
         for (let i = 0; i < dirty.length; i++) of(dirty[i]!.entity).dirty.push(i);
+        for (let i = 0; i < parents.length; i++) of(parents[i]!.entity).parents = [i];
         return affected;
     }
 
@@ -1777,18 +1797,19 @@ export class ReplicationServer {
         plans: { conn: Connection; visible: ReadonlySet<Entity>; entered: ReadonlySet<Entity> }[],
         dirty: DirtyEntry[],
         removals: RemovalEntry[],
-    ): Map<number, { dirty: number[]; removals: number[] }> {
-        const out = new Map<number, { dirty: number[]; removals: number[] }>();
+        parents: ParentEntry[],
+    ): Map<number, RoutedRows> {
+        const out = new Map<number, RoutedRows>();
         for (const { conn } of plans) out.set(conn.id, { dirty: [], removals: [] });
-        if (dirty.length === 0 && removals.length === 0) return out;
+        if (!dirty.length && !removals.length && !parents.length) return out;
 
-        const affected = ReplicationServer.byEntity(dirty, removals);
+        const affected = ReplicationServer.byEntity(dirty, removals, parents);
         let membership = 0;
         for (const { visible } of plans) membership += visible.size;
 
         const viewers = this.viewersByEntity_;
         if (viewers && affected.size < membership) {
-            const rows: [Entity, { dirty: number[]; removals: number[] }, Set<number> | undefined][] = [];
+            const rows: [Entity, RoutedRows, Set<number> | undefined][] = [];
             let units = affected.size;
             for (const [e, debt] of affected) {
                 const seen = viewers.get(e);
@@ -1806,6 +1827,7 @@ export class ReplicationServer {
                         if (!mine || entered.get(id)!.has(e)) continue;
                         for (const i of debt.removals) mine.removals.push(i);
                         for (const i of debt.dirty) mine.dirty.push(i);
+                        if (debt.parents) (mine.parents ??= []).push(...debt.parents);
                     }
                 }
                 // Removals back into discovery order. Delta rows are not sorted:
@@ -1826,6 +1848,7 @@ export class ReplicationServer {
                 if (!debt || entered.has(e)) continue;
                 for (const i of debt.removals) mine.removals.push(i);
                 for (const i of debt.dirty) mine.dirty.push(i);
+                if (debt.parents) (mine.parents ??= []).push(...debt.parents);
             }
             if (mine.removals.length > 1) mine.removals.sort((a, b) => a - b);
         }
@@ -2009,6 +2032,7 @@ export class ReplicationServer {
      */
     private rebaseRegistry_(): void {
         this.reconcileRegistryFromWorld_();
+        this.hierarchy_.rebase(this.known_);
         this.referenceFields_.clear();
         for (const e of this.known_) this.seedShadow_(e);
         // The shadow is now the world, so both windows start here too.
@@ -2080,13 +2104,11 @@ export class ReplicationServer {
         // Name/Parent are structural; scene records carry them beside the
         // component list, and so does this.
         const nameComp = this.world_.tryGet(e, Name) as { value: string } | null;
-        const parentComp = this.world_.tryGet(e, Parent) as { entity: number } | null;
-        const parentNetId = parentComp ? (this.netIds_.netIdOf(parentComp.entity as Entity) ?? 0) : 0;
         const repl = this.world_.tryGet(e, Replicated) as ReplicatedData | null;
         return {
             netId,
             name: nameComp?.value ?? '',
-            parentNetId,
+            parentNetId: this.hierarchy_.baseline(e),
             owner: repl?.owner ?? 0,
             archetype: repl?.archetype ?? '',
             baseline,
