@@ -44,6 +44,37 @@ describe('a superseded load does not write the current one\'s records', () => {
         cache = new AsyncCache<string>();
     });
 
+    it('joins the current request even from inside synchronous loader setup', async () => {
+        const duplicate = vi.fn(async () => 'duplicate');
+        let joined!: Promise<string>;
+        const first = cache.getOrLoad('k', () => {
+            joined = cache.getOrLoad('k', duplicate);
+            return Promise.resolve('original');
+        });
+
+        expect(duplicate).not.toHaveBeenCalled();
+        await expect(Promise.all([first, joined])).resolves.toEqual(['original', 'original']);
+        expect(cache.sizes()).toEqual({ cached: 1, pending: 0, failed: 0 });
+    });
+
+    it.each(['invalidate', 'clearAll'] as const)('preserves the replacement when loader setup calls %s', async reset => {
+        const older = deferred<string>();
+        const newer = deferred<string>();
+        let replacement!: Promise<string>;
+        const old = cache.getOrLoad('k', () => {
+            if (reset === 'invalidate') cache.invalidate('k');
+            else cache.clearAll();
+            replacement = cache.getOrLoad('k', () => newer.promise);
+            return older.promise;
+        });
+        newer.resolve('new');
+        await expect(replacement).resolves.toBe('new');
+        older.resolve('old');
+        await expect(old).resolves.toBe('old');
+        expect(cache.get('k')).toBe('new');
+        expect(cache.sizes().pending).toBe(0);
+    });
+
     it('finishing after invalidate() leaves the newer load joinable', async () => {
         const first = deferred<string>();
         const second = deferred<string>();

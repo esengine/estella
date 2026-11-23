@@ -23,6 +23,17 @@ function buildAssets(): Assets {
     });
 }
 
+function seedTexture(assets: Assets, path: string, handle: number, flip = false): void {
+    const internal = assets as unknown as {
+        textureCache_: { set(key: string, load: unknown): void };
+        textureCacheKey_: (path: string, flip: boolean) => string;
+        textureRefs_: { acquire(key: string, handle: number): unknown };
+    };
+    const key = internal.textureCacheKey_(path, flip);
+    const receipt = internal.textureRefs_.acquire(key, handle);
+    internal.textureCache_.set(key, { value: { handle, width: 1, height: 1 }, receipt });
+}
+
 describe('Assets.onInvalidate', () => {
     it('does NOT fire when invalidate() finds no matching cache entry', () => {
         const assets = buildAssets();
@@ -39,38 +50,21 @@ describe('Assets.onInvalidate', () => {
         const assets = buildAssets();
         // Seed the texture cache manually via internal map to avoid
         // wiring up a real WASM texture loader.
-        const internal = assets as unknown as {
-            textureCache_: { cache_: Map<string, unknown> };
-            textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: { acquire(key: string, handle: number): void };
-        };
-        const key = internal.textureCacheKey_('tex/hot.png', false);
-        internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.acquire(key, 42);
+        seedTexture(assets, 'tex/hot.png', 42, true);
 
         const listener = vi.fn();
         assets.onInvalidate(listener);
 
         const hit = assets.invalidate('tex/hot.png');
         expect(hit).toBe(true);
-        // Fires with the original ref, the KIND of asset that ended, and the value
-        // holders were bound to (0 here — the seeded entry is the unflipped
-        // variant; the rebinder reads flip=true).
         expect(listener).toHaveBeenCalledWith({
-            ref: 'tex/hot.png', type: 'texture', oldValue: expect.any(Number),
+            ref: 'tex/hot.png', type: 'texture', oldValue: 42,
         });
     });
 
     it('unsubscribe function prevents further notifications', () => {
         const assets = buildAssets();
-        const internal = assets as unknown as {
-            textureCache_: { cache_: Map<string, unknown> };
-            textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: { acquire(key: string, handle: number): void };
-        };
-        const key = internal.textureCacheKey_('tex/hot.png', false);
-        internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.acquire(key, 42);
+        seedTexture(assets, 'tex/hot.png', 42);
 
         const listener = vi.fn();
         const unsubscribe = assets.onInvalidate(listener);
@@ -81,22 +75,14 @@ describe('Assets.onInvalidate', () => {
         unsubscribe();
 
         // Re-populate cache and invalidate again — listener should NOT fire.
-        internal.textureCache_.cache_.set(key, { handle: 43 });
-        internal.textureRefs_.acquire(key, 43);
+        seedTexture(assets, 'tex/hot.png', 43);
         assets.invalidate('tex/hot.png');
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
     it('isolates listeners from each other — a throwing one does not starve others', () => {
         const assets = buildAssets();
-        const internal = assets as unknown as {
-            textureCache_: { cache_: Map<string, unknown> };
-            textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: { acquire(key: string, handle: number): void };
-        };
-        const key = internal.textureCacheKey_('tex/hot.png', false);
-        internal.textureCache_.cache_.set(key, { handle: 42 });
-        internal.textureRefs_.acquire(key, 42);
+        seedTexture(assets, 'tex/hot.png', 42);
 
         const bad = vi.fn(() => { throw new Error('listener failed'); });
         const good = vi.fn();
@@ -110,14 +96,7 @@ describe('Assets.onInvalidate', () => {
 
     it('supports multiple listeners observing the same invalidation', () => {
         const assets = buildAssets();
-        const internal = assets as unknown as {
-            textureCache_: { cache_: Map<string, unknown> };
-            textureCacheKey_: (path: string, flip: boolean) => string;
-            textureRefs_: { acquire(key: string, handle: number): void };
-        };
-        const key = internal.textureCacheKey_('tex/a.png', false);
-        internal.textureCache_.cache_.set(key, { handle: 1 });
-        internal.textureRefs_.acquire(key, 1);
+        seedTexture(assets, 'tex/a.png', 1);
 
         const a = vi.fn();
         const b = vi.fn();

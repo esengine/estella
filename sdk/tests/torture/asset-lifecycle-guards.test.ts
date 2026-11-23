@@ -142,6 +142,39 @@ describe('the torture harness', () => {
 });
 
 describe('regression: the interleaving the property found', () => {
+    it.each([false, true])('returns one native reference when a cache hit crosses teardown (invalidated: %s)', async invalidate => {
+        const h = manualHarness();
+        try {
+            const first = h.assets.acquireTexture(KEY);
+            await h.settle();
+            const original = await first;
+            const old = expect(h.assets.acquireTexture(KEY)).rejects.toThrow(/released while/);
+            if (invalidate) h.assets.invalidate(KEY);
+            h.assets.releaseAll();
+            h.assets.releaseAll();
+            await old;
+            original.release();
+            expect(h.gpu.doubleReleased).toEqual([]);
+            expect(h.gpu.refs.get(original.value.handle)).toBe(0);
+        } finally { h.dispose(); }
+    });
+
+    it('hands a cache-hit waiter a live texture after the last earlier lease releases it', async () => {
+        const h = manualHarness();
+        try {
+            const first = h.assets.acquireTexture(KEY);
+            await h.settle();
+            const original = await first;
+            const joining = h.assets.acquireTexture(KEY);
+            original.release();
+            const next = await joining;
+            expect(h.gpu.refs.get(next.value.handle)).toBe(1);
+            next.release();
+            expect(h.gpu.refs.get(next.value.handle)).toBe(0);
+            expect(h.gpu.doubleReleased).toEqual([]);
+        } finally { h.dispose(); }
+    });
+
     /**
      * load(k) → invalidate(k) → the superseded load resolves → release(k).
      *

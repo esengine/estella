@@ -55,81 +55,53 @@ export class AsyncCache<T> {
             return existing.promise;
         }
 
-        const entry: PendingEntry<T> = { promise: null!, aborted: false };
-
-        entry.promise = (async () => {
-            const loaderPromise = loader();
-
-            if (timeout <= 0) {
-                const result = await loaderPromise;
-                if (!entry.aborted) this.cache_.set(key, result);
-                this.clearPendingIfCurrent_(key, entry);
-                return result;
-            }
-
-            let timedOut = false;
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            // The loader keeps running even when the deadline wins the race. If
-            // it produces a value after timing out, that value has no owner —
-            // release it so it doesn't leak.
-            void loaderPromise.then(
-                (late) => { if (timedOut) this.disposeAbandoned_(key, late); },
-                () => { /* loader rejected — nothing to release */ },
-            );
-
-            let result: T;
-            try {
-                result = await Promise.race([
-                    loaderPromise,
-                    new Promise<never>((_, reject) => {
-                        timer = setTimeout(() => {
-                            timedOut = true;
-                            entry.aborted = true;
-                            reject(new Error(`AsyncCache timeout: ${key} (${timeout}ms)`));
-                        }, timeout);
-                    }),
-                ]);
-            } finally {
-                // Rejection also settles the race and no longer needs a deadline.
-                clearTimeout(timer);
-            }
-
-            // Cache unless invalidate() aborted this request in-flight.
-            if (!entry.aborted) this.cache_.set(key, result);
-            this.clearPendingIfCurrent_(key, entry);
-            return result;
-        })();
-
+        // Loader setup can synchronously request or invalidate this key.
+        let resolvePending!: (work: Promise<T>) => void;
+        const promise = new Promise<T>(resolve => { resolvePending = resolve; });
+        const entry: PendingEntry<T> = { promise, aborted: false };
         this.pending_.set(key, entry);
+        resolvePending(this.load_(key, loader, timeout, entry));
+        return promise;
+    }
 
+    private async load_(key: string, loader: () => Promise<T>, timeout: number, entry: PendingEntry<T>): Promise<T> {
+        let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            return await entry.promise;
+            const loading = loader();
+            let result: T;
+            if (timeout <= 0) {
+                result = await loading;
+            } else {
+                let timedOut = false;
+                // A loader can produce a resource after the deadline has rejected all its callers.
+                void loading.then(
+                    value => { if (timedOut) this.disposeAbandoned_(key, value); },
+                    () => { /* A rejected loader has no resource to release. */ },
+                );
+                const deadline = new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => {
+                        timedOut = true;
+                        entry.aborted = true;
+                        reject(new Error(`AsyncCache timeout: ${key} (${timeout}ms)`));
+                    }, timeout);
+                });
+                result = await Promise.race([loading, deadline]);
+            }
+            if (!entry.aborted) this.cache_.set(key, result);
+            return result;
         } catch (err) {
-            // Only the request the map still points at may write the shared
-            // records: if a newer load owns the key now, this failure is about
-            // bytes nobody asked for any more.
-            const current = this.pending_.get(key) === entry;
-            if (current) {
-                this.pending_.delete(key);
-                if (err instanceof Error && preparationFailureReason(err) instanceof Error) {
-                    this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
-                }
+            if (this.pending_.get(key) === entry && err instanceof Error && preparationFailureReason(err) instanceof Error) {
+                this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
             }
             if (err instanceof Error && err.message.startsWith('AsyncCache timeout:')) {
                 log.warn('asset', err.message);
             }
             throw err;
+        } finally {
+            if (timer !== undefined) clearTimeout(timer);
+            // A load superseded during setup or an await cannot retire its successor.
+            if (this.pending_.get(key) === entry) this.pending_.delete(key);
         }
-    }
-
-    /**
-     * Drop this key's pending record only if it is still THIS request's. A load
-     * that finishes after invalidate() replaced it would otherwise delete its
-     * successor's record, and the next getOrLoad would start a third load of the
-     * same asset instead of joining the second.
-     */
-    private clearPendingIfCurrent_(key: string, entry: PendingEntry<T>): void {
-        if (this.pending_.get(key) === entry) this.pending_.delete(key);
     }
 
     /** Release a value that was abandoned by a timeout; never throws upward. */

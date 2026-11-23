@@ -158,6 +158,13 @@ interface PendingUpdate {
     remoteRoot: string | null;
 }
 
+/** One native acquisition. Every waiter for this cache entry joins the same
+ *  ledger generation. A null receipt marks a load returned at teardown or timeout. */
+interface TextureLoad {
+    readonly value: TextureResult;
+    receipt?: AssetRefLease<number> | null;
+}
+
 
 /** A preload's timings are a report, so they need no platform: a realm without
  *  one (a test, a tool) still loads. */
@@ -428,11 +435,7 @@ export class Assets {
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
     private spineLoader_: SpineAssetLoader;
 
-    private textureCache_ = new AsyncCache<TextureResult>((result) => {
-        // A texture whose load finished after its getOrLoad timed out has no
-        // owner; release its GL handle so it doesn't leak VRAM.
-        requireResourceManager().releaseTexture(result.handle);
-    });
+    private textureCache_ = new AsyncCache<TextureLoad>(load => this.releaseUnclaimedTexture_(load));
     /** Live texture references per cache key. See {@link AssetRefLedger}. */
     private textureRefs_ = new AssetRefLedger<number>();
 
@@ -454,9 +457,6 @@ export class Assets {
             throw new Error('Assets were released while loading; this request has no owner. Load it again.');
         }
     }
-    /** Handles already disowned in this epoch, so N callers sharing one load
-     *  drop its single C++ reference once between them, not N times. */
-    private abandoned_ = new Set<number>();
     private genericCache_ = new Map<string, AsyncCache<PreparedLoad<unknown>>>();
     /** Per-asset reference counts for the generic caches, keyed `type:path`.
      *  Same contract as textures: every load*() increments, every release*()
@@ -775,35 +775,42 @@ export class Assets {
         const cacheKey = this.textureCacheKey_(path, flip);
         const settings = this.textureImportResolver_?.(ref);
         const epoch = this.resetEpoch_;
-        const result = await this.textureCache_.getOrLoad(cacheKey, () => {
+        const load = await this.textureCache_.getOrLoad(cacheKey, async () => {
             // Warm-cache hit: a texture whose last reference was released stays
             // resident in the C++ pool (up to the texture budget) under this
             // exact key — reviving it skips the whole fetch + decode + upload.
             const revived = this.reviveResidentTexture_(cacheKey);
-            if (revived) return Promise.resolve(revived);
+            if (revived) return { value: revived };
             this.textureLoader_.setPendingSettings(settings);
             // Asked as each texture loads: what decides it (the quality level) may arrive after whoever said how to ask.
             const own = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
             const start = own > 0 ? own : textureStreamingStart();
             if (start > 0 && this.meshTextures_.has(path)) this.textureLoader_.setPendingStartEdge(start);
-            return flip
-                ? this.textureLoader_.load(path, this.getLoadContext_())
-                : this.textureLoader_.loadRaw(path, this.getLoadContext_());
+            const value = flip
+                ? await this.textureLoader_.load(path, this.getLoadContext_())
+                : await this.textureLoader_.loadRaw(path, this.getLoadContext_());
+            return { value };
         });
         // BEFORE acquiring, so no ledger entry is ever created for a load nobody
         // is left to own — one that N shared callers would each then drop,
         // releasing the load's single C++ reference N times.
         if (epoch !== this.resetEpoch_) {
-            if (!this.abandoned_.has(result.handle)) {
-                this.abandoned_.add(result.handle);
-                requireResourceManager().releaseTexture(result.handle);
-                evictTextureDimensions(result.handle);
-            }
+            this.releaseUnclaimedTexture_(load);
             throw new Error(
                 `Assets were released while "${ref}" was loading; its texture has no owner. Load it again.`,
             );
         }
-        const lease = this.textureRefs_.acquire(cacheKey, result.handle);
+        const result = load.value;
+        let lease: AssetRefLease<number>;
+        if (load.receipt === undefined) {
+            lease = this.textureRefs_.acquire(cacheKey, result.handle);
+            load.receipt = lease;
+        } else {
+            const retained = load.receipt && this.textureRefs_.retain(load.receipt);
+            // The last holder may release between a cache hit and this continuation.
+            if (!retained) return this.acquireTextureVariant_(ref, flip);
+            lease = retained;
+        }
         this.recordHandlePath_('texture', result.handle, path);
         // The 9-slice border belongs to the IMAGE, so it rides its import
         // settings and is stamped onto the handle here — the one place every
@@ -815,6 +822,13 @@ export class Assets {
             requireResourceManager().setTextureMetadata(result.handle, b.left, b.right, b.top, b.bottom);
         }
         return { result, lease };
+    }
+
+    private releaseUnclaimedTexture_(load: TextureLoad): void {
+        if (load.receipt !== undefined) return;
+        load.receipt = null;
+        evictTextureDimensions(load.value.handle);
+        requireResourceManager().releaseTexture(load.value.handle);
     }
 
     /**
@@ -850,7 +864,7 @@ export class Assets {
 
     getTexture(ref: string): TextureResult | undefined {
         const path = this.resolveLoadPath_(ref);
-        return this.textureCache_.get(this.textureCacheKey_(path, true));
+        return this.textureCache_.get(this.textureCacheKey_(path, true))?.value;
     }
 
     /**
@@ -2094,7 +2108,7 @@ export class Assets {
         // Only when it is still the cached value: a superseded handle left the
         // cache when its generation ended, and the entry there now belongs to a
         // generation with holders of its own.
-        if (this.textureCache_.get(key)?.handle === handle) this.textureCache_.delete(key);
+        if (this.textureCache_.get(key)?.value.handle === handle) this.textureCache_.delete(key);
         requireResourceManager().releaseTexture(handle);
     }
 
@@ -2328,7 +2342,7 @@ export class Assets {
         if (type === 'texture') {
             // The handle bound to this path, captured BEFORE the caches drop it,
             // so a rebind listener can swap it in live components.
-            oldValue = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
+            oldValue = this.textureCache_.get(this.textureCacheKey_(path, true))?.value.handle ?? 0;
             const rm = getResourceManager();
             // Both flip variants: the cache key carries the flag. The C++ pool's
             // residency identity is severed too — an evictable entry under this
@@ -2554,7 +2568,6 @@ export class Assets {
         this.releasing_ = true;
         // Pending loads lose ownership even if a user-provided unload throws.
         this.resetEpoch_++;
-        this.abandoned_.clear();
         try {
             disposeAll([
                 () => {
@@ -2567,7 +2580,10 @@ export class Assets {
                 () => this.registrySlots_.releaseAll(),
                 () => {
                     const handles = new Set<number>();
-                    for (const info of this.textureCache_.values()) handles.add(info.handle);
+                    for (const load of this.textureCache_.values()) {
+                        load.receipt = null;
+                        handles.add(load.value.handle);
+                    }
                     this.textureCache_.clearAll();
                     for (const { value } of this.textureRefs_.drain()) handles.add(value);
                     if (handles.size === 0) return;
