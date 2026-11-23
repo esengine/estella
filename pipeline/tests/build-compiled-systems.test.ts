@@ -205,14 +205,33 @@ describe('the AOT build step', () => {
     expect(true).toBe(true);
   });
 
-  it('a project that promised nothing is not a build step', async () => {
+  it('a project that compiles only what it marked, and marked nothing, is not a build step', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': UNMARKED });
+    const out = await buildCompiledSystems(root, { mode: 'release', compileAll: false, cc: EMCC, run });
+    expect(out).toMatchObject({ ok: true, modulePath: null, errors: [] });
+  });
+
+  it.skipIf(!EMCC)('compiles an unmarked system the subset takes, by default', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': UNMARKED });
     const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
-    expect(out.ok).toBe(true);
-    expect(out.modulePath).toBeNull();
-    // The refusal is still reported, as information: §3.2's fallback is the
-    // design, and a build that shouted about it would be crying wolf.
     expect(out.errors).toEqual([]);
+    expect(out.modulePath).not.toBeNull();
+    expect(out.manifest!.systems.map((s) => s.name)).toEqual(['QuietSystem']);
+  });
+
+  it('leaves an unmarked system the subset refuses to the interpreter, as a note', async () => {
+    const quietBroken = BROKEN.replace('/**\n * @compiled\n */\n', '');
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': quietBroken });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
+    expect(out).toMatchObject({ ok: true, modulePath: null, errors: [] });
+    expect(out.notes.join('\n')).toMatch(/BrokenSystem: Math\.sin is implementation-defined/);
+  });
+
+  it('with no compiler and nothing promised, builds and says what ran interpreted', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': UNMARKED });
+    const out = await buildCompiledSystems(root, { mode: 'release', cc: null, run });
+    expect(out).toMatchObject({ ok: true, modulePath: null, errors: [] });
+    expect(out.warnings?.[0]).toMatch(/1 system\(s\) could run compiled, but there is no emcc/);
   });
 
   it('a project with no sources at all is fine', async () => {

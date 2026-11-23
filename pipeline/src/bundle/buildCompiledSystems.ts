@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  AOT step: a project's `@compiled` systems, as wasm.
+ * @file  AOT step: a project's systems, as machine code.
  *
  * The rest of `buildScripts` hands the realm JavaScript. This hands it a module
- * of machine code for the systems the author PROMISED would compile, built with
- * emcc from the C `@estella/compiler` emits.
+ * of machine code for every system the subset takes (unless the project turned
+ * `packaging.compileAllSystems` off), built from the C `@estella/compiler` emits.
+ * A system marked `@compiled` is one the author PROMISED would compile.
  *
  * It imports the engine's memory rather than owning one, which is what keeps
  * this cheap: the engine wasm stays prebuilt and only the game's own systems are
  * compiled here — a few hundred bytes, not a link.
  *
- * Never throws. A project with no marked system is not a failure and not a
- * build step; a marked system that will not compile IS one, because that is what
- * the marker means.
+ * Never throws. An unmarked system that will not compile stays interpreted; a
+ * marked one that will not IS a failure, because that is what the marker means.
  *
  * The mode decides whether it runs at all. `dev` never compiles, because the
  * editor's preview always interprets: a machine with no emsdk builds and runs
@@ -144,6 +144,8 @@ export interface BuildCompiledResult {
   errors: string[];
   /** Systems the subset refused that were NOT promised — information, not failure. */
   notes: string[];
+  /** What the person should hear: systems that could have compiled ran interpreted, and why. */
+  warnings?: string[];
 }
 
 
@@ -191,6 +193,12 @@ export async function buildCompiledSystems(
   opts: {
     /** dev never compiles; release and ship require what the markers promised. */
     mode: BuildMode;
+    /**
+     * Also compile every system the subset takes that nobody marked (the default; the project's
+     * `packaging.compileAllSystems`). One that does not lower stays interpreted, and a missing compiler is
+     * a note rather than a failure, because nothing was promised for it.
+     */
+    compileAll?: boolean;
     /** Which machine this build is for. Absent ⇒ wasm, the road every
      *  browser and mini-game host takes. */
     target?: CompileTarget;
@@ -221,10 +229,9 @@ export async function buildCompiledSystems(
   if (files.length === 0) {
     return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
-  // A project with no `@compiled` anywhere promised nothing, so it must not pay
-  // for a TypeScript Program over its sources. Nothing is decided here: the parse
-  // below still decides, this only skips having nothing to decide.
-  if (!anyPromise(files)) {
+  const compileAll = opts.compileAll ?? true;
+  // Only marked systems, and none marked: there is nothing to decide, so no TypeScript Program is paid for.
+  if (!compileAll && !anyPromise(files)) {
     return { ok: true, modulePath: null, manifest: null, errors: [], notes: [] };
   }
 
@@ -249,28 +256,39 @@ export async function buildCompiledSystems(
   }
 
   const promised = new Set(lowered.required);
-  const chosen = lowered.module.systems.filter((s) => promised.has(s.name));
   const notes = lowered.diagnostics
     .filter((d) => d.severity === 'note' && d.system)
     .map((d) => `${d.system}: ${d.message}`);
-  if (chosen.length === 0) {
-    // Nothing was promised, so there is nothing to build and nothing to say.
-    return { ok: true, modulePath: null, manifest: null, errors: [], notes };
-  }
-
-  const bad = chosen.flatMap((s) => verifySystem(s, lowered.module.comps, lowered.module.fns));
+  const marked = lowered.module.systems.filter((s) => promised.has(s.name));
+  // A promised system the verifier refuses fails the build; an unpromised one stays interpreted, said in a note.
+  const bad = marked.flatMap((s) => verifySystem(s, lowered.module.comps, lowered.module.fns));
   if (bad.length > 0) {
     return {
       ok: false, modulePath: null, manifest: null, notes,
       errors: bad.map((e) => `${e.system}: ${e.message}`),
     };
   }
+  const unmarked = compileAll ? lowered.module.systems.filter((s) => !promised.has(s.name)) : [];
+  const verified = unmarked.filter((s) => {
+    const errors = verifySystem(s, lowered.module.comps, lowered.module.fns);
+    notes.push(...errors.map((e) => `${e.system}: ${e.message}`));
+    return errors.length === 0;
+  });
+  const chosen = [...marked, ...verified];
+  if (chosen.length === 0) {
+    return { ok: true, modulePath: null, manifest: null, errors: [], notes };
+  }
 
   if (opts.outputs ? opts.outputs.length === 0 : !opts.cc) {
+    const missing = opts.outputs ? opts.missing ?? plan.missing : plan.missing;
+    if (marked.length === 0) {
+      // Nothing was promised: the systems that could compile run interpreted, and the build says how to compile them.
+      const warning = `${chosen.length} system(s) could run compiled, but ${missing}; they run interpreted`;
+      return { ok: true, modulePath: null, manifest: null, errors: [], notes, warnings: [warning] };
+    }
     return {
       ok: false, modulePath: null, manifest: null, notes,
-      errors: [`${chosen.length} system(s) are marked @compiled but ${opts.outputs ? opts.missing ?? plan.missing : plan.missing}`
-        + ', or remove the marker'],
+      errors: [`${marked.length} system(s) are marked @compiled but ${missing}, or remove the marker`],
     };
   }
 

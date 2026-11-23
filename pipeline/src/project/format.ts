@@ -379,6 +379,8 @@ export interface ProjectPackaging {
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
   minifyScripts?: boolean;
+  /** Compile every system the AOT subset takes, not only those marked `@compiled` (default on). */
+  compileAllSystems?: boolean;
   /** A development build dials the editor so the frame debugger can capture it. */
   frameDebugger?: boolean;
   openFolder?: boolean;
@@ -512,7 +514,7 @@ export const WEBP_IMAGES: readonly WebpImages[] = ['lossless', 90, 80];
 
 /** The packaging settings a profile may set; the rest are the project's. */
 export const EXPORT_PROFILE_FIELDS = [
-  'config', 'sourceMaps', 'minifyScripts', 'compressTextures', 'compressAudio', 'atlasTextures', 'webpImages',
+  'config', 'sourceMaps', 'minifyScripts', 'compileAllSystems', 'compressTextures', 'compressAudio', 'atlasTextures', 'webpImages',
   'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
 ] as const satisfies readonly (keyof ProjectPackaging)[];
 
@@ -980,6 +982,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (typeof p.appId === 'string' && p.appId !== '') pkg.appId = p.appId;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.minifyScripts === 'boolean') pkg.minifyScripts = p.minifyScripts;
+    if (typeof p.compileAllSystems === 'boolean') pkg.compileAllSystems = p.compileAllSystems;
     if (typeof p.frameDebugger === 'boolean') pkg.frameDebugger = p.frameDebugger;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
     if (typeof p.compressWasm === 'boolean') pkg.compressWasm = p.compressWasm;

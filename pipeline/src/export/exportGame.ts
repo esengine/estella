@@ -612,6 +612,8 @@ export interface ExportGameOptions {
    * for the differential that proves the two frames agree (REARCH_AOT.md §8.2).
    */
   aotMode?: BuildMode;
+  /** Compile every system the subset takes, not only `@compiled` ones (default on). */
+  compileAllSystems?: boolean;
   minify?: boolean;
   minifyScripts?: boolean;
   sourcemap?: boolean;
@@ -848,6 +850,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       minifyScripts: opts.minifyScripts,
+      compileAllSystems: opts.compileAllSystems,
       debugChannel: opts.debugChannel,
       hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
@@ -892,6 +895,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       minifyScripts: opts.minifyScripts,
+      compileAllSystems: opts.compileAllSystems,
       debugChannel: opts.debugChannel,
       hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
@@ -1245,6 +1249,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     // fails the build rather than quietly falling back to the interpreter.
     const built = await buildCompiledSystems(opts.root, {
       mode: opts.aotMode ?? 'release',
+      compileAll: opts.compileAllSystems,
       target: aotTarget,
       cc: aotTarget === 'native' ? (platform === 'android' ? null : findHostCC()) : resolveEmcc(opts.emcc),
       run: runEmcc,
@@ -1258,6 +1263,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       errors.push(...built.errors);
       return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
     }
+    warnings.push(...built.warnings ?? []);
     if (platform === 'android' && built.modules && built.manifest) {
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s) for ${Object.keys(built.modules).join(', ')}` });
       // Not content: each ABI's library goes in lib/<abi>/, where the system linker

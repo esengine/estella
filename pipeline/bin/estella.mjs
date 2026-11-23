@@ -62,7 +62,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
                       refused together with --minify
   --all-scenes        playable: inline every scene of the scenes folder, where a
                       playable carries its entry scene alone
-  --no-aot            package without compiling the systems marked @compiled, so
+  --no-aot            package without compiling any system, marked or not, so
                       the same project runs both ways and the frames are compared
   --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
   --steam-appid <id>  desktop: also write the Steam depot scripts for this app id

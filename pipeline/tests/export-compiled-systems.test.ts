@@ -151,13 +151,26 @@ describe('what a package carries for a compiled system', () => {
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
-  it('carries nothing for a project that promised nothing', async () => {
+  it.skipIf(!EMCC)('compiles an unmarked system the subset takes, by default', async () => {
     const f = project(UNMARKED);
     try {
       const res = await run(f);
       expect(res.errors).toEqual([]);
-      // Not an empty module and not an empty key: a project that never asked for
-      // this pays nothing for it, on a machine that may have no toolchain at all.
+      expect(config(f.out).aot?.manifest.systems.map((x) => x.name)).toEqual(['ExportDriftSystem']);
+      expect(existsSync(path.join(f.out, 'aot'))).toBe(true);
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  }, 120_000);
+
+  it('carries nothing when the project compiles only what it marked, and marked nothing', async () => {
+    const f = project(UNMARKED);
+    try {
+      const res = await exportGame({
+        root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+        scriptsEntry: 'src/main.ts', sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
+        outDir: f.out, compileAllSystems: false,
+      });
+      expect(res.errors).toEqual([]);
+      // Not an empty module and not an empty key: a project that asked for none of this pays nothing for it.
       expect(config(f.out).aot).toBeUndefined();
       expect(existsSync(path.join(f.out, 'aot'))).toBe(false);
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }

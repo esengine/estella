@@ -296,6 +296,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   runtime?: RuntimeProjectConfig;
   minify?: boolean;
   minifyScripts?: boolean;
+  /** Compile every system the subset takes, not only `@compiled` ones (default on). */
+  compileAllSystems?: boolean;
   debugChannel?: DebugChannelConfig | null;
   /** Overrides the project's own CDN root / persistence key (see `packagedHotUpdate`). */
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
@@ -536,12 +538,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // the target AOT exists for (docs/REARCH_AOT.md §1.1: iOS mini-games have no
   // JIT). A PATH, because WXWebAssembly cannot compile bytes.
   const built = await buildCompiledSystems(opts.root, {
-    mode: opts.aotMode ?? 'release', cc: resolveEmcc(opts.emcc), run: runEmcc,
+    mode: opts.aotMode ?? 'release', compileAll: opts.compileAllSystems, cc: resolveEmcc(opts.emcc), run: runEmcc,
   });
   if (!built.ok) {
     errors.push(...built.errors);
     return { ok: false, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
   }
+  warnings.push(...built.warnings ?? []);
   let aotArg = '';
   if (built.modulePath && built.manifest) {
     progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });

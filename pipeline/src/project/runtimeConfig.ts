@@ -319,6 +319,8 @@ export interface PackagingOptions {
   excludeScenes: string[];
   sourcemap: boolean;
   minifyScripts: boolean;
+  /** Compile every system the AOT subset takes, or only the `@compiled` ones. */
+  compileAllSystems: boolean;
   appIcon: string | undefined;
   /** How the page's start screen should look; see SplashPackaging. */
   splash: ProjectPackaging['splash'];
@@ -339,6 +341,7 @@ export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging' |
     // word the dialog uses for the same choice.
     sourcemap: p?.sourceMaps ?? (p?.config === 'development'),
     minifyScripts: p?.minifyScripts ?? true,
+    compileAllSystems: p?.compileAllSystems ?? true,
     appIcon: p?.icon,
     splash: p?.splash,
   };
