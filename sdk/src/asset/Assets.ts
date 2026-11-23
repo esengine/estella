@@ -759,11 +759,11 @@ export class Assets {
 
     /** The decoded geometry behind a mesh handle this realm loaded, or null when nothing here can name it. */
     async readMeshData(handle: number): Promise<MeshData | null> {
-        const loader = this.getLoader<MeshResult>('mesh');
         const path = this.pathForHandle('mesh', handle);
-        if (!(loader instanceof MeshAssetLoader) || !path) return null;
+        const source = this.meshOwners_?.get(handle);
+        if (!path || source?.owner !== this) return null;
         try {
-            return await loader.readSource(path, this.getLoadContext_());
+            return await source.loader.readSource(path, this.getLoadContext_());
         } catch (e) {
             log.warn('assets', `Reading the geometry of ${path} failed`, e);
             return null;
@@ -931,13 +931,10 @@ export class Assets {
     }
 
     /** Record a handle→path pair, dropped on invalidation or final release. */
-    private recordHandlePath_(kind: string, handle: number, path: string): void {
+    private recordHandlePath_(kind: string, handle: number, path: string, loader?: AssetLoader<unknown>): void {
         if (!handle) return;
         this.handleToPath_.set(`${kind}:${handle}`, path);
-        if (kind === 'mesh') {
-            const loader = this.loaders_.get(kind);
-            if (loader instanceof MeshAssetLoader) this.rememberMeshOwner_(handle, loader);
-        }
+        if (loader instanceof MeshAssetLoader) this.rememberMeshOwner_(handle, loader);
     }
 
     /** {@link acquireSpine} without the receipt, for a caller that will let the
@@ -961,7 +958,7 @@ export class Assets {
         const atlas = this.spineAtlasOf_(skeleton, atlasRef);
         const key = spinePairKey(skeleton, atlas);
         return this.acquirePrepared_<SpineResult>(
-            'spine', key, skeletonRef,
+            this.spineLoader_, key, skeletonRef,
             (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx), owner,
         );
     }
@@ -2242,22 +2239,23 @@ export class Assets {
     private disposeGeneric_(type: string, path: string, era: PreparedLoad<unknown>): void {
         const cache = this.genericCache_.get(type);
         if (cache && cache.get(path) === era) cache.delete(path);
-        this.retire_(type, era);
+        this.retire_(era);
     }
 
     /** End one handle-bound era: its loader destroys what it made, then what its
      *  preparation acquired goes back — in that order, since the value is what
      *  is still using it. */
-    private retire_(type: string, era: PreparedLoad<unknown>): void {
+    private retire_(era: PreparedLoad<unknown>): void {
         if (era.generation === null) return;
         era.generation = null;
+        const type = era.owner.type;
         const handle = (era.value as { handle?: unknown } | null)?.handle;
         if (typeof handle === 'number') {
             this.handleToPath_.delete(`${type}:${handle}`);
             if (type === 'mesh') this.forgetMeshOwner_(handle);
         }
         disposeAll([
-            () => this.loaders_.get(type)?.unload?.(era.value),
+            () => era.loader.unload?.(era.value),
             () => era.dependencies.releaseAll(),
         ], dispose => dispose());
     }
@@ -2633,7 +2631,7 @@ export class Assets {
                     for (const cache of this.genericCache_.values()) cache.clearAll();
                     this.genericCache_.clear();
                     const generations = this.genericRefs_.drain();
-                    disposeAll(generations, ({ key, value }) => this.retire_(key.slice(0, key.indexOf(':')), value));
+                    disposeAll(generations, ({ value }) => this.retire_(value));
                 },
             ], dispose => dispose());
         } finally {
@@ -2856,7 +2854,7 @@ export class Assets {
         }
         const load = loader.load.bind(loader);
         const path = this.resolveLoadPath_(ref);
-        return this.acquirePrepared_<T>(type, path, ref, (ctx) => load(path, ctx), owner);
+        return this.acquirePrepared_<T>(loader, path, ref, (ctx) => load(path, ctx), owner);
     }
 
     /**
@@ -2866,27 +2864,28 @@ export class Assets {
      * algorithm, differing only in what it calls one asset.
      */
     private async acquirePrepared_<T>(
-        type: string, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>, parent?: AssetDependencyOwner,
+        loader: AssetLoader<T>, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>, parent?: AssetDependencyOwner,
     ): Promise<AssetLease<T>> {
         this.assertLoading_();
         const epoch = this.resetEpoch_;
+        const type = loader.type;
         const { ready, unclaim } = this.genericCacheFor_(type).acquire(key, parent, owner =>
-            this.prepared_(async ctx => ({ value: await prepare(ctx), owner }), owner),
+            this.prepared_(async ctx => ({ value: await prepare(ctx), owner, loader }), owner),
         );
         try {
             const era = await ready;
             if (epoch !== this.resetEpoch_) {
-                this.retire_(type, era);
+                this.retire_(era);
                 throw new Error(`Assets were released while "${ref}" was loading; it has no owner. Load it again.`);
             }
             const lease = this.genericRefs_.acquireLoad(`${type}:${key}`, era, era);
             if (!lease) {
                 unclaim?.();
-                return this.acquirePrepared_(type, key, ref, prepare, parent);
+                return this.acquirePrepared_(loader, key, ref, prepare, parent);
             }
             const result = era.value as T;
             const handle = (result as { handle?: unknown } | null)?.handle;
-            if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, key);
+            if (typeof handle === 'number') this.recordHandlePath_(type, handle, key, era.loader);
             return this.typedLease_(type, lease, result, unclaim);
         } catch (error) {
             unclaim?.();
@@ -2900,7 +2899,7 @@ export class Assets {
     private genericCacheFor_(type: string): PreparedAssetCache {
         let cache = this.genericCache_.get(type);
         if (!cache) {
-            cache = new PreparedAssetCache(type, era => this.retire_(type, era));
+            cache = new PreparedAssetCache(type, era => this.retire_(era));
             this.genericCache_.set(type, cache);
         }
         return cache;
@@ -3006,23 +3005,17 @@ export class Assets {
     private eras_(): AssetWithReceipts[] {
         const eras = this.registrySlots_.eras();
         const seen = new Set<PreparedLoad<unknown>>();
-        for (const [type, cache] of this.genericCache_) {
-            for (const [path, era] of cache.entries()) {
-                seen.add(era);
-                eras.push({ type, path, edges: era.edges });
-            }
+        for (const cache of this.genericCache_.values()) {
+            for (const era of cache.values()) seen.add(era);
         }
         // Invalidating removes residency, not ownership. A failed refresh can
         // keep an outgoing recipe in a graph; its nested dependencies must still
         // lead back to that graph when their sources recover.
-        for (const [key, generations] of this.genericRefs_.entries()) {
-            const split = key.indexOf(':');
-            const type = key.slice(0, split), path = key.slice(split + 1);
-            for (const { value: era } of generations) {
-                if (seen.has(era)) continue;
-                seen.add(era);
-                eras.push({ type, path, edges: era.edges });
-            }
+        for (const [, generations] of this.genericRefs_.entries()) {
+            for (const { value } of generations) seen.add(value);
+        }
+        for (const { owner, edges } of seen) {
+            eras.push({ type: owner.type, path: owner.key, edges });
         }
         return eras;
     }

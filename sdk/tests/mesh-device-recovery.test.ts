@@ -92,6 +92,37 @@ it('shares a reentrant restore and retries the source after a failed read', asyn
     } finally { lease.release(); a.assets.releaseAll(); }
 });
 
+it('uses the producing mesh loader after a registration changes during a read', async () => {
+    initResourceManager({ meshesAwaitingRemat: () => '7' } as CppResourceManager);
+    const a = realm('/a'), driver = realm('/driver');
+    const replacement = new MeshAssetLoader(() => null);
+    const geometry = builtinMeshTemplate('builtin:cube')!.build();
+    let entered!: () => void, finish!: (mesh: MeshResult) => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const pending = new Promise<MeshResult>(resolve => { finish = resolve; });
+    vi.spyOn(a.loader, 'load').mockImplementation(() => { entered(); return pending; });
+    const read = vi.spyOn(a.loader, 'readSource').mockResolvedValue(geometry);
+    const upload = vi.spyOn(a.loader, 'uploadData').mockReturnValue(7);
+    const unload = vi.spyOn(a.loader, 'unload').mockImplementation(() => {});
+    const otherRead = vi.spyOn(replacement, 'readSource').mockResolvedValue(geometry);
+    const otherUnload = vi.spyOn(replacement, 'unload').mockImplementation(() => {});
+    const acquiring = a.assets.acquireTyped<MeshResult>('mesh', 'held.esmesh');
+    await started;
+    a.assets.register(replacement);
+    finish({ handle: 7 });
+    const held = await acquiring;
+    try {
+        expect(await a.assets.readMeshData(held.value.handle)).toBe(geometry);
+        expect(await driver.assets.rematerializeMeshesAfterDeviceLoss()).toBe(1);
+        expect(read).toHaveBeenCalledTimes(2);
+        expect(upload).toHaveBeenCalledWith(geometry, 7);
+        expect(otherRead).not.toHaveBeenCalled();
+        held.release();
+        expect(unload).toHaveBeenCalledOnce();
+        expect(otherUnload).not.toHaveBeenCalled();
+    } finally { a.assets.releaseAll(); driver.assets.releaseAll(); }
+});
+
 it('finishes releasing the other built meshes when one native release fails', async () => {
     initResourceManager({ meshesAwaitingRemat: () => '1,2' } as CppResourceManager);
     const a = realm('/a');

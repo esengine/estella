@@ -78,6 +78,61 @@ describe('asset ownership is generation-exact', () => {
         expect(unloaded).toEqual(['gen1']);
     });
 
+    it('releases each generation through the loader that produced it', async () => {
+        const original: string[] = [], replacement: string[] = [];
+        const assets = makeAssets(original);
+        const first = await assets.acquireTyped('font', 'f.ttf');
+        assets.register({
+            type: 'font', extensions: ['.ttf'],
+            load: async () => ({ id: 'new' }),
+            unload: (value: { id: string }) => { replacement.push(value.id); },
+        });
+        const shared = await assets.acquireTyped('font', 'f.ttf');
+        expect(shared.generation).toBe(first.generation);
+        assets.invalidate('f.ttf');
+        const fresh = await assets.acquireTyped('font', 'f.ttf');
+        fresh.release();
+        shared.release();
+        first.release();
+        expect(original).toEqual(['gen1']);
+        expect(replacement).toEqual(['new']);
+    });
+
+    it('keeps the identity of a namespaced plugin type through invalidation and teardown', async () => {
+        const assets = makeAssets([]);
+        const unload = vi.fn();
+        assets.register({
+            type: 'paint:palette', extensions: [], unload,
+            load: async (_path, ctx) => { await ctx.readSource!('swatches.json'); return 'palette'; },
+        });
+        const lease = await assets.acquireTyped('paint:palette', 'sky');
+        assets.invalidate('sky');
+        expect(assets.dependentsOfSource('swatches.json')).toEqual([{ type: 'paint:palette', path: 'sky' }]);
+        assets.releaseAll();
+        lease.release();
+        expect(unload.mock.calls).toEqual([['palette']]);
+    });
+
+    it('returns a late result to its original loader after teardown', async () => {
+        const assets = makeAssets([]);
+        const original = vi.fn(), replacement = vi.fn();
+        let entered!: () => void, finish!: (value: string) => void;
+        const started = new Promise<void>(resolve => { entered = resolve; });
+        const pending = new Promise<string>(resolve => { finish = resolve; });
+        assets.register({
+            type: 'palette', extensions: [], unload: original,
+            load: () => { entered(); return pending; },
+        });
+        const acquiring = assets.acquireTyped('palette', 'sky');
+        await started;
+        assets.register({ type: 'palette', extensions: [], load: async () => 'new', unload: replacement });
+        assets.releaseAll();
+        finish('original');
+        await expect(acquiring).rejects.toThrow(/released/);
+        expect(original.mock.calls).toEqual([['original']]);
+        expect(replacement).not.toHaveBeenCalled();
+    });
+
     it('giving the same receipt back twice is a no-op, not a double free', async () => {
         const unloaded: string[] = [];
         const assets = makeAssets(unloaded);

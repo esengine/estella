@@ -31,6 +31,7 @@
  */
 import type { AssetLease } from './AssetLease';
 import { AssetScope } from './AssetLease';
+import type { AssetLoader } from './AssetLoader';
 import type { LoadGeneration } from './AssetRefLedger';
 import { log } from '../util/logger';
 
@@ -229,7 +230,11 @@ export function rebuildPlan(
  * sealing an era gets, for the asset kind whose current value lives in a cache
  * rather than under a slot's name.
  */
-export type PreparedLoad<T> = Preparation & LoadGeneration & { readonly value: T; readonly owner: AssetDependencyOwner };
+export type PreparedLoad<T> = Preparation & LoadGeneration & {
+    readonly value: T;
+    readonly owner: AssetDependencyOwner;
+    readonly loader: AssetLoader<T>;
+};
 
 /** Internal rejection transport. Its sources belong to this preparation, not
  * to an Error object that several concurrent loaders may reuse. Public doors
