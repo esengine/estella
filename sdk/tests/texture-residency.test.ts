@@ -170,6 +170,26 @@ describe('texture residency (Assets ↔ pool contract)', () => {
         expect(pool.entryOf(second.handle)).toMatchObject({ refCount: 1, evictable: false });
     });
 
+    it('revives each loader\'s copy of the same path and isolates a file edit to its owner', async () => {
+        const a = buildAssets(), b = buildAssets();
+        const file = 'tex/shared.png';
+        const first = await a.acquireTexture(file), second = await b.acquireTexture(file);
+        expect(first.value.handle).not.toBe(second.value.handle);
+        first.release();
+        second.release();
+        const warmA = await a.acquireTexture(file), warmB = await b.acquireTexture(file);
+        expect([warmA.value.handle, warmB.value.handle]).toEqual([first.value.handle, second.value.handle]);
+        expect(pool.createTexture).toHaveBeenCalledTimes(2);
+        warmA.release();
+        warmB.release();
+        a.invalidate(file);
+        expect(pool.isResident(first.value.handle)).toBe(false);
+        const stillWarm = await b.acquireTexture(file);
+        expect(stillWarm.value.handle).toBe(second.value.handle);
+        expect(pool.createTexture).toHaveBeenCalledTimes(2);
+        stillWarm.release();
+    });
+
     it('the SDK holds one pool reference no matter how many callers loaded', async () => {
         const assets = buildAssets();
         const result = await assets.loadTexture('tex/a.png');

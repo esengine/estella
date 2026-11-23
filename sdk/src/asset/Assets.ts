@@ -24,7 +24,7 @@ import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
 import type { TextureImportSettingsResolver } from './loaders/TextureLoader';
 import type { TextureFormatReport } from './textureFormatReport';
-import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
+import { logicalTextureKey, TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './AssetRefLedger';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
@@ -541,6 +541,11 @@ export class Assets {
      * registered under. A blank path is not this layer's to fetch.
      */
     texturesAwaitingReupload(): { handle: number; content: TextureContent; path: string }[] {
+        return this.owedTextureEntries_().map(row => row.content === TextureContent.Asset
+            ? { ...row, path: logicalTextureKey(row.path) } : row);
+    }
+
+    private owedTextureEntries_(): { handle: number; content: TextureContent; path: string }[] {
         const raw = requireResourceManager().texturesAwaitingReupload?.() ?? '';
         if (!raw) return [];
         return raw.split('\n').map((line) => {
@@ -598,32 +603,38 @@ export class Assets {
     }
 
     /**
-     * Refills every owed texture someone can: an asset texture is loaded again and
-     * moved behind its handle, any other goes to the refill its creator provided.
-     * Content nobody can remake is forgone by name, or the device recovers forever.
+     * Held textures are restored by their producers. A native file with no registered
+     * producer can still be loaded by path. Unheld GPU cache entries can be discarded.
      */
     async reuploadTexturesAfterDeviceLoss(): Promise<number> {
         const rm = requireResourceManager();
         if (!rm.adoptTextureContent) return 0;
 
         let restored = 0;
-        for (const { handle, content, path } of this.texturesAwaitingReupload()) {
-            if (content !== TextureContent.Asset || !path) {
-                const refill = textureRefill(handle);
-                if (!refill) {
-                    log.warn('assets', `Device recovery: texture ${handle} (${textureContentName(content)})`
-                        + ' has no provider to refill it; it stays blank');
-                    rm.forgoTextureContent?.(handle);
-                    continue;
-                }
+        let discardCold = false;
+        for (const { handle, content, path: poolKey } of this.owedTextureEntries_()) {
+            if (content === TextureContent.Asset && poolKey && typeof rm.trimTextureCache === 'function'
+                && rm.getTextureRefCount?.(handle) === 0) {
+                discardCold = true;
+                continue;
+            }
+            const refill = textureRefill(handle);
+            if (refill) {
                 try {
                     if (await refill()) restored++;
                 } catch (e) {
-                    log.warn('assets', `Device recovery: refilling texture ${handle}`
-                        + ` (${textureContentName(content)}) failed`, e);
+                    log.warn('assets', `Device recovery: refilling texture ${handle} (${textureContentName(content)}) failed`, e);
                 }
                 continue;
             }
+            const path = logicalTextureKey(poolKey);
+            if (content !== TextureContent.Asset || !path) {
+                log.warn('assets', `Device recovery: texture ${handle} (${textureContentName(content)})`
+                    + ' has no provider to refill it; it stays blank');
+                rm.forgoTextureContent?.(handle);
+                continue;
+            }
+            if (poolKey !== path && this.textureLoader_.poolKey(path, rm) !== poolKey) continue;
             const cut = path.lastIndexOf(':');
             const ref = cut < 0 ? path : path.slice(0, cut);
             const flip = cut < 0 || path.slice(cut + 1) === 'f';
@@ -631,12 +642,14 @@ export class Assets {
                 const fresh = await this.textureLoader_.loadDetached(
                     this.resolveLoadPath_(ref), this.getLoadContext_(), flip,
                     this.textureImportResolver_?.(ref));
-                if (rm.adoptTextureContent(handle, fresh.handle)) restored++;
-                rm.releaseTexture(fresh.handle);
+                try { if (rm.adoptTextureContent(handle, fresh.handle)) restored++; }
+                finally { rm.releaseTexture(fresh.handle); }
             } catch (e) {
                 log.warn('assets', `Device recovery: re-upload failed for ${ref}`, e);
             }
         }
+        // A file can be reacquired during a refill. Trim by current ownership so a new handle keeps its path.
+        if (discardCold) rm.trimTextureCache();
         log.info('assets', `Device recovery: ${restored} texture(s) re-uploaded`);
         return restored;
     }
@@ -832,7 +845,7 @@ export class Assets {
         const rm = requireResourceManager();
         if (typeof rm.acquireTextureByPath !== 'function'
             || typeof rm.invalidateTexturePath !== 'function') return null;
-        const handle = rm.acquireTextureByPath(cacheKey);
+        const handle = rm.acquireTextureByPath(this.textureLoader_.poolKey(cacheKey, rm));
         if (!handle) return null;
         const dims = rm.getTextureDimensions(handle);
         if (!dims) {
@@ -2330,7 +2343,7 @@ export class Assets {
                 // still owe a release, and forgetting them strands their texture
                 // with nobody able to free it. The era still ends here.
                 this.textureRefs_.supersede(key);
-                if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(key)) {
+                if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(this.textureLoader_.poolKey(key, rm))) {
                     dropped = true;
                 }
             }

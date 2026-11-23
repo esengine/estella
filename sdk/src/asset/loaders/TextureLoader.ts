@@ -6,7 +6,8 @@ import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
 import { decodeBlobBitmap, decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { evictTextureDimensions, requireResourceManager } from '../../wasm/resourceManager';
-import { TextureContent, type ESEngineModule } from '../../wasm';
+import { provideTextureContent, withdrawTextureContent, type TextureRefill } from '../../wasm/textureRefill';
+import { TextureContent, type CppResourceManager, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
     isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, chooseEngineTargetFormat, engineFormatCode,
@@ -85,14 +86,18 @@ function pixelParams(settings: TextureImportSettings | undefined): TextureParams
 /**
  * Canonical residency key for a texture: the resolved load path plus the
  * flip-orientation flag (flipped and raw uploads are genuinely different GPU
- * objects). One string serves as both the SDK's AsyncCache key and the C++
- * ResourcePool path identity, so a texture whose last reference was released
- * can be revived by `acquireTextureByPath` under the exact same key the next
- * `loadTexture` looks up.
+ * objects). The pool also distinguishes independent loaders sharing the device.
  */
 export function textureResidencyKey(path: string, flip: boolean): string {
     return `${path}:${flip ? 'f' : 'n'}`;
 }
+
+/** @internal Project path and flip as displayed in diagnostics, including for secondary loaders on a device. */
+export function logicalTextureKey(poolKey: string): string { return poolKey.replace(/(:[fn]):\d+$/, '$1'); }
+
+type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog'>;
+const primaryTextureOwners = new WeakMap<CppResourceManager, number>();
+let nextTextureOwner = 0;
 
 const isPng = (b: Uint8Array): boolean => b.byteLength > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
 
@@ -102,18 +107,29 @@ interface TextureSource {
     readonly path: string;
     readonly flip: boolean;
     readonly settings?: TextureImportSettings;
+    readonly io: TextureReadContext;
+    edge: number;
     fullWidth: number;
     fullHeight: number;
 }
 
 interface HeldTextureSource {
     readonly source: TextureSource;
+    readonly refill: TextureRefill;
     references: number;
     resize: number;
 }
 
 export class TextureLoader implements AssetLoader<TextureResult> {
+    private readonly owner_ = ++nextTextureOwner;
     private readonly imageRevisions_ = new Map<string, number>();
+
+    /** @internal The first loader on a pool keeps the native host's conventional path. Others own independent entries. */
+    poolKey(key: string, rm: CppResourceManager): string {
+        const primary = primaryTextureOwners.get(rm);
+        if (primary === undefined) primaryTextureOwners.set(rm, this.owner_);
+        return primary === undefined || primary === this.owner_ ? key : `${key}:${this.owner_}`;
+    }
 
     /** End this revision for browser image requests and pending residency publications. */
     invalidate(path: string): boolean {
@@ -122,7 +138,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const raw = this.sourcesByKey_.delete(textureResidencyKey(path, false));
         if (flipped || raw) {
             for (const [handle, held] of this.held_) {
-                if (held.source.path === path) this.held_.delete(handle);
+                if (held.source.path === path) this.dropHold_(handle, held);
             }
         }
         return false;
@@ -232,7 +248,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** @internal Give back one native acquisition, including its streaming source. */
     releaseHandle(handle: number): void {
         const held = this.held_.get(handle);
-        if (held && --held.references === 0) this.held_.delete(handle);
+        if (held && --held.references === 0) this.dropHold_(handle, held);
         evictTextureDimensions(handle);
         requireResourceManager().releaseTexture(handle);
     }
@@ -254,7 +270,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * pixels behind the handle: everything that holds the handle — a material, a renderer, a batch key — sees the new size at once.
      * The texture streamer's one move. False for a handle this loader did not decode from a file, or one the host cannot re-point.
      */
-    async resize(handle: number, maxEdge: number, ctx: LoadContext): Promise<{ width: number; height: number } | null> {
+    async resize(handle: number, maxEdge: number, ctx: TextureReadContext): Promise<{ width: number; height: number } | null> {
         const held = this.held_.get(handle);
         const rm = requireResourceManager();
         if (!held || !rm.adoptTextureContent) return null;
@@ -266,6 +282,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             if (!rm.adoptTextureContent(handle, fresh.handle)) return null;
             source.fullWidth = fresh.fullWidth ?? fresh.width;
             source.fullHeight = fresh.fullHeight ?? fresh.height;
+            source.edge = Math.max(fresh.width, fresh.height);
             this.recordFormat_(source, decision);
             return { width: fresh.width, height: fresh.height };
         } finally { rm.releaseTexture(fresh.handle); }
@@ -295,9 +312,23 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private holdSource_(source: TextureSource): void {
-        const held = this.held_.get(source.handle);
-        if (held?.source === source) held.references++;
-        else this.held_.set(source.handle, { source, references: 1, resize: 0 });
+        const { handle } = source;
+        const held = this.held_.get(handle);
+        if (held?.source === source) { held.references++; return; }
+        const refill: TextureRefill = async () => {
+            if (this.held_.get(handle)?.refill !== refill) return false;
+            const edge = source.edge < Math.max(source.fullWidth, source.fullHeight) ? source.edge : 0;
+            const size = await this.resize(handle, edge, source.io);
+            if (size) evictTextureDimensions(handle);
+            return size !== null;
+        };
+        this.held_.set(handle, { source, references: 1, resize: 0, refill });
+        provideTextureContent(handle, refill);
+    }
+
+    private dropHold_(handle: number, held: HeldTextureSource): void {
+        this.held_.delete(handle);
+        withdrawTextureContent(handle, held.refill);
     }
 
     private recordFormat_(source: TextureSource, decision: TextureUploadDecision): void {
@@ -319,6 +350,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const key = textureResidencyKey(path, flip);
         const source: TextureSource = {
             handle: result.handle, key, path, flip, settings,
+            io: { backend: ctx.backend, catalog: ctx.catalog }, edge: Math.max(result.width, result.height),
             fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height,
         };
         this.holdSource_(source);
@@ -328,12 +360,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // survive as an evictable cache entry (budget permitting) and the next
         // load revives it by this key instead of re-fetching + re-decoding.
         // Optional-chained: minimal test mocks may not model the pool surface.
-        requireResourceManager().registerTextureWithPath?.(result.handle, key);
+        const rm = requireResourceManager();
+        rm.registerTextureWithPath?.(result.handle, this.poolKey(key, rm));
         return result;
     }
 
     private async decodeAndUpload_(
-        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
+        path: string, ctx: TextureReadContext, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<{ texture: TextureResult; decision: TextureUploadDecision }> {
         // A build that shipped a small copy beside the file (texture streaming) is read from the copy whenever the size asked for
         // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
@@ -350,7 +383,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     /** Decode @p path (whose bytes are at @p buildPath; @p copy when that is its small copy) no larger than @p maxEdge, and upload it. */
     private async decodeFile_(
-        path: string, buildPath: string, ctx: LoadContext, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number,
+        path: string, buildPath: string, ctx: TextureReadContext, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number,
         copy: boolean,
     ): Promise<TextureResult & { decision?: TextureUploadDecision }> {
         // A recipe is drawn here, from its source, and is then a texture like any decoded one.
