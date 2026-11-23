@@ -39,9 +39,15 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
             const root = node('Root'), first = node('Arm', root);
             node('Arm', root);
             const leaf = node('__proto__', first);
+            node('Arm/__proto__', root);
+            node('Arm/OnlyLiteral', root);
+            const unnamed = node('', root), tip = node('Tip', unnamed), unnamedJoint = node('', first);
             expect(resolveChildEntity(world, root, '')).toBe(root);
             expect(resolveChildEntity(world, root, 'Arm')).toBe(first);
             expect(resolveChildEntity(world, root, 'Arm/__proto__')).toBe(leaf);
+            expect(resolveChildEntity(world, root, 'Arm/OnlyLiteral')).toBeNull();
+            expect(resolveChildEntity(world, root, '/Tip')).toBe(tip);
+            expect(resolveChildEntity(world, root, 'Arm/')).toBe(unnamedJoint);
             expect(resolveChildEntity(world, root, 'Arm/Missing')).toBeNull();
             expect(resolveChildEntity(world, root, 'Missing/Arm')).toBeNull();
         } finally { dispose(); }
@@ -63,6 +69,61 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
             }
             expect(reads.mock.calls.length).toBe(initialReads);
             reads.mockRestore();
+        } finally { dispose(); }
+    });
+
+    it('resolves the same authored path independently for each actor and after a joint moves', () => {
+        const { world, node, dispose } = realm();
+        try {
+            const left = node('Left'), right = node('Right');
+            const leftArm = node('Arm', left), rightArm = node('Arm', right);
+            const leftTip = node('Tip', leftArm), rightTip = node('Tip', rightArm);
+            for (let i = 0; i < 2; i++) {
+                expect(resolveChildEntity(world, left, 'Arm/Tip')).toBe(leftTip);
+                expect(resolveChildEntity(world, right, 'Arm/Tip')).toBe(rightTip);
+            }
+            world.removeParent(rightTip);
+            world.setParent(leftTip, rightArm);
+            expect(resolveChildEntity(world, left, 'Arm/Tip')).toBeNull();
+            expect(resolveChildEntity(world, right, 'Arm/Tip')).toBe(leftTip);
+        } finally { dispose(); }
+    });
+
+    it('retains complete paths within the indexed child count even when component reads reenter', () => {
+        const { world, node, dispose } = realm();
+        try {
+            const root = node('Root'), arm = node('Arm', root);
+            const hand = node('Hand', arm), finger = node('Finger', arm), thumb = node('Thumb', hand);
+            const read = world.tryGet.bind(world);
+            let nested: Entity | null = null;
+            const reads = vi.spyOn(world, 'tryGet').mockImplementationOnce((entity, component) => {
+                nested = resolveChildEntity(world, root, 'Arm/Finger');
+                expect(resolveChildEntity(world, root, 'Arm/Hand/Thumb')).toBe(thumb);
+                return read(entity, component);
+            });
+            try {
+                expect(resolveChildEntity(world, root, 'Arm/Hand/Thumb')).toBe(thumb);
+            } finally { reads.mockRestore(); }
+            expect(nested).toBe(finger);
+            for (let i = 0; i < 64; i++) {
+                expect(resolveChildEntity(world, root, `Arm/Missing${i}`)).toBeNull();
+            }
+            expect(resolveChildEntity(world, arm, 'Hand/Thumb')).toBe(thumb);
+            expect(resolveChildEntity(world, hand, 'Thumb')).toBe(thumb);
+
+            const split = vi.spyOn(String.prototype, 'split');
+            let parsed: string[];
+            try {
+                resolveChildEntity(world, root, 'Arm/Finger');
+                resolveChildEntity(world, root, 'Arm/Hand/Thumb');
+                resolveChildEntity(world, arm, 'Hand/Thumb');
+                resolveChildEntity(world, hand, 'Thumb');
+                // Four named children allow four cached paths. The fifth is still walked.
+                resolveChildEntity(world, root, 'Arm/Hand');
+                resolveChildEntity(world, root, 'Arm/Hand');
+                parsed = split.mock.contexts.map(String);
+            } finally { split.mockRestore(); }
+            expect(parsed).toEqual(['Arm/Hand', 'Arm/Hand']);
         } finally { dispose(); }
     });
 

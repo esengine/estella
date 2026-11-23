@@ -21,6 +21,8 @@ interface ChildIndex {
     revision: number;
     core: ReturnType<World['getCppRegistry']>;
     parents: Map<Entity, ReadonlyMap<string, Entity>>;
+    pathsByRoot: Map<Entity, Map<string, Entity>>;
+    freePathSlots: number;
 }
 
 const childIndices = new WeakMap<ChildPathWorld, ChildIndex>();
@@ -39,7 +41,7 @@ function childIndex(
     const core = world.getCppRegistry();
     let index = childIndices.get(world);
     if (!index || index.revision !== revision || index.core !== core) {
-        index = { revision, core, parents: new Map() };
+        index = { revision, core, parents: new Map(), pathsByRoot: new Map(), freePathSlots: 0 };
         childIndices.set(world, index);
     }
     return index;
@@ -58,7 +60,12 @@ function namedChildren(
         const value = world.tryGet(child, name)?.['value'];
         if (typeof value === 'string' && !named.has(value)) named.set(value, child);
     }
+    // A component read can resolve another path through this same parent.
+    const existing = index.parents.get(entity);
+    if (existing) return existing;
     index.parents.set(entity, named);
+    // Limit retained paths to the number of child names already held by this index.
+    index.freePathSlots += named.size;
     return named;
 }
 
@@ -77,8 +84,24 @@ export function resolveChildEntity(
     if (!Children || !Name) return null;
 
     const index = childIndex(world, Children, Name);
+    const knownPaths = index?.pathsByRoot.get(rootEntity);
+    const cached = knownPaths?.get(childPath);
+    if (cached !== undefined) return cached;
+
     let current: Entity = rootEntity;
-    for (const segment of childPath.split('/')) {
+    let remaining = childPath;
+    if (knownPaths) {
+        // Rig tracks often visit a parent immediately before its child.
+        const slash = childPath.lastIndexOf('/');
+        if (slash > 0) {
+            const parent = knownPaths.get(childPath.slice(0, slash));
+            if (parent !== undefined) {
+                current = parent;
+                remaining = childPath.slice(slash + 1);
+            }
+        }
+    }
+    for (const segment of remaining.split('/')) {
         if (index) {
             const child = namedChildren(world, current, Children, Name, index)?.get(segment);
             if (child === undefined) return null;
@@ -99,6 +122,17 @@ export function resolveChildEntity(
         }
         if (found === null) return null;
         current = found;
+    }
+    if (index && index.freePathSlots > 0) {
+        let paths = index.pathsByRoot.get(rootEntity);
+        if (!paths) {
+            paths = new Map();
+            index.pathsByRoot.set(rootEntity, paths);
+        }
+        if (!paths.has(childPath)) {
+            paths.set(childPath, current);
+            index.freePathSlots--;
+        }
     }
     return current;
 }

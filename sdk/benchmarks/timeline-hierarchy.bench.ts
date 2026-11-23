@@ -15,6 +15,7 @@ for (const kind of ['2D sprite', '3D joint']) {
         describe.skipIf(!HAS_WASM)(`${kind}: ${actorCount} actors, 55 descendant tracks each`, () => {
             let world: World, registry: CppRegistry, asset: TimelineAsset;
             let indexed: SampleDeps, walked: SampleDeps;
+            let lastTarget: Entity;
             const roots: Entity[] = [];
             let frame = 0;
 
@@ -58,8 +59,8 @@ for (const kind of ['2D sprite', '3D joint']) {
                 indexed = { world, getComponent, resolveChild: (root, path) => resolveChildEntity(world, root, path) };
                 walked = { world, getComponent, resolveChild: (root, path) => resolveChildEntity(unversioned, root, path) };
                 for (const root of roots) sampleTimeline(asset, 0.5, root, indexed);
-                const target = resolveChildEntity(world, roots[0], paths[54])!;
-                const value = kind === '2D sprite' ? world.get(target, Sprite).color.a : world.get(target, Transform).position.x;
+                lastTarget = resolveChildEntity(world, roots[0], paths[54])!;
+                const value = kind === '2D sprite' ? world.get(lastTarget, Sprite).color.a : world.get(lastTarget, Transform).position.x;
                 if (value !== 0.5) throw new Error('Timeline benchmark did not animate its target');
             };
 
@@ -76,6 +77,10 @@ for (const kind of ['2D sprite', '3D joint']) {
             };
             bench('walk hierarchy', () => sample(walked), { setup, teardown, time: 500, warmupTime: 100 });
             bench('reuse named children', () => sample(indexed), { setup, teardown, time: 500, warmupTime: 100 });
+            bench('rename a descendant before each sample', () => {
+                world.set(lastTarget, Name, { value: frame % 2 === 0 ? 'Renamed' : 'Node54' });
+                sample(indexed);
+            }, { setup, teardown, time: 500, warmupTime: 100 });
         });
     }
 }
