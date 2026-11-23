@@ -129,7 +129,7 @@ try {
     const fragment = `precision highp float;
 #define ES_SURFACE_3D
 struct Light { vec4 posDir; vec4 color; };
-uniform vec4 u_waterRect, u_waterDepth, u_waterSun;
+uniform vec4 u_waterRect, u_waterDepth, u_waterSun, u_time;
 uniform float receiverY;
 out vec4 colour;
 ${body}
