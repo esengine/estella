@@ -34,6 +34,20 @@ describe('riverBedModifiers', () => {
         expect(ground(200, 0, 5)).toBe(5);
     });
 
+    it('rolls over where its bank meets the ground instead of folding, so the cells of a terrain draw no saw along it, and keeps its waterline', () => {
+        // Ground 10 over the river: the bank (slope 2 x depth / half = 0.6) meets it 16.7 out from the edge. Its slope there turns
+        // gradually, not at once: no step between two neighbouring samples' slopes is more than a share of the whole turn.
+        const step = 0.25;
+        let worst = 0;
+        for (let z = 10; z < 40; z += step) {
+            const a = ground(200, z - step, 20), b = ground(200, z, 20), c = ground(200, z + step, 20);
+            worst = Math.max(worst, Math.abs((c - b) - (b - a)) / step);
+        }
+        expect(worst).toBeLessThan(0.6 * 0.1);
+        // Never under the surface where the ground stood over it: the waterline stays at the edge.
+        for (let z = 10; z < 40; z += 0.5) expect(ground(200, z, 10.5)).toBeGreaterThanOrEqual(10 - 1e-9);
+    });
+
     it('is laid as stretches, each bounded round its own', () => {
         expect(mods.length).toBe(Math.ceil(100 / 24));
         expect(new Set(mods.map((m) => m.id)).size).toBe(mods.length);
