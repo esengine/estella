@@ -317,6 +317,9 @@ export class NavGrid implements NavSurface {
     }
 }
 
+/** Keep the built-in predicate identifiable if a project overrides the prototype. */
+export const gridStandingQuery = NavGrid.prototype.isNavigable;
+
 /**
  * Chamfer distance transform, 3-4 weighted, in two sweeps: a cheap and close
  * approximation of the euclidean distance to the nearest blocked cell. Reported

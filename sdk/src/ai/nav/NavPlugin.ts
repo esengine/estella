@@ -39,8 +39,8 @@ import {
     collectNavLinks, navLinkDigest, collectNavAreas, navAreaDigest, applyAreasToGrid, FIRST_AREA,
     type NavObstacleBox, type NavAreaBox,
 } from './navObstacles';
-import { NavGrid } from './NavGrid';
-import { NavMesh, type NavLinkSegment } from './NavMesh';
+import { NavGrid, gridStandingQuery } from './NavGrid';
+import { NavMesh, meshStandingQuery, type NavLinkSegment } from './NavMesh';
 import { NavLink } from './NavLink';
 import { NavArea } from './NavArea';
 import { setupNavDebugDraw } from './NavDebugDraw';
@@ -386,8 +386,8 @@ function steerTo(
             horizon: AVOID_HORIZON,
             maxSpeed: speed,
             // Overridden and custom surface queries keep their original visit order.
-            deferSurfaceCheck: surface?.isNavigable === NavGrid.prototype.isNavigable
-                || surface?.isNavigable === NavMesh.prototype.isNavigable,
+            deferSurfaceCheck: (surface instanceof NavGrid && surface.isNavigable === gridStandingQuery)
+                || (surface instanceof NavMesh && surface.isNavigable === meshStandingQuery),
             canStand: surface
                 ? (px, pz) => surface.isNavigable(
                     flat ? { x: px, y: pz, z: height } : { x: px, y: height, z: pz }, { radius: agent.radius })

@@ -622,6 +622,9 @@ export class NavMesh implements NavSurface {
     }
 }
 
+/** Keep the built-in predicate identifiable if a project overrides the prototype. */
+export const meshStandingQuery = NavMesh.prototype.isNavigable;
+
 /** A route as the search found it: the polygons walked, and for each step the
  *  link that made it, or -1 where the two polygons share an edge. */
 interface PolyPath {

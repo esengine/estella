@@ -576,6 +576,24 @@ describe('agents that are bodies', () => {
         expect(probes.slice(0, 8)).toEqual([1, 2, 3, 4, 0, 0, 0, 0]);
     });
 
+    it('honours a project-wide override of the grid standing query', () => {
+        const nav = new Navigation();
+        nav.setSurface(new NavGrid({ width: 64, height: 64, cellSize: 10 }));
+        const world = new FakeWorld();
+        world.spawnAgent(100, 100, { radius: 2, speed: 10, arriveRadius: 0, repathInterval: 0,
+            hasTarget: true, targetX: 300, targetY: 100 });
+        world.spawnAgent(94, 100, { radius: 2 });
+        const runtimes = new Map<Entity, AgentRuntime>();
+        stepNavigation(world, nav, 1 / 60, runtimes);
+        const standing = vi.spyOn(NavGrid.prototype, 'isNavigable').mockReturnValue(true);
+        try {
+            stepNavigation(world, nav, 1 / 60, runtimes);
+            expect(standing.mock.calls.length).toBeGreaterThanOrEqual(34 * 4);
+        } finally {
+            standing.mockRestore();
+        }
+    });
+
     it('are not slowed by an empty room', () => {
         const world = new FakeWorld();
         const alone = world.spawnAgent(20, 150, {
