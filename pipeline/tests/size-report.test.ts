@@ -50,6 +50,29 @@ const MANIFEST = {
 };
 
 describe('bucketing by delivery', () => {
+  it('measures actual packs and streaming previews under their delivery group', () => {
+    const manifest = { groups: { dlc: { bundleMode: 'remote', assets: {
+      wall: { path: 'virtual/wall.ktx2', address: 'art/wall.png', pack: { file: 'dlc.pack' }, streamTail: { path: 'preview.ktx2' } },
+      mesh: { path: 'virtual/mesh.esmesh', address: 'art/mesh.esmesh', pack: { file: 'dlc.pack' } },
+    } } } };
+    const bucket = bucketIndexFrom(manifest);
+    expect([...bucket.keys()].sort()).toEqual(['dlc.pack', 'preview.ktx2']);
+    const report = summarizeBuildFiles([{ path: 'dlc.pack', bytes: 60 }, { path: 'preview.ktx2', bytes: 10 }], { buckets: bucket });
+    expect(report.remoteBytes).toBe(70);
+    expect(report.packageBytes).toBe(0);
+    expect(logicalIndexFrom(manifest).get('preview.ktx2')).toBe('art/wall.png');
+    expect(logicalIndexFrom(manifest).get('dlc.pack')).toBeUndefined();
+  });
+
+  it('charges a shared preview once to the earliest delivery and attributes it to its standalone source', () => {
+    const local = { bundleMode: 'local', assets: { sprite: { path: 'shared.png', address: 'art/sprite.png' } } };
+    const dlc = { bundleMode: 'remote', assets: { mesh: { path: 'full.png', address: 'art/mesh.png', streamTail: { path: 'shared.png' } } } };
+    for (const groups of [{ local, dlc }, { dlc, local }]) {
+      expect(bucketIndexFrom({ groups }).get('shared.png')).toBe('initial');
+      expect(logicalIndexFrom({ groups }).get('shared.png')).toBe('art/sprite.png');
+    }
+  });
+
   it('attributes each asset to the mode its group ships in', () => {
     const buckets = bucketIndexFrom(MANIFEST);
     expect(buckets.get('assets/hero.png')).toBe('initial');

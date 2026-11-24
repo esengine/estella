@@ -31,6 +31,7 @@ import {
   type SizeBudget, type SizeVerdict,
 } from '../project/sizeBudget';
 import type { Inclusion, InclusionReason } from '../assets/cookAssets';
+import { physicalAssetFiles, type AssetFileRefs } from '../assets/assetFiles';
 import {
   compareSizes, readSizeRecord, recordOf, writeSizeRecord,
   type SizeComparison, type SizeSettings,
@@ -171,50 +172,43 @@ export function kindOf(rel: string): SizeKind {
   return EXT_KIND[ext] ?? 'other';
 }
 
-/**
- * Delivery bucket per shipped path, read off the AddressableManifest the build
- * just wrote. Paths in the manifest are relative to the same root this measures,
- * so the lookup is direct.
- *
- * A build with no manifest (the playable's single inlined file, a legacy cook)
- * yields an empty index — every file then counts as initial, which is exactly
- * right for a target that has no subpackages.
- */
-export function bucketIndexFrom(manifest: unknown): Map<string, SizeBucket> {
-  const index = new Map<string, SizeBucket>();
-  const groups = (manifest as { groups?: Record<string, { bundleMode?: string; assets?: Record<string, { path?: string }> }> } | null)?.groups;
-  if (!groups) return index;
-  for (const group of Object.values(groups)) {
+const normalizeRel = (p: string): string => p.replace(/\\/g, '/').replace(/^\.?\//, '');
+type SizeManifestGroup = { bundleMode?: string; assets?: Record<string, AssetFileRefs & { address?: string }> };
+const deliveryOrder: Record<SizeBucket, number> = { initial: 0, lazy: 1, remote: 2 };
+
+/** Each physical file counts once at the earliest delivery that needs it. */
+function indexManifestFiles(manifest: unknown) {
+  const buckets = new Map<string, SizeBucket>();
+  const logical = new Map<string, string>();
+  const previews = new Map<string, string>();
+  const groups = (manifest as { groups?: Record<string, SizeManifestGroup> } | null)?.groups;
+  for (const group of Object.values(groups ?? {})) {
     const bucket: SizeBucket = group?.bundleMode === 'lazy' ? 'lazy' : group?.bundleMode === 'remote' ? 'remote' : 'initial';
-    for (const asset of Object.values(group?.assets ?? {})) {
-      if (asset?.path) index.set(normalizeRel(asset.path), bucket);
+    for (const [key, asset] of Object.entries(group?.assets ?? {})) {
+      if (!asset) continue;
+      const source = asset.address ?? (key.startsWith('@uuid:') ? undefined : key);
+      for (const file of physicalAssetFiles(asset)) {
+        const shipped = normalizeRel(file.path);
+        const previous = buckets.get(shipped);
+        if (previous === undefined || deliveryOrder[bucket] < deliveryOrder[previous]) buckets.set(shipped, bucket);
+        // A pack serves multiple sources. A preview inherits its texture's source unless it also ships as a full asset.
+        const names = file.kind === 'streamTail' ? previews : logical;
+        if (file.kind !== 'pack' && source && !names.has(shipped)) names.set(shipped, normalizeRel(source));
+      }
     }
   }
-  return index;
+  for (const [file, source] of previews) if (!logical.has(file)) logical.set(file, source);
+  return { buckets, logical };
 }
 
-const normalizeRel = (p: string): string => p.replace(/\\/g, '/').replace(/^\.?\//, '');
+/** Shipped path to the delivery bucket charged for it. Unlisted files default to initial. */
+export function bucketIndexFrom(manifest: unknown): Map<string, SizeBucket> {
+  return indexManifestFiles(manifest).buckets;
+}
 
-/**
- * Shipped path → the asset's LOGICAL path, off the same manifest the buckets come
- * from. Content-addressed staging renames the file, so without this the shipped
- * name matches nothing a reference (or a developer) knows it by.
- */
+/** Shipped file to its logical source for size attribution. Packs aggregate multiple sources. */
 export function logicalIndexFrom(manifest: unknown): Map<string, string> {
-  const index = new Map<string, string>();
-  const groups = (manifest as { groups?: Record<string, { assets?: Record<string, { path?: string; address?: string }> }> } | null)?.groups;
-  for (const group of Object.values(groups ?? {})) {
-    for (const [key, asset] of Object.entries(group?.assets ?? {})) {
-      if (!asset?.path) continue;
-      const shipped = normalizeRel(asset.path);
-      // `address` is the logical path when staging renamed the file; otherwise the
-      // key IS a logical path (the manifest lists each asset under several aliases,
-      // and a uuid alias is no use to a reader).
-      const logical = asset.address ?? (key.startsWith('@uuid:') ? undefined : key);
-      if (logical && !index.has(shipped)) index.set(shipped, normalizeRel(logical));
-    }
-  }
-  return index;
+  return indexManifestFiles(manifest).logical;
 }
 
 /**
@@ -502,7 +496,7 @@ export async function measureBuild(opts: {
 
   // The manifest's own answer first; a subpackage root the export named wins
   // over the default, since nothing in the manifest claims the engine binary.
-  const buckets = bucketIndexFrom(manifest);
+  const { buckets, logical } = indexManifestFiles(manifest);
   const roots = (opts.subPackageRoots ?? []).map((r) => `${normalizeRel(r)}/`);
   if (roots.length > 0) {
     for (const f of files) {
@@ -512,7 +506,7 @@ export async function measureBuild(opts: {
   }
   const entries = entriesOf(files, {
     buckets,
-    logical: logicalIndexFrom(manifest),
+    logical,
     inclusion: opts.inclusion,
     packedFrom: opts.packedFrom,
   });

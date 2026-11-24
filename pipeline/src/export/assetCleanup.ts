@@ -3,6 +3,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { AddressableManifest } from 'esengine';
+import { physicalAssetFiles } from '../assets/assetFiles';
 import { containsPath, isInsideRoot, realPathOf } from '../fs/pathSandbox';
 
 /** Physical files owned by the exported manifest; shared pack files count once. */
@@ -18,10 +19,11 @@ export async function exportedAssetFiles(output: string): Promise<Set<string>> {
   const base = path.resolve(output);
   for (const group of Object.values(manifest.groups ?? {})) {
     for (const asset of Object.values(group.assets ?? {})) {
-      const file = asset.pack?.file ?? asset.path;
-      if (typeof file !== 'string' || !file || path.isAbsolute(file) || /^[a-z]+:/i.test(file)) continue;
-      const target = path.resolve(output, file);
-      if (target !== base && containsPath(base, target)) files.add(target);
+      for (const { path: file } of physicalAssetFiles(asset)) {
+        if (path.isAbsolute(file) || /^[a-z]+:/i.test(file)) continue;
+        const target = path.resolve(output, file);
+        if (target !== base && containsPath(base, target)) files.add(target);
+      }
     }
   }
   return files;

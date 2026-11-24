@@ -17,22 +17,10 @@
  */
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { deriveManifestRevision, type AddressableManifest } from '../../../sdk/src/asset/AddressableManifest';
-import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
-import { spineManifestContractFrom, type SpineManifestContract } from '../../../sdk/src/asset/spineImportSettings';
-
-/** The flat v1.0 cook manifest this reads (see cookAssets `CookManifestEntry`). */
-interface FlatManifest {
-  entries: {
-    uuid: string; path: string; sourcePath?: string; type: string;
-    contentHash?: string; size?: number; group?: string; groupMode?: string;
-    compressedFormats?: string[];
-    streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
-    importer?: Record<string, unknown>;
-    atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
-    pack?: { file: string; offset: number; size: number };
-  }[];
-}
+import { deriveManifestRevision, type AddressableManifest, type AddressableManifestAsset } from '../../../sdk/src/asset/AddressableManifest';
+import { textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportSettings';
+import { spineManifestContractFrom } from '../../../sdk/src/asset/spineImportSettings';
+import type { FlatCookEntry } from './cookAssets';
 
 export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object.freeze({
   imageSource: 'texture',
@@ -76,18 +64,8 @@ export function bundleModeFor(groupName: string, groupMode: string | undefined):
  * gate. `size` falls back to stat() only for a legacy cook that omitted it.
  */
 export async function buildAddressableManifest(absOut: string): Promise<string> {
-  const flat = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as FlatManifest;
-  type Entry = {
-    path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
-    compressedFormats?: string[];
-    streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
-    textureImport?: ParsedTextureImportSettings;
-    spineImport?: SpineManifestContract;
-    pack?: { file: string; offset: number; size: number };
-    metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
-  };
-  type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
-  const groups: Record<string, Group> = {};
+  const flat = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as { entries: FlatCookEntry[] };
+  const groups: AddressableManifest['groups'] = {};
   // Every spelling this build knows an asset by → its key. A spine contract
   // names the atlas it was promised against however the author's metadata
   // spelled it; what ships is this build's key for that asset.
@@ -110,7 +88,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     const group = (groups[groupName] ??= {
       bundleMode: bundleModeFor(groupName, e.groupMode), labels: [], assets: {},
     });
-    const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
+    const entry: AddressableManifestAsset = { path: e.path, type: addrType(e.type), size, labels: [] };
     if (e.contentHash) entry.contentHash = e.contentHash;
     // Which GPU formats the texture was encoded for. The runtime reads this off
     // the addressable manifest — the flat one it came from is a build-time
@@ -143,7 +121,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
   // Always emit a main group so the runtime's main package exists even if every
   // asset landed in a subpackage / remote group.
   groups.main ??= { bundleMode: 'local', labels: [], assets: {} };
-  const manifest = { version: '2.0', groups } as unknown as AddressableManifest;
+  const manifest: AddressableManifest = { version: '2.0', groups };
   manifest.revision = deriveManifestRevision(manifest);
   return JSON.stringify(manifest, null, 2) + '\n';
 }

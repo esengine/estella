@@ -7,6 +7,26 @@ import path from 'node:path';
 import { exportedAssetFiles, pruneExportedAssets } from '../src/export/assetCleanup';
 
 describe('exported asset ownership', () => {
+  it('keeps a former sprite file used as a mesh texture preview and retires previews with their last owner', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'export-stream-files-'));
+    const out = path.join(root, 'dist');
+    try {
+      await mkdir(out);
+      for (const file of ['shared.png', 'retired.png', 'custom.png', 'textures.pack']) {
+        await writeFile(path.join(out, file), file);
+      }
+      const manifest = (assets: object) => writeFile(path.join(out, 'asset-manifest.json'), JSON.stringify({ groups: { main: { assets } } }));
+      await manifest({ sprite: { path: 'shared.png' }, mesh: { path: 'mesh.ktx2', pack: { file: 'textures.pack' }, streamTail: { path: 'retired.png' } } });
+      const previous = await exportedAssetFiles(out);
+      await manifest({ mesh: { path: 'mesh.ktx2', pack: { file: 'textures.pack' }, streamTail: { path: 'shared.png' } } });
+      await pruneExportedAssets(out, root, previous);
+      for (const file of ['shared.png', 'textures.pack', 'custom.png']) {
+        expect(await readFile(path.join(out, file), 'utf8')).toBe(file);
+      }
+      await expect(readFile(path.join(out, 'retired.png'))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally { await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it('does not follow an output directory link to delete project files', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'export-link-'));
     const out = path.join(root, 'dist'), source = path.join(root, 'source');

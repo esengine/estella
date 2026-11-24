@@ -46,7 +46,7 @@ import { animatorMotionAssetType, isBuiltinAssetRef, resolveRelativePath, resolv
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
-import type { BundleMode } from '../../../sdk/src/asset/AddressableManifest';
+import type { AssetPackRef, BundleMode, StreamTailInfo } from '../../../sdk/src/asset/AddressableManifest';
 import {
   readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
@@ -96,7 +96,9 @@ export interface CookManifestEntry extends AssetEntry {
    * The small copy of a texture a mesh draws (streamTail.ts), staged beside it: what texture streaming fetches first, so the full
    * file is downloaded only once a view needs it. `width`/`height` are the copy's, `fullWidth`/`fullHeight` the file's.
    */
-  streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
+  streamTail?: StreamTailInfo;
+  /** Added to the flat manifest when the export places these bytes in an asset pack. */
+  pack?: AssetPackRef;
   /**
    * What this build did to the texture's compression request, for images only.
    *
@@ -168,6 +170,9 @@ export interface CookManifest {
   version: string;
   entries: CookManifestEntry[];
 }
+
+/** The fields guaranteed when reading a flat cook manifest, including older exports. */
+export type FlatCookEntry = Pick<CookManifestEntry, 'uuid' | 'path' | 'type'> & Partial<CookManifestEntry>;
 
 /**
  * Load the project's asset-delivery config (`.esengine/asset-groups.json`) — the

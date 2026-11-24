@@ -59,6 +59,26 @@ describe('packing a cook output', () => {
         }
     });
 
+    it('keeps standalone files used by a streaming preview or an unpackable alias', async () => {
+        const dir = cookDir([
+            { path: 'surface.ktx2', type: 'texture', bytes: 90 },
+            { path: 'preview.ktx2', type: 'texture', bytes: 30 },
+            { path: 'tile.ktx2', type: 'texture', bytes: 20 },
+            { path: 'body.esmesh', type: 'mesh', bytes: 50 },
+        ]);
+        const entries = entriesOf(dir);
+        const flat = { entries: [
+            { ...entries[0], streamTail: { path: 'preview.ktx2' } }, ...entries.slice(1),
+            { ...entries[2], uuid: 'sprite', atlas: { page: 0 } },
+        ] };
+        writeFileSync(path.join(dir, 'assets.manifest.json'), JSON.stringify(flat));
+        const report = await packAssets(dir);
+        expect(report).toMatchObject({ packs: 1, assets: 2 });
+        expect(entriesOf(dir).filter(e => e.pack).map(e => e.path).sort()).toEqual(['body.esmesh', 'surface.ktx2']);
+        expect(readFileSync(path.join(dir, 'preview.ktx2'))).toEqual(Buffer.alloc(30, 2));
+        expect(readFileSync(path.join(dir, 'tile.ktx2'))).toEqual(Buffer.alloc(20, 3));
+    });
+
     it('splits packs at the size limit and leaves a lone asset its own file', async () => {
         const dir = cookDir([
             { path: 'assets/1.esmesh', type: 'mesh', bytes: 400 },

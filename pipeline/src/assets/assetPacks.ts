@@ -15,6 +15,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bundleModeFor } from './addressableManifest';
+import { physicalAssetFiles } from './assetFiles';
+import type { FlatCookEntry } from './cookAssets';
 
 /** The types read only through the asset server's backend, which is what reads a pack.
  *  Not prefabs: cutting a streamed world reads them off disk after the cook. */
@@ -31,13 +33,7 @@ export interface PackOptions {
 
 export interface PackReport { packs: number; assets: number; bytes: number }
 
-interface CookEntry {
-    path: string; type: string; group?: string; groupMode?: string; size?: number;
-    atlas?: unknown;
-    pack?: { file: string; offset: number; size: number };
-}
-
-function packable(e: CookEntry): boolean {
+function packable(e: FlatCookEntry): boolean {
     if (bundleModeFor(e.group ?? 'main', e.groupMode) !== 'local') return false;
     if (e.atlas) return false;
     if (e.type === 'texture') return e.path.toLowerCase().endsWith('.ktx2');
@@ -49,18 +45,25 @@ export async function packAssets(absOut: string, opts: PackOptions = {}): Promis
     const maxAsset = opts.maxAssetBytes ?? 4 * 1024 * 1024;
     const maxPack = opts.maxPackBytes ?? 16 * 1024 * 1024;
     const manifestPath = path.join(absOut, 'assets.manifest.json');
-    const flat = JSON.parse(await readFile(manifestPath, 'utf8')) as { entries: CookEntry[] };
+    const flat = JSON.parse(await readFile(manifestPath, 'utf8')) as { entries: FlatCookEntry[] };
 
     // One file, one member: entries that share a path (content-deduplicated) share its slot.
-    const byPath = new Map<string, CookEntry[]>();
+    const byPath = new Map<string, FlatCookEntry[]>();
+    const keepLoose = new Set<string>();
     for (const e of flat.entries) {
-        if (!packable(e) || !existsSync(path.join(absOut, e.path))) continue;
-        const list = byPath.get(e.path) ?? [];
-        list.push(e);
-        byPath.set(e.path, list);
+        for (const file of physicalAssetFiles(e)) {
+            if (file.kind !== 'asset' || !packable(e)) {
+                keepLoose.add(file.path);
+            } else {
+                const list = byPath.get(file.path) ?? [];
+                list.push(e);
+                byPath.set(file.path, list);
+            }
+        }
     }
+    for (const file of keepLoose) byPath.delete(file);
     // A group's assets pack together, so a scene tends to read whole packs.
-    const paths = [...byPath.keys()].sort((a, b) => {
+    const paths = [...byPath.keys()].filter(p => existsSync(path.join(absOut, p))).sort((a, b) => {
         const ga = byPath.get(a)![0].group ?? 'main', gb = byPath.get(b)![0].group ?? 'main';
         return ga === gb ? a.localeCompare(b) : ga.localeCompare(gb);
     });
