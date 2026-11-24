@@ -40,8 +40,11 @@ export interface ModelImportSettings {
     clusterLod: boolean;
     characters: boolean;
     springBones: boolean;
-    /** Take each clip's ground travel out of its skeleton's top joint and state it as a root track (rootMotionExtract.ts). */
-    rootMotion: boolean;
+    /**
+     * Take each clip's ground travel out of its skeleton's top joint and state it as a root track (rootMotionExtract.ts):
+     * `steady` at one rate (a loop), `path` along the joint's own course (a clip whose pace changes). Off leaves it.
+     */
+    rootMotion: 'off' | 'steady' | 'path';
     /** Bake what the dynamic GI reads of each mesh: its distance field (`<name>.esmeshsdf`) and its surface cards (`<name>.esmeshcards`). */
     dynamicGI: boolean;
     /** Joints one skinned vertex may be moved by, 1..4; 0 takes the project's (Project Settings, Rendering, Skinning). */
@@ -81,7 +84,7 @@ export interface ImportModelOptions {
 }
 
 const DEFAULTS: ModelImportSettings = {
-    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, maxTriangles: 0, clusterLod: false, characters: false, springBones: false, rootMotion: false, dynamicGI: false,
+    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, maxTriangles: 0, clusterLod: false, characters: false, springBones: false, rootMotion: 'off', dynamicGI: false,
     boneInfluenceLimit: 0, highPrecisionSkinWeights: null,
 };
 
@@ -106,7 +109,7 @@ export function modelSettings(absSource: string): ModelImportSettings {
             clusterLod: imp?.clusterLod === true,
             characters: imp?.characterMaterials === 'auto',
             springBones: imp?.springBones === 'auto',
-            rootMotion: imp?.rootMotion === 'skeleton',
+            rootMotion: imp?.rootMotion === 'skeleton' ? 'steady' : imp?.rootMotion === 'skeleton-path' ? 'path' : 'off',
             dynamicGI: imp?.dynamicGI === true,
             boneInfluenceLimit: typeof imp?.boneInfluenceLimit === 'number' && imp.boneInfluenceLimit >= 1 && imp.boneInfluenceLimit <= 4
                 ? Math.floor(imp.boneInfluenceLimit) : 0,
@@ -337,8 +340,8 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const clips = new Map<string, string>();
     for (const animation of animations) {
         trimClipLeadIn(animation.document);
-        if (rootMotion) {
-            const taken = extractRootMotion(animation.document, nodes);
+        if (rootMotion !== 'off') {
+            const taken = extractRootMotion(animation.document, nodes, rootMotion);
             if (typeof taken === 'string') warnings.push(`${animation.name}: ${taken}`);
         }
         const rel = await write(`${animation.name}.estimeline`, `${JSON.stringify(animation.document, null, 2)}\n`);

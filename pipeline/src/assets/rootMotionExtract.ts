@@ -77,7 +77,7 @@ export interface RootMotionExtraction {
  * did, or returns a sentence saying why it left the clip as it was (null when the clip simply goes nowhere).
  */
 export function extractRootMotion(
-    document: Record<string, unknown>, nodes: readonly ImportedNode[],
+    document: Record<string, unknown>, nodes: readonly ImportedNode[], follow: 'steady' | 'path' = 'steady',
 ): RootMotionExtraction | string | null {
     const tracks = document.tracks as Track[] | undefined;
     if (!Array.isArray(tracks)) return null;
@@ -145,6 +145,33 @@ export function extractRootMotion(
     // A clip that ends where it began goes nowhere: an idle, or a walk exported on the spot.
     const reach = Math.hypot(...toRoot(start));
     if (distance <= 0.01 * Math.max(reach, 1e-6)) return null;
+
+    if (follow === 'path') {
+        // The root goes where the joint goes over the ground, key by key: a clip whose pace changes (one that brakes to
+        // a stop) keeps its pace in the root, which is what playing it by the distance left to travel reads.
+        const keys: [Key[], Key[], Key[]] = [[], [], []];
+        for (let i = 0; i < count; i++) {
+            const at = toRoot([
+                cx.keyframes[i]!.value - start[0], cy.keyframes[i]!.value - start[1], cz.keyframes[i]!.value - start[2],
+            ]);
+            const h = at[0] * up[0] + at[1] * up[1] + at[2] * up[2];
+            const ground: Vec3 = [at[0] - up[0] * h, at[1] - up[1] * h, at[2] - up[2] * h];
+            const back = fromRoot(ground);
+            cx.keyframes[i]!.value -= back[0];
+            cy.keyframes[i]!.value -= back[1];
+            cz.keyframes[i]!.value -= back[2];
+            const time = cx.keyframes[i]!.time;
+            for (let k = 0; k < 3; k++) keys[k].push({ time, value: ground[k]!, inTangent: 0, outTangent: 0, interpolation: 'linear' });
+        }
+        const pathChannels: Channel[] = [
+            { property: 'position.x', keyframes: keys[0] },
+            { property: 'position.y', keyframes: keys[1] },
+            { property: 'position.z', keyframes: keys[2] },
+        ];
+        if (root) (root.channels ??= []).push(...pathChannels);
+        else tracks.unshift({ type: 'property', name: 'Root Motion', childPath: '', component: 'Transform', channels: pathChannels });
+        return { joint: path, distance, seconds: last - first };
+    }
 
     const inJoint = fromRoot(travel);
     for (let i = 0; i < count; i++) {

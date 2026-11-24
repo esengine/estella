@@ -145,3 +145,26 @@ describe('a clip exported from a timeline that starts a frame in', () => {
         expect(doc.duration).toBe(1);
     });
 });
+
+describe('a clip whose pace changes, taken along its own course', () => {
+    /** A run that brakes: the hips go 0, 1.2, 2, 2.4, 2.5 along +Z over a second. */
+    const stop = (): Doc & Record<string, unknown> => {
+        const doc = walk(0);
+        const z = channel(doc, 'Hips', 'position.z');
+        [0, 1.2, 2, 2.4, 2.5].forEach((v, i) => { z[i]!.value = v; });
+        return doc;
+    };
+
+    it('gives the root the joint\'s course key by key, not a steady rate', () => {
+        const doc = stop();
+        expect(extractRootMotion(doc, rig(), 'path')).toMatchObject({ joint: 'Hips' });
+        expect(channel(doc, '', 'position.z').map((k) => k.value)).toEqual([0, 1.2, 2, 2.4, 2.5]);
+    });
+
+    it('leaves the joint its height and nothing of the travel', () => {
+        const doc = stop();
+        extractRootMotion(doc, rig(), 'path');
+        expect(channel(doc, 'Hips', 'position.z').every((k) => Math.abs(k.value) < 1e-9)).toBe(true);
+        expect(channel(doc, 'Hips', 'position.y').map((k) => k.value)).toEqual([1, 1.03, 1, 1.03, 1]);
+    });
+});

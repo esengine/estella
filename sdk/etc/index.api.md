@@ -658,6 +658,7 @@ send: (event: AnimatorEventPayload) => void
 ```
 align: boolean | undefined
 axis: "x" | "y" | "z" | undefined
+ease: number | undefined
 kind: AnimatorIKKind
 layers: number | undefined
 maxAngle: number | undefined
@@ -767,6 +768,9 @@ loop: boolean | undefined
 ```
 blend: AnimatorBlend1D | undefined
 clip: string | undefined
+distanceFloor: number | undefined
+distanceMaxPace: number | undefined
+distanceParameter: string | undefined
 loop: boolean | undefined
 motion: AnimatorMotion | undefined
 name: string
@@ -19803,7 +19807,7 @@ ServicesPlugin
 
 ## setAnimatorStateProps — function @experimental
 ```
-(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string; }, layer?: number): AnimatorControllerDef
+(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string; distanceParameter?: string; distanceFloor?: number; distanceMaxPace?: number; }, layer?: number): AnimatorControllerDef
 ```
 
 ## setBlobShadowGround — function @experimental

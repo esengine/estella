@@ -180,6 +180,18 @@ export interface AnimatorState {
      * negative parameter plays at the normal rate or stops, never backwards.
      */
     speedParameter?: string;
+    /**
+     * A float parameter saying how far the character has left to go before it stops, in world units: the state is then
+     * played by distance rather than by time. Each frame it is put at the point of its motion that has that much
+     * travel left in its root track, so a stop clip's feet come to rest where the character does however hard it
+     * brakes; once the distance is spent the clip plays on by time and settles. Never backwards. For a stop, start or
+     * turn clip with a root track whose pace changes (a model imported with Root Motion, Its Own Pace).
+     */
+    distanceParameter?: string;
+    /** World units of travel left under which a state played by distance plays on by time instead. Default 2. */
+    distanceFloor?: number;
+    /** The most a state played by distance is run ahead of its own pace in one frame, as a multiple of it. Default 2.5. */
+    distanceMaxPace?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
     /** Editor-only canvas position; the interpreter ignores it. */
@@ -931,7 +943,7 @@ export class AnimatorControllerAPI {
             // never on the world's record of the last one.
             if (wrote && def.ik?.length) {
                 const ground = this.groundFor(rt, dt);
-                this.measureStride(world, entity, rt, ground, dt);
+                this.measureStride(world, entity, rt, ground, dt, strideEaseOf(def.ik));
                 // Measured in the rig's own space: with the model carried as a child, that is the child's.
                 solveAnimatorIK(world, rigRoot, rt.composed, def.ik, params, joints, ground);
             }
@@ -983,6 +995,21 @@ export class AnimatorControllerAPI {
         }
         lrt.span = length;
         this.advance(lrt, dt * stateTimeScale(leaf, params));
+        if (leaf.distanceParameter && leafMotion !== null && fromPath === layerState(a, index)) {
+            const left = Number(params[leaf.distanceParameter] ?? 0);
+            if (left > (leaf.distanceFloor ?? DISTANCE_MATCH_FLOOR)) {
+                const at = this.timeWithTravelLeft(world, entity, ctx, leafMotion, left);
+                if (at !== null) {
+                    // The first frame goes straight to its place: the run-up a stop clip begins with is not this
+                    // character's. After it the clip is held to at most a few times its own pace, because near the end
+                    // of its travel a root that has nearly stopped puts a sliver of distance a long way apart in time,
+                    // and the feet would jump across it.
+                    const first = lrt.prevTime <= 0;
+                    const most = first ? Infinity : lrt.prevTime + dt * (leaf.distanceMaxPace ?? DISTANCE_MATCH_MAX_PACE);
+                    lrt.time = Math.min(Math.max(lrt.prevTime, at), most);
+                }
+            }
+        }
         // A newly seeded layer has yet to play its initial motion. A previous
         // controller or standalone player may have finished that very clip.
         const clipFinished = fromPath === layerState(a, index) && leafMotion !== null
@@ -1224,7 +1251,9 @@ export class AnimatorControllerAPI {
      * way over the ground it went. Measured from where the character was last frame, so it is what happened whoever
      * moved it, and eased over a tenth of a second so one jolted frame does not throw the legs.
      */
-    private measureStride(world: World, entity: Entity, rt: AnimatorRuntime, ground: GroundContext, dt: number): void {
+    private measureStride(
+        world: World, entity: Entity, rt: AnimatorRuntime, ground: GroundContext, dt: number, ease: number,
+    ): void {
         if (!world.has(entity, Transform) || dt <= 0) return;
         const t = world.get(entity, Transform) as TransformData;
         const at = world.has(entity, Parent) ? t.worldPosition : t.position;
@@ -1239,7 +1268,7 @@ export class AnimatorControllerAPI {
         // throws the feet out and back in as it stops.
         const wanted = goes > 1e-3 ? went / goes : 1;
         const was = ground.stride?.ratio ?? 1;
-        const k = 1 - Math.exp(-dt / STRIDE_EASE);
+        const k = ease > 0 ? 1 - Math.exp(-dt / ease) : 1;
         // How far the way it went is turned from the way its motion goes, about up: what an orientation warp turns the
         // legs by. Nothing while either stands still.
         const from = rt.motionDirection;
@@ -1253,6 +1282,35 @@ export class AnimatorControllerAPI {
             direction: went > 1e-3 ? { x: vx / went, y: 0, z: vz / went } : ground.stride?.direction ?? { x: 0, y: 0, z: 1 },
             angle: wasTurned + (turned - wasTurned) * k,
         };
+    }
+
+    /**
+     * The time in `motion` at which its root track has `left` world units still to travel before its end, or null for
+     * a motion that travels nowhere. The travel left only falls as the motion plays, so halving the clip finds it.
+     */
+    private timeWithTravelLeft(
+        world: World, entity: Entity, ctx: MotionContext, motion: AnimatorMotion, left: number,
+    ): number | null {
+        const end = ctx.duration(motion);
+        if (!(end > 0)) return null;
+        const rigRoot = this.rigRootOf(world, entity, world.get(entity, Animator) as AnimatorData);
+        const out = this.speedScratch_;
+        const travelFrom = (t: number): number => {
+            if (!ctx.rootDelta(motion, { from: t, to: end, inclusiveStart: false }, out)) return -1;
+            let moved: Vec3 = out.position;
+            if (rigRoot !== entity) moved = inFrameOf(world, rigRoot, moved);
+            moved = inFrameOf(world, entity, moved);
+            return Math.hypot(moved.x, moved.z);
+        };
+        const whole = travelFrom(0);
+        if (whole <= 0) return null;
+        if (left >= whole) return 0;
+        let lo = 0, hi = end;
+        for (let i = 0; i < 24; i++) {
+            const mid = 0.5 * (lo + hi);
+            if (travelFrom(mid) > left) lo = mid; else hi = mid;
+        }
+        return 0.5 * (lo + hi);
     }
 
     /** The entity a clip's paths start from: the rig the animator names, or the animator's own entity. */
@@ -1437,8 +1495,19 @@ export class AnimatorControllerAPI {
 }
 
 const ZERO_VEC = { x: 0, y: 0, z: 0 };
-/** Seconds a stride warp's ratio eases over. */
+/** Seconds a stride or orientation warp's measure eases over, where none says. */
 const STRIDE_EASE = 0.1;
+
+/** The ease the controller's warps ask for: the first that states one. */
+function strideEaseOf(ik: readonly AnimatorIK[] | undefined): number {
+    for (const c of ik ?? []) {
+        if ((c.kind === 'stride-warp' || c.kind === 'orientation-warp') && typeof c.ease === 'number') return Math.max(0, c.ease);
+    }
+    return STRIDE_EASE;
+}
+/** Defaults for a state's `distanceFloor` and `distanceMaxPace`. */
+const DISTANCE_MATCH_FLOOR = 2;
+const DISTANCE_MATCH_MAX_PACE = 2.5;
 const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 
 /** One entity's playback state: transient, so it lives here and not on the

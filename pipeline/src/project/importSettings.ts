@@ -287,10 +287,12 @@ const MODEL: ImporterFieldSpec[] = [
   {
     key: 'rootMotion', label: 'Root Motion', type: 'enum', default: 'off',
     category: 'Import', advanced: true,
-    options: [{ label: 'Off', value: 'off' }, { label: 'From the Skeleton', value: 'skeleton' }],
+    options: [{ label: 'Off', value: 'off' }, { label: 'From the Skeleton', value: 'skeleton' },
+              { label: 'From the Skeleton, Its Own Pace', value: 'skeleton-path' }],
     tooltip: 'For clips that carry the travel of the character in the top joint of the skeleton (the hips) because the rig has no root '
       + 'above it: take what that joint covers over the ground out of the joint and state it as a root track, at one steady rate. '
-      + 'A state with Root Motion on then moves the character by it, and the feet do not slide. A clip that ends where it began is left alone.',
+      + 'A state with Root Motion on then moves the character by it, and the feet do not slide. A clip that ends where it began is left alone. Its Own Pace follows the joint key by key instead of '
+      + 'at a steady rate: for a clip that speeds up or slows down, such as a stop, which is then played by the distance left to travel.',
   },
   {
     key: 'boneInfluenceLimit', label: 'Bone Influence Limit', type: 'enum', default: 0, category: 'Skinning',

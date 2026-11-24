@@ -65,6 +65,11 @@ export interface AnimatorIK {
     spine?: string[];
     /** orientation-warp: the most the hips are turned, degrees either way. Default 90. */
     maxAngle?: number;
+    /**
+     * stride-warp, orientation-warp: seconds the measured speed ratio and turn are eased over, so one jolted frame does
+     * not throw the legs. The first warp that states it sets it for both. Default 0.1.
+     */
+    ease?: number;
     /** stride-warp: the shortest a stride is drawn in to, as a share of the clip's. Default 0.5. */
     minStride?: number;
     /** stride-warp: the longest a stride is let out to, as a share of the clip's. Default 1.6. */

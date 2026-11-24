@@ -163,12 +163,19 @@ export function setStateMotion(
 
 export function setStateProps(
     def: AnimatorControllerDef, name: string,
-    patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string }, layer = 0,
+    patch: {
+        speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string;
+        distanceParameter?: string; distanceFloor?: number; distanceMaxPace?: number;
+    }, layer = 0,
 ): AnimatorControllerDef {
     return withLayer(def, layer, {
         states: scopeAt(def, layer).states.map((s) => {
             if (s.name !== name) return s;
             const next = { ...s, ...patch };
+            // A field patched to undefined or empty is taken off, so the file says only what was chosen.
+            for (const k of Object.keys(patch) as (keyof typeof patch)[]) {
+                if (patch[k] === undefined || patch[k] === '') delete (next as Record<string, unknown>)[k];
+            }
             if (s.motion && !isBlend1D(s.motion) && !isBlend2D(s.motion) && ('loop' in patch || 'speed' in patch)) {
                 next.motion = { ...s.motion };
                 if ('loop' in patch) next.motion.loop = patch.loop;
@@ -303,6 +310,7 @@ export function updateIK(
         delete merged.pelvis; delete merged.align; delete merged.reach; delete merged.smooth; delete merged.layers;
     }
     if (merged.kind !== 'stride-warp') { delete merged.minStride; delete merged.maxStride; }
+    if (merged.kind !== 'stride-warp' && merged.kind !== 'orientation-warp') delete merged.ease;
     if (merged.kind !== 'orientation-warp') { delete merged.spine; delete merged.maxAngle; }
     return { ...def, ik: def.ik!.map((x, i) => (i === index ? merged : x)) };
 }
