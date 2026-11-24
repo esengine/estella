@@ -38,6 +38,7 @@ import {
 } from './animatorAvatar';
 import { solveAnimatorIK, type AnimatorIK, type GroundContext, type GroundProbe } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
+import { applyInertia, beginInertia, recordInertia, type InertiaState } from './inertialize';
 import type { AnimatorEventSink } from './animatorEvent';
 import { Parent, Transform, type TransformData } from '../ecs/component';
 import { q } from '../math/quat';
@@ -86,12 +87,21 @@ export interface AnimatorTransition {
      */
     duration?: number;
     /**
+     * How the two motions meet over `duration`. `crossfade` samples both and mixes them; `inertialize` plays the
+     * new one at once and lets the difference from where the old one had each joint die away (inertialize.ts), so the
+     * character is never in two motions at once. Absent takes the controller's `transitionBlend`.
+     */
+    blend?: AnimatorTransitionBlend;
+    /**
      * Only fire once the current state's clip has finished (a non-looping sprite
      * clip reached its end). Combined with `conditions`, both must hold. With no
      * conditions, this is "auto-advance when the clip ends" (e.g. attack→idle).
      */
     hasExitTime?: boolean;
 }
+
+/** How a transition carries the character from one motion to the next. */
+export type AnimatorTransitionBlend = 'crossfade' | 'inertialize';
 
 /** One stop on a 1D blend: at/above `value`, play `clip`. */
 export interface AnimatorBlendThreshold {
@@ -209,6 +219,8 @@ export interface AnimatorControllerDef {
     initialState: string;
     /** Transitions evaluated from every state, before the current state's own. */
     anyStateTransitions?: AnimatorTransition[];
+    /** How a transition that does not say blends: `crossfade` when absent. Inertialization applies to the base layer. */
+    transitionBlend?: AnimatorTransitionBlend;
     /**
      * The `.esavatar` this controller's CLIPS were authored against. With one on
      * the rig as well, a pose is restated from that rig's bind pose to this one;
@@ -311,7 +323,7 @@ function firstReady(
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
     windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
-): { to: string; usedTriggers: string[]; fadeDuration: number } | null {
+): { to: string; usedTriggers: string[]; fadeDuration: number; blend?: AnimatorTransitionBlend } | null {
     for (const t of list) {
         if (t.hasExitTime && !clipFinished) continue;
         const used: string[] = [];
@@ -320,7 +332,7 @@ function firstReady(
             if (!conditionHolds(c, params, triggers, windows)) { ok = false; break; }
             if (c.op === 'trigger') used.push(c.param);
         }
-        if (ok) return { to: t.to, usedTriggers: used, fadeDuration: t.duration ?? 0 };
+        if (ok) return { to: t.to, usedTriggers: used, fadeDuration: t.duration ?? 0, blend: t.blend };
     }
     return null;
 }
@@ -396,6 +408,8 @@ export interface AnimatorPathEvalResult {
     consumedTriggers: string[];
     /** Seconds the fired transition blends over; 0 when it cuts. */
     fadeDuration: number;
+    /** How the fired transition says it blends; absent takes the controller's. */
+    blend?: AnimatorTransitionBlend;
 }
 
 /**
@@ -440,6 +454,7 @@ export function evaluateAnimatorPath(
                 nextPath: next.join(STATE_PATH_SEP),
                 consumedTriggers: fired.usedTriggers,
                 fadeDuration: fired.fadeDuration,
+                blend: fired.blend,
             };
         }
     }
@@ -901,6 +916,16 @@ export class AnimatorControllerAPI {
             if (wrote && rig && clips) {
                 rebasePose(rt.composed, entity, clips, rig, joints, world);
             }
+            // A transition by inertia starts from the pose the last frame ended with, before any constraint bent it:
+            // the constraints then fit the carried pose to the ground as they would any other.
+            if (wrote) {
+                const inertia = rt.inertia ??= { lastDt: 0 };
+                const starting = (rt.inertiaRequest ?? 0) > 0;
+                if (starting) beginInertia(inertia, rt.composed, rt.inertiaRequest!);
+                rt.inertiaRequest = 0;
+                applyInertia(inertia, rt.composed, dt, starting);
+                recordInertia(inertia, rt.composed, dt);
+            }
             // Constraints read the stack's answer and bend it, so they run
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.
@@ -974,7 +999,7 @@ export class AnimatorControllerAPI {
             ctx.windows(leafMotion, { from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered }, held);
             for (const w of held) open.add(w.name);
         }
-        const { nextPath, consumedTriggers, fadeDuration } = evaluateAnimatorPath(
+        const { nextPath, consumedTriggers, fadeDuration, blend } = evaluateAnimatorPath(
             scope, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished, open,
         );
         for (const t of consumedTriggers) this.spentTriggers_.push(t);
@@ -995,7 +1020,12 @@ export class AnimatorControllerAPI {
         const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
 
         if (stateChanged) {
-            this.beginState(lrt, leafMotion, leaf.rootMotion === true, motion, fadeDuration);
+            // By inertia on the base layer: the state is cut to, and the stack's pose is carried into it after it is
+            // composed. A layer above composes over the base and is faded as it always was.
+            const byInertia = index === 0 && nextPath !== null && fadeDuration > 0
+                && (blend ?? def.transitionBlend) === 'inertialize';
+            this.beginState(lrt, leafMotion, leaf.rootMotion === true, motion, byInertia ? 0 : fadeDuration);
+            if (byInertia) rt.inertiaRequest = fadeDuration;
         }
         // Where the character GOES has one author. A layer states how it is
         // posed; taking displacement from more than one would have two answers
@@ -1204,8 +1234,10 @@ export class AnimatorControllerAPI {
         const vx = (at.x - last.x) / dt, vz = (at.z - last.z) / dt;
         const went = Math.hypot(vx, vz);
         const goes = rt.motionSpeed ?? 0;
-        // A motion that travels nowhere, or a character standing still, has no stride to fit.
-        const wanted = goes > 1e-3 && went > 1e-3 ? went / goes : 1;
+        // A motion that travels nowhere has no stride to fit. One that does while the character comes to a halt has its
+        // strides drawn in all the way down, and not let back out to the clip's on the last frame it was moving: that
+        // throws the feet out and back in as it stops.
+        const wanted = goes > 1e-3 ? went / goes : 1;
         const was = ground.stride?.ratio ?? 1;
         const k = 1 - Math.exp(-dt / STRIDE_EASE);
         // How far the way it went is turned from the way its motion goes, about up: what an orientation warp turns the
@@ -1416,6 +1448,10 @@ interface AnimatorRuntime {
     ground?: GroundContext;
     /** How fast the base layer's motion travels, world units a second, as of this frame. */
     motionSpeed?: number;
+    /** What a transition by inertia carries from frame to frame. */
+    inertia?: InertiaState;
+    /** Seconds a transition by inertia the base layer began this frame runs; 0 when none did. */
+    inertiaRequest?: number;
     /** Which way it travels over the ground, in the world; the last way it did while it stands. */
     motionDirection?: { x: number; z: number };
     /** Where the character stood last frame, over the ground. */

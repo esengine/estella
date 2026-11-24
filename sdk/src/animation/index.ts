@@ -76,12 +76,14 @@ export {
     type AnimatorParamType,
     type AnimatorCondition,
     type AnimatorTransition,
+    type AnimatorTransitionBlend,
     type AnimatorState,
     type AnimatorControllerDef,
     type AnimatorParamValues,
     type AnimatorEvalResult,
     type AnimatorPathEvalResult,
 } from './Animator';
+export { inertiaCurve } from './inertialize';
 export {
     GripPose, registerGripPose, gripPose, gripPoseNames, gripPoseStatus, gripPoseByJoint, gripPoseFromJson, gripHandJoints,
     type GripPoseData, type GripPoseDef, type GripFinger, type GripThumb, type GripHandStatus, type GripJoint,

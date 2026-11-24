@@ -602,6 +602,7 @@ initialState: string
 layers: AnimatorLayer[] | undefined
 parameters: AnimatorParam[]
 states: AnimatorState[]
+transitionBlend: AnimatorTransitionBlend | undefined
 version: number | undefined
 ```
 
@@ -732,6 +733,7 @@ Readonly<Record<string, number | boolean>>
 
 ## AnimatorPathEvalResult — interface @experimental
 ```
+blend: AnimatorTransitionBlend | undefined
 consumedTriggers: string[]
 fadeDuration: number
 nextPath: string | null
@@ -788,6 +790,7 @@ states: AnimatorState[]
 
 ## AnimatorTransition — interface @experimental
 ```
+blend: AnimatorTransitionBlend | undefined
 conditions: AnimatorCondition[]
 duration: number | undefined
 hasExitTime: boolean | undefined

@@ -48,6 +48,7 @@ initialState: string
 layers: AnimatorLayer[] | undefined
 parameters: AnimatorParam[]
 states: AnimatorState[]
+transitionBlend: AnimatorTransitionBlend | undefined
 version: number | undefined
 ```
 
