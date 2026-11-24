@@ -24,18 +24,21 @@ export class SceneEntityBatch {
     private readonly pending: Set<Entity>;
     private hidden: Set<Entity> | null = null;
 
-    constructor(private readonly world: World, entities: Iterable<Entity>) {
+    constructor(private readonly world: World, entities: Iterable<Entity>, private readonly lifetime = world.entityLifetime) {
         this.pending = new Set(entities);
     }
 
     detachSurvivors(roots: Iterable<Entity> = this.pending): void {
+        if (this.world.entityLifetime !== this.lifetime) return;
         detachSurvivingDescendants(this.world, roots,
-            child => !this.pending.has(child) && this.world.has(child, SceneOwner), detachPreservingWorldTransform);
+            child => this.world.entityLifetime === this.lifetime && !this.pending.has(child) && this.world.has(child, SceneOwner),
+            detachPreservingWorldTransform);
     }
 
     hideRoots(candidates: Iterable<Entity> = this.pending): void {
         const hidden = this.hidden ??= new Set<Entity>();
         for (const entity of candidates) {
+            if (this.world.entityLifetime !== this.lifetime) return;
             if (!this.pending.has(entity) || !this.world.valid(entity) || this.world.has(entity, Disabled)) continue;
             const parent = this.world.tryGet(entity, Parent)?.entity as Entity | undefined;
             if (parent !== undefined && this.pending.has(parent)) continue;
@@ -45,17 +48,17 @@ export class SceneEntityBatch {
     }
 
     release(entity: Entity): void {
-        if (!this.pending.delete(entity) || !this.hidden || !this.world.valid(entity)) return;
+        if (!this.pending.delete(entity) || !this.hidden || this.world.entityLifetime !== this.lifetime || !this.world.valid(entity)) return;
         const children = this.world.tryGet(entity, Children);
         if (children) this.hideRoots(children.entities);
-        if (this.hidden.delete(entity)) this.world.remove(entity, Disabled);
+        if (this.hidden.delete(entity) && this.world.entityLifetime === this.lifetime) this.world.remove(entity, Disabled);
     }
 
     despawn(entity: Entity): void {
         if (!this.pending.has(entity)) return;
-        if (this.world.valid(entity)) {
+        if (this.world.entityLifetime === this.lifetime && this.world.valid(entity)) {
             this.detachSurvivors([entity]);
-            if (this.pending.has(entity)) this.world.despawn(entity);
+            if (this.pending.has(entity) && this.world.entityLifetime === this.lifetime) this.world.despawn(entity);
         }
         this.pending.delete(entity);
         this.hidden?.delete(entity);

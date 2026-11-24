@@ -234,7 +234,7 @@ export class TextPlugin implements Plugin {
         matrix: Float32Array;
         matrixHeap: Float32Array | null;
         retained: Map<number, RetainedLabel>;
-        resetEpoch: number | null;
+        entityLifetime: symbol | undefined;
         releaseDisconnect: () => void;
         preloads: PreloadRun[];
         screenInputs: ScreenTextInputs | null;
@@ -255,7 +255,7 @@ export class TextPlugin implements Plugin {
                 screen: { bitmap: null, sdf: null, large: null },
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
-                resetEpoch: null,
+                entityLifetime: undefined,
                 releaseDisconnect: app.world.onCoreDisconnect(() => this.cleanup(app)),
                 preloads: [],
                 screenInputs: null,
@@ -568,14 +568,14 @@ export class TextPlugin implements Plugin {
     private rebuildStale(app: App, api: EngineApi, registry: CppRegistry): number {
         const appState = this.stateFor(app);
         const world = app.world;
-        const epoch = api.registry_entityChangeResetEpoch?.(registry) ?? 0;
-        if (epoch !== appState.resetEpoch || epoch < 0) {
+        const lifetime = world.entityLifetime;
+        if (lifetime !== appState.entityLifetime) {
             // A bulk clear can reuse the same entity number and text style. Its native geometry is gone.
             for (const [entity, label] of appState.retained) label.renderer.forget(entity);
             appState.retained.clear();
             appState.laidOut = '';
             appState.screenInputs = null;
-            appState.resetEpoch = epoch;
+            appState.entityLifetime = lifetime;
         }
         const CAPACITY = 256;
         let handled = 0;

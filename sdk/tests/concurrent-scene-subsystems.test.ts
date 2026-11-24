@@ -11,8 +11,10 @@
  * replaced the runtime resource the previous one's systems were writing into:
  * 180 colliders live in the ECS and not one of them in the physics world.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
+import { SceneLoadCancelled } from '../src/scene/sceneManager';
+import { reservePromise } from '../src/util/reservePromise';
 // The optional subsystems are installed by an ENTRY, and this imports the loader
 // directly — so it says which environment it is testing rather than relying on
 // another test having imported one first.
@@ -34,7 +36,7 @@ const fakeBackend = {
 } as unknown as Backend;
 
 /** A side-module host that takes a turn to answer — the window the race lives in. */
-function makeFakeApp(acquired: string[]) {
+function makeFakeApp(acquired: string[], firstAcquire?: () => Promise<void>) {
     const resources = new Map<unknown, unknown>();
     const plugins: object[] = [];
     const app = {
@@ -48,6 +50,7 @@ function makeFakeApp(acquired: string[]) {
         sideModules: {
             acquire: async (id: string) => {
                 acquired.push(id);
+                if (acquired.length === 1) await firstAcquire?.();
                 await Promise.resolve();
                 await Promise.resolve();
                 return fakeModule;
@@ -98,6 +101,24 @@ describe('subsystems a scene installs for itself', () => {
         await load(app, cell('first'));
         await load(app, cell('second'));
         expect(plugins.filter((p) => p instanceof Physics3DPlugin)).toHaveLength(1);
+    });
+
+    it('starts physics for a replacement world while its predecessor is waiting for the module', async () => {
+        const acquired: string[] = [];
+        const started = reservePromise<void>(), finish = reservePromise<void>();
+        const { app, plugins } = makeFakeApp(acquired, () => { started.resolve(); return finish.promise; });
+        const old = expect(load(app, cell('old'))).rejects.toBeInstanceOf(SceneLoadCancelled);
+        await started.promise;
+        app.world.disconnectCpp();
+        const current = load(app, cell('current'));
+        try {
+            await vi.waitFor(() => expect(plugins.filter(p => p instanceof Physics3DPlugin)).toHaveLength(1));
+        } finally {
+            finish.resolve();
+            await Promise.all([old, current]);
+        }
+        expect(acquired).toEqual(['physics3d', 'physics3d']);
+        expect(app.world.getAllEntities()).toHaveLength(1);
     });
 
     it('installs for a cell that needs it even when the one before did not', async () => {

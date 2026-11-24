@@ -29,6 +29,7 @@ vi.mock('../src/asset/discoverAssets', () => ({
     getAssetPathsByType: vi.fn(() => new Set()),
 }));
 
+import { spawnImmediate } from './mocks/sceneSpawn';
 import { SceneManagerState } from '../src/scene/sceneManager';
 import type { TransitionOptions } from '../src/scene/sceneManager';
 
@@ -38,6 +39,7 @@ function createMockApp() {
     const live = new Set<number>();
     let next = 1;
     const world = {
+        spawnImmediate,
         spawn: () => { const e = next++; live.add(e); return e; },
         despawn: (e: number) => { live.delete(e); },
         valid: (e: number) => live.has(e),

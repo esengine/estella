@@ -203,6 +203,9 @@ export class World {
     private inactiveVersion_ = -1;
     private coreActivityEpoch_ = -1;
     private readonly coreDisconnect_ = new Set<() => void>();
+    private entityLifetime_ = Symbol();
+    private lifetimeRegistry_: CppRegistry | null = null;
+    private lifetimeReset_: number | undefined;
     /** Allocation order, updated on an explicit reorder. Generation is part of the entity handle. */
     private readonly entities_ = new Map<Entity, number>();
     private nextEntityRank_ = 0;
@@ -261,6 +264,18 @@ export class World {
         return this.builtin_.getCppRegistry();
     }
 
+    /** @internal Packed entity handles can be reused after a disconnect or a native registry clear. */
+    get entityLifetime(): symbol {
+        const registry = this.getCppRegistry();
+        const reset = registry ? worldEngineApi(this)?.registry_entityChangeResetEpoch?.(registry) : undefined;
+        if (this.lifetimeRegistry_ !== registry || this.lifetimeReset_ !== reset || reset === -1) {
+            this.lifetimeRegistry_ = registry;
+            this.lifetimeReset_ = reset;
+            this.entityLifetime_ = Symbol();
+        }
+        return this.entityLifetime_;
+    }
+
     /** @internal Release native leases before the owning core is disconnected. */
     onCoreDisconnect(dispose: () => void): () => void {
         this.coreDisconnect_.add(dispose);
@@ -282,6 +297,10 @@ export class World {
                 () => this.releaseStampBuffer_(),
             ], dispose => dispose());
         } finally {
+            // Disconnect listeners can still return entities to their original registry.
+            this.entityLifetime_ = Symbol();
+            this.lifetimeRegistry_ = null;
+            this.lifetimeReset_ = undefined;
             this.clearStampFlusher_?.();
             this.clearStampFlusher_ = undefined;
             this.engineTypeIdsFor_ = null;
@@ -319,6 +338,11 @@ export class World {
      * mutating the set a query is walking is what `Commands` exists to defer.
      */
     spawn(name?: string): Entity {
+        return this.spawnImmediate(name);
+    }
+
+    /** @internal Record ownership of an allocated handle before spawn listeners can disconnect its world. */
+    spawnImmediate(name?: string, record?: (entity: Entity) => void): Entity {
         if (this.speculation_) {
             throw new Error(
                 'Cannot spawn entity inside a speculation. ' +
@@ -332,6 +356,7 @@ export class World {
             );
         }
         const entity = this.allocateEntity_();
+        record?.(entity);
         this.commitSpawn_(entity, name);
         return entity;
     }
@@ -555,9 +580,9 @@ export class World {
         return this.entities_.has(entity);
     }
 
-    /** @internal True while the entity's subtree or its owning core is being torn down. */
-    isDestructionPending(entity: Entity): boolean {
-        return this.builtin_.disconnecting || !!this.despawning_?.has(entity)
+    /** @internal Cleanup during core disconnect can check just the subtree's destruction reservation. */
+    isDestructionPending(entity: Entity, includeCoreDisconnect = true): boolean {
+        return (includeCoreDisconnect && this.builtin_.disconnecting) || !!this.despawning_?.has(entity)
             || !!this.builtin_.getCppRegistry()?.destructionPending?.(entity);
     }
 

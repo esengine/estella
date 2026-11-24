@@ -36,6 +36,7 @@ vi.mock('../src/asset', () => ({
     }),
 }));
 
+import { spawnImmediate } from './mocks/sceneSpawn';
 import { SceneManagerState } from '../src/scene/sceneManager';
 import { Disabled } from '../src/ecs/component';
 
@@ -46,6 +47,7 @@ function createMockApp() {
     let nextEntity = 1;
     const resources = new Map<unknown, unknown>();
     const world = {
+        spawnImmediate,
         spawn: vi.fn(() => { const e = nextEntity++; entities.set(e, new Map()); return e; }),
         despawn: vi.fn((e: number) => entities.delete(e)),
         valid: vi.fn((e: number) => entities.has(e)),

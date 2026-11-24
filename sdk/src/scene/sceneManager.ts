@@ -19,7 +19,8 @@ import { loadSceneWithAssets } from './scene';
 import { SceneAssetProgress } from './sceneAssetProgress';
 import { recordSceneOrigins } from './sceneOrigins';
 import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
-import { discardSceneEntities } from './sceneLoadAttempt';
+import { discardSceneEntities, SceneLoadCancelled } from './sceneLoadAttempt';
+export { SceneLoadCancelled } from './sceneLoadAttempt';
 import { registerDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { bindSceneCamera } from '../postprocess/PostProcessAPI';
@@ -195,7 +196,7 @@ class SceneInstance {
     readonly loadedByType = new Map<string, Map<string, boolean>>();
     status: SceneStatus = 'loading';
 
-    constructor(config: SceneConfig) {
+    constructor(config: SceneConfig, readonly lifetime: symbol) {
         this.config = config;
     }
 
@@ -218,10 +219,10 @@ class SceneInstance {
 class SceneContextImpl implements SceneContext {
     private readonly instance_: SceneInstance;
     private readonly app_: App;
-    private readonly adopt_: (entity: Entity) => void;
+    private readonly adopt_: (entity: Entity, spawned?: boolean) => void;
     private readonly isCurrent_: () => boolean;
 
-    constructor(instance: SceneInstance, app: App, adopt: (entity: Entity) => void, isCurrent: () => boolean,
+    constructor(instance: SceneInstance, app: App, adopt: (entity: Entity, spawned?: boolean) => void, isCurrent: () => boolean,
                 readonly reportAssetProgress: SceneLoadProgressCallback) {
         this.instance_ = instance;
         this.app_ = app;
@@ -243,8 +244,9 @@ class SceneContextImpl implements SceneContext {
 
     spawn(): Entity {
         this.assertCurrent_();
-        const entity = this.app_.world.spawn();
-        this.adopt(entity);
+        const entity = this.app_.world.spawnImmediate(undefined, created => this.instance_.entities.add(created));
+        this.assertCurrent_();
+        this.adopt_(entity, true);
         return entity;
     }
 
@@ -316,19 +318,6 @@ class SceneContextImpl implements SceneContext {
 // =============================================================================
 
 /**
- * Thrown by a `load()` whose scene slot was replaced — by a concurrent `unload()`
- * or a superseding load — while its assets were still loading. The load despawns
- * anything it had spawned and rejects with this instead of committing a
- * half-loaded scene, so a `load()`/`unload()` race can't orphan entities.
- */
-export class SceneLoadCancelled extends Error {
-    constructor(name: string) {
-        super(`Scene load for "${name}" was cancelled (the scene was unloaded or the manager was reset)`);
-        this.name = 'SceneLoadCancelled';
-    }
-}
-
-/**
  * Scene loading and transitions, as `Res(SceneManager)` hands it over. A scene is
  * a unit of ownership as much as of content: what it spawned is despawned and what
  * it acquired is released when it unloads.
@@ -356,45 +345,63 @@ export class SceneManagerState {
     private readonly arrivals_ = new Map<string, Set<SceneArrival>>();
     /** A same-name load waits through cleanup and any remaining retirement frames. */
     private unloadPromises_ = new Map<string, { done: Promise<void>; config: SceneConfig; staggered: boolean }>();
-    private stopEntityTracking_: (() => void) | null = null;
+    private stopTrackingWorld_: (() => void) | null = null;
+    private trackedLifetime_: symbol | undefined;
 
     constructor(app: App) {
         this.app_ = app;
         this.transitionController_ = new SceneTransitionController(app.world);
     }
 
-    private trackEntityDestruction_(): void {
-        if (this.stopEntityTracking_) return;
-        this.stopEntityTracking_ = this.app_.world.onDespawn?.(entity => {
+    private trackWorld_(): void {
+        if (this.stopTrackingWorld_) return;
+        const world = this.app_.world;
+        this.trackedLifetime_ = world.entityLifetime;
+        const stopDespawn = world.onDespawn?.(entity => {
             for (const instance of this.scenes_.values()) {
                 instance.releaseCamera(entity);
                 instance.entities.delete(entity);
                 instance.savedEnabled.delete(entity);
             }
-        }) ?? null;
+        });
+        const stopDisconnect = world.onCoreDisconnect?.(() => this.resetInstances_('disconnect'));
+        this.stopTrackingWorld_ = () => { stopDespawn?.(); stopDisconnect?.(); };
+    }
+
+    private refreshWorld_(): void {
+        if (this.stopTrackingWorld_ && this.trackedLifetime_ !== this.app_.world.entityLifetime) {
+            this.resetInstances_('disconnect');
+        }
     }
 
     /** Forget registrations and scene services. Committed entities keep their live assets in the World. */
     reset(): void {
+        this.resetInstances_('reset');
+    }
+
+    private resetInstances_(reason: 'reset' | 'disconnect'): void {
         const instances = [...this.scenes_.values()], configs = [...this.configs_.values()];
         const committed = new Set(this.loadOrder_), sleeping = new Set(this.sleepingScenes_);
         const lifetime = this.lifetime_;
         this.lifetime_ = createAbort();
-        this.stopEntityTracking_?.();
-        this.stopEntityTracking_ = null;
+        this.stopTrackingWorld_?.();
+        this.stopTrackingWorld_ = null;
+        this.trackedLifetime_ = undefined;
         if (this.switching_ !== null) this.transitionController_.reset(new SceneLoadCancelled(this.switching_));
 
         this.changeActiveScene_(null)?.catch(error => log.error('scene', 'Could not release the active scene during reset', error));
-        this.activeSceneHandler_ = undefined;
+        if (reason === 'reset') {
+            this.activeSceneHandler_ = undefined;
+            this.configs_.clear();
+            this.initialScene_ = null;
+        }
         this.activeChange_ = undefined;
         this.activeScene_ = null;
-        this.configs_.clear();
         this.scenes_.clear();
         this.contexts_.clear();
         this.pausedScenes_.clear();
         this.sleepingScenes_.clear();
         this.loadOrder_.length = 0;
-        this.initialScene_ = null;
         this.switching_ = null;
         for (const arrivals of this.arrivals_.values()) {
             for (const arrival of arrivals) arrival.finish();
@@ -406,7 +413,8 @@ export class SceneManagerState {
             () => disposeAll(configs, config => config.discardPrepared?.()),
             () => disposeAll(instances, instance => {
                 const name = instance.config.name;
-                try { this.disposeSceneOwnedState_(instance, committed.has(name) ? 'all' : 'none', sleeping.has(name)); }
+                const survival: SceneSurvival = committed.has(name) ? (reason === 'reset' ? 'all' : 'persistent') : 'none';
+                try { this.disposeSceneOwnedState_(instance, survival, sleeping.has(name)); }
                 finally {
                     if (instance.status === 'loading' || instance.status === 'unloading') {
                         this.finishPendingWork_(instance.config);
@@ -495,6 +503,7 @@ export class SceneManagerState {
         options: TransitionOptions | undefined,
         reload: boolean,
     ): Promise<void> {
+        this.refreshWorld_();
         if (this.transitionController_.isTransitioning() || this.switching_ !== null) {
             log.warn('scene', `Scene switch already in progress, ignoring switchTo("${name}")`);
             return;
@@ -564,9 +573,13 @@ export class SceneManagerState {
      * preparation, and for one already loaded — there is nothing left to hide.
      */
     async prepare(name: string): Promise<void> {
+        this.refreshWorld_();
         if (this.scenes_.has(name)) return;
         const config = this.configs_.get(name);
-        if (config?.prepare) await this.reserveOperation_<void>(name).start(() => config.prepare!());
+        if (config?.prepare) {
+            this.trackWorld_();
+            await this.reserveOperation_<void>(name).start(() => config.prepare!());
+        }
     }
 
     /**
@@ -645,6 +658,7 @@ export class SceneManagerState {
         onProgress?: SceneLoadProgressCallback,
         swap?: SceneArrival,
     ): Promise<SceneContext> {
+        this.refreshWorld_();
         const leaving = this.unloadPromises_.get(name);
         const existing = this.scenes_.get(name);
         if (!leaving && existing && existing.status !== 'loading') {
@@ -696,13 +710,13 @@ export class SceneManagerState {
             throw new Error(`Scene "${name}" is not registered`);
         }
 
-        const instance = new SceneInstance(config);
+        const instance = new SceneInstance(config, this.app_.world.entityLifetime);
         request.instance = instance;
-        this.trackEntityDestruction_();
+        this.trackWorld_();
         this.scenes_.set(name, instance);
 
         const ctx = new SceneContextImpl(instance, this.app_,
-            entity => this.adoptInto_(instance, entity), () => this.acceptsSceneWork_(instance), request.progress.report);
+            (entity, spawned) => this.adoptInto_(instance, entity, spawned), () => this.acceptsSceneWork_(instance), request.progress.report);
         this.contexts_.set(name, ctx);
 
         try {
@@ -763,7 +777,7 @@ export class SceneManagerState {
         retire?: SceneConfig['retire'],
     ): Promise<void> | void {
         const { survivors, doomed } = this.partitionOnUnload_(instance, survival);
-        const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed);
+        const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed, instance.lifetime);
         for (const survivor of survivors) {
             batch.release(survivor);
             this.promoteToGlobal_(instance, survivor, wasSleeping);
@@ -804,8 +818,9 @@ export class SceneManagerState {
         const world = this.app_.world;
         const survivors: Entity[] = [];
         const doomed: Entity[] = [];
+        if (instance.lifetime !== world.entityLifetime) return { survivors, doomed };
         for (const entity of instance.entities) {
-            if (!world.valid(entity) || world.isDestructionPending?.(entity)) continue;
+            if (!world.valid(entity) || world.isDestructionPending?.(entity, false)) continue;
             const keep = survival === 'all' || (survival === 'persistent' && world.tryGet(entity, SceneOwner)?.persistent);
             if (keep) survivors.push(entity);
             else doomed.push(entity);
@@ -859,12 +874,12 @@ export class SceneManagerState {
         }
     }
 
-    private adoptInto_(target: SceneInstance, entity: Entity): void {
+    private adoptInto_(target: SceneInstance, entity: Entity, spawned = false): void {
         const world = this.app_.world;
         if (!world.valid(entity) || world.isDestructionPending?.(entity)) throw new Error('Cannot adopt a destroyed entity');
-        const alreadyOwned = target.entities.has(entity);
+        const alreadyOwned = !spawned && target.entities.has(entity);
         for (const previous of this.scenes_.values()) {
-            if (previous === target || !previous.entities.has(entity)) continue;
+            if (previous === target || previous.lifetime !== target.lifetime || !previous.entities.has(entity)) continue;
             this.promoteAssetOwnership_(previous, entity);
             previous.retirement?.release(entity);
             detachFromSceneParent(world, entity, previous.entities);
@@ -965,7 +980,8 @@ export class SceneManagerState {
     }
 
     private acceptsSceneWork_(instance: SceneInstance): boolean {
-        return !instance.retirement && this.scenes_.get(instance.config.name) === instance;
+        return !instance.retirement && this.scenes_.get(instance.config.name) === instance
+            && instance.lifetime === this.app_.world.entityLifetime;
     }
 
     /** A joinable operation exists before its callbacks run. Reset settles it even while external work is pending. */
@@ -1036,11 +1052,12 @@ export class SceneManagerState {
             // spawned would orphan in the world under a scene that no longer exists.
             // Despawn them and abort instead of committing to a dead scene.
             if (!this.acceptsSceneWork_(instance)) {
-                discardSceneEntities(this.app_.world, entityMap.values());
+                discardSceneEntities(this.app_.world, entityMap.values(), instance.lifetime);
                 throw new SceneLoadCancelled(name);
             }
 
             for (const entity of entityMap.values()) {
+                if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
                 instance.entities.add(entity);
                 this.app_.world.insert(entity, SceneOwner, {
                     scene: name,
@@ -1115,6 +1132,7 @@ export class SceneManagerState {
     }
 
     sleep(name: string): void {
+        this.refreshWorld_();
         const instance = this.scenes_.get(name);
         if (!instance || instance.status !== 'running') return;
         instance.status = 'sleeping';
@@ -1150,6 +1168,7 @@ export class SceneManagerState {
     }
 
     wake(name: string): void {
+        this.refreshWorld_();
         const instance = this.scenes_.get(name);
         if (!instance || instance.status !== 'sleeping') return;
         instance.status = 'running';

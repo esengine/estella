@@ -33,6 +33,7 @@ vi.mock('../src/asset', () => ({
     preloadSceneAssets: vi.fn().mockResolvedValue({ loadedTextures: new Set(), loadedFonts: new Set(), loadedMaterials: new Set(), missing: [] }),
 }));
 
+import { spawnImmediate } from './mocks/sceneSpawn';
 import { SceneManagerState } from '../src/scene/sceneManager';
 
 const SCENE_DATA = { version: '1.0', name: 'Test', entities: [] };
@@ -43,6 +44,7 @@ function createMockApp() {
     const resources = new Map<any, any>();
 
     const world = {
+        spawnImmediate,
         spawn: vi.fn(() => {
             const e = nextEntity++;
             entities.set(e, new Map());

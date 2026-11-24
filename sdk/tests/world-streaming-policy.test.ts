@@ -375,8 +375,8 @@ describe('a staged spawn', () => {
         const w = world();
         let now = 0;
         const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
-        const spawn = w.spawn.bind(w), insert = w.insert.bind(w), setParent = w.setParent.bind(w);
-        w.spawn = name => { now += 2; return spawn(name); };
+        const insert = w.insert.bind(w), setParent = w.setParent.bind(w);
+        w.onSpawn(() => { now += 2; });
         w.insert = (entity, component, value) => {
             if (component === Tag) now += 3;
             return insert(entity, component, value);

@@ -360,7 +360,8 @@ describe('overlapping registered scene loads', () => {
             began.open(); await resume.promise; return { handle: 7 };
         } });
         manager.register(entry === 'authoring' ? { name: 'cell', data: scene } : createRuntimeSceneConfig('cell', scene, options));
-        const spawn = vi.spyOn(app.world, 'spawn');
+        const spawn = vi.fn();
+        app.world.onSpawn(spawn);
         const cancelled = expect(manager.load('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
         try {
             await began.promise;

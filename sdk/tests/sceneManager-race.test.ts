@@ -59,6 +59,7 @@ vi.mock('../src/defaults', () => ({
     },
 }));
 
+import { spawnImmediate } from './mocks/sceneSpawn';
 import { SceneManagerState, SceneLoadCancelled } from '../src/scene/sceneManager';
 
 interface Deferred {
@@ -76,6 +77,7 @@ function createMockApp() {
     const alive = new Set<number>();
     let next = 1;
     const world = {
+        spawnImmediate,
         spawn: vi.fn(() => { const e = next++; alive.add(e); return e; }),
         despawn: vi.fn((e: number) => { alive.delete(e); }),
         valid: vi.fn((e: number) => alive.has(e)),

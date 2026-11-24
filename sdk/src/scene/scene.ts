@@ -12,7 +12,7 @@ import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
-import { discardSceneEntities, runSceneLoad, scenePhaseRunner } from './sceneLoadAttempt';
+import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
 import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
 import { deepClone } from '../util/deepClone';
@@ -611,6 +611,8 @@ function checkLoadable(sceneData: SceneData): void {
 /** What a staged spawn made: the entities by document id, and the roots it switched off until {@link revealStagedEntities}. */
 export interface StagedSpawn {
     entities: Map<number, Entity>;
+    /** Entity namespace in which these roots were hidden. */
+    lifetime?: symbol;
     /** Roots switched off while the rest arrived. An entity the author switched off is not among them, and stays off. */
     hidden: Entity[];
 }
@@ -625,13 +627,14 @@ export interface StagedSpawn {
 export function* spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
     sink?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
-    assertCurrent?: () => void,
+    assertScene?: () => void, attempt = new SceneLoadAttempt(world, sceneData.name),
 ): Generator<number, StagedSpawn, void> {
+    const assertCurrent = () => { assertScene?.(); attempt.assertCurrent(); };
     // Settle work before yielding and restart the clock after resumption. A phase's observer may itself take time.
     let mark = sink ? performance.now() : 0;
     const onPhase: ScenePhaseSink | undefined = sink ? (phase, ms) => {
         sink(phase, ms);
-        assertCurrent?.();
+        assertCurrent();
         mark = performance.now();
     } : undefined;
     const since = (): number => {
@@ -641,10 +644,10 @@ export function* spawnAndLoadEntitiesJob(
         return elapsed;
     };
     const resume = (): void => {
-        assertCurrent?.();
+        assertCurrent();
         if (onPhase) mark = performance.now();
     };
-    assertCurrent?.();
+    assertCurrent();
     checkLoadable(sceneData);
     if (onPhase) onPhase('spawn.validate', since());
     const { entities: entityMap, hidden } = spawn;
@@ -652,6 +655,9 @@ export function* spawnAndLoadEntitiesJob(
     const total = Math.max(1, rows.length * 3);
     let done = 0;
     let completed = false;
+    spawn.lifetime = attempt.lifetime;
+    attempt.entities = entityMap;
+    const release = attempt.watch();
     try {
         let skipped = 0, entityMs = 0;
         for (const entityData of sceneData.entities) {
@@ -660,10 +666,11 @@ export function* spawnAndLoadEntitiesJob(
             // used on an unexpanded prefab scene — it has no spawnable components.
             // Skip it (loadSceneWithAssets is the supported prefab-scene path).
             if (isPrefabEntry(entityData)) { skipped++; continue; }
-            const entity = world.spawn();
-            entityMap.set(entityData.id, entity);
+            const entity = world.spawnImmediate(undefined, created => entityMap.set(entityData.id, created));
+            assertCurrent();
             world.insert(entity, Name, { value: entityData.name });
             if (staged && entityData.parent === null && !entityData.components.some((c) => c.type === 'Disabled')) {
+                assertCurrent();
                 world.insert(entity, Disabled, {});
                 hidden.push(entity);
             }
@@ -680,6 +687,7 @@ export function* spawnAndLoadEntitiesJob(
             for (const entityData of rows) {
                 if (entityData.parent === null || entityMap.has(entityData.parent)) continue;
                 if (entityData.components.some((c) => c.type === 'Disabled')) continue;
+                assertCurrent();
                 const entity = entityMap.get(entityData.id)!;
                 world.insert(entity, Disabled, {});
                 hidden.push(entity);
@@ -696,6 +704,7 @@ export function* spawnAndLoadEntitiesJob(
             for (const compData of entityData.components) {
                 remapEntityFields(compData, entityMap, external);
                 loadComponent(world, entity, compData, entityData.name);
+                assertCurrent();
                 if (byType) byType.set(compData.type, (byType.get(compData.type) ?? 0) + since());
             }
             done++;
@@ -729,7 +738,8 @@ export function* spawnAndLoadEntitiesJob(
         completed = true;
         return spawn;
     } finally {
-        if (!completed) discardSceneEntities(world, entityMap.values());
+        try { if (!completed) attempt.discardEntities(); }
+        finally { release(); }
     }
 }
 
@@ -739,9 +749,11 @@ export function* spawnAndLoadEntitiesJob(
  */
 export function revealStagedEntities(world: World, spawn: StagedSpawn): void {
     for (const root of spawn.hidden) {
+        if (spawn.lifetime !== undefined && spawn.lifetime !== world.entityLifetime) return;
         if (world.valid(root) && world.has(root, Disabled)) world.remove(root, Disabled);
     }
     for (const entity of spawn.entities.values()) {
+        if (spawn.lifetime !== undefined && spawn.lifetime !== world.entityLifetime) return;
         if (world.valid(entity)) world.restampAdded(entity);
     }
 }
@@ -749,9 +761,9 @@ export function revealStagedEntities(world: World, spawn: StagedSpawn): void {
 /** Spawn private, migrated records. Binding entity references consumes those records. */
 export function spawnAndLoadEntities(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    onPhase?: ScenePhaseSink, assertCurrent?: () => void,
+    onPhase?: ScenePhaseSink, assertCurrent?: () => void, attempt?: SceneLoadAttempt,
 ): Map<number, Entity> {
-    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false, undefined, assertCurrent);
+    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false, undefined, assertCurrent, attempt);
     for (;;) {
         const next = job.next();
         if (next.done) return next.value.entities;
@@ -762,10 +774,11 @@ export function loadSceneData(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
     onPhase?: ScenePhaseSink,
 ): Map<number, Entity> {
+    const attempt = new SceneLoadAttempt(world, sceneData.name);
     const began = onPhase ? performance.now() : 0;
     const { data } = migrateSceneData(sceneData);
     if (onPhase) onPhase('spawn.migrate', performance.now() - began);
-    return spawnAndLoadEntities(world, data, external, onPhase);
+    return spawnAndLoadEntities(world, data, external, onPhase, undefined, attempt);
 }
 
 /**
@@ -790,7 +803,7 @@ export async function loadSceneWithAssets(
     sceneData: SceneData,
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
-    const timed = scenePhaseRunner(options?.onPhase);
+    const attempt = new SceneLoadAttempt(world, sceneData.name);
     // Expand prefab-instance entries first (via the same flattenPrefab core the
     // editor uses) so migration + asset resolution + spawn all operate on plain
     // entities — this is how a saved prefab scene achieves play == ship. The
@@ -798,12 +811,14 @@ export async function loadSceneWithAssets(
     let scene = sceneData;
     if (options?.assets && sceneHasPrefabEntries(scene)) {
         const assets = options.assets;
+        const timed = scenePhaseRunner(attempt.observe(options.onPhase));
         scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets));
+        attempt.assertCurrent();
     }
     // Migrate up-front to a private copy; asset resolution + spawn all operate
     // on it, so the caller's SceneData is never mutated.
     const { data } = migrateSceneData(scene);
-    return loadSceneAssetsAndSpawn(world, data, options, timed, scene.deferredInstances);
+    return loadSceneAssetsAndSpawn(world, data, options, attempt, scene.deferredInstances);
 }
 
 /**
@@ -816,42 +831,43 @@ export async function loadSceneWithAssets(
 export async function loadOwnedSceneWithAssets(
     world: World, scene: SceneData, options?: SceneLoadOptions,
 ): Promise<Map<number, Entity>> {
-    const timed = scenePhaseRunner(options?.onPhase);
+    const attempt = new SceneLoadAttempt(world, scene.name);
     const { data } = migrateOwnedSceneData(scene);
-    return loadSceneAssetsAndSpawn(world, data, options, timed);
+    return loadSceneAssetsAndSpawn(world, data, options, attempt);
 }
 
 async function loadSceneAssetsAndSpawn(
     world: World, data: SceneData, options: SceneLoadOptions | undefined,
-    timed: ReturnType<typeof scenePhaseRunner>, deferred?: readonly DeferredRecord[],
+    attempt: SceneLoadAttempt, deferred?: readonly DeferredRecord[],
 ): Promise<Map<number, Entity>> {
-    return runSceneLoad(world, async attempt => {
+    return runSceneLoad(attempt, async () => {
+        const onPhase = attempt.observe(options?.onPhase);
+        const timed = scenePhaseRunner(onPhase);
         const assets = options?.assets, collector = options?.collectAssets;
-        const assertCurrent = options?.assertCurrent;
+        const assertCurrent = () => { options?.assertCurrent?.(); attempt.assertCurrent(); };
         let ownership: PreparedSpawnOwnership | undefined;
         try {
-            assertCurrent?.();
+            assertCurrent();
             if (assets) {
                 const result = await timed('assets', async () => {
                     attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress, { entityOwnership: !collector });
                     return attempt.assets;
                 });
-                assertCurrent?.();
+                assertCurrent();
                 if (!collector && assets.entityScopes) {
                     ownership = prepareSpawnOwnership(data, result, assets.entityScopes, assets.resolveRef.bind(assets))?.();
                 }
                 options?.onMissingAssets?.(result.missing);
+                assertCurrent();
                 if (options?.abortOnMissingAssets && result.missing.length > 0) {
                     throw new MissingAssetsError(result.missing);
                 }
                 assets.resolveSceneAssetPaths(data, result);
                 applyTextureMetadata(data, result.textureHandles);
             }
-            const entities = await timed('spawn', () => {
-                attempt.entities = spawnAndLoadEntities(world, data, options?.externalEntities, options?.onPhase, assertCurrent);
-                return attempt.entities;
-            });
-            assertCurrent?.();
+            const entities = await timed('spawn', () =>
+                spawnAndLoadEntities(world, data, options?.externalEntities, onPhase, options?.assertCurrent, attempt));
+            assertCurrent();
             ownership?.attach(world, entities);
             assets?.trackSceneAssetReferences(data, entities, world);
             registerDeferredInstances(world, deferred, entities);

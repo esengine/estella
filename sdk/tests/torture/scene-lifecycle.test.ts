@@ -48,6 +48,7 @@ vi.mock('../../src/asset/discoverAssets', () => ({
     getAssetPathsByType: vi.fn(() => new Set()),
 }));
 
+import { spawnImmediate } from '../mocks/sceneSpawn';
 import { SceneManagerState } from '../../src/scene/sceneManager';
 import { Assets } from '../../src/asset/AssetPlugin';
 
@@ -84,6 +85,7 @@ function makeManager(setupGate: (name: string) => Promise<unknown>) {
     const components = new Map<number, Set<unknown>>();
     let next = 1;
     const world = {
+        spawnImmediate,
         spawn: () => { const e = next++; live.add(e); components.set(e, new Set()); return e; },
         despawn: (e: number) => { live.delete(e); components.delete(e); },
         valid: (e: number) => live.has(e),

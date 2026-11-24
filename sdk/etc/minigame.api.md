@@ -15958,6 +15958,7 @@ Generator<number, T, void>
 @internal enableIncarnationTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
 @internal ensureTransformsComposed: () => void
+@internal entityLifetime: symbol
 @internal flushEngineStamps: () => void
 @internal getChangeSequence: () => number
 @internal getComponentIncarnation: (entity: Entity, component: AnyComponentDef) => number
@@ -15984,7 +15985,7 @@ Generator<number, T, void>
 @internal isChangeTracked: (component: AnyComponentDef) => boolean
 @internal isChangedAfterSequence: (entity: Entity, component: AnyComponentDef, after: number) => boolean
 @internal isChangedSince: (entity: Entity, component: AnyComponentDef, sinceTick: number) => boolean
-@internal isDestructionPending: (entity: Entity) => boolean
+@internal isDestructionPending: (entity: Entity, includeCoreDisconnect?: boolean) => boolean
 @internal isIterating: () => boolean
 @internal layoutEpoch: () => number | null
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
@@ -16023,6 +16024,7 @@ Generator<number, T, void>
 @internal setChangeAudit: (enabled: boolean) => void
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
+@internal spawnImmediate: (name?: string, record?: (entity: Entity) => void) => Entity
 @internal speculating: boolean
 @internal stampEngineWrite: (entity: Entity, component: AnyComponentDef) => void
 @internal suspendIteration: () => number

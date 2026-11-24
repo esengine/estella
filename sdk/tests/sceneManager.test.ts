@@ -68,6 +68,7 @@ vi.mock('../src/defaults', () => ({
     },
 }));
 
+import { spawnImmediate } from './mocks/sceneSpawn';
 import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem, type SceneContext } from '../src/scene/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText, TilemapLayer } from '../src/ecs/component';
 import { loadSceneWithAssets } from '../src/scene/scene';
@@ -86,6 +87,7 @@ function createMockApp() {
     resources.set(PostProcess, postProcess);
 
     const world = {
+        spawnImmediate,
         spawn: vi.fn(() => {
             const e = nextEntity++;
             entities.set(e, new Map());
