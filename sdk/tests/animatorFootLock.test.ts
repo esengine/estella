@@ -194,6 +194,63 @@ describe('a foot the clip lifts', () => {
     });
 });
 
+describe('a foot with a toe', () => {
+    const TOE = 6;
+    /** The same leg with the ball of the foot ahead of the ankle, and the ankle `raised` as a heel coming up over it. */
+    const withToe = (world: any, ground: GroundContext, raised = 0): void => {
+        clip(world);
+        const foot = world.get(FOOT, Transform);
+        world.set(FOOT, Transform, { ...foot, position: { x: 0, y: -1 + raised, z: -0.4 + raised * 0.5 } });
+        world.insert(TOE, Name, { value: 'Toe' });
+        world.insert(TOE, Transform, { position: { x: 0, y: -raised, z: 0.3 - raised * 0.5 }, rotation: identity(), scale: { x: 1, y: 1, z: 1 } });
+        world.insert(TOE, Parent, { entity: FOOT });
+        world.insert(FOOT, Children, { entities: [TOE] });
+        const pose = new Pose();
+        pose.reset();
+        solveAnimatorIK(world, RIG, pose, [lock], {}, resolve, ground);
+        pose.applyTo(world);
+    };
+    const toeInWorld = (world: any): Vec3 => {
+        let p: Vec3 = { x: 0, y: 0, z: 0 };
+        let r: any = identity();
+        for (const e of [PELVIS, THIGH, SHIN, FOOT, TOE]) {
+            const t = world.get(e, Transform);
+            const d = q.rotate(r, t.position);
+            p = { x: p.x + d.x, y: p.y + d.y, z: p.z + d.z };
+            r = q.mul(r, t.rotation);
+        }
+        const rig = world.get(RIG, Transform);
+        const moved = q.rotate(rig.rotation, p);
+        return { x: rig.position.x + moved.x, y: rig.position.y + moved.y, z: rig.position.z + moved.z };
+    };
+
+    it('is held by the ball of the foot: the ankle is free to come up over it', () => {
+        const world = makeWorld();
+        const ground = context();
+        withToe(world, ground);
+        const ankle = footInWorld(world).at;
+
+        // The heel comes up: the ankle rises and goes forward while the ball of the foot stays where it is in the clip.
+        withToe(world, ground, 0.2);
+        const now = footInWorld(world).at;
+        expect(now.y).toBeCloseTo(ankle.y + 0.2, 3);
+        expect(now.z).toBeCloseTo(ankle.z + 0.1, 3);
+    });
+
+    it('and that is the point that stays put when the rig turns', () => {
+        const world = makeWorld();
+        const ground = context();
+        withToe(world, ground);
+        const stood = toeInWorld(world);
+
+        rigAt(world, 25);
+        withToe(world, ground);
+        const now = toeInWorld(world);
+        expect(now.x).toBeCloseTo(stood.x, 2);
+        expect(now.z).toBeCloseTo(stood.z, 2);
+    });
+});
+
 describe('a constraint weighted to nothing', () => {
     it('leaves the clip alone', () => {
         const world = makeWorld();

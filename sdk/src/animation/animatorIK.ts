@@ -23,7 +23,7 @@
 
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
-import { Parent, Transform, type TransformData } from '../ecs/component';
+import { Children, Parent, Transform, type TransformData } from '../ecs/component';
 import { resolveChildEntity } from '../ecs/childPath';
 import type { JointResolver } from './animatorAvatar';
 import { q } from '../math/quat';
@@ -58,7 +58,13 @@ export interface AnimatorIK {
     smooth?: number;
     /** foot-plant: the physics layers that count as ground. Default all of them. */
     layers?: number;
-    /** foot-lock: how far above its lowest the clip may carry the foot and it still counts as standing, as a share of the leg's length. Default 0.07. */
+    /**
+     * foot-lock: the joint that is on the ground while the foot stands: the ball of the foot. Held in place of the ankle,
+     * which rises and travels forward as the heel comes up while the foot is still standing. Default the tip's own child
+     * when it has just the one, else the tip.
+     */
+    contact?: string;
+    /** foot-lock: how far above its lowest the clip may carry the contact and it still counts as standing, as a share of the leg's length. Default 0.07. */
     lockHeight?: number;
     /** foot-lock: how far the body may carry the leg from a standing foot before the foot takes a step, as a share of the leg's length. Default 0.3. */
     stretch?: number;
@@ -473,6 +479,17 @@ function turnBetween(from: number, to: number): number {
 
 const yawTurn = (angle: number): Quat => ({ w: Math.cos(angle / 2), x: 0, y: Math.sin(angle / 2), z: 0 });
 
+/** The joint a foot-lock holds to the ground: the one it names, else the tip's only child, else the tip. */
+function contactOf(
+    world: World, rigRoot: Entity, tip: Entity, ik: AnimatorIK, resolveJoint: JointResolver,
+): Entity {
+    if (ik.contact) return resolveJoint(rigRoot, ik.contact) ?? tip;
+    const children = (world.tryGet(tip, Children) as { entities?: number[] } | null)?.entities;
+    return children?.length === 1 ? children[0] as Entity : tip;
+}
+
+/** How much of the standing height a foot must be within before it counts as having landed. */
+const LANDED_SHARE = 0.3;
 /** Let go of a foot over this long once the clip lifts it, so it swings from where it stood and not from where the clip had it. */
 const RELEASE_SECONDS = 0.06;
 /** Past this a held foot is no longer a leg bent to reach, it is a leg broken: the hold is dropped at once. */
@@ -518,14 +535,18 @@ function lockFeet(
         if (!pTip || !pMid || !pRoot) continue;
 
         const leg = len(sub(pMid.position, pRoot.position)) + len(sub(pTip.position, pMid.position));
-        const clipAt = toWorld(pTip.position);
+        // What stands on the ground is the ball of the foot, not the ankle: the heel comes up over it while it stands.
+        const under = contactOf(world, rigRoot, tip, ik, resolveJoint);
+        const pContact = under === tip ? pTip : place(world, pose, rigRoot, under) ?? pTip;
+        const ankleAt = toWorld(pTip.position);
+        const clipAt = toWorld(pContact.position);
         const clipFacing = q.normalize(q.mul(frame.r, pTip.rotation));
 
         let state = locks.get(keyOf(ik));
         if (!state) {
             state = {
                 locked: false, x: clipAt.x, z: clipAt.z, yaw: 0, axis: null,
-                offsetX: 0, offsetZ: 0, offsetYaw: 0, floor: pTip.position.y, step: null,
+                offsetX: 0, offsetZ: 0, offsetYaw: 0, floor: pContact.position.y, step: null,
             };
             locks.set(keyOf(ik), state);
         }
@@ -540,9 +561,12 @@ function lockFeet(
         }
         const along = q.rotate(clipFacing, AXIS[state.axis!]);
         const clipYaw = Math.atan2(along.x, along.z);
-        state.floor = Math.min(state.floor, pTip.position.y);
+        state.floor = Math.min(state.floor, pContact.position.y);
 
-        const down = pTip.position.y <= state.floor + (ik.lockHeight ?? 0.07) * leg;
+        // Coming down, a foot skims the ground for a few frames before it stops: it is taken as standing only once it is
+        // nearly all the way down, and kept so until the clip has plainly lifted it.
+        const height = (ik.lockHeight ?? 0.07) * leg;
+        const down = pContact.position.y <= state.floor + (state.locked ? height : height * LANDED_SHARE);
         let lift = 0;
         if (down) {
             if (!state.locked) {
@@ -585,7 +609,15 @@ function lockFeet(
         }
         if (Math.abs(state.offsetX) + Math.abs(state.offsetZ) + Math.abs(state.offsetYaw) + lift < 1e-6) continue;
 
-        const goal = toRig({ x: clipAt.x + state.offsetX, y: clipAt.y, z: clipAt.z + state.offsetZ });
+        // The ankle goes where it has to for the contact to be held: the contact's place, and the ankle's reach from it
+        // turned by as much as the foot is.
+        const reachX = ankleAt.x - clipAt.x, reachZ = ankleAt.z - clipAt.z;
+        const cos = Math.cos(state.offsetYaw), sin = Math.sin(state.offsetYaw);
+        const goal = toRig({
+            x: clipAt.x + state.offsetX + reachX * cos + reachZ * sin,
+            y: ankleAt.y,
+            z: clipAt.z + state.offsetZ - reachX * sin + reachZ * cos,
+        });
         goal.y = pTip.position.y + lift;
         const carrier = bendChain(world, pose, rigRoot, tip, goal, ik, weight, resolveJoint);
         if (!carrier) continue;

@@ -650,6 +650,7 @@ send: (event: AnimatorEventPayload) => void
 ```
 align: boolean | undefined
 axis: "x" | "y" | "z" | undefined
+contact: string | undefined
 kind: AnimatorIKKind
 layers: number | undefined
 lockHeight: number | undefined

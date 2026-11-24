@@ -303,7 +303,7 @@ export function updateIK(
         delete merged.pelvis; delete merged.align; delete merged.reach; delete merged.smooth; delete merged.layers;
     }
     if (merged.kind !== 'foot-lock') {
-        delete merged.lockHeight; delete merged.stretch; delete merged.twist; delete merged.stepTime; delete merged.stepHeight;
+        delete merged.contact; delete merged.lockHeight; delete merged.stretch; delete merged.twist; delete merged.stepTime; delete merged.stepHeight;
     }
     return { ...def, ik: def.ik!.map((x, i) => (i === index ? merged : x)) };
 }
