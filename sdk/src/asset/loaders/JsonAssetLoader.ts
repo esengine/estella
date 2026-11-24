@@ -20,6 +20,7 @@ import type { AssetLoader, LoadContext, JsonResult } from '../AssetLoader';
 
 export class JsonAssetLoader implements AssetLoader<JsonResult> {
     readonly type = 'json';
+    readonly fieldBinding = 'source';
     readonly extensions = ['.json'];
 
     async load(path: string, ctx: LoadContext): Promise<JsonResult> {

@@ -83,6 +83,19 @@ const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 
 `T` is not validated; the result has the guarantees of `JSON.parse` only.
 
+A component can declare a JSON field so the scene preloads its document before spawning the entity.
+
+```typescript
+const Dialogue = defineComponent('Dialogue', { table: '' }, {
+    assetFields: [{ field: 'table', type: 'json' }],
+});
+```
+
+The field keeps its authored path or UUID. For a list, use `discoverAssets` to return one
+`{ type, path }` per dependency. The type can name a project loader registered with `assets.register`.
+These reads count towards scene progress and missing-asset reporting. A persistent entity, an entity adopted
+by another scene, or a spawned prefab keeps its list dependencies until the entity is destroyed.
+
 A data asset has a UUID, is parsed once and reference-counted, can be placed in a lazy
 [group](#addressable-groups-lazy-loading) or served from a CDN, and can be replaced by
 [hot update](/docs/publishing/hot-update/). A direct `fetch` of the project path has none of these properties, and it

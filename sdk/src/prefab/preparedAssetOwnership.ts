@@ -16,27 +16,30 @@ export interface PreparedSpawnOwnership {
     release(): void;
 }
 
-/** Project successful acquisitions onto immutable authored entities once, at bake time. */
-export function prepareSpawnOwnership(
-    scene: SceneData, result: SceneAssetResult, owners: EntityAssetScopes | undefined,
-    resolveRef?: RefResolver,
-): (() => PreparedSpawnOwnership) | undefined {
-    if (!owners || !result.acquisitions?.length) return undefined;
+type EntitySources = Map<number, Map<object, { lease: AssetLease; auxiliary: boolean }>>;
+
+/** Index authored owners before scene fields are rewritten to runtime handles. */
+function sceneAcquisitionSources(
+    scene: SceneData, result: SceneAssetResult, resolveRef?: RefResolver, auxiliaryOnly = false,
+): EntitySources {
+    const sources: EntitySources = new Map();
+    if (!result.acquisitions?.length) return sources;
     // Older preload providers can omit ownership or the distinction between fields and other dependencies.
     let fallback: SceneAssetOwners | undefined;
-    if (result.acquisitions.some(receipt => !receipt.entityIds || receipt.auxiliaryEntityIds === undefined)) {
+    if (result.acquisitions.some(receipt => receipt.auxiliaryEntityIds === undefined || (!auxiliaryOnly && !receipt.entityIds))) {
         fallback = new SceneAssetOwners(true);
         indexSceneAssets(scene, result.resolveRef ?? resolveRef, fallback);
     }
-    const sources = new Map<number, Map<object, { lease: AssetLease; auxiliary: boolean }>>();
     for (const { type, path, lease, entityIds, auxiliaryEntityIds } of result.acquisitions) {
+        if (auxiliaryOnly && auxiliaryEntityIds !== undefined && !auxiliaryEntityIds?.size) continue;
         const inferred = fallback?.get(type, path);
-        const entities = entityIds ?? inferred;
-        if (!entities) continue;
         const auxiliary = auxiliaryEntityIds === undefined ? fallback?.auxiliaryFor(type, path) : auxiliaryEntityIds;
+        const entities = auxiliaryOnly && auxiliaryEntityIds !== undefined ? auxiliaryEntityIds : entityIds ?? inferred;
+        if (!entities) continue;
         const key = namedBindingOf(lease) ?? lease;
         for (const id of entities) {
             const independent = !!auxiliary?.has(id) || (auxiliaryEntityIds === undefined && !inferred?.has(id));
+            if (auxiliaryOnly && !independent) continue;
             let selected = sources.get(id);
             if (!selected) sources.set(id, selected = new Map());
             const source = selected.get(key);
@@ -44,6 +47,31 @@ export function prepareSpawnOwnership(
             else if (independent) source.auxiliary = true;
         }
     }
+    return sources;
+}
+
+/** Borrow the scene's own receipts until a declared entity moves to another owner. */
+export function prepareSceneAuxiliaryAssets(scene: SceneData, result: SceneAssetResult, resolveRef?: RefResolver) {
+    const sources = sceneAcquisitionSources(scene, result, resolveRef, true);
+    if (!sources.size) return undefined;
+    return (world: World, entities: ReadonlyMap<number, Entity>, target = new Map<Entity, readonly AssetLease[]>()) => {
+        for (const [id, leases] of sources) {
+            const entity = entities.get(id);
+            if (entity !== undefined && world.valid(entity)) {
+                target.set(entity, Array.from(leases.values(), source => source.lease));
+            }
+        }
+        return target;
+    };
+}
+
+/** Project successful acquisitions onto immutable authored entities once, at bake time. */
+export function prepareSpawnOwnership(
+    scene: SceneData, result: SceneAssetResult, owners: EntityAssetScopes | undefined,
+    resolveRef?: RefResolver,
+): (() => PreparedSpawnOwnership) | undefined {
+    if (!owners) return undefined;
+    const sources = sceneAcquisitionSources(scene, result, resolveRef);
     if (!sources.size) return undefined;
     const components = new Map<number, AnyComponentDef[]>();
     for (const source of scene.entities) {

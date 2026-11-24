@@ -81,26 +81,26 @@ function usesAuthoredRef(type: string): boolean {
     return type === 'anim-clip' || type === 'audio';
 }
 
-export function sceneAcquisitionPaths(refs: SceneAssetRefs, type: string): ReadonlySet<string> | undefined {
-    return (usesAuthoredRef(type) ? refs.rawByType : refs.byType).get(type);
-}
-
 /** Entities that named each acquisition in this preparation. */
 export class SceneAssetOwners {
     private readonly byType = new Map<string, Map<string, { entities: Set<number>; auxiliary?: Set<number> }>>();
 
-    constructor(private readonly includeAliases = false) {}
+    constructor(
+        private readonly includeAliases = false,
+        private readonly auxiliaryOnly = false,
+    ) {}
 
-    asset(type: string, raw: string, path: string, entity: number, auxiliary = false): void {
-        const label = type === 'bitmap-font' ? 'font' : type;
+    asset(type: string, raw: string, path: string, entity: number, auxiliary = false, acquisitionPath?: string): void {
+        const label = this.includeAliases && type === 'bitmap-font' ? 'font' : type;
         // A clip registers under each authored spelling. Handle-backed assets share a resolved path.
-        const key = usesAuthoredRef(type) ? raw : path;
+        const key = acquisitionPath ?? (usesAuthoredRef(type) ? raw : path);
         this.add(label, key, entity, auxiliary);
         // Older structural providers could identify a receipt by either spelling.
         if (this.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity, auxiliary);
     }
 
     add(type: string, path: string, entity: number, auxiliary = false): void {
+        if (this.auxiliaryOnly && !auxiliary) return;
         let paths = this.byType.get(type);
         if (!paths) this.byType.set(type, paths = new Map());
         let owners = paths.get(path);
@@ -118,7 +118,9 @@ export class SceneAssetOwners {
     }
 }
 
-function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
+type AcquisitionPath = (type: string, raw: string, resolved: string) => string;
+
+function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquireAs?: AcquisitionPath) {
     const refs: SceneAssetRefs = {
         byType: new Map(), rawByType: new Map(), rawFor: new Map(),
         spines: [], dragonBones: [], unresolved: [], meshTextures: new Set(), meshMaterials: new Set(),
@@ -140,10 +142,11 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
         asset(entity: number, type: string, raw: string, auxiliary = false) {
             const path = resolve(raw);
             if (path === null) return;
-            bucket(refs.byType, type, path);
+            const key = acquireAs ? (usesAuthoredRef(type) ? raw : acquireAs(type, raw, path)) : undefined;
+            bucket(refs.byType, type, key ?? path);
             bucket(refs.rawByType, type, raw);
             if (!refs.rawFor.has(path)) refs.rawFor.set(path, raw);
-            owners?.asset(type, raw, path, entity, auxiliary);
+            owners?.asset(type, raw, path, entity, auxiliary, key);
         },
         mesh(raw: string, material: boolean) {
             const path = refResolver ? refResolver(raw) : raw;
@@ -164,9 +167,9 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
 /** Index the same component declarations for acquisition, optional authored bindings and entity ownership. */
 export function indexSceneAssets(
     scene: SceneData, resolveRef?: RefResolver, owners?: SceneAssetOwners,
-    onAuthored?: (refs: SceneAssetRefs) => void,
+    onAuthored?: (refs: SceneAssetRefs) => void, acquireAs?: AcquisitionPath,
 ): SceneAssetRefs {
-    const resolved = assetIndex(resolveRef, owners);
+    const resolved = assetIndex(resolveRef, owners, acquireAs);
     const authored = onAuthored ? assetIndex() : undefined;
     const indexes = authored ? [resolved, authored] : [resolved];
 
@@ -188,11 +191,13 @@ export function indexSceneAssets(
             }
 
             if (definition.discoverAssets) {
+                const fields = owners && definition.assetFields.length ? [...definition.assetFields] : [];
                 for (const { type, path } of definition.discoverAssets(data)) {
-                    if (typeof path === 'string' && path) {
-                        const auxiliary = !!owners && !definition.assetFields.some(f => f.type === type && data[f.field] === path);
-                        for (const index of indexes) index.asset(entity.id, type, path, auxiliary);
-                    }
+                    if (typeof path !== 'string' || !path) continue;
+                    // Each scalar field accounts for one declaration. A list may also name the same file.
+                    const field = fields.findIndex(f => f.type === type && data[f.field] === path);
+                    if (field >= 0) fields.splice(field, 1);
+                    for (const index of indexes) index.asset(entity.id, type, path, !!owners && field < 0);
                 }
             } else {
                 for (const { field, type } of definition.assetFields) {

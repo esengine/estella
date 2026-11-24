@@ -81,6 +81,7 @@ export function parseTerrainLayer(json: unknown, file = 'terrain layer'): Terrai
 /** Loads `.esterrainlayer` files as checked layers. @experimental */
 export class TerrainLayerAssetLoader implements AssetLoader<TerrainLayerDef> {
     readonly type = 'terrain-layer';
+    readonly fieldBinding = 'source';
     readonly extensions = ['.esterrainlayer'];
 
     async load(path: string, ctx: LoadContext): Promise<TerrainLayerDef> {

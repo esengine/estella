@@ -72,6 +72,18 @@ const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 
 `T` 不做校验，结果只具备 `JSON.parse` 本身的保证。
 
+组件可以用 `assetFields` 声明 JSON 字段。场景会在创建实体之前读取对应的文档。
+
+```typescript
+const Dialogue = defineComponent('Dialogue', { table: '' }, {
+    assetFields: [{ field: 'table', type: 'json' }],
+});
+```
+
+字段会保留场景文件中填写的路径或 UUID。对于资源列表，可以用 `discoverAssets` 为每项返回
+`{ type, path }`。`type` 可以使用项目通过 `assets.register` 注册的加载器名称。
+这些文件计入加载进度和缺失资源报告。常驻实体、被其他场景接管的实体和预制体实例都会持有列表中的资源，直到实体销毁。
+
 数据资源有 UUID，只解析一次并参与引用计数，可放入懒加载[寻址组](#寻址组懒加载)或由 CDN 提供，并可由[热更新](/docs/zh-cn/publishing/hot-update/)替换。直接 `fetch` 项目路径不具备上述任何特性；它在编辑器中可用（编辑器提供整个项目），但在构建中失败，因为构建只包含发布的资源。
 
 数据资源始终发布，无论是否被引用（[只有代码点名的资产](#只有代码点名的资产)）。项目配置文件（`package.json`、`tsconfig.json` 等）不是资源。

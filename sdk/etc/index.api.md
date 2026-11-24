@@ -1001,7 +1001,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom'
+'json' | 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -1093,6 +1093,7 @@ refCount: number
 @internal hasFieldLeases: boolean
 @internal leases: () => readonly AssetLease[]
 @internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void, lookup?: FieldLeaseLookup) => void
+@internal retainAcquisition: (source: AssetLease, field?: FieldLeaseBinding) => void
 absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean
@@ -1192,7 +1193,7 @@ onSourceChanged: (listener: (path: string) => void) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
 pathForRenderedTexture: (renderId: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
-preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; readonly summary?: "debug" | "info"; readonly entityOwnership?: boolean; readonly onDiscover?: (authored: SceneAssetRefs) => void; }) => Promise<SceneAssetResult>
+preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; readonly summary?: "debug" | "info"; readonly entityOwnership?: boolean | "auxiliary"; readonly onDiscover?: (authored: SceneAssetRefs) => void; }) => Promise<SceneAssetResult>
 readMeshData: (handle: number) => Promise<MeshData | null>
 recoverFromDeviceLoss: () => Promise<boolean>
 register: <T>(loader: AssetLoader<T>) => void
@@ -10745,7 +10746,7 @@ registerDrawCallback: (id: string, fn: DrawCallback) => void
 reportAssetProgress: SceneLoadProgressCallback | undefined
 setPersistent: (entity: Entity, persistent: boolean) => void
 spawn: () => Entity
-trackAssetScope: (scope: AssetScope) => void
+trackAssetScope: (scope: AssetScope, auxiliary?: ReadonlyMap<Entity, readonly AssetLease[]>) => void
 trackAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void
 unbindPostProcess: (camera: Entity) => void
 ```
@@ -12853,6 +12854,7 @@ width: number
 ## TerrainLayerAssetLoader — class @experimental
 ```
 extensions: string[]
+fieldBinding: "source"
 load: (path: string, ctx: LoadContext) => Promise<TerrainLayerDef>
 type: "terrain-layer"
 unload: () => void

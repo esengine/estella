@@ -665,6 +665,7 @@ world: string
 ## TerrainLayerAssetLoader — class @experimental
 ```
 extensions: string[]
+fieldBinding: "source"
 load: (path: string, ctx: LoadContext) => Promise<TerrainLayerDef>
 type: "terrain-layer"
 unload: () => void

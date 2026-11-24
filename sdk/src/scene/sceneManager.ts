@@ -9,8 +9,6 @@ import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { AssetFieldType, SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
-import { visitEntityAssetBindings } from '../asset/liveAssetBindings';
-import { sameAcquisition } from '../asset/leaseBindings';
 import type { SystemDef } from '../ecs/system';
 import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
@@ -138,10 +136,11 @@ export interface SceneContext {
     /**
      * Take over the receipts a loader acquired for this scene.
      *
+     * Optional per-entity dependencies borrow these receipts until the entity leaves the scene.
      * A receipt identifies the exact acquisition even when several generations
      * share a path. A value-only loader can report paths through {@link trackAssets}.
      */
-    trackAssetScope(scope: AssetScope): void;
+    trackAssetScope(scope: AssetScope, auxiliary?: ReadonlyMap<Entity, readonly AssetLease[]>): void;
     despawn(entity: Entity): void;
     /** Install a named draw callback for this scene. Later registrations under the same ID survive its unload. */
     registerDrawCallback(id: string, fn: DrawCallback): void;
@@ -192,6 +191,7 @@ class SceneInstance {
      * scene's refs resolve to by then.
      */
     readonly assetScope = new AssetScope();
+    readonly auxiliaryAssets = new Map<Entity, readonly AssetLease[]>();
     /** Paths reported by a loader, and whether the live asset store supplied their receipts. */
     readonly loadedByType = new Map<string, Map<string, boolean>>();
     status: SceneStatus = 'loading';
@@ -255,12 +255,18 @@ class SceneContextImpl implements SceneContext {
         this.adopt_(entity);
     }
 
-    trackAssetScope(scope: AssetScope): void {
+    trackAssetScope(scope: AssetScope, auxiliary?: ReadonlyMap<Entity, readonly AssetLease[]>): void {
         if (!this.isCurrent_()) {
             scope.releaseAll();
             throw new SceneLoadCancelled(this.name);
         }
         this.instance_.assetScope.absorb(scope);
+        if (auxiliary) {
+            for (const [entity, leases] of auxiliary) {
+                const previous = this.instance_.auxiliaryAssets.get(entity);
+                this.instance_.auxiliaryAssets.set(entity, previous ? [...previous, ...leases] : leases);
+            }
+        }
     }
 
     trackAssets(byType: ReadonlyMap<string, ReadonlySet<string>>): void {
@@ -361,6 +367,7 @@ export class SceneManagerState {
             for (const instance of this.scenes_.values()) {
                 instance.releaseCamera(entity);
                 instance.entities.delete(entity);
+                instance.auxiliaryAssets.delete(entity);
                 instance.savedEnabled.delete(entity);
             }
         });
@@ -854,18 +861,8 @@ export class SceneManagerState {
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
         if (!instance.assetScope.size || !this.app_.hasResource(Assets)) return;
         const assets = this.app_.getResource(Assets);
-        const sources = new Map<AssetLease, { type: string; value: unknown }>();
-        visitEntityAssetBindings(this.app_.world, entity, (type, value) => {
-            const held = assets.leaseForBinding(instance.assetScope, type, value);
-            if (held && (!sources.has(held) || typeof value === 'string')) sources.set(held, { type, value });
-        });
-        if (sources.size === 0) return;
-        const scope = assets.entityScopes.ensure(this.app_.world, entity);
-        for (const [source, { type, value }] of sources) {
-            if (scope.leases().some(held => sameAcquisition(held, source))) continue;
-            const retained = source.retain();
-            if (retained) scope.addFieldLease(type, value, retained);
-        }
+        assets.entityScopes.retainFromScene(this.app_.world, entity, instance.assetScope, instance.auxiliaryAssets.get(entity));
+        instance.auxiliaryAssets.delete(entity);
     }
 
     private adoptInto_(target: SceneInstance, entity: Entity, spawned = false): void {
@@ -1016,6 +1013,7 @@ export class SceneManagerState {
                 // of receipts the preload hands back, and only successful
                 // acquisitions produce one.
                 scope: instance.assetScope,
+                auxiliary: instance.auxiliaryAssets,
                 // The handle sets are the loader's scratch; ownership is the
                 // scope, so nothing here is read back at unload.
                 texturePaths: new Set(),
@@ -1095,6 +1093,7 @@ export class SceneManagerState {
             if (remaining.size) unresolved.set(type, remaining);
         }
         instance.loadedByType.clear();
+        instance.auxiliaryAssets.clear();
         try { instance.assetScope.releaseAll(); }
         finally { if (unresolved.size) assetsRes?.releaseAssets(unresolved); }
     }

@@ -16,13 +16,13 @@ import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAtt
 import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
 import { deepClone } from '../util/deepClone';
-import { AssetScope } from '../asset/AssetLease';
+import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import type { PrefabResult } from '../asset/AssetLoader';
 import type { SceneAssetResult } from '../asset/Assets';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { validateComponentData, formatValidationErrors } from '../util/validation';
 import { log } from '../util/logger';
-import { prepareSpawnOwnership, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
+import { prepareSpawnOwnership, prepareSceneAuxiliaryAssets, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
 import { ESTELLA_SCENE_GENERATOR } from '../util/provenance';
 import {
     expandEntry,
@@ -94,6 +94,8 @@ export interface LoadedSceneAssets {
      * the same assets by path — that is the double free this replaces.
      */
     scope?: import('../asset/AssetLease').AssetScope;
+    /** @internal Borrowed from the scene scope until an entity leaves its scene. */
+    auxiliary?: Map<Entity, readonly AssetLease[]>;
 }
 
 /** Settled asset preparations and their total. Joining an in-flight scene load replays its latest counts.
@@ -164,7 +166,7 @@ export class MissingAssetsError extends Error {
  *
  * @public
  */
-export type AssetFieldType = 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom';
+export type AssetFieldType = 'json' | 'terrain-layer' | 'terrain-layer-info' | 'physical-material' | 'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab' | 'groom';
 
 // =============================================================================
 // Component Query Helpers (read from self-describing ComponentDef)
@@ -849,15 +851,18 @@ async function loadSceneAssetsAndSpawn(
         const assets = options?.assets, collector = options?.collectAssets;
         const assertCurrent = () => { options?.assertCurrent?.(); attempt.assertCurrent(); };
         let ownership: PreparedSpawnOwnership | undefined;
+        let auxiliary: ReturnType<typeof prepareSceneAuxiliaryAssets> | undefined;
         try {
             assertCurrent();
             if (assets) {
                 const result = await timed('assets', async () => {
-                    attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress, { entityOwnership: !collector });
+                    attempt.assets = await assets.preloadSceneAssets(data, options?.onProgress, { entityOwnership: collector?.auxiliary ? 'auxiliary' : !collector });
                     return attempt.assets;
                 });
                 assertCurrent();
-                if (!collector && assets.entityScopes) {
+                if (collector?.auxiliary) {
+                    auxiliary = prepareSceneAuxiliaryAssets(data, result, ref => assets.resolveRef(ref));
+                } else if (!collector && assets.entityScopes) {
                     ownership = prepareSpawnOwnership(data, result, assets.entityScopes, assets.resolveRef.bind(assets))?.();
                 }
                 options?.onMissingAssets?.(result.missing);
@@ -878,6 +883,7 @@ async function loadSceneAssetsAndSpawn(
             if (result && collector) {
                 for (const handle of result.materialHandles.values()) if (handle) collector.materialHandles.add(handle);
                 collector.scope?.absorb(result.scope);
+                if (collector.auxiliary) auxiliary?.(world, entities, collector.auxiliary);
             } else if (assets?.entityScopes) {
                 result?.scope.releaseAll();
             }

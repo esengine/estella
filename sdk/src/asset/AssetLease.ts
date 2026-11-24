@@ -102,6 +102,19 @@ export class AssetScope {
         return lease;
     }
 
+    /** @internal Keep a scene acquisition when an entity leaves its scene, once per generation. */
+    retainAcquisition(source: AssetLease, field?: FieldLeaseBinding): void {
+        const held = this.leases_.find(lease => sameAcquisition(lease, source));
+        if (held) {
+            if (!field) this.fieldLeases_?.delete(held);
+            return;
+        }
+        const lease = source.retain();
+        if (!lease) return;
+        if (field) this.addFieldLease(field.type, field.value, lease);
+        else this.add(lease);
+    }
+
     /** @internal Explicit acquisitions and opaque loader dependencies have independent lifetimes. */
     get hasFieldLeases(): boolean { return !!this.fieldLeases_?.size; }
 

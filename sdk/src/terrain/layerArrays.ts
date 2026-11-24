@@ -6,6 +6,7 @@
  */
 import type { App } from '../app/app';
 import { Assets } from '../asset/AssetPlugin';
+import { AssetScope } from '../asset/AssetLease';
 import { platformLoadImagePixels } from '../platform/base';
 import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
@@ -62,18 +63,21 @@ export async function readAndPackLayers(app: App, refs: readonly string[], most:
     if (refs.length > most) log.warn('terrain', `a ground draws ${most} layers at most; it names ${refs.length}`);
     // Every layer's pictures are asked for at once: one that is a recipe is drawn on a worker, and twelve drawn one after another kept a ground
     // out of sight for as long as all of them took in a row.
-    const sources: LayerSource[] = await Promise.all(refs.slice(0, most).map(async (ref) => {
-        const def = await assets.load<TerrainLayerDef>('terrain-layer', ref);
-        const image = async (path: string | undefined): Promise<LayerImage | null> => {
-            if (!path) return null;
-            const got = await imagePixelsAt(app, path);
-            if (!got) log.warn('terrain', `the texture ${path} of terrain layer ${ref} could not be read`);
-            return got;
-        };
-        const [albedo, normal, mask] = await Promise.all([image(def.albedo), image(def.normal), image(def.mask)]);
-        return { def, albedo, normal, mask };
-    }));
-    return packLayers(sources, isMiniGame() ? 512 : 1024);
+    const scope = new AssetScope();
+    try {
+        const sources: LayerSource[] = await Promise.all(refs.slice(0, most).map(async (ref) => {
+            const { value: def } = scope.add(await assets.acquireTyped<TerrainLayerDef>('terrain-layer', ref));
+            const image = async (path: string | undefined): Promise<LayerImage | null> => {
+                if (!path) return null;
+                const got = await imagePixelsAt(app, path);
+                if (!got) log.warn('terrain', `the texture ${path} of terrain layer ${ref} could not be read`);
+                return got;
+            };
+            const [albedo, normal, mask] = await Promise.all([image(def.albedo), image(def.normal), image(def.mask)]);
+            return { def, albedo, normal, mask };
+        }));
+        return packLayers(sources, isMiniGame() ? 512 : 1024);
+    } finally { AssetScope.closeAll([scope]); }
 }
 
 type LayerKind = 'albedo' | 'normal' | 'mask';

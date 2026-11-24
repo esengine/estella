@@ -15,7 +15,7 @@ import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, r
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, SceneLoadAttempt } from '../scene/sceneLoadAttempt';
-import { prepareSpawnOwnership, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
+import { prepareSpawnOwnership, prepareSceneAuxiliaryAssets, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
@@ -342,6 +342,8 @@ export interface PreparedRuntimeScene {
     readonly sceneData: SceneData;
     readonly assetResult: SceneAssetResult;
     readonly retainEntityAssets?: () => PreparedSpawnOwnership;
+    /** @internal Dependencies to transfer with the published scene scope. */
+    readonly auxiliaryAssets?: ReturnType<typeof prepareSceneAuxiliaryAssets>;
     readonly spineManager: SpineManager | null;
     readonly spineAssetInfo: Map<string, SpineAssetInfo>;
     readonly dragonBonesManager: DragonBonesManager | null;
@@ -458,7 +460,7 @@ async function readRuntimeScene(
     try {
         attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, regularProgress, {
             skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info',
-            entityOwnership: !sceneOwned,
+            entityOwnership: sceneOwned ? 'auxiliary' : true,
             onDiscover(authored) {
                 // Both skeletal runtimes bind by the spelling still on the component.
                 discovered = authored;
@@ -478,6 +480,7 @@ async function readRuntimeScene(
     attempt.assertCurrent();
     const retainEntityAssets = sceneOwned ? undefined
         : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneRef);
+    const auxiliaryAssets = prepareSceneAuxiliaryAssets(sceneData, assetResult, sceneRef);
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applySceneTextureMetadata(sceneData, assetResult);
 
@@ -644,7 +647,7 @@ async function readRuntimeScene(
     // document reference resolves to nothing, quietly.
 
     return {
-        name: sceneName, lifetime: attempt.lifetime, options, sceneData, assetResult, retainEntityAssets,
+        name: sceneName, lifetime: attempt.lifetime, options, sceneData, assetResult, retainEntityAssets, auxiliaryAssets,
         spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered,
     };
 }
@@ -800,11 +803,20 @@ async function publishPreparedScene(
     }
     assertCurrent();
     if (ctx) {
-        ctx.trackAssetScope(assetResult.scope);
+        ctx.trackAssetScope(assetResult.scope, prepared.auxiliaryAssets?.(app.world, entityMap));
     } else {
         const ownership = prepared.retainEntityAssets?.();
-        try { ownership?.attach(app.world, entityMap); }
-        finally { ownership?.release(); }
+        if (ownership) {
+            try { ownership.attach(app.world, entityMap); }
+            finally { ownership.release(); }
+        } else if (assetResult.scope.size) {
+            // A prepared managed scene can be published without its planned scene owner.
+            const scopes = app.getResource(AssetsResource).entityScopes;
+            const auxiliary = prepared.auxiliaryAssets?.(app.world, entityMap);
+            for (const entity of entityMap.values()) {
+                if (app.world.valid(entity)) scopes.retainFromScene(app.world, entity, assetResult.scope, auxiliary?.get(entity));
+            }
+        }
         assetResult.scope.releaseAll();
     }
 }

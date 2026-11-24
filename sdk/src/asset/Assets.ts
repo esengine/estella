@@ -65,7 +65,7 @@ import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
 import { getComponent, getComponentDefaults, type AnyComponentDef } from '../ecs/component';
 import { observesAssetReferences } from './assetReferenceTracking';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
-import { indexSceneAssets, sceneAcquisitionPaths, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
+import { indexSceneAssets, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
@@ -284,6 +284,8 @@ interface GroupAssetChannel {
 
 const SCENE_HANDLE_TYPES = ['texture', 'material', 'font', 'mesh', 'environment', 'probeVolume'] as const satisfies readonly AssetFieldType[];
 type SceneHandleType = typeof SCENE_HANDLE_TYPES[number];
+// These components read raw files or host streams themselves unless a project installs a typed loader.
+const SYSTEM_READ_SCENE_TYPES = new Set(['image', 'video', 'groom', 'terrain-layer-info', 'physical-material']);
 
 function isSceneHandleType(type: string): type is SceneHandleType {
     return (SCENE_HANDLE_TYPES as readonly string[]).includes(type);
@@ -1286,7 +1288,7 @@ export class Assets {
     }
 
     private groupAssetRef_(key: string, asset: AddressableManifestAsset, remote: boolean): string {
-        if (this.manifestModel_?.sharesFile(asset.path) && this.sceneHandleRecord_(key)) return key;
+        if (this.manifestModel_?.sharesFile(asset.path) && (this.sceneHandleRecord_(key) || this.loaders_.get(asset.type)?.registry)) return key;
         if (asset.type === 'audio' && asset.address) return asset.address;
         return this.manifestAssetUrl_(asset.path, remote);
     }
@@ -1662,7 +1664,8 @@ export class Assets {
                 failed.push({ ref, reason: 'unresolved' });
                 continue;
             }
-            const load = this.typedLoadFor_(type === 'audio' || this.sceneHandleRecord_(ref) ? ref : path, type);
+            const named = type === 'audio' || this.sceneHandleRecord_(ref) || this.loaders_.get(type)?.registry;
+            const load = this.typedLoadFor_(named ? ref : path, type);
             if (!load) {
                 log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
                 failed.push({ ref, type, reason: 'unresolved' });
@@ -1754,8 +1757,8 @@ export class Assets {
             readonly maxConcurrent?: number; readonly skipSpine?: boolean;
             /** The level of the one line that says what was preloaded and how long it took. Default 'info'. */
             readonly summary?: 'info' | 'debug';
-            /** Record the declaring entities on each successful acquisition. */
-            readonly entityOwnership?: boolean;
+            /** Record declaring entities. Managed scenes need only dependencies outside stored fields. */
+            readonly entityOwnership?: boolean | 'auxiliary';
             /** Receive the authored references before any acquisition or progress notification. */
             readonly onDiscover?: (authored: SceneAssetRefs) => void;
         },
@@ -1770,9 +1773,10 @@ export class Assets {
         recorder?: DependencyRecorder,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
-        const owners = options?.entityOwnership ? new SceneAssetOwners() : undefined;
+        const owners = options?.entityOwnership ? new SceneAssetOwners(false, options.entityOwnership === 'auxiliary') : undefined;
         const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
-        const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover);
+        const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover, (type, raw, path) =>
+            !isSceneHandleType(type) && this.loaders_.get(type)?.registry ? this.registryIdentity_(raw) : path);
         for (const p of discovered.meshTextures) this.meshTextures_.add(this.assetIdentity_(p));
         for (const p of discovered.meshMaterials) this.meshMaterials_.add(this.assetIdentity_(p));
         for (const ref of discovered.unresolved) {
@@ -1821,7 +1825,7 @@ export class Assets {
          * SUCCEEDED — a failed load owns nothing, so there is nothing for the
          * scene to give back and nothing to guess about at unload.
          */
-        const timings: SceneAssetResult['timings'] = {};
+        const timings: SceneAssetResult['timings'] = Object.create(null);
         const timedLoad = <R>(label: string, load: () => Promise<R>): Promise<R> => {
             const began = preloadClock();
             return load().finally(() => {
@@ -1837,7 +1841,7 @@ export class Assets {
             handles?: Map<string, number>,
             acquire: (path: string) => Promise<AssetLease> = path => this.acquireTypedLease_(label, path, recorder?.owner),
         ): void => {
-            for (const path of sceneAcquisitionPaths(discovered, label) ?? []) {
+            for (const path of discovered.byType.get(label) ?? []) {
                 tasks.push(() =>
                     timedLoad(label, () => acquire(path)).then(lease => {
                         // A baked asset's era owns these acquisitions. An ordinary
@@ -1877,21 +1881,10 @@ export class Assets {
                 );
             }
         }
-        pushAcquire('anim-clip');
-        pushAcquire('tilemap');
-        pushAcquire('tileset');
-        pushAcquire('timeline');
-        pushAcquire('audio');
-        pushAcquire('sound-event');
-        // FSM/BT loaders register the parsed definition into the shared AI store
-        // under the asset path, so a StateMachineAgent/BehaviorTreeAgent whose
-        // fsm/bt is that path resolves once the scene finishes preloading.
-        pushAcquire('statemachine');
-        pushAcquire('behaviortree');
-        pushAcquire('scriptgraph');
-        pushAcquire('animatorcontroller');
-        pushAcquire('avatar');
-        pushAcquire('prefab');
+        for (const type of discovered.byType.keys()) {
+            if (isSceneHandleType(type)) continue;
+            if (this.loaders_.has(type) || !SYSTEM_READ_SCENE_TYPES.has(type)) pushAcquire(type);
+        }
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -2049,7 +2042,7 @@ export class Assets {
         // Keyed by identity, never by the locator: a content-addressed url is
         // revision-specific, so a slot keyed by one is a slot PER REVISION and
         // an update publishes into a new one while every holder reads the old.
-        const identity = this.assetIdentity_(ref);
+        const identity = this.registryIdentity_(ref);
         // Answering to the ref as the caller spelled it too: a component looks
         // the asset up by the spelling a scene serialized.
         const names = ref === identity ? [identity] : [identity, ref];
@@ -2221,7 +2214,7 @@ export class Assets {
             if (scope.size !== before && !genericClaim) return true;
         }
         if (!genericClaim) {
-            const slot = this.registrySlots_.takeByName(type, this.assetIdentity_(ref));
+            const slot = this.registrySlots_.takeByName(type, this.registryIdentity_(ref));
             if (slot) { scope.add(slot); return true; }
         }
         const claim = this.genericRefs_.takeByPath(typedKey);
@@ -2240,7 +2233,7 @@ export class Assets {
             this.releaseTextureVariant_(resolved, true);
             return;
         }
-        if (this.registrySlots_.size && this.registrySlots_.releaseByName(type, this.assetIdentity_(ref))) return;
+        if (this.registrySlots_.size && this.registrySlots_.releaseByName(type, this.registryIdentity_(ref))) return;
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
@@ -2449,7 +2442,7 @@ export class Assets {
         const cache = this.genericCache_.get(type);
         const path = fromGraph && cache ? asset.path : this.handleLoadKey_(type, asset.path);
         const ended = this.endCachedEra_(asset, path);
-        const published = this.republishSlot_(type, fromGraph ? asset.path : this.assetIdentity_(asset.path));
+        const published = this.republishSlot_(type, fromGraph ? asset.path : this.registryIdentity_(asset.path));
         const dropped = this.loaders_.get(type)?.invalidate?.(ended.residencyPath) || ended.dropped;
 
         const handlePaths = this.handlePaths_.get(type);
@@ -2526,7 +2519,7 @@ export class Assets {
     private async rebuildChangedFiles_(files: readonly string[]): Promise<void> {
         const plan = this.rebuildPlan_(files);
         const changed = new Map<string, Set<string>>();
-        for (const file of files) changed.set(this.assetIdentity_(file), new Set());
+        for (const file of files) changed.set(this.registryIdentity_(file), new Set());
         for (const group of plan) {
             for (const asset of group) changed.get(asset.path)?.add(asset.type);
         }
@@ -3041,10 +3034,16 @@ export class Assets {
         return this.publishedSlot_(type, ref)?.published as T | undefined;
     }
 
+    /** A named registry entry stays distinct when multiple records ship the same file. */
+    private registryIdentity_(ref: string): string {
+        const record = this.manifestRecord_(ref);
+        return record ? record.asset.address ?? record.key : this.assetIdentity_(ref);
+    }
+
     private publishedSlot_(type: string, ref: string) {
         const direct = this.registrySlots_.slot(type, ref);
         if (direct?.published != null) return direct;
-        const identity = this.assetIdentity_(ref);
+        const identity = this.registryIdentity_(ref);
         return identity === ref ? direct : this.registrySlots_.slot(type, identity);
     }
 
@@ -3074,7 +3073,7 @@ export class Assets {
     dependenciesOf(type: string, ref: string): readonly DependencyReceipt[] {
         const own = this.registrySlots_.dependenciesOf(type, ref);
         if (own.length > 0) return own;
-        const byIdentity = this.registrySlots_.dependenciesOf(type, this.assetIdentity_(ref));
+        const byIdentity = this.registrySlots_.dependenciesOf(type, this.registryIdentity_(ref));
         if (byIdentity.length > 0) return byIdentity;
         return this.currentPrepared_(type, ref)?.edges ?? [];
     }
@@ -3183,9 +3182,11 @@ export class Assets {
         // and where that asset is served from is a property of the revision the
         // preparation runs in.
         return {
-            prepare: (identity, owner) => this.prepared_(
-                (ctx) => registry.prepare(this.resolveLoadPath_(identity), ctx), owner,
-            ),
+            prepare: (identity, owner) => this.prepared_(ctx => {
+                const path = this.resolveLoadPath_(identity);
+                const file = path === identity ? this.manifestRecord_(identity)?.asset.path ?? path : path;
+                return registry.prepare(file, ctx);
+            }, owner),
         };
     }
 

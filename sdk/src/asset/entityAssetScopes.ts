@@ -15,7 +15,7 @@
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import type { AnyComponentDef } from '../ecs/component';
-import { AssetScope, scopeFieldLease, type FieldLeaseLookup } from './AssetLease';
+import { AssetScope, scopeFieldLease, type AssetLease, type FieldLeaseBinding, type FieldLeaseLookup } from './AssetLease';
 import { visitEntityAssetBindings } from './liveAssetBindings';
 import { log } from '../util/logger';
 
@@ -39,6 +39,20 @@ export class EntityAssetScopes {
     private closed_ = false;
 
     constructor(readonly leaseForBinding: FieldLeaseLookup = scopeFieldLease) {}
+
+    /** @internal Retain live field bindings and independently declared dependencies from the same scene scope. */
+    retainFromScene(world: World, entity: Entity, scene: AssetScope, auxiliary?: readonly AssetLease[]): void {
+        const sources = new Map<AssetLease, FieldLeaseBinding>();
+        visitEntityAssetBindings(world, entity, (type, value) => {
+            if (typeof value !== 'string' && typeof value !== 'number') return;
+            const held = this.leaseForBinding(scene, type, value);
+            if (held && (!sources.has(held) || typeof value === 'string')) sources.set(held, { type, value });
+        });
+        if (!sources.size && !auxiliary) return;
+        const scope = this.ensure(world, entity);
+        for (const source of auxiliary ?? []) scope.retainAcquisition(source);
+        for (const [source, field] of sources) scope.retainAcquisition(source, field);
+    }
 
     /**
      * The scope this entity owns, created on first use.
