@@ -16,283 +16,152 @@
 
 #pragma once
 
-// =============================================================================
-// Includes
-// =============================================================================
-
 #include "Connection.hpp"
-#include "../core/Types.hpp"
 
-#include <functional>
-#include <unordered_map>
-#include <vector>
 #include <algorithm>
+#include <functional>
+#include <optional>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace esengine {
 
-// Forward declaration
-template<typename Signature>
-class Signal;
+template<class Signature> class Signal;
+template<class SignalType> class Sink;
 
-template<typename Signature>
-class Sink;
+namespace detail {
 
-// =============================================================================
-// Signal Class (void return)
-// =============================================================================
-
-/**
- * @brief Type-safe signal for event publishing
- *
- * @details Signal<void(Args...)> allows publishing events to multiple
- *          subscribers. Connections are managed through the Sink interface
- *          which returns RAII Connection handles.
- *
- * @tparam Args The argument types for the callback
- *
- * @code
- * Signal<void(int, float)> signal;
- * auto conn = Sink(signal).connect([](int a, float b) {
- *     // Handle event
- * });
- * signal.publish(42, 3.14f);
- * @endcode
- */
-template<typename... Args>
-class Signal<void(Args...)> {
+/** Stable callback storage shared by a signal and its in-progress dispatches. Sinks and connections hold weak references. */
+template<class Callback>
+class SignalListeners {
 public:
-    using Callback = std::function<void(Args...)>;
-
-    Signal() = default;
-    ~Signal() = default;
-
-    Signal(Signal&&) noexcept = default;
-    Signal& operator=(Signal&&) noexcept = default;
-
-    Signal(const Signal&) = delete;
-    Signal& operator=(const Signal&) = delete;
-
-    /**
-     * @brief Publish an event to all subscribers
-     * @param args Arguments to pass to callbacks
-     */
-    void publish(Args... args) {
-        if (publishing_) {
-            for (const auto& [id, callback] : callbacks_) {
-                if (callback && !isPendingRemove(id)) {
-                    callback(args...);
-                }
-            }
-        } else {
-            publishing_ = true;
-            for (const auto& [id, callback] : callbacks_) {
-                if (callback && !isPendingRemove(id)) {
-                    callback(args...);
-                }
-            }
-            publishing_ = false;
-            processPendingOperations();
-        }
-    }
-
-    /**
-     * @brief Get the number of active subscribers
-     * @return Number of subscribers
-     */
-    [[nodiscard]] usize size() const {
-        return callbacks_.size();
-    }
-
-    /**
-     * @brief Check if there are any subscribers
-     * @return true if no subscribers
-     */
-    [[nodiscard]] bool empty() const {
-        return callbacks_.empty();
-    }
-
-private:
-    friend class Sink<Signal<void(Args...)>>;
-
-    /**
-     * @brief Connect a callback (called by Sink)
-     * @param callback The callback to connect
-     * @return Callback ID for disconnection
-     */
     CallbackId connect(Callback callback) {
-        CallbackId id = nextId_++;
-        if (publishing_) {
-            pendingAdds_.emplace_back(id, std::move(callback));
-        } else {
-            callbacks_.emplace(id, std::move(callback));
-        }
+        const auto id = nextId_++;
+        if (depth_) pendingAdds_.emplace_back(id, std::move(callback));
+        else callbacks_.emplace(id, std::move(callback));
         return id;
     }
 
-    /**
-     * @brief Disconnect a callback (called by Connection)
-     * @param id The callback ID to disconnect
-     */
     void disconnect(CallbackId id) {
-        if (publishing_) {
-            pendingRemoves_.push_back(id);
-        } else {
-            callbacks_.erase(id);
+        if (depth_) pendingRemoves_.push_back(id);
+        else callbacks_.extract(id);
+    }
+
+    usize size() const { return callbacks_.size(); }
+
+    /** Return false from visit to finish a query early. Nested publishes see the same committed listeners. */
+    template<class Visitor>
+    void forEach(Visitor&& visit) {
+        Dispatch dispatch(*this);
+        for (const auto& [id, callback] : callbacks_) {
+            const bool disconnected = std::find(pendingRemoves_.begin(), pendingRemoves_.end(), id) != pendingRemoves_.end();
+            if (!callback || disconnected) continue;
+            if (!visit(callback)) break;
         }
     }
 
-    /**
-     * @brief Process pending add/remove operations after publishing
-     */
-    bool isPendingRemove(CallbackId id) const {
-        for (auto removedId : pendingRemoves_) {
-            if (removedId == id) return true;
+private:
+    struct Dispatch {
+        SignalListeners& listeners;
+        explicit Dispatch(SignalListeners& source) : listeners(source) { ++listeners.depth_; }
+        ~Dispatch() {
+            if (--listeners.depth_ == 0) listeners.commit();
         }
-        return false;
-    }
+    };
 
-    void processPendingOperations() {
-        for (auto id : pendingRemoves_) {
-            callbacks_.erase(id);
-        }
-        pendingRemoves_.clear();
-
-        for (auto& [id, callback] : pendingAdds_) {
-            callbacks_.emplace(id, std::move(callback));
-        }
+    void commit() {
+        // A listener registered and disconnected in one dispatch must be gone when it returns.
+        for (auto& [id, callback] : pendingAdds_) callbacks_.emplace(id, std::move(callback));
         pendingAdds_.clear();
+        // Destroy each detached callback after updating the queue and the map.
+        // Captured objects can themselves disconnect a listener or publish.
+        while (!pendingRemoves_.empty()) {
+            const auto id = pendingRemoves_.back();
+            pendingRemoves_.pop_back();
+            callbacks_.extract(id);
+        }
     }
 
-    Shared<bool> alive_ = makeShared<bool>(true);
     std::unordered_map<CallbackId, Callback> callbacks_;
     std::vector<std::pair<CallbackId, Callback>> pendingAdds_;
     std::vector<CallbackId> pendingRemoves_;
     CallbackId nextId_ = 1;
-    bool publishing_ = false;
+    usize depth_ = 0;
 };
 
-/**
- * @brief Specialization for signals with return values
- *
- * @details This specialization collects return values from all callbacks.
- *          Useful for query-style events where multiple handlers can
- *          contribute results.
- *
- * @tparam Ret The return type
- * @tparam Args The argument types
- */
-template<typename Ret, typename... Args>
-class Signal<Ret(Args...)> {
+template<class Signature>
+class SignalStorage {
 public:
-    using Callback = std::function<Ret(Args...)>;
+    using Callback = std::function<Signature>;
 
-    Signal() = default;
-    ~Signal() = default;
+    SignalStorage() = default;
+    SignalStorage(const SignalStorage&) = delete;
+    SignalStorage& operator=(const SignalStorage&) = delete;
+    SignalStorage(SignalStorage&&) noexcept = default;
+    SignalStorage& operator=(SignalStorage&&) noexcept = default;
 
-    Signal(Signal&&) noexcept = default;
-    Signal& operator=(Signal&&) noexcept = default;
+    [[nodiscard]] usize size() const { return listeners_ ? listeners_->size() : 0; }
+    [[nodiscard]] bool empty() const { return size() == 0; }
 
-    Signal(const Signal&) = delete;
-    Signal& operator=(const Signal&) = delete;
+protected:
+    template<class Visitor>
+    void visit(Visitor&& visitor) {
+        // The publishing callback can move or release the signal.
+        if (auto listeners = listeners_) listeners->forEach(std::forward<Visitor>(visitor));
+    }
 
-    /**
-     * @brief Publish an event and collect results
-     * @param args Arguments to pass to callbacks
-     * @return Vector of results from all callbacks
-     */
+private:
+    friend class esengine::Sink<Signal<Signature>>;
+    using Listeners = SignalListeners<Callback>;
+
+    const Shared<Listeners>& listenersForSink() {
+        if (!listeners_) listeners_ = makeShared<Listeners>();
+        return listeners_;
+    }
+    Shared<Listeners> listeners_;
+};
+
+}  // namespace detail
+
+/** Publish a notification to every connected callback. */
+template<class... Args>
+class Signal<void(Args...)> : public detail::SignalStorage<void(Args...)> {
+public:
+    void publish(Args... args) {
+        this->visit([&](const auto& callback) {
+            callback(args...);
+            return true;
+        });
+    }
+};
+
+/** Collect query results or stop at the first non-default answer. */
+template<class Ret, class... Args>
+class Signal<Ret(Args...)> : public detail::SignalStorage<Ret(Args...)> {
+public:
     std::vector<Ret> publish(Args... args) {
         std::vector<Ret> results;
-        results.reserve(callbacks_.size());
-
-        publishing_ = true;
-        for (const auto& [id, callback] : callbacks_) {
-            if (callback && !isPendingRemove(id)) {
-                results.push_back(callback(args...));
-            }
-        }
-        publishing_ = false;
-        processPendingOperations();
-
+        results.reserve(this->size());
+        this->visit([&](const auto& callback) {
+            results.push_back(callback(args...));
+            return true;
+        });
         return results;
     }
 
-    /**
-     * @brief Publish and return first non-default result
-     * @param defaultValue Value to return if no results
-     * @param args Arguments to pass to callbacks
-     * @return First result or default
-     */
     Ret publishFirst(Ret defaultValue, Args... args) {
-        publishing_ = true;
-        for (const auto& [id, callback] : callbacks_) {
-            if (callback && !isPendingRemove(id)) {
-                Ret result = callback(args...);
-                if (result != defaultValue) {
-                    publishing_ = false;
-                    processPendingOperations();
-                    return result;
-                }
+        std::optional<Ret> first;
+        this->visit([&](const auto& callback) {
+            Ret result = callback(args...);
+            if (result != defaultValue) {
+                first.emplace(std::move(result));
+                return false;
             }
-        }
-        publishing_ = false;
-        processPendingOperations();
-        return defaultValue;
+            return true;
+        });
+        return first ? std::move(*first) : std::move(defaultValue);
     }
-
-    [[nodiscard]] usize size() const {
-        return callbacks_.size();
-    }
-
-    [[nodiscard]] bool empty() const {
-        return callbacks_.empty();
-    }
-
-private:
-    friend class Sink<Signal<Ret(Args...)>>;
-
-    CallbackId connect(Callback callback) {
-        CallbackId id = nextId_++;
-        if (publishing_) {
-            pendingAdds_.emplace_back(id, std::move(callback));
-        } else {
-            callbacks_.emplace(id, std::move(callback));
-        }
-        return id;
-    }
-
-    void disconnect(CallbackId id) {
-        if (publishing_) {
-            pendingRemoves_.push_back(id);
-        } else {
-            callbacks_.erase(id);
-        }
-    }
-
-    bool isPendingRemove(CallbackId id) const {
-        for (auto removedId : pendingRemoves_) {
-            if (removedId == id) return true;
-        }
-        return false;
-    }
-
-    void processPendingOperations() {
-        for (auto id : pendingRemoves_) {
-            callbacks_.erase(id);
-        }
-        pendingRemoves_.clear();
-
-        for (auto& [id, callback] : pendingAdds_) {
-            callbacks_.emplace(id, std::move(callback));
-        }
-        pendingAdds_.clear();
-    }
-
-    Shared<bool> alive_ = makeShared<bool>(true);
-    std::unordered_map<CallbackId, Callback> callbacks_;
-    std::vector<std::pair<CallbackId, Callback>> pendingAdds_;
-    std::vector<CallbackId> pendingRemoves_;
-    CallbackId nextId_ = 1;
-    bool publishing_ = false;
 };
 
 }  // namespace esengine

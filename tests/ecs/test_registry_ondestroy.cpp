@@ -89,6 +89,18 @@ int main() {
         CHECK(r.entityCount() == 0, "re-entrant destroy via signal: no underflow");
     }
 
+    {
+        Registry original;
+        Entity first = original.create(), second = original.create();
+        int calls = 0;
+        auto observer = original.onDestroy([&](Entity) { ++calls; });
+        Registry moved = std::move(original);
+        moved.destroy(first);
+        observer.disconnect();
+        moved.destroy(second);
+        CHECK(calls == 1, "a subscription follows a moved registry and disconnects from it");
+    }
+
     if (g_failures == 0) {
         std::printf("\nALL RC12 B1 TESTS PASSED\n");
         return 0;
