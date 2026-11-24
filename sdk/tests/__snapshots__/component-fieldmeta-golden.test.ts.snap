@@ -1055,7 +1055,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "gpuSimulation": {
       "category": "Emission",
-      "tooltip": "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters, trails and physics collision are CPU-only.",
+      "tooltip": "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters and trails run on the GPU; Physics2D and Physics3D collision is CPU-only.",
     },
     "gravity": {
       "category": "Velocity",

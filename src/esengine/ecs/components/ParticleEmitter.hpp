@@ -103,7 +103,7 @@ struct ParticleEmitter {
     // Simulated by a compute kernel (WebGPU); elsewhere the emitter runs on the CPU, capped. Gravity, damping,
     // noise, force fields, over-life curves, the floor plane, depth and distance-function collision,
     // sub-emitters and trails apply; a Physics2D/Physics3D scene query is CPU-only.
-    ES_PROPERTY(category=Emission, tooltip="Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters, trails and physics collision are CPU-only.")
+    ES_PROPERTY(category=Emission, tooltip="Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters and trails run on the GPU; Physics2D and Physics3D collision is CPU-only.")
     bool gpuSimulation{false};
 
     // Lifetime

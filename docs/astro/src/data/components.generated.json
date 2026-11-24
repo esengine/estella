@@ -5558,7 +5558,7 @@
           "key": "gpuSimulation",
           "type": "boolean",
           "default": "false",
-          "doc": "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters, trails and physics collision are CPU-only."
+          "doc": "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters and trails run on the GPU; Physics2D and Physics3D collision is CPU-only."
         },
         {
           "key": "lifetimeMin",

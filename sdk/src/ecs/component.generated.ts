@@ -890,7 +890,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             looping: { category: "Emission" },
             playOnStart: { category: "Emission" },
             maxParticles: { min: 1, step: 1, category: "Emission" },
-            gpuSimulation: { tooltip: "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters, trails and physics collision are CPU-only.", category: "Emission" },
+            gpuSimulation: { tooltip: "Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters and trails run on the GPU; Physics2D and Physics3D collision is CPU-only.", category: "Emission" },
             lifetimeMin: { min: 0, category: "Lifetime" },
             lifetimeMax: { min: 0, category: "Lifetime" },
             shape: { enum: [{ label: 'Point', value: 0 }, { label: 'Circle', value: 1 }, { label: 'Box', value: 2 }, { label: 'Cone', value: 3 }, { label: 'Sphere', value: 4 }, { label: 'Hemisphere', value: 5 }], category: "Shape" },
