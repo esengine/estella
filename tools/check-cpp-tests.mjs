@@ -43,25 +43,36 @@ function declaredHarnesses() {
     return [...cmake.matchAll(/add_test\(NAME\s+(\w+)/g)].map((m) => m[1]);
 }
 
-/**
- * Harnesses compiled on purpose and never run — a link is the whole claim.
- * Anything else on disk with no `add_test` is a harness nobody schedules, which
- * is what both lists above are blind to: they compare two DECLARATIONS.
- */
-const COMPILE_ONLY = new Set(['webgpu_bringup', 'webgpu_engine_bringup']);
-
-/** Harness sources on disk, by the name their target would carry. */
+/** Source paths relative to the test tree, including their directories. */
 function harnessSources() {
     const out = [];
+    const root = path.join(ROOT, 'tests');
     const walk = (dir) => {
         for (const e of readdirSync(dir, { withFileTypes: true })) {
             const p = path.join(dir, e.name);
             if (e.isDirectory()) walk(p);
-            else if (e.name.endsWith('.cpp')) out.push(e.name.replace(/\.cpp$/, ''));
+            else if (e.name.endsWith('.cpp')) out.push(path.relative(root, p).split(path.sep).join('/'));
         }
     };
-    walk(path.join(ROOT, 'tests'));
+    walk(root);
     return out;
+}
+
+/** Actual executable inputs from each CMake project, expressed relative to tests/. */
+function executableSources(project) {
+    const dir = path.join(ROOT, project);
+    const bases = { REPO: ROOT, CMAKE_CURRENT_SOURCE_DIR: dir, CMAKE_SOURCE_DIR: project === 'native' ? dir : ROOT };
+    const cmake = readFileSync(path.join(dir, 'CMakeLists.txt'), 'utf8').replace(/#[^\n]*/g, '');
+    const executables = new Set([...cmake.matchAll(/^\s*add_executable\s*\(\s*([^\s)]+)/gm)].map(m => m[1]));
+    const sources = new Set();
+    for (const [, target, declaration] of cmake.matchAll(/^\s*(?:add_executable|target_sources)\s*\(\s*([^\s)]+)([^)]*)\)/gm)) {
+        if (!executables.has(target)) continue;
+        for (const [, quoted, bare] of declaration.matchAll(/"([^"]+\.cpp)"|([^\s"()]+\.cpp)\b/g)) {
+            const file = (quoted ?? bare).replace(/\$\{(REPO|CMAKE_CURRENT_SOURCE_DIR|CMAKE_SOURCE_DIR)\}/g, (_, key) => bases[key]);
+            sources.add(path.relative(path.join(ROOT, 'tests'), path.resolve(dir, file)).split(path.sep).join('/'));
+        }
+    }
+    return sources;
 }
 
 /**
@@ -112,24 +123,19 @@ function enginelinked() {
 
 const targets = harnessTargets();
 
-// The other direction: a harness the test tree declares and CI's list omits is
-// built by nobody and run by nobody — the failure that list exists to end,
-// from the side it never looks at. No compiler needed, so this half always runs.
-// A source with no add_test is invisible to both lists — that is how
-// test_bitmap_font sat unbuilt for as long as it did.
-const declared = declaredHarnesses();
-const unscheduled = harnessSources()
-    .filter((n) => !declared.includes(n) && !COMPILE_ONLY.has(n))
-    // `add_executable(test_ecs ecs/test_registry.cpp)`: a target may be named
-    // for what it covers rather than for its file.
-    .filter((n) => !readFileSync(path.join(ROOT, 'tests', 'CMakeLists.txt'), 'utf8').includes(`${n}.cpp`));
-if (unscheduled.length) {
-    console.error(`check-cpp-tests: ${unscheduled.join(', ')} — harness source(s) tests/CMakeLists.txt`
-        + ' never builds, so nothing runs them and neither list can see it.');
+// Account for every source, including compile-only and native platform harnesses.
+const web = executableSources('tests');
+const native = executableSources('native');
+const outsideWeb = harnessSources().filter(source => !web.has(source));
+const nativeOnly = outsideWeb.filter(source => native.has(source));
+if (nativeOnly.length) console.log(`check-cpp-tests: native/CMakeLists.txt owns ${nativeOnly.join(', ')}.`);
+const unowned = outsideWeb.filter(source => !native.has(source));
+if (unowned.length) {
+    console.error(`check-cpp-tests: no Web or native harness target owns ${unowned.join(', ')}.`);
     process.exit(1);
 }
 
-const uncovered = declared.filter((t) => !targets.includes(t));
+const uncovered = declaredHarnesses().filter((t) => !targets.includes(t));
 if (uncovered.length) {
     console.error(`check-cpp-tests: tests/CMakeLists.txt declares ${uncovered.join(', ')},`
         + " which build.yml's CPP_TESTS does not name — CI builds and runs neither.");
