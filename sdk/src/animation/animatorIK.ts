@@ -32,7 +32,7 @@ import type { Pose } from './pose';
 import type { MotionParams } from './motion';
 
 /** What an IK constraint does to the joint it names. */
-export type AnimatorIKKind = 'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock';
+export type AnimatorIKKind = 'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock' | 'stride-warp';
 
 export interface AnimatorIK {
     kind: AnimatorIKKind;
@@ -70,6 +70,10 @@ export interface AnimatorIK {
     stretch?: number;
     /** foot-lock: how far the body may turn over a standing foot before the foot takes a step, in degrees. Default 40. */
     twist?: number;
+    /** stride-warp: the shortest a stride is drawn in to, as a share of the clip's. Default 0.5. */
+    minStride?: number;
+    /** stride-warp: the longest a stride is let out to, as a share of the clip's. Default 1.6. */
+    maxStride?: number;
     /** foot-lock: seconds a step takes. Default 0.18. */
     stepTime?: number;
     /** foot-lock: how high a step lifts the foot, as a share of the leg's length. Default 0.08. */
@@ -119,6 +123,11 @@ export interface GroundContext {
     rest?: Map<Entity, { position: Vec3; rotation: Quat }>;
     /** Where each foot-lock has its foot. */
     locks?: Map<string, FootLockState>;
+    /**
+     * How the character's speed over the ground compares with the speed its motion travels (1 = the clip's own), and
+     * which way it went, in the world. What a stride warp fits the legs to; the animator measures it.
+     */
+    stride?: { ratio: number; direction: Vec3 };
 }
 
 interface Vec3 { x: number; y: number; z: number }
@@ -627,6 +636,40 @@ function lockFeet(
 }
 
 /**
+ * Strides fitted to the speed the character is going. A clip's feet cover the ground at the clip's own speed, and a
+ * character moved by its controller goes faster or slower than that while it speeds up, slows down and blends between
+ * gaits; its feet slide by the difference. This draws each foot in or lets it out along the way the character is
+ * going, about the hip, by how the two speeds compare, and the leg bends to reach. The foot keeps its height and the
+ * way it faces, so a heel still rolls and a foot-plant or foot-lock still has its say after.
+ */
+function warpStrides(
+    world: World, pose: Pose, rigRoot: Entity, feet: readonly { ik: AnimatorIK; weight: number }[],
+    resolveJoint: JointResolver, stride: { ratio: number; direction: Vec3 },
+): void {
+    const frame = rigFrame(world, rigRoot);
+    const way = q.rotate(q.conjugate(frame.r), stride.direction);
+    const flat = Math.hypot(way.x, way.z);
+    if (flat < 1e-6) return;
+    const along = { x: way.x / flat, y: 0, z: way.z / flat };
+    for (const { ik, weight } of feet) {
+        const ratio = Math.min(ik.maxStride ?? 1.6, Math.max(ik.minStride ?? 0.5, stride.ratio));
+        if (Math.abs(ratio - 1) < 1e-3) continue;
+        const tip = resolveJoint(rigRoot, ik.tip);
+        if (tip === null) continue;
+        const mid = parentOf(world, tip);
+        const hip = mid === null ? null : parentOf(world, mid);
+        const pTip = place(world, pose, rigRoot, tip);
+        const pHip = hip === null ? null : place(world, pose, rigRoot, hip);
+        if (!pTip || !pHip) continue;
+        // How far ahead of the hip the clip has the foot, along the way the character is going: that is what scales.
+        const ahead = (pTip.position.x - pHip.position.x) * along.x + (pTip.position.z - pHip.position.z) * along.z;
+        const goal = add(pTip.position, scale(along, ahead * (ratio - 1)));
+        const carrier = bendChain(world, pose, rigRoot, tip, goal, ik, weight, resolveJoint);
+        if (carrier) leanJoint(world, pose, tip, carrier, pTip.rotation, weight);
+    }
+}
+
+/**
  * Apply every constraint to the stack's answer, in the order they are declared:
  * one can move a joint another then reads, and an author who wrote them in an
  * order meant it. Foot-plants go first, together: where the feet land moves the
@@ -638,6 +681,12 @@ export function solveAnimatorIK(
     resolveJoint: JointResolver = (root, path) => resolveChildEntity(world, root, path),
     ground?: GroundContext,
 ): void {
+    // Strides first: where a foot lands at this speed is what a foot-plant then sets on the ground.
+    if (ground?.stride) {
+        const feet = constraints.filter((ik) => ik.kind === 'stride-warp')
+            .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
+        if (feet.length) warpStrides(world, pose, rigRoot, feet, resolveJoint, ground.stride);
+    }
     if (ground?.probe) {
         const feet = constraints.filter((ik) => ik.kind === 'foot-plant')
             .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
@@ -653,7 +702,7 @@ export function solveAnimatorIK(
         if (held.length) lockFeet(world, pose, rigRoot, held, resolveJoint, ground);
     }
     for (const ik of constraints) {
-        if (ik.kind === 'foot-plant' || ik.kind === 'foot-lock') continue;
+        if (ik.kind === 'foot-plant' || ik.kind === 'foot-lock' || ik.kind === 'stride-warp') continue;
         const weight = weightOf(ik, params);
         if (weight <= 0) continue;
         if (ik.kind === 'look-at') solveLookAt(world, pose, rigRoot, ik, weight, resolveJoint);

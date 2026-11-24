@@ -39,7 +39,7 @@ import {
 import { solveAnimatorIK, type AnimatorIK, type GroundContext, type GroundProbe } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
-import { Transform, type TransformData } from '../ecs/component';
+import { Parent, Transform, type TransformData } from '../ecs/component';
 import { q } from '../math/quat';
 
 // =============================================================================
@@ -905,9 +905,10 @@ export class AnimatorControllerAPI {
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.
             if (wrote && def.ik?.length) {
+                const ground = this.groundFor(rt, dt);
+                this.measureStride(world, entity, rt, ground, dt);
                 // Measured in the rig's own space: with the model carried as a child, that is the child's.
-                solveAnimatorIK(world, rigRoot, rt.composed, def.ik, params, joints,
-                                this.groundFor(rt, dt));
+                solveAnimatorIK(world, rigRoot, rt.composed, def.ik, params, joints, ground);
             }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
@@ -1021,6 +1022,7 @@ export class AnimatorControllerAPI {
         }
         if (index === 0) {
             this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot, travel);
+            rt.motionSpeed = this.travelSpeed(world, entity, ctx, motion, span, dt, travel);
         }
         return posed !== null;
     }
@@ -1163,6 +1165,50 @@ export class AnimatorControllerAPI {
             data.deltaRotation.z = turn.z;
             data.deltaTime = active ? span.to - span.from : 0;
         });
+    }
+
+    /**
+     * How fast the base layer's motion travels, world units a second: its root track over this frame's span, read in
+     * the frame of the rig it is the root of and of the character carrying it. 0 for a motion that states none. Read
+     * whether or not anything moves the character by it: a stride warp compares it with how fast the character went.
+     */
+    private travelSpeed(
+        world: World, entity: Entity, ctx: MotionContext, motion: AnimatorMotion | null, span: MotionSpan,
+        dt: number, travel: number,
+    ): number {
+        if (motion === null || dt <= 0) return 0;
+        const out = this.speedScratch_;
+        if (!ctx.rootDelta(motion, span, out)) return 0;
+        let moved: Vec3 = out.position;
+        const rigRoot = this.rigRootOf(world, entity, world.get(entity, Animator) as AnimatorData);
+        if (rigRoot !== entity) moved = inFrameOf(world, rigRoot, moved);
+        moved = inFrameOf(world, entity, moved);
+        return Math.hypot(moved.x, moved.z) * travel / dt;
+    }
+
+    /**
+     * What a stride warp needs: how the speed the character went compares with the speed its motion travels, and which
+     * way over the ground it went. Measured from where the character was last frame, so it is what happened whoever
+     * moved it, and eased over a tenth of a second so one jolted frame does not throw the legs.
+     */
+    private measureStride(world: World, entity: Entity, rt: AnimatorRuntime, ground: GroundContext, dt: number): void {
+        if (!world.has(entity, Transform) || dt <= 0) return;
+        const t = world.get(entity, Transform) as TransformData;
+        const at = world.has(entity, Parent) ? t.worldPosition : t.position;
+        const last = rt.lastAt;
+        rt.lastAt = { x: at.x, z: at.z };
+        if (!last) return;
+        const vx = (at.x - last.x) / dt, vz = (at.z - last.z) / dt;
+        const went = Math.hypot(vx, vz);
+        const goes = rt.motionSpeed ?? 0;
+        // A motion that travels nowhere, or a character standing still, has no stride to fit.
+        const wanted = goes > 1e-3 && went > 1e-3 ? went / goes : 1;
+        const was = ground.stride?.ratio ?? 1;
+        const k = 1 - Math.exp(-dt / STRIDE_EASE);
+        ground.stride = {
+            ratio: was + (wanted - was) * k,
+            direction: went > 1e-3 ? { x: vx / went, y: 0, z: vz / went } : ground.stride?.direction ?? { x: 0, y: 0, z: 1 },
+        };
     }
 
     /** The entity a clip's paths start from: the rig the animator names, or the animator's own entity. */
@@ -1337,6 +1383,9 @@ export class AnimatorControllerAPI {
     private windows_ = new Map<Entity, AnimatorWindow[]>();
     private windowsBefore_ = new Map<Entity, AnimatorWindow[]>();
     private nextWindowId_ = 1;
+    private readonly speedScratch_: RootMotionDelta = {
+        position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+    };
     private readonly rootScratch_: RootMotionDelta = {
         position: { x: 0, y: 0, z: 0 },
         rotation: { w: 1, x: 0, y: 0, z: 0 },
@@ -1344,6 +1393,8 @@ export class AnimatorControllerAPI {
 }
 
 const ZERO_VEC = { x: 0, y: 0, z: 0 };
+/** Seconds a stride warp's ratio eases over. */
+const STRIDE_EASE = 0.1;
 const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 
 /** One entity's playback state: transient, so it lives here and not on the
@@ -1351,6 +1402,10 @@ const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 interface AnimatorRuntime {
     /** Where each planted foot had settled, for easing onto a new height. */
     ground?: GroundContext;
+    /** How fast the base layer's motion travels, world units a second, as of this frame. */
+    motionSpeed?: number;
+    /** Where the character stood last frame, over the ground. */
+    lastAt?: { x: number; z: number };
     /** One per layer, the base layer at 0. */
     layers: LayerRuntime[];
     /** What the whole stack came to, written to the world once. */

@@ -661,6 +661,8 @@ contact: string | undefined
 kind: AnimatorIKKind
 layers: number | undefined
 lockHeight: number | undefined
+maxStride: number | undefined
+minStride: number | undefined
 parameter: string | undefined
 pelvis: string | undefined
 pole: string | undefined
@@ -677,7 +679,7 @@ weight: number | undefined
 
 ## AnimatorIKKind — type @experimental
 ```
-'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock'
+'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock' | 'stride-warp'
 ```
 
 ## AnimatorLayer — interface @experimental
@@ -5818,6 +5820,7 @@ locks: Map<string, FootLockState> | undefined
 memory: Map<string, { lift: number; normal: Vec3; }>
 probe: GroundProbe | null
 rest: Map<number, { position: Vec3; rotation: Quat; }> | undefined
+stride: { ratio: number; direction: Vec3; } | undefined
 ```
 
 ## GroundHit — interface @experimental
