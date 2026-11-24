@@ -36,11 +36,11 @@ struct KTX2Result {
     bool blockRefused;
 };
 
-/** Transcode + upload a KTX2 clip (mip level 0). @p srgb selects the sRGB GPU
+/** Transcode and upload a KTX2 texture. Disabling @p mipmaps keeps only level zero. @p srgb selects the sRGB GPU
  *  format variant (the block data is identical). Picks the best format the
  *  @p device supports, falling back to RGBA32 so it always succeeds if the file
  *  is valid — and says in the result which of those happened. */
-KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
+KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps,
                          esengine::resource::ResourceManager& rm, esengine::GfxDevice& device);
 
 }  // namespace eshost

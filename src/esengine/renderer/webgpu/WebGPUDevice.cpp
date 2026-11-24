@@ -1600,10 +1600,8 @@ WGPUSampler WebGPUDevice::samplerFor(u8 key) {
     sd.addressModeU = toWGPUAddressMode(static_cast<TextureWrap>((key >> 2) & 3u));
     sd.addressModeV = toWGPUAddressMode(static_cast<TextureWrap>((key >> 4) & 3u));
     sd.addressModeW = WGPUAddressMode_ClampToEdge;
-    // Trilinear across mips when a texture has them (compressed KTX2 pyramids);
-    // with a single mip WebGPU samples level 0 unchanged, so this is harmless for
-    // the still-common single-mip textures.
-    sd.mipmapFilter = WGPUMipmapFilterMode_Linear;
+    // Match the minification filter between mip levels as well as within each level.
+    sd.mipmapFilter = (key & 1u) ? WGPUMipmapFilterMode_Nearest : WGPUMipmapFilterMode_Linear;
     sd.lodMinClamp = 0.0f;
     sd.lodMaxClamp = 32.0f;
     // Sharpened at a slant (a floor, a hair card, a sleeve seen edge-on): the sampler takes extra samples along the footprint's long side.

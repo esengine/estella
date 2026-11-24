@@ -257,7 +257,8 @@ function applyParams(gl: WebGL2RenderingContext, levels: number, generate: boole
     applyBoundTextureSampling(gl, { filter: opts?.filter, wrap: opts?.wrap, mipmaps: generate, levels });
 }
 
-function levelsOf(r: TranscodeResult | RgbaResult, opts?: CompressedUploadOptions): readonly TranscodedLevel[] {
+/** Levels to upload after choosing the streaming resolution, on either graphics backend. */
+export function levelsOf(r: TranscodeResult | RgbaResult, opts?: CompressedUploadOptions): readonly TranscodedLevel[] {
     const base = { width: r.width, height: r.height, data: r.data };
     if (opts?.mipmaps === false) return [base];
     return r.levels && r.levels.length > 0 ? r.levels : [base];

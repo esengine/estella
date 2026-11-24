@@ -99,14 +99,11 @@ export interface CppResourceManager {
     /** {@link createTextureArray} without a wasm heap: the layers back to back as bytes. Present only on the native ResourceManager. */
     createTextureArrayFromBytes?(width: number, height: number, layers: number, pixels: Uint8Array, format: number, filterMode: number, wrapMode: number, content: TextureContent): number;
     createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number): number;
-    /** Transcode + upload a KTX2/Basis container to a device-supported compressed
-     *  format (or RGBA32). Native only (the basis transcoder lives in the host);
-     *  the web KTX2 path is WebGL2 + the wasm transcoder instead. */
-    /** Transcode + upload a KTX2 natively. `format` is the GfxCompressedFormat
-     *  ordinal uploaded, negative when it decoded to RGBA; `blockRefused` says a
-     *  supported format existed and the image was not whole blocks of it. Both
-     *  optional — an absent answer must not read as a compressed one. */
-    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean): {
+    /** Transcode and upload KTX2 natively. Passing false for `mipmaps` keeps the base level.
+     *  `format` is the uploaded GfxCompressedFormat ordinal, negative for decoded RGBA.
+     *  `blockRefused` reports a supported format whose block size did not fit the image.
+     *  Older hosts may omit the format and the reason. */
+    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean, mipmaps?: boolean): {
         handle: number; width: number; height: number;
         format?: number; blockRefused?: boolean;
     } | null;

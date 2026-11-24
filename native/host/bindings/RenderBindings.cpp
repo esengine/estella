@@ -39,11 +39,10 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?)
+// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?, mipmaps?)
 //   -> { id, width, height, format, blockRefused } | null.
 // Transcodes a KTX2/Basis container to the best device-supported compressed format
-// (or RGBA32) and uploads it. Native-only: the web transcodes in a wasm module and
-// uploads through WebGL2, so there is no engine entry point shared with it.
+// (or RGBA32) and uploads it. Web runtimes use the wasm transcoder.
 // `format`/`blockRefused` carry the CHOICE out: an RGBA upload is otherwise a
 // correct picture at four times the memory, with nothing saying it happened.
 esjs::Val js_createTextureKTX2(const esjs::Args& a) {
@@ -52,8 +51,9 @@ esjs::Val js_createTextureKTX2(const esjs::Args& a) {
     readByteSource(a[0], bytes);
     if (bytes.empty()) return esjs::null();
     const bool srgb = a.size() > 1 && esjs::toBool(a[1]);
+    const bool mipmaps = a.size() < 3 || esjs::isUndefined(a[2]) || esjs::toBool(a[2]);
     auto r = host().ctx->renderThread().invoke([&] {
-        return transcodeKTX2(bytes.data(), bytes.size(), srgb,
+        return transcodeKTX2(bytes.data(), bytes.size(), srgb, mipmaps,
                              host().ctx->require<resource::ResourceManager>(), *host().gfx);
     });
     if (r.handle < 0) return esjs::null();
@@ -174,7 +174,7 @@ esjs::Val js_registry_getCameraEntities(const esjs::Args& a) {
 }  // namespace
 
 void registerRenderBindings(HostState& h, esjs::Val global) {
-    bindGlobal(global, "es_createTextureKTX2", js_createTextureKTX2, 2);
+    bindGlobal(global, "es_createTextureKTX2", js_createTextureKTX2, 3);
     bindGlobal(global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(global, "es_rasterizeGlyph", js_rasterizeGlyph, 1);
     bindGlobal(global, "es_renderer_surfaceSize", js_renderer_surfaceSize, 0);

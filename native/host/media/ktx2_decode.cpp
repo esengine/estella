@@ -46,7 +46,7 @@ const FormatChoice kChoices[] = {
 
 namespace eshost {
 
-KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
+KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps,
                          resource::ResourceManager& rm, GfxDevice& device) {
     const KTX2Result fail{-1, 0, 0, -1, false};
     ensureBasis();
@@ -87,12 +87,10 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     const uint32_t bw = basist::basis_get_block_width(basisFmt);
     const uint32_t bh = basist::basis_get_block_height(basisFmt);
     const uint32_t bpb = basist::basis_get_bytes_per_block_or_pixel(basisFmt);
-    // The rule is about each LEVEL, not the image: 72x72 is whole blocks and its
-    // third mip, 18x18, is not — and that copy is refused exactly as a 70x70 base
-    // would be. The chain stops there, whole as far as it goes.
-    const uint32_t numLevels = compressed
-        ? gfxWholeBlockLevels(gfxFmt, w, h, t.get_levels() ? t.get_levels() : 1u)
-        : 1u;
+    // The base must be block-aligned. The device writes lower levels using their
+    // padded block extents, including the final 2x2 and 1x1 texels.
+    const uint32_t fileLevels = t.get_levels();
+    const uint32_t numLevels = compressed && mipmaps && fileLevels ? fileLevels : 1u;
 
     // Pack each level tightly, level 0 first — the layout the device unpacks.
     std::vector<uint8_t> out;
@@ -112,11 +110,20 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
     }
     if (uploaded == 0) return fail;
 
-    const ConstSpan<u8> span(out.data(), out.size());
-    const resource::TextureHandle handle = compressed
-        ? rm.createCompressedTexture(resource::ResourceContent::Asset, w, h, gfxFmt, span, uploaded)
-        : rm.createTexture(resource::ResourceContent::Asset, w, h, span,
-                           srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8, false);
+    resource::TextureHandle handle;
+    if (compressed) {
+        handle = rm.createCompressedTexture(resource::ResourceContent::Asset, w, h, gfxFmt,
+                                            ConstSpan<u8>(out.data(), out.size()), uploaded);
+    } else {
+        TextureSpecification spec;
+        spec.width = w;
+        spec.height = h;
+        spec.format = srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8;
+        spec.wrapS = spec.wrapT = TextureWrap::ClampToEdge;
+        spec.generateMips = mipmaps;
+        handle = rm.createTexture(resource::ResourceContent::Asset, spec);
+        if (auto* texture = rm.getTexture(handle)) texture->setDataRaw(out.data(), static_cast<u32>(out.size()), false);
+    }
     if (!handle.isValid()) return fail;
     return KTX2Result{static_cast<int>(handle.id()), static_cast<int>(w), static_cast<int>(h),
                       compressed ? static_cast<int>(gfxFmt) : -1,

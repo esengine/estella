@@ -583,6 +583,23 @@ add_test(NAME test_texture_cache COMMAND test_texture_cache)
 # The real resource pool and material store against the same device boundary.
 get_target_property(ES_TEXTURE_CACHE_SOURCES test_texture_cache SOURCES)
 list(REMOVE_ITEM ES_TEXTURE_CACHE_SOURCES resource/test_texture_cache.cpp)
+set(ES_BASIS_DIR "${CMAKE_SOURCE_DIR}/third_party/basis_universal")
+set(ES_KTX_MIP_FIXTURE "${ES_BASIS_DIR}/webgl/ktx2_encode_test/assets/kodim23.ktx2")
+if(EXISTS "${ES_BASIS_DIR}/transcoder/basisu_transcoder.cpp" AND EXISTS "${ES_KTX_MIP_FIXTURE}")
+    add_executable(test_native_ktx2_sampling
+        resource/test_native_ktx2_sampling.cpp
+        ${ES_TEXTURE_CACHE_SOURCES}
+        "${CMAKE_SOURCE_DIR}/native/host/media/ktx2_decode.cpp"
+        "${ES_BASIS_DIR}/transcoder/basisu_transcoder.cpp"
+        "${ES_BASIS_DIR}/zstd/zstddeclib.c"
+    )
+    target_include_directories(test_native_ktx2_sampling PRIVATE
+        ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/native/host
+        ${CMAKE_SOURCE_DIR}/third_party/glm ${CMAKE_SOURCE_DIR}/third_party/stb "${ES_BASIS_DIR}/transcoder"
+    )
+    add_test(NAME test_native_ktx2_sampling COMMAND test_native_ktx2_sampling "${ES_KTX_MIP_FIXTURE}")
+endif()
+
 add_executable(test_material_shader_lifetime
     resource/test_material_shader_lifetime.cpp
     ${ES_TEXTURE_CACHE_SOURCES}

@@ -97,6 +97,11 @@ export function textureFilterCode(params: TextureParams): number {
 }
 const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror': 2 };
 
+/** TextureWrap ordinal used by the resource manager and the renderer. */
+export function textureWrapCode(mode?: string): number {
+    return WRAP_MODE_MAP[mode ?? 'clamp'] ?? 1;
+}
+
 /** Upload decoded RGBA pixels as a GL texture; returns the engine texture handle.
  *  `module` is the wasm-heap marshalling vehicle; it may be null on the native
  *  (embedded-Dawn) backend, whose ResourceManager takes the bytes directly. */
@@ -116,7 +121,7 @@ export function createTextureFromPixels(
     // to the heap path below unchanged.
     if (rm.createTextureFromBytes) {
         const filter = params ? textureFilterCode(params) : undefined;
-        const wrap = params?.wrapMode ? WRAP_MODE_MAP[params.wrapMode] ?? 1 : undefined;
+        const wrap = params?.wrapMode ? textureWrapCode(params.wrapMode) : undefined;
         return rm.createTextureFromBytes(result.width, result.height, result.pixels, format, flipY, content, filter, wrap);
     }
     if (!module) {
@@ -127,7 +132,7 @@ export function createTextureFromPixels(
 
         if (params && (params.filterMode || params.wrapMode || params.mipmaps) && rm.createTextureEx) {
             const filter = textureFilterCode(params);
-            const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
+            const wrap = textureWrapCode(params.wrapMode);
             return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, format, flipY, filter, wrap, content);
         }
         return rm.createTexture(result.width, result.height, ptr, result.pixels.length, format, flipY, content);
@@ -154,7 +159,7 @@ export function createTextureArrayFromPixels(
     const rm = owner ?? requireResourceManager();
     const format = samplesAsSrgb(params?.srgb) ? 2 : 1;
     const filter = params ? textureFilterCode(params) : -1;
-    const wrap = WRAP_MODE_MAP[params?.wrapMode ?? 'clamp'] ?? 1;
+    const wrap = textureWrapCode(params?.wrapMode);
     const total = layerBytes * layers.length;
     // Native path: no wasm heap, so the layers go over as one run of bytes and the host copies them.
     if (rm.createTextureArrayFromBytes) {

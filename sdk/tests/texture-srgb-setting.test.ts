@@ -4,6 +4,7 @@
  * @file  A KTX2 texture is sampled as colour or as data by its own sRGB setting.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { CppResourceManager, ESEngineModule } from '../src/wasm';
 
 const { rm, host } = vi.hoisted(() => {
     const rm = {
@@ -12,7 +13,7 @@ const { rm, host } = vi.hoisted(() => {
         adoptTextureContent: vi.fn(() => true),
         releaseTexture: vi.fn(),
     };
-    return { rm, host: { manager: rm as Partial<typeof rm> } };
+    return { rm, host: { manager: rm as Partial<CppResourceManager> } };
 });
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => host.manager,
@@ -23,6 +24,8 @@ import { TextureLoader } from '../src/asset/loaders/TextureLoader';
 import { textureFormatOf } from '../src/asset/textureFormatReport';
 import { TextureContent } from '../src/wasm';
 import { setLinearColorSpace } from '../src/ecs/env';
+import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
+import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
 
 const KTX2 = new Uint8Array([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const ctx = {
@@ -58,9 +61,51 @@ describe('a KTX2 texture under the linear pipeline', () => {
         const loader = new TextureLoader(null);
         loader.setTranscoder({ transcode: () => null, transcodeToRgba: () => ({ width: 4, height: 4, data: pixels }) });
         try {
-            await loader.loadDetached('normal.ktx2', ctx, false, { srgb: false });
-            expect(rm.createTextureFromBytes).toHaveBeenLastCalledWith(4, 4, pixels, 1, false, TextureContent.Asset);
+            await loader.loadDetached('normal.ktx2', ctx, false, { srgb: false, filter: 'nearest', wrap: 'mirror', mipmaps: false });
+            expect(rm.createTextureFromBytes).toHaveBeenLastCalledWith(4, 4, pixels, 1, false, TextureContent.Asset, 0, 2);
         } finally { host.manager = rm; }
+    });
+});
+
+describe('the sampler of an engine-uploaded KTX2', () => {
+    afterEach(() => { host.manager = rm; setNativeEngineApi(null); });
+
+    it.each([true, false])('selects the authored levels and addresses the renderer texture with mipmaps %s', async mipmaps => {
+        const createCompressedTexture = vi.fn(() => 7);
+        host.manager = { ...rm, createTextureFromKTX2: undefined, supportsCompressedFormat: () => true,
+            createCompressedTexture, getTextureGLId: handle => handle + 100 };
+        const renderer_setTextureParams = vi.fn();
+        const module = { HEAPU8: new Uint8Array(128), _malloc: () => 16, _free: vi.fn(), renderer_setTextureParams };
+        const loader = new TextureLoader(module as unknown as ESEngineModule);
+        const base = { width: 8, height: 8, data: new Uint8Array(64) };
+        const tail = { width: 4, height: 4, data: new Uint8Array(16) };
+        loader.setTranscoder({ transcode: () => ({ ...base, levels: [base, tail] }), transcodeToRgba: () => null });
+        await loader.loadDetached('sprite.ktx2', ctx, false, { filter: 'nearest', wrap: 'repeat', mipmaps });
+        expect(createCompressedTexture).toHaveBeenCalledWith(8, 8, expect.any(Number), 16, mipmaps ? 80 : 64,
+            mipmaps ? 2 : 1, TextureContent.Asset);
+        expect(renderer_setTextureParams).toHaveBeenCalledWith(107, 0, 0, 0, 0);
+    });
+
+    it('applies native sampling to the host render id and forwards the mip choice', async () => {
+        const renderer_setTextureParams = vi.fn();
+        const createTexture = vi.fn(() => ({ id: 3, width: 4, height: 4 }));
+        setNativeEngineApi({ renderer_setTextureParams });
+        host.manager = createNativeResourceManager({
+            es_createTextureKTX2: createTexture,
+            es_rm_getTextureGLId: (handle: number) => handle + 200,
+        });
+        await new TextureLoader(null).loadDetached('sprite.ktx2', ctx, false, { filter: 'nearest', wrap: 'mirror', mipmaps: false });
+        expect(createTexture).toHaveBeenCalledWith(KTX2, false, false);
+        expect(renderer_setTextureParams).toHaveBeenCalledWith(203, 0, 0, 2, 2);
+    });
+
+    it('releases an unpublished texture when the device rejects the sampler', async () => {
+        setNativeEngineApi({ renderer_setTextureParams() { throw new Error('device lost'); } });
+        const releaseTexture = vi.fn();
+        host.manager = { ...rm, releaseTexture, getTextureGLId: handle => handle + 200 };
+        await expect(new TextureLoader(null).loadDetached('sprite.ktx2', ctx, false, { filter: 'nearest' }))
+            .rejects.toThrow('device lost');
+        expect(releaseTexture.mock.calls).toEqual([[3]]);
     });
 });
 

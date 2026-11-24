@@ -3,6 +3,7 @@
 import { bindingFile } from '../manifestBinding';
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
+import { nativeEngineApi } from '../../ecs/bridge/engineApi';
 import { platformCreateImage } from '../../platform/base';
 import type { ImageLoadResult, PlatformImage } from '../../platform/types';
 import { fitImagePixels } from '../../platform/imagePixels';
@@ -12,7 +13,7 @@ import { provideTextureContent, withdrawTextureContent, type TextureRefill } fro
 import { TextureContent, type CppResourceManager, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
-    isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, chooseEngineTargetFormat, engineFormatCode,
+    isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, levelsOf, chooseEngineTargetFormat, engineFormatCode,
     compressedUploadDecision, detectCompressedTextureSupport, glInternalFormat,
     supportedTargetFormats, hostUploadDecision, RAW_PAYLOAD_UPLOAD,
     CompressedTextureFormat,
@@ -22,7 +23,7 @@ import { TextureFormatLog, type TextureFormatReport } from '../textureFormatRepo
 import {
     uploadBoundTextureImage, applyBoundTextureSampling, handOverNewTexture, findWebGL2Context,
 } from '../glTextureUpload';
-import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
+import { createTextureFromPixels, textureFilterCode, textureWrapCode, type TextureParams } from '../../runtime/runtimeAssets';
 import { isTextureRecipePath, renderTextureRecipe } from '../textureRecipe';
 
 /**
@@ -594,8 +595,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // wasm transcoder. sRGB follows the texture's settings, as on every path.
         const rm = requireResourceManager();
         if (rm.createTextureFromKTX2) {
-            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb));
+            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb), settings?.mipmaps ?? true);
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
+            this.applyCompressedSampler_(rm, r.handle, settings);
             // A host that reports no format says nothing rather than claiming
             // success: -1 with no block refusal reads as "this device offered
             // none", the honest reading of an absent answer.
@@ -608,15 +610,26 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         }
         const gl = this.getWebGL2Context();
         if (!gl) {
-            // No GL context (the WebGPU backend): ask the ENGINE which format it
-            // samples and upload through it. Sampler state is what the GL path
-            // below still has and this one does not — here it takes the defaults.
-            return this.loadCompressedViaEngine(path, transcoder, bytes, samplesAsSrgb(settings?.srgb), maxEdge);
+            return this.loadCompressedViaEngine(path, transcoder, bytes, settings, maxEdge);
         }
-        // A WebGL2 context implies a wasm module (native has neither, and threw
-        // above on the missing gl); the KTX2 path is web-only.
+        // The WebGL2 context belongs to this wasm module.
         return loadCompressedTexture(gl, this.module_!, transcoder, bytes,
             { ...settings, srgb: samplesAsSrgb(settings?.srgb), maxEdge });
+    }
+
+    /** Compressed engine uploads start with a linear, clamped sampler. Address the device texture owned by this loader. */
+    private applyCompressedSampler_(rm: CppResourceManager, handle: number, settings?: TextureImportSettings): void {
+        if (!settings?.filter && !settings?.wrap) return;
+        const engine = this.module_ ?? nativeEngineApi();
+        if (!engine?.renderer_setTextureParams) return;
+        const filter = textureFilterCode({ filterMode: settings.filter });
+        const wrap = textureWrapCode(settings.wrap);
+        try {
+            engine.renderer_setTextureParams(rm.getTextureGLId(handle), filter, filter, wrap, wrap);
+        } catch (error) {
+            rm.releaseTexture(handle);
+            throw error;
+        }
     }
 
     /**
@@ -625,10 +638,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * transcode to it fails — the same bargain the GL path makes.
      */
     private async loadCompressedViaEngine(
-        path: string, transcoder: BasisTranscoder, bytes: Uint8Array, srgb: boolean, maxEdge = 0,
+        path: string, transcoder: BasisTranscoder, bytes: Uint8Array, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<LoadedCompressedTexture> {
         const rm = requireResourceManager();
         const module = this.module_;
+        const srgb = samplesAsSrgb(settings?.srgb);
         let target: CompressedTextureFormat | null = null;
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
@@ -640,7 +654,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                 // Level 0 first, packed, as the device unpacks them, every level of the chain: the device copies each as whole blocks
                 // (its physical size), so a level whose side is not a multiple of four is uploaded too. Stopping at the first such level
                 // left a 1240x1268 hair atlas with level 0 alone, sampled unfiltered at any distance.
-                const levels = t.levels ?? [t];
+                const levels = levelsOf(t, settings);
                 const size = levels.reduce((n, l) => n + l.data.length, 0);
                 const handle = withMalloc(module, size, (ptr) => {
                     let at = ptr;
@@ -648,13 +662,16 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                     return rm.createCompressedTexture!(t.width, t.height, code, ptr, size, levels.length,
                         TextureContent.Asset);
                 });
-                if (handle) return { handle, width: t.width, height: t.height, decision: compressedUploadDecision(target, true) };
+                if (handle) {
+                    this.applyCompressedSampler_(rm, handle, settings);
+                    return { handle, width: t.width, height: t.height, decision: compressedUploadDecision(target, true) };
+                }
             }
         }
         const decoded = await transcoder.transcodeToRgba(bytes);
         if (!decoded) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
         const rgba = levelsFrom(decoded, maxEdge);
-        const texture = await this.loadFromPixels(rgba.width, rgba.height, rgba.data, false, TextureContent.Asset, srgb);
+        const texture = this.uploadPixels_({ width: rgba.width, height: rgba.height, pixels: rgba.data }, false, settings, 0);
         return { ...texture, decision: compressedUploadDecision(target, false) };
     }
 
