@@ -436,6 +436,29 @@ describe('a replan that finds nothing', () => {
  * gives way, which is what declaring a RADIUS asks for.
  */
 describe('agents that are bodies', () => {
+    it('gets two overlapping couriers round a corner without replanning in place', () => {
+        const grid = new NavGrid({ width: 23, height: 13, cellSize: 32, origin: { x: -352, y: -192 } });
+        for (let y = 0; y < 13; y++) if (y < 5 || y > 7) grid.setWalkable(11, y, false);
+        const nav = new Navigation();
+        nav.setSurface(grid);
+        nav.planningBudgetMs = 0;
+        const world = new FakeWorld();
+        const courier = { speed: 78, radius: 8, arriveRadius: 5, repathInterval: 0, hasTarget: true, targetY: -128 };
+        const a = world.spawnAgent(-32.00013, -124.65, { ...courier, targetX: 128 });
+        const b = world.spawnAgent(-32.00014, -132.78, { ...courier, targetX: 192 });
+        const runtimes = new Map<Entity, AgentRuntime>();
+        for (let i = 0; i < 1200 && ![a, b].every(e => world.agent(e).arrived); i++) {
+            stepNavigation(world, nav, 1 / 60, runtimes);
+            // Transform positions are stored as floats by the runtime registry.
+            for (const e of [a, b]) {
+                const p = world.pos(e);
+                world.place(e, Math.fround(p.x), Math.fround(p.y));
+                expect(grid.isNavigable(p, { radius: 8 })).toBe(true);
+            }
+        }
+        expect([world.agent(a).arrived, world.agent(b).arrived]).toEqual([true, true]);
+    });
+
     const room = (): Navigation => {
         const nav = new Navigation();
         nav.setSurface(new NavGrid({ width: 30, height: 30, cellSize: 10 }));

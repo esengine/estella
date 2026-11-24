@@ -150,7 +150,7 @@ function velocityScorer(
             // twice this candidate less what the two are already doing.
             const rvx = vx * 2 - self.vx - other.vx;
             const rvz = vz * 2 - self.vz - other.vz;
-            const hit = sweep(other.dx, other.dz, other.distanceSqMinusRadiusSq, rvx, rvz);
+            const hit = sweep(other.dx, other.dz, other.distanceSqMinusRadiusSq, rvx, rvz, horizon);
             if (hit !== null && hit < earliest) earliest = hit;
 
             if (other.toward < 1e-6 || length < 1e-6) continue;
@@ -171,20 +171,22 @@ function velocityScorer(
 }
 
 /**
- * When two circles closing at `(rvx, rvz)` touch, or null if they never do. For a
- * pair that overlaps the touch has happened, so the answer is negative: half of
- * it, made positive, is what such a pair scores with, so the way out that leaves
- * fastest reads as the safest.
+ * Time until contact for separate circles. For overlapping circles, the time
+ * needed to separate consumes that much of the safe lookahead horizon.
  */
-function sweep(dx: number, dz: number, c: number, rvx: number, rvz: number): number | null {
+function sweep(dx: number, dz: number, c: number, rvx: number, rvz: number, horizon: number): number | null {
     const a = rvx * rvx + rvz * rvz;
     if (a < 1e-8) return c <= 0 ? 0 : null;
     const b = dx * rvx + dz * rvz;
     const discriminant = b * b - a * c;
     if (discriminant <= 0) return null;
     const root = Math.sqrt(discriminant);
+    if (c < 0) {
+        if (b > 0) return 0; // The bodies would first move deeper into the overlap.
+        // Positive exit root (b + root) / a, without cancellation for a shallow overlap.
+        const timeToSeparate = -c / (root - b);
+        return Math.max(0, horizon - timeToSeparate);
+    }
     const tmin = (b - root) / a;
-    const tmax = (b + root) / a;
-    if (tmin < 0 && tmax > 0) return -tmin * 0.5;
     return tmin >= 0 ? tmin : null;
 }
