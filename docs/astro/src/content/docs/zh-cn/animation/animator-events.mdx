@@ -1,0 +1,107 @@
+---
+title: 动画事件
+description: 动画控制器所播放剪辑上声明的事件与窗口——AnimatorEvent 总线及其触发保证、每帧可查询的窗口、由窗口限定的连招转换，以及触发器输入缓冲。
+---
+
+剪辑可以为其内部的时刻和时段命名。剪辑在[动画控制器](/docs/zh-cn/animation/animator/)状态中播放时，动画器将每个时刻作为事件发出，并将每个时段保持为可供玩法查询的打开窗口。动画器不调用粒子、音频或玩法代码；由拥有这些功能的系统响应事件。
+
+## 事件
+
+`.estimeline` 中的 `customEvent` 轨道包含形如 `{ time, name, payload }` 的条目。动画器在步进跨过该时刻的那一帧，通过 `AnimatorEvent` 总线发出事件：
+
+```typescript
+import {
+  defineSystem, EventReader, GetWorld, Res,
+  AnimatorEvent, Particle, resolveChildEntity,
+} from 'esengine';
+
+const footsteps = defineSystem(
+  [EventReader(AnimatorEvent), GetWorld(), Res(Particle)],
+  (events, world, particles) => {
+    for (const event of events) {
+      if (event.name !== 'footstep') continue;
+      const dust = resolveChildEntity(world, event.entity, 'FootDust');
+      if (dust !== null) particles.play(dust);
+    }
+  },
+  { name: 'FootstepSystem' },
+);
+```
+
+| 字段 | 说明 |
+|---|---|
+| `entity` | 被动画的实体。 |
+| `name` | 剪辑声明的事件名。 |
+| `value` | 数值负载（`payload.value`）；剪辑未声明时为 `0`。 |
+| `text` | 字符串负载（`payload.text`）；剪辑未声明时为空字符串。 |
+
+触发保证：
+
+- 当一步覆盖的区间 `(上一时刻, 当前时刻]` 包含事件时，事件触发。较长的一帧不会跳过事件，同一次跨越也不会重复报告。
+- 循环回绕计为两个区间：本圈末尾与下一圈开头，因此靠近两端的事件每圈恰好触发一次。
+- 一步内的多个事件按剪辑声明的顺序触发。
+- 交叉淡化期间只有正在进入的状态报告事件。正在淡出的状态继续走时钟但不报告事件，因此被闪避打断的攻击不会发出命中事件。
+
+精灵剪辑有其自身的帧事件，通过 `SpriteAnimation` 资源发出（[帧事件](/docs/zh-cn/animation/sprite-animation/#帧事件)）。
+
+## 窗口
+
+带有 `duration`（剪辑时间，秒）的 `customEvent` 是一个窗口，在 `[time, time + duration)` 内打开。窗口在打开时向总线发出一次事件，此外在其覆盖的每一帧都报告为打开。典型用途包括攻击的有效帧、挥击中允许接续连招的时段，以及闪避的无敌时间。
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+```typescript
+const animator = app.getResource(AnimatorController);
+const active = animator.openWindow(entity, 'attack-active'); // null when shut
+for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
+```
+
+| `AnimatorWindow` 字段 | 说明 |
+|---|---|
+| `id` | 标识一次打开；窗口保持打开期间不变，每次重新打开时更新。 |
+| `layer` | 持有该窗口的动作所在的动画器图层。 |
+| `name` | 窗口名。 |
+| `value` / `text` | 负载，与事件相同。 |
+| `start` | 窗口在剪辑自身时间中的打开位置。 |
+
+规则：
+
+- 一步覆盖到窗口的任何部分，该帧即报告窗口打开，因此短于一帧的窗口在经过它的那一帧仍为打开。只触及窗口结束边界的一步不会打开它。
+- 只有正在播放的状态持有窗口。窗口打开时离开该剪辑（包括交叉淡化），窗口在该帧关闭，因此等待窗口关闭的逻辑不会因剪辑被打断而一直等待。
+- 首尾相接的两个窗口是两次打开，`id` 不同；循环剪辑的每一圈也是一次新的打开。
+
+由 `TimelinePlayer` 播放的时间轴上带 `duration` 的事件作为 `TimelineEvent` 发出（[事件与标记轨道](/docs/zh-cn/animation/timeline/tracks/#事件与标记轨道)）；只有播放该时间轴的动画控制器状态才会将其报告为打开的窗口。
+
+## 连招与输入缓冲
+
+连招是只能在剪辑某一时段内发生的转换。在剪辑上将该时段声明为窗口（此处命名为 `combo`），并为转换添加 `window` 条件，用 `param` 指定窗口名：
+
+```json
+{ "to": "Attack2", "conditions": [
+  { "param": "attack", "op": "trigger" },
+  { "param": "combo", "op": "window" }
+] }
+```
+
+当正在离开的状态在当前步进的帧上打开着该窗口时，条件成立，因此短于一帧的连招窗口也不会被跳过。
+
+触发器在被转换消耗之前一直保持设置。在触发器参数上设置 `buffer`（动画器时间，秒）可限制这一点：按键只被保留这么久，之后丢弃。因此稍早于窗口的按键仍能接续连招，而起手阶段的按键不会在当前攻击结束时再触发一次攻击。
+
+```json
+{ "name": "attack", "type": "trigger", "buffer": 0.25 }
+```
+
+再次按下会重新开始计时。`buffer` 为 `0` 时触发器仅在下一次更新中有效。未设置 `buffer` 时，触发器一直等待到被转换使用。
+
+在控制器编辑器中，缓冲时间是触发器参数旁的**缓冲（秒）**字段；**运算**为**窗口内**的条件填写窗口名而不是参数。
+
+{/* SHOT: anim-animator-combo-window | Controller editor with locomotion.esanimator from the third-person-3d example open, a transition selected whose Conditions list contains a trigger condition and an "in window" condition with the window name typed in, and a trigger parameter showing its Buffer (s) value */}
+
+任意状态转换先于当前状态的转换求值，因此任意状态转换所使用的攻击触发器会优先于连招。不要将攻击触发器放在任意状态转换中，而应放在允许发起攻击的状态上。
+
+## 参见
+
+- [动画控制器](/docs/zh-cn/animation/animator/) —— 状态、转换与参数。
+- [时间轴轨道](/docs/zh-cn/animation/timeline/tracks/#事件与标记轨道) —— 在序列器中编辑事件轨道。

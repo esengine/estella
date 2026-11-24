@@ -1,158 +1,148 @@
 ---
 title: Prefabs
-description: The complete guide to prefabs — instantiating entity-tree templates, parenting, reaching children, and per-instance overrides via Res(Prefabs).
+description: Prefab reference — creating .esprefab assets, Prefab Mode, instances and overrides, Apply / Revert / Variant / Unpack, virtual instances, and runtime instantiation through Res(Prefabs) with parenting, per-instance overrides and prepared spawns.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A prefab is a saved entity tree — a template you author once in the editor and spawn
-many times (enemies, pickups, bullets). Instantiate one at runtime through the
-`Prefabs` resource. The prefab asset stays the single source of truth; instances can
-layer their own values on top.
+A **prefab** is a saved entity tree stored as an `.esprefab` asset. It is authored once in the editor and instantiated
+any number of times, in scenes or at runtime through the **`Prefabs`** resource. The asset is the single source of
+truth; each instance can layer its own values (overrides) on top of it.
 
-## Authoring in the editor
+## Creating a prefab
 
-You build a prefab visually, then spawn it from code. Everything in this section happens
-in the editor; the runtime API follows below.
+*World Outliner → right-click an entity → Create Prefab* writes the entity and its whole subtree to
+`assets/prefabs/<Name>.esprefab`, named after the entity. The original entities remain in the scene unchanged; they
+are not replaced by an instance.
 
-### Create a prefab
+To place instances, drag the `.esprefab` from the Content Browser into the scene, or create one from the **Prefabs**
+category of *+ Add → Create entity…*.
 
-Right-click an entity in the **World Outliner → Create Prefab**. The editor extracts that
-entity and its whole subtree into `assets/prefabs/<Name>.esprefab` (named after the entity)
-and leaves your scene untouched — the originals stay put; they aren't swapped for an
-instance. To place instances, drag the `.esprefab` from the Content Browser into the scene,
-or spawn it from the **+ Add → Create entity… → Prefabs** category.
+If the subtree references entities outside the selection, the editor asks *Expose external references?* first. Those
+references are left **unbound** in the prefab, and each instance binds them to a scene entity in the Inspector.
 
-<Aside type="note">
-  If the subtree references entities *outside* the selection, the editor asks first
-  (*"Expose external references?"*). Those refs are left **unbound** in the prefab, and each
-  instance can bind them to a scene entity in the Inspector.
-</Aside>
+## Prefab Mode
 
-### Edit a prefab — Prefab Mode
-
-Double-click a `.esprefab` (or, from an instance, **Edit Prefab**) to enter **Prefab Mode**:
-the prefab opens as its own editable entity tree in the same viewport / Outliner / Details,
-framed in a warm accent under an **Editing Prefab** banner. Add, remove, rename, reparent,
-and tune components exactly as in a scene, then **Save Prefab** — every instance in every
-scene picks up the change. **Back to Scene** returns you where you were.
-
-A **UI prefab** opens inside a canvas. UI boxes are authored relative to their parent, so on
-its own a UI prefab would have nothing for its percentages to resolve against and the whole
-tree would collapse onto the origin. Prefab Mode therefore hosts it in a canvas at the
-project's reference resolution — the layout, selection outlines, and gizmos read exactly as
-they do in a scene. The host isn't part of the prefab: it never appears in the Outliner and
-never reaches the saved asset.
-
-Not yet supported in Prefab Mode: editing a **nested** prefab in place, or a variant whose
-base isn't flat. Play and *Save As* are disabled while you're editing a prefab.
+Double-clicking an `.esprefab`, or *Edit Prefab* on an instance, enters **Prefab Mode**. The prefab opens as its own
+entity tree in the viewport, Outliner and Details, framed by an accent border under the **Editing Prefab** banner.
+Entities and components are edited as in a scene. **Save Prefab** writes the asset, and every instance in every scene
+takes the change. **Back to Scene** returns to the scene.
 
 ![The editor in Prefab Mode, editing a Coin prefab in isolation](@/assets/guides/en/prefab-mode.png)
 
-*Prefab Mode: the **Editing Prefab** banner with **Save Prefab** / **Back to scene**, the prefab opened as its own entity tree — every instance updates when you save.*
+*Prefab Mode: the **Editing Prefab** banner with **Save Prefab** and **Back to Scene**; the prefab open as its own
+entity tree.*
 
-### Instances & overrides
+- **UI prefabs** open inside a host canvas at the project's reference resolution, so percentage sizes resolve and
+  layout, selection outlines and gizmos match a scene. The host is not part of the prefab: it does not appear in the
+  Outliner and is not saved.
+- **Not supported in Prefab Mode:** editing a nested prefab in place, and editing a variant whose base is not flat.
+- **Disabled while editing a prefab:** Play and *Save As*.
 
-Drop an instance into a scene and it stays linked to its source. Change a field on the
-instance and it becomes an **override** — a per-instance value layered on top of the prefab.
-The editor marks overrides so you always know what's local:
+## Instances and overrides
 
-- the instance's **root name is tinted warm** in the Outliner;
-- an overridden field shows a **reset arrow** (↺ *Reset to default*) and its component gets
-  an **amber dot**;
-- an Inspector filter narrows the Details panel to **only overridden fields**.
+An instance placed in a scene stays linked to its source. Changing a field on the instance creates an **override**: a
+per-instance value layered over the prefab's value. The editor marks overrides:
 
-Reset a single field with its ↺ button and the value falls back to the prefab's.
-
-When the prefab changes, the open scene's instances take the change at once: saved from
-Prefab Mode, applied from another instance, rewritten on disk by a pull or another tool, or
-re-baked from the 2D rig it came from. Each instance keeps its overrides and anything the scene
-parented inside it, and every entity the prefab still has stays the same entity, so the
-selection and other entities' references to it hold. The scene is not marked as changed,
-because its file stores only the overrides.
-
-### Apply · Revert · Unpack · Variant
-
-Right-click an instance in the Outliner (or use the Inspector's prefab bar) for the identity
-actions:
-
-| Action | What it does |
+| Indicator | Location |
 |---|---|
-| **Edit Prefab** | Open the source in Prefab Mode. |
-| **Select Prefab Source** | Reveal the `.esprefab` in the Content Browser. |
-| **Apply to Prefab** | Push this instance's overrides **back to the source** — updating the base for *every* instance. |
-| **Revert to Prefab** | Discard this instance's overrides and re-sync it to the source. |
-| **Create Variant** | Save a new `.esprefab` that inherits the base and bakes in this instance's overrides (a prefab of a prefab). |
-| **Unpack Prefab** | Detach the subtree — its entities become ordinary scene entities and lose every prefab link. Undoable. |
+| Root name tinted in the accent colour | Outliner, on the instance root |
+| ↺ *Reset to default* button on the field | Details |
+| Amber dot on the component header | Details |
+| Filter that shows only overridden fields | Details |
 
-**Apply** is the one action that rewrites the shared asset, so it always previews an
-**itemized diff** first (*"Apply changes to prefab?"*) — edits in amber, additions in green,
-removals in red, with structural changes flagged as destructive.
+↺ on a field reverts that field to the prefab's value.
+
+{/* SHOT: world-prefab-overrides | Details of a prefab instance with one overridden field: the reset arrow on the field, the amber dot on its component, and the tinted instance root visible in the Outliner beside it (a project with a placed prefab instance, e.g. the Coin prefab, with its Transform position changed) */}
+
+When the prefab changes, instances in the open scene update immediately. This applies to a save from Prefab Mode,
+*Apply to Prefab* from another instance, a rewrite on disk (a version-control pull or another tool), and a re-bake
+from the 2D rig the prefab came from. Each instance keeps its overrides and any entities the scene parented inside it.
+Entities the prefab still contains keep their identity, so the selection and references from other entities remain
+valid. The scene is not marked as modified, because its file stores only the overrides.
+
+## Prefab actions
+
+Right-clicking an instance in the Outliner, or the prefab bar at the top of Details, offers:
+
+| Action | Effect |
+|---|---|
+| **Edit Prefab** | Opens the source in Prefab Mode. |
+| **Select Prefab Source** | Reveals the `.esprefab` in the Content Browser. |
+| **Apply to Prefab** | Writes this instance's overrides into the source, changing the base for every instance. |
+| **Revert to Prefab** | Discards this instance's overrides and resynchronises it with the source. |
+| **Create Variant** | Saves a new `.esprefab` that inherits the base and contains this instance's overrides. |
+| **Unpack Prefab** | Detaches the subtree: its entities become ordinary scene entities without a prefab link. Undoable. |
+
+*Apply to Prefab* is the only action that rewrites the shared asset. It first shows an itemized diff
+(*Apply changes to prefab?*): edits in amber, additions in green, removals in red, with structural changes marked as
+destructive.
+
+{/* SHOT: world-prefab-apply-diff | The Apply changes to prefab? dialog listing an edited field, an added component and a removed child, opened from Apply to Prefab on a modified prefab instance */}
 
 <Aside type="caution">
-  Deleting a `.esprefab` does **not** delete its instances. The editor warns which documents
-  reference it and moves the file to the trash (recoverable with Undo), but any surviving
-  instances become unresolvable and are dropped the next time their scene loads. Reach for
-  **Unpack** first if you want to keep the entities.
+  Deleting an `.esprefab` does not delete its instances. The editor lists the documents that reference it and moves the
+  file to the trash (recoverable with Undo). Remaining instances can no longer be resolved and are dropped the next
+  time their scene loads. Use **Unpack Prefab** first to keep the entities.
 </Aside>
 
-<Aside type="tip">
-  If you rename or remove components that some instance overrode, those overrides no longer
-  match the prefab and are dropped on scene load (with a toast). The Inspector flags the
-  affected instance and offers a **Repair** — saving the scene persists the cleaned-up state.
-</Aside>
+When components that an instance overrode are renamed or removed from the prefab, those overrides no longer match and
+are dropped on scene load, with a notification. The Inspector flags the affected instance and offers **Repair**;
+saving the scene persists the cleaned state.
 
-### Virtual instances
+Prefabs nest: a prefab can contain instances of other prefabs, and overrides apply through the nesting.
 
-A screen made of many pages does not need every page's entities in a running scene. Mark a
-prefab instance **Virtual** (the toggle in the prefab bar of Details, or the Outliner's context
-menu) and the editor still shows and edits it whole, but a running scene makes only its root and
-builds the rest when the instance is opened. Use [`UIPages`](/docs/ui/overview/) to open it:
-`registerDeferred(entity)` registers a virtual instance as a page named after its root.
+## Virtual instances
+
+A **virtual** instance is shown and edited whole in the editor, but a running scene creates only its root and builds
+the rest when the instance is opened. It suits screens composed of many pages, where only the open page needs its
+entities.
+
+- Toggle it with **Virtual** in the prefab bar of Details, or *Make Virtual (load on demand)* in the Outliner context
+  menu.
+- Open it at runtime through [`UIPages`](/docs/ui/overview/): `registerDeferred(entity)` registers a virtual instance
+  as a page named after its root.
+- An instance that adds, removes or re-parents entities is always created whole, not virtual.
+- The page address parameter `?expand-virtual` creates every virtual instance whole at boot, for test harnesses that
+  expect every node. Instances marked as an alternative layout of the same page are excluded, since the layouts would
+  otherwise appear side by side.
+- `deferredEntities` and `deferredRecord` are exported for games that keep alternative layouts this way.
 
 ![The prefab bar at the top of Details with the Edit, Select, Apply, Revert and Virtual buttons](@/assets/guides/en/prefab-virtual-toggle.png)
 
 ![The Outliner's context menu on a prefab instance, with Make Virtual (load on demand)](@/assets/guides/en/outliner-prefab-menu.png)
 
-- An instance that adds, removes or re-parents parts is made whole, not virtual.
-- Adding `?expand-virtual` to the page address makes every virtual instance whole at boot, for a
-  test harness that expects every node (an instance marked as another layout of the same page is
-  left out, as the layouts would stand side by side).
-- `deferredEntities` and `deferredRecord` are exported for a game that keeps two layouts this way.
+## Instantiating at runtime
 
-## Spawn a prefab
-
-`instantiate` loads the prefab and spawns it. It's async and returns the spawned
-tree — `root` is the new root entity:
+`instantiate` loads the prefab asset (and its dependencies) on first use and spawns it. It is asynchronous and
+resolves to the spawned tree; `root` is the new root entity.
 
 ```typescript
 import { defineSystem, Res, Prefabs } from 'esengine';
 
 const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
   const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab');
-  // `root` is the new entity — move it, tag it, give it a Transform position…
 });
 ```
 
-## Parent it & reach its children
+### Parent and children
 
-Nest the instance under another entity, and use the returned `entities` map to reach
-the spawned children:
+`parent` places the instance under an existing entity at spawn, so its transforms resolve on the first frame. The
+returned `entities` map gives access to the spawned children.
 
 ```typescript
 const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.esprefab', {
   parent: mountPointEntity,
 });
 // root      → the instance root
-// entities  → Map<number, spawned Entity>, keyed by the id the spawn gave each entity
+// entities  → Map<number, Entity> of every spawned entity, root included
 ```
 
-## Per-instance overrides
+### Per-instance overrides
 
-Pass `overrides` to change a value for **this instance only** without editing the
-prefab asset — spawn the same enemy with different health or tint. An override
-names the component + property, and aims at the prefab's **root** unless you say
-otherwise:
+`overrides` changes values for this instance only, without editing the asset — for example the same enemy with
+different health or tint. An override names the component and property and targets the prefab's **root** unless it
+names another entity.
 
 ```typescript
 const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
@@ -162,52 +152,58 @@ const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
 });
 ```
 
-To reach a **child**, add its `prefabEntityId` — the entity's own **string** id,
-a UUID for editor-authored prefabs. Read it from the `.esprefab` (an override that names no `prefabEntityId` aims at the root).
+To target a child, set `prefabEntityId` to that entity's string id in the `.esprefab` (a UUID for prefabs saved by the
+editor). An override without `prefabEntityId` targets the root. An id that matches no entity in the prefab **throws**,
+and the error names the root id and the ids that exist.
 
-:::caution[`prefabEntityId: '0'` no longer matches anything]
-`'0'` is the id every prefab had before stable ids, and it appears in older
-sample code. A prefab saved by the editor since has a UUID instead, so an
-override carrying `'0'` aims at nobody. It now **throws**, naming the root and
-the ids that do exist — before, it was dropped in silence, and the only symptom
-was every instance appearing at the position the prefab was authored with.
-:::
+<Aside type="caution" title="prefabEntityId: '0'">
+  `'0'` was the root id of every prefab before stable ids were introduced and appears in older sample code. Prefabs
+  saved by the editor since then use UUIDs, so an override with `prefabEntityId: '0'` throws. Omit the field to target
+  the root.
+</Aside>
 
-Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'parent'`, `'component_added'`,
-`'component_replaced'`, `'component_removed'`, `'metadata_set'`, or `'metadata_removed'`
-(the metadata forms use `metadataKey` in place of `componentType`/`propertyName`).
+| Override `type` | Fields used |
+|---|---|
+| `'property'` | `componentType`, `propertyName`, `value` |
+| `'name'` | `value` (string) |
+| `'visibility'` | `value` (boolean) |
+| `'parent'` | `value` (the new parent's `prefabEntityId`, or `null`) |
+| `'component_added'`, `'component_replaced'` | `componentData` (`{ type, data }`) |
+| `'component_removed'` | `componentType` |
+| `'metadata_set'` | `metadataKey`, `value` |
+| `'metadata_removed'` | `metadataKey` |
+
+### Prepared spawns
+
+`prepare(path)` loads a prefab and every asset its entities use (meshes, materials, textures) and holds them until
+released. Spawning from the result is synchronous: the entities exist on the line that requests them.
+
+```typescript
+const bullet = await prefabs.prepare('assets/prefabs/bullet.esprefab');
+const { root } = bullet.spawn({ parent: gunEntity });   // synchronous
+// …
+bullet.release();                                         // a spawn after release throws
+```
+
+`spawn` accepts `parent` and `scene`; it takes no overrides.
 
 ## `instantiate` reference
 
 | Option | Type | Description |
 |---|---|---|
-| `parent` | Entity | Nest the instance under this entity. |
-| `overrides` | override[] | Per-instance component-value changes. |
+| `parent` | Entity | Places the instance under this entity. |
+| `overrides` | override[] | Per-instance changes. |
 | `baseUrl` | string | Base URL for resolving the prefab's assets. |
-| `scene` | boolean | Default `true`: what is spawned belongs to the scene live when it landed and goes with it. Pass `false` for something meant to outlive the area it came from. |
+| `scene` | boolean | Default `true`: the spawned entities are adopted by the scene active when the spawn completes and are removed with it. `false` keeps them out of any scene, for entities that must outlive the area that spawned them. |
 
 | Result field | Description |
 |---|---|
-| `root` | The instance's root `Entity`. |
-| `entities` | `Map<number, Entity>` of every spawned entity, root included, for reaching children. |
+| `root` | The instance root `Entity`. |
+| `entities` | `Map<number, Entity>` of every spawned entity, root included. |
 
-## Best practices
-
-- **One prefab, many instances** — keep shared data in the prefab and vary instances
-  with `overrides`, so a design change updates every instance.
-- **Reach children via the `entities` map**, not by walking the hierarchy by index.
-- **Parent at spawn** (`parent`) rather than re-parenting after, so transforms resolve
-  correctly on the first frame.
-- **Apply-to-prefab** in the editor to push an instance's tweaks back to the source
-  when a change should be global.
-
-<Aside type="tip">
-  Prefabs nest: a prefab can contain instances of other prefabs, and overrides layer
-  through the nesting. Instantiate is async because it may load the prefab asset (and
-  its dependencies) on first use.
-</Aside>
+Reach children through `entities` rather than walking the hierarchy by index.
 
 ## See also
 
-- [Scenes](/docs/world/scenes/) — scenes are where prefab instances live.
-- [Assets](/docs/assets/overview/) — prefabs are assets, loaded on first instantiate.
+- [Scenes](/docs/world/scenes/) — scene ownership of spawned entities.
+- [Assets](/docs/assets/overview/) — prefabs are assets loaded on first use.

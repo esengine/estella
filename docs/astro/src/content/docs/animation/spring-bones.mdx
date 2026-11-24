@@ -1,90 +1,145 @@
 ---
 title: Spring bones
-description: "Secondary motion for chains of bones (hair, tails, cords): a SpringBone on the chain's root, SpringBoneCollider shapes to keep it out of, and what it costs."
+description: "Secondary motion for bone chains such as hair, tails and cords — the SpringBone and SpringBoneCollider components, building chains on model import, editor gizmos and preview, the per-frame solve, cost, and limits."
 ---
 
-Hair, tails, scarves and cords move after the body does: they lag it, swing, and settle. **Spring bones** add that to a skeleton without an animator
-authoring it. A `SpringBone` on the **root** of a chain makes every entity below it a spring: the animation still says where each bone would be, and
-the chain trails that pose by inertia, falls with gravity, and is pulled back toward it. The root itself is not simulated; it is what the animation or
-the body drives.
+**Spring bones** add secondary motion to a skeleton: hair, tails, scarves and cords lag behind the body, swing and
+settle without authored animation. A `SpringBone` on the **root** of a chain makes every entity below it a spring: the
+animation still defines where each bone would be, and the chain trails that pose by inertia, falls with gravity and is
+pulled back toward it. The root itself is not simulated; it is driven by the animation or the body.
 
-It is core, not an optional module, and it runs in C++ in the engine, so it costs the same on every target, including ones with no JIT.
+Spring bones are part of the core engine and run in C++, with the same cost on every target, including targets without
+a JIT.
 
-## The component
+## `SpringBone` component
 
-Put a `SpringBone` on the top bone of a hair strand (its parent bone is the body; its children are the strand). Everything below it, down every branch,
-is simulated.
+Add a `SpringBone` to the top bone of a chain, for example the first bone of a hair strand (its parent is the body,
+its children are the strand). Every entity below it, along every branch, is simulated.
 
-| Field | What it does |
-|---|---|
-| `enabled` | Off leaves the chain exactly as the animation poses it. |
-| `stiffness` | How hard each bone is pulled back toward its animated pose, 0 to 1 a frame at 60 Hz. 0 hangs free. Default 0.1. |
-| `drag` | How much of its speed a bone loses each frame, 0 to 1. Higher settles sooner; the default (0.5) is damped enough not to ring. |
-| `gravity` | World units a second squared (world y is up). The default is `{0, -980, 0}`: a metre a hundred units. |
-| `wind` | A steady wind on the chain, world units a second squared. Zero is still air. |
-| `windGust` | How far gusts swing the wind's strength, 0 to 1. 0 is steady; 1 takes it from calm to twice its strength. Each bone meets a gust a moment after the one above, so the strand ripples. |
-| `windFrequency` | Gusts a second (default 0.5). |
-| `endLength` | A leaf bone has no child to aim at; this gives it a tip that long. 0 leaves leaf bones unsimulated. |
-| `radius` | The thickness of the strand, kept clear of the colliders. |
-| `weight` | How much of the simulation is used, 0 to 1 (default 1). 0 is the animation alone. |
-| `colliders` | Entities with a `SpringBoneCollider` the chain is kept out of. |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | boolean | `true` | Off leaves the chain exactly as the animation poses it. |
+| `stiffness` | number | `0.1` | Pull of each bone back toward its animated pose per frame at 60 Hz, 0 to 1. 0 hangs free; 1 follows the animation exactly. |
+| `drag` | number | `0.5` | Fraction of its velocity a bone loses each frame, 0 to 1. Higher values settle sooner; the default is damped enough not to oscillate. |
+| `gravity` | vec3 | `(0, -980, 0)` | World units per second squared; world Y is up. The default assumes 100 units per metre. |
+| `wind` | vec3 | `(0, 0, 0)` | Steady wind acceleration on the chain, world units per second squared. Zero is still air. |
+| `windGust` | number | `0` | Gust amplitude, 0 to 1. 0 is a steady wind; 1 varies it from calm to twice its strength. Each bone meets a gust slightly after the one above it, so the strand ripples. |
+| `windFrequency` | number | `0.5` | Gusts per second. |
+| `endLength` | number | `0` | Length of the tip added past each end bone, in world units; an end bone has no child to aim at. 0 leaves end bones unsimulated. |
+| `radius` | number | `0` | Thickness of the strand, in world units, kept clear of the colliders. |
+| `weight` | number | `1` | Blend from the animation alone (0) to the full simulation (1). |
+| `colliders` | entity list | empty | Entities with a `SpringBoneCollider` that the chain is kept out of. |
 
-A `SpringBoneCollider` is a sphere (the default, `radius` 10), or a capsule along its entity's own Y axis (`height` 20, the distance between its end centres), placed by the entity's transform (and its `offset`). Put them on the head
-and shoulders bones so hair does not pass through the body.
+### `SpringBoneCollider`
 
-## From a model
+A sphere or capsule that chains listing it are kept out of, placed by its entity's transform. Put colliders on the head
+and shoulder bones so hair does not pass through the body.
 
-Set a model's **Spring Bones** import setting to **From File Data and Names** and the importer builds the chains from what the file already says, so nobody sets up forty strands by hand. It looks, in this order, at:
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `shape` | `SpringBoneShape` | `Sphere` | `Sphere`, or `Capsule` along the entity's local Y axis. |
+| `radius` | number | `10` | Radius in world units, before the entity's scale. |
+| `height` | number | `20` | Capsule only: distance between the centres of its end spheres, in world units before scale. |
+| `offset` | vec3 | `(0, 0, 0)` | Centre of the shape in the entity's local space. |
 
-1. **`VRMC_springBone`**, the VRM 1.0 extension: springs, colliders and collider groups with their numbers. A spring becomes a `SpringBone` on its first joint (that bone is held, the ones below it move), and its stiffness (per second in VRM) and gravity power are converted to the engine's per-frame and acceleration units. Springs that name fewer than two joints, or that would move bones they do not name, are reported in the import warnings.
-2. **A node's own properties**, `extras.estella.springBone` (`stiffness`, `drag`, `gravity`, `radius`, `endLength`) on a chain root and `extras.estella.springCollider` (`shape`, `radius`, `height`, `offset`) on a collider node, which is how a Blender custom property reaches the engine with exact sizes. These win over VRM for the node they are on.
-3. **Names**, for whatever those leave unsaid:
+## Chains from a model
 
-| Name | Becomes |
+With a model's **Spring Bones** import setting set to **From File Data and Names**, the importer builds chains and
+colliders from the data in the file. Sources are read in this order:
+
+1. **`VRMC_springBone`** (VRM 1.0 extension): springs, colliders and collider groups with their values. A spring
+   becomes a `SpringBone` on its first joint (that bone is held, the bones below it move). Its stiffness (per second
+   in VRM) and gravity power are converted to the engine's per-frame and acceleration units. Springs that name fewer
+   than two joints, or that would move bones they do not name, are reported in the import warnings.
+2. **Node properties**: `extras.estella.springBone` (`stiffness`, `drag`, `gravity`, `radius`, `endLength`) on a chain
+   root and `extras.estella.springCollider` (`shape`, `radius`, `height`, `offset`) on a collider node. A Blender
+   custom property reaches the engine this way with exact values. These take precedence over VRM data on the same node.
+3. **Names**, for anything the above do not specify:
+
+| Name | Result |
 | --- | --- |
-| `Hair_<region>_<chain>_00` (with bones below it) | a `SpringBone` on that bone; the rest of the strand is whatever hangs below it |
-| `SBC_Sphere_<name>_r<cm>` | a sphere `SpringBoneCollider`, radius in centimetres |
-| `SBC_Capsule_<name>_r<cm>_h<cm>` | a capsule, radius and the distance between its two end centres, along the node's local +Y |
+| `Hair_<region>_<chain>_00` (with bones below it) | A `SpringBone` on that bone; the strand is the bones below it. |
+| `SBC_Sphere_<name>_r<cm>` | A sphere `SpringBoneCollider`; radius in centimetres. |
+| `SBC_Capsule_<name>_r<cm>_h<cm>` | A capsule along the node's local +Y; radius and distance between end centres in centimetres. |
 
-The region (`Ponytail`, `Temple_L`, `Fringe`, `Crest`, `Crown`) picks a starting stiffness and drag: a fringe is held close, a ponytail swings. Every chain is kept out of every collider the model has. Sizes are in the model's metres and follow the import scale, and gravity is Earth's in those metres. A capsule with no length, or a chain root with nothing below it, is skipped. A name is a convention, so look at what the import made in Details and adjust it there.
+- The region (`Ponytail`, `Temple_L`, `Fringe`, `Crest`, `Crown`) selects initial stiffness and drag: a fringe is held
+  close, a ponytail swings.
+- Every chain is kept out of every collider in the model.
+- Sizes are in the model's metres and follow the import scale; gravity is Earth gravity in those units.
+- A capsule with zero length, or a chain root with no bones below it, is skipped.
+- Name-based chains are a convention; review the result in the Details panel and adjust it there.
 
-## In the editor
+## Editor
 
-Details groups the chain's fields into **Motion** (stiffness, drag, gravity), **Chain** (end length, radius, weight) and **Collision** (colliders), and says on its first
-line how many bones the chain has below its entity and how many end tips, or, in the warning colour, that it has no child bones and so simulates nothing.
+### Details panel
 
-Select a chain's root and the viewport draws it, and the colliders it keeps out of, in the **Spring bones** entry of the Gizmo menu: the bones as the animation poses them
-as amber lines, a ring at each joint the width of the strand's `radius` (a dot where it is 0), a tip where `endLength` gives one, and each collider as a wireframe sphere or
-capsule in the collider green. Select a `SpringBoneCollider` and its own shape is drawn, with six square handles to size it: on a sphere all six set the radius, on a capsule the four round its middle set the radius and the two on its ends set the height (the distance between the centres of its end spheres). The handles on the far side of the shape are faded. A drag is one undo step, shows the value beside the pointer, and the strands follow it live while Preview FX is on. Nothing is drawn for what is not selected, so a character's hair does not fill the viewport.
+The `SpringBone` fields are grouped as **Motion** (stiffness, drag, gravity), **Wind** (wind, gust, frequency),
+**Chain** (end length, radius, weight) and **Collision** (colliders). The first line reports the number of bones below
+the entity and the number of end tips, or, in the warning colour, that the entity has no child bones and simulates
+nothing.
 
-**View → Preview FX** (on in a fresh editor, the same switch particles and trails use) runs the chain in the edit viewport: drag the head, or change a field, and the
-hair swings. With it on, the simulated chain is drawn solid over the animated pose, dashed, so the difference you are tuning is the difference you see. Turning it off
-ends the simulation and gives the bones back as the scene has them. The simulation is the editor's own: it never writes into the scene file.
+### Viewport gizmos
 
-## What it does each frame
+Drawn for the selection only, under the **Spring bones** entry of the Gizmo menu:
+
+| Selection | Drawing |
+|---|---|
+| Chain root | The bones as the animation poses them as amber lines; a ring at each joint with the width of `radius` (a dot when it is 0); a tip where `endLength` adds one; each listed collider as a wireframe sphere or capsule in the collider green. |
+| `SpringBoneCollider` | Its shape, with six square resize handles. On a sphere all six set the radius; on a capsule the four around its middle set the radius and the two on its ends set the height. Handles on the far side are faded. |
+
+A handle drag is one undo step and shows the value beside the pointer; with Preview FX on, the chains follow it live.
+Handles size a collider but do not place it; `offset` is typed in Details or set by moving the entity.
+
+{/* SHOT: anim-spring-bone-gizmo | A hair chain root selected in the viewport with Preview FX on: amber chain lines with joint rings (the simulated chain solid over the dashed animated pose), and green wireframe sphere and capsule colliders on the head and shoulders; the SpringBone card in Details showing the Motion, Wind, Chain and Collision groups and the bone-count line. Needs a model imported with Spring Bones = From File Data and Names and Hair_ bones; none of the bundled examples has spring bones. */}
+
+### Preview
+
+**View → Preview FX** (on by default in a new editor; the same switch particles and trails use) runs the chains in the
+edit viewport: moving the head or changing a field makes the hair swing. While it is on, the simulated chain is drawn
+solid over the animated pose, which is drawn dashed. Turning it off ends the simulation and restores the bones as the
+scene stores them. The editor's simulation never writes to the scene file.
+
+## Per-frame solve
 
 The animation runs first and writes the bones' local rotations. Then, for each chain:
 
-1. The pose the animation gave is worked out down the chain from the root, using the animation's own rotations. (A bone this system turned last frame
-   and that nothing animated this frame is read as the animation had it, not as it was left, so a chain never springs toward its own last result.)
-2. The chain is stepped toward that pose: each bone keeps its velocity less drag, falls with gravity, is pulled toward its pose, is put back at its length
-   from its parent (parents first, so a bone cannot stretch), and is pushed out of the colliders. The time is split into steps of at most a 60 Hz frame.
-3. Each bone is turned to aim at where its child has got to. **Only rotations are written**; a bone's position is never changed, so it cannot leave its parent,
-   and skinning needs nothing else.
+1. The animated pose is computed down the chain from the root, using the animation's rotations. A bone this system
+   rotated in the previous frame and that no animation wrote this frame is read as the animation had it, not as the
+   system left it, so a chain never springs toward its own previous result.
+2. The chain is stepped toward that pose. Each bone keeps its velocity less drag, falls with gravity, is pulled toward
+   its pose, is restored to its length from its parent (parents first, so bones do not stretch), and is pushed out of
+   the colliders. The time step is subdivided into steps of at most one 60 Hz frame.
+3. Each bone is rotated to aim at its child's new position. **Only rotations are written**; bone positions never
+   change, so a bone cannot separate from its parent and skinning needs no further data.
 
-A jump of the root by more than a few times the chain's length, or a stall of half a second, puts the chain back at its pose instead of whipping it.
-Switching the component off, or removing it, gives the bones back as the animation had them. `SpringBoneRes` (`app.getResource(SpringBoneRes)`) has
-`reset(root)` for a teleport you want to mark yourself.
+### Resets
+
+| Condition | Result |
+|---|---|
+| The root moves by more than a few chain lengths in one frame | The chain is reset to its pose. |
+| A stall of half a second or more | The chain is reset to its pose. |
+| The component is disabled or removed | The bones return to the animated pose. |
+| `SpringBoneRes.reset(root)` | Explicit reset, for example after a teleport. |
+
+`SpringBoneRes` is read with `app.getResource(SpringBoneRes)`.
 
 ## Cost
 
-The solver is a few arithmetic operations per bone. Measured in the editor's play realm, in the wasm engine: **three hundred chains of six bones (2100 nodes)
-cost 0.28 ms an update.** The test is `springbone` in the editor checks; `test_springbone` is the C++ unit test of the solver and the system.
+The solver costs a few arithmetic operations per bone. Measured in the editor's play realm with the WebAssembly
+engine: **300 chains of six bones (2100 nodes) cost 0.28 ms per update.** The measurement is the `springbone` editor
+check; `test_springbone` is the C++ unit test of the solver and system.
 
 ## Limits
 
-- A bone with several children aims at its first child; the others follow by being children, and aim at their own.
-- Scale is taken from the bones' composed scale; non-uniform scale down a chain is not modelled.
-- Collision is bone against sphere or capsule: no collision between strands, no self-collision, and no collision with the world's physics shapes.
-- The wind is a field on each chain, not a force in the scene: there is no scene-wide wind source to set once for every chain. A collider's offset is typed in Details, or set by moving its entity; the handles size it, they do not place it. Chains are made from names; the importer does not look at
-  the shape of the mesh, so a strand with no `Hair_` bone gets no motion.
+- A bone with several children aims at its first child; the other children follow as children and aim at their own.
+- Scale is taken from the bones' composed scale; non-uniform scale along a chain is not modelled.
+- Collision is bone against sphere or capsule only: no strand-to-strand collision, no self-collision, and no collision
+  with physics shapes.
+- Wind is a per-chain field, not a scene force; there is no scene-wide wind source shared by all chains.
+- The importer builds chains from names and file data, not from the mesh shape; a strand with no `Hair_` bone (and no
+  VRM or `extras` data) gets no motion.
+
+## See also
+
+- [Models](/docs/assets/models/) — the **Spring Bones** import setting.
+- [Grip Pose](/docs/animation/grip-pose/) — hand posing that shares the Preview FX switch.

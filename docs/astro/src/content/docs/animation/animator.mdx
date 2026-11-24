@@ -1,0 +1,330 @@
+---
+title: Animator
+description: Animator controllers (.esanimator) — states, transitions, parameters and conditions, the Animator component and AnimatorController resource, state motions, sprite clip states, blend trees, sub-state machines and parameter-driven state speed.
+---
+
+An animator controller (`.esanimator`) is a state machine over clips. Each state plays a motion; transitions between
+states are taken when their conditions on the controller's parameters hold. Gameplay code sets parameters or fires
+triggers and does not name clips. The `Animator` component runs a controller on an entity.
+
+Events, windows and combo transitions are described in [Animation events](/docs/animation/animator-events/); layers,
+masks, IK, avatars and root motion in [Layers, IK and root motion](/docs/animation/animator-layers/).
+
+## Creating a controller
+
+1. Prepare a clip: an `.estimeline` with keyed motion (see
+   [Key a property](/docs/animation/timeline/sequencer/#key-a-property)) or a multi-frame `.esanim`.
+2. Choose **Content Browser → Add → New Animation Controller**. The controller editor opens with an initial state,
+   **Idle**. Select it and change **Kind** from **None** to **Clip**.
+3. Enter the clip's project path in **Clip**, for example `assets/Logo.estimeline`; the field commits when it loses
+   focus. **Played by** selects **Timeline** for an `.estimeline` and **Sprite sheet** for an `.esanim`; entering an
+   `.esanim` path selects **Sprite sheet** automatically. Click **Save** in the controller editor.
+
+   ![The initial Idle state set to Clip, with assets/Logo.estimeline entered and Played by set to Timeline](@/assets/guides/en/animator-state-clip.png)
+
+4. Select the target entity in the **World Outliner**, add **Animator** in **Details → Add Component** and select the
+   saved `.esanimator` in **Controller**.
+5. Save the scene and press Play on the main toolbar. Selecting a node in the graph shows its properties.
+
+The green triangle in the graph marks the initial state. A single initial state plays without transitions or
+parameters. For visibility, audio and camera cues on a time line, use the
+[Sequencer and Timeline Player](/docs/animation/timeline/overview/).
+
+### State properties
+
+| Property | Description |
+|---|---|
+| **Kind** | **None**, **Clip**, **Blend 1D** or **Blend 2D**. |
+| **Clip** / **Played by** | The clip asset and its player: **Timeline** or **Sprite sheet**. |
+| **Speed** | Playback speed of the state. |
+| **Wrap Mode** | **Use clip setting**, **Once** or **Loop**; overrides the clip's own looping. |
+| **Initial state** | Makes the state the machine's entry state. |
+| **Root motion** | The clip's root track becomes a movement request ([Root motion](/docs/animation/animator-layers/#root-motion)). |
+
+## Transitions
+
+Hover over a state and drag the connector on its right edge onto another state to create a transition. Selecting the
+transition shows the **Transition** inspector.
+
+| Field | Description |
+|---|---|
+| `to` | Target state. |
+| `conditions` | Conditions that must all hold (AND). Empty means unconditional. |
+| `hasExitTime` | **Has exit time**. The transition is taken only once the current state's clip has finished; with conditions, both must hold. |
+| `duration` | Seconds of crossfade from the state being left into the state being entered. Absent or `0` cuts. |
+
+A transition label in the graph reads **always** when it has no conditions and no exit time, and
+**When the current clip finishes** when it has no conditions and **Has exit time** is ticked.
+
+### Advancing when a clip ends
+
+An intro that plays `Nexon` and then `Wizet` needs no parameters:
+
+1. Select the transition from `Nexon` to `Wizet`, remove any condition under **Transition → Conditions** with **×**,
+   and tick **Has exit time**.
+2. Make the first state play once: set its **Wrap Mode** to **Once**, or set the clip asset itself to play once (in
+   the Sequencer, **Clip settings → Loop → Once**; in Sprite Animation, **Loop** off).
+3. Save the controller and the scene.
+
+![The transition to Run with Has exit time checked and the conditions list empty](@/assets/guides/en/animator-after-clip.png)
+
+With no conditions and **Has exit time** ticked, the transition waits for the end of the clip; a looping clip never
+finishes, so the transition is never taken. With no conditions and **Has exit time** unticked, the transition is
+taken on the first update and the first state may not be visible at all. A trigger condition left on the edge (for
+example `toWz`) requires `anim.setTrigger(entity, 'toWz')` for that entity.
+
+### Switching on a parameter
+
+1. Click **＋ State**, name the new state `Run` and assign a second clip. Drag a transition from `Idle` to `Run`.
+2. Click **＋** beside **Parameters**, name the parameter `speed` and keep the type **Float**.
+3. Select the transition and click **＋** beside **Conditions**. A new condition uses the first parameter; for a
+   float the comparison is `> 0`. Set **Parameter** to `speed`, **Op** to `>` and the value to `0`.
+4. Save the controller and the scene. During play, `anim.setFloat(entity, 'speed', 1)` moves the entity from `Idle`
+   to `Run`. A return transition from `Run` to `Idle` needs its own condition.
+
+![Transition inspector showing Run as the target and speed greater than zero as its condition](@/assets/guides/en/animator-transition.png)
+
+The following graph uses separate conditions for moving and jumping; gameplay code sets the parameters through
+`AnimatorController`.
+
+![A configured Animator graph with Idle, Move and Hop states, transitions and the Parameters panel](@/assets/guides/en/animator-graph.png)
+
+```typescript
+import type { AnimatorControllerAPI, Entity } from 'esengine';
+
+function updateSpeed(anim: AnimatorControllerAPI, entity: Entity, speed: number) {
+  anim.setFloat(entity, 'speed', speed);
+}
+
+function onJumpPressed(anim: AnimatorControllerAPI, entity: Entity) {
+  anim.setTrigger(entity, 'hop');
+}
+```
+
+### Parameters and conditions
+
+Parameters have three types (`AnimatorParamType`): `'float'`, `'bool'` and `'trigger'`. There is no integer type;
+whole numbers are carried by a float parameter compared with `eq` / `neq`.
+
+| Condition `op` | Applies to | Holds when |
+|---|---|---|
+| `gt` / `lt` / `eq` / `neq` | float, with `value` | The comparison with `value` holds. |
+| `true` / `false` | bool | The parameter has that value. |
+| `trigger` | trigger | The trigger is set; taking the transition consumes it. |
+| `window` | clip window name | The state being left has that window open ([Combos](/docs/animation/animator-events/#combos-and-the-input-buffer)). |
+
+### Transition priority
+
+Any-state transitions are evaluated before the current state's own transitions. With sub-state machines the order,
+highest first, is: top-level any-state transitions, each enclosing machine's any-state transitions (outermost
+first), the leaf state's own transitions, then container exit edges (innermost first).
+
+## Animator component
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `controller` | string | `''` | An `.esanimator` asset reference (written by the editor) or a name passed to `registerController` in code. |
+| `avatar` | string | `''` | An `.esavatar` describing how this rig names the joints the clips refer to ([Avatars](/docs/animation/animator-layers/#avatars)). |
+| `currentState` | string | `''` | The base layer's active state; a `/`-separated path inside sub-state machines. Empty until the first update sets it to the initial state. |
+| `layerStates` | string[] | `[]` | The active state of each layer above the base layer, in layer order. |
+| `enabled` | boolean | `true` | When false, the state machine is frozen. |
+
+{/* SHOT: anim-animator-component-details | Details panel of the player character in the third-person-3d example during Play, showing the Animator component with Controller set to locomotion.esanimator and Current State filled in */}
+
+## AnimatorController resource
+
+| Method | Description |
+|---|---|
+| `setFloat(entity, name, value)` | Set a float parameter. |
+| `setBool(entity, name, value)` | Set a bool parameter. |
+| `setTrigger(entity, name)` | Set a trigger. |
+| `resetTrigger(entity, name)` | Clear a trigger before a transition consumes it. |
+| `getFloat(entity, name)` / `getBool(entity, name)` | Read a parameter. |
+| `registerController(name, def)` / `unregisterController(name)` | Register or remove a controller defined in code (`AnimatorControllerDef`). |
+| `getController(name)` | Look up a controller. |
+| `openWindow(entity, name)` / `windowsOf(entity)` | Query open clip windows ([Windows](/docs/animation/animator-events/#windows)). |
+
+## Motions
+
+A state plays exactly one of the following:
+
+| Field | Motion |
+|---|---|
+| `motion` | The general form: a registered motion kind (`sprite` or `timeline`), or a `blend1d` / `blend2d` over motions. |
+| `clip` | A single sprite clip. |
+| `blend` | A 1D selection over sprite clips (`AnimatorBlend1D`). |
+| `spine` | A [Spine](/docs/animation/spine/) animation (`AnimatorSpineMotion`). |
+| `stateMachine` | A nested machine; the state is a container ([Sub-state machines](#sub-state-machines)). |
+
+`motion` takes precedence over the single-kind fields `clip`, `blend` and `spine`, which are migrated to it. A
+timeline clip animates any keyed component field, including the joints of a skinned 3D rig. A transition's
+`duration` crossfades wherever both motions can be sampled; a sprite sheet is switched instead.
+
+A `spine` motion (`{ animation, loop? }`) sets that Spine animation on entry (`loop` defaults to `true`) and leaves
+track playback and mixing to the Spine runtime; it does not use `SpriteAnimator`.
+
+## Sprite clip states
+
+A state whose clip is played by **Sprite sheet** shows its frames through the `Sprite` on the same entity:
+
+- If the entity has a **Sprite Animator**, the controller plays the clip through it.
+- Otherwise the controller tracks the requested clip and playhead on a runtime `AnimatorSpritePlayback` component,
+  which the state machine creates during play and which is not saved with the scene.
+- Without a **Sprite** on the entity, the controller still advances states and dispatches frame events, but nothing
+  is displayed. Place **Animator** on the entity that has the **Sprite**.
+
+Sprite clips referenced only by a controller are loaded with the controller.
+
+![The Nexon state with its sprite sheet player and the hint to add Sprite to the same entity to display the frames](@/assets/guides/en/animator-sprite-state.png)
+
+When a state shows no motion, check the state's **Clip** and **Played by**, and the entity's
+**Animator → Controller**. A `@uuid:…` value in **Clip** is a project asset reference.
+
+## Blend trees
+
+![A 1D blend on speed selecting idle / walk / run by threshold](@/assets/guides/blend-tree.svg)
+
+*A 1D blend over sprite clips: a float parameter selects the clip with the highest threshold at or below its value —
+`idle`, `walk` and `run` as `speed` rises, with no transitions between them.*
+
+### Selection over sprite clips
+
+A state's `blend` (`AnimatorBlend1D`) selects between `AnimatorBlendThreshold` stops with a float parameter. Sprite
+clips play one at a time, so this is a selection: the stop with the greatest `value` at or below the parameter plays,
+and below every stop the first stop plays. Each threshold is `{ value, clip, speed?, loop? }`; per-threshold `speed`
+and `loop` override the state's. The selection is re-evaluated every frame.
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const movement: AnimatorControllerDef = {
+  parameters: [{ name: 'speed', type: 'float', default: 0 }],
+  initialState: 'move',
+  states: [{
+    name: 'move',
+    blend: {
+      parameter: 'speed',
+      thresholds: [
+        { value: 0,   clip: 'idle' },
+        { value: 0.5, clip: 'walk' },
+        { value: 4,   clip: 'run', speed: 1.2 },
+      ],
+    },
+    transitions: [],
+  }],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('movement', movement);
+});
+```
+
+`selectBlendClip(blend, value)` returns the threshold a value selects.
+
+### Mixing sampled motions
+
+A blend over motions that can be sampled (timeline clips driving a skeleton or any component field) mixes the stops
+on either side of the parameter. Stops are aligned by phase rather than by time, so clips of different lengths (for
+example a 2 s idle and a 0.6 s run) stay in step.
+
+| Kind | Shape |
+|---|---|
+| `blend1d` | `{ kind: 'blend1d', parameter, thresholds: [{ value, motion }] }` |
+| `blend2d` | `{ kind: 'blend2d', parameterX, parameterY, points: [{ position: { x, y }, motion }] }` |
+
+A stop's `motion` can itself be another blend. `blend2d` places its points in the plane of two parameters and mixes
+the points around the sample; a sample on a point plays that point's motion alone, and a sample outside the hull is
+held by its nearest edge. The state inspector's **Kind** offers **Blend 1D** and **Blend 2D**, each with a
+**Driven by** parameter (or **X axis** / **Y axis**) and a list of **Stops** or **Points**. A blend requires a float
+parameter. Stops nested inside another blend are edited in the file.
+
+{/* SHOT: anim-animator-blend2d | Controller editor with locomotion.esanimator from the character-rig example open, the state using Blend 2D selected, the inspector showing Kind Blend 2D, the X axis and Y axis parameters and the list of Points */}
+
+## Sub-state machines
+
+A state with a `stateMachine` (`AnimatorSubMachine`) is a container and plays no motion. On entry the machine
+descends into the sub-machine's `initialState`. The container's own `transitions` are exit edges, evaluated from
+every leaf inside it. A sub-machine can declare `anyStateTransitions`, evaluated from all of its states.
+`Animator.currentState` holds the full path separated by `STATE_PATH_SEP` (`/`), for example `locomotion/run`.
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const player: AnimatorControllerDef = {
+  parameters: [
+    { name: 'speed', type: 'float', default: 0 },
+    { name: 'jump', type: 'trigger' },
+  ],
+  initialState: 'locomotion',
+  states: [
+    {
+      name: 'locomotion',                    // container: no motion of its own
+      stateMachine: {
+        initialState: 'idle',
+        states: [
+          { name: 'idle', clip: 'idle', transitions: [
+            { to: 'run', conditions: [{ param: 'speed', op: 'gt', value: 0.1 }] },
+          ] },
+          { name: 'run', clip: 'run', transitions: [
+            { to: 'idle', conditions: [{ param: 'speed', op: 'lt', value: 0.1 }] },
+          ] },
+        ],
+      },
+      // Exit edges — leave the whole machine from idle OR run.
+      transitions: [{ to: 'jump', conditions: [{ param: 'jump', op: 'trigger' }] }],
+    },
+    { name: 'jump', clip: 'jump', loop: false, transitions: [
+      { to: 'locomotion', conditions: [], hasExitTime: true },   // back in at idle
+    ] },
+  ],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('player', player);
+});
+```
+
+Entering `locomotion` lands on `locomotion/idle`. The `jump` trigger exits from either leaf. When the one-shot jump
+clip ends, `hasExitTime` re-enters the container at its initial state.
+
+The path logic is available as pure functions. `AnimatorScope` is the shape shared by the top-level controller and
+every sub-machine.
+
+```typescript
+import { enterStatePath, leafStateOf, evaluateAnimatorPath } from 'esengine';
+
+enterStatePath(player, 'locomotion');       // ['locomotion', 'idle']
+leafStateOf(player, 'locomotion/run')?.clip; // 'run'
+evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
+// → { nextPath: 'locomotion/run', consumedTriggers: [] }
+```
+
+| Helper | Description |
+|---|---|
+| `enterStatePath(scope, name)` | Descends from a state to its leaf; returns the path segments. |
+| `leafStateOf(def, path)` | The leaf state of a path, or `null`. |
+| `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | One evaluation step over a path; returns `{ nextPath, consumedTriggers }`. |
+| `STATE_PATH_SEP` | The path separator, `'/'`. |
+
+## State speed from a parameter
+
+`speedParameter` names a float parameter that scales the state's clock:
+
+```json
+{
+  "name": "Run",
+  "motion": { "kind": "timeline", "clip": "run.estimeline", "loop": true },
+  "speedParameter": "MoveSpeed",
+  "transitions": []
+}
+```
+
+The state's clock advances by `dt × MoveSpeed`: `2` plays at double speed and `0` holds the pose. The scale applies
+to any motion (sprite clip, timeline or blend) because it scales the state's clock. A missing parameter plays at the
+normal rate; a negative value stops the clock and never plays backwards.
+
+## See also
+
+- [Animation events](/docs/animation/animator-events/) — clip events, windows and combos.
+- [Layers, IK and root motion](/docs/animation/animator-layers/) — layered machines, constraints and movement.
+- [Spine Animation](/docs/animation/spine/) — Spine skeletons driven by Animator states.

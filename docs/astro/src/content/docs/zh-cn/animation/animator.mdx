@@ -1,0 +1,284 @@
+---
+title: 动画控制器
+description: 动画控制器（.esanimator）——状态、转换、参数与条件，Animator 组件与 AnimatorController 资源，状态动作，精灵剪辑状态，混合树，子状态机，以及由参数驱动的状态速度。
+---
+
+动画控制器（`.esanimator`）是以剪辑为对象的状态机。每个状态播放一个动作；当转换的条件在控制器参数上成立时，进行状态转换。玩法代码只设置参数或触发触发器，不直接指定剪辑。`Animator` 组件在实体上运行控制器。
+
+事件、窗口与连招转换见[动画事件](/docs/zh-cn/animation/animator-events/)；图层、遮罩、IK、骨架映射与根运动见[图层、IK 与根运动](/docs/zh-cn/animation/animator-layers/)。
+
+## 创建控制器
+
+1. 准备剪辑：带关键帧动作的 `.estimeline`（见[为属性设置关键帧](/docs/zh-cn/animation/timeline/sequencer/#为属性设置关键帧)），或多帧的 `.esanim`。
+2. 选择**内容浏览器 → 添加 → 新建动画控制器**。控制器编辑器打开，内含初始状态 **Idle**。选中它，将**类型**从**无**改为**剪辑**。
+3. 在**剪辑**中输入剪辑的项目路径，例如 `assets/Logo.estimeline`；该字段在失去焦点时提交。**播放器**中，`.estimeline` 选择**时间轴**，`.esanim` 选择**精灵表**；输入 `.esanim` 路径时会自动选择**精灵表**。点击控制器编辑器中的**保存**。
+
+   ![选中初始状态 Idle，类型设为剪辑，剪辑填写 assets/Logo.estimeline，播放器选时间轴](@/assets/guides/zh/animator-state-clip.png)
+
+4. 在**世界大纲**中选中目标实体，在**细节 → 添加组件**中添加 **Animator**，并在 **Controller** 中选择保存的 `.esanimator`。
+5. 保存场景，点击主工具栏的播放按钮。选中状态图中的节点会显示其属性。
+
+状态图中的绿色三角标记初始状态。单个初始状态无需转换或参数即可播放。按时间编排显隐、音频与镜头，请使用[序列器与 Timeline Player](/docs/zh-cn/animation/timeline/overview/)。
+
+### 状态属性
+
+| 属性 | 说明 |
+|---|---|
+| **类型** | **无**、**剪辑**、**一维混合**或**二维混合**。 |
+| **剪辑** / **播放器** | 剪辑资源及其播放器：**时间轴**或**精灵表**。 |
+| **速度** | 状态的播放速度。 |
+| **循环模式** | **跟随剪辑**、**单次**或**循环**；覆盖剪辑自身的循环设置。 |
+| **初始状态** | 将该状态设为状态机的入口状态。 |
+| **根运动** | 剪辑的根轨道成为移动请求（[根运动](/docs/zh-cn/animation/animator-layers/#根运动)）。 |
+
+## 转换
+
+将鼠标移到状态上，把其右边缘的连接点拖到另一个状态上即创建转换。选中转换后显示**转换**检视器。
+
+| 字段 | 说明 |
+|---|---|
+| `to` | 目标状态。 |
+| `conditions` | 必须全部成立的条件（与）。为空表示无条件。 |
+| `hasExitTime` | **播完再转**。仅在当前状态的剪辑播放完毕后才转换；有条件时两者须同时满足。 |
+| `duration` | 从离开的状态交叉淡化到进入的状态的秒数。缺省或 `0` 为硬切。 |
+
+无条件且未勾选**播完再转**的转换，在状态图上标为**始终**；无条件且勾选**播完再转**的转换，标为**当前剪辑播放完毕后转换**。
+
+### 剪辑播完后切换
+
+开场依次播放 `Nexon` 与 `Wizet`，无需参数：
+
+1. 选中从 `Nexon` 到 `Wizet` 的转换，用 **×** 删除**转换 → 条件**中的所有条件，勾选**播完再转**。
+2. 使第一个状态只播放一次：将其**循环模式**设为**单次**，或将剪辑资源本身设为单次播放（序列器中为**剪辑设置 → 循环 → 单次**；精灵动画中关闭**循环**）。
+3. 保存控制器与场景。
+
+![选中转换后勾上“播完再转”，条件列表为空，示例中的目标状态为 Run](@/assets/guides/zh/animator-after-clip.png)
+
+无条件且勾选**播完再转**时，转换等待剪辑结束；循环剪辑永不结束，因此转换不会发生。无条件且未勾选**播完再转**时，第一次更新即发生转换，第一个状态可能完全不可见。若转换上保留了触发器条件（例如 `toWz`），需要对该实体调用 `anim.setTrigger(entity, 'toWz')`。
+
+### 按参数切换
+
+1. 点击 **＋ 状态**，将新状态命名为 `Run` 并指定第二个剪辑。从 `Idle` 拖出一条转换到 `Run`。
+2. 点击**参数**旁的 **＋**，将参数命名为 `speed`，类型保持**浮点**。
+3. 选中转换，点击**条件**旁的 **＋**。新条件使用第一个参数；浮点参数的比较为 `> 0`。将**参数**设为 `speed`，**运算**设为 `>`，数值设为 `0`。
+4. 保存控制器与场景。运行时调用 `anim.setFloat(entity, 'speed', 1)`，实体从 `Idle` 转到 `Run`。从 `Run` 回到 `Idle` 需要一条带返回条件的转换。
+
+![转换面板里，目标是 Run，条件是 speed 大于 0](@/assets/guides/zh/animator-transition.png)
+
+下图的状态图对移动与跳跃分别使用不同条件，玩法代码通过 `AnimatorController` 设置参数。
+
+![已配置的动画控制器，Idle、Move 和 Hop 三个状态之间有转移，右侧列出参数](@/assets/guides/zh/animator-graph.png)
+
+```typescript
+import type { AnimatorControllerAPI, Entity } from 'esengine';
+
+function updateSpeed(anim: AnimatorControllerAPI, entity: Entity, speed: number) {
+  anim.setFloat(entity, 'speed', speed);
+}
+
+function onJumpPressed(anim: AnimatorControllerAPI, entity: Entity) {
+  anim.setTrigger(entity, 'hop');
+}
+```
+
+### 参数与条件
+
+参数有三种类型（`AnimatorParamType`）：`'float'`、`'bool'` 与 `'trigger'`。没有整数类型；整数由浮点参数配合 `eq` / `neq` 表示。
+
+| 条件 `op` | 适用于 | 成立条件 |
+|---|---|---|
+| `gt` / `lt` / `eq` / `neq` | 浮点，带 `value` | 与 `value` 的比较成立。 |
+| `true` / `false` | 布尔 | 参数等于该值。 |
+| `trigger` | 触发器 | 触发器已设置；发生转换时将其消耗。 |
+| `window` | 剪辑窗口名 | 正在离开的状态打开着该窗口（[连招](/docs/zh-cn/animation/animator-events/#连招与输入缓冲)）。 |
+
+### 转换优先级
+
+任意状态转换先于当前状态自身的转换求值。存在子状态机时，优先级从高到低为：顶层任意状态转换、各外层状态机的任意状态转换（由外向内）、叶子状态自身的转换、容器退出边（由内向外）。
+
+## Animator 组件
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `controller` | string | `''` | `.esanimator` 资源引用（由编辑器写入），或代码中传给 `registerController` 的名称。 |
+| `avatar` | string | `''` | `.esavatar`，描述该骨架如何命名剪辑所引用的关节（[骨架映射](/docs/zh-cn/animation/animator-layers/#骨架映射)）。 |
+| `currentState` | string | `''` | 基础层的活动状态；在子状态机中为 `/` 分隔的路径。首次更新前为空，之后设为初始状态。 |
+| `layerStates` | string[] | `[]` | 基础层之上各图层的活动状态，按图层顺序排列。 |
+| `enabled` | boolean | `true` | 为 false 时冻结状态机。 |
+
+{/* SHOT: anim-animator-component-details | Details panel of the player character in the third-person-3d example during Play, showing the Animator component with Controller set to locomotion.esanimator and Current State filled in */}
+
+## AnimatorController 资源
+
+| 方法 | 说明 |
+|---|---|
+| `setFloat(entity, name, value)` | 设置浮点参数。 |
+| `setBool(entity, name, value)` | 设置布尔参数。 |
+| `setTrigger(entity, name)` | 设置触发器。 |
+| `resetTrigger(entity, name)` | 在转换消耗之前清除触发器。 |
+| `getFloat(entity, name)` / `getBool(entity, name)` | 读取参数。 |
+| `registerController(name, def)` / `unregisterController(name)` | 注册或移除代码中定义的控制器（`AnimatorControllerDef`）。 |
+| `getController(name)` | 查找控制器。 |
+| `openWindow(entity, name)` / `windowsOf(entity)` | 查询打开的剪辑窗口（[窗口](/docs/zh-cn/animation/animator-events/#窗口)）。 |
+
+## 动作
+
+一个状态只播放以下其中一种：
+
+| 字段 | 动作 |
+|---|---|
+| `motion` | 通用写法：已注册的动作类型（`sprite` 或 `timeline`），或基于它们的 `blend1d` / `blend2d`。 |
+| `clip` | 单个精灵剪辑。 |
+| `blend` | 对精灵剪辑的一维选择（`AnimatorBlend1D`）。 |
+| `spine` | [Spine](/docs/zh-cn/animation/spine/) 动画（`AnimatorSpineMotion`）。 |
+| `stateMachine` | 嵌套状态机；该状态为容器（[子状态机](#子状态机)）。 |
+
+`motion` 优先于单一类型字段 `clip`、`blend` 和 `spine`，后者会迁移为 `motion`。时间轴剪辑可动画任意可关键帧的组件字段，包括蒙皮 3D 骨架的关节。转换的 `duration` 在两端动作都可采样时进行交叉淡化；精灵表则直接切换。
+
+`spine` 动作（`{ animation, loop? }`）在进入时设置该 Spine 动画（`loop` 默认为 `true`），轨道播放与混合交由 Spine 运行时处理，不使用 `SpriteAnimator`。
+
+## 精灵剪辑状态
+
+播放器为**精灵表**的状态，通过同一实体上的 `Sprite` 显示画面：
+
+- 实体带有 **Sprite Animator** 时，控制器通过它播放剪辑。
+- 否则控制器在运行时组件 `AnimatorSpritePlayback` 上记录所请求的剪辑与播放位置；该组件由状态机在运行时创建，不随场景保存。
+- 实体没有 **Sprite** 时，控制器仍推进状态并发出帧事件，但不显示画面。应将 **Animator** 放在带 **Sprite** 的实体上。
+
+仅由控制器引用的精灵剪辑会随控制器一起加载。
+
+![Nexon 状态选择精灵表播放器，面板提示在同一实体添加 Sprite 显示各帧](@/assets/guides/zh/animator-sprite-state.png)
+
+状态没有画面时，检查该状态的**剪辑**与**播放器**，以及实体的 **Animator → Controller**。**剪辑**中的 `@uuid:…` 是项目资源引用。
+
+## 混合树
+
+![一维 blend 按 speed 阈值在 idle / walk / run 之间选择](@/assets/guides/blend-tree.svg)
+
+*精灵剪辑上的一维混合：浮点参数选择阈值不大于其值的最高档位——随 `speed` 上升依次为 `idle`、`walk`、`run`，彼此之间无需转换。*
+
+### 精灵剪辑的选择
+
+状态的 `blend`（`AnimatorBlend1D`）用一个浮点参数在 `AnimatorBlendThreshold` 档位之间选择。精灵剪辑一次只播放一个，因此这是一种选择：`value` 不大于参数值的档位中取最大者播放；参数低于所有档位时播放第一个档位。每个档位为 `{ value, clip, speed?, loop? }`；档位级的 `speed` 和 `loop` 覆盖状态自身的设置。选择每帧重新求值。
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const movement: AnimatorControllerDef = {
+  parameters: [{ name: 'speed', type: 'float', default: 0 }],
+  initialState: 'move',
+  states: [{
+    name: 'move',
+    blend: {
+      parameter: 'speed',
+      thresholds: [
+        { value: 0,   clip: 'idle' },
+        { value: 0.5, clip: 'walk' },
+        { value: 4,   clip: 'run', speed: 1.2 },
+      ],
+    },
+    transitions: [],
+  }],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('movement', movement);
+});
+```
+
+`selectBlendClip(blend, value)` 返回某个值所选中的档位。
+
+### 可采样动作的混合
+
+对可采样的动作（驱动骨架或任意组件字段的时间轴剪辑），混合会将参数两侧的档位混合起来。档位按相位而非时间对齐，因此长度不同的剪辑（例如 2 秒的待机与 0.6 秒的奔跑）保持步调一致。
+
+| 类型 | 结构 |
+|---|---|
+| `blend1d` | `{ kind: 'blend1d', parameter, thresholds: [{ value, motion }] }` |
+| `blend2d` | `{ kind: 'blend2d', parameterX, parameterY, points: [{ position: { x, y }, motion }] }` |
+
+档位的 `motion` 本身也可以是另一个混合。`blend2d` 将采样点放在两个参数构成的平面上，并混合采样位置周围的点；采样位置正落在某点上时只播放该点的动作，落在凸包之外时取最近的边。状态检视器的**类型**提供**一维混合**与**二维混合**，分别带有**驱动参数**（或 **X 轴** / **Y 轴**）以及**停靠点**或**采样点**列表。混合需要一个浮点参数。嵌套在另一个混合中的档位需在文件中编辑。
+
+{/* SHOT: anim-animator-blend2d | Controller editor with locomotion.esanimator from the character-rig example open, the state using Blend 2D selected, the inspector showing Kind Blend 2D, the X axis and Y axis parameters and the list of Points */}
+
+## 子状态机
+
+带有 `stateMachine`（`AnimatorSubMachine`）的状态是容器，自身不播放动作。进入时状态机下行到子状态机的 `initialState`。容器自身的 `transitions` 是退出边，从其内部每个叶子状态求值。子状态机可声明 `anyStateTransitions`，对其所有状态生效。`Animator.currentState` 保存以 `STATE_PATH_SEP`（`/`）分隔的完整路径，例如 `locomotion/run`。
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const player: AnimatorControllerDef = {
+  parameters: [
+    { name: 'speed', type: 'float', default: 0 },
+    { name: 'jump', type: 'trigger' },
+  ],
+  initialState: 'locomotion',
+  states: [
+    {
+      name: 'locomotion',                    // container: no motion of its own
+      stateMachine: {
+        initialState: 'idle',
+        states: [
+          { name: 'idle', clip: 'idle', transitions: [
+            { to: 'run', conditions: [{ param: 'speed', op: 'gt', value: 0.1 }] },
+          ] },
+          { name: 'run', clip: 'run', transitions: [
+            { to: 'idle', conditions: [{ param: 'speed', op: 'lt', value: 0.1 }] },
+          ] },
+        ],
+      },
+      // Exit edges — leave the whole machine from idle OR run.
+      transitions: [{ to: 'jump', conditions: [{ param: 'jump', op: 'trigger' }] }],
+    },
+    { name: 'jump', clip: 'jump', loop: false, transitions: [
+      { to: 'locomotion', conditions: [], hasExitTime: true },   // back in at idle
+    ] },
+  ],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('player', player);
+});
+```
+
+进入 `locomotion` 后落在 `locomotion/idle`。`jump` 触发器可从任一叶子状态退出。一次性的 jump 剪辑结束后，`hasExitTime` 从容器的初始状态重新进入。
+
+路径逻辑以纯函数形式提供。`AnimatorScope` 是顶层控制器与各子状态机共用的结构。
+
+```typescript
+import { enterStatePath, leafStateOf, evaluateAnimatorPath } from 'esengine';
+
+enterStatePath(player, 'locomotion');       // ['locomotion', 'idle']
+leafStateOf(player, 'locomotion/run')?.clip; // 'run'
+evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
+// → { nextPath: 'locomotion/run', consumedTriggers: [] }
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `enterStatePath(scope, name)` | 从某状态下行到叶子状态，返回路径分段。 |
+| `leafStateOf(def, path)` | 路径对应的叶子状态，或 `null`。 |
+| `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | 对路径执行一步求值，返回 `{ nextPath, consumedTriggers }`。 |
+| `STATE_PATH_SEP` | 路径分隔符 `'/'`。 |
+
+## 由参数驱动的状态速度
+
+`speedParameter` 指定一个浮点参数，用于缩放状态的时钟：
+
+```json
+{
+  "name": "Run",
+  "motion": { "kind": "timeline", "clip": "run.estimeline", "loop": true },
+  "speedParameter": "MoveSpeed",
+  "transitions": []
+}
+```
+
+状态时钟每帧前进 `dt × MoveSpeed`：`2` 为两倍速，`0` 保持当前姿势。由于缩放的是状态时钟，对任何动作（精灵剪辑、时间轴或混合）均有效。参数不存在时按正常速度播放；负值使时钟停止，不会倒放。
+
+## 参见
+
+- [动画事件](/docs/zh-cn/animation/animator-events/) —— 剪辑事件、窗口与连招。
+- [图层、IK 与根运动](/docs/zh-cn/animation/animator-layers/) —— 分层状态机、约束与移动。
+- [Spine 动画](/docs/zh-cn/animation/spine/) —— 由动画控制器状态驱动的 Spine 骨架。

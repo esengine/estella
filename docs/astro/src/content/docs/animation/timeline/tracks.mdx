@@ -1,0 +1,265 @@
+---
+title: Tracks and bindings
+description: Timeline track reference — property channels and keyframes, fade and time dilation, audio, animation, camera, sequence, camera shake, spawn, activation, event and marker tracks — and bindings that target entities outside the player's hierarchy.
+---
+
+Every track names its target entity with `childPath`, a name path below the entity that plays the timeline (child
+names separated by `/`; empty is the player entity itself). A path starting with `@` goes through a
+[binding](#bindings). Common track fields are `name`, `childPath`, and the editor flags `muted`, `locked` and `group`
+([Mute, lock and folders](/docs/animation/timeline/sequencer/#mute-lock-and-folders)).
+
+## Property tracks
+
+A property track names a `component` and holds `channels`. Each channel keys one numeric field by its dot path
+(`position.x`, `color.a`) and holds `keyframes`. Fields that can be keyed are the component's `animatableFields`
+([Components](/docs/core-concepts/components/)).
+
+A `Keyframe` is `{ time, value, inTangent, outTangent, interpolation? }`. Tangents are in value per second. The
+segment starting at a keyframe uses that keyframe's `interpolation`:
+
+| `InterpType` | Segment shape |
+|---|---|
+| `Hermite` (default) | Curve shaped by the tangents. |
+| `Linear` | Straight line to the next key. |
+| `Step` | Holds the value until the next key. |
+| `EaseIn` / `EaseOut` / `EaseInOut` | Eased transition to the next key. |
+
+## Fade and time dilation
+
+Fade and time dilation are two components that a timeline keys on ordinary property tracks; scripts can set them
+directly. **+ Track → Fade** and **+ Track → Time dilation** add the component to the root if it has none, and a track
+with a key at the playhead.
+
+| Component | Field | Description |
+|---|---|---|
+| `ScreenFade` | `amount` | How far the screen is faded, from `0` (clear) to `1` (the colour). The strongest fade present is drawn over everything, 2D and 3D, on its own UI canvas above the game's, and does not take pointer input. |
+| | `color` | The colour faded to. |
+| `TimeDilation` | `scale` | Game speed while active; `0.25` is slow motion. Several dilations multiply, and they multiply the game's own `Time.scale`, so a game paused at `0` stays paused and returns to its own speed when the dilation ends. |
+
+Both take effect in Play. While the Sequencer previews a timeline, the fade at the playhead is drawn over the scene
+view and the camera preview without changing the scene's own value; the slower clock is visible only in Play.
+
+## Audio tracks
+
+An audio track's item is a **moment** until it has a length: the whole sound, played once when the playhead crosses
+its time. With a `duration` it is a **clip**, heard only while the playhead is inside it.
+
+| Item field | Description |
+|---|---|
+| `time` | Start time, in seconds. |
+| `clip` | The audio asset. |
+| `volume` | Playback volume. |
+| `duration` | Length of the clip; absent or `0` makes a moment. |
+| `clipIn` | Seconds into the sound at which the clip starts. |
+| `fadeIn` / `fadeOut` | Seconds of fade at the start and end of the clip. |
+| `loop` | Repeat the sound to fill the clip. |
+
+A paused timeline pauses its audio clips. A playhead that lands inside a clip (a seek or a loop) starts the sound at
+the corresponding position, so the remainder of a line of dialogue is heard rather than its start. A clip stops at
+its end. The Sequencer draws a clip as a bar with its fades as ramps, plays clips during playback and plays a short
+excerpt at the playhead while scrubbing.
+
+```json
+{ "type": "audio", "childPath": "", "events": [
+  { "time": 1, "clip": "@uuid:…", "volume": 0.8, "duration": 4, "clipIn": 0.5, "fadeIn": 0.5, "fadeOut": 1 }
+] }
+```
+
+{/* SHOT: anim-seq-audio-clip | Sequencer with an audio track on the cutscene example's intro.estimeline, one item with a Length of 4 s drawn as a bar with fade-in and fade-out ramps, and its Details showing Sound, Volume, Length, Clip In, Fade in and Fade out */}
+
+## Animation tracks
+
+An animation track plays skeletal animation on a rig. Each clip plays an animation (an `.estimeline` of joint curves,
+as written when a model is imported) on the track's entity.
+
+| Clip field | Default | Description |
+|---|---|---|
+| `clip` | `''` | The animation, by asset reference. |
+| `start` / `duration` | | Position on the track, in seconds. |
+| `clipIn` | `0` | Seconds into the animation at which the clip starts. |
+| `speed` | `1` | Playback speed. |
+| `loop` | `false` | Repeat the animation to fill the clip instead of holding its last frame. |
+| `easeIn` / `easeOut` | `0` | Seconds to blend in from, and back out to, the rig's own animation. |
+| `preExtrapolation` / `postExtrapolation` | none | What plays before the clip (when it is the first) and after it until the next clip: `hold`, `loop`, `pingPong` or `continue`. |
+
+Overlapping clips crossfade: the earlier fades out as the later fades in. Where a clip eases in or out, it blends with
+the rig's own pose: the pose from the rig's `Animator` for that frame when it has one, otherwise its rest pose. The
+timeline runs after the Animator, so at full weight the track determines the pose. Between clips the rig returns to
+its own animation; the track's `hold` keeps the last clip's final pose after it ends. The Sequencer draws an ease as a
+ramp at the end of a bar and a crossfade as hatching over the overlap, and the preview plays the blend.
+
+**Extrapolation.** `hold` keeps the clip's end frame; `loop` and `pingPong` repeat its span forwards or back and
+forth; `continue` plays on in its animation. Post-extrapolation fills the time after a clip until the next clip
+starts; pre-extrapolation fills the time before the track's first clip. An extrapolated end does not ease: the clip
+stays at full weight. The Sequencer draws the extrapolated stretch as a faint dashed band; the clip's Details set
+both as **Before** and **After**. The track's `hold` applies to every clip that sets no extrapolation.
+
+**Layers.** Several animation tracks on the same rig are layers, applied in track order. The first is combined with
+the rig's own pose; each later track sets:
+
+| Track field | Default | Description |
+|---|---|---|
+| `blend` | `override` | `override` moves the pose of the tracks above toward its own. `additive` adds what its clips move beyond their own first frame (the frame where the clip starts in its animation), so a lean or a flinch reads the same over any pose. |
+| `weight` | `1` | Strength of the track, `0` to `1`. |
+| `mask` | all | The joints it may move: paths below the rig, each including everything below it. |
+| `rootMotion` | `false` | Move the rig by its clips' root motion. |
+| `hold` | `false` | Keep the last clip's final pose after it ends. |
+
+A wave on the upper body over a walk is a second track masked to `Spine`; a breath is an additive track at a low
+weight. These fields belong to the track: selecting the track row shows them in Details under **Blending**, beside
+the track's name, mute and lock. **Mask** is an array; each element is a joint picked from the rig and includes its
+branch. A clip's Details are grouped into **Section** (when it plays), **Animation**, **Easing** and
+**Extrapolation**.
+
+**Root motion.** A clip's root track (the `Transform` position and rotation at the animation's own root) normally
+poses the rig like any joint, so a walk plays in place. With the track's `rootMotion` on (**Root motion** in Details),
+the root track is excluded from the pose and the rig is moved by the distance the clip's root has travelled since the
+clip began, starting from where the rig stood.
+
+- The movement is each clip's motion scaled by its weight. Consecutive clips continue from each other, so two walks
+  in a row travel twice as far; a looping clip keeps travelling lap after lap.
+- A clip easing in starts the rig gradually and one easing out brings it to a stop; a crossfade blends the two clips'
+  steps; after the last clip the rig stays where it arrived.
+- Post-extrapolation continues the motion: `loop` keeps walking, `pingPong` walks back and forth, `continue` plays on
+  in the animation and `hold` stands still.
+- The travel is rotated with the rig, so a character facing another direction walks in that direction.
+- The position is computed from the clips at every time, not accumulated frame by frame, so scrubbing, seeking and
+  looping place the rig identically. The scene's own position is unchanged.
+
+{/* SHOT: anim-seq-animation-track | Sequencer with a timeline whose Animation track targets the hero of the character-rig example, holding two overlapping clips (hero_Walk_Loop and hero_Jog_Fwd_Loop) with an ease ramp, crossfade hatching and a dashed extrapolation band; the track row selected so Details shows the Blending group */}
+
+## Camera tracks
+
+A camera track holds shots; each bar is a camera used as the view for its span. Touching bars cut. Dragging a bar to
+overlap the previous one turns the overlap into a blend, shaped by the later shot's blend curve. A span without a shot
+returns the view to the scene's own camera. A timeline has one camera track, and its cameras must be below the
+timeline's root.
+
+Scrubbing shows the shot in the viewport's camera preview. Which shot is shown is a function of time alone, so
+dragging, jumping and playing backwards are consistent.
+
+## Sequence tracks
+
+A sequence track plays another `.estimeline` inside a window of this one, on its own clock. `speed` scales it, and
+`loop` repeats it to fill the bar instead of holding its last frame. **Bind to** selects the node from which the nested
+timeline's name paths resolve, so one sequence can play on different characters.
+
+A timeline cannot play itself, directly or through another timeline, and nesting is limited to four levels
+(`MAX_SEQUENCE_DEPTH`). The editor refuses such picks; a loaded game skips them with a warning. Which nested frame is
+shown is a function of time alone. Events inside a nested timeline fire only while it plays forward.
+
+## Camera shake tracks
+
+A camera shake track fires shakes at given times. Each item is a `time` and a `force` (`1` as authored). The effect
+depends on the track's entity:
+
+- **With a `CameraImpulseSource`** ([Impulses](/docs/graphics/camera/shake/#impulses-shakes-from-a-place)), the item
+  fires an impulse from that entity's position at `force` times the source's strength. Every camera with a
+  `CameraImpulseListener` receives it attenuated by distance.
+- **Without one** (for example a track on the root), the view in use is shaken in place at `force` times a default
+  shake.
+
+In Play, shakes move only the rendered view, never a camera's `Transform`. The Sequencer preview shows shakes while
+scrubbing: the camera of the current shot, or the scene's active camera, is offset as the shakes leave it at the
+playhead, computed from the preceding shakes with the same noise used in Play, so a given time always shakes the same
+way. The camera is restored when the shakes end; the scene's saved camera is never changed.
+
+## Spawn tracks
+
+A spawn track brings entities into the scene for a span, so an entity that appears only in a cutscene does not have to
+exist in the level the rest of the time.
+
+| Clip field | Description |
+|---|---|
+| `start` / `duration` | When the instance exists: created as the playhead enters the clip, removed as it leaves. |
+| `prefab` | The prefab instantiated, by asset reference. |
+| `name` | The instance's name. |
+
+The instance is created under the track's entity (the root for a track on the root), so other tracks address it by
+name like any child: a property, animation or camera track with the path `Dragon` acts on the spawned `Dragon` while
+it exists and does nothing while it does not. Stopping the timeline, or removing its player, removes every instance.
+
+A timeline's prefabs are loaded as soon as its player has the timeline, playing or not. Once loaded, an instance is
+created immediately, so it exists on the frame its clip starts and tracks addressing it in that frame find it. A clip
+that starts before its prefab has loaded gets its instance when the files arrive, if the playhead is still inside the
+clip. In the editor, the Sequencer preview also creates the instance and poses it while scrubbing; the preview
+instance is not a scene entity, is not listed in the World Outliner and is not saved.
+
+## Activation tracks
+
+An activation track switches its target on for given spans, for example a closed image replaced by an open one with
+its glow, or a badge that appears at the end of an animation. What it writes depends on the target:
+
+- **An entity** is activated and deactivated as a whole, with everything below it. A deactivated entity is excluded
+  from all queries, not only from rendering. A renderer's own `enabled` keeps its authored value.
+- **A UI node** has its `UINode.display` set, which also hides or shows the node's subtree.
+
+The track writes only when the state changes, so an unchanging track does not mark components as changed every frame.
+
+## Event and marker tracks
+
+Event and marker tracks report timeline progress to the game. Each item the playhead crosses is sent as a
+`TimelineEvent` with the entity its track targets; a system reads it the next frame.
+
+```typescript
+import { defineSystem, EventReader, TimelineEvent } from 'esengine';
+
+const onCue = defineSystem([EventReader(TimelineEvent)], (events) => {
+  for (const e of events) {
+    if (e.name === 'door-open') openDoor(e.target);
+    if (e.kind === 'event') console.log(e.payload);   // a marker's payload is empty
+  }
+});
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `'event'` \| `'marker'` | An event-track item or a marker. |
+| `name` | string | The authored name. |
+| `payload` | object | The event's data; empty for a marker. |
+| `time` | number | Position in the clip, in seconds. |
+| `player` | Entity | The entity playing the timeline. |
+| `target` | Entity | The entity the track targets (the player for a track on the root). |
+
+Each item is sent once per pass; a loop sends it again on the next lap. An event with a `duration` (a window) is also
+reported as open for that long to an Animator state that plays the timeline
+([Windows](/docs/animation/animator-events/#windows)).
+
+### Visual scripts and event bindings
+
+Each named event or marker is also sent as the entity event `timeline:<name>` (a marker named `boom` is
+`timeline:boom`), first to the entity its track targets and then to the player. A visual script's **On Event** node
+of that type responds to it; the node's `target` is the track's entity and `other` the player. The payload fields the
+node declares as **Inputs** (in Details, a name and a type each) become typed output pins; the event's own `time` and
+`name` can be declared the same way. A graph on an entity receives the events of tracks that target it; a graph on the
+entity playing the timeline receives all of them. Event bindings and state machines on those entities receive the
+same events. In code, `timelineSignalType(name)` returns the event type.
+
+## Bindings
+
+A track path starting with `@Name` resolves through a binding: the entity the playing `TimelinePlayer` binds `Name`
+to, anywhere in the scene, with the rest of the path below it (`@Hero/Arm`). Bindings let a timeline animate entities
+outside the player's hierarchy, and let one timeline played by two players drive two different characters.
+
+| `TimelinePlayer` field | Description |
+|---|---|
+| `bindingNames` | The names of the player's bindings. |
+| `bindings` | The entity bound to each name, in the same order; remapped with the scene like any entity reference. |
+
+With the player on `Stage`, `Hero` a child of `Stage` and `Spotlight` elsewhere in the scene, and `Stage` shown as the
+preview root on the link button:
+
+- **A child.** **+ Track → Active → Hero** creates a track that finds `Hero` by its path below `Stage`.
+- **An entity elsewhere.** **+ Track → Active → Bound entity… → Spotlight** creates or reuses the `Spotlight` binding on
+  `Stage`'s **Timeline Player** and sets the track's target to `@Spotlight`. If the submenu reports that the root has
+  no player, add **Timeline Player** to `Stage` first.
+- **Retargeting a binding.** Select `Stage` and open **Details → Timeline Player → Bindings**. Each row shows a binding
+  name and an entity dropdown; rows are created from the Sequencer, not from this list.
+
+![The Active track submenu offers the child Hero directly and the external entity Spotlight under Bound entity](@/assets/guides/en/seq-binding-menu.png)
+
+## See also
+
+- [Sequencer](/docs/animation/timeline/sequencer/) — editing tracks and items.
+- [Playback and scripting](/docs/animation/timeline/playback/) — building tracks in code.
+- [Camera blending](/docs/graphics/camera/blending/) — blend curves used by camera tracks.

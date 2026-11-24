@@ -1,0 +1,156 @@
+---
+title: Layers, IK and root motion
+description: Animator layers with weights, blend modes and joint masks; two-bone, look-at and foot-plant IK constraints; avatars for retargeting clips between rigs; and root motion published on AnimatorRootMotion.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+An [Animator](/docs/animation/animator/) controller can stack state machines as layers, correct the resulting pose
+with IK constraints, translate joint names between rigs through avatars, and turn a clip's root track into a
+movement request.
+
+## Layers
+
+![The animator controller editor with a Layers list (Upper body over Base) and the parameters panel](@/assets/guides/en/animator-layers.png)
+
+*The animator controller of the third-person-3d example. **Layers** (top right) stack on the base layer, each with
+its own weight and mask; **Parameters** below drive the transitions.*
+
+A controller can carry layers over its base machine. Each layer is a state machine with its own clock, transitions
+and active state; the entity receives the composed result of the whole stack, written once per update. Layers
+compose in order, so their order changes the result.
+
+```jsonc
+// in the .esanimator, beside "states"
+"layers": [{
+  "name": "Upper body",
+  "weight": 1,                  // 0 leaves the layers below alone, 1 applies this layer fully
+  "blend": "override",          // or "additive": add what the clip departs from its first frame
+  "mask": { "paths": ["Spine"] }, // joints this layer may write, by childPath; each includes its subtree
+  "initialState": "Rest",
+  "states": [ /* ... */ ]
+}]
+```
+
+| Layer field | Description |
+|---|---|
+| `name` | Layer name. |
+| `weight` | `0` leaves the layers below unchanged; `1` applies this layer fully. |
+| `blend` | `override` moves the stack's pose toward this layer's pose. `additive` adds the difference between the clip and its own first frame, so one lean clip reads the same over a walk and over a run. |
+| `mask` | The joints the layer may write ([Masks](#masks)). |
+| `initialState`, `states`, `anyStateTransitions` | The layer's state machine, with the same shape as the base machine. |
+
+The base layer has no weight or blend mode. Root motion belongs to the base layer only. A trigger is a single event
+that every layer receives. In the controller editor, the **Layers** rail selects which machine the canvas edits;
+**Weight**, **Blend** and the mask are edited on the selected layer.
+
+### Masks
+
+A `mask` is a set of the same `childPath`s that clips use to name what they animate; each path stands for its
+subtree, its own root included.
+
+| Mask | Writes |
+|---|---|
+| No mask | The whole rig. |
+| `paths: []` | Nothing (the layer is switched off). |
+| `paths: ['Spine']` | `Spine` and everything below it. |
+
+In the controller editor, **Restrict to a mask** turns the mask on and lists its paths as an array. Each element is a
+joint picked from the rig in the open scene that plays the controller and includes that joint's branch; when no such
+rig is open, paths are typed. Mask paths are named the way the clips name joints and are translated by the rig's
+avatar.
+
+## IK constraints
+
+A controller's `ik` list adjusts the pose toward targets the clips do not know about. Constraints belong to the
+controller, not to a layer, and run once on the result of the layer stack. In the controller editor they are listed
+under **Constraints**.
+
+| Kind | Editor label | Effect |
+|---|---|---|
+| `two-bone` | **Two-bone** | Places a limb's `tip` on `target`, bending the tip and the two joints above it, toward an optional `pole`. |
+| `look-at` | **Look at** | Turns the `tip` joint until its own `axis` points at `target`. |
+| `foot-plant` | **Foot on ground** | Keeps a foot on the ground; takes a `tip` and no target. |
+
+| Field | Applies to | Description |
+|---|---|---|
+| `tip` | all | The joint the constraint acts on, by `childPath`. |
+| `target` | two-bone, look-at | What to reach or look at, named the same way. |
+| `weight` | all | `0` leaves the pose unchanged, `1` applies the constraint fully. |
+| `parameter` | all | A float parameter that scales `weight`, used to fade a constraint in and out. |
+| `pole` | two-bone | A joint the middle joint bends toward. Absent keeps the clip's bend. |
+| `axis` | look-at | `'x'`, `'y'` or `'z'`: the tip's axis that ends up pointing at the target. |
+| `pelvis` | foot-plant | A joint lowered so the leg can reach the lower foot. |
+| `align` | foot-plant | Lay the foot along the slope under it. Default `true`. |
+| `reach` | foot-plant | How far up and down to look for ground, in the rig's units. Default: the leg's length. |
+| `smooth` | foot-plant | Seconds to settle on a new height. Default `0.06`. |
+| `layers` | foot-plant | Physics layers that count as ground. Default: all. |
+
+`foot-plant` casts down through 3D physics from where the clip placed the foot and bends the leg so the foot lands
+on the surface found, keeping any lift the clip gave the foot. Set `layers` when the character has its own collider,
+or the ray stops on it. The rig should stand with its feet at height 0 and its root on the ground. Foot-plant
+constraints run before the other constraints; without 3D physics in the game they leave the clip unchanged.
+
+{/* SHOT: anim-animator-constraints | Controller editor with locomotion.esanimator from the character-rig example open and a Foot on ground constraint added under Constraints, showing Joint, Pelvis, Weight and Faded by fields */}
+
+## Avatars
+
+Clips name joints by the names the exporter wrote, so clips do not transfer between rigs with different joint names.
+An avatar (`.esavatar`, **Add → New Avatar**) records a rig's translation of those names and its bind pose.
+
+- The controller's `avatar` names the avatar its clips were authored against.
+- The `Animator` component's `avatar` names the avatar of the rig it plays on.
+
+With both set, one controller drives rigs with different joint names and different bind poses, and root motion is
+scaled to the distance each rig travels.
+
+## Root motion
+
+A clip that animates the entity it plays on describes where the character travels, not how it is posed. A state
+declares this with `rootMotion` (the state's **Root motion** checkbox):
+
+```json
+{
+  "name": "Dodge",
+  "motion": { "kind": "timeline", "clip": "dodge.estimeline", "loop": false },
+  "rootMotion": true,
+  "transitions": [{ "to": "Idle", "conditions": [], "hasExitTime": true }]
+}
+```
+
+The animator then excludes that root track's `position` and `rotation` from the pose, so the clip never moves the
+entity, and publishes the requested movement on the entity's `AnimatorRootMotion` component.
+
+### AnimatorRootMotion component
+
+| Field | Description |
+|---|---|
+| `enabled` | Authored. Whether the request is published. |
+| `active` | Read-only. Whether a state that declares root motion is driving this frame. |
+| `deltaPosition` | Read-only. The displacement requested, in world space. |
+| `deltaRotation` | Read-only. The rotation requested, in the character's own frame. |
+| `deltaTime` | Read-only. The seconds the two deltas cover; `0` when nothing was requested. |
+
+<Aside type="caution">
+  The deltas are a request, not a result. Pass them to the system that moves the character and let collision decide
+  the outcome. `ThirdPersonController` does this: while `active` is true it ignores stick input and asks
+  `CharacterController3D` for `deltaPosition / deltaTime`, so a dodge into a wall requests the full distance and
+  travels none of it. Writing `deltaPosition` directly to a `Transform` moves the character through walls.
+</Aside>
+
+`deltaTime` accompanies the deltas because the animator runs on the frame clock while a character controller usually
+steps on a fixed clock: form a rate from the pair. Adding the displacement on every fixed step would move twice on a
+frame with two fixed steps and not at all on a frame with none.
+
+Test `active` rather than whether the delta is non-zero: a dodge has a still moment in the middle, during which stick
+input must not take control back. Without an `AnimatorRootMotion` component, a root-motion state still does not pose
+the character's own transform; the clip plays in place.
+
+Root motion on a timeline's animation tracks is described in
+[Animation tracks](/docs/animation/timeline/tracks/#animation-tracks).
+
+## See also
+
+- [Animator](/docs/animation/animator/) — states, transitions and parameters.
+- [Spring bones](/docs/animation/spring-bones/) — secondary motion after the animated pose.
+- [Grip Pose](/docs/animation/grip-pose/) — hand poses and held objects.

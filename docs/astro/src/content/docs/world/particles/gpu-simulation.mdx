@@ -1,0 +1,82 @@
+---
+title: GPU Particles and Performance
+description: GPU particle simulation — what gpuSimulation runs on a compute kernel, its capacity and platform fallback, the features that stay on the CPU, GPU events, sub-emitters and trails with their memory cost, and performance guidance for emitters.
+---
+
+## GPU simulation
+
+With `gpuSimulation: true`, an emitter's particles live on the GPU. A compute kernel advances every particle each frame
+and the draw reads what it wrote; the CPU only decides how many particles are born. An emitter of hundreds of thousands
+of particles costs a dispatch, not a loop. `maxParticles` is then the size of the ring the GPU keeps, up to 2,000,000;
+a new particle takes the next slot, and a slot whose particle has died draws nothing.
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  maxParticles: 500_000,
+  rate: 200_000,
+  lifetimeMin: 2, lifetimeMax: 3,
+  shape: EmitterShape.Cone, shapeAngle: 40,
+  speedMin: 200, speedMax: 400,
+  gravity: { x: 0, y: -300, z: 0 },
+  noiseStrength: 40, noiseFrequency: 0.01,
+  collisionEnabled: true, collisionFloor: 0, collisionBounce: 0.4,
+});
+```
+
+The kernel runs the same emitter model: shapes, curl noise, force fields (the first eight), gravity, damping, colour,
+size and speed over life, sprite sheets, the floor plane, `Depth` and `Sdf` collision, sub-emitters and trails. Each
+emitter draws from a fixed seed of its own, so a scene replays the same particles.
+
+### Platform support
+
+GPU simulation requires compute shaders (WebGPU). On WebGL2 and in mini-game runtimes the same emitter runs on the CPU
+simulation, **capped at 20,000 particles**: a scene authored for a million particles still plays, with fewer particles.
+An effect intended for platforms without WebGPU should be designed to hold up at that cap.
+
+### Limitations
+
+| Feature | On a GPU-simulated emitter |
+|---|---|
+| `Physics2D` / `Physics3D` collision | Not available: the kernel cannot query the physics world. These modes behave as `collisionFallback` says. Use [`Depth` or `Sdf`](/docs/world/particles/collision/#depth-collision). |
+| Sorting | Particles are not sorted. `Additive` and cut-out looks are exact; a deep stack of `Normal`-blended particles draws in slot order. |
+| UI | An emitter under a screen `Canvas` is drawn through the screen overlay, which the kernel does not feed. Keep UI emitters on the CPU. |
+| `renderMode: Stretched` | Draws as `Billboard`. |
+| `addedVelocityMin/Max`, `speedLimit`, `limitDampen` | CPU simulation only. |
+| `Particle.emitAt` | CPU simulation only. |
+| `Particle.getAliveCount` | An upper bound: the live state stays on the GPU and is not read back. |
+
+## GPU events, sub-emitters and trails
+
+The kernel appends what happens to an event buffer: each birth, death or collision the emitter's `subEmitterTrigger`
+asks for, or each collision when `collisionEvents` is on. Sub-emitters and collision events read that buffer.
+
+**Sub-emitters run without a CPU round trip.** A GPU emitter whose `subEmitter` is also `gpuSimulation` has its child's
+kernel light slots directly from the parent's events: `burstCount` particles per event, at the event's position,
+inheriting `subEmitterInheritVelocity` of its velocity. A parent runs before its child in the frame, so a spark is born
+where its drop died. At most 4,096 events per emitter per frame are kept; further events are dropped. A CPU-simulated
+child is not fed by a GPU parent.
+
+**Collision events arrive one or two frames late.** With `collisionEvents` on, `ParticleCollisionEvent`,
+`collisionStats` and the other collision outputs read as for any other collision, in the same units, once the GPU hands
+them back. `collisionEventBudget` is the number read back at a time; `hits` counts the rest. The read-back is the only
+part of the GPU path that returns to the CPU; leave `collisionEvents` off unless game code needs it.
+
+**Trails** use the same `trailEnabled`, `trailWidth`, `trailPoints` and `trailMinDistance` fields. Each particle's path
+is kept in a buffer and drawn as quads along it, narrowing and fading from the head. Trail memory is allocated for every
+slot, live or not: `maxParticles × (trailPoints × 16 + (trailPoints − 1) × 60)` bytes, so 100,000 particles with 12
+points use about 85 MB. Each segment faces the first camera that draws it in the frame; a second camera sees the
+segments slightly edge-on.
+
+## Performance
+
+- **Size `maxParticles` to the worst case.** The pool is fixed; a larger pool costs memory whether or not it is filled.
+  Past a few thousand particles, use GPU simulation.
+- **Use `Additive` for light** (fire, sparks, magic). Additive blending is independent of draw order, so it needs no
+  sorting. Reserve `Normal` and `Multiply` for opaque smoke and dust.
+- **Spread `…Min` / `…Max` ranges** for natural variation; equal values read as mechanical.
+- **Reuse emitters** with `reset` + `play`, or `emitAt`, instead of spawning and despawning entities.
+- **Keep trails short** (`trailPoints` 6–8) and keep `ParticleCollider` counts low on large GPU emitters.
+- **Leave `collisionEvents` off** unless game code reads them; on the GPU path they are the only read-back.
+
+{/* SHOT: world-particles-gpu-emitter | Viewport of examples/vfx-showcase in Play with the Sparks emitter selected after ticking GPU Simulation and raising Max Particles (for example to 200000) and Rate, the Emission group in Details showing both fields, and the viewport stats overlay visible */}

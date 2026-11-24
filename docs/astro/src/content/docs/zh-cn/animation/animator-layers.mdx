@@ -1,0 +1,128 @@
+---
+title: 图层、IK 与根运动
+description: 带权重、混合模式与关节遮罩的动画控制器图层；两骨、看向与脚踩地面 IK 约束；用于在骨架之间重定向剪辑的骨架映射；以及通过 AnimatorRootMotion 发布的根运动。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+[动画控制器](/docs/zh-cn/animation/animator/)可以将多个状态机叠成图层，用 IK 约束修正合成后的姿势，通过骨架映射在骨架之间转换关节名，并将剪辑的根轨道转为移动请求。
+
+## 图层
+
+![动画控制器编辑器:图层列表(Upper body 叠在基础层上)和参数面板](@/assets/guides/zh/animator-layers.png)
+
+*third-person-3d 示例的动画控制器。右上角的**图层**叠在基础层之上，各有自己的权重和遮罩；下方的**参数**驱动转换。*
+
+控制器可以在基础状态机之上带有图层。每个图层是一个状态机，有自己的时钟、转换和活动状态；实体接收整个图层栈的合成结果，每次更新写入一次。图层按顺序合成，因此顺序会影响结果。
+
+```jsonc
+// in the .esanimator, beside "states"
+"layers": [{
+  "name": "Upper body",
+  "weight": 1,                  // 0 leaves the layers below alone, 1 applies this layer fully
+  "blend": "override",          // or "additive": add what the clip departs from its first frame
+  "mask": { "paths": ["Spine"] }, // joints this layer may write, by childPath; each includes its subtree
+  "initialState": "Rest",
+  "states": [ /* ... */ ]
+}]
+```
+
+| 图层字段 | 说明 |
+|---|---|
+| `name` | 图层名。 |
+| `weight` | `0` 不改变下层；`1` 完全应用本层。 |
+| `blend` | `override` 使图层栈的姿势趋向本层姿势。`additive` 叠加剪辑相对其首帧的差异，因此同一个倾身剪辑在行走和奔跑之上表现一致。 |
+| `mask` | 本层可写入的关节（[遮罩](#遮罩)）。 |
+| `initialState`、`states`、`anyStateTransitions` | 本层的状态机，结构与基础状态机相同。 |
+
+基础层没有权重和混合模式。根运动只属于基础层。触发器是所有图层都会收到的同一个事件。在控制器编辑器中，**图层**栏选择画布正在编辑的状态机；**权重**、**混合**与遮罩在选中的图层上编辑。
+
+### 遮罩
+
+`mask` 是一组 `childPath`，与剪辑命名动画对象所用的路径相同；每条路径代表其子树，包括该路径的根。
+
+| 遮罩 | 写入范围 |
+|---|---|
+| 无遮罩 | 整个骨架。 |
+| `paths: []` | 不写入任何内容（相当于关闭该图层）。 |
+| `paths: ['Spine']` | `Spine` 及其下所有关节。 |
+
+在控制器编辑器中，**限定到遮罩**用于启用遮罩，并将路径列为数组。每个元素是从当前场景中播放该控制器的骨架上选取的关节，包含该关节的整个分支；未打开这样的骨架时，手动输入路径。遮罩路径按剪辑命名关节的方式书写，并经由骨架的骨架映射转换。
+
+## IK 约束
+
+控制器的 `ik` 列表使姿势去够剪辑未知的目标。约束属于控制器而非某个图层，在图层栈合成结果上运行一次。控制器编辑器中列于**约束**下。
+
+| 类型 | 编辑器标签 | 效果 |
+|---|---|---|
+| `two-bone` | **两骨** | 将肢体的 `tip` 放到 `target` 上，弯曲该关节及其上两级关节，可选朝向 `pole`。 |
+| `look-at` | **看向** | 转动 `tip` 关节，使其自身的 `axis` 指向 `target`。 |
+| `foot-plant` | **脚踩地面** | 使脚保持在地面上；只需 `tip`，不需要目标。 |
+
+| 字段 | 适用于 | 说明 |
+|---|---|---|
+| `tip` | 全部 | 约束作用的关节，按 `childPath` 指定。 |
+| `target` | 两骨、看向 | 要够到或看向的对象，命名方式相同。 |
+| `weight` | 全部 | `0` 不改变姿势，`1` 完全应用约束。 |
+| `parameter` | 全部 | 缩放 `weight` 的浮点参数，用于淡入淡出约束。 |
+| `pole` | 两骨 | 中间关节弯向的关节。缺省时保持剪辑的弯曲方向。 |
+| `axis` | 看向 | `'x'`、`'y'` 或 `'z'`：最终指向目标的 tip 自身轴。 |
+| `pelvis` | 脚踩地面 | 可降低的关节，使腿能够到较低的脚。 |
+| `align` | 脚踩地面 | 使脚贴合其下方的坡面。默认 `true`。 |
+| `reach` | 脚踩地面 | 向上和向下搜索地面的距离，以骨架单位计。默认为腿长。 |
+| `smooth` | 脚踩地面 | 落到新高度所用的秒数。默认 `0.06`。 |
+| `layers` | 脚踩地面 | 视为地面的物理层。默认为全部。 |
+
+`foot-plant` 从剪辑放置脚的位置通过 3D 物理向下检测，并弯曲腿使脚落在检测到的表面上，同时保留剪辑给出的抬脚高度。角色自身带有碰撞体时需设置 `layers`，否则射线会停在角色自己身上。骨架应以脚在高度 0、根节点位于地面上的姿态站立。脚踩地面约束先于其他约束运行；游戏中没有 3D 物理时不改变剪辑。
+
+{/* SHOT: anim-animator-constraints | Controller editor with locomotion.esanimator from the character-rig example open and a Foot on ground constraint added under Constraints, showing Joint, Pelvis, Weight and Faded by fields */}
+
+## 骨架映射
+
+剪辑按导出时写入的名称引用关节，因此关节名不同的骨架之间无法共用剪辑。骨架映射（`.esavatar`，**添加 → 新建骨架映射**）记录骨架对这些名称的转换及其绑定姿势。
+
+- 控制器的 `avatar` 指定其剪辑制作时所对应的骨架映射。
+- `Animator` 组件的 `avatar` 指定其所播放骨架的骨架映射。
+
+两者都设置后，一个控制器即可驱动关节名不同、绑定姿势不同的骨架，根运动也按各骨架应移动的距离缩放。
+
+## 根运动
+
+动画其所在实体本身的剪辑描述的是角色移动到哪里，而不是如何摆姿势。状态通过 `rootMotion`（状态的**根运动**复选框）声明这一点：
+
+```json
+{
+  "name": "Dodge",
+  "motion": { "kind": "timeline", "clip": "dodge.estimeline", "loop": false },
+  "rootMotion": true,
+  "transitions": [{ "to": "Idle", "conditions": [], "hasExitTime": true }]
+}
+```
+
+动画器随后将该根轨道的 `position` 与 `rotation` 排除在姿势之外，剪辑不会移动实体，并将请求的移动发布到实体的 `AnimatorRootMotion` 组件上。
+
+### AnimatorRootMotion 组件
+
+| 字段 | 说明 |
+|---|---|
+| `enabled` | 编辑项。是否发布请求。 |
+| `active` | 只读。本帧是否有声明根运动的状态在驱动。 |
+| `deltaPosition` | 只读。请求的位移，世界空间。 |
+| `deltaRotation` | 只读。请求的旋转，角色自身坐标系。 |
+| `deltaTime` | 只读。两个增量覆盖的秒数；无请求时为 `0`。 |
+
+<Aside type="caution">
+  这些增量是请求而不是结果。应将其交给移动角色的系统，由碰撞决定结果。`ThirdPersonController` 即如此处理：`active` 为真时忽略摇杆输入，向 `CharacterController3D` 请求 `deltaPosition / deltaTime`，因此撞向墙壁的闪避请求了完整距离，实际移动为零。将 `deltaPosition` 直接写入 `Transform` 会使角色穿墙。
+</Aside>
+
+`deltaTime` 与增量一同给出，是因为动画器按帧时钟运行，而角色控制器通常按固定时钟步进：应由二者计算速率。在每个固定步上直接累加位移，会在有两个固定步的帧移动两次，在没有固定步的帧完全不动。
+
+应读取 `active`，而不是判断增量是否非零：闪避中间有一段静止时刻，此时不能让摇杆输入夺回控制。实体没有 `AnimatorRootMotion` 组件时，根运动状态仍不会摆放角色自身的 transform，剪辑原地播放。
+
+时间轴动画轨道上的根运动见[动画轨道](/docs/zh-cn/animation/timeline/tracks/#动画轨道)。
+
+## 参见
+
+- [动画控制器](/docs/zh-cn/animation/animator/) —— 状态、转换与参数。
+- [弹簧骨骼](/docs/zh-cn/animation/spring-bones/) —— 动画姿势之后的次级运动。
+- [握持姿势](/docs/zh-cn/animation/grip-pose/) —— 手部姿势与手持物体。

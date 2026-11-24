@@ -1,57 +1,52 @@
 ---
 title: Spine 动画
-description: Spine 骨骼动画的完整指南——SpineAnimation 组件、Spine 的轨道/混合/皮肤/附件 API、查询与事件。
+description: Spine 骨骼动画参考——SpineAnimation 组件、图集、用于轨道、混合、皮肤、附件与约束的 Spine 资源 API、事件、UI 中的 Spine、剔除契约、逐帧诊断，以及支持的运行时版本。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 内置 [Spine](https://esotericsoftware.com/) 骨骼动画:骨骼、网格、IK、皮肤与事件。
-它由 `SpineAnimation` 组件驱动,并在运行时通过 `Spine` 资源(来自 `esengine/spine` 子路径)
-控制。
+Estella 可播放 [Spine](https://esotericsoftware.com/) 骨骼：骨骼、网格、IK、皮肤与事件。骨骼由 **`SpineAnimation`**
+组件（主包 `esengine`）放置，运行时通过 **`Spine`** 资源控制；`Spine` 与 `SpineEvents` 从 `esengine/spine` 子路径导出。
+
+![Spine 示例：由 Spine 骨骼绘制的持枪角色](@/assets/guides/zh/play-spine.png)
+
+*`spine-demo` 示例：通过 **SpineAnimation** 组件播放的骨骼。*
 
 ## `SpineAnimation` 组件
 
-在编辑器里添加并指向你的 Spine 资源。组件本身在主 `esengine` 包里。
-
-| 属性 | 类型 | 默认 | 说明 |
+| 属性 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `skeletonPath` | asset | `''` | 骨骼文件(`.json` / `.skel`)。 |
-| `atlasPath` | asset | `''` | 图集文件。 |
-| `skin` | string | `''` | 活动皮肤(空 = 默认)。 |
+| `skeletonPath` | 资源 | `''` | 骨骼文件（`.json` 或 `.skel`）。 |
+| `atlasPath` | 资源 | `''` | 图集文件（`.atlas`）。 |
+| `skin` | string | `''` | 当前皮肤。为空时使用默认皮肤。 |
 | `animation` | string | `''` | 轨道 0 上的初始动画。 |
-| `loop` | boolean | `true` | 循环初始动画。 |
+| `loop` | boolean | `true` | 初始动画是否循环。 |
 | `playing` | boolean | `true` | 播放是否推进。 |
-| `timeScale` | number | `1` | 逐实体的播放速度。 |
-| `skeletonScale` | number | `1` | 骨骼统一缩放。 |
+| `timeScale` | number | `1` | 单个实体的播放速度（≥ 0）。 |
+| `skeletonScale` | number | `1` | 骨骼的统一缩放（≥ 0）。 |
 | `flipX` / `flipY` | boolean | `false` | 水平 / 垂直镜像。 |
-| `color` | Color | `{1,1,1,1}` | 着色(RGBA,0..1)。 |
-| `layer` | number | `0` | 决定绘制顺序的排序层。 |
-| `material` | asset | 无 | 可选的自定义材质。 |
-| `enabled` | boolean | `true` | 关掉即冻结并隐藏(与 `Spine.setEnabled` 是同一个开关;世界大纲的眼睛也走这条通道)。 |
+| `color` | Color | `{1,1,1,1}` | 着色（RGBA，0–1）。 |
+| `layer` | number | `0` | 排序层；值越大越靠上绘制。 |
+| `material` | 资源 | 无 | 自定义材质。为空时使用默认批处理着色器。 |
+| `enabled` | boolean | `true` | 关闭后骨骼冻结并隐藏。与 `Spine.setEnabled` 及大纲视图的可见性开关是同一个开关。 |
 
-**骨骼与图集是 Details 面板里的资产槽位**:从弹出选择器里挑,从内容浏览器拖进来,
-或用槽位的定位 / 清除操作。场景把它们序列化为可移植的 `@uuid:` 引用,移动或重命名
-文件都不会断链。编辑器在视口里实时预览骨骼——跨越播放/停止也不丢——骨骼加载完成后,
-`animation` 和 `skin` 字段会变成该骨骼实际动画与皮肤的下拉列表。
+### 编辑器行为
 
-<Aside type="note">
-  骨骼槽位同时接受 **`.skel`** 文件和 **`.json`** 骨骼(`.json` 没有自己的扩展名来表明身份,
-  编辑器靠文件内部的标记认出它,它会和 `.skel` 一起出现在选择器里)。从内容浏览器**拖拽**到槽位上也行。
-</Aside>
-
-![Spine 示例:由 Spine 骨骼绘制的持枪角色](@/assets/guides/zh/play-spine.png)
-
-*Spine 示例:通过 **SpineAnimation** 组件播放的骨骼。*
+- **资源槽。** `skeletonPath` 与 `atlasPath` 是资源槽：可从弹出列表选择、从内容浏览器拖入文件，或使用槽上的定位 / 清除操作。场景以
+  `@uuid:` 引用保存它们，移动或重命名文件不会断开引用。
+- **骨骼格式。** 骨骼槽接受 `.skel` 与 `.json` 骨骼。`.json` 骨骼通过文件内的标记识别，并与 `.skel` 文件一起列在选择弹出列表中。
+- **实时预览。** 视口在编辑模式下以及 Play/Stop 前后都会为骨骼摆姿势。
+- **下拉框。** 骨骼加载后，`animation` 与 `skin` 列出该骨骼包含的动画和皮肤。
 
 ## 图集
 
-Spine 导出的 `.atlas` 文件即用即好——包括**多页**图集(每页纹理随图集一起加载)和
-**预乘 alpha**:图集头里的 `pma: true` 自动生效,无需导入设置。导出时开启**压缩纹理**,
-图集页会烘焙成 KTX2,并像其他纹理一样在设备上转码。
+Spine `.atlas` 文件按导出原样使用：
+
+- **多页图集**——每一页纹理随图集一起加载。
+- **预乘 Alpha**——图集头部的 `pma: true` 会被采用，无需导入设置。
+- **纹理压缩**——导出时启用 **Compress textures** 后，图集页被烘焙为 KTX2，并像其他纹理一样在设备上转码。
 
 ## 播放与混合
-
-`Spine` 资源控制轨道、混合(crossfade)与逐轨道混合:
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -59,39 +54,42 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'run', true);            // play on track 0, looped
-    spine.setDefaultMix(entity, 0.15);                  // default crossfade
-    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
-    spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
+    spine.setAnimation(entity, 'run', true);            // 轨道 0，循环
+    spine.setDefaultMix(entity, 0.15);                  // 默认交叉淡入
+    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // 单个过渡
+    spine.setTrackAlpha(entity, 0, 1.0);                // 轨道贡献
   }
 });
 ```
 
 | 方法 | 说明 |
 |---|---|
-| `setAnimation(entity, name, loop)` | 在轨道 0 播放一个动画。 |
-| `setDefaultMix(entity, seconds)` | 任意两个动画之间的默认交叉淡入。 |
-| `setMixDuration(entity, from, to, seconds)` | 特定转移的交叉淡入。 |
-| `setTrackAlpha(entity, track, alpha)` | 混合某轨道的贡献(0..1)。 |
-| `setEntityProps(entity, props)` | 一次性设置 `{ skeletonScale?, flipX?, flipY?, layer? }`。 |
-| `setIKTarget(entity, constraint, x, y, mix)` | 让 IK 约束对准一个世界坐标点(`mix` 0..1)。 |
+| `setAnimation(entity, name, loop)` | 在轨道 0 上播放动画。 |
+| `setDefaultMix(entity, seconds)` | 任意两段动画之间的默认交叉淡入时长。 |
+| `setMixDuration(entity, from, to, seconds)` | 单个过渡的交叉淡入时长。 |
+| `setTrackAlpha(entity, track, alpha)` | 轨道的混合权重（0–1）。 |
+| `setEntityProps(entity, props)` | 一次设置 `{ skeletonScale?, flipX?, flipY?, layer?, timeScale?, playing?, color? }`。 |
+| `setEnabled(entity, on)` | 将骨骼移出帧（冻结并隐藏）或恢复。 |
+| `setIKTarget(entity, constraint, x, y, mix)` | 使 IK 约束指向一个世界坐标点；`mix` 为 0–1。约束不存在时返回 `false`。 |
+| `listConstraints(entity)` | 约束名称，形如 `{ ik, transform, path }`（字符串数组），或 `null`。 |
+| `getTransformConstraintMix` / `setTransformConstraintMix` | 读取 / 写入变换约束的混合值。 |
+| `getPathConstraintMix` / `setPathConstraintMix` | 读取 / 写入路径约束的混合值。 |
 
-变换 / 路径约束的混合也可调——`listConstraints(entity)`、`getTransformConstraintMix` /
-`setTransformConstraintMix`,以及 `path` 对应项。
+默认混合时长与逐过渡的混合时长保存在已加载的骨骼数据上，而非实体上：它们作用于共享该骨骼的所有实体。
 
 ## 皮肤与附件
 
 ```typescript
 spine.setSkin(entity, 'armored');
-spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
-spine.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);    // r, g, b, a (0..1)
+spine.setAttachment(entity, 'weapon-slot', 'sword');   // 替换插槽的附件
+spine.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);    // r, g, b, a（0–1）
 ```
 
 | 方法 | 说明 |
 |---|---|
-| `setSkin(entity, name)` | 切换活动皮肤。 |
-| `setAttachment(entity, slot, attachment)` | 替换某槽位的附件(换装/变体)。 |
-| `setSlotColor(entity, slot, r, g, b, a)` | 给单个槽位着色(四个 0..1 通道)。 |
+| `setSkin(entity, name)` | 切换当前皮肤。 |
+| `setAttachment(entity, slot, attachment)` | 替换插槽的附件。失败时返回 `false`。 |
+| `setSlotColor(entity, slot, r, g, b, a)` | 为单个插槽着色（四个通道，0–1）。失败时返回 `false`。 |
 
 ## 查询骨骼
 
@@ -101,23 +99,25 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
-## 在 UI 中使用 Spine
+## UI 中的 Spine
 
-骨骼可以作为 Canvas 的一部分。把带 `SpineAnimation` 的实体放到 Canvas 下面(可以带 `UINode` 来定位,也可以不带),
-它就会和周围的控件一样,按在 Canvas 节点树里的位置绘制:排在某个面板后面就画在面板上面,排在前面就被面板挡住。
-它同时遵循 UI 树的其他规则:
+带 `SpineAnimation` 的实体放在 Canvas 下（可带或不带 `UINode`）时，与周围控件一样按 Canvas 树顺序绘制：排在面板之后的骨骼绘制在面板之上，排在之前的绘制在其下。它同时遵循 UI 树的规则：
 
-- 上方 UI 节点的 `opacity` 会让它一起变淡;
-- 父节点隐藏时它也隐藏;
-- 上方的 `UIMask` 会裁剪它。
+- 上层 UI 节点的 `opacity` 使其淡化；
+- 隐藏的祖先使其隐藏；
+- 上层的 `UIMask` 对其裁剪。
 
-屏幕空间 Canvas 下的骨骼和 UI 一起在屏幕叠加层里绘制,也就是在所有相机之后。
-把 `layer` 设为非 0 会保留原来的行为,让骨骼整体压在 UI 上面或下面。不在任何 Canvas 下的骨骼绘制方式不变。
-屏幕 Canvas 下的 DragonBones 骨架同样在叠加层里绘制。
+| 位置 | 绘制方式 |
+|---|---|
+| 屏幕空间 Canvas 下，`layer` 为 0 | 在屏幕叠加层中、所有相机之后，按树顺序绘制。 |
+| 屏幕空间 Canvas 下，`layer` 不为 0 | 在屏幕叠加层中，按自身 `layer` 与整个 UI 排序，而非按树顺序。 |
+| 不在任何 Canvas 下 | 与世界一起，按 `layer` 与深度绘制。 |
 
-## 动画事件
+屏幕空间 Canvas 下的 DragonBones 骨架按相同规则在叠加层中绘制。
 
-`SpineEvents` 资源每帧发布一次轨道事件——在同一帧读取:
+## 事件
+
+`SpineEvents` 资源保存当前帧的轨道事件，需在同一帧读取：
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -126,72 +126,81 @@ import { SpineEvents } from 'esengine/spine';
 const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   for (const e of spineEvents.events) {
     // e.type: 'start' | 'interrupt' | 'end' | 'complete' | 'event'
-    // e.entity, e.track, e.animationName; for 'event': e.eventName + values
+    // e.entity, e.track, e.animationName；'event' 另有 e.eventName 与数值
   }
 });
 ```
 
-| 事件 `type` | 触发时机 |
+| `type` | 触发时机 |
 |---|---|
-| `start` | 某轨道上开始一个动画。 |
-| `interrupt` | 一个动画被另一个打断。 |
-| `end` | 一个动画从轨道移除。 |
-| `complete` | 一个动画循环/播放完成。 |
-| `event` | 用户编辑的事件关键帧触发(`eventName` + 值)。 |
+| `start` | 动画在轨道上开始。 |
+| `interrupt` | 动画被另一段动画打断。 |
+| `end` | 动画从轨道上移除。 |
+| `complete` | 动画完成一次循环或播放。 |
+| `event` | 编写的事件关键帧触发。 |
+
+| 字段 | 类型 | 出现于 |
+|---|---|---|
+| `entity` | Entity | 所有事件。 |
+| `type` | `SpineEventType` | 所有事件。 |
+| `track` | number | 所有事件。 |
+| `animationName` | string | 所有事件。 |
+| `eventName` | string | `event` |
+| `floatValue` / `intValue` / `stringValue` | number / number / string | `event` |
 
 ## 剔除契约与延迟的世界姿势
 
-摆一个骨骼是两件事。**推进**动画很便宜,而且从不跳过——跳过它动画就会漂移、事件停止触发,
-角色再次被看见的那一刻姿势是错的。**解算世界变换**才是贵的那一半,Estella 会为任何相机都
-画不到的实体跳过它。
+为骨骼摆姿势包含两个步骤：
 
-只有在能证明「跳过是安全的」时才跳,这需要关于该资产的两个事实:
+| 步骤 | 开销 | 何时跳过 |
+|---|---|---|
+| **推进**动画状态 | 低 | 从不跳过。跳过会使播放与事件失去同步。 |
+| **解算世界变换** | 高 | 对任何相机都无法绘制的实体，且下列两个条件均满足时。 |
 
-- **一份剔除契约**——骨骼自身空间里的一个矩形,你承诺任何姿势都不会越出它。由你记录,
-  没有任何东西会替你记录。
-- **无状态的世界约束**——已加载运行时对「它的世界姿势是否跨帧携带状态」的自述。不可配置。
+仅当资源同时具备以下两项时，才会跳过世界姿势解算：
 
-缺任何一个,世界姿势就每帧都解算,不论在不在屏幕上。
+- **剔除契约**——骨骼空间中的一个矩形，任何姿势都不会超出它。由作者记录在资源上，不会自动生成。
+- **无状态的世界约束**——由加载的 Spine 运行时报告：世界姿势在帧之间不携带状态。不可配置。
 
-### 记录一份契约
+缺少任一项时，无论实体是否可见，每帧都会解算世界姿势。
 
-选中骨骼资产,使用 Details 面板的 **固定剔除范围** 一行。
+### 记录契约
 
-**扫描动画** 会在每个皮肤下把每个动画完整播一遍,把看到的报告为 **扫描所见范围**。那是一次
-测量,不是承诺:两个动画的混合并不等于它们范围的并集,游戏代码能把骨头移到导出从未去过的
-地方,而两个采样点之间的极值根本没被采到。**用作固定剔除范围** 把它写进契约——先留一点余量
-是常态,而接受它是**你**的承诺,不是扫描的。
+选中骨骼资源，使用细节面板中的 **Fixed Culling Bounds** 行。
 
-**移除固定范围** 写入的是一个零面积矩形,那就是这里的「无契约」:刚导入的资产本来就带着一个,
-而被删掉的键会在下次导入时回来。
+| 操作 | 结果 |
+|---|---|
+| **Scan Animations** | 在每个皮肤下完整播放每段动画，并将范围显示为 **Observed Bounds**。 |
+| **Use as Fixed Culling Bounds** | 将观测范围复制到契约中。 |
+| **Remove Fixed Bounds** | 写入面积为零的矩形，表示"无契约"。新导入的资源带有此值。 |
+
+观测范围是测量结果而非保证：两段动画的混合不等于两者范围的并集，游戏代码可能把骨骼移到导出动画之外，两次采样之间的极值也不会被采到。接受前应先为观测范围留出余量。
 
 <Aside type="caution">
-  契约覆盖的是**每一个**姿势,包括你的游戏代码在运行时驱动出来的那些。矩形太小,角色会在
-  屏幕边缘凭空消失;太大只是多花一点工作。留余量。
+  契约必须覆盖**所有**姿势，包括运行时由游戏代码驱动的姿势。矩形过小会使角色在屏幕边缘附近消失；过大只会多消耗一些计算。
 </Aside>
 
-### 它买到了什么
+### 实测效果
 
-1000 个骨骼,测的是 pose + extract + submit:
+1000 个骨骼；姿势、提取与提交的耗时：
 
-| 可见 | 每帧都摆 | 有契约 |
+| 可见 | 每帧摆姿势 | 带契约 |
 |---|---|---|
 | 1000 / 1000 | 3.39 ms | 3.36 ms |
 | 200 / 1000 | 3.29 ms | 1.06 ms |
 | 0 / 1000 | 3.26 ms | 0.49 ms |
 
-第一行才是关键:并没有为了后两行牺牲掉什么。被跳过的是没有任何人会消费的工作。
+全部可见时开销不变；被跳过的只是结果不会被绘制的计算。
 
-## 为什么这个场景的 Spine 还是贵?
+## 诊断
 
-`Spine` 能报告一帧到底做了什么、每一部分为什么被付掉——不需要 profiler。计数默认关闭,
-所以没人在看的运行时每个实体只多一个分支,别的什么都不付。
+`Spine` 可报告一帧做了什么，以及每部分开销的原因。计数默认关闭；关闭时的开销为每个实体一次分支判断。
 
 ```ts
 import { Res } from 'esengine';
 import { Spine, formatSpineDiagnostics } from 'esengine/spine';
 
-// 在一个取 Res(Spine) 的系统里——先开一次,之后任何一帧都可以读:
+// 在接收 Res(Spine) 的系统中——调用一次，之后任意一帧读取：
 spine.observe(true);
 console.log(formatSpineDiagnostics(spine.diagnostics()));
 ```
@@ -219,40 +228,34 @@ spine — frame 412, 1000 entities across 3 assets
   * 600 world poses went unresolved — work this frame did not do.
 ```
 
-怎么读:
+| 行 | 含义 |
+|---|---|
+| `world … unresolved` | 本帧跳过的世界姿势数。有实体在屏幕外时仍为零，说明没有实体被允许跳过；原因见各资源行。 |
+| `always resolves — no-certificate` | 该资源没有剔除契约。记录契约后即可延迟。 |
+| `always resolves — stateful-constraints` | 该资源的世界姿势在帧之间携带状态。契约无法改变这一点；此类资源在结论中单独列出。 |
+| `p50 / p95 / max` | 之前若干帧的分布，用于判断所报告的帧是否典型。 |
 
-- **`world … unresolved`** 是这一帧省掉的。明明有实体在屏幕外它却是 0,说明没有任何东西
-  被允许跳过——原因在下面的资产行里。
-- **`always resolves — no-certificate`** 是可行动的那一条:该资产没有剔除契约,所以不管它
-  站在哪里,每帧都要付一次世界姿势。
-- **`always resolves — stateful-constraints`** 不可行动。没有契约能改变它——findings 把这类
-  资产单独列出,正是为了不把你派去做一件不会有帮助的事。
-- **`p50 / p95 / max`** 是这一帧背后的那些帧。单帧只是一次采样,这几个数才说得出它是否典型。
+`diagnostics()` 以数据形式（`SpineSceneDiagnostics`）返回同一份报告，供自定义面板或叠加层使用；`formatSpineDiagnostics` 将其渲染为文本。
 
-`diagnostics()` 也以数据形式(`SpineSceneDiagnostics`)返回同一份报告,供你自己的面板或
-overlay 使用——`formatSpineDiagnostics` 只是它的一种渲染。
+## 支持的版本与许可
+
+Estella 支持 Spine **2.1、3.8、4.1、4.2 与 4.3**。每个骨骼版本按需加载各自的 WebAssembly 后端，因此 `Spine` 与 `SpineEvents` 位于
+`esengine/spine` 子路径。Spine 2.1 骨骼必须导出为 JSON；2.1 运行时不带其二进制格式的读取器。
+
+<Aside type="caution">
+  内置的 Spine Runtimes 为专有软件。发布使用 Spine 的游戏需要 Esoteric Software 颁发的有效 Spine 许可，与 Estella 自身的许可相互独立。
+</Aside>
 
 ## 最佳实践
 
-- **设一个默认混合**(`setDefaultMix`)让转移交叉淡入而非硬切;热点路径用 `setMixDuration` 覆盖。
-- **用轨道 + `setTrackAlpha` 分层**(例如在轨道 1 放一个瞄准/叠加,混合在轨道 0 的移动之上)。
-- **跨实体共享骨骼 + 图集**——它们引用计数同一份已加载骨骼。
-- **用 [Animator](/docs/zh-cn/animation/overview/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
-- **给每个会成规模出现的骨骼记录剔除契约**——它决定了你付的是「屏幕上那些角色」还是「全部角色」。
-
-<Aside type="note">
-  Estella 支持 Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3**——每个骨骼版本按需加载自己的
-  WebAssembly 后端(按需付费),这也是 `Spine` 与 `SpineEvents` 位于 `esengine/spine`
-  子路径的原因。2.1 的骨骼需导出为 JSON:该版本的运行时没有附带自己二进制格式的读取器。
-</Aside>
-
-<Aside type="caution">
-  捆绑的 Spine Runtimes 是专有的。发布使用 Spine 的游戏需要 Esoteric Software 的有效 Spine
-  授权——与 Estella 自身的授权相互独立。
-</Aside>
+- **设置默认混合**：用 `setDefaultMix` 使过渡交叉淡入；特定过渡用 `setMixDuration`。
+- **用轨道分层**并配合 `setTrackAlpha`，例如轨道 1 上的瞄准叠加动画覆盖轨道 0 上的移动动画。
+- **共享骨骼与图集**：引用同一对资源的实体共享一份已加载的骨骼。
+- **用 [Animator](/docs/zh-cn/animation/animator/) 状态机驱动角色**，它可以驱动 Spine，也可以驱动精灵。
+- **为大量使用的骨骼记录剔除契约**，使屏幕外的实例跳过世界姿势解算。
 
 ## 参见
 
-- [动画](/docs/zh-cn/animation/overview/) —— Animator 状态机可以驱动 Spine。
-- [资源](/docs/zh-cn/assets/overview/) —— 加载骨骼 + 图集资源。
-- [DragonBones 动画](/docs/zh-cn/animation/dragonbones/) —— 另一个骨骼运行时,MIT 许可。
+- [动画](/docs/zh-cn/animation/overview/)——Animator 状态机可以驱动 Spine。
+- [资源](/docs/zh-cn/assets/overview/)——骨骼与图集资源的导入与引用。
+- [DragonBones 动画](/docs/zh-cn/animation/dragonbones/)——采用 MIT 许可的骨骼运行时。

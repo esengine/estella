@@ -1,0 +1,97 @@
+---
+title: Tiled Maps
+description: Reference for importing Tiled maps — the Tilemap component and .tmj files, supported tileset kinds, imported orientations, object layers as Markers and Trigger Areas, raw object data through tilemapSource, tile objects, and collision object groups.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Maps authored in [Tiled](https://www.mapeditor.org/) load through the **`Tilemap`** component. At load, one
+`TilemapLayer` entity is derived for each map layer; the layers then behave like layers painted in the editor.
+
+## The `Tilemap` component
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `source` | asset (`tilemap`) | `''` | The Tiled map file, in Tiled's JSON format (`.tmj`; in Tiled, *File → Export As → JSON*). |
+
+```typescript
+import { defineSystem, Commands } from 'esengine';
+import { Tilemap } from 'esengine/tilemap';
+
+const loadLevel = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(Tilemap, { source: 'assets/maps/level.tmj' });
+});
+```
+
+{/* SHOT: world-tilemap-tiled-import | Details of the entity carrying the Tilemap component with source level.tmj, and the viewport showing the imported map with its parallax cloud layer (examples/tilemap-demo, tiled-map scene) */}
+
+## Supported tilesets
+
+| Tileset kind | Handling |
+|---|---|
+| Grid tileset (one atlas image), embedded | Loaded directly. |
+| External `.tsj` tileset | Fetched and merged into the map, with image paths resolved relative to the map. |
+| Image-collection tileset (one image per tile) | Packed into a single grid atlas at load time and rendered like a grid tileset. Each image must match the map's tile size; any other size fails the load with an error that states the required size. |
+
+A map may use several tilesets; each becomes a slot of the layer's multi-tileset table
+([Multiple tilesets](/docs/world/tilemaps/code/#multiple-tilesets)). Margin and spacing are taken from the tileset.
+Tile animations, per-tile collision ([Collision from Tiled](/docs/world/tilemaps/collision/#collision-from-tiled)) and
+custom tile properties are imported with the tileset.
+
+## Orientations
+
+Maps of every orientation import into the layer's [orientation fields](/docs/world/tilemaps/overview/#orientations),
+including `staggeraxis` and `staggerindex` of staggered maps, so tiles are placed as Tiled displays them.
+
+## Object layers
+
+Tiled **object layers** (spawn points, triggers, region shapes) load with the map. Point objects become
+[**Marker**](/docs/gameplay/markers/) entities and shape objects become **Trigger Area** regions — the same entities
+that are placed by hand in the editor — so `Query(Marker)` reads objects regardless of whether they came from Tiled or
+from the Estella editor.
+
+### Raw object data
+
+`tilemapSource(assets, path)` returns the parsed map, including its object groups. Each group carries its objects with
+position, size, `type` (Tiled's class), `shape` and custom `properties`:
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+import { tilemapSource } from 'esengine/tilemap';
+
+const readSpawns = defineSystem([Res(Assets)], (assets) => {
+  const src = tilemapSource(assets, 'assets/maps/level.tmj');
+  for (const group of src?.objectGroups ?? []) {
+    for (const obj of group.objects) {
+      if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+    }
+  }
+});
+```
+
+### Tile objects
+
+Objects that carry a tile reference (a **gid** — tiles placed on an object layer in Tiled) render as sprite children
+of the map and honour Tiled's horizontal, vertical and diagonal flip flags.
+
+### Collision object groups
+
+An object group named `collision` (case-insensitive), or carrying the property `collision = true`, generates static
+colliders: rectangles, ellipses, polygons and polylines become the matching 2D collider shapes. They use the same
+origin, pixels-per-unit conversion and play-mode lifecycle as tile collision.
+
+<Aside type="note">
+  Object colliders exist in play mode only and are never serialized into the edit world.
+</Aside>
+
+## Example
+
+`examples/tilemap-demo` loads the same art two ways: the `tiled-map` scene imports a `.tmj` with two embedded
+tilesets, a parallax cloud layer, animated water and per-tile collision; the `native-map` scene uses an `.estileset`
+painted in the editor.
+
+## See also
+
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — the entities object layers become.
+- [Tile Collision](/docs/world/tilemaps/collision/) — colliders from imported collision data.
+- [Assets](/docs/assets/overview/) — loading `.tmj` maps.

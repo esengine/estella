@@ -44,7 +44,7 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 ```
 
 `position.x/y/z`, `rotation.x/y/z/w`, `rotation.angle` (the Z turn, in radians, which leaves the other two axes intact) and `scale.x/y/z` are animatable (the
-[Sequencer](/docs/animation/timeline/) and [tweens](/docs/animation/overview/#tweens)
+[Sequencer](/docs/animation/timeline/sequencer/) and [tweens](/docs/animation/tweens/)
 can key them), and `position` / `rotation` / `scale` are replicated by
 [networking](/docs/scripting/networking/)'s state replication.
 
@@ -191,7 +191,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 
 To animate a rotation, `TweenTarget.RotationZ` drives the Z angle **in radians**
 (the engine rebuilds the quaternion each step), and the Sequencer keys
-`rotation.angle` the same way — see [Animation](/docs/animation/overview/#tweens).
+`rotation.angle` the same way — see [Animation](/docs/animation/tweens/).
 
 <Aside type="tip">
   For aiming math without touching rotation at all, `v2.fromAngle(angle, len)`

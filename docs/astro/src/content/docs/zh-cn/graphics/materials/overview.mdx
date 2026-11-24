@@ -17,7 +17,7 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|
 | `Sprite` | `material` | [精灵效果](/docs/zh-cn/graphics/sprites/effects/#材质与光照) |
 | `SpineAnimation` | `material` | — |
-| `ParticleEmitter` | `material` | [粒子材质](/docs/zh-cn/world/particles/#粒子材质) |
+| `ParticleEmitter` | `material` | [粒子材质](/docs/zh-cn/world/particles/rendering/#粒子材质) |
 | `MeshRenderer` | `material` | — |
 | `UIVisual` | `material` | [图片](/docs/zh-cn/ui/images/#自定义材质) |
 
@@ -64,7 +64,7 @@ import { Aside } from '@astrojs/starlight/components';
 | **Ground Blend** | `ground-blend` | 用于立在地面中的物体的 Model 着色器：与地面相接处淡出为其后方的画面（[地面融合](/docs/zh-cn/graphics/terrain/overview/#地面融合)）。 |
 | **Toon** | `toon` | 分档光照：每盏灯的光被切分为 `u_bands` 个平坦档位（`u_bandSoftness` 柔化档位交界）；`u_shadeColor` 为灯光照不到处的颜色；亮度超过 `u_specThreshold` 时绘制平坦高光 `u_specColor`（`u_specSize` 控制光泽度）；以及边缘光（`u_rimColor`、`u_rimWidth`、`u_rimStrength`）。灯光阴影计入其所在档位。使用帧内的 16 盏灯，并与 Model 一样包含灯光循环。 |
 | **Matcap** | `matcap` | 按表面朝向相机的方向，在一张受光球体的图片（`u_matcap`）中查找颜色。不读取灯光与阴影，只读取一次纹理，适用于手机。`u_baseBlend` 将基础色乘入。 |
-| **Particle** | `particle` | 用于 `ParticleEmitter`：粒子接近其后方场景时淡出（`u_softness`，世界单位），纹理随粒子年龄侵蚀（`u_erosion`、`u_erosionEdge`）。见[粒子材质](/docs/zh-cn/world/particles/#粒子材质)。 |
+| **Particle** | `particle` | 用于 `ParticleEmitter`：粒子接近其后方场景时淡出（`u_softness`，世界单位），纹理随粒子年龄侵蚀（`u_erosion`、`u_erosionEdge`）。见[粒子材质](/docs/zh-cn/world/particles/rendering/#粒子材质)。 |
 | **Distortion** | `distortion` | 扭曲其后方已绘制的画面：热浪、冲击波、透镜。纹理 alpha 决定扭曲位置与强度（`u_strength`、`u_radial`、`u_dispersion`）。可用于粒子与网格。 |
 
 ### 模块模板

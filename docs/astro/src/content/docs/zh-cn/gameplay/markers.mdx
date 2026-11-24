@@ -23,7 +23,7 @@ Marker 就是 `Marker` 组件(一个 `type` 字符串加一个自由形式的 `p
 - 它和任何组件一样**随场景序列化**。
 - 它出现在 **Inspector** 里,包括一个键→值属性编辑器。
 - 它**可 `Query`**——同一条代码路径既读你手工放置的标记,*也*读从
-  [Tiled](/docs/zh-cn/world/tilemaps/) `.tmj` 对象层导入的标记。
+  [Tiled](/docs/zh-cn/world/tilemaps/tiled/) `.tmj` 对象层导入的标记。
 
 `type` 的词汇完全由你定义:`spawn`、`waypoint`、`door`、`chest`、`checkpoint`——字符串的含义由
 游戏说了算。
@@ -123,7 +123,7 @@ const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, m
 
 ## 从 Tiled 导入
 
-当 [`Tilemap`](/docs/zh-cn/world/tilemaps/) 加载一张 `.tmj` 地图时,它的**对象层**汇聚到你
+当 [`Tilemap`](/docs/zh-cn/world/tilemaps/tiled/) 加载一张 `.tmj` 地图时,它的**对象层**汇聚到你
 手工创建的同一批实体上——没有单独的结构要遍历:
 
 | Tiled 对象 | 变成 |
@@ -156,11 +156,11 @@ if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // 按钮上�
 - **能查一次就查一次。** 出生点、路点图、巡逻路线通常在场景开始时读一次;缓存结果,别每帧重查。
 - **复用同一套标记词汇**,横跨手工创建的场景与导入的 Tiled 地图——查询代码不关心标记从哪来。
 - **Trigger Area 是传感器**——要*挡住*的东西(墙、台沿),请画一块
-  [碰撞层](/docs/zh-cn/world/tilemaps/#碰撞障碍层)或用非传感器碰撞体。
+  [碰撞层](/docs/zh-cn/world/tilemaps/collision/#碰撞层)或用非传感器碰撞体。
 
 ## 参见
 
-- [瓦片地图](/docs/zh-cn/world/tilemaps/) —— 碰撞(障碍)层与喂给同一批 Marker 的 Tiled 对象层。
+- [瓦片地图](/docs/zh-cn/world/tilemaps/overview/) —— 碰撞(障碍)层与喂给同一批 Marker 的 Tiled 对象层。
 - [物理](/docs/zh-cn/gameplay/physics/) —— 传感器、碰撞过滤,以及 Trigger Area 背后的 `Physics2DEvents` 资源。
 - [场景](/docs/zh-cn/world/scenes/) —— Marker 与 Trigger Area 随场景序列化。
 - [事件绑定](/docs/zh-cn/scripting/events/) —— 有东西进入 Trigger Area 时执行一个动作，直接挂在触发区上，不写代码。

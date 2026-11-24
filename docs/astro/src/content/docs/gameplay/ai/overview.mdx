@@ -138,7 +138,7 @@ the agent entity (the same channel your code and the editor use):
 
 | Name | Kind | Effect |
 |---|---|---|
-| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/animation/timeline/) play flag. On a finished clip this replays it from the top. |
+| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/animation/timeline/playback/#timelineplayer-component) play flag. On a finished clip this replays it from the top. |
 | `timeline.pause` | action | Lower the play flag (resume with `timeline.play`). |
 | `timeline.finished` | condition | True once the clip has completed (a `once` clip that ran to its end) and is not playing. |
 | `spriteAnim.play` | action | Play the agent's sprite flipbook; the **argument** switches to that clip. |
@@ -294,7 +294,7 @@ code is the shared leaves above plus the one-time grid.
 ## See also
 
 - [Scripting](/docs/scripting/overview/) — behaviors are declarative systems; leaves are plain functions.
-- [Animation](/docs/animation/overview/) — drive sprite clips from a state machine.
+- [Sprite animation](/docs/animation/sprite-animation/#state-machine-actions) — drive sprite clips from a state machine.
 - [Scenes](/docs/world/scenes/) — `.esfsm` / `.esbt` assets load and serialize with the scene.
 - [Event Binding](/docs/scripting/events/) — a click or a trigger can `fsm.fire` into a state
   machine; actions and conditions come from this same registry.

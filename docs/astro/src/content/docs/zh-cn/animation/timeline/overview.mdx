@@ -1,0 +1,59 @@
+---
+title: 时间轴
+description: 时间轴资源（.estimeline）——时间轴的组成、轨道类型、TimelinePlayer 如何播放时间轴、时间轴与动画控制器及补间的关系，以及运行时何时被打包。
+---
+
+时间轴（`.estimeline`）是一组基于同一时钟共同求值的轨道。轨道可为组件字段设置关键帧，开关实体，播放声音、精灵剪辑、骨骼动画和嵌套时间轴，选择镜头，生成预制体并发送事件。一条时间轴可在 2D 与 3D 场景中驱动多个实体。时间轴在**序列器**中编辑，由 `TimelinePlayer` 组件播放。
+
+| 页面 | 内容 |
+| --- | --- |
+| [序列器](/docs/zh-cn/animation/timeline/sequencer/) | 创建与编辑时间轴：关键帧、曲线、选择、轨道管理、预览与渲染。 |
+| [轨道与绑定](/docs/zh-cn/animation/timeline/tracks/) | 各轨道类型及其字段，以及指向播放器层级之外实体的绑定。 |
+| [播放与脚本](/docs/zh-cn/animation/timeline/playback/) | `TimelinePlayer`、`Timeline` 资源、播放事件、循环模式与代码构建的时间轴。 |
+
+## 轨道类型
+
+| 轨道 | `TrackType` | 驱动内容 |
+|---|---|---|
+| 属性 | `Property` | 组件字段关键帧：位置、旋转、缩放及任意数值字段路径（[属性轨道](/docs/zh-cn/animation/timeline/tracks/#属性轨道)）。 |
+| 精灵帧 | `AnimFrames` | 随时间切换精灵表帧。 |
+| 精灵剪辑 | `SpriteAnim` | 在指定时间启动一个命名 `anim-clip`。 |
+| 音频 | `Audio` | 声音：瞬间条目完整播放一次；有长度的条目在其区间内发声（[音频轨道](/docs/zh-cn/animation/timeline/tracks/#音频轨道)）。 |
+| 激活 | `Activation` | 按区间开关实体及其子对象；UI 节点写入 `UINode.display`（[激活轨道](/docs/zh-cn/animation/timeline/tracks/#激活轨道)）。 |
+| Spine | `Spine` | 将 Spine 动画作为剪辑播放。 |
+| 粒子 | `Particle` | 在指定时间播放、停止或重置目标实体的粒子发射器。 |
+| 标记 | `Marker` | 命名时间标记，经过时作为 `TimelineEvent` 发给游戏。 |
+| 自定义事件 | `CustomEvent` | 带负载和可选窗口的命名事件，作为 `TimelineEvent` 发出（[事件与标记轨道](/docs/zh-cn/animation/timeline/tracks/#事件与标记轨道)）。 |
+| 相机 | `Camera` | 逐镜头指定用作视图的相机（[相机轨道](/docs/zh-cn/animation/timeline/tracks/#相机轨道)）。 |
+| 子序列 | `Sequence` | 在本时间轴的一个时间窗内播放另一条时间轴（[子序列轨道](/docs/zh-cn/animation/timeline/tracks/#子序列轨道)）。 |
+| 动画 | `Animation` | 在骨架上播放骨骼动画剪辑，与骨架自身动画之间缓入缓出和交叉淡化（[动画轨道](/docs/zh-cn/animation/timeline/tracks/#动画轨道)）。 |
+| 生成 | `Spawn` | 播放头处于剪辑内时由预制体生成的实体（[生成轨道](/docs/zh-cn/animation/timeline/tracks/#生成轨道)）。 |
+| 相机震动 | `CameraShake` | 在指定时间震动相机（[相机震动轨道](/docs/zh-cn/animation/timeline/tracks/#相机震动轨道)）。 |
+
+序列器还可添加**淡入淡出**与**时间缩放**轨道，它们在普通属性轨道上为 `ScreenFade` 与 `TimeDilation` 组件设置关键帧（[淡入淡出与时间缩放](/docs/zh-cn/animation/timeline/tracks/#淡入淡出与时间缩放)）。
+
+## 播放时间轴
+
+轨道通过播放时间轴的实体之下的名称路径，或通过播放器上的绑定找到目标。要在场景中播放时间轴，在根实体上添加 **Timeline Player**，将 `.estimeline` 指定给 **Timeline** 并勾选 **Playing**。播放在运行模式和独立运行时中推进，在编辑器的编辑模式下冻结；编辑时由序列器预览时间轴。组件字段与 `Timeline` 资源见[播放与脚本](/docs/zh-cn/animation/timeline/playback/)。
+
+## 时间轴、动画控制器与补间
+
+- `.estimeline` 也是[动画控制器](/docs/zh-cn/animation/animator/)的剪辑格式：带时间轴动作的状态对其采样；导入模型时，骨骼剪辑以关节曲线组成的 `.estimeline` 写出。
+- `.esanimator` 保存在剪辑之间做选择的状态机；时间轴保存一组固定编排的轨道。
+- 时间轴适合多个属性或实体同步动画；[补间](/docs/zh-cn/animation/tweens/)适合根据玩法变化单个属性。
+
+## 使用建议
+
+- 在序列器中编辑时间轴；代码负责播放与定位。
+- 过场使用 `wrapMode: 'once'`，环境或待机序列使用 `'loop'`。
+- 使用 `setTime` 定位过场，或使其与玩法状态同步。
+
+## 打包
+
+时间轴是可选模块。场景中有 `TimelinePlayer`、内容中包含 `.estimeline`，或脚本导入了 `esengine/timeline` 时，包中才包含时间轴运行时与加载器；否则两者都不包含。
+
+## 参见
+
+- [动画](/docs/zh-cn/animation/overview/) —— 各动画系统及其关系。
+- [Spine 动画](/docs/zh-cn/animation/spine/) —— Spine 轨道播放 Spine 动画。
+- [AI 内建名字](/docs/zh-cn/gameplay/ai/overview/#内建名字) —— 用于状态机驱动过场的 `timeline.play` 与 `timeline.finished`。

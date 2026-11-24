@@ -1,0 +1,130 @@
+---
+title: Animation events
+description: Events and windows declared on clips played by an Animator — the AnimatorEvent bus and its delivery guarantees, windows queried each frame, combo transitions gated by a window, and trigger input buffers.
+---
+
+A clip can name moments and stretches within it. When the clip plays in an [Animator](/docs/animation/animator/)
+state, the animator reports each moment as an event and keeps each stretch open as a window that gameplay can query.
+The animator does not call particle, audio or gameplay code; systems that own those respond to the events.
+
+## Events
+
+A `customEvent` track in an `.estimeline` carries items of the form `{ time, name, payload }`. The animator reports
+each one on the frame whose step crossed it, on the `AnimatorEvent` bus:
+
+```typescript
+import {
+  defineSystem, EventReader, GetWorld, Res,
+  AnimatorEvent, Particle, resolveChildEntity,
+} from 'esengine';
+
+const footsteps = defineSystem(
+  [EventReader(AnimatorEvent), GetWorld(), Res(Particle)],
+  (events, world, particles) => {
+    for (const event of events) {
+      if (event.name !== 'footstep') continue;
+      const dust = resolveChildEntity(world, event.entity, 'FootDust');
+      if (dust !== null) particles.play(dust);
+    }
+  },
+  { name: 'FootstepSystem' },
+);
+```
+
+| Field | Description |
+|---|---|
+| `entity` | The animated entity. |
+| `name` | The event name declared by the clip. |
+| `value` | Numeric payload (`payload.value`); `0` when the clip declares none. |
+| `text` | String payload (`payload.text`); empty when the clip declares none. |
+
+Delivery guarantees:
+
+- An event fires when the interval `(previous, current]` covered by a step contains it. A long frame does not skip an
+  event, and an event is never reported twice for one crossing.
+- A loop wrap is two intervals, the end of one lap and the start of the next, so an event near either end fires
+  exactly once per lap.
+- Several events in one step fire in the order the clip declares them.
+- During a crossfade only the state being entered reports events. The state fading out keeps its clock but reports
+  nothing, so an attack interrupted by a dodge does not deliver its hit.
+
+Sprite clips have their own frame events, delivered through the `SpriteAnimation` resource
+([Frame events](/docs/animation/sprite-animation/#frame-events)).
+
+## Windows
+
+A `customEvent` with a `duration` (seconds of clip time) is a window, open over `[time, time + duration)`. It is
+posted once on the bus when it opens, and in addition reported as open on every frame it covers. Typical uses are an
+attack's active frames, the part of a swing in which a combo can be chained, and a dodge's invulnerability.
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+```typescript
+const animator = app.getResource(AnimatorController);
+const active = animator.openWindow(entity, 'attack-active'); // null when shut
+for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
+```
+
+| `AnimatorWindow` field | Description |
+|---|---|
+| `id` | Identifies one opening; constant while the window stays open, new each time it opens. |
+| `layer` | The animator layer whose motion holds the window. |
+| `name` | The window name. |
+| `value` / `text` | The payload, as for events. |
+| `start` | Where the window opens, in the clip's own time. |
+
+Rules:
+
+- A window is reported on every frame whose step reaches any part of it, so a window shorter than a frame is still
+  open on the frame that passes over it. A step that reaches only its closing edge does not open it.
+- Only the state being played holds windows. Leaving the clip while a window is open, including through a crossfade,
+  shuts the window on that frame, so logic waiting for the window to close is not left waiting on an interrupted
+  clip.
+- Two back-to-back windows that touch are two openings with different `id`s, as is each lap of a looping clip.
+
+An event with a `duration` on a timeline played by a `TimelinePlayer` is delivered as a `TimelineEvent`
+([Event and marker tracks](/docs/animation/timeline/tracks/#event-and-marker-tracks)); it is reported as an open window
+only to an Animator state that plays the timeline.
+
+## Combos and the input buffer
+
+A combo is a transition that may be taken only during part of a clip. Declare that part as a window on the clip
+(here named `combo`) and add a `window` condition to the transition, with `param` naming the window:
+
+```json
+{ "to": "Attack2", "conditions": [
+  { "param": "attack", "op": "trigger" },
+  { "param": "combo", "op": "window" }
+] }
+```
+
+The condition holds while the state being left has the window open over the frame being stepped, so a combo window
+shorter than a frame is not skipped.
+
+A trigger stays set until a transition consumes it. A `buffer` on a trigger parameter, in seconds of animator time,
+limits that: a press is remembered for that long and then dropped. A press slightly before the window still chains,
+and a press during the wind-up does not start another attack when the current one ends.
+
+```json
+{ "name": "attack", "type": "trigger", "buffer": 0.25 }
+```
+
+Pressing again restarts the buffer. A buffer of `0` keeps the trigger for the next update only. Without `buffer`, a
+trigger waits until a transition uses it.
+
+In the controller editor, the buffer is the **Buffer (s)** field beside a trigger parameter, and a condition whose
+**Op** is **in window** takes the window's name instead of a parameter.
+
+{/* SHOT: anim-animator-combo-window | Controller editor with locomotion.esanimator from the third-person-3d example open, a transition selected whose Conditions list contains a trigger condition and an "in window" condition with the window name typed in, and a trigger parameter showing its Buffer (s) value */}
+
+Any-state transitions are evaluated before the current state's transitions, so an attack trigger used by an
+any-state transition takes precedence over the combo. Keep the attack trigger off the any-state list and place it on
+the states from which an attack may start.
+
+## See also
+
+- [Animator](/docs/animation/animator/) — states, transitions and parameters.
+- [Timeline tracks](/docs/animation/timeline/tracks/#event-and-marker-tracks) — authoring event tracks in the
+  Sequencer.

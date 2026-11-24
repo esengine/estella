@@ -27,7 +27,7 @@ Because a Marker is pure ECS, there is nothing special to load or parse:
 - It **serializes** with the scene like any component.
 - It shows in the **Inspector**, including a key→value editor for its properties.
 - It's **`Query`-able** — one code path reads markers you placed by hand *and*
-  markers imported from a [Tiled](/docs/world/tilemaps/) `.tmj` object layer.
+  markers imported from a [Tiled](/docs/world/tilemaps/tiled/) `.tmj` object layer.
 
 The `type` vocabulary is entirely yours: `spawn`, `waypoint`, `door`, `chest`,
 `checkpoint` — the game defines what the strings mean.
@@ -136,7 +136,7 @@ react to without code.
 
 ## Imported from Tiled
 
-When a [`Tilemap`](/docs/world/tilemaps/) loads a `.tmj` map, its **object layers**
+When a [`Tilemap`](/docs/world/tilemaps/tiled/) loads a `.tmj` map, its **object layers**
 converge onto the same entities you author by hand — no separate structure to walk:
 
 | Tiled object | Becomes |
@@ -176,12 +176,12 @@ the entities that carry the component each time it is asked, which a button pres
 - **Reuse one marker vocabulary** across hand-authored scenes and imported Tiled maps
   — the query code doesn't care where the marker came from.
 - **Trigger Areas are sensors** — for anything you want to *block* (a wall, a ledge),
-  paint a [collision layer](/docs/world/tilemaps/#collision-obstacle-layers) or use a
+  paint a [collision layer](/docs/world/tilemaps/collision/#collision-layers) or use a
   non-sensor collider instead.
 
 ## See also
 
-- [Tilemaps](/docs/world/tilemaps/) — collision (obstacle) layers and Tiled object
+- [Tilemaps](/docs/world/tilemaps/overview/) — collision (obstacle) layers and Tiled object
   layers that feed the same Markers.
 - [Physics](/docs/gameplay/physics/) — sensors, collision filtering, and the
   `Physics2DEvents` resource behind Trigger Areas.

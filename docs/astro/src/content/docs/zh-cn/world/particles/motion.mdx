@@ -1,0 +1,106 @@
+---
+title: 粒子运动
+description: 粒子如何运动——初速度大小与方向、重力、阻尼、附加速度与速度上限、旋转与自转、旋度噪声湍流，以及作用于范围内所有发射器的 ParticleForceField 实体。
+---
+
+粒子的运动由初速度决定，每帧与发射器的力、噪声场以及范围内的 `ParticleForceField` 一起积分。
+
+## 速度与力
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `speedMin` | number | `500` | 最小初速度。 |
+| `speedMax` | number | `500` | 最大初速度。 |
+| `angleSpreadMin` | number | `0` | 发射方向弧的起点（°），位于发射器局部 XY 平面。仅 `Point` 和 `Box` 读取。 |
+| `angleSpreadMax` | number | `360` | 发射方向弧的终点（°）。仅 `Point` 和 `Box` 读取。 |
+| `gravity` | Vec3 | `{0, 0, 0}` | 施加到每个粒子的恒定加速度。 |
+| `damping` | number | `0` | 每秒速度阻尼；`0` 为无阻尼。 |
+| `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | 每个粒子在自身速度之外额外携带的速度，出生时在两端之间选取。重力、阻尼、噪声和速度上限不作用于它。仅 CPU 模拟。 |
+| `speedLimit` | number | `0` | 粒子自身速度的上限；`0` 为不限。超过上限的粒子被拉回上限附近。仅 CPU 模拟。 |
+| `limitDampen` | number | `1` | 每 1/60 秒去除超出 `speedLimit` 部分的比例：`1` 立即钳制，较小的值逐渐制动。 |
+
+初始方向由形状决定（[发射器形状](/docs/zh-cn/world/particles/overview/#发射器形状)）。随生命的速度倍率可通过
+`Particle.setSpeedLut` 上传（[播放控制](/docs/zh-cn/world/particles/overview/#播放控制)）。
+
+## 旋转
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `rotationMin` | number | `0` | 生成时的最小旋转（°）。 |
+| `rotationMax` | number | `0` | 生成时的最大旋转（°）。 |
+| `angularVelocityMin` | number | `0` | 最慢自转（°/s）。 |
+| `angularVelocityMax` | number | `0` | 最快自转（°/s）。 |
+
+`Stretched` 粒子改为沿速度方向转动（[拉伸粒子](/docs/zh-cn/world/particles/rendering/#拉伸粒子)）。
+
+## 噪声与湍流
+
+噪声模块在速度和重力之上叠加一个旋度噪声流场，使粒子沿平滑、旋绕的气流运动：卷曲的烟、飘动的火星、漂移的魔法。
+该流场是噪声势场的旋度，因而无散度：粒子不会像随机抖动那样聚成团或散出空洞。它在引擎内核中计算，在包括微信小游戏在内的
+所有平台上结果一致。`noiseStrength` 为 `0` 时不采样流场，该模块没有开销。
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `noiseStrength` | number | `0` | 流场推动粒子的峰值流速，世界单位每秒。`0` 关闭该模块。 |
+| `noiseFrequency` | number | `0.01` | 流场的空间尺度。值越大，漩涡越紧密、越繁杂。 |
+| `noiseScrollSpeed` | number | `0` | 流场随时间漂移的速度；`0` 为静止流场。 |
+| `noiseOctaves` | number | `1` | 分形细节层数，1–8。`1` 为平滑流动；层数越多，湍流越细碎，开销越高。 |
+
+```typescript
+.insert(ParticleEmitter, {
+  // …发射、寿命、颜色…
+  noiseStrength: 120,     // 气流推力（世界单位/秒）
+  noiseFrequency: 0.01,   // 越小越是宽缓的漩涡；越大越是细密的涡流
+  noiseScrollSpeed: 0.5,  // 流场漂移，使流动持续变化
+  noiseOctaves: 2,        // 1 = 平滑；越多湍流越细碎
+});
+```
+
+调参建议：
+
+- **`noiseStrength`**：从粒子速度的一小部分开始，逐步增大到游走效果可见。
+- **`noiseFrequency`**：决定漩涡大小。上升的烟适合较小的值（约 `0.005`）；杂乱的火花适合较大的值（约 `0.03`）。
+- **`noiseScrollSpeed`**：大于 `0` 时缓慢的烟柱保持流动；`0` 为粒子穿流而过的固定流场。
+- **`noiseOctaves`**：`1`–`2` 适用于大多数特效。
+
+## 力场
+
+`ParticleForceField` 是独立的实体，作用于范围内所有发射器的世界空间粒子：阵风、引力井、漩涡、静止的空气团。噪声模块则只属于单个发射器。
+
+```typescript
+import { ParticleForceField, ForceFieldType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ParticleForceField, {
+    type: ForceFieldType.Vortex,
+    strength: 450,   // 加速度（世界单位/秒²）；Point 场取负值即变为排斥
+    radius: 320,     // 0 = 影响整个场景；> 0 = 只影响范围内的粒子
+    falloff: true,   // 在半径边缘把力衰减到 0
+  });
+```
+
+### `ParticleForceField` 字段
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `type` | `ForceFieldType` | `Directional` | 力的种类（见下表）。 |
+| `strength` | number | `200` | 加速度，单位为世界单位每二次方秒。负值使 `Point` 场反向。 |
+| `radius` | number | `0` | 相对力场位置的作用范围；`0` 影响整个场景。 |
+| `direction` | Vec3 | `{1, 0, 0}` | `Directional` 场的推动方向。 |
+| `falloff` | boolean | `true` | 在半径边缘把力衰减到 `0`。 |
+| `enabled` | boolean | `true` | `false` 时跳过该力场。 |
+
+| 类型 | 效果 |
+|---|---|
+| `Directional` | 沿 `direction` 的恒定推力：风、上升气流、水流。 |
+| `Point` | 吸向力场（`strength > 0`）或推离（`strength < 0`）：引力井、爆炸。 |
+| `Vortex` | 绕力场切向旋绕：漩涡、龙卷风、星系。 |
+| `Drag` | 在区域内衰减速度：使粒子减速的静止空气或水。 |
+
+- 模拟每帧收集活动的力场，并与重力一起计入同一速度积分。GPU 模拟的发射器使用前八个力场。
+- `Directional` 使用 `direction`；`Point`、`Vortex` 和 `Drag` 由力场指向粒子的向量推导方向，忽略 `direction`。
+- 力场只作用于 `World` 粒子。`Local` 发射器的粒子随发射器移动，不受力场影响。
+- `strength: 0` 或 `enabled: false` 的力场被跳过。
+
+{/* SHOT: world-particles-force-field | Viewport of examples/vfx-showcase in edit mode with Preview FX on and a ParticleForceField entity selected, the particles visibly bent by it and the Particle Force Field card visible in Details */}

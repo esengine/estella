@@ -1,0 +1,208 @@
+---
+title: Particles
+description: Particle system overview — the ParticleEmitter model, editor preview, plugin setup, emission and lifetime fields, emitter shapes, simulation space, playback control through Res(Particle), and imported particle units.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A particle effect (fire, smoke, sparks, rain, magic) is one `ParticleEmitter` component on an entity. The emitter is
+simulated in the C++/WebAssembly core, on the CPU by default or on the GPU with
+[`gpuSimulation`](/docs/world/particles/gpu-simulation/), and is drawn GPU-instanced in one draw call per emitter.
+Playback is controlled through the `Particle` resource.
+
+![The Particle demo example: a campfire with smoke and sparks](@/assets/guides/en/play-particles.png)
+
+*The Particle demo example: a campfire made of two emitters, smoke and sparks.*
+
+## Particle lifecycle
+
+An emitter owns a fixed pool of `maxParticles` particles. Each frame it spawns new particles at `rate` per second, plus
+any bursts. Each particle:
+
+1. **Spawns** inside the emitter [shape](#emitter-shapes), with a speed and direction chosen between the configured
+   minimum and maximum.
+2. **Lives** for a random duration between `lifetimeMin` and `lifetimeMax` seconds; its colour and size interpolate from
+   their start to their end values over that time.
+3. **Moves** under its own velocity plus `gravity` and `damping`, and spins at its angular velocity.
+4. **Dies** when its lifetime elapses and returns its slot to the pool.
+
+Every `…Min` / `…Max` pair is sampled per particle. Equal values give a uniform effect; a wider range gives variation.
+Colour and size use `startColor` / `endColor` and `startSize…` / `endSize…` with an easing curve, or a full gradient and
+curve ([Colour and size over life](/docs/world/particles/rendering/#colour-and-size-over-life)).
+
+## Editor preview
+
+Particle simulation is gameplay: it advances in Play mode and in the standalone runtime, and is frozen in edit mode, as
+are physics, animation and timelines. The exception is **Preview FX** (viewport **Show** menu, and **View → Show**; on by
+default), which simulates emitters and motion trails in edit mode.
+
+- Turning **Preview FX** on replays every emitter from t = 0; turning it off clears live particles and trails.
+- Editing a cycle-timing field (`duration`, `looping`, `playOnStart`, `burstCount`, `burstInterval`) in Details restarts
+  that emitter. Every other field applies to the running simulation directly.
+
+{/* SHOT: world-particles-preview-fx | Viewport of examples/particle-demo, scene static-emitters, in edit mode with the viewport Show menu open and the Preview FX entry checked, the ConeFountain, CircleBurst and RectRain emitters running behind the menu */}
+
+## Setup
+
+The particle system is in the main bundle. The editor and the web runtime install the plugin automatically. A custom
+`App` adds it once:
+
+```typescript
+import { particlePlugin } from 'esengine';
+
+app.addPlugin(particlePlugin);
+```
+
+## Example
+
+An entity with a `ParticleEmitter` starts emitting when it is created (`playOnStart` defaults to `true`). This emitter
+produces a looping fountain of embers that fade from yellow to transparent red and fall under gravity:
+
+```typescript
+import {
+  defineSystem, Commands, Transform, ParticleEmitter, EmitterShape,
+} from 'esengine';
+
+const spawnEmbers = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: -200, z: 0 } })
+    .insert(ParticleEmitter, {
+      rate: 120,
+      lifetimeMin: 1.2, lifetimeMax: 2.0,
+      shape: EmitterShape.Cone, shapeAngle: 20,
+      speedMin: 300, speedMax: 520,
+      startSizeMin: 12, startSizeMax: 20,
+      endSizeMin: 0,  endSizeMax: 0,
+      startColor: { r: 1, g: 0.9, b: 0.3, a: 1 },
+      endColor:   { r: 1, g: 0.2, b: 0.1, a: 0 },
+      gravity: { x: 0, y: -400 },
+    });
+});
+```
+
+## `ParticleEmitter` fields
+
+Every field is optional; an omitted field takes its default. Sizes, distances and speeds are in world units (pixels at
+the default PPU); angles are in degrees. The fields are documented by group:
+
+| Group | Page |
+|---|---|
+| Emission, Lifetime, Shape | This page: [Emission and lifetime](#emission-and-lifetime), [Emitter shapes](#emitter-shapes) |
+| Velocity and forces, Noise, Rotation | [Motion](/docs/world/particles/motion/) |
+| Size, Colour, Texture, Rendering, Trail | [Rendering](/docs/world/particles/rendering/) |
+| Collision, Sub-emitter | [Collision and sub-emitters](/docs/world/particles/collision/) |
+| `gpuSimulation` | [GPU simulation](/docs/world/particles/gpu-simulation/) |
+
+![Details of a Particle Emitter with the Collision group, sub-emitter and emission fields](@/assets/guides/en/details-particle-emitter.png)
+
+*The **Particle Emitter** Details, with the **Collision** group at the top (off here) above the emission fields.*
+
+## Emission and lifetime
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `rate` | number | `10` | Continuous emission, particles per second. `0` emits bursts only. |
+| `burstCount` | number | `0` | Particles released per interval burst. `0` disables interval bursts. |
+| `burstInterval` | number | `1` | Seconds between interval bursts. |
+| `bursts` | `{ time, count }[]` | `[]` | Burst schedule: `count` particles once the emitter has emitted for `time` seconds, counted from the end of `startDelay`. A looping emitter repeats the schedule every `duration`. Used in addition to `burstCount`. |
+| `duration` | number | `5` | Seconds the emitter runs per cycle (see `looping`). |
+| `simulationSpeed` | number | `1` | Time scale of this emitter: `2` runs it twice as fast, `0` holds it. Emission, lifetimes and motion all follow it. |
+| `startDelay` | number | `0` | Seconds after the emitter starts playing before it emits; `duration` counts from the end of the delay. |
+| `looping` | boolean | `true` | Restart after `duration` instead of stopping. |
+| `playOnStart` | boolean | `true` | Start emitting as soon as the entity exists. |
+| `maxParticles` | number | `1000` | Pool size: the hard cap on live particles. |
+| `gpuSimulation` | boolean | `false` | Simulate on the GPU. See [GPU simulation](/docs/world/particles/gpu-simulation/). |
+| `lifetimeMin` | number | `5` | Shortest particle lifetime, seconds. |
+| `lifetimeMax` | number | `5` | Longest particle lifetime, seconds. |
+| `enabled` | boolean | `true` | `false` freezes and hides the emitter without removing the component. |
+
+## Emitter shapes
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `shape` | `EmitterShape` | `Cone` | `Point`, `Circle`, `Box`, `Cone`, `Sphere` or `Hemisphere`. |
+| `shapeRadius` | number | `100` | Radius for `Circle`, `Cone`, `Sphere` and `Hemisphere`. |
+| `shapeSize` | Vec3 | `{100, 100, 0}` | Box extents for `Box`. A `z` of `0` is a flat rectangle, as used by 2D emitters. |
+| `shapeAngle` | number | `25` | Cone half-angle (°) for `Cone`. |
+
+| Shape | Uses | Spawn region and direction |
+|---|---|---|
+| `Point` | — | The entity origin. Direction from the `angleSpreadMin…Max` arc. |
+| `Circle` | `shapeRadius` | A disc in the emitter's own plane; direction radiates outward. |
+| `Box` | `shapeSize` | A box, or a flat rectangle when `shapeSize.z` is `0`. Direction from the `angleSpreadMin…Max` arc. |
+| `Cone` | `shapeRadius`, `shapeAngle` | A cone around local +Y: a directed spray (fountains, thrusters). |
+| `Sphere` | `shapeRadius` | A ball; direction radiates outward. |
+| `Hemisphere` | `shapeRadius` | A half ball about local +Y; direction radiates outward. |
+
+Directed shapes point along the emitter's local +Y: an unrotated emitter emits upward, and rotating the entity aims it,
+in 2D and 3D. `Point` and `Box` have no direction of their own; the `angleSpreadMin…Max` arc in the emitter's local XY
+plane ([Velocity and forces](/docs/world/particles/motion/#velocity-and-forces)) sets their launch direction, so a
+`Point` that emits only upward uses `0…180`. `Circle`, `Cone`, `Sphere` and `Hemisphere` ignore the arc.
+
+![Emitter shape gizmos in the viewport — a cone, a circle, and a rectangle](@/assets/guides/en/particle-view.png)
+
+*Emitter shape gizmos in the viewport — a cone, a circle and a rectangle, each drawn where its particles spawn. With
+**Preview FX** on, the emitters run in edit mode.*
+
+## Simulation space
+
+`simulationSpace` decides whether live particles follow the emitter's transform.
+
+| Value | Particles follow the emitter | Typical use |
+|---|---|---|
+| `World` (default) | No: they stay where they were born. | Trails, exhaust, sparks left behind a moving object. |
+| `Local` | Yes: they move with the entity's transform. | Auras, shields, effects rigidly attached to a moving object. |
+
+Force fields and floor collision act on `World` particles only.
+
+## Playback control
+
+The `Particle` resource controls emitters from code. Read it with `Res(Particle)` in a system, or with
+`app.getResource(Particle)` outside ECS:
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particles) => {
+  particles.play(entity);        // start / resume emitting
+  particles.stop(entity);        // stop emitting (live particles finish)
+  particles.reset(entity);       // clear all live particles immediately
+  const n = particles.getAliveCount(entity);   // live particle count
+});
+```
+
+| Method | Description |
+|---|---|
+| `play(entity)` | Start or resume emission. |
+| `stop(entity)` | Stop emitting; existing particles live out their lifetime. |
+| `reset(entity)` | Kill all live particles and reset the emitter. |
+| `emitAt(entity, count, position, { normal?, velocity? })` | Spawn `count` of the emitter's particles at a world point now, without moving or replaying the emitter. The shape's +Y points along `normal` when given, otherwise along the entity's rotation; `velocity` is added to each particle. Returns the number spawned. CPU-simulated emitters only. |
+| `getAliveCount(entity)` | Number of live particles. For a GPU-simulated emitter this is an upper bound. |
+| `setColorLut(entity, lut \| null)` | Upload a baked colour-over-life table, or clear it ([Rendering](/docs/world/particles/rendering/#colour-and-size-over-life)). |
+| `setSizeLut(entity, lut \| null)` | Upload a baked size-over-life table, or clear it. |
+| `setSpeedLut(entity, lut \| null)` | Upload a baked speed-over-life multiplier. It scales how fast a particle travels along its trajectory; gravity, damping and noise still accumulate into its velocity. |
+| `setBursts(entity, bursts \| null)` | Set the burst schedule (`{ time, count }[]`), or clear it. |
+| `setCollisionBudget({ queries?, events? })` | Change the App-wide collision caps ([Collision budgets](/docs/world/particles/collision/#collision-budgets)). |
+
+The particle plugin runs the per-frame update; game code does not call it.
+
+<Aside type="tip">
+  For a repeated one-shot effect, such as a hit spark, keep one stopped emitter and fire it with `reset` followed by
+  `play`, or with `emitAt` at the hit point, instead of spawning a new entity each time.
+</Aside>
+
+## Imported particle units
+
+`ParticleModelUnits` holds an imported emitter's size ranges (`startSizeMin`, `startSizeMax`, `endSizeMin`,
+`endSizeMax`), speed range (`speedMin`, `speedMax`) and `gravity` in model units. When it is on the same entity as a
+`ParticleEmitter`, the particle plugin writes those `ParticleEmitter` fields as the model-unit values multiplied by the
+largest absolute axis of the entity's composed world scale, parent scale included. The emitter position still follows
+`Transform`. The conversion is one scalar for world-space particles, not an anisotropic simulation.
+
+To change these imported properties, edit `ParticleModelUnits`; the plugin derives the `ParticleEmitter` fields from it.
+
+## See also
+
+- [Materials & Shaders](/docs/graphics/materials/overview/) — custom particle materials.
+- [Post-processing](/docs/graphics/post-processing/image-effects/#bloom) — bloom over additive particles.
+- [Assets](/docs/assets/overview/) — loading particle textures and atlases.

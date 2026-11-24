@@ -89,7 +89,7 @@ The SDK authoring defaults target 2D: Orthographic, active, `orthoSize` 540.
 
 `orthoSize` controls zoom: halving it doubles the on-screen scale. Zoom is changed through `orthoSize`, not through the
 camera entity's `Transform` scale, which distorts rendering. `orthoSize` is animatable, so a zoom can be tweened
-([Animation](/docs/animation/overview/)):
+([Tweens](/docs/animation/tweens/)):
 
 ```typescript
 import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
@@ -165,6 +165,6 @@ The conversions use the director's resolved main view before shake (see
 
 - [Screen & Design Resolution](/docs/core-concepts/screen/): design-resolution fit, scale modes, `ScreenScaling` and
   `pixelPerfect`.
-- [Animation](/docs/animation/overview/): tweening `orthoSize`.
+- [Tweens](/docs/animation/tweens/): tweening `orthoSize`.
 - [Input](/docs/scripting/input/): pointer input for picking.
 - [UI](/docs/ui/overview/): UI renders in screen space, independent of the camera.

@@ -1,0 +1,111 @@
+---
+title: 补间
+description: Tween 资源——随时间对组件属性或普通数值插值，补间目标、选项、缓动曲线、循环、串接、并行组、序列与组合句柄。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Tween` 资源在一段时长内将数值从一个值插值到另一个值。属性补间通过 C++ 补间系统写入组件字段；数值补间每帧将数值交给回调。`to(entity, target, from, to, duration, options?)` 启动一个属性补间并返回 `TweenHandle`，例如在按钮按下时调用一次。
+
+```typescript
+import { EasingType, LoopMode, TweenTarget, type Entity, type TweenAPI } from 'esengine';
+
+function moveLogo(entity: Entity, tween: TweenAPI) {
+  return tween.to(entity, TweenTarget.PositionX, 0, 200, 1, {
+    easing: EasingType.EaseInOutQuad,
+    delay: 0.2,
+    loop: LoopMode.PingPong,
+    loopCount: 3,
+  });
+}
+```
+
+示例项目 `tween-animation` 同时演示了各缓动曲线以及 `sequence()`、`parallel()` 与 `.bezier()`。
+
+## 目标
+
+`TweenTarget` 选择属性补间驱动的属性：
+
+| 分组 | 取值 |
+|---|---|
+| 位置 | `PositionX`、`PositionY`、`PositionZ` |
+| 缩放 | `ScaleX`、`ScaleY` |
+| 旋转 | `RotationZ` |
+| 颜色 | `ColorR`、`ColorG`、`ColorB`、`ColorA` |
+| 尺寸 | `SizeX`、`SizeY` |
+| 相机 | `CameraOrthoSize` |
+
+列表之外的字段，使用 `tween.value(...)` 并在回调中写入该字段，或使用[时间轴](/docs/zh-cn/animation/timeline/overview/)进行动画。
+
+## 选项
+
+| 选项 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `easing` | `EasingType` | `Linear` | 缓动曲线。 |
+| `delay` | number | `0` | 开始前等待的秒数。 |
+| `loop` | `LoopMode` | `None` | `None`、`Restart` 或 `PingPong`。 |
+| `loopCount` | number | `0` | `loop` 不为 `None` 时，补间完成前播放的周期数。`0` 或负值表示无限重复。 |
+
+## 缓动
+
+`EasingType` 提供 `Linear`；quad、cubic、quart、quint、sine、expo、circ、back 与 elastic 系列（`EaseIn*`、`EaseOut*`、`EaseInOut*`）；bounce 系列（`EaseInBounce`、`EaseOutBounce`、`EaseInOutBounce`）；`Smoothstep` 与 `Smootherstep`；`Step`；以及 `CubicBezier`。自定义三次贝塞尔曲线通过句柄的 `.bezier(p1x, p1y, p2x, p2y)` 设置。
+
+![每种 EasingType 从 0 到 1 的曲线](@/assets/guides/tween-easings.svg)
+
+*各缓动曲线，横轴为进度 `t`，纵轴为缓动后的值，即引擎实际使用的曲线。`Back` 与 `Elastic` 会超出 0–1 区间；`Step` 保持到末尾。*
+
+## 串接与控制
+
+```typescript
+// Chain: run one after another (a squash-and-stretch pop).
+tween.to(e, TweenTarget.ScaleX, 1, 1.4, 0.15)
+  .then(tween.to(e, TweenTarget.ScaleX, 1.4, 1, 0.15))
+  .bezier(0.2, 0, 0, 1);
+
+tween.parallel([...]);      // run several at once (a group)
+tween.sequence([...]);      // run tween factories in order
+tween.delay(0.5);           // a timed gap
+
+tween.cancel(handle);       // stop one
+tween.cancelAll(entity);    // stop everything on an entity
+```
+
+| `Tween` 方法 | 说明 |
+|---|---|
+| `to(entity, target, from, to, duration, opts?)` | 补间组件属性，返回 `TweenHandle`。 |
+| `value(from, to, duration, cb, opts?)` | 补间普通数值，每帧交给 `cb`，返回 `ValueTweenHandle`。 |
+| `parallel(tweens)` | 将多个补间作为一组同时运行，返回 `TweenGroup`。 |
+| `sequence(factories)` | 依次运行补间工厂，返回 `TweenSequence`。 |
+| `delay(seconds)` | 用于序列的空白计时间隔，返回 `ValueTweenHandle`。 |
+| `cancel(handle)` / `cancelAll(entity)` | 停止一个补间，或停止某实体上的全部补间。 |
+
+`TweenHandle` 提供 `.then(next)`、`.bezier(...)`、`.pause()`、`.resume()` 与 `.cancel()`。
+
+## 组合句柄
+
+`TweenGroup` 与 `TweenSequence` 是覆盖其成员的句柄。两者均提供 `state`（`TweenState`）、作用于所有成员的 `pause()` / `resume()` / `cancel()`，以及 `onComplete(cb)`。
+
+```typescript
+const popX = tween.to(e, TweenTarget.ScaleX, 1, 1.3, 0.2);
+const popY = tween.to(e, TweenTarget.ScaleY, 1, 1.3, 0.2);
+tween.parallel([popX, popY]).onComplete(() => spawnSparkles());
+
+tween.sequence([
+  () => tween.to(e, TweenTarget.PositionY, 0, 60, 0.3),
+  () => tween.delay(0.2),
+  () => tween.to(e, TweenTarget.PositionY, 60, 0, 0.3),
+]).onComplete(() => landDust());
+```
+
+<Aside type="caution">
+  组与序列必须通过 `Tween` 资源创建。资源会将其登记到内部轮询器（`TweenCompositionManager`），由其触发 `onComplete` 并将序列推进到下一个工厂。直接以 `new TweenGroup(...)` 构造的组不会被轮询。
+</Aside>
+
+`tween.value(...)` 与 `tween.delay(...)` 返回的 `ValueTweenHandle` 具有相同的控制接口（`state`、`.pause()`、`.resume()`、`.cancel()`、`.bezier(...)`），以及 `.then(next)`，可接受另一个数值补间或任何可暂停的组合（组或序列）。`TweenHandle.then` 同样接受 `ValueTweenHandle`，因此属性补间与数值补间可在同一条链中混用。
+
+仅在需要保存句柄以便之后暂停、取消或观察时，才需要使用类名 `TweenGroup`、`TweenSequence` 和 `ValueTweenHandle`。
+
+## 参见
+
+- [时间轴](/docs/zh-cn/animation/timeline/overview/) —— 多属性、多实体的关键帧动画。
+- [相机](/docs/zh-cn/graphics/camera/overview/#缩放与投影) —— 用 `CameraOrthoSize` 实现缩放。

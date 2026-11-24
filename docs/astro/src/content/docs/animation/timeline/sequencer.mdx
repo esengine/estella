@@ -1,0 +1,182 @@
+---
+title: Sequencer
+description: The Sequencer timeline editor — creating a timeline, keying and recording properties, audio items, the Sheet and Curves views, zoom and markers, multi-selection shortcuts, entity tracks, mute, lock and folders, the preview root, rendering to frames or video, and agent commands.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+The **Sequencer** edits `.estimeline` assets. It opens when a timeline is created with **Add → New Animation**, when
+an `.estimeline` is double-clicked, or from **Panels → Sequencer** on the left toolbar.
+
+## Key a property
+
+The following procedure moves a sprite such as `Hero` along X from its current position to 120 in one second. The
+same procedure applies to a 3D object.
+
+<Steps>
+
+1. **Create the timeline.** Open the destination folder in the Content Browser and choose **Add → New Animation**.
+   The editor creates `NewAnimation.estimeline` and opens it in the Sequencer. In an empty Sequencer panel,
+   **New animation** does the same.
+
+   ![The New animation button in an empty Sequencer](@/assets/guides/en/seq-first-new.png)
+
+2. **Bind the entity and add a channel.** Select the entity in the **World Outliner**. The link button at the upper
+   left of the Sequencer shows its name; if it reads **Unbound**, click it. Click **Jump to start** to place the
+   playhead at frame 0. Open **+ Track**, scroll to **Property (from the bound entity)** and choose `position.x`
+   under `Transform`. The Sheet adds the channel with a first key at the entity's current X position.
+
+   ![The property section of the Track menu with position.x highlighted for Transform](@/assets/guides/en/seq-first-track.png)
+
+3. **Add the end key.** Click the ruler at **1.00 s** (frame 12 at the default 12 fps). Hover over the `position.x`
+   row and click its diamond **Key at playhead** button. Click the new key in the lane, enter `120` in
+   **Details → Value** and press Enter. The Sheet footer shows **2 keys**.
+
+   ![The second key is selected at frame 12, its value is 120 in Details, and the Sheet counts two keys](@/assets/guides/en/seq-first-keys.png)
+
+4. **Preview and save.** Drag the playhead between frame 0 and frame 12, or click the play triangle, to see the
+   entity move in the viewport. Click **Save** at the upper right of the Sequencer to write the `.estimeline`.
+
+</Steps>
+
+To play the timeline in the game, add **Timeline Player** to the same entity (**Details → Add Component**, search
+`TimelinePlayer`), assign the saved `.estimeline` to **Timeline**, tick **Playing**, save the scene and press Play.
+When the clip previews in the Sequencer but does not play in the game, check which entity has the player and which
+file it references.
+
+### Recording
+
+With the entity bound, move the playhead to a time and click the red record button next to the link button. Moving
+the entity with the Move tool, or editing its fields in **Details**, keys the **existing property channels of the
+bound entity** at the playhead. Click record again to stop. Recording also changes the entity's scene values; editing
+a key's value in **Details** leaves the scene values unchanged.
+
+## Audio items
+
+1. Place the playhead where the sound starts.
+2. Choose **+ Track → Audio** and pick **(timeline root)** or a descendant. The Sequencer creates and selects an
+   audio item at the playhead; **No sound** indicates that no file is assigned. If Details shows track settings,
+   click the item's diamond in the lane.
+3. In **Details → Audio → Sound**, click **None ▾** and choose the audio file. Click **Save**.
+
+   ![The Sound picker listing the project files Bell.wav and Intro.mp3](@/assets/guides/en/seq-sound-picker.png)
+
+An item with **Length** `0` is a one-shot: the whole sound plays once when a playing timeline crosses it, which is
+heard when the scene runs. An item with a positive **Length** is a clip drawn as a bar and heard in the Sequencer
+during playback ([Audio tracks](/docs/animation/timeline/tracks/#audio-tracks)).
+
+The target submenu of **+ Track** can be operated from the keyboard: ↑ and ↓ highlight an entry, → opens it, and
+Enter picks the entity.
+
+## Sheet and Curves
+
+The `cutscene` example's `assets/timelines/intro.estimeline` shows both views. The **Sheet** lists tracks and current
+values on the left and a frame ruler on the right; dragging the playhead along the ruler scrubs the timeline. Key
+shapes indicate interpolation modes (circles and diamonds on the `Hero` position channels). Activation ranges are
+drawn as bars (the two letterbox ranges below).
+
+![The cutscene Sheet with the Hero position keys above two three-second letterbox activation ranges](@/assets/guides/en/seq-dopesheet.png)
+
+**Curves** shows each channel as a curve. Selecting a key shows its two tangent handles. Dragging a key changes its
+time and value; dragging a handle changes the slope at that key.
+
+![A selected key on the character's height curve with its frame, value and two tangent handles](@/assets/guides/en/seq-curves.png)
+
+## Zoom and markers
+
+**Ctrl+wheel** over the lanes zooms the time axis about the pointer, keeping the time under the pointer fixed; the
+ruler shows finer ticks as it zooms. When zoomed, the lanes scroll horizontally and the view follows the playhead
+during playback. **Fit** shows the whole timeline. Every marker of a marker track is drawn on the ruler by name;
+clicking it moves the playhead to the marker.
+
+## Selection and editing
+
+Dragging over empty lanes draws a selection box; the keys and clips it touches are selected. **Shift** or **Ctrl**
+adds to the selection, also when clicking a single item. Dragging any selected item moves all selected keys and
+clips across tracks as one undo step; items on locked tracks do not move. Clicking one item of a selection selects it
+alone.
+
+| Key | Action |
+| --- | --- |
+| **Ctrl+C** / **Ctrl+X** | Copy / cut the selection. |
+| **Ctrl+V** | Paste at the playhead, preserving layout, into the tracks and channels the items came from. |
+| **Ctrl+D** | Duplicate the selection immediately after itself. |
+| **S** | Split each selected clip that contains the playhead. The second part continues where the first stops (an animation's or sound's Clip In advances by the time cut off); the cut is a hard edge with no ease or fade. |
+| **Delete** | Delete the selection. |
+| **Ctrl+A** | Select every key and clip. |
+
+A clip's context menu also provides Split, Copy and Paste.
+
+## Entity tracks
+
+Open **+ Track**, choose an entity track type such as Audio, Active, Animation, Spawn or Camera shake, and pick
+**(timeline root)** or a descendant. The first item is placed at the playhead. Drag a clip's body to move it or an
+edge to change its duration; a particle action, marker or event at a single instant is dragged along the lane. For
+tracks that hold several items, the row's **+** adds another item at the playhead. Item fields (sound asset, volume,
+animation, event data) are edited in **Details**.
+
+**+ Track → Fade** and **+ Track → Time dilation** add the `ScreenFade` or `TimeDilation` component to the root if it
+has none, and a track with a key at the playhead.
+
+## Mute, lock and folders
+
+Each track row has a **mute** toggle (the eye) and a **lock**; both are saved with the timeline.
+
+- A muted track or muted property channel is excluded wherever the timeline plays: in the game, in an Animator state
+  that plays it, in a nested sequence and in the Sequencer preview.
+- A locked track cannot be edited until unlocked; its items can still be selected and the track can still be muted.
+- A track's context menu provides mute, lock, **Move to group** (into an existing or a new folder), rename and
+  delete. Folders collapse like any row. Double-click a folder or track name to rename it.
+
+In the file these are `muted`, `locked` and `group` on a track and `muted` on a channel, written only when set.
+
+{/* SHOT: anim-seq-track-menu | Sequencer with intro.estimeline from the cutscene example open, the context menu of a track row showing mute, lock, Move to group, rename and delete, with one track already inside a folder */}
+
+## Preview root
+
+The link button names the **preview root**: the entity whose name paths the tracks resolve against. Tracks can
+animate the root, its descendants, and other scene entities bound through the player
+([Bindings](/docs/animation/timeline/tracks/#bindings)).
+
+When a timeline opens, the Sequencer looks for a `TimelinePlayer` that plays the file on the selected entity or its
+ancestors, then for the first matching player in the scene. With no matching player it uses the current selection.
+When the button reads **Unbound**, select the target in the World Outliner and click the link button.
+
+Scrubbing shows property-channel values in the scene viewport, the camera shot in the viewport's camera preview, a
+fade over the scene view, camera shakes, animation-track blends and spawned instances. The preview does not change
+the scene's own values. Activation ranges, sprite clip starts and one-shot sounds are checked by running the scene;
+a slower clock from time dilation is visible only in Play.
+
+## Render to frames or a video
+
+**Render** in the Sequencer header renders the timeline to images. The dialog sets the frame rate (24, 30 or 60), the
+format (**MP4**, **WebM** or **PNG frames**) and the range (**From**, **To**).
+
+The render plays the game, not the preview: the preview root's `TimelinePlayer` plays in Play mode with every game
+system running, and the game is paused and stepped exactly one render frame at a time, each frame read back from the
+game canvas. The output is therefore identical on every run, independent of machine speed. Frames are written to
+`renders/<timeline>-<time>/frame_00000.png` in the project and the video to `renders/<timeline>-<time>.mp4`, encoded
+with the ffmpeg bundled with the editor. Play mode is restored afterwards; **Cancel** stops between frames. The render
+requires a `TimelinePlayer` on the preview root that plays the timeline.
+
+{/* SHOT: anim-seq-render-dialog | Sequencer with intro.estimeline from the cutscene example open and the Render dialog shown, with Frame rate 30, Format MP4 and the From / To range filled in */}
+
+## Editing through an agent
+
+An agent driving the editor over [MCP](/docs/agents/mcp/) edits timelines with the Sequencer's own commands in the
+`timeline` tool group:
+
+| Tool | Effect |
+|---|---|
+| `timeline_add_track` | Adds a track of any type on an entity, named by id or by its name path below the player. |
+| `timeline_add_items` | Adds shots, clips, sounds, spawns, markers and events, with fields named as the file stores them. |
+| `timeline_set_keys` | Keys an animatable field, creating its property track. |
+| `save_asset_document` | Writes the file. |
+
+Each call is one undo step. An invalid name (a field the track does not have, an entity outside the player, a field
+that cannot be animated) is refused with the valid names.
+
+## See also
+
+- [Tracks and bindings](/docs/animation/timeline/tracks/) — fields of each track type.
+- [Playback and scripting](/docs/animation/timeline/playback/) — `TimelinePlayer` and the `Timeline` resource.

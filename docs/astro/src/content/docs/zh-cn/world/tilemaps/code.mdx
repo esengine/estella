@@ -1,0 +1,195 @@
+---
+title: 代码中的瓦片地图
+description: Tilemaps 资源参考——构建与编辑图层、瓦片变换与坐标转换、多瓦片集槽位表、瓦片动画、无限分块图层、带重新拼接 / 导航同步 / 存档的可破坏瓦片地图，以及完整 API 表。
+---
+
+**`Tilemaps`** 资源（`Res(Tilemaps)`，从 `esengine/tilemap` 导出）由代码创建与编辑瓦片图层。它以实体寻址图层，操作的是编辑器绘制、Tiled 导入器生成的同一份图层数据。
+
+## 构建图层
+
+```typescript
+import { defineSystem, Commands, Res, Transform } from 'esengine';
+import { Tilemaps } from 'esengine/tilemap';
+
+const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
+  const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
+
+  tilemap.initLayer(layer, 32, 32, 16, 16);           // 32×32 tiles, 16px cells
+  tilemap.setTiles(layer, new Uint16Array(32 * 32));  // bulk load
+  tilemap.setTile(layer, 5, 3, 7);                    // one tile (x, y, id)
+  tilemap.fillRect(layer, 0, 0, 32, 1, 2);            // a row of tile 2
+});
+```
+
+`setTiles` 与 `setChunkTiles` 一次调用写入大量瓦片，优于在循环中逐个调用 `setTile`。
+
+## 编辑与变换
+
+```typescript
+tilemap.getTile(layer, 5, 3);                       // read a tile id
+tilemap.flipTile(layer, 5, 3, true, false, false);  // flipH, flipV, flipDiagonal
+tilemap.rotateTile(layer, 5, 3, 90);                // degrees
+tilemap.tileToWorld(layer, 5, 3, 0, 0);             // → { x, y }
+tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
+```
+
+`tileToWorld` 与 `worldToTile` 接受图层的世界原点（`originX`、`originY`）以及可选的 `rotation`，即图层绕世界 Z 轴的角度（弧度）。
+
+## 多瓦片集
+
+图层可通过槽位表从多个瓦片集绘制。每个槽位将一个 `firstId` 区间映射到一张纹理及其列数；每张纹理一次绘制调用。
+
+```typescript
+tilemap.setTilesets(layer, [
+  { firstId: 1,   textureHandle: grassTex, columns: 8 },
+  { firstId: 256, textureHandle: propsTex, columns: 8, margin: 4, spacing: 8 },
+]);
+```
+
+| 槽位字段 | 默认值 | 说明 |
+|---|---|---|
+| `firstId` | — | 该槽位负责的第一个瓦片 id。 |
+| `textureHandle` | — | 图集纹理。 |
+| `columns` | — | 图集的列数。 |
+| `margin` | `0` | 第一个瓦片之前的边框（像素）。 |
+| `spacing` | `0` | 瓦片之间的间隙（像素）。 |
+| `extrude` | `0` | 每个格子在图集中带有的重复边缘像素宽度（像素）。非零时渲染器直接采样精确的格子矩形，而不是内缩半个纹素；它意味着 `margin = extrude`、`spacing = 2 × extrude`。 |
+
+`margin` 与 `spacing` 描述带留白的图集，使每个瓦片只采样自己的纹素。Tiled 与 `.estileset` 导入器从瓦片集填入这两个值。空槽位表使图层恢复为单瓦片集。每个图层的瓦片集纹理越少，绘制调用越少。
+
+## 瓦片动画
+
+`setTileAnimation` 为图层上的某个瓦片 id 设置动画；瓦片地图插件每帧推进动画。时长以毫秒计。
+
+```typescript
+tilemap.setTileAnimation(layer, 10, [
+  { tileId: 10, duration: 100 },
+  { tileId: 11, duration: 100 },
+]);
+```
+
+`clearTileAnimations(layer)` 移除图层上的所有动画。在 `.estileset` 中创作的动画（[瓦片动画](/docs/zh-cn/world/tilemaps/tilesets/#瓦片动画)）会自动应用。
+
+## 无限图层
+
+无限图层没有固定尺寸，按分块写入：
+
+```typescript
+tilemap.initInfiniteLayer(layer, 16, 16);
+tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 16, 16);
+tilemap.removeChunk(layer, chunkX, chunkY);    // a chunk the player has moved away from
+```
+
+- 一个分块为 16 × 16 个瓦片，以分块坐标寻址。
+- 与 Tiled 相同，瓦片行从图层原点**向下**排列：第 `ty` 行瓦片位于世界 y `-ty * tileHeight`。对 18 像素的瓦片，世界方格覆盖 `[y, y + 288)` 的分块位于分块行 `-(floor(y / 288)) - 1`。
+- `removeChunk` 移除分块的瓦片及其绘制网格，因此跟随移动焦点的图层只持有焦点附近的分块。
+- `exportChunks` / `importChunks` 序列化与恢复稀疏的分块数据。
+
+通过 `ProceduralChunks` 以 `plane: 'xy'` 流送的 2D 世界（[世界流送](/docs/zh-cn/world/streaming/)）可使用一个无限图层配合 `removeChunk`，也可为每个分块使用一个小图层实体并在释放时销毁。
+
+## 可破坏瓦片地图
+
+`createDestructibleTilemap(app, layer, options)` 为已有图层增加伤害、爆炸、建造、重新拼接、导航同步与存档。图层本身仍是普通图层。
+
+```typescript
+import { createDestructibleTilemap, peeringRetile } from 'esengine/tilemap';
+
+const ground = createDestructibleTilemap(app, layer, {
+  hardness: id => (id === BEDROCK ? Infinity : 3),  // or a `hardness` property on the tile
+  replaceWith: id => (id === STONE ? RUBBLE : 0),   // what a destroyed tile leaves
+  retile: peeringRetile(tileset),                   // neighbours re-resolve their edges
+});
+
+ground.dig(x, y, 1);                                // one blow: { damage, hardness, destroyed }
+ground.digAtWorld(wx, wy);                          // by world position; no power destroys any finite hardness
+ground.explode(wx, wy, 64, 10, { shielded: true }); // radius in world units, then power
+ground.set(x, y, BRICK);                            // build; also setMany and fillRect
+ground.subscribe(edits => { /* every change of one operation */ });
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|---|---|---|
+| `hardness` | 瓦片的 `hardness` 属性，否则为 `1` | 瓦片被摧毁前可承受的伤害，可为数值或以瓦片 id 为参数的函数。`Infinity` 表示不可摧毁。 |
+| `replaceWith` | 空 | 被摧毁的瓦片留下的瓦片，为以瓦片 id 为参数的函数。 |
+| `retile` | 无 | 重新解析改动的格子及其八个邻居。`peeringRetile(tileset)` 处理边与角（blob）地形；Wang 地形需提供自定义函数。 |
+| `collisionOutline` | `true` | 只为露在外面的瓦片生成碰撞体；见下文。 |
+| `streamed` | `false` | 分块通过 `publishChunk` 送达；见下文。 |
+
+### 操作
+
+| 成员 | 说明 |
+|---|---|
+| `dig(x, y, power?)` / `digAtWorld(wx, wy, power?)` | 对一个格子施加一次打击。返回 `TileHit`（`tile`、`damage`、`hardness`、`destroyed`）；格子为空或瓦片不可摧毁时返回 `null`。`power` 默认为 `Infinity`。 |
+| `explode(wx, wy, radius, power, opts?)` | 伤害中心位于 `radius` 世界单位以内的所有格子。`falloff`（0–1，默认 `1`）减弱边缘；`shielded: true` 时沿途瓦片按其硬度吸收冲击，不可摧毁的瓦片会挡住冲击。返回所有受波及的格子。 |
+| `set(x, y, tile)` / `setMany(cells)` / `fillRect(x, y, w, h, tile)` | 写入瓦片。 |
+| `tileAt(x, y)` / `damageAt(x, y)` / `worldToTile(wx, wy)` | 读取格子、其累计伤害，或转换世界坐标。 |
+| `subscribe(listener)` | 接收每次操作的 `TileEdit` 列表（`x`、`y`、`before`、`after`、`cause`）。返回取消订阅的函数。 |
+| `createNavGrid({ width, height, tileX?, tileY?, isBlocked? })` | 创建一个放在图层绘制位置并保持同步的 `NavGrid`。要求图层为正交、未旋转且格子为正方形。 |
+| `syncNavGrid(grid, opts?)` | 使已有网格保持同步。返回停止同步的函数。 |
+| `toJSON()` / `load(data)` | 保存与恢复图层的改动。 |
+| `publishChunk(cx, cy, tiles)` / `releaseChunk(cx, cy)` | 流送图层的分块交付。 |
+| `dispose()` | 停止导航同步与监听；图层保持当前状态。 |
+
+### 随改动更新的内容
+
+| 方面 | 行为 |
+|---|---|
+| **渲染** | 重建分块的网格。正在被编辑的一行分块被切分为每段四个分块宽，改动只上传一段而非整行；该行在最后一次改动后经过 1800 次收集恢复为一次绘制。 |
+| **碰撞** | 只替换形状发生变化的碰撞体，因此停在其他位置的刚体不会收到接触结束，保持休眠。地板被摧毁时，站在其上的物体被唤醒。 |
+| **地形** | `retile` 作用于改动的格子及其八个邻居。 |
+| **导航** | 每次改动只更新其对应的网格格子；代理自动重新规划。瓦片是否阻挡取决于图层的碰撞；触发器不阻挡。 |
+
+### 碰撞轮廓
+
+启用 `collisionOutline` 时，只为露在外面的瓦片生成普通矩形碰撞体：四边均与普通矩形相邻的瓦片没有碰撞体。实心地面不占用刚体，在地表以下挖出的隧道不改变地表碰撞体。放入地面内部的刚体不会被阻挡，因为只有外壳带有碰撞体。
+
+`collisionOutline: false` 保留合并后的地面碰撞体。`TilemapRuntime.setCollisionOutline(layer, on)` 可为任意图层设置该模式。轮廓只作用于正交图层；其他朝向保持合并矩形。
+
+### 存档
+
+`toJSON()` 只保存与图层初始地图不同的格子，以及其他格子上的伤害，因此其大小取决于玩家的改动而非地图尺寸。它是纯 JSON，可直接交给 [`SaveManager`](/docs/zh-cn/scripting/save/)。`load()` 先撤回本次会话的改动，再原样恢复存档，不重新拼接。损坏的存档被整体拒绝，返回 `false`。
+
+### 流送图层
+
+`streamed: true` 时，分块通过可破坏瓦片地图交付，而不是 `setChunkTiles`。生成的内容垫在玩家改动之下，因此被释放后重新生成的分块恢复为改动后的状态；在分块到达前加载的存档会在分块到达时应用。
+
+```typescript
+ground.publishChunk(cx, cy, generatedTiles);
+ground.releaseChunk(cx, cy);
+```
+
+尚未发布的分块不是空地：无法在其中挖掘或写入。
+
+## `Tilemaps` API 参考
+
+| 方法 | 说明 |
+|---|---|
+| `initLayer(layer, cols, rows, tileW, tileH)` | 创建固定尺寸的图层。 |
+| `initInfiniteLayer(layer, tileW, tileH)` | 创建分块、无边界的图层。再次调用不会清除已有瓦片。 |
+| `hasLayer(layer)` | 实体是否有图层数据。 |
+| `setTiles(layer, Uint16Array)` | 批量载入固定图层的瓦片。 |
+| `setTile(layer, x, y, id)` / `getTile(layer, x, y)` | 写入 / 读取一个瓦片。 |
+| `fillRect(layer, x, y, w, h, id)` | 以瓦片 id 填充矩形。 |
+| `flipTile(layer, x, y, h, v, d)` | 水平 / 垂直 / 对角翻转瓦片。 |
+| `rotateTile(layer, x, y, degrees)` | 以 90° 步进旋转瓦片。 |
+| `tileToWorld(layer, tx, ty, ox, oy, rotation?)` / `worldToTile(layer, wx, wy, ox, oy, rotation?)` | 坐标转换；`ox`/`oy` 为图层的世界原点，`rotation` 为其绕世界 Z 轴的角度（弧度）。 |
+| `setTilesets(layer, slots)` | 指定多瓦片集槽位表；空数组恢复为单瓦片集。 |
+| `setTileAnimation(layer, tileId, frames)` / `clearTileAnimations(layer)` | 为瓦片 id 设置动画 / 移除所有动画。 |
+| `setChunkTiles(layer, cx, cy, tiles, w, h)` | 写入一个分块（无限图层）。 |
+| `removeChunk(layer, cx, cy)` | 移除一个分块及其绘制网格。 |
+| `exportChunks(layer)` / `importChunks(layer, data)` | 序列化 / 恢复分块数据。 |
+| `setTint(layer, r, g, b, a, opacity)` / `setVisible(layer, on)` / `setRenderProps(...)` | 实时显示覆盖。 |
+| `setTileProperty(layer, tileId, key, value)` / `getTileProperty(layer, x, y, key)` | 按瓦片 id 的自定义属性；读取时以格子寻址。 |
+| `setGridType(layer, type)` | 设置网格布局；`type` 为 `TilemapOrientation` 值（正交、等距、交错、六边形）。 |
+| `setHexParams(layer, sideLength, staggerAxisX, staggerIndexEven)` | 六边形边长与交错轴 / 序号。 |
+| `destroyLayer(layer)` | 移除图层数据。 |
+
+碰撞查询（`tileCollisionAt`、`isTileSolid`、`tileCollisionAtWorld`）见[瓦片碰撞](/docs/zh-cn/world/tilemaps/collision/#碰撞查询)。
+
+## 参见
+
+- [世界流送](/docs/zh-cn/world/streaming/) —— 分块的 2D 世界。
+- [导航](/docs/zh-cn/gameplay/ai/navigation/) —— `NavGrid` 与代理。
+- [保存与加载](/docs/zh-cn/scripting/save/) —— `SaveManager`。

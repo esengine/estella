@@ -1,0 +1,160 @@
+---
+title: 粒子渲染
+description: 粒子如何绘制——随生命的尺寸与颜色（渐变、曲线与运行时查找表）、贴图与精灵表动画、渲染与混合模式、拉伸粒子、粒子材质、逐粒子拖尾，以及在 UI Canvas 下的绘制顺序。
+---
+
+## 随生命的颜色与尺寸
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `startSizeMin` | number | `100` | 生成时的最小尺寸。 |
+| `startSizeMax` | number | `100` | 生成时的最大尺寸。 |
+| `endSizeMin` | number | `100` | 消亡时的最小尺寸。 |
+| `endSizeMax` | number | `100` | 消亡时的最大尺寸。 |
+| `sizeEasing` | `ParticleEasing` | `Linear` | 从起始到结束尺寸的插值。 |
+| `sizeCurve` | `Curve` | 无 | 随生命的尺寸曲线；有关键点时覆盖起止尺寸和 `sizeEasing`。 |
+| `startColor` | Color | `{1,1,1,1}` | 生成时的颜色（RGBA，0–1）。 |
+| `endColor` | Color | `{1,1,1,0}` | 消亡时的颜色。默认把 alpha 渐隐到 0。 |
+| `colorEasing` | `ParticleEasing` | `Linear` | 从起始到结束颜色的插值。 |
+| `colorGradient` | `Gradient` | 无 | 随生命的颜色渐变；有停靠点时覆盖 `startColor` / `endColor` 和 `colorEasing`。 |
+
+`ParticleEasing` 的取值为 `Linear`、`EaseIn`、`EaseOut` 和 `EaseInOut`。
+
+`colorGradient` 和 `sizeCurve` 在 `ParticleEmitter` 的 Details 中编辑，是归一化生命 `t`（`0..1`）上的停靠点或关键点。
+引擎把它们烘焙成查找表，模拟按粒子年龄采样。`sizeCurve` 的值乘以粒子的起始尺寸。编辑出的数据形式如下：
+
+```typescript
+// colorGradient: hot white -> orange -> smoke, fading out.
+{
+  stops: [
+    { t: 0.0, color: { r: 1, g: 1,   b: 0.8, a: 1 } },
+    { t: 0.4, color: { r: 1, g: 0.5, b: 0.1, a: 1 } },
+    { t: 1.0, color: { r: 0.2, g: 0.2, b: 0.2, a: 0 } },
+  ],
+}
+// sizeCurve: swell in, then shrink away (multiplies the particle's start size).
+{ keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
+```
+
+{/* SHOT: world-particles-gradient-editor | Details of the Smoke emitter in examples/vfx-showcase with the Color group expanded and the Color Gradient editor showing three or more stops (add them if the emitter has none), and the Size Curve editor of the Size group visible */}
+
+运行时修改曲线时，通过 `Particle` 资源上传预烘焙的查找表：颜色为 `N×4` 的 RGBA `Float32Array`，尺寸为 `N` 个元素的数组。
+传入 `null` 清除查找表，恢复起止值加缓动。
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const recolor = defineSystem([Res(Particle)], (particles) => {
+  const lut = new Float32Array([ /* r,g,b,a, r,g,b,a, … */ ]);
+  particles.setColorLut(entity, lut);   // or particles.setColorLut(entity, null)
+});
+```
+
+## 贴图与精灵表
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `texture` | asset | 无 | 粒子贴图。无贴图的粒子是柔和的方块。 |
+| `spriteColumns` | number | `1` | 精灵表列数；`1` 使用整张贴图。 |
+| `spriteRows` | number | `1` | 精灵表行数。 |
+| `spriteFPS` | number | `10` | 精灵表动画的每秒帧数。 |
+| `spriteLoop` | boolean | `true` | 循环播放精灵表；`false` 停在最后一帧。 |
+
+`spriteColumns` / `spriteRows` 大于 `1` 时，每个粒子按 `spriteFPS` 依次播放各帧。一张 4×4 的爆炸精灵表，每个粒子播放一次：
+
+```typescript
+.insert(ParticleEmitter, {
+  texture: 'assets/effects/explosion.png',
+  spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
+});
+```
+
+## 渲染字段
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `blendMode` | `BlendMode` | `Additive` | 粒子与场景的合成方式（[混合模式](#混合模式)）。 |
+| `layer` | number | `0` | 决定绘制顺序的排序层。在 `Canvas` 下为 `0` 时按树中位置绘制（[UI 中的粒子](#ui-中的粒子)）。 |
+| `material` | asset | 无 | 自定义材质（[粒子材质](#粒子材质)）。 |
+| `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`（[模拟空间](/docs/zh-cn/world/particles/overview/#模拟空间)）。 |
+| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图；`Stretched` 让四边形沿粒子速度方向铺开（[拉伸粒子](#拉伸粒子)）。 |
+| `velocityScale` | number | `0` | 仅 `Stretched`：每单位速度增加的长度，世界单位。 |
+| `lengthScale` | number | `1` | 仅 `Stretched`：四边形自身长度为尺寸乘以该值。 |
+| `intensity` | number | `1` | 绘制时乘到粒子颜色（不含 alpha）上的倍数。线性色彩空间下画面是 HDR，大于 1 的值能让粒子亮到触发泛光。可由时间线驱动。CPU 模拟的逐粒子拖尾不受它影响。 |
+
+## 混合模式
+
+| 模式 | 效果 |
+|---|---|
+| `Normal` | 标准 alpha 混合。 |
+| `Additive`（默认） | 颜色相加：辉光、火焰、魔法、光。 |
+| `Multiply` | 变暗：烟雾、阴影。 |
+| `Screen` | 提亮，比 additive 柔和。 |
+| `PremultipliedAlpha` | 用于预乘 alpha 的贴图。 |
+| `PmaAdditive` | 预乘 alpha 来源的叠加。 |
+| `Lighten` | 取粒子与场景像素中较亮者。 |
+| `Darken` | 取两者中较暗者。 |
+
+## 拉伸粒子
+
+`renderMode: Stretched` 时，每个粒子的四边形旋转到 Y 轴沿粒子速度方向。长度为 `size × lengthScale + speed × velocityScale`，
+宽度为粒子尺寸。贴图应画成朝上的形状：火花、雨滴、拖光。静止的粒子保持生成时的旋转。
+
+拉伸在 CPU 模拟的绘制阶段完成。GPU 模拟的发射器按 `Billboard` 绘制。
+
+## 粒子材质
+
+指定了 `material` 的发射器由该材质的片元阶段负责着色。除 `v_color`（已乘以 `intensity`）和 `v_texCoord` 外，粒子着色器变体还提供：
+
+| 输入 | 可用条件 | 内容 |
+|---|---|---|
+| `v_particle` | `#ifdef PARTICLE` | `x` 归一化年龄（出生为 0，消亡为 1），`y` 粒子整个生命内固定的 0–1 随机值，`z` 寿命（秒），`w` 发射器的 `intensity`。 |
+| `v_worldXYZ`、`v_worldNormal` | 着色器声明 `#pragma feature PARTICLE_WORLD`；在 `#ifdef MESH_NORMALS` 下 | 粒子的世界坐标，以及朝向相机的法线。 |
+
+两个内置模板使用这些输入：
+
+- **Particle**（`builtin:particle`）：贴图 × 颜色，外加两项。`u_softness` 是一个世界单位距离，粒子接近其后方的不透明场景时在该距离内淡出，
+  烟雾不会在地面或墙上切出硬边。`u_erosion`（0–1）随年龄侵蚀贴图，alpha 低的区域先消失；`u_erosionEdge` 设定侵蚀边缘的柔和度。
+- **Distortion**（`builtin:distortion`）：把其后方已绘制的画面偏移后绘出，用于热浪、冲击波、透镜。贴图的 alpha 乘以粒子或网格颜色的
+  alpha，决定偏移的位置和强度。`u_strength` 是以屏幕比例表示的偏移量；`u_radial` 在噪声抖动（0）和从四边形中心向外推（1）之间选择；
+  `u_dispersion` 分离红蓝通道。它也可用于 `MeshRenderer`。
+
+深度淡出和扭曲都读取这一帧已绘制的内容，要求画面经过后处理链（线性色彩空间、输出变换或任一后处理效果）。没有后处理链时，
+粒子绘制时不淡出，扭曲不绘制任何内容。
+
+## 逐粒子拖尾
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `trailEnabled` | boolean | `false` | 在每个粒子后方绘制一条渐细的条带。关闭时不记录位置历史。 |
+| `trailWidth` | number | `8` | 条带头部宽度；向尾部收细为一点。 |
+| `trailPoints` | number | `6` | 历史点数，2–12。点越多拖尾越平滑，开销越高。 |
+| `trailMinDistance` | number | `6` | 记录新拖尾点前粒子需移动的最小世界距离。 |
+
+每个粒子沿最近的路径拖出一条条带：彗星火花、曳光弹、魔法轨迹。这与
+[`TrailRenderer`](/docs/zh-cn/graphics/sprites/effects/#拖尾trailrenderer) 不同：后者为单个实体拖尾，这里每个粒子都有自己的拖尾。
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 40, speedMin: 220, speedMax: 420, lifetimeMin: 0.7, lifetimeMax: 1.2,
+  startColor: { r: 0.6, g: 0.9, b: 1, a: 1 }, endColor: { r: 0.2, g: 0.4, b: 1, a: 0 },
+  trailEnabled: true,
+  trailWidth: 10,        // 粒子处的条带宽度，向后收细为一点
+  trailPoints: 8,        // 保留的路径点数（2..12）
+  trailMinDistance: 5,   // 每移动 5 个世界单位记录一个点
+});
+```
+
+- 条带头部取粒子当前颜色，沿长度渐隐为透明，因此随生命的颜色会延续到拖尾上。
+- 在 CPU 模拟中，条带在 CPU 上生成，经由与 `TrailRenderer` 相同的三角带批处理路径绘制，因此与其他 2D 可渲染物一样排序和混合。
+  GPU 拖尾见 [GPU 模拟](/docs/zh-cn/world/particles/gpu-simulation/#gpu-事件子发射器和拖尾)。
+- 拖尾的开销是每个粒子的一段位置历史（受 `trailPoints` 限制）和每帧的条带几何。大多数特效用 `6`–`8` 个点即可；拖尾密集的特效应调低 `maxParticles`。
+
+## UI 中的粒子
+
+`Canvas` 下的发射器按其在树中的位置绘制，与周围的控件一致：排在面板之后或位于面板内部时绘制在面板上方；排在之前时绘制在下方。
+`Canvas` 下没有 `UINode` 的 `Sprite` 行为相同。`layer` 不为 `0` 时不按树序，而是与控件的层（从 1000 开始）按层排序：
+`layer: 5000` 绘制在整个 UI 上方。
+
+不在 `Canvas` 下的发射器属于场景。屏幕 `Canvas` 在场景之后绘制，因此无论 `layer` 为何值，这些粒子都位于该 UI 下方。
+要让特效绘制在 HUD 上方，应把它设为 `Canvas` 的子实体。`gpuSimulation` 发射器不会在屏幕 `Canvas` 下绘制。

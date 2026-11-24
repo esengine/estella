@@ -1,65 +1,56 @@
 ---
 title: Spine Animation
-description: The complete guide to Spine skeletal animation — the SpineAnimation component, the Spine track/mix/skin/attachment API, queries, and events.
+description: Spine skeletal animation reference — the SpineAnimation component, atlases, the Spine resource API for tracks, mixing, skins, attachments and constraints, events, Spine in UI, culling contracts, per-frame diagnostics, and supported runtime versions.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella has built-in [Spine](https://esotericsoftware.com/) skeletal animation:
-bones, meshes, IK, skins, and events. It's driven by the `SpineAnimation` component
-and controlled at runtime through the `Spine` resource (from the `esengine/spine`
-subpath).
-
-## The `SpineAnimation` component
-
-Add it in the editor and point it at your Spine assets. The component lives in the
-main `esengine` package.
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `skeletonPath` | asset | `''` | Skeleton file (`.json` / `.skel`). |
-| `atlasPath` | asset | `''` | Atlas file. |
-| `skin` | string | `''` | Active skin (empty = default). |
-| `animation` | string | `''` | Initial animation on track 0. |
-| `loop` | boolean | `true` | Loop the initial animation. |
-| `playing` | boolean | `true` | Whether playback advances. |
-| `timeScale` | number | `1` | Per-entity playback speed. |
-| `skeletonScale` | number | `1` | Uniform skeleton scale. |
-| `flipX` / `flipY` | boolean | `false` | Mirror horizontally / vertically. |
-| `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0..1). |
-| `layer` | number | `0` | Sorting layer for draw order. |
-| `material` | asset | none | Optional custom material. |
-| `enabled` | boolean | `true` | Disable to freeze and hide (the same switch `Spine.setEnabled` throws; the Outliner eye rides it too). |
-
-**Skeleton and atlas are asset slots** in the Details panel: pick from the popover,
-drag a file in from the Content Browser, or use the slot's locate / clear actions.
-The scene serializes them as portable `@uuid:` references, so moving or renaming
-the files never breaks the link. The editor previews the skeleton live in the
-viewport — including across Play/Stop — and once it loads, the `animation` and
-`skin` fields become dropdowns of that skeleton's actual animations and skins.
-
-<Aside type="note">
-  The skeleton slot takes **`.skel`** files and **`.json`** skeletons alike (a `.json`
-  has no extension of its own to say so; the editor recognises it by the marker inside
-  the file, and it appears in the pick popover beside the `.skel` files). Dragging a
-  file from the Content Browser onto the slot works too.
-</Aside>
+Estella plays [Spine](https://esotericsoftware.com/) skeletons: bones, meshes, IK, skins and events. A skeleton is placed
+by the **`SpineAnimation`** component (main `esengine` package) and controlled at runtime through the **`Spine`**
+resource; `Spine` and `SpineEvents` are exported from the `esengine/spine` subpath.
 
 ![The Spine demo example: a character with a gun, drawn from a Spine skeleton](@/assets/guides/en/play-spine.png)
 
-*The Spine demo example: a skeleton played through the **SpineAnimation** component.*
+*The `spine-demo` example: a skeleton played through the **SpineAnimation** component.*
+
+## The `SpineAnimation` component
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `skeletonPath` | asset | `''` | Skeleton file (`.json` or `.skel`). |
+| `atlasPath` | asset | `''` | Atlas file (`.atlas`). |
+| `skin` | string | `''` | Active skin. Empty uses the default skin. |
+| `animation` | string | `''` | Initial animation on track 0. |
+| `loop` | boolean | `true` | Loops the initial animation. |
+| `playing` | boolean | `true` | Whether playback advances. |
+| `timeScale` | number | `1` | Per-entity playback speed (≥ 0). |
+| `skeletonScale` | number | `1` | Uniform skeleton scale (≥ 0). |
+| `flipX` / `flipY` | boolean | `false` | Mirrors horizontally / vertically. |
+| `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0–1). |
+| `layer` | number | `0` | Sorting layer; higher draws on top. |
+| `material` | asset | none | Custom material. None uses the default batch shader. |
+| `enabled` | boolean | `true` | Off freezes and hides the skeleton. Same switch as `Spine.setEnabled` and the Outliner visibility toggle. |
+
+### Editor behaviour
+
+- **Asset slots.** `skeletonPath` and `atlasPath` are asset slots: pick from the popover, drag a file from the Content
+  Browser, or use the slot's locate / clear actions. The scene stores them as `@uuid:` references, so moving or
+  renaming the files keeps the link.
+- **Skeleton formats.** The skeleton slot accepts `.skel` and `.json` skeletons. A `.json` skeleton is recognised by a
+  marker inside the file and is listed in the pick popover beside `.skel` files.
+- **Live preview.** The viewport poses the skeleton in edit mode and across Play/Stop.
+- **Dropdowns.** Once the skeleton has loaded, `animation` and `skin` list the animations and skins it contains.
 
 ## Atlases
 
-Spine `.atlas` files work as exported — including **multi-page** atlases (each
-page texture loads alongside the atlas) and **premultiplied alpha**: a `pma: true`
-atlas header is honored automatically, no import setting needed. When you export
-with **Compress textures** enabled, atlas pages cook to KTX2 and transcode on
-device like any other texture.
+Spine `.atlas` files are used as exported:
 
-## Play & blend animations
+- **Multi-page atlases** — each page texture loads with the atlas.
+- **Premultiplied alpha** — a `pma: true` atlas header is honoured; no import setting is required.
+- **Texture compression** — with **Compress textures** enabled at export, atlas pages are cooked to KTX2 and
+  transcoded on the device like any other texture.
 
-The `Spine` resource controls tracks, mixing (crossfade), and per-track blending:
+## Playback and mixing
 
 ```typescript
 import { defineSystem, Query, Res, SpineAnimation } from 'esengine';
@@ -67,41 +58,45 @@ import { Spine } from 'esengine/spine';
 
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
-    spine.setAnimation(entity, 'run', true);            // play on track 0, looped
+    spine.setAnimation(entity, 'run', true);            // track 0, looped
     spine.setDefaultMix(entity, 0.15);                  // default crossfade
-    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
-    spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
+    spine.setMixDuration(entity, 'idle', 'run', 0.25);  // one transition
+    spine.setTrackAlpha(entity, 0, 1.0);                // track contribution
   }
 });
 ```
 
 | Method | Description |
 |---|---|
-| `setAnimation(entity, name, loop)` | Play an animation on track 0. |
+| `setAnimation(entity, name, loop)` | Plays an animation on track 0. |
 | `setDefaultMix(entity, seconds)` | Default crossfade between any two animations. |
-| `setMixDuration(entity, from, to, seconds)` | Crossfade for a specific transition. |
-| `setTrackAlpha(entity, track, alpha)` | Blend a track's contribution (0..1). |
-| `setEntityProps(entity, props)` | Set `{ skeletonScale?, flipX?, flipY?, layer? }` at once. |
-| `setIKTarget(entity, constraint, x, y, mix)` | Aim an IK constraint at a world point (`mix` 0..1). |
+| `setMixDuration(entity, from, to, seconds)` | Crossfade for one transition. |
+| `setTrackAlpha(entity, track, alpha)` | Blend weight of a track (0–1). |
+| `setEntityProps(entity, props)` | Sets `{ skeletonScale?, flipX?, flipY?, layer?, timeScale?, playing?, color? }` in one call. |
+| `setEnabled(entity, on)` | Removes the skeleton from the frame (frozen and hidden) or restores it. |
+| `setIKTarget(entity, constraint, x, y, mix)` | Aims an IK constraint at a world point; `mix` 0–1. Returns `false` if the constraint does not exist. |
+| `listConstraints(entity)` | Constraint names as `{ ik, transform, path }` (string arrays), or `null`. |
+| `getTransformConstraintMix` / `setTransformConstraintMix` | Reads / writes a transform constraint's mix. |
+| `getPathConstraintMix` / `setPathConstraintMix` | Reads / writes a path constraint's mix. |
 
-Transform / path constraint mixes are adjustable too — `listConstraints(entity)`,
-`getTransformConstraintMix` / `setTransformConstraintMix`, and the `path` equivalents.
+The default mix and per-transition mix durations are stored on the loaded skeleton data, not on the entity: they apply
+to every entity that shares the skeleton.
 
-## Skins & attachments
+## Skins and attachments
 
 ```typescript
 spine.setSkin(entity, 'armored');
 spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
-spine.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);    // r, g, b, a (0..1)
+spine.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);    // r, g, b, a (0–1)
 ```
 
 | Method | Description |
 |---|---|
-| `setSkin(entity, name)` | Switch the active skin. |
-| `setAttachment(entity, slot, attachment)` | Swap a slot's attachment (equip/variant). |
-| `setSlotColor(entity, slot, r, g, b, a)` | Tint an individual slot (four 0..1 channels). |
+| `setSkin(entity, name)` | Switches the active skin. |
+| `setAttachment(entity, slot, attachment)` | Replaces a slot's attachment. Returns `false` on failure. |
+| `setSlotColor(entity, slot, r, g, b, a)` | Tints one slot (four channels, 0–1). Returns `false` on failure. |
 
-## Query a skeleton
+## Querying a skeleton
 
 ```typescript
 const anims  = spine.getAnimations(entity);   // string[]
@@ -109,28 +104,27 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
-## Spine in a UI
+## Spine in UI
 
-A skeleton can be part of a Canvas. Put the entity with `SpineAnimation` under
-the Canvas, with or without a `UINode` to place it, and it paints by its place
-in the Canvas tree, like the controls around it. A skeleton listed after a
-panel is drawn over it, and one listed before is drawn under it. It also takes
-on the rest of the UI tree's rules:
+An entity with `SpineAnimation` placed under a Canvas, with or without a `UINode`, is drawn in Canvas tree order like
+the controls around it: a skeleton listed after a panel draws over it, one listed before draws under it. It also
+follows the UI tree's rules:
 
-- the `opacity` of the UI nodes above it fades it;
-- a hidden parent hides it;
-- a `UIMask` above it cuts it.
+- the `opacity` of UI nodes above it fades it;
+- a hidden ancestor hides it;
+- a `UIMask` above it clips it.
 
-A skeleton under a screen-space Canvas is drawn with the UI in the screen
-overlay, after every camera. A non-zero `layer` keeps the old behaviour and
-holds the skeleton over or under the whole UI. A skeleton outside any Canvas
-draws as before. DragonBones armatures under a screen Canvas are drawn in the
-overlay too.
+| Placement | Drawing |
+|---|---|
+| Under a screen-space Canvas, `layer` 0 | In the screen overlay, after every camera, in tree order. |
+| Under a screen-space Canvas, `layer` ≠ 0 | In the screen overlay, sorted by its own `layer` against the whole UI instead of tree order. |
+| Outside any Canvas | With the world, by `layer` and depth. |
 
-## Animation events
+DragonBones armatures under a screen-space Canvas are drawn in the overlay by the same rules.
 
-The `SpineEvents` resource publishes track events once per frame — read it the same
-frame:
+## Events
+
+The `SpineEvents` resource holds the track events of the current frame. Read it in the same frame:
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -144,56 +138,63 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 });
 ```
 
-| Event `type` | Fired when |
+| `type` | Emitted when |
 |---|---|
 | `start` | An animation starts on a track. |
 | `interrupt` | An animation is interrupted by another. |
 | `end` | An animation is removed from a track. |
-| `complete` | An animation loop/playthrough completes. |
-| `event` | A user-authored event keyframe fires (`eventName` + values). |
+| `complete` | An animation completes a loop or playthrough. |
+| `event` | An authored event keyframe fires. |
 
-## Culling contracts & deferred world poses
+| Field | Type | Present for |
+|---|---|---|
+| `entity` | Entity | All events. |
+| `type` | `SpineEventType` | All events. |
+| `track` | number | All events. |
+| `animationName` | string | All events. |
+| `eventName` | string | `event` |
+| `floatValue` / `intValue` / `stringValue` | number / number / string | `event` |
 
-Posing a skeleton is two jobs. **Advancing** the animation is cheap and never
-skipped — skip it and the animation drifts, events stop firing, and the pose is
-wrong the moment the character is seen again. **Resolving world transforms** is
-the expensive half, and Estella skips that for entities no camera can draw.
+## Culling contracts and deferred world poses
 
-It only skips when it can prove skipping is safe, which takes two facts about the
-asset:
+Posing a skeleton consists of two steps:
 
-- **A culling contract** — a rectangle in the skeleton's own space that you
-  promise no pose ever leaves. You record it; nothing records it for you.
-- **Stateless world constraints** — the loaded runtime's own answer about whether
-  its world pose carries state between frames. Not something you configure.
+| Step | Cost | When skipped |
+|---|---|---|
+| **Advance** the animation state | Low | Never. Skipping it would desynchronise playback and events. |
+| **Resolve world transforms** | High | For entities no camera can draw, when both conditions below hold. |
 
-Missing either, the world pose is resolved every frame, on screen or off.
+World-pose resolution is skipped only when the asset has:
+
+- **A culling contract** — a rectangle in skeleton space that no pose leaves. It is recorded on the asset by the
+  author; nothing records it automatically.
+- **Stateless world constraints** — reported by the loaded Spine runtime: the world pose carries no state between
+  frames. It is not configurable.
+
+Without either, the world pose is resolved every frame, whether the entity is visible or not.
 
 ### Recording a contract
 
-Select the skeleton asset and use the **Fixed Culling Bounds** row of the Details
-panel.
+Select the skeleton asset and use the **Fixed Culling Bounds** row in the Details panel.
 
-**Scan Animations** plays every animation over its full duration in every skin and
-reports what it saw as **Observed Bounds**. That is a measurement, not a promise:
-a blend of two animations is not the union of their extents, game code can move a
-bone the export never did, and an extreme between two samples is simply not
-sampled. **Use as Fixed Culling Bounds** copies it into the contract — padding it
-first is normal, and accepting it is *your* promise, not the scan's.
+| Action | Result |
+|---|---|
+| **Scan Animations** | Plays every animation over its full duration in every skin and shows the extent as **Observed Bounds**. |
+| **Use as Fixed Culling Bounds** | Copies the observed bounds into the contract. |
+| **Remove Fixed Bounds** | Writes a zero-area rectangle, which means "no contract". A newly imported asset carries one. |
 
-**Remove Fixed Bounds** writes a rectangle of zero area, which is what "no
-contract" is here: a freshly imported asset carries one, and a deleted key would
-come back at the next import.
+Observed bounds are a measurement, not a guarantee: a blend of two animations is not the union of their extents,
+game code can move bones beyond the exported animations, and extremes between two samples are not sampled. Pad the
+observed bounds before accepting them.
 
 <Aside type="caution">
-  The contract covers **every** pose, including ones your game code drives at
-  runtime. Too small a rectangle makes a character vanish near the screen edge;
-  too large only costs a little work. Pad it.
+  The contract must cover **every** pose, including poses driven by game code at runtime. A rectangle that is too
+  small makes the character disappear near the screen edge; one that is too large only costs some work.
 </Aside>
 
-### What it buys
+### Measured effect
 
-1000 skeletons, measuring pose + extract + submit:
+1000 skeletons; time for pose, extract and submit:
 
 | Visible | Posed every frame | With contracts |
 |---|---|---|
@@ -201,14 +202,12 @@ come back at the next import.
 | 200 / 1000 | 3.29 ms | 1.06 ms |
 | 0 / 1000 | 3.26 ms | 0.49 ms |
 
-The first row is the important one: nothing was traded away to get the other two.
-What is skipped is work nobody was going to consume.
+With every skeleton visible, the cost is unchanged; only work whose result is not drawn is skipped.
 
-## Why is Spine expensive here?
+## Diagnostics
 
-`Spine` can report what a frame did and why each part of it was paid — no
-profiler needed. Counting is off by default, so a runtime nobody is watching pays
-a branch per entity and nothing else.
+`Spine` reports what a frame did and why each part was paid. Counting is off by default; while off, the cost is one
+branch per entity.
 
 ```ts
 import { Res } from 'esengine';
@@ -242,50 +241,38 @@ spine — frame 412, 1000 entities across 3 assets
   * 600 world poses went unresolved — work this frame did not do.
 ```
 
-Reading it:
+| Line | Meaning |
+|---|---|
+| `world … unresolved` | World poses skipped this frame. Zero while entities are off screen means none were allowed to skip; the asset rows give the reason. |
+| `always resolves — no-certificate` | The asset has no culling contract. Recording one allows deferral. |
+| `always resolves — stateful-constraints` | The asset's world pose carries state between frames. A contract does not change this; such assets are listed separately in the findings. |
+| `p50 / p95 / max` | Distribution over the preceding frames, for judging whether the reported frame is typical. |
 
-- **`world … unresolved`** is what the frame skipped. Zero here with entities off
-  screen means nothing was allowed to skip — look at the asset rows for why.
-- **`always resolves — no-certificate`** is the actionable one: that asset has no
-  culling contract, so it pays a world pose every frame wherever it stands.
-- **`always resolves — stateful-constraints`** is not actionable. No contract
-  changes it, which is why the findings list those assets separately instead of
-  sending you to certify something that would not help.
-- **`p50 / p95 / max`** are the frames behind this one. A single frame is a
-  sample; these say whether it was a typical one.
+`diagnostics()` returns the same report as data (`SpineSceneDiagnostics`) for a custom panel or overlay;
+`formatSpineDiagnostics` renders it as text.
 
-`diagnostics()` returns the same report as data (`SpineSceneDiagnostics`) for your
-own panel or overlay — `formatSpineDiagnostics` is just one renderer of it.
+## Supported versions and licensing
+
+Estella supports Spine **2.1, 3.8, 4.1, 4.2 and 4.3**. Each skeleton version loads its own WebAssembly backend on
+demand, which is why `Spine` and `SpineEvents` are on the `esengine/spine` subpath. Spine 2.1 skeletons must be
+exported as JSON; the 2.1 runtime has no reader for its binary format.
+
+<Aside type="caution">
+  The bundled Spine Runtimes are proprietary. Shipping a game that uses Spine requires a valid Spine license from
+  Esoteric Software, separate from Estella's license.
+</Aside>
 
 ## Best practices
 
-- **Set a default mix** (`setDefaultMix`) so transitions crossfade instead of
-  snapping; override hot paths with `setMixDuration`.
-- **Layer with tracks + `setTrackAlpha`** (e.g. an aim/overlay on track 1 blended
-  over a locomotion track 0).
-- **Share skeleton + atlas** across entities — they ref-count a single loaded
-  skeleton.
-- **Drive whole characters from the [Animator](/docs/animation/overview/) state
-  machine**, which can target Spine as well as sprites.
-- **Record a culling contract** on every skeleton that appears in numbers — it is
-  the difference between paying for the characters on screen and paying for all
-  of them.
-
-<Aside type="note">
-  Estella supports Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3** — each skeleton version loads
-  its own WebAssembly backend on demand (pay-for-use), which is why `Spine` and
-  `SpineEvents` live on the `esengine/spine` subpath. A 2.1 skeleton must be exported
-  as JSON: that release's runtime shipped no reader for its own binary format.
-</Aside>
-
-<Aside type="caution">
-  The bundled Spine Runtimes are proprietary. Shipping a game that uses Spine
-  requires a valid Spine license from Esoteric Software — separate from Estella's
-  own license.
-</Aside>
+- **Set a default mix** with `setDefaultMix` so transitions crossfade; use `setMixDuration` for specific transitions.
+- **Layer with tracks** and `setTrackAlpha`, for example an aim overlay on track 1 over locomotion on track 0.
+- **Share skeleton and atlas** across entities; entities referencing the same pair share one loaded skeleton.
+- **Drive characters from the [Animator](/docs/animation/animator/)** state machine, which can target Spine as well as
+  sprites.
+- **Record a culling contract** on every skeleton used in quantity, so off-screen instances skip world-pose resolution.
 
 ## See also
 
-- [Animation](/docs/animation/overview/) — the Animator state machine can drive Spine.
-- [Assets](/docs/assets/overview/) — loading skeleton + atlas assets.
-- [DragonBones Animation](/docs/animation/dragonbones/) — the other skeletal runtime, MIT licensed.
+- [Animator](/docs/animation/animator/) — the Animator state machine can drive Spine.
+- [Assets](/docs/assets/overview/) — importing and referencing skeleton and atlas assets.
+- [DragonBones Animation](/docs/animation/dragonbones/) — the MIT-licensed skeletal runtime.

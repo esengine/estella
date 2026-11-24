@@ -1,0 +1,206 @@
+---
+title: 精灵动画
+description: 逐帧精灵动画——在精灵动画面板中创作 .esanim 剪辑，SpriteAnimator 组件与 SpriteAnimation 资源，帧事件，Aseprite 导入，逐帧尺寸、偏移与锚点，代码构建剪辑及状态机动作。
+---
+
+精灵动画剪辑（`.esanim`）是一组有序的帧，每帧是精灵表中的一个格子或一张独立纹理，并带有帧率、逐帧时长和可选事件。`SpriteAnimator` 组件通过切换实体 `Sprite` 显示的帧来播放剪辑。
+
+## 创作剪辑
+
+1. 在内容浏览器中右键一张精灵表，选择**创建精灵动画**，打开**精灵动画**面板。在**帧来源**中设置**格宽**、**格高**、**边距**和**间距**，再点击或拖选格子追加帧。若为多张独立图片，多选后右键，选择**用 N 张图片创建精灵动画**；帧按文件名自然顺序排列（`run_2` 在 `run_10` 之前）。
+2. 用面板内的播放按钮预览。拖动帧块可调整顺序，拖动其右边缘可修改时长。选中一帧后，**细节**中显示其时长、尺寸、偏移和锚点。帧引用的是网格格子，重新切片后仍保持引用；超出新网格的帧显示为红色。
+3. 点击**保存**。右键保存的 `.esanim`，选择**创建动画精灵**。新实体带有 **Sprite** 和 **Sprite Animator**，**Clip** 已指定。动画精灵在运行模式下播放；在视口中开启**预览特效**可在编辑时播放。
+
+![精灵动画面板里的四帧行走动作和播放预览](@/assets/guides/zh/flipbook.png)
+
+{/* SHOT: anim-sprite-animator-details | Details panel of the player entity in the sprite-animation example, showing the Sprite and Sprite Animator components with Clip set to walk.esanim, Speed, Playing and Loop visible */}
+
+## SpriteAnimator 组件
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `clip` | asset | `''` | 当前剪辑（`anim-clip` 资源，或代码中注册的剪辑名）。 |
+| `speed` | number | `1` | 播放速度倍率。 |
+| `playing` | boolean | `true` | 是否推进播放。 |
+| `loop` | boolean | `true` | 组件与剪辑均启用循环时重复播放，否则停在最后一帧。 |
+| `enabled` | boolean | `true` | 为 false 时冻结动画器。 |
+| `finished` | boolean | `false` | 只读。一次性剪辑播放完毕时锁存。对已结束的动画器重新置起 `playing` 会从第 0 帧重播。 |
+| `currentFrame` | number | `0` | 只读。当前显示的帧索引。 |
+| `frameTimer` | number | `0` | 只读。当前帧已累积的时间。 |
+
+组件字段即播放控制。切换到代码中以 `walk` 为名注册的剪辑：
+
+```typescript
+import type { SpriteAnimatorData } from 'esengine';
+
+function startWalk(animator: SpriteAnimatorData) {
+  animator.clip = 'walk';
+  animator.speed = 1.5;
+  animator.playing = true;
+}
+```
+
+在编辑器中指定的剪辑，**Clip** 保存资源引用，无需修改。
+
+## SpriteAnimation 资源
+
+`SpriteAnimation` 资源用于跳转到指定帧或命名标签，并在运行时注册剪辑。
+
+```typescript
+import type { SpriteAnimationAPI, SpriteAnimatorData } from 'esengine';
+
+function startAttack(sprites: SpriteAnimationAPI, animator: SpriteAnimatorData) {
+  sprites.gotoLabel(animator, 'attack', true);
+}
+```
+
+该示例要求剪辑中有名为 `attack` 的帧标签，在进入攻击状态时调用一次。改用 `sprites.gotoFrame(animator, 0, true)` 则从指定帧索引播放。
+
+| 方法 | 说明 |
+|---|---|
+| `gotoFrame(animator, index, andPlay?)` | 跳转到帧索引，可选同时开始播放。 |
+| `gotoLabel(animator, label, andPlay?)` | 跳转到剪辑中的命名标签。 |
+| `registerClip(clip)` | 在运行时注册 `SpriteAnimClip`。 |
+| `getClip(name)` | 查找已注册的剪辑。 |
+| `onEvent(entity, handler)` | 监听单个实体的帧事件，返回取消订阅函数。 |
+| `onEventGlobal(handler)` | 监听所有实体的帧事件；回调同时收到实体。 |
+
+## 帧事件
+
+在**精灵动画 → 动画事件**中选中一帧，点击**添加事件**，再点击事件旗标编辑**名称**。启动时订阅一次的回调会在播放经过该帧时收到事件：
+
+```typescript
+import { Audio, defineSystem, Res, SpriteAnimation } from 'esengine';
+
+app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, audio) => {
+  sprites.onEventGlobal((event) => {
+    if (event.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
+  });
+}));
+```
+
+{/* SHOT: anim-flipbook-events | Sprite Animation panel with walk.esanim from the sprite-animation example open, the Events row showing a flag on one frame and its Name field set to footstep in Details */}
+
+触发规则：
+
+- 一次更新中经过的事件按播放顺序发出，包括跨越循环边界的事件。
+- 较长的一次更新会快进完整的循环，每个声明的事件在一次更新中最多发出一次。
+- 时间未推进的更新不会重复发出初始帧的事件。
+- `gotoFrame(animator, index, false)` 与 `gotoLabel(animator, label, false)` 在下一次动画更新时显示选中的帧，不推进时间，也不触发事件。
+- 在帧事件回调中应通过 `gotoFrame` / `gotoLabel` 调整播放；对同一动画 API 的嵌套 `update` 调用会被忽略。
+
+## Aseprite 导入
+
+项目中的 `.aseprite` 或 `.ase` 文件导入为：
+
+- 合成后的精灵表，以 `.png` 写在源文件旁；
+- 每个 tag 一个 `.esanim`（`hero_walk.esanim`、`hero_jump.esanim`），保留每帧自身的时长和 tag 的播放方向。未设重复次数的 tag 循环播放，设有重复次数的 tag 不循环。没有 tag 的文件生成一个覆盖全部帧的剪辑。
+
+合成包含所有可见图层及其混合模式与不透明度，不包含隐藏分组中的内容。tilemap 图层不参与合成，导入时会报告。
+
+精灵表纹理导入时为 **nearest** 过滤、关闭压缩，并已填好格子网格，`Sprite` 可直接选取某一帧。之后修改的过滤和压缩设置在重新导入时保留；网格在每次导入时根据源文件画布尺寸重新推导。
+
+保存源文件会原地重新导入，uuid 与引用保持不变。右键 → **重新导入**可手动执行同样操作。
+
+## 逐帧尺寸与偏移
+
+精灵表的所有格子尺寸相同，一个 `Sprite.size` 适用于所有帧；独立图片的尺寸可能各不相同。勾选**逐帧尺寸**后，播放期间由剪辑控制 `Sprite.size`：每帧按其自然尺寸（纹理像素或精灵表格子）绘制，或按显式指定的逐帧 `size` 绘制。
+
+逐帧尺寸同时启用**偏移**。偏移以与尺寸相同的单位移动该帧的画面，在剪辑加载时折算进该帧的锚点。由于以单位而非归一化锚点表示，同一偏移在任意尺寸的帧上产生相同的视觉位移。可在视口中拖动该帧设置，也可在检视器中输入。
+
+```jsonc
+// step.esanim — three images of different sizes, one shifted right
+{
+  "version": "1.5",
+  "fps": 6,
+  "frameSizing": "frame",
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "texture": "@uuid:…" },
+    { "texture": "@uuid:…", "offset": { "x": 20, "y": 0 } },
+    { "texture": "@uuid:…", "duration": 0.35 }
+  ]
+}
+```
+
+未声明尺寸模式、逐帧尺寸或偏移的剪辑不改动实体设置的 `Sprite.size`。取消勾选**逐帧尺寸**会移除该模式及所有逐帧尺寸与偏移。
+
+## 逐帧锚点
+
+锚点即 `Sprite.pivot`：精灵定位、旋转与缩放所围绕的点，在帧内归一化，`(0,0)` 为左下角，`(0.5,0.5)` 为中心。当画面在格子内逐帧移动时，逐帧锚点可使选定的点保持不动，例如脚踩在地面上。
+
+在精灵动画面板的预览条中勾选**锚点**，当前帧上显示十字准星。拖动准星，或在旁边输入 X / Y，即可为该帧设置锚点。准星辅助线横贯预览区，开启洋葱皮后可将各帧与相邻帧对齐。设有自身锚点的帧在帧条上显示琥珀色圆点；**×** 清除该覆盖，帧回落到剪辑锚点，即细节中的**默认锚点**。
+
+{/* SHOT: anim-flipbook-anchor | Sprite Animation panel with walk.esanim from the sprite-animation example, Anchor ticked in the preview bar, onion skin on, the crosshair at the feet of the current frame and an amber dot on an overridden frame in the strip */}
+
+解析顺序：帧锚点、剪辑锚点、中心。未声明锚点的剪辑不改动实体设置的 `Sprite.pivot`。取消勾选**锚点**会清除剪辑锚点和所有逐帧覆盖。
+
+```jsonc
+// walk.esanim — the clip anchored at the feet, one frame leaning back
+{
+  "version": "1.4",
+  "fps": 10,
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "cell": 0 },
+    { "cell": 1, "pivot": { "x": 0.47, "y": 0 } }
+  ]
+}
+```
+
+剪辑仅在显示某帧时控制锚点；`Transform` 与补间照常移动实体。
+
+## 代码构建剪辑
+
+`.esanim` 文档是普通数据，剪辑也可在运行时构建：`createAnimClip` 创建按网格切片的剪辑，追加 `{ cell }` 帧，`parseAnimClipData` 将其解析为运行时 `SpriteAnimClip`，`registerClip` 使该名称可被所有 `SpriteAnimator` 使用。
+
+```typescript
+import {
+  defineSystem, Res, Assets, SpriteAnimation,
+  createAnimClip, parseAnimClipData,
+} from 'esengine';
+
+const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (assets, sprites) => {
+  const tex = await assets.loadTexture('assets/textures/run-sheet.png');
+
+  // A 32×32 grid over the sheet; frames reference grid cells (row-major).
+  const data = createAnimClip('assets/textures/run-sheet.png', 32, 32, tex.width, tex.height);
+  data.fps = 10;
+  for (let cell = 0; cell < 6; cell++) data.frames.push({ cell });
+
+  const handles = new Map([['assets/textures/run-sheet.png', tex.handle]]);
+  sprites.registerClip(parseAnimClipData('run', data, handles));
+  // Any SpriteAnimator can now set clip = 'run'.
+});
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | 新建按网格切片的 `AnimClipAssetData`（fps `12`、`loop: true`、边距与间距 `0`、无帧）。 |
+| `createAnimClipFromTextures(textures)` | 新建由逐帧纹理组成的剪辑，无精灵表，从一开始即控制尺寸。 |
+| `parseAnimClipData(name, data, textureHandles, textureSizes?)` | 将资源数据解析为运行时 `SpriteAnimClip`：每帧的纹理句柄、UV 窗口，以及（控制尺寸的剪辑）绘制尺寸。`textureSizes` 提供逐纹理帧的自然尺寸。 |
+| `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | 解析 / 写出 `.esanim` JSON 文档，两者可往返。 |
+| `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | 网格格子的像素矩形 / UV 窗口。 |
+| `animClipFramePivot(data, frame, size?)` | 帧渲染所用锚点（帧、剪辑、中心），给出 `size` 时折算该帧偏移。剪辑未声明锚点时返回 `null`。 |
+| `animClipDrivesPivot(data)` | 剪辑是否声明锚点。 |
+| `animClipFrameSize(data, frame, natural?)` | 帧的绘制尺寸：帧自身尺寸，否则为 `natural`。剪辑不控制尺寸时返回 `null`。 |
+| `animClipDrivesSize(data)` | 剪辑是否控制 `Sprite.size`，包括显式设置或由任一帧的尺寸、偏移隐含。 |
+
+## 状态机动作
+
+[FSM/BT 内置名称](/docs/zh-cn/gameplay/ai/overview/#内建名字)可在 `.esfsm` 中无代码驱动精灵剪辑。动作的可选**参数**指定剪辑。
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `spriteAnim.play` | 动作 | 播放。带剪辑参数时切换到该剪辑并回到第 0 帧。当前剪辑正在播放时再次播放无效果，因此可放在 `onUpdate` 中。 |
+| `spriteAnim.restart` | 动作 | 无条件回到开头并播放（重新触发一次性剪辑）。 |
+| `spriteAnim.stop` | 动作 | 暂停播放。 |
+| `spriteAnim.finished` | 条件 | 一次性剪辑播放完毕后为真。`onEnter: spriteAnim.play` 加上 `spriteAnim.finished` 转换即构成独立的攻击状态。 |
+
+需要参数驱动的切换、混合与分层时，使用[动画控制器](/docs/zh-cn/animation/animator/)，其状态可以播放精灵剪辑。
+
+## 参见
+
+- [纹理](/docs/zh-cn/assets/textures/) —— 精灵表导入设置与格子网格。
+- [精灵](/docs/zh-cn/graphics/sprites/overview/) —— 剪辑所驱动的 `Sprite` 组件。
+- [动画控制器](/docs/zh-cn/animation/animator/#精灵剪辑状态) —— 作为动画控制器状态的精灵剪辑。

@@ -1,94 +1,77 @@
 ---
 title: DragonBones 动画
-description: DragonBones 骨骼动画的完整指南——导入项目、DragonBonesAnimation 组件、选择骨架、用 fadeIn 交叉淡入,以及 DragonBones 运行时 API。
+description: DragonBones 骨骼动画参考——导入 DragonBones 项目、DragonBonesAnimation 组件、骨架选择、用于播放与交叉淡入的 DragonBones 资源 API、共享骨骼，以及各构建目标包含的内容。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 支持 [DragonBones](https://docs.egret.com/dragonbones) 骨架动画:骨骼、网格、
-插槽与动画,由绘制其它一切的同一个渲染器摆姿势。它由 `DragonBonesAnimation` 组件驱动,
-并在运行时通过 `DragonBones` 资源(来自 `esengine/dragonbones` 子路径)控制。
+Estella 可播放 [DragonBones](https://docs.egret.com/dragonbones) 骨架：骨骼、网格、插槽与动画，由与场景其余部分相同的渲染器绘制。骨架由
+**`DragonBonesAnimation`** 组件（主包 `esengine`）放置，运行时通过 **`DragonBones`** 资源控制，该资源从 `esengine/dragonbones` 子路径导出。
 
-引擎跑到哪里它就跑到哪里——编辑器视口、Play、Web、Playable 广告、小游戏,以及编译进
-iOS 与 Android 宿主。
+DragonBones 在引擎支持的所有目标上运行：编辑器视口、Play、Web、试玩广告、小游戏，以及 iOS 与 Android 宿主。
 
-<Aside type="tip">
-  与 Spine 不同,DragonBones 运行时是 **MIT 许可**的。用它发布游戏不需要额外授权。
+<Aside type="note">
+  DragonBones 运行时采用 **MIT 许可**。发布使用它的游戏无需单独许可。
 </Aside>
 
-## 导入一个项目
+## 导入项目
 
-DragonBones 导出的是三个文件,Estella 把它们作为同一种资源类型导入:
+DragonBones 导出包含三个文件，作为一种资源类型一并导入：
 
-| 文件 | 是什么 |
+| 文件 | 内容 |
 |---|---|
-| `<name>_ske.json` 或 `<name>.dbbin` | 骨骼——骨头、插槽、动画。 |
-| `<name>_tex.json` | 图集——每块图在图片上的位置。 |
-| `<name>_tex.png` | 图片本身。 |
+| `<name>_ske.json` 或 `<name>.dbbin` | 骨骼：骨骼、插槽、动画。 |
+| `<name>_tex.json` | 图集：每个部件在图像中的位置。 |
+| `<name>_tex.png` | 图集图像。 |
 
-把文件夹拖进项目即可。`_ske` 与 `_tex` 两半是**按名字后缀**区分的,不是扩展名——两个都是
-`.json`,光看扩展名分不出谁是谁。
+将文件夹复制到项目中。骨骼与图集两个 JSON 文件**通过 `_ske` / `_tex` 名称后缀**区分，而非扩展名。
 
-那张 PNG 是场景里**没有任何东西指向**的文件:它的名字写在图集内部的 `imagePath` 字段里。
-打包时 Estella 会跟着这个引用走,所以图片会跟图集一起进包,而不会因为"没人引用"被剔掉。
-你不需要在任何地方引用它。
+PNG 只在图集内部通过其 `imagePath` 字段引用。打包时会沿该引用收集，因此图像无需被场景引用也会包含在构建中。
 
 ## `DragonBonesAnimation` 组件
 
-用 **创建 → DragonBones** 添加,或者给已有实体加这个组件。组件本身在主 `esengine` 包里。
+通过 **+ Add → Create entity… → DragonBones** 创建，或将该组件添加到已有实体上。
 
-![细节面板里的 DragonBonesAnimation 组件——骨骼与图集的资源槽,以及从文件读出来填充的骨架和动画下拉框](@/assets/guides/zh/dragonbones-inspector.png)
+![细节面板里的 DragonBonesAnimation 组件——骨骼与图集的资源槽，以及从文件读取并填充的骨架和动画下拉框](@/assets/guides/zh/dragonbones-inspector.png)
 
-| 属性 | 类型 | 默认 | 说明 |
+| 属性 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `skeletonPath` | asset | `''` | 骨骼文件(`_ske.json` / `.dbbin`)。 |
-| `atlasPath` | asset | `''` | 图集文件(`_tex.json`)。 |
-| `armature` | string | `''` | 用文件里的哪个骨架(空 = 第一个)。 |
+| `skeletonPath` | 资源 | `''` | 骨骼文件（`_ske.json` 或 `.dbbin`）。 |
+| `atlasPath` | 资源 | `''` | 图集文件（`_tex.json`）。 |
+| `armature` | string | `''` | 文件中的骨架。为空时使用第一个。 |
 | `animation` | string | `''` | 生成时播放的动画。 |
-| `loop` | boolean | `true` | 循环初始动画。 |
-| `playing` | boolean | `true` | 是否推进播放。 |
-| `fadeInTime` | number | `0` | 交叉淡入秒数,首次播放也会用。 |
-| `timeScale` | number | `1` | 每实体的播放速度。 |
-| `skeletonScale` | number | `1` | 骨架整体缩放。 |
+| `loop` | boolean | `true` | 初始动画是否循环。 |
+| `playing` | boolean | `true` | 播放是否推进。 |
+| `fadeInTime` | number | `0` | 动画切换时的交叉淡入时长（秒），包括首次播放。 |
+| `timeScale` | number | `1` | 单个实体的播放速度（≥ 0）。 |
+| `skeletonScale` | number | `1` | 骨架的统一缩放（≥ 0）。 |
 | `flipX` / `flipY` | boolean | `false` | 水平 / 垂直镜像。 |
-| `color` | Color | `{1,1,1,1}` | 着色(RGBA,0..1)。 |
-| `layer` | number | `0` | 决定绘制顺序的排序层。 |
-| `material` | asset | 无 | 可选的自定义材质。 |
-| `enabled` | boolean | `true` | 关掉则冻结并隐藏。 |
+| `color` | Color | `{1,1,1,1}` | 着色（RGBA，0–1），与每个插槽的原始颜色相乘。 |
+| `layer` | number | `0` | 排序层；值越大越靠上绘制。 |
+| `material` | 资源 | 无 | 自定义材质。为空时使用默认批处理着色器。 |
+| `enabled` | boolean | `true` | 关闭后骨架冻结并隐藏。 |
 
-**骨骼与图集是资源槽**:从弹出框里选、从内容浏览器拖进来,或者用槽自带的定位 / 清除操作。
-场景把它们序列化成可移植的 `@uuid:` 引用,所以移动或重命名文件都不会断链。
+### 编辑器行为
 
-编辑时骨架**就在视口里摆着**——改动画、改缩放、改翻转都会立刻看到,不用按 Play。
+- **资源槽。** `skeletonPath` 与 `atlasPath` 是资源槽：可从弹出列表选择、从内容浏览器拖入文件，或使用槽上的定位 / 清除操作。场景以
+  `@uuid:` 引用保存它们，移动或重命名文件不会断开引用。
+- **实时预览。** 编辑模式下骨架在视口中摆出姿势；修改动画、缩放或翻转无需进入 Play 即可看到。
+- **着色。** 由于 `color` 与插槽原始颜色相乘，不透明白色（默认值）不改变颜色，清空该字段即恢复原始颜色。
 
-<Aside type="note">
-  `color` 是**乘**在每个插槽自己的颜色上,而不是替换它——所以美术在 DragonBones Pro 里设的
-  颜色不会因为被着色而丢失。不透明白(默认值)就是"什么都不改变"的那个着色,所以清空这个字段
-  会还原成原样,而不是把最后一次的颜色留在那儿。
-</Aside>
+## 骨架选择
 
-## 选择骨架
+一个 DragonBones 文件是一个项目，可包含多个骨架；`armature` 选择其中之一。
 
-DragonBones 文件是一个**项目**,不是一个骨架:一个文件里常常放着好几个骨架。选哪一个是实打实
-的一步,所以 `armature` 是独立的一个字段。
-
-实体指向骨骼文件之后,**骨架**和**动画**会变成下拉框,内容是读那个文件读出来的——你从文件里
-真实存在的东西中挑,而不是手输一个名字然后在运行时才发现不对。动画列表跟着所选骨架走,因为
-一个文件里的两个骨架并不共用动画列表。
-
-`armature` 留空就用文件里的第一个骨架。大多数文件只有一个,而"必须填一个不打开文件就没法知道
-的值"会让最常见的情况反而更麻烦。
+设置 `skeletonPath` 后，**Armature** 与 **Animation** 变为从文件读取并填充的下拉框。动画列表随所选骨架变化，因为同一文件中的不同骨架各有自己的动画列表。`armature`
+为空时使用文件中的第一个骨架。
 
 <Aside type="note">
-  `.dbbin` 骨骼不会填充下拉框——它是二进制的,要报出里面有什么就得为了填一个列表而启动运行时。
-  这个字段会保持成普通文本框,手输的名字照样有效。
+  `.dbbin` 骨骼不会填充下拉框，这些字段保持为文本框。手动输入的名称在运行时仍然有效。
 </Aside>
 
 ## 播放与交叉淡入
 
-这是 DragonBones 与 Spine 差别最大的地方,API 也照实说,而不是假装一样。Spine 在骨架上维护一张
-**混合表**——"从 idle 到 run 用 0.2 秒"。DragonBones 是**在动画开始的那一刻**混合的,所以淡入
-时长是"开始播放"这个动作的参数:
+DragonBones 不在骨骼上保存混合表。交叉淡入在动画开始时指定，作为 `fadeIn` 的参数：
 
 ```typescript
 import { defineSystem, Query, Res, DragonBonesAnimation } from 'esengine';
@@ -97,7 +80,7 @@ import { DragonBones } from 'esengine/dragonbones';
 const control = defineSystem(
   [Query(DragonBonesAnimation), Res(DragonBones)],
   (q, dragonBones) => {
-    // 运行时落地前是 null——它在第一次被用到时才去取。
+    // 运行时加载前为 null；首次使用时获取。
     if (!dragonBones) return;
 
     for (const [entity] of q) {
@@ -110,20 +93,25 @@ const control = defineSystem(
 
 | 方法 | 说明 |
 |---|---|
-| `play(entity, name, loop?)` | 立即开始一个动画,不混合。 |
-| `fadeIn(entity, name, seconds, loop?)` | 交叉淡入到一个动画。 |
-| `stop(entity, name?)` | 停一个动画;省略名字则全停。 |
-| `setTimeScale(entity, scale)` | 每实体的播放速度。 |
-| `setColor(entity, r, g, b, a)` | 给整个骨架着色(0..1),乘在插槽自身颜色上。 |
-| `setEnabled(entity, on)` | 整个从这一帧里拿掉(既冻结**又**隐藏)。 |
-| `setEntityProps(entity, props)` | 一次设 `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }`。 |
+| `play(entity, name, loop?)` | 立即开始动画，不混合。 |
+| `fadeIn(entity, name, seconds, loop?)` | 交叉淡入到一段动画。 |
+| `stop(entity, name?)` | 停止一段动画；省略 `name` 时停止全部。 |
+| `setTimeScale(entity, scale)` | 单个实体的播放速度。 |
+| `setColor(entity, r, g, b, a)` | 为骨架着色（0–1），与插槽颜色相乘。 |
+| `setEnabled(entity, on)` | 将骨架移出帧（冻结并隐藏）或恢复。 |
+| `setEntityProps(entity, props)` | 一次设置 `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }`。 |
 
-`playing: false` 是冻住姿势但继续画;`setEnabled(false)` 是把骨架从这一帧里拿掉。这是两件事,
-而且两个都有用。
+`play` 与 `fadeIn` 的 `loop` 默认为 `true`。
 
-`setEnabled` 和组件自身的 `enabled` 字段驱动的是同一个开关:写字段(在检视器里,或
-`world.set`)在写下的那一刻生效,两次写之间由 `setEnabled` 说话。编辑器世界大纲里的眼睛
-走的也是这条通道——所以隐藏一个骨架实体会在视口里真的隐藏,而不会动你写好的 `enabled`。
+### `playing` 与 `enabled`
+
+| 设置 | 姿势 | 是否绘制 |
+|---|---|---|
+| `playing: false` | 冻结 | 是 |
+| `enabled: false` / `setEnabled(entity, false)` | 冻结 | 否 |
+
+`setEnabled` 与组件的 `enabled` 字段控制同一个开关。写入该字段（在检查器中或通过 `world.set`）在写入时生效；`setEnabled`
+保持有效，直到下一次这样的写入。大纲视图的可见性开关使用同一通道，因此在大纲视图中隐藏实体不会改变其编写的 `enabled` 值。
 
 ## 查询骨架
 
@@ -132,44 +120,37 @@ const anims  = dragonBones.getAnimations(entity);  // string[]
 const bounds = dragonBones.getBounds(entity);      // { x, y, width, height } | null
 ```
 
-`getBounds` 是从骨架**当前摆出的**几何算的,不是取制作工具里记录的那个包围盒——所以它跟着角色
-移动,而不是描述它当初被画在哪。
+`getBounds` 由骨架**摆好姿势后**的几何体计算，而非编辑工具记录的包围盒，因此会随当前姿势变化。
 
-## 共用一份骨架
+## 共享骨骼
 
-指向同一对骨骼 + 图集的实体共用**一份解析后的骨架和一张图集**。同一个角色来十个,文件只解析一次、
-纹理只有一份;最后一个被移除时才卸载。
+引用同一对骨骼与图集的实体共享**一份解析后的骨骼和一张图集纹理**。最后一个引用它们的实体移除时数据被卸载。无需任何设置。
 
-这不需要你做任何开关——它由组件引用的那一对文件自然决定。每实体的属性仍然是每实体的,所以共用
-骨架照样可以各自缩放、翻转、着色:
+单个实体的属性仍各自独立，因此共享骨骼的实例可以分别缩放、翻转和着色：
 
-![同一个文件里的两个 DragonBoy 骨架——第二个仅通过组件字段就缩小并镜像了](@/assets/guides/zh/dragonbones-shared.png)
+![同一个文件里的两个 DragonBoy 骨架——第二个仅通过组件字段缩小并镜像](@/assets/guides/zh/dragonbones-shared.png)
 
-## 打包时会带上什么
+## 构建产物
 
-DragonBones 运行时是**按需付费**的。项目里没有骨架,就不会去取、内联或复制这个模块:
+只有当打包的场景使用 DragonBones 时才会包含其运行时。编辑器通过扫描要打包的场景来判断，没有对应设置。
 
-| 目标 | 运行时怎么进去的 |
+| 目标 | 运行时的交付方式 |
 |---|---|
-| Web / 桌面 | `dragonbones.wasm` 放在引擎旁边,首次使用时取。 |
-| Playable 广告 | 内联进那一个 HTML 文件——仅当场景用到。 |
-| 小游戏 | 复制进包里——仅当场景用到。 |
-| iOS / Android | 编译进 app 二进制。 |
-
-编辑器是扫描正在打包的场景来决定的,所以没有需要记住的开关,也没办法打出一个"有骨架却没有运行时"
-的包。
+| Web / 桌面 | 引擎旁的 `dragonbones.wasm`，首次使用时获取。 |
+| 试玩广告 | 内联进单个 HTML 文件。 |
+| 小游戏 | 复制进包内。 |
+| iOS / Android | 编译进应用二进制。 |
 
 ## 最佳实践
 
-- **给切换加淡入。** `fadeIn` 用 0.15–0.3 秒,比 `play` 那种硬切好看得多。在组件上设
-  `fadeInTime`,首次播放也会淡入。
-- **在实体之间共用同一对文件**——同一个角色的一群人,只花一次解析和一张图集。
-- **在编辑器里用下拉框选骨架**,别手输:文件里不存在的名字什么都画不出来。
-- 想让角色**停在某个姿势并留在画面上**时,用 `playing: false`,别用禁用。
+- **过渡使用交叉淡入**：`fadeIn`（0.15–0.3 秒）；`play` 不混合直接切换。在组件上设置 `fadeInTime`，使首次播放也混合。
+- **在实体之间共享骨骼与图集**：一组相同角色只需一次解析和一张图集。
+- **从下拉框选择骨架**而非手动输入；文件中不存在的名称不会绘制任何内容。
+- **用 `playing: false`** 而非禁用来保持可见的静止姿势。
 
 ## 参见
 
-- [Spine 动画](/docs/zh-cn/animation/spine/) —— 另一个骨骼运行时,以及两者的差别。
-- [动画](/docs/zh-cn/animation/overview/) —— 精灵帧动画与 Animator 状态机。
-- [资源](/docs/zh-cn/assets/overview/) —— 骨骼与图集资源怎么导入和引用。
-- [构建与导出](/docs/zh-cn/publishing/overview/) —— 每个目标的包里有什么。
+- [Spine 动画](/docs/zh-cn/animation/spine/)——另一种骨骼运行时。
+- [动画](/docs/zh-cn/animation/overview/)——精灵序列帧与 Animator 状态机。
+- [资源](/docs/zh-cn/assets/overview/)——骨骼与图集资源的导入与引用。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——各目标的包内容。

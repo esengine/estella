@@ -1,0 +1,116 @@
+---
+title: Particle Motion
+description: How particles move — initial speed and direction, gravity, damping, added velocity and speed limit, rotation and spin, curl-noise turbulence, and ParticleForceField entities that act on every emitter in range.
+---
+
+A particle's motion is its initial velocity, integrated each frame with the emitter's forces, its noise field and any
+`ParticleForceField` in range.
+
+## Velocity and forces
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `speedMin` | number | `500` | Slowest initial speed. |
+| `speedMax` | number | `500` | Fastest initial speed. |
+| `angleSpreadMin` | number | `0` | Start of the emission-direction arc (°) in the emitter's local XY plane. Read by `Point` and `Box` only. |
+| `angleSpreadMax` | number | `360` | End of the emission-direction arc (°). Read by `Point` and `Box` only. |
+| `gravity` | Vec3 | `{0, 0, 0}` | Constant acceleration applied to every particle. |
+| `damping` | number | `0` | Velocity drag per second; `0` is none. |
+| `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | A velocity each particle carries on top of its own, chosen between the two ends at birth. Gravity, damping, noise and the speed limit do not act on it. CPU simulation only. |
+| `speedLimit` | number | `0` | Maximum speed under the particle's own velocity; `0` is no limit. A faster particle is pulled back toward the limit. CPU simulation only. |
+| `limitDampen` | number | `1` | Share of the excess over `speedLimit` removed per 1/60 s: `1` clamps at once, a small value brakes gradually. |
+
+The shape decides the initial direction ([Emitter shapes](/docs/world/particles/overview/#emitter-shapes)). A
+speed-over-life multiplier can be uploaded with `Particle.setSpeedLut`
+([Playback control](/docs/world/particles/overview/#playback-control)).
+
+## Rotation
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `rotationMin` | number | `0` | Smallest rotation at spawn (°). |
+| `rotationMax` | number | `0` | Largest rotation at spawn (°). |
+| `angularVelocityMin` | number | `0` | Slowest spin (°/s). |
+| `angularVelocityMax` | number | `0` | Fastest spin (°/s). |
+
+A `Stretched` particle is turned along its velocity instead
+([Stretched particles](/docs/world/particles/rendering/#stretched-particles)).
+
+## Noise and turbulence
+
+The noise module adds a curl-noise flow field on top of velocity and gravity, so particles follow smooth, swirling
+currents: curling smoke, fluttering embers, drifting magic. The field is the curl of a noise potential and therefore
+divergence-free: particles do not bunch into clumps or open gaps as they would under random jitter. It is computed in
+the engine core, identically on every platform including WeChat mini-games. With `noiseStrength` at `0` no field is
+sampled and the module has no cost.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `noiseStrength` | number | `0` | Peak flow speed the field pushes particles at, world units per second. `0` turns the module off. |
+| `noiseFrequency` | number | `0.01` | Spatial scale of the field. Larger values give tighter, busier swirls. |
+| `noiseScrollSpeed` | number | `0` | How fast the field drifts over time; `0` is a static field. |
+| `noiseOctaves` | number | `1` | Fractal detail layers, 1–8. `1` is smooth flow; more layers add finer turbulence at a higher cost. |
+
+```typescript
+.insert(ParticleEmitter, {
+  // …emission, lifetime, colour…
+  noiseStrength: 120,     // how hard the current pushes (world units/s)
+  noiseFrequency: 0.01,   // smaller = broad, slow swirls; larger = tight eddies
+  noiseScrollSpeed: 0.5,  // the field drifts, so the flow keeps changing
+  noiseOctaves: 2,        // 1 = smooth; more = finer turbulence
+});
+```
+
+Tuning guidance:
+
+- **`noiseStrength`**: start at a fraction of the particles' speed and raise it until the wander is visible.
+- **`noiseFrequency`**: sets the swirl size. Rising smoke suits small values (about `0.005`); chaotic sparks suit larger
+  ones (about `0.03`).
+- **`noiseScrollSpeed`**: a value above `0` keeps a slow plume moving; `0` gives a fixed field the particles flow
+  through.
+- **`noiseOctaves`**: `1`–`2` covers most effects.
+
+## Force fields
+
+A `ParticleForceField` is an entity of its own that acts on the world-space particles of every emitter within range:
+wind gusts, gravity wells, whirlpools, pockets of still air. The noise module, by contrast, belongs to one emitter.
+
+```typescript
+import { ParticleForceField, ForceFieldType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ParticleForceField, {
+    type: ForceFieldType.Vortex,
+    strength: 450,   // acceleration (world units/s²); negative turns a Point field into a repeller
+    radius: 320,     // 0 = affects the whole scene; > 0 = only particles within range
+    falloff: true,   // fade the force to 0 at the radius edge
+  });
+```
+
+### `ParticleForceField` fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `type` | `ForceFieldType` | `Directional` | The kind of force (below). |
+| `strength` | number | `200` | Acceleration in world units per second squared. Negative reverses a `Point` field. |
+| `radius` | number | `0` | Range from the field's position; `0` affects the whole scene. |
+| `direction` | Vec3 | `{1, 0, 0}` | Push direction of a `Directional` field. |
+| `falloff` | boolean | `true` | Fade the force to `0` at the radius edge. |
+| `enabled` | boolean | `true` | `false` skips the field. |
+
+| Type | Effect |
+|---|---|
+| `Directional` | A constant push along `direction`: wind, updrafts, currents. |
+| `Point` | Pull toward the field (`strength > 0`) or push away (`strength < 0`): gravity wells, explosions. |
+| `Vortex` | Tangential swirl around the field: whirlpools, tornadoes, galaxies. |
+| `Drag` | Damps velocity inside the zone: still air or water that slows particles. |
+
+- The simulation gathers the active fields each frame and adds them to the same velocity integration as gravity. A
+  GPU-simulated emitter applies the first eight fields.
+- `Directional` uses `direction`; `Point`, `Vortex` and `Drag` derive their direction from the field-to-particle vector
+  and ignore it.
+- Fields act on `World` particles only. A `Local` emitter's particles move with their emitter and ignore fields.
+- A field with `strength: 0` or `enabled: false` is skipped.
+
+{/* SHOT: world-particles-force-field | Viewport of examples/vfx-showcase in edit mode with Preview FX on and a ParticleForceField entity selected, the particles visibly bent by it and the Particle Force Field card visible in Details */}

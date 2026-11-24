@@ -1,24 +1,20 @@
 ---
 title: World Streaming
-description: Cut a large world into cells at cook time and let residency decide which of them exist — streaming sources, load and unload radii, what a persistent world holds, and the rules a cell has to obey.
+description: World streaming reference — StreamedWorld and WorldPersistent, streaming sources and their prefetch, load and unload radii, the publication budget and streaming policy, cook output, far proxies, residency rules and RememberState, procedural chunks, the residency report, editor tools, and precision limits.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A scene loads whole. That is the right answer until the world is bigger than a
-machine wants resident at once — and then the question stops being "what is
-drawn" and becomes **"what exists"**. World streaming answers the second one: the
-cook cuts an authored world into square cells, and at runtime a cell exists
-because something is near it, and stops existing when nothing is.
+World streaming cuts an authored world into square cells at cook time. At runtime a cell exists while a streaming
+source is near it and is destroyed when none is. A cell that unloads is not hidden: its entities, physics bodies,
+navigating agents and asset references are all released, so an unloaded place costs no memory, does not collide, and
+runs no logic.
 
-Nothing about this is a visibility trick. A cell that leaves is destroyed: its
-entities, its physics bodies, its navigating agents and its asset references all
-go. That is the point — a place that is merely hidden still costs memory, still
-collides, and still lets an enemy nobody can see attack the player.
+A scene without a `StreamedWorld` is not a streamed world and loads whole.
 
 ## Declaring a streamed world
 
-Two components, both authored in the scene:
+Two components declare a streamed world, both authored in the scene:
 
 ```typescript
 // On the world's settings entity: this scene is cut into 1000-unit cells.
@@ -30,20 +26,34 @@ world.insert(camera, WorldPersistent, {});
 world.insert(sun, WorldPersistent, {});
 ```
 
-Everything else is placed into a cell by **where its top-level entity stands**.
-A scene with no `StreamedWorld` in it is not a streamed world and loads exactly
-as it always did.
+Every other entity is placed into a cell by the position of its top-level entity. `WorldPersistent` keeps the entity's
+whole subtree in the persistent world, which is never streamed. The `StreamedWorld` entity is persistent by
+construction.
+
+### `StreamedWorld` fields
+
+| Field | Default | Description |
+|---|---|---|
+| `cellSize` | `1000` | Edge of one square cell, in world units, on the plane below. |
+| `plane` | `Ground` | `StreamPlane.Ground` cuts cells along world x and z (a 3D world); `StreamPlane.Screen` cuts along world x and y (a 2D world). See [Cell plane](#cell-plane). |
+| `farProxies` | `false` | Bake a far proxy for each cell at build time ([Far proxies](#far-proxies)). |
+| `farDistance` | `8000` | Distance from a source within which a non-resident cell shows its far proxy. |
+| `proxyError` | `1` | Largest distance, in world units, a far-proxy surface may move from the original. |
+| `proxyRatio` | `0.01` | Fewest triangles a far proxy aims for, as a share of its cell's, in (0, 1]. `proxyError` keeps more where required. |
+
+In the editor, **World Settings → Enable Streaming** adds the `StreamedWorld` component to the world settings entity.
+
+{/* SHOT: world-streaming-settings | World Settings panel of examples/world-streaming-3d with Enable Streaming on and the StreamedWorld fields (Cell Size, Plane, Far Proxies) visible */}
 
 <Aside type="note">
-`WorldPersistent` is not scene persistence. `SceneContext.setPersistent` decides
-whether an entity survives a scene *switch*; `WorldPersistent` decides which
-cooked scene an entity is written into, and therefore whether residency can
-remove it at all.
+`WorldPersistent` is not scene persistence. `SceneContext.setPersistent` decides whether an entity survives a scene
+switch; `WorldPersistent` decides which cooked scene an entity is written into, and therefore whether residency can
+remove it.
 </Aside>
 
-## Asking for places: streaming sources
+## Streaming sources
 
-A cell exists because a **source** is near it:
+A cell exists while a `WorldStreamingSource` is near it:
 
 ```typescript
 world.insert(player, WorldStreamingSource, {
@@ -53,119 +63,86 @@ world.insert(player, WorldStreamingSource, {
 });
 ```
 
-The three radii are in world units and default to the values above; the component also has an `enabled` switch (default on) that takes a source out of the union without removing it. `StreamedWorld.cellSize` defaults to 1000.
+| Field | Default | Description |
+|---|---|---|
+| `prefetchRadius` | `3000` | Cells whose nearest edge is within this distance are prepared but not published. Never used as less than `loadRadius`. |
+| `loadRadius` | `2000` | Cells whose nearest edge is within this distance are brought into the world. |
+| `unloadRadius` | `3000` | A resident cell is released once its nearest edge is beyond this distance. Must exceed `loadRadius`. |
+| `enabled` | `true` | `false` removes the source from the union without removing the component. |
 
-Several sources may exist, and what they ask for is **unioned** — a cell any one
-of them needs stays resident. That is what makes split screen, a spectator
-camera, a cinematic camera and an editor preview the same kind of thing rather
-than four special cases. Nothing folds them into a single focus, because a fold
-lets the last one written decide, and the frame after a second camera exists it
-deletes the world the first is standing in.
+Radii are in world units. Several sources may exist; the cells they request are **unioned**, and a cell any source
+needs stays resident. Split screen, a spectator camera, a cinematic camera and an editor preview are all sources of the
+same kind. Distance is measured to the cell's bounding box, not its centre, so a source near a cell's corner is treated
+as near that cell.
 
-Distance is measured to the cell's **box**, not its centre: to a centre, a source
-standing on a diagonal corner reads the same as one a whole cell away, which is
-where holes open along the diagonals of a grid.
+### Prefetch
 
-### Readied before it is wanted
+A cell inside `prefetchRadius` is **prepared**: its document is fetched, its prefabs expanded and its assets acquired,
+but none of its entities exist. No query returns it, no renderer draws it and no body collides with it. Publication
+creates the entities, and it happens only when a source reaches `loadRadius`. On the engine's test fixture, publishing
+a prepared cell took 0.6 ms; an unprepared cell also pays for fetching and decoding.
 
-A cell inside `prefetchRadius` is **prepared**: its document is fetched, its
-prefabs expanded, its assets acquired — and not one of its entities exists. So
-nothing can observe it. No query returns it, no renderer draws it, no body
-collides with it, no enemy in it decides anything, because there is nothing
-there yet. Publication is the only thing that creates entities, and it happens
-when a source actually reaches `loadRadius`.
+Preparation is speculative. A cell prepared for a source that turns away is discarded and its assets released; it is
+never published because it happens to be ready. When a preparation completes, the streamer checks again whether the
+cell is still wanted.
 
-That is worth about twenty milliseconds of a player's time. On Estella's own
-fixture, walking into a readied place costs 0.6 ms; walking into an unreadied
-one costs the fetching and decoding too.
+`prefetchRadius` and `unloadRadius` are independent: one sets how early a cell is prepared, the other how late a
+resident cell is released.
 
-Preparation is **speculation, never authority**. A cell readied for a player who
-turns around is thrown away and its assets given back — never published because
-it happened to be ready. And a preparation that finishes asks again whether the
-cell is still wanted, rather than assuming the answer from when it started.
+### Load and unload band
 
-`prefetchRadius` is never used as less than `loadRadius`; beyond that it is not
-ordered against `unloadRadius` at all. They answer different questions — how
-early to get ready, and how late to let go.
+A cell is published at `loadRadius` and released only beyond `unloadRadius`. The band between them prevents a source on
+a cell boundary from loading and unloading the cell every frame. A starting point is an `unloadRadius` 1.5 times
+`loadRadius`.
 
-### The band between the two radii
+### Publication budget
 
-A cell comes in at `loadRadius` and only leaves once it is past `unloadRadius`.
-The gap between them is the whole reason both exist: a source standing on a
-boundary would otherwise spend every frame instantiating and destroying a place.
-Set `unloadRadius` comfortably larger than `loadRadius` — half again is a good
-starting point.
+A cell is published over several frames. Its entities are spawned, their components written and the hierarchy linked
+in pieces, within the per-frame budget shared with bakes, terrain pages and procedural chunks (`Bakes.budgetMs`,
+8 ms). While a cell arrives its roots are `Disabled`, so no system, query, body or draw sees a partial cell; the last
+step enables it whole, and every `Added` filter sees its components in that frame. Unloading is the reverse: the cell
+is disabled in the frame it is released, destroyed within the budget, and its assets released afterwards.
 
-### Arriving within a frame's budget
+A cell's **preparation** is also split into turns (`Bakes.turn`). Fetching the document and assets happens off the
+frame; the work that runs when they arrive (parsing the document, expanding prefabs, resolving assets, readying shader
+programs) waits for a turn. Each frame grants as many turns as its remaining budget fits, and at least one. A cell that
+is urgent, or that is rushed because the world is being cleared, takes no turns. Decoding an asset (a mesh, a texture)
+is not split.
 
-A cell is published **over frames**, not in one. Its entities are spawned, their
-components written and the hierarchy linked a piece at a time, under the same
-per-frame budget the bakes, the terrain's pages and the procedural chunks share
-(`Bakes.budgetMs`, 8 ms). While it arrives its roots are switched off
-(`Disabled`), so no system, query, body or draw sees half a place; the last
-step switches it on whole, and every `Added` filter sees its components arrive
-in that frame. Leaving is the same in reverse: the cell is switched off in the
-frame it is let go, then destroyed under the budget, and its assets given back
-after.
+When a world is cleared (`clear()`, Play stopped), cells in progress are finished and removed at once.
 
-What the streamer does at once, and what it does when it falls behind, is its
-**policy** (`streamer.setPolicy({...})`). The defaults are Unreal Engine's:
+### Streaming policy
 
-| Policy | Default | What it decides | Unreal |
-| --- | --- | --- | --- |
-| `Bakes.budgetMs` | 8 | Milliseconds a frame gives all work spread over frames | `s.LevelStreamingActorsUpdateTimeLimit` (5 ms) |
-| `Bakes.priorityExtraMs` | 12 | More, while a cell a source is upon is still arriving | `s.PriorityLevelStreamingActorsUpdateExtraTime` (5 ms) |
-| `maxLoadingCells` | 4 | Cells prepared at once; the rest wait, nearest first (an urgent one never waits) | `wp.Runtime.MaxLoadingStreamingCells` (4) |
-| `maxPublishingCells` | 1 | Cells published at once (an urgent one never waits) | one level made visible at a time |
-| `slowStreamingRatio` | 0.25 | A wanted cell is **urgent** while a source is within this share of its `loadRadius` of it | `wp.Runtime.BlockOnSlowStreamingRatio` (0.25) |
-| `slowStreaming` | `'wait'` | What an urgent cell does (below) | `wp.Runtime.BlockOnSlowStreaming` (on) |
+The streamer's concurrency and its behaviour when it falls behind are its **policy**, set with
+`streamer.setPolicy({...})`. The frame budget itself belongs to the `Bakes` resource, shared by all work spread over
+frames.
 
-`slowStreaming` is the one choice a game has to make, because each answer costs
-something different:
+| Setting | Default | Description |
+| --- | --- | --- |
+| `Bakes.budgetMs` | 8 | Milliseconds per frame for all work spread over frames. |
+| `Bakes.priorityExtraMs` | 12 | Additional milliseconds per frame while urgent work (such as a cell a source is standing in) is still arriving. |
+| `maxLoadingCells` | 4 | Cells prepared at once; the rest wait, nearest first. An urgent cell never waits. |
+| `maxPublishingCells` | 1 | Cells published at once. An urgent cell never waits. |
+| `slowStreamingRatio` | 0.25 | A wanted cell is **urgent** while a source is within this share of its `loadRadius` of it. |
+| `slowStreaming` | `'wait'` | What an urgent cell does (below). |
 
-- `'wait'`: an urgent cell is finished in the frame it becomes urgent, and the
-  game is **held** (paused, with streaming going on through the pause) until
-  every urgent cell is in. A hitch and a stop, never a hole. Unreal's default.
-- `'publish'`: the same finishing, never a hold. A cell still being fetched is
-  missing until it arrives.
-- `'budget'`: nothing is ever done outside the budget; an urgent cell only gets
-  `priorityExtraMs`. The steadiest frame rate, and a hole when the world cannot
-  keep up (Unreal with `BlockOnSlowStreaming` off, as Movie Render Queue sets it).
+`slowStreaming` options:
 
-A hold is a pause owned by the streamer: a pause the game asked for (a menu)
-stops streaming as it always did, and a hold never ends that pause. A cell that
-failed to prepare or publish does not hold the game. `worldResidencyReport`
-says what the policy is doing: `urgentCells`, `queuedCells`, `holding`,
-`holdCount`, `holdMs` and `rushCount` (publications finished outside the budget).
+| Value | Behaviour | Trade-off |
+|---|---|---|
+| `'wait'` | An urgent cell is finished in the frame it becomes urgent, and the game is **held** (paused, with streaming continuing) until every urgent cell is in. | A hitch and a pause; never a hole. |
+| `'publish'` | An urgent cell is finished at once; the game is never held. | A cell still being fetched is missing until it arrives. |
+| `'budget'` | Nothing runs outside the budget; an urgent cell only receives `priorityExtraMs`. | The steadiest frame rate; a hole when streaming cannot keep up. |
 
-A cell's **preparation** takes its pieces in a frame's turns too. Fetching its
-document and its assets happens off the frame, but what runs when they answer
-(parsing the document, expanding its prefabs, finding and resolving its assets,
-readying its programs) waits for a turn (`Bakes.turn`): each frame gives as many
-as what is left of its budget fits, and at least one. Before, every answer ran
-the moment it came, and four cells answering at once were one long frame. A
-cell that is urgent, or rushed because the world is being cleared, takes no
-turns. Decoding an asset (a mesh, a texture) is not split this way yet.
+A hold is a pause owned by the streamer. A pause requested by the game (a menu) stops streaming as before, and a hold
+never ends that pause. A cell that failed to prepare or publish does not hold the game.
 
-`maxLoadingCells` caps how many cells are being prepared at once. Above it, the
-nearest cells are prepared first. More at once brings the far side of a fast
-player's view in sooner, and gives the turns more to share.
+`maxLoadingCells` caps concurrent preparation; above it, the nearest cells are prepared first. A higher value brings in
+the far side of a fast-moving view sooner and gives the turns more work to share.
 
-Measured along `examples/far-proxy-town`'s flight with the CPU slowed five times
-(`tools/measure-cell-hitch.mjs`, the game running in real time, three runs each):
-the longest piece of preparation in a long frame went from 25–105 ms to 23–45 ms,
-and its total over a minute from 1.8–4.2 s to 1.0–1.6 s. The frames themselves
-vary too much from run to run on a shared machine to say more than that.
+## Cook output
 
-The numbers differ from Unreal's on purpose: Estella has one budget for all work
-spread over frames where Unreal has one for level streaming alone, and the
-default leaves room for the terrain and chunks beside a cell. A cell clearing a
-world (`clear()`, Play stopped) is finished and taken out at once, since the
-frames that would have stepped it may be gone.
-
-## What the cook produces
-
-Partitioning happens at **cook time**, not at boot:
+Partitioning happens at cook time:
 
 ```
 main.esscene ──cook──▶ main.esscene          the persistent world
@@ -174,24 +151,30 @@ main.esscene ──cook──▶ main.esscene          the persistent world
                        world/main.cell_1_0.json ...
 ```
 
-Each streamed scene keeps its persistent entities in its own scene document. Game code names the map, and residency loads its cells.
-In editor Play and in Web and native packages,
-`SceneManager.switchTo(name)` releases the old map's cells and far proxies before the new map begins streaming. Switching to
-a menu releases them too. Use `loadAdditive` for a HUD that should leave the active map streaming. To make an already loaded
-map active, call `load(name)`. Streaming sources belonging to that map start contributing when it becomes active.
-`WorldMemory.toJSON()` saves the current world's remembered entities, and returning to a
-previous world restores its own memory.
+Each streamed scene keeps its persistent entities in its own scene document. Game code names the map, and residency
+loads its cells.
 
-Cells are cut on one plane. By default that is the ground (world x and z): a cell is a vertical column, so a tower's floors are one place. A 2D world
-lies in the screen plane, where every entity has the same z, so set `plane` to **Screen (x, y)** (`StreamPlane.Screen`) and the cells are cut along
-world x and y instead; the streaming sources are then read by their x and y too. Without it a 2D world falls into one row of cells along x. The same
-field, `plane: 'xy'`, is in the cooked manifest (`WorldManifest.plane`), and a cell's `z` is then world y.
+- In editor Play and in Web and native packages, `SceneManager.switchTo(name)` releases the old map's cells and far
+  proxies before the new map begins streaming. Switching to a menu releases them too.
+- `loadAdditive` adds a scene (such as a HUD) while the active map keeps streaming.
+- `load(name)` makes an already loaded map active. Streaming sources belonging to that map start contributing when it
+  becomes active.
+- `WorldMemory.toJSON()` saves the current world's remembered entities; returning to a previous world restores its own
+  memory ([Remembered state](#remembered-state)).
+
+### Cell plane
+
+Cells are cut on one plane. By default (`StreamPlane.Ground`) the plane is the ground, world x and z: a cell is a
+vertical column, so a tower's floors are one place. A 2D world lies in the screen plane, where every entity has the
+same z; set `plane` to **Screen (x, y)** (`StreamPlane.Screen`) to cut cells along world x and y, and streaming sources
+are then read by their x and y. Without it a 2D world falls into a single row of cells along x. The cooked manifest
+carries the same choice as `WorldManifest.plane: 'xy'`, and a cell's `z` is then world y.
 
 ## Far proxies
 
-A cell that is not resident is not in the world, so without more a place past the load radius is not drawn at all. Tick
-**Far proxies** on `StreamedWorld` and a build bakes each cell a stand-in: the cell's static, opaque meshes merged into one
-draw per material and simplified, shown while the cell is absent.
+A non-resident cell is not in the world, so by default nothing beyond the load radius is drawn. With **Far proxies**
+on `StreamedWorld`, a build bakes each cell a stand-in: the cell's static, opaque meshes merged into one draw per
+material and simplified, shown while the cell is absent.
 
 ```typescript
 world.insert(settings, StreamedWorld, {
@@ -203,60 +186,75 @@ world.insert(settings, StreamedWorld, {
 });
 ```
 
-The cook writes `world/<cell>.far.json` and its meshes beside the cell, and names them on the cell in the manifest
-(`WorldCell.proxy`, with `WorldManifest.farDistance`). Prefab instances are expanded, so a building placed as a prefab
-contributes its meshes. A surface is left out of the proxy when it is disabled or blended, skinned, a billboard, or when it or a
-parent moves on its own (a character controller, a body that is not static, an animator). A mesh your own system moves, with none
-of those, would be baked where it stands: put `ExcludeFromFarProxy` on it, or on the entity above it, and its whole subtree stays
-out of the proxy while it is still drawn whenever its cell is in the world.
+- The cook writes `world/<cell>.far.json` and its meshes beside the cell and names them in the manifest
+  (`WorldCell.proxy`, with `WorldManifest.farDistance`).
+- Prefab instances are expanded, so a building placed as a prefab contributes its meshes.
+- A surface is excluded when it is disabled, blended, skinned or a billboard, or when it or a parent moves on its own (a
+  character controller, a non-static body, an animator). A mesh moved by game code without any of those would be baked
+  where it stands: put `ExcludeFromFarProxy` on it, or on an entity above it, to keep that subtree out of the proxy. The
+  subtree is still drawn whenever its cell is resident.
+- `proxyError` determines how far a cell simplifies. Keep it below the size of a pixel at the distance where the proxy
+  starts (beyond the sources' load radius).
+- Surfaces that differ only in colour share one draw, with the colour carried in the vertices. A proxy carries no
+  lightmap UV.
 
-`proxyError` is what decides how far a cell simplifies: keep it below what a pixel covers at the distance the proxy starts (past
-the sources' load radius). Surfaces that differ only in their colour share one draw, the colour carried by the vertices, and a
-proxy carries no lightmap UV. In the `far-proxy-town` example (144 cells, 3.1 million triangles of static meshes), the proxies
-keep 2% of the triangles at `proxyError` 0.5, and along its flight a frame draws 122 thousand triangles in 354 draws where the
-town fully loaded draws 866 thousand in 620, with 0.3% of the pixels noticeably different.
+Handover is gapless in both directions: approaching a cell, its proxy remains until the cell is resident; leaving, the
+cell remains until its proxy is loaded. A proxy that fails to load does not hold its cell.
+`WorldStreamerStatus.proxyCells` and the residency report list the cells currently drawn by their proxy.
 
-The streamer hands over in both directions without a gap. Walking towards a cell, its proxy stays until the cell is in the world;
-walking away, the cell stays until its proxy is. A proxy that fails to load does not hold its cell. `WorldStreamerStatus.proxyCells`
-and the residency report list the cells drawn by their proxy.
+Play builds the same proxies from the same cells with the same simplification code as a build, and keeps them in
+memory. Each proxy is built the first time the streamer requests it.
 
-Play makes the same proxies from the same cells, simplified by the same code a build uses, and keeps them in memory. It makes
-each one when the streamer first asks for it, not before the game starts: in `far-proxy-town`, Play starts after 172 ms of naming
-which cells have a proxy, and each proxy costs about 30 ms (at most 190) as it arrives.
+Measured in the `far-proxy-town` example (144 cells, 3.1 million triangles of static meshes, `proxyError` 0.5):
 
-## The rules a streamed world has to obey
+| Measurement | Value |
+|---|---|
+| Triangles kept by the proxies | 2% |
+| A frame along the example's flight path | 122 thousand triangles in 354 draws |
+| The town fully loaded | 866 thousand triangles in 620 draws |
+| Pixels noticeably different | 0.3% |
+| Play start (naming the cells that have a proxy) | 172 ms |
+| Building one proxy in Play | about 30 ms, at most 190 ms |
 
-**A subtree is the unit of residency.** Only top-level entities are placed, so a
-door cannot be sorted away from its house even if the door's world position falls
-in the next cell. A cell's box grows to cover its content, so a prop hanging over
-the edge does not pop in at the boundary.
+The editor's **World** panel has an **HLOD** view, beside **Map** and **List**, that lists each cell's proxy with its
+original and reduced triangle counts and its build state.
 
-**Hard entity references may not cross a residency boundary.** Two entities in
-one cell may reference each other; so may anything in the persistent world; and a
-cell may reference the persistent world, which outlives it. A reference from one
-cell into another — or from the persistent world into a cell — fails the build,
-because either one points at something residency is entitled to delete.
+{/* SHOT: world-streaming-far-proxies | World panel of examples/far-proxy-town switched to the HLOD view, listing clusters with Tri Original, Tri Reduced, % Retained and State columns */}
 
-**Residency owns existence; continuity is asked for.** A cell that unloads loses its
-runtime state, and reloading rebuilds it from what was authored: an enemy you wounded
-and walked away from comes back at full health. Put `RememberState` on what should not:
+## Rules for streamed content
+
+**A subtree is the unit of residency.** Only top-level entities are placed, so a door is never separated from its house
+even if the door's world position falls in the next cell. A cell's bounding box grows to cover its content, so a prop
+overhanging the edge does not pop in at the boundary.
+
+**Hard entity references may not cross a residency boundary.** Two entities in one cell may reference each other, and
+so may entities in the persistent world; a cell may reference the persistent world, which outlives it. A reference
+from one cell into another, or from the persistent world into a cell, fails the build, because it points at an entity
+residency may delete.
+
+**Residency owns existence; continuity is opt-in.** A cell that unloads loses its runtime state, and reloading rebuilds
+it from the authored content: a wounded enemy returns at full health.
+
+### Remembered state
+
+`RememberState` keeps an entity as it was left when its cell unloads:
 
 ```typescript
 world.insert(enemy, RememberState, {});                     // its health and where it stood
 world.insert(chest, RememberState, { keepTransform: false }); // opened stays opened
 ```
 
-As a remembered entity is taken out with its cell, its game components (the ones your
-project defines, such as `Health` or a chest's `opened` flag) and its Transform are written
-down under the id it was authored with. When the cell is brought in again its document is
-changed before anything spawns, so it arrives as it was left, never for a frame as authored.
-A remembered entity destroyed while its cell is in (a boss killed, an ore mined, a building
-torn down) is written down as gone, with everything under it, and its cell never brings it
-back. The engine's own components are not kept: they hold asset handles and state a cell
-rebuilds. Entities spawned at run time have no authored id and are not remembered.
+- When a remembered entity is unloaded with its cell, its game components (those the project defines, such as
+  `Health` or a chest's `opened` flag) and its `Transform` are recorded under its authored id. `keepTransform: false`
+  leaves the `Transform` out.
+- When the cell loads again, its document is modified before anything spawns, so the entity arrives as it was left and
+  never appears in its authored state for a frame.
+- A remembered entity destroyed while its cell is resident (a boss killed, an ore mined, a building torn down) is
+  recorded as gone, with its subtree, and the cell does not bring it back.
+- Engine components are not kept: they hold asset handles and state the cell rebuilds.
+- Entities spawned at run time have no authored id and are not remembered.
 
-The memory is the `WorldMemoryRes` resource. Carry it through a save with
-[save slots](/docs/scripting/save/):
+The memory is the `WorldMemoryRes` resource. Carry it through a save with [save slots](/docs/scripting/save/):
 
 ```typescript
 const saves = new SaveManager({ version: 1 });
@@ -266,14 +264,15 @@ const loaded = saves.load<{ world: WorldMemoryData }>('slot1');
 if (loaded) memory.read(loaded.world);                     // when loading, before the world streams in
 ```
 
-`read` replaces the memory of the world named in the save. Each cell reads that memory the next time it loads.
-`clear()` clears the memory of all visited worlds for a new game.
+`read` replaces the memory of the world named in the save; each cell reads it the next time it loads. `clear()` clears
+the memory of all visited worlds, for a new game.
 
 ## Procedural chunks
 
-What a game makes as it runs (the ground's collision round what moves, plants round the eye, and whatever a game generates itself) is
-not a cooked cell but a chunk of a **layer**, and `ProceduralChunks` is the one owner of their lifetime, as the streamer is of cells. A
-layer says how it is cut, how far round its sources it is wanted and how one chunk is made, published and released:
+Content a game generates at runtime (ground collision around moving bodies, plants around the view, a game's own
+generated content) is not a cooked cell but a chunk of a **layer**. `ProceduralChunks` owns the lifetime of chunks as
+the streamer owns cells. A layer defines how it is cut, how far around its sources it is wanted, and how one chunk is
+made, published and released:
 
 ```typescript
 import { chunksOf } from 'esengine';
@@ -289,23 +288,25 @@ chunksOf(app).set('ruins', {
 });
 ```
 
-- **One set of sources.** A layer is wanted round the same `WorldStreamingSource`s the streamer reads (or the eye, where there are
-  none), unless it names its own: terrain collision follows every moving 3D body and character.
-- **A 2D world is cut on x and y.** A layer is cut on the ground by default (world x and z), and a 2D camera never leaves z, so it would stream nothing as it walks up
-  or down. Say `plane: 'xy'` and the layer is cut along world x and y, and the sources are read the same way; every "z" a layer names
-  (`originZ`, `sizeZ`, the chunk's `cz`, `stateAt`'s second coordinate) is then world y. A layer's own `sources()` answer in the layer's plane already.
-- **One budget.** Every frame the wanted chunks of every layer are made nearest first: the ones a source stands in at once, the rest
-  while the frame's budget lasts. The budget is `Bakes.budgetMs`, shared with the bakes and the terrain's pages.
-- **Bounded.** A chunk past every source's `unloadRadius` is released, with everything it published, so walking for ever holds a fixed
-  number; stepping back and forth inside the band makes nothing again.
-- **Generations.** `generation` names a layer's inputs. When it changes every chunk is made again, and its old version stays published
-  until the new one replaces it, so nothing standing on it falls. An answer that arrives for an older generation (a teleport to another
-  planet while a worker was still busy with the last) is thrown away, and the chunk's `AbortSignal` is aborted.
-- **Readable.** `status(id)` counts a layer's chunks (ready, stale, pending, making, failed, with the first failure's reason), and
-  `stateAt(id, x, z)` says where the chunk at a point stands. Layers still making chunks show with their progress in the editor's status
-  bar, through the same list as the bakes.
+- **Sources.** A layer is wanted around the same `WorldStreamingSource`s the streamer reads (or the view, where there
+  are none), unless it supplies its own `sources()`. Terrain collision, for example, follows every moving 3D body and
+  character.
+- **Plane.** A layer is cut on the ground (world x and z) by default. With `plane: 'xy'` it is cut along world x and y
+  and its sources are read the same way; every "z" the layer names (`originZ`, `sizeZ`, the chunk's `cz`, the second
+  coordinate of `stateAt`) is then world y. A layer's own `sources()` already answer in the layer's plane.
+- **Budget.** Each frame the wanted chunks of every layer are made nearest first: the chunks a source stands in
+  immediately, the rest while the frame's budget lasts. The budget is `Bakes.budgetMs`, shared with bakes and terrain
+  pages.
+- **Bounds.** A chunk beyond every source's `unloadRadius` is released with everything it published, so the number of
+  live chunks stays bounded; moving back and forth inside the band does not remake chunks.
+- **Generations.** `generation` identifies a layer's inputs. When it changes every chunk is remade, and its old version
+  stays published until the new one replaces it, so nothing standing on it falls. A result that arrives for an older
+  generation is discarded and the chunk's `AbortSignal` is aborted.
+- **Status.** `status(id)` counts a layer's chunks (`ready`, `stale`, `pending`, `making`, `failed`, with the first
+  failure's reason), and `stateAt(id, x, z)` reports the state of the chunk at a point. Layers still making chunks
+  appear with their progress in the editor's status bar, alongside the bakes.
 
-## Reading what is resident
+## Residency report
 
 ```typescript
 const report = worldResidencyReport(app);
@@ -314,55 +315,57 @@ report.cellEntityCounts;     // live entities each resident cell owns
 report.loadCount;            // places brought in since boot
 ```
 
-Counts rather than a picture, because a cell that is not drawn and a cell that
-does not exist look the same from a camera.
+The report gives counts rather than an image, because a cell that is not drawn and a cell that does not exist look the
+same from a camera. Besides the cell lists (`desiredCells`, `prefetchCells`, `residentCells`, `preparedCells`,
+`loadingCells`, `unloadingCells`, `proxyCells`), it reports the policy's activity: `urgentCells`, `queuedCells`,
+`holding`, `holdCount`, `holdMs` and `rushCount` (publications finished outside the budget).
 
 ## In the editor
 
-In the edit view, terrain detail, foliage, generated worlds and voxels grow around the viewport, 2D and 3D alike; a `WorldStreamingSource` in the scene only counts while the game runs.
+In the edit view, terrain detail, foliage, generated worlds and voxels are generated around the viewport, in 2D and 3D;
+a `WorldStreamingSource` in the scene takes effect only while the game runs.
 
-A scene with `StreamedWorld` opens with only its `WorldPersistent` entities in the view, and the textures and meshes of its cells are not loaded. The World panel loads and unloads cells one at a time or all at once, the viewport marks the loaded ones, and the next session opens with the same cells loaded. The document always holds every entity: an unloaded cell is saved as it is, and Play and export see the whole world.
+A scene with `StreamedWorld` opens with only its `WorldPersistent` entities in the view, and the textures and meshes of
+its cells are not loaded. The **World** panel shows the cells as a map or a list and loads and unloads them one at a time
+or all at once; the viewport marks the loaded cells, and the next session opens with the same cells loaded. During Play
+the panel shows each cell's runtime state (Resident, Prepared, Loading, Unloading, Unloaded). The scene document always
+holds every entity: an unloaded cell is saved unchanged, and Play and export see the whole world.
+
+{/* SHOT: world-streaming-world-panel | World panel of examples/world-streaming-3d in its Map view with a few cells selected and loaded, and the viewport showing the loaded cells marked */}
 
 ## Clearing or replacing a world
 
-Disable or remove the streaming sources, then await `streamer.clear()`. It releases
-prepared assets and waits for pending preparation, publication and unloading to
-finish. Registrations remain reusable: a later source update can request the cells again.
+Disable or remove the streaming sources, then await `streamer.clear()`. It releases prepared assets and waits for
+pending preparation, publication and unloading to finish. Registrations remain reusable: a later source update can
+request the cells again.
 
-Await `streamer.loadManifest(manifest, sceneConfig)` when replacing a world. It drains
-the old cells before registering the replacement, including when both manifests reuse
-the same cell names. The latest concurrent replacement request wins; an explicit
-`clear()` cancels pending replacement requests. Failed teardown rejects the operation
-so the replacement cannot take ownership of a name that still has live content.
-Use `await streamer.loadManifest(null)` to detach the world and release its cell and proxy registrations.
+Await `streamer.loadManifest(manifest, sceneConfig)` to replace a world. It drains the old cells before registering the
+replacement, including when both manifests use the same cell names. The latest concurrent replacement request wins; an
+explicit `clear()` cancels pending replacement requests. A failed teardown rejects the operation, so the replacement
+cannot take ownership of a name that still has live content. `await streamer.loadManifest(null)` detaches the world and
+releases its cell and proxy registrations.
 
-## What this version does not do
+## Limitations
 
-Cells load asynchronously through the same scene loading a game already uses.
-They are ordered (a cell a source is walking into goes before one it only might,
-nearest first), can be readied ahead by `prefetchRadius`, and arrive within
-the frame's budget (above). One component's write is not split: a single entity
-whose components alone outlast the budget still costs its frame. A cell's far proxy
-(above) carries its static meshes only: what moves, blends or is not a mesh
-(sprites, particles, lights) is not drawn while the cell is absent, and a
-proxy has one level, not a chain of coarser ones further out. Some content has a far version of its own:
-the ground ([Terrain](/docs/graphics/terrain/overview/) is a distance-based quadtree out to
-`drawDistance`; tiled ground draws its distance from an overview that is always
-in memory and reads full-detail tiles only near the view; a planet is drawn down
-to its horizon), and plants (the far cards of [Foliage](/docs/graphics/foliage/)
-and `PlacedFoliage`, and of a generated world's plants) stand over a whole area
-at once. Mesh textures are held at the size their views need
-([texture streaming](/docs/performance/quality-levels/), a quality setting).
-Navigation is baked a tile per square and follows residency (see
-[Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded; and
-the world origin is never rebased (`setRenderOriginStep` keeps *drawing* precise
-far from zero, see [Camera](/docs/graphics/camera/multiple-cameras/#large-worlds)): how far that reaches is measured below.
+- **One component write is not split.** A single entity whose components alone exceed the budget still costs its frame.
+- **Far proxies carry static meshes only.** What moves, blends or is not a mesh (sprites, particles, lights) is not drawn
+  while its cell is absent, and a proxy has one level, not a chain of coarser levels.
+- **Content with its own far representation:** the ground ([Terrain](/docs/graphics/terrain/overview/) is a
+  distance-based quadtree out to `drawDistance`; tiled ground draws distant terrain from an overview that is always in
+  memory and reads full-detail tiles only near the view; a planet is drawn to its horizon), and plants (the far cards of
+  [Foliage](/docs/graphics/foliage/) and `PlacedFoliage`, and of a generated world's plants), which cover a whole area
+  at once. Mesh textures are kept at the size their views need ([texture streaming](/docs/performance/quality-levels/),
+  a quality setting).
+- **Navigation** is baked one tile per cell square and follows residency (see
+  [Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded.
+- **The world origin is never rebased.** `setRenderOriginStep` keeps drawing precise far from zero (see
+  [Camera](/docs/graphics/camera/multiple-cameras/#large-worlds)); simulation precision is measured below.
 
-### How far from the origin a world stays precise
+### Precision far from the origin
 
-Positions, physics and navigation work in 32-bit floats, so how finely a position can be told apart grows with the distance from
-the origin. Measured in a package (`node tools/measure-world-precision.mjs`), at the default 3D scale of 100 units to a metre,
-with the probe at each distance along x and z:
+Positions, physics and navigation use 32-bit floats, so the smallest distinguishable position step grows with distance
+from the origin. Measured in a package (`node tools/measure-world-precision.mjs`) at the default 3D scale of 100 units to
+a metre, with the probe at each distance along x and z:
 
 | From the origin | A child under a moving parent, largest error | A body pushed at 300 units/s (5 a frame), largest step error | A navmesh route round a wall |
 |---|---|---|---|
@@ -373,8 +376,7 @@ with the probe at each distance along x and z:
 | 100 km | 1 unit (1 cm) | 1: it moves 4 or 6 a frame, not 5 | identical |
 | 500 km | 4 units (4 cm) | 3: 2 to 8 a frame | its corners move by 2 units |
 
-Within about **10 km** of the origin nothing is off by more than a millimetre. Past about **50 km** what moves slowly moves in steps
-a player can see: a body moving less than the step a position can take there does not move smoothly at all (at 100 km a walk of a
-few centimetres a frame jitters by a third). Keep a world's playable area within about 50 km of the origin; the engine does not move
-the origin to follow a player who goes further.
-
+Within about **10 km** of the origin no error exceeds a millimetre. Beyond about **50 km**, slow movement advances in
+visible steps: a body moving less per frame than the position step there cannot move smoothly (at 100 km a walk of a few
+centimetres a frame jitters by about a third). Keep a world's playable area within about 50 km of the origin; the engine
+does not move the origin to follow a player who goes further.

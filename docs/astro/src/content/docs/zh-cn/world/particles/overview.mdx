@@ -1,0 +1,196 @@
+---
+title: 粒子
+description: 粒子系统概述——ParticleEmitter 模型、编辑器预览、插件安装、发射与寿命字段、发射器形状、模拟空间、通过 Res(Particle) 控制播放，以及导入粒子的单位。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+粒子特效（火焰、烟雾、火花、雨、魔法）由实体上的一个 `ParticleEmitter` 组件表示。发射器在 C++/WebAssembly 内核中模拟，
+默认在 CPU 上，开启 [`gpuSimulation`](/docs/zh-cn/world/particles/gpu-simulation/) 后在 GPU 上；绘制采用 GPU 实例化，
+每个发射器一次绘制调用。播放通过 `Particle` 资源控制。
+
+![粒子示例：一堆篝火，有烟和火星](@/assets/guides/zh/play-particles.png)
+
+*粒子示例：由两个发射器（烟和火星）组成的篝火。*
+
+## 粒子生命周期
+
+每个发射器拥有一个容量为 `maxParticles` 的固定粒子池。它每帧按 `rate`（每秒个数）生成新粒子，另加爆发。每个粒子：
+
+1. **生成**于发射器[形状](#发射器形状)内，速度大小和方向在配置的最小值与最大值之间随机选取。
+2. **存活** `lifetimeMin` 到 `lifetimeMax` 秒之间的随机时长；期间颜色和尺寸从起始值插值到结束值。
+3. **运动**受自身速度以及 `gravity`、`damping` 影响，并按角速度自转。
+4. 寿命耗尽时**消亡**，槽位归还粒子池。
+
+每一对 `…Min` / `…Max` 都逐粒子采样。两值相等得到统一的效果，范围拉开则产生变化。颜色和尺寸使用
+`startColor` / `endColor` 与 `startSize…` / `endSize…` 加缓动曲线，或使用完整的渐变与曲线
+（[随生命的颜色与尺寸](/docs/zh-cn/world/particles/rendering/#随生命的颜色与尺寸)）。
+
+## 编辑器预览
+
+粒子模拟属于玩法：它在播放模式和独立运行时中推进，在编辑模式下冻结，与物理、动画和时间轴一致。例外是
+**预览特效**（视口**显示**菜单，以及**视图 → 显示**；默认开启），它在编辑模式下模拟发射器和运动拖尾。
+
+- 开启**预览特效**时，所有发射器从 t = 0 重新播放；关闭时清除存活粒子和拖尾。
+- 在 Details 中编辑周期时序字段（`duration`、`looping`、`playOnStart`、`burstCount`、`burstInterval`）会重启该发射器。其他字段直接作用于正在运行的模拟。
+
+{/* SHOT: world-particles-preview-fx | Viewport of examples/particle-demo, scene static-emitters, in edit mode with the viewport Show menu open and the Preview FX entry checked, the ConeFountain, CircleBurst and RectRain emitters running behind the menu */}
+
+## 安装
+
+粒子系统在主包中。编辑器和 Web 运行时会自动安装插件。自定义 `App` 需添加一次：
+
+```typescript
+import { particlePlugin } from 'esengine';
+
+app.addPlugin(particlePlugin);
+```
+
+## 示例
+
+带 `ParticleEmitter` 的实体在创建后即开始发射（`playOnStart` 默认为 `true`）。下面的发射器产生循环的火星喷泉，
+从黄色渐隐为透明的红色，并在重力下落：
+
+```typescript
+import {
+  defineSystem, Commands, Transform, ParticleEmitter, EmitterShape,
+} from 'esengine';
+
+const spawnEmbers = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: -200, z: 0 } })
+    .insert(ParticleEmitter, {
+      rate: 120,
+      lifetimeMin: 1.2, lifetimeMax: 2.0,
+      shape: EmitterShape.Cone, shapeAngle: 20,
+      speedMin: 300, speedMax: 520,
+      startSizeMin: 12, startSizeMax: 20,
+      endSizeMin: 0,  endSizeMax: 0,
+      startColor: { r: 1, g: 0.9, b: 0.3, a: 1 },
+      endColor:   { r: 1, g: 0.2, b: 0.1, a: 0 },
+      gravity: { x: 0, y: -400 },
+    });
+});
+```
+
+## `ParticleEmitter` 字段
+
+所有字段均为可选，省略时取默认值。尺寸、距离和速度以世界单位计（默认 PPU 下即像素）；角度以度计。字段按分组说明：
+
+| 分组 | 页面 |
+|---|---|
+| 发射、寿命、形状 | 本页：[发射与寿命](#发射与寿命)、[发射器形状](#发射器形状) |
+| 速度与力、噪声、旋转 | [运动](/docs/zh-cn/world/particles/motion/) |
+| 尺寸、颜色、贴图、渲染、拖尾 | [渲染](/docs/zh-cn/world/particles/rendering/) |
+| 碰撞、子发射器 | [碰撞与子发射器](/docs/zh-cn/world/particles/collision/) |
+| `gpuSimulation` | [GPU 模拟](/docs/zh-cn/world/particles/gpu-simulation/) |
+
+![Particle Emitter 的 Details：顶部是碰撞分组（此处关闭），下面是发射字段](@/assets/guides/zh/details-particle-emitter.png)
+
+***Particle Emitter** 的 Details：顶部是**碰撞**分组（此处关闭），下方是发射字段。*
+
+## 发射与寿命
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `rate` | number | `10` | 持续发射，每秒粒子数。`0` 表示只用爆发。 |
+| `burstCount` | number | `0` | 每次间隔爆发释放的粒子数。`0` 禁用间隔爆发。 |
+| `burstInterval` | number | `1` | 两次间隔爆发之间的秒数。 |
+| `bursts` | `{ time, count }[]` | `[]` | 爆发时间表：发射器发射满 `time` 秒（从 `startDelay` 结束起算）时释放 `count` 个粒子。循环发射器每个 `duration` 重复一次。与 `burstCount` 同时生效。 |
+| `duration` | number | `5` | 发射器每个周期运行的秒数（见 `looping`）。 |
+| `simulationSpeed` | number | `1` | 该发射器的时间缩放：`2` 为两倍速，`0` 为暂停。发射、寿命和运动都随之变化。 |
+| `startDelay` | number | `0` | 发射器开始播放后到开始发射前的秒数；`duration` 从延迟结束后计时。 |
+| `looping` | boolean | `true` | 到达 `duration` 后重新开始，而不是停止。 |
+| `playOnStart` | boolean | `true` | 实体一存在即开始发射。 |
+| `maxParticles` | number | `1000` | 粒子池大小，即存活粒子的硬上限。 |
+| `gpuSimulation` | boolean | `false` | 在 GPU 上模拟。见 [GPU 模拟](/docs/zh-cn/world/particles/gpu-simulation/)。 |
+| `lifetimeMin` | number | `5` | 最短粒子寿命，秒。 |
+| `lifetimeMax` | number | `5` | 最长粒子寿命，秒。 |
+| `enabled` | boolean | `true` | `false` 冻结并隐藏发射器，但不移除组件。 |
+
+## 发射器形状
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `shape` | `EmitterShape` | `Cone` | `Point`、`Circle`、`Box`、`Cone`、`Sphere` 或 `Hemisphere`。 |
+| `shapeRadius` | number | `100` | `Circle`、`Cone`、`Sphere` 和 `Hemisphere` 的半径。 |
+| `shapeSize` | Vec3 | `{100, 100, 0}` | `Box` 的盒子范围。`z` 为 `0` 时是平面矩形，供 2D 发射器使用。 |
+| `shapeAngle` | number | `25` | `Cone` 的锥半角（°）。 |
+
+| 形状 | 使用字段 | 生成区域与方向 |
+|---|---|---|
+| `Point` | — | 实体原点。方向由 `angleSpreadMin…Max` 弧决定。 |
+| `Circle` | `shapeRadius` | 发射器自身平面内的圆盘；方向向外辐射。 |
+| `Box` | `shapeSize` | 盒体，`shapeSize.z` 为 `0` 时为平面矩形。方向由 `angleSpreadMin…Max` 弧决定。 |
+| `Cone` | `shapeRadius`、`shapeAngle` | 绕局部 +Y 的锥体：有方向的喷射（喷泉、推进器）。 |
+| `Sphere` | `shapeRadius` | 球体；方向向外辐射。 |
+| `Hemisphere` | `shapeRadius` | 以局部 +Y 为轴的半球；方向向外辐射。 |
+
+有方向的形状沿发射器局部 +Y 指向：未旋转的发射器向上发射，旋转实体即可改变朝向，2D 和 3D 均如此。`Point` 和 `Box`
+自身没有方向，由发射器局部 XY 平面内的 `angleSpreadMin…Max` 弧（[速度与力](/docs/zh-cn/world/particles/motion/#速度与力)）
+决定发射方向，因此只向上发射的 `Point` 使用 `0…180`。`Circle`、`Cone`、`Sphere` 和 `Hemisphere` 忽略该弧。
+
+![视口中的发射器形状 gizmo——锥形、圆形、矩形](@/assets/guides/zh/particle-view.png)
+
+*视口中的发射器形状 gizmo——锥形、圆形和矩形，各自绘制在粒子生成的位置。开启**预览特效**后，发射器在编辑模式下运行。*
+
+## 模拟空间
+
+`simulationSpace` 决定存活粒子是否跟随发射器的变换。
+
+| 取值 | 粒子是否跟随发射器 | 典型用途 |
+|---|---|---|
+| `World`（默认） | 否：留在出生的位置。 | 拖尾、尾焰、移动物体身后留下的火花。 |
+| `Local` | 是：随实体的变换移动。 | 光环、护盾、刚性附着在移动物体上的特效。 |
+
+力场和地面碰撞只作用于 `World` 粒子。
+
+## 播放控制
+
+`Particle` 资源用于从代码控制发射器。在系统中通过 `Res(Particle)` 读取，在 ECS 之外通过 `app.getResource(Particle)` 读取：
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const control = defineSystem([Res(Particle)], (particles) => {
+  particles.play(entity);        // start / resume emitting
+  particles.stop(entity);        // stop emitting (live particles finish)
+  particles.reset(entity);       // clear all live particles immediately
+  const n = particles.getAliveCount(entity);   // live particle count
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `play(entity)` | 开始或恢复发射。 |
+| `stop(entity)` | 停止发射；已有粒子继续存活到寿命结束。 |
+| `reset(entity)` | 清除所有存活粒子并重置发射器。 |
+| `emitAt(entity, count, position, { normal?, velocity? })` | 立即在某个世界坐标生成 `count` 个该发射器的粒子，不移动也不重播发射器。给出 `normal` 时形状的 +Y 指向它，否则沿实体的旋转；`velocity` 叠加到每个粒子上。返回实际生成的数量。仅限 CPU 模拟的发射器。 |
+| `getAliveCount(entity)` | 存活粒子数。GPU 模拟的发射器返回的是上界。 |
+| `setColorLut(entity, lut \| null)` | 上传烘焙好的随生命颜色查找表，或清除（[渲染](/docs/zh-cn/world/particles/rendering/#随生命的颜色与尺寸)）。 |
+| `setSizeLut(entity, lut \| null)` | 上传烘焙好的随生命尺寸查找表，或清除。 |
+| `setSpeedLut(entity, lut \| null)` | 上传烘焙好的随生命速度倍率。它缩放粒子沿轨迹前进的快慢；重力、阻尼和噪声仍累加到速度上。 |
+| `setBursts(entity, bursts \| null)` | 设置爆发时间表（`{ time, count }[]`），或清除。 |
+| `setCollisionBudget({ queries?, events? })` | 修改整个 App 共享的碰撞上限（[碰撞预算](/docs/zh-cn/world/particles/collision/#碰撞预算)）。 |
+
+每帧更新由粒子插件执行，游戏代码无需调用。
+
+<Aside type="tip">
+  对重复出现的一次性特效（例如受击火花），保留一个已停止的发射器，用 `reset` 加 `play` 触发，或用 `emitAt`
+  在命中点生成，而不是每次创建新实体。
+</Aside>
+
+## 导入粒子的单位
+
+`ParticleModelUnits` 以模型单位保存导入发射器的尺寸范围（`startSizeMin`、`startSizeMax`、`endSizeMin`、`endSizeMax`）、
+速度范围（`speedMin`、`speedMax`）和 `gravity`。它与 `ParticleEmitter` 位于同一实体时，粒子插件把这些模型单位值乘以实体合成
+世界缩放（含父实体缩放）中绝对值最大的轴，写入对应的 `ParticleEmitter` 字段。发射位置仍跟随 `Transform`。这是针对世界空间
+粒子的单一标量换算，不是各轴分别缩放的模拟。
+
+修改这些导入属性时，应编辑 `ParticleModelUnits`；插件据此推导 `ParticleEmitter` 字段。
+
+## 参见
+
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 自定义粒子材质。
+- [后处理](/docs/zh-cn/graphics/post-processing/image-effects/#泛光) —— 在 additive 粒子上叠加泛光。
+- [资源](/docs/zh-cn/assets/overview/) —— 加载粒子贴图与图集。

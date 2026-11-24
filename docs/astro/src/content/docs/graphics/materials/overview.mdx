@@ -19,7 +19,7 @@ reflected from that shader's `#pragma param`s.*
 |---|---|---|
 | `Sprite` | `material` | [Sprite effects](/docs/graphics/sprites/effects/#materials-and-lighting) |
 | `SpineAnimation` | `material` | — |
-| `ParticleEmitter` | `material` | [Particle materials](/docs/world/particles/#particle-materials) |
+| `ParticleEmitter` | `material` | [Particle materials](/docs/world/particles/rendering/#particle-materials) |
 | `MeshRenderer` | `material` | — |
 | `UIVisual` | `material` | [Images](/docs/ui/images/#custom-material) |
 
@@ -74,7 +74,7 @@ The built-in templates are listed in code as `BUILTIN_SHADER_TEMPLATES`. A mater
 | **Ground Blend** | `ground-blend` | The Model shader for objects that stand in the ground: fades into the picture behind it where it meets it ([Ground blending](/docs/graphics/terrain/overview/#ground-blending)). |
 | **Toon** | `toon` | Stepped lighting: each lamp's light is cut into `u_bands` flat bands (`u_bandSoftness` softens the step); `u_shadeColor` is the colour where no lamp reaches; a flat highlight of `u_specColor` above `u_specThreshold` (`u_specSize` sets the glossiness); a rim (`u_rimColor`, `u_rimWidth`, `u_rimStrength`). A lamp's shadow is part of its step. Uses the sixteen lamps of the frame and carries the lamp loop as Model does. |
 | **Matcap** | `matcap` | Colour looked up in a picture of a lit sphere (`u_matcap`) by the direction the surface faces the camera. No lamps and no shadow reads: one texture read, suited to phones. `u_baseBlend` multiplies the base colour in. |
-| **Particle** | `particle` | For a `ParticleEmitter`: a particle fades as it nears the scene behind it (`u_softness`, world units) and its texture erodes with age (`u_erosion`, `u_erosionEdge`). See [Particle materials](/docs/world/particles/#particle-materials). |
+| **Particle** | `particle` | For a `ParticleEmitter`: a particle fades as it nears the scene behind it (`u_softness`, world units) and its texture erodes with age (`u_erosion`, `u_erosionEdge`). See [Particle materials](/docs/world/particles/rendering/#particle-materials). |
 | **Distortion** | `distortion` | Bends the picture already drawn behind it: heat haze, a shockwave, a lens. The texture's alpha sets where and how much (`u_strength`, `u_radial`, `u_dispersion`). Works on particles and meshes. |
 
 ### Module templates

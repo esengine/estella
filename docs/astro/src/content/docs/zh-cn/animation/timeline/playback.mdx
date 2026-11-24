@@ -1,0 +1,174 @@
+---
+title: 播放与脚本
+description: 运行时播放时间轴——TimelinePlayer 组件及其字段、Timeline 资源、播放范围与不受缩放的时间、TimelinePlayback 事件、循环模式、代码构建的时间轴，以及采样与序列化函数。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`TimelinePlayer` 组件在其实体上播放时间轴。组件字段即播放控制：引擎每帧将其应用到内部时钟，因此代码、检视器以及修改 `playing` 的 [AI 动作](/docs/zh-cn/gameplay/ai/overview/#内建名字)都通过同一通道控制播放。播放在运行模式和独立运行时中推进，在编辑器的编辑模式下冻结。
+
+## TimelinePlayer 组件
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `timeline` | asset | `''` | 时间轴资源（`.estimeline`），或代码中注册的时间轴名称。 |
+| `playing` | boolean | `false` | 播放标志：置起播放，放下暂停。对已结束的剪辑置起会从头重播。 |
+| `speed` | number | `1` | 播放速率倍率。 |
+| `wrapMode` | string | `''` | 覆盖剪辑的循环模式：`'once'`、`'loop'` 或 `'pingPong'`。空字符串或其他任何字符串均沿用剪辑声明的模式。 |
+| `finished` | boolean | `false` | 只读。`'once'` 剪辑播放完毕时锁存；下次播放时清除。 |
+| `bindingNames` / `bindings` | string[] / Entity[] | `[]` | 供以 `@` 开头的轨道路径使用的命名绑定（[绑定](/docs/zh-cn/animation/timeline/tracks/#绑定)）。 |
+| `rangeStart` | number | `0` | 播放范围的起点（秒）。 |
+| `rangeEnd` | number | `0` | 播放范围的终点（秒）；`0` 表示时间轴结尾。 |
+| `unscaledTime` | boolean | `false` | 按真实时间而非游戏时间运行。 |
+
+{/* SHOT: anim-timeline-player-details | Details panel of the Timeline Player entity in the cutscene example, showing Timeline set to intro.estimeline, Playing, Speed, Wrap Mode, Range Start, Range End, Unscaled Time and the Bindings list */}
+
+在代码中用 `Commands` 插入该组件：
+
+```typescript
+import { defineSystem, Commands, TimelinePlayer } from 'esengine';
+
+const attach = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'assets/timelines/intro.estimeline',
+    playing: true,
+    speed: 1.0,
+    wrapMode: 'once',
+  });
+});
+```
+
+### 播放范围与真实时间
+
+播放器播放从 `rangeStart` 到 `rangeEnd` 的范围。播放从范围起点开始；单次时间轴在范围终点结束，循环时间轴在范围内循环。开启 `unscaledTime` 后，播放器按真实时间运行，因此游戏以 `Time.scale` 为 `0` 暂停时，过场或菜单动画仍继续播放。
+
+## Timeline 资源
+
+`Timeline` 资源按实体控制播放器的播放：
+
+```typescript
+import { defineSystem, Query, Res, TimelinePlayer, Timeline } from 'esengine';
+
+const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timeline) => {
+  for (const [entity] of q) {
+    timeline.play(entity);
+    timeline.pause(entity);
+    timeline.stop(entity);
+    timeline.setTime(entity, 1.5);                  // seek to 1.5s
+    const t = timeline.getCurrentTime(entity);
+    const playing = timeline.isPlaying(entity);
+  }
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `play(entity)` | 开始或恢复播放；已结束的剪辑从头重播。 |
+| `pause(entity)` | 暂停，保留当前时间。 |
+| `stop(entity)` | 停止、回到开头并清除 `finished` 锁存。 |
+| `setTime(entity, seconds)` | 定位到某一时间，并更新所有轨道。 |
+| `getCurrentTime(entity)` | 当前播放头时间（秒）。 |
+| `isPlaying(entity)` | 时间轴是否正在播放。 |
+| `registerAsset(name, asset)` / `unregisterAsset(name)` | 注册或移除代码构建的时间轴（[代码构建时间轴](#代码构建时间轴)）。 |
+| `getAsset(name)` | 按名称查找时间轴。 |
+
+播放方法直接写入 `TimelinePlayer` 的标志：`timeline.play(e)` 与 `player.playing = true` 是同一操作。
+
+<Aside type="tip">
+  无代码过场可将该组件与状态机配合使用：内置的 `timeline.play` 动作与 `timeline.finished` 条件构成一个 FSM 状态，进入时播放剪辑，播放完毕后转出。见 [AI 内建名字](/docs/zh-cn/gameplay/ai/overview/#内建名字)。
+</Aside>
+
+## 播放事件
+
+播放器的每次播放状态变化都作为 `TimelinePlayback` 事件发出，在下一帧读取：
+
+```typescript
+import { defineSystem, EventReader, TimelinePlayback } from 'esengine';
+
+const onCutscene = defineSystem([EventReader(TimelinePlayback)], (events) => {
+  for (const e of events) if (e.kind === 'finished') giveControlBack(e.player);
+});
+```
+
+| `kind` | 发出时机 |
+|---|---|
+| `played` | 播放器开始播放，或从暂停恢复。 |
+| `paused` | 播放器暂停（`Timeline.pause`，或放下 `playing`）。 |
+| `stopped` | 播放器停止并回到开头（`Timeline.stop`）。 |
+| `finished` | 单次时间轴到达结尾，或到达其范围终点。 |
+| `looped` | 循环或往返时间轴回绕一圈。 |
+
+负载还包含 `player`（实体）与 `time`（播放头位置，秒）。轨道上编辑的事件与标记另行作为 `TimelineEvent` 发出（[事件与标记轨道](/docs/zh-cn/animation/timeline/tracks/#事件与标记轨道)）。
+
+## 循环模式
+
+剪辑声明自身的数值型 `WrapMode`，供资源与纯求值 API 使用。播放器的 `wrapMode` 字符串指定了模式时将其覆盖。
+
+| `WrapMode` | 播放器字符串 | 越过结尾时 |
+|---|---|---|
+| `WrapMode.Once`（`0`） | `'once'` | 停在 `duration`，停止并锁存 `finished`。 |
+| `WrapMode.Loop`（`1`） | `'loop'` | 回绕（`time % duration`）。 |
+| `WrapMode.PingPong`（`2`） | `'pingPong'` | 每个周期先正向再反向播放。 |
+
+`applyWrapMode(time, duration, mode)` 即该纯映射：对绝对时钟时间返回 `{ time, stopped }`。
+
+## 代码构建时间轴
+
+`.estimeline` 文档是普通数据。`TimelineAsset` 类型与 `TrackType`、`InterpType`、`WrapMode` 常量可在代码中构建时间轴。注册到 `Timeline` 资源的时间轴，可由 `timeline` 指向该名称的任意 `TimelinePlayer` 播放；代码中注册的名称优先于同名的已加载 `.estimeline`。
+
+```typescript
+import {
+  defineSystem, Commands, Res, Timeline, TimelinePlayer,
+  TrackType, InterpType, WrapMode, type TimelineAsset,
+} from 'esengine';
+
+const slideIn: TimelineAsset = {
+  version: '1.3',
+  type: 'timeline',
+  duration: 2,
+  wrapMode: WrapMode.Once,
+  tracks: [{
+    type: TrackType.Property,
+    name: 'Slide in',
+    childPath: '',                       // '' = the player entity itself
+    component: 'Transform',
+    channels: [{
+      property: 'position.x',
+      keyframes: [
+        { time: 0, value: -200, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseOut },
+        { time: 2, value: 0, inTangent: 0, outTangent: 0 },
+      ],
+    }],
+  }],
+};
+
+const attach = defineSystem([Commands(), Res(Timeline)], (cmds, timeline) => {
+  timeline.registerAsset('code/slide-in', slideIn);
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'code/slide-in',
+    playing: true,
+    wrapMode: 'once',
+  });
+});
+```
+
+关键帧与插值类型见[属性轨道](/docs/zh-cn/animation/timeline/tracks/#属性轨道)。
+
+## 采样与序列化
+
+求值器为纯 TypeScript，播放与序列器拖动预览共用。
+
+| 函数 | 说明 |
+|---|---|
+| `sampleTimelineInWorld(asset, time, world, rootEntity, opts?)` | 在 `time` 求值所有属性轨道，并将结果写入 world。 |
+| `sampleTimeline(asset, time, rootEntity, deps, opts?)` | 同上，但注入 `SampleDeps`（world、组件查找、子实体解析），用于测试与工具。 |
+| `evaluateChannel(channel, time)` | 单个属性通道在 `time` 的值；超出首尾关键帧时取端点值。 |
+| `serializeTimelineAsset(asset)` | 将资源转为 `.estimeline` 文档结构的可 JSON 化对象。 |
+| `serializeTimelineToJson(asset, indent?)` | `.estimeline` JSON 字符串；`indent` 默认为 `2`。 |
+
+采样只覆盖属性轨道。事件类轨道（音频、标记、自定义事件）在播放中播放头经过时触发，采样某一时间不会触发。
+
+## 参见
+
+- [时间轴](/docs/zh-cn/animation/timeline/overview/) —— 轨道类型与打包。
+- [轨道与绑定](/docs/zh-cn/animation/timeline/tracks/) —— 轨道字段。

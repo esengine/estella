@@ -1,39 +1,56 @@
 ---
 title: Generated Worlds
-description: Lay a world out by rules as it is explored — biomes from fields, groups composed by recipe, zones kept clear, stable ids and the players' changes kept apart.
+description: Generated world reference — the WorldGen component, .esworld rules with fields, biomes, recipes, plants and layers, WorldZone areas, building bases and roads, interactive placements with stable ids and player changes, plan queries, shipping, 2D worlds and limits.
 ---
 
-A world scattered at random points reads as noise: trees, flowers and rocks with no shape between them. `esengine/worldgen` lays a
-world out the way a designer would — continuous biomes, groups an artist composed, clearings and roads kept open, big things before
-small — and does it as the world is explored, the same on every machine and in whatever order its pieces are asked for.
+`esengine/worldgen` lays out a world from rules as it is explored: continuous biomes, groups composed by artists,
+clearings and roads kept open, large objects placed before small ones. The layout is deterministic: it is the same on
+every machine and independent of the order in which its chunks are requested.
 
-The work is split three ways. The **engine** samples the fields, weighs the biomes, places groups layer by layer, keeps zones clear,
-gives every placement a stable id and streams it all in chunks. The **game** writes the rules: which biomes there are, what stands in
-them, what is reserved for a home or a road. The **artists** make the recipes: a grove, a rock group, a strip of reeds along a shore.
+Responsibilities are divided as follows:
+
+| Party | Provides |
+|---|---|
+| Engine | Samples the fields, weighs the biomes, places groups layer by layer, keeps zones clear, gives every placement a stable id and streams the result in chunks. |
+| Game | The rules: which biomes exist, what stands in them, what is reserved for a home or a road. |
+| Artists | The recipes: a grove, a rock group, a strip of reeds along a shore. |
 
 ## The WorldGen component
 
-| Field | What it does |
-|---|---|
-| `rules` | The rules the world is laid out by: a `.esworld` file, or the id of rules the game registered with `registerWorldRules`. |
-| `version` | The version of the rules the world was made with. A saved world keeps it; rules that no longer have it fail the world (its status says why) rather than laying out another one. |
-| `world`, `seed` | The world (a planet, a level) as the game names it, and its seed. Another seed lays out another world by the same rules. |
-| `paintGround` | Whether the biomes paint the terrain (default on). |
-| `surface`, `seaLevel` | `Plane` (the default) lays the world out over a `Terrain`; `Planet` means the entity is also a `Planet` and the world is laid out over its six faces. `seaLevel` (shown for `Planet`) is the height of the sea above the planet's radius: ground lower than it is under water. |
+| Field | Default | Description |
+|---|---|---|
+| `rules` | `''` | The rules the world is laid out by: a `.esworld` file, or the id of rules registered with `registerWorldRules`. |
+| `version` | `1` | The version of the rules the world was made with. A saved world keeps it; rules that no longer have that version fail the world (its status gives the reason) instead of laying out a different one. |
+| `world` | `''` | The world (a planet, a level) as the game names it. |
+| `seed` | `1` | The world's seed. Another seed lays out another world by the same rules. |
+| `paintGround` | `true` | Whether the biomes paint the terrain. |
+| `surface` | `Plane` | `Plane` lays the world out over a `Terrain`; `Planet` means the entity is also a `Planet` and the world is laid out over its six faces. |
+| `seaLevel` | `0` | Shown for `Planet`: the height of the sea above the planet's radius. Ground below it is under water. |
+| `groundStep` | `1.5` | Shown for `Planet`: how far apart the ground is read under placements, in the planet's units. Larger values lay out faster and follow the ground less closely; layout cost falls with the square of this value. |
 
-What the rules place is published as the entity's children, round the [streaming sources](/docs/world/streaming/) (or the camera):
-see [procedural chunks](/docs/world/streaming/#procedural-chunks).
+What the rules place is published as the entity's children around the
+[streaming sources](/docs/world/streaming/#streaming-sources) (or the camera), as
+[procedural chunks](/docs/world/streaming/#procedural-chunks).
+
+![Details of a World Gen component: rules, version, world, seed, paint ground and surface](@/assets/guides/en/details-worldgen.png)
+
+*The **World Gen** component of the Terrain & Water example: the rules asset, the seed and the surface.*
 
 ## Rules
 
-Rules are data: biomes, the recipes that stand in them and the layers they are placed in. Keep them in a **`.esworld` file** (in the
-editor, **New → New World Rules**, or open one from the content browser) and name it in the WorldGen's `rules`. The editor lists the
-file's biomes, recipes and layers, edits each with a form (meshes and materials picked like any asset), and says under them whether
-the engine would take the rules as they stand. Saving the file lays the open world out by it again, in the editor and in a running
-game. The file is the JSON of what `registerWorldRules` takes, checked as it is read: a file that names a recipe or layer it does not
-have, or leaves out what a world needs, fails the WorldGen with where it went wrong.
+Rules are data: biomes, the recipes that stand in them, and the layers they are placed in. They are stored in a
+**`.esworld` file** (in the editor, **New → New World Rules**, or open an existing file from the content browser) and
+referenced from the WorldGen's `rules` field.
 
-Rules can also be registered from code, which is how a game adds fields of its own (functions are not data):
+- The World Rules editor lists the file's biomes, recipes and layers, edits each with a form (meshes and materials
+  picked like any asset), and reports below them whether the engine accepts the rules as they stand.
+- Saving the file lays the open world out again, in the editor and in a running game.
+- The file is the JSON accepted by `registerWorldRules` and is validated on load. A file that references a recipe or
+  layer it does not define, or omits required content, fails the WorldGen with the location of the error.
+
+{/* SHOT: world-generation-rules-editor | World Rules editor of examples/worldgen with assets/worlds/wilds.esworld open: the biome, recipe and layer lists, one recipe's form expanded, and the validation line below */}
+
+Rules can also be registered from code, which is how a game adds its own fields (functions are not data):
 
 ```ts
 import { registerWorldRules } from 'esengine/worldgen';
@@ -64,72 +81,122 @@ registerWorldRules({
 
 ### Fields
 
-Every decision is made from **fields**: numbers read at any world position. `height`, `up` (how much the ground faces up) and `slope`
-come from the terrain's surface, `paint.<layer>` (how much of the ground is that terrain layer, named by its file: `paint.grass` for grass.esterrainlayer, or `paint.grass`, `paint.dirt`, `paint.snow` and `paint.rock` without layer files), `waterDepth` and `shoreDistance` (how far a dry place is from the water's edge, negative on the water) from the water; `moisture`, `temperature` and `rock` are seeded noise, slow across the
-world (their scales are the rules' `noise`). A game adds fields of its own with `fields: { name: (x, z, at) => number }`, reading the
-built-in ones from `at`. A zone can set any field over its area.
+Every decision is made from **fields**: numbers that can be read at any world position.
+
+| Field | Source |
+|---|---|
+| `height`, `up`, `slope` | The terrain surface. `up` is how much the ground faces up. |
+| `paint.<layer>` | How much of the ground is that terrain layer, named by its file: `paint.grass` for `grass.esterrainlayer`. Without layer files: `paint.grass`, `paint.dirt`, `paint.snow` and `paint.rock`. |
+| `waterDepth`, `shoreDistance` | The water. `shoreDistance` is how far a dry point is from the water's edge, negative on the water. |
+| `moisture`, `temperature`, `rock` | Seeded noise that varies slowly across the world; their scales are the rules' `noise`. |
+
+A game adds its own fields with `fields: { name: (x, z, at) => number }`, reading the built-in fields from `at`. A rules
+file declares additional noise fields in `noise` (`{ "turf": { "scale": 1400, "octaves": 2 } }`), which any condition
+can read by name. A zone can set any field over its area. Fields are evaluated lazily: a field no condition reads is
+never computed.
 
 ### Biomes
 
-A biome is a weight over the fields: each condition a band of one field (`min`, `max`) whose edges fade over `blend`, multiplied
-together. Where several biomes hold their weights are mixed — a candidate takes a biome by the weights at its place, so two forests
-meet in a mixed band instead of a line — and `transition` makes the edge wander by that many world units of noise. `paint` (grass,
-dirt, snow, rock) pulls the terrain's own paint toward the biome's by its weight and `paintStrength`. A biome lists its recipes, each
-with the layer it is placed in and the share of that layer's candidates it takes.
+A biome is a weight over the fields. Each condition is a band of one field (`min`, `max`) whose edges fade over `blend`;
+the conditions multiply.
 
-A rule is worked out for every candidate in every biome, so the fields are read when a condition asks for them and no sooner: a field no biome reads is never computed. A rules file names more noise fields of its own in `noise` (`{ "turf": { "scale": 1400, "octaves": 2 } }`), which any condition may then read by that name.
+- Where several biomes hold, their weights are mixed: a candidate takes a biome by the weights at its position, so two
+  biomes meet in a mixed band, not a line. `transition` makes the edge wander by that many world units of noise.
+- `paint` (grass, dirt, snow, rock) pulls the terrain's own paint toward the biome's, by its weight and `paintStrength`.
+- A biome lists its recipes, each with the layer it is placed in and its `density`: the share of that layer's candidates
+  it takes.
 
-A candidate takes **one biome, by weight, and then the recipe that biome has in the layer being laid out**: so a biome has to list its recipes in every layer it should stand in, and how thick a layer is where the biome holds is that recipe's `density`. A biome that lists nothing for a layer leaves the candidates that chose it empty. The weights mix biomes where they overlap; they do not thin a biome out, which is the recipes' `density` and the layer's `spacing`.
+A candidate takes **one biome by weight, then that biome's recipe in the layer being laid out**. A biome therefore lists
+a recipe in every layer it should appear in; a biome with no recipe for a layer leaves the candidates that chose it
+empty. Biome weights mix biomes where they overlap but do not thin a biome out; density is set by the recipe's
+`density` and the layer's `spacing`.
 
 ### Recipes
 
-A recipe is a group: an **anchor** and **members** placed round it. Each member says its mesh and material (asset paths, or handles
-already loaded), how many (`count`), how far from the anchor and at what angles (`ring`, `arc`), its `scale`, the ground it takes
-(`footprint`: a trunk) apart from how far it spreads overhead (`canopy`: a crown), whether it stands upright or leans with the
-ground (`attach`, which a member that names a `plant` follows too: a stone sits on a slope as the slope lies), how steep (`minUp`) and how deep in water (`waterDepth`) it may stand, the `chance` it is placed at all, and its far
-version (`far`: the rectangle of its texture two crossed cards show, or a tent of them for a conifer, drawn past its layer's `lodDistance`). A
-member that cannot stand (no ground, too steep, under water, kept out by a zone, on something placed before it) is left out; the
-group stands.
+A recipe is a group: an **anchor** and **members** placed around it. `version` is part of every placement's id;
+increment it when a recipe places something different.
 
-`version` is part of every placement's id: bump it when a recipe places something else.
+| Member field | Description |
+|---|---|
+| `mesh`, `material` | Asset paths, or handles already loaded. Alternatively `plant` names an entry in the rules' `plants`. |
+| `count` | How many to place. |
+| `ring`, `arc` | Distance range from the anchor, and allowed angles. |
+| `scale` | Scale range. |
+| `footprint` | The ground it occupies (a trunk). |
+| `canopy` | How far it spreads overhead (a crown), separate from `footprint`. |
+| `attach` | Whether it stands upright or follows the ground's slope. A member that names a `plant` follows it too: a stone lies as the slope lies. |
+| `minUp` | Steepest ground it may stand on. |
+| `waterDepth` | How deep in water it may stand. |
+| `chance` | Probability it is placed at all. |
+| `tags` | Tags a zone's `excludes` can name. |
+| `far` | Its far version: the rectangle of its texture shown on two crossed cards (or a tent of cards for a conifer), drawn beyond its layer's `lodDistance`. |
+| `interactive` | Makes the member an entity of its own ([Interactive placements](#interactive-placements-and-changes)). |
+| `grounding`, `scaleFootprint` | Base fitting for buildings ([Building bases](#building-bases)). |
+
+A member that cannot stand (no ground, too steep, under water, excluded by a zone, on something placed before it) is
+omitted; the rest of the group stands.
 
 ### Plants
 
-A member names a mesh and a material, or a **plant**: an entry in the rules' `plants`, for what a mesh and a material cannot say. A plant is its `parts` (a trunk and a crown are two, each with its `mesh`, a cheaper `lod1Mesh`, `material`, `texture`, `tint`, whether it is `opaque` and, for a card that stands for a crown, how `soft` its normals are: turned toward up by that share, so it is lit as a rounded crown and not as the flat board it is, and whether it `castShadows`: `false` for the ground cover too small to be worth a shadow-map draw), the `lodDistance` past which the cheaper meshes stand in and the `drawDistance` past which it is not drawn, a `far` version (a tree's crossed cards, baked to an atlas of their own) drawn from `drawDistance` out to `farDistance`, and optionally:
+A member names either a mesh and a material, or a **plant**: an entry in the rules' `plants` for what a mesh and a
+material cannot express.
 
-| Field | What it is |
+- `parts`: a trunk and a crown are two parts, each with its `mesh`, a cheaper `lod1Mesh`, `material`, `texture`, `tint`,
+  whether it is `opaque`, `soft` (for a card standing for a crown: the share by which its normals are turned toward up,
+  so it is lit as a rounded crown rather than a flat board), and `castShadows` (`false` for ground cover too small to be
+  worth a shadow-map draw).
+- `lodDistance`: beyond it the cheaper meshes are drawn. `drawDistance`: beyond it the plant is not drawn as itself.
+- `far`: the far version (a tree's crossed cards, baked to an atlas of their own), drawn from `drawDistance` out to
+  `farDistance`.
+
+Optional plant fields:
+
+| Field | Description |
 |---|---|
-| `tints`, `tintScale` | The colourings the art gives it (linear multipliers on its colour), and how many world units a stand is across: a place takes one of them by slow noise, so a wood has warm and cool stands and no speckle. |
-| `farKeep` | The share of its plants the far version draws (above 0 to 1; default 1): the others are left out and the ones kept grown to make up their cover. A plant with no cards of its own may use its cheaper mesh as its `far` and thin it this way. The far versions are laid out in cells as wide as the shortest distance any of them is shown over allows (up to eight chunks), so ground cover seen from far off is a few draws a cell and not a few a chunk. |
-| `sink` | How far it is sunk into the ground, in world units (a stone's buried underside). |
-| `unit` | World units to a unit of its mesh: 100 for plants modelled in metres in a world of centimetres. A recipe's `scale` is then a size relative to the model. |
+| `tints`, `tintScale` | Colourings for the plant (linear multipliers on its colour), and how many world units a stand spans. A position takes one tint by slow noise, so a wood has warm and cool stands without speckle. |
+| `farKeep` | Share of the plants the far version draws (above 0 to 1; default 1). The others are omitted and the kept ones enlarged to preserve cover. A plant without cards may use its cheaper mesh as `far` and thin it this way. Far versions are laid out in cells as wide as the shortest distance any of them is shown over allows (up to eight chunks), so distant ground cover is a few draws per cell rather than per chunk. |
+| `sink` | Depth sunk into the ground, in world units (a stone's buried underside). |
+| `unit` | World units per mesh unit: 100 for plants modelled in metres in a world of centimetres. A recipe's `scale` is then relative to the model. |
 
-Plants are grown a cell at a time by the same machinery as a [placed foliage](/docs/graphics/foliage/#placed-plants): a chunk stands at once and fills in over the frames after it, each mesh a few milliseconds of the frame's budget. The far versions are a layer of their own, laid out as far as the furthest of them goes and shown from past what their kinds draw as themselves, so a layer's `drawDistance` is what its plants draw as themselves and not how far the world is seen. A world on a terrain of an area ends where the terrain does.
+Plants are grown a cell at a time by the same machinery as [placed foliage](/docs/graphics/foliage/#placed-plants): a
+chunk appears at once and fills in over the following frames, each mesh taking a few milliseconds of the frame budget.
+The far versions form a layer of their own, laid out as far as the furthest of them reaches and shown beyond the
+distance their kinds draw as themselves. A layer's `drawDistance` is therefore the distance its plants draw as
+themselves, not how far the world is visible. A world on a terrain of finite area ends where the terrain ends.
 
 ### Layers
 
-Layers are passes, in order: big things first. Each takes one candidate a cell of a grid `spacing` apart, jittered, with a priority
-drawn for it. Of two candidates whose groups would overlap, the higher priority stands; every candidate keeps clear of the footprints
-of the layers before it, so a fern does not grow through a trunk and a stone does not sit inside a boulder. A layer is published in
-chunks of `chunkSize` out to `drawDistance`. `occupies: false` makes a layer that later ones may overlap (ground cover). `farSpacing` (default 1) plans the far versions of a layer's plants that much further apart: ground cover whose far versions keep a quarter of the plants is planned at 2, so a quarter of the candidates are worked out and none is made only to be thrown away.
+Layers are passes run in order, large objects first.
 
-![Details of a World Gen component: rules, version, world, seed, paint ground and surface](@/assets/guides/en/details-worldgen.png)
-
-*The **World Gen** component of the Terrain & Water example: the rules asset, the seed and the surface.*
+- Each layer takes one jittered candidate per cell of a grid `spacing` apart, with a random priority.
+- Of two candidates whose groups would overlap, the higher priority stands.
+- Every candidate keeps clear of the footprints of earlier layers, so a fern does not grow through a trunk and a stone
+  does not sit inside a boulder.
+- A layer is published in chunks of `chunkSize` out to `drawDistance`.
+- `occupies: false` makes a layer that later layers may overlap (ground cover).
+- `farSpacing` (default 1) plans the far versions of a layer's plants that much further apart. Ground cover whose far
+  versions keep a quarter of the plants is planned at 2, so only a quarter of the candidates are evaluated.
 
 ## Zones
 
-A zone (the `WorldZone` component) plans an area by hand: a home, a road, a landing site, a building's footprint, a view kept open. It follows its entity's position and its turn about the vertical.
+A zone (the `WorldZone` component) plans an area by hand: a home, a road, a landing site, a building's footprint, a
+view kept open. It follows its entity's position and its rotation about the vertical.
 
-| Field | What it does |
-|---|---|
-| `kind` | What it is for, in the game's own words (default `reserve`). |
-| `shape`, `radius`, `sizeX`, `sizeZ` | A circle (default; `radius` 10), or a box (`sizeX` × `sizeZ`, 20 × 20) turned with the entity about the vertical. The editor draws its outline. |
-| `falloff` | Over how many world units past the outline it fades out (default 4): what it excludes thins there instead of stopping on a line. |
-| `priority` | Where zones overlap, the higher holds the biome. |
-| `excludes` | The tags of what it keeps out, separated by commas: a layer, a recipe, a recipe's or member's tags, `decor`, `interactive`; `*` is everything (the default); empty keeps nothing out. |
-| `biome` | A biome it holds over its area. |
-| `flatten` | Levels the terrain under it to the ground's height at its centre, blending back over `falloff`: a plot to build on. In code, `flatten` is a world height or `'ground'`. |
+| Field | Default | Description |
+|---|---|---|
+| `kind` | `reserve` | What the zone is for, in the game's own terms (home, road, landing, building, resource, view). |
+| `shape` | `Circle` | `Circle` or `Box`. The editor draws the outline. |
+| `radius` | `10` | Circle radius, world units. |
+| `sizeX`, `sizeZ` | `20`, `20` | Box size along its own x and z; the box turns with the entity about the vertical. |
+| `falloff` | `4` | World units past the outline over which the zone fades: what it excludes thins there instead of stopping at a line. |
+| `priority` | `0` | Where zones overlap, the higher priority holds the biome. |
+| `excludes` | `*` | Tags of what it keeps out, comma-separated: a layer, a recipe, a recipe's or member's tags, `decor`, `interactive`. `*` is everything; empty keeps nothing out. |
+| `biome` | `''` | A biome held over the zone's area; empty holds none. |
+| `flatten` | `false` | Levels the terrain under the zone to the ground height at its centre, blending back over `falloff`: a plot to build on. In code, `flatten` is a world height or `'ground'`. |
+
+![Details of a World Zone: kind, shape, radius, falloff, priority, excludes, biome and flatten](@/assets/guides/en/details-worldzone.png)
+
+*A **World Zone**: a circle that tells the generator which biome to grow inside it.*
 
 A game adds zones as it plans and as the player builds:
 
@@ -139,51 +206,68 @@ gens.zones().set({ id: 'house 1', kind: 'building', shape: { type: 'rect', x, z,
     falloff: 12, priority: 20, excludes: ['*'] });
 ```
 
-Only the chunks the zone reaches are made again, each keeping its old version until the new one replaces it.
+Only the chunks a zone reaches are remade, each keeping its old version until the new one replaces it.
 
-Authored zones use the scene name and document entity id for their identity, so reloading the same scene with the same seed preserves the falloff pattern. The plugin enables scene-origin recording before scenes load. Entities created by game code have a runtime identity; use `gens.zones(world).set()` with a stable `id` when their zones must survive a reload.
+- **Identity.** Authored zones are identified by the scene name and the document entity id, so reloading the same scene
+  with the same seed preserves the falloff pattern. The plugin enables scene-origin recording before scenes load.
+  Entities created by game code have a runtime identity; use `gens.zones(world).set()` with a stable `id` when their
+  zones must survive a reload.
+- **Sharing.** Generators of the same named world share zones and receive changes independently. Authored projections
+  are removed when their entities disappear or the world's last generator leaves. Game-added zones and `PlacementDiffs`
+  remain available to later generators; terrain flattening and biome paint are released with their last active consumer.
+- **Observing.** `zones.subscribe(listener)` and `diffs.subscribe(listener)` observe changes without replacing another
+  consumer; call the returned function to stop.
 
-Generators of the same named world share zones and receive changes independently. Authored projections are removed when their entities disappear or the world's last generator leaves. Game-added zones and `PlacementDiffs` remain available for later generators, while terrain flattening and biome paint are released with their last active consumer. To observe changes without replacing another consumer, call `zones.subscribe(listener)` or `diffs.subscribe(listener)` and call the returned function when finished.
-
-![Details of a World Zone: kind, shape, radius, falloff, priority, excludes, biome and flatten](@/assets/guides/en/details-worldzone.png)
-
-*A **World Zone**: a circle that tells the generator which biome to grow inside it.*
-
-## Building bases and roads
+## Building bases
 
 An upright recipe member can set `grounding: { size: [width, depth], samples: 5, mode: 'highest', maxRelief: 2 }`.
-The base dimensions are model units; yaw and scale are applied before sampling the corners, edges and interior. The grid side may be
-3, 5, 7 or 9. Every sample must have ground and satisfy `minUp` and `waterDepth`; `maxRelief` rejects excessive height variation in
-world units. The base chooses `highest` (default), `lowest`, `mean` or `center`, then adds `offset` in scaled model units.
-`Placement.grounding` reports the range, support depth and burial depth. This is finite-grid support checking, not a terrain flattening
-operation: use a foundation deep enough for the accepted relief, or a flattening WorldZone for an authored site.
 
-The reservation always contains the whole fitted base. `scaleFootprint: true` also treats `footprint` and `canopy` as model-unit radii;
-omitting it preserves the existing world-unit behavior. The planner settles overlaps after choosing deterministic scale and base height.
-`stats` / `explain` report `relief` alongside slope, water, zone and overlap rejection. The World Rules editor exposes these settings.
+- `size` is in model units. Yaw and scale are applied before the corners, edges and interior are sampled. `samples`
+  (the grid side) may be 3, 5, 7 or 9.
+- Every sample must have ground and satisfy `minUp` and `waterDepth`. `maxRelief` rejects excessive height variation,
+  in world units.
+- `mode` chooses the base height: `highest` (default), `lowest`, `mean` or `center`; `offset` is then added, in scaled
+  model units.
+- `Placement.grounding` reports the height range, support depth and burial depth.
+
+This is finite-grid support checking, not terrain flattening: use a foundation deep enough for the accepted relief, or a
+flattening `WorldZone` for an authored site.
+
+The reservation always contains the whole fitted base. `scaleFootprint: true` also treats `footprint` and `canopy` as
+model-unit radii; without it they are world units. The planner settles overlaps after choosing the deterministic scale
+and base height. `stats` and `explain` report `relief` beside the slope, water, zone and overlap rejections. The World
+Rules editor exposes these settings.
+
+## Roads
 
 ```ts
 import { setRoad } from 'esengine/worldgen';
-setRoad(worlds.zones('valley'), {
+setRoad(gens.zones('valley'), {
   id: 'camp-trail', points: [[0, 0], [40, -20], [80, -10]],
   width: 6, clearance: 2, falloff: 3, excludes: ['tree', 'grass', 'building'],
 });
 ```
 
-`roadZones` returns serializable rectangle and circle zones with continuous bends and round end caps. `setRoad` replaces just one
-road's reservations, removing obsolete segments, and `removeRoad` releases them. These reserve space; mesh construction and road
-grading are separate. A 2D world uses the same helpers with its y coordinate in the second point slot. Place the building layer before
-forest layers so trees respect its footprints, and reserve authored building floors and entrances with WorldZones for Foliage.
+- `roadZones(options)` returns serializable rectangle and circle zones with continuous bends and round end caps.
+- `setRoad(zones, options)` replaces one road's reservations, removing obsolete segments; `removeRoad(zones, id)`
+  releases them.
+- `points` are world `[x, z]` pairs (in a 2D world, `[x, y]`). Repeating the first point closes a loop. `width` is the
+  travelled surface; `clearance` adds space on each side before the soft `falloff` edge.
+
+These functions reserve space only; road meshes and grading are separate. Place the building layer before forest layers
+so trees respect building footprints, and reserve authored building floors and entrances with `WorldZone`s for
+`Foliage`.
 
 ## Interactive placements and changes
 
-A member with `interactive` (`'ore'`, `'tree'`) is an entity of its own, carrying a `PlacedObject` with its placement id and kind;
-everything else is decoration, drawn merged, a mesh a chunk for each kind. `gens.objectOf(id)` finds the entity of a placement.
+A member with `interactive` (`'ore'`, `'tree'`) becomes an entity of its own, carrying a `PlacedObject` with its
+placement id and kind. Other members are decoration. `gens.objectOf(id)` returns the entity of a placement.
 
-Ids are made of the layer, the grid cell, the recipe and the member, with their versions (`groups@1:12,-3/grove@1/pine.2`) — never a
-position in a list — so they do not change with the order chunks are made in, or when a layer or a recipe is added later.
+Ids are built from the layer, the grid cell, the recipe and the member, with their versions
+(`groups@1:12,-3/grove@1/pine.2`), never from a position in a list. They do not change with the order chunks are made
+in, or when a layer or a recipe is added later.
 
-What a player changes is kept apart from the generated world and laid over it before anything is shown:
+Player changes are kept separate from the generated world and applied over it before anything is shown:
 
 ```ts
 gens.diffs().remove(id);                  // felled, mined: gone for good
@@ -192,33 +276,37 @@ save(gens.diffs().toJSON());              // what a save stores
 gens.diffs().load(saved);                 // and reads back
 ```
 
-A felled tree stays felled when its chunk is let go and made again, and after a save is read back. What the player builds is the
-game's own: the zone it reserves keeps generation out of its ground.
+A felled tree stays felled when its chunk is released and remade, and after a save is loaded. Structures the player
+builds belong to the game; the zone a structure reserves keeps generation off its ground.
 
-## Asking the plan
+## Plan queries
 
-`gens.plan()` answers for anywhere, loaded or not, the same as what is published — what a server, a minimap or a placement check reads:
+`gens.plan()` answers for any position, loaded or not, with the same result as what is published. Servers, minimaps and
+placement checks read it.
 
-- `placementsIn(x0, z0, x1, z1, layers?)` — every placement whose group stands in the square.
-- `biomeAt(x, z)`, `biomeWeights(x, z)` — the biome there, and every biome's weight.
-- `explain(x, z)` — everything that decided what stands there: the fields, the biomes, the zones, and each layer's candidate in that
-  cell with why it was rejected (`noBiome`, `density`, `noGround`, `slope`, `water`, `zone`, `occupied`, `conflict`).
-- `stats(layer, x0, z0, x1, z1)` — how many candidates stood, and why the rest did not.
+| Method | Returns |
+|---|---|
+| `placementsIn(x0, z0, x1, z1, layers?)` | Every placement whose group's anchor stands in the rectangle. |
+| `biomeAt(x, z)` | The biome at the position. |
+| `biomeWeights(x, z)` | Every biome's weight at the position. |
+| `explain(x, z)` | Everything that decided what stands there: the fields, the biomes, the zones, and each layer's candidate in that cell with its rejection reason (`noBiome`, `density`, `noGround`, `slope`, `water`, `relief`, `zone`, `occupied`, `conflict`). |
+| `stats(layer, x0, z0, x1, z1)` | How many candidates were placed, and how many were rejected for each reason. |
 
 ## Shipping
 
-A `.esworld` file is followed like a material: the meshes and materials it names ship with the scene that names it. Rules registered
-from code name theirs where a scene does not reference them, so a package would leave them out; declare the folders they live in
-always included, in `.esengine/asset-groups.json`:
+A `.esworld` file is followed like a material: the meshes and materials it references ship with the scene that
+references it. Rules registered from code reference assets that no scene references, so a package would omit them;
+declare their folders as always included in `.esengine/asset-groups.json`:
 
 ```json
 { "version": "1.0", "groups": { "recipes": { "folder": "assets/models", "mode": "local", "alwaysInclude": true } } }
 ```
 
-## A 2D world
+## 2D worlds
 
-The same rules lay out a 2D world: no terrain, the plan read flat over **x and y**, published in chunks round the camera. Nothing is drawn by the engine; what a
-placement looks like (a sprite, a prefab) and how the ground is painted (a tile layer, a shader) are yours, said in `publish`.
+The same rules lay out a 2D world: there is no terrain, the plan is read flat over **x and y**, and the result is
+published in chunks around the camera. The engine draws nothing; the game's `publish` callback decides what a placement
+looks like (a sprite, a prefab) and how the ground is painted (a tile layer, a shader).
 
 ```typescript
 import { registerWorldRules, createWorld2D } from 'esengine/worldgen';
@@ -237,19 +325,25 @@ const world = createWorld2D(app, 'island', {
 world.diffs.remove(tree.id);                      // felled: only that chunk is made again, and it stays felled
 ```
 
-- **Chunks follow the camera** (or the streaming sources), nearest first within the frame's budget, and are released past `unloadRadius`; it is `ProceduralChunks` on the
-  `'xy'` plane, so a world of any size holds a bounded number of them.
-- **The same whatever is asked first.** A chunk is a function of the seed, the rules and its place, so a neighbour made earlier or later agrees, a server and a client agree, and a
-  placement's id is stable across loads. A group (an anchor and its members) belongs to the chunk its anchor stands in.
-- **What players changed** is a `PlacementDiffs`, laid over the plan before a chunk is shown; `diffs.toJSON()` and `diffs.load()` are the save.
-- **Zones are planned by hand**: a `ZoneDef` whose `z` is world y keeps an area clear or holds it to a biome (a camp the player built).
-- A recipe's `ring` is in world units and `arc` in degrees from +x toward +y. `mesh`, `material`, `attach` and `minUp` are 3D things and are not read.
+- **Chunks follow the camera** (or the streaming sources), nearest first within the frame budget, and are released
+  beyond `unloadRadius`. The world is a `ProceduralChunks` layer on the `'xy'` plane, so a world of any size holds a
+  bounded number of chunks.
+- **Order independence.** A chunk is a function of the seed, the rules and its position, so neighbours made earlier or
+  later agree, a server and a client agree, and placement ids are stable across loads. A group (an anchor and its
+  members) belongs to the chunk its anchor stands in.
+- **Player changes** are a `PlacementDiffs`, applied over the plan before a chunk is shown; `diffs.toJSON()` and
+  `diffs.load()` are the save.
+- **Zones**: a `ZoneDef` whose `z` is world y keeps an area clear or holds it to a biome (a camp the player built).
+- A recipe's `ring` is in world units and `arc` in degrees from +x toward +y. `mesh`, `material`, `attach` and `minUp`
+  are 3D properties and are not read.
 
 ## Limits
 
-- **Decoration is merged a chunk at a time, not GPU-instanced.** The renderer's instance records are written each frame, which for a
-  field of thousands of plants would upload megabytes a frame; merged static meshes upload nothing, and the chunks bound their memory.
-- **A game's own fields are code.** A rules file uses the built-in fields and the ones zones set; a field computed by the game is
-  registered with the rules from code.
+- **Decoration is not instanced per placement.** Plant parts use shared geometry with per-instance level of detail.
+  Members that name a mesh and a material are merged per mesh and material in each chunk: the renderer's instance
+  records are written every frame, which for thousands of objects would upload megabytes per frame, while merged static
+  meshes upload nothing and chunks bound their memory.
+- **A game's own fields are code.** A rules file uses the built-in fields and those zones set; a field computed by the
+  game is registered with the rules from code.
 
 See the **Generated World** example (`examples/worldgen`).

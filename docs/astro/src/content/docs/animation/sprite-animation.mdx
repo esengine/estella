@@ -1,0 +1,242 @@
+---
+title: Sprite animation
+description: Frame-by-frame sprite animation — authoring .esanim clips in the Sprite Animation panel, the SpriteAnimator component and SpriteAnimation resource, frame events, Aseprite import, per-frame sizes, offsets and anchors, clips built in code and state-machine actions.
+---
+
+A sprite animation clip (`.esanim`) is an ordered list of frames, each a cell of a sprite sheet or a separate texture,
+with a frame rate, per-frame durations and optional events. The `SpriteAnimator` component plays a clip by changing
+the frame shown by the entity's `Sprite`.
+
+## Authoring a clip
+
+1. Right-click a sprite sheet in the Content Browser and choose **Create Sprite Animation**. The **Sprite Animation**
+   panel opens. Under **Frame source**, set **Cell W**, **Cell H**, **Margin** and **Spacing**, then click or drag
+   across grid cells to append frames. For separate images, select them together, right-click and choose
+   **Create Sprite Animation from N Images**; the frames are ordered by filename in natural order (`run_2` before
+   `run_10`).
+2. Use the panel's play button to preview. Drag a frame block to reorder it, or its right edge to change its
+   duration. Selecting a frame shows its duration, size, offset and anchor in **Details**. Frames reference grid
+   cells, so re-slicing the sheet keeps them; a frame outside the new grid is shown in red.
+3. Click **Save**. Right-click the saved `.esanim` and choose **Create Animated Sprite**. The new entity has
+   **Sprite** and **Sprite Animator**, with **Clip** assigned. Animated sprites play in Play mode; enable
+   **Preview FX** in the viewport to play them while editing.
+
+![A four-frame walk cycle and its playback preview in the Sprite Animation panel](@/assets/guides/en/flipbook.png)
+
+{/* SHOT: anim-sprite-animator-details | Details panel of the player entity in the sprite-animation example, showing the Sprite and Sprite Animator components with Clip set to walk.esanim, Speed, Playing and Loop visible */}
+
+## SpriteAnimator component
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `clip` | asset | `''` | Current clip (an `anim-clip` asset, or the name of a clip registered in code). |
+| `speed` | number | `1` | Playback speed multiplier. |
+| `playing` | boolean | `true` | Whether playback is advancing. |
+| `loop` | boolean | `true` | Repeats when both the component and the clip enable looping; otherwise playback holds the last frame. |
+| `enabled` | boolean | `true` | When false, the animator is frozen. |
+| `finished` | boolean | `false` | Read-only. Latched when a one-shot clip completes. Raising `playing` on a finished animator replays from frame 0. |
+| `currentFrame` | number | `0` | Read-only. Index of the frame being shown. |
+| `frameTimer` | number | `0` | Read-only. Time accumulated on the current frame. |
+
+The component fields are the playback controls. Switching to a clip registered in code under the name `walk`:
+
+```typescript
+import type { SpriteAnimatorData } from 'esengine';
+
+function startWalk(animator: SpriteAnimatorData) {
+  animator.clip = 'walk';
+  animator.speed = 1.5;
+  animator.playing = true;
+}
+```
+
+For a clip assigned in the editor, **Clip** holds the asset reference and is left unchanged.
+
+## SpriteAnimation resource
+
+The `SpriteAnimation` resource seeks to a frame or a named label and registers clips at runtime.
+
+```typescript
+import type { SpriteAnimationAPI, SpriteAnimatorData } from 'esengine';
+
+function startAttack(sprites: SpriteAnimationAPI, animator: SpriteAnimatorData) {
+  sprites.gotoLabel(animator, 'attack', true);
+}
+```
+
+The example requires a clip with a frame label named `attack` and is called once on entering the attack state.
+`sprites.gotoFrame(animator, 0, true)` plays from a frame index instead.
+
+| Method | Description |
+|---|---|
+| `gotoFrame(animator, index, andPlay?)` | Seek to a frame index, optionally starting playback. |
+| `gotoLabel(animator, label, andPlay?)` | Seek to a named label in the clip. |
+| `registerClip(clip)` | Register a `SpriteAnimClip` at runtime. |
+| `getClip(name)` | Look up a registered clip. |
+| `onEvent(entity, handler)` | Listen to one entity's frame events. Returns an unsubscribe function. |
+| `onEventGlobal(handler)` | Listen to the frame events of every entity; the handler also receives the entity. |
+
+## Frame events
+
+In **Sprite Animation → Events**, select a frame, click **Add event** and click the event's flag to edit **Name**.
+A handler subscribed once at startup receives the event each time playback crosses the frame:
+
+```typescript
+import { Audio, defineSystem, Res, SpriteAnimation } from 'esengine';
+
+app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, audio) => {
+  sprites.onEventGlobal((event) => {
+    if (event.name === 'footstep') audio.playSFX('assets/sfx/step.wav');
+  });
+}));
+```
+
+{/* SHOT: anim-flipbook-events | Sprite Animation panel with walk.esanim from the sprite-animation example open, the Events row showing a flag on one frame and its Name field set to footstep in Details */}
+
+Delivery rules:
+
+- Events crossed in one update are delivered in playback order, including across loop boundaries.
+- A long update fast-forwards complete loops and delivers each declared event at most once per update.
+- An update with no elapsed time does not repeat the initial frame's event.
+- `gotoFrame(animator, index, false)` and `gotoLabel(animator, label, false)` show the selected frame on the next
+  animation update without advancing time or firing events.
+- Inside a frame-event handler, change playback through `gotoFrame` / `gotoLabel`. A nested `update` call on the same
+  animation API is ignored.
+
+## Aseprite import
+
+A `.aseprite` or `.ase` file in the project is imported into:
+
+- the composited sheet, written as a `.png` beside the source;
+- one `.esanim` per tag (`hero_walk.esanim`, `hero_jump.esanim`), carrying each frame's own duration and the tag's
+  playback direction. A tag without a repeat count loops; a tag with a repeat count does not. A file without tags
+  produces a single clip over all frames.
+
+Compositing includes every visible layer with its blend mode and opacity, and excludes the contents of hidden
+groups. Tilemap layers are not composited; the import reports them.
+
+The sheet's texture is imported with **nearest** filtering, compression off and the cell grid filled in, so a
+`Sprite` can select a frame immediately. Filtering and compression changed afterwards are kept on re-import; the
+grid is re-derived on every import from the source canvas size.
+
+Saving the source file re-imports it in place, keeping uuids and references. Right-click → **Reimport** does the same
+on demand.
+
+## Per-frame sizes and offsets
+
+All cells of a sheet share one size, so one `Sprite.size` fits every frame. Separate images can differ in size.
+With **Frame Sizes** ticked, the clip controls `Sprite.size` during playback: each frame is drawn at its natural size
+(the texture's pixels or the sheet cell) or at an explicit per-frame `size`.
+
+Per-frame sizing also enables **offsets**. An offset shifts a frame's artwork in the same units as the size and is
+folded into the frame's anchor when the clip loads. Because it is expressed in units rather than as a normalized
+anchor, an offset produces the same visual shift on frames of any size. Set it by dragging the frame in the viewport
+or by entering it in the inspector.
+
+```jsonc
+// step.esanim — three images of different sizes, one shifted right
+{
+  "version": "1.5",
+  "fps": 6,
+  "frameSizing": "frame",
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "texture": "@uuid:…" },
+    { "texture": "@uuid:…", "offset": { "x": 20, "y": 0 } },
+    { "texture": "@uuid:…", "duration": 0.35 }
+  ]
+}
+```
+
+A clip that declares no sizing mode, sizes or offsets leaves `Sprite.size` as the entity sets it. Unticking
+**Frame Sizes** removes the mode and every per-frame size and offset.
+
+## Per-frame anchors
+
+The anchor is `Sprite.pivot`: the point the sprite is positioned, rotated and scaled about, normalized within the
+frame, with `(0,0)` at the bottom-left and `(0.5,0.5)` at the centre. When the artwork moves within its cell from
+frame to frame, per-frame anchors keep a chosen point fixed, such as the feet on the ground.
+
+Tick **Anchor** in the Sprite Animation panel's preview bar to show a crosshair over the current frame. Drag it, or
+enter X / Y beside it, to anchor that frame. The crosshair lines span the preview stage, so with onion skin enabled
+each frame can be aligned against its neighbours. A frame with its own anchor shows an amber dot in the frame strip;
+**×** clears the override and the frame falls back to the clip's anchor, shown in Details as **Default Anchor**.
+
+{/* SHOT: anim-flipbook-anchor | Sprite Animation panel with walk.esanim from the sprite-animation example, Anchor ticked in the preview bar, onion skin on, the crosshair at the feet of the current frame and an amber dot on an overridden frame in the strip */}
+
+Resolution order: the frame's anchor, then the clip's anchor, then the centre. A clip that declares no anchor leaves
+`Sprite.pivot` as the entity sets it. Unticking **Anchor** clears the clip anchor and every frame override.
+
+```jsonc
+// walk.esanim — the clip anchored at the feet, one frame leaning back
+{
+  "version": "1.4",
+  "fps": 10,
+  "pivot": { "x": 0.5, "y": 0 },
+  "frames": [
+    { "cell": 0 },
+    { "cell": 1, "pivot": { "x": 0.47, "y": 0 } }
+  ]
+}
+```
+
+The clip controls the anchor only while it shows a frame; `Transform` and tweens move the entity as usual.
+
+## Clips from code
+
+The `.esanim` document is plain data, so a clip can be built at runtime: `createAnimClip` creates a sheet-sliced
+clip, `{ cell }` frames are appended, `parseAnimClipData` resolves it into a runtime `SpriteAnimClip`, and
+`registerClip` makes the name available to every `SpriteAnimator`.
+
+```typescript
+import {
+  defineSystem, Res, Assets, SpriteAnimation,
+  createAnimClip, parseAnimClipData,
+} from 'esengine';
+
+const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (assets, sprites) => {
+  const tex = await assets.loadTexture('assets/textures/run-sheet.png');
+
+  // A 32×32 grid over the sheet; frames reference grid cells (row-major).
+  const data = createAnimClip('assets/textures/run-sheet.png', 32, 32, tex.width, tex.height);
+  data.fps = 10;
+  for (let cell = 0; cell < 6; cell++) data.frames.push({ cell });
+
+  const handles = new Map([['assets/textures/run-sheet.png', tex.handle]]);
+  sprites.registerClip(parseAnimClipData('run', data, handles));
+  // Any SpriteAnimator can now set clip = 'run'.
+});
+```
+
+| Helper | Description |
+|---|---|
+| `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | A new sheet-sliced `AnimClipAssetData` (fps `12`, `loop: true`, margin and spacing `0`, no frames). |
+| `createAnimClipFromTextures(textures)` | A new clip over a sequence of per-frame textures, without a sheet, controlling size from the start. |
+| `parseAnimClipData(name, data, textureHandles, textureSizes?)` | Resolves asset data into a runtime `SpriteAnimClip`: each frame's texture handle, UV window and, for a clip that controls size, its draw size. `textureSizes` supplies the natural size of per-texture frames. |
+| `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | Parse / write the `.esanim` JSON document; the pair round-trips. |
+| `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | Pixel rectangle / UV window of a grid cell. |
+| `animClipFramePivot(data, frame, size?)` | The anchor a frame renders with (frame, then clip, then centre), with the frame's offset folded in when `size` is given. `null` when the clip declares no anchor. |
+| `animClipDrivesPivot(data)` | Whether the clip declares anchors. |
+| `animClipFrameSize(data, frame, natural?)` | The size a frame draws at: its own size, else `natural`. `null` when the clip does not control size. |
+| `animClipDrivesSize(data)` | Whether the clip controls `Sprite.size`, explicitly or through any frame's size or offset. |
+
+## State-machine actions
+
+The [FSM/BT built-ins](/docs/gameplay/ai/overview/#built-in-names) drive sprite clips from an `.esfsm` without code.
+An action's optional **argument** names the clip.
+
+| Name | Kind | Description |
+|---|---|---|
+| `spriteAnim.play` | action | Play. With a clip argument, switches to that clip and rewinds to frame 0. Playing the current clip while it plays has no effect, so the action can run in `onUpdate`. |
+| `spriteAnim.restart` | action | Rewind and play unconditionally (re-triggers a one-shot clip). |
+| `spriteAnim.stop` | action | Pause playback. |
+| `spriteAnim.finished` | condition | True once a one-shot clip has completed. `onEnter: spriteAnim.play` with a `spriteAnim.finished` transition forms a self-contained attack state. |
+
+For parameter-driven switching, blending and layers, use an [Animator](/docs/animation/animator/), whose states can
+play sprite clips.
+
+## See also
+
+- [Textures](/docs/assets/textures/) — sheet import settings and cell grids.
+- [Sprites](/docs/graphics/sprites/overview/) — the `Sprite` component the clip drives.
+- [Animator](/docs/animation/animator/#sprite-clip-states) — sprite clips as Animator states.

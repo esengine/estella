@@ -1,0 +1,127 @@
+---
+title: Tilesets
+description: Reference for the .estileset tileset asset and the Tileset editor — creating a tileset from a texture, per-tile collision shapes and modifiers, tile animation, edge, blob and corner-Wang terrains, and custom tile properties.
+---
+
+**`.estileset`** is the engine's tileset asset. It references an atlas texture and stores per-tile data: collision
+shapes and modifiers, animation frames, terrain membership, and custom key/value properties. Every layer that uses a
+tileset applies this data in the editor viewport and at runtime without code.
+
+## Creating a tileset
+
+**Content Browser → right-click a texture → Create Tileset** opens the *New tileset* dialog, which slices the texture
+into a grid:
+
+| Field | Description |
+|---|---|
+| **Tile W** / **Tile H** | Tile size in pixels. |
+| **Margin** | Border in pixels before the first tile. |
+| **Spacing** | Gap in pixels between tiles. |
+
+The dialog shows the resulting column × row and tile counts, and warns when the texture does not divide evenly (the
+last row or column is clipped). Double-clicking an `.estileset` opens it in the **Tileset editor**.
+
+## Tileset editor modes
+
+| Mode | Edits |
+|---|---|
+| **Collision** | Per-tile collision shapes and modifiers. |
+| **Terrain** | Terrain sets and the terrain data of each tile. |
+| **Animation** | Animation frames of a tile. |
+| **Properties** | Custom key/value properties and the random-brush `probability` of a tile. |
+
+## Collision shapes
+
+![The Tileset editor in Collision mode — shape tabs, modifiers, slope presets, and collision overlays on the atlas](@/assets/guides/en/tileset-collision.png)
+
+*Collision mode: shape tabs (**Box / Polygon / Circle**), modifiers (**One-way**, **Sensor**, friction / bounce /
+density) and slope presets. The overlay marks each tile's collider.*
+
+| Shape | Authoring |
+|---|---|
+| **Box** | Full-cell box. Click or drag across tiles to paint it; painting again clears it. |
+| **Circle** | Circle fitted to the cell. Drag to paint; starting a drag on a tile that has a circle clears. The circle editor moves the centre and resizes the radius. |
+| **Polygon** | Freeform polygon in the vertex editor: click to add a vertex, drag a vertex to move it, click a vertex to delete it. Takes effect at three or more vertices. |
+
+Polygon mode offers **presets** that stamp common shapes onto clicked tiles (dragging stamps a run of them): **Ramp ◢**
+(rising to the right), **Ramp ◣** (rising to the left), and **Half** (bottom, top, left, right).
+
+Modifiers apply on top of the painted shape:
+
+| Modifier | Effect |
+|---|---|
+| **One-way** | Solid on one side and passable from the other: solid top (jump-through platform), solid bottom (ceiling), solid left or solid right. |
+| **Sensor** | Non-solid trigger: produces overlap events and no contact response. |
+| **friction** / **bounce** / **density** | Physics-material override for the tile's collider. |
+
+How these shapes become colliders is described in [Tile Collision](/docs/world/tilemaps/collision/).
+
+## Tile animation
+
+![The Tileset editor in Animation mode — a tile's frame strip with per-frame durations](@/assets/guides/en/tileset-animation.png)
+
+*Animation mode: the selected tile (#34), its frames with per-frame durations in milliseconds, and the looping
+preview.*
+
+In **Animation** mode, click the tile to animate, then click atlas tiles to append them as frames. The frame strip
+below the toolbar provides:
+
+- a looping live preview;
+- a duration field per frame, in milliseconds, and **All** to set every frame to one duration;
+- drag to reorder frames, remove a frame, or **Clear animation**.
+
+Animated tiles carry a ▶ mark in the atlas. Frames are saved in the `.estileset`; every layer that uses the tileset
+plays them in the editor viewport and at runtime. Layers built in code use
+[`setTileAnimation`](/docs/world/tilemaps/code/#tile-animation).
+
+## Terrains
+
+![The Tileset editor in Terrain mode — a corner-Wang set with Grass / Sand / Water colors](@/assets/guides/en/tileset-terrain.png)
+
+*Terrain mode with a corner-Wang set: terrain colours Grass, Sand and Water, and the colour assigned to each tile
+corner.*
+
+A terrain set lets the Terrain tool (`T`) paint a terrain rather than a specific tile: the resolver selects the tile
+whose edges or corners match its neighbours. Terrain sets are created in **Terrain** mode and use one of three
+models:
+
+| Model | Tiles declare | Typical set |
+|---|---|---|
+| **Edge (4-bit)** | Which of their four edges belong to the terrain. | 16 tiles |
+| **Corner (blob)** | Which edges and corners belong to the terrain. | 47 tiles |
+| **Corner (Wang)** | A terrain colour for each of their four corners. | Several terrains in one set |
+
+**Edge** and **Corner (blob)** are single-terrain models: the brush paints the terrain and fixes the transitions of
+neighbouring tiles.
+
+**Corner (Wang)** is a multi-terrain model. The set holds a palette of **colours** (for example grass, sand and water),
+and each tile assigns a colour to each corner. The brush paints colours on a **half-cell corner grid**: a click
+between four tiles re-resolves all four by exact corner match, falling back to the nearest mismatch, which produces
+smooth boundaries between terrains.
+
+- The Tileset editor adds, renames, recolours and removes colours.
+- Each quarter of a tile is the click target for its corner. Click or drag to paint the active colour; the right
+  mouse button erases.
+- The Tile Palette's **Terrain** tab lists the colours to paint with.
+
+The Terrain tool selects the resolution method from the set's model. `examples/tilemap-demo` (`wang-map` scene, with
+`wang.estileset`) blends grass, sand and water with a corner-Wang set. Missing combinations can be located with
+[Highlight missing terrain rules](/docs/world/tilemaps/painting/#missing-terrain-rules).
+
+## Tile properties
+
+In **Properties** mode, clicking a tile edits two kinds of data:
+
+| Data | Description |
+|---|---|
+| **probability** | Weight of the tile in the random brush. Default `1`; `0` excludes the tile. |
+| Custom properties | String key/value pairs. Layers that use the tileset receive them; gameplay code reads them with `getTileProperty` ([Tilemaps in Code](/docs/world/tilemaps/code/#tilemaps-api-reference)). |
+
+The custom property `hardness` sets the damage a tile takes before it is destroyed in a
+[destructible tilemap](/docs/world/tilemaps/code/#destructible-tilemaps).
+
+## See also
+
+- [Painting Tiles](/docs/world/tilemaps/painting/) — painting with tiles, stamps and terrains.
+- [Tile Collision](/docs/world/tilemaps/collision/) — colliders generated from tileset collision.
+- [Textures](/docs/assets/textures/) — importing atlas textures.

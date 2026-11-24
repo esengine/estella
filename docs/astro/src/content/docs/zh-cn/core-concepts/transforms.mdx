@@ -38,8 +38,8 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 });
 ```
 
-`position.x/y/z`、`rotation.x/y/z/w`、`rotation.angle`(Z 轴转角,弧度,不影响另外两个轴)、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/animation/timeline/)
-和[补间](/docs/zh-cn/animation/overview/#补间tween)可以打关键帧),而 `position` /
+`position.x/y/z`、`rotation.x/y/z/w`、`rotation.angle`(Z 轴转角,弧度,不影响另外两个轴)、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/animation/timeline/sequencer/)
+和[补间](/docs/zh-cn/animation/tweens/)可以打关键帧),而 `position` /
 `rotation` / `scale` 会被[网络](/docs/zh-cn/scripting/networking/)的状态复制同步。
 
 <Aside type="note">
@@ -174,7 +174,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 
 想动画化旋转,`TweenTarget.RotationZ` 以**弧度**驱动 Z 角度(引擎每步重建四元数),
 Sequencer 给 `rotation.angle` 打关键帧也是同样的语义——见
-[动画](/docs/zh-cn/animation/overview/#补间tween)。
+[补间](/docs/zh-cn/animation/tweens/)。
 
 <Aside type="tip">
   如果只需要瞄准数学而完全不碰旋转,[数学辅助](/docs/zh-cn/scripting/math/)里的

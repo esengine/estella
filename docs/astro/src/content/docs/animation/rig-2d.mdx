@@ -1,88 +1,129 @@
 ---
 title: 2D Rigs
-description: Make a skeletal 2D character inside the editor — parts, bones, painted weights and mesh deforms — then animate it with clips, blend it with the Animator, and bend it with IK and constraints.
+description: Native 2D skeletal rigs — the .esrig asset and the rig editor (parts, bones, mesh, weights, deforms), rebinding, animating bones with clips and the Animator, the IK2D and BoneConstraint2D components, the esengine/rig2d API, and limits.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A 2D rig bends one image the way a skeleton bends a body. You make it in the editor from any PNG, with no separate animation program and no third-party format.
-[Spine](/docs/animation/spine/) and [DragonBones](/docs/animation/dragonbones/) keep working beside it; use whichever a character was made in.
+A 2D rig deforms one image with a bone skeleton. Rigs are authored in the editor from any PNG, with no external
+animation tool or third-party format. [Spine](/docs/animation/spine/) and [DragonBones](/docs/animation/dragonbones/)
+skeletons can be used alongside rigs.
 
-## How it fits together
+## Structure
 
-- **`.esrig`** is what you edit: the parts cut from an image, the bones under them, and what each vertex follows.
-- Saving writes **`.esmesh`** and **`.esprefab`** beside it. Scenes use those, so a built game carries no authoring data.
-- **Bones are entities.** Each is an ordinary entity with a Transform, so clips, the Animator, masks and code reach them like anything else.
-
-## Make a character
-
-Right-click an image in the Content Browser and choose **Create 2D Rig**. Then work through the modes along the top, which are in the order a character is made:
-
-| Mode | What you do |
+| Element | Description |
 |---|---|
-| **Parts** | **Split by Transparency** cuts a sheet of limbs into parts. Drag them into a character. The list on the right sets which draws on top. |
-| **Bones** | With **New**, drag a bone out. Start on another bone's end and it carries on from it. With **Select**, drag an end to aim a bone and the rest to move it. |
-| **Mesh** | Every part starts covered by a grid. Smaller cells bend more smoothly and cost more. Drag a vertex to adjust it. |
-| **Weights** | **By Distance** binds what is nearest, then paint what that got wrong: pick a bone on the right and drag. `Shift` inverts, `Ctrl` smooths, `[` and `]` change the radius. **Whole Part to Selected Bone** is for a piece that does not bend. |
-| **Deforms** | **New Shape**, then drag to push vertices: a breath, a smile, a bulge. |
+| **`.esrig`** | Authoring source: the parts cut from the image, the bones, and the bone weights of each vertex. |
+| **`.esmesh`** and **`.esprefab`** | Written beside the `.esrig` on save. Scenes reference these, so builds contain no authoring data. |
+| **Bones** | Ordinary entities with a `Transform` and a `Bone2D` component. Clips, the Animator, layer masks and code address them like any other entity. |
 
-**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance in the open scene at once, keeping what a scene added to one.
+| `Bone2D` field | Type | Default | Description |
+|---|---|---|---|
+| `length` | number | `0` | Reach of the bone along its local +X. An IK chain ending at this bone reaches for its target with this end. |
+
+## Creating a rig
+
+Right-click an image in the Content Browser and choose **Create 2D Rig**. The rig editor's modes, along the top, are
+ordered as a character is built:
+
+| Mode | Operations |
+|---|---|
+| **Parts** | **Split by Transparency** cuts a sheet of limbs into parts. Drag parts to assemble the character. The list on the right sets draw order. |
+| **Bones** | With **New**, drag to create a bone; starting on another bone's end continues from it. With **Select**, drag a bone's end to aim it and its body to move it. |
+| **Mesh** | Every part starts covered by a grid. Smaller cells deform more smoothly and cost more. Drag a vertex to adjust it. |
+| **Weights** | **By Distance** binds each vertex to the nearest bones; then paint corrections: pick a bone on the right and drag. `Shift` inverts, `Ctrl` smooths, `[` and `]` change the brush radius. **Whole Part to Selected Bone** binds a rigid piece to one bone. |
+| **Deforms** | **New Shape**, then drag to displace vertices, for shapes such as a breath, a smile or a bulge. |
+
+{/* SHOT: anim-rig2d-weights | The 2D rig editor in Weights mode: a character built with Create 2D Rig from a PNG of separated limbs, a bone selected in the list on the right, its weights painted over the mesh, the mode bar along the top visible. No bundled example ships an .esrig; create one from any multi-limb PNG. */}
+
+| Command | Effect |
+|---|---|
+| **Try Pose** | Rotate bones to test the weights. Does not modify the rig. |
+| **Bind Pose** | Returns from Try Pose to the bind pose. |
+| **Place in Scene** | Saves the rig and instantiates its prefab. |
+
+Saving again updates every instance in the open scene, keeping per-instance changes made in the scene.
 
 <Aside type="note">
-  This version has no adding or deleting single vertices, and a character draws from one image. Generating a part's mesh again clears that part's weights and deforms, and asks first.
+  Single vertices cannot be added or deleted, and a rig draws from one image. Regenerating a part's mesh clears that
+  part's weights and deforms; the editor asks for confirmation first.
 </Aside>
 
-## Rebind after binding
+## Rebinding
 
-A character is never locked to the skeleton it was weighted on.
+A rig's skeleton can be changed after weighting:
 
-- **Move a bone.** In **Bind Pose**, dragging a bone or typing its length or rotation changes the bind pose itself. The picture stays where it is, so a bone placed wrong can just be moved.
-- **New parent.** In **Bones**, pick **Parent** for the selected bone, or **None (root)**. It keeps its place in the picture, and so does everything below it.
-- **Rename or remove.** Removing a bone hands its children and vertices to its parent.
-- **Recompute weights.** **By Distance** again, or **Whole Part to Selected Bone**, then paint.
-- **Another rig's skeleton.** Under **Skeleton**, pick another `.esrig` and **Rebind to This Skeleton**. Bones are matched by name. A vertex on a bone with no namesake goes to its nearest matched parent. Rigs that share a skeleton have the same bone names and paths, so they play the same clips.
+| Operation | Behaviour |
+|---|---|
+| **Move a bone** | In **Bind Pose**, dragging a bone or typing its length or rotation changes the bind pose itself. The image stays in place. |
+| **Change parent** | In **Bones**, set **Parent** for the selected bone, or **None (root)**. The bone and its descendants keep their place in the image. |
+| **Rename or remove** | Removing a bone hands its children and vertices to its parent. |
+| **Recompute weights** | Run **By Distance** or **Whole Part to Selected Bone** again, then paint. |
+| **Rebind to another skeleton** | Under **Skeleton**, pick another `.esrig` and **Rebind to This Skeleton**. Bones are matched by name; a vertex on a bone with no match moves to its nearest matched ancestor. Rigs sharing a skeleton have the same bone names and paths, so they play the same clips. |
 
-Saving keeps up what depended on the old names:
+On save, data that referenced old bone names is updated:
 
-- Clips (`.estimeline`) and Animator layer masks (`.esanimator`) that named a renamed or reparented bone by its path are rewritten. A clip counts as this rig's when most of its paths are this rig's bones. A track on a removed bone keeps its path, and the save says how many there are.
-- Each bone keeps an id, which is what its prefab entity is named by. What the scene added to a bone, such as an `IK2D` or a sword parented to the hand, stays on that bone through reordering, reparenting and removal elsewhere.
+- Clips (`.estimeline`) and Animator layer masks (`.esanimator`) that named a renamed or reparented bone by path are
+  rewritten. A clip is treated as belonging to the rig when most of its paths are the rig's bones. A track on a removed
+  bone keeps its path; the save reports how many such tracks remain.
+- Each bone has a persistent id, which names its prefab entity. Components and children added to a bone in the scene,
+  such as an `IK2D` or a sword parented to the hand, stay on that bone through reordering, reparenting and removal of
+  other bones.
 
-**In the scene**, select an entity with a `MeshSkin` and use **Rebind To** in Details: pick another skeleton in the scene and **Rebind Joints by Name**. Each joint finds the entity of its name below that skeleton. When a name appears twice, as `hand` does under both arms, the parents' names decide. A joint with no match keeps its entity and is named. This works for 3D skins too, for example a jacket bound to a body.
+### Rebinding a skin in the scene
 
-## Animate it
+Select an entity with a `MeshSkin` and use **Rebind To** in the Details panel: pick another skeleton in the scene and
+**Rebind Joints by Name**. Each joint is matched to the entity of the same name under that skeleton; where a name
+occurs more than once (for example `hand` under both arms), the parents' names decide. A joint with no match keeps its
+entity and is reported. This also applies to 3D skins, for example a jacket bound to a body.
 
-Select the character and key its bones in the [Sequencer](/docs/animation/timeline/) like any other entity. A bone is named by its path under the root, such as `hips/spine/arm`. A deform is a weight on the `MeshMorph` component, which keys the same way.
+## Animation
 
-Blending is the [Animator](/docs/animation/overview/)'s job, as for any other character: 1D and 2D blends, layers, masks and transitions all work on bones.
+Select the character and key its bones in the [Sequencer](/docs/animation/timeline/sequencer/). A bone is addressed by its path
+under the root, such as `hips/spine/arm`. A deform is a weight on the `MeshMorph` component and is keyed the same way.
+
+Blending is done by the [Animator](/docs/animation/animator/): 1D and 2D blends, layers, masks and transitions all
+apply to bones.
 
 ## IK
 
-Add **`IK2D`** to the last bone of a limb and point `target` at an entity. The end of that bone reaches for it, after the animation has played, so a hand can hold what it holds whichever clip is running.
+Add **`IK2D`** to the last bone of a limb and set `target`. After animation is applied, the end of that bone reaches for
+the target, so a hand stays on what it holds whichever clip is playing.
 
-| Field | Meaning |
-|---|---|
-| `target` | The entity to reach for. |
-| `chainLength` | How many bones bend, counting this one. Two solve exactly and keep their bend; more take an iterative solve. |
-| `bend` | With two bones, the way the middle joint bends: `1` counter-clockwise or `-1`. |
-| `weight` | How far from the animated pose towards the solve. Clips can key it. |
-| `matchTargetRotation` | Also turn this bone to the target's rotation, for a foot flat on a slope. |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `target` | entity | none | Entity to reach for. |
+| `chainLength` | number | `2` | Number of bones bent, including this one (1–32). Two bones are solved analytically and keep their bend direction; longer chains use an iterative solve. |
+| `bend` | number | `1` | Two-bone chains: bend direction of the middle joint, `1` counter-clockwise or `-1` clockwise. |
+| `weight` | number | `1` | Blend from the animated pose (0) to the solved pose (1). Animatable. |
+| `matchTargetRotation` | boolean | `false` | Also rotates this bone to the target's rotation, for example a foot flat on a slope. |
+| `enabled` | boolean | `true` | Enables the solve. |
 
 ## Constraints
 
-Add **`BoneConstraint2D`** to a bone. Constraints run after IK, from the trunk out:
+Add **`BoneConstraint2D`** to a bone. Constraints run after IK, from the root outward.
 
-| `kind` | What it does |
+| `kind` | Behaviour |
 |---|---|
-| **Limit Rotation** | Keeps the local rotation between `min` and `max`. An IK chain through the bone keeps to them too. |
-| **Copy Rotation** | Takes `source`'s world rotation, plus `offset`. |
-| **Copy Position** | Stands on `source`'s world position. |
-| **Look At** | Points the bone's +x at `source`, plus `offset`. |
+| **Limit Rotation** | Keeps the local rotation between `min` and `max`. IK chains through the bone respect the limits. |
+| **Copy Rotation** | Takes `source`'s world rotation plus `offset`. |
+| **Copy Position** | Takes `source`'s world position. |
+| **Look At** | Points the bone's +X at `source`, plus `offset`. |
 
-IK and constraints run in play mode. Both follow a character mirrored by a negative scale on its root.
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `kind` | `BoneConstraintKind` | `LimitRotation` | Constraint type, as above. |
+| `source` | entity | none | Entity copied or looked at. Not used by Limit Rotation. |
+| `min`, `max` | number | `-45`, `45` | Limit Rotation: local rotation range in degrees. |
+| `offset` | number | `0` | Copy Rotation and Look At: degrees added. |
+| `weight` | number | `1` | Blend from the unconstrained pose (0) to the constrained pose (1). Animatable. |
+| `enabled` | boolean | `true` | Enables the constraint. |
+
+IK and constraints run in play mode. Both handle a character mirrored by a negative scale on its root.
 
 ## In code
 
-Rigs are plain data, so a game or a tool can make one:
+Rigs are plain data and can be built by game or tool code with the `esengine/rig2d` subpath:
 
 ```typescript
 import {
@@ -105,8 +146,18 @@ const { bones } = spawnRig(world, rig, { mesh, texture });
 world.insert(bones[1], IK2D, { target, chainLength: 2, bend: 1, weight: 1, matchTargetRotation: false, enabled: true });
 ```
 
+| Function | Description |
+|---|---|
+| `createRig(texture, width, height, unitsPerPixel?)` | Creates an empty `RigSource` for an image. |
+| `rigImageFromRGBA(width, height, rgba)` | Wraps RGBA pixels for the mesh functions. |
+| `coverRigPart(image, rect, opts?)` | Generates a part's grid mesh (`vertices`, `triangles`) over its opaque pixels. |
+| `autoWeightPart(rig, part, opts?)` | Binds a part's vertices to the nearest bones. |
+| `bakeRig(rig)` | Produces the skinned mesh data. |
+| `spawnRig(world, rig, { mesh, texture, … })` | Spawns the root (with `MeshRenderer`, `MeshSkin` and, when the rig has deforms, `MeshMorph`) and one entity per bone; returns `{ root, bones }`, `bones` in bone-index order. |
+
 ## Limits
 
-- A rig is one mesh, drawn in one draw call, up to 256 bones. A vertex follows at most 4.
-- Parts of one rig draw in the order you set. Against the rest of the scene, a rig sorts by `MeshRenderer.layer` and then by z, as a mesh does.
+- A rig is one mesh, drawn in one draw call, with up to 256 bones. A vertex is influenced by at most 4 bones.
+- Parts of one rig draw in their set order. Against the rest of the scene, a rig sorts by `MeshRenderer.layer` and then
+  by Z, as any mesh does.
 - A selected rig's outline shows its bind pose, not its current pose.

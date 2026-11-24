@@ -1,0 +1,189 @@
+---
+title: Playback and scripting
+description: Playing timelines at runtime — the TimelinePlayer component and its fields, the Timeline resource, playback ranges and unscaled time, TimelinePlayback events, wrap modes, timelines built in code, and the sampling and serialization functions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A `TimelinePlayer` component plays a timeline on its entity. Its fields are the playback controls: the engine applies
+them to its internal clock every frame, so code, the inspector and [AI actions](/docs/gameplay/ai/overview/#built-in-names)
+that change `playing` all control playback through the same channel. Playback advances in Play mode and in the
+standalone runtime, and is frozen in the editor's edit mode.
+
+## TimelinePlayer component
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `timeline` | asset | `''` | The timeline asset (`.estimeline`), or the name of a timeline registered in code. |
+| `playing` | boolean | `false` | Play flag: raise to play, lower to pause. Raising it on a finished clip replays from the start. |
+| `speed` | number | `1` | Playback rate multiplier. |
+| `wrapMode` | string | `''` | Overrides the clip's wrap mode: `'once'`, `'loop'` or `'pingPong'`. An empty string, or any other string, keeps the mode the clip declares. |
+| `finished` | boolean | `false` | Read-only. Latched when a `'once'` clip completes; cleared on the next play. |
+| `bindingNames` / `bindings` | string[] / Entity[] | `[]` | Named bindings for tracks whose path starts with `@` ([Bindings](/docs/animation/timeline/tracks/#bindings)). |
+| `rangeStart` | number | `0` | Start of the played range, in seconds. |
+| `rangeEnd` | number | `0` | End of the played range, in seconds; `0` is the timeline's end. |
+| `unscaledTime` | boolean | `false` | Run on real time instead of game time. |
+
+{/* SHOT: anim-timeline-player-details | Details panel of the Timeline Player entity in the cutscene example, showing Timeline set to intro.estimeline, Playing, Speed, Wrap Mode, Range Start, Range End, Unscaled Time and the Bindings list */}
+
+In code, the component is inserted with `Commands`:
+
+```typescript
+import { defineSystem, Commands, TimelinePlayer } from 'esengine';
+
+const attach = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'assets/timelines/intro.estimeline',
+    playing: true,
+    speed: 1.0,
+    wrapMode: 'once',
+  });
+});
+```
+
+### Playback range and real time
+
+A player plays the range from `rangeStart` to `rangeEnd`. It starts at the range's start; a once timeline finishes at
+the range's end, and a looping timeline loops within the range. With `unscaledTime`, the player runs on real time, so
+a cutscene or menu animation continues while the game is paused with `Time.scale` at `0`.
+
+## Timeline resource
+
+The `Timeline` resource controls a player's playback by entity:
+
+```typescript
+import { defineSystem, Query, Res, TimelinePlayer, Timeline } from 'esengine';
+
+const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timeline) => {
+  for (const [entity] of q) {
+    timeline.play(entity);
+    timeline.pause(entity);
+    timeline.stop(entity);
+    timeline.setTime(entity, 1.5);                  // seek to 1.5s
+    const t = timeline.getCurrentTime(entity);
+    const playing = timeline.isPlaying(entity);
+  }
+});
+```
+
+| Method | Description |
+|---|---|
+| `play(entity)` | Start or resume playback; a finished clip replays from the start. |
+| `pause(entity)` | Pause, keeping the current time. |
+| `stop(entity)` | Stop, reset to the start and clear the `finished` latch. |
+| `setTime(entity, seconds)` | Seek to a time, updating all tracks. |
+| `getCurrentTime(entity)` | Current playhead time, in seconds. |
+| `isPlaying(entity)` | Whether the timeline is playing. |
+| `registerAsset(name, asset)` / `unregisterAsset(name)` | Register or remove a timeline built in code ([Timelines from code](#timelines-from-code)). |
+| `getAsset(name)` | Look up a timeline by name. |
+
+The playback methods write through to the `TimelinePlayer` flags: `timeline.play(e)` and `player.playing = true` are
+the same operation.
+
+<Aside type="tip">
+  A cutscene without code pairs the component with a state machine: the built-in `timeline.play` action and
+  `timeline.finished` condition form an FSM state that plays a clip on entry and transitions out when it completes.
+  See [AI built-in names](/docs/gameplay/ai/overview/#built-in-names).
+</Aside>
+
+## Playback events
+
+Each change in a player's playback is sent as a `TimelinePlayback` event, read the next frame:
+
+```typescript
+import { defineSystem, EventReader, TimelinePlayback } from 'esengine';
+
+const onCutscene = defineSystem([EventReader(TimelinePlayback)], (events) => {
+  for (const e of events) if (e.kind === 'finished') giveControlBack(e.player);
+});
+```
+
+| `kind` | Sent when |
+|---|---|
+| `played` | The player starts, or resumes from a pause. |
+| `paused` | The player pauses (`Timeline.pause`, or `playing` lowered). |
+| `stopped` | The player is stopped and rewound (`Timeline.stop`). |
+| `finished` | A once timeline reaches its end, or the end of its range. |
+| `looped` | A looping or ping-pong timeline wraps around. |
+
+The payload also carries `player` (the entity) and `time` (the playhead position in seconds). Events and markers
+authored on tracks are delivered separately as `TimelineEvent`
+([Event and marker tracks](/docs/animation/timeline/tracks/#event-and-marker-tracks)).
+
+## Wrap modes
+
+A clip declares its own numeric `WrapMode`, used by the asset and the pure evaluation API. The player's `wrapMode`
+string, when it names a mode, overrides it.
+
+| `WrapMode` | Player string | Past the end |
+|---|---|---|
+| `WrapMode.Once` (`0`) | `'once'` | Clamps at `duration`, stops and latches `finished`. |
+| `WrapMode.Loop` (`1`) | `'loop'` | Wraps around (`time % duration`). |
+| `WrapMode.PingPong` (`2`) | `'pingPong'` | Plays forward, then backward, each cycle. |
+
+`applyWrapMode(time, duration, mode)` is the pure mapping: it returns `{ time, stopped }` for an absolute clock time.
+
+## Timelines from code
+
+An `.estimeline` document is plain data. The `TimelineAsset` type and the `TrackType`, `InterpType` and `WrapMode`
+constants build one in code. A timeline registered on the `Timeline` resource is played by any `TimelinePlayer`
+whose `timeline` names it; a name registered in code takes precedence over a loaded `.estimeline` of the same name.
+
+```typescript
+import {
+  defineSystem, Commands, Res, Timeline, TimelinePlayer,
+  TrackType, InterpType, WrapMode, type TimelineAsset,
+} from 'esengine';
+
+const slideIn: TimelineAsset = {
+  version: '1.3',
+  type: 'timeline',
+  duration: 2,
+  wrapMode: WrapMode.Once,
+  tracks: [{
+    type: TrackType.Property,
+    name: 'Slide in',
+    childPath: '',                       // '' = the player entity itself
+    component: 'Transform',
+    channels: [{
+      property: 'position.x',
+      keyframes: [
+        { time: 0, value: -200, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseOut },
+        { time: 2, value: 0, inTangent: 0, outTangent: 0 },
+      ],
+    }],
+  }],
+};
+
+const attach = defineSystem([Commands(), Res(Timeline)], (cmds, timeline) => {
+  timeline.registerAsset('code/slide-in', slideIn);
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'code/slide-in',
+    playing: true,
+    wrapMode: 'once',
+  });
+});
+```
+
+Keyframes and interpolation types are described in
+[Property tracks](/docs/animation/timeline/tracks/#property-tracks).
+
+## Sampling and serializing
+
+The evaluator is pure TypeScript, shared by playback and the Sequencer's scrubbing.
+
+| Function | Description |
+|---|---|
+| `sampleTimelineInWorld(asset, time, world, rootEntity, opts?)` | Evaluates every property track at `time` and writes the results into the world. |
+| `sampleTimeline(asset, time, rootEntity, deps, opts?)` | The same, with injected `SampleDeps` (world, component lookup, child resolver), for tests and tools. |
+| `evaluateChannel(channel, time)` | Value of one property channel at `time`; clamps at the end keys. |
+| `serializeTimelineAsset(asset)` | The asset as a JSON-ready object in the `.estimeline` document shape. |
+| `serializeTimelineToJson(asset, indent?)` | The `.estimeline` JSON string; `indent` defaults to `2`. |
+
+Sampling covers property tracks. Event-like tracks (audio, markers, custom events) fire during playback when the
+playhead crosses them, not when a time is sampled.
+
+## See also
+
+- [Timeline](/docs/animation/timeline/overview/) — track types and packaging.
+- [Tracks and bindings](/docs/animation/timeline/tracks/) — track fields.

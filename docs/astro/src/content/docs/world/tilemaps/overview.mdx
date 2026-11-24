@@ -1,0 +1,100 @@
+---
+title: Tilemap Basics
+description: Tilemap reference — the three authoring paths, creating a tilemap layer, map orientations (orthogonal, isometric, staggered, hexagonal), and the TilemapLayer component fields.
+---
+
+Tile layers are stored in chunks and rendered by the C++/WebAssembly core, batched per tileset texture. Every
+authoring path produces the same runtime layer model.
+
+![Tilemap mode on an isometric map: the paint tools and layer picker in the viewport toolbar, the Tile Palette in the bottom dock](@/assets/guides/en/tilemap-overview.png)
+
+*An isometric tilemap layer selected in the editor: paint tools and the active layer in the viewport toolbar, the
+**Tile Palette** with the tileset in the bottom dock.*
+
+## Authoring paths
+
+| Path | Data | Page |
+|---|---|---|
+| Editor **Tilemap mode** | `TilemapLayer` entities painted from `.estileset` tilesets | [Painting Tiles](/docs/world/tilemaps/painting/), [Tilesets](/docs/world/tilemaps/tilesets/) |
+| **`Tilemap`** component | A Tiled `.tmj` map; one `TilemapLayer` entity is derived per map layer | [Tiled Maps](/docs/world/tilemaps/tiled/) |
+| **`Tilemaps`** resource | Layers created and edited from code | [Tilemaps in Code](/docs/world/tilemaps/code/) |
+
+- Tile ids are **1-based**; `0` is an empty cell.
+- A chunk is 16 × 16 tiles.
+- Orthogonal, isometric, staggered and hexagonal grids are supported in every path.
+
+## Creating a tilemap
+
+- **Content Browser → right-click an `.estileset` → Create Tilemap** creates a layer that uses that tileset.
+- The **New Tilemap** command opens the New Tilemap dialog, which selects the tileset and the
+  [orientation](#orientations).
+- The layer picker menu in the viewport toolbar adds further layers (**New layer**) and
+  [collision layers](/docs/world/tilemaps/collision/#collision-layers).
+
+![The New Tilemap dialog — orientation picker and tileset list](@/assets/guides/en/tilemap-new.png)
+
+*The **New Tilemap** dialog selects the orientation and the tileset.*
+
+## Orientations
+
+Orientation is a property of each `TilemapLayer`. The New Tilemap dialog sets it together with the stagger axis,
+stagger index and hex side length where they apply; the Inspector edits the same fields afterwards. The grid overlay,
+brush preview, hover and selection highlights, and all paint tools follow the layer's grid.
+
+| Field | Values | Description |
+|---|---|---|
+| `orientation` | `Orthogonal` / `Isometric` / `Staggered` / `Hexagonal` | Grid layout. `Isometric` is the diamond grid; `Staggered` is staggered isometric. |
+| `staggerAxis` | `Y` / `X` | Staggered and hexagonal: `Y` shifts alternate rows, `X` shifts alternate columns. |
+| `staggerIndex` | `Odd` / `Even` | Which rows or columns carry the half-cell shift. |
+| `hexSideLength` | px | Hexagonal only: length of the flat side. `0` gives a regular pointy-top hexagon (`tileHeight / 2`). |
+
+![A hexagonal tilemap in the viewport](@/assets/guides/en/orient-hex.png)
+
+*Hexagonal grid. The grid, brush preview and tools follow the hex layout.*
+
+![A staggered-isometric tilemap in the viewport](@/assets/guides/en/orient-staggered.png)
+
+*Staggered isometric grid. Alternate rows are shifted by half a cell.*
+
+Tiled maps of any orientation import into the same fields, including `staggeraxis` / `staggerindex` of staggered maps.
+`examples/tilemap-demo` contains an isometric (`iso-map`), a staggered (`staggered-map`) and a pointy-top hexagonal
+(`hex-map`) scene painted in the editor.
+
+## The `TilemapLayer` component
+
+Each layer, whether imported from Tiled, painted in the editor or created in code, carries its display settings on a
+`TilemapLayer` component. The renderer reads these fields every frame, so animating `tintColor` and `opacity` takes
+effect immediately.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `cellSize` | Vec2 | `{32, 32}` | Tile size in world units. |
+| `orientation`, `staggerAxis`, `staggerIndex`, `hexSideLength` | — | `Orthogonal`, `Y`, `Odd`, `0` | Grid layout; see [Orientations](#orientations). |
+| `originOffset` | Vec2 | `{0, 0}` | Offsets the layer's grid in world units. Applied per frame together with parallax, so changing it moves the tiles without rebuilding chunks. |
+| `tileset` | texture | none | Tileset texture of a single-tileset layer. |
+| `tilesetColumns` | integer | `1` | Columns in the `tileset` atlas. The row count comes from the texture; a tile id past the last tile draws nothing. |
+| `renderLayer` | integer | `0` | Sorting layer for draw order. |
+| `tintColor` | Color | `{1,1,1,1}` | Multiplied with every tile. Animatable. |
+| `opacity` | number | `1` | Layer opacity, 0–1. Animatable. |
+| `parallaxFactor` | Vec2 | `{1, 1}` | Scroll factor relative to the camera. |
+| `visible` | boolean | `true` | Shows or hides the layer. |
+| `lit` | boolean | `false` | Lit by the scene's 2D lights, with a flat normal and the layer tint as albedo. `false` renders unlit. |
+
+Layers painted in the editor reference one or more `.estileset` assets. The scene stores these references, the tile
+chunks and the collidable tile ids beside the component record rather than in its fields
+([out-of-band component state](/docs/world/scenes/#out-of-band-component-state)).
+
+## Chapter pages
+
+- [Painting Tiles](/docs/world/tilemaps/painting/) — Tilemap mode, paint tools, stamps and layers.
+- [Tilesets](/docs/world/tilemaps/tilesets/) — the `.estileset` asset, tile animation, terrains and per-tile collision shapes.
+- [Tile Collision](/docs/world/tilemaps/collision/) — collider generation, collision layers and collision queries.
+- [Tiled Maps](/docs/world/tilemaps/tiled/) — `.tmj` import and object layers.
+- [Tilemaps in Code](/docs/world/tilemaps/code/) — the `Tilemaps` API, infinite layers and destructible tilemaps.
+
+## See also
+
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — gameplay points and trigger zones placed over a level.
+- [Physics](/docs/gameplay/physics/) — tile colliders take part in the physics world.
+- [Assets](/docs/assets/overview/) — loading `.tmj` maps and `.estileset` tilesets.
+- [Scenes](/docs/world/scenes/) — tilemap layers serialize with the scene.

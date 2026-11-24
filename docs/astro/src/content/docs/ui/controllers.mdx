@@ -71,7 +71,7 @@ world.insert(card, UIGear, {
 ```
 
 `gearBinding(controller, component, property, pages, tween?)` addresses a field the same
-way a [Timeline](/docs/animation/timeline/) property track does — a component name plus a
+way a [Timeline](/docs/animation/timeline/tracks/#property-tracks) property track does — a component name plus a
 dot-path `property` (`"color"`, `"color.a"`, `"scale.x"`). `pages` is a **sparse** map
 keyed by page name: a page with no entry leaves the field untouched.
 
@@ -209,6 +209,6 @@ controller state → gear presentation.
 
 - [UI](/docs/ui/overview/) — the flexbox component model gears drive.
 - [UI Components](/docs/ui/widgets/) — the widget factories.
-- [Timeline](/docs/animation/timeline/) — keyframed transitions; gears use the same field addressing.
+- [Timeline](/docs/animation/timeline/overview/) — keyframed transitions; gears use the same field addressing.
 - [Gameplay AI](/docs/gameplay/ai/overview/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
 - [Event Binding](/docs/scripting/events/) — wire a click straight to `ui.setPage`, no code.

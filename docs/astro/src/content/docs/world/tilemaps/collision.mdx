@@ -1,0 +1,104 @@
+---
+title: Tile Collision
+description: Reference for tilemap collision — how colliders are generated from tileset and Tiled collision data, the collision overlay, collision layers painted with built-in collision brushes over a background, and tile collision queries.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Tile collision is data on the tiles: shapes and modifiers authored in the `.estileset`
+([Collision shapes](/docs/world/tilemaps/tilesets/#collision-shapes)), imported from Tiled, or painted with the
+built-in collision brushes on a [collision layer](#collision-layers). Static colliders are generated from this data
+when the scene runs.
+
+## Collider generation
+
+| Tile collision | Generated colliders |
+|---|---|
+| Plain solid box (no modifier) | Greedy-merged with adjacent boxes into large static colliders. |
+| Circle, polygon, slope or half tile; one-way; sensor; physics-material override | One collider per tile. |
+
+- Tile flip flags reorient the collision geometry to match the rendered tile.
+- One-way tiles are solid from one side only; sensor tiles produce overlap events and no contact response.
+
+<Aside type="note">
+  Tile colliders exist in play mode only. They are generated when the scene runs and are never part of the edit world
+  or serialized. [Destructible tilemaps](/docs/world/tilemaps/code/#destructible-tilemaps) change this generation to
+  exposed tiles only.
+</Aside>
+
+### Collision overlay
+
+**Show Flags → Tile Collision** in the viewport (also the **Show Tile Collision** command) draws the selected layer's
+complete collision as an overlay. The overlay shows the same shapes that Play generates.
+
+{/* SHOT: world-tilemap-collision-overlay | The viewport with Show Flags → Tile Collision enabled over a painted platformer layer, showing merged solid boxes and one-way tiles (examples/tilemap-demo, native-map scene, tilemap layer selected) */}
+
+## Collision from Tiled
+
+Shapes drawn in Tiled's tile collision editor (rectangles, ellipses, polygons) import into the same model. A full-cell
+rectangle remains a mergeable solid box; any other shape generates one collider per tile. Tile properties apply the
+same modifiers:
+
+| Tiled tile property | Type | Effect |
+|---|---|---|
+| `oneway` | bool `true` | One-way with a solid top. |
+| `sensor` | bool `true` | Sensor. |
+| `friction` / `restitution` / `density` | number | Physics-material override. |
+| `collision` | bool `true` | Plain solid box (legacy form). |
+
+Tiled object layers can also produce colliders; see [Collision object groups](/docs/world/tilemaps/tiled/#collision-object-groups).
+
+## Collision layers
+
+A **collision layer** is a `TilemapLayer` that renders nothing and paints collider cells over whatever lies behind it.
+It provides walls, floors and slopes for levels whose art is a single background image rather than tiles.
+
+A collision layer is an ordinary tile layer whose tileset reference is the sentinel `builtin:collision` instead of an
+`.estileset`. It therefore uses the standard paint tools, chunk storage, flips and box merging. Its cells are saved in
+the layer's chunk data; its colliders are generated at Play like any tile collision.
+
+**New Collision Layer** (Command Palette, or **New collision layer** in the layer picker menu) creates one, selects the
+Solid brush with the Brush tool, and opens the Tile Palette with the collision brushes in place of a tileset. The new
+layer copies the grid — cell size, origin offset, position and orientation — of the selected tilemap layer, or else of
+the first tilemap layer in the scene; with no tilemap layer present, it uses a 32 × 32 px grid.
+
+![The collision-brush palette — Solid, ramps, half-tiles, One-way, and Trigger brushes, with per-layer friction and bounce fields](@/assets/guides/en/collision-palette.png)
+
+*The collision palette: **Solid**, ramps, half tiles, **One-way ↑** and **Trigger**, and the whole-layer
+**Friction** and **Bounce** fields.*
+
+| Key | Brush | Cell | Use |
+|---|---|---|---|
+| `1` | **Solid** | Full box | Walls, floors, ceilings. Greedy-merged into large colliders. |
+| `2` / `3` | **Ramp ◢** / **Ramp ◣** | Triangle | Slopes rising to the right / to the left (45° on square cells). |
+| `4`–`7` | **Half** (bottom, top, left, right) | Half box | Ledges, low walls, thin floors. |
+| `8` | **One-way ↑** | Box, solid from above | Jump-through platforms. Flipping the cell reorients it (a ceiling, a wall). |
+| `9` | **Trigger** | Sensor box | Non-solid region that produces overlap events; see [Markers & Trigger Areas](/docs/gameplay/markers/). |
+
+The number keys select a brush while a collision layer is selected.
+
+### Layer physics material
+
+The palette's **Friction** and **Bounce** fields set one physics material for every cell of the layer; an empty field
+uses the engine default. The material is stored in the layer's tileset reference as query parameters, for example
+`builtin:collision?friction=0.1&restitution=0.2`; `density` is accepted in the same form but has no palette field.
+
+When a material is set, Solid cells carry it and are no longer greedy-merged: every cell of the layer generates its
+own collider.
+
+## Collision queries
+
+Gameplay code reads the resolved collision data directly, without a physics raycast. These functions work for every
+layer, including collision layers, and are exported from `esengine/tilemap`.
+
+| Function | Returns |
+|---|---|
+| `tileCollisionAt(layer, x, y)` | The tile's resolved shape and modifiers, or `null`. |
+| `isTileSolid(layer, x, y)` | `true` for any non-sensor collision. One-way tiles count as solid; check `.oneWay` on the result to treat them separately. |
+| `tileCollisionAtWorld(layer, worldX, worldY, originX?, originY?, rotation?)` | `tileCollisionAt` addressed in world pixels. |
+
+## See also
+
+- [Tilesets](/docs/world/tilemaps/tilesets/#collision-shapes) — authoring per-tile collision shapes.
+- [Physics](/docs/gameplay/physics/) — static colliders in the 2D physics world.
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — trigger regions as queryable entities.

@@ -121,7 +121,7 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 
 | 名字 | 类别 | 效果 |
 |---|---|---|
-| `timeline.play` | 动作 | 拉起该实体 [`TimelinePlayer`](/docs/zh-cn/animation/timeline/) 的播放旗标。对已播完的片段,从头重播。 |
+| `timeline.play` | 动作 | 拉起该实体 [`TimelinePlayer`](/docs/zh-cn/animation/timeline/playback/#timelineplayer-组件) 的播放旗标。对已播完的片段,从头重播。 |
 | `timeline.pause` | 动作 | 放下播放旗标(用 `timeline.play` 恢复)。 |
 | `timeline.finished` | 条件 | 片段已完成(`once` 片段播到末尾)且未在播放时为真。 |
 | `spriteAnim.play` | 动作 | 播放代理实体的精灵翻页动画;**参数**可切换到指定剪辑。 |
@@ -260,6 +260,6 @@ export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
 ## 参见
 
 - [脚本](/docs/zh-cn/scripting/overview/) —— 行为是声明式系统;叶子就是普通函数。
-- [动画](/docs/zh-cn/animation/overview/) —— 用状态机驱动精灵动画。
+- [精灵动画](/docs/zh-cn/animation/sprite-animation/#状态机动作) —— 用状态机驱动精灵动画。
 - [场景](/docs/zh-cn/world/scenes/) —— `.esfsm` / `.esbt` 资产随场景加载与序列化。
 - [事件绑定](/docs/zh-cn/scripting/events/) —— 点击或触发可以 `fsm.fire` 进状态机；动作与条件出自同一个注册表。

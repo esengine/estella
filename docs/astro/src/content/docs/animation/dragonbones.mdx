@@ -1,110 +1,88 @@
 ---
 title: DragonBones Animation
-description: The complete guide to DragonBones skeletal animation — importing a project, the DragonBonesAnimation component, choosing an armature, crossfading with fadeIn, and the DragonBones runtime API.
+description: DragonBones skeletal animation reference — importing a DragonBones project, the DragonBonesAnimation component, armature selection, the DragonBones resource API for playback and crossfades, shared skeletons, and what each build target ships.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella animates [DragonBones](https://docs.egret.com/dragonbones) armatures:
-bones, meshes, slots and animations, posed by the same renderer that draws
-everything else. It's driven by the `DragonBonesAnimation` component and
-controlled at runtime through the `DragonBones` resource (from the
-`esengine/dragonbones` subpath).
+Estella plays [DragonBones](https://docs.egret.com/dragonbones) armatures: bones, meshes, slots and animations, drawn
+by the same renderer as the rest of the scene. An armature is placed by the **`DragonBonesAnimation`** component (main
+`esengine` package) and controlled at runtime through the **`DragonBones`** resource, exported from the
+`esengine/dragonbones` subpath.
 
-It runs everywhere the engine does — the editor viewport, Play, web, playable
-ads, mini-games, and compiled into the iOS and Android hosts.
+DragonBones runs on every target the engine supports: the editor viewport, Play, Web, playable ads, mini-games, and the
+iOS and Android hosts.
 
-<Aside type="tip">
-  Unlike Spine, the DragonBones runtime is **MIT licensed**. Shipping a game that
-  uses it needs no separate license.
+<Aside type="note">
+  The DragonBones runtime is **MIT licensed**. Shipping a game that uses it requires no separate license.
 </Aside>
 
 ## Importing a project
 
-A DragonBones export is three files, and Estella imports all three as one asset
-type:
+A DragonBones export consists of three files, imported together as one asset type:
 
-| File | What it is |
+| File | Content |
 |---|---|
-| `<name>_ske.json` or `<name>.dbbin` | The skeleton — bones, slots, animations. |
-| `<name>_tex.json` | The atlas — where each piece sits on the image. |
-| `<name>_tex.png` | The image itself. |
+| `<name>_ske.json` or `<name>.dbbin` | Skeleton: bones, slots, animations. |
+| `<name>_tex.json` | Atlas: the position of each piece in the image. |
+| `<name>_tex.png` | Atlas image. |
 
-Drop the folder into the project. The two `_ske` / `_tex` halves are told apart
-**by their name suffix**, not their extension — both are `.json`, so extension
-alone cannot say which is which.
+Copy the folder into the project. The skeleton and atlas JSON files are distinguished **by the `_ske` / `_tex` name
+suffix**, not by extension.
 
-The PNG is the one file nothing in your scene points at: it is named *inside* the
-atlas, in its `imagePath` field. Estella follows that reference when it packages a
-build, so the image ships with the atlas instead of being culled as unreachable.
-You do not need to reference it anywhere.
+The PNG is referenced only from inside the atlas, by its `imagePath` field. Packaging follows that reference, so the
+image is included in builds without being referenced from a scene.
 
 ## The `DragonBonesAnimation` component
 
-Add it with **+ Add → Create entity… → DragonBones**, or add the component to an existing entity.
-It lives in the main `esengine` package.
+Create it with **+ Add → Create entity… → DragonBones**, or add the component to an existing entity.
 
 ![The DragonBonesAnimation component in the Details panel — asset slots for the skeleton and atlas, and Armature and Animation dropdowns filled from the file](@/assets/guides/en/dragonbones-inspector.png)
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `skeletonPath` | asset | `''` | Skeleton file (`_ske.json` / `.dbbin`). |
+| `skeletonPath` | asset | `''` | Skeleton file (`_ske.json` or `.dbbin`). |
 | `atlasPath` | asset | `''` | Atlas file (`_tex.json`). |
-| `armature` | string | `''` | Which armature in the file (empty = the first). |
-| `animation` | string | `''` | Animation to play on spawn. |
-| `loop` | boolean | `true` | Loop the initial animation. |
+| `armature` | string | `''` | Armature within the file. Empty uses the first. |
+| `animation` | string | `''` | Animation played on spawn. |
+| `loop` | boolean | `true` | Loops the initial animation. |
 | `playing` | boolean | `true` | Whether playback advances. |
-| `fadeInTime` | number | `0` | Crossfade seconds, used on the first play too. |
-| `timeScale` | number | `1` | Per-entity playback speed. |
-| `skeletonScale` | number | `1` | Uniform skeleton scale. |
-| `flipX` / `flipY` | boolean | `false` | Mirror horizontally / vertically. |
-| `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0..1). |
-| `layer` | number | `0` | Sorting layer for draw order. |
-| `material` | asset | none | Optional custom material. |
-| `enabled` | boolean | `true` | Disable to freeze and hide. |
+| `fadeInTime` | number | `0` | Crossfade duration in seconds when the animation changes, including the first play. |
+| `timeScale` | number | `1` | Per-entity playback speed (≥ 0). |
+| `skeletonScale` | number | `1` | Uniform armature scale (≥ 0). |
+| `flipX` / `flipY` | boolean | `false` | Mirrors horizontally / vertically. |
+| `color` | Color | `{1,1,1,1}` | Tint (RGBA, 0–1), multiplied onto each slot's authored colour. |
+| `layer` | number | `0` | Sorting layer; higher draws on top. |
+| `material` | asset | none | Custom material. None uses the default batch shader. |
+| `enabled` | boolean | `true` | Off freezes and hides the armature. |
 
-**Skeleton and atlas are asset slots**: pick from the popover, drag a file in from
-the Content Browser, or use the slot's locate / clear actions. The scene serializes
-them as portable `@uuid:` references, so moving or renaming the files never breaks
-the link.
+### Editor behaviour
 
-The armature poses **in the viewport while you edit** — changing the animation, the
-scale or a flip shows immediately, without pressing Play.
+- **Asset slots.** `skeletonPath` and `atlasPath` are asset slots: pick from the popover, drag a file from the Content
+  Browser, or use the slot's locate / clear actions. The scene stores them as `@uuid:` references, so moving or
+  renaming the files keeps the link.
+- **Live preview.** The armature is posed in the viewport in edit mode; changes to the animation, scale or flip are
+  shown without entering Play.
+- **Tint.** Because `color` multiplies the authored slot colours, opaque white (the default) leaves them unchanged, and
+  clearing the field restores the original colours.
 
-<Aside type="note">
-  `color` **multiplies** each slot's authored colour rather than replacing it, so
-  what an artist set in DragonBones Pro survives being tinted — and opaque white
-  (the default) is the tint that changes nothing, which is why clearing the field
-  restores the original instead of leaving the last colour stuck.
-</Aside>
+## Armature selection
 
-## Choosing an armature
+A DragonBones file is a project that can contain several armatures; `armature` selects one.
 
-A DragonBones file is a **project**, not a skeleton: one file often holds several
-armatures. Choosing one is a real step, so `armature` is its own field.
-
-Once the entity points at a skeleton, **Armature** and **Animation** become
-dropdowns filled by reading that file — you pick from what is actually in it
-rather than typing a name and finding out at runtime. The animation list follows
-the chosen armature, because two armatures in one file do not share an animation
-list.
-
-Leaving `armature` empty uses the first armature the file holds. Most files ship
-one, and requiring a value you cannot know without opening the file would make the
-common case harder than it is.
+Once `skeletonPath` is set, **Armature** and **Animation** become dropdowns populated from the file. The animation list
+follows the selected armature, since armatures in the same file have separate animation lists. An empty `armature`
+uses the first armature in the file.
 
 <Aside type="note">
-  A `.dbbin` skeleton fills no dropdown — it is binary, and naming what is inside
-  it would mean starting the runtime just to populate a list. The field stays a
-  plain text box, and a name you type still works.
+  A `.dbbin` skeleton does not populate the dropdowns; the fields remain text boxes. A typed name is still used at
+  runtime.
 </Aside>
 
-## Play & crossfade animations
+## Playback and crossfades
 
-This is where DragonBones differs from Spine most, and the API says so rather than
-pretending otherwise. Spine keeps a **mix table** on the skeleton — "going from
-idle to run takes 0.2s". DragonBones blends **at the moment an animation starts**,
-so the fade is an argument to starting it:
+DragonBones has no mix table on the skeleton. A crossfade is specified when an animation starts, as an argument to
+`fadeIn`:
 
 ```typescript
 import { defineSystem, Query, Res, DragonBonesAnimation } from 'esengine';
@@ -113,11 +91,11 @@ import { DragonBones } from 'esengine/dragonbones';
 const control = defineSystem(
   [Query(DragonBonesAnimation), Res(DragonBones)],
   (q, dragonBones) => {
-    // Null until the runtime lands — it is fetched on first use.
+    // Null until the runtime has loaded; it is fetched on first use.
     if (!dragonBones) return;
 
     for (const [entity] of q) {
-      dragonBones.fadeIn(entity, 'walk', 0.25, true);  // crossfade over 0.25s
+      dragonBones.fadeIn(entity, 'walk', 0.25, true);  // crossfade over 0.25 s
       dragonBones.setTimeScale(entity, 1.5);           // 1.5x speed
     }
   },
@@ -126,76 +104,71 @@ const control = defineSystem(
 
 | Method | Description |
 |---|---|
-| `play(entity, name, loop?)` | Start an animation immediately, no blend. |
-| `fadeIn(entity, name, seconds, loop?)` | Crossfade into an animation. |
-| `stop(entity, name?)` | Stop one animation, or all of them when omitted. |
+| `play(entity, name, loop?)` | Starts an animation immediately, without blending. |
+| `fadeIn(entity, name, seconds, loop?)` | Crossfades into an animation. |
+| `stop(entity, name?)` | Stops one animation, or all when `name` is omitted. |
 | `setTimeScale(entity, scale)` | Per-entity playback speed. |
-| `setColor(entity, r, g, b, a)` | Tint the whole armature (0..1), multiplied onto slot colours. |
-| `setEnabled(entity, on)` | Remove from the frame entirely (freeze **and** hide). |
-| `setEntityProps(entity, props)` | Set `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }` at once. |
+| `setColor(entity, r, g, b, a)` | Tints the armature (0–1), multiplied onto slot colours. |
+| `setEnabled(entity, on)` | Removes the armature from the frame (frozen and hidden) or restores it. |
+| `setEntityProps(entity, props)` | Sets `{ skeletonScale?, flipX?, flipY?, layer?, playing?, timeScale?, color? }` in one call. |
 
-`playing: false` freezes the pose but keeps drawing it; `setEnabled(false)` takes
-the armature out of the frame. They are different things and both are useful.
+`loop` defaults to `true` in `play` and `fadeIn`.
 
-`setEnabled` and the component's own `enabled` field drive the same switch: writing
-the field (in the inspector, or via `world.set`) wins at the moment it is written,
-and `setEnabled` holds between such writes. The editor's Outliner eye rides the
-same channel, which is why hiding a skeletal entity hides it in the viewport
-without touching the `enabled` you authored.
+### `playing` and `enabled`
 
-## Query an armature
+| Setting | Pose | Drawn |
+|---|---|---|
+| `playing: false` | Frozen | Yes |
+| `enabled: false` / `setEnabled(entity, false)` | Frozen | No |
+
+`setEnabled` and the component's `enabled` field control the same switch. Writing the field (in the inspector or with
+`world.set`) takes effect when written; `setEnabled` holds until the next such write. The Outliner visibility toggle
+uses the same channel, so hiding an entity in the Outliner does not change its authored `enabled` value.
+
+## Querying an armature
 
 ```typescript
 const anims  = dragonBones.getAnimations(entity);  // string[]
 const bounds = dragonBones.getBounds(entity);      // { x, y, width, height } | null
 ```
 
-`getBounds` is derived from the armature's **posed** geometry, not from the bounds
-the authoring tool recorded — so it follows the character as it moves rather than
-describing where it was drawn.
+`getBounds` is computed from the armature's **posed** geometry, not from bounds recorded by the authoring tool, so it
+follows the current pose.
 
-## Sharing one skeleton
+## Shared skeletons
 
-Entities pointing at the same skeleton + atlas pair share **one parsed skeleton and
-one atlas**. Ten copies of a character parse the file once and hold one texture
-between them; the last one removed unloads it.
+Entities that reference the same skeleton and atlas pair share **one parsed skeleton and one atlas texture**. The data
+is unloaded when the last referencing entity is removed. No setting is required.
 
-Nothing is required to opt in — it follows from the pair the components reference.
-Per-entity properties stay per entity, so a shared skeleton can still be scaled,
-flipped and tinted independently:
+Per-entity properties remain per entity, so instances of a shared skeleton can be scaled, flipped and tinted
+independently:
 
 ![Two DragonBoy armatures from one file — the second scaled down and mirrored through component fields alone](@/assets/guides/en/dragonbones-shared.png)
 
-## What ships in a build
+## Build output
 
-The DragonBones runtime is **pay-for-use**. A project without an armature in it
-never fetches, inlines or copies the module:
+The DragonBones runtime is included only when a packaged scene uses it. The editor determines this by scanning the
+scenes being packaged; there is no setting.
 
-| Target | How the runtime gets there |
+| Target | Runtime delivery |
 |---|---|
 | Web / desktop | `dragonbones.wasm` beside the engine, fetched on first use. |
-| Playable ad | Inlined into the single HTML file — only if a scene uses it. |
-| Mini-game | Copied into the package — only if a scene uses it. |
+| Playable ad | Inlined into the single HTML file. |
+| Mini-game | Copied into the package. |
 | iOS / Android | Compiled into the app binary. |
-
-The editor decides by scanning the scenes it is packaging, so there is no setting
-to remember and no way to ship a game whose armatures have no runtime.
 
 ## Best practices
 
-- **Give transitions a fade.** `fadeIn` with 0.15–0.3s reads far better than
-  `play`, which snaps. Set `fadeInTime` on the component so the first play blends
-  too.
-- **Share the pair across entities** — a crowd of one character costs one parse and
-  one atlas.
-- **Pick the armature in the editor**, from the dropdown, rather than typing it:
-  a name that does not exist in the file draws nothing.
-- **Prefer `playing: false` to disabling** when you want a character to hold a pose
-  on screen.
+- **Crossfade transitions** with `fadeIn` (0.15–0.3 s); `play` switches without blending. Set `fadeInTime` on the
+  component so the first play also blends.
+- **Share the skeleton and atlas pair** across entities; a group of identical characters costs one parse and one atlas.
+- **Select the armature from the dropdown** rather than typing it; a name that does not exist in the file draws
+  nothing.
+- **Use `playing: false`** rather than disabling to hold a visible pose.
 
 ## See also
 
-- [Spine Animation](/docs/animation/spine/) — the other skeletal runtime, and how it differs.
+- [Spine Animation](/docs/animation/spine/) — the other skeletal runtime.
 - [Animation](/docs/animation/overview/) — sprite flipbooks and the Animator state machine.
-- [Assets](/docs/assets/overview/) — how skeleton and atlas assets are imported and referenced.
-- [Build & Export](/docs/publishing/overview/) — what a package contains per target.
+- [Assets](/docs/assets/overview/) — importing and referencing skeleton and atlas assets.
+- [Build & Export](/docs/publishing/overview/) — package contents per target.

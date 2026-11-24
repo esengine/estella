@@ -1,0 +1,87 @@
+---
+title: Painting Tiles
+description: Tilemap mode reference — the paint tools and their shortcuts, stamp transforms, the Tile Palette with multi-tile, saved and random stamps, the layer picker, tile replacement and missing terrain rule highlighting.
+---
+
+Selecting an entity with a `TilemapLayer` enables **Tilemap mode**: the paint tools appear in the viewport toolbar
+and the **Tile Palette** opens in the bottom dock beside the Content Browser. Tilemap mode can also be entered from
+its icon in the Activity Bar. Tiles are painted directly in the viewport, with a preview of the stamp under the
+cursor.
+
+## Paint tools
+
+| Tool | Key | Behaviour |
+|---|---|---|
+| Brush | `B` | Paints the current stamp; drag for strokes. `Alt`+click picks the stamp from the layer. |
+| Erase | `E` | Clears tiles. |
+| Rectangle | `U` | Fills a dragged rectangle with the stamp pattern. `Shift` constrains to a square; `Alt` paints the outline only. |
+| Ellipse | `O` | Fills the ellipse inscribed in a dragged box. `Shift` constrains to a circle; `Alt` paints a ring. |
+| Line | `L` | Lays the stamp along a straight line. `Shift` constrains to horizontal, vertical or 45°. |
+| Bucket | `G` | Flood-fills the connected region of matching tiles. |
+| Select | `M` | Marquee selection. `mod`+`C` / `mod`+`X` copy / cut the region, `Delete` clears it, `mod`+`V` pastes it as the brush. Dragging from inside the marquee moves the block (one undo step; `Esc` cancels). |
+| Eyedropper | `I` | Picks the stamp from tiles on the layer. |
+| Terrain | `T` | Terrain brush: paints a terrain and re-resolves neighbouring tiles ([Terrains](/docs/world/tilemaps/tilesets/#terrains)). |
+
+The tool keys select a tool whenever a tilemap layer is selected. The following keys apply while a paint tool is
+active:
+
+| Key | Action |
+|---|---|
+| `H` / `V` | Flip the stamp horizontally / vertically. |
+| `R` | Rotate the stamp 90° clockwise. |
+| `D` | Toggle random mode. |
+| `Q` / `Esc` | Leave painting and return to the Select tool. |
+| `W` | Leave painting and return to the Move tool. |
+| `1`–`9` | On a [collision layer](/docs/world/tilemaps/collision/#collision-layers): select the collision brush at that position in the palette. |
+
+## Tile Palette
+
+![The Tile Palette up close — the tileset picker, the Tiles / Terrain / Stamps tabs, the atlas to stamp from, and the current brush](@/assets/guides/en/tilemap-tools.png)
+
+*The Tile Palette: tileset picker and the **Tiles / Terrain / Stamps** tabs at the top, the atlas, and the **Current
+brush** with flip, rotate, **Random** and **Save as stamp**.*
+
+| Tab | Content |
+|---|---|
+| **Tiles** | The atlas of the active tileset. Click a tile, or drag across tiles to take a block as a multi-tile stamp. Arrow keys move the selection; `Shift`+arrow keys extend it into a stamp. |
+| **Terrain** | The terrains (or terrain colours) of the tileset, for the Terrain tool. |
+| **Stamps** | The project's saved stamps. Click a stamp to make it the brush; `×` deletes it. |
+
+- **Save as stamp**, under the current brush, adds the brush to the project's stamp library. Identical patterns are
+  stored once. The library is saved in `assets/editor/tile-stamps.json` and travels with the project.
+- **Random** (`D`) makes each painted cell take one tile at random from the stamp instead of repeating the pattern.
+  Sampling is weighted by each tile's **probability** property from the tileset editor's Properties mode (default `1`;
+  `0` excludes the tile).
+
+## Layers
+
+The layer picker in the viewport toolbar switches the active layer when a scene has several tilemap layers. Its menu
+provides:
+
+| Item | Effect |
+|---|---|
+| Per-layer controls | Show / hide, lock, opacity, rename, duplicate, delete, move up / move down (draw order). |
+| **New layer** | Creates a layer with the active tileset. |
+| **New collision layer** | Creates a [collision layer](/docs/world/tilemaps/collision/#collision-layers). |
+| **Replace tiles…** | Opens the tile replacement dialog. |
+| **Highlight missing terrain rules** | Marks cells resolved by a fallback rule. |
+
+### Replacing tiles
+
+**Replace tiles…** turns every occurrence of one tile id into another, within the current selection or across the
+entire layer. The affected cells are previewed in the viewport and counted in the dialog before **Replace** commits
+the change as one undo step. If the layer changes while the dialog is open, the replacement is refused until the
+preview is recomputed.
+
+{/* SHOT: world-tilemap-replace-tiles | The Replace tiles dialog over the viewport with source tile 1 and target tile 2, Entire layer ticked, and the affected cells highlighted on the map (examples/tilemap-workflows, Ground layer selected) */}
+
+### Missing terrain rules
+
+**Highlight missing terrain rules** marks, in orange, every cell whose terrain combination has no exact tile in the
+tileset and was resolved by a fallback; the menu shows how many cells use a fallback. `examples/tilemap-workflows`
+contains a 48 × 32 layer with deliberately incomplete edge, corner and Wang rules for this purpose.
+
+## See also
+
+- [Tilesets](/docs/world/tilemaps/tilesets/) — tiles, animation, terrains and collision shapes authored in the tileset editor.
+- [Tile Collision](/docs/world/tilemaps/collision/) — the collision overlay and collision layers.

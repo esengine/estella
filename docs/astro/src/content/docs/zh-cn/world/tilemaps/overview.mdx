@@ -1,0 +1,88 @@
+---
+title: 瓦片地图基础
+description: 瓦片地图参考——三种创作途径、创建瓦片地图图层、地图朝向（正交、等距、交错、六边形），以及 TilemapLayer 组件字段。
+---
+
+瓦片图层以分块存储，由 C++/WebAssembly 内核渲染，并按瓦片集纹理合批。所有创作途径都生成同一种运行时图层模型。
+
+![等距地图上的瓦片地图模式：绘制工具与图层选择器位于视口工具栏，瓦片调色板位于底部停靠区](@/assets/guides/zh/tilemap-overview.png)
+
+*编辑器中选中的等距瓦片图层：绘制工具与当前图层位于视口工具栏，带瓦片集的**瓦片调色板**位于底部停靠区。*
+
+## 创作途径
+
+| 途径 | 数据 | 页面 |
+|---|---|---|
+| 编辑器**瓦片地图模式** | 由 `.estileset` 瓦片集绘制的 `TilemapLayer` 实体 | [绘制瓦片](/docs/zh-cn/world/tilemaps/painting/)、[瓦片集](/docs/zh-cn/world/tilemaps/tilesets/) |
+| **`Tilemap`** 组件 | Tiled `.tmj` 地图；每个地图图层派生一个 `TilemapLayer` 实体 | [Tiled 地图](/docs/zh-cn/world/tilemaps/tiled/) |
+| **`Tilemaps`** 资源 | 由代码创建与编辑的图层 | [代码中的瓦片地图](/docs/zh-cn/world/tilemaps/code/) |
+
+- 瓦片 id **从 1 开始**；`0` 表示空格。
+- 一个分块为 16 × 16 个瓦片。
+- 所有途径均支持正交、等距、交错与六边形网格。
+
+## 创建瓦片地图
+
+- **内容浏览器 → 右键 `.estileset` → 创建瓦片地图** 创建一个使用该瓦片集的图层。
+- **新建瓦片地图**命令打开新建瓦片地图对话框，在其中选择瓦片集与[朝向](#朝向)。
+- 视口工具栏中图层选择器的菜单可添加更多图层（**新建图层**）与[碰撞层](/docs/zh-cn/world/tilemaps/collision/#碰撞层)。
+
+![新建瓦片地图对话框——朝向选择器与瓦片集列表](@/assets/guides/zh/tilemap-new.png)
+
+***新建瓦片地图**对话框选择朝向与瓦片集。*
+
+## 朝向
+
+朝向是每个 `TilemapLayer` 自身的属性。新建瓦片地图对话框在设置朝向的同时设置适用的交错轴、交错序号与六边形边长；之后由检视器编辑同一组字段。网格覆盖层、笔刷预览、悬停与选区高亮以及所有绘制工具都跟随图层的网格。
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| `orientation` | `Orthogonal` / `Isometric` / `Staggered` / `Hexagonal` | 网格布局。`Isometric` 为菱形网格；`Staggered` 为交错等距网格。 |
+| `staggerAxis` | `Y` / `X` | 交错与六边形网格：`Y` 平移隔行，`X` 平移隔列。 |
+| `staggerIndex` | `Odd` / `Even` | 哪些行或列带有半格平移。 |
+| `hexSideLength` | px | 仅六边形：平边长度。`0` 表示规则的尖顶六边形（`tileHeight / 2`）。 |
+
+![视口中的六边形瓦片地图](@/assets/guides/zh/orient-hex.png)
+
+*六边形网格。网格、笔刷预览与工具均跟随六边形布局。*
+
+![视口中的交错等距瓦片地图](@/assets/guides/zh/orient-staggered.png)
+
+*交错等距网格。隔行平移半格。*
+
+任意朝向的 Tiled 地图都导入到同一组字段，包括交错地图的 `staggeraxis` / `staggerindex`。`examples/tilemap-demo` 包含在编辑器中绘制的等距（`iso-map`）、交错（`staggered-map`）与尖顶六边形（`hex-map`）场景。
+
+## `TilemapLayer` 组件
+
+每个图层——无论从 Tiled 导入、在编辑器中绘制还是由代码创建——都在 `TilemapLayer` 组件上保存其显示设置。渲染器每帧读取这些字段，因此对 `tintColor` 与 `opacity` 做动画会立即生效。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `cellSize` | Vec2 | `{32, 32}` | 瓦片尺寸（世界单位）。 |
+| `orientation`、`staggerAxis`、`staggerIndex`、`hexSideLength` | — | `Orthogonal`、`Y`、`Odd`、`0` | 网格布局；见[朝向](#朝向)。 |
+| `originOffset` | Vec2 | `{0, 0}` | 以世界单位偏移图层网格。与视差一起逐帧应用，因此修改它会移动瓦片而不重建分块。 |
+| `tileset` | 纹理 | 无 | 单瓦片集图层的瓦片集纹理。 |
+| `tilesetColumns` | 整数 | `1` | `tileset` 图集的列数。行数由纹理决定；超出最后一个瓦片的 id 不绘制。 |
+| `renderLayer` | 整数 | `0` | 决定绘制顺序的排序层。 |
+| `tintColor` | Color | `{1,1,1,1}` | 与每个瓦片相乘。可动画。 |
+| `opacity` | number | `1` | 图层不透明度，0–1。可动画。 |
+| `parallaxFactor` | Vec2 | `{1, 1}` | 相对相机的滚动系数。 |
+| `visible` | boolean | `true` | 显示或隐藏图层。 |
+| `lit` | boolean | `false` | 受场景 2D 光照影响，使用平直法线并以图层着色作为反照率。`false` 时不受光照。 |
+
+在编辑器中绘制的图层引用一个或多个 `.estileset` 资源。场景将这些引用、瓦片分块以及可碰撞瓦片 id 存放在组件记录旁，而不是存放在组件字段中（[带外组件状态](/docs/zh-cn/world/scenes/#带外组件状态)）。
+
+## 本章页面
+
+- [绘制瓦片](/docs/zh-cn/world/tilemaps/painting/) —— 瓦片地图模式、绘制工具、图章与图层。
+- [瓦片集](/docs/zh-cn/world/tilemaps/tilesets/) —— `.estileset` 资源、瓦片动画、地形与逐瓦片碰撞形状。
+- [瓦片碰撞](/docs/zh-cn/world/tilemaps/collision/) —— 碰撞体生成、碰撞层与碰撞查询。
+- [Tiled 地图](/docs/zh-cn/world/tilemaps/tiled/) —— `.tmj` 导入与对象层。
+- [代码中的瓦片地图](/docs/zh-cn/world/tilemaps/code/) —— `Tilemaps` API、无限图层与可破坏瓦片地图。
+
+## 参见
+
+- [标记与触发区](/docs/zh-cn/gameplay/markers/) —— 放置在关卡上的玩法点位与触发区域。
+- [物理](/docs/zh-cn/gameplay/physics/) —— 瓦片碰撞体参与物理世界。
+- [资源](/docs/zh-cn/assets/overview/) —— 加载 `.tmj` 地图与 `.estileset` 瓦片集。
+- [场景](/docs/zh-cn/world/scenes/) —— 瓦片图层随场景序列化。

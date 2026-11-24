@@ -77,7 +77,7 @@ SDK 的创作默认值面向 2D：正交、活动、`orthoSize` 为 540。
 
 ## 缩放与投影
 
-缩放由 `orthoSize` 控制：减半即屏幕上的尺寸加倍。缩放应通过 `orthoSize` 调整，而不是通过相机实体 `Transform` 的缩放，后者会使渲染变形。`orthoSize` 可动画，因此可用补间完成缩放（[动画](/docs/zh-cn/animation/overview/)）：
+缩放由 `orthoSize` 控制：减半即屏幕上的尺寸加倍。缩放应通过 `orthoSize` 调整，而不是通过相机实体 `Transform` 的缩放，后者会使渲染变形。`orthoSize` 可动画，因此可用补间完成缩放（[补间](/docs/zh-cn/animation/tweens/)）：
 
 ```typescript
 import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
@@ -140,6 +140,6 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 ## 另请参阅
 
 - [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)：设计分辨率适配、缩放模式、`ScreenScaling` 与 `pixelPerfect`。
-- [动画](/docs/zh-cn/animation/overview/)：对 `orthoSize` 做补间。
+- [补间](/docs/zh-cn/animation/tweens/)：对 `orthoSize` 做补间。
 - [输入](/docs/zh-cn/scripting/input/)：用于拾取的指针输入。
 - [UI](/docs/zh-cn/ui/overview/)：UI 在屏幕空间渲染，与相机无关。

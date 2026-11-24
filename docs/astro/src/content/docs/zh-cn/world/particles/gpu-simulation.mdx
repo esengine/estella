@@ -1,0 +1,73 @@
+---
+title: GPU 粒子与性能
+description: GPU 粒子模拟——gpuSimulation 在 compute kernel 上运行的内容、容量与平台回退、仍留在 CPU 上的功能、GPU 事件、子发射器与拖尾及其内存开销，以及发射器的性能建议。
+---
+
+## GPU 模拟
+
+`gpuSimulation: true` 时，发射器的粒子存放在 GPU 上。一个 compute kernel 每帧推进全部粒子，绘制直接读取它写出的结果；CPU
+只决定诞生多少粒子。数十万粒子的发射器只需一次 dispatch，而不是一个循环。此时 `maxParticles` 是 GPU 保存的环形缓冲大小，
+最多 2,000,000；新粒子占用下一个槽位，粒子消亡后的槽位不绘制任何内容。
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  maxParticles: 500_000,
+  rate: 200_000,
+  lifetimeMin: 2, lifetimeMax: 3,
+  shape: EmitterShape.Cone, shapeAngle: 40,
+  speedMin: 200, speedMax: 400,
+  gravity: { x: 0, y: -300, z: 0 },
+  noiseStrength: 40, noiseFrequency: 0.01,
+  collisionEnabled: true, collisionFloor: 0, collisionBounce: 0.4,
+});
+```
+
+kernel 运行同一套发射器模型：形状、旋度噪声、力场（前八个）、重力、阻尼、随生命的颜色 / 尺寸 / 速度、精灵表、地面平面、
+`Depth` 与 `Sdf` 碰撞、子发射器和拖尾。每个发射器使用自己固定的种子，因此场景每次回放的粒子相同。
+
+### 平台支持
+
+GPU 模拟需要 compute 着色器（WebGPU）。在 WebGL2 和小游戏运行时中，同一个发射器改由 CPU 模拟运行，**上限为 20,000 个粒子**：
+为百万粒子制作的场景仍能播放，只是粒子更少。面向不支持 WebGPU 的平台的特效，应确保在该上限下仍然成立。
+
+### 限制
+
+| 功能 | 在 GPU 模拟的发射器上 |
+|---|---|
+| `Physics2D` / `Physics3D` 碰撞 | 不可用：kernel 无法查询物理世界。这两种模式按 `collisionFallback` 处理。请改用 [`Depth` 或 `Sdf`](/docs/zh-cn/world/particles/collision/#深度碰撞)。 |
+| 排序 | 粒子不排序。`Additive` 和镂空效果是精确的；大量叠在一起的 `Normal` 混合粒子按槽位顺序绘制。 |
+| UI | 屏幕 `Canvas` 下的发射器通过屏幕叠加层绘制，kernel 不向其提供数据。UI 中的发射器应保留在 CPU 上。 |
+| `renderMode: Stretched` | 按 `Billboard` 绘制。 |
+| `addedVelocityMin/Max`、`speedLimit`、`limitDampen` | 仅 CPU 模拟。 |
+| `Particle.emitAt` | 仅 CPU 模拟。 |
+| `Particle.getAliveCount` | 返回上界：存活状态保留在 GPU 上，不做回读。 |
+
+## GPU 事件、子发射器和拖尾
+
+kernel 把发生的事追加到事件缓冲中：发射器的 `subEmitterTrigger` 所需的每次出生、消亡或碰撞，或开启 `collisionEvents` 时的每次碰撞。
+子发射器和碰撞事件读取该缓冲。
+
+**子发射器无需经过 CPU。** GPU 发射器的 `subEmitter` 同样开启 `gpuSimulation` 时，子发射器的 kernel 直接按父发射器的事件点亮槽位：
+每个事件 `burstCount` 个粒子，位于事件位置，并继承 `subEmitterInheritVelocity` 比例的速度。每帧父发射器先于子发射器运行，
+因此火花诞生在水滴消失的位置。每个发射器每帧最多保留 4,096 个事件，其余丢弃。CPU 模拟的子发射器不会被 GPU 父发射器驱动。
+
+**碰撞事件延迟一到两帧到达。** 开启 `collisionEvents` 后，待 GPU 交回数据，`ParticleCollisionEvent`、`collisionStats`
+及其他碰撞输出的读取方式与其他碰撞相同，单位也相同。`collisionEventBudget` 是每次回读的数量，其余计入 `hits`。回读是 GPU
+路径中唯一返回 CPU 的部分；游戏代码不需要时应关闭 `collisionEvents`。
+
+**拖尾**使用相同的 `trailEnabled`、`trailWidth`、`trailPoints` 和 `trailMinDistance` 字段。每个粒子的路径保存在缓冲中，
+沿路径绘制为四边形，从头部开始逐渐变窄、变淡。无论粒子是否存活，每个槽位都分配拖尾内存：
+`maxParticles × (trailPoints × 16 + (trailPoints − 1) × 60)` 字节，即 10 万粒子、12 个点约占 85 MB。每一段朝向这一帧最先
+绘制它的相机；第二个相机看到的拖尾段略呈侧面。
+
+## 性能
+
+- **按最坏情况设定 `maxParticles`。** 粒子池大小固定；无论是否填满，更大的池都占用内存。超过几千个粒子时，使用 GPU 模拟。
+- **发光效果使用 `Additive`**（火焰、火花、魔法）。加法混合与绘制顺序无关，无需排序。`Normal` 和 `Multiply` 留给不透明的烟尘。
+- **拉开 `…Min` / `…Max` 范围**以获得自然的变化；两值相等显得机械。
+- **复用发射器**：用 `reset` + `play` 或 `emitAt`，而不是反复创建和销毁实体。
+- **保持拖尾短小**（`trailPoints` 为 6–8），大型 GPU 发射器上控制 `ParticleCollider` 的数量。
+- **游戏代码不读取时关闭 `collisionEvents`**；在 GPU 路径上它是唯一的回读。
+
+{/* SHOT: world-particles-gpu-emitter | Viewport of examples/vfx-showcase in Play with the Sparks emitter selected after ticking GPU Simulation and raising Max Particles (for example to 200000) and Rate, the Emission group in Details showing both fields, and the viewport stats overlay visible */}

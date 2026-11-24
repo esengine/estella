@@ -1,18 +1,21 @@
 ---
 title: Scenes
-description: The complete guide to scenes — switching, additive loading, streaming open-world cells, querying state, and how systems are gated per scene, via Res(SceneManager).
+description: SceneManager reference — switching with fade transitions, additive loading, persistent entities, SceneStreaming cells, scenes in a build, scene serialization and format migration, out-of-band component codecs, and NodeVisibility.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
 
-A project is organized into scenes. They all share one ECS world; the
-`SceneManager` resource loads, switches, and unloads them, and gates each scene's
-systems to run only while that scene is active.
+A project is organized into scenes. All loaded scenes share one ECS world. The **`SceneManager`** resource loads,
+switches and unloads scenes, records which scene owns each entity, and runs a scene's systems only while that scene is
+active.
 
-## Switch scenes
+`sceneManagerPlugin` provides the `SceneManager` and `SceneStreaming` resources, loads the initial scene at startup,
+and advances transitions and streaming every frame. The default app bootstrap registers it; an `App` assembled from
+individual plugins must add it explicitly.
 
-`switchTo` replaces the active scene (with an optional transition). It's async —
-`await` it:
+## Switching scenes
+
+`switchTo` replaces the active scene. It is asynchronous and resolves when the switch, including any transition, has
+completed.
 
 ```typescript
 import { defineSystem, Res, SceneManager } from 'esengine';
@@ -22,35 +25,40 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 });
 ```
 
-## Scene transitions
+`reload(options?)` switches to the active scene again from its file. `switchTo` with the name of the scene already
+running does nothing; `reload` is the call for restarts and retries.
 
-`switchTo` and `unload` take `TransitionOptions`. With `transition: 'fade'` the
-switch fades through a solid color in three phases: the overlay ramps to opaque
-over the first half of `duration`, **holds opaque while the old scene unloads and
-the new one loads** (a slow load extends the hold instead of flashing), then
-ramps back over the second half. The awaited promise resolves only after the
-fade-in completes — and rejects if the load failed. A `switchTo` issued while a
-transition is in flight is ignored with a warning; `isTransitioning()` tells you.
+## Transitions
 
-If a load is superseded before it commits — an `unload`, or another load of the
-same scene, races ahead of it — the pending promise rejects with a
-`SceneLoadCancelled` error rather than committing a half-loaded scene. It is a
-race signal, not a real failure, so branch on it in your `catch` (e.g. ignore it)
-instead of surfacing it as a load error.
+`switchTo`, `reload` and `unload` take `TransitionOptions`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `transition` | `'none' \| 'fade'` | `'none'` | Hard cut, or fade through `color`. |
-| `duration` | number | `0.3` | Total fade time in seconds — half out, half in (`RuntimeConfig.sceneTransitionDuration`). |
-| `color` | `Color` | opaque black | Overlay color (`RuntimeConfig.sceneTransitionColor`; the build config takes a hex string). |
-| `onStart` / `onComplete` | callback | – | Fired when the fade starts / after the fade-in finishes. |
-| `keepPersistent` | boolean | `true` | Keep [persistent entities](#persistent-entities) alive through the unload; `false` tears them down with the rest. |
+| `duration` | number | `0.3` | Total fade time in seconds: half fading out, half fading in (`RuntimeConfig.sceneTransitionDuration`). |
+| `color` | `Color` | opaque black | Overlay colour (`RuntimeConfig.sceneTransitionColor`; the build config takes a hex string). |
+| `onStart` / `onComplete` | callback | — | Called when the fade starts / after the fade-in finishes. |
+| `keepPersistent` | boolean | `true` | Keep [persistent entities](#persistent-entities) through the unload. `false` destroys them with the rest of the scene. |
+| `staggered` | boolean | `false` | Unload over several frames through the scene's retirement: hidden at once, destroyed within the frame budget, assets released afterwards. A load of the same name waits for it. |
 
-`transitionTo` is a one-call convenience over the same machinery, configured
-with a `TransitionConfig` (`type: 'fade'`, `duration`, optional `color`). It
-accepts the `App` (bootstrap code, menu glue) or the SceneManager resource
-state — inside a system, pass what `Res(SceneManager)` gives you. A menu →
-level flow:
+A fade runs in three phases:
+
+1. The overlay ramps to opaque over the first half of `duration`.
+2. The overlay holds opaque while the old scene unloads and the new scene loads. A slow load extends this phase.
+3. The overlay ramps back to transparent over the second half of `duration`.
+
+The returned promise resolves after the fade-in completes and rejects if the load failed. A `switchTo` issued while a
+switch is in progress is ignored and logs a warning; `isTransitioning()` reports whether a transition is running.
+
+A load that is superseded before it commits — by an `unload`, or by another load of the same scene — rejects with
+**`SceneLoadCancelled`** instead of committing a partially loaded scene. It signals a race, not a failure; handle it
+separately from load errors in the `catch`.
+
+### `transitionTo`
+
+`transitionTo(host, scene, config)` performs a `switchTo` with a fade described by a `TransitionConfig`
+(`type: 'fade'`, `duration`, optional `color`). `host` is the `App` (bootstrap code, menu handlers) or the
+`SceneManager` resource state obtained from `Res(SceneManager)` inside a system.
 
 ```typescript
 import { transitionTo, type TransitionConfig } from 'esengine';
@@ -62,35 +70,42 @@ const fadeToBlack: TransitionConfig = {
 };
 
 async function onPlayClicked() {
-  await transitionTo(app, 'levels/level1', fadeToBlack);   // menu → level
+  await transitionTo(app, 'levels/level1', fadeToBlack);
 }
 ```
 
-<Aside type="note">
-  All of this ships with `sceneManagerPlugin`, which the default app bootstrap
-  already registers: it inserts the `SceneManager` and `SceneStreaming`
-  resources, loads the initial scene at startup, and advances transitions and
-  streaming every frame. You only add it yourself when assembling an `App` from
-  individual plugins.
-</Aside>
+`examples/scene-flow` cycles a menu and two levels through `SceneManager` with a different fade on each switch.
 
 ## Additive scenes
 
-Load a scene **on top** of the current one — a HUD, a pause menu, a streamed region
-— without unloading what's underneath. `loadAdditive` takes an optional progress
-callback and returns the scene context:
+`loadAdditive` loads a scene on top of the loaded ones without unloading them — a HUD, a pause menu, a streamed
+region. It takes an optional progress callback and resolves to the scene's `SceneContext`.
 
 ```typescript
 await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
-// …later
+// …
 await scenes.unload('pause-menu');
 ```
 
+## Ownership and system gating
+
+Every entity a scene owns carries a `SceneOwner` component naming that scene. An entity is owned when it is loaded
+from the scene file, spawned through `ctx.spawn()`, or adopted through `ctx.adopt(entity)`. Unloading a scene
+despawns the entities it owns.
+
+- An entity created outside any scene context has no owner, and no unload removes it. `ctx.adopt(entity)` assigns it
+  to a scene.
+- Prefabs instantiated at runtime are adopted by the active scene by default ([Prefabs](/docs/world/prefabs/#instantiate-reference)).
+- Systems declared by a scene run only while that scene is active, so an additive HUD and the gameplay scene update
+  independently.
+
+A code-defined scene receives its context in `setup(ctx)`. Elsewhere, `getScene(name)` returns the context of a
+loaded scene.
+
 ## Persistent entities
 
-A switch despawns the entities the outgoing scene owns. To carry one across —
-the player, a music source, a camera that shouldn't cut — mark it on the scene
-context:
+A switch despawns the entities owned by the outgoing scene. `setPersistent` marks an entity to survive the unload of
+its scene — a player, a music source, a camera:
 
 ```typescript
 import { defineSystem, Res, SceneManager } from 'esengine';
@@ -101,61 +116,41 @@ const keepPlayer = defineSystem([Res(SceneManager)], (scenes) => {
 });
 ```
 
-The flag lives on the `SceneOwner` component, so it only takes on entities the
-scene owns — spawned via `ctx.spawn()`, adopted via `ctx.adopt()`, or loaded
-from the scene file. A code-defined scene gets its context handed to
-`setup(ctx)`; anywhere else, `getScene(name)` looks it up.
+The flag is stored on `SceneOwner`, so it applies only to entities the scene owns. `SceneOwner` is an engine-internal
+component excluded from the project component schemas; there is no Inspector field for it, and entities placed in the
+editor are marked persistent from code at runtime.
 
-On unload the marked entity survives **and is promoted to global**: its
-`SceneOwner.scene` is cleared to `''`, the engine's "always active" value.
-That promotion is the point — every scene-gated consumer (the camera render
-filter, system and draw-callback gating) would otherwise still see the entity
-owned by a scene that no longer exists and orphan it, so a persistent camera
-would quietly stop rendering. Pass `keepPersistent: false` to `switchTo` or
-`unload` to tear down everything anyway, persistent entities included — the
-clean slate you want when returning to a main menu.
+On unload, a persistent entity survives and is **promoted to global**: `SceneOwner.scene` is set to `''`, the
+"always active" value. Scene-gated consumers — the camera render filter, system gating and draw-callback gating —
+therefore keep treating it as active. `keepPersistent: false` on `switchTo` or `unload` destroys persistent entities
+as well.
 
-What it **keeps**: the assets it is bound to. Promotion splits the scene's
-reference rather than transferring or dropping it, so a surviving entity owns
-what it draws with and gives it back when the entity is despawned, including as
-part of a parent's subtree. For a texture, material, font, mesh or environment
-that is the exact instance it is bound to, even when a hot update has since
-replaced the file; for an anim clip, timeline, state machine, behavior tree or
-animator controller — which a component names by ref and looks up on every
-frame — it is the entry itself, so the entity keeps following updates to it. It also keeps its place: an entity
-detached from a parent that did not survive stays where it was on screen
-rather than jumping to its parent-relative position.
+What a promoted entity keeps:
 
-Two things do **not** come along with it:
+- **Its assets.** Promotion splits the scene's asset references; the entity holds what it draws with and releases it
+  when it is despawned, including as part of a parent's subtree. A texture, material, font, mesh or environment stays
+  the exact instance the entity is bound to, even after a hot update replaced the file. An anim clip, timeline, state
+  machine, behavior tree or animator controller is referenced by name and looked up every frame, so the entity
+  follows updates to that entry.
+- **Its on-screen placement.** An entity detached from a parent that did not survive keeps its world position.
 
-- **The scene's systems.** Every system a scene declares is unregistered on
-  unload, so a persistent entity's behavior has to come from a system
-  registered on the `App` itself, not from the scene's `systems` list.
-- **Assets nothing declares.** Promotion reads the same `assetFields` the rest
-  of the engine does, so a texture you loaded yourself and assigned outside a
-  declared field is not something it can see — take a reference that outlives
-  the scene for those: `Assets.preload` at bootstrap, or an additive scene that
-  is never unloaded.
-- **Its non-persistent children.** "This entity persists" is about the entity,
-  not its subtree: children that were not themselves marked are despawned with
-  the scene, and a persistent child of a non-persistent parent is detached and
-  survives on its own.
+What it does not keep:
 
-<Aside type="caution">
-  There is no Inspector checkbox for this. `SceneOwner` is an engine-internal
-  component and is deliberately kept out of the project component schemas, so
-  entities placed in the editor are marked persistent from code at runtime.
-</Aside>
+- **The scene's systems.** Every system a scene declares is unregistered on unload. Behaviour of a persistent entity
+  must come from systems registered on the `App`.
+- **Undeclared assets.** Promotion reads the components' declared `assetFields`. An asset loaded manually and assigned
+  outside a declared field is not tracked; hold a reference that outlives the scene (`Assets.preload` at bootstrap, or
+  an additive scene that is never unloaded).
+- **Non-persistent children.** Persistence applies to the entity, not its subtree. Unmarked children are despawned
+  with the scene; a persistent child of a non-persistent parent is detached and survives alone.
 
-For state rather than live entities — score, inventory, quest flags — reach for
-[saves](/docs/scripting/save/) instead. Persistence is for objects that must keep
-running across the cut; a save is for data that merely has to be there on the
-other side.
+Game state that does not need a live entity (score, inventory, quest flags) belongs in
+[saves](/docs/scripting/save/).
 
-## Scene streaming (open worlds)
+## Scene streaming
 
-For worlds too big to load at once, the `SceneStreaming` resource loads and
-unloads **cells** — additive scenes placed in world space — around a focus point:
+The **`SceneStreaming`** resource loads and unloads **cells** — additive scenes placed in world space — around a focus
+point:
 
 ```typescript
 import { defineSystem, Res, SceneStreaming } from 'esengine';
@@ -168,128 +163,128 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 });
 ```
 
-Each frame, cells within `loadRadius` of the focus load additively and cells
-beyond `unloadRadius` unload — the gap between the radii is hysteresis, so a
-player standing at a border doesn't thrash loads. `policy: 'sleep'` **sleeps**
-cells instead of unloading: entities stay in memory, disabled and hidden, so
-re-entering is instant at the cost of memory. Cell scenes are ordinary project
-scenes referenced by name (see below).
+- Each frame, cells within `loadRadius` of the focus load additively and cells beyond `unloadRadius` unload. The gap
+  between the two radii is hysteresis that prevents repeated loads at a border.
+- Distances are measured to the **cell edge** (centre distance minus `radius`), so a large cell begins loading while
+  its centre is still far away.
+- With `policy: 'sleep'`, out-of-range cells are put to sleep instead of unloaded: their entities stay in memory,
+  disabled and hidden, and re-entering is immediate at the cost of memory.
+- A cell with a load or unload in flight is not issued again. If the focus has left by the time a load resolves, the
+  cell is released again.
+- Cell scenes are ordinary project scenes referenced by name ([Scenes in a build](#scenes-in-a-build)).
 
-Under the resource sits `SceneStreamingController` — pure orchestration over the
-`SceneManager` primitives (`loadAdditive` / `unload` / `sleep` / `wake`); it owns
-no loading itself. Distances are measured to the **cell edge** (center distance
-minus `radius`), so a large cell starts loading while its center is still far
-away. Loads and unloads are async, and the controller keeps them safe: a cell
-with a load or unload in flight is never issued twice, and if the focus has
-already left by the time a load resolves, the cell is dropped again instead of
-leaking. With no cells registered, `update()` is a no-op.
+The resource is a `SceneStreamingController`, which orchestrates the `SceneManager` primitives (`loadAdditive`,
+`unload`, `sleep`, `wake`) and performs no loading of its own. With no cells registered, `update()` does nothing.
 
 | `SceneStreamingController` | Description |
 |---|---|
-| `configure({ loadRadius, unloadRadius, policy? })` | Set the radii (`unloadRadius` is clamped up to `loadRadius`) and the out-of-range policy — `'unload'` (default) or `'sleep'`. |
-| `register(cell)` / `unregister(scene)` / `clear()` | Manage the cell set (`{ scene, x, y, radius }`). |
-| `setFocus(x, y, z?)` | Drive the focus point directly (call each frame); distance is measured in 3D, with `z` defaulting to 0 and a cell's optional `z` to 0. |
-| `setFocusEntity(entity)` / `getFocusEntity()` | Follow an entity instead — the streaming system reads its `Transform` each tick (play mode only). |
-| `getActive()` | Scene names the controller currently holds in-range. |
-| `update()` | Reconcile resident cells against the focus (`sceneManagerPlugin` calls this every frame). |
+| `configure({ loadRadius, unloadRadius, policy? })` | Sets the radii (`unloadRadius` is clamped to at least `loadRadius`) and the out-of-range policy: `'unload'` (default) or `'sleep'`. |
+| `register(cell)` / `unregister(scene)` / `clear()` | Manage the cell set; a cell is `{ scene, x, y, z?, radius }`. |
+| `setFocus(x, y, z?)` | Sets the focus point (call every frame). Distance is measured in 3D; `z` and a cell's `z` default to 0. |
+| `setFocusEntity(entity)` / `getFocusEntity()` | Follow an entity; the streaming system reads its `Transform` each tick (play mode only). |
+| `getActive()` | Scene names currently held in range. |
+| `update()` | Reconciles resident cells against the focus. `sceneManagerPlugin` calls it every frame. |
 
-The threshold math is also exported on its own as the pure
-`computeStreaming(cells, focusX, focusY, loadRadius, unloadRadius, active)` —
-useful for tests or a custom scheduler.
+The threshold computation is exported as the pure function
+`computeStreaming(cells, focusX, focusY, loadRadius, unloadRadius, active)` for tests and custom schedulers. Large
+worlds built from streamed cells are covered in [World Streaming](/docs/world/streaming/).
 
 ## Scenes in a build
 
-Every scene in the project's scenes folder ships with an export and registers as a
-`switchTo` target. A scene's **name** is its path relative to the scenes folder,
-without the `.esscene` extension — `assets/scenes/levels/boss.esscene` is
-`switchTo('levels/boss')`. The startup scene loads eagerly; the others are fetched
-on their first switch, so extra scenes don't slow the initial load.
+Every scene in the project's scenes folder is exported and registered as a `switchTo` target. A scene's **name** is
+its path relative to the scenes folder without the `.esscene` extension: `assets/scenes/levels/boss.esscene` is
+`switchTo('levels/boss')`. The startup scene loads eagerly; other scenes are fetched on their first load, so they do
+not add to the initial download. Play in the editor registers the same set: the entry scene plus every other scene
+file, loaded lazily by path.
 
-Scenes you untick in the Package dialog's **Scenes in build** list are left out of
-the export (they stay editable and playable in the editor), and Playable-ad builds
-ship the startup scene only. See
+Scenes unticked in the Package dialog's **Scenes in build** list are excluded from the export and remain editable and
+playable in the editor. Playable-ad builds contain the startup scene only. See
 [Building & Exporting](/docs/publishing/overview/).
+
+{/* SHOT: world-scenes-in-build | The Package dialog with the Scenes in build list expanded, examples/tilemap-demo open so the list shows its six scenes (tiled-map marked as the startup scene) with one scene unticked */}
 
 ## `SceneManager` reference
 
 | Method | Description |
 |---|---|
 | `switchTo(name, options?)` | Replace the active scene (async; optional transition). |
-| `loadAdditive(name, onProgress?)` | Load a scene on top; returns its context (async). |
 | `reload(options?)` | Switch to the active scene again, from its file (async; optional transition). |
+| `loadAdditive(name, onProgress?)` | Load a scene on top of the loaded ones; resolves to its context (async). |
 | `unload(name, options?)` | Unload a scene (async; optional transition). |
 | `getScene(name)` | A loaded scene's `SceneContext` (`spawn` / `adopt` / `despawn` / `setPersistent` / draw callbacks / post-process binding), or `null`. |
 | `getActive()` | The active scene name, or `null`. |
-| `getActiveScenes()` | All active (additive) scene names. |
+| `getActiveScenes()` | All active scene names, additive scenes included. |
 | `pause(name)` / `resume(name)` | Suspend / resume a loaded scene's updates. |
-| `sleep(name)` / `wake(name)` | Suspend **and hide** a scene's entities (kept in memory; waking restores them instantly). |
-| `isLoaded(name)` | Whether a scene is loaded. |
-| `isActive(name)` | Whether a scene is active. |
+| `sleep(name)` / `wake(name)` | Suspend **and hide** a scene's entities; they stay in memory and waking restores them immediately. |
+| `isLoaded(name)` / `isActive(name)` | Whether a scene is loaded / active. |
 | `isPaused(name)` / `isSleeping(name)` | The suspension states above. |
-| `isTransitioning()` | `true` during a `switchTo` transition. |
+| `isTransitioning()` | `true` while a transition is running. |
 
-## Serialization & migration
+## Serialization and migration
 
-The scene file format is a public surface: `SceneData` is plain JSON, and the
-primitives the editor and runtime use to read and write it are exported for game
-code. You reach for them to save a **snapshot of the live world** (a checkpoint
-richer than the [save-game API](/docs/scripting/save/)), to load player-generated
-or downloaded scenes, or to ship components whose state doesn't fit their plain
-fields.
+`SceneData` is plain JSON, and the functions the editor and runtime use to read and write it are exported. Typical
+uses: saving a snapshot of the live world (a checkpoint that holds more than the
+[save-game API](/docs/scripting/save/)), loading player-generated or downloaded scenes, and serializing components
+whose state does not fit their plain fields.
 
-`serializeScene(world, name?)` walks the live world and produces a `SceneData`
-that round-trips through the loaders — hierarchy is collapsed into each entity
-record's `parent`/`children` fields, and runtime-only projection entities (tile
-colliders and the like, which their systems re-derive) are excluded.
-`loadSceneWithAssets(world, data, options?)` preloads every referenced asset,
-then spawns; the sync `loadSceneData(world, data)` spawns without asset
-resolution. Both return a map from serialized entity ids to live entities, and
-`findEntityByName(world, name)` finds an entity afterwards:
+| Function | Description |
+|---|---|
+| `serializeScene(world, name?)` | Produces a `SceneData` from the live world. Hierarchy is written to each entity record's `parent` / `children` fields. Runtime-only projection entities that their systems re-derive (tile colliders and similar) are excluded. |
+| `loadSceneWithAssets(world, data, options?)` | Preloads every referenced asset, then spawns (async). |
+| `loadSceneData(world, data)` | Spawns synchronously without asset resolution. |
+| `findEntityByName(world, name)` | Finds a spawned entity by name. |
+
+Both loaders return a map from serialized entity ids to live entities.
 
 ```typescript
 import { defineSystem, GetWorld, Res, Assets, serializeScene,
          loadSceneWithAssets, findEntityByName, MissingAssetsError } from 'esengine';
 
 const checkpoint = defineSystem([GetWorld(), Res(Assets)], async (world, assets) => {
-  // Save: snapshot the live world as ordinary scene JSON.
+  // Save: snapshot the live world as scene JSON.
   const data = serializeScene(world, 'checkpoint');
   localStorage.setItem('checkpoint', JSON.stringify(data));
 
-  // Load: preload assets, then spawn. Old saves are migrated automatically.
+  // Load: preload assets, then spawn. Older formats are migrated automatically.
   try {
     await loadSceneWithAssets(world, JSON.parse(localStorage.getItem('checkpoint')!), {
       assets,
-      abortOnMissingAssets: true,        // throw instead of spawning with holes
-      onMissingAssets: (missing) => {    // called once per load (list may be empty)
+      abortOnMissingAssets: true,        // throw instead of spawning with missing assets
+      onMissingAssets: (missing) => {    // called once per load (the list may be empty)
         for (const m of missing) console.warn(`${m.ref}: ${m.reason}`);
       },
     });
   } catch (e) {
-    if (e instanceof MissingAssetsError) { /* "content missing" UI — e.missing */ }
+    if (e instanceof MissingAssetsError) { /* e.missing lists the missing assets */ }
   }
 
   const player = findEntityByName(world, 'Player');
 });
 ```
 
-`SceneLoadOptions`:
+### `SceneLoadOptions`
 
 | Option | Description |
 |---|---|
-| `assets` | The `Assets` resource; enables asset preloading (and prefab-instance expansion) before spawn. |
-| `assetBaseUrl` | Base URL to resolve asset paths against. |
+| `assets` | The `Assets` resource. Enables asset preloading and prefab-instance expansion before spawning. |
+| `assetBaseUrl` | Base URL against which asset paths are resolved. |
 | `onProgress` | `(loaded, total)` preload progress callback. |
-| `onMissingAssets` | Called once with every ref that failed to resolve or load (`MissingAsset[]` — `ref`, optional `type`, and `reason: 'unresolved' \| 'load-failed'`). Fires even when the list is empty. |
-| `abortOnMissingAssets` | Default `false` — missing assets get handle `0` and the scene loads anyway. `true` throws `MissingAssetsError` after preloading, before anything spawns. |
-| `collectAssets` | Bookkeeping sets the load adds acquired asset keys to, so the caller (normally the scene manager) can release them on unload. |
+| `onMissingAssets` | Called once with every reference that failed to resolve or load (`MissingAsset[]`: `ref`, optional `type`, `reason: 'unresolved' \| 'load-failed'`). Called even when the list is empty. |
+| `abortOnMissingAssets` | Default `false`: missing assets get handle `0` and the scene loads. `true` throws `MissingAssetsError` after preloading, before anything is spawned. |
+| `collectAssets` | Sets to which the load adds the acquired asset keys, so the caller (normally the scene manager) can release them on unload. |
 
-**Versioning.** Scene files carry a `version` (currently
-`SCENE_FORMAT_VERSION = 4`). `migrateSceneData(raw)` upgrades any older
-shape to the current one: it never mutates its input (it returns a migrated deep
-copy), is idempotent, drops component types retired by engine upgrades, and
-**rejects data newer than the engine**. Every loader runs it internally — call
-it yourself only to inspect `migrated` / `fromVersion` (say, to prompt a re-save
-of an upgraded file):
+### Format versions
+
+Scene files carry a `version`; the current format is `SCENE_FORMAT_VERSION = 4`. `migrateSceneData(raw)` upgrades
+older data to the current format:
+
+- It returns a migrated deep copy and never mutates its input.
+- It is idempotent.
+- It drops component types retired by engine upgrades.
+- It rejects data newer than the engine.
+
+Every loader runs it internally. Call it directly only to inspect `migrated` / `fromVersion`, for example to prompt a
+re-save of an upgraded file:
 
 ```typescript
 import { migrateSceneData } from 'esengine';
@@ -298,61 +293,43 @@ const { data, migrated, fromVersion } = migrateSceneData(raw);
 if (migrated) console.log(`upgraded scene from format ${fromVersion}`);
 ```
 
-**Out-of-band component state.** A component whose full state doesn't fit its
-plain field record — a tilemap layer's tile chunks live in a C++ blob — registers
-a `SceneComponentCodec` so the generic (de)serializer can carry it without
-component-specific knowledge:
+### Out-of-band component state
+
+A component whose full state does not fit its plain field record registers a **`SceneComponentCodec`**, so the
+generic serializer carries the extra state without component-specific code. `TilemapLayer` uses one for its tile
+chunks, which live in the C++ core.
 
 ```typescript
 import { registerSceneComponentCodec } from 'esengine';
 
 registerSceneComponentCodec('MyVoxelChunk', {
   exportData(entity, data) { data.chunks = myStore.serialize(entity); },
-  outOfBandFields: ['chunks'],          // stripped before the component insert
+  outOfBandFields: ['chunks'],          // stripped before the component is inserted
   importData(entity, outOfBand) { myStore.restore(entity, outOfBand.chunks); },
 });
 ```
 
-`exportData` writes the extra state into the record on save; the listed
-`outOfBandFields` are stripped from the record before the component is inserted
-on load, then handed to `importData` afterwards. Registration is idempotent —
-the owning plugin (see `tilemapPlugin`) does it at startup.
+| Codec member | Role |
+|---|---|
+| `exportData(entity, data)` | On save, writes the extra state into the component record. |
+| `outOfBandFields` | Record keys removed before the component is inserted on load. |
+| `importData(entity, outOfBand)` | On load, receives the removed fields after the component is inserted. |
 
-## Best practices
+Registration is idempotent; a plugin registers its codecs at startup.
 
-- **`await` scene calls** — they're async; a switch that isn't awaited races with the
-  rest of your frame.
-- **Additive for overlays** (HUD, pause, dialogs) so gameplay stays loaded underneath.
-- **Gate logic with systems, not flags** — systems declared in a scene only run while
-  it's active, so an additive HUD and the gameplay scene update independently.
-- **Own every entity you spawn** — an entity created outside a scene context carries
-  no `SceneOwner`, so no scene will ever clean it up. `ctx.adopt(entity)` hands one to
-  the current scene; `setPersistent` is the deliberate opposite.
-- **Carry objects across a switch with [persistence](#persistent-entities), carry
-  state with [saves](/docs/scripting/save/)** — an entity that must keep running versus
-  data that just has to be there afterwards.
+## `NodeVisibility`
 
-<Aside type="note">
-  Scenes share one world, so a scene switch doesn't wipe the world — the manager
-  loads/unloads each scene's entities and gates its systems. Surviving a switch is
-  therefore about ownership: an entity survives because it's marked
-  [persistent](#persistent-entities), or because nothing owns it (a leak).
-</Aside>
+`NodeVisibility.visible` is an animatable visibility gate over a subtree. Setting it to `false` masks the renderer
+flag of every registered renderer component on the entity and its descendants; setting it back to `true` restores the
+authored values. Scene serialization writes the authored values while the gate is closed. Cameras, physics bodies and
+gameplay entities in the subtree remain active.
 
-## Imported node visibility
-
-`NodeVisibility.visible` is an animatable gate over a visual subtree. Setting it
-to `false` masks the registered renderer flags of the entity and its descendants;
-showing it again restores their authored flags. Scene serialization preserves
-those authored values while the gate is closed. Cameras, physics bodies and
-gameplay entities remain active.
-
-For particle emitters the registered flag is `enabled`, so hiding such a subtree
-also affects its particle simulation. Put an emitter outside the hidden visual
-subtree when it must continue running independently.
+For a particle emitter the masked flag is `enabled`, so hiding a subtree also stops the emitters in it. An emitter
+that must keep running belongs outside the hidden subtree.
 
 ## See also
 
-- [Prefabs](/docs/world/prefabs/) — spawn reusable entity trees within a scene.
-- [Saving & Loading](/docs/scripting/save/) — persist state across scene switches.
+- [Prefabs](/docs/world/prefabs/) — reusable entity trees spawned into a scene.
+- [Saving & Loading](/docs/scripting/save/) — game state across scene switches.
+- [World Streaming](/docs/world/streaming/) — large worlds streamed as cells.
 - [Assets](/docs/assets/overview/) — scenes are cook entry points.

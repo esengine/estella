@@ -1,0 +1,216 @@
+---
+title: Tilemaps in Code
+description: Reference for the Tilemaps resource — building and editing layers, tile transforms and coordinate conversion, multi-tileset slot tables, tile animation, infinite chunked layers, destructible tilemaps with retiling, navigation sync and saves, and the full API table.
+---
+
+The **`Tilemaps`** resource (`Res(Tilemaps)`, exported from `esengine/tilemap`) creates and edits tile layers from
+code. It addresses a layer by its entity and operates on the same layer data that the editor paints and the Tiled
+importer produces.
+
+## Building a layer
+
+```typescript
+import { defineSystem, Commands, Res, Transform } from 'esengine';
+import { Tilemaps } from 'esengine/tilemap';
+
+const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
+  const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
+
+  tilemap.initLayer(layer, 32, 32, 16, 16);           // 32×32 tiles, 16px cells
+  tilemap.setTiles(layer, new Uint16Array(32 * 32));  // bulk load
+  tilemap.setTile(layer, 5, 3, 7);                    // one tile (x, y, id)
+  tilemap.fillRect(layer, 0, 0, 32, 1, 2);            // a row of tile 2
+});
+```
+
+`setTiles` and `setChunkTiles` write many tiles in one call and are preferable to `setTile` in a loop.
+
+## Editing and transforms
+
+```typescript
+tilemap.getTile(layer, 5, 3);                       // read a tile id
+tilemap.flipTile(layer, 5, 3, true, false, false);  // flipH, flipV, flipDiagonal
+tilemap.rotateTile(layer, 5, 3, 90);                // degrees
+tilemap.tileToWorld(layer, 5, 3, 0, 0);             // → { x, y }
+tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
+```
+
+`tileToWorld` and `worldToTile` take the layer's world origin (`originX`, `originY`) and an optional `rotation`, the
+layer's world Z angle in radians.
+
+## Multiple tilesets
+
+A layer can draw from several tilesets through a slot table. Each slot maps a `firstId` range to a texture and its
+column count; each texture is one draw call.
+
+```typescript
+tilemap.setTilesets(layer, [
+  { firstId: 1,   textureHandle: grassTex, columns: 8 },
+  { firstId: 256, textureHandle: propsTex, columns: 8, margin: 4, spacing: 8 },
+]);
+```
+
+| Slot field | Default | Description |
+|---|---|---|
+| `firstId` | — | First tile id served by this slot. |
+| `textureHandle` | — | Atlas texture. |
+| `columns` | — | Columns in the atlas. |
+| `margin` | `0` | Border in pixels before the first tile. |
+| `spacing` | `0` | Gap in pixels between tiles. |
+| `extrude` | `0` | Border of duplicated edge pixels each cell carries in the atlas, in pixels. Non-zero lets the renderer sample the exact cell rectangle instead of insetting half a texel; it implies `margin = extrude` and `spacing = 2 × extrude`. |
+
+`margin` and `spacing` describe padded atlases, so that each tile samples only its own texels. The Tiled and
+`.estileset` importers fill them from the tileset. An empty slot table reverts the layer to its single tileset. Fewer
+tileset textures per layer means fewer draw calls.
+
+## Tile animation
+
+`setTileAnimation` animates a tile id on a layer; the tilemap plugin advances it every frame. Durations are in
+milliseconds.
+
+```typescript
+tilemap.setTileAnimation(layer, 10, [
+  { tileId: 10, duration: 100 },
+  { tileId: 11, duration: 100 },
+]);
+```
+
+`clearTileAnimations(layer)` removes every animation from the layer. Animations authored in the `.estileset`
+([Tile animation](/docs/world/tilemaps/tilesets/#tile-animation)) are applied automatically.
+
+## Infinite layers
+
+An infinite layer has no fixed size and is written chunk by chunk:
+
+```typescript
+tilemap.initInfiniteLayer(layer, 16, 16);
+tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 16, 16);
+tilemap.removeChunk(layer, chunkX, chunkY);    // a chunk the player has moved away from
+```
+
+- A chunk is 16 × 16 tiles, addressed in chunk coordinates.
+- Tile rows run **down** from the layer origin, as in Tiled: tile row `ty` lies at world y `-ty * tileHeight`. For
+  18-pixel tiles, a chunk whose world square spans `[y, y + 288)` is chunk row `-(floor(y / 288)) - 1`.
+- `removeChunk` removes the chunk's tiles and its drawn mesh, so a layer that follows a moving focus holds only the
+  chunks near it.
+- `exportChunks` / `importChunks` serialize and restore the sparse chunk data.
+
+A 2D world streamed through `ProceduralChunks` with `plane: 'xy'` ([World Streaming](/docs/world/streaming/)) can use
+either one infinite layer with `removeChunk`, or a small layer entity per chunk that is despawned on release.
+
+## Destructible tilemaps
+
+`createDestructibleTilemap(app, layer, options)` adds damage, explosions, building, retiling, navigation sync and
+saving to an existing layer. The layer remains an ordinary layer.
+
+```typescript
+import { createDestructibleTilemap, peeringRetile } from 'esengine/tilemap';
+
+const ground = createDestructibleTilemap(app, layer, {
+  hardness: id => (id === BEDROCK ? Infinity : 3),  // or a `hardness` property on the tile
+  replaceWith: id => (id === STONE ? RUBBLE : 0),   // what a destroyed tile leaves
+  retile: peeringRetile(tileset),                   // neighbours re-resolve their edges
+});
+
+ground.dig(x, y, 1);                                // one blow: { damage, hardness, destroyed }
+ground.digAtWorld(wx, wy);                          // by world position; no power destroys any finite hardness
+ground.explode(wx, wy, 64, 10, { shielded: true }); // radius in world units, then power
+ground.set(x, y, BRICK);                            // build; also setMany and fillRect
+ground.subscribe(edits => { /* every change of one operation */ });
+```
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `hardness` | the tile's `hardness` property, else `1` | Damage a tile takes before it is destroyed, as a number or a function of the tile id. `Infinity` cannot be destroyed. |
+| `replaceWith` | empty | The tile a destroyed tile leaves, as a function of the tile id. |
+| `retile` | none | Re-resolves changed cells and their eight neighbours. `peeringRetile(tileset)` handles edge and corner (blob) terrains; for a Wang terrain, supply a custom function. |
+| `collisionOutline` | `true` | Generates colliders for exposed tiles only; see below. |
+| `streamed` | `false` | Chunks arrive through `publishChunk`; see below. |
+
+### Operations
+
+| Member | Description |
+|---|---|
+| `dig(x, y, power?)` / `digAtWorld(wx, wy, power?)` | One blow on a cell. Returns a `TileHit` (`tile`, `damage`, `hardness`, `destroyed`), or `null` for an empty cell or a tile that cannot be destroyed. `power` defaults to `Infinity`. |
+| `explode(wx, wy, radius, power, opts?)` | Damages every cell whose centre lies within `radius` world units. `falloff` (0–1, default `1`) weakens the rim; `shielded: true` lets tiles absorb the blast by their hardness, and an indestructible tile stops it. Returns every cell reached. |
+| `set(x, y, tile)` / `setMany(cells)` / `fillRect(x, y, w, h, tile)` | Write tiles. |
+| `tileAt(x, y)` / `damageAt(x, y)` / `worldToTile(wx, wy)` | Read a cell, its accumulated damage, or convert a world position. |
+| `subscribe(listener)` | Receives the `TileEdit` list (`x`, `y`, `before`, `after`, `cause`) of each operation. Returns an unsubscribe function. |
+| `createNavGrid({ width, height, tileX?, tileY?, isBlocked? })` | Creates a `NavGrid` placed where the layer is drawn and keeps it in sync. Requires an orthogonal, unrotated layer with square cells. |
+| `syncNavGrid(grid, opts?)` | Keeps an existing grid in sync. Returns a function that stops syncing. |
+| `toJSON()` / `load(data)` | Save and restore the layer's changes. |
+| `publishChunk(cx, cy, tiles)` / `releaseChunk(cx, cy)` | Chunk delivery for streamed layers. |
+| `dispose()` | Stops navigation syncing and listeners; the layer keeps its current state. |
+
+### What follows a change
+
+| Aspect | Behaviour |
+|---|---|
+| **Rendering** | The chunk's mesh is rebuilt. A row of chunks under edit is split into pieces four chunks wide, so a change uploads one piece rather than the whole row; the row returns to a single draw 1800 collects after its last change. |
+| **Collision** | Only colliders whose shape changed are replaced, so bodies resting elsewhere see no contact end and stay asleep. A destroyed floor wakes what stood on it. |
+| **Terrains** | `retile` runs over the changed cells and their eight neighbours. |
+| **Navigation** | Each change updates only its own grid cell; agents re-plan automatically. A tile blocks according to the layer's collision; a sensor does not block. |
+
+### Collision outline
+
+With `collisionOutline` on, plain box colliders are generated only for exposed tiles: a tile whose four sides all
+border plain boxes has none. Solid ground costs no bodies, and a tunnel dug below the surface leaves the surface
+colliders unchanged. A body placed inside the ground is not stopped, because only the shell has colliders.
+
+`collisionOutline: false` keeps merged ground colliders. `TilemapRuntime.setCollisionOutline(layer, on)` sets the
+mode on any layer. The outline applies to orthogonal layers; other orientations keep merged boxes.
+
+### Saves
+
+`toJSON()` stores only the cells that differ from the layer's initial map, plus the damage on other cells, so its size
+follows the player's changes rather than the map size. It is plain JSON suitable for
+[`SaveManager`](/docs/scripting/save/). `load()` first reverts this session's changes, then restores the save exactly
+without retiling. It rejects a damaged save as a whole and returns `false`.
+
+### Streamed layers
+
+With `streamed: true`, chunks are delivered through the destructible tilemap instead of `setChunkTiles`. Generated
+content is laid under the player's changes, so a chunk that is released and generated again returns in its changed
+state, and a save loaded before a chunk arrives is applied when it does.
+
+```typescript
+ground.publishChunk(cx, cy, generatedTiles);
+ground.releaseChunk(cx, cy);
+```
+
+A chunk not yet published is not empty ground: nothing can be dug or written there.
+
+## `Tilemaps` API reference
+
+| Method | Description |
+|---|---|
+| `initLayer(layer, cols, rows, tileW, tileH)` | Creates a fixed-size layer. |
+| `initInfiniteLayer(layer, tileW, tileH)` | Creates a chunked, unbounded layer. Calling it again does not clear existing tiles. |
+| `hasLayer(layer)` | Whether the entity has layer data. |
+| `setTiles(layer, Uint16Array)` | Bulk-loads a fixed layer's tiles. |
+| `setTile(layer, x, y, id)` / `getTile(layer, x, y)` | Writes / reads one tile. |
+| `fillRect(layer, x, y, w, h, id)` | Fills a rectangle with a tile id. |
+| `flipTile(layer, x, y, h, v, d)` | Flips a tile horizontally / vertically / diagonally. |
+| `rotateTile(layer, x, y, degrees)` | Rotates a tile in 90° steps. |
+| `tileToWorld(layer, tx, ty, ox, oy, rotation?)` / `worldToTile(layer, wx, wy, ox, oy, rotation?)` | Coordinate conversion; `ox`/`oy` is the layer's world origin, `rotation` its world Z angle in radians. |
+| `setTilesets(layer, slots)` | Assigns a multi-tileset slot table; an empty array reverts to a single tileset. |
+| `setTileAnimation(layer, tileId, frames)` / `clearTileAnimations(layer)` | Animates a tile id / removes all animations. |
+| `setChunkTiles(layer, cx, cy, tiles, w, h)` | Writes a chunk (infinite layers). |
+| `removeChunk(layer, cx, cy)` | Removes a chunk and its drawn mesh. |
+| `exportChunks(layer)` / `importChunks(layer, data)` | Serializes / restores chunk data. |
+| `setTint(layer, r, g, b, a, opacity)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live display overrides. |
+| `setTileProperty(layer, tileId, key, value)` / `getTileProperty(layer, x, y, key)` | Per-tile-id custom properties; reading addresses a cell. |
+| `setGridType(layer, type)` | Sets the grid layout; `type` is a `TilemapOrientation` value (orthogonal, isometric, staggered, hexagonal). |
+| `setHexParams(layer, sideLength, staggerAxisX, staggerIndexEven)` | Hex side length and stagger axis / index. |
+| `destroyLayer(layer)` | Removes the layer's data. |
+
+Collision queries (`tileCollisionAt`, `isTileSolid`, `tileCollisionAtWorld`) are listed in
+[Tile Collision](/docs/world/tilemaps/collision/#collision-queries).
+
+## See also
+
+- [World Streaming](/docs/world/streaming/) — chunked 2D worlds.
+- [Navigation](/docs/gameplay/ai/navigation/) — `NavGrid` and agents.
+- [Saving & Loading](/docs/scripting/save/) — `SaveManager`.

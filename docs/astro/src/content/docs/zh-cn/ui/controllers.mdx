@@ -67,7 +67,7 @@ world.insert(card, UIGear, {
 ```
 
 `gearBinding(controller, component, property, pages, tween?)` 寻址字段的方式和
-[时间轴](/docs/zh-cn/animation/timeline/) 属性轨道一致——组件名 + 点路径 `property`
+[时间轴](/docs/zh-cn/animation/timeline/tracks/#属性轨道)属性轨道一致——组件名 + 点路径 `property`
 (`"color"`、`"color.a"`、`"scale.x"`)。`pages` 是按页名索引的 **稀疏** 映射:某页没有条目就
 不动这个字段。
 
@@ -188,6 +188,6 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 
 - [UI](/docs/zh-cn/ui/overview/) —— 绑定所驱动的 flexbox 组件模型。
 - [UI 控件](/docs/zh-cn/ui/widgets/) —— 控件工厂。
-- [时间轴](/docs/zh-cn/animation/timeline/) —— 关键帧过渡;绑定用的是同一套字段寻址。
+- [时间轴](/docs/zh-cn/animation/timeline/overview/) —— 关键帧过渡;绑定用的是同一套字段寻址。
 - [游戏 AI](/docs/zh-cn/gameplay/ai/overview/) —— 能调用 `ui.setPage` 的 `.esfsm` / `.esbt`。
 - [事件绑定](/docs/zh-cn/scripting/events/) —— 把点击直接接到 `ui.setPage`，不写代码。

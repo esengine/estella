@@ -1,0 +1,83 @@
+---
+title: Tiled 地图
+description: Tiled 地图导入参考——Tilemap 组件与 .tmj 文件、支持的瓦片集类型、导入的朝向、对象层转换为 Marker 与 Trigger Area、通过 tilemapSource 读取原始对象数据、瓦片对象，以及碰撞对象组。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+在 [Tiled](https://www.mapeditor.org/) 中创作的地图通过 **`Tilemap`** 组件加载。加载时为每个地图图层派生一个 `TilemapLayer` 实体；之后这些图层与在编辑器中绘制的图层行为一致。
+
+## `Tilemap` 组件
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `source` | 资源（`tilemap`） | `''` | Tiled JSON 格式的地图文件（`.tmj`；在 Tiled 中使用*文件 → 导出为 → JSON*）。 |
+
+```typescript
+import { defineSystem, Commands } from 'esengine';
+import { Tilemap } from 'esengine/tilemap';
+
+const loadLevel = defineSystem([Commands()], (cmds) => {
+  cmds.spawn().insert(Tilemap, { source: 'assets/maps/level.tmj' });
+});
+```
+
+{/* SHOT: world-tilemap-tiled-import | Details of the entity carrying the Tilemap component with source level.tmj, and the viewport showing the imported map with its parallax cloud layer (examples/tilemap-demo, tiled-map scene) */}
+
+## 支持的瓦片集
+
+| 瓦片集类型 | 处理方式 |
+|---|---|
+| 内嵌的网格瓦片集（一张图集） | 直接加载。 |
+| 外部 `.tsj` 瓦片集 | 获取后合并进地图，图片路径相对地图解析。 |
+| 图片集合瓦片集（每个瓦片一张图片） | 加载时打包为一张网格图集，渲染方式与网格瓦片集相同。每张图片必须与地图的瓦片尺寸一致；尺寸不符时加载失败，错误信息给出所需尺寸。 |
+
+一张地图可以使用多个瓦片集；每个瓦片集成为图层多瓦片集表中的一个槽位（[多瓦片集](/docs/zh-cn/world/tilemaps/code/#多瓦片集)）。边距与间距取自瓦片集。瓦片动画、逐瓦片碰撞（[来自 Tiled 的碰撞](/docs/zh-cn/world/tilemaps/collision/#来自-tiled-的碰撞)）与自定义瓦片属性随瓦片集一起导入。
+
+## 朝向
+
+任意朝向的地图都导入到图层的[朝向字段](/docs/zh-cn/world/tilemaps/overview/#朝向)，包括交错地图的 `staggeraxis` 与 `staggerindex`，因此瓦片的位置与 Tiled 中显示的一致。
+
+## 对象层
+
+Tiled 的**对象层**（出生点、触发器、区域形状）随地图一起加载。点对象成为 [**Marker**](/docs/zh-cn/gameplay/markers/) 实体，形状对象成为 **Trigger Area** 区域——与在编辑器中手动放置的实体相同——因此无论对象来自 Tiled 还是 Estella 编辑器，`Query(Marker)` 都能读取。
+
+### 原始对象数据
+
+`tilemapSource(assets, path)` 返回解析后的地图，包括其对象组。每个组携带其对象，含位置、尺寸、`type`（Tiled 的 class）、`shape` 与自定义 `properties`：
+
+```typescript
+import { defineSystem, Res, Assets } from 'esengine';
+import { tilemapSource } from 'esengine/tilemap';
+
+const readSpawns = defineSystem([Res(Assets)], (assets) => {
+  const src = tilemapSource(assets, 'assets/maps/level.tmj');
+  for (const group of src?.objectGroups ?? []) {
+    for (const obj of group.objects) {
+      if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+    }
+  }
+});
+```
+
+### 瓦片对象
+
+带有瓦片引用的对象（**gid**——在 Tiled 中放到对象层上的瓦片）渲染为地图的精灵子实体，并遵循 Tiled 的水平、垂直与对角翻转标志。
+
+### 碰撞对象组
+
+名为 `collision`（不区分大小写）或带有属性 `collision = true` 的对象组会生成静态碰撞体：矩形、椭圆、多边形与折线成为对应的 2D 碰撞体形状。它们与瓦片碰撞使用相同的原点、每单位像素换算与播放模式生命周期。
+
+<Aside type="note">
+  对象碰撞体只存在于播放模式，从不被序列化进编辑世界。
+</Aside>
+
+## 示例
+
+`examples/tilemap-demo` 以两种方式加载同一套美术：`tiled-map` 场景导入一个带两个内嵌瓦片集、视差云层、水面动画与逐瓦片碰撞的 `.tmj`；`native-map` 场景使用在编辑器中绘制的 `.estileset`。
+
+## 参见
+
+- [标记与触发区](/docs/zh-cn/gameplay/markers/) —— 对象层转换成的实体。
+- [瓦片碰撞](/docs/zh-cn/world/tilemaps/collision/) —— 由导入的碰撞数据生成的碰撞体。
+- [资源](/docs/zh-cn/assets/overview/) —— 加载 `.tmj` 地图。

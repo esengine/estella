@@ -1,0 +1,174 @@
+---
+title: Particle Rendering
+description: How particles are drawn — size and colour over life with gradients, curves and runtime lookup tables, textures and sprite-sheet animation, render and blend modes, stretched particles, particle materials, per-particle trails, and draw order under a UI Canvas.
+---
+
+## Colour and size over life
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `startSizeMin` | number | `100` | Smallest size at spawn. |
+| `startSizeMax` | number | `100` | Largest size at spawn. |
+| `endSizeMin` | number | `100` | Smallest size at death. |
+| `endSizeMax` | number | `100` | Largest size at death. |
+| `sizeEasing` | `ParticleEasing` | `Linear` | Interpolation from start to end size. |
+| `sizeCurve` | `Curve` | none | Size-over-life curve; when it has keys it overrides the start/end sizes and `sizeEasing`. |
+| `startColor` | Color | `{1,1,1,1}` | Colour at spawn (RGBA, 0–1). |
+| `endColor` | Color | `{1,1,1,0}` | Colour at death. The default fades alpha to 0. |
+| `colorEasing` | `ParticleEasing` | `Linear` | Interpolation from start to end colour. |
+| `colorGradient` | `Gradient` | none | Colour-over-life gradient; when it has stops it overrides `startColor` / `endColor` and `colorEasing`. |
+
+`ParticleEasing` values are `Linear`, `EaseIn`, `EaseOut` and `EaseInOut`.
+
+`colorGradient` and `sizeCurve` are edited in the `ParticleEmitter` Details as stops or keys over normalized life `t`
+in `0..1`. The engine bakes them into a lookup table that the simulation samples by particle age. The `sizeCurve` value
+multiplies the particle's start size. The authored data has this form:
+
+```typescript
+// colorGradient: hot white -> orange -> smoke, fading out.
+{
+  stops: [
+    { t: 0.0, color: { r: 1, g: 1,   b: 0.8, a: 1 } },
+    { t: 0.4, color: { r: 1, g: 0.5, b: 0.1, a: 1 } },
+    { t: 1.0, color: { r: 0.2, g: 0.2, b: 0.2, a: 0 } },
+  ],
+}
+// sizeCurve: swell in, then shrink away (multiplies the particle's start size).
+{ keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
+```
+
+{/* SHOT: world-particles-gradient-editor | Details of the Smoke emitter in examples/vfx-showcase with the Color group expanded and the Color Gradient editor showing three or more stops (add them if the emitter has none), and the Size Curve editor of the Size group visible */}
+
+To change a ramp at runtime, upload a pre-baked lookup table through the `Particle` resource: an `N×4` RGBA
+`Float32Array` for colour, an `N`-element array for size. `null` clears the table and restores start/end with easing.
+
+```typescript
+import { defineSystem, Res, Particle } from 'esengine';
+
+const recolor = defineSystem([Res(Particle)], (particles) => {
+  const lut = new Float32Array([ /* r,g,b,a, r,g,b,a, … */ ]);
+  particles.setColorLut(entity, lut);   // or particles.setColorLut(entity, null)
+});
+```
+
+## Texture and sprite sheet
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `texture` | asset | none | Particle texture. An untextured particle is a soft quad. |
+| `spriteColumns` | number | `1` | Sprite-sheet columns; `1` uses the whole texture. |
+| `spriteRows` | number | `1` | Sprite-sheet rows. |
+| `spriteFPS` | number | `10` | Frames per second of the sheet animation. |
+| `spriteLoop` | boolean | `true` | Loop the sheet; `false` holds the last frame. |
+
+With `spriteColumns` / `spriteRows` above `1`, each particle plays through the frames at `spriteFPS`. A 4×4 explosion
+sheet, played once per particle:
+
+```typescript
+.insert(ParticleEmitter, {
+  texture: 'assets/effects/explosion.png',
+  spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
+});
+```
+
+## Rendering fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `blendMode` | `BlendMode` | `Additive` | How particles composite over the scene ([Blend modes](#blend-modes)). |
+| `layer` | number | `0` | Sorting layer for draw order. Under a `Canvas`, `0` draws by tree position ([Particles in a UI](#particles-in-a-ui)). |
+| `material` | asset | none | Custom material ([Particle materials](#particle-materials)). |
+| `simulationSpace` | `SimulationSpace` | `World` | `World` or `Local` ([Simulation space](/docs/world/particles/overview/#simulation-space)). |
+| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` faces the view; `Stretched` lays the quad along the particle's velocity ([Stretched particles](#stretched-particles)). |
+| `velocityScale` | number | `0` | `Stretched` only: length added per unit of speed, in world units. |
+| `lengthScale` | number | `1` | `Stretched` only: the quad's own length is its size times this value. |
+| `intensity` | number | `1` | Multiplier on the particle's colour (not its alpha) at draw time. In linear colour space the image is HDR, so a value above 1 makes a particle bright enough to bloom. Animatable by a timeline. The CPU simulation's per-particle trail is drawn without it. |
+
+## Blend modes
+
+| Mode | Effect |
+|---|---|
+| `Normal` | Standard alpha blending. |
+| `Additive` (default) | Colours add: glows, fire, magic, light. |
+| `Multiply` | Darkens: smoke, shadow. |
+| `Screen` | Brightens, softer than additive. |
+| `PremultipliedAlpha` | For textures with premultiplied alpha. |
+| `PmaAdditive` | Additive with a premultiplied-alpha source. |
+| `Lighten` | Keeps the brighter of particle and scene pixel. |
+| `Darken` | Keeps the darker of the two. |
+
+## Stretched particles
+
+With `renderMode: Stretched`, each particle's quad is turned so its Y axis runs along the particle's velocity. Its length
+is `size × lengthScale + speed × velocityScale`; its width is the particle's size. The texture should be drawn pointing
+up: a spark, a raindrop, a streak. A particle that is not moving keeps its spawn rotation.
+
+Stretching is applied by the CPU simulation's draw. A GPU-simulated emitter draws as `Billboard`.
+
+## Particle materials
+
+An emitter with a `material` uses that material's fragment stage for its shading. Besides `v_color` (already multiplied
+by `intensity`) and `v_texCoord`, the particle shader variant provides:
+
+| Input | Available when | Contents |
+|---|---|---|
+| `v_particle` | `#ifdef PARTICLE` | `x` normalized age (0 at birth, 1 at death), `y` a 0–1 random value fixed for the particle's life, `z` its lifetime in seconds, `w` the emitter's `intensity`. |
+| `v_worldXYZ`, `v_worldNormal` | The shader declares `#pragma feature PARTICLE_WORLD`; under `#ifdef MESH_NORMALS` | The particle's world position, and a normal facing the camera. |
+
+Two built-in templates use these inputs:
+
+- **Particle** (`builtin:particle`): texture × colour, with two additions. `u_softness` is a distance in world units over
+  which a particle fades as it nears the opaque scene behind it, so smoke and mist do not cut a hard line into the ground
+  or a wall. `u_erosion` (0–1) erodes the texture with age, low-alpha areas first; `u_erosionEdge` sets the softness of
+  the eroding edge.
+- **Distortion** (`builtin:distortion`): draws the image already behind it, offset — heat haze, shockwaves, lenses. The
+  texture's alpha, multiplied by the particle's or mesh's colour alpha, sets where and how strongly. `u_strength` is the
+  offset as a fraction of the screen; `u_radial` selects between a noise wobble (0) and a push outward from the quad's
+  centre (1); `u_dispersion` separates red from blue. It also works on a `MeshRenderer`.
+
+The depth fade and the distortion both read what the frame has already drawn, which requires the image to pass through
+the post-processing chain (linear colour space, an output transform, or any effect). Without the chain, a particle draws
+without the fade and a distortion draws nothing.
+
+## Per-particle trails
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `trailEnabled` | boolean | `false` | Draw a tapering ribbon behind each particle. Off, no position history is recorded. |
+| `trailWidth` | number | `8` | Ribbon width at the head; it tapers to a point at the tail. |
+| `trailPoints` | number | `6` | History length in points, 2–12. More points give smoother, more expensive trails. |
+| `trailMinDistance` | number | `6` | Minimum world distance a particle moves before a new trail point is recorded. |
+
+Each particle drags a ribbon along its recent path: comet sparks, tracer rounds, magic streaks. This differs from
+[`TrailRenderer`](/docs/graphics/sprites/effects/#motion-trails-trailrenderer), which trails one entity; here every
+particle has its own trail.
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 40, speedMin: 220, speedMax: 420, lifetimeMin: 0.7, lifetimeMax: 1.2,
+  startColor: { r: 0.6, g: 0.9, b: 1, a: 1 }, endColor: { r: 0.2, g: 0.4, b: 1, a: 0 },
+  trailEnabled: true,
+  trailWidth: 10,        // ribbon width at the particle, tapering to a point behind
+  trailPoints: 8,        // how many path points to keep (2..12)
+  trailMinDistance: 5,   // record a point every 5 world units of movement
+});
+```
+
+- The ribbon takes the particle's current colour at the head and fades to transparent along its length, so it follows
+  the colour over life.
+- On the CPU simulation the ribbon is built on the CPU and drawn through the same triangle-strip batch path as
+  `TrailRenderer`, so it sorts and blends like other 2D renderables. GPU trails are described under
+  [GPU simulation](/docs/world/particles/gpu-simulation/#gpu-events-sub-emitters-and-trails).
+- Trails cost a position history per particle (bounded by `trailPoints`) and ribbon geometry each frame. `6`–`8` points
+  suffice for most effects; lower `maxParticles` for heavily trailed effects.
+
+## Particles in a UI
+
+An emitter under a `Canvas` draws by its position in the tree, like the controls around it: listed after a panel or
+inside it, it draws over the panel; listed before, it draws under it. A `Sprite` under a `Canvas` without a `UINode`
+behaves the same way. A `layer` other than `0` opts out of tree order and sorts by layer against the controls' layers,
+which start at 1000: `layer: 5000` draws over the whole UI.
+
+An emitter that is not under a `Canvas` belongs to the scene. A screen `Canvas` is drawn after the scene, so those
+particles are always under that UI, whatever their `layer`. To draw an effect over a HUD, make it a child of the
+`Canvas`. `gpuSimulation` emitters do not draw under a screen `Canvas`.

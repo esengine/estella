@@ -1,0 +1,71 @@
+---
+title: Timeline
+description: Timeline assets (.estimeline) — what a timeline contains, the track types, how a TimelinePlayer plays one, how timelines relate to the Animator and tweens, and when the runtime is packaged.
+---
+
+A timeline (`.estimeline`) is a set of tracks evaluated together against one clock. Tracks key component fields,
+switch entities on and off, play sounds, sprite clips, skeletal animation and nested timelines, choose camera shots,
+spawn prefabs and send events. One timeline can animate many entities in 2D and 3D scenes. Timelines are edited in
+the **Sequencer** and played by a `TimelinePlayer` component.
+
+| Page | Content |
+| --- | --- |
+| [Sequencer](/docs/animation/timeline/sequencer/) | Creating and editing timelines: keys, curves, selection, track management, preview and rendering. |
+| [Tracks and bindings](/docs/animation/timeline/tracks/) | Each track type and its fields, and bindings to entities outside the player's hierarchy. |
+| [Playback and scripting](/docs/animation/timeline/playback/) | `TimelinePlayer`, the `Timeline` resource, playback events, wrap modes and timelines built in code. |
+
+## Track types
+
+| Track | `TrackType` | Drives |
+|---|---|---|
+| Property | `Property` | Keyed component fields: position, rotation, scale and any numeric field path ([Property tracks](/docs/animation/timeline/tracks/#property-tracks)). |
+| Sprite frames | `AnimFrames` | Sprite-sheet frames swapped over time. |
+| Sprite clip | `SpriteAnim` | A named `anim-clip` started at a time. |
+| Audio | `Audio` | Sounds: a moment plays the whole sound once; an item with a length is heard over its span ([Audio tracks](/docs/animation/timeline/tracks/#audio-tracks)). |
+| Activation | `Activation` | Entities switched on and off over ranges, with their children; `UINode.display` on a UI node ([Activation tracks](/docs/animation/timeline/tracks/#activation-tracks)). |
+| Spine | `Spine` | Spine animations played as clips. |
+| Particles | `Particle` | Play, stop or reset the target entity's particle emitter at a given time. |
+| Marker | `Marker` | Named time markers, sent to the game as `TimelineEvent` when crossed. |
+| Custom event | `CustomEvent` | Named events with a payload and an optional window, sent as `TimelineEvent` ([Event and marker tracks](/docs/animation/timeline/tracks/#event-and-marker-tracks)). |
+| Camera | `Camera` | The camera used as the view, shot by shot ([Camera tracks](/docs/animation/timeline/tracks/#camera-tracks)). |
+| Sequence | `Sequence` | Another timeline played inside a window of this one ([Sequence tracks](/docs/animation/timeline/tracks/#sequence-tracks)). |
+| Animation | `Animation` | Skeletal animation clips on a rig, eased and crossfaded over the rig's own animation ([Animation tracks](/docs/animation/timeline/tracks/#animation-tracks)). |
+| Spawn | `Spawn` | Entities instantiated from a prefab while the playhead is inside a clip ([Spawn tracks](/docs/animation/timeline/tracks/#spawn-tracks)). |
+| Camera shake | `CameraShake` | Camera shakes at given times ([Camera shake tracks](/docs/animation/timeline/tracks/#camera-shake-tracks)). |
+
+The Sequencer also adds **Fade** and **Time dilation** tracks, which key the `ScreenFade` and `TimeDilation`
+components on ordinary property tracks ([Fade and time dilation](/docs/animation/timeline/tracks/#fade-and-time-dilation)).
+
+## Playing a timeline
+
+A track finds its target by a name path below the entity that plays the timeline, or through a binding on the
+player. To play a timeline in a scene, add **Timeline Player** to the root entity, assign the `.estimeline` to
+**Timeline** and tick **Playing**. Playback advances in Play mode and in the standalone runtime and is frozen in the
+editor's edit mode; the Sequencer previews the timeline while editing. See
+[Playback and scripting](/docs/animation/timeline/playback/) for the component's fields and the `Timeline` resource.
+
+## Timelines, the Animator and tweens
+
+- An `.estimeline` is also the clip format of the [Animator](/docs/animation/animator/): a state with a timeline
+  motion samples it, and imported models write their skeletal clips as `.estimeline` files of joint curves.
+- An `.esanimator` holds a state machine that chooses between clips; a timeline holds one fixed arrangement of tracks.
+- A timeline suits many properties or entities animated in lockstep; a [tween](/docs/animation/tweens/) suits a
+  single property changed in response to gameplay.
+
+## Usage guidelines
+
+- Author timelines in the Sequencer; code plays and seeks them.
+- Use `wrapMode: 'once'` for cutscenes and `'loop'` for ambient or idle sequences.
+- Use `setTime` to seek a cutscene or synchronise it with gameplay state.
+
+## In a package
+
+Timelines are an optional module. A package includes the timeline runtime and loader when a scene has a
+`TimelinePlayer`, the content includes an `.estimeline`, or a script imports `esengine/timeline`; otherwise neither is
+included.
+
+## See also
+
+- [Animation](/docs/animation/overview/) — the animation systems and how they relate.
+- [Spine Animation](/docs/animation/spine/) — Spine tracks play Spine animations.
+- [AI built-in names](/docs/gameplay/ai/overview/#built-in-names) — `timeline.play` and `timeline.finished` for cutscenes driven by a state machine.

@@ -1,0 +1,217 @@
+---
+title: 粒子碰撞与子发射器
+description: 粒子碰撞参考——碰撞字段、地面平面碰撞、Physics2D/Physics3D 场景查询及其预算与降级、Depth 与 Sdf 碰撞及 ParticleCollider、ParticleCollisionEvent、碰撞统计，以及在出生、消亡或碰撞时触发的子发射器。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+碰撞默认关闭。开启 `collisionEnabled` 后，发射器的粒子按以下五种模式之一碰撞：
+
+| 模式 | 碰撞对象 | 模拟 |
+|---|---|---|
+| `Floor`（默认） | 位于 `collisionFloor` 的水平面。 | CPU 和 GPU |
+| `Physics2D` | 2D 物理世界中的碰撞体，通过场景查询。 | 仅 CPU |
+| `Physics3D` | 3D 物理世界中的碰撞体，通过场景查询。 | 仅 CPU |
+| `Depth` | 相机看到的内容，通过这一帧的深度。 | 仅 GPU |
+| `Sdf` | 场景中的每个 `ParticleCollider`。 | CPU 和 GPU |
+
+在所有模式下粒子都是一个点：它在中心触及表面处停下。
+
+## 碰撞字段
+
+开启 `collisionEnabled` 后，这些字段才在 Details 中显示。
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `collisionEnabled` | boolean | `false` | 开启碰撞。 |
+| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor`、`Physics2D`、`Physics3D`、`Depth` 或 `Sdf`。 |
+| `collisionFloor` | number | `0` | 地面平面的世界高度。 |
+| `collisionBounce` | number | `0.5` | 恢复系数：`0` 使粒子停住，`1` 为完全弹性。 |
+| `collisionFriction` | number | `0.1` | 每次反弹去除的切向速度比例，0–1。 |
+| `collisionLifetimeLoss` | number | `0` | 每次反弹去除的剩余寿命比例，0–1。`1` 使粒子首次接触即消亡。 |
+| `collisionMask` | 位掩码 | 全部（`65535`） | 场景模式命中的物理层，以及 `Sdf` 模式接受的 `ParticleCollider` 掩码。`0` 表示一个都不选。 |
+| `collisionQueryBudget` | number | `128` | 该发射器每次更新最多进行的场景查询数，0–4096。 |
+| `collisionMaxDistance` | number | `0` | 距最近活动相机超过此距离时跳过碰撞；`0` 不做距离剔除。 |
+| `collisionFallback` | `ParticleCollisionFallback` | `Floor` | `Floor` 或 `Skip`：物理不可用、预算用尽或粒子过远时的处理方式。 |
+| `collisionEvents` | boolean | `false` | 发出 `ParticleCollisionEvent`。 |
+| `collisionEventBudget` | number | `32` | 该发射器每次更新最多发出的事件数，0–1024。 |
+| `collisionThickness` | number | `30` | `Depth` 模式：粒子在可见表面之后多远内仍算撞上。更靠后的粒子视为已绕到背面。 |
+
+## 地面碰撞
+
+`Floor` 模式让世界空间粒子在世界高度 `collisionFloor` 处的水平面上反弹：落地的雨、在表面上弹跳的火花、落定的雪。它不依赖物理。
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 60, speedMin: 200, speedMax: 400, shape: EmitterShape.Cone, shapeAngle: 50,
+  gravity: { x: 0, y: -500 },
+  collisionEnabled: true,
+  collisionFloor: -200,        // 粒子落到的世界 Y
+  collisionBounce: 0.5,        // 0 = 立即停住，1 = 完全弹性
+  collisionFriction: 0.2,      // 每次反弹损失的水平速度
+  collisionLifetimeLoss: 0.1,  // 每次反弹消耗的寿命比例（落定时渐隐）
+});
+```
+
+世界空间粒子落到 `collisionFloor` 以下时被移回平面，竖直速度被反射并乘以 `collisionBounce`。`collisionFriction` 去除水平速度，
+`collisionLifetimeLoss` 加速粒子衰老，使溅射逐渐消失而不是无休止地弹跳。地面碰撞只作用于 `World` 粒子。
+
+## 场景碰撞
+
+`Physics2D` 和 `Physics3D` 通过物理插件对每个粒子本帧的移动线段进行投射，高速粒子不会穿过薄墙。墙体、刚体和瓦片地图碰撞体都会被命中。
+这是点查询，不存在有体积的刚体粒子。粒子位置、命中点和事件速度使用项目世界单位，物理适配器自行完成单位换算。场景查询只在 CPU 模拟中运行。
+
+### 碰撞预算
+
+- `collisionQueryBudget` 限制单个发射器每次更新的查询数。
+- App 全局上限默认为每次更新 4,096 次查询和 1,024 条通知，由所有活动发射器共享。用
+  `app.getResource(Particle).setCollisionBudget({ queries: 2048, events: 256 })` 修改。值为 `0` 时关闭对应的工作。
+  `Particle.collisionBudget` 返回当前生效的上限。
+- 预算不足以覆盖所有粒子时，查询在多次更新之间于发射器和存活粒子间轮换。
+- `collisionMaxDistance` 从最近的活动相机量起。为 `0` 或没有活动相机时不做距离剔除。预算内的屏幕外粒子仍会碰撞。
+
+### 降级
+
+`collisionFallback`（`ParticleCollisionFallback.Floor` 或 `Skip`）在物理不可用、预算耗尽或粒子超出 `collisionMaxDistance`
+时生效。查询未命中不会触发降级。`collisionMask` 按物理层过滤；`0` 表示一层都不选。
+
+## 深度碰撞
+
+`Depth` 与相机看到的内容碰撞，只在 GPU 模拟的发射器上运行。场景绘制完成后复制这一帧的深度；下一帧 kernel 用产生该深度的视图
+把每个粒子重投影进去。刚好位于表面后方的粒子视为撞上；比 `collisionThickness` 更靠后的粒子视为已绕到背面，直接穿过。
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  collisionEnabled: true,
+  collisionMode: ParticleCollisionMode.Depth,
+  collisionThickness: 50,
+  collisionBounce: 0.3,
+});
+```
+
+它不需要设置，每帧只多一次深度复制，与场景内容无关。其限制来自深度图本身：
+
+- 只有在屏幕上且写入深度的几何体才算。屏幕外的东西挡不住粒子，背对相机的面不存在。
+- 只有精灵的 2D 场景不写入深度。
+- 位于盒子正面之后的粒子碰到的是正面，而不是顶面。
+- 结果延迟一帧，并且只使用这一帧最先绘制的相机。
+- 没有 compute（WebGL2）时，`Depth` 按 `collisionFallback` 处理。
+
+需要不受相机影响的碰撞时，使用 `Sdf`。
+
+## Sdf 碰撞
+
+`Sdf` 与场景中放置的形状碰撞。**`ParticleCollider`** 是球体、盒体或胶囊体，不绘制，也不需要物理。发射器会被场景中前 64 个
+`mask` 与其 `collisionMask` 有共同位的碰撞体弹开。`inverted` 把粒子留在内部而不是挡在外部：罐子、法术的护罩。
+
+```ts
+const ball = world.spawn();
+world.insert(ball, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(ball, ParticleCollider, { shape: ParticleColliderShape.Sphere, radius: 120 });
+```
+
+### `ParticleCollider` 字段
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `shape` | `ParticleColliderShape` | `Sphere` | `Sphere`、`Box` 或 `Capsule`。盒体和胶囊体随实体旋转；胶囊体的轴为实体的上方向。 |
+| `radius` | number | `50` | 球体半径，以及胶囊体绕轴的半径。按实体最大的缩放分量缩放。 |
+| `halfHeight` | number | `50` | 胶囊体的轴从中心向两端延伸的长度。 |
+| `halfExtents` | Vec3 | `50, 50, 50` | 盒体的半尺寸。 |
+| `inverted` | boolean | `false` | 把粒子留在内部，而不是挡在外部。 |
+| `mask` | 位掩码 | 全部（`65535`） | 挡住哪些发射器：`collisionMask` 与之有共同位的发射器。 |
+| `enabled` | boolean | `true` | `false` 时该碰撞体不参与碰撞。 |
+
+每个粒子都要检测其掩码允许的所有碰撞体，因此大量粒子配合大量碰撞体会有实际开销，应控制碰撞体数量。`Sdf` 也在 CPU 模拟中运行，
+在没有 compute 的设备上效果不变。
+
+## 碰撞事件
+
+`collisionEvents: true` 时，碰撞以 `ParticleCollisionEvent` 发布，在下一帧的系统中用 `EventReader(ParticleCollisionEvent)` 读取。
+
+| 载荷字段 | 内容 |
+|---|---|
+| `emitter` | 发射器实体。 |
+| `particle` | 粒子在池中的槽位。 |
+| `body` | 被命中的实体；地面命中为 `INVALID_ENTITY`。 |
+| `mode` | 碰撞模式。 |
+| `x`、`y`、`z` | 世界命中点。 |
+| `normalX`、`normalY`、`normalZ` | 表面法线。 |
+| `velocityX`、`velocityY`、`velocityZ` | 入射速度。 |
+
+`collisionEventBudget` 与 App 事件上限共同约束碰撞通知、诊断接触记录和碰撞子爆发。GPU 模拟的发射器的事件会延迟一到两帧到达
+（[GPU 事件](/docs/zh-cn/world/particles/gpu-simulation/#gpu-事件子发射器和拖尾)）。
+
+### 碰撞统计
+
+`Particle.collisionStats` 为每个发射器列出最近一次完成的更新的统计：
+
+| 计数 | 含义 |
+|---|---|
+| `queries` | 进行的查询数。 |
+| `hits` | 发现的碰撞数。 |
+| `budgetSkipped` | 因预算用尽而跳过的粒子数。 |
+| `distanceSkipped` | 被 `collisionMaxDistance` 跳过的粒子数。 |
+| `unavailable` | 找不到物理世界的查询数。 |
+| `fallbacks` | 按 `collisionFallback` 处理的粒子数。 |
+| `events` | 接受的通知和子爆发数。 |
+| `eventDropped` | 因事件预算而丢弃的事件数。 |
+
+Particle Emitter 的 Details 显示这些计数，并可绘制临时的命中法线。法线显示仅供编辑器使用，不保存到场景。示例场景
+`particle-demo/assets/scenes/scene-collisions.esscene` 展示了 2D 与 3D 墙面、撞击爆发和由项目处理的事件计数。
+
+{/* SHOT: world-particles-collision-stats | Details of an emitter in examples/particle-demo, scene scene-collisions, during Play: the Collision group expanded with Physics2D or Physics3D mode, the collision counters filled in and hit normals shown in the viewport */}
+
+## 子发射器
+
+子发射器在粒子出生、消亡或碰撞时，于该粒子位置触发另一个发射器的爆发：升空后炸开的烟花弹、拖着烟团的火箭、裂成火星的火花。无需逐帧代码。
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `subEmitter` | entity | 无 | 粒子触发时发射的子发射器实体。`0` 或未设置表示关闭。 |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | `Death`、`Birth` 或 `Collision`。 |
+| `subEmitterChance` | number | `1` | 触发粒子发射子级的概率（0–1）。 |
+| `subEmitterInheritVelocity` | number | `0` | 传给子爆发的父粒子速度比例（0–1）。 |
+
+子发射器是当作模板使用的普通 `ParticleEmitter` 实体。设置 `rate: 0` 和 `playOnStart: false` 后，它只在父级触发时发射；
+它的 `burstCount` 决定每次子爆发的粒子数。
+
+```typescript
+import { EmitterShape, SubEmitterTrigger } from 'esengine';
+
+// 爆发模板 —— 一个只在被触发时才发射的普通发射器。
+const shell = cmds.spawn()
+  .insert(Transform, {})
+  .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,                     // 自身没有方向：火星四散
+    rate: 0, playOnStart: false, burstCount: 44,   // 每次爆发 44 颗火星
+    lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
+    startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
+    gravity: { x: 0, y: -150 },
+  }).id();
+
+// 火箭 —— 每个粒子消亡时，在该处触发爆发。
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
+  .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,
+    rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
+    angleSpreadMin: 84, angleSpreadMax: 96,
+    subEmitter: shell,
+    subEmitterTrigger: SubEmitterTrigger.Death,   // 或 Birth
+    subEmitterInheritVelocity: 0.15,              // 让火星带上一点火箭的运动
+  });
+```
+
+- `Death` 在每个父粒子消亡时触发（炮弹爆炸、碎片）。`Birth` 在每个粒子出生时触发（沿粒子流持续洒下子爆发）。`Collision`
+  在粒子撞到物体时触发，并复用子发射器的爆发设置。
+- `subEmitterChance` 小于 `1` 时只有部分粒子触发子级，用于稀释过密的效果。
+- `subEmitterInheritVelocity` 把父粒子的一部分速度带入爆发，使火星随火箭一起运动。
+- 支持局部空间的子发射器。发射器不能触发自身，继承链最多八层。
+- 在编辑器中，`subEmitter` 是实体选择器。场景加载时引用会被重新映射。
+
+<Aside type="note">
+  GPU 模拟的父发射器只驱动同样由 GPU 模拟的子发射器
+  （[GPU 事件、子发射器和拖尾](/docs/zh-cn/world/particles/gpu-simulation/#gpu-事件子发射器和拖尾)）。
+</Aside>

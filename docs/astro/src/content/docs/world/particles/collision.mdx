@@ -1,0 +1,234 @@
+---
+title: Particle Collision and Sub-emitters
+description: Particle collision reference — the collision fields, floor-plane collision, Physics2D/Physics3D scene queries with their budgets and fallbacks, Depth and Sdf collision with ParticleCollider, ParticleCollisionEvent, collision statistics, and sub-emitters fired on birth, death or collision.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Collision is off by default. With `collisionEnabled`, an emitter's particles collide in one of five modes:
+
+| Mode | Collides with | Simulation |
+|---|---|---|
+| `Floor` (default) | A horizontal plane at `collisionFloor`. | CPU and GPU |
+| `Physics2D` | Colliders in the 2D physics world, through scene queries. | CPU only |
+| `Physics3D` | Colliders in the 3D physics world, through scene queries. | CPU only |
+| `Depth` | What the camera sees, through the frame's depth. | GPU only |
+| `Sdf` | Every `ParticleCollider` in the scene. | CPU and GPU |
+
+A particle is a point in every mode: it stops where its centre meets the surface.
+
+## Collision fields
+
+These fields are shown in Details once `collisionEnabled` is on.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `collisionEnabled` | boolean | `false` | Turn collision on. |
+| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor`, `Physics2D`, `Physics3D`, `Depth` or `Sdf`. |
+| `collisionFloor` | number | `0` | World height of the floor plane. |
+| `collisionBounce` | number | `0.5` | Restitution: `0` stops the particle, `1` is fully elastic. |
+| `collisionFriction` | number | `0.1` | Share of tangential speed removed per bounce, 0–1. |
+| `collisionLifetimeLoss` | number | `0` | Share of the remaining lifetime removed per bounce, 0–1. `1` kills the particle on first contact. |
+| `collisionMask` | bitmask | all (`65535`) | Physics layers the scene modes hit, and the `ParticleCollider` masks the `Sdf` mode accepts. `0` selects none. |
+| `collisionQueryBudget` | number | `128` | Maximum scene queries this emitter makes per update, 0–4096. |
+| `collisionMaxDistance` | number | `0` | Distance from the nearest active camera beyond which collision is skipped; `0` disables distance culling. |
+| `collisionFallback` | `ParticleCollisionFallback` | `Floor` | `Floor` or `Skip`: the behaviour when physics is unavailable, the budget is spent or a particle is too far away. |
+| `collisionEvents` | boolean | `false` | Emit `ParticleCollisionEvent`s. |
+| `collisionEventBudget` | number | `32` | Maximum events this emitter raises per update, 0–1024. |
+| `collisionThickness` | number | `30` | `Depth` mode: how far behind a visible surface a particle still counts as having hit it. A particle further behind has passed round the back. |
+
+## Floor collision
+
+`Floor` mode bounces world-space particles off a horizontal plane at world height `collisionFloor`: rain on the ground,
+sparks skittering across a surface, settling snow. It has no physics dependency.
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 60, speedMin: 200, speedMax: 400, shape: EmitterShape.Cone, shapeAngle: 50,
+  gravity: { x: 0, y: -500 },
+  collisionEnabled: true,
+  collisionFloor: -200,        // world Y the particles land on
+  collisionBounce: 0.5,        // 0 = stop dead, 1 = fully elastic
+  collisionFriction: 0.2,      // horizontal speed shed per bounce
+  collisionLifetimeLoss: 0.1,  // fraction of life burned per bounce (fade as they settle)
+});
+```
+
+A world-space particle that falls below `collisionFloor` is moved back onto the plane, and its vertical velocity is
+reflected and scaled by `collisionBounce`. `collisionFriction` removes horizontal speed and `collisionLifetimeLoss` ages
+the particle, so splashes fade out instead of bouncing indefinitely. Floor collision applies to `World` particles only.
+
+## Scene collisions
+
+`Physics2D` and `Physics3D` cast each particle's movement segment for the frame through the physics plugin, so fast
+particles do not pass through thin walls. Walls, bodies and tilemap colliders are hit. These are point queries: there
+are no rigid particle volumes. Particle positions, hit points and event velocities are in project world units; the
+physics adapters perform their own unit conversion. Scene queries run on the CPU simulation only.
+
+### Collision budgets
+
+- `collisionQueryBudget` caps the queries of one emitter per update.
+- The App-wide caps default to 4,096 queries and 1,024 notifications per update and are shared across active emitters.
+  Change them with `app.getResource(Particle).setCollisionBudget({ queries: 2048, events: 256 })`. A value of `0`
+  disables that work. `Particle.collisionBudget` returns the caps in effect.
+- When a budget does not cover every particle, the queries rotate between emitters and live particles over updates.
+- `collisionMaxDistance` measures from the nearest active camera. With `0`, or with no active camera, there is no
+  distance culling. Offscreen particles within the budget still collide.
+
+### Fallback
+
+`collisionFallback` (`ParticleCollisionFallback.Floor` or `Skip`) applies when physics is unavailable, the budget is
+exhausted, or the particle is beyond `collisionMaxDistance`. A query that misses does not invoke the fallback.
+`collisionMask` filters physics layers; `0` selects none.
+
+## Depth collision
+
+`Depth` collides with what the camera sees and runs only on a GPU-simulated emitter. The frame's depth is copied after
+the scene is drawn; in the next frame the kernel reprojects each particle into it with the view that produced it. A
+particle just behind a surface has hit it; a particle further behind than `collisionThickness` has gone round the back
+and passes.
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  collisionEnabled: true,
+  collisionMode: ParticleCollisionMode.Depth,
+  collisionThickness: 50,
+  collisionBounce: 0.3,
+});
+```
+
+It needs no setup and costs one depth copy per frame regardless of scene content. Its limits are those of the depth
+image:
+
+- Only geometry that is on screen and writes depth counts. Nothing off screen stops a particle, and a surface facing
+  away from the camera does not exist.
+- A 2D scene of sprites writes no depth.
+- A particle behind the front face of a box meets the front face, not the top.
+- The result is one frame late, and only the first camera drawn in the frame is used.
+- Without compute (WebGL2), `Depth` does what `collisionFallback` says.
+
+For collision that must hold regardless of the camera, use `Sdf`.
+
+## Sdf collision
+
+`Sdf` collides with shapes placed in the scene. A **`ParticleCollider`** is a sphere, box or capsule that draws nothing
+and needs no physics. An emitter bounces off the first 64 colliders in the scene whose `mask` shares a bit with its
+`collisionMask`. `inverted` keeps particles inside instead of outside: a jar, a dome round a spell.
+
+```ts
+const ball = world.spawn();
+world.insert(ball, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(ball, ParticleCollider, { shape: ParticleColliderShape.Sphere, radius: 120 });
+```
+
+### `ParticleCollider` fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `shape` | `ParticleColliderShape` | `Sphere` | `Sphere`, `Box` or `Capsule`. A box and a capsule rotate with the entity; a capsule's axis is the entity's up. |
+| `radius` | number | `50` | A sphere's radius, and a capsule's radius around its axis. Scaled by the entity's largest scale. |
+| `halfHeight` | number | `50` | How far a capsule's axis extends each way from its centre. |
+| `halfExtents` | Vec3 | `50, 50, 50` | A box's half size. |
+| `inverted` | boolean | `false` | Keep particles inside rather than outside. |
+| `mask` | bitmask | all (`65535`) | Which emitters it stops: those whose `collisionMask` shares a bit with it. |
+| `enabled` | boolean | `true` | `false` removes the collider from collision. |
+
+Every particle tests every collider its mask admits, so a large particle count against many colliders has a real cost;
+keep colliders few. `Sdf` also runs on the CPU simulation, so the effect is preserved on a device without compute.
+
+## Collision events
+
+With `collisionEvents: true`, collisions are published as `ParticleCollisionEvent` and read with
+`EventReader(ParticleCollisionEvent)` in a system on the next frame.
+
+| Payload field | Contents |
+|---|---|
+| `emitter` | The emitter entity. |
+| `particle` | The particle's pool slot. |
+| `body` | The entity that was hit; `INVALID_ENTITY` for a floor hit. |
+| `mode` | The collision mode. |
+| `x`, `y`, `z` | World hit point. |
+| `normalX`, `normalY`, `normalZ` | Surface normal. |
+| `velocityX`, `velocityY`, `velocityZ` | Incoming velocity. |
+
+`collisionEventBudget` and the App event cap bound collision notifications, diagnostic contacts and collision
+sub-bursts together. On a GPU-simulated emitter, events arrive one or two frames late
+([GPU events](/docs/world/particles/gpu-simulation/#gpu-events-sub-emitters-and-trails)).
+
+### Collision statistics
+
+`Particle.collisionStats` lists one entry per emitter for the latest completed update:
+
+| Counter | Meaning |
+|---|---|
+| `queries` | Queries made. |
+| `hits` | Collisions found. |
+| `budgetSkipped` | Particles skipped because a budget was spent. |
+| `distanceSkipped` | Particles skipped by `collisionMaxDistance`. |
+| `unavailable` | Queries that found no physics world. |
+| `fallbacks` | Particles handled by `collisionFallback`. |
+| `events` | Notifications and sub-bursts accepted. |
+| `eventDropped` | Events dropped by the event budget. |
+
+The Particle Emitter Details shows these counters and can draw transient hit normals. The normal display is
+editor-only and is not saved to the scene. The sample scene `particle-demo/assets/scenes/scene-collisions.esscene`
+shows 2D and 3D walls, impact bursts and project-owned event counters.
+
+{/* SHOT: world-particles-collision-stats | Details of an emitter in examples/particle-demo, scene scene-collisions, during Play: the Collision group expanded with Physics2D or Physics3D mode, the collision counters filled in and hit normals shown in the viewport */}
+
+## Sub-emitters
+
+A sub-emitter fires another emitter's burst at a particle's position when that particle is born, dies or collides: a
+firework shell that bursts, a rocket trailing smoke puffs, a spark that splits into embers. No per-frame code is needed.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `subEmitter` | entity | none | The child emitter entity fired when a particle triggers. `0` or unset is off. |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | `Death`, `Birth` or `Collision`. |
+| `subEmitterChance` | number | `1` | Probability (0–1) that a triggering particle fires the child. |
+| `subEmitterInheritVelocity` | number | `0` | Share (0–1) of the parent particle's velocity passed to the sub-burst. |
+
+The child is an ordinary `ParticleEmitter` entity used as a template. With `rate: 0` and `playOnStart: false` it emits
+only when the parent triggers it; its `burstCount` sets the size of each sub-burst.
+
+```typescript
+import { EmitterShape, SubEmitterTrigger } from 'esengine';
+
+// The burst template — a normal emitter that only fires when triggered.
+const shell = cmds.spawn()
+  .insert(Transform, {})
+  .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,                     // no direction of its own: sparks fly all round
+    rate: 0, playOnStart: false, burstCount: 44,   // 44 sparks per burst
+    lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
+    startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
+    gravity: { x: 0, y: -150 },
+  }).id();
+
+// The rocket — on each particle's death, fire the shell burst at that spot.
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
+  .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,
+    rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
+    angleSpreadMin: 84, angleSpreadMax: 96,
+    subEmitter: shell,
+    subEmitterTrigger: SubEmitterTrigger.Death,   // or Birth
+    subEmitterInheritVelocity: 0.15,              // carry a little of the rocket's motion
+  });
+```
+
+- `Death` fires as each parent particle expires (shell explosions, debris). `Birth` fires as each is born (a continuous
+  shower of sub-bursts along a stream). `Collision` fires when a particle hits something and reuses the child's burst
+  settings.
+- `subEmitterChance` below `1` lets only some particles fire the child, thinning a dense effect.
+- `subEmitterInheritVelocity` carries part of the parent particle's velocity into the burst, so the sparks travel with
+  the rocket.
+- Local-space children are supported. An emitter cannot trigger itself, and inherited chains stop at a depth of eight.
+- In the editor, `subEmitter` is an entity picker. The reference is remapped when the scene loads.
+
+<Aside type="note">
+  A GPU-simulated parent feeds only a child that is also GPU-simulated
+  ([GPU events, sub-emitters and trails](/docs/world/particles/gpu-simulation/#gpu-events-sub-emitters-and-trails)).
+</Aside>

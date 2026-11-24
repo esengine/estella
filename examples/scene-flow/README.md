@@ -13,16 +13,13 @@ flinches — it belongs to the shell scene that survives every swap.
 ## How the scenes are addressed
 
 The three flow scenes are **code-built `SceneConfig`s registered on
-`SceneManager`**, not extra `.esscene` files. That is a deliberate choice:
+`SceneManager`**, not extra `.esscene` files. Both routes work:
 
-- In the editor's Play realm only the **entry** `.esscene` is registered with
-  the SceneManager (as the running snapshot). Sibling scene files are not
-  switch targets there, so a `.esscene`-addressed flow could not be verified by
-  pressing Play.
-- In an **exported build** every cooked scene *is* registered by name (see
-  `game.config.json` → `scenes`), and `switchTo('name')` lazily fetches it —
-  that path exists, but it only kicks in after an export.
-- Code-registered scenes behave identically in every realm — editor Play,
+- Editor Play and an **exported build** register every scene file by name
+  (see `game.config.json` → `scenes`), and `switchTo('name')` lazily fetches
+  it, so a flow between `.esscene` files works the same either way.
+- This example builds its scenes in code to show the other route.
+  Code-registered scenes behave identically in every realm — editor Play,
   exported web build, WeChat — and entities spawned through the scene's
   `SceneContext` are tracked, so unloading a scene despawns everything it
   created (whole widget subtrees included) with zero cleanup code.
