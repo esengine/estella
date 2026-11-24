@@ -1,0 +1,73 @@
+---
+title: Web 游戏平台
+description: 面向 Poki、CrazyGames 和 YouTube Playables 的 Web 导出——Web 发行渠道设置、SDK 初始化、通过 Ads 资源投放广告、玩法事件、存档、分数、体积检查以及本地测试无法覆盖的内容。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Web 导出可以面向 Web 游戏平台。在 **打包项目** 的网页目标设置中通过 **Web 发行渠道** 选择；清单写法为 `packaging.platforms.web.channel`，具名导出配置档可以分别设置。
+
+{/* SHOT: publish-web-target | Package Project dialog with the Web target selected, the Web settings group visible: Web channel dropdown (Standalone, Poki, CrazyGames, YouTube Playables), Leaderboard client encryption key, Run without WebAssembly, Ask to rotate the device when held the wrong way; any example project */}
+
+| 渠道 | `channel` 值 | SDK |
+|---|---|---|
+| 独立发行（默认） | `"standalone"` | 无 |
+| Poki | `"poki"` | 官方 Poki SDK |
+| CrazyGames | `"crazygames"` | 官方 CrazyGames SDK v3 |
+| YouTube Playables | `"youtube"` | 官方 YouTube Playables SDK |
+
+所有渠道的广告都通过现有的 [`Ads`](/docs/zh-cn/publishing/ads-sharing/#激励视频) 资源提供，广告期间暂停模拟并挂起音频。只有结果报告 `completed: true` 时才发放奖励。玩法的开始与停止由游戏逻辑上报；导出器不会根据页面加载或输入推断。
+
+<Aside type="caution">
+  导出不等于平台审核通过。SDK 模拟、无头检查和本地观察不能替代各平台的官方检查工具、QA 流程或真机测试。
+</Aside>
+
+## Poki
+
+- 页面在 `<head>` 中加载官方 Poki SDK。启动时在项目脚本之前完成初始化，并在场景和资产加载完成后上报 `gameLoadingFinished`。
+- 初始化失败时游戏照常运行，广告不可用。等待初始化的时间上限为十秒；这一上限不约束脚本下载。
+- Poki 忽略传给 `Ads` 的广告位 id，由 SDK 选择投放位置。并发的广告请求会被拒绝，而不是排队。
+- 游戏逻辑在开始、暂停和结束的切换点调用官方的 `PokiSDK.gameplayStart()` 和 `PokiSDK.gameplayStop()`。
+- 该渠道的页面允许 SDK 管理的广告使用 HTTPS 资源和框架；独立发行渠道保持同源策略。
+
+玩法事件、无广告填充与成功播放、以及音频/输入的恢复需在 [Poki Inspector](https://developers.poki.com/guide/sdk-html5) 中测试。要在编辑器之外使用真实 SDK 检查，可在 localhost 上提供导出目录，将该 URL 填入 Inspector 的 URL 栏，并在整个会话期间保持服务器运行。
+
+**Mobile Controls** 示例包含 `poki` 导出配置档：
+
+```bash
+estella export examples/mobile-controls --profile poki
+```
+
+其三击训练回合会上报 START、PAUSE、完成和 REPLAY 切换，包含可选的激励积分和明确的插屏广告时机。初始加载、设备控制按钮以及从后台返回都不会开始玩法。该房间要求横屏；竖屏时以加黑边方式显示，不显示旋转提示。独立发行配置档保留原有的控制方式。Estella 的 CI 会在无头 Chromium 中使用 SDK 模拟和同一提交的 Web 运行时检查这些流程。
+
+## CrazyGames
+
+- 导出接入官方 v3 SDK：上报加载开始与结束，通过 `Ads` 提供激励广告和中插广告，并跟随宿主的静音状态。
+- 存档通过 SDK 的 Data API 保存。需在 CrazyGames 开发者后台开启 **Progress Save**。`setItem` 不代表云端备份已确认。
+- 初始化失败时游戏照常运行，宿主服务关闭。
+- `Scores.submit` 向受邀的 CrazyGames 排行榜发送加密分数。将平台配置中的 base64 **Encryption Key** 填入 **分数榜客户端加密密钥**（网页目标设置）。切勿填写服务端 API 密钥：该值会随 Web 包发布。留空则禁用提交。分数已发送不代表排行榜已接受。
+
+## YouTube Playables
+
+- 官方 SDK 在游戏代码之前加载。加载画面绘制完成时上报 `firstFrameReady`；`gameReady` 会等到场景可交互且加载遮罩消失。
+- SDK 的暂停/恢复独立于玩家暂停，会挂起引擎帧、输入、音频和视频。可见性事件不会覆盖 SDK 暂停。游戏自身的异步工作必须配合这些通知。
+- 奖励需要 SDK 返回 `true`。
+- 写入前必须成功加载云端数据；加载失败或无法读取时保留现有进度。等待 `Storage.flush()` 或 `SaveManager.saveAsync()` 可获得 SDK 的保存确认。3 MiB 及以上的存档会被拒绝；暂停期间超过 64 KiB 的存档保持待写入。
+- 在 Playables 环境之外，本地 SDK 空实现不会启用广告、分数或云存档。
+
+导出检查：
+
+| 检查项 | 上限 |
+|---|---|
+| 存储总大小 | 小于 250 MiB |
+| 单个文件 | 小于 30 MiB |
+| 文件数量 | 最多 8000 |
+| 文件名 | 仅限支持的字符 |
+| 到 `gameReady` 为止的初始传输量 | 压缩后小于 30 MiB（静态初始内容为估算值） |
+
+CLI 和编辑器都以警告形式显示这些检查。需在目标设备和官方 Test Suite 中验证加载和峰值堆内存。官方[包分析工具](https://developers.google.com/youtube/gaming/playables/samples/bundle_analyzer)可进行独立的静态校验。Estella 的 CI 还会在无头 Chromium 中应用官方指南的 CSP 响应头并检测策略违规，以一个刻意被拦截的外部请求作为对照。Mobile Controls 示例提供 `youtube` 导出配置档；其最高分只在该值成功保存后才发送。见[官方集成要求](https://developers.google.com/youtube/gaming/playables/certification/requirements_integration)。
+
+## 参见
+
+- [广告与平台服务](/docs/zh-cn/publishing/ads-sharing/)——`Ads` 资源及其他平台服务。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——网页目标。

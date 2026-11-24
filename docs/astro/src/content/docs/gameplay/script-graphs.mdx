@@ -1,127 +1,113 @@
 ---
 title: Script Graphs
-description: Author gameplay logic visually as a .esgraph asset — events, an exec wire, data wires, variables, callable graphs — and run it on an entity with ScriptGraphAgent.
+description: Script graph reference — the .esgraph asset and ScriptGraphAgent, exec and data wires, the node groups, variables, callable graphs, execution limits, and registering graphs from code.
 ---
 
-A **script graph** is gameplay logic drawn as nodes and wires instead of typed. It is
-the visual sibling of [state machines and behavior trees](/docs/gameplay/ai/authoring/):
-the graph is a `.esgraph` asset, an entity runs it, and the leaves it calls are the
-same **actions** you register once in code. It suits the short, event-driven logic
-that is awkward as a state machine — *when the game starts, spawn this; when the key
-is pressed, branch on that*.
+A **script graph** is gameplay logic authored as nodes and wires in a `.esgraph` asset and run on an entity by a
+`ScriptGraphAgent`. Its leaves are the same registered **actions** and **conditions** that
+[state machines and behavior trees](/docs/gameplay/ai/actions/) use. It is suited to short, event-driven logic: on
+start, spawn an object; on a key press, branch on a condition.
 
-The `.esgraph` file **is** the runtime definition: nothing compiles it ahead of time,
-so the graph the editor runs and the graph the package ships are the same bytes.
+The `.esgraph` file is the runtime definition. It is not compiled ahead of time, so the graph the editor runs and the
+graph the package ships are the same data.
 
-## Creating and opening a graph
+## Creating and running a graph
 
-1. In the **Content Browser**, **New → New Script Graph**. The new asset opens in a
-   document tab (double-click any `.esgraph` to reopen it).
-2. **Right-click the canvas** to add an event, then wire what it should do. An empty
-   graph says exactly that.
-3. Select the entity that should run it, add the **`ScriptGraphAgent`** component and
-   set its `graph` field to the asset.
+1. In the **Content Browser**, choose **New → New Script Graph**. The asset opens in a document tab; double-clicking an
+   `.esgraph` reopens it.
+2. Right-click the canvas to add an event, then wire the nodes it triggers.
+3. On the entity that runs the graph, add a **`ScriptGraphAgent`** component and set its `graph` field to the asset.
 
-The asset is referenced by path and preloaded with the scene, so it is ready before
-the agent first ticks. Graphs run in **Play** (and in the exported game), in the
-`Update` schedule beside the state-machine interpreter.
+The asset is referenced by path and preloaded with the scene, so it is ready before the agent's first tick. Graphs run in
+**Play** and in the exported game, in the `Update` schedule beside the state-machine interpreter.
 
 ![A script graph on its canvas: an Every frame event wired through Set variable, Set property and Branch nodes, with the Inputs, Outputs and Variables list on the left](@/assets/guides/en/script-graph.png)
 
-*The Script Graph Demo example: a bouncer that moves every frame and turns round at an edge. Variables are listed on the left with how many nodes read and write each.*
+*The Script Graph Demo example: a bouncer that moves every frame and turns round at an edge. The list on the left shows
+each variable with the number of nodes that read and write it.*
 
-## Two kinds of wire
+{/* SHOT: gameplay-script-graph-agent | script-graph-demo example, main scene: the Bouncer entity selected, Details panel showing the Script Graph Agent card with its graph field set to the .esgraph asset */}
+
+## Wires
 
 | Wire | Carries | Direction |
 |---|---|---|
-| **Exec** (the control wire) | "run next" | *Pushed*: an event lights its entry node and the wire is walked depth-first. |
-| **Data** (number, boolean, string, entity, any) | a value | *Pulled*: a node reads its inputs by evaluating backwards up the wire when it runs. |
+| **Exec** (control) | "run next" | Pushed: an event activates its entry node and the wire is walked depth-first. |
+| **Data** (number, boolean, string, entity, any) | A value | Pulled: a node evaluates its inputs backwards along the wire when it runs. |
 
-Wires only connect compatible types. An input with nothing wired into it holds a
-**literal** you type on the node.
+Wires connect only compatible types. An input with nothing wired into it holds a **literal** typed on the node.
 
-Order is what the picture promises: a **Sequence** node finishes pin 0's whole chain
-before pin 1 starts. A pure node (no exec pins) feeding two pins of the same node is
-evaluated **once** per activation, so both pins see the same value; the next
-activation evaluates it again, which is what lets a **While** condition become false.
+Execution order follows the graph: a **Sequence** node completes pin 0's whole chain before pin 1 starts. A pure node (no
+exec pins) that feeds two pins of the same node is evaluated **once** per activation, so both pins see the same value;
+the next activation evaluates it again, which lets a **While** condition become false.
 
-## Adding nodes
+## Nodes
 
-The **Node** button in the toolbar (or right-click on the canvas) lists nodes in
-groups (**Events**, **Flow**, **Variables**, **Values**, **Actions**, **Queries**, **Graphs**):
+The **Node** button in the toolbar, or right-clicking the canvas, lists nodes in groups:
 
 | Group | Nodes |
 |---|---|
-| **Events** | **Start**, **Every frame**, **Destroy**, **On event** (listens for a named entity event). Each is an entry point; a graph can have several. |
+| **Events** | **Start**, **Every frame**, **Destroy**, **On event** (a named entity event). Each is an entry point; a graph can have several. |
 | **Flow** | **Branch**, **Sequence** (configurable pin count), **While**, **Delay**. |
 | **Variables** | **Get variable**, **Set variable**. |
 | **Values** | **Number**, **Boolean**, **String** literals. |
-| **Actions** | Nodes with an exec pin that do something: `timeline.play` / `timeline.pause`, `spriteAnim.play` / `restart` / `stop`, `audio.play` / `stop`, `soundEvent.trigger` / `stop`, `property.set`, `entity.spawn` (spawns a prefab the graph names, at an x / y and optionally under a parent, and hands the new entity back), `entity.despawn`, `debug.log`, `scene.load` / `reload`, `ui.setVisible`, `ui.setPage`, `fsm.fire`, `blackboard.set` — plus every action you register in code. |
-| **Queries** | Value-only nodes (no exec pin): `math.*` (add, subtract, multiply, divide, min, max, abs, clamp, lerp, random), `compare.*` (equal, less, greater), `logic.*` (and, or, not), `string.concat`, `property.get`, `entity.self`, `entity.byName`, `input.down` / `pressed` / `axis` / `pointer` — plus every registered condition. |
-| **Graphs** | Every other callable graph in the project, to call it with a **Call graph** node (empty until a graph declares an input). |
+| **Actions** | Nodes with an exec pin: `timeline.play` / `timeline.pause`, `spriteAnim.play` / `restart` / `stop`, `audio.play` / `stop`, `soundEvent.trigger` / `stop`, `property.set`, `entity.spawn` (spawns a named prefab at an x / y, optionally under a parent, and outputs the new entity), `entity.despawn`, `debug.log`, `scene.load` / `reload`, `ui.setVisible`, `ui.setPage`, `fsm.fire`, `blackboard.set`, and every action registered in code. |
+| **Queries** | Value-only nodes (no exec pin): `math.*` (add, subtract, multiply, divide, min, max, abs, clamp, lerp, random), `compare.*` (equal, less, greater), `logic.*` (and, or, not), `string.concat`, `property.get`, `entity.self`, `entity.byName`, `input.down` / `pressed` / `axis` / `pointer`, and every registered condition. |
+| **Graphs** | Every other callable graph in the project, called through a **Call graph** node (empty until a graph declares an input). |
 
-A few nodes carry data worth knowing:
+Node details:
 
-- **Every frame** outputs `dt`, the frame's delta in seconds.
+- **Every frame** outputs `dt`, the frame delta in seconds.
 - **On event** listens for an entity event by type (for example `trigger_enter` from a
-  [Trigger Area](/docs/gameplay/markers/), or `click` from a button) and outputs `target`
-  and `other` — the entity the event was sent to, and the one it names besides (the
-  other body of a contact; `0` when it names nobody). Select it and the Details shows its
-  **Type** and its **Inputs**, as a UE Custom Event's: each input is a name and a type
-  (`number`, `bool`, `string`, `entity` or `any`), and becomes a pin carrying that field
-  of the event, or of its `payload` (a timeline event's), turned to its type, or the
-  type's zero where the event has no such field. The graph file keeps them as the node's
-  `payload` literal, `name:type` pairs separated by commas.
+  [Trigger Area](/docs/gameplay/markers/#trigger-areas), or `click` from a button) and outputs `target` (the entity the
+  event was sent to) and `other` (the other entity it names, such as the other body of a contact; `0` when none). With
+  the node selected, Details shows its **Type** and its **Inputs**: each input is a name and a type (`number`, `bool`,
+  `string`, `entity` or `any`) and becomes a pin carrying that field of the event or of its `payload` (as a timeline
+  event has), converted to the type, or the type's zero value when the event has no such field. The graph file stores
+  the inputs as the node's `payload` literal, `name:type` pairs separated by commas.
 - **Sequence** has 1–16 pins (2 by default). **While** has a `body` and a `done` pin.
-- **Delay** waits `seconds`, then continues. Entering a Delay that is already counting
-  does nothing, so a fast caller cannot keep restarting it. A graph another graph calls
-  cannot contain a Delay (a call finishes inside one step), and the graph reports it as a problem.
+- **Delay** waits `seconds`, then continues. Entering a Delay that is already counting has no effect, so a frequent
+  caller cannot restart it. A graph called by another graph cannot contain a Delay (a call completes within one step);
+  the graph reports it as a problem.
 
-The menu lists the verbs by their registry name; once placed, a node is titled
-readably (**Find entity by name**, **Key pressed**, **Set property**…) with the name
-underneath.
+The menu lists actions and conditions by their registry name; a placed node shows a readable title (**Find entity by
+name**, **Key pressed**, **Set property**, …) with the name underneath.
 
-An action or condition you register with `registerAction` / `registerCondition` — the
-same ones state machines and behavior trees use — appears here with the ports its
-declaration gives it. The file stores only the verb's *name*, so an old graph is
-redrawn from the current declaration rather than keeping ports its verb no longer has.
+An action or condition registered with `registerAction` / `registerCondition` appears with the ports its declaration
+gives it. The file stores only the name, so an existing graph is redrawn from the current declaration and does not keep
+ports the declaration no longer has.
 
-**Arrange** lays the nodes out left to right by what feeds what; positions are
-editor-only and ignored at runtime.
+**Arrange** lays the nodes out left to right by data flow. Node positions are editor-only and ignored at run time.
 
 ## Variables
 
-The panel beside the canvas has three sections — **Inputs**, **Outputs** and
-**Variables** — each with a count and an **Add** button, searchable, showing how often
-each entry is read and written (or *unused*).
+The panel beside the canvas has three sections, **Inputs**, **Outputs** and **Variables**, each with a count, an **Add**
+button and search, and each entry shows how often it is read and written (or *unused*).
 
-- **Add** under **Variables** declares a typed variable with a default. It is **declared by the
-  asset but valued per entity** — two entities running the same graph each keep their
-  own.
-- **Drag** a variable onto the canvas: a plain drop asks **Get** or **Set**; hold `Ctrl/⌘`
-  to drop a Get, `Alt` to drop a Set, with no question.
-- Rename or change a variable's type from its row. Deleting one that nodes still use
-  leaves those nodes on the canvas, without a variable, and asks first.
+- **Add** under **Variables** declares a typed variable with a default value. Variables are declared by the asset but
+  valued per entity: two entities running the same graph each keep their own values.
+- Dragging a variable onto the canvas asks whether to create **Get** or **Set**; with `Ctrl/⌘` held it creates a Get, with
+  `Alt` held a Set.
+- A variable is renamed or retyped from its row. Deleting a variable that nodes still use asks for confirmation and
+  leaves those nodes on the canvas without a variable.
 
 ## Callable graphs
 
-A graph becomes **callable** when you **Add** an entry under **Inputs** (an input pin)
-or **Outputs** (an output pin). Another graph then runs it with a **Call graph** node, handing
-values in and reading results back — the signature lives on the callee, so changing it
-redraws every caller.
+A graph becomes **callable** when it declares an entry under **Inputs** (an input pin) or **Outputs** (an output pin).
+Another graph runs it with a **Call graph** node, passing values in and reading results back. The signature belongs to
+the callee; changing it redraws every caller.
 
-A call runs the callee **to completion, synchronously**, inside the caller's step. Each
-call site keeps its own frame for the callee, the callee spends the caller's step
-budget, and nesting is bounded — a graph that reaches itself through a cycle stops
-rather than overflowing the stack.
+A call runs the callee **to completion, synchronously**, within the caller's step. Each call site keeps its own frame
+for the callee, the callee spends the caller's step budget, and nesting is bounded.
 
-## Safety limits
+## Execution limits
 
-Every node activation costs a **step**, and an instance has a budget per tick
-(4096 by default). A graph that loops forever — a **While** that never turns false —
-stops, names the node that exhausted the budget, and stays stopped, instead of
-freezing the editor. Calls nest at most 16 deep. A reference to a graph, prefab or
-verb that does not exist is reported once, not every frame.
+| Limit | Value | Behaviour |
+|---|---|---|
+| Steps per tick | 4096 (`DEFAULT_STEP_BUDGET`) | Every node activation costs a step. A graph that exceeds the budget (a **While** that never becomes false) stops, names the node that exhausted it, and stays stopped. |
+| Call depth | 16 (`MAX_CALL_DEPTH`) | A deeper call, including a graph that reaches itself through a cycle, stops with a reported problem. |
+
+A reference to a graph, prefab or action that does not exist is reported once, not every frame.
 
 ## From code
 
@@ -135,6 +121,10 @@ registerScriptGraph('door-open', graphData); // a ScriptGraph object
 cmds.spawn().insert(ScriptGraphAgent, { graph: 'door-open' });
 ```
 
-`ScriptGraphAgent.graph` takes either a registered name or a `.esgraph` path. See
-[AI → Authoring in the editor](/docs/gameplay/ai/authoring/) for the registry the
-actions come from.
+`ScriptGraphAgent.graph` takes a registered name or a `.esgraph` path.
+
+## See also
+
+- [Actions & Conditions](/docs/gameplay/ai/actions/) — the registry the action and query nodes come from.
+- [Event Binding](/docs/scripting/events/) — entity events that **On event** listens for.
+- [Asset Editors](/docs/editor/asset-editors/) — the graph editor.

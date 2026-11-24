@@ -1,42 +1,54 @@
 ---
 title: 黑板
-description: "每个 agent 私有的键值存储与一次性事件触发器——AI 状态如何在叶子之间流动、如何喂给转移守卫。"
+description: 黑板参考——每个 AI 代理的键值存储与一次性触发器、其方法，以及游戏代码通过 AiFsm 与 AiBt 资源进行的访问。
 ---
 
-每个 FSM/BT agent 拥有一块 **`Blackboard`**(黑板)——它私有的键值存储加上一次性事件触发器。
-动作和条件通过 `ctx.blackboard` 访问它;这是 AI 状态在叶子间流动的方式,也是转移守卫取值的来源。
+每个状态机与行为树代理都拥有一个 **`Blackboard`**：私有的键值存储加上一次性触发器。动作与条件通过 `ctx.blackboard` 访问它。黑板上的值在叶子之间传递状态，并为转移守卫提供比较用的值。
 
 ```typescript
 registerAction('takeDamage', (ctx) => {
   const hp = (ctx.blackboard.get<number>('health') ?? 100) - 10;
   ctx.blackboard.set('health', hp);
-  if (hp <= 0) ctx.blackboard.fire('died');   // 一条以 'died' 为键的转移被 fire 一次
+  if (hp <= 0) ctx.blackboard.fire('died');   // a transition keyed on 'died' fires once
 });
 ```
 
 | 方法 | 说明 |
 |---|---|
-| `get<T>(key)` / `set(key, value)` | 读/写一个值。 |
-| `has(key)` / `delete(key)` | 测试 / 删除一个 key。 |
-| `fire(trigger)` | fire 一个一次性事件;以它为键的转移在被采用前保持启用。 |
-| `isFired(trigger)` / `consume(trigger)` | 测试 / 清除一个触发器。 |
-| `clearTriggers()` | 清掉所有待处理的触发器。 |
+| `get<T>(key)` / `set(key, value)` | 读取 / 写入值。 |
+| `has(key)` / `delete(key)` | 检测 / 移除键。 |
+| `fire(trigger)` | 触发一次性触发器；以其为键的转移在被执行前保持可用。 |
+| `isFired(trigger)` / `consume(trigger)` | 检测 / 清除触发器。 |
+| `clearTriggers()` | 清除所有待处理的触发器。 |
 
-黑板的值支撑 FSM 转移上的 `guard` 比较,而 `trigger` 机制就是 Unity 式的边事件:fire 一次,
-被采用它的那条转移消费。
+黑板的值支撑 FSM 转移的 `guard` 比较。触发器是边沿事件：触发一次，由执行它的转移消费。
 
-叶子之外的游戏代码通过两个资源访问某个 agent 的黑板,也可以在 agent 首次 tick 之前先写入初值或 fire
-触发器。黑板与实体同生命周期,不会被序列化:
+## 从游戏代码访问
+
+叶子之外的代码通过两个资源访问代理的黑板，也可在代理首次 tick 前预设值或触发触发器。黑板与实体同生命周期，且不会被序列化。
 
 ```typescript
 import { AiFsm, AiBt } from 'esengine/ai';
 
 const fsm = app.getResource(AiFsm);
 fsm.blackboard(enemy).set('health', 100);
-fsm.fire(enemy, 'alarm');          // 被该 agent 下一条启用的转移消费
-fsm.state(enemy);                  // 当前激活状态名;首次 tick 之前为 null
+fsm.fire(enemy, 'alarm');          // consumed by the agent's next enabled transition
+fsm.state(enemy);                  // active state name, or null before the first tick
 
 const bt = app.getResource(AiBt);
-bt.blackboard(enemy);              // 行为树 agent 的黑板
-bt.status(enemy);                  // 上一次根状态
+bt.blackboard(enemy);              // a tree agent's blackboard
+bt.status(enemy);                  // last root status
 ```
+
+| 资源 | 成员 | 说明 |
+|---|---|---|
+| `AiFsm` | `blackboard(entity)` | 状态机代理的黑板。 |
+| | `fire(entity, trigger)` | 在其上触发一个触发器。 |
+| | `state(entity)` | 当前激活的状态名；首次 tick 前为 `null`。 |
+| `AiBt` | `blackboard(entity)` | 行为树代理的黑板。 |
+| | `status(entity)` | 最近一次根节点状态，或 `null`。 |
+
+## 另请参阅
+
+- [状态机](/docs/zh-cn/gameplay/ai/state-machines/#转移)——转移上的触发器与守卫。
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/#aicontext)——`ctx.blackboard`。

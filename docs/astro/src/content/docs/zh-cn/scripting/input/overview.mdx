@@ -1,0 +1,146 @@
+---
+title: 输入
+description: Input 资源——键盘、鼠标、触摸与手柄的按住状态与逐帧边沿、世界空间光标、固定步长系统中的边沿投递、触摸手势、多点触控模式，以及方法参考。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+系统通过 **`Input`** 资源读取输入。它跟踪**按住**状态以及当前帧的**边沿**（按下、松开）。边沿仅在发生变化的那一帧为 true，因此输入需每帧轮询。
+
+| 页面 | 内容 |
+|---|---|
+| 输入（本页） | `Input` 资源：键盘、鼠标、触摸、手柄、手势。 |
+| [输入动作](/docs/zh-cn/scripting/input/input-map/) | 基于 `InputMap` 与 `.inputmap` 资源的具名、可重绑定动作。 |
+| [输入路由](/docs/zh-cn/scripting/input/routing/) | 原始事件依次经过的编辑器、UI 与游戏三层。 |
+| [设备能力](/docs/zh-cn/scripting/input/device/) | 运动传感器、振动、屏幕常亮、全屏与指针锁定。 |
+
+## 键盘
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+
+const keys = defineSystem([Res(Input)], (input) => {
+  if (input.isKeyDown('KeyW'))       { /* held */ }
+  if (input.isKeyPressed('Space'))   { /* pressed this frame */ }
+  if (input.isKeyReleased('Escape')) { /* released this frame */ }
+});
+```
+
+按键以 DOM `code` 字符串标识：`KeyW`、`KeyA`、`ArrowUp`、`Space`、`Escape`、`Digit1`……
+
+## 鼠标
+
+```typescript
+const mouse = defineSystem([Res(Input)], (input) => {
+  if (input.isMouseButtonPressed(0)) { /* left button pressed this frame */ }
+  const screenX = input.mouseX, screenY = input.mouseY;   // screen pixels
+  const wheel = input.scrollDeltaY;
+});
+```
+
+按键：`0` = 左键，`1` = 中键，`2` = 右键（也可写作 `MouseButton.Left` / `.Middle` / `.Right`）。
+
+### 世界空间光标
+
+`input.mouseX` / `mouseY` 为屏幕像素（Y 轴向下，原点在左上角）。**`UICameraInfo`** 资源提供投影到世界中的光标位置，用于放置或拾取实体：
+
+```typescript
+import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
+
+const spawnAtCursor = defineSystem(
+  [Res(Input), Res(UICameraInfo), Commands()],
+  (input, camera, cmds) => {
+    if (!camera.valid) return;
+    if (input.isMouseButtonPressed(0)) {
+      cmds.spawn().insert(Transform, {
+        position: { x: camera.worldMouseX, y: camera.worldMouseY, z: 0 },
+      });
+    }
+  }
+);
+```
+
+任意屏幕点通过 `CameraView.screenToWorld` 转换（[相机](/docs/zh-cn/graphics/camera/overview/#屏幕--世界坐标)）。`isPointerOverUI()` 返回光标是否位于 UI 元素上；世界点击以其作为守卫，使点击按钮时不会同时作用于世界。
+
+## 固定步长系统
+
+`FixedUpdate` 系列中的系统在短于时间步长的帧上运行零次，追赶时运行多次。`*Pressed` / `*Released` 边沿**恰好投递给一个**固定步——即边沿到达之时或之后的第一个固定步——因此在固定步长系统中读取的边沿既不会丢失也不会重复，游戏代码无需自行缓冲。
+
+```typescript
+// Schedule.FixedPreUpdate — the edge is delivered to one step.
+const jump = defineSystem([Query(Mut(CharacterController2D)), Res(Input)], (players, input) => {
+  for (const [, cc] of players) {
+    if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
+  }
+});
+```
+
+<Aside type="note">
+  按住状态（`isKeyDown`）为电平触发，在任何调度中读取都正确。按固定步精确投递的边沿涵盖键盘与鼠标按键；手柄边沿按帧计算。
+</Aside>
+
+## 触摸手势
+
+`GestureDetector` 将原始触摸转换为点击、长按、滑动与捏合回调。它基于 `Input` 资源构造，并在系统中更新：
+
+```typescript
+import { defineSystem, Res, Input, Time, GestureDetector } from 'esengine';
+
+let gestures: GestureDetector | null = null;
+
+const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
+  if (!gestures) {
+    gestures = new GestureDetector(input);
+    gestures.onTap       = (x, y) => { /* screen px */ };
+    gestures.onLongPress = (x, y) => { /* held without moving */ };
+    gestures.onSwipe     = (dir, speed) => { /* 'left' | 'right' | 'up' | 'down' */ };
+    gestures.onPinch     = (scale, cx, cy) => { /* frame-to-frame zoom factor */ };
+  }
+  gestures.update(time.delta);
+});
+```
+
+| 手势 | 识别条件 |
+|---|---|
+| 点击 | 触摸时长短于 0.3 s，移动距离小于 10 px。 |
+| 长按 | 触摸按住 0.5 s，移动距离小于 10 px。 |
+| 滑动 | 以不低于 200 px/s 的速度移动至少 50 px。 |
+| 捏合 | 两点触摸；报告两点间距逐帧的缩放比例及其中心点。 |
+
+## 多点触控
+
+多点触控默认开启：每个触摸点都会到达 UI 与游戏。**项目设置 → 游戏 → 运行时 → 多点触控** 设置初始模式。该模式可在游戏运行时更改；调用 `setMultiTouch` 会覆盖项目设置，直到游戏重启：
+
+```ts
+const input = app.getResource(Input);
+input.setMultiTouch(false);   // one touch at a time
+input.setMultiTouch(true);    // all touches
+input.isMultiTouchEnabled();  // current mode
+```
+
+关闭多点触控时：
+
+- 最先开始的触摸点被持续处理，直到其结束；
+- 在此期间开始的触摸点一直被忽略直到其结束，UI 与游戏均如此，因此第二根手指无法按下按钮或移动摇杆；
+- 在多个触摸点活动时关闭该模式，最早的触摸点被保留，其余被取消：它们结束时不产生松开边沿，它们正在按住的按钮被释放而不触发点击。
+
+该模式适用于所有平台：Web、小游戏与原生应用。
+
+## 参考
+
+| 分组 | 成员 |
+|---|---|
+| 键盘 | `isKeyDown(code)`、`isKeyPressed(code)`、`isKeyReleased(code)`。 |
+| 鼠标 | `isMouseButtonDown(b)`、`isMouseButtonPressed(b)`、`isMouseButtonReleased(b)`；`mouseX` / `mouseY`（或 `getMousePosition()`）；`scrollDeltaX` / `scrollDeltaY`（或 `getScrollDelta()`）。 |
+| 触摸 | `isTouchActive(id)`、`getTouches()`、`getTouch(id)`、`getTouchCount()`；活动触摸点的 `touches` 映射；当前帧边沿 `touchesStarted` / `touchesEnded`。 |
+| 手柄 | `isGamepadConnected(pad?)`、`isGamepadButtonDown(btn, pad?)`、`isGamepadButtonPressed(btn, pad?)` / `isGamepadButtonReleased(btn, pad?)`、`getGamepadButtonValue(btn, pad?)`（模拟量 `0..1`）、`getGamepadAxis(axis, pad?)`、`getGamepads()`。`pad` 默认为 `0`。 |
+| 指针 | `isPointerOverUI()`——光标位于 UI 元素上。 |
+| 触控模式 | `setMultiTouch(enabled)`、`isMultiTouchEnabled()`。 |
+| 虚拟输入 | `setVirtual(id, x, y)`——写入由 `Virtual` [输入绑定](/docs/zh-cn/scripting/input/input-map/#绑定)读取的具名值。 |
+
+`*Down` 成员读取按住状态；`*Pressed` / `*Released` 为当前帧的边沿（在 `FixedUpdate` 中为一个固定步）。
+
+## 参见
+
+- [相机](/docs/zh-cn/graphics/camera/overview/#屏幕--世界坐标)——用于任意屏幕点的 `screenToWorld`。
+- [UI](/docs/zh-cn/ui/overview/)——UI 先于游戏世界消费指针输入。

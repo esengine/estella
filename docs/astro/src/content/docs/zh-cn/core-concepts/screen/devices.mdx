@@ -1,0 +1,87 @@
+---
+title: 屏幕方向与安全区
+description: 设备屏幕处理——用于尺寸与方向变化的 ScreenInfo 辅助类、项目屏幕方向设置，以及使 UI 避开刘海、圆角与宿主叠加层的 SafeArea 组件。
+---
+
+## 屏幕尺寸与方向：`ScreenInfo`
+
+`ScreenInfo` 是不由运行时安装的辅助类。它由游戏构造，通过 `update()` 接收屏幕尺寸，推导屏幕方向并通知监听者。
+
+| 成员 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `width` | number | `0` | 最近一次报告的屏幕宽度，单位 px。 |
+| `height` | number | `0` | 最近一次报告的屏幕高度，单位 px。 |
+| `dpr` | number | `1` | 设备像素比。 |
+| `orientation` | `ScreenOrientation` | `Portrait` | `width > height` 时为 `Landscape`，否则为 `Portrait`。 |
+| `on(event, fn)` | 方法 | — | 订阅 `'resize'`（每次 `update()`）或 `'orientationchange'`（推导出的方向变化时；首次 `update()` 不触发）。返回取消订阅函数。 |
+| `update(width, height, dpr = 1)` | 方法 | — | 提供当前尺寸；重新计算方向并通知监听者。 |
+
+```typescript
+import { ScreenInfo, ScreenOrientation } from 'esengine';
+
+const screen = new ScreenInfo();
+screen.on('resize', (w, h) => { /* reposition off-canvas HUD */ });
+screen.on('orientationchange', (o) => {
+  if (o === ScreenOrientation.Portrait) { /* show a "rotate device" hint */ }
+});
+
+const feed = () =>
+  screen.update(window.innerWidth, window.innerHeight, window.devicePixelRatio);
+window.addEventListener('resize', feed);
+feed();
+```
+
+## 屏幕方向
+
+导出游戏的屏幕方向是项目设置，而不是运行时状态。**设置 → 项目 → 游戏 → 显示 → 屏幕方向**写入一个值（`packaging.orientation`），
+所有导出目标都读取它：微信 `game.json`、web/playable 的旋转提示以及桌面窗口宽高比。未设置时，由设计分辨率的宽高比推导。
+见[项目显示设置](/docs/zh-cn/core-concepts/screen/camera-fit/#项目显示设置)。
+
+## 安全区
+
+**绝对定位**的 `UINode` 上的 `SafeArea` 组件使该节点保持在设备安全区内：每当平台边距或屏幕变化时，引擎写入节点的四个边距。
+该系统属于标准 UI 插件（`safeAreaPlugin`，由 `uiPlugin` 构建），在常规 app 中无需安装。
+
+{/* SHOT: core-safe-area-details | 打开 examples/celestial-heights 中的 assets/scenes/hud.esscene，选中带 SafeArea 的 HUD 根节点；细节面板显示 Safe Area 卡片（Apply Top/Bottom/Left/Right、Avoid Host Menu），旁边是 Position Type 为 Absolute 的 UI Node 卡片。 */}
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `applyTop` | boolean | `true` | 将节点的上边距下移安全区上边距的距离。 |
+| `applyBottom` | boolean | `true` | 对下边距作同样处理。 |
+| `applyLeft` | boolean | `true` | 对左边距作同样处理。 |
+| `applyRight` | boolean | `true` | 对右边距作同样处理。 |
+| `avoidHostMenu` | boolean | `false` | 同时避开宿主自身的叠加层——位于安全区*内部*的微信胶囊菜单。上边距取安全区上边距与胶囊下边缘两者中的较大值。整个节点会下移，因此仅在被胶囊遮挡的节点上设置。 |
+
+平台边距在写入前从设备像素换算为 UI 设计像素：
+
+| 平台 | 边距来源 |
+|---|---|
+| 微信 | `wx.getSystemInfoSync().safeArea`，自动读取。 |
+| 原生（iOS / Android） | 平台缓存的系统边距，每帧读取。 |
+| Web | 根元素上的 `--sat` / `--sab` / `--sal` / `--sar` CSS 自定义属性。宿主页面以 `env(safe-area-inset-*)` 定义它们；未定义的属性读作 `0`。 |
+
+一个带 `SafeArea` 的绝对定位根节点即可保护挂在其下的所有 HUD 元素：
+
+```typescript
+import {
+  defineSystem, GetWorld, spawnUIEntity, SafeArea, UIPositionType,
+} from 'esengine';
+
+const buildHudRoot = defineSystem([GetWorld()], (world) => {
+  // Absolute node with auto width/height: the SafeArea system writes the four insets,
+  // so the node spans exactly the safe region.
+  const hudRoot = spawnUIEntity({
+    world,
+    node: { position: UIPositionType.Absolute },
+  });
+  world.insert(hudRoot, SafeArea, {
+    applyTop: true, applyBottom: true, applyLeft: true, applyRight: true,
+  });
+  // Parent all HUD widgets under hudRoot.
+});
+```
+
+## 另请参阅
+
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)——设计盒与缩放模式。
+- [编辑器](/docs/zh-cn/editor/overview/)——显示设置页与设备预览。

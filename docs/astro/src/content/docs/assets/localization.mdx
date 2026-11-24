@@ -1,22 +1,22 @@
 ---
 title: Localization
-description: The complete guide to i18n — translation catalogs, interpolation, plurals, and locale switching via Res(Localization).
+description: Localization reference — the Localization resource and plugin, catalogs, interpolation, plural forms, pseudo-localization, .eslocale string tables and their editors, and binding Text to keys.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Register a translation catalog per locale, switch the active locale, and look up
-strings with `t()` — all through the `Localization` resource. It's deliberately
-`Intl`-free so behavior is identical on the web and WeChat.
+The `Localization` resource holds a translation catalog per locale, the active and fallback locales, and resolves
+strings with `t()`. It does not use `Intl`, so results are identical on the web and on WeChat.
 
-`Localization` is **opt-in** — install its plugin once before any system reads
-`Res(Localization)`:
+## Installing
+
+`Localization` is opt-in. Install its plugin before any system reads `Res(Localization)`:
 
 ```typescript
-import { App, localizationPlugin, LocalizationPlugin } from 'esengine';
+import { localizationPlugin, LocalizationPlugin } from 'esengine';
 
 app.addPlugin(localizationPlugin);
-// …or preload catalogs + set the initial/fallback locale up front:
+// or with options:
 app.addPlugin(new LocalizationPlugin({
   locale: 'en',
   fallback: 'en',
@@ -24,7 +24,16 @@ app.addPlugin(new LocalizationPlugin({
 }));
 ```
 
-## Catalogs & translation
+| `LocalizationOptions` | Type | Default | Description |
+|---|---|---|---|
+| `locale` | string | `'en'` | Active locale. |
+| `fallback` | string | `'en'` | Locale used when a key is missing in the active one. |
+| `catalogs` | `Record<string, LocaleCatalog>` | — | Catalogs to register at startup, keyed by locale. |
+| `tables` | string[] | — | `.eslocale` assets (paths or `@uuid:` refs) to load at startup through `Assets`. Requires the asset plugin. |
+
+A scene that binds a `Text` to a key installs the plugin automatically ([Binding Text to keys](#binding-text-to-keys)).
+
+## Catalogs and lookup
 
 ```typescript
 import { defineSystem, Res, Localization } from 'esengine';
@@ -38,46 +47,44 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 });
 ```
 
-- **`addCatalog(locale, entries)`** merges keys into a locale — call it again to add
-  more (later calls override).
-- **`t(key, params?)`** interpolates `{placeholder}` values. Missing keys fall back to
-  the fallback locale, then to the key itself (a visible, greppable fallback).
+- `addCatalog(locale, entries)` merges keys into a locale; later calls override earlier keys.
+- `t(key, params?)` substitutes `{placeholder}` values. A key missing in the active locale is looked up in the fallback
+  locale, then returned unchanged.
 
 ## Plurals
 
-A catalog entry can carry plural forms — the CLDR set `zero` / `one` / `two` / `few`
-/ `many` / `other`; `t` selects one from a `count` param (and a `zero` form always
-wins when `count === 0`). The default selector is English-style (`one`/`other`); for
-Slavic/Arabic/etc. rules register a per-locale selector with
-`setPluralSelector(locale, (count) => category)`, returning one of those six
-categories.
+An entry can carry plural forms from the CLDR set `zero`, `one`, `two`, `few`, `many`, `other`. `t` selects a form from
+the `count` parameter; a `zero` form is always used when `count === 0`. The default selector implements English rules
+(`one` / `other`). For other languages register a selector with `setPluralSelector(locale, (count) => category)` that
+returns one of the six categories.
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
 i18n.t('apples', { count: 3 });   // "3 apples"
 ```
 
-## `Localization` reference
+## `Localization` API
 
-| Method | Description |
+| Member | Description |
 |---|---|
-| `addCatalog(locale, entries)` | Merge translation keys into a locale. |
-| `t(key, params?)` | Look up + interpolate a string. |
-| `setLocale(locale)` | Set the active locale. |
-| `setFallbackLocale(locale)` | Set the locale used when a key is missing. |
-| `setPluralSelector(locale, selector)` | Custom plural rule for a locale. |
-| `setPseudoLocalization(options \| null)` | Opt-in length-stress preview (`expansion`, `accents`); `null` restores ordinary translation. |
-| `availableLocales()` | List registered locales. |
-| `has(key)` | Whether a key exists in the active/fallback locale. |
+| `addCatalog(locale, entries)` | Merge keys into a locale. |
+| `t(key, params?)` | Look up and interpolate a string. |
+| `setLocale(locale)` / `locale` | Set / read the active locale. |
+| `setFallbackLocale(locale)` / `fallbackLocale` | Set / read the fallback locale. |
+| `setPluralSelector(locale, selector)` | Register a plural rule for a locale. |
+| `setPseudoLocalization(options \| null)` | Enable pseudo-localization (`expansion`, `accents`); `null` restores normal lookup. `@experimental`. |
+| `availableLocales()` | Registered locales. |
+| `has(key)` | Whether a key exists in the active or fallback locale. |
+
+### Pseudo-localization
+
+`setPseudoLocalization({ expansion: 0.35, accents: true })` lengthens and accents every translated string while
+keeping placeholders, rich-text tags and line breaks intact, to test layouts against longer languages.
+`setPseudoLocalization(null)` restores the real text.
 
 ## String tables (`.eslocale`)
 
-![A .eslocale string table in the inspector — keys with their values](@/assets/guides/en/localization.png)
-
-*A `.eslocale` table in the inspector: each key's value for this locale, with the other locale shown beneath as a translation hint.*
-
-Translations can ship as **data** instead of code: a `.eslocale` asset carries ONE
-locale's catalog, so a game loads only the languages it needs.
+An `.eslocale` asset holds the catalog of **one** locale, so a game loads only the languages it needs:
 
 ```json
 // assets/i18n/zh-CN.eslocale
@@ -91,60 +98,64 @@ locale's catalog, so a game loads only the languages it needs.
 }
 ```
 
-Create one in the editor (Content Browser → right-click → **New Locale Table**) or
-by hand. **Selecting a table turns the Details panel into its editor**: key/text
-rows (with plural forms), a dimmed reference translation from the project's other
-tables, and a missing-key list you backfill with one click — every edit saves
-immediately. Load explicitly with `Assets.loadLocaleTable(path)` (requires the
-localization plugin — it fails loud otherwise), preload via
-`new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`, or let the
-[Text binding below](#bind-ui-text-to-keys) load everything automatically. The
-export cook always ships `.eslocale` files — they load by key, so reachability
-can't see them and force-includes them instead.
+Tables are loaded in one of three ways:
 
-Double-click a `.eslocale` to open the **String Table** editor, which shows every language of
-the project side by side: one row per key, one column per table, untranslated cells marked,
-a filter, and add and remove for keys (each edit is written to that language's file at once).
-It can **Import** an Excel (`.xlsx`), CSV or XLIFF (`.xlf`) file and merge it into the tables by key,
-and **Export** every language as one Excel or CSV sheet or as XLIFF 1.2, listing the problems it found
-first; a plural entry is edited in the inspector.
+- `assets.loadLocaleTable(path)`, which requires the localization plugin and fails otherwise;
+- `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`;
+- automatically, by a scene with key-bound `Text` ([below](#binding-text-to-keys)).
 
-To check how a longer language will fit, `i18n.setPseudoLocalization({ expansion: 0.35, accents: true })`
-(`@experimental`) stretches and accents every translated string while keeping placeholders, rich-text tags
-and newlines intact; `setPseudoLocalization(null)` goes back to the real text.
+The cook always ships `.eslocale` files, because they are addressed by key and no scene references them.
 
-## Bind UI Text to keys
+### Inspector
 
-Set `Text.i18nKey` (the **I18n Key** dropdown in the editor's Details panel, listing
-every key across the project's tables with a translated preview) and `content`
-becomes derived: it re-resolves **every frame**, so `setLocale` — or a table landing
-late — re-flows every bound label with no code. Scene-driven projects get the whole
-loop for free: a scene that binds any key auto-installs the plugin at load, loads
-every shipped table, and starts in the **player's system language** when a matching
-table ships (a game that installs the plugin itself, or calls `setLocale`, is never
-overridden).
+Create a table with **Content Browser → right-click → New Locale Table**. Selecting a table turns the Details panel into
+its editor: key and text rows (with plural forms), the matching text from the project's other tables as a dimmed
+reference, and a list of missing keys that can be added in one click. Each edit is saved immediately.
 
-Keep **dynamic** labels (`Score: 42`) code-driven — bound content is derived, so a
-label your code rewrites must not also carry a key; call `t('score', { n })` in the
-system that owns it instead.
+![A .eslocale string table in the inspector — keys with their values](@/assets/guides/en/localization.png)
 
-## Best practices
+*A `.eslocale` table in the inspector: each key's value in this locale, with the other locale shown beneath as a
+reference.*
 
-- **Key everything through `t()` or `i18nKey`** — never hard-code user-facing
-  strings, even placeholders.
-- **Interpolate, don't concatenate** (`'Score: {n}'`), so word order can differ per
-  language.
-- **Set a fallback locale** so a missing translation degrades to another language
-  rather than a raw key.
-- **One `.eslocale` per language**, all in one folder (`assets/i18n/`), keyed
-  identically — a missing key falls back visibly to the key string.
+### String Table editor
+
+Double-clicking an `.eslocale` opens the **String Table** editor, which shows every language of the project side by
+side: one row per key, one column per table, with untranslated cells marked, a filter, and commands to add and remove
+keys. Each edit is written to that language's file at once. Plural entries are edited in the inspector.
+
+{/* SHOT: assets-string-table-editor | ui-controls example: assets/i18n/en.eslocale opened by double-click; the String Table editor shows the en and zh-CN columns side by side with the filter and the Import / Export commands visible */}
+
+- **Import** reads an Excel (`.xlsx`), CSV or XLIFF (`.xlf`) file and merges it into the tables by key.
+- **Export** writes every language as one Excel or CSV sheet, or as XLIFF 1.2, and lists any problems found first.
+
+## Binding Text to keys
+
+Setting `Text.i18nKey` (the **I18n Key** field in the Details panel, which lists every key across the project's tables
+with a translated preview) makes `content` derived: it is resolved again **every frame**, so `setLocale` or a table that
+finishes loading later updates every bound label without code.
+
+A scene that binds any key:
+
+- installs the localization plugin when it loads, if the game has not installed it;
+- loads every shipped table;
+- starts in the **player's system language** when a matching table ships. A game that installs the plugin itself or
+  calls `setLocale` is never overridden.
+
+Dynamic labels (`Score: 42`) stay code-driven: a label whose content code rewrites must not carry a key. Call
+`t('score', { n })` in the system that owns the label.
 
 <Aside type="tip">
-  See `examples/ui-controls` for the zero-code loop: five labels bound by
-  `i18nKey`, `en` + `zh-CN` tables, and no localization code at all.
+  `examples/ui-controls` binds five labels with `i18nKey` to `en` and `zh-CN` tables and contains no localization code.
 </Aside>
+
+## Guidelines
+
+- Resolve every user-facing string through `t()` or `i18nKey`.
+- Interpolate (`'Score: {n}'`) rather than concatenate, so word order can differ per language.
+- Set a fallback locale so a missing translation falls back to another language rather than to the key.
+- Keep one `.eslocale` per language in one folder (`assets/i18n/`), with identical keys.
 
 ## See also
 
-- [UI](/docs/ui/overview/) — the `Text` component the binding rides on.
-- [Assets](/docs/assets/overview/) — how assets ship and load.
+- [Text](/docs/ui/text/): the `Text` component that carries `i18nKey`.
+- [Assets](/docs/assets/overview/): how assets ship and load.

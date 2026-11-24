@@ -22,11 +22,11 @@ import { Aside } from '@astrojs/starlight/components';
 | **Layer** | `0` | 该画布 UI 所属的排序层，由 `Camera.cullingMask` 判定。 |
 | **Pixels Per Unit** | `100` | 物理缩放（每米像素数），不影响渲染。 |
 
-缩放模式与设计分辨率和相机适配共用同一规则，详细规格及数值示例见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。布局要点：
+缩放模式与设计分辨率和相机适配共用同一规则，详细规格及数值示例见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)。布局要点：
 
 - 尺寸与偏移以设计像素计，与输出分辨率无关。
 - 需要贴合屏幕边缘的元素使用锚点与 `percent` 尺寸（[布局](/docs/zh-cn/ui/layout/)）。
-- 用场景视图工具栏中的设备菜单和[屏幕预设](/docs/zh-cn/core-concepts/screen/)验证其他宽高比。
+- 用场景视图工具栏中的设备菜单和[屏幕预设](/docs/zh-cn/core-concepts/screen/overview/)验证其他宽高比。
 
 ## 设计框
 
@@ -64,6 +64,6 @@ world.insert(hud, UINode, {});
 
 ## 另请参阅
 
-- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)
 - [布局](/docs/zh-cn/ui/layout/)
 - [第一个界面](/docs/zh-cn/ui/first-screen/)

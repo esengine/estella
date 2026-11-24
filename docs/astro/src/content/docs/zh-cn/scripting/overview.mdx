@@ -1,29 +1,37 @@
 ---
 title: 脚本
-description: 用 defineBehavior 编写每实体的游戏逻辑——一次调用同时给你一个编辑器可调的组件和 start/update/destroy 生命周期,完全降解到 ECS 之上,没有第二套运行时。
+description: 用 defineBehavior 编写每实体的游戏逻辑——生成的组件与系统、start/update/destroy 生命周期、BehaviorContext、可编辑状态与字段元数据、调度选择、声明访问，以及何时改用普通系统。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`defineBehavior` 是游戏循环的编排糖。一次调用同时给你两样东西:
+`defineBehavior` 声明每实体的游戏逻辑。一次调用生成：
 
-1. 一个**组件**,持有这个行为的每实体 `state`——可挂到任意实体,并在编辑器 Details 面板里调。
-2. 一个自动注册的**系统**,为每个携带该组件的实体驱动 `start` / `update` / `destroy` 生命周期。
+1. 一个**组件**，持有该 behavior 的每实体 `state`。可挂到任意实体，并在细节面板中编辑。
+2. 一个已注册的**系统**，为每个携带该组件的实体运行 `start` / `update` / `destroy` 生命周期。
 
-这里没有第二套脚本运行时:一个 behavior 完全降解到 Estella 现有的
-[ECS](/docs/zh-cn/core-concepts/ecs/) 之上——还是你已经在用的那套组件、系统和调度——所以它
-既快又完全可检视。
+一个 behavior 恰好等于 [ECS](/docs/zh-cn/core-concepts/ecs/) 上的一个 `defineComponent` 加一个 `defineSystem`；不存在独立的脚本运行时。
 
-## 你的第一个 behavior
+| 页面 | 内容 |
+|---|---|
+| 脚本（本页） | `defineBehavior`。 |
+| [脚本模块](/docs/zh-cn/scripting/script-modules/) | 声明入口、新建脚本对话框、npm 包、热重载。 |
+| [计时器与 Velocity](/docs/zh-cn/scripting/timers/) | 计时器资源与 `Velocity` 组件。 |
+| [输入](/docs/zh-cn/scripting/input/overview/) | 键盘、鼠标、触摸、手柄、输入动作。 |
+| [事件绑定](/docs/zh-cn/scripting/events/) | 以数据形式连接到动作的实体事件。 |
+| [存档与读档](/docs/zh-cn/scripting/save/) | 存档槽与键值存储。 |
+| [联网](/docs/zh-cn/scripting/networking/overview/) | 套接字、状态复制、服务器。 |
+| [数学辅助](/docs/zh-cn/scripting/math/) | 向量、颜色、标量与随机数辅助函数。 |
 
-`defineBehavior(name, def)` 返回其背后的组件,所以你能像任何组件一样 spawn 或 insert 它。
-`state` 对象成为该组件的每实体数据:
+## 定义 behavior
+
+`defineBehavior(name, def)` 返回其背后的组件，该组件与其他组件一样通过 spawn 或 insert 使用。`state` 对象成为该组件的每实体数据：
 
 ```typescript
 import { defineBehavior, Transform } from 'esengine';
 
 export const Patrol = defineBehavior('Patrol', {
-  state: { speed: 60 },   // 每实体数据,可在 Details 面板里编辑
+  state: { speed: 60 },   // per-entity data, editable in the Details panel
   update(ctx, dt) {
     const t = ctx.get(Transform);
     t.position.x += ctx.self.speed * dt;
@@ -32,15 +40,15 @@ export const Patrol = defineBehavior('Patrol', {
 });
 ```
 
-<Aside type="caution">
-  **引擎组件拿到的是拷贝。** 对*脚本*组件——你自己 `defineComponent` 出来的,以及 `ctx.self`
-  ——`ctx.get` 给的就是存储对象本身,改了就生效。而 `Transform`、`Sprite`、`RigidBody2D` 这些
-  C++ 支撑的组件,每次读都是从 wasm 堆里解出来的一份拷贝,所以
-  `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且**静默无效**。
-  读出来、改完、用 `ctx.set` 交回去。
-</Aside>
+| `BehaviorDef` 字段 | 类型 | 说明 |
+|---|---|---|
+| `state` | object | 每实体数据及其默认值；成为组件的字段。 |
+| `metadata` | `ComponentMetadata` | 字段呈现与组件元数据，转交给组件（[可编辑状态](#可编辑状态)）。 |
+| `schedule` | `Schedule` | 生命周期系统运行的阶段。默认 `Schedule.Update`（[调度](#调度)）。 |
+| `touches` | `SystemTouches` | 通过 `ctx.get` / `ctx.set` 访问的组件（[声明访问的组件](#声明访问的组件)）。 |
+| `start` / `update` / `destroy` | 函数 | 生命周期钩子（[生命周期](#生命周期)）。 |
 
-这一次调用就注册了更新系统。要把行为放到实体上,insert 它的组件——还能顺便覆盖起始 `state`:
+插入 behavior 的组件即将其挂到实体上，可同时覆盖初始 `state`：
 
 ```typescript
 import { defineSystem, Commands, Transform } from 'esengine';
@@ -48,161 +56,58 @@ import { defineSystem, Commands, Transform } from 'esengine';
 const spawn = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-    .insert(Patrol, { speed: 120 });   // 每个实例单独覆盖默认值
+    .insert(Patrol, { speed: 120 });   // per-instance override
 });
 ```
 
-<Aside type="tip">
-  因为一个 behavior *就是*一个组件,你也能在编辑器里挂它——在 **Details** 面板里把它拖到某个
-  实体上,在那里调 `speed`。代码和编辑器是通往同一份数据的两扇门。
-</Aside>
-
-## 声明放在哪里
-
-编辑器不运行你的游戏也能认识你的组件:它会**求值一个入口模块**,然后读回其中声明过的东西。
-这个入口默认是 `src/components.ts`——想放别处,改清单里的 `scripts.register`。
-
-规则是**可达性**,不是位置。`defineBehavior` 和 `defineComponent` 在调用发生时才注册,
-所以没人 import 的模块什么也不会注册。声明想分几个文件都行,从入口把它们接进来:
-
-```typescript
-// src/components.ts —— 编辑器眼中的你的项目
-export * from './behaviors/patrol';
-export * from './components/health';
-```
-
-入口够不到的行为**运行时照样能跑**,因为游戏是从 `src/main.ts` 启动的——这也正是它容易让人困惑的地方。
-丢的是编辑器那一侧:细节面板里没有字段(组件仍能无损往返,但显示为未知)、创建实体弹窗的
-**脚本** 分类里不出现、行为树与事件绑定的调色板里也没有 `registerAction` / `registerCondition` 的名字。
-
-<Aside type="caution">
-  入口以及它 import 到的一切必须是**纯声明**。编辑器是在一个隔离上下文里求值这张模块图的,
-  没有引擎也没有 wasm——系统只入队,从不运行。启动期副作用属于 `src/main.ts`;
-  让两个入口各司其职,别把 `scripts.register` 指向 `main.ts`。
-</Aside>
-
-保存 `src/` 下的任何文件都会重新提取一次,所以保存后片刻新字段就会出现在细节面板里。
-如果某个组件始终不出现,去看 `.esengine/cache/schemas.json`:不在里面说明它压根没被够到;
-在里面但检视器仍然空着,那是另一个问题。
-
-### 新建脚本对话框
-
-既然规则是可达性,那么手工新建的 `.ts` 在入口 import 它之前就是死的。
-**内容浏览器 → 创建菜单 → 新建脚本…** 会把两半都写掉。
-
-选它**是什么**,编辑器就知道该接进哪个入口——这个区分是你项目的架构,不是菜单上的便利:
-
-| 种类 | 它是什么 | 落到哪里 |
-|---|---|---|
-| **组件** | 声明,编辑器不跑游戏也要读 | 从声明入口重导出——`export * from './Health';` |
-| **系统** | 行为,由播放域打包并运行 | 由启动入口 import,取其注册副作用——`import './Patrol';` |
-
-文件还不存在时,对话框就已显示将写入的模块路径与入口将增加的那一行。几点值得知道:
-
-- **名字是先问的**,不像别的创建那样丢给内容浏览器就地重命名,因为脚本的名字不只是
-  文件名——它同时是导出的标识符,以及每个场景序列化下去的那个字符串。必须是一个
-  普通的 JS 标识符。
-- **入口取自项目清单**(`scripts.register` / `scripts.main`),所以挪过入口的项目接的是
-  它自己那一对,而不是约定俗成的那一对。
-- **文件落在你正浏览的文件夹**——前提是该文件夹在源码根内,否则落到源码根。在
-  `assets/` 下遵从"就建在这儿"只会交还一个两个入口都够不到的模块,而这正是此功能
-  要防的失败。
-- **对话框一关,组件就已在 Add Component 里**——创建会立即重新提取 schema,不等文件
-  监视器。新文件是在内容浏览器里**定位**而非打开:本编辑器自身没有代码编辑器。
-
-## 使用 npm 包
-
-你的脚本由 esbuild 打包,而它会从项目自己的 `node_modules` 解析依赖——所以装一个库就是
-普通的安装:
-
-```bash
-cd my-game
-npm install protobufjs
-```
-
-```typescript
-import { Writer, Reader } from 'protobufjs/minimal';
-
-const packet = Writer.create().uint32(42).string('hello').finish();
-```
-
-它会**随游戏发到每一个目标**——网页与桌面构建、小游戏包(并降级到该宿主接受的语法)、
-原生内容负载,以及编辑器自己的 Play。没有额外步骤,也没有逐平台配置:你 import 了什么,
-打包进去的就是什么。
-
-新建的项目自带 `package.json`。此前创建的老项目可能没有——`npm init -y` 一次即可,之后
-行为完全相同。
-
-### 哪些东西带不进来
-
-**任何需要 Node 的东西。** 游戏跑在浏览器或小游戏宿主里,两者都没有 `fs`、`crypto`、
-`path` 之类,所以伸手去拿它们的包会让构建失败,而不是发出一个坏掉的包:
-
-```
-Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
-built-in, and a game does not run in Node…
-```
-
-如果这个 import 是你自己写的,改用 Web API(`crypto.subtle`、`fetch`、`localStorage`)
-或引擎自己的等价物——文件用 [资产](/docs/zh-cn/assets/overview/)、玩家数据用
-[存档](/docs/zh-cn/scripting/save/),它们在所有平台都能用。如果伸手的是**某个依赖**,那修法在
-包那一侧:很多包都发布了浏览器安全的入口——上面的 `protobufjs/minimal` 正是——还有些带
-`browser` 字段,esbuild 会自动选用。
-
-**而且它要占包体。** 依赖是被整个打进去的,而这在上限最紧的地方最要命:微信把小游戏主包
-限制在 4MB。构建完成后,[体积报告](/docs/zh-cn/publishing/overview/#包体体积)会把包体拆开给你
-看——涨上去的库会出现在**脚本**那一类里。
-
-<Aside type="tip">
-  优先选明确支持浏览器的包。为 Node 写的库要么直接让构建失败(这其实是好事——你立刻就
-  知道了),要么拖进来一堆 polyfill,在 4MB 的预算下那本身就是个问题。
-</Aside>
+在编辑器中，behavior 通过 **细节面板 → 添加组件**（类别 **Scripts**）添加到实体，其 `state` 字段也在此编辑。只有可从项目声明入口到达的 behavior 才会出现在编辑器中（[脚本模块](/docs/zh-cn/scripting/script-modules/#声明入口)）。
 
 ## 生命周期
 
-每个钩子都是可选的;只定义你需要的那些。
+每个钩子均为可选。
 
-| 钩子 | 何时运行 |
+| 钩子 | 运行时机 |
 |---|---|
-| `start(ctx)` | 一次,在该行为的组件首次出现在某实体上的那一帧。 |
-| `update(ctx, dt)` | 每帧,对每个携带该行为的实体。`dt` 是帧间隔(秒)(等同 `ctx.time.delta`)。 |
-| `destroy(ctx)` | 一次,当组件被移除**或**实体被 despawn 时。 |
+| `start(ctx)` | 一次，在 behavior 的组件首次出现在实体上的那一帧。 |
+| `update(ctx, dt)` | 每帧，对每个携带该 behavior 的实体运行。`dt` 为以秒计的帧间隔（等于 `ctx.time.delta`）。 |
+| `destroy(ctx)` | 一次，在组件被移除**或**实体被销毁时。 |
 
 ```typescript
 export const Enemy = defineBehavior('Enemy', {
   state: { hp: 100 },
   start(ctx) {
-    // 一次性初始化:播种状态、缓存查找、生成血条……
+    // one-time setup: initialize state, cache lookups, spawn a health bar
   },
   update(ctx, dt) {
     if (ctx.self.hp <= 0) ctx.commands.despawn(ctx.entity);
   },
   destroy(ctx) {
-    // 收尾:不管实体是被杀死还是组件被卸下,都会运行
+    // runs whether the entity was despawned or the component was removed
   },
 });
 ```
 
-<Aside type="note">
-  `destroy` 由实体的**存在性**驱动,而不是每帧的标志位:它在实体掉出该行为查询的那一帧触发,
-  不论是哪个系统移除了它、以什么顺序。这让清理与顺序无关且可靠。
-</Aside>
+`destroy` 由实体在 behavior 查询中的**存在性**驱动：实体离开查询的那一帧即运行，与由哪个系统、以何种顺序移除无关。
 
 ## 上下文
 
-每个钩子都会收到一个 `BehaviorContext`——通往它所运行实体、以及周围世界的句柄:
+每个钩子都会收到其所运行实体的 `BehaviorContext`：
 
 | 成员 | 类型 | 说明 |
 |---|---|---|
-| `ctx.self` | `S` | 该行为自己的 `state`。**随意改——修改会持久化。** |
-| `ctx.entity` | `Entity` | 该实例所挂的实体。 |
-| `ctx.time` | `TimeData` | 帧计时:`delta`、`elapsed`、`frameCount`、`fixedDelta`。 |
-| `ctx.input` | `InputState` | 键盘 / 鼠标 / 触摸 / 手柄(见 [输入](/docs/zh-cn/scripting/input/))。 |
-| `ctx.commands` | `Commands` | 延迟的 spawn / despawn / insert——update 中调用安全。 |
-| `ctx.world` | `World` | 完整世界访问,用于跨实体读写。 |
+| `ctx.self` | `S` | behavior 自身的 `state`。修改会保留。 |
+| `ctx.entity` | `Entity` | 该实例所挂载的实体。 |
+| `ctx.time` | `TimeData` | 帧计时：`delta`、`elapsed`、`frameCount`、`fixedDelta`。 |
+| `ctx.input` | `InputState` | 键盘、鼠标、触摸与手柄（[输入](/docs/zh-cn/scripting/input/overview/)）。 |
+| `ctx.commands` | `Commands` | 延迟执行的 spawn、despawn 与 insert；遍历期间可安全使用。 |
+| `ctx.world` | `World` | 世界，用于访问其他实体。 |
 | `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
-| `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
+| `ctx.set(Comp, data)` | `void` | 写入**本**实体上的组件。 |
 | `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
+
+<Aside type="caution">
+  **引擎组件以拷贝形式返回。** 对脚本组件（`defineComponent` 定义的组件，以及 `ctx.self`），`ctx.get` 返回存储的对象本身，修改会保留。`Transform`、`Sprite`、`RigidBody2D` 以及其他所有 C++ 支撑的组件在每次读取时从 WebAssembly 堆中解码；修改返回值不产生任何效果。应读取值、修改后再用 `ctx.set` 写回。
+</Aside>
 
 ```typescript
 import { defineBehavior, Transform } from 'esengine';
@@ -211,25 +116,23 @@ export const PlayerController = defineBehavior('PlayerController', {
   state: { speed: 200, facing: 1 },
   update(ctx, dt) {
     const move = (ctx.input.isKeyDown('KeyD') ? 1 : 0) - (ctx.input.isKeyDown('KeyA') ? 1 : 0);
-    if (move !== 0) ctx.self.facing = move;        // 改 self 会持久化
+    if (move !== 0) ctx.self.facing = move;        // mutating self persists
     if (move !== 0) {
-      const t = ctx.get(Transform);                // 拷贝——Transform 由 C++ 支撑
+      const t = ctx.get(Transform);                // a copy — Transform is C++-backed
       t.position.x += move * ctx.self.speed * dt;
-      ctx.set(Transform, t);                       // ……所以要交回去
+      ctx.set(Transform, t);                       // written back
     }
   },
 });
 ```
 
 <Aside type="caution">
-  `ctx` 对象在实体与帧之间**被复用**,以实现每实体零分配。在钩子内部读它,但绝不要把它(或它的
-  `self`/`time`/`input`)存进闭包或数组留着以后用——把你需要的值拷出来。
+  `ctx` 对象在不同实体与不同帧之间**复用**，仅在钩子调用期间有效。将它或其 `self`、`time`、`input` 存入闭包或集合供之后使用，读到的将是其他实体的数据。应改为复制所需的值。
 </Aside>
 
-## 可编辑状态与元数据
+## 可编辑状态
 
-`state` 对象定义了组件的字段和默认值。传 `metadata` 来控制这些字段在编辑器里的呈现——范围、
-步进、单位、枚举——和任何[组件](/docs/zh-cn/core-concepts/components/)用的字段元数据是同一套:
+`state` 对象定义组件的字段与默认值。`metadata` 控制它们在细节面板中的呈现——范围、步长、单位、枚举、类别——使用与任何[组件](/docs/zh-cn/core-concepts/components/#字段元数据)相同的字段元数据：
 
 ```typescript
 export const Turret = defineBehavior('Turret', {
@@ -244,12 +147,11 @@ export const Turret = defineBehavior('Turret', {
 });
 ```
 
-因为状态是一个真正的、可序列化的组件,每实体的覆盖值会随场景保存,并在 Details 面板里实时编辑。
+state 是一个序列化组件：每实体的值随场景保存，并在细节面板中实时编辑。
 
-## 选择调度
+## 调度
 
-默认情况下生命周期系统在 `Schedule.Update` 里运行,每帧一次。传一个不同的 `schedule` 可以在帧
-里的别处运行——例如用 `Schedule.FixedUpdate` 与物理同步推进:
+生命周期系统默认在 `Schedule.Update` 中运行，每帧一次。`schedule` 可选择其他阶段，例如用 `Schedule.FixedUpdate` 与物理同步步进：
 
 ```typescript
 import { defineBehavior, Schedule } from 'esengine';
@@ -258,18 +160,16 @@ export const Thruster = defineBehavior('Thruster', {
   schedule: Schedule.FixedUpdate,
   state: { force: 500 },
   update(ctx) {
-    // 固定节奏——读 ctx.time.fixedDelta 拿到固定步长
+    // fixed cadence; ctx.time.fixedDelta is the fixed step
   },
 });
 ```
 
-可用的相位包括 `Startup`、`First`、`PreUpdate`、`Update`、`PostUpdate`、`Last`,以及固定三件套
-`FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`。
+可用阶段：`Startup`、`First`、`PreUpdate`、`Update`、`PostUpdate`、`Last`，以及 `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`（[调度](/docs/zh-cn/core-concepts/systems/#调度)）。
 
-### 声明你会碰哪些组件
+### 声明访问的组件
 
-行为通过 `ctx.get` / `ctx.set` 访问其他组件,调度器看不到这一步。不声明时它被当作不透明,
-与其他所有系统冲突。传 `touches`(组件名)后,它才能被正确排序与并行:
+通过 `ctx.get` / `ctx.set` 访问的组件对调度器不可见。没有声明时，behavior 被视为不透明，与其他所有系统冲突。`touches` 列出这些组件，使 behavior 能够参与排序并与其他系统并行运行（[声明访问](/docs/zh-cn/core-concepts/systems/#声明访问)）；behavior 自身的 state 组件已自动声明：
 
 ```typescript
 export const Drifter = defineBehavior('Drifter', {
@@ -279,78 +179,14 @@ export const Drifter = defineBehavior('Drifter', {
 });
 ```
 
-## 计时器
+## behavior 与系统
 
-"2 秒后…" / "每 0.5 秒…"这类逻辑,用内置的**计时器**资源比手搓累计时间干净。
-它随引擎循环走(所以和 `setTimeout` 不同,会跟游戏一起暂停):
+`defineBehavior` 适合天然以**实体**为单位的逻辑：巡逻、投射物、拾取物。普通[系统](/docs/zh-cn/core-concepts/systems/)适合一次处理整个查询，或协调多个实体。
 
-```typescript
-import { defineSystem, Res, TimerRes } from 'esengine';
-
-const arm = defineSystem([Res(TimerRes)], (timers) => {
-  timers.delay(2, () => explode());                   // 2 秒后执行一次
-  const h = timers.interval(0.5, (t) => spawnWave()); // 重复执行
-  timers.interval(1, (t) => tick(), 3);                // 恰好 3 次
-  h.pause(); h.resume(); h.cancel(); h.reset();        // 句柄控制
-});
-```
-
-| 成员 | 说明 |
-|---|---|
-| `delay(seconds, cb)` | `seconds` 后执行一次;返回 `TimerHandle`。 |
-| `interval(seconds, cb, maxRepeat?)` | 每 `seconds` 执行;`maxRepeat` 为 `0` = 无限。 |
-| 句柄 `pause()` / `resume()` / `cancel()` / `reset()` | 控制单个计时器(可链式)。 |
-| 句柄 `isActive` / `elapsed` / `repeatCount` | 查看状态。 |
-| `cancelAll()` · `activeCount` | 管理全体。 |
-| `timeScale` | 一次性放慢 / 加速所有计时器(`0` 冻结)。 |
-
-计时器只在播放模式推进——编辑器编辑态下与其余游戏时间一样保持不动。
-
-## 匀速运动:Velocity 组件
-
-对"就是一直动"的运动——子弹、漂移的碎片、旋转体——直接挂内置的 `Velocity` 组件,
-不必手写移动系统。引擎在播放模式下每次 update 把它积分进 `Transform`:
-
-```typescript
-import { Velocity, Transform, Sprite } from 'esengine';
-
-const bullet = world.spawn();
-world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
-world.insert(bullet, Sprite, { texture: bulletTex });
-world.insert(bullet, Velocity, {
-  linear: { x: 240, y: 0, z: 0 },          // 单位/秒
-  angular: { x: 0, y: 0, z: Math.PI },     // 弧度/秒(z = 2D 自转)
-});
-```
-
-带 `RigidBody2D` 的实体会被跳过——物理求解器拥有它们的变换,两者永远不会争抢同一个实体。
-`Velocity` 也是复制感知的:它的字段参与网络复制,联网客户端可以在快照之间做航位推算。
-
-## 它如何组合
-
-一个 behavior 并不是特例——它编译成恰好一个 `defineComponent` 加一个 `defineSystem`。当你的逻辑
-天然是*每实体*的(巡逻、抛射物、拾取物)时,用 `defineBehavior`;当你要一次处理整个查询、或在实体
-间协调时,用一个普通[系统](/docs/zh-cn/core-concepts/systems/)。
-
-钩子签名——`entity`、`world`、`commands`,外加 `self`——也和[游戏 AI](/docs/zh-cn/gameplay/ai/overview/) 层
-的动作与行为树叶子是同一套编程模型,所以在 behavior 和 AI 动作之间搬逻辑很顺手。
-
-## 热重载
-
-编辑器播放期间保存代码时,只要可行就会触发**保状态热替换**:若组件形状未变、
-也没有系统被增、删或改名,存活的世界会被保留,只替换你的函数体。否则编辑器退回
-整体重载。这对你的代码的要求:
-
-- **组件与 behavior 的名字就是身份。**改名属于结构性变更——预期整体重载,该
-  数据的状态归零。
-- 任何一种重载后,存活实体的 `start` 都会再跑一次——契合 Estella 的快速重启
-  语义,所以把 `start` 当作幂等的初始化来写。
-
-其机制(探针上下文、模式指纹、`App.hotSwapSystems`)见
-[应用设置与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/#热重载)。
+钩子上下文——`entity`、`world`、`commands` 与 `self`——与[游戏 AI](/docs/zh-cn/gameplay/ai/overview/) 的动作及行为树叶子使用同一编程模型，因此逻辑可在 behavior 与 AI 动作之间迁移而无需重构。
 
 ## 参见
 
-- [系统](/docs/zh-cn/core-concepts/systems/) —— 完整的查询词汇、过滤器与调度。
-- [ECS 架构](/docs/zh-cn/core-concepts/ecs/) —— 实体、组件,以及系统如何遍历它们。
-- [输入](/docs/zh-cn/scripting/input/) —— 在系统里读取键盘、指针与手势。
+- [系统](/docs/zh-cn/core-concepts/systems/)——查询词汇、过滤器与调度。
+- [ECS 架构](/docs/zh-cn/core-concepts/ecs/)——实体、组件与系统。
+- [输入](/docs/zh-cn/scripting/input/overview/)——键盘、指针与手势。

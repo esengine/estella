@@ -1,0 +1,62 @@
+---
+title: Hunter
+description: Hunter 参考——内建的 3D 近战敌人，通过导航与 CharacterController3D 追击所感知的目标并通过 MeleeAttack 攻击，及其字段、状态与前置要求。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Hunter` 是现成的 3D 近战敌人。它把感知转换为移动请求，方式与 `ThirdPersonController` 把输入转换为移动请求相同：路线来自导航，移动来自角色控制器，报告给动画器的速度是角色实际达到的速度，攻击是一个通过 `MeleeAttack` 命中的动画器触发器。
+
+```typescript
+enemy.add(Perceiver, { range: 420 });
+enemy.add(Perception, {});
+enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
+enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
+enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
+enemy.add(Health, { current: 50, max: 50 });
+```
+
+## 前置要求
+
+- `Perceiver` 与 `Perception`（[感知](/docs/zh-cn/gameplay/ai/perception/)）。
+- `NavAgent` 与 `CharacterController3D`（[导航代理](/docs/zh-cn/gameplay/ai/navigation/agents/#带角色身体的代理)）。
+- 一个其图响应 `attack` 触发器的 `Animator`，以及 `MeleeAttack`（[近战与命中盒](/docs/zh-cn/gameplay/physics-3d/combat/)）。
+- `Health`，它决定 `dead` 状态。
+
+`Hunter` 从 `esengine/gameplay` 导出。它在 x/z 地面平面中测量距离。
+
+## 字段
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `attackRange` | `110` | 开始攻击前接近到的地面平面距离，世界单位。 |
+| `attackInterval` | `1.6` | 两次攻击之间的秒数。 |
+| `rotationSpeed` | `540` | 转向速率，度/秒。 |
+| `idleThreshold` | `8` | 低于该速度时，动画器被告知其静止。 |
+| `enabled` | `true` | 为 `false` 时完全跳过该 Hunter。 |
+| `state` | `idle` | 引擎写入：`idle`、`chase`、`attack` 或 `dead`。 |
+| `cooldown` | `0` | 引擎写入：距可再次攻击的秒数。 |
+
+{/* SHOT: gameplay-hunter-details | third-person-3d example, main scene: the Enemy entity selected, Details panel showing the Hunter, Nav Agent and Perceiver cards */}
+
+## 行为
+
+| 状态 | 行为 |
+|---|---|
+| `idle` | 未感知到目标。 |
+| `chase` | 向感知到的目标导航，朝向其实际移动的方向。 |
+| `attack` | 位于 `attackRange` 内：面向目标，每隔 `attackInterval` 秒设置一次 `attack` 触发器。 |
+| `dead` | `Health` 归零：导航停止，动画器被告知其静止，且不再设置触发器。 |
+
+状态每帧重新计算而非锁存，因此在攻击过程中退开的目标会被再次追击。Hunter 死亡时已在进行中的攻击不会命中任何人；这由 `MeleeAttack` 处理。
+
+<Aside type="caution">
+  导航会跳过没有目的地的代理，因此清除目的地并不会让身体停下；最后写入的速度会继续生效。`Hunter` 停止时会将其清零，其他停止受操控代理的代码也应如此。
+</Aside>
+
+`Hunter` 只有固定的四个状态，没有创作界面。需要不同行为的敌人应使用[状态机](/docs/zh-cn/gameplay/ai/state-machines/)或[行为树](/docs/zh-cn/gameplay/ai/behavior-trees/)。
+
+## 另请参阅
+
+- [角色](/docs/zh-cn/gameplay/physics-3d/characters/#第三人称)——玩家一侧的对应组件 `ThirdPersonController`。
+- [游戏 AI](/docs/zh-cn/gameplay/ai/overview/)——感知、导航与决策各层。

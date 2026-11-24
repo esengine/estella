@@ -1,0 +1,158 @@
+---
+title: Bodies & Shapes
+description: 3D body and collider reference — RigidBody3D fields, box, sphere and capsule shapes, mesh and convex colliders for imported geometry, CompoundCollider3D, static colliders without a body, shape selection and the viewport wireframes, and planet gravity.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A 3D body is an entity with a `RigidBody3D` and a collider. A `RigidBody3D` with no enabled collider has no extent and
+is not added to the world. A collider with no `RigidBody3D` is a static body of its own
+([Colliders without a body](#colliders-without-a-body)).
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(CapsuleCollider3D, { radius: 30, halfHeight: 50 });
+```
+
+## `RigidBody3D`
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static` never moves; `Kinematic` is moved by code; `Dynamic` is simulated. |
+| `layer` | number | `0` | [Collision layer](/docs/gameplay/physics-3d/overview/#collision-layers), 0–15. |
+| `gravityScale` | number | `1` | Multiplier on world gravity. `0` disables gravity for the body. |
+| `mass` | number | `0` | Kilograms. `0` derives the mass from the shape at the density of water (a ball of 10 cm radius is 4.2 kg). A change reaches a body already in the world. Static and kinematic bodies have no mass. |
+| `linearDamping` / `angularDamping` | number | `0.05` / `0.05` | Rate at which motion decays. |
+| `fixedRotation` | boolean | `false` | Freezes the body's orientation at its current value. It does not right a body that starts tilted. |
+| `continuousCollision` | boolean | `false` | Checks the whole path covered by a step rather than only the end position; for fast bodies such as projectiles. Costs more. |
+| `enabled` | boolean | `true` | `false` removes the body from the world. |
+
+## Primitive shapes
+
+| Component | Extent | Default |
+|---|---|---|
+| `BoxCollider3D` | `halfExtents` on each axis. | `{50, 50, 50}` (a 1 m cube) |
+| `SphereCollider3D` | `radius`. | `50` |
+| `CapsuleCollider3D` | An upright capsule: `halfHeight` is half the cylinder, with a cap of `radius` at each end, so the total height is `2 * (halfHeight + radius)`. | `radius` `30`, `halfHeight` `50` |
+
+All three also carry:
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `center` | Vec3 | `{0, 0, 0}` | The shape's offset from the entity origin, world units. The body stays at the entity, so a dynamic body rotates about the entity origin and an off-centre shape swings around it. |
+| `friction` | number | `0.3` | Surface friction. |
+| `restitution` | number | `0` | Bounciness. |
+| `isSensor` | boolean | `false` | Reports overlaps and stops nothing ([Collision events](/docs/gameplay/physics-3d/queries/#collision-events)). |
+| `enabled` | boolean | `true` | `false` removes the shape. |
+
+Defaults are written at the reference scale of 100 world units per metre.
+
+## Imported geometry
+
+### `MeshCollider3D`
+
+A `MeshCollider3D` collides against a mesh's own triangles: terrain, stairs, the inside of a room.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, {})
+  .insert(RigidBody3D, { bodyType: BodyType.Static })
+  .insert(MeshCollider3D, { mesh: 'assets/models/level.esmesh' });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `mesh` | mesh asset | none | The mesh whose triangles are collided against. Until the asset has loaded the collider contributes nothing. |
+| `layer` | number | `0` | Collision layer of the static body the collider forms when the entity has no `RigidBody3D`. |
+| `friction` / `restitution` | number | `0.3` / `0` | Surface properties. |
+| `enabled` | boolean | `true` | `false` removes the shape. |
+
+<Aside type="caution">
+  A mesh collider is always static, whatever its `RigidBody3D` says: a triangle soup has no inertia tensor. Its
+  triangles are **one-sided**: a floor whose winding faces down is still reported by rays, but bodies fall through it.
+</Aside>
+
+### `ConvexCollider3D`
+
+A `ConvexCollider3D` collides against the convex hull of a mesh's vertices. The solver moves a hull as readily as a
+box, so it is the collider for imported geometry that must move: a rock, a chamfered crate, a rolling barrel.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
+```
+
+Fields: `mesh`, `friction` (`0.3`), `restitution` (`0`), `isSensor` (`false`), `enabled` (`true`).
+
+Mesh and convex colliders apply the entity's composed scale to their source vertices.
+
+## Compound colliders
+
+`CompoundCollider3D` combines boxes, spheres and capsules into one body on the same entity as the `RigidBody3D`. Both
+Jolt and PhysX build it from the same component.
+
+```typescript
+import { CompoundCollider3D } from 'esengine/physics3d';
+
+world.insert(cart, CompoundCollider3D, {
+  parts: [
+    { kind: 'box', position: { x: 0, y: 20, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, halfExtents: { x: 60, y: 20, z: 40 } },
+    { kind: 'sphere', position: { x: 0, y: 60, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, radius: 20 },
+  ],
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `parts` | array | `[]` | The primitives. Each has `kind` (`'box'`, `'sphere'` or `'capsule'`), a local `position` and `rotation`, and `halfExtents`, `radius` or `radius` + `halfHeight`. |
+| `friction` / `restitution` | number | `0.3` / `0` | Surface properties. |
+| `isSensor` | boolean | `false` | Reports overlaps and stops nothing. |
+| `mass` | number | `1` | Mass passed to the solver for the compound body. |
+| `enabled` | boolean | `true` | `false` removes the compound shape. |
+
+Part dimensions and offsets are in model units: the entity's composed scale places them in world space before the unit
+conversion. The placement scale must be finite and positive. A rotated box or capsule under a non-uniform scale is
+rejected rather than built as a mismatched shape; that case needs baked collision geometry.
+
+## Colliders without a body
+
+A 3D collider on an entity with no `RigidBody3D` forms a **static body** of its own, so an imported level collides with a
+`MeshCollider3D` on each mesh and no other component. This does not apply when:
+
+- the entity has a `CharacterController3D`, or
+- an ancestor has a `RigidBody3D`; the collider then belongs to that body.
+
+Adding or removing the `RigidBody3D` later rebuilds the body as the new kind.
+
+## Seeing a shape
+
+The viewport draws every 3D collider as a wireframe in its entity's orientation, under the **Physics** show flag (shared
+with the 2D collider gizmos).
+
+An entity gets **one** body shape, chosen in this order: `CompoundCollider3D`, `BoxCollider3D`, `SphereCollider3D`,
+`MeshCollider3D`, `ConvexCollider3D`, `CapsuleCollider3D`. A collider that is not used is drawn dimmed and dashed: a
+disabled collider, one that loses in this order, or any collider on an entity whose `RigidBody3D` is disabled. A
+`CharacterController3D` capsule is drawn as well.
+
+<Aside type="note">
+  A mesh collider draws the bounds of its triangles rather than every edge; the triangles are the visible mesh itself.
+</Aside>
+
+The running game's colliders are drawn by the `Physics3DDebugDraw` overlay
+([Debug draw](/docs/gameplay/physics-3d/overview/#debug-draw)).
+
+## Planet gravity
+
+A `Planet` whose `gravity` is above 0 pulls every dynamic body toward its centre instead of along the world's gravity
+vector, giving a round world a local down everywhere. The planet itself is described in
+[Large Worlds](/docs/graphics/terrain/large-worlds/#planet).
+
+## See also
+
+- [3D Physics Basics](/docs/gameplay/physics-3d/overview/) — setup, solvers and collision layers.
+- [Queries, Forces & Events](/docs/gameplay/physics-3d/queries/) — moving bodies and reading contacts.
+- [Breakables](/docs/gameplay/physics-3d/breakables/) — convex pieces produced by fracturing a model.

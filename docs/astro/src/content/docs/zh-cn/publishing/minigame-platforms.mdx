@@ -1,135 +1,26 @@
 ---
 title: 小游戏平台
-description: 小游戏平台家族的工作方式，以及如何接入一个 Estella 未内置的平台。
+description: 小游戏平台家族——MiniGameProfile 运行时约定、可替换的音频/视频/套接字后端、厂商宿主需提供的 API、用 initMiniGameRuntime 启动，以及为 Estella 未内置的厂商编写项目平台打包配置。
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-微信小游戏在 Estella 里不是特例，它只是平台**家族**的一个 **profile**。各家小游戏宿主
-（微信的 `wx`、抖音的 `tt` 等）暴露的 API 高度相似：没有 DOM、打包式文件系统、分包、
-触摸输入、键值存储。Estella 把这套模型**只实现一次**，每个平台厂商用数据来描述。
+小游戏宿主（微信的 `wx`、抖音的 `tt` 等）提供几乎一致的 API：没有 DOM、打包的文件系统、分包、触摸输入和键值存储。Estella 将这一模型实现为一个平台**家族**，并把每个厂商描述为一份**配置**（profile）。微信是该家族中的一份配置。
 
-本指南面向「接入 Estella 未内置的平台」。如果你的目标是微信，请看
-[微信小游戏](/docs/zh-cn/publishing/wechat/)。
+本页说明如何接入 Estella 未内置的厂商。微信本身见[微信小游戏](/docs/zh-cn/publishing/wechat/)；SUD OpenPaaS 见 [SUD OpenPaaS](/docs/zh-cn/publishing/openpaas/)。
 
 <Aside type="caution">
-  **1.0 之前。** profile 契约标记为 `@beta`：随着微信之外的平台在真机上跑通，它可能
-  还会增加字段。
+  **1.0 之前。** 配置约定为 `@beta`，随着更多厂商接入可能增加字段。
 </Aside>
 
-## SUD OpenPaaS 开发导出
+## 运行时配置
 
-OpenPaaS 通过现有的项目平台机制接入，**2D / 3D 共用同一套资源处理、SDK 和运行时**。
-将 `pipeline/platforms/openpaas.mjs` 复制到项目的 `.esengine/platforms/openpaas.mjs`。
-不需要专用编辑器布局；在编辑器中使用时，按现有项目代码流程检查并信任这个平台配置。
-
-在 Estella 源码仓库中构建兼容版小游戏运行时，再导出项目：
-
-```sh
-node build-tools/cli.js build -t quickgame --no-sync
-node pipeline/bin/estella.mjs export <项目目录> --platform openpaas --out output/my-sud-game
-```
-
-预设会选择 CommonJS 兼容版引擎，不使用 WASM SIMD 和 JS 边界的 BigInt i64。
-画布、输入、生命周期和音频调用 `sud`；HTTP、WebSocket 和存储分别桥接到标准
-XMLHttpRequest、WebSocket 和 localStorage。WASM 通过
-`WebAssembly.instantiateFromFile` 加载，代码包路径会先规范化；支持官方文档所述的
-iOS 仅返回 instance、没有编译后 module 的结果。
-
-打开 **PinK → 项目 → 第三方生成**，选择导出的目录，其中包含 `main.js`、
-`game-bundle.js` 和 `wasm/`。选择平台游戏 ID，按项目设置核对横竖屏和版本，
-然后构建，再由用户自行上传。也可以使用下面的命令行流程，直接通过 Estella 生成 `.sp`。
-在 OpenPaaS 的开发版本详情中，用 **Hello PinK** 扫描包链接二维码调试。
-提供的 Unity / Laya 指南采用的也是这个第三方目录流程；这里不需要安装它们各自的转换插件。
-
-已下载、检查并实际运行官方 [web2sp 1.0.0](https://download.sudden.ltd/assets/openpaas/guide/attachment/web2sp-1.0.0.tgz)：
-它识别 Laya HTML，复制 Web 目录，生成 `main.js`、`laya_adapter.js`，并在缺失时创建
-内容为 `{}` 的 `manifest.json`。工具没有二进制 `.sp` 封装实现。Estella 直接生成自己的
-运行入口及相同的初始 manifest。最终封装使用 PinK 提供的官方工具，上传、审核和发布由用户处理。
-
-### 在 Estella 中生成 `.sp`
-
-已验证 PinK 0.0.1.39 内置的 `sud-package-sign-tool`，可通过命令行调用，无需启动 PinK 界面。
-从官方安装包安装或解包后，Windows 工具位于
-`resources/app/extensions/sud-pink-debug/tools/package-sign/win/sud-package-sign-tool.exe`；
-macOS 对应目录是 `tools/package-sign/mac/sud-package-sign-tool`。
-Estella 不分发该第三方二进制，需要在本地配置中指定它的路径。
-
-先在导出目录之外准备 Ed25519 私钥文件和 AES-128 加密密钥文件，再创建本地配置。
-私钥支持官方工具的 raw / hex / base64 / PKCS8 格式；加密密钥文件内容是 32 个十六进制字符。
-配置文件中的路径相对于配置文件解析：
-
-```json
-{
-  "mode": "development",
-  "toolPath": "<PinK目录>/resources/app/extensions/sud-pink-debug/tools/package-sign/win/sud-package-sign-tool.exe",
-  "gameId": "estella-local-test",
-  "version": "0.1.0",
-  "privateKeyPath": "development-private.pem",
-  "encryptionKeyPath": "development-encryption.hex",
-  "orientation": "landscape"
-}
-```
-
-```sh
-node pipeline/bin/estella.mjs package-openpaas output/my-sud-game --config <本地配置.json> --out output/my-sud-game.sp
-```
-
-这一步会在临时目录补齐游戏 manifest，调用官方工具进行 Deflate 压缩、AES-128-CTR 加密、
-Ed25519 签名，然后对全文件执行官方校验。成功后才替换目标 `.sp`，不修改原导出目录。
-输出不能放入输入目录，私钥与加密密钥也不能位于输入目录中。
-
-`development` 表示独立测试密钥，**不表示获得 OpenPaaS 游戏授权，也不保证 Hello PinK 接受该包**。
-已有平台配置时使用 `platform` 模式，并提供注册的 `publicKeyHash`、`contextFile`、
-`contextSignatureFile`、`contextPublicKeyPath`；Estella 会先验签上下文并检查公钥哈希。
-平台的上传、审核、发布及真机验收仍由用户执行。
-
-<Aside type="caution">
-  **当前为开发接入，真机验收待完成。** 无窗口契约宿主已能加载真实引擎和导出的
-  2D / 3D 场景，但无法复现 SUD 原生渲染、音频和 iOS WASM 实现。
-  Android / iOS 都需要检查画面、触控、横竖屏、切后台恢复、音频、资源加载，
-  以及项目实际使用的物理、动画和 AOT 模块。官方文档标注 iOS 暂不支持导入
-  Table / Global；支持省略 module 并不意味着这些限制也已解决。
-</Aside>
-
-首阶段使用 WebGL2，未启用 WebGPU、EmscriptenGLX、登录、广告和支付。
-资源随主目录交付，尚未启用平台分包和 Brotli WASM 加载；流式大世界导出继续遵循
-现有小游戏限制。Estella 导出、PinK 构建上传、平台审核和真机验收应分别记录。
-兼容版构建提供主引擎；物理、Spine 等可选 WASM 模块需要在选定的 `wasmDir` 中提供
-匹配的构建产物，内容依赖但产物缺失时导出会失败。本次接入尚未完成这些模块的 OpenPaaS 验收。
-
-不打开编辑器即可运行可复现的契约检查：
-
-```sh
-node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-runtime
-```
-
-还可以用官方工具验证完整链路；测试密钥临时生成并在结束后清理：
-
-```sh
-node tools/tests/openpaas-runtime.e2e.mjs --packer <官方打包工具路径> --project-2d examples/sprite-rendering --project-3d examples/device-quality --out output/openpaas-package-check
-```
-
-该检查会导出真实 2D / 3D 样例、生成加密签名 `.sp`、校验全部文件、解密还原，
-逐文件比较资源哈希，再在无窗口契约宿主中渲染还原后的项目。报告和截图不等于 SUD 真机验收。
-
-结果包含 2D / 3D 截图及报告，并明确标记真机验收待完成。
-提供的文档说明 Android Hello PinK 可以打开 vConsole，也可以通过设备日志目录
-`/storage/emulated/0/Android/data/global.sud.hellopink/files/SUD/SUDLogs/SUDGI/` 排查启动失败；
-iOS 不提供 vConsole。
-
-参考：[引擎适配](https://developer.sud.tech/openpaas/minigame/guide/game-engine/engine-adaptation.html)、
-[Adapter](https://developer.sud.tech/openpaas/minigame/guide/runtime/adapter.html)、
-[WASM API](https://developer.sud.tech/openpaas/minigame/client-api/web-assembly-apis/webAssemblyApis.html)。
-
-## 接入一个平台的成本
-
-一个 profile 就是**三个事实，外加至多一个方法**：
+运行时配置由 id、名称和宿主全局对象组成，另可包含若干可选覆盖：
 
 ```ts
 import { installMiniGamePlatform } from 'esengine/minigame';
 
-declare const myHost: any;   // 宿主全局对象，例如 `tt`
+declare const myHost: any;   // the host global, e.g. `tt`
 
 installMiniGamePlatform({
   id: 'myvendor',
@@ -138,18 +29,13 @@ installMiniGamePlatform({
 });
 ```
 
-这就是一个完整的平台。文件系统、`fetch`、canvas、图片解码、触摸与按键输入、存储、
-分包、内存告警、设备像素比、语言，全部来自归一化后的宿主全局对象。**音频**
-（`createInnerAudioContext`）和 **socket**（`connectSocket`）也一样。视频走引擎自带的
-wasm MPEG-1 解码器，对任何宿主都可移植。
+这已是一个完整的平台。文件系统、`fetch`、画布、图片解码、触摸与按键输入、存储、分包、内存压力信号、设备像素比和语言都来自规范化后的宿主全局对象，**音频**（`createInnerAudioContext`）和**套接字**（`connectSocket`）也是如此。视频使用引擎自带的 wasm MPEG-1 解码器。
 
-`global` 要像上面那样用 getter 读取：宿主全局在运行时才存在，用 getter 才能保证在打包
-工具或测试里 import 你的 profile 时不会碰到未定义的绑定。
+通过 getter 读取 `global`：宿主全局对象只在运行时存在，getter 使配置可以在打包工具或测试中被导入。
 
-### 唯一真正的分歧
+### WebAssembly 实例化
 
-WASM 实例化。微信走 `WXWebAssembly.instantiate(path)` 而不是标准 `WebAssembly`，
-所以它的 profile 覆盖了这一个方法：
+唯一需要专门方法的宿主差异是 WASM 实例化。微信通过 `WXWebAssembly.instantiate(path)` 而不是标准的 `WebAssembly` 实例化，因此其配置覆盖了 `instantiateWasm`：
 
 ```ts
 {
@@ -160,17 +46,11 @@ WASM 实例化。微信走 `WXWebAssembly.instantiate(path)` 而不是标准 `We
 }
 ```
 
-如果你的宿主用标准 `WebAssembly`，就不用写它——家族会通过打包文件系统读出二进制并
-实例化。
+使用标准 `WebAssembly` 的宿主无需提供该方法；平台家族会通过打包文件系统读取二进制并实例化。
 
-`createAudioBackend`、`createVideoBackend`、`createSocket` 同样是可选的。只在宿主
-**确实**不同的地方覆盖；默认实现是 `MiniGameAudioBackend`、wasm 视频解码器和
-`MiniGameSocket`，它们都从 `esengine/minigame` 导出，你可以包装而不必重写。
+### 可替换的后端
 
-## 替换单个能力
-
-这几个可选方法不只用于「宿主有差异」——它们就是**替换你不满意的实现**的接缝。
-比如自己写一套视频软解码，只需要一个方法：
+`createAudioBackend`、`createVideoBackend` 和 `createSocket` 是可选覆盖。默认实现为 `MiniGameAudioBackend`、wasm 视频解码器和 `MiniGameSocket`，均从 `esengine/minigame` 导出，可供包装。覆盖也可用于替换项目不需要的实现，例如视频解码：
 
 ```ts
 import type { MiniGameProfile, PlatformVideoBackend, VideoBackendContext } from 'esengine/minigame';
@@ -178,7 +58,7 @@ import type { MiniGameProfile, PlatformVideoBackend, VideoBackendContext } from 
 class SoftwareVideoBackend implements PlatformVideoBackend {
   readonly name = 'my-software-decoder';
   constructor(private ctx: VideoBackendContext) {}
-  createStream(url: string, options) { /* 你的解码 → VideoStreamHandle */ }
+  createStream(url: string, options) { /* your decode → VideoStreamHandle */ }
   dispose() {}
 }
 
@@ -190,12 +70,9 @@ export default {
 } satisfies MiniGameProfile;
 ```
 
-`VideoPlugin` 在 build 时向平台要一次后端，你返回什么，游戏里所有 `VideoPlayer`
-就驱动什么。要满足的契约是 `PlatformVideoBackend`：`createStream(url, options)`
-返回一个 `VideoStreamHandle`，它的 `pump(module)` 每帧把当前帧上传到
-`textureHandle`。音频（`PlatformAudioBackend`）和 socket（`PlatformSocket`）同理。
+`VideoPlugin` 在构建时向平台请求一次后端；游戏中所有 `VideoPlayer` 都使用它。约定为 `PlatformVideoBackend`：`createStream(url, options)` 返回一个 `VideoStreamHandle`，其 `pump(module)` 每帧将当前帧上传到 `textureHandle`。音频（`PlatformAudioBackend`）和套接字（`PlatformSocket`）遵循相同模式。
 
-想保留某个宿主的大部分、只换其中一件，把它的 profile 展开：
+要保留某个宿主的配置只改一项能力，可展开该配置：
 
 ```ts
 import { wechatProfile } from 'esengine/wechat';
@@ -204,55 +81,46 @@ export default { ...wechatProfile, createVideoBackend: (ctx) => new SoftwareVide
 ```
 
 <Aside type="note">
-  **内置目标有意不开放覆盖。** 它们在 import 时就装好了自己的 profile，所以在打包
-  对话框里选「微信小游戏」拿到的永远是原装后端——一个固定、可预期的基线，也少一种
-  「构建结果与引擎测试过的不一致」的可能。替换能力正是**项目平台**的用途：定义一个
-  （见下），让它的 `runtimeProfile` 展开宿主 profile 再覆盖你要改的那项，然后改选
-  这个目标。
+  **内置目标不可覆盖。** 内置目标在导入时安装自己的配置，因此在打包项目中选择 *微信小游戏* 始终使用默认后端。要替换某项能力，应定义一个项目平台（[项目平台](#项目平台)），在其 `runtimeProfile` 中展开宿主配置并覆盖该能力，然后选择该目标。
 
-  展开时不会带上 `initWeChatPlatform()` 装的 `WXWebAssembly` polyfill，走这条路
-  要自己调 `esengine/wechat` 的 `polyfillWebAssembly()`。
+  展开不会包含微信的 `WXWebAssembly` polyfill（由 `initWeChatPlatform()` 安装）；这种情况下需自行调用 `esengine/wechat` 中的 `polyfillWebAssembly()`。
 </Aside>
 
-## 宿主需要提供什么
+## 宿主 API
 
-你的 `global` 需要满足 `MiniGameGlobal`。必需成员：
+`global` 必须满足 `MiniGameGlobal`。必需成员：
 
 | 成员 | 用途 |
 | --- | --- |
-| `createCanvas()` | 上屏画布（第一次调用）+ 离屏 2D |
+| `createCanvas()` | 显示表面（首次调用）和离屏 2D |
 | `createImage()` | 图片解码 |
 | `getFileSystemManager()` | `readFileSync` / `readFile` / `access` / `accessSync` / `writeFile` |
 | `request(opts)` | `fetch` polyfill |
 | `createInnerAudioContext()` | 音频播放 |
-| `connectSocket(opts)` | `GameSocket` / 状态同步 |
+| `connectSocket(opts)` | `GameSocket` 和同步复制 |
 | `getSystemInfoSync()` | 视口尺寸、像素比、语言 |
-| `onTouchStart/Move/End` + `off*` | 指针输入 |
-| `getStorageSync` / `setStorageSync` / `removeStorageSync` / `getStorageInfoSync` | 存档、热更新记账 |
+| `onTouchStart/Move/End` 及 `off*` | 指针输入 |
+| `getStorageSync` / `setStorageSync` / `removeStorageSync` / `getStorageInfoSync` | 存档数据、热更新记录 |
 
-可选成员——适配器会探测，宿主缺失时优雅降级：`onTouchCancel`/`offTouchCancel`、
-`onKeyDown`/`onKeyUp`（及 `off*`）、`loadSubpackage`、
-`onMemoryWarning`/`offMemoryWarning`、`onShow`/`onHide`。
+可选成员，由适配层探测（缺失时相关功能降级）：`onTouchCancel` / `offTouchCancel`、`onKeyDown` / `onKeyUp`（及 `off*`）、`loadSubpackage`、`onMemoryWarning` / `offMemoryWarning`、`onShow` / `onHide`。
 
 <Aside type="note">
-  `isMiniGame()` 读的是适配器声明的**家族**，而不是平台名字清单——所以你的平台一装上，
-  就自动走到所有小游戏代码路径（打包读取、分包组、无 DOM 分支）。`isWeChat()` 仍然返回
-  false，这是对的：它是厂商判断，不是能力判断。
+  `isMiniGame()` 检查的是适配层声明的家族，而不是厂商名称列表，因此已安装的平台会走所有小游戏代码路径（打包读取、分包分组、无 DOM 分支）。`isWeChat()` 仍是厂商检查，返回 `false`。
 </Aside>
 
-## 启动游戏
+## 启动
 
-发布包的入口调用家族 runtime：
+包的入口调用平台家族的运行时：
 
 ```js
-// game.js —— 宿主执行这个文件
+// game.js — the host runs this
 const engineFactory = require('./wasm/esengine.js');
 const bundle = require('./game-bundle.js');
-bundle.boot(engineFactory, { /* side module 工厂 */ });
+bundle.boot(engineFactory, { /* side module factories */ });
 ```
 
 ```ts
-// 与游戏一起打包
+// bundled with the game
 import { installMiniGamePlatform, initMiniGameRuntime } from 'esengine/minigame';
 import { myProfile } from './myProfile';
 
@@ -268,30 +136,26 @@ export function boot(engineFactory, sideModuleFactories) {
 }
 ```
 
-`initMiniGameRuntime` 从适配器取上屏画布，把它的 GL 上下文注册到引擎模块，加载可寻址
-manifest，然后跑起 app——和微信走的是同一条序列。`initWeChatRuntime` 就是这个函数
-填上微信构建产物的 wasm 文件名，没有别的。
+`initMiniGameRuntime` 从适配层获取显示画布，将其 GL 上下文注册到引擎模块，加载可寻址清单并运行应用。`initWeChatRuntime` 是同一函数，只是填入了微信的 wasm 文件名。
 
 <Aside type="note">
-  必须**先**装平台再调 `initMiniGameRuntime`；漏了会抛错，错误信息里直接给出改法。
-  在所有小游戏宿主上，进程里第一次 `createCanvas()` 返回的就是上屏画布，所以在 runtime
-  之前不能有任何代码创建画布。
+  必须在调用 `initMiniGameRuntime` **之前**安装平台，否则它会抛出错误，并在消息中给出修正方法。在所有小游戏宿主上，进程中第一次 `createCanvas()` 得到的是显示表面，因此在运行时之前不得创建任何画布。
 </Aside>
 
-## 打包
+## 项目平台
 
-在**打包项目**对话框里，把鼠标移到平台列表的「项目自定义」分组上，点 **+**。
-填一个标识和名称，编辑器就会把平台的两半都写好——并且已经连接好——然后选中这个
-新平台；只要你描述完自己的宿主，就能直接打包。
+在 **打包项目** 中，将鼠标悬停在目标列表的 *项目自定义* 分组上并点击 **+**（或 **新建平台**）。选择类型 *小游戏宿主*，填写标识和名称后，编辑器会写出厂商的两个部分（已相互关联），并选中新目标。
 
-它写出来的就是普通的项目文件，不会在别处注册什么。下面是打包那一半：
+{/* SHOT: publish-new-platform | Package Project dialog with the New project platform form open, showing Kind (Mini-game host selected), Id and Name fields and the Create button; any example project */}
+
+打包部分是一个普通的项目文件：
 
 ```js
 // .esengine/platforms/acme-play.mjs
 export default {
   id: 'acme-play',
   label: 'ACME Play',
-  blurb: 'ACME 小游戏包。',
+  blurb: 'ACME mini-game package.',
   defaultOut: 'dist-acme',
 
   emitConfigFiles(ctx) {
@@ -307,29 +171,24 @@ export default {
 };
 ```
 
-整个文件就这些。三个事实加一个 emitter——其余全部落到「标准小游戏宿主」的默认值：
-平台中立的 SDK 入口（`index.minigame.js`）、`initMiniGameRuntime`、标准
-`WebAssembly` 引擎 glue，以及通用的 CommonJS `game.js`。剩下的一切——cook、
-manifest、场景变换、side-module 扫描、打包、运行时拷贝——与微信走的是同一条管线。
+未声明的部分均采用标准小游戏宿主的默认值：与厂商无关的 SDK 入口（`index.minigame.js`）、`initMiniGameRuntime`、标准 `WebAssembly` 引擎 glue 以及通用 CommonJS `game.js`。烘焙、清单、场景转换、侧模块扫描、打包和运行时复制使用微信的同一条流水线。
 
-### 一个平台有两半
+### 关联运行时配置
 
-上面这个文件是**打包**那一半（点 **+** 会帮你生成）。**运行时**那一半就是本指南开头的 `MiniGameProfile`
-——宿主全局对象，以及你替换掉的任何能力。用 `runtimeProfile` 指过去，生成的入口
-就会在启动前把它装上：
+运行时部分即上文所述的 `MiniGameProfile`。`runtimeProfile` 指向它，生成的入口会在启动前安装它：
 
 ```js
 // .esengine/platforms/acme-play.mjs
 export default {
   id: 'acme-play',
   label: 'ACME Play',
-  runtimeProfile: 'src/acme-runtime.ts',   // ← 另一半
+  runtimeProfile: 'src/acme-runtime.ts',   // ← the other half
   emitConfigFiles(ctx) { /* … */ },
 };
 ```
 
 ```ts
-// src/acme-runtime.ts —— 默认导出运行时 MiniGameProfile
+// src/acme-runtime.ts — default-exports the runtime MiniGameProfile
 export default {
   id: 'acme-play',
   hostLabel: 'ACME Play',
@@ -338,47 +197,39 @@ export default {
 };
 ```
 
-这个连接很关键：`esengine/minigame` 在游戏指明宿主之前不装任何平台。没有它，
-包能正常构建，然后在设备上抛错。只有当你的游戏自己调用 `installMiniGamePlatform`
-时才可以省略 `runtimeProfile`；编辑器会检查这个路径是否存在，不存在就不会把该平台
-标为就绪。
+在游戏指定宿主之前，`esengine/minigame` 不会安装任何平台；缺少 `runtimeProfile` 时包能正常构建，但在设备上会抛出错误。只有游戏自行调用 `installMiniGamePlatform` 时才可省略 `runtimeProfile`。编辑器会在将平台标记为就绪前检查该路径是否存在。
 
-`id` 只能是小写字母/数字/短横线，且不能与内置平台重名。它同时是 cook 的
-**导入设置键**，所以逐纹理的压缩覆盖可以按名字指定你的平台。
+`id` 只能由小写字母、数字和连字符组成，且不能与内置目标重名。它同时是烘焙使用的**导入设置键**，因此可按平台名称为单张纹理设置覆盖。
 
 <Aside type="note">
-  加载失败的 profile 会**带着错误信息列出来**，而不是被悄悄丢弃；编辑器还会探测
-  你的平台所需的引擎运行时（`wasmDir`，默认用编辑器自带的 web 运行时），所以对话框
-  在打包**之前**就告诉你缺什么，而不是打到一半才失败。
+  加载失败的配置会连同错误一起列出。编辑器会探测平台所需的引擎运行时（`wasmDir`，默认为编辑器的 Web 运行时），以便在构建开始前在对话框中报告缺失的运行时。配置模块运行在编辑器主进程中，加载前需要批准（[编辑器插件](/docs/zh-cn/extending/editor-plugins/#项目平台配置)）。
 </Aside>
 
-### 完整的 profile 字段
+### 配置字段
 
-可覆盖的全部字段，以及管线拿它做什么：
-
-| 字段 | 含义 |
+| 字段 | 说明 |
 | --- | --- |
-| `id` | 平台身份——同时是 cook 逐纹理读取的**导入设置键** |
-| `sdkEntryFile` | `esengine` 被 alias 到的 SDK dist 入口 |
-| `runtimeInit` | 生成的入口所 import 的启动函数 |
-| `engineGlueCandidates` | 按优先级查找的引擎 glue 文件名 |
-| `esTarget` | 游戏包与降级后 glue 的语法下限 |
-| `wasmBuildHint` / `sideModuleBuildTargets` | 错误提示里的 `build -t …` 名字 |
-| `nativeSuffixes` / `binRestageExts` | 打包器的后缀策略 |
-| `subpackageDir` | 懒加载分组落盘的位置 |
-| `emitConfigFiles` / `emitEntry` | 该平台的配置文件与 `game.js` |
-| `wasmDir` | 相对项目的引擎运行时目录（默认用编辑器自带的 web 运行时） |
-| `runtimeProfile` | 相对项目的模块路径，默认导出运行时 `MiniGameProfile` |
+| `id` | 厂商标识；也是烘焙按纹理读取的导入设置键。 |
+| `label`、`blurb`、`defaultOut` | 目标列表中的名称和描述；默认输出目录。 |
+| `sdkEntryFile` | `esengine` 被映射到的 SDK dist 入口。 |
+| `runtimeInit` | 生成的入口所导入的启动函数。 |
+| `engineGlueCandidates` | 按优先顺序查找的引擎 glue 文件名。 |
+| `esTarget` | 打包产物和降级后 glue 的语法级别。 |
+| `wasmBuildHint` / `sideModuleBuildTargets` | 错误提示中使用的 `build -t …` 名称。 |
+| `nativeSuffixes` / `binRestageExts` | 打包器的文件后缀策略。 |
+| `subpackageDir` | 懒加载分组的存放位置。 |
+| `emitConfigFiles` / `emitEntry` | 厂商的配置文件和 `game.js`。 |
+| `wasmDir` | 项目相对的引擎运行时目录（默认为编辑器的 Web 运行时）。 |
+| `runtimeProfile` | 项目相对的模块，默认导出运行时 `MiniGameProfile`。 |
 
-<Aside type="note">
-  profile 模块跑在编辑器的**主进程**里，而不是渲染进程——它的 emitter 是函数，
-  无法跨 IPC 传递。这也是为什么它是一个带默认导出的普通 `.mjs` 文件，
-  而不是通过某个 API 注册。
-</Aside>
+配置模块运行在编辑器**主进程**而不是渲染进程中：其 emitter 是函数，无法跨越 IPC 边界，因此该文件是带默认导出的纯 `.mjs`。
 
-## 宿主需要单独的引擎构建吗？
+## 宿主专属的引擎构建
 
-只有当它加载不了 web 引擎的 wasm 时才需要。微信需要（`-t wechat`，`ES_BUILD_WXGAME`），
-因为它有 `WXWebAssembly` 且没有 WebGPU。一个支持标准 `WebAssembly` 和 WebGL2 的宿主
-可以直接用 web 构建的 glue——`engineGlueCandidates` 里已经有回退到 `esengine.js` 的
-分支，正是为这种情况准备的。
+只有无法加载 Web 引擎 wasm 的宿主才需要专属的引擎构建。微信需要（`-t wechat`，`ES_BUILD_WXGAME`），因为它使用 `WXWebAssembly` 且不支持 WebGPU。支持标准 `WebAssembly` 和 WebGL2 的宿主可以使用 Web 构建的 glue；`engineGlueCandidates` 会为此回退到 `esengine.js`。
+
+## 参见
+
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)——微信目标。
+- [SUD OpenPaaS](/docs/zh-cn/publishing/openpaas/)——随 Estella 提供的项目平台预设。
+- [包体体积](/docs/zh-cn/publishing/package-size/)——小游戏体积上限。

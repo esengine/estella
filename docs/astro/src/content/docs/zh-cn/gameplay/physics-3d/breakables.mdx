@@ -1,0 +1,58 @@
+---
+title: 可破碎物体
+description: Breakable 参考——用预先碎裂的碎块替换完整物体、通过标志或撞击冲量触发破碎、碎块飞散与存续设置，以及 Broke 事件。
+---
+
+`Breakable` 用预先切好的碎块替换完整物体。模型的 `fracture` 步骤把碎块写为预制体，每块是带刚体与凸包的网格；碎块之间严丝合缝。运行时不进行任何切割。
+
+```typescript
+world.insert(pot, Breakable, { pieces: 'assets/models/pot_pieces.esprefab', burst: 300 });
+// when it is hit:
+world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken = true; });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `pieces` | prefab | `''` | 碎块预制体。 |
+| `broken` | boolean | `false` | 置位以击碎；清除以恢复完整。 |
+| `burst` | number | `300` | 碎块从 `origin` 向外飞散的速度，世界单位/秒。`0` 使其原地落下。 |
+| `origin` | Vec3 | `{0, 0, 0}` | 受击位置，相对其自身原点。 |
+| `lifetime` | number | `0` | 碎块被移除前存在的秒数；`0` 表示保留。 |
+| `breakImpulse` | number | `0` | 撞击强度达到该值即击碎，单位为 千克 × 世界单位/秒。`0` 表示仅在 `broken` 置位时击碎。 |
+| `enabled` | boolean | `true` | 为 `false` 时保持完整：既不会因 `broken`，也不会因撞击而破碎。 |
+
+## 破碎
+
+破碎时，完整物体被隐藏而非移除：其渲染器、刚体与碰撞体被关闭，在 `broken` 清除后恢复。没有 3D 物理世界时，碎块出现在原位并保持不动。
+
+### 受撞击破碎
+
+带有 `breakImpulse` 与自身碰撞体的可破碎物体，在接触强度达到该值时破碎。（编辑器碎裂模型时还会以 `hull` 提供完整形状的 `ConvexCollider3D`。）碎块从接触点飞散；同一步内有多次接触时取最强的一次。
+
+撞击强度为接近速度乘以相遇质量（[碰撞事件](/docs/zh-cn/gameplay/physics-3d/queries/#碰撞事件)）。按每米 100 单位计，以 10 m/s 落地的 1 kg 石块为 1000，同速的 50 g 石子为 50。只有碰撞体时，可破碎物体保持静止，石块以其自身质量与之相遇；同时带有动态 `RigidBody3D` 时它可被撞倒，倒下时以自身质量撞击地面。质量通过 `RigidBody3D.mass` 设置。
+
+角色撞上可破碎物体时以其 `characterHits` 冲量撞击，因此冲刺穿过窗户会将其击碎，倚靠则不会。`Physics3D.explode` 会冲击其半径内的每个可破碎物体。
+
+`Physics3D.setLinearVelocity(entity, velocity)` 用于抛出碎块；对于尚无刚体的实体（包括生成的那一帧）返回 `false`。
+
+## `Broke` 事件
+
+碎块就位、取代完整物体后发送 `Broke`，用于声音、粉尘与计分。恢复完整时不发送。
+
+| `BrokePayload` 字段 | 说明 |
+|---|---|
+| `entity` | 可破碎物体。 |
+| `x`、`y`、`z` | 受击位置，世界空间。 |
+| `impulse` | 受击强度；直接置位 `broken` 时为 `0`。 |
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke), Res(Audio)], (broke, audio) => {
+  // Louder the harder it was struck; a pot broken by hand makes its quietest sound.
+  for (const b of broke) audio.playSFX('assets/shatter.wav', { volume: Math.min(1, 0.3 + b.impulse / 3000) });
+}));
+```
+
+## 另请参阅
+
+- [刚体与形状](/docs/zh-cn/gameplay/physics-3d/bodies/#convexcollider3d)——凸包碰撞体。
+- [查询、力与事件](/docs/zh-cn/gameplay/physics-3d/queries/)——`explode` 与接触冲量。

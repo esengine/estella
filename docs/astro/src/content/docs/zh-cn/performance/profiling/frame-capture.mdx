@@ -1,0 +1,108 @@
+---
+title: 帧捕获 API
+description: 帧捕获参考——Renderer.captureNextFrame、DrawCallInfo 记录、RenderType 与 BatchBreak 取值、合批计数器、重放到指定 draw call，以及用 GLDebug 检查 GL 错误。
+---
+
+帧捕获记录一帧中的每个 draw call：绘制了什么、使用了哪些资源与状态，以及**为何未能并入前一个批次**。编辑器的[帧调试器](/docs/zh-cn/performance/frame-debugger/)基于此 API 构建。
+
+## 捕获一帧
+
+`Renderer.captureNextFrame()` 设置捕获；下一个渲染的帧会被记录。
+
+```typescript
+import { Renderer, RenderType, BatchBreak } from 'esengine';
+
+Renderer.captureNextFrame();
+
+// 一帧之后：
+if (Renderer.hasCapturedData()) {
+  const capture = Renderer.getCapturedData();   // FrameCaptureData | null
+  for (const dc of capture!.drawCalls) {
+    console.log(
+      `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
+      `tris=${dc.triangleCount} entities=${dc.entities.length} ` +
+      `break=${BatchBreak[dc.breakReason]}`
+    );
+  }
+  console.log(`${capture!.passCount} pass(es)`);
+}
+```
+
+`FrameCaptureData` 为 `{ drawCalls: DrawCallInfo[], passCount }`。
+
+| `DrawCallInfo` 字段 | 说明 |
+|---|---|
+| `index` | 帧内的 draw call 序号，按提交顺序。 |
+| `pass` / `passKind` | 绘制它的通道（按执行顺序），以及它是相机的场景（`CapturePass.Scene`）还是屏幕空间浮层（`CapturePass.Overlay`）。 |
+| `stage` | 渲染阶段（`RenderStage`：Background、Opaque、Transparent、Overlay）。 |
+| `type` | 内容类型（`RenderType`）。 |
+| `blendMode` | 混合模式 id。 |
+| `textureId` / `materialId` / `shaderId` | 该调用绑定的 GPU 资源。 |
+| `indexCount` / `triangleCount` | 提交的几何。 |
+| `instanceCount` | 调用中的实例数；非实例化 draw 为 `0`。 |
+| `entities` | 生成该 draw 的实体 id，按绘制顺序。没有实体的项（字形串、gizmo）不列出。 |
+| `layer` | 批次的渲染层。 |
+| `breakReason` | 该调用为何开始新批次而未并入前一个（`BatchBreak`）。 |
+| `scissorX` / `scissorY` / `scissorW` / `scissorH`、`scissorEnabled` | 裁剪状态（UI 遮罩）。 |
+| `stencilWrite` / `stencilTest` / `stencilRef` | 模板状态（遮罩的写入方与读取方）。 |
+| `textureSlotUsage` | 批次使用的纹理槽位数。 |
+| `textures` | 该 draw 绑定的所有纹理，槽位 0 在前；`textureId` 即第一个。 |
+
+`RenderType` 取值：`Sprite`、`Spine`、`Mesh`、`ExternalMesh`、`Text`、`Particle`、`Shape`、`UIElement`。
+
+## 合批中断原因
+
+每个 `BatchBreak` 取值都是合批合并测试本身的一个条件，指出阻止该调用并入前一个调用的状态变化。
+
+| `BatchBreak` | 含义 | 常见处理 |
+|---|---|---|
+| `RunStart` | 一段的第一个调用，没有可并入的对象。 | — |
+| `Instanced` | 实例化 draw；每个发射器一条命令，从不合并。 | — |
+| `Shader` | 着色器切换。 | 让相邻 draw 共用着色器。 |
+| `Blend` | 混合模式切换（加法与普通内容交错）。 | 按混合模式分组内容。 |
+| `Layout` | 顶点布局切换（精灵四边形与网格顶点）。 | — |
+| `Material` | 材质切换。 | 按材质分组实体。 |
+| `Depth` | 深度测试或写入不同（不透明与混合内容交错）。 | — |
+| `Cull` | 剔除状态不同。 | — |
+| `State` | 其他渲染状态标志不同。 | — |
+| `Scissor` | 裁剪矩形变化（`UIMask` 边界）。 | — |
+| `Stencil` | 模板参考值变化（遮罩写入/测试边界）。 | — |
+| `IndexGap` | 索引不连续；排序在其间插入了其他命令。 | 调整顺序，使同类 draw 相邻。 |
+| `TextureSlots` | 可以合并，但合并后的纹理集合超过一次 draw 的 8 个纹理槽位。 | 把纹理打包进更少的图集。 |
+
+`None` 是合并本身的结果，不会出现在捕获的调用上：到达该结果的命令已并入前一个命令。
+
+同样的原因也以 `batch.break.*` 计数器每帧发布，同时还有 `batch.draws` 与 `batch.merged`，因此无需捕获即可把一帧的 draw 数解读为，例如，一次段起始与五次索引间断，另有 41 条命令被合并。
+
+## 重放到指定 draw call
+
+`Renderer.replayToDrawCall(i)` 把捕获中的 draw call `0…i` 重新渲染到快照中。`Renderer.getSnapshotImageData()` 在 GPU 回读完成后以其像素 resolve（WebGL 上立即完成，WebGPU 上在稍后的 tick 完成）：
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.replayToDrawCall(5);                       // draw call 0..5
+const img = await Renderer.getSnapshotImageData();  // ImageData | null
+if (img) ctx2d.putImageData(img, 0, 0);
+```
+
+## GL 错误检查——`GLDebug`
+
+`GLDebug` 在 WebAssembly 渲染器内启用 GL 错误检查。由于每次检查都有开销，默认关闭。
+
+```typescript
+import { GLDebug } from 'esengine';
+
+GLDebug.enable();                              // 在关键点检查 GL 错误
+const errors = GLDebug.check('after-spawn');   // 立即检查；返回错误数
+GLDebug.diagnose();                            // 向控制台输出渲染器诊断信息
+GLDebug.disable();
+```
+
+`check(context)` 用 `context` 标记其日志输出，因此多次检查可以定位错误出现在帧中的哪个位置。生产构建中应保持 `GLDebug` 关闭。
+
+## 参见
+
+- [帧调试器](/docs/zh-cn/performance/frame-debugger/)
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)
+- [静态合并](/docs/zh-cn/performance/static-batching/)

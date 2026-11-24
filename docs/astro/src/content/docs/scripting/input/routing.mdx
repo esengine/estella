@@ -1,0 +1,58 @@
+---
+title: Input Routing
+description: The InputRouter that raw platform input passes through before it reaches the Input resource — the editor, UI and game tiers, event consumption, InputHandler methods and modifier state.
+---
+
+Before a raw platform event reaches the [`Input`](/docs/scripting/input/overview/) resource, it passes through the
+**`InputRouter`**, a chain of responsibility with three tiers:
+
+| Tier | Handler | Role |
+|---|---|---|
+| 1. Editor | `setEditorHandler` | Editor tools (gizmos, marquee selection) claim events first. |
+| 2. UI | `setUIHandler` | Widgets and dialogs claim what falls through. The engine's UI plugin occupies this tier; it is what makes `isPointerOverUI()` and click-through prevention work. |
+| 3. Game | — (implicit) | The `Input` resource. Gameplay receives only events no earlier tier consumed. |
+
+A handler method returns `true` to **consume** an event: it then neither updates `Input` nor reaches later tiers.
+Returning `false` or nothing passes it on. Consumption is decided per event, so a handler claims exactly the events it
+needs — a marquee drag consumes pointer moves while the button is held but passes the wheel through to the camera; a
+modal consumes Escape but not the arrow keys.
+
+Handlers are written when building editor tools or embedding the engine in a host application:
+
+```typescript
+import { inputRouter, type InputHandler } from 'esengine';
+
+const modalHandler: InputHandler = {
+  onKeyDown(code, mods) {
+    if (code === 'Escape') { closeModal(); return true; }   // consumed
+  },
+  onPointerDown(button, x, y, mods) {
+    return isInsideModal(x, y);   // claim clicks on the modal, pass the rest
+  },
+};
+
+const release = inputRouter.setUIHandler(modalHandler);
+// when the modal closes:
+release();
+```
+
+`inputRouter` is a module-level singleton. `setEditorHandler` and `setUIHandler` install one handler per tier and
+return an unregister function; unregistering removes only that handler, never a newer one.
+
+## `InputHandler`
+
+All methods are optional.
+
+| Method | Signature |
+|---|---|
+| `onKeyDown` / `onKeyUp` | `(code, mods)` |
+| `onPointerMove` | `(x, y, mods)` |
+| `onPointerDown` | `(button, x, y, mods)` |
+| `onPointerUp` | `(button, mods)` |
+| `onWheel` | `(deltaX, deltaY, mods)` |
+| `onTouchStart` / `onTouchMove` | `(id, x, y)` |
+| `onTouchEnd` / `onTouchCancel` | `(id)` |
+
+`mods` is a **`Modifiers`** snapshot, `{ shift, ctrl, alt, meta }`, tracked by the router from key events and readable
+at any time as `inputRouter.currentMods`. On the key-up of a modifier key, handlers still see that modifier as held,
+matching DOM `event.shiftKey` semantics. A handler that throws is treated as not consuming the event.

@@ -1,0 +1,95 @@
+---
+title: 服务器持久化
+description: 使用 esengine/persist 在重启之间保留服务器状态——PersistStore 及其带版本的写入、MemoryStore 与 FileStore、事务、RecordBook 迁移、实体快照、PlayerPersistence 与 WorldPersistence、多玩家事务，以及通过 StoreHub 与 RemoteStore 在进程之间共享一个存储。
+---
+
+服务器进程持有的状态若未写入存储，进程结束时即丢失。`esengine/persist` 以四个可独立使用的层提供服务器端持久化。它不在客户端运行；客户端的本地存档使用[存档与读档](/docs/zh-cn/scripting/save/)。
+
+| 层 | 类型 | 用途 |
+|---|---|---|
+| 存储 | `PersistStore`、`MemoryStore`、`FileStore`、`StoreHub`、`RemoteStore` | 带版本的异步文档存储。 |
+| 记录 | `RecordBook` | 带 schema 版本与迁移的记录。 |
+| 实体快照 | `snapshotEntity`、`restoreEntity` | 以 JSON 表示的单个实体的组件。 |
+| 玩家与世界 | `PlayerPersistence`、`WorldPersistence`、`Persistent` | 玩家记录与持久化世界实体的加载、保存与自动保存。 |
+
+## 存储
+
+`PersistStore` 是一个异步文档存储：一个键、一个 JSON 值，以及每次写入加一的版本号。
+
+- 写入可以给出其读到的版本（`expectVersion`；`0` 表示「必须不存在」）。若期间发生过其他写入，该写入以 `PersistConflict` 拒绝。
+- `transact(ops)` 原子地写入多个键，要么全部生效，要么都不生效。
+
+| 实现 | 说明 |
+|---|---|
+| `MemoryStore` | 位于内存中，用于测试。 |
+| `FileStore(dir)` | 每个键一个文件，原子替换。事务经由日志执行，崩溃不会留下写了一半的状态。适用于单进程运行的服务器。 |
+| `RemoteStore` | 由另一进程中的 `StoreHub` 提供的存储（[共享存储](#共享存储)）。 |
+| 自定义 | 在数据库之上实现 `PersistStore` 的方法，并将 `expectVersion` 实现为真正的比较并交换。 |
+
+## 记录
+
+`RecordBook` 写入每条记录时附带其 schema 版本，读回时经由 `migrations` 处理；`migrations[n]` 将版本 `n` 升级到 `n + 1`。这与客户端 [`SaveManager`](/docs/zh-cn/scripting/save/#schema-迁移) 的约定相同。
+
+## 实体快照
+
+`snapshotEntity(world, e, { include })` 与 `restoreEntity(world, snapshot, into?)` 以 JSON 保存和恢复场景为单个实体保存的内容——内置组件与脚本组件均可。`Replicated` 保留其原型，但不保留 `netId` 与 owner。指向其他实体的引用写为 `0`。
+
+## 玩家与世界
+
+| 类 | 行为 |
+|---|---|
+| `PlayerPersistence` | 跟随在场的玩家。每 tick 调用 `track(playerIds)`：它加载新到的玩家，保存并释放已离开的玩家，并自动保存有改动的记录（`autosaveMs`，默认 60 秒）。对同一玩家的写入按顺序执行，因此离开后立即返回的玩家读到的是离开时的数据。写入永远不会覆盖其他进程写下的更新记录；它会失败并通知 `onError`。 |
+| `WorldPersistence` | 保存所有标记了 `Persistent` 的实体，以其 `key` 为键（为空时在首次 flush 时生成）。启动时调用 `restore(world)`；`flush(world)` 可随时调用，只写入有变化的实体并删除已移除的实体。 |
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// each tick, with replication's player identity:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // game code
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// when a player leaves, before track() releases them:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// on shutdown:
+await players.flush();
+await world.flush(app.world);
+```
+
+### 多玩家事务
+
+`players.saveTogether(['ana', 'bo'])` 在一个事务中写入两条记录，各自对照其加载时的版本——用于交易、赠送以及其他不能只完成一半的操作。若其中任一记录在此期间被写入过，则两条都不写入，调用以 `PersistConflict` 拒绝。
+
+## 共享存储
+
+`StoreHub` 通过 WebSocket 提供任意存储。每个服务器进程使用一个 `RemoteStore`，它本身也是一个存储，因此记录、租约、票据与事务跨进程时的行为与单进程内一致：每次带版本的写入都在存储所在之处执行。
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// the process that owns the data
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// every server process
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+- hub 不可达时发起的调用会等待其恢复（`timeoutMs`，默认 10 秒）。
+- 断线前已发出且未收到应答的调用会失败，而不会被发送两次；带版本的写入在重试时可得知其是否已执行。
+- hub 只校验一个共享密钥，仅适用于内部网络。
+
+记录的内容、世界何时 flush，以及存储背后使用哪种数据库，均由游戏定义。

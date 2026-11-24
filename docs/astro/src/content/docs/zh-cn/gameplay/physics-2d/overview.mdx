@@ -1,0 +1,129 @@
+---
+title: 2D 物理基础
+description: 2D 物理参考——Box2D 侧模块、Physics2DPlugin 的安装与配置、米与像素的单位边界、运行时调试叠加层，以及本章各页面。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+2D 物理运行在 C++/WebAssembly 内核中，基于 Box2D v3。实体同时带有 `RigidBody2D` 和碰撞体时参与模拟。物理世界以**固定时间步**推进，与帧率无关。
+
+## 安装
+
+物理是可选的侧模块。在编辑器和 Web 运行时中，场景使用物理组件时会自动加载。自定义应用需添加插件：
+
+```typescript
+import { Physics2DPlugin } from 'esengine/physics';
+
+app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
+```
+
+第二个参数是 `Physics2DPluginConfig`，所有字段均可选。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `gravity` | `{ x: 0, y: -9.81 }` | 世界重力，m/s²。 |
+| `fixedTimestep` | `1/30` | 物理步长（秒）。插件同时将应用的固定步长设为该值，因此 `FixedUpdate` 系统同样以 30 Hz 运行。 |
+| `subStepCount` | `4` | 每步的求解器子步数。 |
+| `contactHertz` / `contactDampingRatio` / `contactSpeed` | `30` / `10` / `3` | 接触软度，以及最大推出速度（m/s）。 |
+| `collisionLayerMasks` | 无 | 按层的碰撞掩码（下标为层 0–15），取代各碰撞体自身的 `maskBits`。编辑器根据碰撞矩阵填写（[碰撞过滤](/docs/zh-cn/gameplay/physics-2d/bodies/#碰撞过滤)）。 |
+| `enableSleep` | `true` | 静止刚体进入休眠。 |
+| `enableContinuous` | `true` | 对快速刚体启用连续碰撞。 |
+| `restitutionThreshold` | Box2D 默认值 | 产生反弹的最小撞击速度（m/s）；`0` 或更小时保持默认值。 |
+| `maxLinearSpeed` | Box2D 默认值 | 刚体速度上限；`0` 或更小时保持默认值。 |
+
+组件（`RigidBody2D`、各碰撞体、关节、`OneWayPlatform2D`、`CharacterController2D`、`PlatformerController2D`）以及 `Physics2DPlugin`、`Physics2D`、`Physics2DEvents`、`Physics2DEventType` 均可从主 `esengine` 入口导入。`esengine/physics` 子路径另外导出 API 类型、`Physics2DDebugDraw` 与 `moveAndSlide`。
+
+## 单位
+
+Box2D 以**米**模拟；引擎其余部分以**世界像素**工作。两者的换算系数是当前的**每单位像素数**（PPU），即 `Canvas.pixelsPerUnit`，默认每米 `100` 像素。物理 API 的每一部分固定位于这条边界的某一侧：
+
+| 接口 | 单位 |
+|---|---|
+| 碰撞体组件尺寸：`halfExtents`、`radius`、`offset` 等 | **米。** |
+| 求解器方法：`applyForce` / `applyImpulse`、`setLinearVelocity` / `getLinearVelocity`、`setGravity` 等 | **米**（m/s、m/s²）。 |
+| 空间查询：`raycast`、`shapeCast*`、`overlapCircle` / `overlapAABB`、`moveCharacter` | **世界像素**，按当前 PPU 缩放。 |
+| `CharacterController2D.velocity`、`MotorJoint2D.linearVelocity` | 世界像素/秒。 |
+| 关节组件的 `anchorA` / `anchorB`、`length`、`minLength` / `maxLength`、`lowerTranslation` / `upperTranslation`；以像素为参数的关节方法（`setDistanceJointLength`、`setDistanceJointLimits`、`setPrismaticJointLimits`、`setWheelJointLimits` 等）及对应的读取方法 | **世界像素。** 角度（`lowerAngle`、铰链的 `motorSpeed`）为弧度。 |
+| 接触事件的位置与速度：`contactX/Y`、`pointX/Y`、`approachSpeed` | 世界像素、像素/秒。 |
+| `createRevoluteJoint` 的 `anchorA` / `anchorB` | **米**，原样传给求解器，与关节组件的像素锚点不同。 |
+
+`physics.getPixelsPerUnit()` 返回当前 PPU，该值每帧由 `Canvas` 推送：
+
+```typescript
+const ppu = physics.getPixelsPerUnit();               // world pixels per meter
+const speedPx = physics.getLinearVelocity(e).x * ppu; // m/s → px/s
+physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
+```
+
+<Aside type="caution">
+  组件与求解器方法使用米；查询与角色控制器使用像素。把像素传给 `applyForce`，或把米传给 `raycast`，得到的数值会相差 PPU 倍。
+</Aside>
+
+## 一个最小刚体
+
+```typescript
+import {
+  defineSystem, Commands, Transform,
+  RigidBody2D, BodyType, CircleCollider2D,
+} from 'esengine';
+
+const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.getPixelsPerUnit()
+
+const spawnBall = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
+    .insert(RigidBody2D, { bodyType: BodyType.Dynamic, gravityScale: 1 })
+    .insert(CircleCollider2D, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
+});
+```
+
+刚体与碰撞体的字段见[刚体与碰撞体](/docs/zh-cn/gameplay/physics-2d/bodies/)。
+
+## 调试绘制
+
+物理插件会安装 **`Physics2DDebugDraw`** 资源：一个游戏内叠加层，通过 [`Draw`](/docs/zh-cn/graphics/drawing/overview/#draw-api) API 描绘碰撞体轮廓、速度向量与接触点。默认关闭。
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+import { Physics2DDebugDraw } from 'esengine/physics';
+
+const toggleDebug = defineSystem([Res(Input), Res(Physics2DDebugDraw)], (input, dbg) => {
+  if (input.isKeyPressed('F1')) dbg.enabled = !dbg.enabled;
+});
+```
+
+| `Physics2DDebugDrawConfig` 字段 | 默认值 | 绘制内容 |
+|---|---|---|
+| `enabled` | `false` | 叠加层总开关。 |
+| `showColliders` | `true` | 碰撞体轮廓，按刚体类型着色：蓝色为静态，绿色为动态，青色为运动学；传感器为黄色。 |
+| `showVelocity` | `false` | 每个动态刚体沿线速度方向绘制一支红色箭头。 |
+| `showContacts` | `false` | 本帧新产生的每个接触点绘制一个红点。 |
+
+叠加层以世界像素、在各刚体的实时变换处绘制，并按当前 PPU 缩放，因此显示的正是查询所见的碰撞体位置。`setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents)` 是 `Physics2DPlugin` 执行的接线：插入该资源并注册绘制回调。绕过插件的自定义宿主需自行调用它，或直接每帧调用 `drawPhysics2DDebug(app, Physics2D, Physics2DEvents)`。
+
+<Aside type="note">
+  这是运行时叠加层。编辑器视口在**物理**显示标记下绘制自己的碰撞体与关节 gizmo（[编辑器中的关节](/docs/zh-cn/gameplay/physics-2d/joints/#在编辑器中)），二者相互独立。
+</Aside>
+
+## 使用准则
+
+- 在 `FixedUpdate` 系统中施加持续力。每帧读取 `Physics2DEvents`：该资源每帧发布一次，包含该帧内所有固定步的接触。
+- 对快速、细小的刚体（子弹、薄平台）设置 `bullet: true`，防止穿透。
+- 对角色设置 `fixedRotation: true`，防止翻倒。
+- 触发区使用传感器（`isSensor: true`）：报告进入与离开事件，不产生物理响应。
+- 用碰撞层（`categoryBits` / `maskBits`）过滤交互，而不是在事件处理中判断实体类型。
+
+## 本章页面
+
+- [刚体与碰撞体](/docs/zh-cn/gameplay/physics-2d/bodies/)——`RigidBody2D`、碰撞体形状、多边形编辑、碰撞过滤与单向平台。
+- [力、查询与事件](/docs/zh-cn/gameplay/physics-2d/queries/)——`Physics2D` API、空间查询、接触与传感事件、网格放置。
+- [关节](/docs/zh-cn/gameplay/physics-2d/joints/)——关节组件、关节控制方法与拖拽关节。
+- [角色控制器](/docs/zh-cn/gameplay/physics-2d/characters/)——`CharacterController2D` 与 `PlatformerController2D`。
+
+## 另请参阅
+
+- [3D 物理](/docs/zh-cn/gameplay/physics-3d/overview/)——独立的 3D 刚体世界。
+- [标记与触发区](/docs/zh-cn/gameplay/markers/)——以标记形式创作的传感区域。
+- [瓦片碰撞](/docs/zh-cn/world/tilemaps/collision/)——由瓦片地图生成的碰撞体。
+- [场景](/docs/zh-cn/world/scenes/)——物理组件随场景序列化。
+- [数学辅助](/docs/zh-cn/scripting/math/)——速度与方向的向量运算。

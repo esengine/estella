@@ -1,47 +1,45 @@
 ---
 title: Event Binding
-description: Wire an entity event to a named action as authored data — a button click, a trigger area, a state machine hand-off — with no game code.
+description: Wiring entity events to registered actions as authored data with the EventBinding component — the Events section of the Details panel, row fields, target resolution, built-in and custom actions, the events that fire, hand-off to state machines, and argument forms.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A **wire** says: *when this entity sees this event, run this action on that entity.* It is
-a row of data on the emitting entity — no callback, no script file — so laying out a button
-and making it *do* something happen in the same place.
+A **wire** specifies: when this entity receives this event, run this action on that entity. Wires are rows of data on
+the emitting entity, stored in the `EventBinding` component; they require no callback or script file.
 
 ```
 click ─▶ ui.setPage(tabs, settings)      on "This entity"
 click ─▶ ui.setPage(badge, on)           on "Card"
 ```
 
-Wires are deliberately **not** a visual programming language. A row has no branches and no
-expressions; when something genuinely needs logic, the row names an action that hands off to
-[a state machine](/docs/gameplay/ai/overview/) — the editor Estella already has for graphs — and logic that is easier to draw can live in a
-[script graph](/docs/gameplay/script-graphs/), whose **On event** node listens for the same named entity events.
+A row has no branches and no expressions. Logic is delegated to a [state machine](/docs/gameplay/ai/overview/) through
+an action such as `fsm.fire`, or written as a [script graph](/docs/gameplay/script-graphs/), whose **On event** node
+listens for the same named entity events.
 
-## A wire in the inspector
+## The Events section
 
 ![The Events section of the Details inspector](@/assets/guides/en/events-section.png)
 
-*Two wires on a button: both fire on `click`, one switches a controller on the button's own
-ancestor chain, the other targets the `Card` entity by name.*
+*Two wires on a button. Both fire on `click`; one switches a controller on the button's ancestor chain, the other
+targets the `Card` entity by name.*
 
-Select any entity that can emit — a UI node, an `Interactable`, a collider — and the
-**Events** section lists its wires. Each row reads left to right:
+Selecting an entity that can emit events — a UI node, an `Interactable`, a collider — shows its wires in the
+**Events** section of the Details panel. Each row reads left to right:
 
-| Part | Meaning |
+| Part | Description |
 |---|---|
 | ☑ | Row enabled. An unchecked row stays in the data and never fires. |
-| Event | The event type to listen for (`click`, `change`, `trigger_enter`, …). |
-| ↳ Target | Which entity the action runs on. *This entity* by default, or another **by name**. |
-| Action | A registered action name — the same palette the FSM and behaviour-tree editors use. |
-| Parameters | Whatever that action declares. An action with none gets a single free-text argument. |
-| ⚙ | Reveals **Condition** (a registered condition that must pass) and **Once**. |
+| Event | Event type to listen for (`click`, `change`, `trigger_enter`, …). |
+| ↳ Target | Entity the action runs on: *This entity* by default, or another entity **by name**. |
+| Action | A registered action name, from the same palette as the state-machine and behaviour-tree editors. |
+| Parameters | The parameters the action declares. An action without declared parameters takes one free-text argument. |
+| ⚙ | Shows **Condition** (a registered condition that must pass) and **Once**. |
 
-## The data
+## The `EventBinding` component
 
-A wire is the `EventBinding` component, so it serializes into scenes and travels with
-[prefabs](/docs/world/prefabs/) like any other component — no new asset type:
+Wires are stored in the `EventBinding` component, so they serialize into scenes and travel with
+[prefabs](/docs/world/prefabs/) like any other component:
 
 ```typescript
 import { EventBinding, UIEventType } from 'esengine';
@@ -54,57 +52,56 @@ world.insert(button, EventBinding, {
 });
 ```
 
-| `EventBindingRow` | Description |
-|---|---|
-| `event` | Event type to listen for. Any string — the built-ins are only the well-known set. |
-| `target` | Name of the entity the action runs on. Omitted = the entity carrying the row. |
-| `action` | Registered action name. |
-| `params` | The action's declared parameters by name. |
-| `arg` | The same input in canonical string form (`"tabs:settings"`). Either form runs. |
-| `guard` | Registered condition that must pass for the row to run. |
-| `once` | Run at most once, then stay inert until the scene reloads. |
-| `enabled` | `false` keeps the row inert without deleting it. |
+| `EventBindingRow` field | Type | Description |
+|---|---|---|
+| `event` | `string` | Event type to listen for. Any string; the built-in types are the predefined set. |
+| `target` | `string?` | Name of the entity the action runs on. Omitted: the entity carrying the row. |
+| `action` | `string` | Registered action name. |
+| `params` | `Record<string, …>?` | The action's declared parameters by name. Takes precedence over `arg`. |
+| `arg` | `string?` | The same input in canonical string form (`"tabs:settings"`). |
+| `guard` | `string?` | Registered condition that must pass for the row to run. |
+| `once` | `boolean?` | Runs at most once, then stays inert until the scene reloads. |
+| `enabled` | `boolean?` | `false` keeps the row inert without deleting it. |
 
-Wires fire in play mode only — the editor never runs your actions while you author.
+Wires fire during play only; the editor does not run actions while authoring.
 
-### Targets resolve by name, nearest first
+### Target resolution
 
-`target` is an entity **name**, searched outward: the row's own entity, then its subtree,
-then each ancestor's subtree, and finally the whole scene. Nearest wins, which is what keeps
-two instances of the same prefab from wiring into each other — a `Close` button inside
-dialog A finds dialog A's `Panel`, never dialog B's.
+`target` is an entity **name**, searched outward from the row's entity: the entity itself, then its subtree, then
+each ancestor's subtree, and finally the whole scene. The nearest match is used, so two instances of one prefab do not
+resolve into each other: a `Close` button inside dialog A finds dialog A's `Panel`, not dialog B's.
 
-A name that matches nothing is reported in the inspector (the target reads red) and warns at
-runtime instead of failing silently.
+A name that matches no entity is shown in red in the Details panel and logs a warning at runtime.
 
 ## Actions
 
-An action is a named function in the shared registry — the same one `.esfsm` state hooks and
-`.esbt` leaves resolve against. Register once, and the name shows up in all three palettes.
+An action is a named function in the shared action registry, which `.esfsm` state hooks and `.esbt` leaves also
+resolve against. A registered name appears in all three palettes.
 
 ![The action palette, grouped by namespace](@/assets/guides/en/events-palette.png)
 
-*The palette groups by `namespace.`, and the engine's own actions carry a one-line
-description.*
+*The palette groups actions by `namespace.` prefix; the engine's actions carry a one-line description.*
 
-These ship with the engine:
+Built-in actions:
 
-| Action | What it does |
+| Action | Effect |
 |---|---|
-| `ui.setPage` | Switch a [UI controller](/docs/ui/controllers/) to a page. |
-| `ui.setVisible` | Show/hide a UI subtree (`UINode.display`). |
-| `property.set` | Write any component field, addressed as `Component.dot.path`; an optional `entity` parameter writes another entity. |
-| `fsm.fire` | Fire a trigger on the target's state machine. |
-| `blackboard.set` | Set a blackboard value (`key=value`; the value is read as JSON when it parses). |
-| `scene.load` · `scene.reload` | Switch to a named scene, or restart the current one, with an optional fade in seconds. |
-| `audio.play` · `audio.stop` | Drive the target's `AudioSource`; `audio.play` can name another clip. |
-| `soundEvent.trigger` · `soundEvent.stop` | Drive the target's sound event source. |
-| `timeline.play` · `timeline.pause` | Drive a [timeline](/docs/animation/timeline/playback/) on the target. |
-| `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | Drive a sprite flipbook. |
+| `ui.setPage` | Switches a [UI controller](/docs/ui/controllers/) to a page. |
+| `ui.setVisible` | Shows or hides a UI subtree (`UINode.display`). |
+| `property.set` | Writes any component field, addressed as `Component.dot.path`. An optional `entity` parameter writes another entity. |
+| `fsm.fire` | Fires a trigger on the target's state machine. |
+| `blackboard.set` | Sets a blackboard value (`key=value`; the value is parsed as JSON when valid). |
+| `scene.load` · `scene.reload` | Switches to a named scene, or restarts the current one, with an optional fade in seconds. |
+| `audio.play` · `audio.stop` | Drives the target's `AudioSource`; `audio.play` can name another clip. |
+| `soundEvent.trigger` · `soundEvent.stop` | Drives the target's sound event source. |
+| `timeline.play` · `timeline.pause` | Drives a [timeline](/docs/animation/timeline/playback/) on the target. |
+| `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | Drives a sprite flipbook. |
 
-### Your own actions
+Importing `esengine/logic` (script graphs) also registers `entity.despawn` and `debug.log`.
 
-One registration makes a name authorable everywhere:
+### Custom actions
+
+`registerAction(name, spec)` makes a name available in every palette:
 
 ```typescript
 import { registerAction } from 'esengine';
@@ -120,52 +117,61 @@ registerAction('game.award', {
 });
 ```
 
-Declaring `params` is what turns the editor's text box into a dropdown and a number field.
-`ctx` is the same context an FSM action gets — `entity`, `world`, `commands`, plus the
-blackboard.
+Declared `params` replace the free-text field with typed controls (here a dropdown and a number field). `ctx` is the
+same context a state-machine action receives — `entity`, `world`, `commands` — plus the blackboard.
 
 <Aside type="tip" title="Where to register">
-The editor never executes your gameplay code, so it learns your action names from the
-project's **declaration entry** (`src/components.ts` by default — the same module it reads
-components from). Register there and the names appear in every palette; register elsewhere
-and they still work at runtime, you just have to type them.
+  The editor does not execute gameplay code; it reads action names from the project's
+  [declaration entry](/docs/scripting/script-modules/#declaration-entry) (`src/components.ts` by default). Actions
+  registered there appear in every palette. Actions registered elsewhere still run, but their names must be typed.
 </Aside>
 
-## Which events fire
+## Events
 
-Widgets emit the standard set (`UIEventType`), and events **bubble**, so a row on a panel
-hears its buttons:
+### UI events
 
-`click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` ·
-`change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` ·
-`pointer_move` · `press_cancel` · `shown` · `hidden`
+Widgets emit the standard set (`UIEventType`). Events **bubble**, so a row on a panel receives events from its
+buttons:
 
-Every pointer event (`press`, `release`, `click`, `pointer_move`, `press_cancel`) carries a `UiPointerEventData`:
-which pointer (`pointer`, -1 for the mouse), where it is in the world (`worldX`, `worldY`) and on the surface
-(`screenX`, `screenY`, in pixels counted up from the bottom-left) and in UI layout space (`layoutX`, `layoutY`). The entity that was pressed is the one that hears
-`pointer_move` for as long as the pointer is held, wherever it goes. A hold can be given up with
-`UIControlPointers.cancelHold(pointer, to?)`: the holder hears `press_cancel`, nothing clicks, and with `to` another entity
-takes the rest of the gesture. An entity that is only a `ContentRect` plus an `Interactable` can be pressed.
+`click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` · `change` · `submit` ·
+`drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` · `pointer_move` · `press_cancel` ·
+`shown` · `hidden`
 
-`shown` and `hidden` are the exception to "a widget emits them": nobody clicked anything, the
-node simply arrived on screen or left it — usually because an **ancestor** was shown or hidden,
-which is what navigation, tabs and dialogs do. Every node in the subtree is told, so "when this
-screen appears" is a row on the screen rather than a system that watches for it:
+Pointer events (`press`, `release`, `click`, `pointer_move`, `press_cancel`) carry a `UiPointerEventData`:
+
+| Field | Description |
+|---|---|
+| `pointer` | Pointer id; `-1` for the mouse. |
+| `worldX`, `worldY` | Position in the world. |
+| `screenX`, `screenY` | Position on the surface in pixels, measured up from the bottom-left. |
+| `layoutX`, `layoutY` | Position in UI layout space. |
+
+The entity that was pressed receives `pointer_move` for as long as the pointer is held, wherever it moves.
+`UIControlPointers.cancelHold(pointer, to?)` releases a hold: the holder receives `press_cancel`, no click occurs,
+and with `to` another entity takes over the rest of the gesture. An entity consisting only of a `ContentRect` and an
+`Interactable` can be pressed.
+
+`shown` and `hidden` are emitted when a node appears on screen or leaves it, usually because an **ancestor** was shown
+or hidden, as navigation, tabs and dialogs do. Every node in the affected subtree receives them, so an action on a
+screen's appearance is a row on that screen:
 
 ```
 shown ─▶ fsm.fire(enter)  on "MissionPanel"   →   Hidden ──enter──▶ Entering
 ```
 
-The watching costs nothing until something listens for one of the two, and nothing again on a
-frame where no UI moved.
+Visibility tracking has no cost until a row listens for `shown` or `hidden`, and none in frames where no UI changed.
 
-[Physics](/docs/gameplay/physics/) contacts reach the same channel (`Physics2DEventType`), so a
-[trigger area](/docs/gameplay/markers/) is wired exactly like a button — both participants get
-the event, each told about the other:
+### Physics events
+
+[Physics](/docs/gameplay/physics-2d/overview/) contacts are delivered on the same channel (`Physics2DEventType`), so a
+[trigger area](/docs/gameplay/markers/) is wired like a button. Both participants receive the event, each with the
+other as its counterpart:
 
 `collision_enter` · `collision_exit` · `collision_hit` · `trigger_enter` · `trigger_exit`
 
-The vocabulary is open: emit your own name from anywhere and a row can listen for it.
+### Custom events
+
+The event vocabulary is open. Any name emitted through `EntityEvents` can be listened for by a row:
 
 ```typescript
 import { EntityEvents } from 'esengine';
@@ -173,11 +179,10 @@ import { EntityEvents } from 'esengine';
 app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 ```
 
-## When a wire needs logic
+## Hand-off to a state machine
 
-A row runs one action; it has no "if" and no sequence. That is a deliberate ceiling, and
-`fsm.fire` is the way through it — the click fires a trigger, and the entity's
-[state machine](/docs/gameplay/ai/overview/) decides what it means:
+A row runs one action, without conditions beyond its guard and without sequencing. `fsm.fire` passes the event to the
+entity's [state machine](/docs/gameplay/ai/overview/), which decides what it means:
 
 ```
 click ─▶ fsm.fire(start)  on "Hint"   →   Idle ──start──▶ Running
@@ -186,33 +191,30 @@ click ─▶ fsm.fire(start)  on "Hint"   →   Idle ──start──▶ Runnin
 
 ![A state hook's declared parameters in the state machine editor](@/assets/guides/en/events-fsm.png)
 
-*The same parameter controls, in the state-machine editor: `property.set` declares `path`
-and `value`, so the hook shows two fields instead of one opaque string.*
+*The same parameter controls in the state-machine editor: `property.set` declares `path` and `value`, so the hook shows
+two fields instead of one string.*
 
-An action declares its parameters once and every authoring surface shows them — an event
-row, an FSM state hook, a behaviour-tree leaf.
+An action declares its parameters once, and every authoring surface — event row, state hook, behaviour-tree leaf —
+shows them.
 
-## Two ways to write the same input
+## Argument forms
 
-Every action keeps a canonical string form. `{ controller: 'tabs', page: 'settings' }` and
-`"tabs:settings"` are projections of each other, and the registry converts between them, so:
+Every action has a canonical string form. `{ controller: 'tabs', page: 'settings' }` and `"tabs:settings"` are
+equivalent, and the registry converts between them:
 
-- data authored before an action declared its parameters keeps running, unchanged;
-- an action that only reads `arg` still receives it when a row is authored as parameters;
-- the editor can show real controls for a row that stores a plain string.
+- data authored before an action declared its parameters continues to run unchanged;
+- an action that reads only `arg` receives it when a row stores parameters;
+- the Details panel shows typed controls for a row that stores a plain string.
 
-You never choose: the inspector writes parameters, hand-written data may use either.
+The Details panel writes `params`; hand-written data may use either form.
 
-<Aside type="caution" title="Not yet: asset and entity parameters">
-A parameter cannot be an asset reference or an entity handle. The cook's discovery pass and
-the scene's entity remapper do not look inside a row's parameters, so such a parameter would
-ship a build with a missing asset — a control that silently breaks the game is worse than no
-control. Address other entities by `target` name, and reference assets through a component
-the cook can see.
+<Aside type="caution" title="Asset and entity parameters are not supported">
+  A parameter cannot be an asset reference or an entity handle. The cook's asset discovery and the scene's entity
+  remapping do not inspect row parameters, so such a parameter would produce a build with a missing asset. Other
+  entities are addressed by `target` name; assets are referenced through a component the cook can discover.
 </Aside>
 
 ## Example
 
-`examples/ui-events` is the whole feature in one project — two tab buttons, a cross-entity
-badge, and a *Start run* button that hands off to a state machine. Its `src/main.ts` is
-empty; every behaviour in it is authored data.
+`examples/ui-events` contains two tab buttons, a badge on another entity, and a *Start run* button that hands off to a
+state machine. Its `src/main.ts` is empty; all behaviour is authored data.

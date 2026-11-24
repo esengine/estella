@@ -1,32 +1,29 @@
 ---
 title: 编辑器插件
-description: 用你自己的 TypeScript 扩展 Estella 编辑器——命令、面板、检查器分区、视口 gizmo 与工具、资产类型、右键菜单项——无需构建步骤，边写边热重载。
+description: 编辑器插件——创建插件、plugin.json 清单、API 稳定性策略、插件窗口、打包与安装 .esplugin 文件、信任、npm 包、类型定义、插件位置、允许的导入、项目平台配置以及故障排查。
 ---
 
 import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 
-插件把你自己的工具加进编辑器：工具菜单里的一条命令、一个停靠面板、检查器里
-多出来的一段、视口里画的 gizmo、一种新的资产类型。插件是 TypeScript，放在你的
-项目里，而且**不需要构建步骤**——编辑器负责编译，你一保存就重新编译。
+编辑器插件为编辑器添加工具：命令、停靠面板、检视器分区、视口 gizmo 和工具、资产类型、导入器以及 Agent 工具。插件以 TypeScript 编写，位于项目或用户目录中。编辑器直接编译插件，无需构建步骤，保存后即重新编译。
 
-插件注册的一切都走编辑器自己功能所用的同一套注册表。贡献的命令就是命令；贡献
-的面板就是带标签页、关闭按钮和弹出功能的停靠面板。不存在任何东西的"插件简化版"。
+插件的贡献与编辑器自身功能使用同一套注册表：插件贡献的面板就是一个带标签页、关闭按钮和弹出功能的停靠面板。各贡献点见[贡献点](/docs/zh-cn/extending/contribution-points/)。
 
-## 你的第一个插件
+## 创建插件
 
 <Steps>
 
-1. 打开**窗口 ▸ 插件**，点**新建插件**（命令面板里搜"新建插件"也行）。
+1. 打开 **窗口 ▸ 插件**，选择 **添加 ▸ 新建插件…**（也可在命令面板中执行）。
 
-2. 填名称。id 会按名称自动生成，也可以自己改——点分小写，形如
-   `acme.level-tools`。选装到**项目**（随项目版本管理，团队共享）还是
-   **用户**（个人插件，每个项目里都可用）。
+2. 填写 **名称**。**标识** 由名称派生，可以修改；它是点分隔的小写名称，例如 `acme.level-tools`。在 **安装到** 中选择 **项目**（随项目版本管理，团队共享）或 **用户**（个人使用，在所有项目中可用）。
 
-3. 勾选想要的起始样例（命令、面板、检视器分区、视口 gizmo、视口工具），点**创建**。
+3. 在 **起始样例** 中勾选要包含的样例——命令、面板、检视器分区、视口 gizmo、视口工具——然后选择 **创建**。
 
 </Steps>
 
-编辑器写出一个已经能跑的插件，并立刻加载它：
+{/* SHOT: extend-new-plugin | Plugins window (Window ▸ Plugins) with the New plugin dialog open from Add ▸ New Plugin…: Name, Id, Install to (project / user) and the Start from sample checkboxes, with the Create button; any example project */}
+
+编辑器写出一个可直接运行的插件并加载它：
 
 <FileTree>
 - .esengine/
@@ -48,12 +45,6 @@ import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 }
 ```
 
-另有四个字段决定插件在插件窗口里的样子，和虚幻 `.uplugin` 的同名字段一样：
-`category` 决定它在树里归到哪个分类（"Importers""Audio"；不写就归"其他"），
-`icon` 是插件目录里的一张方图（PNG、JPEG、WebP 或 SVG，对应虚幻的
-`Resources/Icon128.png`），`docsUrl` 加一个"文档"链接，`"beta": true` 标上 Beta。
-`publisher` 显示在版本号下面。
-
 ```ts title="src/editor.ts"
 import { definePlugin, type PluginContext } from '@estella/editor-api';
 
@@ -63,84 +54,95 @@ export default definePlugin({
       id: 'acme.level-tools.hello',
       title: { en: 'Say hello', 'zh-CN': '打个招呼' },
       menu: 'tools',
-      run: () => ctx.ui.toast(`${ctx.scene.getSelectionIds().length} 个实体被选中`),
+      run: () => ctx.ui.toast(`${ctx.scene.getSelectionIds().length} selected`),
     });
   },
 });
 ```
 
-你的命令现在出现在工具菜单和命令面板里。改一下 `editor.ts` 再保存：编辑器会
-重新编译并重新激活它，它贡献的面板也会以新构建重新打开。
+该命令出现在“工具”菜单和命令面板中。保存 `editor.ts` 后插件重新编译并重新激活，其贡献的面板会在新构建上重新打开。
 
-<Aside type="tip" title="engines.editor 由编辑器写，别照抄">
-`engines.editor` 是插件声称适配的编辑器版本区间。1.0 之前，**次版本号是破坏性
-变更的轴**——`^0.97` 不匹配 `0.98`。新建插件时编辑器按**当前自己的版本**写这一行，
-所以从别处抄一个旧区间过来，插件一装上就是"版本不兼容"。
+## 清单
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | `string` | 必填。点分隔、小写、带命名空间（约定为 `<publisher>.<name>`），例如 `acme.level-tools`。 |
+| `name` | 本地化字符串 | 必填。显示名称。 |
+| `version` | `string` | 必填。插件版本。 |
+| `description` | 本地化字符串 | 简短描述。 |
+| `publisher` | `string` | 在插件窗口中显示于版本号下方。 |
+| `engines.editor` | `string` | 插件支持的编辑器版本范围，例如 `^0.97`。 |
+| `main.editor` | `string` | 入口，相对插件目录；运行在编辑器渲染进程中。 |
+| `capabilities` | `string[]` | 在信任提示中展示的声明能力：`fs:project`、`net`、`shell`、`process`。便捷 API 依据它们开放（项目文件访问需要 `fs:project`）。 |
+| `category` | `string` | 插件窗口分类树中的类别，例如 "Importers"、"Audio"。未设置时归入“其他”。 |
+| `icon` | `string` | 插件目录内的一张方形图片（PNG、JPEG、WebP 或 SVG），例如 `Resources/Icon128.png`。 |
+| `docsUrl` | `string` | 一个 http(s) 地址；添加“文档”链接。 |
+| `beta` | `boolean` | 将插件标记为 Beta。 |
+
+本地化字符串可以是字符串，也可以是以语言区域为键的对象（`{ "en": …, "zh-CN": … }`）。
+
+<Aside type="tip" title="engines.editor">
+1.0 之前，**次版本号是破坏性变更的维度**：`^0.97` 不匹配 `0.98`。**新建插件** 会把范围固定为创建它的编辑器版本。从旧插件复制来的范围会使插件被标记为 *版本不兼容*。
 </Aside>
 
 ## 这套 API 承诺什么
 
-插件 API 是 **experimental（实验性）**，**不在** Estella 1.x 的兼容契约里——1.0
-之后它还会继续变。这是一个明确的裁定，
-[VERSIONING.md](https://github.com/esengine/estella/blob/master/VERSIONING.md)
-和 SDK 自己的[稳定性等级](/docs/zh-cn/reference/api-stability/)写在一处：贡献点还在向
-同一套机制收敛；插件是跑在编辑器渲染进程里的**受信代码**而非隔离沙箱；而且还没有
-任何已发布的插件在撑住这些形状。
+插件 API 是 **experimental（实验性）**，不属于 Estella 1.x 的兼容契约；1.0 之后它仍会继续变化。[VERSIONING.md](https://github.com/esengine/estella/blob/master/VERSIONING.md) 将这一点与 SDK 的[稳定性等级](/docs/zh-cn/reference/api-stability/)一并说明：扩展点仍在向统一机制收敛；插件作为受信代码运行在编辑器渲染进程中，而非隔离环境；目前还没有已发布的插件在实际使用这些接口形态。
 
-在这个前提下，有三件事你可以依赖：
+以下承诺适用：
 
-- **`engines.editor` 一定被尊重。** 超出声明区间的插件会带着理由被拒绝加载，绝不
-  半加载。所以我们这边的变更，代价是你升一个版本号——绝不会是用户的编辑器坏掉。
-- **破坏性变更一定写下来**，在 CHANGELOG 的 **Editor plugin API** 标题下，连同该
-  怎么改。
-- **移除一定先弃用**——要撤掉的贡献点至少还能用一个次版本，并且会说明。
+- **`engines.editor` 一定被遵守。** 超出声明范围的插件会被拒绝加载并给出原因，绝不会部分加载。
+- **破坏性变更一定有记录**，写在 CHANGELOG 的 **Editor plugin API** 标题下，并附迁移说明。
+- **移除前一定先弃用。** 将要撤除的贡献点至少在一个次版本内继续可用，并给出提示。
 
-这套面会**逐个**冻结——随着真有已发布的插件在用它们——而不是靠一个版本号一次性
-全冻。
+API 的各部分会在已发布插件实际使用后逐个冻结。
 
-## 看插件贡献了什么
+## 插件窗口
 
-在插件窗口里展开运行中插件的**详情**，就能看到它的**贡献**：它此刻注册的全部东西——
-命令、面板、设置项、工具、gizmo、检视器分区、资产类型、实体模板、菜单项——
-连同各自的 id。
-
-"我的面板怎么没出来"通常在这里就有答案：它要么不在列表里（`activate` 没跑到那一行），
-要么在列表里但 id 和你以为的不一样。
+**窗口 ▸ 插件** 列出编辑器找到的所有插件。
 
 ![插件窗口：左边是带计数的分组和分类树，右边每个插件一张卡片](@/assets/guides/zh/plugins-panel.png)
 
-*插件窗口，和虚幻的插件浏览器一样：顶部是**添加**（新建插件，或从插件包安装）、刷新和搜索；左边是全部插件、需要处理的、再按项目、已安装、内置分组并按分类细分，各带数量；右边每个插件一张卡片，有启用勾选框、图标、版本、发布者，以及编辑、打包、在文件夹中显示、重新加载和详情。*
+*工具栏：**添加**（新建插件…、从插件包安装…）、刷新和搜索。左侧：全部插件、需要处理，然后是按类别列出的项目、已安装和内置，各带计数。右侧：每个插件一张卡片，包含启用复选框、图标、版本和发布者，以及编辑、打包、在文件夹中显示、重新加载和详情。*
+
+| 卡片操作 | 作用 |
+|---|---|
+| 启用复选框 | 启用或停用插件。 |
+| **编辑** | 打开 `plugin.json`。 |
+| **打包** | 将插件打包为 `.esplugin` 文件（[分享插件](#分享插件)）。 |
+| **在文件夹中显示** | 打开插件目录。 |
+| **重新加载** | 从源码重新编译并激活。 |
+| **详情** | 显示插件的状态、错误和 **贡献** 列表。 |
+
+**贡献** 列出运行中的插件当前注册的所有内容——命令、面板、设置项、工具、gizmo、检视器分区、资产类型、导入器、实体模板、菜单项、侧栏按钮和 Agent 工具——各带其 id。编辑器中没有出现的贡献，要么不在列表中（`activate` 未执行到注册语句），要么以不同的 id 注册。
+
+{/* SHOT: extend-plugin-details | Plugins window with a built-in plugin's card expanded via Details, showing its state and the Contributes list with kinds and ids; any example project */}
 
 ## 分享插件
 
-插件卡片上的**打包**把它打包成单个 `.esplugin` 文件（就是 ZIP，改名成
-`.zip` 任何工具都能打开）。`node_modules`、`dist` 和生成的类型不会进包。
+插件卡片上的 **打包** 将插件打包为一个 `.esplugin` 文件，即 ZIP 压缩包。`node_modules`、`dist` 和生成的类型定义不包含在内。
 
-对面用**添加 ▸ 从插件包安装…**装：装之前会先列出包里的清单——manifest、声明的能力、每个文件——
-这一步不解压、不落盘。确认后才写入，且**装上不等于运行**：它会以"待信任"状态
-出现，加载与否仍然是你单独的一个决定。
+**添加 ▸ 从插件包安装…** 用于安装插件包。它先列出包内容——清单、声明的能力和每个文件——而不解包或写入任何内容。安装不会运行插件：插件安装后处于待信任状态。
+
+### 信任
 
 <Aside type="caution" title="信任">
-插件与编辑器拥有同等权限——你的项目文件，以及编辑器能触及的一切。所以在你批准
-之前什么都不会加载，也所以你只应加载来源可信的插件。提示框会列出插件声明的能力，
-但**声明的能力表达的是意图：它不是沙箱**。
+插件拥有与编辑器相同的访问权限：项目文件以及编辑器能访问的其他任何内容。插件在获得批准（**信任并加载**）之前不会加载。只加载来源可信的插件。提示中会列出声明的能力，但声明的能力只表示意图，并不是沙箱。
 
-批准只对应那个版本、那个目录。新版本，或另一个目录声称同一 id，都会重新询问。
+批准针对某个目录中的某个版本。新版本，或声明同一 id 的另一个目录，会再次请求批准。**撤销信任** 可取消批准。
 </Aside>
 
-## 来自 npm
+## npm 包
 
-插件也可以是项目依赖的一个 npm 包：
+插件也可以是项目依赖的 npm 包：
 
 ```bash
 npm install estella-plugin-tiled
 ```
 
-任何**直接依赖**，只要根目录带一个 `plugin.json`，就是一个插件。编辑器会像列出其它
-插件一样列出它，同样需要授信——而授信是按版本记的，所以升级会重新询问。
+根目录含有 `plugin.json` 的任何**直接**依赖都是插件。它与其他插件一样列出并需要信任；批准针对版本，因此更新后会再次请求。作为其他包的依赖间接引入的包不会被视为插件。
 
-一个包也是把插件两半一起发布的方式：清单指向的编辑器那半，和游戏自己 import 的运行
-时那半。
+一个包可以同时提供插件的两部分：清单指向的编辑器部分，以及游戏导入的运行时代码。
 
 <FileTree>
 - node_modules/estella-plugin-tiled/
@@ -159,20 +161,11 @@ import { TiledPlugin } from 'estella-plugin-tiled';
 addPlugin(TiledPlugin);
 ```
 
-运行时那半不需要任何专门机制——它就是一个普通模块，和 `src/` 里的其余代码一起被打包
-进你的游戏。把 `esengine` 声明为 **peer** 依赖，不要声明成普通依赖：项目的打包器会把
-每一处 `esengine` import 留成 external，整个游戏共用一份引擎实例；而包里自带的那份副本
-会是第二个组件注册表，它注册进去的系统等于注册进了虚空。
-
-只有直接依赖会被考虑。因为别的包依赖它才被装进来的包，不是项目要求在自己编辑器里运行
-的东西。
+运行时部分是普通模块，随游戏一起打包。应将 `esengine` 声明为 **peer** 依赖：项目的打包器把所有 `esengine` 导入保留为外部引用，使整个游戏共享一个引擎实例；包内自带的副本会成为第二个组件注册表，其中的系统不会注册到实际运行的引擎中。
 
 ## 类型定义
 
-编辑器每次打开项目时，都会把 `@estella/editor-api` 的类型写进
-`.esengine/plugins/.types/editor-api.d.ts`，因此它永远与你正在运行的编辑器一致。
-插件的 `tsconfig.json` 指过去——**新建插件时这份已经写好了**，这里列出来是给
-手写插件的人参考：
+每次打开项目时，编辑器都会将 `@estella/editor-api` 的类型定义写入 `.esengine/plugins/.types/editor-api.d.ts`，与正在运行的编辑器一致。**新建插件** 会写出指向它的 `tsconfig.json`；手写插件时可使用：
 
 ```json
 {
@@ -185,365 +178,55 @@ addPlugin(TiledPlugin);
 }
 ```
 
-无需安装任何东西，也不存在会过期的副本。
+## 插件位置
 
-## 插件能贡献什么
+| 位置 | 用途 |
+|---|---|
+| `<project>/.esengine/plugins/<id>/` | 随项目版本管理，团队共享。 |
+| 项目的直接 npm 依赖 | 见 [npm 包](#npm-包)。 |
+| `<userData>/plugins/<id>/` | 个人工具，在所有项目中可用。 |
 
-每个 `register` 都返回一个 disposable，插件卸载时全部自动撤回——你通常不需要
-自己保存这些句柄。
+id 冲突时按上表顺序先出现者生效；其余的标记为 **被遮蔽**，并注明占用该 id 的插件。
 
-### 命令
+## 允许的导入
 
-进入命令面板，也可以进菜单。标签、快捷键提示、可用性与勾选态都来自这一处声明。
+插件运行在编辑器的运行环境中，导入的是编辑器自身的模块实例，因此它注册的内容就是编辑器所使用的内容。插件可以导入：
 
-```ts
-ctx.commands.register({
-  id: 'acme.level-tools.bake',
-  title: { en: 'Bake Occlusion', 'zh-CN': '烘焙遮挡' },
-  keybinding: 'mod+alt+b',
-  menu: 'tools',
-  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
-  run: () => { /* … */ },
-});
-```
+- `react`、`react-dom`、`react-dom/client`、`react/jsx-runtime`
+- `@estella/editor-api`
+- `esengine`、`esengine/terrain`、`esengine/worldgen`、`esengine/water`、`esengine/spline`、`esengine/voxel`、`esengine/rig2d`、`esengine/tilemap`、`esengine/replication`
 
-### 面板
+其他任何裸模块说明符都会导致加载错误，错误信息中会列出上述清单；此类依赖应打包进插件。
 
-`mount` 拿到一个普通的宿主元素，返回它的拆卸函数。标签页、错误边界和弹出窗口由
-编辑器负责。用编辑器的 CSS 变量写样式——面板底色 `--srf-2`、正文 `--text` /
-`--text-dim`、强调色 `--star`、描边 `--groove`、正文字号 `--fs-body`——面板就与周围
-的界面一致。**要用真实存在的变量**：CSS 没有「未知变量」这种错误，名字写错的那条
-声明不会报错，只是什么都不画。
+### 在编辑器中使用游戏注册的提供方
 
-```ts
-ctx.panels.register({
-  id: 'acme.level-tools.budget',
-  title: { en: 'Level Budget', 'zh-CN': '关卡预算' },
-  placement: 'bottom',
-  mount: (host) => {
-    host.textContent = 'hello';
-    return () => { /* 拆卸 */ };
-  },
-});
-```
-
-你可以用 React——编辑器会注入它自己的实例，所以 hooks 正常工作，也不会出现第二份
-副本：
-
-```ts
-import { createRoot } from 'react-dom/client';
-```
-
-### 左侧栏上的一个按钮
-
-只能从菜单里翻出来的面板等于没人开。在最左边那条图标栏上加一个按钮，和编辑器自
-己那些面板按钮并排：
-
-```ts
-ctx.activityBar.register({
-  id: 'acme.level-tools.rail',
-  title: { en: 'Level Budget', 'zh-CN': '关卡预算' },
-  // 内联 SVG，按 19px 绘制。用 currentColor 它才会跟着侧栏走悬停和明暗主题。
-  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
-    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
-  run: () => ctx.panels.open('acme.level-tools.budget'),
-});
-```
-
-不给 `icon` 就用所有贡献物共用的那个插头图标——两个插件也就都长成插头，所以自己
-带一个。
-
-这条栏又短又是公用的。**你的插件是什么**，就为那件事贡献一个按钮；别的都是命令，
-命令的去处是「工具」菜单。
-
-### 检查器分区
-
-在某个组件下（或某种资产类型下）加一段，由编辑器用它自己的属性 UI 渲染你声明的
-行——所以不用写样式就是原生外观。
-
-```ts
-ctx.inspector.register({
-  kind: 'component',
-  id: 'budget',
-  component: 'Sprite',
-  title: { en: 'Budget', 'zh-CN': '预算' },
-  build: (entity, ui) => {
-    ui.info({ en: 'Texture', 'zh-CN': '纹理' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
-    ui.number('weight', { en: 'Weight', 'zh-CN': '权重' }, 1, { min: 0, max: 10 });
-  },
-  write: (entity, key, value) => { /* 你建的某一行被编辑了 */ },
-});
-```
-
-### 视口 gizmo
-
-每帧绘制，坐标是**世界坐标**——由编辑器投影，所以 gizmo 会随平移缩放跟随场景，
-以世界单位给的半径也会随之缩放。线宽和文字则保持屏幕像素。
-
-```ts
-ctx.overlays.register({
-  id: 'acme.spawn-radius',
-  render: (g) => {
-    const id = ctx.scene.getSelection();
-    if (id == null) return;
-    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
-    if (!Array.isArray(p)) return;
-    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--star)', dashed: true });
-  },
-});
-```
-
-### 视口工具
-
-处于 **armed** 状态时，工具对每一笔指针操作有优先接管权。`onPointerDown` 返回
-`true` 即接管这一笔及其后续 move/up。选择任何内建工具都会解除 arming，所以你不会
-被卡在插件的工具里。
-
-```ts
-ctx.tools.register({
-  id: 'acme.measure',
-  title: { en: 'Measure', 'zh-CN': '测距' },
-  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
-  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
-  onPointerUp: (p, tc) => tc.release(p.pointerId),
-});
-ctx.tools.activate('acme.measure');
-```
-
-### 其余
-
-- `ctx.settings.register(…)`——**设置 ▸ 插件 ▸ 你的插件**下的一行。
-- `ctx.assets.registerType(…)`——一种新资产类型：扩展名、图块徽章、双击动作，
-  以及一条**新建 ▸ …**菜单项。
-- `ctx.entities.registerTemplate(…)`——创建选择器里的一个现成实体。
-- `ctx.contextMenus.register(…)`——大纲或内容浏览器右键菜单里的一行，可按被点击
-  的对象决定是否出现。
-
-### 导入器
-
-导入器把引擎读不懂的文件转成它读得懂的资产。被认领的文件出现或改变时，以及在内容
-浏览器里点**重新导入**时，编辑器会调用它：
-
-```typescript
-ctx.assets.registerImporter({
-  id: 'ldtk',                     // 最终是 acme.level-tools.ldtk
-  extensions: ['ldtk'],
-  async import(path) {
-    const level = JSON.parse(await ctx.fs.readProject(path));
-    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
-  },
-});
-```
-
-你写出来的就是普通的项目资产，所以下游的一切——注册表、检查器、cook、发行包——都不
-需要认识你的格式。记得声明 `fs:project` 能力，否则没有地方放输出。
-
-抛异常（或 reject）会把这次失败记在你的插件名下（输出日志里），其余导入器照常运行。
-同一个文件不会被同时导入两次，所以一次耗时较久的导入不会被它自己写出的文件重新触发。
-
-### 二进制资产与文件操作
-
-`ctx.fs` 默认操作插件自己的目录，也支持位于项目外的用户插件。项目版本的方法需要
-声明 `fs:project`，操作当前项目。路径相对于对应根目录；`..` 越界和指向根目录外的
-软链接都会被拒绝。
-
-| 操作 | 插件自己的目录 | 当前项目 |
-| --- | --- | --- |
-| UTF-8 文本 | `read`、`write` | `readProject`、`writeProject` |
-| 二进制 `Uint8Array` | `readBytes`、`writeBytes` | `readProjectBytes`、`writeProjectBytes` |
-| 列目录 | `readDir` | `readProjectDir` |
-| 大小、修改时间、目录标志 | `stat` | `statProject` |
-| 创建目录 | `mkdir` | `mkdirProject` |
-| 移动 / 重命名 | `rename` | `renameProject` |
-| 移到系统回收站 | `delete` | `deleteProject` |
-
-```typescript
-const blob = await new Promise<Blob>((resolve, reject) =>
-  canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG encoding failed')), 'image/png'));
-await ctx.fs.writeProjectBytes('assets/generated/atlas.png', new Uint8Array(await blob.arrayBuffer()));
-await ctx.project.refreshAssets();
-```
-
-落盘的是真正的 PNG 字节，无需 data URL、base64 文本或额外的 Node 解码脚本。
-二进制写入会创建父目录，完整写好后再替换目标。重命名会保留 `.meta` 和 UUID，目标文件
-或孤立的目标 `.meta` 已存在时会拒绝覆盖。删除会把文件及其 sidecar 移到系统回收站。
-项目修改接入已有 Agent 文件撤回日志；项目外的插件本地文件不计入项目撤回。目录列表包含
-点文件和 metadata，不经过 Content Browser 的显示过滤。`mkdir` 遇到已存在目录会拒绝；
-其他读写失败也以 Promise rejection 返回。插件上下文释放或切换项目后，旧上下文不能继续写入。
-
-写到插件目录中的生成文件不会反复重载插件；实际构建依赖中的源码、导入的 JSON 和
-`plugin.json` 修改后仍然正常热重载。
-
-### 借一个工具给 Agent
-
-通过 [MCP](/docs/zh-cn/agents/mcp/) 连接的代理只能做工具列表里有的事。**插件加了能力却没加工具,等于只给人加了、没给 Agent 加**——所以如果你的插件能烘焙遮蔽,就把它教给 Agent:
-
-```typescript
-ctx.agentTools.register({
-  // 你的插件 id,点号换成 `_`——插件 `acme.level-tools` 的工具都以
-  // `acme_level_tools_` 开头。
-  name: 'acme_level_tools_bake-occlusion',
-  description: '为当前场景烘焙遮蔽。移动过墙体之后使用。',
-  schema: { type: 'object', properties: { quality: { type: 'number' } } },
-  effect: 'undoable',
-  run: ({ quality }) => bake(quality ?? 1),
-});
-```
-
-`description` **不是文档**——它是模型判断「该不该调这个」时唯一会读的东西。写清楚它做什么、什么时候该用。
-
-这个工具会和编辑器自己的工具一起列给每个连上的 MCP 客户端,调用时在编辑器里执行你的 `run`。先按 `schema` 校验:缺参数、或带了 schema 没声明的参数,都会在交给你之前被拒绝。
-
-`effect` 决定谁能调它。`read` 对每个连上的代理都开放。`undoable`(走撤销历史的编辑)、`journaled`(通过 `ctx.fs.writeProject` 写的项目文件,落盘前会留底)和 `irreversible`(动到已打开项目之外,或跑没人枚举得清后果的代码)只在用户允许代理修改项目时(**设置 › AI 代理**)才开放,否则拒绝。
-
-**没有任何东西会去核实这个字段**,而这不是漏洞——你的插件本来就握着整个编辑器接口,同样的事它用一个命令也能做。边界在安装时的信任提示,不在这个字段。这个字段换来的是:对一个诚实的插件,权限能正确起作用。所以请如实声明——一个自称 `read` 却会改项目的工具,会在用户只允许「看」的代理手里照样执行。
-
-名字必须以你的插件 id 开头,且**只能含字母、数字、`_` 和 `-`,最多 64 个**。两半都要紧:不带命名空间的工具可能**盖住内置工具**,而模型在调 `delete_entity` 时是相信自己知道会发生什么的;而字符集之外的名字模型端点根本不收——它拒的是**整个请求**而不是那一个工具,于是这一个工具会把每一次对话都带下水。
-
-插件 id 按惯例带点号,而工具名不能带,所以前缀是**你的 id 把点号折成 `_`**:插件 `acme.level-tools` 拥有 `acme_level_tools_` 这个前缀。违反上述任一条的工具会被**拒绝并在输出日志里说明原因**,不会被静默丢掉。
-
-`run` 返回什么就 JSON 编码给模型;抛出异常会作为一次失败调用上报,消息模型读得到、也能据此调整。对话进行中出现的新工具会加入**下一次**对话——工具列表排在提示词最前面,中途变更会让它之后的每一个缓存字节作废。
-
-## 编辑场景
-
-一律走 `ctx.scene`。这些写入经过编辑器的命令层，因此会进入撤销历史，并且能扛过
-Play → Stop。绕开它直接改活的引擎，这两点都会失去。
-
-```ts
-ctx.scene.transact('Rename Markers', () => {
-  for (const node of ctx.scene.getSceneTree()) {
-    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
-  }
-});
-```
-
-一次 `transact` 里的全部改动是**一个**撤销步骤，不管它改了多少东西。
-
-## 出问题的时候
-
-打开**窗口 ▸ 插件**。编辑器找到的每个插件都在列表里——包括坏掉的，并附上原因：
-清单解析失败、编译报错，或 id 被另一个插件占用。你的插件抛出的错误会出现在
-**输出日志**里，带 `plugin:<你的-id>` 标记和堆栈。
-
-如果一个插件反复抛错，编辑器会停用它，而不是让它每帧都弄坏某个界面。修好后点
-**重新加载**。
-
-<Aside type="tip">
-插件自身的耗时会出现在性能分析器的 `plugin.<id>.<什么>` 下，与编辑器自己的工作
-并排——所以慢的覆盖层或命令是看得见的，而不是一团迷雾。
-</Aside>
-
-## 插件能引入什么
-
-插件运行在编辑器自己的运行域里,引入的是编辑器自己的实例,所以它注册的东西就是编辑器在用的东西。可以引入 `react`、`@estella/editor-api`、
-`esengine`,以及编辑器本身建立在其上的引擎子入口:`esengine/terrain`、`esengine/worldgen`、`esengine/water`、`esengine/spline`、
-`esengine/tilemap` 和 `esengine/replication`。别的都会在加载时报错并列出这份清单;请把它打进插件里。
-
-### 在编辑器里显示游戏生成的地面
-
-编辑时编辑器不运行你的游戏脚本:它只读声明模块来取组件结构。游戏自己注册的地形提供器(`Terrain` 的 `provider: 'my-game:planet'`)因此在视口里
-并不存在,地形要的提供器找不到。用一个项目插件引入注册它的模块即可,编辑器里和游戏里用同一份代码:
+编辑时编辑器不运行游戏脚本；它只读取声明模块以获取组件结构。因此游戏注册的地形提供方（`provider: 'my-game:planet'` 的 `Terrain`）在视口中不存在。导入注册该提供方的模块的项目插件可以使其可用，编辑器与游戏使用同一份代码：
 
 ```ts title=".esengine/plugins/my-game.ground/src/editor.ts"
 import { definePlugin } from '@estella/editor-api';
-import '../../../../src/planet/terrain.ts';   // registerTerrainProvider(...),和游戏里一样
+import '../../../../src/planet/terrain.ts';   // registerTerrainProvider(...), as the game does
 
 export default definePlugin({ activate: () => {} });
 ```
 
-因为它运行项目代码,编辑器会请你确认一次是否信任这个插件。项目的 `.gitignore` 不再忽略 `.esengine/plugins/`(新建项目就是这样写的),
-所以插件随项目走,全队看到的是同一片地面。
-
-## 插件放在哪
-
-- **`<项目>/.esengine/plugins/<id>/`**——随项目版本管理，与团队共享。通常放这里。
-- **项目依赖的一个 npm 包**——见上面的 [来自 npm](#来自-npm)。
-- **`<userData>/plugins/<id>/`**——你个人的工具，跨所有项目。
-
-同 id 时，这三处按上面的顺序取第一个，其余的会列出来并说明是谁占了。
+该插件运行项目代码，因此编辑器会请求一次信任。新项目的 `.gitignore` 不忽略 `.esengine/plugins/`，因此插件随项目一起提交。
 
 ## 项目平台配置
 
-`.esengine/platforms/<id>.mjs` 打包配置（见
-[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)）会以完整系统权限被导入编辑器主
-进程。它同样列在插件面板里、同样需要批准——在你批准之前，它对应的目标在打包对话框
-里显示为未就绪。
+`.esengine/platforms/<id>.mjs` 打包配置（[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/#项目平台)、[试玩广告](/docs/zh-cn/publishing/playable-ads/#自定义广告平台)）以完整系统权限导入编辑器主进程。它会列在插件窗口中，需要同样的批准；批准之前，其目标在打包项目中显示为未就绪。
 
-## 项目原生模块
+## 故障排查
 
-有些运行时是以 WASM 形态存在的：矢量动画播放器、各种求解器，凡是出身 C++、并且有
-官方 emscripten 构建的东西都算。引擎自己就以这种方式加载着它的模块——物理、Basis 转码
-器、DragonBones 运行时、视频解码器、各版本 Spine 运行时——项目也可以按同样的规则加自己的。
+**窗口 ▸ 插件** 列出找到的所有插件，包括出错的插件及原因：清单解析失败、编译错误、id 已被占用，或 `engines.editor` 范围不兼容。插件抛出的错误显示在 **输出日志** 中，标记为 `plugin:<id>`，并附调用栈。
 
-自己 `fetch` 一个只在网页上行得通，别处都不行：小游戏没有 `fetch`，二进制必须**在
-包里**；试玩广告根本没有文件这个概念。而**项目模块**得到的是引擎自家模块同等的待
-遇：一次调用即可取用、被打进每个包、在生成的小游戏入口里按名字 require、并且在 Play
-里也会加载，好让你能对着它开发。
+持续抛出错误的插件会被停用，以免每次渲染都破坏界面。修复后点击 **重新加载**。
 
-### 目录怎么放
-
-```
-<项目>/.esengine/modules/rive/
-  module.json          { "file": "rive", "globalName": "RiveModule" }
-  web/rive.js   rive.wasm      ← 网页、桌面、试玩广告，以及 Play
-  wechat/rive.js  rive.wasm    ← 所有小游戏平台
-```
-
-**目录名就是你取用时用的 id**。`module.json` 是可选的：没有它时产物基名默认取目录
-名，所以文件按 `rive/web/rive.js` 摆放的模块什么都不用写。`globalName` 是 emscripten
-的 `EXPORT_NAME`——胶水用 `MODULARIZE` 且带具名导出时填它，胶水是 `default` 即工厂
-的 ES 模块时省略。
-
-按平台分目录不是官僚主义。小游戏宿主需要自己那份 emscripten 构建（WXWebAssembly 胶
-水、更低的 es-target）——引擎自家的模块也正因如此要编两遍。编辑器**不会**拿 web 构建
-去顶替小游戏构建：那会产出一个构建干净、上真机就死的包，所以它被拒绝，并给出一条点名
-了它找过哪个文件的警告。
-
-### 怎么用
-
-`acquire` 交还给你的是 emscripten 实例。它的类型是 `Record<string, unknown>`——引擎
-无从知道你的模块导出了什么——所以请自行声明你要用的那一小片并包一层，内置的 Spine
-集成就是这么做的：
-
-```typescript
-interface RiveModule {
-  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
-  _malloc(size: number): number;
-  _free(ptr: number): void;
-  HEAPU8: Uint8Array;
-}
-
-const raw = await app.sideModules?.acquire('rive');
-if (!raw) return;                        // 这个目标没打包它——降级处理
-const rive = raw as unknown as RiveModule;
-const version = rive.cwrap('rive_version', 'string', [])() as string;
-```
-
-`acquire` 按 id 缓存——**包括失败**，所以缺失的产物不会每帧重新请求——并且在模块不可
-用时返回 `null` 而不是抛异常。请像游戏代码判断 `Ads.available` 那样判断它：缺这个模块
-的目标应当降级，而不是崩溃。
-
-要把这类运行时产出的东西画出来，把它的三角形交给
-[MeshRenderer](/docs/zh-cn/graphics/drawing/meshes/)——顶点位置、UV、颜色和索引走的正是引擎内置 Spine 集成
-所用的同一条路，因此引擎支持的每个后端上它都能渲染。
-
-<Aside type="note">
-  自己写 C++ 是另一件事，这套机制并不替你做：模块仍需用 emscripten 按上面的布局构建出
-  来，和引擎构建自家模块的方式一样。多数第三方运行时本就发布了官方 WASM 构建——请从那里
-  开始，而不是自己去编一个。
+<Aside type="tip">
+插件的耗时显示在性能分析器的 `plugin.<id>.<what>` 下，与编辑器自身的工作并列。
 </Aside>
 
-### 各目标的行为
+## 参见
 
-| 目标 | 项目模块 |
-|---|---|
-| 网页 / 桌面 / 试玩广告 | 取 `web/` |
-| 微信及其他小游戏 | 取 `wechat/`（或以你的 vendor id 命名的目录） |
-| Play（编辑器内） | 取 `web/`，因此你是对着真实模块开发 |
-| Android / iOS | **不支持** —— 原生宿主把模块链接进应用二进制，随内容送达的模块没有任何加载路径。请把它构建进你的原生宿主。 |
-
-没能被打包进去的模块，**绝不会**被声明给运行时。这是刻意的：一个二进制并不存在的声明
-只会报出"文件找不到"，而不是"这个目标不支持"，后者在手机上要难懂得多。
-
-有一类 id 你拿不到：注册一个引擎自己拥有的 id（`physics`、`spine:4.2` 等）会被拒绝——
-`physics` 因加载顺序不同而指向两个不同的二进制，那不是一种能力。
+- [贡献点](/docs/zh-cn/extending/contribution-points/)——插件可以注册的内容。
+- [项目原生模块](/docs/zh-cn/extending/native-modules/)——项目中的第三方 WebAssembly 运行时。
+- [连接智能体 (MCP)](/docs/zh-cn/agents/mcp/)——插件可以添加的 Agent 工具。

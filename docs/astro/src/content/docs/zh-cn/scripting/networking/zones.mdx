@@ -1,0 +1,146 @@
+---
+title: 分区
+description: 使用 esengine/zones 让一个世界跨越多个服务器进程——ZoneDirectory、PlayerLeases 与 TransferTickets、ZoneHost、转区与登录路由、借助入口地址的故障恢复、区的平滑下线，以及区之间的消息总线。
+---
+
+一个服务器进程能容纳的玩家数量有限。更大的世界拆分为若干**区**——一张地图、一张地图的一条线、一个副本——每个区在各自的进程中运行，玩家在区之间移动。`esengine/zones` 提供其中的共享部分，建立在所有区共用的一个 [`PersistStore`](/docs/zh-cn/scripting/networking/persistence/#存储) 之上（借助数据库适配器即可跨机器）。
+
+| 组件 | 职责 |
+|---|---|
+| `ZoneDirectory` | 每个区通过心跳上报其 id、客户端拨号的地址、`kind` 与负载。超过 `ttlMs` 未刷新的条目表示该区已不存在。`pick(kind)` 返回该类型中剩余容量最多的区。 |
+| `PlayerLeases` | 玩家所在的区，作为一条记录。区在登录时获取租约，玩家停留期间续约，玩家离开时释放或移交。带版本的写入保证两个区争夺同一玩家时不会都成功；崩溃的区所持有的玩家在租约到期时被释放。 |
+| `TransferTickets` | 从一个区到另一个区的一次性、会过期的通行证，携带到达所需的信息（出生点、传送门 id）。 |
+| `ZoneHost` | 在[复制服务器](/docs/zh-cn/scripting/networking/replication/)与 `PlayerPersistence` 之上运行一个区在上述三者中的那一侧。 |
+
+## `ZoneHost`
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // shared by every zone
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // a PlayerPersistence, optional
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// every tick
+zone.tick();
+// spawn a pawn for each present player once players.isReady(playerId); a player who
+// arrived by transfer has their arrival data in zone.takeArrival(playerId)
+
+// a portal: write the record, then transfer the player
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+转区按固定顺序执行：先写入玩家记录，再将租约移交给目标区，然后签发票据，最后告知客户端前往何处。因此目标区加载的是刚写入的记录，且不会有其他区再写入它。
+
+## 登录路由
+
+任何一个区都可以接受登录，并将玩家送往其应在之处：
+
+1. 游戏的 `authenticate` 识别玩家。
+2. 在另一个区在线的玩家被送往该区，替换其旧连接——一个玩家永远不会同时位于两个区，且跨区时后一次登录优先。
+3. 由已停止心跳的区持有的玩家会被直接接管，无需等待租约到期。
+4. 由路由决定目的地：
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // new players, and anyone with no other destination
+    route: async (ctx) => {             // optional game-specific routing
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // where they logged out, else a live zone of the same kind,
+    },                                  // else home, else this zone
+});
+```
+
+被路由的玩家像转区一样移交（租约、票据），其 hello 收到一个重定向应答。配置了 `dial` 的客户端会自动跟随；`net.connect` 在客户端进入其被送往的区后 resolve。
+
+## 客户端配置
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // where to log in again if its zone is gone
+});
+client.onStateChange((state) => {       // every state change, as it happens
+    if (state === 'reconnecting') showBanner('Reconnecting…');
+    if (state === 'ready') hideBanner(); // client.serverId identifies the current server
+});
+```
+
+| 选项 | 说明 |
+|---|---|
+| `dial(url)` | 打开到服务器所指定地址的传输。跟随重定向与转区时必需。 |
+| `entry` | 一个地址，或依次尝试的地址列表；重新拨号失败超过 `entryAfterMs`（默认 3 秒）后在该处重新登录——通常是位于各区之前的负载均衡地址。 |
+
+转区时，客户端丢弃所离开区的所有 ghost（net id 只在一台服务器内有效），出示票据连接新区，此后断线时像平常一样重连到新区；期间 `state` 为 `'transferring'`。没有 `dial` 时，转区会结束客户端，`closeReason` 为 `'transfer'`，`transferTarget` 给出目的地。`server.transfer(id, { address, ticket })` 是 `ZoneHost` 所用的复制层步骤，供有自己移交方式的游戏使用。
+
+## 故障恢复
+
+- 区每秒发送一次心跳（`heartbeatMs`）。转区只会前往在三次心跳内上报过的区，而非目录整个有效期内的区。
+- 在目标区故障那一刻被送往该区的玩家会自动返回：移交的租约在目标区接手前只持续 `arrivalLeaseMs`（默认 3 秒），客户端返回其离开的区（转区时会将其作为退路告知客户端），并在租约到期后在那里重新登录。
+- 客户端配置了 `entry` 时，玩家自己所在的区故障后会自动找到另一个区。到达的区从故障区接管该玩家，并像普通登录一样对其路由。
+
+## 区的平滑下线
+
+滚动更新或撤掉一条线时，应让区平滑下线，而非直接停止：
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// zone.tick() continues to be called until drain resolves
+```
+
+- 区立即被标记为下线中：`pick`、默认路由与所有转区都会跳过它，在此处的登录会被转送到别处。
+- 它持有的每个玩家按路由的决定转走，路由收到 `reason: 'drain'`（默认为同类型中另一个存活的区，否则为 `home`），每次转一小批（`concurrency`）。
+- 路由找不到目的地或转区持续失败的玩家，在 `deadlineMs` 时被踢出，其记录照常写入；随后区停止（`stop()`）。
+- 旧进程一消失，新进程即可使用该区的 id。
+
+## 区之间的消息
+
+区之间通过**总线**通信：发布到某个主题的消息会到达所有订阅了该主题的进程。投递为至多一次，与 Redis 频道相同；必须最终送达的数据（邮件、交易结果）写入存储，由总线通知其已存在。
+
+| 总线 | 范围 |
+|---|---|
+| `MemoryBus` | 同一进程中的多个区。 |
+| `BusHub` + `RemoteBus` | 跨进程。由一个进程托管 `BusHub`（每个接入的 `ws` socket 交给它）；每个区使用一个 `RemoteBus`，它在与 hub 断开后重新拨号并重新订阅。 |
+| 自定义 | Redis 或 NATS 适配器实现 `ZoneBus` 的两个方法。 |
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// one process hosts the hub
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// every zone
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// a whisper from a player here to a player anywhere
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // wherever she is
+zone.broadcastZones('event', { name: 'double-xp' });   // every zone receives it
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+| 方法 | 说明 |
+|---|---|
+| `sendToPlayer(playerId, type, data)` | 送达玩家的客户端（`client.onMessage`），除非持有该玩家的区用 `onPlayerMessage` 自行处理该类型。 |
+| `kickPlayer(playerId, reason)` | 在持有该玩家的任意区中将其踢出。 |
+| `broadcastZones(type, data)` / `onZoneMessage(type, handler)` | 发往所有区及来自所有区的消息。 |
+
+正在转区的玩家不会漏收消息：其离开期间到达的消息会被转发，目标区暂存这些消息（3 秒、32 条），直到玩家连上。
+
+不提供跨区边界无缝的世界——即边界两侧的实体可从任意一侧看到。

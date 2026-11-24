@@ -1,59 +1,48 @@
 ---
 title: Textures
-description: The complete guide to textures — supported formats, loading and the width/height a load returns, import settings (filter, wrap, max size, compression, sRGB, 9-slice), how a sprite takes its size from an image, memory and residency.
+description: Texture reference — supported formats, loadTexture and its pixel dimensions, import settings (use, max size, compression, mip maps, filter, wrap, sRGB, 9-slice, sheet cells), per-platform overrides, sprite sizing, sub-rectangles and texture recipes.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A texture is an image on the GPU. You reference one by project path, load it into a
-**handle**, and put that handle on a component — `Sprite.texture`, a material sampler,
-a bitmap font page. This page is about the image itself: what it can be, what you can
-set on it, and how to find out how big it is.
-
-For sprites — the component that draws a texture — see [Sprites](/docs/graphics/sprites/overview/).
-For the general asset system (refs, groups, the manifest), see [Assets](/docs/assets/overview/).
+A texture is an image on the GPU. It is referenced by project path, loaded into a **handle**, and assigned to a
+component field: `Sprite.texture`, a material sampler, a bitmap font page. For the component that draws a texture see
+[Sprites](/docs/graphics/sprites/overview/); for references, groups and the manifest see
+[Assets](/docs/assets/overview/).
 
 ## Supported formats
 
 | Extension | Notes |
 |---|---|
-| `.png` | The default for art with transparency. |
+| `.png` | Default for art with transparency. |
 | `.jpg` / `.jpeg` | No alpha channel; smaller for photographic art. |
-| `.webp` | Alpha + good compression. Decoded by the browser/runtime. |
-| `.gif` | First frame only — this is a still image, not an animation. |
-| `.bmp` | Uncompressed; works, but rarely what you want to ship. |
-| `.ktx2` | Basis Universal, already GPU-compressed. What the cook step **produces** — you can also author one directly. |
+| `.webp` | Alpha and lossy or lossless compression; decoded by the browser or runtime. |
+| `.gif` | First frame only; loaded as a still image. |
+| `.bmp` | Uncompressed. |
+| `.ktx2` | Basis Universal, GPU-compressed. The format the cook produces; can also be authored directly. |
+| `.esimage` | A [texture recipe](#texture-recipes), drawn on the device. |
 
-An `.aseprite` / `.ase` file is not a texture — importing one **produces** a sheet
-`.png` (plus a clip per tag) and that is what a scene references. See
-[Sprite animation](/docs/animation/sprite-animation/#aseprite-import).
-
-`.png`, `.jpg` and `.webp` are the ones to author in. A build's cook step turns them
-into `.ktx2` when compression is on (see [Import settings](#import-settings)).
+An `.aseprite` / `.ase` file is not a texture: importing it produces a sheet `.png` and a clip per tag, and scenes
+reference those ([Sprite Animation](/docs/animation/sprite-animation/#aseprite-import)).
 
 ## Loading a texture
 
-`assets.loadTexture(ref)` resolves the ref, uploads the image, and returns the handle
-**with the image's pixel dimensions** — this is the answer to "how do I get the width
-and height":
+`assets.loadTexture(ref)` resolves the ref, uploads the image and returns the handle with the image's pixel
+dimensions:
 
 ```typescript
 import { defineSystem, Res, Assets } from 'esengine';
 
 const measure = defineSystem([Res(Assets)], async (assets) => {
   const tex = await assets.loadTexture('assets/textures/player.png');
-  tex.handle;   // TextureHandle — what a component field takes
-  tex.width;    // the image's pixel width
-  tex.height;   // the image's pixel height
+  tex.handle;   // TextureHandle, the value a component field takes
+  tex.width;    // source image width in pixels
+  tex.height;   // source image height in pixels
 });
 ```
 
-The width and height are the **source image's** pixels, not the size anything draws
-at. A `Sprite` drawing that texture has its own `size` in world units, which is a
-separate number you can set to anything (it starts out matching — see
-[Sizing a sprite to its texture](#sizing-a-sprite-to-its-texture)).
-
-Putting one on a sprite at its own pixel size:
+`width` and `height` are the source image's pixels. They are independent of `Sprite.size`, which is in world units.
+To draw a sprite at one world unit per image pixel:
 
 ```typescript
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
@@ -62,24 +51,26 @@ const showArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
   const tex = await assets.loadTexture('assets/textures/player.png');
   for (const [entity, sprite] of q) {
     sprite.texture = tex.handle;
-    sprite.size = { x: tex.width, y: tex.height };   // 1 image pixel = 1 world unit
+    sprite.size = { x: tex.width, y: tex.height };
   }
 });
 ```
 
 <Aside type="note">
-  `loadTexture` is cached and reference-counted by resolved path: loading the same
-  image twice returns the same handle and does not upload it twice. Release with
-  `assets.releaseTexture(ref)` — it takes the same **ref you loaded**, not the
-  handle. Assets a scene references are released with the scene. See
-  [Lifetime & reference counting](/docs/assets/overview/#lifetime--reference-counting).
+  `loadTexture` is cached and reference-counted by resolved path: loading the same image twice returns the same handle
+  and uploads once. Release with `assets.releaseTexture(ref)`, which takes the **ref that was loaded**, not the handle.
+  Textures a scene references are released with the scene
+  ([Lifetime & Memory](/docs/assets/memory/#reference-counting)).
 </Aside>
+
+`loadTextureRaw(ref)` uploads the image **without the vertical flip** that `loadTexture` applies. The flipped and
+unflipped uploads are separate GPU objects and are cached separately. Use it only for a pipeline that expects bottom-up
+rows.
 
 ### From a handle you did not load
 
-A sprite placed in the editor already has its texture: the scene file named it, the
-loader resolved it, and your code never saw a `TextureResult`. To measure that one,
-ask the resource manager for the handle's dimensions:
+A sprite placed in the editor receives its texture from the scene loader. To read the dimensions of such a handle, use
+`getTextureDimensions`:
 
 ```typescript
 import { defineSystem, Query, Sprite } from 'esengine';
@@ -93,95 +84,90 @@ const measurePlaced = defineSystem([Query(Sprite)], (q) => {
 });
 ```
 
-It returns `null` until the texture is actually uploaded — a scene's textures load
-asynchronously, so a system running on the first frame can legitimately see nothing.
+It returns `null` until the texture is uploaded. Scene textures load asynchronously, so a system running on the first
+frame can receive `null`.
 
 <Aside type="caution">
-  `getTextureDimensions` is **`@experimental`**: no compatibility claim, and it may
-  change or disappear in any release (see [API stability](/docs/reference/api-stability/)).
-  `loadTexture`'s `{ width, height }` is the settled way to learn an image's size.
+  `getTextureDimensions` is **`@experimental`**: it may change or be removed in any release
+  ([API Stability](/docs/reference/api-stability/)). The `{ width, height }` returned by `loadTexture` is the stable way
+  to read an image's size.
 </Aside>
-
-### Two loads, one image
-
-`loadTextureRaw(ref)` uploads the image **without the vertical flip** `loadTexture`
-applies. Flipped and unflipped are genuinely different GPU objects, so they are cached
-separately. You want `loadTexture` unless you are feeding a pipeline that already
-expects bottom-up rows.
 
 ## Import settings
 
-Import settings belong to the **image**, not to any entity using it. They are stored
-in the `.meta` file next to it and edited by selecting the image in the Content
-Browser — every sprite that uses the texture inherits them.
+Import settings belong to the **image** and apply to every entity that uses it. They are stored in the image's
+`.meta` file and edited by selecting the image in the Content Browser.
 
-| Setting | Default | What it does |
-|---|---|---|
-| **Use** | `Colour` | What the image holds. **Colour** is a picture: a build may shrink it to Max Size, compress it and fill the colour under its clear texels. **Data** is numbers a texel, read as they are (a heightmap, a mask of measured values, a lookup table): a build keeps its depth (a 16-bit PNG stays 16 bits), never compresses it or decodes it as sRGB, and shrinks it only when Max Size says so, at that depth. A PNG of 16 bits a sample is imported as Data, a texture given to a `Terrain` as its heightmap is marked Data when it is, and Project Health lists any that are read as numbers and still set up as pictures, with a one-click fix. |
-| **Max Size** | `Source size` | Downscale cap applied at cook (256 to 8192, a power of two). A source larger than this on its longest side is box-filtered down; a smaller source is untouched. **Source size**, the default, never shrinks it: an image ships at the size it was made unless this, or a platform override, says smaller. |
-| **Compression** | `Auto` | **GPU compressed** ships a KTX2 (Basis Universal) that stays compressed in video memory — about a quarter of the decoded image — and transcodes per device. **Original image** ships the file as it is: exact, and for flat art far smaller to download, but decoded in full on the GPU. **Auto** is GPU compressed for a texture a mesh draws (directly or through its material) and the original image for sprites and UI. A build does what this row says; it never swaps one for the other because a file came out smaller. It applies only when the Build dialog's **Textures by import settings** box is ticked (off until it is); the editor's viewport follows the same box, drawing each texture compressed once it is ticked and as its image while it is not. |
-| **Compress Format** | `uastc` | `uastc` — high quality, larger. `etc1s` — much smaller, lower quality (good for photographic art). Only used when the texture is GPU compressed. |
-| **Mip Maps** | on | Keep a chain of half-size copies so a texture drawn small samples a filtered image instead of shimmering; costs a third more memory. Turn it off for pixel art and UI that is always drawn at its own size. |
-| **Filter** | `linear` | Sampling filter. `nearest` keeps pixel art crisp; `linear` smooths. |
-| **Wrap** | `repeat` | How UVs outside `[0,1]` are addressed: `repeat`, `clamp`, `mirror`. |
-| **sRGB Color** | `true` | The image stores sRGB-encoded color (albedo, UI). Disable for authored-linear data — normal maps, masks. Only meaningful when the project renders in linear color. |
-| **Alpha Is Transparency** | `true` | When the texture is cooked (for a build and for the editor alike), fully clear texels take the colour of their solid neighbours, so filtering and mip maps at a transparent edge — a rounded panel's corner — no longer average in the black under alpha 0 as a dark fringe. Partly clear and solid texels keep their colour; premultiplied art is left alone. Turn off for an image whose RGB under alpha 0 a shader reads as data. |
-| **Mip Coverage Cutoff** | `0` | For a cutout (leaves, grass, fences): the alpha cutoff its material tests. Each mip level keeps the share of texels above it that the full image has, so the cutout does not thin out with distance. `0` = off (0 to 1); applies to UASTC-compressed textures. |
-| **9-Slice Border** | `0,0,0,0` | Left/right/top/bottom border in **texture pixels**: where the image's corners end. Authored once here, inherited by every `UIVisual` set to Sliced. |
-| **Cell Width / Cell Height** | `0` | The size of one cell of a sprite sheet, in pixels. `0` means the image is not a sheet; setting it lets a `Sprite` pick a frame of the image instead of showing all of it. |
-| **Margin** | `0` | Padding before the first cell, on both axes. |
-| **Spacing** | `0` | Gap between neighbouring cells, paid between cells only, never after the last one. |
+{/* SHOT: assets-texture-import-settings | sprite-rendering example: assets/textures/ship_K.png selected in the Content Browser; the Details panel shows its Import Settings with advanced fields expanded (Use, Max Size, Compression, Mip Maps, Filter, Wrap, sRGB Color, Alpha Is Transparency, 9-Slice and Sheet categories) */}
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Use** | `use` | `Colour` | **Colour**: a picture; a build may shrink it to Max Size, compress it and fill the colour under clear texels. **Data**: numbers per texel (heightmap, measured mask, lookup table); a build keeps its bit depth (16-bit PNG stays 16-bit), never compresses it or decodes it as sRGB, and shrinks it only to an explicit Max Size. See [Data textures](#data-textures). |
+| **Max Size** | `maxSize` | `Source size` | Cap on the longest side, applied at cook: 256, 512, 1024, 2048, 4096 or 8192. A larger source is box-filtered down; a smaller one is untouched. **Source size** never shrinks the image. |
+| **Compression** | `compress` | `Auto` | **GPU compressed**: ships KTX2 (Basis Universal), which stays compressed in video memory (about a quarter of the decoded size) and is transcoded per device. **Original image**: ships the file unchanged; exact, often smaller to download for flat art, decoded in full on the GPU. **Auto**: GPU compressed for a texture a mesh draws (directly or through its material), original image for sprites and UI. See [Compression and the Build dialog](#compression-and-the-build-dialog). |
+| **Compress Format** | `compressFormat` | `uastc` | `uastc`: high quality, larger. `etc1s`: much smaller, lower quality, suited to photographic art. Used only when the texture is GPU compressed. |
+| **Mip Maps** | `mipmaps` | on | Keeps a chain of half-size copies so a texture drawn small samples a filtered image. Costs one third more memory. Turn off for pixel art and UI drawn at native size. |
+| **Filter** | `filterMode` | `linear` | `nearest` keeps texels sharp; `linear` interpolates. |
+| **Wrap** | `wrapMode` | `repeat` | Addressing of UVs outside `[0,1]`: `repeat`, `clamp`, `mirror`. |
+| **sRGB Color** | `sRGB` | on | The image stores sRGB-encoded colour (albedo, UI). Turn off for linear data such as normal maps and masks. Only meaningful when the project renders in linear colour. |
+| **Alpha Is Transparency** | `alphaIsTransparency` | on | When the texture is cooked (for a build and for the editor), fully clear texels take the colour of their opaque neighbours, so filtering and mip maps do not darken transparent edges. Partly clear and opaque texels keep their colour; premultiplied art is left unchanged. Turn off when a shader reads RGB under alpha 0 as data. |
+| **Mip Coverage Cutoff** | `mipCoverage` | `0` | For cutout art (leaves, grass, fences): the alpha cutoff the material tests. Each mip level keeps the full image's share of texels above the cutoff, so the cutout does not thin out with distance. `0` disables it. Range 0–1; applies to UASTC-compressed textures. |
+| **Border Left / Right / Top / Bottom** | `sliceBorder.*` | `0` | 9-slice border in **texture pixels**. Inherited by every `UIVisual` in `NineSlice` mode that uses the texture ([Images](/docs/ui/images/#nineslice)). |
+| **Cell Width / Cell Height** | `sheet.cellWidth` / `sheet.cellHeight` | `0` | Size of one sprite-sheet cell in pixels. `0` means the image is not a sheet; a non-zero value lets a `Sprite` select one cell as its frame. |
+| **Margin** | `sheet.margin` | `0` | Padding before the first cell, on both axes. |
+| **Spacing** | `sheet.spacing` | `0` | Gap between neighbouring cells; not applied after the last cell. |
 
 <Aside type="tip">
-  **Pixel art**: set Filter to `nearest` and Compression to **Original image** (Auto already
-  ships a sprite that way). Linear filtering
-  blurs the pixels you drew, and block compression puts artefacts exactly where hard
-  colour edges are.
+  For pixel art, set **Filter** to `nearest`, turn **Mip Maps** off and keep **Compression** at **Original image**
+  (Auto already ships sprites this way). Linear filtering blurs the authored pixels, and block compression introduces
+  artefacts at hard colour edges.
 </Aside>
 
-### Editing a whole folder at once
+### Compression and the Build dialog
 
-Select several images (ctrl/cmd-click, shift-click, or Select All) and the inspector
-edits **all of them**. A setting they already agree on shows its value; one they
-disagree on shows a dash — type into it and every selected image takes that value.
-Save writes only the settings you touched, so the ones each image had its own answer
-for are left alone. Sprites and textures share a schema and batch together; a
-selection that mixes in an audio clip or a model says so instead, since there is no
-field they all have.
+The **Compression** setting is applied only when the Build dialog's **Textures by import settings** option is enabled
+(off by default). A build applies the setting as written; it never substitutes one result for the other based on file
+size. The editor viewport follows the same option: with it enabled, textures are drawn compressed; otherwise they are
+drawn from the source image.
 
-The 9-slice border editor stays on a single selection — it draws one image, and there
-is no honest picture of forty.
+### Data textures
+
+A PNG with 16 bits per sample is imported with **Use: Data**. Assigning a texture to a field that reads texels as
+numbers marks it as Data: `Terrain.heightmap`, `splatmap`, `splatmap2` and `occlusionMap`, and `Foliage.densityMap` and
+`scaleMap`. **Project Health** lists textures that are read as numbers but imported as Colour and offers a one-click fix.
+
+### Editing several images
+
+With several images selected (Ctrl/Cmd-click, Shift-click or Select All) the inspector edits all of them. A setting
+whose value is shared shows that value; a setting whose values differ shows a dash, and entering a value applies it to
+every selected image. Saving writes only the settings that were changed. Sprites and textures share a schema and can be
+edited together; a selection that includes an audio clip or a model has no common fields and the inspector reports
+that. The 9-slice border editor requires a single selection.
 
 ### Per-platform overrides
 
-Max Size, Compression and Compress Format can be overridden **per platform** — the tabs
-beside Default in Import Settings. This is the "encode once, transcode per GPU"
-pipeline: ship the desktop build a 2048 UASTC texture and the WeChat build a 1024
-ETC1S one from the same source file. See
-[Cooking & compression](/docs/assets/overview/#cooking-compression--content-addressing).
+**Max Size**, **Compression** and **Compress Format** can be overridden per platform in the tabs next to **Default**
+in Import Settings. One source can ship, for example, as a 2048 UASTC texture on desktop and a 1024 ETC1S texture on
+WeChat. A platform without an override uses the Default values
+([Cooking, compression & content addressing](/docs/assets/overview/#cooking-compression--content-addressing)).
 
 ## Sizing a sprite to its texture
 
-`Sprite.size` is in **world units** and deliberately independent of the image — that
-is what lets you scale art without touching the file. But nobody wants to type the
-image's dimensions, so the editor fills them in:
+`Sprite.size` is in world units and independent of the image. The editor initialises it from the image:
 
-- **Dragging an image** from the Content Browser into the viewport spawns a sprite
-  already sized to the image's pixels.
-- **Assigning a texture** to an existing sprite sizes it to that texture too, and a
-  later swap follows the new image.
+- **Dragging an image** from the Content Browser into the viewport creates a sprite sized to the image's pixels.
+- **Assigning a texture** to an existing sprite resizes it to that texture, and later texture changes follow the new
+  image.
 
-It stops as soon as the number is yours: once you set `size` by hand, changing the
-texture leaves it alone. (Undo history shows the fit as its own **Fit Sprite To
-Texture** step, so you can keep a size and drop only the fit.)
+Once `size` is edited by hand, texture changes no longer resize the sprite. The undo history records the resize as a
+separate **Fit Sprite To Texture** step, so it can be undone while keeping the texture change.
 
-In code there is no such helper: a `Sprite` given only a texture keeps its default
-`size`, so pass `tex.width`/`tex.height` yourself as shown above.
+In code, a `Sprite` given only a texture keeps its default `size`; set it from `tex.width` and `tex.height` as shown
+above.
 
 ## Sub-rectangles and atlases
 
-A sprite can draw part of a texture with `uvOffset` / `uvScale`, both normalized
-fractions of the whole image:
+A sprite draws part of a texture with `uvOffset` and `uvScale`, both normalized to the whole image:
 
 ```typescript
 // The 32×32 frame at column 2, row 1 of a 256×256 sheet.
@@ -189,68 +175,53 @@ sprite.uvOffset = { x: 64 / 256, y: 32 / 256 };
 sprite.uvScale  = { x: 32 / 256, y: 32 / 256 };
 ```
 
-For sheet animation, author a flipbook instead of computing these by hand — see
-[Sprite animation](/docs/animation/sprite-animation/). For tile art, see
-[Tilemaps](/docs/world/tilemaps/tilesets/).
+For sheet animation, author a flipbook instead ([Sprite Animation](/docs/animation/sprite-animation/)). For tile art,
+see [Tilesets](/docs/world/tilemaps/tilesets/).
 
 ## Texture recipes
 
-A texture can be shipped as how it is drawn and not as its pixels. An **`.esimage`** is a picture's source: layers of shapes, gradients,
-noise and grids, the file the image tools write and draw a `.png` from. Name the `.esimage` itself where a texture goes (a sprite, a
-material) and the package carries the source; the picture is drawn on the device when the texture is first loaded, to the very pixels
-its `.png` has.
+An **`.esimage`** file is the source of a picture: layers of shapes, gradients, noise and grids, the file the image tools
+write and render a `.png` from. Naming the `.esimage` itself where a texture is expected (a sprite, a material) ships the
+source instead of the pixels; the picture is drawn on the device when the texture is first loaded, to the same pixels as
+its `.png`.
 
 ```json
 { "type": "Sprite", "data": { "texture": "assets/tex/plate.esimage", "size": { "x": 512, "y": 512 } } }
 ```
 
-A 512 pixel plate of noise, rust, a stripe and rivets is 691 bytes as a recipe and 351 KB as a PNG. What draws recipes is the
-`esengine/image` module, about 220 KB of a web package before compression (81 KB gzipped): an export adds it when a recipe ships, and a script that
-loads one by code imports it where the game starts. A package with no recipe does not carry it.
+- **Module.** Recipes are drawn by the `esengine/image` module. An export includes it when a recipe ships; a script that
+  loads a recipe from code imports it at startup. A package with no recipe does not include it.
+- **Cost and caching.** A recipe is drawn on a worker thread, so the game keeps running while it draws. The pixels are
+  stored uncompressed in the device's content cache, and later runs read them instead of drawing. Cached pixels are not
+  removed automatically: `assets.cleanDiskCache(budgetBytes, true)` removes the least recently read entries first, and
+  a removed picture is drawn again on next use. Without workers the recipe is drawn on the main thread; without a cache
+  it is drawn on every run. A changed recipe or raster is a different cache entry.
+- **Readers.** A recipe is accepted wherever an image is: as a texture, and by fields that read an image as numbers (a
+  terrain's layers and splatmap, a foliage field's density and scale maps).
+- **Dependencies.** A recipe may name images it places (an `image` layer's `src`: a PNG or another recipe) and font
+  files its text uses. They ship with the recipe, and a change to any of them redraws it.
+- **Text** is set with the device's 2D canvas, on the worker where available. A `font` that is a project file is drawn
+  with that file's glyphs everywhere; a family name, or none, uses the device's fonts, so output can differ between
+  devices. Hosts without a 2D canvas (the native hosts) reject a recipe with text and report that it must be baked.
+- **Figure layers** are posed and flattened on the device by the same code that draws them in the editor.
 
-What a recipe costs is time, once. It is drawn on a worker thread, so the game keeps running while it draws, and the pixels are
-kept in the device's content cache: the next run reads them and draws nothing. A 2048 pixel plate took 4.1 s on a desktop worker
-the first visit, with the main thread never held longer than its usual start-up; the second visit drew nothing. The kept pixels are
-uncompressed (16 MB for that plate) and nothing removes them unasked: `assets.cleanDiskCache(budget, true)` gives up what was read
-longest ago first, and a removed picture is drawn again. Where there are no workers the recipe is drawn on the main thread; where there is no cache it is drawn every run. A changed recipe, or a changed raster, is a
-different entry, so nothing stale is ever read.
+### Surface maps
 
-A recipe is read wherever an image is: as a texture, and by what reads an image as numbers (a ground's layers, its splatmap, a
-field's density and scale maps).
-
-**Surface maps.** A source with a `material` is a surface as well as a colour. Each of its maps is a texture of its own, so it is a
-file of its own, two lines that name the picture:
+A recipe with a `material` describes a surface as well as a colour. Each surface map is a separate texture and
+therefore a separate `.esimage` that names its picture:
 
 ```json
 { "mapOf": "assets/tex/wall.esimage", "map": "normal" }
 ```
 
-`map` is `normal` or `surface` (roughness in green, metal in blue; one pixel where both are one value everywhere). Save it as an
-`.esimage`, give it the import settings a map has (Use: Data or Normal map), and name it where the map goes. The picture it is a map
-of ships with it, named anywhere else or not. The editor's image tools write both files beside a picture that has a `material`
-(`wall_normal.esimage`, `wall_surface.esimage`), set as data, and a texture field takes a picture's source as it takes an image.
-
-**What a recipe may name.** A picture it lays in (an `image` layer's `src`: a PNG, or another recipe), and a font file its text is
-set in. They ship with the recipe, and a change in any of them draws it again.
-
-**Text** is set by the device's own 2D canvas, on the worker where the worker has one. A `font` that is a file of the project is
-drawn in that file's glyphs everywhere; a family name, or none, is whatever the device has, so the same recipe can come out
-differently on two devices. A host with no 2D canvas (the native hosts) refuses a recipe with text and says to bake it.
-
-**A `figure` layer** is posed and flattened on the device by the same code that draws it where it is authored.
-
-## Memory & residency
-
-Textures are the largest thing most 2D games hold, and they are reference-counted and
-evictable rather than resident forever. Budgets, the LRU, and reading actual usage are
-covered in [Texture memory & budgets](/docs/assets/overview/#texture-memory--budgets).
-
-The short version: a texture nothing references can be evicted under memory pressure
-and is revived transparently on the next load of the same path.
+`map` is `normal` or `surface` (roughness in green, metalness in blue; a single pixel when both are constant). Give the
+map file **Use: Data** and assign it where the map goes. The picture it maps ships with it. The editor's image tools
+write both map files next to a picture that has a `material` (`wall_normal.esimage`, `wall_surface.esimage`), already
+set to Data.
 
 ## See also
 
-- [Sprites](/docs/graphics/sprites/overview/) — the component that draws a texture.
-- [Assets](/docs/assets/overview/) — refs, groups, the manifest, lifetime.
-- [Materials](/docs/graphics/materials/esshader/#declaring-parameters) — binding textures to your own shaders.
-- [UI](/docs/ui/overview/) — 9-slice images and UI sprites.
+- [Lifetime & Memory](/docs/assets/memory/): budgets, eviction and residency statistics.
+- [Sprites](/docs/graphics/sprites/overview/): the component that draws a texture.
+- [Material parameters](/docs/graphics/materials/esshader/#declaring-parameters): binding textures to shaders.
+- [Images](/docs/ui/images/): 9-slice images in UI.

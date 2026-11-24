@@ -1,107 +1,103 @@
 ---
 title: 脚本图
-description: 用节点和连线可视化编写玩法逻辑,保存为 .esgraph 资产——事件、执行线、数据线、变量、可调用的图——并用 ScriptGraphAgent 在实体上运行。
+description: 脚本图参考——.esgraph 资源与 ScriptGraphAgent、执行线与数据线、节点分组、变量、可调用图、执行限制，以及在代码中注册图。
 ---
 
-**脚本图**是用节点和连线画出来、而不是敲出来的玩法逻辑。它是[状态机与行为树](/docs/zh-cn/gameplay/ai/authoring/)
-的可视化兄弟:图是一个 `.esgraph` 资产,由实体运行,它调用的叶子就是你在代码里注册一次的那些**动作**。
-适合那种用状态机写起来别扭的短小、事件驱动的逻辑——*游戏开始时生成这个;按下某键时按条件分支*。
+**脚本图**是以节点与连线创作在 `.esgraph` 资源中的玩法逻辑，由实体上的 `ScriptGraphAgent` 运行。它的叶子与[状态机和行为树](/docs/zh-cn/gameplay/ai/actions/)所用的已注册**动作**与**条件**相同。它适合简短的事件驱动逻辑：开始时生成一个物体；按键时按条件分支。
 
-`.esgraph` 文件**就是**运行时定义:没有任何提前编译,编辑器里跑的图和包里发布的图是同一份字节。
+`.esgraph` 文件即运行时定义。它不会预先编译，因此编辑器运行的图与包中发布的图是同一份数据。
 
-## 创建与打开
+## 创建与运行脚本图
 
-1. 在**内容浏览器**里 **新建 → 新建脚本图**。新资产会在文档标签里打开(双击任意 `.esgraph` 可重新打开)。
-2. **在画布上右键**添加一个事件,再连出它要做的事。空图会直接提示这一点。
-3. 选中要运行它的实体,添加 **`ScriptGraphAgent`** 组件,把它的 `graph` 字段设为该资产。
+1. 在**内容浏览器**中选择 **New → New Script Graph**。资源在文档标签页中打开；双击 `.esgraph` 可重新打开。
+2. 右键单击画布添加一个事件，然后连接它所触发的节点。
+3. 在运行该图的实体上添加 **`ScriptGraphAgent`** 组件，并将其 `graph` 字段设为该资源。
 
-资产按路径引用并随场景预加载,所以在代理第一次 tick 之前就已就绪。图在 **Play**(以及导出的游戏)中运行,
-位于 `Update` 阶段,和状态机解释器并列。
+资源按路径引用并随场景预加载，因此在代理首次 tick 之前即已就绪。脚本图在 **Play** 与导出的游戏中运行，位于 `Update` 调度，与状态机解释器并列。
 
-![画布上的脚本图:Every frame 事件连过 Set variable、Set property 和 Branch 节点,左侧是 Inputs、Outputs 和 Variables 列表](@/assets/guides/zh/script-graph.png)
+![画布上的脚本图:Every frame 事件连向 Set variable、Set property 与 Branch 节点,左侧是 Inputs、Outputs 与 Variables 列表](@/assets/guides/zh/script-graph.png)
 
-*脚本图示例:一个每帧移动、碰到边缘就折返的物体。左侧列出变量,以及各有多少个节点读取和写入它。*
+*Script Graph Demo 示例：每帧移动并在边缘掉头的弹跳物。左侧列表显示每个变量以及读写它的节点数量。*
 
-## 两种连线
+{/* SHOT: gameplay-script-graph-agent | script-graph-demo example, main scene: the Bouncer entity selected, Details panel showing the Script Graph Agent card with its graph field set to the .esgraph asset */}
+
+## 连线
 
 | 连线 | 携带 | 方向 |
 |---|---|---|
-| **执行线**(控制线) | "接着运行" | *推*:事件点亮入口节点,沿线深度优先走下去。 |
-| **数据线**(数字、布尔、字符串、实体、任意) | 一个值 | *拉*:节点运行时,沿线向上求值来读取输入。 |
+| **Exec**（控制） | “执行下一个” | 推送：事件激活其入口节点，沿连线深度优先执行。 |
+| **Data**（number、boolean、string、entity、any） | 一个值 | 拉取：节点运行时沿连线向后求值其输入。 |
 
-连线只在兼容的类型之间建立。没有连线的输入保存一个你在节点上填的**常量**。
+连线只连接兼容的类型。没有连线接入的输入持有在节点上输入的**字面量**。
 
-顺序就是画面承诺的顺序:**顺序**节点先把第 0 个引脚的整条链走完,再开始第 1 个。
-一个纯节点(没有执行引脚)同时喂给同一节点的两个引脚时,每次激活只求值**一次**,两个引脚看到同一个值;
-下一次激活会重新求值,这正是**循环**条件能变成 false 的原因。
+执行顺序遵循图的结构：**Sequence** 节点先完成引脚 0 的整条链，再开始引脚 1。为同一节点的两个引脚提供数据的纯节点（无 exec 引脚）在每次激活中只求值**一次**，因此两个引脚看到相同的值；下一次激活会重新求值，这使 **While** 的条件可以变为假。
 
-## 添加节点
+## 节点
 
-工具栏的**节点**按钮(或在画布上右键)按组列出节点(**事件**、**流程**、**变量**、**常量**、**动作**、**取值**、**图**):
+工具栏中的 **Node** 按钮或右键单击画布会按分组列出节点：
 
 | 分组 | 节点 |
 |---|---|
-| **事件** | **开始**、**每帧更新**、**销毁**、**监听事件**(监听具名的实体事件)。每个都是入口,一张图可以有多个。 |
-| **流程** | **分支**、**顺序**(引脚数可配)、**循环**、**延迟**。 |
-| **变量** | **读取变量**、**设置变量**。 |
-| **常量** | **数字**、**布尔**、**字符串**字面量。 |
-| **动作** | 带执行引脚、会做事的节点:`timeline.play` / `timeline.pause`、`spriteAnim.play` / `restart` / `stop`、`audio.play` / `stop`、`soundEvent.trigger` / `stop`、`property.set`、`entity.spawn`(生成图里指定的预制体,可给 x / y 与父实体,并返回新实体)、`entity.despawn`、`debug.log`、`scene.load` / `reload`、`ui.setVisible`、`ui.setPage`、`fsm.fire`、`blackboard.set`——以及你在代码里注册的所有动作。 |
-| **取值** | 只产出值的节点(没有执行引脚):`math.*`(add、subtract、multiply、divide、min、max、abs、clamp、lerp、random)、`compare.*`(equal、less、greater)、`logic.*`(and、or、not)、`string.concat`、`property.get`、`entity.self`、`entity.byName`、`input.down` / `pressed` / `axis` / `pointer`——以及所有已注册的条件。 |
-| **图** | 项目里其他可调用的图,用**调用图**节点来调用(在有图声明了入参之前为空)。 |
+| **Events** | **Start**、**Every frame**、**Destroy**、**On event**（具名实体事件）。每个都是入口点；一个图可以有多个。 |
+| **Flow** | **Branch**、**Sequence**（引脚数量可配置）、**While**、**Delay**。 |
+| **Variables** | **Get variable**、**Set variable**。 |
+| **Values** | **Number**、**Boolean**、**String** 字面量。 |
+| **Actions** | 带 exec 引脚的节点：`timeline.play` / `timeline.pause`、`spriteAnim.play` / `restart` / `stop`、`audio.play` / `stop`、`soundEvent.trigger` / `stop`、`property.set`、`entity.spawn`（在 x / y 处生成指定预制体，可选父级，并输出新实体）、`entity.despawn`、`debug.log`、`scene.load` / `reload`、`ui.setVisible`、`ui.setPage`、`fsm.fire`、`blackboard.set`，以及代码中注册的所有动作。 |
+| **Queries** | 仅输出值的节点（无 exec 引脚）：`math.*`（add、subtract、multiply、divide、min、max、abs、clamp、lerp、random）、`compare.*`（equal、less、greater）、`logic.*`（and、or、not）、`string.concat`、`property.get`、`entity.self`、`entity.byName`、`input.down` / `pressed` / `axis` / `pointer`，以及所有已注册的条件。 |
+| **Graphs** | 项目中所有其他可调用的图，通过 **Call graph** 节点调用（在有图声明输入之前为空）。 |
 
-有几个节点带着值得知道的数据:
+节点细节：
 
-- **每帧更新**输出 `dt`,即这一帧的时间增量(秒)。
-- **监听事件**按类型监听实体事件(例如 [触发区](/docs/zh-cn/gameplay/markers/)发出的 `trigger_enter`,或按钮的 `click`),
-  输出 `target` 和 `other`——事件发给的实体,以及它另外点名的那个(接触的另一方刚体;没有点名则为 `0`)。选中它后,
-  Details 里显示它的 **类型** 和 **输入**,和 UE 的 Custom Event 一样:每个输入是一个名称和一个类型(`number`、`bool`、`string`、
-  `entity` 或 `any`),成为一个引脚,传出事件上(或其 `payload` 里,例如时间轴事件)对应的字段,转换为声明的类型;事件没有这个
-  字段时传出该类型的零值。图文件里它们保存为节点的 `payload` 字面量,即用逗号分隔的 `name:type`。
-- **顺序**有 1–16 个引脚(默认 2)。**循环**有 `body` 和 `done` 两个引脚。
-- **延迟**等待 `seconds` 秒再继续。进入一个已在计时的延迟节点什么也不做,所以高频调用方无法让它一直重启。
-  被别的图调用的图里不能放延迟(一次调用在一步内完成),这张图会把它报告为问题。
+- **Every frame** 输出 `dt`，即帧间隔（秒）。
+- **On event** 按类型监听实体事件（例如[触发区](/docs/zh-cn/gameplay/markers/#触发区)的 `trigger_enter`，或按钮的 `click`），并输出 `target`（事件发送到的实体）与 `other`（事件提及的另一个实体，例如接触的另一方；没有时为 `0`）。选中该节点后，Details 显示其 **Type** 与 **Inputs**：每个输入是一个名称与类型（`number`、`bool`、`string`、`entity` 或 `any`），并成为一个引脚，携带事件或其 `payload`（如时间轴事件）中的对应字段，转换为该类型；事件没有该字段时为该类型的零值。图文件把这些输入存为节点的 `payload` 字面量，即以逗号分隔的 `name:type` 对。
+- **Sequence** 有 1–16 个引脚（默认 2 个）。**While** 有 `body` 与 `done` 引脚。
+- **Delay** 等待 `seconds` 后继续。进入已在计时的 Delay 不产生任何效果，因此频繁的调用者无法使其重新开始。被其他图调用的图不能包含 Delay（一次调用在一步内完成）；图会将其报告为问题。
 
-菜单按注册名列出这些动词;放到画布上之后,节点会用易读的标题(**按名称找实体**、**按键按下**、**设置属性**……),下面附上注册名。
+菜单按注册名称列出动作与条件；放置后的节点显示可读标题（**Find entity by name**、**Key pressed**、**Set property** 等），注册名称显示在其下方。
 
-你用 `registerAction` / `registerCondition` 注册的动作和条件——状态机、行为树用的是同一批——会按它们的声明带着对应端口出现在这里。
-文件里只存动词的*名字*,所以旧图会按当前的声明重新绘制,不会保留动词早已没有的端口。
+用 `registerAction` / `registerCondition` 注册的动作或条件会以其声明给出的端口出现。文件只存储名称，因此已有的图会按当前声明重绘，不会保留声明中已不存在的端口。
 
-**整理**按依赖关系把节点从左到右排开;位置只用于编辑器,运行时忽略。
+**Arrange** 按数据流从左到右排列节点。节点位置仅用于编辑器，运行时忽略。
 
 ## 变量
 
-画布旁的面板有三个区——**入参**、**出参**和**变量**——各带数量和一个**添加**按钮,可搜索,
-并显示每一项被读、被写的次数(或*未使用*)。
+画布旁的面板分为 **Inputs**、**Outputs** 与 **Variables** 三部分，各有计数、**Add** 按钮与搜索，每一项都显示其被读取与写入的次数（或 *unused*）。
 
-- **变量**区的**添加**声明一个带默认值的有类型变量。它**由资产声明、按实体取值**——两个运行同一张图的实体各自有自己的值。
-- 把变量**拖**到画布上:直接松手会询问**读取**还是**设置**;按住 `Ctrl/⌘` 直接放读取节点,按住 `Alt` 直接放设置节点,不再询问。
-- 在变量那一行可以改名或更改类型。删除一个仍被节点使用的变量时会先确认;那些节点留在画布上,只是失去变量。
+- 在 **Variables** 下 **Add** 声明一个带默认值的类型化变量。变量由资源声明、按实体取值：运行同一图的两个实体各自保有自己的值。
+- 将变量拖到画布上会询问创建 **Get** 还是 **Set**；按住 `Ctrl/⌘` 创建 Get，按住 `Alt` 创建 Set。
+- 在变量所在行重命名或修改其类型。删除仍被节点使用的变量会先请求确认，并把这些节点留在画布上、不再关联变量。
 
-## 可调用的图
+## 可调用图
 
-在**入参**区(输入引脚)或**出参**区(输出引脚)**添加**条目,这张图就变成**可调用**的。
-别的图用**调用图**节点运行它,传值进去、读回结果——签名在被调用方身上,改了签名,所有调用方都会跟着重绘。
+图在 **Inputs** 下声明一项（输入引脚）或在 **Outputs** 下声明一项（输出引脚）后即成为**可调用**图。其他图通过 **Call graph** 节点运行它，传入值并读回结果。签名属于被调用方；修改签名会重绘所有调用方。
 
-一次调用会在调用方的这一步里**同步运行到结束**。每个调用点为被调用图保留自己的帧,被调用图消耗的是调用方的步数预算,
-嵌套深度也有上限——经过环路再次到达自己的图会停下来,而不是把栈撑爆。
+调用在调用方的一步之内**同步执行至完成**。每个调用点为被调用方保留独立的帧，被调用方消耗调用方的步数预算，嵌套深度有上限。
 
-## 安全上限
+## 执行限制
 
-每次节点激活消耗一**步**,一个实例每个 tick 有步数预算(默认 4096)。一张无限循环的图——一个永远不会变 false 的**循环**——
-会停下来、指出耗尽预算的那个节点,并保持停止,而不是把编辑器卡死。调用最多嵌套 16 层。
-引用了不存在的图、预制体或动词,只会报告一次,不会每帧刷屏。
+| 限制 | 值 | 行为 |
+|---|---|---|
+| 每次 tick 的步数 | 4096（`DEFAULT_STEP_BUDGET`） | 每次节点激活消耗一步。超出预算的图（例如永不为假的 **While**）会停止，指出耗尽预算的节点，并保持停止状态。 |
+| 调用深度 | 16（`MAX_CALL_DEPTH`） | 更深的调用（包括通过循环调用自身的图）会停止并报告问题。 |
 
-## 从代码使用
+对不存在的图、预制体或动作的引用只报告一次，而不是每帧报告。
 
-图也可以不通过资产直接注册:
+## 在代码中注册
+
+图也可以不经资源直接注册：
 
 ```typescript
 import { registerScriptGraph, ScriptGraphAgent } from 'esengine/logic';
 
-registerScriptGraph('door-open', graphData); // 一个 ScriptGraph 对象
+registerScriptGraph('door-open', graphData); // a ScriptGraph object
 
 cmds.spawn().insert(ScriptGraphAgent, { graph: 'door-open' });
 ```
 
-`ScriptGraphAgent.graph` 既可以填注册名,也可以填 `.esgraph` 路径。动作所在的注册表见
-[AI → 在编辑器里编排](/docs/zh-cn/gameplay/ai/authoring/)。
+`ScriptGraphAgent.graph` 接受注册名称或 `.esgraph` 路径。
+
+## 另请参阅
+
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/)——动作节点与查询节点所来自的注册表。
+- [事件绑定](/docs/zh-cn/scripting/events/)——**On event** 监听的实体事件。
+- [资源编辑器](/docs/zh-cn/editor/asset-editors/)——图编辑器。

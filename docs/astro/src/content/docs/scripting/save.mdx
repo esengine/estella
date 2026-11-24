@@ -1,18 +1,17 @@
 ---
 title: Saving & Loading
-description: Versioned save slots with schema migration, built on the Storage API.
+description: Versioned save slots with SaveManager and forward schema migration, the Storage key/value API, awaiting asynchronous writes, and the backing store used on each platform.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`SaveManager` persists named save slots as versioned envelopes. Each save records
-the schema `version` it was written at, so a shipped game can change its save
-shape later and still read old saves — on load, older data is migrated forward.
+`SaveManager` stores named save slots as versioned envelopes (`{ version, data, savedAt }`). Each save records the
+schema `version` it was written with, so a game can change its save format and still read older saves: on load, older
+data is migrated forward.
 
 ## Save slots
 
-Create one manager for your game (pick a current schema `version`), then read and
-write slots by name:
+A game creates one manager with its current schema `version` and reads and writes slots by name:
 
 ```typescript
 import { SaveManager } from 'esengine';
@@ -22,23 +21,35 @@ const saves = new SaveManager({ version: 1 });
 saves.save('slot1', { level: 3, score: 1200, hp: 80 });
 
 const data = saves.load<{ level: number; score: number; hp: number }>('slot1');
-// -> { level: 3, score: 1200, hp: 80 }   (or null if the slot is empty)
+// -> { level: 3, score: 1200, hp: 80 }   (null if the slot is empty)
 
 saves.has('slot1');       // true
-saves.savedAt('slot1');   // epoch ms the slot was written, or null
-saves.remove('slot1');    // delete the slot
+saves.savedAt('slot1');   // epoch ms when the slot was written, or null
+saves.remove('slot1');    // deletes the slot
 ```
 
-- **`save(slot, data)`** writes `data` stamped with the current version and time.
-- **`load(slot)`** returns the slot's data (migrated forward), or `null` when the
-  slot is empty or unreadable.
-- **`has` / `remove` / `savedAt`** query, delete, and timestamp a slot.
+| Method | Description |
+|---|---|
+| `save(slot, data)` | Writes `data` with the current version and time. |
+| `saveAsync(slot, data)` | As `save`, and resolves when the write is flushed ([Asynchronous writes](#asynchronous-writes)). |
+| `load(slot)` | Returns the slot's data, migrated to the current version, or `null` when the slot is empty or unreadable. |
+| `has(slot)` | Whether the slot exists. |
+| `remove(slot)` | Deletes the slot. |
+| `savedAt(slot)` | Time the slot was written (epoch ms), or `null`. |
+
+| `SaveManagerOptions` | Type | Default | Description |
+|---|---|---|---|
+| `version` | `number` | — | Current schema version. Required. |
+| `migrations` | `Record<number, SaveMigration>` | — | Migration steps ([Schema migration](#schema-migration)). |
+| `keyPrefix` | `string` | `'save:'` | Namespace of the manager's slots in the store. |
+| `storage` | `SaveStorage` | platform `Storage` | Injected store, for tests. |
+| `now` | `() => number` | `Date.now` | Clock for `savedAt`, for deterministic tests. |
 
 ## Schema migration
 
-When your save shape changes, bump `version` and add a migration for each step.
-`migrations[n]` upgrades a save written at version `n` to `n + 1`; on load, every
-step from the save's version up to the current one runs in order:
+When the save format changes, `version` is incremented and a migration is added for each step. `migrations[n]`
+upgrades a save written at version `n` to `n + 1`; on load, every step from the save's version to the current one runs
+in order:
 
 ```typescript
 const saves = new SaveManager({
@@ -52,27 +63,19 @@ const saves = new SaveManager({
   },
 });
 
-// A v1 save on disk is upgraded to the v2 shape transparently on load.
+// A v1 save is upgraded to the v2 format on load.
 const data = saves.load('slot1');
 ```
 
-Migration is **forward-only**: loading a save that is *newer* than the current
-version throws (no downgrade), and a missing step in the chain throws too — so a
-gap is caught immediately instead of silently corrupting data.
+Migration is **forward-only**. Loading a save newer than the current version throws, and a missing step in the chain
+throws as well.
 
-<Aside type="tip">
-  The migration chain is also exported as a pure function — `migrateSaveData(version,
-  data, currentVersion, migrations)` — for migrating data outside a `SaveManager`
-  (e.g. in a unit test or a one-off import). `SaveManager` also accepts `storage`
-  and `now` options you can inject for deterministic tests, and a `keyPrefix`
-  (default `save:`) that namespaces its slots in the store.
-</Aside>
+`migrateSaveData(version, data, currentVersion, migrations)` exposes the migration chain as a pure function, for
+migrating data outside a `SaveManager` (unit tests, one-off imports).
 
-## Plain key/value storage
+## Key/value storage
 
-For simple flags and preferences that don't need versioning, use the `Storage`
-API directly — a per-platform key/value store (browser `localStorage`, WeChat
-storage, …) with typed helpers:
+`Storage` is a per-platform key/value store with typed helpers, for flags and preferences that need no versioning:
 
 ```typescript
 import { Storage } from 'esengine';
@@ -86,19 +89,22 @@ Storage.getNumber('volume', 1);       // 0.8
 Storage.has('keybinds');              // true
 ```
 
-`Storage` also has `getString` / `setString`, `remove(key)`, and `clear()`.
-`SaveManager` is built on top of it, so both persist to the same per-platform
-backend.
+| Group | Members |
+|---|---|
+| Typed access | `getString` / `setString`, `getNumber` / `setNumber`, `getBoolean` / `setBoolean`, `getJSON` / `setJSON` |
+| Keys | `has(key)`, `remove(key)`, `clear()` |
+| Flushing | `flush()` |
+
+`SaveManager` is built on `Storage`, so both use the same backing store.
 
 <Aside>
-  Reading and staging writes are synchronous. An asynchronous host can keep writes
-  pending until its storage service acknowledges them. Keep saves to game state —
-  not bulk assets, and observe the target's size limit.
+  Reads and staged writes are synchronous. An asynchronous host may keep writes pending until its storage service
+  acknowledges them. Saves hold game state, not bulk assets, and must stay within the target's storage limit.
 </Aside>
 
-## Await asynchronous saving
+## Asynchronous writes
 
-At a milestone where progress must be saved, await the write result:
+Where progress must be confirmed as saved, the write is awaited:
 
 ```typescript
 await saves.saveAsync('slot1', { level: 4, score: 1500, hp: 80 });
@@ -107,49 +113,39 @@ Storage.setNumber('completedLevels', 4);
 await Storage.flush();
 ```
 
-These methods reject when staging a write or the host's flush fails. The latest
-in-memory progress can remain readable after a failed cloud request; report the
-failure and retry `Storage.flush()` rather than treating readable data as saved.
-`SaveManager.saveAsync` retains the same versioned envelope and migration rules.
+- Both reject when staging a write or the host's flush fails. After a failed cloud request the latest in-memory data
+  may still be readable; it is not saved until a retried `Storage.flush()` succeeds.
+- `SaveManager.saveAsync` writes the same versioned envelope and follows the same migration rules as `save`.
+- An asynchronous platform adapter implements `PlatformAdapter.flushStorage()` and must load existing data before
+  accepting writes. An adapter that stores one cloud blob serializes requests and preserves newer changes while an
+  earlier save is in flight. A failed or unsupported load must not be treated as an empty save.
+- On a synchronous adapter, awaiting `flush()` completes the existing write; it does not add cloud storage or confirm
+  a provider's cloud backup. CrazyGames SDK Data, for example, schedules its backup separately from `setItem`.
 
-An asynchronous adapter supplies `PlatformAdapter.flushStorage()` and must load
-existing data successfully before exposing writes. Hosts that serialize one
-cloud blob must serialize requests and preserve newer changes while an earlier
-save is in flight. A failed or unsupported load must not become an empty save.
+## Backing stores
 
-On a synchronous adapter, awaiting flush only completes the existing write; it
-does not add cloud storage or certify a provider's cloud backup. CrazyGames SDK
-Data, for example, schedules its own backup separately from `setItem`.
-
-## Where it actually lands
-
-There is no directory to open, and that is deliberate: the web and the mini-game
-platforms have no path namespace to hand you, so a `getSaveDirectory()` would be
-a function only two of five platforms could answer, and every game calling it
-would grow a branch per platform. `Storage` is the portable answer — write through
-it and each platform's durable store is used for you.
+`Storage` provides no file-system path; the web and mini-game platforms have no path namespace. Each platform's
+durable store is used:
 
 | Platform | Backing store |
 | --- | --- |
 | Web | `localStorage` |
-| WeChat / mini-games | `wx.setStorageSync` and friends |
+| WeChat and other mini-games | `wx.setStorageSync` and related APIs |
 | iOS | `Application Support/estella-storage.json` |
-| Android | `files/estella-storage.json` (the app's internal data dir) |
-| Node | memory only — it does not outlive the process |
+| Android | `files/estella-storage.json` (the app's internal data directory) |
+| Node | Memory only; does not persist beyond the process |
 
-On iOS this is Application Support rather than Caches on purpose — iOS empties
-Caches whenever it wants the space back, so a save kept there is one the player
-can lose. Both mobile directories are private to the app and included in the
-device backup a player restores a new phone from.
+On iOS the file is kept in Application Support because the system may empty Caches to reclaim space. Both mobile
+locations are private to the app and included in the device backup.
 
-Builds before Estella 0.41 kept the same file in the cache directory. If you have
-already shipped one, the first launch after the update finds that save and moves
-it — your players keep their progress and there is nothing to write.
+Builds earlier than Estella 0.41 kept the file in the cache directory. On the first launch of a newer build, an
+existing file there is moved to the current location.
 
-`platformReadFile()` is **not** a way to reach these. It reads files packaged
-*into* the build (the APK's `assets/`, the iOS app bundle) and is read-only.
+`platformReadFile()` does not access these stores. It reads files packaged into the build (the APK's `assets/`, the
+iOS app bundle) and is read-only.
 
 ## See also
 
-- [Scenes](/docs/world/scenes/) — loading and switching the scenes a save points at.
-- [Assets](/docs/assets/overview/) — why bulk data belongs in assets, not in a save slot.
+- [Scenes](/docs/world/scenes/) — loading and switching the scenes a save refers to.
+- [Assets](/docs/assets/overview/) — bulk data belongs in assets, not in save slots.
+- [Server Persistence](/docs/scripting/networking/persistence/) — saving state on a game server.

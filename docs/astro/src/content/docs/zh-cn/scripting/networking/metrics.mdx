@@ -1,0 +1,46 @@
+---
+title: 服务器指标
+description: 使用 esengine/metrics 报告服务器状态——MetricsRegistry、复制、分区、玩家持久化与进程采集器、自定义计数器、Prometheus 文本端点以及 JSON 快照。
+---
+
+`esengine/metrics` 以 Prometheus 文本格式及扁平 JSON 报告服务器进程的状态。采集器在被抓取时读取 SDK 各组件本已维护的累计值，因此注册表在被读取之前没有任何开销。
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // a game-defined metric
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // scraped at :9100/metrics
+```
+
+## 采集器
+
+| 采集器 | 报告内容 |
+|---|---|
+| `replicationMetrics(server)` | 连接数、客户端数、在场与离开中的玩家数；复制采样耗时的直方图；状态帧数与字节数；已发送及被预算推迟的增量行数；收发的游戏消息数；因限制、静默或缺少 hello 而关闭的连接数。 |
+| `zoneMetrics(zone)` | 区是否正在下线；转区的发送与失败次数；登录被路由、在别处在线、被接管、被弹回、被拒绝的次数；玩家消息的送达、转发、暂存、丢弃数量。 |
+| `playerPersistenceMetrics(players)` | 按结果（ok、error、conflict）统计的记录加载与保存次数；挂起的存储操作数。 |
+| `processMetrics()` | 常驻内存、堆、运行时长、自上次抓取以来的事件循环占用率。 |
+
+## 注册表
+
+| 成员 | 说明 |
+|---|---|
+| `new MetricsRegistry({ labels?, prefix? })` | `labels` 会加到每个序列上。所有指标名都以 `prefix` 开头（默认 `estella_`）。 |
+| `register(collector)` | 添加一个采集器。返回移除它的函数。 |
+| `counter(name, help)` | 创建一个游戏自定义计数器；`inc(by?, labels?)` 使其递增。 |
+| `gauge(name, help)` | 创建一个仪表；`set(value, labels?)` 设置其值。 |
+| `histogram(name, help, bounds?)` | 创建一个直方图（默认以毫秒分桶）；`observe(value, labels?)` 记录一个值。 |
+| `render()` | 以字符串形式给出 Prometheus 文本格式。 |
+| `snapshot()` | 以一个扁平的 `Record<string, number>` 给出相同的数据；直方图表现为其 count、sum 以及按桶估计的 p50 / p99。用于自定义面板或日志行。 |
+| `metricsHandler(registry)` | 提供 Prometheus 文本格式的 Node HTTP 请求处理器。 |

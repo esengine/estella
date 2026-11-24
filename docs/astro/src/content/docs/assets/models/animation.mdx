@@ -1,0 +1,73 @@
+---
+title: Model Animation & Rigs
+description: What a model import produces for animation — timeline clips, skinning with MeshSkin and its limits, morph targets with MeshMorph and their limits, and spring bones from file data and names.
+---
+
+A rigged or animated source imports with its animation data: clips become timelines, skins become `MeshSkin`, blend
+shapes become `MeshMorph`, and optional spring-bone data becomes `SpringBone` components.
+
+## Animations
+
+Each animation in the source becomes an `.estimeline` next to the meshes. The prefab root carries a `TimelinePlayer`
+that references the first clip with `playing` off; set `playing`, or use the timeline API, to run it
+([Timeline](/docs/animation/timeline/overview/)).
+
+- A clip addresses each node by its path of names under the prefab root. Sibling nodes with the same name are renamed
+  during import so a track cannot drive the wrong node; the prefab shows the new name.
+- `LINEAR`, `STEP` and `CUBICSPLINE` interpolation are carried over, tangents included.
+- A `weights` channel (animated morph targets) becomes one track per primitive the node draws, with one channel per
+  target, driving the `MeshMorph` weights ([Morph targets](#morph-targets)).
+
+## Skinning
+
+A rigged model imports rigged: the mesh carries joint indices, weights and the bind pose, and the prefab gives the entity
+a `MeshSkin` that lists the joint entities in bind-matrix order. Moving a joint, by hand or by animation, deforms the
+mesh.
+
+A skinned mesh's own transform is ignored, as glTF requires: its joints are already placed in the world. Move the rig's
+root or its joints, not the mesh entity.
+
+| Import setting | Default | Description |
+|---|---|---|
+| **Bone Influence Limit** (`boneInfluenceLimit`) | Project Default | Most joints that move one vertex, 1–4. The heaviest influences are kept and renormalized. Fewer influences are cheaper to skin and store. Project Default uses Project Settings → Rendering → Skinning. |
+| **High Precision Skin Weights** (`highPrecisionSkinWeights`) | Project Default | Stores weights at 16 bits instead of 8, for rigs where rounded small weights move vertices visibly (faces). Doubles weight storage. |
+
+| Limit | Reason |
+|---|---|
+| 256 joints per mesh | The pose is a uniform block of 16 KB at that size, the size WebGL2 guarantees. A draw uploads only the joints it uses. A mesh with more joints draws undeformed. |
+| Joint count must match the bind pose | A mesh whose `MeshSkin` lists a different number of joints draws undeformed. |
+
+## Morph targets
+
+A model with blend shapes imports them: the `.esmesh` stores one delta per vertex per target, and the prefab gives the
+entity a `MeshMorph` whose `weights` set how far the mesh is blended towards each target. Entry *i* is target *i*, in the
+order the file lists them; target names are kept with the geometry.
+
+A weight of 0 leaves the mesh as authored and 1 applies the target fully. Weights are not clamped: glTF defines no bounds,
+and values outside 0–1 are valid.
+
+| Limit | Detail |
+|---|---|
+| 64 targets blended at once | A limit on active targets, not on targets per mesh. Each active target costs one or two texture reads per vertex. Above 64, the 64 largest weights are used and the rest read as zero. |
+| 4,194,304 deltas per mesh | Targets × vertices, doubled when normals are included: a 2048 × 2048 texture, the largest WebGL2 guarantees. Above it the mesh draws but does not deform. |
+| Normals deform only where the mesh has them | A mesh without `NORMAL` is shaded with a constant normal. |
+| No tangent deltas | The mesh keeps its rest tangent frame; a target moves the surface but not the normal-map frame. |
+| FBX in-between shapes | A channel with intermediate shapes keeps only the last; the import names what it dropped. |
+
+## Spring bones
+
+**Spring Bones** (`springBones`, default Off) set to **From File Data and Names** adds secondary motion to hair from data
+the model already carries:
+
+- A VRM spring-bone extension, or node custom properties `extras.estella.springBone` / `springCollider`, is used as
+  stated.
+- Otherwise a bone named `Hair_<region>_<chain>_00` becomes a `SpringBone`, and an empty named `SBC_Sphere_<name>_r<cm>`
+  or `SBC_Capsule_<name>_r<cm>_h<cm>` becomes a collider.
+
+Matching by name is a convention; check what the import found. See [Spring Bones](/docs/animation/spring-bones/).
+
+## See also
+
+- [Models](/docs/assets/models/overview/)
+- [Timeline](/docs/animation/timeline/overview/)
+- [Spring Bones](/docs/animation/spring-bones/)

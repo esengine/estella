@@ -1,142 +1,134 @@
 ---
 title: Static Batching
-description: Draw many static meshes that share a material as one — what to mark, what is left out and why, and what it costs in memory.
+description: StaticBatch and CompositeBatch reference — merging different static meshes into fewer draws, grouping rules and cell limits, meshes that are not merged, memory cost, and batching moving models built from many parts.
 ---
 
-The renderer already draws **copies of the same mesh** as one instanced draw. What it
-cannot do is draw **different meshes** as one: every mesh is its own range of GPU memory,
-so a level built from fifty distinct props costs fifty draws per material.
+The renderer already draws **copies of one mesh** as a single instanced draw. **Different meshes** are separate ranges of
+GPU memory and cost one draw each per material. `StaticBatch` merges different static meshes that share their draw state
+into one mesh per area; `CompositeBatch` does the same for a model that moves as a whole.
 
-**`StaticBatch`** is for that. Add it to a mesh that will not move, and while the game runs
-the meshes that share its material, texture, colour and layer are merged into one mesh per
-area.
+| Content | Use |
+|---|---|
+| Many copies of one mesh | Instancing (automatic) |
+| Many different meshes that do not move | `StaticBatch` |
+| A model of many parts that moves as a whole (ship, vehicle, platform) | `CompositeBatch` |
+
+## `StaticBatch`
+
+Add `StaticBatch` to a mesh that will not move. While the game runs, the marked meshes that share material, texture,
+colour and layer are merged into one mesh per area.
 
 ```typescript
 world.insert(wall, MeshRenderer, { mesh: 'builtin:cube', material });
 world.insert(wall, StaticBatch, {});
 ```
 
-In the editor, select the meshes and choose **Static Batch** from the outliner's menu.
+In the editor, select the meshes and choose **Static Batch** from the Outliner's menu.
 
-## What happens
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `group` | string | `''` | Meshes merge only with others of the same group, so two rooms can be kept apart. Empty is the default group. |
+| `state` | `StaticBatchState` | Waiting | Read-only: what the last pass did with this mesh (merged, or the reason it was not). |
+| `batched` | number | `0` | Read-only: meshes drawn together with this one, itself included; `0` unless merged. |
 
-- Meshes are grouped by everything a draw owns — material, texture, normal map, colour,
-  layer, culling, lighting and shadow-casting flags — and by the optional **group** on the component, so two
-  rooms can be kept apart.
-- Each group is cut into cells of the world, so a batch is a neighbourhood and culling still
-  has something to cull. A cell is 1,600 world units on a side by default and never holds more than 262,144 vertices.
-- The marked entities stay as authored: scripts find them, colliders collide and the editor
-  picks them. Only their drawing moves to the merged mesh, which is an entity of its own.
-- A marked mesh **does not move** after it has been merged. Destroying one is supported (its
-  batch is rebuilt without it); moving one is not, and nothing can notice.
+`StaticBatch` is `@experimental`.
 
-## What is left out
+## Merging
 
-A mesh that cannot be merged stays as it was, and says why — on the component while the game
-runs, and in the profiler's **Static batch** section.
+- Meshes are grouped by everything a draw owns (material, texture, normal map, colour, layer, culling, lighting and
+  shadow-casting flags) and by `group`.
+- Each group is divided into world cells, so a batch covers a neighbourhood and remains cullable. A cell is 1,600 world
+  units on a side and holds at most 262,144 vertices.
+- Marked entities stay as authored: scripts find them, colliders collide and the editor picks them. Only their drawing
+  moves to the merged mesh, which is a separate entity.
+- A merged mesh **must not move**. Destroying one is supported (its batch is rebuilt without it); moving one is not
+  detected.
+- Batches are rescanned every **Batch scan interval** frames of the quality level (60 at Low, 30 at Medium and High;
+  [View Distance & Draws](/docs/performance/quality-levels/settings/#view-distance--draws)).
 
-| Reason | Why |
+## Meshes that are not merged
+
+A mesh that cannot be merged keeps drawing itself and reports why in `state` and in the Profiler's **Static batch**
+section.
+
+| Reason | Cause |
 |---|---|
-| Skinned | One draw can only be in one pose. |
-| Morphing | One draw can only be in one shape. |
-| Level of detail | The renderer chooses among levels at run time. |
-| Billboard | It turns to each view, and a merged mesh stays where it was baked. |
-| Blended | Its result depends on drawing order, and merging is the loss of order. |
-| Moves | A dynamic body or a character controller: a batch bakes where a mesh stands. |
-| Baked light | The scene has probes or a bake, and a merged mesh cannot keep each part's own. |
-| No mesh yet | Nothing is behind the handle (still loading, or the mesh failed), so there is nothing to copy. |
-| Switched off | Nothing is drawn, so there is nothing to merge. |
+| Skinned | A draw has a single pose. |
+| Morphing | A draw has a single shape. |
+| Level of detail | The renderer selects among levels at run time. |
+| Billboard | It turns to each view; a merged mesh stays where it was baked. |
+| Blended | Its result depends on draw order, which merging discards. |
+| Moves | A dynamic body or character controller. |
+| Baked light | The scene has light probes or a bake; a merged mesh cannot keep each part's own baked lighting. |
+| No mesh yet | The mesh is still loading or failed to load. |
+| Switched off | Nothing is drawn. |
 | Vertex layout | Positions or normals that are not 32-bit floats, which the merge cannot transform. |
 | Alone in its group | Merging one mesh saves nothing and costs memory. |
 
-## What it costs
+## Memory cost
 
-Merging copies every part's vertices into the merged mesh, so it **spends memory to save
-draws**. A part that stood for a hundred instances becomes a hundred copies. The profiler shows,
-for each merged mesh, how many parts it holds, how many draws they cost before, and how much
-memory the copy takes — read the two numbers together.
+Merging copies every part's vertices into the merged mesh: it **spends memory to save draws**. A mesh that stood for a
+hundred instances becomes a hundred copies. The Profiler shows, for each merged mesh, the parts it holds, the draws they
+cost before merging and the memory of the copy.
 
-Use instancing for many copies of one mesh, and static batching for many different meshes.
+Merged vertices are transformed on the CPU in 32-bit floats, so pixels along geometry edges can differ slightly from the
+unmerged frame.
 
-## A measured example
+## `CompositeBatch`: moving models
 
-The `dusk-fort` example (39 meshes, 17 distinct shapes, 5 materials), every mesh marked, in the editor's Play on WebGL2:
-
-| | Not marked | Marked |
-|---|---|---|
-| Draw calls per frame | 18 | 13 |
-| Triangles | 51,313 | 51,313 |
-| CPU frame cost | 1.18 ms | 1.16 ms |
-
-Thirty-six of the meshes merged into nine batches (three were alone in their group). Those nine
-batches stand for 32 draws before instancing and hold 2.05 MB of copied vertices. Instancing
-already did most of the saving here, so the merge's share is the last five draws: a scene made of
-many different pieces gains more than one made of a few repeated ones.
-
-The two frames differ on 1.1% of the pixels, by one level of 255 on 96% of those and at most five, all along geometry edges, from
-the merged vertices being transformed on the CPU in 32-bit floats; run to run the same scene differs on
-0.003%.
-
-## A model that moves: `CompositeBatch`
-
-A static batch bakes each part where it stands in the world, so a ship, a vehicle or a moving
-platform assembled from planks, rails and props cannot use it. Put **`CompositeBatch`** on the
-model's **root** instead; the parts need nothing.
+`StaticBatch` bakes each part where it stands in the world, so a moving model assembled from parts cannot use it. Add
+**`CompositeBatch`** to the model's **root**; the parts need no component.
 
 ```typescript
 const ship = world.spawn('Ship');
 world.insert(ship, Transform, {});
 world.insert(ship, CompositeBatch, {});
-// ...planks, posts and props parented under `ship`, each with its own MeshRenderer.
+// planks, posts and props are parented under `ship`, each with its own MeshRenderer.
 ```
 
-While the game runs, the parts are folded in the **root's own space**, and the meshes that draw
-them are the root's children:
+| Field | Default | Description |
+|---|---|---|
+| **Instance at** (`instanceMin`) | `4` | Parts of one mesh at or above this count are drawn as one instanced set, without copying vertices; fewer are merged. Minimum 2. |
+| **Chunk size** (`cellSize`) | `0` | Side of a merge chunk in the root's space; `0` chooses from the model's size. Smaller chunks re-merge less on edits and cull better. |
+| **Batched parts** (`parts`) | — | Read-only: meshes under the root the pass draws. |
+| **Instanced parts** (`instanced`) | — | Read-only: parts drawn as instanced sets. |
+| **Draws** (`draws`) | — | Read-only: draws the model takes now. |
+| **Draws before** (`drawsBefore`) | — | Read-only: draws the same parts took before batching. |
+| **Moving parts** (`moving`) | — | Read-only: parts that kept moving and were released to draw themselves. |
 
-- Moving, turning or scaling the root moves the whole model. Nothing is merged again.
-- A mesh repeated at least **Instance at** times (4 by default), such as a deck plank or a rail
-  post, stays one resident mesh. It is drawn as one instanced set, which copies no vertices.
-- Every other part is merged, by draw state, into chunks of the root's space. Adding, removing,
-  re-meshing or re-placing a part re-merges only the chunk it is in, within half a second. Call
-  `app.getResource(CompositeBatchingRes).refresh(root)` to look at once.
-- Changing a part's `MeshRenderer.castShadows` regroups it on the next scan. Casters and
-  non-casters stay in separate instance sets and merged chunks, even when their material matches.
-- A part that keeps moving inside the model, such as a door or a wheel, is let go after a few
-  looks and draws itself, so it never costs a merge a frame.
-- The rules a static batch keeps still hold. Skinned, morphing, LOD, billboard and blended parts
-  and dynamic bodies draw themselves. A part under a composite is never also statically batched.
+While the game runs, parts are merged in the **root's own space** and the meshes that draw them are children of the root:
 
-The root reports what it drew: **Batched parts**, **Instanced parts**, **Draws** and **Draws
-before**, and **Moving parts**.
+- Moving, rotating or scaling the root moves the whole model without re-merging.
+- A mesh repeated at least **Instance at** times (a deck plank, a rail post) stays one resident mesh, drawn as one
+  instanced set.
+- Other parts are merged by draw state into chunks of the root's space. Adding, removing, re-meshing or moving a part
+  re-merges only its chunk at the next scan (**Batch scan interval**).
+  `app.getResource(CompositeBatchingRes).refresh(root)` rescans at once.
+- Changing a part's `MeshRenderer.castShadows` regroups it at the next scan. Shadow casters and non-casters are kept in
+  separate instance sets and chunks, even with the same material.
+- A part that keeps moving within the model (a door, a wheel) is released after three consecutive changed scans and draws
+  itself, so it does not cause a merge every frame.
+- The `StaticBatch` exclusions apply: skinned, morphing, LOD, billboard and blended parts and dynamic bodies draw
+  themselves. A part under a composite is never also statically batched.
 
-Native instance groups, also used by foliage, bound every placement using both
-mesh LODs and the material's declared `vertexbounds`. Those bounds include
-placement rotation, scale and shear. A material that moves vertices must declare
-its full local displacement so a visible surface is not culled at a view edge.
+The saving of `CompositeBatch` is mostly on the CPU (collecting, culling and sorting every part each frame), since
+repeated meshes are already instanced. It grows with the part count; for a model with few parts, the periodic scans can
+cost as much as they save.
 
-Shadow-map coverage uses the same usable LOD geometry and declared displacement,
-transformed through every placement and its parent. Empty instance groups add no
-bounds. Receiver, caster and hair-focus bounds are gathered in one traversal, so
+`CompositeBatch` is `@experimental`.
+
+## Instance bounds
+
+Native instance groups, also used by foliage, bound every placement using both mesh LODs and the material's declared
+`vertexbounds`, including placement rotation, scale and shear. A material that moves vertices must declare its full local
+displacement, or a visible surface can be culled at a view edge.
+
+Shadow-map coverage uses the same LOD geometry and declared displacement, transformed through every placement and its
+parent. Empty instance groups add no bounds. Receiver, caster and hair-focus bounds are gathered in one traversal, so
 instancing does not move a shadow map away from the geometry it must cover.
 
-Measured in the editor's Play on WebGL2, a model of 2,004 parts (1,600 planks, 400 posts and four
-props) under one root:
+## See also
 
-| | Plain | `CompositeBatch` |
-|---|---|---|
-| Meshes handed to the renderer per frame | 2,003 | 5 |
-| Draw calls per frame | 7 | 5 |
-| CPU frame cost (three runs of 180 frames) | 3.33–3.35 ms | 1.20–1.36 ms |
-
-Draws barely move, because the renderer already instances a repeated mesh. What the composite
-saves is collecting, culling and sorting every part each frame. That saving grows with the part
-count: a ship of 108 parts costs about the same either way (0.65–0.67 ms plain, 0.68–0.90 ms
-batched). At that size, the pass's own look at its parts, twice a second, is as large as what
-it saves.
-
-The `composite-batch` editor check keeps mesh shadows enabled on that smaller ship. The
-headless runtime check also compares the ordinary and batched model on WebGL2 and WebGPU,
-including root motion, a local edit, mixed shadow policies and restoring those policies.
-Moving the root re-merges nothing; adding a part re-merges one chunk. Both checks verify that
-removing the component restores the original parts. The runtime check also verifies that
-static batches keep each part's shadow policy and compares their rendered result.
+- [Frame Debugger](/docs/performance/frame-debugger/): why draws split.
+- [Level of Detail](/docs/performance/level-of-detail/)
+- [Meshes](/docs/graphics/drawing/meshes/)

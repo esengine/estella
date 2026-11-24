@@ -1,74 +1,70 @@
 ---
 title: 热更新
-description: 游戏发布后，把美术或数据放到 CDN 上更新，运行中的客户端即可拉取新字节——无需重新下载安装包，无需重新过审。内容寻址、原子应用、完整性校验，且对游戏代码透明。
+description: 基于内容寻址、从 CDN 更新远端资产的热更新——交付组、CDN 地址、asset-groups.json、随包发布的清单、checkForUpdate / applyUpdate API、自动重新绑定、按需分组、完整性与回滚、持久化及平台支持。
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-**热更新**让游戏只发布一次，之后从 **CDN** 换掉它的资产——一张贴图、一段音效、一个预制体——运行中的客户端便能拉取新字节，无需重新下载安装包，也无需重新提交到商店。这正是已上架的手游或小游戏在过审后继续更新内容的方式。
+**热更新** 用 **CDN** 上的新版本替换已发布游戏的资产——纹理、音频、预制体。运行中的客户端只下载改动过的资产；不重新下载整包，也不需要重新提交商店审核。
 
-Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回滚）、**完整性校验**（被篡改的字节会被拒绝）且**对游戏代码透明**（内建重绑器会替你把新资产换进运行中的精灵）。同一套机制在 Web、桌面、微信小游戏与原生上一致运行。
+热更新具备**内容寻址**、**原子性**（全部成功或全部不生效，可回滚）、**完整性校验**（与哈希不符的字节会被拒绝）以及**对游戏代码透明**（内置的重新绑定器将新资产换入运行中的组件）。同一机制运行在 Web、桌面、小游戏和原生应用上。
 
 <Aside type="tip">
-  可运行的 [`hot-update-demo`](https://github.com/esengine/estella/tree/master/examples/hot-update-demo)
-  示例在一张精灵上演示了完整闭环——**且不含一行游戏代码**。
+  [`hot-update-demo`](https://github.com/esengine/estella/tree/master/examples/hot-update-demo) 示例在单个精灵上演示了完整流程，不含任何游戏代码。
 </Aside>
 
 ## 工作原理
 
-每个 cook 后的资产都以 `<contentHash>.<ext>` 的形式发布——这是一个**不可变、可永久缓存的 URL**。改动一个字节，哈希就变，资产便成为一个*新* URL；旧的 URL 从此不再被引用。任何文件都不会被覆盖，因此缓存永远不会失效。
-
-于是一次热更新就是四步：
+每个烘焙后的资产以 `<contentHash>.<ext>` 形式发布，这是一个不可变、可永久缓存的 URL。资产改动后哈希改变，URL 也随之改变；已有文件从不被覆盖，因此缓存不会过期。
 
 <Steps>
 
-1. 从 CDN **拉取**远端**清单**（`asset-manifest.json`）。
-2. 按内容哈希把它与游戏正在运行的清单**做 diff**。
-3. 只**下载**哈希变化的那些资产（并逐一校验）。
-4. **切换**活动清单——引用随即解析到新 URL。
+1. 从 CDN **获取**远端清单（`asset-manifest.json`）。
+2. 按内容哈希与运行中的清单进行**比对**。
+3. 只**下载**哈希改变的资产，并逐个校验。
+4. **切换**当前清单；引用随即解析到新的 URL。
 
 </Steps>
 
-因为资产是内容寻址的，diff 就是一次纯粹的逐资产哈希比较，应用它绝不会破坏已缓存的文件。整条链路平台无关：同一份 `asset-manifest.json` 驱动所有目标平台。
+比对是逐资产的哈希比较，应用更新不会修改任何已缓存的文件。所有目标使用相同的 `asset-manifest.json` 格式。
 
 ## 交付组
 
-哪些资产打进*包内*、哪些从 *CDN* 提供，是一个按文件夹的决策，称为资产的**交付组**。每个文件夹都归结为三种模式之一：
+资产随包发布还是由 CDN 提供，按文件夹由其**交付组**决定。每个文件夹解析为三种模式之一：
 
-| 模式 | Bundle | 徽标 | 交付方式 | 适用于 |
+| 模式 | 打包方式 | 徽标 | 发布位置 | 用途 |
 | --- | --- | --- | --- | --- |
-| **本地** | eager | — | 打进包内，启动时加载 | 游戏的核心资产 |
-| **分包** | lazy | `分包`（紫） | 打进包内，按需加载 | 大体量可选内容、[微信分包](/docs/zh-cn/publishing/wechat/) |
-| **远端** | remote | `CDN`（蓝） | 从 CDN 提供，**可热更新** | 任何你想在发布后改动的内容 |
+| **本地** | eager | — | 在包内，启动时加载 | 游戏核心资产 |
+| **分包** | lazy | `PKG`（紫色） | 在包内，按需加载 | 较大的可选内容、[微信分包](/docs/zh-cn/publishing/wechat/#分包) |
+| **远端** | remote | `CDN`（蓝色） | 由 CDN 提供；**可热更新** | 发布后需要修改的内容 |
 
-只有**远端**组会被热更新——它们是按环境根地址从你的 CDN 拉取的资产。本地与分包资产都被烘进构建里。（分包是包*内*的按需加载，见 [资源 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)。）
+只有 **远端** 分组会被热更新。本地和分包资产属于构建的一部分；分包在包内按需加载（[资产 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)）。
 
-### 把文件夹标为 CDN 交付
+### 将文件夹标记为 CDN 交付
 
-在**内容浏览器**中右键任意文件夹，选择 **交付方式 → 远端（CDN / 热更）**。这就是全部的配置动作——该文件夹下的每个资产（递归）从此改由 CDN 交付，而不再打进包内。
+在 **内容浏览器** 中右键文件夹，选择 **交付方式 → 远端（CDN / 热更）**。该文件夹中（递归）的所有资产随后由 CDN 提供。
 
 ![在内容浏览器右键文件夹并选择 交付方式 → 远端（CDN / 热更）](@/assets/guides/zh/hot-update-delivery-menu.png)
 
-*内容浏览器 → 右键文件夹 → **交付方式** → **本地 / 分包 / 远端（CDN / 热更）**。选择会写入 `.esengine/asset-groups.json`。*
+*内容浏览器 → 右键文件夹 → **交付方式** → **本地 / 分包 / 远端（CDN / 热更）**。选择结果写入 `.esengine/asset-groups.json`。*
 
-同一个子菜单里还有**总是打进构建**——一个独立开关，即使文件夹里没有任何东西能从场景可达，
-也让它留在构建里。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
+同一子菜单中还有 **总是打进构建（即使无人引用）**，这是一个独立开关，即使文件夹中没有任何内容可从场景到达，也会将其保留在构建中（[资产](/docs/zh-cn/assets/overview/#只有代码点名的资产)）。
 
-被指派到分包或远端组的文件夹会带一个角标**徽标**，让你一眼看清交付布局——`CDN`（蓝）表示远端，`分包`（紫）表示分包。
+分配到分包或远端分组的文件夹会显示角标：远端为 `CDN`（蓝色），分包为 `PKG`（紫色）。
 
 ![内容浏览器中一个文件夹图块，带蓝色 CDN 交付徽标](@/assets/guides/zh/hot-update-cdn-badge.png)
 
-*`cdn` 文件夹带着蓝色 **CDN** 徽标——它的资产以远端方式交付，可被热更新。*
+*`cdn` 文件夹带有蓝色 **CDN** 徽标：其资产远端交付，可热更新。*
 
-交付决策**与文件夹名解耦**——任意普通文件夹都能成为远端组。（旧约定中以 `remote/<name>/` 或 `subpackages/<name>/` 文件夹名隐含交付方式的做法仍然有效，作为项目没有 `asset-groups.json` 时的零配置回退。）
+交付方式与文件夹名称无关。项目没有 `asset-groups.json` 时，名为 `remote/<name>/` 或 `subpackages/<name>/` 的文件夹仍隐含对应的交付模式。
 
-### 设置 CDN 根地址
+### CDN 地址
 
-远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是项目的打包设置（`project.esproject` 里的 `packaging.remoteRoot`），**导出配置档**可以覆盖它，于是测试构建和正式构建可以指向不同的 CDN。导出时会把最终确定的根地址烘进发布的游戏里。在**打包项目**对话框（**构建 → 打包项目…**）的**高级**里设置：
+远端分组的资产从 CDN 上的**根地址**获取。根地址是项目的打包设置（`project.esproject` 中的 `packaging.remoteRoot`），**导出配置档**可以覆盖它，因此测试构建和正式构建可以使用不同的 CDN。导出会将解析得到的根地址写入发布的游戏。在 **构建 → 打包项目… → 高级 → CDN 地址** 中设置：
 
 ![打包对话框的「高级」分组——CDN 地址、源码映射与完成后打开输出文件夹](@/assets/guides/zh/hot-update-build-cdn.png)
 
-***CDN 地址** 字段写的是项目的 `remoteRoot`；选中了配置档时，写的是该配置档的。留空则远端资产从游戏同源加载（例如本地测试时）。*
+***CDN 地址** 字段写入项目的 `remoteRoot`，选中配置档时写入该配置档的值。留空时从游戏自身的源加载远端资产（例如用于本地测试）。*
 
 ```json
 {
@@ -81,11 +77,11 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 }
 ```
 
-`estella export --profile prod-web`（或在对话框里选中 **prod-web**）用正式的根地址构建，其余构建用项目自己的。
+`estella export --profile prod-web`（或在对话框中选择 **prod-web**）使用正式环境的根地址构建；其他构建使用项目的根地址。
 
 ### `.esengine/asset-groups.json`
 
-以上两项设置都存在同一个授权文件里，它是 cook **与**编辑器 Play 域通过同一个 resolver 读取的单一事实来源（因此两者绝不会对资产的交付去向产生分歧）：
+交付组和图集组保存在同一个手写文件中。烘焙和编辑器的运行环境通过同一个解析器读取它。
 
 ```json
 {
@@ -102,17 +98,17 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `version` | `string` | 配置版本（`"1.0"`）。 |
-| `groups` | `Record<name, {folder, mode}>` | 文件夹 → 交付方式的指派。 |
-| `groups.<name>.folder` | `string` | 项目相对文件夹；其下（递归）每个资产都归入该组。文件夹嵌套时，**最长**匹配前缀胜出。 |
-| `atlases` | `Record<name, {folder}>` | 其下纹理打进同一张图集页的文件夹。与 `groups` 是**互相独立的两个轴**：哪些资产一起交付、哪些资产共享一张纹理页，是两个不同的决定——所以一张图集可以跨两个交付组，一个交付组里也可以有两张图集。不写 ⇒ 仍然沿用 `<name>.atlas/` 文件夹约定。 |
-| `atlases.<name>.folder` | `string` | 项目相对文件夹；其下每张纹理都打进这张图集。最长匹配前缀胜出。 |
+| `groups` | `Record<name, {folder, mode}>` | 文件夹到交付方式的分配。 |
+| `groups.<name>.folder` | `string` | 项目相对的文件夹；其下（递归）所有资产加入该分组。文件夹嵌套时，最长匹配前缀优先。 |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
-| `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
-| `activeProfile`、`profiles` | — | **旧项目**。在 `packaging.remoteRoot` 出现之前，CDN 根地址存在这里：仍会读取，但仅限项目自己没设根地址时。 |
+| `groups.<name>.alwaysInclude` | `boolean` | 即使构建中没有任何内容到达该分组也打包——用于只在代码中引用的资产（URL、路径、富文本标记）。默认 `false`。见[资产](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
+| `atlases` | `Record<name, {folder}>` | 其中纹理打包到同一图集页的文件夹（需勾选 **打包图集**）。与 `groups` 相互独立：一个图集可以跨两个交付组，一个分组也可以包含两个图集。未设置时沿用 `<name>.atlas/` 文件夹约定。 |
+| `atlases.<name>.folder` | `string` | 项目相对的文件夹；其下所有纹理打包进该图集。最长匹配前缀优先。 |
+| `activeProfile`、`profiles` | — | CDN 根地址的旧存放位置，仅在项目未设置 `packaging.remoteRoot` 时读取。 |
 
-## 构建产出了什么
+## 随包发布的文件
 
-每次 Web、桌面、小游戏和原生导出都会在游戏旁写出一份 **`asset-manifest.json`**（可寻址清单）——那正是客户端做热更新 diff 的依据。当这次构建有 CDN 根地址时，导出还会把一段 `hotUpdate` 烘进 `game.config.json`：
+每个 Web、桌面、小游戏和原生导出都会在游戏旁写出 **`asset-manifest.json`**（可寻址清单），客户端以它为基准比对。构建设置了 CDN 地址时，导出还会在 `game.config.json` 中写入 `hotUpdate` 块：
 
 ```json
 {
@@ -123,41 +119,39 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 }
 ```
 
-发布的运行时会读取它，并在启动时自动接线：
+启动时运行时读取该块并：
 
-- 应用 `remoteRoot`，于是远端组的 `@uuid` 引用解析到 CDN。
-- `persistUpdateKey`（只要设了根地址就默认为 `esengine:hotupdate`）让运行时在**启动时恢复此前已应用的更新**——回访玩家直接从已更新的内容开始，即使离线。
-- 安装**内建重绑器**，于是一次已应用的更新会自动换进运行中的精灵，无需游戏代码。
+- 应用 `remoteRoot`，使远端分组的 `@uuid` 引用解析到 CDN；
+- 根据 `persistUpdateKey`（设置了根地址时默认为 `esengine:hotupdate`）恢复之前已应用的更新，使再次进入的玩家直接从更新后的内容开始，离线时也是如此；
+- 安装内置的重新绑定器，使已应用的更新无需游戏代码即可作用到运行中的组件。
 
-你发布一次更新的方式，是把新 cook 出的资产**连同**新的 `asset-manifest.json` 上传到 CDN。因为 URL 是内容寻址的，上传纯粹是增量的——旧文件对尚未更新的客户端依然有效。
+发布更新时，将新烘焙的资产和新的 `asset-manifest.json` 上传到 CDN。上传是增量的：旧文件对尚未更新的客户端仍然有效。
 
-## 在运行时触发更新
+## 检查并应用更新
 
-运行时已自动配置好，但总得有*什么*来发问「有没有更新？」。那是游戏发起的一次调用——在启动时、藏在**检查更新**按钮后，或用定时器。
-
-### 快速上手
+游戏通过一次调用发起检查——在启动时、在 **检查更新** 按钮中，或定时进行。
 
 ```ts
 import { defineSystem, Res, Schedule, Assets } from 'esengine';
 
 async function pullUpdate(assets: Assets): Promise<void> {
-  // 1. 拉取 CDN 清单并与运行中的清单做 diff（不下载任何东西）。
+  // 1. Fetch the CDN manifest and diff it against the running one (downloads nothing).
   const plan = await assets.checkForUpdate({
     manifestUrl: 'https://cdn.example.com/my-game/asset-manifest.json',
     remoteRoot:  'https://cdn.example.com/my-game',
   });
   if (!plan.hasUpdate) return;
-  console.log(`有可用更新：${plan.changedAssets.length} 个文件，${(plan.totalBytes / 1024) | 0} KB`);
+  console.log(`Update available: ${plan.changedAssets.length} files, ${(plan.totalBytes / 1024) | 0} KB`);
 
-  // 2. 下载并校验每个变更资产，然后切换清单——原子完成。
+  // 2. Download + verify every changed asset, then swap the manifest — atomically.
   const result = await assets.applyUpdate((loaded, total) => {
-    console.log(`下载中 ${loaded}/${total}`);
+    console.log(`Downloading ${loaded}/${total}`);
   });
-  if (result.ok) console.log(`已应用——更新了 ${result.updated} 个资产`);
-  else console.warn('更新失败，已回滚：', result.failed);
+  if (result.ok) console.log(`Applied — ${result.updated} assets updated`);
+  else console.warn('Update failed, rolled back:', result.failed);
 }
 
-// 在启动时运行一次（加锁，让这次异步检查只触发一次）。
+// Run it once at startup (guarded so the async check fires a single time).
 let checked = false;
 const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
   if (checked) return;
@@ -167,148 +161,146 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 // app.addSystems(Schedule.Update, checkForUpdates)
 ```
 
-`checkForUpdate` 是「有没有更新、有多大？」的查询——它拉取候选清单并返回一份[计划](#updateplan)，但不下载任何资产，因此你可以在提交前弹出提示（`N 个文件，K KB`）。`applyUpdate` 才真正下载并切换。
+`checkForUpdate` 获取候选清单并返回 [`UpdatePlan`](#api-参考)，不下载任何资产，因此游戏可以在确认前显示大小（`N files, K KB`）。`applyUpdate` 负责下载和切换。
 
-### 零代码重绑
+### 自动重新绑定
 
-当场景以 `@uuid` 引用某个资产、而该资产位于远端组时，`applyUpdate` 会**全部搞定**——它下载新字节、切换清单，内建重绑器随即把旧贴图换进**每一个声明了该资产的运行中字段**：内建的（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）与你自己的组件一视同仁，只要字段写在 `assetFields` 里。画面自行改变，场景作者什么都不用写。（`hot-update-demo` 示例的游戏代码字面上是空的。）
+当场景通过 `@uuid` 引用远端分组的资产时，`applyUpdate` 下载新字节、切换清单，内置的重新绑定器会在所有声明了纹理的运行中字段里替换旧纹理：内置字段（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）以及在 `assetFields` 中声明的项目组件字段。
 
-替换品**按持有该资产的场景各获取一份**，每个场景整体迁移——要么它的绑定全换，要么一个都不换。因此卸载一个场景绝不会把更新后的贴图从另一个仍在绘制它的场景手里拿走；而一个场景卸载时交回的正是它持有的那些，无论中途经历过多少次更新。
+替换资产按持有它的每个场景各获取一次，每个场景作为整体切换——该场景的绑定要么全部切换，要么全部不变。卸载一个场景不会从仍在使用它的另一个场景中释放更新后的纹理，卸载的场景也只释放自己持有的部分，无论它经历过多少次更新。
 
-对于内建重绑器覆盖不到的东西——你手动绑定的贴图、一段音效、一个自定义系统——订阅 `onInvalidate` 自行重绑：
+重新绑定器未覆盖的内容——手动绑定的纹理、音频、自定义系统——可订阅 `onInvalidate` 自行重新绑定：
 
 ```ts
 const unsub = assets.onInvalidate((event) => {
-  // `event.ref` 刚被一次更新失效。`event.type` 说明它是哪一类资产
-  // （'texture'、'audio'、'material' …），`event.oldValue` 是丢弃前运行中的持有者
-  // 所绑定的值（贴图即句柄）。
+  // `event.ref` was just invalidated by an update. `event.type` says what kind of
+  // asset it was ('texture', 'audio', 'material', …) and `event.oldValue` what live
+  // holders were bound to before the drop (a texture's handle).
   if (event.type !== 'texture') return;
-  void assets.loadTexture(event.ref).then((tex) => { /* 赋值 tex.handle */ });
+  void assets.loadTexture(event.ref).then((tex) => { /* assign tex.handle */ });
 });
 ```
 
-### API 参考
+## API 参考
 
-热更新接口位于 `Assets` 资源上（`Res(Assets)`）：
+热更新 API 位于 `Assets` 资源（`Res(Assets)`）上：
 
-| 方法 | 返回 | 说明 |
+| 方法 | 返回值 | 说明 |
 | --- | --- | --- |
-| `checkForUpdate(options)` | `Promise<UpdatePlan>` | 拉取候选清单，与活动清单 diff，并暂存。不下载任何资产。 |
-| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | **原子地**应用暂存的更新：下载并校验每个变更资产，然后切换清单、重绑运行中的句柄、持久化。`onProgress(loaded, total)` 回报下载进度。 |
-| `restorePersistedUpdate(key)` | `boolean` | 在启动时，恢复上一次 `applyUpdate` 以 `key` 持久化的清单。设了 `persistUpdateKey` 时运行时会替你调用。 |
-| `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`——供诊断界面使用。 |
-| `setRemoteRoot(url?)` | `void` | 把远端组解析指向某个 CDN 根地址（`undefined` 清除 → 同源）。运行时会从构建的 `remoteRoot` 设置它。 |
-| `remoteRoot` | `string \| undefined` | 当前 CDN 根地址（getter）。 |
-| `onInvalidate(listener)` | `() => void` | 订阅失效事件。监听器收到 `{ ref, type, oldValue }`（用于自定义重绑）；返回一个取消订阅的函数。 |
-| `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | 按需加载整个组（DLC 模式——见下文）。 |
-| `releaseGroup(name)` | `void` | 释放 `loadGroup(name)` 获取的一切。 |
+| `checkForUpdate(options)` | `Promise<UpdatePlan>` | 获取候选清单，与当前清单比对并暂存。不下载资产。 |
+| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | 原子地应用暂存的更新：下载并校验所有改动的资产，然后切换清单、重新绑定运行中的句柄并持久化。`onProgress(loaded, total)` 报告下载进度。 |
+| `restorePersistedUpdate(key)` | `boolean` | 启动时恢复之前 `applyUpdate` 以 `key` 持久化的清单。设置了 `persistUpdateKey` 时由运行时调用。 |
+| `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`，用于诊断界面。 |
+| `setRemoteRoot(url?)` | `void` | 设置远端分组的 CDN 根地址（`undefined` 清除，即同源）。运行时根据构建的 `remoteRoot` 设置。 |
+| `remoteRoot` | `string \| undefined` | 当前的 CDN 根地址（getter）。 |
+| `onInvalidate(listener)` | `() => void` | 订阅失效事件。监听函数接收 `{ ref, type, oldValue }`；返回取消订阅函数。 |
+| `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | 按需加载整个分组（[按需分组](#按需分组)）。 |
+| `releaseGroup(name)` | `void` | 释放 `loadGroup(name)` 获取的全部内容。 |
 
 **`CheckForUpdateOptions`**
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `manifestUrl` | `string` | 候选（远端）清单 JSON 的 URL。 |
-| `remoteRoot` | `string`（可选） | 候选清单的远端组资产从哪个 CDN 根地址提供。默认沿用当前根地址。 |
+| `manifestUrl` | `string` | 候选（远端）清单的 URL。 |
+| `remoteRoot` | `string`（可选） | 候选清单中远端分组资产所在的 CDN 根地址。默认为当前根地址。 |
 
-**`UpdatePlan`**（`checkForUpdate` 返回）
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `hasUpdate` | `boolean` | 当且仅当有任何资产新增或内容变化时为真。 |
-| `changedAssets` | `AssetChange[]` | 需要下载的新增 / 内容变化资产。 |
-| `removedAssets` | `AssetChange[]` | 此前存在、现已消失的资产（仅供参考；从不下载）。 |
-| `changedGroups` | `string[]` | 拥有 ≥1 个变更资产的不同组。 |
-| `totalBytes` | `number` | `changedAssets` 大小之和——进度 UI 的下载量估计。 |
-| `fromRevision` / `toRevision` | `string \| null` | 旧 / 新清单修订号。 |
-
-**`ApplyUpdateResult`**（`applyUpdate` 返回）
+**`UpdatePlan`**（`checkForUpdate` 的返回值）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `ok` | `boolean` | 仅当每个变更资产都下载 + 校验通过且清单已切换时为真。 |
-| `updated` | `number` | 应用了多少个资产（失败时为 `0`）。 |
-| `failed` | `AssetDownloadFailure[]` | 为何回滚——每项 `{ path, reason: 'fetch' \| 'integrity' }`。 |
-| `stages` | `UpdateStages` | 走到了哪一步——见下。光看 `ok` 并不能说明下次启动是否保留这次更新。 |
-| `revision` | `string \| null` | 这次会话之后运行所处的修订号。 |
-| `uncached` | `string[]` | 落盘缓存拒收的变更资产（按 url）——下次启动会再次拉取的那些。 |
-| `reason` | `'nothing-staged'`（可选） | 什么都没尝试：没有暂存的更新（没检查过，或已被另一次 `applyUpdate` 取走）。 |
+| `hasUpdate` | `boolean` | 有任何新增或改动的资产时为 `true`。 |
+| `changedAssets` | `AssetChange[]` | 需要下载的新增或改动资产。 |
+| `removedAssets` | `AssetChange[]` | 不再存在的资产（仅供参考，从不下载）。 |
+| `changedGroups` | `string[]` | 至少包含一个改动资产的分组（去重）。 |
+| `totalBytes` | `number` | `changedAssets` 的大小总和，即下载量估计。 |
+| `fromRevision` / `toRevision` | `string \| null` | 旧、新清单的修订号。 |
 
-**`UpdateStages`**——每一项都是独立的答案：
+**`ApplyUpdateResult`**（`applyUpdate` 的返回值）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `verified` | `boolean` | 每个变更资产都已下载，且与其内容哈希相符。 |
-| `applied` | `boolean` | 这次会话运行在新清单上，其资产也已在它上面稳定下来。 |
-| `persisted` | `boolean \| null` | 下次启动从它开始：已存下并读回。存储拒绝时（配额已满）为 `false`；没有持久化键时为 `null`。 |
-| `cached` | `boolean \| null` | 每个变更的远端资产都在落盘缓存里，下次启动无需网络即可读取。平台不设缓存的地方（Web）为 `null`。 |
+| `ok` | `boolean` | 仅当所有改动资产都已下载并校验、且清单已切换时为 `true`。 |
+| `updated` | `number` | 已应用的资产数量（失败时为 `0`）。 |
+| `failed` | `AssetDownloadFailure[]` | 回滚原因，每项为 `{ path, reason: 'fetch' \| 'integrity' }`。 |
+| `stages` | `UpdateStages` | 应用进行到哪一步（见下）。仅凭 `ok` 无法判断下次启动是否保留该更新。 |
+| `revision` | `string \| null` | 本次会话此后运行的修订号。 |
+| `uncached` | `string[]` | 磁盘缓存拒绝写入的改动资产（按 URL）；下次启动会重新获取。 |
+| `reason` | `'nothing-staged'`（可选） | 未做任何尝试：没有暂存的更新，或已被另一次 `applyUpdate` 取走。 |
 
-`updateStatus()` 随时回答同样的问题：当前运行的修订号、下次启动所起始的修订号、暂存了什么以及它会下载什么，
-以及是否正在应用。
+**`UpdateStages`**
 
-## 按需组（DLC）
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `verified` | `boolean` | 所有改动资产均已下载且与内容哈希一致。 |
+| `applied` | `boolean` | 本次会话运行在新清单上，其资产已切换完成。 |
+| `persisted` | `boolean \| null` | 下次启动从新清单开始（已存储并回读确认）。存储被拒绝（配额已满）时为 `false`；没有持久化键时为 `null`。 |
+| `cached` | `boolean \| null` | 所有改动的远端资产都在磁盘缓存中，下次启动无需网络即可读取。平台没有磁盘缓存（Web）时为 `null`。 |
 
-除了热更新，远端组也是一条**可下载内容**通道：游戏可以在玩家到达某内容支撑的区域时拉取整个组，离开时释放。
+`updateStatus()` 随时报告相同的信息：当前运行的修订号、下次启动的修订号、暂存的内容及其下载量，以及是否正在应用。
+
+## 按需分组
+
+远端分组也可以作为可下载内容加载：玩家到达相应内容时加载整个分组，离开后释放。
 
 ```ts
-// 玩家进入「第二世界」——从 CDN 拉取它的远端组。
+// Player enters "world 2" — pull its remote group from the CDN.
 const bundle = await assets.loadGroup('world2', (loaded, total) => {
   showProgress(loaded / total);
 });
-// ……稍后玩家离开：
+// ...later, player leaves:
 assets.releaseGroup('world2');
 ```
 
-`loadGroup` 通过与其它一切相同的类型化加载器暖起缓存，`releaseGroup` 按引用计数释放——被另一个场景仍持有的资产会存活。完整的组模型见 [资源 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)。
+`loadGroup` 与其他资产使用相同的类型化加载器，`releaseGroup` 按引用计数释放：仍被其他场景持有的资产会保留。见[资产 → 寻址组](/docs/zh-cn/assets/overview/#寻址组懒加载)。
 
 ## 完整性、原子性与回滚
 
-`applyUpdate` 是**两相、要么全成要么全不**的：
+`applyUpdate` 分两个阶段运行：
 
 <Steps>
 
-1. **下载 + 校验。** 每个变更资产都被拉取，其字节被哈希并与清单的 `contentHash` 比对。下载失败、或字节不匹配（被破坏或篡改的 CDN 响应），都记为一次失败。此阶段**不触碰**活动清单。
-2. **提交。** 只有当*每个*资产都成功时，更新才提交——切换清单与根地址、重绑运行中的句柄、持久化新清单。
+1. **下载并校验。** 获取每个改动的资产，计算哈希并与清单中的 `contentHash` 比较。下载失败或哈希不符（响应损坏或被篡改）记为失败。此阶段不修改当前清单。
+2. **提交。** 仅当所有资产都成功时：切换清单和根地址、重新绑定运行中的句柄，并持久化新清单。
 
 </Steps>
 
-若第 1 相出现任何失败，则**什么都不应用**：旧清单保持活动（干净回滚），`applyUpdate` 返回 `{ ok: false, failed }`。半应用的更新不可能出现。
+若第 1 阶段出现任何失败，则不应用任何内容：原清单保持生效，`applyUpdate` 返回 `{ ok: false, failed }`。
 
 <Aside type="caution">
-  cook 出的 Web 构建默认强制**同源 CSP**——从不同源（不同主机或端口）拉取清单或资产会被拦截，除非你的 CDN 送出正确的 CORS 头。请把清单与资产放在游戏被允许访问的源上。
+  烘焙后的 Web 构建默认启用**同源 CSP**。从其他源（不同主机或端口）获取清单或资产会被拦截，除非 CDN 返回所需的 CORS 头。请从游戏允许访问的源提供清单和资产。
 </Aside>
 
-## 持久化与离线
+## 持久化与离线启动
 
-当设了 `persistUpdateKey` 时（导出会自动设置），`applyUpdate` 会把已应用的清单存入平台存储。下次启动时运行时调用 `restorePersistedUpdate(key)`，玩家便**直接从已更新的内容开始**。在有落盘缓存的目标上，校验过的字节也会写进去，
-于是已更新的资产**无需网络**即可加载；`stages.cached` 说明它们是否全部写入。
+设置了 `persistUpdateKey`（导出会设置）时，`applyUpdate` 将已应用的清单保存到平台存储。下次启动时运行时调用 `restorePersistedUpdate(key)`，游戏从更新后的内容开始。在有磁盘缓存的目标上，校验过的字节也会写入缓存，因此更新后的资产无需网络即可加载；`stages.cached` 报告是否全部写入。见[设备磁盘缓存](/docs/zh-cn/publishing/content-cache/)。
 
-已存下的更新属于打出它的那个包。玩家安装更新的构建时（新的 Web 部署、应用商店更新），存下的更新比随包发布的更旧，
-所以会被丢弃，游戏从新包开始。
+已存储的更新属于应用它时所在的包。安装了更新的构建（新的 Web 部署、应用商店更新）后，已存储的更新比随包内容旧，会被丢弃。
 
-应用一次只跑一个。另一次下载进行中发现的更新仍保持暂存，应用它时只下载第一次没带来的部分。
+更新一次只应用一个。另一个正在下载时发现的更新保持暂存；应用它时只下载前一次未带来的内容。
 
 ## 平台支持
 
-| 目标 | 清单 + diff | CDN 拉取 | 持久化 | 落盘缓存 |
+| 目标 | 清单与比对 | CDN 获取 | 持久化 | 磁盘缓存 |
 | --- | --- | --- | --- | --- |
-| **Web** | ✅ | ✅（受 CORS/CSP 约束） | `localStorage` | —（下次启动重新从 CDN 拉取） |
-| **桌面** | ✅ | ✅ | ✅ | ✅（内容寻址） |
-| **小游戏**（微信、抖音……） | ✅ | ✅ | ✅ | ✅（宿主的用户数据目录） |
-| **原生（iOS / Android）** | ✅ | ✅ | ✅ | ✅ |
+| **Web** | 支持 | 支持（受 CORS 和 CSP 约束） | `localStorage` | 无；下次启动从 CDN 重新获取 |
+| **桌面** | 支持 | 支持 | 支持 | 支持（内容寻址） |
+| **小游戏**（微信、抖音等） | 支持 | 支持 | 支持 | 支持（宿主的用户数据目录） |
+| **原生（iOS、Android）** | 支持 | 支持 | 支持 | 支持 |
 
-清单 diff 是纯粹且平台无关的；只有拉取、存储与落盘缓存原语按平台不同，运行时会挑选正确的那一个。
+比对与平台无关；只有获取、存储和磁盘缓存原语因平台而异。
 
-## 最佳实践
+## 建议
 
-- **把可热更的内容放进独立文件夹**并标为远端——核心游戏保持本地，让安装包无网也能启动。
-- **给检查加锁**，藏在启动时的一次性开关或「检查更新」按钮后；不要每帧调用 `checkForUpdate`。
-- **展示体积。** `checkForUpdate` 在你提交前就给出 `totalBytes` 与文件数——在移动数据网络下大下载前提示玩家。
-- **处理 `ok: false`。** 失败的更新会干净回滚；稍后重试，而不是假定成功。
-- **善用导出配置档。** 项目自己的根地址指向测试桶（或留空走同源），给正式配置档配上真正的 CDN，这样每次构建都会带上正确的根地址。
-- **用清单 URL 做版本。** 灰度发布 / A-B 通道无非是不同的 `manifestUrl`——给不同客户端发同一 CDN 上不同的清单。
+- 将可热更新的内容放在专门的远端文件夹中，游戏核心保持本地，使包在无网络时也能启动。
+- 只在启动时或通过按钮检查一次，不要每帧检查。
+- 在移动网络下进行大量下载之前，显示 `totalBytes` 和文件数量。
+- 处理 `ok: false`：更新已回滚，可稍后重试。
+- 使用导出配置档：项目根地址指向测试存储桶（或留空使用同源），正式 CDN 放在正式配置档中。
+- 在同一 CDN 上通过不同的 `manifestUrl` 实现分阶段发布或 A/B 渠道。
 
 ## 参见
 
-- [资源](/docs/zh-cn/assets/overview/)——引用、清单、类型化加载器与组模型。
-- [构建与导出](/docs/zh-cn/publishing/overview/)——CDN 根地址与 `asset-manifest.json` 从哪里来。
-- [微信小游戏](/docs/zh-cn/publishing/wechat/)——分包如何映射到这里的交付组。
+- [资产](/docs/zh-cn/assets/overview/)——引用、清单、类型化加载器与分组模型。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——CDN 地址与导出配置档。
+- [设备磁盘缓存](/docs/zh-cn/publishing/content-cache/)——查看和清理已缓存的修订版本。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)——分包与交付组的对应关系。

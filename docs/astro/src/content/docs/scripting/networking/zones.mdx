@@ -1,0 +1,168 @@
+---
+title: Zones
+description: One world across several server processes with esengine/zones — ZoneDirectory, PlayerLeases and TransferTickets, ZoneHost, transfers and login routing, failure recovery with entry addresses, draining a zone, and the message bus between zones.
+---
+
+A server process holds a limited number of players. A larger world is split into **zones** — a map, a line of a map,
+an instance — each running in its own process, with players moving between them. `esengine/zones` provides the shared
+parts, on top of one [`PersistStore`](/docs/scripting/networking/persistence/#stores) that all zones use (a database
+adapter makes it span machines).
+
+| Component | Role |
+|---|---|
+| `ZoneDirectory` | Each zone announces its id, the address clients dial, a `kind` and its load on a heartbeat. An entry not refreshed within `ttlMs` is a zone that is gone. `pick(kind)` returns the zone of that kind with the most room. |
+| `PlayerLeases` | Which zone a player is in, as one record. A zone takes the lease on login, renews it while the player stays, and releases or hands it on when they leave. Versioned writes ensure two zones racing for one player cannot both succeed; a crashed zone's players are released when their leases expire. |
+| `TransferTickets` | Single-use, expiring passes from one zone to another, carrying what the arrival needs (a spawn point, a portal id). |
+| `ZoneHost` | Runs one zone's side of all three over a [replication server](/docs/scripting/networking/replication/) and `PlayerPersistence`. |
+
+## `ZoneHost`
+
+```ts
+import { ZoneHost } from 'esengine/zones';
+
+const zone = new ZoneHost({
+    zone: { id: 'forest#1', address: 'wss://forest1.example.com', kind: 'forest', capacity: 300 },
+    store,                          // shared by every zone
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    players,                        // a PlayerPersistence, optional
+});
+const server = net.startServer({ authenticate: zone.authenticate });
+zone.attach(server);
+await zone.start();
+
+// every tick
+zone.tick();
+// spawn a pawn for each present player once players.isReady(playerId); a player who
+// arrived by transfer has their arrival data in zone.takeArrival(playerId)
+
+// a portal: write the record, then transfer the player
+players.set(playerId, { ...record, hp });
+await zone.transfer(connectionId, 'town', { portal: 'north-gate' });
+```
+
+A transfer runs in a fixed order: the player's record is written, the lease is handed to the destination, a ticket is
+issued, and then the client is told where to go. The destination zone therefore loads the record just written, and no
+other zone writes it again.
+
+## Login routing
+
+Any zone accepts a login and sends the player where they belong:
+
+1. The game's `authenticate` identifies the player.
+2. A player online in another zone is sent there, replacing their older connection — one player is never in two zones,
+   and a second login takes precedence across zones.
+3. A player held by a zone that has stopped heartbeating is taken over without waiting for the lease to expire.
+4. The route decides the destination:
+
+```ts
+const zone = new ZoneHost({
+    zone, store, authenticate, players,
+    home: 'town',                       // new players, and anyone with no other destination
+    route: async (ctx) => {             // optional game-specific routing
+        if (ctx.last?.kind === 'dungeon') return { zone: 'town', arrival: { at: 'dungeon-gate' } };
+        return ctx.defaultRoute();      // where they logged out, else a live zone of the same kind,
+    },                                  // else home, else this zone
+});
+```
+
+A routed player is handed on like a transfer (lease, ticket), and their hello is answered with a redirect. A client
+configured with `dial` follows it automatically; `net.connect` resolves once the client is in the zone it was sent to.
+
+## Client configuration
+
+```ts
+const client = await net.connect(socket, {
+    credentials: { token }, reconnect: true,
+    dial: (url) => createSocket({ url }),
+    entry: 'wss://play.example.com',    // where to log in again if its zone is gone
+});
+client.onStateChange((state) => {       // every state change, as it happens
+    if (state === 'reconnecting') showBanner('Reconnecting…');
+    if (state === 'ready') hideBanner(); // client.serverId identifies the current server
+});
+```
+
+| Option | Description |
+|---|---|
+| `dial(url)` | Opens a transport to an address a server names. Required to follow redirects and transfers. |
+| `entry` | An address, or a list tried in order, to log in again at after `entryAfterMs` (default 3 s) of failed redials — typically a load-balanced address in front of the zones. |
+
+On transfer, the client drops every ghost of the zone it left (net ids belong to one server), connects to the new zone
+presenting its ticket, and from then on reconnects there like after any drop; `state` is `'transferring'` in between.
+Without `dial`, a transfer ends the client with `closeReason` `'transfer'` and `transferTarget` naming the destination.
+`server.transfer(id, { address, ticket })` is the replication-level step `ZoneHost` uses, for games with their own
+hand-off.
+
+## Failure recovery
+
+- Zones heartbeat every second (`heartbeatMs`). A transfer goes only to a zone heard from within three heartbeats, not
+  within the directory's whole time-to-live.
+- A player sent to a zone at the moment it fails returns automatically: the hand-over lease lasts only
+  `arrivalLeaseMs` (default 3 s) until the destination takes it up, and the client returns to the zone it left (the
+  transfer names it as a fallback) and logs in again there once the lease expires.
+- A player whose own zone fails finds another automatically when the client has `entry`. The zone reached takes the
+  player over from the failed zone and routes them like any login.
+
+## Draining a zone
+
+For a rolling update, or to remove a line, the zone is drained instead of stopped:
+
+```ts
+process.on('SIGTERM', async () => {
+    const { moved, kicked } = await zone.drain({ deadlineMs: 30_000 });
+    process.exit(0);
+});
+// zone.tick() continues to be called until drain resolves
+```
+
+- The zone is marked draining immediately: `pick`, the default route and every transfer skip it, and a login there is
+  sent on.
+- Every player it holds is transferred where the route says, with `reason: 'drain'` (by default another live zone of
+  its kind, otherwise `home`), a few at a time (`concurrency`).
+- Players the route has no destination for, or whose transfer keeps failing, are kicked at `deadlineMs` with their
+  record written; then the zone stops (`stop()`).
+- A new process can take the zone's id as soon as the old one is gone.
+
+## Messages between zones
+
+Zones communicate over a **bus**: a message published to a topic reaches every process subscribed to it. Delivery is
+at most once, as on a Redis channel; data that must arrive eventually (mail, a trade result) is written to the store,
+and the bus signals that it is there.
+
+| Bus | Scope |
+|---|---|
+| `MemoryBus` | Zones in one process. |
+| `BusHub` + `RemoteBus` | Across processes. One process hosts the `BusHub` (each accepted `ws` socket is passed to it); each zone uses a `RemoteBus`, which redials a lost hub and resubscribes. |
+| Custom | A Redis or NATS adapter implements the two methods of `ZoneBus`. |
+
+```ts
+import { ZoneHost, RemoteBus, BusHub } from 'esengine/zones';
+
+// one process hosts the hub
+const hub = new BusHub();
+busWss.on('connection', (socket) => hub.accept(socket));
+
+// every zone
+const bus = new RemoteBus({ connect: () => createSocket({ url: 'wss://bus.internal' }) });
+const zone = new ZoneHost({ zone, store, bus, authenticate, players });
+
+// a whisper from a player here to a player anywhere
+server.onMessage('whisper', (id, d) => {
+    void zone.sendToPlayer(d.to, 'whisper', { from: server.playerIdOf(id), text: d.text });
+});
+await zone.kickPlayer('ana', 'banned');               // wherever she is
+zone.broadcastZones('event', { name: 'double-xp' });   // every zone receives it
+zone.onZoneMessage('event', (data, fromZone) => { /* … */ });
+```
+
+| Method | Description |
+|---|---|
+| `sendToPlayer(playerId, type, data)` | Delivers to the player's client (`client.onMessage`), unless the zone holding the player handles the type with `onPlayerMessage`. |
+| `kickPlayer(playerId, reason)` | Kicks a player in whichever zone holds them. |
+| `broadcastZones(type, data)` / `onZoneMessage(type, handler)` | Messages to and from every zone. |
+
+A player in the middle of a transfer is not missed: messages arriving for them while they leave are forwarded, and the
+destination zone holds them (3 s, 32 messages) until the player is connected.
+
+A world that is seamless across zone borders — entities on both sides of a border visible from either — is not
+provided.

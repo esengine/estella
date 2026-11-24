@@ -1,0 +1,144 @@
+---
+title: Audio
+description: Audio reference — backends, the Audio resource, sound effects and music, layered stems, intro-then-loop music, playback handles, the decoded-buffer cache and the full Audio API.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Audio` resource plays one-shot effects and looping music, returns a handle per sound, routes sounds through a bus
+hierarchy ([Mixer](/docs/assets/audio/mixer/)) and positions sounds in the world through `AudioSource`
+([Sources & Spatial Audio](/docs/assets/audio/sources/)).
+
+| Platform | Backend |
+|---|---|
+| Web browsers | Web Audio |
+| WeChat and other mini-game hosts | One player per sound |
+| iOS and Android apps | The native host's audio engine (miniaudio) |
+
+## Model
+
+`Audio` is a per-App resource and is registered by default; no plugin is required. Sound files are decoded into
+**buffers**, cached on first use, and played on a **bus** (a named volume group). Each play returns an `AudioHandle` that
+controls that one sound.
+
+<Aside type="note">
+  Browsers block audio until a user gesture. Start the first playback from a tap or key press.
+</Aside>
+
+### Buffer cache
+
+Decoded buffers are kept in a **byte-budgeted warm cache**, the audio counterpart of the texture budget
+([Lifetime & Memory](/docs/assets/memory/#warm-cache)). A buffer released by asset lifetime remains playable and is
+revived without a new download or decode; the least recently used unheld buffers are dropped once the budget is
+exceeded. The default budget is 32 MB (`RuntimeConfig.audioCacheBudget`, or `audioCacheBudget` in the build config). On
+an OS memory warning the engine trims the whole warm cache; sounds that are playing continue.
+
+Two clip references that resolve to the same packaged file share a buffer when their load mode, encoder lead and clip
+length match, so a file can be streamed as music and preloaded as a decoded effect in either order. Invalidating the file
+clears all of its cached variants; voices already playing finish.
+
+## Sound effects and music
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+const play = defineSystem([Res(Audio)], (audio) => {
+  const sfx = audio.playSFX('assets/hit.wav', { volume: 1, pitch: 1, pan: 0 });
+  audio.playBGM('assets/theme.ogg', { fadeIn: 0.5, crossFade: 1.0 });
+});
+```
+
+`playSFX` plays a one-shot on the `sfx` bus and returns a handle. `playBGM` loops a track on the `music` bus, replacing the
+current track, optionally cross-fading. Both load an uncached clip first and play it when ready.
+
+### Layered music
+
+A piece exported as stems (one clip per instrument, all the same length) plays as layers: every stem starts on the same
+sample, they loop together, and each has its own level.
+
+```typescript
+const music = audio.playLayers(
+  { drums: 'assets/music/theme_drums.wav', bass: 'assets/music/theme_bass.wav', lead: 'assets/music/theme_lead.wav' },
+  { mix: 'assets/music/theme.wav', levels: { lead: 0 }, fadeIn: 1 },
+);
+music.setLayer('lead', 1, 2);   // to level 1 over two seconds
+music.setLayer('drums', 0, 4);  // to silence over four seconds
+```
+
+- Layers are the background music: they replace what `playBGM` was playing, and `stopBGM` ends them.
+- Sample-aligned layers require decoded clips (`loadType: 'decompress'`, [Audio Import](/docs/assets/audio/import/)) on
+  the web or the native host.
+- Where each clip is its own player (mini-games, or clips played from their compressed file), the `mix` clip plays
+  instead and `music.layered` is `false`. Without a `mix`, the layers are started one after another and may drift.
+
+### Intro, then loop
+
+A piece with an introduction is one file: it plays from the start once and, each time it reaches its end, returns to
+`loopStart` seconds:
+
+```typescript
+audio.playBGM('assets/theme.ogg', { loopStart: 12.5, fadeIn: 1 });
+```
+
+The loop point is sample-exact for decoded clips (decoded web clips and the native host). A clip played from its
+compressed file (a long clip streamed on the web, a mini-game) is restarted by its player when it ends, which can leave an
+audible gap; use `loadType: 'decompress'` for pieces whose join matters.
+
+## Controlling a sound
+
+```typescript
+const shot = audio.playSFX('assets/laser.wav');
+shot.setVolume(0.6);
+shot.setPan(-0.5);           // -1 left … +1 right
+shot.setPlaybackRate(1.2);   // speed and pitch
+shot.setLoop(true);
+shot.pause(); shot.resume(); shot.stop();
+shot.onEnd = () => { /* finished */ };
+```
+
+| `AudioHandle` member | Kind | Description |
+|---|---|---|
+| `setVolume(v)` | method | Volume, 0–1. |
+| `setPan(p)` | method | Stereo pan, `-1` (left) to `+1` (right). |
+| `setPlaybackRate(r)` | method | Playback speed and pitch (`1` = normal). |
+| `setLoop(l)` | method | Loop the sound. |
+| `pause()` / `resume()` / `stop()` | method | Transport control. |
+| `onEnd` | callback | Called once when the sound finishes. |
+| `isPlaying` | read-only | Whether it is playing. |
+| `currentTime` | read-only | Playback position in seconds. |
+| `duration` | read-only | Length in seconds. |
+
+## `Audio` API
+
+| Method | Description |
+|---|---|
+| `playSFX(url, config?)` | Play a one-shot on `sfx`; returns an `AudioHandle`. Config: `volume`, `pitch`, `pan`, `priority`. |
+| `playBGM(url, config?)` | Loop music, replacing the current track. Config: `volume`, `fadeIn`, `crossFade`, `loopStart`. |
+| `playLayers(layers, config?)` | Play stems as layered music. Config: `mix`, `volume`, `levels`, `fadeIn`, `crossFade`, `loopStart`. |
+| `playTrack(url, config?)` | Play a clip on a chosen `bus` ([Mixer](/docs/assets/audio/mixer/#custom-buses)). |
+| `stopBGM(fadeOut?)` | Stop the music, optionally fading out over `fadeOut` seconds. |
+| `stopAll()` | Stop every playing sound. |
+| `setMasterVolume(v)` / `setMusicVolume(v)` / `setSFXVolume(v)` / `setUIVolume(v)` | Set a built-in bus volume (0–1). |
+| `setBusVolume(name, v)` / `muteBus(name, muted)` | Set the volume of / mute any bus by name. |
+| `preload(url)` / `preloadAll(urls)` | Decode and cache clips ahead of time (async). |
+| `getBufferHandle(url)` | The cached buffer for `url`, or `undefined`. |
+| `getSpectrum(out)` | Fill a `Uint8Array` with the master output's frequency spectrum (0–255 per bin, low to high). Returns `false` on backends without analysis (WeChat). |
+| `setBufferBudget(bytes)` | Override the warm-cache budget; `null` restores the `RuntimeConfig` value, `0` disables the cache. |
+| `getBufferStats()` | Residency counters: `bufferCount`, `bufferBytes`, `bufferBudget`, `evictableCount`. |
+| `trimBufferCache()` | Free every unused cached buffer (called by the engine on OS memory warnings). |
+
+Bus effects, ducking and voice limits are described in [Mixer](/docs/assets/audio/mixer/).
+
+## Guidelines
+
+- Preload clips needed at time-critical moments (`preload` / `preloadAll`) so the first play does not wait for decoding.
+- Start the first sound from a user gesture.
+- Route sounds to separate buses (`music`, `sfx`, `ui`, `voice`) so players can balance them.
+- Use `AudioSource` for sounds attached to world objects and `playSFX` for one-shot UI and gameplay sounds.
+
+## See also
+
+- [Sources & Spatial Audio](/docs/assets/audio/sources/)
+- [Mixer](/docs/assets/audio/mixer/)
+- [Sound Events](/docs/assets/audio/sound-events/)
+- [Audio Import](/docs/assets/audio/import/)

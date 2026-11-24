@@ -1,0 +1,127 @@
+---
+title: 3D 物理基础
+description: 3D 物理参考——Jolt 与 PhysX 侧模块、Physics3DPlugin 的安装与配置、求解器选择、世界单位、碰撞层、运行时调试叠加层，以及本章各页面。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+3D 物理是一个刚体世界，默认运行在 **Jolt Physics** 上，项目选择时也可运行在 **PhysX** 上，位于独立的 WebAssembly 模块中。它与 [2D 物理](/docs/zh-cn/gameplay/physics-2d/overview/)相互独立：两者使用各自的组件与求解器，不使用任何 3D 刚体的项目不会加载 3D 模块。
+
+## 安装
+
+在编辑器和 Web 运行时中，场景使用 3D 刚体时会自动加载 3D 模块。自定义应用需添加插件：
+
+```typescript
+import { Physics3DPlugin } from 'esengine/physics3d';
+
+app.addPlugin(new Physics3DPlugin('physics3d.js', { gravity: { x: 0, y: -9.81, z: 0 } }));
+```
+
+`physics3dPlugin(url, config)` 是等价的工厂函数。所有配置字段均可选：
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `gravity` | `{ x: 0, y: -9.81, z: 0 }` | 世界重力，m/s²。 |
+| `fixedTimestep` | `1/60` | 物理步长（秒）。插件同时将应用的固定步长设为该值。 |
+| `collisionSteps` | `1` | 每个物理步的碰撞步数。 |
+| `pixelsPerUnit` | `100` | 每米的世界单位数。 |
+| `maxBodies` | `1024` | 世界中刚体的最大数量。 |
+| `layerMasks` | 无 | 碰撞矩阵，每层一个掩码（[碰撞层](#碰撞层)）。缺省时所有层两两碰撞。 |
+| `velocityIterations` / `positionIterations` | `0` / `0` | 求解器迭代次数；`0` 使用后端自身的值（Jolt 10 / 2，PhysX 1 / 6）。 |
+| `enableSleep` | `true` | 静止刚体停止模拟，直到被触碰。 |
+| `bounceThreshold` | `0` | 低于该速度（m/s）的撞击不反弹；`0` 使用后端自身的值（Jolt 1，PhysX 2）。 |
+
+`RigidBody3D`、3D 碰撞体与关节、`CharacterController3D`、`Ragdoll`、`Physics3D`、`Physics3DEvents` 与 `Physics3DDebugDraw` 从主 `esengine` 入口导出；`CompoundCollider3D`、`Hitboxes` 与 `hitPartOf` 从 `esengine/physics3d` 导出。玩法控制器（`ThirdPersonController`、`FirstPersonController`、`MeleeAttack`、`Health`、`Damage` 等）来自 `esengine/gameplay`。
+
+## 选择求解器
+
+3D 世界默认运行在 Jolt 上。**项目设置 → 物理 → 3D 求解器**可切换为 PhysX。清单中以如下形式保存该选择：
+
+```json
+"features": { "physics": { "backend3d": "physx" } }
+```
+
+两个后端实现相同的组件、关节、角色、查询与碰撞事件，引擎的 3D 物理行为检查针对两者分别运行（`node tools/check-physics3d.mjs`、`node tools/check-physics3d-physx.mjs`）。构建只包含所选模块：Jolt 为 `physics3d.wasm`，PhysX 为 `physics3d-physx.wasm`。编辑器 Play 使用同一选择。
+
+PhysX 的配置为：投影 Gauss-Seidel、patch 摩擦、摩擦与弹性按平均值组合、0.01 m 接触偏移、2 m/s 反弹阈值、0.005 休眠阈值、6 次位置迭代与 1 次速度迭代，以及 50 rad/s 的最大角速度。两个后端存在差异的行为：
+
+| 行为 | Jolt | PhysX |
+|---|---|---|
+| 角色进入触发器 | 不报告：Jolt 角色不是刚体。 | 报告。 |
+| 刚体在触发器内进入休眠 | 报告为离开。 | 仍在其中。 |
+| 角色皮肤厚度 | — | 角色半径的十分之一；PhysX 角色因此比 Jolt 角色站得高出这一距离。 |
+| 角色遇到不高于其台阶高度的动态刚体 | — | 爬上去；更高的刚体会被以不超过角色推力的力推动。 |
+
+PhysX Web 模块为 3.5 MB（gzip 后 1.14 MB）；Jolt 模块为 1.3 MB。对于混沌场景（例如球擦过铰接门的边缘），两个求解器可能产生不同结果。
+
+| 平台 | 求解器 |
+|---|---|
+| Web、Windows、Linux、Android | 项目的选择。Windows 可执行文件同时编译两个求解器（增加 4 MB）。Android 包仅在项目选择 PhysX 时携带 `libestella_physx.so`（每个 ABI 约增加 2 MB 下载量、4.9 MB 安装体积）。 |
+| macOS、iOS | 仅 Jolt。PhysX 项目在这些平台上运行于 Jolt，并在启动时记录一次日志。 |
+
+## 单位
+
+尺寸、位置与速度以**世界单位**创作，以米传给求解器，按 `pixelsPerUnit` 换算（默认 100，与 2D 世界相同）。组件默认值按每米 100 单位的参考比例书写：默认的 `BoxCollider3D` 是 1 m 的立方体（`halfExtents` 为 50）。
+
+质量为千克，角度为弧度，力为牛顿，力矩为牛·米。通过 `Physics3D.setGravity` 设置的重力以 m/s² 为单位。
+
+## 碰撞层
+
+每个刚体位于十六个层之一（`RigidBody3D.layer`、`CharacterController3D.layer`、`MeshCollider3D.layer`）。插件的 `layerMasks` 规定哪些层相互碰撞：当 `layerMasks[i]` 的第 *j* 位置位，**且** `layerMasks[j]` 的第 *i* 位置位时，层 *i* 与层 *j* 碰撞。任意一方拒绝即可使两者分离。
+
+```typescript
+app.addPlugin(physics3dPlugin(url, {
+  layerMasks: [
+    0xFFFF,             // 0: everything
+    0xFFFF,             // 1: the world
+    ~(1 << 3),          // 2: bullets — not their own team
+    0xFFFF,             // 3: that team
+  ],
+}));
+```
+
+<Aside type="note">
+  3D 刚体只有单个层，而不是 2D 世界的 category/mask 位集。刚体的层在其进入世界时固定，因此插件会在创建任何刚体之前安装碰撞矩阵。
+</Aside>
+
+查询与事件的层掩码使用相同的编号；掩码为 `0` 表示所有层。
+
+## 同一场景中的 2D 与 3D
+
+2D 世界与 3D 世界互不可见：2D 碰撞体不会阻挡 3D 刚体。实体可以同时带有两类组件，但它们不会合并。每个场景使用其中之一。
+
+## 调试绘制
+
+在编辑器中，视口在**物理**显示标记下将每个 3D 碰撞体绘制为线框（[查看形状](/docs/zh-cn/gameplay/physics-3d/bodies/#查看形状)）。编辑器 gizmo 在 Play 中隐藏；`Physics3DDebugDraw` 资源绘制运行中游戏的碰撞体与接触：
+
+```typescript
+app.getResource(Physics3DDebugDraw).enabled = true;
+```
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `enabled` | `false` | 叠加层总开关。 |
+| `showColliders` | `true` | 求解器构建的每个刚体的形状。 |
+| `showContacts` | `false` | 在本步报告的每个接触点绘制一个十字。 |
+
+叠加层只绘制求解器实际构建的内容；被禁用的碰撞体不绘制。它忽略深度缓冲，因此位于其他几何内部的形状仍然可见。
+
+![3D 物理示例运行中，盒子、球体、胶囊与圆锥上叠加着碰撞体轮廓](@/assets/guides/zh/play-physics-3d.png)
+
+*开启物理调试绘制的 3D 物理示例：每个碰撞体都被描出轮廓。*
+
+## 本章页面
+
+- [刚体与形状](/docs/zh-cn/gameplay/physics-3d/bodies/)——`RigidBody3D`，基本形状、网格、凸包与复合碰撞体。
+- [查询、力与事件](/docs/zh-cn/gameplay/physics-3d/queries/)——`Physics3D` 资源与 `Physics3DEvents`。
+- [关节](/docs/zh-cn/gameplay/physics-3d/joints/)——七种 3D 关节组件。
+- [角色](/docs/zh-cn/gameplay/physics-3d/characters/)——`CharacterController3D`、第三人称与第一人称控制器。
+- [近战与命中盒](/docs/zh-cn/gameplay/physics-3d/combat/)——`MeleeAttack`、`Health`、`Damage` 事件总线与 `Hitboxes`。
+- [布娃娃](/docs/zh-cn/gameplay/physics-3d/ragdolls/)——`Ragdoll` 与 `RagdollJoint`。
+- [可破碎物体](/docs/zh-cn/gameplay/physics-3d/breakables/)——`Breakable` 与 `Broke` 事件。
+
+## 另请参阅
+
+- [2D 物理](/docs/zh-cn/gameplay/physics-2d/overview/)——Box2D 世界。
+- [导航网格](/docs/zh-cn/gameplay/ai/navigation/navmesh/)——由 3D 碰撞几何烘焙的导航。
+- [变换](/docs/zh-cn/core-concepts/transforms/)——世界单位与组合后的位姿。

@@ -1,0 +1,99 @@
+---
+title: 关节
+description: 2D 关节参考——六种关节组件及其字段、Physics2D 的关节控制方法、马达关节、编辑器中的关节 gizmo，以及指针拖拽关节。
+---
+
+关节约束两个刚体。它以组件形式添加到其中一个刚体的实体上，或通过 `Physics2D` 资源在代码中创建，再通过马达与限位方法驱动。
+
+![各关节类型及其约束——Revolute、Distance、Prismatic、Weld、Wheel、Motor](@/assets/guides/physics-joints.svg)
+
+*各关节的约束：**Revolute** 铰链（绕销钉转动）、**Distance** 弹簧或连杆、**Prismatic** 滑轨（单轴）、刚性 **Weld** 焊接、**Wheel** 车轮（悬挂与自由旋转），以及 **Motor** 马达（驱向目标速度）。*
+
+## 关节组件
+
+| 组件 | 求解器关节 | 约束 |
+|---|---|---|
+| `HingeJoint2D` | Revolute | 绕共享点旋转，可选限位与马达。 |
+| `DistanceJoint2D` | Distance | 两个锚点之间的距离：连杆、弹簧、限位与马达。 |
+| `SliderJoint2D` | Prismatic | 沿单轴平移，可选弹簧、限位与马达。 |
+| `FixedJoint2D` | Weld | 刚性连接，可选线性与角向弹性。 |
+| `WheelJoint2D` | Wheel | 悬挂轴加自由旋转。 |
+| `MotorJoint2D` | Motor | 驱动本实体相对被连接刚体达到目标速度。 |
+
+关节自身的实体是刚体 B；`connectedEntity` 指定刚体 A。锚点以世界像素计，位于所属刚体的坐标系中。每个关节组件还有 `collideConnected`（`false`：两个刚体互不碰撞）与 `enabled`（`true`）。
+
+| 组件 | 字段（默认值） |
+|---|---|
+| `HingeJoint2D` | `anchorA`、`anchorB`（`{0, 0}`）；`enableMotor`（`false`）、`motorSpeed`（`0`，rad/s）、`maxMotorTorque`（`0`）；`enableLimit`（`false`）、`lowerAngle`、`upperAngle`（`0`，弧度）。 |
+| `DistanceJoint2D` | `anchorA`、`anchorB`；`length`（`1`）；`enableSpring`（`false`）、`hertz`（`1`）、`dampingRatio`（`0.5`）；`enableLimit`（`false`）、`minLength`（`0.5`）、`maxLength`（`2`）；`enableMotor`（`false`）、`maxMotorForce`（`0`）、`motorSpeed`（`0`）。 |
+| `SliderJoint2D` | `anchorA`、`anchorB`；`axis`（`{1, 0}`，位于被连接刚体的坐标系中）；`enableSpring`（`false`）、`hertz`（`1`）、`dampingRatio`（`0.5`）；`enableLimit`（`false`）、`lowerTranslation`、`upperTranslation`（`0`）；`enableMotor`（`false`）、`maxMotorForce`（`0`）、`motorSpeed`（`0`）。 |
+| `FixedJoint2D` | `anchorA`、`anchorB`；`linearHertz`、`angularHertz`（`0` 为刚性）；`linearDampingRatio`、`angularDampingRatio`（`1`）。 |
+| `WheelJoint2D` | `anchorA`、`anchorB`；`axis`（`{0, 1}`）；`enableSpring`（`true`）、`hertz`（`5`）、`dampingRatio`（`0.7`）；`enableLimit`（`false`）、`lowerTranslation`、`upperTranslation`（`0`）；`enableMotor`（`false`）、`maxMotorTorque`（`0`）、`motorSpeed`（`0`）。 |
+| `MotorJoint2D` | `linearVelocity`（`{0, 0}`，世界像素/秒）、`maxVelocityForce`（`0`）；`angularVelocity`（`0`，rad/s）、`maxVelocityTorque`（`0`）；弹簧位置控制 `linearHertz`、`linearDampingRatio`、`maxSpringForce`、`angularHertz`、`angularDampingRatio`、`maxSpringTorque`（均为 `0`；`0` 赫兹即仅速度马达）。 |
+
+## 在代码中创建与控制关节
+
+```typescript
+// A hinge with a motor (a powered wheel or swinging door).
+physics.createRevoluteJoint(bodyA, bodyB, anchorA, anchorB, {
+  enableMotor: true, motorSpeed: 6, maxMotorTorque: 200,
+  enableLimit: true, lowerAngle: -1.0, upperAngle: 1.0,
+});
+
+physics.setRevoluteMotorSpeed(bodyA, 10);
+physics.setRevoluteLimits(bodyA, -0.5, 0.5);
+const angle = physics.getRevoluteAngle(bodyA);
+physics.destroyJoint(bodyA);
+```
+
+`createRevoluteJoint` 的锚点以**米**为单位，与关节组件的像素锚点不同。
+
+| 关节 | 控制方法 |
+|---|---|
+| Revolute（铰链） | `setRevoluteMotorSpeed`、`setRevoluteMaxMotorTorque`、`enableRevoluteMotor`、`enableRevoluteLimit`、`setRevoluteLimits`、`getRevoluteAngle`、`getRevoluteMotorTorque`。 |
+| Distance（弹簧） | `setDistanceJointLength`、`getDistanceJoint*Length`、`enableDistanceJointSpring`/`Limit`/`Motor`、`setDistanceJointLimits`、`setDistanceJointMotorSpeed` 等。 |
+| Prismatic（滑轨） | `getPrismaticJointTranslation`/`Speed`、`enablePrismaticJointSpring`/`Limit`/`Motor`、`setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce` 等。 |
+| Wheel（车轮） | `enableWheelJointSpring`/`Limit`/`Motor`、`setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`、`getWheelJointMotorTorque`。 |
+| Motor（马达） | `setMotorJointLinearVelocity`、`setMotorJointAngularVelocity`、`setMotorJointMaxVelocityForce`、`setMotorJointMaxVelocityTorque`。 |
+
+`destroyJoint(bodyA)` 销毁任何关节。
+
+## 马达关节
+
+马达关节驱动刚体 B 相对刚体 A 达到目标速度，或保持弹簧约束的偏移。典型用途是传送带与动力平台。
+
+```typescript
+// A conveyor: drive the crate toward +x at a fixed speed.
+world.insert(crate, MotorJoint2D, {
+  connectedEntity: anchor,
+  linearVelocity: { x: 200, y: 0 }, // world px/s
+  maxVelocityForce: 500,            // newtons available to reach it
+});
+physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // reverse at runtime
+```
+
+## 在编辑器中
+
+场景中创作的关节在视口中绘制 gizmo：两个锚点之间的虚线连线。锚点圆点可以拖动；拖动会在所属刚体的局部坐标系中写入 `anchorA` / `anchorB`。滑轨与车轮关节还显示其滑动轴，拖动轴端可重新调整方向。马达关节沿其目标线速度显示箭头。碰撞体、单向平台箭头与关节都由视口显示标记中的**物理**项统一切换。
+
+{/* SHOT: gameplay-wheel-joint-gizmo | physics-playground example, showcase scene: the CartWheelFront entity selected, viewport showing the wheel joint's dashed anchor link and slide axis, Details panel showing the Wheel Joint 2D card */}
+
+## 拖拽关节
+
+拖拽关节让玩家用指针拉动刚体。Box2D v3 没有专门的鼠标关节；拖拽关节是一根把刚体拉向移动目标的弹簧。在指针按下时创建，指针移动时更新目标，指针抬起时销毁：
+
+```typescript
+// pointer down — grab the body at the world-space cursor:
+physics.createMouseJoint(entity, cursorWorld);         // maxForce auto-sizes to the body
+// pointer move:
+physics.setMouseTarget(cursorWorld);
+// pointer up:
+physics.destroyMouseJoint();
+```
+
+`cursorWorld` 为世界像素坐标。同一时刻只存在一个拖拽关节。可选的第三个参数 `{ hertz, dampingRatio, maxForce }` 设置弹簧刚度（`hertz`，默认 `7.5`）、阻尼（`dampingRatio`，默认 `1`）与抓力（`maxForce`，默认按刚体重量确定）。
+
+## 另请参阅
+
+- [刚体与碰撞体](/docs/zh-cn/gameplay/physics-2d/bodies/)——关节连接的刚体。
+- [3D 物理：关节](/docs/zh-cn/gameplay/physics-3d/joints/)——3D 关节组件。

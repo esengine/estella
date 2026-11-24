@@ -1,0 +1,51 @@
+---
+title: 输入路由
+description: 原始平台输入到达 Input 资源之前经过的 InputRouter——编辑器、UI 与游戏三层，事件消费，InputHandler 方法以及修饰键状态。
+---
+
+原始平台事件到达 [`Input`](/docs/zh-cn/scripting/input/overview/) 资源之前，先经过 **`InputRouter`**——一条分为三层的责任链：
+
+| 层 | 处理器 | 职责 |
+|---|---|---|
+| 1. 编辑器 | `setEditorHandler` | 编辑器工具（Gizmo、框选）最先认领事件。 |
+| 2. UI | `setUIHandler` | 控件与对话框认领落到本层的事件。引擎的 UI 插件占用此层；`isPointerOverUI()` 与防点击穿透正是依赖于它。 |
+| 3. 游戏 | —（隐式） | `Input` 资源。玩法只接收此前各层均未消费的事件。 |
+
+处理器方法返回 `true` 即**消费**事件：该事件随后既不更新 `Input`，也不会到达后续层。返回 `false` 或不返回值则向下传递。消费按事件逐一判定，因此处理器只认领其需要的事件——框选拖动在按键按住期间消费指针移动，但将滚轮传递给相机；模态框消费 Escape，但不消费方向键。
+
+编写编辑器工具或将引擎嵌入宿主应用时会用到处理器：
+
+```typescript
+import { inputRouter, type InputHandler } from 'esengine';
+
+const modalHandler: InputHandler = {
+  onKeyDown(code, mods) {
+    if (code === 'Escape') { closeModal(); return true; }   // consumed
+  },
+  onPointerDown(button, x, y, mods) {
+    return isInsideModal(x, y);   // claim clicks on the modal, pass the rest
+  },
+};
+
+const release = inputRouter.setUIHandler(modalHandler);
+// when the modal closes:
+release();
+```
+
+`inputRouter` 是模块级单例。`setEditorHandler` 与 `setUIHandler` 每层安装一个处理器，并返回注销函数；注销只移除对应的处理器，从不移除更新安装的处理器。
+
+## `InputHandler`
+
+所有方法均为可选。
+
+| 方法 | 签名 |
+|---|---|
+| `onKeyDown` / `onKeyUp` | `(code, mods)` |
+| `onPointerMove` | `(x, y, mods)` |
+| `onPointerDown` | `(button, x, y, mods)` |
+| `onPointerUp` | `(button, mods)` |
+| `onWheel` | `(deltaX, deltaY, mods)` |
+| `onTouchStart` / `onTouchMove` | `(id, x, y)` |
+| `onTouchEnd` / `onTouchCancel` | `(id)` |
+
+`mods` 是一个 **`Modifiers`** 快照 `{ shift, ctrl, alt, meta }`，由路由器根据按键事件跟踪，可随时通过 `inputRouter.currentMods` 读取。修饰键松开的那次按键事件中，处理器仍将该修饰键视为按住，与 DOM `event.shiftKey` 的语义一致。抛出异常的处理器被视为未消费该事件。

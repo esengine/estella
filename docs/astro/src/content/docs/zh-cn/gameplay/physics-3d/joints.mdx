@@ -1,0 +1,106 @@
+---
+title: 关节
+description: 3D 关节参考——点、铰链、滑动、距离与固定关节，摆动/扭转关节与六轴关节，锚点与限位，马达，关节断裂，以及关节 gizmo。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+关节约束两个刚体之间的相对运动。关节组件位于声明它的实体上，并在 `connectedEntity` 中指定另一个刚体。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(RigidBody3D, {})
+  .insert(BoxCollider3D, { halfExtents: { x: 50, y: 100, z: 5 } })
+  .insert(HingeJoint3D, {
+    connectedEntity: frame,
+    anchor: { x: -50, y: 0, z: 0 },   // the door's own edge
+    axis: { x: 0, y: 1, z: 0 },       // upright
+    enableLimit: true, lowerAngle: 0, upperAngle: Math.PI / 2,
+  });
+```
+
+| 组件 | 约束 |
+|---|---|
+| `PointJoint3D` | 共享一点；三个轴均可自由旋转。 |
+| `HingeJoint3D` | 单轴旋转，可选限位与马达。 |
+| `SliderJoint3D` | 单轴平移，可选限位与马达。 |
+| `DistanceJoint3D` | 距离范围：设置 `maxLength` 为绳索，两个长度相等时为连杆，设置 `frequency` 时为弹簧。 |
+| `FixedJoint3D` | 没有自由度；两个刚体作为整体移动。 |
+| `SwingTwistJoint3D` | 锁定平移；旋转受椭圆摆动锥与独立的扭转区间限制。 |
+| `SixDOFJoint3D` | 每个平移轴与旋转轴可分别锁定、限位或放开。 |
+
+![Hinge Joint 3D 的细节面板：被连接实体、锚点、轴、角度限位与马达](@/assets/guides/zh/details-hinge-joint-3d.png)
+
+*3D 物理示例中门上的 **Hinge Joint 3D**：被连接的门框、铰链轴及其角度限位。*
+
+## 字段
+
+每个关节都有 `connectedEntity`、`collideConnected`（`false`）、`enabled`（`true`）、`breakForce`（`0`，N）与 `breakTorque`（`0`，N·m）。
+
+| 组件 | 字段（默认值） |
+|---|---|
+| `PointJoint3D` | `anchor`（`{0, 0, 0}`）。 |
+| `HingeJoint3D` | `anchor`；`axis`（`{0, 1, 0}`）；`enableLimit`（`false`）、`lowerAngle` / `upperAngle`（`-π/2` / `π/2`）；`enableMotor`（`false`）、`motorSpeed`（`0`）、`maxMotorTorque`（`0`）；`angle`（输出）。 |
+| `SliderJoint3D` | `anchor`；`axis`（`{0, 1, 0}`）；`enableLimit`（`false`）、`lowerTranslation` / `upperTranslation`（`-100` / `100`）；`enableMotor`（`false`）、`motorSpeed`（`0`）、`maxMotorForce`（`0`）；`translation`（输出）。 |
+| `DistanceJoint3D` | `anchor`、`connectedAnchor`（`{0, 0, 0}`）；`minLength`（`0`）、`maxLength`（`100`）；`frequency`（`0`）、`damping`（`0.5`）。 |
+| `FixedJoint3D` | 仅公共字段。 |
+| `SwingTwistJoint3D` | `anchor`；`axis`（`{0, 1, 0}`）、`normalAxis`（`{1, 0, 0}`）；`normalHalfConeAngle`、`planeHalfConeAngle`（`π/4`）；`twistMinAngle` / `twistMaxAngle`（`-π/6` / `π/6`）；马达字段。 |
+| `SixDOFJoint3D` | `anchor`、`axis`、`normalAxis`；`translationMotion`、`rotationMotion`（均为 `Locked`）；`translationLower` / `translationUpper`（每轴 `-100` / `100`）；`rotationLower` / `rotationUpper`（每轴 `-π/6` / `π/6`）；马达字段，包括 `linearVelocity` 与 `maxMotorForce`（`100`）。 |
+
+## 锚点、轴与限位
+
+`anchor` 与 `axis` 位于声明实体的局部空间，以世界单位表示，在创建关节时根据其变换解析。该位姿是所有限位的**零点**：关闭状态放置的门 `angle` 为 0，打开至 `upperAngle`。范围始终包含创建时的位姿：不包含 0 的范围（`lowerAngle: 0.2`）会被扩展到 0。在两个求解器中，铰链的范围在两个方向上都不超过半圈。
+
+`HingeJoint3D.angle` 与 `SliderJoint3D.translation` 每步写回。
+
+## 运行时修改关节
+
+以下字段可在游戏运行时修改，修改后世界会重新驱动关节：
+
+- `motorSpeed`；
+- 铰链或滑动关节的 `enableLimit`、`lowerAngle` / `upperAngle` 或 `lowerTranslation` / `upperTranslation`，以及 `maxMotorTorque` / `maxMotorForce`；
+- 距离关节的 `minLength`、`maxLength`、`frequency` 与 `damping`。
+
+例如，通过缩小范围锁住的门会停下，挂着重物时缩短的绳索会把重物拉起。
+
+## 关节断裂
+
+一步内受力超过 `breakForce` 或 `breakTorque` 的关节会从世界中移除，其 `enabled` 被清除，并在 `Physics3DEvents.jointBreaks` 中报告。重新设置 `enabled` 会在两个刚体的当前位置重新连接它们。`0` 表示永不断裂。例如：用带 `breakForce` 的 `FixedJoint3D` 挂起的吊灯，在射击或爆炸的拉力超过挂点承受力时掉落。
+
+<Aside type="note">
+  `collideConnected: false` 将两个刚体合并为一个**组合体**：关节链所及的每个刚体都不再与链上其余刚体碰撞。门不与门框碰撞，布娃娃的肢体也不互相碰撞。两个刚体需要碰撞时设为 `true`。
+
+  一个实体只承载一个关节：世界按声明实体为约束建立索引。第二个关节放在子实体上。
+</Aside>
+
+## 摆动/扭转关节与六轴关节
+
+`SwingTwistJoint3D` 锁定平移，并以椭圆摆动锥与独立的扭转区间限制旋转。`axis` 是约束的局部 X 轴（扭转轴），`normalAxis` 是其局部 Y 参考轴。方向会被归一化与正交化；零向量或平行方向会被拒绝。
+
+`SixDOFJoint3D` 在 `translationMotion` 与 `rotationMotion` 中用 `JointMotion3D.Locked`（0）、`Limited`（1）或 `Free`（2）控制每个轴。锁定的轴保持在创建时的位姿；限位的轴使用对应的下限/上限向量；放开的轴忽略这些边界。限位的下限必须严格小于上限。角度限位位于 −π 到 π 之间；Y/Z 旋转限位在 Jolt 中为棱锥限位。
+
+```typescript
+cmds.spawn().insert(SixDOFJoint3D, {
+  connectedEntity: base,
+  translationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
+  translationLower: { x: -100, y: 0, z: 0 },
+  translationUpper: { x: 100, y: 0, z: 0 },
+});
+```
+
+Inspector 以度显示这些关节的角度；文件与脚本中存储弧度。平移限位与线速度以世界单位和世界单位/秒表示。角速度为 rad/s；力与力矩为 N 与 N·m，与 `pixelsPerUnit` 无关。
+
+马达默认关闭。`enableMotor`、`linearVelocity`（仅 SixDOF）、`angularVelocity`、`maxMotorForce` 与 `maxMotorTorque` 可在运行时修改而无需重建关节。目标描述的是被连接刚体 B 相对所属刚体 A 的运动，位于约束轴中；若 B 为静态，A 向相反方向运动。每个马达轴共享指定的力或力矩上限。这是速度控制，而非位姿伺服。
+
+修改坐标系、碰撞设置或限位会以当前位姿为零点重建这些关节。禁用或移除组件会先释放关节，再移除其刚体。`joint3DSettingsError(settings)` 返回无效设置的说明，或 `null`；无效的关节不会被创建。
+
+**3D Physics** 示例包含一个肩/臂关节和一个带限位的滑车：**J** 反转其马达，**F1** 切换碰撞体调试绘制。在编辑器中选中任一关节，视口会显示其限位；该 gizmo 为只读，数值在 Details 中编辑。这两个组件为实验性功能。
+
+{/* SHOT: gameplay-six-dof-joint | physics-3d example, main scene: the SixDOFCarriage entity selected, viewport showing the six-axis joint's limit gizmo, Details panel showing the Six DOF Joint 3D card with translation and rotation motion */}
+
+## 另请参阅
+
+- [刚体与形状](/docs/zh-cn/gameplay/physics-3d/bodies/)——关节连接的刚体。
+- [布娃娃](/docs/zh-cn/gameplay/physics-3d/ragdolls/)——由骨架生成的摆动/扭转关节。
+- [2D 物理：关节](/docs/zh-cn/gameplay/physics-2d/joints/)——2D 关节组件。

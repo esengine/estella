@@ -1,11 +1,11 @@
 ---
-title: The blackboard
-description: "Each agent's private key/value store and one-shot event triggers — how AI state flows between leaves and feeds transition guards."
+title: The Blackboard
+description: Blackboard reference — each AI agent's key/value store and one-shot triggers, its methods, and access from game code through the AiFsm and AiBt resources.
 ---
 
-Every FSM/BT agent owns a **`Blackboard`** — its private key/value store plus one-shot
-event triggers. Actions and conditions reach it through `ctx.blackboard`; it's how AI
-state flows between leaves and how transition guards get their values.
+Every state machine and behavior tree agent owns a **`Blackboard`**: a private key/value store plus one-shot triggers.
+Actions and conditions reach it through `ctx.blackboard`. Values on it pass state between leaves and supply the values
+that transition guards compare.
 
 ```typescript
 registerAction('takeDamage', (ctx) => {
@@ -17,19 +17,19 @@ registerAction('takeDamage', (ctx) => {
 
 | Method | Description |
 |---|---|
-| `get<T>(key)` / `set(key, value)` | Read/write a value. |
-| `has(key)` / `delete(key)` | Test / remove a key. |
-| `fire(trigger)` | Fire a one-shot event; a transition keyed on it becomes enabled until taken. |
-| `isFired(trigger)` / `consume(trigger)` | Test / clear a trigger. |
-| `clearTriggers()` | Drop every pending trigger. |
+| `get<T>(key)` / `set(key, value)` | Reads / writes a value. |
+| `has(key)` / `delete(key)` | Tests / removes a key. |
+| `fire(trigger)` | Fires a one-shot trigger; a transition keyed on it is enabled until it is taken. |
+| `isFired(trigger)` / `consume(trigger)` | Tests / clears a trigger. |
+| `clearTriggers()` | Drops every pending trigger. |
 
-Blackboard values back the `guard` comparisons on FSM transitions, and the `trigger`
-mechanism is the Unity-style edge event: fired once, consumed by the transition that
-takes it.
+Blackboard values back the `guard` comparisons of FSM transitions. A trigger is an edge event: fired once and consumed
+by the transition that takes it.
 
-Game code outside a leaf reaches an agent's blackboard through two resources, which also
-let it seed values or fire a trigger before the agent's first tick. The blackboard lives
-as long as the entity and is never serialized:
+## Access from game code
+
+Code outside a leaf reaches an agent's blackboard through two resources, which can also seed values or fire a trigger
+before the agent's first tick. The blackboard lives as long as the entity and is not serialized.
 
 ```typescript
 import { AiFsm, AiBt } from 'esengine/ai';
@@ -43,3 +43,16 @@ const bt = app.getResource(AiBt);
 bt.blackboard(enemy);              // a tree agent's blackboard
 bt.status(enemy);                  // last root status
 ```
+
+| Resource | Member | Description |
+|---|---|---|
+| `AiFsm` | `blackboard(entity)` | The state machine agent's blackboard. |
+| | `fire(entity, trigger)` | Fires a trigger on it. |
+| | `state(entity)` | Active state name, or `null` before the first tick. |
+| `AiBt` | `blackboard(entity)` | The tree agent's blackboard. |
+| | `status(entity)` | Last root status, or `null`. |
+
+## See also
+
+- [State Machines](/docs/gameplay/ai/state-machines/#transitions) — triggers and guards on transitions.
+- [Actions & Conditions](/docs/gameplay/ai/actions/#aicontext) — `ctx.blackboard`.

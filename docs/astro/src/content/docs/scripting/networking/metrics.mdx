@@ -1,0 +1,47 @@
+---
+title: Server Metrics
+description: Reporting server state with esengine/metrics — MetricsRegistry, the replication, zone, player-persistence and process collectors, custom counters, the Prometheus text endpoint and JSON snapshots.
+---
+
+`esengine/metrics` reports a server process's state in the Prometheus text format and as flat JSON. Collectors read
+totals the SDK components already maintain, at scrape time, so a registry has no cost until it is read.
+
+```ts
+import http from 'node:http';
+import {
+    MetricsRegistry, metricsHandler,
+    replicationMetrics, zoneMetrics, playerPersistenceMetrics, processMetrics,
+} from 'esengine/metrics';
+
+const metrics = new MetricsRegistry({ labels: { zone: 'forest#1' } });
+metrics.register(replicationMetrics(server));
+metrics.register(zoneMetrics(zone));
+metrics.register(playerPersistenceMetrics(players));
+metrics.register(processMetrics());
+const kills = metrics.counter('kills_total', 'Monsters killed.');   // a game-defined metric
+kills.inc(1, { kind: 'boss' });
+
+http.createServer(metricsHandler(metrics)).listen(9100);           // scraped at :9100/metrics
+```
+
+## Collectors
+
+| Collector | Reports |
+|---|---|
+| `replicationMetrics(server)` | Connections, clients, players present and away; a histogram of replication sample time; state frames and bytes; delta rows sent and deferred by a budget; game messages in and out; connections closed for limits, silence or a missing hello. |
+| `zoneMetrics(zone)` | Whether the zone is draining; transfers sent and failed; logins routed, online elsewhere, taken over, bounced back, refused; player messages delivered, forwarded, held, dropped. |
+| `playerPersistenceMetrics(players)` | Record loads and saves by outcome (ok, error, conflict); store operations pending. |
+| `processMetrics()` | Resident memory, heap, uptime, event-loop utilization since the last scrape. |
+
+## Registry
+
+| Member | Description |
+|---|---|
+| `new MetricsRegistry({ labels?, prefix? })` | `labels` are added to every series. Every metric name starts with `prefix` (default `estella_`). |
+| `register(collector)` | Adds a collector. Returns a function that removes it. |
+| `counter(name, help)` | Creates a game-defined counter; `inc(by?, labels?)` increments it. |
+| `gauge(name, help)` | Creates a gauge; `set(value, labels?)` sets it. |
+| `histogram(name, help, bounds?)` | Creates a histogram (millisecond buckets by default); `observe(value, labels?)` records a value. |
+| `render()` | The Prometheus text format as a string. |
+| `snapshot()` | The same data as one flat `Record<string, number>`; a histogram appears as its count, sum and bucketed p50 / p99. For a custom dashboard or a log line. |
+| `metricsHandler(registry)` | A Node HTTP request handler serving the Prometheus text format. |

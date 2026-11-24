@@ -1,0 +1,101 @@
+---
+title: 查询、力与事件
+description: 3D 物理运行时 API——Physics3D 的射线、形状投射与重叠查询，冲量、力、速度、质量数据与爆炸，以及 Physics3DEvents 的接触、传感、角色与关节断裂通道。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Physics3D` 资源持有一个 `Physics3DQueries` 对象，用于查询 3D 世界并推动其中的刚体。物理模块加载完成前它为 `null`，因此在最初几帧运行的系统需先检查。`Physics3DEvents` 携带每一步的接触。
+
+## 空间查询
+
+位置、方向与尺寸均以世界单位表示。
+
+```typescript
+const q = app.getResource(Physics3D);
+
+// The nearest body on a line.
+const hit = q.raycast(muzzle, { x: 0, y: 0, z: -2000 }, ENEMIES);
+
+// The first body a moving sphere would meet; a ray passes through gaps a body would not fit.
+const blocked = q.sphereCast(from, 30, travel, WORLD);
+
+// Bodies already inside a volume.
+const occupants = q.overlapSphere(spawnPoint, 50);
+```
+
+| 查询 | 返回 |
+|---|---|
+| `raycast(origin, direction, layerMask?, options?)` | 直线上最近的刚体，形如 `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`，或 `null`。`direction` 携带射线长度。除非 `options.characters` 为 `true`，否则射线穿过角色（`CharacterController3D`）；起点位于角色内部的射线会立即命中该角色。 |
+| `raycastAll(origin, direction, layerMask?, maxHits?)` | 直线上的所有刚体，近者在前（最多 `maxHits` 个，默认 16）。每个命中还包含 `exitFraction`（直线离开刚体处）与 `thickness`（直线在刚体内的长度，世界单位）。不会命中角色；带 `Hitboxes` 的角色由其骨骼命中。 |
+| `sphereCast(origin, radius, direction, layerMask?)` | 沿 `direction` 扫掠的球体遇到的第一个刚体，格式同 `raycast`，或 `null`。 |
+| `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | 盒体的同类查询，可用四元数 `rotation` 旋转。 |
+| `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | 沿自身 y 轴竖立的胶囊的同类查询；`halfHeight` 为其直段的一半。 |
+| `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | 体积内的所有刚体，形如 `{ entity, x, y, z }[]`。 |
+
+层掩码为 `0` 表示所有层。命中法线为单位向量，不按 `pixelsPerUnit` 缩放。
+
+## 力与速度
+
+长度与速度以世界单位表示，质量为千克，角度为弧度。冲量的单位是千克 × 世界单位/秒：对 2 kg 的刚体施加 200 的冲量，其速度增加 100 世界单位/秒。力是同样的量除以秒。
+
+```typescript
+const physics = app.getResource(Physics3D);
+// Kick a ball where the foot meets it: it flies and spins.
+physics.applyImpulse(ball, { x: 0, y: 150, z: -600 }, footPoint);
+// A blast: every moving body within 400 thrown away and a little up,
+// and every Breakable it reaches hard enough broken.
+physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
+```
+
+| 调用 | 说明 |
+|---|---|
+| `applyImpulse(entity, impulse, at?)` | 立即按 冲量 / 质量 改变速度。在世界坐标点 `at` 处施加时还会产生旋转；省略 `at` 时作用于质心。会唤醒刚体。 |
+| `applyForce(entity, force, at?)` | 仅在下一个固定步内推动。持续推动需在 `Schedule.FixedUpdate` 系统中每步施加。 |
+| `applyTorque(entity, torque)` / `applyAngularImpulse(entity, impulse)` | 绕各世界轴扭转刚体，作用于下一步或立即生效。单位：kg·(世界单位)²/s² 与 kg·(世界单位)²/s。 |
+| `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | 线速度，世界单位/秒。 |
+| `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | 角速度，弧度/秒。 |
+| `getMass(entity)` | 千克；对不移动的刚体返回 `null`。通过 `RigidBody3D.mass` 设置。 |
+| `getMassData(entity)` | `{ mass, centre, inertia }`：千克、世界空间中的质心，以及绕刚体自身各轴的转动惯量，单位 kg·(世界单位)²（不允许旋转的轴为 `Infinity`）。对不移动的刚体返回 `null`。 |
+| `setAwake(entity, awake)` / `isAwake(entity)` | 唤醒休眠的刚体，或使其休眠直到被触碰。 |
+| `setGravity(g)` / `getGravity()` | 世界重力，m/s²。休眠的刚体在被唤醒前保持不动。 |
+| `explode(centre, radius, impulse, { upward?, layers? })` | 以 `impulse` 将 `radius` 范围内的每个运动刚体推离 `centre`，强度随距离递减，在边缘为零；`upward`（0–1）使推力向上偏转。范围内的 `Breakable` 无论是否有刚体都受到同等冲击。返回被推动的刚体数量。 |
+| `hasBody(entity)` | 世界中是否已有该实体的刚体。 |
+| `teleportCharacter(entity, position)` | 将 `CharacterController3D` 放到指定位置并清除其速度。角色位置是物理步的输出，因此这是直接移动角色的方式。实体没有角色时返回 `false`。 |
+
+不移动的刚体忽略力与冲量。对于世界中尚无刚体的实体（包括实体生成的那一帧），每个调用都返回 `false`（或 `null`）。
+
+## 碰撞事件
+
+每一步都会把接触发布到 `Physics3DEvents` 资源。该资源按固定步清空，因此读取它的系统运行在 `Schedule.FixedUpdate` 中；在 `Update` 中读取只能看到上一步遗留的内容。
+
+```typescript
+const events = app.getResource(Physics3DEvents);
+for (const hit of events.contactEnters) {
+  // both entities, and where they met
+  spawnSparks(hit.pointX, hit.pointY, hit.pointZ);
+}
+for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
+  if (sensorEntity === goalZone) score(visitorEntity);
+}
+```
+
+| 通道 | 内容 |
+|---|---|
+| `contactEnters` | 两个实体、接触法线与接触点（世界单位），以及 `speed`：第一个刚体沿法线接近第二个刚体的速度，世界单位/秒，在求解器响应之前读取。`mass` 为相遇的等效质量 1 / (1/a + 1/b)，不移动的刚体按逆质量为零计算。`impulse` 为 `speed` × `mass`。 |
+| `contactExits` | 仅包含双方（`entityA`、`entityB`）。 |
+| `characterHits` | 角色撞到的、此前未接触的物体，每次相遇报告一次：`character`、`other`、接触点、指向角色的法线、`speed`、`mass`（与不移动物体相遇时为角色自身质量）与 `impulse`。角色撞到的 `Breakable` 会受到此冲量的冲击。 |
+| `jointBreaks` | 本步断裂的关节：`entity`、`force`（N）与 `torque`（N·m）。 |
+| `sensorEnters` / `sensorExits` | 先是 `sensorEntity`，再是 `visitorEntity`。 |
+
+带 `isSensor` 的碰撞体报告重叠但不阻挡任何物体：访问者穿过它，并出现在 `sensorEnters` 而非 `contactEnters` 中。
+
+<Aside type="note">
+  结束的接触不携带几何信息：报告时求解器锁定着两个刚体，其中一个可能已被销毁。刚体进入休眠时接触也会结束，因此离开事件表示“这对物体不再接触”，而不表示“有物体移动了”。
+</Aside>
+
+## 另请参阅
+
+- [刚体与形状](/docs/zh-cn/gameplay/physics-3d/bodies/)——这些调用作用的刚体。
+- [碰撞层](/docs/zh-cn/gameplay/physics-3d/overview/#碰撞层)——查询所用的层掩码。
+- [可破碎物体](/docs/zh-cn/gameplay/physics-3d/breakables/)——`explode` 与接触冲量可击碎的物体。

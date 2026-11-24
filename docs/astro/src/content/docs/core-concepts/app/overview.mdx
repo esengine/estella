@@ -1,0 +1,190 @@
+---
+title: App & Factories
+description: The App container and the factories that build it — createWebApp and CreateWebAppOptions, the plugins it installs, physics installation, createHeadlessApp and runHeadless for servers and tests, and side modules.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everything in Estella runs inside an **`App`**: the container that owns the [world](/docs/core-concepts/ecs/), the
+resources, the system schedules and the frame loop. The editor's play mode, an exported web or desktop game, a
+mini-game and a headless authoritative server all build the same `App` class; only the factory that assembles it
+differs.
+
+| Page | Content |
+|---|---|
+| App & Factories (this page) | `createWebApp`, `createHeadlessApp`, installed plugins, side modules. |
+| [App API](/docs/core-concepts/app/app-api/) | The `App` members: resources, systems, frame loop, execution holds, errors and statistics. |
+| [Lifecycle & Status](/docs/core-concepts/app/lifecycle/) | Page lifecycle events, the subsystem registry, hot reload. |
+
+The plugin interface is described in [Plugins & Resources](/docs/core-concepts/plugins-resources/#plugins).
+
+<Aside type="note">
+  In a project driven by the editor, the exported runtime constructs the `App`. The factories are used directly when
+  embedding the engine in a custom host page, running a headless server, or writing tests.
+</Aside>
+
+## `createWebApp(module, options)`
+
+The entry point for a browser or Electron game. It takes the instantiated engine WebAssembly module
+(`ESEngineModule`), initializes the renderer and installs the full plugin stack:
+
+```typescript
+import { createWebApp } from 'esengine';
+
+const app = createWebApp(module, {
+  wasmBaseUrl: '/engine',        // where physics.wasm / spine42.wasm are served
+  colorSpace: 'linear',
+  getViewportSize: () => ({ width: innerWidth, height: innerHeight }),
+});
+await app.run();
+```
+
+### `CreateWebAppOptions`
+
+All fields are optional. `CreateWebAppOptions` extends `WebAppOptions` (both exported from `esengine`) with
+`wasmBaseUrl`.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `wasmBaseUrl` | `string` | — | Base URL the [side-module](#side-modules) artifacts (`physics.wasm`, `spine38.js`/`.wasm`, …) are served from, usually the directory of `esengine.wasm`. Without an explicit `sideModules`, a fetch `SideModuleHost` is built from it. |
+| `sideModules` | `SideModuleHost` | built from `wasmBaseUrl`, else none | Acquirer for optional native modules. Hosts that inline their modules (playable ads, WeChat) pass a host instead of a URL. |
+| `ownsSideModules` | `boolean` | `true` when built from `wasmBaseUrl` | The host belongs to this app alone and is disposed on quit. |
+| `plugins` | `Plugin[]` | `[]` | Additional plugins, installed **after** the default set. |
+| `getViewportSize` | `() => { width, height }` | — | Viewport size for the camera system and the WebGPU initial size (`800×600` when absent). |
+| `renderSurface` | `RenderSurfaceSource` | `{ kind: 'default' }` | How the host provides the render surface (see below). |
+| `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | Project colour space. `'linear'` renders in linear light: sRGB decode on sample, linear blending, explicit encode in the final blit. Fixed at creation; shaders compile against it. |
+| `randomSeed` | `number` | — | Seeds the engine's randomness so a run reproduces (replays, bug reports, frame assertions). Without it every run differs. Subsystems draw from independent named streams, so adding an emitter does not change other subsystems' draws. |
+| `ySortLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) that sort by world Y within the layer. |
+| `depthLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) resolved by depth instead of painter's order. Opaque draws write depth and sort front to back; blended draws test without writing. A layer that also y-sorts keeps y-sorting. |
+| `outputTransform` | `'none' \| 'aces' \| 'neutral'` | `'none'` | Curve applied once, last, on the way to the display. `'aces'` is a filmic curve for lit 3D scenes; `'neutral'` (Khronos PBR Neutral) preserves hue and saturation. |
+| `msaaSamples` | `number` | `4` | Scene-target multisampling; `1` disables it. The device clamps the value. |
+| `skinCache` | `SkinCacheConfig` | on, every mesh, 128 MB | The compute skin cache (Project Settings → Rendering → Skinning). |
+| `asyncCompute` | `boolean` | `false` | Allows eligible GPU compute passes to overlap rendering. |
+| `quality` | `QualityConfig` | — | Quality mode (`'off'`, `'auto'`, `'low'`, `'medium'`, `'high'`), target frame rate, dynamic resolution, per-level profiles, device rules, asynchronous shader compilation and render-on-demand. Installed only when given. |
+| `screenFit` | `ScreenScalingData` | off (`scaleMode: -1`) | Project camera fit ([Camera Fit](/docs/core-concepts/screen/camera-fit/#the-screenscaling-resource)). The fit applies when `scaleMode` ≥ 0; `SCREEN_FIT_OFF` (-1) uses the `Canvas` fit or the raw `orthoSize`. The resource is also installed when `renderPolicy` is not `Surface`. |
+
+`renderSurface` variants:
+
+| `kind` | Behaviour |
+|---|---|
+| `'default'` | The module creates its own WebGL2 context through `initRenderer()`. |
+| `'gl-context'` | Renders into a pre-registered WebGL2 context `handle`. `glx: true` marks WeChat's EmscriptenGLX context. |
+| `'webgpu'` | Boots the injected-device path. The host acquires a `GPUDevice` and passes it as the module factory's `preinitializedWebGPUDevice` before instantiation. `canvasSelector` defaults to `'#canvas'` and must be in the DOM; `readback` lets the engine read its own frames back (`captureFrame`). |
+| `'threaded-webgl2'` / `'threaded-webgpu'` | Uses a render-thread canvas prepared beforehand with `await Renderer.prepareThreadedSurface(module)`. |
+
+### Installed plugins
+
+`createWebApp` installs, in this order:
+
+1. **Core**: `corePlugin` (render facades) and a new `RenderPipeline`, the camera plugin, `assetPlugin`,
+   `prefabsPlugin`, `breakablePlugin`, `inputPlugin`, `sceneManagerPlugin`.
+2. **UI**: `uiPlugins` — layout, text, text input, masks, render order, interaction, drag, focus, safe area.
+3. **Content**, sorted into one fixed build order:
+   - the base plugins — diagnostics, timer, velocity, lifecycle, animation, audio, video, particle, trail, spring bone,
+     mesh renderer, static batch, composite batch, impostor, texture streaming, post-processing, event binding and
+     services;
+   - the optional subsystems registered by import. Importing a subpath such as `esengine/tilemap`,
+     `esengine/timeline`, `esengine/ai` (perception, FSM, behaviour trees, navigation), `esengine/logic` (script
+     graphs), `esengine/gameplay`, `esengine/replication`, `esengine/spine`, `esengine/dragonbones`, or the terrain,
+     foliage, water and worldgen subpaths registers that subsystem's plugins. A game that does not import a subpath
+     neither installs nor ships the subsystem. Spine acquires its per-version runtime from `app.sideModules` on
+     demand, only when a scene uses Spine.
+4. **`options.plugins`**, in the order given.
+
+### Physics
+
+Physics is not in the default set: `Physics2DPlugin` (and `Physics3DPlugin` for the 3D world) requires its
+WebAssembly module. The exported runtime acquires `'physics'` from the side-module host and installs the plugin
+when the project declares physics or the scene contains physics components. When composing an app manually,
+construct `Physics2DPlugin` directly; it and `loadPhysicsModule` are exported from `esengine`, and the full API is on
+`esengine/physics`.
+
+## Headless apps
+
+`createHeadlessApp(module, options)` builds an app with the **full simulation stack and no presentation**: no
+renderer, render pipeline, input device or UI. This is the authoritative-server configuration (same WebAssembly
+module, same gameplay code, same fixed-tick loop), also used in workers and tests.
+
+```typescript
+import { createHeadlessApp, runHeadless } from 'esengine';
+
+const app = createHeadlessApp(module, { plugins: [gameplayPlugin] });
+const stop = runHeadless(app, { fps: 60 });
+// later
+stop();
+```
+
+| `HeadlessAppOptions` | Type | Description |
+|---|---|---|
+| `plugins` | `Plugin[]` | Gameplay plugins, installed after the base set. |
+| `sideModules` | `SideModuleHost` | Acquirer for optional native modules (physics on the server). |
+
+| Included | Excluded |
+|---|---|
+| `assetPlugin`, `prefabsPlugin`, `breakablePlugin`, `sceneManagerPlugin`; the diagnostics, timer, velocity, lifecycle, event-binding and services plugins; `audioPlugin` (silent on hosts without an audio device); every optional subsystem the project imported (gameplay AI, script graphs, replication, …). | `corePlugin` (its render facades exist only after `initRenderer()`), the camera plugin, UI, input, and the presentation plugins: animation, video, particles, trails, spring bones, mesh rendering, static and composite batching, impostors, texture streaming, post-processing. |
+
+`runHeadless(app, { fps? })` drives the app with a wall-clock `setInterval` (default 60 fps), since a server has no
+`requestAnimationFrame`. The delta is measured, so the fixed-step accumulator keeps the simulation rate exact under
+timer jitter, and a slow asynchronous tick is never re-entered. It returns a stop function. An app can also be
+driven manually with `app.tick(dt)`.
+
+<Aside type="caution">
+  `createHeadlessApp` and `runHeadless` are `@beta`: loading gameplay data without textures on a headless host is
+  not final, and the factories' options may change.
+</Aside>
+
+## Side modules
+
+Optional native subsystems ship as **separate WebAssembly modules** loaded on demand, so the base engine download
+stays small. Each is an emscripten pair — `<file>.js` glue and `<file>.wasm` — acquired through a `SideModuleHost`;
+only the transport differs between hosts.
+
+`SIDE_MODULES` maps the built-in ids to artifacts:
+
+| `SideModuleId` | Artifacts | Contents |
+|---|---|---|
+| `'physics'` | `physics.js` / `.wasm` | Box2D 2D physics. |
+| `'physics3d'` | `physics3d.js` / `.wasm` | Jolt 3D physics. |
+| `'physics3d:physx'` | `physics3d-physx.js` / `.wasm` | PhysX 3D physics; same interface as Jolt. A project selects one backend (Project Settings → Physics) and ships one. |
+| `'spine:2.1'` / `'3.8'` / `'4.1'` / `'4.2'` / `'4.3'` | `spine21` … `spine43` `.js` / `.wasm` | One Spine runtime per skeleton format version. |
+| `'dragonbones'` | `dragonbones.js` / `.wasm` | The DragonBones runtime (one version; the format is frozen). |
+| `'basis'` | `basis.js` / `.wasm` | Basis Universal KTX2 transcoder for compressed textures. |
+| `'videodec'` | `videodec.js` / `.wasm` | MPEG-1 software video decoder. |
+
+`SPINE_VERSIONS` is the readonly list `['2.1', '3.8', '4.1', '4.2', '4.3']`, and `spineModuleId(version)` returns
+the corresponding id.
+
+A project can supply its own module in `.esengine/modules/<id>/`; the export writes it into the packaged game's
+configuration, and the id is acquired and transported like a built-in one. A host that knows its modules by other
+means calls `registerSideModule(id, descriptor)`. Ids owned by the engine cannot be registered.
+
+A host answers `acquire(id)` with a promise of the instantiated module. Results are cached per id; failures are
+cached as `null`, so a missing artifact is not fetched again. Built-in transports:
+
+| Function | Transport |
+|---|---|
+| `createFetchSideModuleHost(baseUrl)` | Fetches glue and binary from a base URL (what `wasmBaseUrl` builds). Editor, web and desktop. |
+| `createEmbeddedSideModuleHost(registry)` | Modules inlined as base64 (playable ads). |
+| `createMiniGameSideModuleHost(...)`, also exported as `createWeChatSideModuleHost` | The mini-game hosts' precompiled module factories. |
+
+Games do not call `acquire` directly. Setting `app.sideModules` (through `wasmBaseUrl` or `sideModules`) is enough;
+the Spine plugin and the physics installation acquire from it when needed.
+
+<Aside type="note">
+  The main `esengine` barrel re-exports the physics and Spine **wiring** — `Physics2DPlugin`, `Physics2DEvents`,
+  `Physics2D`, `loadPhysicsModule`, `Physics3DPlugin`, `Physics3D`, `SpinePlugin`, `SpineEvents`, `Spine` — so hosts
+  can register the plugins without a subpath import. The full APIs are on the `esengine/physics` and `esengine/spine`
+  subpaths ([Physics](/docs/gameplay/physics-2d/overview/), [Spine](/docs/animation/spine/)).
+</Aside>
+
+## Recommendations
+
+- Use the factories. `createWebApp` and `createHeadlessApp` encode the supported plugin order; composing `App.new()`
+  with a plugin list manually is for engine embedders.
+- Declare `colorSpace` and `renderSurface` at creation. Both are fixed for the app's lifetime (shader compilation,
+  device injection).
+
+## See also
+
+- [Building & Exporting](/docs/publishing/overview/) — how side-module artifacts ship per target.
+- [Physics](/docs/gameplay/physics-2d/overview/) and [Spine](/docs/animation/spine/) — the subpath APIs behind side modules.

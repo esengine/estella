@@ -1,0 +1,160 @@
+---
+title: Navigation Meshes
+description: Navigation mesh reference — baking a NavMesh with NavVolume, per-tile baking in streamed worlds, NavLink connections, NavArea traversal costs, NavObstacle blockers, and viewing the baked surface in the editor and at run time.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A 3D scene has geometry rather than a tile mask, so its navigation surface is **baked** from the bodies it collides
+against. The nav plugin bakes the box described by a **`NavVolume`**.
+
+## `NavVolume`
+
+| Field | Default | Description |
+|---|---|---|
+| `halfExtents` | `{1000, 500, 1000}` | Half the box to bake, world units; the entity's Transform is its centre. |
+| `cellSize` | `50` | Voxel size in the ground plane. Smaller follows the geometry more closely and bakes more slowly. |
+| `cellHeight` | `10` | Vertical voxel size; determines whether a balcony and the floor below it are separate levels. |
+| `maxSlopeDegrees` | `45` | Steepest walkable ground. Steeper ground is a wall. |
+| `agentHeight` | `180` | Headroom an agent needs. Ground with less is excluded. |
+| `agentRadius` | `30` | Agent width. The mesh is pulled back from every wall by this distance. |
+| `stepHeight` | `40` | Highest step an agent climbs rather than walks around. |
+| `layers` | `0` | Physics layers the ground is taken from; `0` = every layer. |
+
+The bake voxelises the collision triangles in the box, keeps the surfaces an agent of that size can stand on, and
+converts the result into convex polygons. Every column keeps **all** of its floors, so a bridge and the road under it are
+two places and a route can use either.
+
+- **One volume per scene.** The first volume is baked; any others are reported in the log. The box only bounds where the
+  bake looks; walkability comes from the geometry inside it. A large box costs voxels, not correctness.
+- **Static bodies only.** Geometry to walk on or around needs a `RigidBody3D` with body type **Static** (or a collider
+  with no `RigidBody3D`, which is static). Dynamic bodies are not baked.
+- Each volume is baked once, on the first frame its geometry is available. A mesh collider contributes nothing until its
+  asset has loaded, so the bake waits for it.
+
+`buildNavMesh(verts, indices, options)` bakes a mesh directly, and `collectNavGeometry(world, { min, max, layers? })`
+gathers the triangles.
+
+<Aside type="caution">
+  **One agent size per mesh.** `agentRadius` is baked in: the mesh is the set of places a body that wide may stand. A
+  `NavAgent` wider than the mesh's radius is routed as the narrower one, and a message is logged once.
+</Aside>
+
+### In a streamed world
+
+In a [streamed world](/docs/world/streaming/) the volume is baked as one **tile per square** of the world's grid (the
+cook's `cellSize`), from the colliders in and just around that square: those of the persistent world and of the resident
+cells. A square has a tile while its cell is resident, or always when no cell covers it (ground only the persistent world
+holds). When a cell arrives or leaves, the tiles it reaches are baked again, two per frame, and the tiles are joined into
+the one mesh agents walk: a wall in a cell is avoided once its cell is in, and a route crosses the seam between two
+tiles seamlessly.
+
+A square whose cell is not resident has no tile, so a route toward it ends at the edge of the loaded area, even over
+persistent ground. For the same reason the volume is cut on the ground plane only, and in whole squares: a volume that
+reaches into a square bakes all of it.
+
+## `NavLink`
+
+A mesh contains only ground an agent can walk, so two floors separated by a gap are two places. A `NavLink` declares a
+connection the floor does not provide: a ledge to drop from, a ladder, a plank.
+
+| Field | Default | Description |
+|---|---|---|
+| `start` | `{0, 0, 0}` | Start of the connection, as an offset in the entity's own frame. |
+| `end` | `{0, 0, 150}` | End of the connection. |
+| `bidirectional` | `true` | Whether it can be taken both ways. A drop off a ledge cannot. |
+| `radius` | `50` | Maximum distance from each end to the ground it joins. |
+| `enabled` | `true` | Whether the connection exists now. |
+
+Both ends are offsets in the entity's frame, so a link moves and rotates with its entity: a ladder inside a prefab works
+wherever the prefab is placed. A link whose end reaches no ground joins nothing.
+
+Moving or switching a link costs a lookup, not a bake: it joins polygons that already exist. Links are therefore cheap to
+animate, unlike obstacles.
+
+<Aside type="note">
+  A route breaks at both ends of a link: the waypoints always include the two points the link joins, and a following
+  agent passes through them. While an agent is crossing a link it is not on the navigable surface, so a replan requested
+  there has no answer and the agent keeps its current route.
+</Aside>
+
+## `NavArea`
+
+The mesh says where an agent can walk; `NavArea` says what that ground costs.
+
+| Field | Default | Description |
+|---|---|---|
+| `halfExtents` | `{200, 100, 200}` | Half the box, world units; the Transform is its centre. It rotates with the entity. |
+| `cost` | `3` | Cost of a unit of distance inside it, against `1` for open ground. |
+| `enabled` | `true` | Whether the cost applies now. |
+
+A cost below 1 is preferred and above 1 is avoided: a road at half price attracts routes, a swamp at four times is walked
+around when there is a way around. An area never blocks: an agent with no other way crosses it.
+
+Moving or resizing an area rebuilds the navigable surface, as an obstacle does. Changing `cost` does not: the mesh records
+which area each polygon belongs to, and the cost is read on every search. Grid route smoothing never crosses ground
+priced differently from where the shortcut starts.
+
+## `NavObstacle`
+
+Anything with a collider already blocks, because the mesh is baked from collision geometry. `NavObstacle` covers what
+blocks without being geometry, or stops blocking without moving.
+
+| Field | Default | Description |
+|---|---|---|
+| `halfExtents` | `{50, 100, 50}` | Half the blocking box, world units; the Transform is its centre. Unlike the volume, it rotates with the entity. |
+| `enabled` | `true` | Whether it blocks now; an opening door clears this field. |
+
+Blocking is a bake input: an obstacle removes its ground before the walkable area is eroded, so routes keep the agent's
+full width clear of it. Moving, resizing or switching an obstacle rebuilds the mesh at most once per 200 ms. On a grid,
+obstacle changes are marked on the next navigation tick without that delay, so a newly closed passage is excluded before
+agents plan or move. The grid keeps its own walkability separately, so a door closing and opening restores exactly the
+ground that was there.
+
+```typescript
+// A door swinging open, from any system with world access:
+const door = world.get(entity, NavObstacle);
+door.enabled = false;
+world.set(entity, NavObstacle, door);
+```
+
+<Aside type="caution">
+  An obstacle is for something that blocks and then stays: a door, a gate, a newly built tower. One that moves
+  continuously rebuilds the surface several times a second and logs a warning. A moving body is handled by the character
+  controller it collides with.
+</Aside>
+
+{/* SHOT: gameplay-nav-link-area | enemy-ai-3d example, main scene, View ▸ Show Navigation Mesh on: the Terrace Steps entity (NavLink) selected with its link drawn between the two levels, the Mud NavArea box visible, Details panel showing the Nav Link card */}
+
+## Viewing the baked surface
+
+![The 3D viewport with View, Show Navigation Mesh on: the baked walkable surfaces are filled in amber and outlined](@/assets/guides/en/view-navmesh.png)
+
+*The baked walkable surface, filled and outlined in the viewport by **View ▸ Show Navigation Mesh**.*
+
+The volume's wireframe shows where the bake looks. **View → Show Navigation Mesh** (or the Navigation button on the
+viewport toolbar) bakes the scene's volume in the editor and draws the walkable faces with their boundary edges. It
+rebakes as the scene changes, so changing `agentRadius` updates the mesh in place.
+
+At run time the `NavDebugDraw` resource draws the same picture:
+
+```typescript
+import { NavDebugDraw } from 'esengine/ai';
+
+app.getResource(NavDebugDraw).enabled = true;
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Master switch. |
+| `showFaces` | `true` | Outlines of the walkable faces, at ground height for a mesh and in the scene plane for a grid. |
+| `showBorders` | `true` | Edges where the walkable surface stops, in red. |
+| `showLinks` | `true` | `NavLink` connections. |
+
+The overlay draws at most 4096 faces; a larger `cellSize` shows more of a large world.
+
+## See also
+
+- [Navigation Agents](/docs/gameplay/ai/navigation/agents/) — agents walking the baked mesh.
+- [Bodies & Shapes](/docs/gameplay/physics-3d/bodies/) — the static colliders the bake reads.
+- [World Streaming](/docs/world/streaming/) — cells and the persistent world.

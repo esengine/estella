@@ -1,0 +1,115 @@
+---
+title: Frame Capture API
+description: Frame capture reference — Renderer.captureNextFrame, the DrawCallInfo record, RenderType and BatchBreak values, batch counters, replaying a frame up to a draw call, and GL error checking with GLDebug.
+---
+
+A frame capture records every draw call of one frame: what it drew, with which resources and state, and **why it could
+not join the batch before it**. The editor's [Frame Debugger](/docs/performance/frame-debugger/) is built on this API.
+
+## Capturing a frame
+
+`Renderer.captureNextFrame()` arms the capture; the next rendered frame is recorded.
+
+```typescript
+import { Renderer, RenderType, BatchBreak } from 'esengine';
+
+Renderer.captureNextFrame();
+
+// one frame later:
+if (Renderer.hasCapturedData()) {
+  const capture = Renderer.getCapturedData();   // FrameCaptureData | null
+  for (const dc of capture!.drawCalls) {
+    console.log(
+      `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
+      `tris=${dc.triangleCount} entities=${dc.entities.length} ` +
+      `break=${BatchBreak[dc.breakReason]}`
+    );
+  }
+  console.log(`${capture!.passCount} pass(es)`);
+}
+```
+
+`FrameCaptureData` is `{ drawCalls: DrawCallInfo[], passCount }`.
+
+| `DrawCallInfo` field | Description |
+|---|---|
+| `index` | Draw call index within the frame, in submission order. |
+| `pass` / `passKind` | The pass that drew it, in execution order, and whether it is a camera's scene (`CapturePass.Scene`) or the screen-space overlay (`CapturePass.Overlay`). |
+| `stage` | Render stage (`RenderStage`: Background, Opaque, Transparent, Overlay). |
+| `type` | Content kind (`RenderType`). |
+| `blendMode` | Blend mode id. |
+| `textureId` / `materialId` / `shaderId` | GPU resources bound for the call. |
+| `indexCount` / `triangleCount` | Geometry submitted. |
+| `instanceCount` | Instances in the call; `0` for a non-instanced draw. |
+| `entities` | Entity ids the draw was made from, in draw order. Items without an entity (a glyph run, a gizmo) are not listed. |
+| `layer` | Render layer of the batch. |
+| `breakReason` | Why this call started instead of joining the previous one (`BatchBreak`). |
+| `scissorX` / `scissorY` / `scissorW` / `scissorH`, `scissorEnabled` | Scissor state (UI masks). |
+| `stencilWrite` / `stencilTest` / `stencilRef` | Stencil state (mask writers and readers). |
+| `textureSlotUsage` | Texture slots the batch used. |
+| `textures` | Every texture the draw bound, slot 0 first; `textureId` is the first. |
+
+`RenderType` values: `Sprite`, `Spine`, `Mesh`, `ExternalMesh`, `Text`, `Particle`, `Shape`, `UIElement`.
+
+## Batch-break reasons
+
+Each `BatchBreak` value is a condition of the batch merge test itself and names the state change that kept a call from
+joining the one before it.
+
+| `BatchBreak` | Meaning | Typical remedy |
+|---|---|---|
+| `RunStart` | First call of a run; nothing to join. | — |
+| `Instanced` | An instanced draw; one command per emitter, never merged. | — |
+| `Shader` | Shader changed. | Share shaders between neighbouring draws. |
+| `Blend` | Blend mode changed (interleaved additive and normal content). | Group content by blend mode. |
+| `Layout` | Vertex layout changed (sprite quads versus mesh vertices). | — |
+| `Material` | Material changed. | Group entities by material. |
+| `Depth` | Depth test or write differs (opaque and blended content interleaved). | — |
+| `Cull` | Cull state differs. | — |
+| `State` | Another render-state flag differs. | — |
+| `Scissor` | Scissor rectangle changed (a `UIMask` boundary). | — |
+| `Stencil` | Stencil reference changed (mask write/test boundary). | — |
+| `IndexGap` | Indices are not contiguous; sorting placed another command between them. | Adjust ordering so like draws are adjacent. |
+| `TextureSlots` | Mergeable, but the combined set exceeds the 8 texture slots of a draw. | Pack textures into fewer atlases. |
+
+`None` is the merge's own result and never appears on a captured call: a command that reaches it is merged into the one
+before it.
+
+The same reasons are published per frame as `batch.break.*` counters, with `batch.draws` and `batch.merged`, so a frame's
+draw count can be read as, for example, one run start and five index gaps with 41 commands merged, without a capture.
+
+## Replaying to a draw call
+
+`Renderer.replayToDrawCall(i)` re-renders draw calls `0…i` of the capture into a snapshot.
+`Renderer.getSnapshotImageData()` resolves with its pixels once the GPU readback completes (immediately on WebGL, on a
+later tick on WebGPU):
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.replayToDrawCall(5);                       // draw calls 0..5
+const img = await Renderer.getSnapshotImageData();  // ImageData | null
+if (img) ctx2d.putImageData(img, 0, 0);
+```
+
+## GL error checking — `GLDebug`
+
+`GLDebug` enables GL error checking inside the WebAssembly renderer. It is off by default because each check has a cost.
+
+```typescript
+import { GLDebug } from 'esengine';
+
+GLDebug.enable();                              // check GL errors at key points
+const errors = GLDebug.check('after-spawn');   // immediate check; returns the error count
+GLDebug.diagnose();                            // print renderer diagnostics to the console
+GLDebug.disable();
+```
+
+`check(context)` tags its log output with `context`, so repeated checks locate where in the frame an error appears. Keep
+`GLDebug` disabled in production builds.
+
+## See also
+
+- [Frame Debugger](/docs/performance/frame-debugger/)
+- [Profiling](/docs/performance/profiling/overview/)
+- [Static Batching](/docs/performance/static-batching/)

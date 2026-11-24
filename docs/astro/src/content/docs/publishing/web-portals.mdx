@@ -1,0 +1,104 @@
+---
+title: Web Portals
+description: Web exports for Poki, CrazyGames and YouTube Playables — the Web channel setting, SDK initialization, ads through the Ads resource, gameplay events, saves, scores, size checks and what local testing does not cover.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A Web export can target a web game portal. **Web channel** in the Web target settings of **Package Project** selects
+it; the manifest form is `packaging.platforms.web.channel`, and named export profiles can set it per profile.
+
+{/* SHOT: publish-web-target | Package Project dialog with the Web target selected, the Web settings group visible: Web channel dropdown (Standalone, Poki, CrazyGames, YouTube Playables), Leaderboard client encryption key, Run without WebAssembly, Ask to rotate the device when held the wrong way; any example project */}
+
+| Channel | `channel` value | SDK |
+|---|---|---|
+| Standalone (default) | `"standalone"` | None |
+| Poki | `"poki"` | Official Poki SDK |
+| CrazyGames | `"crazygames"` | Official CrazyGames SDK v3 |
+| YouTube Playables | `"youtube"` | Official YouTube Playables SDK |
+
+In every channel, ads use the existing [`Ads`](/docs/publishing/ads-sharing/#rewarded-ads) resource, which pauses
+simulation and suspends audio during a break. Rewards are granted only when the result reports `completed: true`.
+Game logic reports actual gameplay start and stop transitions; the exporter does not infer them from page loading or
+input.
+
+<Aside type="caution">
+  An export is not platform approval. SDK mocks, headless checks and local observation do not replace each portal's
+  official inspection tools, QA process or physical-device testing.
+</Aside>
+
+## Poki
+
+- The page loads the official Poki SDK in its `<head>`. Boot initializes it before project scripts and reports
+  `gameLoadingFinished` after scene and asset loading.
+- If initialization fails, the game continues with ads unavailable. A pending initialization is bounded to ten
+  seconds; this does not bound script downloads.
+- Poki ignores the ad unit id passed to `Ads`; the SDK selects the placement. Concurrent breaks are rejected, not
+  queued.
+- Game logic calls the official `PokiSDK.gameplayStart()` and `PokiSDK.gameplayStop()` at play, pause and end
+  transitions.
+- The channel page permits HTTPS resources and frames for SDK-managed ads; the Standalone channel keeps its
+  same-origin policy.
+
+Gameplay events, no-fill and successful ads, and audio/input restoration are tested in the
+[Poki Inspector](https://developers.poki.com/guide/sdk-html5). To inspect with the real SDK outside the editor, serve
+the exported folder on localhost, enter that URL in the Inspector's URL field, and keep the server running for the
+session.
+
+The **Mobile Controls** example has a `poki` export profile:
+
+```bash
+estella export examples/mobile-controls --profile poki
+```
+
+Its three-hit training round reports START, PAUSE, completion and REPLAY transitions, with opt-in rewarded credits and
+explicit commercial breaks. Initial loading, device-control buttons and returning from the background do not start
+gameplay. The room requires landscape; in portrait it is letterboxed without a rotate notice. The standalone profile
+keeps the original controls. Estella's CI checks these flows in headless Chromium with SDK mocks and the Web
+runtime of the same commit.
+
+## CrazyGames
+
+- The export connects the official v3 SDK: it reports loading start and stop, serves rewarded and midgame breaks
+  through `Ads`, and follows the host's audio mute.
+- Saves go through the SDK's Data API. Enable **Progress Save** in the CrazyGames developer console. `setItem` is not a
+  cloud-backup acknowledgment.
+- If initialization fails, the game continues with host services off.
+- `Scores.submit` sends an encrypted score to an invited CrazyGames leaderboard. Enter the base64 **Encryption Key**
+  from the platform configuration in **Leaderboard client encryption key** (Web target settings). Never enter the
+  server API key: the value ships in the package. Empty disables submission. A sent score does not confirm that the
+  leaderboard accepted it.
+
+## YouTube Playables
+
+- The official SDK loads before game code. `firstFrameReady` is reported when the loading screen has painted;
+  `gameReady` waits until the scene is interactive and the loading overlay has gone.
+- SDK pause/resume holds engine frames, input, audio and video, independently of player pause. Visibility events do
+  not override SDK pause. Asynchronous work owned by the game must cooperate with these notifications.
+- Rewards require a `true` SDK result.
+- Cloud data must load successfully before writes; a failed or unreadable load preserves existing progress. Await
+  `Storage.flush()` or `SaveManager.saveAsync()` to observe the SDK's save acknowledgment. Saves of 3 MiB or more are
+  rejected; saves above 64 KiB made while paused remain pending.
+- Outside the Playables environment, local SDK no-ops do not enable ads, scores or cloud saves.
+
+Export checks:
+
+| Check | Limit |
+|---|---|
+| Total stored size | Below 250 MiB |
+| Each file | Below 30 MiB |
+| File count | At most 8000 |
+| File names | Supported characters only |
+| Initial transfer up to `gameReady` | Below 30 MiB compressed (static initial content is an estimate) |
+
+Both the CLI and the editor show these as warnings. Verify loading and peak heap on target devices and in the official
+Test Suite. The official [bundle analyzer](https://developers.google.com/youtube/gaming/playables/samples/bundle_analyzer)
+provides independent static validation. Estella's CI also applies the official guide's CSP response header in headless
+Chromium and detects policy violations, with a deliberately blocked external request as a control. The Mobile Controls example provides a `youtube` export profile; its highest
+score is sent only after that value is saved successfully. See the
+[official integration requirements](https://developers.google.com/youtube/gaming/playables/certification/requirements_integration).
+
+## See also
+
+- [Ads & Services](/docs/publishing/ads-sharing/) — the `Ads` resource and other platform services.
+- [Building & Exporting](/docs/publishing/overview/) — the Web target.

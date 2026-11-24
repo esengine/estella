@@ -1,0 +1,122 @@
+---
+title: 屏幕与设计分辨率
+description: 设计分辨率如何映射到实际屏幕——作为世界单位的设计像素、Canvas 组件、五种缩放模式与 computeEffectiveOrthoSize，并附 4:3 屏幕的计算示例。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+游戏以**一个设计分辨率**（默认 1920×1080）为参照创作。运行时，引擎将该设计盒适配到实际屏幕上。本章介绍这一适配：
+
+| 页面 | 内容 |
+|---|---|
+| 屏幕与设计分辨率（本页） | 单位、`Canvas` 组件、缩放模式。 |
+| [相机适配](/docs/zh-cn/core-concepts/screen/camera-fit/) | 适配来源、`ScreenScaling` 资源、渲染分辨率、UI 布局盒、相机对 UI 的剔除、像素完美渲染、项目显示设置。 |
+| [屏幕方向与安全区](/docs/zh-cn/core-concepts/screen/devices/) | `ScreenInfo`、屏幕方向、`SafeArea` 组件。 |
+
+## 设计像素
+
+- **1 世界单位 = 1 设计像素。**100×200 的纹理创建 100×200 的精灵；尺寸为 `px(300)` 的 `UINode` 宽 300 设计像素。
+- 默认场景相机的 `orthoSize` 为 `designResolution.y / 2` = **540**，即设计高度的一半，因此在设计宽高比下，
+  相机恰好显示一个设计盒（1920×1080 世界单位）。
+- 世界坐标 **Y 轴向上**；屏幕坐标 **Y 轴向下**。[`CameraView`](/docs/zh-cn/graphics/camera/overview/#屏幕--世界坐标)
+  在两者之间转换。
+- `Canvas.pixelsPerUnit`（默认 `100`）是**物理比例**——每 Box2D 米对应的世界像素数——而不是显示缩放。渲染从不除以它。
+
+屏幕宽高比与设计分辨率不同时，由**缩放模式**决定设计盒的适配方式。它改变世界的可见范围；精灵的尺寸与位置不受影响。
+
+## `Canvas` 组件
+
+每个场景有一个实体带有 `Canvas`，它声明设计分辨率及其适配方式。编辑器在创建场景时添加该组件。场景中存在多个时，使用找到的第一个。
+
+{/* SHOT: core-canvas-details | 打开 examples/mobile-controls，在世界大纲中选中带 Canvas 组件的实体；细节面板显示 Canvas 卡片，包含 Design Resolution、Pixels Per Unit、Scale Mode、Match Width Or Height、Background Color 与 Layer。 */}
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `designResolution` | Vec2 | `{x: 1920, y: 1080}` | 设计（参考）分辨率，单位为像素。 |
+| `pixelsPerUnit` | number | `100` | 每物理米的世界像素数（Box2D 与瓦片碰撞体的比例）。最小为 `1`。不是显示缩放。 |
+| `scaleMode` | `ScaleMode` | `FixedHeight` | 设计分辨率如何适应屏幕宽高比（[缩放模式](#缩放模式)）。 |
+| `matchWidthOrHeight` | number | `0.5` | `Match` 模式的混合系数，0–1：`0` 适配宽度，`1` 适配高度。其他模式忽略此项。 |
+| `backgroundColor` | Color | `{r:0, g:0, b:0, a:1}` | 为设计盒之外区域声明的颜色。 |
+| `layer` | number | `0` | 该画布的 UI 所属的排序层；相机据此包含或排除该 UI（[相机剔除](/docs/zh-cn/core-concepts/screen/camera-fit/#相机对-ui-的剔除)）。 |
+
+```typescript
+import { defineSystem, GetWorld, Canvas } from 'esengine';
+
+const readCanvas = defineSystem([GetWorld()], (world) => {
+  const [canvasEntity] = world.getEntitiesWithComponents([Canvas]);
+  if (canvasEntity === undefined) return;
+
+  const canvas = world.get(canvasEntity, Canvas);
+  const designW = canvas.designResolution.x;   // 1920
+  const designH = canvas.designResolution.y;   // 1080
+});
+```
+
+<Aside type="note">
+  `pixelsPerUnit` 仅影响物理与瓦片碰撞体。默认值 `100` 时，100 像素的箱子为一个 Box2D 米，使物理数值处于求解器调校的数值范围内。
+  修改它会改变碰撞体尺寸与重力的效果，而不影响渲染。
+</Aside>
+
+## 缩放模式
+
+![在 4:3 屏幕上，FixedWidth/Expand 在 16:9 设计盒上下显示额外的世界区域，FixedHeight/Shrink 填满高度并裁切两侧](@/assets/guides/scale-modes.svg)
+
+适配由一个纯函数计算，导出为 `computeEffectiveOrthoSize`。它根据设计盒与屏幕宽高比返回**有效正交半高**：
+相机所显示区域高度的一半，以世界单位计。候选值有两个：
+
+| 候选值 | 公式 | 含义 |
+|---|---|---|
+| `orthoForWidth` | `(designResolution.y / 2) × designAspect / actualAspect` | 设计**宽度**恰好铺满屏幕时的半高。 |
+| `orthoForHeight` | `designResolution.y / 2` | 设计**高度**恰好铺满屏幕时的半高。 |
+
+每种 `ScaleMode` 在两者之间选择：
+
+| `ScaleMode` | 值 | 有效半高 | 行为 |
+|---|---|---|---|
+| `FixedWidth` | `0` | `orthoForWidth` | 设计宽度始终铺满屏幕。更高的屏幕在上下显示额外的世界区域；更宽的屏幕裁切上下。 |
+| `FixedHeight` | `1`（默认） | `orthoForHeight` | 设计高度始终铺满屏幕。更宽的屏幕在两侧显示额外的世界区域；更窄的屏幕裁切两侧。 |
+| `Expand` | `2` | `max(orthoForWidth, orthoForHeight)` | **整个设计盒始终可见**；另一轴显示设计盒之外的额外世界区域。 |
+| `Shrink` | `3` | `min(orthoForWidth, orthoForHeight)` | **屏幕始终被设计盒填满**；溢出的轴被裁切。不显示设计盒之外的任何内容。 |
+| `Match` | `4` | `orthoForWidth^(1−t) × orthoForHeight^t` | 按 `matchWidthOrHeight`（`t`）几何混合：`0` 等同 `FixedWidth`，`1` 等同 `FixedHeight`。 |
+
+`ScaleMode.ShowAll` 与 `ScaleMode.NoBorder` 是别名，值分别与 `ScaleMode.Expand` 和 `ScaleMode.Shrink` 相同；它们不是额外的模式。
+
+```typescript
+import { computeEffectiveOrthoSize, ScaleMode } from 'esengine';
+
+const halfH = computeEffectiveOrthoSize(
+  540,          // baseOrthoSize = designResolution.y / 2
+  1920 / 1080,  // design aspect (≈ 1.778)
+  1024 / 768,   // screen aspect (4:3 ≈ 1.333)
+  ScaleMode.Expand,
+  0.5,          // matchWidthOrHeight (Match mode only)
+);
+// halfH === 720 → the camera shows 1920 × 1440 design pixels
+```
+
+### 示例：1920×1080 设计分辨率在 4:3 屏幕上
+
+在 1024×768 屏幕上，`orthoForWidth = 540 × (16/9) / (4/3) = 720`，`orthoForHeight = 540`：
+
+| 模式 | 半高 | 可见世界（设计像素） | 结果 |
+|---|---|---|---|
+| `FixedWidth` | `720` | 1920 × 1440 | 完整设计宽度；上下各有 180 px 的额外世界区域。 |
+| `FixedHeight` | `540` | 1440 × 1080 | 完整设计高度；**两侧各裁切** 240 设计像素。 |
+| `Expand` / `ShowAll` | `720` | 1920 × 1440 | 整个设计盒可见，上下有额外世界区域。在比设计分辨率更宽的屏幕上等同 `FixedHeight`。 |
+| `Shrink` / `NoBorder` | `540` | 1440 × 1080 | 屏幕被填满；两侧裁切。 |
+| `Match`（t = 0.5） | `≈ 623.5` | ≈ 1663 × 1247 | 两侧部分裁切，上下显示部分额外世界区域。 |
+
+<Aside type="tip">
+  相机视口始终填满其屏幕矩形；任何缩放模式都不会绘制黑边。某个模式显示设计盒之外的区域时，该区域显示的是世界，
+  因此为 `Expand` 准备的背景应延伸到设计框之外。`Canvas.backgroundColor` 声明设计盒之外区域的颜色。`IntegerMultiple`
+  [渲染分辨率](/docs/zh-cn/core-concepts/screen/camera-fit/#渲染分辨率)是另一项设置，它以黑边呈现画面。
+</Aside>
+
+## 选择模式
+
+| 内容 | 模式 |
+|---|---|
+| 绝不能被裁切的内容（UI 密集、解谜） | `Expand`，背景延伸到设计框之外。 |
+| 允许裁切边缘的满屏画面 | `Shrink`。 |
+
+内容按设计分辨率创作，不针对每种屏幕缩放；适配由缩放模式处理。相机缩放由 `orthoSize` 控制，而不是 `pixelsPerUnit`。

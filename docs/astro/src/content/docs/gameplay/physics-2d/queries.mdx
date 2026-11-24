@@ -1,0 +1,153 @@
+---
+title: Forces, Queries & Events
+description: 2D physics runtime API — the Physics2D resource's force, velocity and mass methods, raycasts, overlaps and shape casts, Physics2DEvents contact and sensor events, and grid placement checks.
+---
+
+The `Physics2D` resource is a `Physics2DAPI` instance that drives bodies and queries the world. Every method takes the
+entity that owns the body. `Physics2DEvents` carries the frame's contacts.
+
+## Forces & velocity
+
+These methods pass values directly to the solver and are in **metres** (m/s, m/s²; see
+[Units](/docs/gameplay/physics-2d/overview/#units)).
+
+```typescript
+import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
+import { Physics2D } from 'esengine/physics';
+
+const move = defineSystem([Query(RigidBody2D), Res(Physics2D)], (q, physics) => {
+  for (const [entity] of q) {
+    physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
+    physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
+    physics.setLinearVelocity(entity, { x: 3, y: 0 });
+  }
+});
+```
+
+| Method | Description |
+|---|---|
+| `applyForce(e, v)` / `applyImpulse(e, v)` | Continuous force / instantaneous impulse. |
+| `applyTorque(e, t)` / `applyAngularImpulse(e, i)` | Rotational force / impulse. |
+| `setLinearVelocity(e, v)` / `getLinearVelocity(e)` | Sets / reads linear velocity. |
+| `setAngularVelocity(e, w)` / `getAngularVelocity(e)` | Sets / reads angular velocity. |
+| `setGravity(v)` / `getGravity()` | World gravity. |
+| `getMass(e)` / `getInertia(e)` / `getCenterOfMass(e)` / `getMassData(e)` | Mass properties. |
+| `setAwake(e, awake)` / `isAwake(e)` | Sleep control. |
+| `getPixelsPerUnit()` | The live pixels per unit. |
+
+`getMassData(e)` returns a `MassData`:
+
+| `MassData` field | Type | Description |
+|---|---|---|
+| `mass` | number | Body mass (collider `density` × area). |
+| `inertia` | number | Rotational inertia about the centre of mass. |
+| `centerOfMass` | `Vec2` | Centre of mass in the body's local frame, in pixels (× PPU). |
+
+## Spatial queries
+
+Queries take **pixel-space** arguments and are scaled by the live PPU. Each accepts an optional `maskBits` layer filter.
+
+```typescript
+// Raycast — every hit along the ray, nearest first.
+const hits = physics.raycast(origin, direction, 200);
+for (const hit of hits) {
+  // hit.entity, hit.point, hit.normal
+}
+
+const nearby = physics.overlapCircle(center, 64);   // Entity[]
+const inBox  = physics.overlapAABB(min, max);       // Entity[]
+const swept  = physics.shapeCastCircle(center, 16, { x: 100, y: 0 });  // ShapeCastHit[]
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `raycast(origin, dir, dist, maskBits?)` | `RaycastHit[]` | All hits along a ray, nearest first. `dir` is a direction; `dist` is in pixels. |
+| `overlapCircle(center, radius, maskBits?)` | `Entity[]` | Colliders overlapping a circle. |
+| `overlapAABB(min, max, maskBits?)` | `Entity[]` | Colliders overlapping a box. |
+| `shapeCastCircle(center, radius, translation, maskBits?)` / `shapeCastBox(center, halfExtents, angle, translation, maskBits?)` / `shapeCastCapsule(center1, center2, radius, translation, maskBits?)` | `ShapeCastHit[]` | Sweeps a shape along `translation` and returns everything it would hit. |
+
+Casts return `RaycastHit` records; `ShapeCastHit` has the same fields.
+
+| `RaycastHit` field | Type | Description |
+|---|---|---|
+| `entity` | `Entity` | The entity owning the collider that was hit. |
+| `point` | `Vec2` | Hit point, world pixels. |
+| `normal` | `Vec2` | Surface normal at the hit point (unit vector). |
+| `fraction` | number | Fraction of the cast distance at the hit, `0..1`. Results are sorted by it, nearest first. |
+
+## Collision & sensor events
+
+The `Physics2DEvents` resource carries the contacts of the current frame. A collider with `isSensor: true` produces
+sensor enter/exit events and no physical response.
+
+```typescript
+import { defineSystem, Res } from 'esengine';
+import { Physics2DEvents } from 'esengine/physics';
+
+const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
+  for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
+  for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
+  for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
+  for (const s of events.sensorEnters)    { /* s.sensorEntity, s.visitorEntity */ }
+  for (const s of events.sensorExits)     { /* … */ }
+});
+```
+
+| Event list | Fired when |
+|---|---|
+| `collisionEnters` / `collisionExits` | Two solid colliders begin / stop touching. |
+| `collisionHits` | A high-speed impact; carries `approachSpeed`. |
+| `sensorEnters` / `sensorExits` | A body enters / leaves a sensor collider. |
+
+Positions (`contactX/Y`, `pointX/Y`) are world pixels and `approachSpeed` is pixels per second. The resource is
+published once per rendered frame and holds the contacts of every fixed step in that frame.
+
+The same events are also sent to each participating entity as `collision_enter`, `collision_exit`, `collision_hit`,
+`trigger_enter` and `trigger_exit` (the `Physics2DEventType` constants). Both participants receive one, carrying the
+other entity as `other`; an [event binding](/docs/scripting/events/) on a trigger zone reacts to them without code.
+
+## Grid placement
+
+`esengine/gameplay` provides plain functions (no component, no system) for building on a grid: where a footprint snaps,
+and whether it can stand there. The ghost sprite that follows the pointer, its tint, and what a confirmed placement does
+are game code.
+
+```typescript
+import { snapFootprint, checkPlacement, type PlacementGrid } from 'esengine/gameplay';
+
+const grid: PlacementGrid = { cellWidth: 32, cellHeight: 32 };      // originX / originY if cell (0, 0) is not at the world origin
+const spot = snapFootprint(grid, fingerX, fingerY, 3, 1);           // a 3 by 1 wall, centred on its middle cell
+ghost.position.x = spot.x; ghost.position.y = spot.y;               // the ghost sits on whole cells
+
+const check = checkPlacement(grid, spot, {
+    physics,                                  // the Physics2D resource: any collider in the footprint is in the way
+    mask: SOLID_LAYERS,
+    solidAt: (x, y) => isTileSolid(layer, ...), // a solid tile under it blocks (see the tilemap guide)
+    blocked: (col, row) => buildings.has(col, row), // your own table of what is taken
+    ignore: new Set([ghostEntity]),
+});
+ghostSprite.color = check.clear ? GREEN : RED;     // check.blockers and check.blockedCells say what is in the way
+```
+
+| Function | Description |
+|---|---|
+| `snapToGrid(grid, x, y, mode?)` | Snaps a point to a cell centre (`'centre'`, default) or a cell corner (`'corner'`). |
+| `gridCellAt(grid, x, y)` / `gridCellCentre(grid, col, row)` | Converts between world positions and cells. |
+| `snapFootprint(grid, x, y, cols, rows)` | Snaps a `cols` × `rows` footprint. On each axis an odd size centres on a cell and an even size on a corner. |
+| `checkPlacement(grid, footprint, probes?)` | Returns `{ clear, blockers, blockedCells }`. |
+
+| `checkPlacement` probe | Description |
+|---|---|
+| `physics` / `mask` | A physics resource and layer mask. Any collider in the footprint blocks. The footprint is shrunk slightly before the overlap query, so a collider that only touches its edge does not block. |
+| `solidAt(x, y)` | A solid-tile test, sampled on a lattice over each cell every `solidStep` (default a quarter of a cell). A solid region narrower than the step can fall between samples. |
+| `solidStep` | Sampling step for `solidAt`. |
+| `blocked(col, row)` | The game's own occupancy test. |
+| `ignore` | Entities that never block (the ghost itself). |
+
+Every probe is optional; an omitted probe blocks nothing.
+
+## See also
+
+- [Bodies & Colliders](/docs/gameplay/physics-2d/bodies/) — collision layers used by `maskBits`.
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — sensor regions and their events.
+- [Input](/docs/scripting/input/overview/#fixed-timestep-systems) — reading input from fixed-step systems.

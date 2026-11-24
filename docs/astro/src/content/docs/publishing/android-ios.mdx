@@ -1,485 +1,233 @@
 ---
 title: Android & iOS
-description: Package an Estella project as a real native mobile app — an arm64 build rendering through an embedded Dawn (Metal / Vulkan), not a WebView. Toolchain prerequisites, the export, assembling the app, and what only bites on a device.
+description: Native Android and iOS apps — the runtime (arm64, embedded Dawn on Vulkan or Metal, V8 or QuickJS-ng), device requirements, runtime templates, export output, signing, app identity, engine subsystems on device, Spine runtimes, script execution and boot diagnostics.
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-**Android** and **iOS** package your project as a **real native app**: the engine's
-C++ core compiled to arm64, rendering through an embedded
-[Dawn](https://dawn.googlesource.com/dawn) (WebGPU → **Metal** on iOS, **Vulkan** on
-Android), with your game scripts running on an embedded JS engine —
-[V8](https://v8.dev/), the JIT Chrome runs, on Android, and
-[QuickJS-ng](https://github.com/quickjs-ng/quickjs) on iOS, where Apple allows no
-JIT. It is **not** a WebView and not a wrapper around the web build — there is no
-browser in the process.
+The **Android** and **iOS** targets package the project as a native app: the engine's C++ core compiled for arm64,
+rendering through an embedded [Dawn](https://dawn.googlesource.com/dawn) (WebGPU on **Vulkan** on Android, on **Metal**
+on iOS). Game scripts run on an embedded JavaScript engine — [V8](https://v8.dev/) with its JIT on Android,
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs) on iOS, where a JIT is not permitted. The app contains no WebView
+or browser.
 
-The authoring model is identical to every other target. The same scenes, the same
-components, the same TypeScript. Nothing in a project is mobile-specific.
+Scenes, components and TypeScript are the same as on every other target; a project needs no mobile-specific content.
 
-<Aside type="note" title="One download per editor version">
-  The engine's compiled half is not in the editor download — it is a **runtime
-  template** you install once per editor version (see
-  [Prerequisites](#prerequisites)), because most projects never ship to a phone and
-  it is tens of megabytes. With one installed, packaging needs no engine sources
-  and no Android SDK; iOS additionally needs Xcode, which only Apple can supply.
-</Aside>
+## Targets
 
-## Two platforms, one runtime
-
-Android and iOS are offered as **two targets, not one "Mobile"**, because they
-are assembled into entirely different things — a signed `.apk` here, an Xcode
-project there — and only one of them can be finished on any OS. One row could not
-tell you whether this machine can finish the job, or what comes out.
-
-They do share **one runtime and one export payload**. The engine, the SDK and the
-game runtime all live in the app binary, so what an export writes is app
-**content** — your scenes, scripts and cooked assets — rather than a runnable
-package the way `dist-web/` is.
+Android and iOS are separate targets because their outputs and assembly hosts differ. They share one runtime and one
+export payload: the engine, the SDK and the game runtime are in the app binary, and the export writes app **content**
+— scenes, scripts and cooked assets.
 
 | | Android | iOS |
 |---|---|---|
 | Graphics | Vulkan (via Dawn) | Metal (via Dawn) |
-| Export output | `dist-android/` | `dist-ios/` |
-| Assembled by | the editor (no Android SDK) | the editor, then Xcode |
-| Assembly host OS | any desktop OS | **macOS only** |
-| Result | a signed `.apk`, **or** an Android Studio project | an Xcode project you open, sign and run |
+| Export folder | `dist-android/` | `dist-ios/` |
+| Assembled by | The editor (no Android SDK) | The editor, then Xcode |
+| Assembly host OS | Any desktop OS | macOS only |
+| Result | A signed `.apk` (optionally with an `.aab`), or an Android Studio project | An Xcode project |
 
-Android offers both because it can: the editor assembles a package outright, and it
-can also write the Gradle project that package would have been built from. Pick the
-project under **Output** in the Android section when the game needs to add an SDK, a
-permission or an Activity of its own — that is the same shape iOS has always had,
-where Xcode does the assembling.
-
-## What a packaged game runs on
+## Device requirements
 
 | | Android | iOS |
 |---|---|---|
 | Minimum OS | **Android 10** (API 29) | **iOS 17.0** |
-| Declared target | API 33 | — |
-| CPU | `arm64-v8a` (every real device); `x86_64` (the emulator) only when asked | arm64 device + simulator slice |
-| GPU | **Vulkan 1.0.3 required** — declared `required="true"`, so a device without it does not see the app on Play | Metal |
+| Target API | 33 | — |
+| CPU | `arm64-v8a`; `x86_64` (emulator) only when requested | arm64 device and simulator slices |
+| GPU | **Vulkan 1.0.3**, declared `required="true"` | Metal |
 
-An Android package carries the phone ABI only, which is about half of what it used to
-weigh. To try a build in an emulator, tick *Include the emulator (x86_64)* in the Android
-section (or pass `--emulator-abi` on the command line) and install that one; leave it off
-for anything you ship.
-
-Android's floor is 29 because the engine's font path calls `AFontMatcher_create`,
-which is API 29 — below that there is nothing to fall back to. It was **declared** as
-26 through v0.37.0, which was a claim rather than a capability: those builds install
-on Android 10 and 11 and then fail to start, because the NDK was told to build against
-a higher API and turned every guarded symbol into a load-time requirement. Nothing
-that ran on v0.37.0 stops running on v0.38.0 — the number now says what was always
-true.
-
-<Aside type="note">
-  The Vulkan requirement follows from the runtime: the engine renders through Dawn,
-  and Dawn's Android backend is Vulkan. There is no GLES fallback path in a packaged
-  game. It is declared in the manifest, so Play filters on it rather than letting an
-  incapable device install and fail.
-</Aside>
+- The Android minimum is API 29 because the font path calls `AFontMatcher_create`, which requires API 29.
+- The Vulkan requirement follows from Dawn's Android backend; there is no GLES fallback. Because it is declared in the
+  manifest, Google Play does not offer the app to devices without Vulkan.
+- An Android package carries the phone ABI only. **Include the emulator (x86_64)** in the Android target settings, or
+  `--emulator-abi` on the command line, adds the emulator libraries; leave it off for release builds.
 
 ## Prerequisites
 
-The Package dialog distinguishes **two kinds** of missing prerequisite, and they
-are not the same severity:
-
-- A missing **engine runtime** — for a mobile target, its **runtime template** —
-  means the package cannot be produced at all.
-- A missing **native toolchain** does not. The export still writes the app's
-  content; only the final assembly needs the toolchain, and **that step can run on
-  another machine** — an iOS build always does when the editor is on Windows.
-
 <Steps>
 
-1. **Get the runtime for your target.**
-   Install the **runtime template**: the engine, prebuilt for arm64 and published
-   with each release. The target's row offers **Download** — or *Install from
-   file…* if you already have the archive (offline, a mirror, a company share).
-   It is matched **exactly** against the editor's version, because the SDK is
-   compiled into the app binary, so it is one download per editor upgrade — and
-   none of the engine's own build dependencies come with it.
+1. **Install the runtime template.** The template is the prebuilt engine for the target, published with each release.
+   The target's row in Package Project offers **Download**, or **Install from file…** for an archive obtained
+   separately. The template must match the editor version exactly, because the SDK is compiled into the app binary.
 
-   Android needs nothing else: the APK is compiled, aligned and signed by the
-   editor, on whatever OS it is running on.
-
-   :::tip[Where the download comes from]
-   Releases are mirrored to `dl.estella.games`, and the editor asks it before the
-   origin — a
-   template is hundreds of megabytes, and GitHub's speed is not the same
-   everywhere. The mirror is a shortcut and never an authority: every archive is
-   checked against the size and SHA-256 the release's index states, so a copy that
-   is missing, stale or wrong fails that check and the download falls back to
-   GitHub. Point the editor elsewhere — a company share, your own CDN, nothing at
-   all — with `ESTELLA_RELEASE_MIRROR` (comma-separated, tried in order); each one
-   lays a version out exactly as the release does, under `v<version>/`.
+   :::tip[Download source]
+   Releases are mirrored to `dl.estella.games`, which the editor tries before the origin. Every archive is checked
+   against the size and SHA-256 stated by the release index; a missing, stale or mismatched copy falls back to GitHub.
+   `ESTELLA_RELEASE_MIRROR` sets other mirrors (comma-separated, tried in order); each mirror lays out a version as the
+   release does, under `v<version>/`.
    :::
 
-2. **Install the platform toolchain — iOS only.**
-   - *Android* — none. There is no Android SDK, NDK or JDK in this path.
-   - *iOS* — **macOS with Xcode**, and nothing else: no CMake, no Ninja, no
-     xcodegen, no Dawn checkout. Apple ships no toolchain for other operating
-     systems, so the dialog says so rather than pretending otherwise — but the
-     export still writes a complete project you can carry to a Mac.
+2. **Install the platform toolchain (iOS only).**
+   - *Android*: none. The APK is compiled, aligned and signed by the editor on any OS; no Android SDK, NDK or JDK is
+     needed.
+   - *iOS*: **macOS with Xcode**. No CMake, Ninja, xcodegen or Dawn checkout is needed. On other operating systems the
+     export still writes a complete project that can be opened on a Mac.
 
-3. **Check the dialog.** The target's row carries a warning triangle until the
-   probe passes, and the panel names what is missing.
+3. **Check the dialog.** The target's row shows a warning until its prerequisites are met, and the panel names what
+   is missing.
 
 </Steps>
+
+A project with `@compiled` systems also needs the **Android NDK** on the exporting machine for Android
+([Script execution](#script-execution)).
 
 ## Exporting
 
 <Steps>
 
-1. **Build → Package Project…**, then pick **Android** or **iOS** under **MOBILE**.
-2. Choose a build config and an output folder (`dist-android` / `dist-ios` by
-   default). Source maps are not offered — there is no browser devtools to
-   consume them.
-3. Check **Scenes in build** as you would for any target.
-4. **Package**. The export cooks assets, bundles scripts, and writes the app's
-   content plus an `app.config.json` carrying the app's identity.
+1. **Build → Package Project…**, then select **Android** or **iOS** under **Mobile**.
+2. Choose a configuration and an output folder (`dist-android` / `dist-ios` by default). Source maps are not offered.
+3. Review **Scenes in build**.
+4. Click **Package**. The export cooks assets, bundles scripts, writes the content and an `app.config.json` with the
+   app's identity, and assembles the app around it.
 
 </Steps>
 
-**That is the whole export.** With the runtime template installed, the output
-folder holds the finished app:
+| Output | Contents |
+|---|---|
+| **Android**, *Package as: Installable package (.apk)* | A signed `.apk`, ready for `adb install -r`. With **Google Play App Bundle (.aab)** ticked, an `.aab` is written beside it; the bundle is the Google Play upload format and cannot be installed on a device. |
+| **Android**, *Package as: Android Studio project* | A Gradle project: content under `app/src/main/assets`, the engine under `app/src/main/jniLibs`, the host's Java shim as source, and `app/build.gradle.kts` with the app's identity. Open it in Android Studio and run. A re-export rewrites the game and leaves the build script unchanged, so SDKs added to `build.gradle.kts` persist. |
+| **iOS** | An Xcode project: the `.xcframework`, the app shell and a generated `.pbxproj` around the content. Open it, select a signing team under *Signing & Capabilities*, and run. |
 
-- **Android** — a signed `.apk`, ready for `adb install -r` or a copy to the
-  device. It is signed with a development key the editor generates on first use
-  (the same standing as Android Studio's debug key: fine for a device, refused by
-  every store). To sign with your own, pass `--key`/`--cert` to
-  `node build-tools/cli.js native --package --content dist-android`.
-
-  For **Google Play**, tick *Google Play App Bundle (.aab)* in the Android section:
-  the export writes one beside the APK. Play has required a bundle rather than an
-  APK for new apps since 2021 — it is the upload format, and cannot be installed on
-  a device, which is why the APK is still what you test with.
-- **Android, with *Output* set to *Android Studio project*** — an ordinary Gradle
-  project instead of a package: your content under `app/src/main/assets`, the engine
-  under `app/src/main/jniLibs`, the host's Java shim as source, and an
-  `app/build.gradle.kts` carrying the app's identity. Open the folder in Android
-  Studio and Run; add your SDKs to `build.gradle.kts` as you would in any Android
-  app. Exporting again rewrites the game and leaves the build script alone, so a
-  project that has grown an SDK survives its game being rebuilt.
-- **iOS** — an Xcode project: the `.xcframework`, the app shell and a generated
-  `.pbxproj`, written around your content. Open it, pick your signing team under
-  *Signing & Capabilities*, and Run.
-
-<Aside type="tip" title="Why the export can do this without a compiler">
-  The app's compiled half carries no project data — every game ships the same
-  engine binary, and an export is content only. So it is built once per release and
-  distributed as a template, and assembling an app is copying files and writing a
-  project file. That is why it belongs in the export rather than behind a command
-  you have to find, and why an editor with no template says exactly that instead of
-  writing a project that cannot link.
-</Aside>
+The app binary is identical for every game and an export is content only, so assembly copies files and writes project
+files; no compiler is involved.
 
 ![The Package Project dialog on the Android target, showing the runtime template notice and the Android settings](@/assets/guides/en/build-android.png)
 
-*The Android target. Until the runtime template is installed, the dialog says so and offers **Download** or **Install from file**.*
+*The Android target. Until the runtime template is installed, the dialog offers **Download** or **Install from file**.*
+
+{/* SHOT: publish-ios-target | Package Project dialog with the iOS target selected under Mobile: the target settings, the runtime-template or Xcode prerequisite notice, Configuration, Output folder and Scenes in build; any example project */}
+
+### Android signing
+
+| Build | Signed with |
+|---|---|
+| Development | A development key the editor generates on first use. Accepted by devices, refused by stores. |
+| Shipping | The project's release key, when set: **Release private key** and **Release certificate** (PEM, project-relative or absolute) in the Android target's signing group. The two are checked against each other before signing. **Release key passphrase** is stored in the machine's keychain; the CLI reads `ESTELLA_ANDROID_KEY_PASSPHRASE`. |
+
+Keep the release key out of the project's repository. An app can also be assembled from an export with
+`node build-tools/cli.js native --package --content dist-android`, passing `--key` / `--cert` (and `--passphrase`) to
+sign with a specific key, and `--aab` to write a bundle.
+
+### Native libraries
+
+**Compress native libraries** (Android target settings, on by default) deflates the native libraries in the APK: an
+empty project downloads as about 20 MB instead of 54 MB, and Android extracts the libraries once at install. Off, the
+libraries are stored for the system to map in place: about half the installed size, nearly three times the download.
+The App Bundle always stores them; Google Play compresses what it delivers.
 
 ## App identity
 
-A native app has OS-level properties the engine never reads — the runtime cannot
-rotate a phone, and a store keeps a bundle id forever — so they are declared for
-whoever assembles the app, in **Settings → Project → Build and modules → Packaging**:
+The following settings are written into `app.config.json` beside the content, not into `game.config.json`, which the
+runtime reads:
 
-| Setting | What it becomes |
-|---|---|
-| **App Icon** | The launcher icon on both platforms — one project-relative square PNG (1024×1024 is ideal). Android takes it as the launcher mipmap, iOS as the asset catalog Xcode derives every size from, so nothing is resized and one image is all you keep. Left empty, the app ships Estella's mark rather than the platform's placeholder. |
-| **Application ID** | The Android manifest package and the iOS bundle id (reverse-DNS). Left empty it is derived from the project name; a published app should set its own. |
-| **Android Version Code** | The integer Google Play orders builds by — it must increase with every upload. The version users see comes from the project version. |
-| **Orientation** | *Settings → Project → Game → Display → Orientation*, one project-wide setting every target honors. Left unset it follows the design resolution's aspect. |
+| Setting | Location | Effect |
+|---|---|---|
+| **App Icon** | Settings → Project → Build and modules → Packaging | One project-relative square PNG (1024×1024 recommended). Android uses it as the launcher mipmap, iOS as the asset catalog from which Xcode derives every size. Empty ships the Estella mark. |
+| **Application ID** | Same | The Android manifest package and the iOS bundle id (reverse-DNS). Empty derives one from the project name. |
+| **Android Version Code** | Android target settings | The integer Google Play orders builds by; it must increase with every upload. The user-visible version comes from the project version. |
+| **Orientation** | Settings → Project → Game → Display | Project-wide; unset follows the design resolution's aspect. |
 
-The export writes these into `app.config.json` beside the content — deliberately
-**not** in `game.config.json`, which is what the runtime reads.
+## Engine subsystems on device
 
-## What runs on a device
-
-**Everything.** The mobile targets compile the whole engine source list, and the
-three subsystems that ship as separate WebAssembly side modules on the web
-(Box2D, the Spine runtime, the MPEG-1 video decoder) are compiled **into the app
-binary** instead — a device has no dynamic-linking story and no reason for one.
-`app.sideModules` still answers for them, so the runtime's own feature gating
-behaves exactly as it does in a browser.
+The mobile targets compile the whole engine source list. The subsystems that are separate side modules on the web
+(Box2D, the Spine runtimes, the MPEG-1 video decoder) are compiled into the app binary. `app.sideModules` still
+reports them, so runtime feature checks behave as in a browser.
 
 | Subsystem | On device |
 |---|---|
 | Sprites, tilemaps, particles, post-processing | Native (Dawn) |
-| Text, bitmap text, rich text | Same atlas + layout as the web; glyphs rasterized from the OS font |
+| Text, bitmap text, rich text | Same atlas and layout as the web; glyphs rasterized from the OS font |
 | Physics (Box2D) | Compiled in; solved across worker threads |
-| Spine | Compiled in — every version, each skeleton read by its own; see [Spine versions](#spine-versions) |
-| DragonBones | Compiled in — one runtime, since the format is frozen |
+| Spine | Compiled in, every version; see [Spine runtimes](#spine-runtimes) |
+| DragonBones | Compiled in, one runtime |
 | Video | Compiled in (cooked at build, decoded on device) |
-| Audio | Native mixer ([miniaudio](https://miniaud.io/)) — CoreAudio / AAudio |
-| Text input | The platform's **soft keyboard** is the field's editing surface |
+| Audio | Native mixer ([miniaudio](https://miniaud.io/)) on CoreAudio / AAudio |
+| Text input | The platform's soft keyboard is the field's editing surface |
 | Networking | The OS network stack (`NSURLSession` / `HttpURLConnection`) |
-| Terrain and streamed worlds | Run on the native runtime. A terrain's layer textures go to the device as bytes, as every other texture does (a device has no wasm heap to copy them through), and a chunked world's maker uses a cancellation handle of its own, because the native runtime has no `AbortController` |
-| Compressed textures | KTX2 transcoded to the device's format (ASTC → ETC2 → BC), with mip chains |
+| Terrain and streamed worlds | Supported. Terrain layer textures are passed to the device as bytes, and a chunked world's maker uses its own cancellation handle, because the native runtime has no `AbortController`. |
+| Compressed textures | KTX2 transcoded to the device format (ASTC, ETC2, BC), with mip chains |
 | Lifecycle | `onShow` / `onHide` and OS memory warnings reach the app |
 
-### Spine versions
+If a future build omits a subsystem, the export names it and the scenes that use it.
 
-A native app reads every Spine version the editor does: 2.1, 3.8, 4.1, 4.2
-and 4.3. As in a browser build, each skeleton is read by the runtime of the
-version it was exported from, so a project can mix versions. The Spine version
-in Project Settings is only a preference.
+### Spine runtimes
 
-The runtimes define the same C names, so the host compiles each one under its
-own prefix and links them side by side. On Android each version is a separate
-library (0.2 to 1 MB per ABI). The export reads the version of every skeleton
-it packages and includes only the libraries those skeletons need. On iOS and
-the desktop all versions are linked into the app, which adds about 1 MB.
+A native app reads Spine 2.1, 3.8, 4.1, 4.2 and 4.3. Each skeleton is read by the runtime of the version it was
+exported from, so a project can mix versions; the Spine version in Project Settings is only a preference. The runtimes
+define the same C names, so the host compiles each under its own prefix. On Android each version is a separate
+library (0.2–1 MB per ABI) and the export includes only those the packaged skeletons need. On iOS and desktop all
+versions are linked into the app (about 1 MB).
 
-Which runtimes a package carries is decided once for every target: the web,
-playables, mini-games and Android. Project Settings → Spine has a row per
-runtime, and each row says what the build will do with it:
+Which runtimes a package carries is decided the same way for web, playable, mini-game and Android packages. Project
+Settings → Spine has a row per runtime:
 
-- **Auto** (the default) carries the runtime when a packaged skeleton was
-  exported from it.
-- **Include** carries it even when no packaged skeleton uses it. Use it for
-  skeletons that only code loads, such as a path built at run time or content
-  fetched later.
-- **Exclude** leaves it out. If a packaged skeleton needs that runtime, the
-  export fails and names the skeleton, so it never ships a skeleton that cannot
-  play.
+| Value | Behaviour |
+|---|---|
+| **Auto** (default) | Carried when a packaged skeleton was exported from it. |
+| **Include** | Always carried. Use for skeletons only code loads (a path built at run time, content fetched later). |
+| **Exclude** | Never carried. If a packaged skeleton needs it, the export fails and names the skeleton. |
 
-The export result lists every runtime with the reason it was carried or left
-out.
+The export result lists each runtime and why it was carried or left out. A runtime template from an older release
+carries a single Spine version; packaging with it lists every skeleton the template cannot play. Install the
+template for the current editor version to resolve it.
 
-A runtime template from an older release carries a single Spine version. If
-you package with one, the export lists every skeleton the template cannot
-play. Install this editor version's template from Package Project to fix it.
+## Assets on device
 
-If a future build ever *does* drop a subsystem, the export names it — with the
-scenes that use it — instead of quietly shipping a package missing half a scene.
+- **Assets referenced only from code are culled.** A build ships what is reachable from the scenes in the build.
+  Mark folders referenced only by code with **Delivery → Always include in builds** in the Content Browser, which
+  writes `alwaysInclude` into `.esengine/asset-groups.json`:
 
-## Calling your own native code
-
-A packaged game is an ordinary app, so it can link an ad SDK, a store, a sign-in
-or an analytics library. Those are Java, Kotlin, Objective-C or Swift, and they are
-yours: the engine links none of them. `NativeChannel` is how a script reaches them.
-The native side answers a name, the script calls the name, and values cross as JSON.
-
-```typescript title="src/shop.ts"
-import { NativeChannel } from 'esengine';
-
-if (NativeChannel.has('store.buy')) {
-    const receipt = await NativeChannel.call<{ token: string }>('store.buy', { sku: 'gems_100' });
-}
-const off = NativeChannel.on<{ sku: string }>('store.restored', (p) => grant(p.sku));
-```
-
-| Call | What it does |
-| --- | --- |
-| `NativeChannel.available` | Whether this platform has native code to reach. `false` on the web, in a mini-game and in the editor. |
-| `NativeChannel.has(method)` | Whether a call to `method` would be answered. Ask before offering the feature. |
-| `NativeChannel.call(method, args?)` | Runs the handler and resolves with what it answered. Rejects when nothing answers to the name, or with the reason the handler gave. |
-| `NativeChannel.on(event, handler)` | Hears what the native side raises on its own. Returns the unsubscribe. |
-
-A game that asks `has` first runs unchanged everywhere: where there is no native
-code, `has` is `false` and nothing is called.
-
-Every native build answers `app.info` itself: `{ os, osVersion, device, id, version, build }`
-on Android and iOS (the package id and its version, which a script cannot otherwise
-read), and `{ device }` on desktop.
-
-### Android
-
-Export an **Android Studio project** (your code has to be compiled into the app, so
-the one-click APK cannot carry it). Put your classes under `app/src/game/java`,
-which a re-export leaves alone, and register what they answer from a plugin:
-
-```java title="app/src/game/java/com/example/game/GamePlugin.java"
-package com.example.game;
-
-import android.app.Activity;
-import com.estella.host.NativeChannel;
-
-public final class GamePlugin implements NativeChannel.Plugin {
-    @Override public void register(Activity activity) {
-        NativeChannel.register("store.buy", (args, reply) -> {
-            // args is JSON text. Call your SDK, then answer once, from any thread:
-            reply.resolve("{\"token\":\"abc\"}");   // or reply.reject("cancelled")
-        });
-    }
-}
-```
-
-Name the plugin in `app/src/game/resources/META-INF/services/com.estella.host.NativeChannel$Plugin`,
-one class name per line. That file is how the plugin is found before the first frame
-(Java's `ServiceLoader`), so a library can bring its own and nothing in the manifest
-names it.
-
-A handler runs on the UI thread, where an SDK that shows anything has to be called.
-`NativeChannel.emit("store.restored", json)` raises an event from any thread, and
-`NativeChannel.activity()` is the game's activity for an SDK that needs one.
-
-A project exported before this version has no `src/game` source set in its
-`app/build.gradle.kts`, which is yours and is not rewritten. Add it by hand:
-
-```kotlin title="app/build.gradle.kts"
-android {
-    sourceSets {
-        getByName("main") {
-            java.srcDir("src/game/java")
-            resources.srcDir("src/game/resources")
-        }
-    }
-}
-```
-
-### iOS
-
-The exported Xcode project carries `App/EstellaNativeChannel.h`. Add your own source
-file to the app target (outside `App/`, which a re-export rewrites) and register from
-`+load`, which runs before the game starts:
-
-```objc title="GamePlugin.m"
-#import "App/EstellaNativeChannel.h"
-
-@interface GamePlugin : NSObject
-@end
-
-@implementation GamePlugin
-+ (void)load {
-    [EstellaNativeChannel registerMethod:@"store.buy"
-                                 handler:^(NSString* args, EstellaNativeReply reply) {
-        // Call your SDK, then answer once, from any thread:
-        reply(@"{\"token\":\"abc\"}", nil);   // or reply(nil, @"cancelled")
-    }];
-}
-@end
-```
-
-`[EstellaNativeChannel emitEvent:@"store.restored" json:json]` raises an event.
-A handler runs on the main thread.
-
-### Ads
-
-The engine's [`Ads` service](/docs/publishing/ads-sharing/#rewarded-ads) works on a device
-as soon as your native code answers two names. Nothing else changes in the game:
-`Ads.available` becomes `true`, and `showRewarded` pauses the game, silences it and
-resumes it around the ad as it does in a mini-game.
-
-| Method | Args | Answer |
-| --- | --- | --- |
-| `ads.show` | `{ kind: "rewarded" \| "interstitial", unitId }` | Answer when the ad has **closed**. For a rewarded ad, `{ "completed": true }` when the reward was earned; anything else grants nothing. Reject when there is no ad to show. |
-| `ads.preload` | the same | Optional. Answer when the ad is loaded. |
-
-Which ad SDK that is (AdMob, Pangle, a mediation layer) is the project's choice,
-with its own size, privacy terms and account, which is why the engine does not pick
-one.
-
-## What only bites on a device
-
-These are the differences worth knowing before your first device build. Each one
-shipped broken at least once because the editor serves a project straight off
-disk and never notices.
-
-### Assets only your code names get culled
-
-A build ships what it can **reach** from the entry scenes. That is right for
-anything a scene names — and blind to anything named **only in code**: a texture
-in rich-text markup, a clip played by url, a prefab spawned by path. Those get
-culled, and the first you hear of it is a silent button or a missing image on the
-phone.
-
-Mark the folder in the **Content Browser**: right-click → **Delivery → Always
-include in builds**. It writes `alwaysInclude` into the same
-`.esengine/asset-groups.json` that already decides local / subpackage / remote
-delivery:
-
-```json
-{
-  "version": "1.0",
-  "groups": {
-    "markup-images": {
-      "folder": "assets/textures",
-      "mode": "local",
-      "alwaysInclude": true
+  ```json
+  {
+    "version": "1.0",
+    "groups": {
+      "markup-images": {
+        "folder": "assets/textures",
+        "mode": "local",
+        "alwaysInclude": true
+      }
     }
   }
-}
-```
+  ```
 
-Off by default, deliberately — reachability is what keeps a build from shipping
-everything. See [Assets](/docs/assets/overview/#shipping-what-only-code-names).
+  It is off by default. See [Assets](/docs/assets/overview/#shipping-what-only-code-names).
+- **Per-platform texture settings.** Import Settings have a tab per platform, including the mobile targets, so a
+  texture can be compressed harder for a phone without changing the source.
 
-### Tune textures for the platform where memory is tightest
+## Script execution
 
-Per-asset **Import Settings** have a tab per platform, mobile targets included —
-so a texture can be compressed harder for a phone than for the web without
-touching the source PNG. See [Assets](/docs/assets/overview/).
+| | Android | iOS |
+|---|---|---|
+| Engine | V8 with JIT (`libv8android.so` per ABI) | QuickJS-ng interpreter |
+| Language support | ICU data for `Intl` and Unicode regular expressions (`/\p{L}/u`); `TextEncoder` / `TextDecoder` provided by the host | — |
+| `@compiled` systems | Cross-compiled with the Android NDK for each 64-bit ABI in the package and shipped in `lib/<abi>/` | Interpreted |
+| SDK bundle at first launch | Compiled at launch and cached in the app's cache | Precompiled bytecode shipped with the app |
 
-### How fast your game script runs
+- **Android `@compiled` systems** run as machine code from the first frame. The NDK must be installed on the
+  exporting machine (Android Studio's SDK Manager, or `ANDROID_NDK_HOME`); the Package dialog reports it when the
+  project has compiled systems and the NDK is missing. A system the host cannot bind runs in the interpreter for that
+  frame.
+- **iOS** interprets every script. Per-entity loops written in TypeScript cost more than in a browser; prefer engine
+  systems and bulk APIs in hot paths.
+- **iOS first launch.** The SDK bytecode is built with the app, so a fresh install reaches its first frame without
+  parsing the bundle. A build machine without a C compiler cannot produce it; the app then compiles on first run,
+  which takes about ten seconds on that launch only.
 
-The engine runs native at full speed everywhere. Your game script does too on
-**Android**: it runs on V8 with its JIT, the engine Chrome runs — the same script
-is compiled to machine code as it would be in a browser, with nothing to change in
-the project. On a Snapdragon 8 Elite phone, a frame of 5,000 scripted entities that
-took 64 ms on the interpreter takes 14 ms on V8 (on a desktop CPU: 76 ms → 8 ms).
-V8 is `libv8android.so` per ABI, with the Unicode data `Intl` and Unicode regular
-expressions (`/\p{L}/u`) need, so scripts see the same language a browser runs;
-`TextEncoder` / `TextDecoder` are provided by the host.
+The boot record ([Boot diagnostics](#boot-diagnostics)) states which applied — `SDK bundle: loaded from the cache
+shipped with the app` or `bundle: no compile cache` — and its first lines name the engine (`engine: V8 …` or
+`engine: QuickJS-ng …`).
 
-**The APK deflates its native libraries** (Project Settings → Android → *Compress
-native libraries*, on by default): an empty project downloads as about 20 MB rather
-than 54, and Android unpacks the libraries once at install. Turn it off to store
-them for the system to map in place — half the installed size, nearly three times
-the download. The App Bundle always stores them; Google Play compresses what it
-delivers.
+## Boot diagnostics
 
-On **iOS** your game script is interpreted, by QuickJS: Apple's rules allow no JIT
-outside its own browser. A per-entity loop written in TypeScript is the one thing
-that costs meaningfully more there than in a browser — prefer the engine's own
-systems and bulk APIs over hand-written per-entity iteration in the hot path.
-
-**On Android, a system marked `@compiled` runs as machine code before the JIT has
-seen it.** The
-export cross-compiles every `/** @compiled */` system with the Android NDK, once per
-64-bit ABI the package carries (arm64-v8a, and x86_64 for the emulator), and the
-APK carries each build in `lib/<abi>/`. Where the interpreter spends microseconds
-per entity, the compiled system spends tens of nanoseconds — and it still takes
-a large share off what the JIT leaves of a frame (14 ms → 4.2 ms on that phone,
-8.3 ms → 1.4 ms on the desktop). The NDK must be
-installed on the exporting machine (Android Studio's SDK Manager, or
-`ANDROID_NDK_HOME`); the Package dialog says so when a project promises compiled
-systems and it is missing. A system the host cannot bind falls back to the
-interpreter for that frame, so a missing module costs speed, never correctness. iOS
-still runs every system interpreted.
-
-### The first launch after an install
-
-On **Android**, V8 compiles the SDK bundle at launch — a fraction of a second — and
-keeps the result in the app's cache, so later launches skip even that.
-
-On **iOS**, parsing the SDK bundle on the interpreter takes ~14 s, and a compile
-cache does not exist until one launch has paid for it — which would be the launch
-right after an install. So the **bytecode is built with the app** and rides along in
-its assets: fresh-install-to-first-frame is ~0.1 s rather than ~10 s.
-
-A build machine without a C compiler cannot produce it, and the app then compiles
-on first run instead: it still works, but that one launch spends ten seconds on a
-screen that a player reads as a hang. The boot record says which happened —
-`SDK bundle: loaded from the cache shipped with the app`, or `bundle: no compile
-cache` — so a slow first launch is a question with an answer rather than a mystery.
-The record's first lines also name the engine (`engine: V8 …` or `engine: QuickJS-ng …`).
-
-### When something goes wrong on a device
-
-Every launch writes a record next to the game, so a failure that only happens on
-someone else's phone leaves something behind:
+Every launch writes a boot record:
 
 ```
 Android   Android/data/<your.package.id>/files/estella-boot.log
 iOS       the app's Documents directory
 ```
 
-The run before it is kept as `estella-boot.prev.log` — an app that dies and is
-opened again would otherwise replace the record of the death with a record of the
-retry.
+The previous run is kept as `estella-boot.prev.log`.
 
 ```
 estella boot record — 2026-07-29 19:07:38
@@ -494,9 +242,8 @@ phase: game script
 ready in 105 ms
 ```
 
-The **phases** are the useful part: the last one in the file is where a launch
-that never finished stopped. A launch that finished says `ready in`. A native
-crash appends the signal, the phase it happened in, and the return addresses:
+The last `phase:` line of an unfinished launch is where it stopped; a completed launch ends with `ready in`. A native
+crash appends the signal, the phase and the return addresses:
 
 ```
 FATAL SIGSEGV (bad memory access) during phase: js runtime
@@ -504,11 +251,10 @@ backtrace (symbolize against this version's unstripped libestella_js_host.so):
   0x7b41e2632c  /data/app/.../libestella_js_host.so+0x1e32c
 ```
 
-Those addresses resolve against the **unstripped** `libestella_js_host.so` for
-that engine version (`llvm-addr2line -e libestella_js_host.so 0x1e32c`); the copy
-inside the APK is stripped.
+Resolve the addresses against the **unstripped** `libestella_js_host.so` of the same engine version
+(`llvm-addr2line -e libestella_js_host.so 0x1e32c`); the copy in the APK is stripped.
 
-To read it off an Android device:
+Reading the record from an Android device:
 
 ```bash
 adb shell cat /sdcard/Android/data/<your.package.id>/files/estella-boot.log
@@ -516,26 +262,22 @@ adb pull /sdcard/Android/data/<your.package.id>/files/estella-boot.log
 ```
 
 <Aside type="caution">
-  That path is for you, not for a player: since Android 11 an app's
-  `Android/data` is closed to file managers and to the system Files app, and
-  `adb shell` reaches it only because that user is in the `ext_data_rw` group.
+  Since Android 11, an app's `Android/data` directory is not accessible to file managers or the system Files app.
+  `adb shell` can read it because its user is in the `ext_data_rw` group.
 </Aside>
 
-**When a game crashes, the next launch publishes the record where a player can
-get at it** — `Android/media/<your.package.id>/`, which a file manager lists,
-falling back to `Download/`. The file is named `estella-crash-<date>.log`, and
-the new run's own record says where it went:
+After a crash, the next launch copies the record to `Android/media/<your.package.id>/` (falling back to
+`Download/`), where file managers can reach it, as `estella-crash-<date>.log`. The new run's record states the path:
 
 ```
 previous run CRASHED; its record was copied to
   /storage/emulated/0/Android/media/com.example.game/estella-crash-20260729-190738.log
 ```
 
-So the instruction to give someone who reports a crash is: **open the game once
-more, then send the newest `estella-crash-*.log`** from that folder. Only crashes
-are published — a launch that finished leaves nothing there.
+To collect a crash report from a player: open the game once more, then send the newest `estella-crash-*.log` from that
+folder. Only crashes are copied.
 
-While a device is attached, the same lines are in `logcat`:
+While a device is attached, the same lines appear in `logcat`:
 
 ```bash
 adb logcat --pid=$(adb shell pidof <your.package.id>)
@@ -543,7 +285,8 @@ adb logcat --pid=$(adb shell pidof <your.package.id>)
 
 ## See also
 
-- [Building & Exporting](/docs/publishing/overview/) — every target, the cook options, and the Package dialog.
-- [Assets](/docs/assets/overview/) — reachability culling, delivery groups, and import settings.
-- [Screen & Design Resolution](/docs/core-concepts/screen/) — designing for a phone's aspect.
-- [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md) — the host's architecture and the full build recipe.
+- [Native Code](/docs/publishing/native-code/) — calling Java, Kotlin, Objective-C or Swift from scripts with `NativeChannel`.
+- [Building & Exporting](/docs/publishing/overview/) — targets, compression and the Package Project dialog.
+- [Assets](/docs/assets/overview/) — reachability, delivery groups and import settings.
+- [Screen & Design Resolution](/docs/core-concepts/screen/overview/) — designing for phone aspect ratios.
+- [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md) — the host's architecture and build recipe.

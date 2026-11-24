@@ -1,0 +1,45 @@
+---
+title: Built-in Primitives
+description: Built-in mesh reference — the seven `builtin:` meshes (cube, sphere, capsule, cylinder, cone, plane, quad), their dimensions, culling and lighting defaults, and camera placement.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Seven meshes are built into the engine and need no import or file. **+ Add → Create entity… → Cube** (or Sphere,
+Capsule, Cylinder, Cone, Plane, Quad) creates an entity whose `MeshRenderer.mesh` holds a `builtin:` ref. The same
+seven appear at the top of the picker of every `MeshRenderer.mesh` field.
+
+| Ref | Shape |
+|---|---|
+| `builtin:cube` | 100-unit box, one flat normal per face. |
+| `builtin:sphere` | 100-unit sphere, smooth normals. |
+| `builtin:capsule` | 100 units tall: radius 25 with 50 units of cylinder between the caps, the shape `CapsuleCollider3D` describes. |
+| `builtin:cylinder` | 100-unit upright cylinder with flat caps. |
+| `builtin:cone` | 100-unit cone standing on its base. |
+| `builtin:plane` | 100-unit square in XZ, facing up. |
+| `builtin:quad` | 100-unit square in XY, facing the camera. |
+
+Primitives are generated in code at load time: they add no bytes to a package, and a scene that references one has no
+asset dependency. All seven are the size of a new `ShapeRenderer`, so a primitive dropped into a scene is visible without
+scaling; size it through its `Transform`, as with an imported model.
+
+## Culling and lighting
+
+- The five closed shapes are created **opaque and back-face culled**, so they occlude each other instead of blending in
+  submission order. `plane` and `quad` are flat and stay two-sided.
+- Primitives are created **lit**, like imported geometry with normals.
+
+<Aside type="caution" title="A lit mesh needs a light">
+Lighting is multiplicative and starts at zero, so a scene without a `Light` draws lit meshes black.
+**+ Add → Create entity… → Sun** adds a directional light. Clearing `lit` draws the mesh unshaded.
+</Aside>
+
+## Camera placement
+
+A primitive is 100 units deep as well as wide. With a camera at the 2D default position, the near half of each solid lies
+in front of the near plane. Place the scene camera a few hundred units away, as the 3D examples do.
+
+## See also
+
+- [Models](/docs/assets/models/overview/): importing glTF and FBX.
+- [Meshes](/docs/graphics/drawing/meshes/): `MeshRenderer` and drawing meshes.

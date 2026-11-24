@@ -1,93 +1,76 @@
 ---
 title: Occlusion Culling
-description: Stop drawing what a wall already hides, with the Occluder component — where the box goes, what it must never claim, and how to read what it saved.
+description: Occluder component reference — authored occluder boxes, placement rules, what occlusion culling skips and never skips, the occlusion grid, and the counters that report its effect.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The frustum answers *is it in front of the camera*. Inside a building, a town or a
-canyon, most of what survives that question is still invisible: a wall is in the
-way. **`Occluder`** lets you say which boxes sight does not pass through, and the
-renderer then stops collecting anything standing behind one.
+Frustum culling removes what is outside the camera's view. **`Occluder`** declares boxes that sight does not pass
+through; the renderer then does not collect objects entirely hidden behind one.
 
 ```typescript
 world.insert(wall, Occluder, { halfExtents: { x: 400, y: 300, z: 20 } });
 ```
 
-That is the whole component. It changes **what a frame costs and never what it
-shows** — the picture with occluders and the picture without them are the same
-pixels.
+Occlusion culling changes the cost of a frame, never its image: a frame with occluders and the same frame without them
+produce the same pixels.
 
-## The box is authored, and it belongs inside the wall
+## Fields
 
-An occluder is not taken from the geometry beside it, and the reason is worth
-knowing: a mesh's bounds *contain* the mesh. A bounding box around a pillar, an
-archway or a rock claims the empty air at its corners, and anything standing in
-that air would stop being drawn while the player can plainly see it.
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `halfExtents` | Vec3 | `{50, 50, 50}` | Half size of the box in world units, centred on the entity's position and rotated by its rotation. Scale is not applied. |
+| `enabled` | boolean | `true` | Off: the box is not used. |
 
-So the rule is the opposite one:
+## Placing the box
+
+An occluder box is authored, not derived from geometry. A mesh's bounds enclose the mesh, so bounds around a pillar, an
+arch or a rock include empty space at their corners, and objects standing in that space would be culled while visible.
 
 <Aside type="caution">
-**The box must lie inside the solid part of the geometry.** Too small only costs
-you some culling. Too big makes things vanish in front of the player — which no
-counter reports and no test catches.
+**The box must lie inside the solid part of the geometry.** A box that is too small only culls less. A box that is too
+large culls visible objects, which no counter reports.
 </Aside>
 
-Placing it:
+- The editor draws the box in the viewport, so it can be sized against the wall it sits in.
+- The box can be on the wall's own entity or on a separate empty entity. A building made of many meshes usually needs one
+  large box rather than one per mesh.
 
-- `halfExtents` (default 50 on each axis) is in **world units**, measured from the entity's position, and
-  the entity's **rotation** turns it. Scale is not read, the same as every other
-  extent in the engine.
-- The editor draws the box in the viewport, so you can size it against the wall
-  it is inside of.
-- It can sit on the wall's own entity, or on an empty entity of its own — a
-  building made of many meshes usually wants one big box rather than one per mesh.
+## What is culled
 
-## What it culls, and what it leaves alone
+Only draws a depth test would have hidden. An object that ignores depth paints over the wall in front of it, so sprites,
+UI, text and any surface whose material disables the depth test are never culled by an occluder.
 
-Only draws a **depth test would have hidden anyway**. An object that ignores depth
-paints over the wall in front of it, and culling it would remove something the
-frame really does show — so sprites, UI, text and any surface whose material turns
-the depth test off are never refused by an occluder.
+Occlusion is evaluated per camera:
 
-It is also a **camera's** answer, not the scene's:
+- Each camera in a frame tests its own occluders.
+- **Shadows are not occlusion-culled.** An object hidden from the camera still casts its shadow.
+- An occluder that contains the camera is ignored.
 
-- Two cameras in one frame each ask their own occluders.
-- **Shadows are not culled by it.** What the player cannot see still casts; a
-  caster dropped because the camera cannot see *it* would take its shadow off the
-  ground with it.
-- An occluder the camera stands **inside** is ignored, rather than declaring the
-  whole view blocked.
+## Occlusion grid
 
-## Reading what it did
+Occluders are rasterized on the CPU into a grid, whose side is the **Occlusion grid** setting of the quality level (64
+at every level by default; [View Distance & Draws](/docs/performance/quality-levels/settings/#view-distance--draws)).
+Each object's bounds are then tested against it. A box hides only grid cells it covers **completely**, so:
 
-Three counters in the Profiler, and each answers a different question:
+- An occluder narrower than one grid cell (1/64 of the view at the default size) hides nothing. Large shapes such as
+  walls, floors between storeys, buildings and cliffs are effective.
+- An object hidden only by the combination of two boxes with a gap between them is still drawn; each box is tested on
+  its own.
 
-| counter | says |
+## Counters
+
+| Counter | Meaning |
 |---|---|
-| `render.cull.occluders` | how many boxes this view **took** |
-| `render.cull.occluded` | how many renderables an occluder **refused** |
-| `render.culled` | every cull, the frustum's included |
+| `render.cull.occluders` | Occluder boxes this view used. |
+| `render.cull.occluded` | Renderables an occluder culled. |
+| `render.culled` | All culled renderables, frustum included. |
 
-A scene whose occluders stopped working shows it in the first two: zero boxes
-means they were never taken (turned past the near plane, or authored to nothing),
-while boxes taken and nothing occluded means they are not in front of anything.
+Zero occluders means the boxes were not used (rotated past the near plane, or of zero size). Occluders used with nothing
+occluded means they are not in front of anything.
 
-## How much it can claim
+## Related systems
 
-The test runs on a small grid — about a sixty-fourth of the view across — and a
-box only claims a cell of it that it covers **whole**. Two consequences worth
-designing around:
-
-- An occluder smaller than roughly 2% of the screen hides nothing. Big shapes
-  are what pay: walls, floors between storeys, buildings, cliffs.
-- An object that is hidden by the *combination* of two walls with a gap between
-  them is still drawn. Each box answers for itself.
-
-## What this is not
-
-`Occluder` is about **what is in the way**. It does not unload anything — see
-[streaming](/docs/world/streaming/) for that — and it does not simplify what is drawn,
-which is [`LODGroup`](/docs/performance/level-of-detail/). The three compose: streaming
-decides what exists, occlusion decides what is collected, LOD decides how much
-geometry the survivors cost.
+`Occluder` decides which objects are collected. [World streaming](/docs/world/streaming/) decides which objects exist,
+and [`LODGroup`](/docs/performance/level-of-detail/) decides how much geometry the remaining objects cost. The three
+combine.

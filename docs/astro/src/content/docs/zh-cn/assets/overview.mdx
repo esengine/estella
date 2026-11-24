@@ -1,46 +1,37 @@
 ---
 title: 资源
-description: 引用、按类型加载器、清单、寻址组,以及生命周期。
+description: 资源系统参考——按路径与 UUID 引用、排除文件夹、Assets 资源的类型化加载器、数据资源、清单、寻址组、预加载，以及烘焙产出的内容。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-项目里每个资源都有稳定的 UUID。场景与预制体按 UUID 引用资源;构建时引擎只**烘焙**
-(cook)游戏能触达的部分,运行时通过**清单(manifest)**解析引用,按类型的**加载器**
-把引用变成可用句柄,**引用计数**再释放不再用的资源。本篇逐一讲清。
-
-## 把文件夹排除在资源库之外
-
-项目里往往不止有内容:还有美术源文件仓库、文档、服务端。编辑器会给项目下每个文件配一个 `.meta` 旁注文件,这类文件夹就会被塞满。把它们写进清单,资源库就不再理会:
-不索引、不往里写 `.meta`、也不监视。
-
-```json
-{ "assetExclude": ["art", "docs", "server"] }
-```
-
-条目是相对项目根的文件夹,其下一切都被排除。内容仍放在没列出的文件夹里(通常是 `assets/`)。
+项目中的每个资源都有稳定的 UUID。场景与预制体按 UUID 引用资源；构建时**烘焙（cook）**只发布游戏可达的资源；运行时由**清单（manifest）**把引用解析为文件，由 `Assets` 资源的类型化**加载器**把引用转换为句柄，并由**引用计数**释放不再被持有的资源（[生命周期与内存](/docs/zh-cn/assets/memory/)）。
 
 ## 引用资源
 
-在代码里,按资源的**项目相对路径**引用它——可读,也是你平常会写的。这个路径相对的是
-**项目根目录**,不是 assets 文件夹,所以它以 `assets/` 开头——和内容浏览器里显示的那个
-写法一致,也是烘焙产出的清单所用的键:
+代码按**项目相对路径**引用资源。路径相对于**项目根目录**而不是资源文件夹，因此以 `assets/` 开头，与内容浏览器显示的路径及烘焙清单的键一致：
 
 ```typescript
 const tex = await assets.loadTexture('assets/textures/player.png');
 ```
 
-少写这层根的引用(`'textures/player.png'`)照样按项目根解析,在那里什么也找不到,
-加载就以 404 失败。
+省略根文件夹的引用（`'textures/player.png'`）按项目根目录解析，找不到文件，加载以 404 失败。
 
-而编辑器会把引用序列化进场景/预制体时写成**稳定 UUID**(`@uuid:<uuid>`),这样文件被
-改名或移动后引用仍然有效,并自动解析——**`@uuid:` 不是给你手写的,是编辑器写的**。两种
-形式所有加载器都认、解析到同一路径。`resolveRef(ref)` 会返回两者解析后的路径。
+编辑器在场景与预制体中把引用序列化为 **UUID 引用**（`@uuid:<uuid>`），文件重命名或移动后引用仍然有效。所有加载器都接受这两种形式，并解析到同一路径。`resolveRef(ref)` 对两种形式都返回解析后的路径。UUID 引用由编辑器写入，不需要手写。
+
+## 排除文件夹
+
+编辑器为项目下的每个文件写入 `.meta` 附属文件。不含内容的文件夹（源美术、文档、服务器代码）可在 `project.esproject` 中用 `assetExclude` 排除：资源库不为其建立索引，不在其中写入 `.meta`，也不监视其变化。
+
+```json
+{ "assetExclude": ["art", "docs", "server"] }
+```
+
+条目为相对于项目根目录的文件夹，其下全部内容都被排除。
 
 ## 按类型加载
 
-`Assets` 资源为每种资源类型提供一个按类型的加载器。每个返回一个句柄或 id,你把它设到
-组件上。例如加载一张贴图并显示在 `Sprite` 上:
+`Assets` 资源为每种资源类型提供一个类型化加载器，返回组件字段所接受的句柄或 id：
 
 ```typescript
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
@@ -53,82 +44,68 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 });
 ```
 
-| 加载器 | 返回 |
+| 加载器 | 返回值 |
 |---|---|
-| `loadTexture(ref)` | `{ handle, width, height }` |
+| `loadTexture(ref)` | `{ handle, width, height }`（[纹理](/docs/zh-cn/assets/textures/)） |
 | `loadAudio(ref)` | `{ bufferId }` |
-| `loadFont(ref)` | `{ handle, family? }`(矢量字体带 `family`) |
+| `loadFont(ref)` | `{ handle, family? }`（`family` 用于轮廓字体） |
 | `loadMaterial(ref)` | `{ handle, shaderHandle }` |
-| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }` —— 准备好的骨骼与图集,`Spine` 组件据此绘制 |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }`：`Spine` 组件绘制所用的、已准备好的骨架与图集 |
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
 | `loadAnimClip(ref)` | `{ clipId }` |
 | `loadAnimatorController(ref)` | `{ controllerId }` |
 | `loadStateMachine(ref)` / `loadBehaviorTree(ref)` | `{ fsmId }` / `{ btId }` |
-| `loadLocaleTable(ref)` | `{ locale, keyCount }` |
+| `loadLocaleTable(ref)` | `{ locale, keyCount }`（[本地化](/docs/zh-cn/assets/localization/)） |
 | `loadPrefab(ref)` | `{ data }` |
 | `loadJson<T>(ref)` | `{ data: T }` |
 
-还有一个通用的 `load<T>(type, ref)`,当类型是动态决定时用;以及 `register(loader)`
-为自定义资源类型添加加载器。
+`load<T>(type, ref)` 是运行时才确定类型时使用的通用形式；`register(loader)` 为自定义资源类型添加加载器。
 
-## 你自己的数据
+## 数据资源
 
-一个 `.json`,只要不是 Spine 骨架、也不是 DragonBones 的那一对,它就是**数据资源**——
-游戏自己的数值表、配置、对白。和别的资源一样加载:
+既不是 Spine 骨架、也不属于 DragonBones 文件对的 `.json` 文件是**数据资源**：游戏数据表、调参数值、对白等，用 `loadJson` 加载：
 
 ```typescript
 const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 ```
 
-`T` 是你声称这个文件长什么样;没有任何东西校验它,所以这是 `JSON.parse` 的保证,不是 schema 的。
+`T` 不做校验，结果只具备 `JSON.parse` 本身的保证。
 
-把它当资源加载、而不是自己去 fetch 那个路径,不是走形式。数据资源有 uuid,所以移动文件不会
-让指向它的东西失效;它只解析一次并被引用计数;它可以放进惰性[分组](#寻址组懒加载)或者从 CDN 来;
-[热更新](/docs/zh-cn/publishing/hot-update/)能在已发行的游戏里替换它。手写的 `fetch` 一样都拿不到——
-而且它**在编辑器里是通的**(编辑器伺服整个项目),而构建只装资源。
+数据资源有 UUID，只解析一次并参与引用计数，可放入懒加载[寻址组](#寻址组懒加载)或由 CDN 提供，并可由[热更新](/docs/zh-cn/publishing/hot-update/)替换。直接 `fetch` 项目路径不具备上述任何特性；它在编辑器中可用（编辑器提供整个项目），但在构建中失败，因为构建只包含发布的资源。
 
-数据资源无论有没有人引用都会进包——见[只有代码点名的资产](#只有代码点名的资产),
-它是那里两个内建例外之一。
+数据资源始终发布，无论是否被引用（[只有代码点名的资产](#只有代码点名的资产)）。项目配置文件（`package.json`、`tsconfig.json` 等）不是资源。
 
-项目自己的配置不算数据:`package.json`、`tsconfig.json` 这一类永远不会变成资源。
+## 清单
 
-## 清单(manifest)
-
-运行时通过清单把 `@uuid` 引用解析为文件路径:
+运行时通过烘焙生成的清单把 `@uuid:` 引用解析为文件路径：
 
 ```typescript
-assets.setManifest(manifest);   // 通常运行时会替你设好
+assets.setManifest(manifest);   // 通常由运行时完成
 ```
 
-清单由烘焙(见下)产出。`getManifest()` 返回当前清单。不在清单里的引用会回退到直接
-路径查找。
+`getManifest()` 返回当前清单。不在清单中的引用回退为直接按路径查找。
 
-## 寻址组(懒加载)
+## 寻址组（懒加载）
 
-位于 `subpackages/<name>/…` 文件夹下的资源组成惰性分组 `<name>`;其余属于会被急切加载的
-`main` 分组。按需加载某个分组——带进度——它会先下载再加载其中的资源(在微信上会触发
-`wx.loadSubpackage`;在 Web 上下载是空操作):
+`subpackages/<name>/…` 文件夹下的资源构成懒加载组 `<name>`；其余资源属于立即加载的 `main` 组。`loadGroup` 先下载组（微信上通过 `wx.loadSubpackage`，Web 上下载步骤为空操作），再加载其资源，并报告进度：
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
 
-// ...玩家离开这个组对应的区域时:
+// 离开该组对应的区域时：
 assets.releaseGroup('level2');
 ```
 
-`releaseGroup` 是对称的另一半:组里获取过的每个资源都经其类型的规范通道释放,由引用计数
-决定实际发生什么——别的场景或组还持有的资源会存活,没人持有的降级为可逐出热缓存。之后玩家
-折返该区域时由热缓存吸收,而不是重走网络。
+`releaseGroup` 通过各资源类型的释放路径释放该组获取的全部资源，结果由引用计数决定：仍被其他场景或组持有的资源保持加载；无人持有的资源进入可淘汰的温缓存（[生命周期与内存](/docs/zh-cn/assets/memory/#温缓存)），之后再次加载时无需下载即可恢复。
 
-`loadByLabel(...)` 按 label 标签加载资源,而不是按文件夹分组。正是这种分组映射到
-[微信分包](/docs/zh-cn/publishing/wechat/),实现按需下载。
+`loadByLabel(...)` 按标签而非文件夹组加载资源。寻址组映射为[微信分包](/docs/zh-cn/publishing/wechat/)。
 
-当你想预热的资源集合不是一个组或标签时——比如玩家还在当前区域,就先加载下一区域的
-纹理——`preload` 接受显式的引用列表,自动推断每个资源的类型(清单优先,其次文件扩展名),
-经同一套按类型通道以受限并发加载:
+### 预加载列表
+
+`preload` 加载一个既不是组也不是标签的显式引用列表，例如下一区域的资源。它推断每个资源的类型（先查清单，再看扩展名），并以有限并发通过类型化加载器加载：
 
 ```typescript
 const { failed } = await assets.preload(
@@ -137,42 +114,34 @@ const { failed } = await assets.preload(
 );
 ```
 
-它永远不会 reject——无法确定类型或加载失败的引用会记录在 `failed` 里。之后真正的
-加载会命中已预热的缓存(或复活驻留纹理),而不是走网络。
+`preload` 从不拒绝（reject）。无法推断类型或加载失败的引用在 `failed` 中返回。之后对相同引用的加载由缓存提供。
 
 ## 烘焙、压缩与内容寻址
 
-构建时,**烘焙**从构建里的每个场景(打包对话框的**构建场景**列表)出发遍历依赖图,
-**剔除一切触达不到的资源**,暂存可达文件,并写出清单。过程中它还能:
+构建时，**烘焙**从构建中的每个场景（打包对话框中的 **Scenes in build** 列表）出发遍历依赖图，排除所有不可达的内容，暂存可达文件并写出清单。烘焙还会：
 
-- **压缩纹理** —— 把 PNG 编码为 GPU 就绪的 **KTX2**(Basis Universal),运行时再转码为
-  设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8),连同 mip 链。这由逐资产的
-  **导入设置**决定——**Auto**(自动)压缩网格用到的贴图,精灵和 UI 按原文件发布——每个平台一个页签(见下图),所以一张纹理可以为手机压得比网页端更狠;
-  打包对话框的**资源压缩**开关只选择遵循还是全部跳过这些设置。
-- **内容寻址** —— 每个发布文件按字节哈希命名,于是 URL 不可变,相同文件去重成一份。
-  Web/桌面默认开启。
-- **自动图集** —— 烘焙的可选项(构建不要求就不开):把零散的 PNG 放进 `<name>.atlas/` 文件夹,烘焙时会把它们打包成图集页
-  (帧 UV 写进清单),于是许多小精灵作为一张纹理发布、在一次绘制里合批。
+- **压缩纹理。** PNG 源连同 mip 链编码为 **KTX2**（Basis Universal）；运行时转码为设备支持的最佳格式（依次为 ASTC、ETC2、S3TC，最后回退到 RGBA8）。是否编码由每张纹理的 **Compression** 导入设置决定（[纹理](/docs/zh-cn/assets/textures/#导入设置)）；打包对话框只决定是否应用这些设置。
+- **内容寻址。** 每个发布文件以其字节的哈希命名，URL 不可变，相同文件只存一份。Web 与桌面端默认开启。哈希基于暂存后的字节计算（KTX2 编码之后），因此标识的是实际发布的文件。
+- **打包自动图集**（可选构建选项）。`<name>.atlas/` 文件夹中的零散 PNG 被打包成图集页，帧 UV 写入清单，这些精灵作为一张纹理发布，并合批为一次 draw call。
 
-![检视面板的「平台覆盖」条——每个平台一个页签,选中 Android 时显示 Max Size、压缩与格式](@/assets/guides/zh/import-platform-overrides.png)
+![检视器中的平台覆盖条——每个平台一个页签，选中 Android，显示 Max Size、Compress 与 Format](@/assets/guides/zh/import-platform-overrides.png)
 
-*一张纹理的**平台覆盖**:每个目标各有页签;没有覆盖任何东西的平台,沿用上方的默认设置。*
+*纹理的**平台覆盖**：每个目标一个页签。没有覆盖的平台使用 Default 设置。*
 
 ### 只有代码点名的资产
 
-可达性分析正是拦住"什么都往包里塞"的东西,它从场景出发。脚本也会被读取:字符串字面量如果正好是
-某个资产的完整路径(`'assets/ui/coin.png'`)或 `@uuid:` 引用,该资产就会进包;在某个文件夹里拼路径的
-模板字符串(`` `assets/sfx/${name}.wav` ``)会把整个文件夹带上,并在构建时给出警告。发布后的游戏请求
-包里没有的文件时,会在日志里说明是哪个文件以及原因。
+可达性从场景出发，同时读取项目的脚本：
 
-脚本里看不出来的仍会被剔除:由几段拼出来的路径、从数据里读出的名字、富文本标记里的纹理。编辑器直接
-从磁盘读取项目,所以第一个症状往往是真实构建里缺了一张图。这类情况请把文件夹声明出来。在**内容浏览器**里右键它,选 **交付方式 → 总是打进构建**——
-就是那个设置本地 / 分包 / 远端交付的同一个菜单,写进同一份
-`.esengine/asset-groups.json`:
+- 内容为资源完整路径（`'assets/ui/coin.png'`）或 `@uuid:` 引用的字符串字面量，会发布该资源。
+- 在某文件夹内拼接路径的模板字面量（`` `assets/sfx/${name}.wav` ``）会发布整个文件夹，并产生一条构建警告。
 
-![内容浏览器的文件夹菜单——交付方式,含本地 / 分包 / 远端与"总是打进构建"](@/assets/guides/zh/hot-update-delivery-menu.png)
+由多段拼接的路径、从数据中读取的名称、富文本标记中引用的纹理对烘焙不可见，因而被排除。编辑器直接从磁盘提供项目，因此这类资源只在构建中缺失；发布的游戏会记录它请求了哪个文件以及缺失的原因。
 
-*右键文件夹 → **交付方式**。三种模式决定资产从哪里发布;**总是打进构建**决定它到底发不发。*
+对于这类文件夹，在**内容浏览器**中右键该文件夹，选择 **Delivery → Always include in builds**。该设置保存在 `.esengine/asset-groups.json` 中，与文件夹的分发方式（本地、分包或远程）放在一起，默认关闭：
+
+![内容浏览器的文件夹菜单——Delivery，含 Local / Subpackage / Remote 与 Always include in builds](@/assets/guides/zh/hot-update-delivery-menu.png)
+
+*右键文件夹 → **Delivery**。三种方式决定资源从哪里发布；**Always include in builds** 决定资源是否不论可达性都发布。*
 
 ```json
 {
@@ -187,119 +156,20 @@ const { failed } = await assets.preload(
 }
 ```
 
-它是文件夹级别对可达性判断的覆盖,
-落在这个项目原本就有的模型里。**默认关闭**,这是刻意的。
-
-<Aside type="tip">
-  `subpackages/` 下的资源即使触达不到也总会被包含——只是分组归属不同。
-  `alwaysInclude` 让任何其他文件夹也能拿到同样的保证。
-
-  有两类永远不需要它,因为它们本来就不可能被引用:**多语言字表**(`Text` 带的是 key 不是路径)
-  和**数据资源**(`.json`,由加载它的代码点名)。这两类总是进包。
-</Aside>
-
-## 生命周期与引用计数
-
-加载的资源是**引用计数**的:每次 `load*()` 计一个引用,需要一次匹配的 `release*()`
-(场景加载会替你完成这两步)。被两个场景共享的资源在第一个场景卸载后仍然存活,只有最后一个
-持有者释放时才真正释放。
-
-热重载后的资源绑定也遵循同一归属规则：场景负责其实体使用的替换资源；没有场景归属的运行时
-实体，以及在原场景卸载后继续存在的持久实体，会持有自己的替换资源，并在实体销毁时释放。
-反复热重载不会让这些资源一直占用到应用退出。游戏代码自己显式调用的 `load*()` 或
-`acquire*()` 仍需要对应的释放操作。
-
-释放的资源也不会立即销毁:纹理和解码后的音频缓冲区以**可逐出缓存条目**的形式留驻,同一资源
-再次被加载(重进场景、流式加载重新进入某区域)时会被**原地复活**,而不是重新下载和解码。
-一个按字节预算的 LRU 在驻留量超过预算时逐出最旧的未引用条目;收到系统内存警告时整个热缓存
-一次性清空(持有中的资源不受影响)。你一般不用手动管理——正常引用和销毁实体即可。
-
-纹理预算默认 **64 MB**(`RuntimeConfig.textureCacheBudget`,也可在构建配置里用
-`textureCacheBudget` 设置);解码音频有自己的 **32 MB** 镜像(`audioCacheBudget`,
-见[音频指南](/docs/zh-cn/assets/audio/))。
-
-## 纹理内存与预算
-
-纹理是真正要紧的预算——它们主宰 GPU 内存。引擎启动时应用
-`RuntimeConfig.textureCacheBudget`;用 `setTextureBudget` 按你的游戏调它的大小(它是
-C++ 池之上唯一面向游戏的表面——没有一个会与之漂移的平行 TS 侧预算),用
-`getResourceStats` 观测驻留:
-
-```typescript
-import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
-
-setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
-
-const stats = getResourceStats();      // 引擎初始化前为 null
-// stats.textureBytes          — 常驻纹理字节数(持有 + 可逐出)
-// stats.textureBudget         — 当前预算(0 = 逐出关闭)
-// stats.textureEvictableCount — 等待复活或逐出的热缓存条目数
-// stats.retainedBytes         — 为扛过 GPU 丢失而保留的 CPU 副本(见下)
-// …还有 shaderCount / textureCount / vertexBufferCount / indexBufferCount
-//  与 cacheHits / cacheMisses
-
-const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
-```
-
-这里的"GC"就是上文的 LRU:一旦 `textureBytes` 超出 `textureBudget`,C++ 池逐出最久未用的
-**无引用**纹理直到装下——持有中的纹理绝不会被动。`setTextureBudget(0)` 完全关闭热缓存
-(每个纹理在最后一个引用释放的瞬间销毁),`trimTextureCache()` 一次性释放所有可逐出条目并
-返回数量——引擎在系统内存警告时会调用它;在已知的内存尖峰之前也可以自己调。
-
-还有两个小帮手补全这个表面:`getTextureDimensions(handle)` 返回纹理的
-`{ width, height }`(首次查询后缓存在 TS 侧),`evictTextureDimensions(handle)` 丢弃那条
-缓存——资源系统在纹理真正释放时会这么做,所以只有绕过资源系统自己销毁重建纹理时才需要它。
-
-### 为 GPU 丢失保留的内存
-
-图形上下文丢失时(驱动重置、手机浏览器回收 GPU),引擎会在游戏持有的句柄背后重建每张纹理和每个
-缓冲。大多数内容从它的来处回来——资产重新加载、文字页按字形重绘、骨骼图集页重新解码、地形的图层纹理从文件重新读取并打包、页面图集重新填充。没有这种
-来处的内容(运行时构建的网格、加载时拼合的瓦片集)会保留一份 CPU 副本,它占你的内存,却不出现在
-任何 GPU 数字里。`stats.retainedBytes` 就是这份副本;引擎自身约 28 KB。副本超过
-`RuntimeConfig.retainedBudget`(默认 **16 MB**,构建配置里的 `retainedBudget`,或
-`setRetainedBudget(bytes)`;0 表示从不告警)时会告警一次。
-引擎能再生成的内容不会被保留两份:带纹理图层的地形不持有它们的 CPU 副本。
-
-恢复是设备的一次事务,网页游戏会回到丢失之前的画面。引擎等待纹理期间,被设备拒绝的帧从空开始、什么也不收集,
-所以暂存区不会不断增长;恢复后的 WebGL 上下文会先重新获得扩展,设备再探测自己的能力,所以 HDR 场景不会回来就是黑的。
-
-引擎放不回来的是**你的游戏自己画的**内容:渲染纹理是 GPU 存储,设备重建后交还给你的是空的。
-`onDeviceRestored` 告诉你什么时候该重画,`RenderTexture.contentLost` 告诉你哪一张需要重画——
-每帧都被相机渲染的那种从来不需要。
-
-```typescript
-import { onDeviceRestored, RenderTexture } from 'esengine';
-
-const minimap = RenderTexture.create({ width: 256, height: 256 });
-onDeviceRestored(() => {
-  if (!RenderTexture.contentLost(minimap)) return;
-  drawMinimap(minimap);                  // 你自己的绘制
-  RenderTexture.contentDrawn(minimap);   // ……并声明它又有内容了
-});
-```
-
-想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/performance/profiling/)。
-逐纹理的**采样/过滤**参数(像素风 nearest 还是平滑 linear)见
-[纹理区域与采样](/docs/zh-cn/graphics/sprites/textures/#过滤与环绕)。
-
-## 最佳实践
-
-- **代码里按路径引用,让编辑器写 `@uuid:`**——绝不手写 UUID 引用。
-- **在关卡边界用 `loadGroup` / `loadByLabel` 预加载**,别让游戏在场景中途卡顿。
-- **把按需内容放到 `subpackages/<name>/` 下**,它就成为一个 lazy 组(以及微信子包),而不是
-  撑大主包。
-- **让 cook 去剔除 + 压缩**——只暂存可达资源、PNG→KTX2 让发布包更小;别发能被 cook 的裸 PNG。
-- **把代码按名字加载的文件夹标记为 交付方式 → 总是打进构建**,否则可达性剔除会把它们从构建里丢掉——
-  而编辑器从来不需要清单就能跑起来。
-- **在内存受限的目标上设纹理预算**,其余交给引用计数。
-
 <Aside type="note">
-  内容哈希基于**暂存后**的字节(PNG→KTX2 编码之后)计算,因此清单里的哈希标识的是最终
-  发布的产物。
+  `subpackages/` 下的资源即使不可达也始终包含。**本地化字符串表**（`Text` 携带的是键而非路径）与**数据资源**也始终发布，因为没有场景能引用它们。
 </Aside>
+
+## 使用建议
+
+- 代码中按路径引用资源；UUID 引用由编辑器写入。
+- 在关卡切换处加载组（`loadGroup` / `loadByLabel`）或列表（`preload`），避免游玩过程中等待加载。
+- 按需内容放在 `subpackages/<name>/` 下，使其成为懒加载组，并在微信上成为分包。
+- 代码按计算出的名称加载的文件夹，标记为 **Always include in builds**。
 
 ## 参见
 
-- [微信小游戏](/docs/zh-cn/publishing/wechat/) —— 可寻址分组如何映射到子包。
-- [场景](/docs/zh-cn/world/scenes/) —— 场景引用资源,并作为入口点被 cook。
-- [材质与着色器](/docs/zh-cn/graphics/materials/code/) —— `loadMaterial` 与着色器句柄。
+- [生命周期与内存](/docs/zh-cn/assets/memory/)：引用计数、温缓存、纹理预算、GPU 上下文丢失。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)：寻址组如何映射为分包。
+- [场景](/docs/zh-cn/world/scenes/)：场景引用资源，是烘焙的入口。
+- [代码中的材质](/docs/zh-cn/graphics/materials/code/)：`loadMaterial` 与着色器句柄。

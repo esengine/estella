@@ -1,0 +1,173 @@
+---
+title: Logging & Error Reporting
+description: Logging and diagnostics reference — the structured logger, log levels and custom handlers, and the Diagnostics resource that aggregates errors from shipped games and hands them to a game-defined sink.
+---
+
+The SDK reports its own diagnostics through a structured logger, which game code can also use. The `Diagnostics`
+resource aggregates errors from a running game and hands them to a destination the game chooses.
+
+## Logging
+
+Every message has a **level**, a free-form **category** (`'physics'`, `'net'`, `'gameplay'`…), a message and optional
+structured `data`:
+
+```typescript
+import { log, setLogLevel, LogLevel } from 'esengine';
+
+setLogLevel(LogLevel.Debug);              // default: LogLevel.Info
+
+log.debug('gameplay', 'Wave spawned', { wave: 3, enemies: 12 });
+log.info('save', 'Game saved');
+log.warn('net', 'High latency', { rttMs: 240 });
+log.error('boot', 'Asset manifest failed', err);   // an Error keeps its stack
+```
+
+- `LogLevel` is ordered `Debug < Info < Warn < Error`. `setLogLevel` sets the minimum level; messages below it are
+  dropped before reaching any handler.
+- The standalone functions `debug`, `info`, `warn` and `error` forward to the same default logger; `getLogger()` returns
+  the `Logger` instance.
+- The default console handler formats `[time] [LEVEL] [category] message`, calls the matching `console` method, and
+  passes `Error` data as a separate argument so the stack trace is rendered.
+
+### Custom handlers
+
+A `LogHandler` receives every accepted message as a `LogEntry`, for an in-game console, a file writer or crash-report
+breadcrumbs. An exception thrown by a handler is caught and reported.
+
+```typescript
+import { getLogger, LogLevel, type LogEntry, type LogHandler } from 'esengine';
+
+class Breadcrumbs implements LogHandler {
+  entries: LogEntry[] = [];
+  handle(entry: LogEntry): void {
+    if (entry.level >= LogLevel.Warn) {
+      this.entries.push(entry);
+      if (this.entries.length > 100) this.entries.shift();
+    }
+  }
+}
+
+const crumbs = new Breadcrumbs();
+getLogger().addHandler(crumbs);
+// getLogger().removeHandler(crumbs) detaches it;
+// getLogger().clearHandlers() removes every handler, the console handler included.
+```
+
+| `LogEntry` field | Type | Description |
+|---|---|---|
+| `timestamp` | number | `Date.now()` at log time (epoch ms). |
+| `level` | `LogLevel` | `Debug`, `Info`, `Warn` or `Error`. |
+| `category` | string | Category passed by the caller. |
+| `message` | string | The message. |
+| `data` | unknown | Optional payload (object, `Error`, …). |
+
+## Error reporting
+
+The `Diagnostics` resource collects errors from a running game and passes them in batches to a **sink** the game
+installs. The plugin is installed by default.
+
+**The engine has no default destination.** It has no endpoint, bundles no vendor and opens no socket. Without a sink,
+events are aggregated locally and can be read, and nothing leaves the device.
+
+```typescript
+import { Diagnostics, type DiagnosticEvent } from 'esengine';
+
+const diagnostics = app.getResource(Diagnostics);
+
+diagnostics.setSink((events: readonly DiagnosticEvent[]) => {
+  // A batch of distinct problems with counts, not one call per occurrence.
+  void fetch('https://your-service.example/errors', {
+    method: 'POST',
+    body: JSON.stringify({ build: '1.4.2', events }),
+  });
+});
+```
+
+A sink must not throw (an exception is caught and the batch dropped) and should not block; send asynchronously.
+
+### Collected kinds
+
+| Kind | Source |
+|---|---|
+| `engine` | Everything the engine logs as an error: a system that threw during a schedule, an asset that failed to load, a subsystem that failed to start. |
+| `unhandled` | Errors that reached the host uncaught: `window.onerror` / `unhandledrejection`, `wx.onError` / `wx.onUnhandledRejection`. |
+| `context-lost` | The GPU context was lost. Subsequent frames draw nothing and no error is thrown. |
+| `memory` | The OS reported low memory, before the process may be terminated. |
+| `game` | Reported by game code with `report` or `reportError`. |
+
+The `engine` kind listens to the log broadcast, so installing a sink does not affect `app.onError`, `app.onSystemError`
+or custom log handlers. The other kinds depend on host signals:
+
+| Kind | Web | WeChat / mini-game | Native (Android / iOS) |
+|---|---|---|---|
+| `unhandled` | yes | yes | if the host shell provides it |
+| `memory` | no | yes | if the host shell provides it |
+| `context-lost` | yes | no (a mini-game canvas is not a DOM element and no host API reports it) | if the host shell provides it |
+
+Warnings are not collected by default; pass `captureLevel: LogLevel.Warn` to the plugin to include them.
+
+### Aggregation
+
+The reporting unit is a **distinct problem with a count**. Two occurrences are the same problem when kind, source,
+message and **throw site** match: the full stack would split one bug across its callers, and the message alone would merge
+unrelated bugs. Numbers in messages are normalized, so `Entity 41 has no Transform` is one problem for every entity.
+
+```typescript
+diagnostics.setSink((events) => {
+  for (const e of events) {
+    console.log(`${e.kind} ${e.source ?? ''}: ${e.message} ×${e.count}`);
+  }
+});
+```
+
+| `DiagnosticEvent` field | Type | Description |
+|---|---|---|
+| `kind` | `DiagnosticKind` | One of the five kinds. |
+| `id` | string | Stable identity across repeats. |
+| `message` | string | The message as reported. |
+| `source` | string? | Log category or system name. |
+| `stack` | string? | Present when something with a stack was thrown. |
+| `count` | number | Occurrences since first seen. |
+| `firstAt` / `lastAt` | number | Epoch ms of the first and most recent occurrence. |
+| `context` | object? | Data attached by the reporter; the newest wins. |
+
+### Reporting from game code
+
+```typescript
+diagnostics.report({
+  kind: 'game',
+  message: 'Cloud save rejected the payload',
+  context: { slot: 3, bytes: 41_233 },
+});
+
+try { risky(); } catch (err) {
+  diagnostics.reportError('game', err, 'shop');
+}
+```
+
+`context` is sent wherever the sink sends it; keep player-identifying data out of it.
+
+### Options
+
+```typescript
+import { DiagnosticsPlugin } from 'esengine';
+
+app.addPlugin(new DiagnosticsPlugin({
+  maxDistinct: 64,        // distinct problems tracked at once
+  flushIntervalSec: 10,   // seconds between batches handed to the sink
+}));
+```
+
+| `DiagnosticsPlugin` option | Default | Description |
+|---|---|---|
+| `maxDistinct` | `64` | Distinct problems tracked at once. At the limit, new problems are dropped while known ones keep counting; `diagnostics.dropped` reports how many were dropped. The earliest problems are kept. |
+| `flushIntervalSec` | `10` | Seconds between batches. |
+| `captureLevel` | `LogLevel.Error` | Lowest log level collected as `engine` events. |
+
+Flushing runs on the engine clock, not a timer, so a backgrounded tab or suspended mini-game does not report.
+`flush()` sends immediately (for example before a level transition), and shutdown flushes once.
+
+## See also
+
+- [Profiling](/docs/performance/profiling/overview/)
+- [App & Lifecycle](/docs/core-concepts/app/overview/): `app.onError` and `app.onSystemError`.

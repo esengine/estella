@@ -1,52 +1,46 @@
 ---
 title: Assets
-description: References, typed loaders, the manifest, addressable groups, and lifetime.
+description: Asset system reference — references by path and UUID, excluded folders, the typed loaders of the Assets resource, data assets, the manifest, addressable groups, preloading, and what the cook ships.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every asset in a project has a stable UUID. Scenes and prefabs reference assets
-by UUID; at build time the engine **cooks** only what your game reaches, the
-runtime resolves references through a **manifest**, typed **loaders** turn a
-reference into a usable handle, and **reference counting** frees what's no longer
-used. This guide covers each piece.
-
-## Keeping a folder out of the asset database
-
-A project often holds more than content: a source-art repository, docs, a server. The editor gives every file under the project a `.meta` sidecar, so a
-folder of that kind fills with them. List such folders in the manifest and the asset database leaves them alone: it does not index them, does not write a
-`.meta` into them and does not watch them.
-
-```json
-{ "assetExclude": ["art", "docs", "server"] }
-```
-
-Entries are folders relative to the project root; everything under one is excluded. Content stays under the folders you do not list (normally `assets/`).
+Every asset in a project has a stable UUID. Scenes and prefabs reference assets by UUID; at build time the **cook**
+ships the assets the game reaches; at run time the **manifest** resolves references to files, the typed **loaders** of
+the `Assets` resource turn a reference into a handle, and **reference counting** frees what is no longer held
+([Lifetime & Memory](/docs/assets/memory/)).
 
 ## Referencing assets
 
-In code, reference an asset by its **project-relative path** — readable, and what
-you'll normally write. The path is relative to the **project root**, not to the
-assets folder, so it starts with `assets/` — the spelling the Content Browser
-shows and the one the cook's manifest keys on:
+Code references an asset by its **project-relative path**. The path is relative to the **project root**, not to the
+assets folder, so it starts with `assets/`, as the Content Browser shows it and as the cook's manifest keys it:
 
 ```typescript
 const tex = await assets.loadTexture('assets/textures/player.png');
 ```
 
-A ref that drops the root (`'textures/player.png'`) resolves against the project
-root all the same, finds nothing there, and fails the load with a 404.
+A ref without the root folder (`'textures/player.png'`) is resolved against the project root, is not found and fails
+the load with a 404.
 
-The editor, by contrast, serializes references into scenes and prefabs as a
-**stable UUID** (`@uuid:<uuid>`) so a reference survives the file being renamed or
-moved. Both forms are accepted by every loader and resolve to the same path — you
-don't hand-write `@uuid:` refs, the editor does. `resolveRef(ref)` returns the
-resolved path for either.
+The editor serializes references in scenes and prefabs as a **UUID ref** (`@uuid:<uuid>`), which survives renaming or
+moving the file. Every loader accepts both forms and resolves them to the same path. `resolveRef(ref)` returns the
+resolved path for either form. UUID refs are written by the editor and are not authored by hand.
+
+## Excluding folders
+
+The editor writes a `.meta` sidecar for every file under the project. Folders that hold no content (source art,
+documentation, a server) are excluded with `assetExclude` in `project.esproject`: the asset database does not index
+them, writes no `.meta` into them and does not watch them.
+
+```json
+{ "assetExclude": ["art", "docs", "server"] }
+```
+
+Entries are folders relative to the project root; everything under an entry is excluded.
 
 ## Loading by type
 
-The `Assets` resource has a typed loader per asset type. Each returns a handle or
-id you put on a component. For example, load a texture and show it on a `Sprite`:
+The `Assets` resource has a typed loader per asset type. Each returns a handle or id that a component field takes:
 
 ```typescript
 import { defineSystem, Query, Mut, Res, Sprite, Assets } from 'esengine';
@@ -61,90 +55,80 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 
 | Loader | Returns |
 |---|---|
-| `loadTexture(ref)` | `{ handle, width, height }` |
+| `loadTexture(ref)` | `{ handle, width, height }` ([Textures](/docs/assets/textures/)) |
 | `loadAudio(ref)` | `{ bufferId }` |
 | `loadFont(ref)` | `{ handle, family? }` (`family` for outline fonts) |
 | `loadMaterial(ref)` | `{ handle, shaderHandle }` |
-| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }` — the prepared skeleton and atlas, which the `Spine` component draws from |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }`: the prepared skeleton and atlas the `Spine` component draws from |
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
 | `loadAnimClip(ref)` | `{ clipId }` |
 | `loadAnimatorController(ref)` | `{ controllerId }` |
 | `loadStateMachine(ref)` / `loadBehaviorTree(ref)` | `{ fsmId }` / `{ btId }` |
-| `loadLocaleTable(ref)` | `{ locale, keyCount }` |
+| `loadLocaleTable(ref)` | `{ locale, keyCount }` ([Localization](/docs/assets/localization/)) |
 | `loadPrefab(ref)` | `{ data }` |
 | `loadJson<T>(ref)` | `{ data: T }` |
 
-## Your own data
+`load<T>(type, ref)` is the generic form for a type chosen at run time, and `register(loader)` adds a loader for a
+custom asset type.
 
-A `.json` that is not a Spine skeleton or a DragonBones pair is a **data asset** — the
-game's own tables, tuning and dialogue. It loads like anything else:
+## Data assets
+
+A `.json` file that is not a Spine skeleton or a DragonBones pair is a **data asset**: game tables, tuning values,
+dialogue. It is loaded with `loadJson`:
 
 ```typescript
 const { data } = await assets.loadJson<LevelTable>('assets/data/levels.json');
 ```
 
-`T` is what you expect the file to hold; nothing validates it, so this is `JSON.parse`'s
-guarantee and not a schema's.
+`T` is not validated; the result has the guarantees of `JSON.parse` only.
 
-Loading it as an asset rather than fetching the path yourself is not ceremony. A data
-asset has a uuid, so moving the file does not break what points at it; it is parsed once
-and reference-counted; it can live in a lazy [group](#addressable-groups-lazy-loading) or
-come from a CDN; and [hot update](/docs/publishing/hot-update/) can replace it in a shipped
-game. A hand-rolled `fetch` of a project path gets none of that — and it *works in the
-editor*, which serves the whole project, while the build ships only assets.
+A data asset has a UUID, is parsed once and reference-counted, can be placed in a lazy
+[group](#addressable-groups-lazy-loading) or served from a CDN, and can be replaced by
+[hot update](/docs/publishing/hot-update/). A direct `fetch` of the project path has none of these properties, and it
+works in the editor (which serves the whole project) but fails in a build, which contains only shipped assets.
 
-Data assets ship whether or not anything references them — see
-[Shipping what only code names](#shipping-what-only-code-names), where they are one of
-the two built-in exceptions.
-
-The project's own configuration is not data: `package.json`, `tsconfig.json` and their
-kind never become assets.
-
-There's also a generic `load<T>(type, ref)` when you're driving the type
-dynamically, and `register(loader)` to add a loader for a custom asset type.
+Data assets are always shipped, whether or not anything references them
+([Shipping what only code names](#shipping-what-only-code-names)). Project configuration files (`package.json`,
+`tsconfig.json` and similar) are never assets.
 
 ## The manifest
 
-The runtime resolves `@uuid` references to file paths through a manifest:
+The runtime resolves `@uuid:` references to file paths through a manifest produced by the cook:
 
 ```typescript
-assets.setManifest(manifest);   // usually the runtime does this for you
+assets.setManifest(manifest);   // normally done by the runtime
 ```
 
-The manifest is produced by the cook (below). `getManifest()` returns the active
-one. Refs that aren't in the manifest fall back to a direct path lookup.
+`getManifest()` returns the active manifest. A ref that is not in the manifest falls back to a direct path lookup.
 
 ## Addressable groups (lazy loading)
 
-Assets under a `subpackages/<name>/…` folder form a lazy group `<name>`;
-everything else is the eagerly-loaded `main` group. Load a group on demand — with
-progress — and it downloads before its assets load (on WeChat this triggers
-`wx.loadSubpackage`; on the web it's a no-op download):
+Assets under a `subpackages/<name>/…` folder form the lazy group `<name>`; all other assets belong to the eagerly
+loaded `main` group. `loadGroup` downloads a group (on WeChat through `wx.loadSubpackage`; on the web the download step
+is a no-op) and then loads its assets, reporting progress:
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
 
-// ...player leaves the area the group backs:
+// When the area the group backs is left:
 assets.releaseGroup('level2');
 ```
 
-`releaseGroup` is the symmetric other half: every asset the group acquired is
-released through its type's canonical channel, so reference counting decides
-what happens — an asset another scene or group still holds survives, and one
-nobody holds drops to the evictable warm cache. Bouncing back into the area is
-then absorbed by the warm caches instead of the network.
+`releaseGroup` releases every asset the group acquired through its type's release path. Reference counting decides
+the result: an asset another scene or group still holds stays loaded; an asset no one holds moves to the evictable warm
+cache ([Lifetime & Memory](/docs/assets/memory/#warm-cache)), from which a later load revives it without a download.
 
-`loadByLabel(...)` loads assets tagged with a label instead of a folder group.
-This grouping is what maps onto [WeChat subpackages](/docs/publishing/wechat/) for
-on-demand download.
+`loadByLabel(...)` loads the assets tagged with a label instead of a folder group. Groups map onto
+[WeChat subpackages](/docs/publishing/wechat/).
 
-When the set of assets you want to warm isn't a group or label — say, the next
-area's textures while the player is still in this one — `preload` takes an
-explicit ref list, infers each asset's type (manifest, then file extension),
-and loads through the same typed channels with bounded concurrency:
+### Preloading a list
+
+`preload` loads an explicit list of refs that is neither a group nor a label, such as the next area's assets. It infers
+each asset's type (from the manifest, then the file extension) and loads through the typed loaders with bounded
+concurrency:
 
 ```typescript
 const { failed } = await assets.preload(
@@ -153,54 +137,48 @@ const { failed } = await assets.preload(
 );
 ```
 
-It never rejects — refs that can't be typed or fail to load are reported in
-`failed`. The eventual real loads then hit warm caches (or revive resident
-textures) instead of the network.
+`preload` never rejects. Refs whose type cannot be inferred or whose load fails are returned in `failed`. Later loads
+of the same refs are served from the caches.
 
 ## Cooking, compression & content addressing
 
-At build time the **cook** walks the dependency graph from every scene in the
-build (the Package dialog's **Scenes in build** list), **culls anything
-unreachable**, stages the reachable files, and writes the manifest. Along the
-way it can:
+At build time the **cook** walks the dependency graph from every scene in the build (the Package dialog's **Scenes in
+build** list), excludes everything unreachable, stages the reachable files and writes the manifest. The cook also:
 
-- **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
-  which the runtime transcodes to the best format the device supports (ASTC → ETC2
-  → S3TC, falling back to RGBA8), mip chain included. Per-asset **Import Settings**
-  decide this — **Auto** compresses what a mesh draws and ships sprites and UI as
-  their file — with a tab per platform (below), so a texture can be compressed
-  harder for a phone than for the web; the Package dialog's **Compression** switch
-  only chooses whether to honor those settings or skip them all.
-- **Content-address** — name each shipped file by a hash of its bytes, so URLs
-  are immutable and identical files dedupe to a single copy. On by default for
-  Web/Desktop.
-- **Auto-atlas** — an opt-in cook option (off unless the build asks for it): put loose PNGs in a `<name>.atlas/` folder and the cook packs
-  them into atlas pages (with the frame UVs written into the manifest), so many
-  small sprites ship as one texture and batch in one draw call.
+- **Compresses textures.** PNG sources are encoded to **KTX2** (Basis Universal) with their mip chain; the runtime
+  transcodes to the best format the device supports (ASTC, then ETC2, then S3TC, falling back to RGBA8). Each texture's
+  **Compression** import setting decides whether it is encoded ([Textures](/docs/assets/textures/#import-settings));
+  the Package dialog only chooses whether those settings are applied.
+- **Content-addresses files.** Each shipped file is named by a hash of its bytes, so URLs are immutable and identical
+  files are stored once. On by default for Web and Desktop. The hash is computed on the staged bytes (after KTX2
+  encoding), so it identifies the shipped file.
+- **Packs auto-atlases** (opt-in build option). Loose PNGs in a `<name>.atlas/` folder are packed into atlas pages and
+  the frame UVs are written into the manifest, so the sprites ship as one texture and batch into one draw call.
 
 ![The Inspector's Platform Overrides strip — a tab per platform, Android selected with Max Size, Compress and Format](@/assets/guides/en/import-platform-overrides.png)
 
-*A texture's **Platform Overrides**: each target gets its own tab, and a platform that overrides nothing follows the Default settings above it.*
+*A texture's **Platform Overrides**: one tab per target. A platform with no override uses the Default settings.*
 
 ### Shipping what only code names
 
-Reachability is what keeps a build from shipping everything, and it starts at the
-scenes. Your scripts are read too: a string literal that is an asset's whole path
-(`'assets/ui/coin.png'`) or an `@uuid:` ref ships that asset, and a template literal
-that builds paths inside a folder (`` `assets/sfx/${name}.wav` ``) ships the whole
-folder, with a build warning saying so. A shipped game that asks for a file the
-package lacks logs which one and why.
+Reachability starts at the scenes and also reads the project's scripts:
 
-What the scripts cannot show is still culled: a path assembled from pieces, a name
-read from data, a texture in rich-text markup. The editor serves the project straight
-off disk, so the first symptom is a missing image in a real build. For those, declare
-the folder. In the **Content Browser**, right-click it and pick
-**Delivery → Always include in builds** — the same menu that sets local /
-subpackage / remote delivery, writing to the same `.esengine/asset-groups.json`:
+- A string literal that is an asset's full path (`'assets/ui/coin.png'`) or an `@uuid:` ref ships that asset.
+- A template literal that builds paths inside a folder (`` `assets/sfx/${name}.wav` ``) ships the whole folder and
+  produces a build warning.
+
+Paths assembled from separate pieces, names read from data and textures named in rich-text markup are not visible to
+the cook and are excluded. The editor serves the project directly from disk, so such an asset is missing only in a
+build; a shipped game logs which file it requested and why it is absent.
+
+For these folders, right-click the folder in the **Content Browser** and choose **Delivery → Always include in
+builds**. The setting is stored in `.esengine/asset-groups.json`, next to the folder's delivery mode (local,
+subpackage or remote), and is off by default:
 
 ![The Content Browser folder menu — Delivery, with Local / Subpackage / Remote and Always include in builds](@/assets/guides/en/hot-update-delivery-menu.png)
 
-*Right-click a folder → **Delivery**. The three modes decide where an asset ships from; **Always include in builds** decides whether it ships at all.*
+*Right-click a folder → **Delivery**. The three modes set where an asset ships from; **Always include in builds** sets
+whether it ships regardless of reachability.*
 
 ```json
 {
@@ -215,148 +193,21 @@ subpackage / remote delivery, writing to the same `.esengine/asset-groups.json`:
 }
 ```
 
-It is a folder-level override of reachability, in the model this project already had.
-**Off by default**, deliberately.
-
-<Aside type="tip">
-  Assets under `subpackages/` are always included even when unreachable — only
-  their group assignment differs. `alwaysInclude` is what gives any other folder
-  the same guarantee.
-
-  Two types never need it, because nothing can ever reference them: **locale
-  tables** (`Text` carries keys, not paths) and **data assets** (`.json`, named by
-  the code that loads them). Both always ship.
-</Aside>
-
-## Lifetime & reference counting
-
-Loaded assets are **reference-counted**: every `load*()` counts as one
-reference and needs a matching `release*()` (scene loading does both for you).
-An asset shared by two scenes survives the first scene's unload and is freed
-only when its last holder releases it.
-
-Hot-reloaded bindings follow the same ownership rule. A scene owns replacement
-resources for its entities; a runtime entity without a scene, or a persistent
-entity that outlived its scene, owns its replacements until it despawns. Repeated
-reloads do not keep those resources alive for the rest of the application.
-Your own explicit `load*()` or `acquire*()` calls still need matching releases.
-
-A released asset isn't destroyed immediately, either. Textures and decoded
-audio buffers stay resident as **evictable cache entries**, and if the same
-asset is loaded again (re-entering a scene, streaming an area back in) it is
-**revived in place** instead of re-fetched and re-decoded. A byte-budgeted LRU
-evicts the oldest unreferenced entries once residency exceeds the budget, and
-an OS memory warning drops the whole warm cache at once (held assets are
-untouched). You generally don't manage this by hand — reference and despawn
-entities normally.
-
-The texture budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`,
-also settable as `textureCacheBudget` in the build config); decoded audio has
-its own **32 MB** mirror (`audioCacheBudget` — see the
-[audio guide](/docs/assets/audio/)).
-
-## Texture memory & budgets
-
-Textures are the budget that matters — they dominate GPU memory. The engine
-applies `RuntimeConfig.textureCacheBudget` at startup; size it for your game
-with `setTextureBudget` (the single game-facing surface over the C++ pool —
-there is no parallel TS-side budget to drift from it), and watch residency with
-`getResourceStats`:
-
-```typescript
-import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
-
-setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
-
-const stats = getResourceStats();      // null before the engine initializes
-// stats.textureBytes          — resident texture bytes (held + evictable)
-// stats.textureBudget         — the current budget (0 = eviction off)
-// stats.textureEvictableCount — warm-cache entries awaiting revive/evict
-// stats.retainedBytes         — CPU copies kept to survive a GPU loss (below)
-// …plus shaderCount / textureCount / vertexBufferCount / indexBufferCount
-//  and cacheHits / cacheMisses
-
-const freed = trimTextureCache();      // drop every evictable texture now
-```
-
-The "GC" here is the LRU described above: once `textureBytes` exceeds
-`textureBudget`, the C++ pool evicts the least-recently-used **unreferenced**
-textures until it fits — held textures are never touched. `setTextureBudget(0)`
-disables the warm cache entirely (every texture frees the moment its last
-reference is released), and `trimTextureCache()` frees all evictable entries at
-once, returning the count — the engine calls it on OS memory warnings; call it
-yourself before a known memory spike.
-
-Two small helpers round out the surface: `getTextureDimensions(handle)` returns
-a texture's `{ width, height }` (cached on the TS side after the first query),
-and `evictTextureDimensions(handle)` drops that cached entry — the asset system
-does this when a texture is truly freed, so you only need it if you destroy and
-recreate textures around the asset system's back.
-
-### Memory kept for a lost GPU
-
-When the graphics context is lost (a driver reset, a mobile browser reclaiming
-the GPU), the engine rebuilds every texture and buffer behind the handles your
-game holds. Most content comes back from where it came from — an asset is
-loaded again, a text page is repainted from its glyphs, a skeleton's atlas page
-is decoded again, a terrain's layer textures are read and packed again from their files and its page atlases refilled. What has no such source (a mesh built at runtime, a tile
-collection composed at load) is kept as a CPU copy, which counts against your
-memory but not against any GPU figure. `stats.retainedBytes` is that copy; the
-engine's own is about 28 KB. It warns once when the copy grows past
-`RuntimeConfig.retainedBudget` (**16 MB** by default, `retainedBudget` in the
-build config, or `setRetainedBudget(bytes)`; 0 never warns). Content the engine
-can make again is not kept twice: a terrain with texture layers holds no CPU copy of them.
-
-Recovery is one transaction of the device, and a web game comes back to the picture it
-had. While the engine waits for its textures, frames the device refuses start empty and
-collect nothing, so their staging does not grow; and the restored WebGL context is given
-its extensions again before the device probes what it can do, so an HDR scene does not
-come back black.
-
-What the engine cannot put back is content **your game drew**: a render texture
-is GPU storage, so a rebuilt device hands it back blank. `onDeviceRestored` says
-when to draw it again, and `RenderTexture.contentLost` says which target needs
-it — a target a camera renders every frame never does.
-
-```typescript
-import { onDeviceRestored, RenderTexture } from 'esengine';
-
-const minimap = RenderTexture.create({ width: 256, height: 256 });
-onDeviceRestored(() => {
-  if (!RenderTexture.contentLost(minimap)) return;
-  drawMinimap(minimap);                  // your own draw
-  RenderTexture.contentDrawn(minimap);   // …and say it holds pixels again
-});
-```
-
-For watching these numbers frame-over-frame in the editor and at runtime, see
-[Profiling](/docs/performance/profiling/). Per-texture **sampling/filtering**
-parameters (pixel-art nearest vs. smooth linear) are covered in the
-[Texture Regions & Sampling](/docs/graphics/sprites/textures/#filtering-and-wrapping).
-
-## Best practices
-
-- **Reference by path in code, let the editor write `@uuid:`** — never hand-author
-  UUID refs.
-- **Preload with `loadGroup` / `loadByLabel`** at level boundaries so play doesn't
-  stall mid-scene.
-- **Put on-demand content under `subpackages/<name>/`** so it becomes a lazy group
-  (and a WeChat subpackage) instead of bloating the main bundle.
-- **Let cooking cull + compress** — reachable-only staging and PNG→KTX2 keep the
-  shipped bundle small; don't ship raw PNGs you can cook.
-- **Mark folders your code loads by name** as **Delivery → Always include in
-  builds**, or reachability culling will drop them from the build the editor never
-  needed a manifest to run.
-- **Set a texture budget** on memory-constrained targets and trust reference
-  counting for the rest.
-
 <Aside type="note">
-  Content hashing runs on the **staged** bytes (after PNG→KTX2 encoding), so the
-  manifest hash identifies the shipped artifact.
+  Assets under `subpackages/` are always included, even when unreachable. **Locale tables** (`Text` carries keys, not
+  paths) and **data assets** are also always shipped, because no scene can reference them.
 </Aside>
+
+## Guidelines
+
+- Reference assets by path in code; UUID refs are written by the editor.
+- Load groups (`loadGroup` / `loadByLabel`) or lists (`preload`) at level boundaries so play does not wait on a load.
+- Place on-demand content under `subpackages/<name>/` so it forms a lazy group and, on WeChat, a subpackage.
+- Mark folders that code loads by computed name as **Always include in builds**.
 
 ## See also
 
-- [WeChat MiniGame](/docs/publishing/wechat/) — how addressable groups map to subpackages.
-- [Scenes](/docs/world/scenes/) — scenes reference assets and are cooked as entry points.
-- [Materials & Shaders](/docs/graphics/materials/code/) — `loadMaterial` and shader handles.
+- [Lifetime & Memory](/docs/assets/memory/): reference counting, warm caches, texture budgets, GPU context loss.
+- [WeChat MiniGame](/docs/publishing/wechat/): how addressable groups map to subpackages.
+- [Scenes](/docs/world/scenes/): scenes reference assets and are the cook's entry points.
+- [Materials in code](/docs/graphics/materials/code/): `loadMaterial` and shader handles.

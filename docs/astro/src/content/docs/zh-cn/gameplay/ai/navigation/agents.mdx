@@ -1,0 +1,112 @@
+---
+title: 导航代理
+description: NavAgent 参考——设置与停止目的地、代理字段、规划队列及其预算、部分路线、操控 CharacterController3D 的代理、代理之间的局部避让，以及代理宽度。
+---
+
+`NavAgent` 沿路线把其实体移动到目的地。内建导航插件规划路线并每帧推进代理；游戏代码只需设置目的地。
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine/ai';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// From any system/action with world access — safe to call every frame:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// …and to halt in place:
+stopNavAgent(world, entity);
+```
+
+![Nav Agent 的细节面板：速度、半径、到达半径与重新规划间隔，其后是目标](@/assets/guides/zh/details-nav-agent.png)
+
+*一个 **Nav Agent**：先是移动设置，然后是目的地。*
+
+## `NavAgent`
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `speed` | `120` | 移动速度，世界单位/秒。 |
+| `radius` | `0` | 身体半径，世界单位。在网格表面上，规划使代理避开容不下它的缝隙，半径大于 `0` 时启用[避让](#避让)。在导航网格上则以体积的 `agentRadius` 为准。 |
+| `arriveRadius` | `6` | 距最终目标的停止距离。 |
+| `repathInterval` | `0.5` | 周期性重新规划的间隔秒数；`0` 表示关闭周期性重新规划。目标或拓扑变化以及阻塞路线的恢复仍会触发重新规划。 |
+| `hasTarget` | `false` | 是否设置了目的地。由 `setNavDestination` 设置；到达时以及 `stopNavAgent` 会清除。 |
+| `targetX`、`targetY`、`targetZ` | `0` | 当前目的地，世界单位。 |
+| `arrived` | `false` | 代理到达目标时置位；直到下一次 `setNavDestination` 前保持置位。 |
+
+`setNavDestination` 可每帧调用以跟随移动的目标：目标或拓扑变化、路线停滞或周期计时器到期时，代理会重新规划。`agent.arrived`（或 `Perception`）告诉行为何时切换。
+
+### 部分路线
+
+在内建表面上，到达**部分**路线（目标不可达）的终点时，`hasTarget` 保持为真，`arrived` 保持为假。代理在障碍附近等待，表面变化时恢复前进，即使关闭了周期性重新规划也是如此。`stopNavAgent` 取消该意图。没有 `queryWorldPath` 的自定义表面保留之前的到达行为，因为无法判断路线是否完整。
+
+### 站立空间
+
+`surface.isNavigable(point, { radius })` 检查身体能否站在某点：格子网格将圆盘与瓦片面及世界边界进行检测；导航网格拒绝大于其烘焙半径的半径。网格规划在把身体半径换算为余量格数时会加上半格，因此小数半径无法穿过比身体窄的门。运动学的网格跟随者会验证采样的移动线段，在移动受阻或停滞后从当前位置重新规划。这是导航操控，不能替代物理碰撞求解器。
+
+## 规划队列
+
+`NavAgentSystem` 跨帧按先进先出顺序处理规划请求。默认每次 tick 允许 **16 次规划**与 **2 ms 的软规划预算**。每次 tick 至少运行一次查询；时间检查发生在同步查询之间，因此单次查询可能超出预算。突发的请求会以路线延迟为代价分摊到多帧。直接调用的 `findWorldPath` / `queryWorldPath` 是同步的，不经过该队列。
+
+```typescript
+const nav = app.getResource(Nav);
+nav.planningBudgetMs = 2;
+nav.maxPlansPerFrame = 16;
+// Set either limit to 0 to disable that limit.
+console.info(nav.planningStats); // completed, pending, elapsedMs from the last tick
+```
+
+排队的请求在被处理时读取最新的位置、目标与半径。没有有效路线的代理会暂停，水平方向的角色操控停止，重力仍然生效；周期性刷新会继续跟随有效的缓存路线。替换表面、编辑内建网格拓扑或修改代理半径会使过期的路线失效，包括关闭了周期性重新规划的代理。自定义表面或其代价、连接被原地修改后，`nav.invalidatePaths()` 丢弃缓存的路线。在未变化的表面上，一次暂时失败的查询可能在代理穿越连接时保留现有路线；被失效的路线则会被丢弃。
+
+在相同的建筑地图上比较无限制规划与默认设置：
+
+```sh
+node tools/navigation-planning-benchmark.mjs output/navigation-planning.json
+```
+
+无头报告记录全部 64 条路线形状、逐帧 CPU 与回调间隔、批次完成延迟以及总 CPU。它涵盖障碍标记与代理在移动速度为零的内存世界上的步进，不包括渲染、物理与应用帧的其余部分。
+
+## 带角色身体的代理
+
+实体同时带有 **`CharacterController3D`** 的代理是被**操控**而非被直接移动：插件把控制器的水平速度写向下一个路径点，由角色自身的求解器完成移动，因此代理会与世界碰撞、爬上台阶并在应当下落时下落。竖直轴从不被写入。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 200, z: 0 } })
+  .insert(CharacterController3D, { radius: 30, halfHeight: 50 })
+  .insert(NavAgent, { speed: 400, arriveRadius: 90 });
+```
+
+这类代理的距离在地面平面内测量，因为胶囊中心高于规划路线所在的地面。体积的 `agentRadius` 设为控制器的 `radius`，`agentHeight` 约为 `halfHeight` 的两倍加半径，使网格与身体相符。
+
+导航会跳过没有目的地的代理。因此清除目的地（包括使用 `stopNavAgent`）并不会让受操控的角色停下：最后写入其 `CharacterController3D` 的水平速度会保留。停止受操控代理的代码应同时将该速度清零，[`Hunter`](/docs/zh-cn/gameplay/ai/hunter/) 即是如此。
+
+没有控制器时，代理的 Transform 直接沿路径移动。
+
+## 避让
+
+路线是针对静态世界规划的。`radius` 大于零的代理被视为身体，会绕开同一地面上的其他身体，因此派往同一地点的多个代理不会作为一个整体沿同一路线行走：
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 300, radius: 40, arriveRadius: 60 });
+```
+
+每个代理承担一半的避让，因此迎面相遇的两个代理会分开，而不是同时向同一侧躲闪。完全对称的相遇按靠右通行解决。侧移在执行前会与可导航表面进行检查，因此操控不会把代理推进墙里；在一条通道中无法错身的两个宽身体会等待，而不会穿过。
+
+`radius` 为 `0` 的代理按点规划，不避让任何代理，也不被任何代理避让。
+
+## 代理宽度
+
+在**格子网格**上，`radius` 设为身体的半宽，规划就会使其避开容不下它的缝隙。半径为 `0` 的代理按点规划；按点规划的身体可能停在比自身窄的门口，因为它被规划到的格子可通行，而身体伸入相邻格子的部分不可通行。
+
+在**导航网格**上，宽度在烘焙时由 `agentRadius` 决定，因此路线已经与墙保持距离。
+
+身体无法站立的目标（角落里的拾取物）在两种表面上仍可到达：规划在身体能容纳的最近处结束，其余距离由 `arriveRadius` 覆盖。
+
+## 另请参阅
+
+- [路线查询](/docs/zh-cn/gameplay/ai/navigation/route-queries/)——在编辑器中检查代理的路线。
+- [角色](/docs/zh-cn/gameplay/physics-3d/characters/#charactercontroller3d)——代理所操控的控制器。
+- [Hunter](/docs/zh-cn/gameplay/ai/hunter/)——基于受操控代理构建的敌人。

@@ -1,0 +1,90 @@
+---
+title: 音频源与空间音频
+description: AudioSource 与 AudioListener 参考——声明式播放字段与默认值、距离衰减模型、沿听者方向的立体声声像，以及衰减与声像函数。
+---
+
+`AudioSource` 以声明方式从实体播放片段：环境声、循环运转的机器、附着在物体上的声音。设置 `spatial` 后，其音量与声像随实体相对 `AudioListener` 的位置变化。
+
+## `AudioSource`
+
+设置 `playOnAwake` 与 `enabled` 后，实体启用时音频系统会启动该音频源。运行时升高或降低 `playing` 即可开始或停止播放。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `clip` | 音频资源 | `''` | 要播放的片段。 |
+| `bus` | string | `'sfx'` | 播放所在的混音总线（[混音器](/docs/zh-cn/assets/audio/mixer/)）。 |
+| `volume` | number | `1` | 音量，0–1。 |
+| `pitch` | number | `1` | 播放速度与音高。 |
+| `loop` | boolean | `false` | 循环播放片段。 |
+| `loopStart` | number | `0` | 配合 `loop`：片段到达结尾时返回的位置（秒），使前奏只播放一次。 |
+| `fadeIn` | number | `0` | `playing` 升高时升至 `volume` 所用的秒数。 |
+| `fadeOut` | number | `0` | `playing` 降低时降至静音所用的秒数，之后发声停止。淡出期间再次升高 `playing` 会反转淡出。 |
+| `playing` | boolean | `false` | 升高以播放，降低以停止。非循环片段结束时引擎会将其降低。 |
+| `finished` | boolean | `false` | 运行时只读：片段已播放完毕。升高 `playing` 会再次播放。 |
+| `playOnAwake` | boolean | `false` | 实体启用时开始播放。 |
+| `spatial` | boolean | `false` | 按相对听者的位置衰减并调整声像。 |
+| `minDistance` | number | `100` | 在此距离内音量为满。 |
+| `maxDistance` | number | `1000` | 超过此距离后静音。 |
+| `attenuationModel` | `AttenuationModel` | `Inverse` | 衰减曲线：`Linear`、`Inverse` 或 `Exponential`。 |
+| `rolloff` | number | `1` | 衰减陡度系数。 |
+| `priority` | number | `0` | 达到发声数上限时的优先级，高者优先（[发声数上限](/docs/zh-cn/assets/audio/mixer/#发声数上限)）。 |
+| `enabled` | boolean | `true` | 关闭：停止并静音该音频源，但不移除组件。 |
+
+`AudioSource` 的状态随场景保存。
+
+## `AudioListener`
+
+`AudioListener` 只有一个字段 `enabled`（默认 `true`）。场景中应恰好保留一个启用的听者，通常放在相机或玩家上。没有启用的听者时，正在播放的空间音频源会警告一次，并以世界原点为参照。
+
+## 空间音频
+
+```typescript
+import { defineSystem, Commands, Transform, AudioSource, AudioListener,
+         AttenuationModel } from 'esengine';
+
+const setupSpatial = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 600, y: 0, z: 0 } })
+    .insert(AudioSource, {
+      clip: 'assets/campfire.ogg', loop: true, playOnAwake: true,
+      spatial: true, minDistance: 80, maxDistance: 900,
+      attenuationModel: AttenuationModel.Inverse,
+    });
+
+  cmds.entity(cameraEntity).insert(AudioListener, { enabled: true });
+});
+```
+
+音频系统每帧读取音频源与听者的世界位置，计算两者在三维中的距离，并以下列值驱动正在播放的发声：
+
+- **音量** `× attenuation(distance)`；
+- 沿听者右方向的**立体声声像**：`dot(source − listener, right) / maxDistance`，钳制到 ±1。未旋转的听者右方向为世界 +X；听者旋转时，听到的世界随之旋转。
+
+没有 HRTF、多普勒效应或遮挡。
+
+| `AttenuationModel` | 衰减 |
+|---|---|
+| `Linear` | 从 `minDistance` 到 `maxDistance` 线性下降。 |
+| `Inverse`（默认） | 反距离衰减。 |
+| `Exponential` | 更陡的指数衰减。 |
+
+### 衰减与声像函数
+
+衰减曲线以纯函数形式导出，供工具与测试使用。`calculateAttenuation(distance, config)` 接受 `SpatialAudioConfig`（`model`、`refDistance`、`maxDistance`、`rolloff`；系统根据 `AudioSource.minDistance`、`maxDistance` 与 `rolloff` 填充）。`calculatePanning(source, listener, right, maxDistance)` 接受三个 `{ x, y, z }` 向量。
+
+```typescript
+import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
+
+const gain = calculateAttenuation(250, {
+  model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
+});                                                  // 0.4 = refDistance / distance
+const pan = calculatePanning(
+  { x: 600, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 1000,
+);                                                   // 0.6，偏右
+```
+
+## 参见
+
+- [音频](/docs/zh-cn/assets/audio/overview/)
+- [混音器](/docs/zh-cn/assets/audio/mixer/)
+- [音效事件](/docs/zh-cn/assets/audio/sound-events/#soundeventsource)：空间音效事件。

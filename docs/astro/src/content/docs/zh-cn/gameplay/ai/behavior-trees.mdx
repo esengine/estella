@@ -1,14 +1,13 @@
 ---
 title: 行为树
-description: "运行 .esbt 图:选择、序列、装饰器与叶子,以及一次 tick 如何求值。"
+description: 行为树参考——BehaviorTreeAgent、.esbt 图与 registerBt、响应式 tick，以及组合、装饰器与叶子节点类型。
 ---
 
-![行为树编辑器——Selector 之下是 Sequence 与一个兜底动作](@/assets/guides/zh/ai-bt.png)
+![行为树编辑器——Selector 之下一个 Sequence 与一个兜底动作](@/assets/guides/zh/ai-bt.png)
 
-*行为树编辑器:**Selector** 根之下是一个 **Sequence**(Condition `seesPlayer` → Action `chase`),外加兜底的 `patrol` 动作。*
+*行为树编辑器：根节点 **Selector** 之下是一个 **Sequence**（Condition `seesPlayer` → Action `chase`），以及兜底的 `patrol` 动作。*
 
-行为树每帧从**根**开始 tick 并返回一个 `Status`。组合节点控制流程;装饰器变换其唯一子节点的
-结果;叶子是你注册的动作和条件。加一个 `BehaviorTreeAgent`:
+行为树每帧从**根节点**开始 tick 并返回一个 `Status`。组合节点控制流程，装饰器转换单个子节点的结果，叶子是已注册的动作与条件。`BehaviorTreeAgent` 在其实体上运行行为树：
 
 ```typescript
 import { BehaviorTreeAgent } from 'esengine/ai';
@@ -16,25 +15,27 @@ import { BehaviorTreeAgent } from 'esengine/ai';
 cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perception, {})
-  .insert(BehaviorTreeAgent, { bt: 'assets/ai/enemy.esbt' });   // 一个编辑器编排的资产
+  .insert(BehaviorTreeAgent, { bt: 'assets/ai/enemy.esbt' });   // an editor-authored asset
 ```
 
 | `BehaviorTreeAgent` 字段 | 说明 |
 |---|---|
-| `bt` | 要运行的树的 key:一个 `registerBt` 名字**或**一个 `.esbt` 资产路径。 |
-| `status` | 上一次根状态,每 tick 写入(只读)。 |
+| `bt` | 要运行的行为树：`registerBt` 名称或 `.esbt` 资源路径。 |
+| `status` | 最近一次根节点状态，每次 tick 写入（只读）。 |
 
-在编辑器里可视化编排这棵树,或用 `registerBt` 用代码构建:
+## 定义行为树
+
+行为树通常在编辑器中创作（[在编辑器中创作](/docs/zh-cn/gameplay/ai/authoring/)），也可在代码中用 `registerBt` 注册：
 
 ```typescript
 import { registerBt } from 'esengine/ai';
 
 registerBt('guard', {
   root: {
-    type: 'selector',            // 从左到右尝试子节点,直到一个成功
+    type: 'selector',            // try children left→right until one succeeds
     children: [
       {
-        type: 'sequence',        // 全部按序成功
+        type: 'sequence',        // all must succeed, in order
         children: [
           { type: 'condition', name: 'seesPlayer' },
           { type: 'action', name: 'chase' },
@@ -46,20 +47,26 @@ registerBt('guard', {
 });
 ```
 
-这棵树是**响应式**的:组合节点每个 tick 都从第一个子节点重新求值,不记得上次运行到哪个子节点,所以
-条件刚变真的高优先级分支会抢占正在 `Running` 的低优先级分支。只有 `wait` 和 `repeater` 保存逐节点的
-状态(已过时间、已完成次数)。
+## Tick 方式
 
-节点类型:
+行为树是**响应式**的：组合节点每次 tick 都从第一个子节点开始重新求值，不记录哪个子节点正在运行，因此条件刚变为真的高优先级分支会抢占处于 `Running` 的低优先级分支。只有 `wait` 与 `repeater` 保存节点状态（已用时间、已完成次数）。
+
+## 节点类型
 
 | 类别 | 类型 | 行为 |
 |---|---|---|
-| 组合 | `sequence` | 按序 tick 子节点;第一个失败即失败,全部成功才成功,遇到第一个 `Running` 的子节点就停在那里。 |
-| | `selector` | 按序 tick 子节点;第一个成功即成功,全部失败才失败,遇到第一个 `Running` 的子节点就停在那里。 |
-| | `parallel` | 每帧 tick 全部子节点。`policy: 'all'`(默认)任一失败即失败、全部成功才成功;`'one'` 任一成功即成功、全部失败才失败;其余情况报告 `Running`。 |
-| 装饰器 | `inverter` | 反转子节点的成功/失败;`Running` 原样透传。 |
-| | `succeeder` | 子节点一结束就报告 Success;`Running` 原样透传。 |
-| | `repeater` | 把子节点重跑 `count` 次(`0` = 永远)。每次跑完(无论成败)算一次;两次之间报告 `Running`,最后一次之后报告 `Success`。 |
-| | `wait` | 在 `seconds` 秒内报告 `Running`(它是叶子,没有子节点),之后报告 `Success`。 |
-| 叶子 | `action` | 运行已注册动作 `name`;它的 `Status`(void 则为 `Success`)向上传播。名字未注册则失败。 |
-| | `condition` | 已注册条件 `name` 为真时返回 `Success`,否则 `Failure`。 |
+| 组合 | `sequence` | 依次 tick 子节点；遇到第一个失败即失败，全部成功则成功，遇到第一个 `Running` 的子节点即停止。 |
+| | `selector` | 依次 tick 子节点；遇到第一个成功即成功，全部失败则失败，遇到第一个 `Running` 的子节点即停止。 |
+| | `parallel` | 每帧 tick 所有子节点。`policy: 'all'`（默认）在任一子节点失败时立即失败，全部成功时成功；`'one'` 在任一子节点成功时成功，全部失败时才失败。其他情况报告 `Running`。 |
+| 装饰器 | `inverter` | 反转子节点的 Success/Failure；`Running` 原样传递。 |
+| | `succeeder` | 子节点结束时总是报告 Success；`Running` 原样传递。 |
+| | `repeater` | 重复运行子节点 `count` 次（`0` 为无限）。每次完成（无论成功或失败）计为一次；两次运行之间报告 `Running`，最后一次后报告 `Success`。 |
+| | `wait` | 在 `seconds` 秒内报告 `Running`（它是叶子，没有子节点），之后报告 `Success`。 |
+| 叶子 | `action` | 运行已注册的动作 `name`；其 `Status`（未返回值时为 `Success`）向上传递。未注册的名称导致失败。 |
+| | `condition` | 已注册的条件 `name` 为真时返回 `Success`，否则返回 `Failure`。 |
+
+## 另请参阅
+
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/)——叶子及其 `Status` 返回值。
+- [黑板](/docs/zh-cn/gameplay/ai/blackboard/)——通过 `AiBt` 访问行为树代理的黑板与状态。
+- [状态机](/docs/zh-cn/gameplay/ai/state-machines/)——基于同一组叶子的另一种创作形式。

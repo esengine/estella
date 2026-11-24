@@ -1,0 +1,98 @@
+---
+title: Sources & Spatial Audio
+description: AudioSource and AudioListener reference — declarative playback fields and defaults, distance attenuation models, stereo panning along the listener, and the attenuation and panning functions.
+---
+
+`AudioSource` plays a clip declaratively from an entity: ambience, a looping machine, a sound anchored to an object. With
+`spatial` set, its volume and pan follow the entity's position relative to the `AudioListener`.
+
+## `AudioSource`
+
+With `playOnAwake` and `enabled` set, the audio system starts the source when the entity is enabled. Raising and lowering
+`playing` starts and stops it at run time.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `clip` | audio asset | `''` | Clip to play. |
+| `bus` | string | `'sfx'` | Mixer bus the source plays on ([Mixer](/docs/assets/audio/mixer/)). |
+| `volume` | number | `1` | Volume, 0–1. |
+| `pitch` | number | `1` | Playback speed and pitch. |
+| `loop` | boolean | `false` | Loop the clip. |
+| `loopStart` | number | `0` | With `loop`: the position in seconds the clip returns to at its end, so an introduction plays once. |
+| `fadeIn` | number | `0` | Seconds to rise to `volume` when `playing` is raised. |
+| `fadeOut` | number | `0` | Seconds to fall to silence when `playing` is lowered; the voice then stops. Raising `playing` during the fade reverses it. |
+| `playing` | boolean | `false` | Raise to play, lower to stop. The engine lowers it when a non-looping clip ends. |
+| `finished` | boolean | `false` | Run-time, read-only: the clip has completed. Raising `playing` plays it again. |
+| `playOnAwake` | boolean | `false` | Start when the entity is enabled. |
+| `spatial` | boolean | `false` | Attenuate and pan by position relative to the listener. |
+| `minDistance` | number | `100` | Distance within which volume is full. |
+| `maxDistance` | number | `1000` | Distance beyond which the source is silent. |
+| `attenuationModel` | `AttenuationModel` | `Inverse` | Falloff curve: `Linear`, `Inverse` or `Exponential`. |
+| `rolloff` | number | `1` | Falloff steepness multiplier. |
+| `priority` | number | `0` | Voice priority when the voice limit is reached; higher wins ([Voice limit](/docs/assets/audio/mixer/#voice-limit)). |
+| `enabled` | boolean | `true` | Off: stops and silences the source without removing the component. |
+
+`AudioSource` state is saved with the scene.
+
+## `AudioListener`
+
+`AudioListener` has one field, `enabled` (default `true`). Keep exactly one enabled listener, usually on the camera or the
+player. A spatial source playing with no enabled listener warns once and measures from the world origin.
+
+## Spatial audio
+
+```typescript
+import { defineSystem, Commands, Transform, AudioSource, AudioListener,
+         AttenuationModel } from 'esengine';
+
+const setupSpatial = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 600, y: 0, z: 0 } })
+    .insert(AudioSource, {
+      clip: 'assets/campfire.ogg', loop: true, playOnAwake: true,
+      spatial: true, minDistance: 80, maxDistance: 900,
+      attenuationModel: AttenuationModel.Inverse,
+    });
+
+  cmds.entity(cameraEntity).insert(AudioListener, { enabled: true });
+});
+```
+
+Each frame the audio system reads the world positions of the source and the listener, computes their distance in three
+dimensions, and drives the playing voice with:
+
+- **volume** `× attenuation(distance)`;
+- **stereo pan** along the listener's right vector: `dot(source − listener, right) / maxDistance`, clamped to ±1. An
+  unrotated listener's right is world +X; a rotating listener hears the world rotate with it.
+
+There is no HRTF, Doppler or occlusion.
+
+| `AttenuationModel` | Falloff |
+|---|---|
+| `Linear` | Straight line from `minDistance` to `maxDistance`. |
+| `Inverse` (default) | Inverse-distance rolloff. |
+| `Exponential` | Steeper exponential rolloff. |
+
+### Attenuation and panning functions
+
+The curves are exported as pure functions for tools and tests. `calculateAttenuation(distance, config)` takes a
+`SpatialAudioConfig` (`model`, `refDistance`, `maxDistance`, `rolloff`; the system fills it from
+`AudioSource.minDistance`, `maxDistance` and `rolloff`). `calculatePanning(source, listener, right, maxDistance)` takes
+three `{ x, y, z }` vectors.
+
+```typescript
+import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
+
+const gain = calculateAttenuation(250, {
+  model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
+});                                                  // 0.4 = refDistance / distance
+const pan = calculatePanning(
+  { x: 600, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 1000,
+);                                                   // 0.6, to the right
+```
+
+## See also
+
+- [Audio](/docs/assets/audio/overview/)
+- [Mixer](/docs/assets/audio/mixer/)
+- [Sound Events](/docs/assets/audio/sound-events/#soundeventsource): spatial sound events.

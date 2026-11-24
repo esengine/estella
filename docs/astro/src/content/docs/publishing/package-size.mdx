@@ -1,0 +1,90 @@
+---
+title: Package Size
+description: The size report every export produces — initial, on-demand and CDN bytes, the engine subsystems a package carries, platform size limits, the project size budget and failing a CI build on size.
+---
+
+Every export is measured, and the result is shown under the build log in Package Project and carried in the export
+result as `result.size`. The report gives the package's figures, its composition by kind, the largest files with the
+reason each was included, the change since the previous build, and a verdict against each size limit in force.
+
+## Figures
+
+| Figure | Contents |
+|---|---|
+| **Initial** | Bytes downloaded before the game is playable: the host page, the engine runtime, the scripts, and assets in `local` delivery groups. |
+| **On demand** | Subpackages, fetched when the game loads that group. |
+| **CDN (not packaged)** | Assets in `remote` delivery groups. They are served from the CDN and do not count toward the package. See [Hot Update](/docs/publishing/hot-update/#delivery-groups). |
+
+The split is read from the same asset manifest the runtime loads. Moving content into a subpackage or a remote group
+removes it from the initial figure.
+
+## Engine subsystems in a package
+
+A package carries the engine subsystems the project uses and omits the others. Use is determined from evidence the
+export already has: components in scenes and prefabs, asset extensions (`.esgraph`, `.esfsm`, `.esbt`), the side
+modules a scan finds, and the `esengine/*` subpaths the project's scripts import.
+
+A subsystem used only from code — a tilemap built by hand, a socket opened by a script — is included when the script
+imports its subpath:
+
+```ts
+import { Tilemap } from 'esengine/tilemap';
+```
+
+A project that uses **Video** carries the whole engine with every optional subsystem, because video has no subpath.
+The API is identical either way.
+
+### Lite engine on WeChat-runtime targets
+
+On WeChat, Douyin, Kuaishou and Bilibili, a package carries the **lite engine** — the engine without particles,
+post-processing and tilemaps, about 200 KB smaller — when no scene or prefab contains a particle emitter, a
+post-process volume or a tilemap and no script names them. One mention in a script (`ParticleEmitter`,
+`PostProcess…`, `Tilemap…`), or `esengine/tilemap` set to **Include** in Project Settings, selects the full engine. An
+undetermined case selects the full engine.
+
+## Platform limits
+
+Where a platform publishes a limit, the build is judged against it. The report names the limit and quotes where the
+number is published.
+
+| Target | Limits |
+|---|---|
+| WeChat | 4 MB main package (packed bytes); 30 MB across all packages |
+| Douyin | 4 MB main package; 20 MB across all packages (30 MB for accounts with in-game purchase — set a size budget to use it) |
+| Kuaishou | 6 MB main package; 30 MB across all packages |
+| Bilibili | 4 MB main package; 4 MB per subpackage; 30 MB across all packages |
+| Quick game (vivo, OPPO, Xiaomi, Honor) | 4 MB main package; 20 MB across all packages |
+| Alipay | 4 MB main package; 20 MB across all packages |
+| Huawei quick game | 4 MB main package; 20 MB across all packages |
+| Playable | The selected ad network's limit — see [Playable Ads](/docs/publishing/playable-ads/#ad-networks) |
+| Web, Desktop, Android, iOS | None published; set a [size budget](#size-budget) |
+
+A build over a limit is reported, not blocked. The meter turns amber above 90% of a limit.
+
+## Size budget
+
+**Package Project → Advanced → Size budget** sets a ceiling in MB for the selected target, saved per platform in
+`packaging.sizeBudget` (in bytes). An empty field uses the platform's own limit.
+
+The budget **replaces the target's primary limit** (for WeChat, the 4 MB main package) and is attributed to the
+project rather than quoted as a platform rule. Other limits remain in force: on WeChat the 30 MB total still applies.
+A target without a published limit is judged on its initial download.
+
+## Gating a build on size
+
+The headless exporter reports the same verdicts and can fail on them:
+
+```bash
+node pipeline/bin/estella.mjs export ./my-game \
+  --platform wechat --json report.json --enforce-budget
+```
+
+With `--enforce-budget`, a package over any limit in force exits with status 1 and names the limit on stderr. Without
+it, the report is produced and the build succeeds. `--json` writes the export result, including `result.size`, to the
+given file.
+
+## See also
+
+- [Building & Exporting](/docs/publishing/overview/) — compression and the Package Project dialog.
+- [WeChat MiniGame](/docs/publishing/wechat/) — subpackages and the engine binary options.
+- [Hot Update](/docs/publishing/hot-update/) — delivery groups.

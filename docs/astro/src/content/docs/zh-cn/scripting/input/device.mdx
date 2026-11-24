@@ -1,0 +1,61 @@
+---
+title: 设备能力
+description: Device API——能力报告、运动传感器及其采样率与单位、振动、屏幕常亮、全屏与指针锁定、用户手势与 HTTPS 要求，以及平台支持。
+---
+
+`Device` 提供输入事件之外的宿主能力：运动传感器、振动、屏幕常亮、全屏与指针锁定。
+
+`Device.capabilities()` 报告可用的宿主 API。它并不保证物理传感器或振动马达确实存在。请求的结果为 `ok`、`unavailable`、`denied` 或 `failed`；应检查结果，而不是在不支持的平台上捕获异常。
+
+```ts
+import { Device } from 'esengine';
+
+const off = Device.motion.onChange(sample => {
+  if (sample.gravity) console.log(sample.gravity);
+});
+// Called from the player's gesture where the browser requires permission.
+const result = await Device.motion.start({ accelerometer: true, gyroscope: false, rate: 'game' });
+await Device.vibrate({ duration: 'short' });
+await Device.keepScreenOn(true);
+await Device.fullscreen(true);
+await Device.pointerLock(true);
+// Stop subscriptions and requests when the controls are retired.
+off();
+await Device.motion.stop();
+await Device.keepScreenOn(false);
+```
+
+## 运动
+
+| 采样率 | 间隔 |
+|---|---|
+| `game` | 约 16 ms |
+| `ui` | 60 ms |
+| `normal` | 200 ms |
+
+宿主的采样限制仍然适用。
+
+| 通道 | 单位 |
+|---|---|
+| 加速度、滤波后的重力 | m/s² |
+| 陀螺仪 | rad/s |
+| 滤波后的 Web 方向 | 度 |
+
+缺失的通道为 `null`。原生与小游戏适配器提供原始加速度、陀螺仪数据以及重力滤波；这些平台不提供绝对方向。设备坐标轴不随屏幕方向旋转，也不进行姿态融合。
+
+## 要求
+
+- Web 运动权限请求、全屏与指针锁定必须在触发它的玩家事件内执行。`createButton` 的 `userGesture: true` 选项提供这一条件。
+- 运动与屏幕常亮需要 HTTPS 或 localhost。
+- `Device.onChange` 监听全屏与指针锁定的退出以及挂起。
+- 游戏回到前台时，运动以及已请求的屏幕常亮会恢复；`stop()` 与 `keepScreenOn(false)` 撤销该请求。
+
+## 振动
+
+振动有 `short` 与 `long` 两种时长；在平台报告支持的情况下，短振动可附带 `light` / `medium` / `heavy` 强度。Web 振动无法控制强度。
+
+## 平台支持
+
+旧版原生二进制以及缺少相应 API 的平台返回 `unavailable`。原生支持需要包含传感器、权限与框架绑定的当前 Android 与 iOS 运行时。**Mobile Controls** 示例是使用这些 API 的完整项目。
+
+平台参考：[Web 运动权限](https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent/requestPermission)、[屏幕常亮](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)、[Android 传感器](https://developer.android.com/ndk/reference/group/sensor)、[iOS CoreMotion](https://developer.apple.com/documentation/coremotion/cmmotionmanager)。

@@ -1,0 +1,71 @@
+---
+title: 设备端采集
+description: ProfileRecorder 参考——在任意平台上从运行中的游戏录制 .esprof 剖析采集、保存采集、在编辑器性能剖析器中打开，以及用 app.onFrameEnd 观察每一帧。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ProfileRecorder` 把运行中游戏的帧录制为 **`.esprof` 采集**，编辑器的性能剖析器面板打开它时显示与实时会话相同的树、行与合计。它在引擎能运行的所有平台上都可用，因此可以在出现问题的设备上采集。
+
+## 录制
+
+```typescript
+import { ProfileRecorder } from 'esengine';
+
+const recorder = new ProfileRecorder(app, {
+  maxFrames: 1800,                       // 超过后丢弃最旧的帧
+  source: { platform: 'wechat', label: 'Redmi Note 12 · boss fight' },
+});
+
+recorder.start();
+// … 运行需要测量的部分 …
+recorder.stop();
+
+const capture = recorder.take();          // 普通对象
+```
+
+| `ProfileRecorderOptions` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `maxFrames` | number | `1800` | 丢弃最旧帧之前保留的帧数。 |
+| `budgetMs` | number | `1000 / 60` | 评判该采集所用的帧预算。 |
+| `source` | `CaptureSource` | `{}` | 标识数据：设备、构建、场景。 |
+
+`start()` 开启录制器读取的计量，包括 TypeScript 侧统计与引擎的 C++ 剖析，`stop()` 恢复之前的状态。`start()` 之前不进行任何计量或录制。
+
+<Aside type="note" title="没有内置目标">
+`take()` 返回一个对象。引擎不打开套接字、没有端点、也不写文件；采集的去向（下载、上传、日志）由游戏决定。
+</Aside>
+
+## 保存与打开
+
+在 Web 构建中，可以用标准 DOM API 保存采集：
+
+```typescript
+const blob = new Blob([JSON.stringify(recorder.take())], { type: 'application/json' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'boss-fight.esprof';
+a.click();
+```
+
+在编辑器中用 **Profiler ▸ Open…** 打开该文件。
+
+- `parseProfileCapture(text)` 返回 `{ capture }`，或带原因的 `{ error }`（不是 JSON、没有版本号、帧格式错误、版本高于编辑器可读取的版本），而不是抛出异常。
+- `summarizeCapture(capture)` 与实时视图使用的是同一函数，因此录制文件与编辑器实时数据对相同的帧报告相同的统计。
+
+## 观察每一帧——`app.onFrameEnd`
+
+录制器是 `app.onFrameEnd(fn)` 的使用方之一，该回调在每帧所有系统运行完毕、计时确定后触发一次。它是广播，因此其他观察者可以与录制器并行：
+
+```typescript
+const off = app.onFrameEnd((dtMs) => {
+  if (dtMs > 33) console.warn(`long frame: ${dtMs.toFixed(1)}ms`);
+});
+```
+
+它返回一个注销函数。`app.getFrameCosts()` 返回刚结束那一帧按系统与按作用域的开销。
+
+## 参见
+
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)
+- [日志与错误上报](/docs/zh-cn/performance/profiling/logging/)

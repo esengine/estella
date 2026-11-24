@@ -1,0 +1,129 @@
+---
+title: 刚体与碰撞体
+description: 2D 刚体与碰撞体参考——RigidBody2D 字段、各碰撞体组件及其形状参数、凹多边形与顶点编辑、碰撞层与碰撞矩阵，以及 OneWayPlatform2D。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+参与模拟的 2D 实体带有一个 `RigidBody2D` 和至少一个碰撞体。碰撞体尺寸以**米**为单位：像素尺寸需除以每单位像素数（[单位](/docs/zh-cn/gameplay/physics-2d/overview/#单位)）。
+
+![编辑器视口里的碰撞体 gizmo——选中的 Ground 轮廓加墙体与斜坡](@/assets/guides/zh/physics-collider.png)
+
+*视口中的碰撞体 gizmo：选中的 **Ground** 的盒形轮廓（琥珀色）、墙体与斜坡。由视口的**物理**显示标记切换。*
+
+## `RigidBody2D`
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static`（不动）、`Kinematic`（由代码移动）、`Dynamic`（参与模拟）。 |
+| `gravityScale` | number | `1` | 世界重力的倍率（`0` 为不受重力）。 |
+| `linearDamping` | number | `0` | 线速度阻尼。 |
+| `angularDamping` | number | `0` | 角速度阻尼。 |
+| `fixedRotation` | boolean | `false` | 锁定旋转，用于角色。 |
+| `bullet` | boolean | `false` | 对快速、细小的刚体启用连续碰撞（防止穿透）。 |
+| `enabled` | boolean | `true` | 为 `false` 时从模拟中移除该刚体。 |
+
+## 碰撞体
+
+各碰撞体共享以下字段，并各自增加形状参数。例外情况列在形状表中。
+
+| 共享属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `offset` | Vec2 | `{0, 0}` | 相对实体原点的局部偏移，米。 |
+| `density` | number | `1` | 单位面积质量，决定刚体质量。 |
+| `friction` | number | `0.3` | 表面摩擦，0 及以上。 |
+| `restitution` | number | `0` | 弹性，0–1。 |
+| `isSensor` | boolean | `false` | 检测重叠但不产生物理响应（触发器）。 |
+| `categoryBits` | number | `0x0001` | 该碰撞体所在的碰撞层。 |
+| `maskBits` | number | `0xFFFF` | 与之碰撞的层。 |
+| `enabled` | boolean | `true` | 为 `false` 时仅移除该形状。刚体保留速度、关节和其他碰撞体；没有物体会与被禁用的形状碰撞，查询、射线和角色扫掠也找不到它。 |
+
+| 组件 | 形状参数 |
+|---|---|
+| `BoxCollider2D` | `halfExtents`（`{0.5, 0.5}`）。四角固定为 `0.05` 米的圆角；没有字段可修改，写入组件的 `radius` 不会被保存。 |
+| `CircleCollider2D` | `radius`（`0.5`）。 |
+| `CapsuleCollider2D` | `radius`（`0.25`）、`halfHeight`（`0.5`）。 |
+| `SegmentCollider2D` | `point1`（`{-0.5, 0}`）、`point2`（`{0.5, 0}`）。单边线段；没有 `offset`。 |
+| `PolygonCollider2D` | `vertices: Vec2[]`（任意轮廓，可以是凹的；默认是单位正方形）、`radius`（圆角，`0`）。没有 `offset`。 |
+| `ChainCollider2D` | `points: Vec2[]`（至少 4 个）、`isLoop`（`true`）。静态边链；`friction` 默认为 `0.6`；没有 `offset`、`density` 或 `isSensor`。 |
+
+### 凹多边形
+
+`PolygonCollider2D.vertices` 接受任意数量、任意形状的点，包括凹轮廓。Box2D 只能构建最多 8 个顶点的凸多边形，因此凹轮廓或顶点更多的轮廓会被划分为若干凸块，每块作为同一刚体上的独立形状。8 个顶点的上限针对每一块，而非创作的轮廓。
+
+这些凸块作为一个碰撞体工作：其质量像同一刚体上的多个碰撞体一样相加，与任一块的接触即为与该实体的接触。每块都是宽相中的独立形状，因此开销随块数增长。
+
+被划分的多边形有以下限制：
+
+- **`radius`** 只对外边界做圆角，仅在轮廓保持为一块时生效。
+- **自相交轮廓**无法划分。它会退化为凸包；编辑器在旁边以琥珀色虚线绘制创作的轮廓。实线是碰撞形状，虚线是创作的轮廓。
+
+`ChainCollider2D` 适合内部无需为实心的长静态边界几何（地形、洞穴墙壁）。链没有 `density` 或 `isSensor`，运行时不重建其点，且无论多长都只算一个形状。
+
+### 在视口中编辑顶点
+
+选中实体后，碰撞体的点变为手柄：
+
+- 拖动点以移动它。
+- 单击点以删除它。
+- 单击边上的空心手柄，在该处插入顶点并拖动到位；插入与拖动合为一步撤销。
+
+编辑器拒绝低于求解器构建下限的操作（多边形 3 个点、链 4 个点），并指明触及的限制。
+
+{/* SHOT: gameplay-polygon-collider-edit | physics-playground example, showcase scene: the Wedge entity selected, viewport showing the PolygonCollider2D vertex handles and the hollow edge handles, Details panel showing the Polygon Collider 2D card */}
+
+## 碰撞过滤
+
+![设置 → 项目 → 物理——碰撞层名字与碰撞矩阵](@/assets/guides/zh/collision-matrix.png)
+
+*设置 → 项目 → 物理：16 个碰撞层的名称、互相碰撞的层对矩阵，以及求解器设置。*
+
+`categoryBits`（碰撞体所在的层）与 `maskBits`（与之碰撞的层）是 16 位过滤器。仅当双方的 category 都在对方的 mask 中时，两个碰撞体才会碰撞：
+
+```typescript
+const LAYER_PLAYER = 0x0001;
+const LAYER_ENEMY  = 0x0002;
+const LAYER_GROUND = 0x0008;
+
+.insert(CircleCollider2D, {
+  radius: 16 / PPU,
+  categoryBits: LAYER_PLAYER,
+  maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
+});
+```
+
+项目定义了碰撞矩阵时，矩阵以 `collisionLayerMasks` 传给插件，并取代各碰撞体自身的 `maskBits`。
+
+层过滤是交互的唯一控制：碰撞、撞击事件与传感器检测都使用它。只要碰撞体的层通过传感器的过滤，就会被传感器检测到；不存在逐碰撞体的启用开关。要让某个碰撞体不被传感器检测，应通过层将其排除。在物体繁多的世界中，把传感器及其目标放到专用层，可缩小每个传感器需要考虑的范围。
+
+## 单向平台
+
+在静态或运动学碰撞体上添加 `OneWayPlatform2D` 使其成为单面：物体从一个方向落在其上，从其他方向穿过。它通过 Box2D 的 pre-solve 回调实现，该回调仅在带有此组件的实体上启用。
+
+```typescript
+import { OneWayPlatform2D } from 'esengine/physics';
+
+const platform = world.spawn('ledge');
+world.insert(platform, Transform, { position: { x: 0, y: 0 } });
+world.insert(platform, RigidBody2D, { bodyType: BodyType.Static });
+world.insert(platform, BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } });
+world.insert(platform, OneWayPlatform2D, { normal: { x: 0, y: 1 } }); // solid top: land from above, pass from below
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `normal` | Vec2 | `{0, 1}` | 实心侧方向，世界空间（`{0, 1}` 为顶面实心）。 |
+| `localSpace` | boolean | `false` | 使 `normal` 随刚体旋转，包括父级的旋转。 |
+| `enabled` | boolean | `true` | 为 `false` 时碰撞体在各方向均为实心。 |
+
+在编辑器中，单向平台的碰撞体 gizmo 会沿实心侧法线显示一支箭头。`CharacterController2D` 在其 `dropThrough` 置位期间穿过单向平台（[角色控制器](/docs/zh-cn/gameplay/physics-2d/characters/)）。
+
+![法线朝上的单向平台：从下方来的物体穿过，从上方来的物体落在上面](@/assets/guides/oneway-platform.svg)
+
+{/* SHOT: gameplay-one-way-platform | physics-playground example, showcase scene: the OneWayLedge entity selected, viewport showing its collider outline with the solid-side arrow, Details panel showing the One Way Platform 2D card */}
+
+## 另请参阅
+
+- [2D 物理基础](/docs/zh-cn/gameplay/physics-2d/overview/)——安装与单位。
+- [瓦片碰撞](/docs/zh-cn/world/tilemaps/collision/)——由瓦片地图层生成的碰撞体。
+- [标记与触发区](/docs/zh-cn/gameplay/markers/)——以标记形式创作的传感区域。

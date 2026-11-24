@@ -1,0 +1,171 @@
+---
+title: Level Settings
+description: Per-level quality settings reference — resolution and anti-aliasing, view distance and draws, lights, shadows, effects and particles, terrain and foliage, water, and memory, with the Low, Medium and High defaults of each.
+---
+
+This page lists the per-level settings of every group except the effect settings, which are on
+[Effects per Level](/docs/performance/quality-levels/effects/), and texture streaming, which is on
+[Texture Streaming](/docs/performance/quality-levels/texture-streaming/). Defaults are given as Low / Medium / High; the
+key is the field name in `features.rendering.quality.profiles.<level>`. High uses the engine's own values throughout, so a
+project at High renders as authored.
+
+## Resolution & Anti-Aliasing
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Render scale | `renderScale` | 0.75 / 1 / 1 | Share of the screen resolution (per side) the 3D scene is drawn at, then upscaled. With dynamic resolution, the starting and maximum scale. Range 0.25–1. |
+| Min render scale | `minRenderScale` | 0.5 / 0.65 / 0.75 | Lowest scale dynamic resolution may reach. Never above the render scale. |
+| Anti-aliasing | `antialiasing` | MSAA / Temporal / MSAA | MSAA or Temporal; see below. |
+| MSAA | `msaaSamples` | Off (1) / 2× / 4× | Samples per pixel with MSAA (1, 2, 4 or 8). Ignored under Temporal. |
+
+**Temporal** draws at one sample and lets the TAA pass smooth from previous frames: much cheaper at high resolutions and
+slightly softer, and surfaces without motion vectors (water) smear slightly while the camera moves. It requires a
+post-process volume on the camera.
+
+## View Distance & Draws
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Depth pre-pass | `depthPrepass` | off / on / on | Draws opaque geometry depth-only first, so each pixel is shaded once. |
+| Draw call budget | `drawCallBudget` | 150 / 400 / 1,500 | Target maximum of GPU draws per frame. |
+| LOD distance scale | `lodDistanceScale` | 0.6 / 0.8 / 1 | Multiplier on LOD and impostor switch sizes. Range 0.25–2. |
+| Occlusion grid | `occlusionGridSize` | 64 / 64 / 64 | Side of the CPU occlusion grid: 16, 32 or 64. |
+| Batch scan interval | `batchScanFrames` | 60 / 30 / 30 | Frames between rescans of static batches and composite batches. |
+
+- **Depth pre-pass** pays where surfaces overlap (dense foliage, crowds) on GPUs that shade what they rasterize; on GPUs
+  that defer shading to the end of a tile it is geometry drawn twice. The pre-pass and the colour pass declare the vertex
+  position invariant on WebGL2 and WebGPU, so a surface always passes the equal-depth test against its own depth.
+- **Draw call budget** counts every pass: each shadow cascade redraws its casters, the depth pre-pass redraws the opaque
+  scene, and post-processing adds a draw per pass. Nothing is withheld to meet the budget. The Profiler's **Render** module
+  shows GPU draws against it by pass, and the stats overlay shows the count in red past it
+  ([Profiling](/docs/performance/profiling/overview/#draws-by-pass)). To reduce draws, see
+  [Static Batching](/docs/performance/static-batching/), and use fewer shadow cascades for the shadow pass.
+- **LOD distance scale** is applied to the screen size each `LODGroup` measures, so a group authored to switch at 40 m
+  switches at 24 m at 0.6. Hysteresis and the group's levels are unchanged. A `Foliage` field's far versions are LOD groups
+  too and take both this and the [detail distance](#terrain--foliage).
+- **Occlusion grid**: a coarser grid has fewer texels to fill, and an occluder must cover a texel completely to hide
+  anything, so it hides less ([Occlusion Culling](/docs/performance/occlusion-culling/#occlusion-grid)).
+- **Batch scan interval**: `refresh()` rescans at once regardless.
+
+## Lights & Shading
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| 3D lighting | `lighting` | Direct / Direct / Full | Full or Direct lighting for lit meshes. |
+| Per-pixel lights | `loopLights` | 8 / 12 / 16 | Lights each lit pixel evaluates, at most the 16 of the light block. |
+| Tiled lights | `tiledLights` | 32 / 64 / 96 | Point and spot lights beyond the per-pixel ones, shaded per screen tile. Full lighting only. |
+
+- **Direct** compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights
+  of the light block and hard shadows, without lights beyond them, soft shadows or hair shadows
+  ([3D lighting level](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)). Sprites keep their 2D lighting at
+  either value.
+- **Per-pixel lights** keeps the sun and shadow-casting lights first, then the brightest.
+- **Tiled lights**: a point or spot light beyond the per-pixel ones that casts no shadow is shaded only on the screen
+  tiles (16 × 12) its range covers; past this many, the dimmest are dropped. With Direct lighting these lights are not
+  drawn.
+
+## Shadows
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Atlas size | `shadowAtlasSize` | 1024 / 2048 / 4096 | Texels per side of the texture all shadow maps of a frame are packed into. A map never takes more than half of it. |
+| Cell size | `shadowCellSize` | 256 / 512 / 1024 | Texels per side of one shadow map (a cascade, a spot light). |
+| Cascades | `shadowCascades` | 2 / 3 / 4 | Cascades of a perspective sun's shadow; each redraws the casters. A sun with its own shadow extent draws one map and ignores this and the distance. |
+| Distance | `shadowDistance` | 0 / 0 / 0 | Scene units covered by sun cascades; `0` follows the camera far plane. Explicit light coverage is unchanged. |
+| 2D soft-shadow samples | `shadowSoftSamples` | 8 / 12 / 16 | Samples across a 2D light for a soft 2D shadow; fewer show the penumbra as bands. 3D shadows do not read it. |
+| Shadow maps | `shadowTiles` | 8 / 12 / 16 | Shadow maps drawn per frame. |
+| 3D soft-shadow search samples | `shadowBlockerSamples` | 8 / 8 / 16 | Reads that search for what blocks a pixel. |
+| 3D soft-shadow filter samples | `shadowFilterSamples` | 8 / 16 / 32 | Reads a wide penumbra is averaged over. |
+| 3D soft-shadow max radius | `shadowSearchRadius` | 12 / 16 / 24 | Widest penumbra, in texels of its map. |
+
+- **Shadow maps**: a cascade, a spot light and the sky's cloud shadow take one map each and a point light six. Lights at a
+  position request first and take all they need or none; the sun then gives up its farthest cascades.
+- **Cell size**: at 512, a card close to a face (a brow, a hairline) falls inside one texel of the skin and the shadow
+  speckles it; 1024 resolves it for a character at arm's length.
+- The three **3D soft-shadow** rows apply only where a soft shadow is drawn (a light with a source size, under Full
+  lighting). At Low and Medium, which use Direct lighting by default, they have no effect unless the project sets the
+  level to Full.
+
+## Effects & Particles
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Particle limit | `particleLimit` | 1,000 / 5,000 / 20,000 | Most particles alive at once across the scene. |
+| 2D rain shelter mask | `shelterMaskSize` | 256 / 512 / 1024 | Most texels per side of the 2D rain's shelter mask, painted every frame. Smaller is cheaper, with softer dry edges. |
+| Refraction blur samples | `refractionSamples` | 4 / 6 / 8 | See [Effects per Level](/docs/performance/quality-levels/effects/#steps-and-samples). |
+| Particle collision queries | `particleCollisionQueries` | 1,024 / 2,048 / 4,096 | Most rays particle collisions with physics bodies cast per frame. |
+| Particle collision events | `particleCollisionEvents` | 256 / 512 / 1,024 | Most particle collisions reported to the game per frame. |
+| GPU particle depth grid | `particleDepthGrid` | 320 / 480 / 640 | Texels across the scene-depth copy GPU-simulated particles collide with. WebGPU only. |
+
+A collision budget the game sets with `Particle.setCollisionBudget` takes precedence over the level's, field by field.
+
+## Terrain & Foliage
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Detail distance | `detailScale` | 0.5 / 0.8 / 1 | Share of their detail distances the ground and plants keep. |
+| Terrain surface page size | `terrainSurfaceTexels` | 128 / 256 / 256 | Texels per page of the baked surface a terrain draws with Virtual Texture on (64, 128 or 256). |
+| Terrain surface pages a frame | `terrainSurfacesPerFrame` | 1 / 2 / 2 | Pages baked per frame. |
+| Terrain page atlas | `terrainAtlasSize` | 1024 / 2048 / 2048 | Side of the atlases a terrain or planet keeps its height and paint pages in (512, 1024 or 2048). |
+| Planet draw levels | `planetDrawLevels` | 10 / 11 / 12 | Most levels of a planet's tree that are drawn. |
+| Voxel rebuild budget (ms) | `voxelRebuildBudgetMs` | 2 / 3 / 4 | Milliseconds per frame a voxel terrain spends rebuilding edited regions. |
+| Plants that bend | `plantInteractionActive` | 128 / 256 / 512 | Cap on plants `PlantInteraction` bends at once. |
+| Plants starting to bend a frame | `plantInteractionPerFrame` | 16 / 32 / 48 | Cap on plants that start bending per frame. |
+
+- **Detail distance** at 0.5: a tree that switches to its cheaper mesh at 60 m and stops being drawn as itself past 150 m
+  does so at 30 m and 75 m, and its far cards take over sooner; a `Foliage` field keeps its finer blades half as far; a
+  terrain or planet keeps its finest cells half as far before the ground coarsens.
+- **Terrain page atlas**: a 1024 atlas holds a quarter of the pages of a 2048 one; a ground that needs more is drawn at
+  the share of its detail distance that fits.
+- **Planet draw levels**: a planet whose cell size asks for more is drawn no finer than this many levels below a whole
+  face; collision and ground queries keep the planet's cell size.
+- **Plant interaction**: a game's own lower `maxActive` or `maxActivatedPerFrame` is kept.
+
+## Water
+
+Shown once the water module is in the build.
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Water waves | `waterWaves` | 3 / 5 / 8 | Of the water's eight waves, how many are summed (longest first) in geometry, shading and `Waters.sample`. |
+| Water ripple cells | `waterRippleCells` | 32 / 64 / 128 | Most cells per side of a body's ripple grid; `0` keeps none. |
+| Water displacement | `waterDisplacement` | off / on / on | Off is the lite water: a flat surface with waves in the shading only, which code reads as flat. |
+| Water mirror | `waterMirror` | off / on / on | Whether the surface seen from below mirrors the world beneath it (a screen-space march per pixel). |
+| Water caustics | `waterCaustics` | off / on / on | Caustics on what lies under the water and, seen from under it, light shafts. |
+| Underwater light shaft steps | `waterShaftSteps` | 16 / 16 / 24 | Samples per pixel of underwater light shafts. |
+| Water reflection steps | `waterReflectionSteps` | 8 / 12 / 20 | Steps of the surface's reflection ray (from above, and its mirror from below). |
+| Wave caustic resolution | `waterCausticFieldSize` | 0 / 128 / 256 | Samples per side of the live wave and receiver maps for caustics; `0` uses the procedural approximation. Requires Water caustics. |
+| Caustic layers | `waterCausticLayers` | 2 / 3 / 3 | Scales of the caustic pattern laid on what lies under the water. |
+
+The step and layer loops are compiled at the High count and stop early at the level's count. Fewer reflection steps are
+each longer, so the ray reaches as far as High's and lands less precisely. Shaft samples are jittered per pixel, so fewer
+samples show as grain rather than bands. A mini-game with no quality policy uses the Low level's water.
+
+## Textures & Memory
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Texture streaming and its parameters | `textureStreaming…` | — | See [Texture Streaming](/docs/performance/quality-levels/texture-streaming/#settings). |
+| Idle render targets (MB) | `renderTargetIdleMB` | 64 / 128 / 256 | Render targets no pass uses that the renderer keeps for reuse; past this the longest idle are destroyed. |
+| Terrain tile memory (MB) | `terrainTileBudgetMB` | 64 / 128 / 256 | Full-detail tiles a tiled terrain keeps; the least recently used are released and read again when needed. |
+
+## Loading and streaming limits
+
+How many loads run at once and how much a generated world keeps are not per-level settings, because they depend on the
+network and the package rather than the GPU. They are in **Project Settings → Game → Runtime → Loading & Streaming**:
+
+| Setting | Default |
+|---|---|
+| Scene preloads at once | 6 |
+| Chunks made at once per streamed layer | 16 |
+| Ground pages requested at once | 16 |
+| Planet surface tiles kept | 6,000 |
+| World plan cache | 40,000 |
+| Plans kept per planning worker | 24 |
+
+As with the rest of the runtime block, only values that differ from these are written to `project.esproject`.
+
+## See also
+
+- [Quality Levels](/docs/performance/quality-levels/overview/)
+- [Effects per Level](/docs/performance/quality-levels/effects/)

@@ -1,46 +1,39 @@
 ---
 title: 事件绑定
-description: 把实体事件接到具名动作上，全部是授权数据——按钮点击、触发区、交给状态机——不写游戏代码。
+description: 通过 EventBinding 组件以创作数据的形式将实体事件连接到已注册动作——细节面板的事件区域、行字段、目标解析、内置与自定义动作、会触发的事件、交给状态机处理，以及参数形式。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-一根**连线（wire）**说的是：*当这个实体收到这个事件时，在那个实体上执行这个动作。* 它就是
-挂在发出事件那个实体上的一行数据——没有回调，没有脚本文件——所以摆好按钮和让它*做事*
-在同一个地方完成。
+一根**连线（wire）**规定：当本实体收到此事件时，在那个实体上运行此动作。连线是发出事件的实体上的数据行，存储在 `EventBinding` 组件中；无需回调或脚本文件。
 
 ```
-click ─▶ ui.setPage(tabs, settings)      目标「自身」
-click ─▶ ui.setPage(badge, on)           目标「Card」
+click ─▶ ui.setPage(tabs, settings)      on "This entity"
+click ─▶ ui.setPage(badge, on)           on "Card"
 ```
 
-连线**刻意不是**可视化编程语言。一行里没有分支、没有表达式；真的需要逻辑时，这行会指向一个
-把控制权交给[状态机](/docs/zh-cn/gameplay/ai/overview/)的动作——Estella 已经有图编辑器了;更适合画出来的逻辑
-也可以放进[脚本图](/docs/zh-cn/gameplay/script-graphs/),它的 **On event** 节点监听的是同一批具名实体事件。
+一行中没有分支，也没有表达式。逻辑通过 `fsm.fire` 等动作委托给[状态机](/docs/zh-cn/gameplay/ai/overview/)，或写成[脚本图](/docs/zh-cn/gameplay/script-graphs/)，其 **On event** 节点监听相同的具名实体事件。
 
-## 检视器里的一根线
+## 事件区域
 
-![细节检视器中的「事件」区域](@/assets/guides/zh/events-section.png)
+![细节检视器中的事件区域](@/assets/guides/zh/events-section.png)
 
-*按钮上的两根线：都在 `click` 时触发，一根切换按钮自身祖先链上的控制器，另一根按名字指向
-`Card` 实体。*
+*按钮上的两根连线。两者都在 `click` 时触发；一根切换按钮祖先链上的控制器，另一根按名称指向 `Card` 实体。*
 
-选中任意能发出事件的实体——UI 节点、`Interactable`、碰撞体——**事件**区域就列出它的连线。
-每一行从左到右是：
+选中能够发出事件的实体——UI 节点、`Interactable`、碰撞体——其连线显示在细节面板的**事件**区域中。每一行从左到右为：
 
-| 部分 | 含义 |
+| 部分 | 说明 |
 |---|---|
-| ☑ | 该行是否启用。不勾选则保留在数据里但永不触发。 |
+| ☑ | 行是否启用。未勾选的行保留在数据中，但从不触发。 |
 | 事件 | 要监听的事件类型（`click`、`change`、`trigger_enter`……）。 |
-| ↳ 目标 | 动作在哪个实体上执行。默认「自身」，也可**按名字**指向别的实体。 |
-| 动作 | 已注册的动作名——与 FSM、行为树编辑器**同一个**候选列表。 |
-| 参数 | 该动作声明了什么就显示什么。没声明参数的动作显示一个自由文本参数框。 |
-| ⚙ | 展开**条件**（必须通过的具名条件）与**仅一次**。 |
+| ↳ 目标 | 动作运行所在的实体：默认为*本实体*，也可**按名称**指定其他实体。 |
+| 动作 | 已注册的动作名，与状态机及行为树编辑器使用同一候选列表。 |
+| 参数 | 动作声明的参数。未声明参数的动作接受一个自由文本参数。 |
+| ⚙ | 显示**条件**（必须通过的已注册条件）与**仅一次**。 |
 
-## 数据本身
+## `EventBinding` 组件
 
-一根线就是 `EventBinding` 组件，因此它会序列化进场景、随[预制体](/docs/zh-cn/world/prefabs/)
-一起走，和任何组件一样——不新增资产类型：
+连线存储在 `EventBinding` 组件中，因此与其他组件一样序列化进场景，并随[预制体](/docs/zh-cn/world/prefabs/)一起携带：
 
 ```typescript
 import { EventBinding, UIEventType } from 'esengine';
@@ -53,61 +46,60 @@ world.insert(button, EventBinding, {
 });
 ```
 
-| `EventBindingRow` | 说明 |
-|---|---|
-| `event` | 要监听的事件类型。任意字符串——内建的只是众所周知的那一批。 |
-| `target` | 动作运行所在实体的名字。省略即挂着这行的实体自己。 |
-| `action` | 已注册的动作名。 |
-| `params` | 该动作声明的参数，按名字给。 |
-| `arg` | 同一份输入的规范字符串形式（`"tabs:settings"`）。两种写法都能跑。 |
-| `guard` | 必须通过才执行该行的具名条件。 |
-| `once` | 最多执行一次,此后保持失效,直到场景重新加载。 |
-| `enabled` | `false` 让该行失效但不删除。 |
+| `EventBindingRow` 字段 | 类型 | 说明 |
+|---|---|---|
+| `event` | `string` | 要监听的事件类型。可为任意字符串；内置类型为预定义集合。 |
+| `target` | `string?` | 动作运行所在实体的名称。省略时为携带该行的实体。 |
+| `action` | `string` | 已注册的动作名。 |
+| `params` | `Record<string, …>?` | 按名称给出的动作声明参数。优先于 `arg`。 |
+| `arg` | `string?` | 同一输入的规范字符串形式（`"tabs:settings"`）。 |
+| `guard` | `string?` | 行运行前必须通过的已注册条件。 |
+| `once` | `boolean?` | 最多运行一次，此后保持失效，直到场景重新加载。 |
+| `enabled` | `boolean?` | `false` 使该行失效而不删除。 |
 
-连线只在运行态触发——编辑时编辑器绝不会执行你的动作。
+连线仅在运行期间触发；编辑器在创作时不运行动作。
 
-### 目标按名字就近解析
+### 目标解析
 
-`target` 是实体**名字**，由内向外查找：本行所在实体、它的子树、各级祖先的子树，最后才是整个
-场景。就近者胜——这正是让同一预制体的两个实例不会互相串线的原因：对话框 A 里的 `Close`
-按钮找到的永远是 A 的 `Panel`，不会是 B 的。
+`target` 是实体**名称**，从该行所在实体向外查找：实体自身，然后是其子树，然后是各级祖先的子树，最后是整个场景。使用最近的匹配项，因此同一预制体的两个实例不会互相解析：对话框 A 中的 `Close` 按钮找到的是对话框 A 的 `Panel`，而不是对话框 B 的。
 
-匹配不到的名字会在检视器里标红，运行时也会告警，而不是悄悄失效。
+未匹配任何实体的名称在细节面板中以红色显示，并在运行时记录警告。
 
 ## 动作
 
-动作是共享注册表里的一个具名函数——`.esfsm` 状态钩子和 `.esbt` 叶子解析的是**同一个**
-注册表。注册一次，三个候选列表里都能看到。
+动作是共享动作注册表中的具名函数，`.esfsm` 状态钩子与 `.esbt` 叶子也在同一注册表中解析。已注册的名称出现在全部三个候选列表中。
 
 ![按命名空间分组的动作候选列表](@/assets/guides/zh/events-palette.png)
 
-*候选按 `namespace.` 分组，引擎自带的动作还带一行说明。*
+*候选列表按 `namespace.` 前缀对动作分组；引擎的动作附带一行说明。*
 
-引擎自带这些：
+内置动作：
 
 | 动作 | 作用 |
 |---|---|
-| `ui.setPage` | 把 [UI 控制器](/docs/zh-cn/ui/controllers/)切到某一页。 |
-| `ui.setVisible` | 显示/隐藏一棵 UI 子树（`UINode.display`）。 |
-| `property.set` | 写任意组件字段，按 `Component.dot.path` 寻址；可选的 `entity` 参数写别的实体。 |
-| `fsm.fire` | 向目标的状态机发一个触发器。 |
-| `blackboard.set` | 设置一个黑板变量（`key=value`；值能按 JSON 解析时按 JSON 读）。 |
-| `scene.load` · `scene.reload` | 切换到指定场景，或重启当前场景，可选淡入淡出秒数。 |
-| `audio.play` · `audio.stop` | 驱动目标上的 `AudioSource`；`audio.play` 可指定另一个音频剪辑。 |
-| `soundEvent.trigger` · `soundEvent.stop` | 驱动目标上的声音事件源。 |
+| `ui.setPage` | 将 [UI 控制器](/docs/zh-cn/ui/controllers/)切换到某一页。 |
+| `ui.setVisible` | 显示或隐藏一棵 UI 子树（`UINode.display`）。 |
+| `property.set` | 写入任意组件字段，以 `Component.dot.path` 寻址。可选的 `entity` 参数写入另一个实体。 |
+| `fsm.fire` | 在目标的状态机上触发一个触发器。 |
+| `blackboard.set` | 设置黑板值（`key=value`；值为有效 JSON 时按 JSON 解析）。 |
+| `scene.load` · `scene.reload` | 切换到指定场景，或重启当前场景，可选以秒计的淡入淡出。 |
+| `audio.play` · `audio.stop` | 驱动目标的 `AudioSource`；`audio.play` 可指定另一个音频剪辑。 |
+| `soundEvent.trigger` · `soundEvent.stop` | 驱动目标的声音事件源。 |
 | `timeline.play` · `timeline.pause` | 驱动目标上的[时间轴](/docs/zh-cn/animation/timeline/playback/)。 |
 | `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | 驱动精灵序列帧。 |
 
-### 你自己的动作
+导入 `esengine/logic`（脚本图）时还会注册 `entity.despawn` 与 `debug.log`。
 
-注册一次，这个名字在所有地方都能授权使用：
+### 自定义动作
+
+`registerAction(name, spec)` 使一个名称在所有候选列表中可用：
 
 ```typescript
 import { registerAction } from 'esengine';
 
 registerAction('game.award', {
   params: [
-    { name: 'kind', type: 'enum', options: [{ label: '金币', value: 'coin' }, { label: '星星', value: 'star' }] },
+    { name: 'kind', type: 'enum', options: [{ label: 'Coin', value: 'coin' }, { label: 'Star', value: 'star' }] },
     { name: 'amount', type: 'number' },
   ],
   run: (ctx, bb, arg, params) => {
@@ -116,46 +108,50 @@ registerAction('game.award', {
 });
 ```
 
-声明 `params` 正是把编辑器里那个文本框变成下拉框和数字框的原因。`ctx` 与 FSM 动作拿到的
-是同一种上下文——`entity`、`world`、`commands`，外加黑板。
+声明的 `params` 以类型化控件（此处为下拉框与数字框）取代自由文本框。`ctx` 与状态机动作接收的上下文相同——`entity`、`world`、`commands`——外加黑板。
 
-<Aside type="tip" title="注册写在哪">
-编辑器从不执行你的游戏代码，所以它是从项目的**声明入口**（默认 `src/components.ts`——
-也就是它读取组件的那个模块）得知你的动作名的。写在那里，名字就会出现在所有候选列表里；
-写在别处运行时照样有效，只是需要你手输名字。
+<Aside type="tip" title="在何处注册">
+  编辑器不执行玩法代码；它从项目的[声明入口](/docs/zh-cn/scripting/script-modules/#声明入口)（默认 `src/components.ts`）读取动作名。在此注册的动作出现在所有候选列表中。在其他位置注册的动作仍可运行，但其名称必须手动输入。
 </Aside>
 
-## 有哪些事件
+## 事件
 
-控件发出标准的那一批（`UIEventType`），并且事件会**冒泡**，所以挂在面板上的一行能听到它子级
-按钮的事件：
+### UI 事件
 
-`click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` ·
-`change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` ·
-`pointer_move` · `press_cancel` · `shown` · `hidden`
+控件发出标准事件集（`UIEventType`）。事件会**冒泡**，因此面板上的行能收到其按钮的事件：
 
-每个指针事件（`press`、`release`、`click`、`pointer_move`、`press_cancel`）都带一个 `UiPointerEventData`：
-是哪个指针（`pointer`，鼠标是 -1）、它在世界里的位置（`worldX`、`worldY`）、在表面上的位置（`screenX`、
-`screenY`，单位像素，从左下角向上数）和 UI 布局空间里的位置（`layoutX`、`layoutY`）。被按下的那个实体，在指针按住期间无论移到哪里，都由它收到 `pointer_move`。
-一次按住可以放弃：`UIControlPointers.cancelHold(pointer, to?)`，持有者收到 `press_cancel`，不会触发点击；
-给了 `to`，这次手势的其余部分就交给那个实体。只有 `ContentRect` 加 `Interactable` 的实体也可以被按下。
+`click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` · `change` · `submit` ·
+`drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` · `pointer_move` · `press_cancel` ·
+`shown` · `hidden`
 
-`shown` 和 `hidden` 是「控件发出的」里的例外：没人点任何东西，是这个节点出现在了屏幕上、或者离开了
-屏幕——通常因为**某个祖先**被显示或隐藏，也就是导航、页签、弹窗在做的事。子树里的每个节点都会被告知，
-所以「这块界面出现的时候」是挂在那块界面上的一行，而不是一个每帧去盯着的系统：
+指针事件（`press`、`release`、`click`、`pointer_move`、`press_cancel`）携带 `UiPointerEventData`：
+
+| 字段 | 说明 |
+|---|---|
+| `pointer` | 指针 id；鼠标为 `-1`。 |
+| `worldX`、`worldY` | 世界中的位置。 |
+| `screenX`、`screenY` | 表面上的位置，以像素计，从左下角向上测量。 |
+| `layoutX`、`layoutY` | UI 布局空间中的位置。 |
+
+被按下的实体在指针按住期间持续收到 `pointer_move`，无论指针移动到何处。`UIControlPointers.cancelHold(pointer, to?)` 释放按住：按住者收到 `press_cancel`，不产生点击；指定 `to` 时由另一个实体接管手势的剩余部分。仅由 `ContentRect` 与 `Interactable` 组成的实体也可被按下。
+
+`shown` 与 `hidden` 在节点出现在屏幕上或离开屏幕时发出，通常因为某个**祖先**被显示或隐藏，导航、标签页与对话框均是如此。受影响子树中的每个节点都会收到，因此针对某个屏幕出现的动作就是该屏幕上的一行：
 
 ```
-shown ─▶ fsm.fire(enter)  挂在 "MissionPanel"   →   Hidden ──enter──▶ Entering
+shown ─▶ fsm.fire(enter)  on "MissionPanel"   →   Hidden ──enter──▶ Entering
 ```
 
-在没有人监听这两个事件之前，这份「盯着」不花任何代价；有人监听、但这一帧 UI 没动过时，同样不花。
+在没有行监听 `shown` 或 `hidden` 之前，可见性跟踪没有开销；在没有 UI 变化的帧中同样没有开销。
 
-[物理](/docs/zh-cn/gameplay/physics/)接触也走同一条通道（`Physics2DEventType`），所以
-[触发区](/docs/zh-cn/gameplay/markers/)的接线方式和按钮一模一样——双方都会收到事件，各自拿到对方：
+### 物理事件
+
+[物理](/docs/zh-cn/gameplay/physics-2d/overview/)接触通过同一通道投递（`Physics2DEventType`），因此[触发区域](/docs/zh-cn/gameplay/markers/)的连接方式与按钮相同。两个参与者都会收到事件，各自以对方为对端：
 
 `collision_enter` · `collision_exit` · `collision_hit` · `trigger_enter` · `trigger_exit`
 
-这套词汇是开放的：你在任何地方发出自己的事件名，某一行都能监听它。
+### 自定义事件
+
+事件词汇是开放的。通过 `EntityEvents` 发出的任何名称都可被行监听：
 
 ```typescript
 import { EntityEvents } from 'esengine';
@@ -163,41 +159,35 @@ import { EntityEvents } from 'esengine';
 app.getResource(EntityEvents).emit(chest, 'looted', { gold: 12 });
 ```
 
-## 当一根线需要逻辑时
+## 交给状态机处理
 
-一行只跑一个动作，没有"如果"，也没有先后序列。这是**刻意**设的天花板，而 `fsm.fire` 就是
-突破口——点击发出一个触发器，实体的[状态机](/docs/zh-cn/gameplay/ai/overview/)来决定它意味着什么：
+一行只运行一个动作，除守卫外没有条件，也没有顺序编排。`fsm.fire` 将事件传给实体的[状态机](/docs/zh-cn/gameplay/ai/overview/)，由状态机决定其含义：
 
 ```
-click ─▶ fsm.fire(start)  目标「Hint」   →   Idle ──start──▶ Running
-                                                             onEnter: property.set(…)
+click ─▶ fsm.fire(start)  on "Hint"   →   Idle ──start──▶ Running
+                                                          onEnter: property.set(…)
 ```
 
-![状态机编辑器中，状态钩子的声明式参数](@/assets/guides/zh/events-fsm.png)
+![状态机编辑器中状态钩子的声明参数](@/assets/guides/zh/events-fsm.png)
 
-*同一套参数控件，出现在状态机编辑器里：`property.set` 声明了 `path` 和 `value`，于是钩子
-显示两个字段，而不是一个含义不明的字符串。*
+*状态机编辑器中的相同参数控件：`property.set` 声明了 `path` 与 `value`，因此钩子显示两个字段，而非一个字符串。*
 
-一个动作只声明一次参数，所有授权界面都会长出来——事件行、FSM 状态钩子、行为树叶子。
+动作只需声明一次参数，所有创作界面——事件行、状态钩子、行为树叶子——都会显示它们。
 
-## 同一份输入的两种写法
+## 参数形式
 
-每个动作都保留一份规范字符串形式。`{ controller: 'tabs', page: 'settings' }` 和
-`"tabs:settings"` 是彼此的投影，注册表负责两个方向的转换，因此：
+每个动作都有规范字符串形式。`{ controller: 'tabs', page: 'settings' }` 与 `"tabs:settings"` 等价，注册表负责二者之间的转换：
 
-- 在动作声明参数**之前**写下的数据照样能跑，不用迁移；
-- 只读 `arg` 的动作，在行以参数形式书写时依然能收到字符串；
-- 存的是普通字符串的行，编辑器照样能给出真控件。
+- 在动作声明参数之前创作的数据继续照常运行；
+- 只读取 `arg` 的动作在行存储参数时也能收到 `arg`；
+- 对于存储纯字符串的行，细节面板显示类型化控件。
 
-你不需要做选择：检视器写参数形式，手写数据两种都行。
+细节面板写入 `params`；手写数据可使用任一形式。
 
-<Aside type="caution" title="暂不支持：资产与实体参数">
-参数不能是资产引用或实体句柄。打包的资产发现流程和场景的实体重映射都不会深入到行的参数里，
-这样的参数会让构建产物缺资产——一个会悄悄玩坏游戏的控件，比没有这个控件更糟。跨实体请用
-`target` 名字，引用资产请通过打包能看见的组件。
+<Aside type="caution" title="不支持资源与实体参数">
+  参数不能是资源引用或实体句柄。烘焙的资源发现与场景的实体重映射都不检查行参数，因此这类参数会导致构建缺失资源。其他实体通过 `target` 名称指定；资源通过烘焙能够发现的组件引用。
 </Aside>
 
 ## 示例
 
-`examples/ui-events` 把整套能力放进一个项目——两个页签按钮、一个跨实体的角标，以及一个把
-控制权交给状态机的 *Start run* 按钮。它的 `src/main.ts` 是空的；里面的每一个行为都是授权数据。
+`examples/ui-events` 包含两个标签页按钮、另一个实体上的徽标，以及一个交给状态机处理的 *Start run* 按钮。其 `src/main.ts` 为空；所有行为都是创作数据。

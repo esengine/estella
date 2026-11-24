@@ -1,20 +1,21 @@
 ---
 title: Math Helpers
-description: Vector, color, and scalar math on the engine's canonical types.
+description: The SDK math namespaces — v2 and v3 vectors, col colours, scalar helpers, the seeded random generator, and 2D and 3D rotation helpers on the engine's canonical types.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The SDK ships small math namespaces — `v2` / `v3` (vectors), `col` (colors), and
-`scalar` (numbers) — that operate on the same canonical types your components use
-(`{x, y}` vectors, `{r, g, b, a}` colors in 0..1). Every helper is **pure**: it
-returns a new value and never mutates its inputs. For what the numbers *mean* —
-world units, design pixels, physics meters, and the Y-up coordinate system — see
+The SDK provides small math namespaces — `v2` / `v3` (vectors), `col` (colours), `scalar` (numbers) and `q`
+(quaternions) — that operate on the canonical types used by components: `{x, y}` / `{x, y, z}` vectors,
+`{w, x, y, z}` quaternions and `{r, g, b, a}` colours in `0..1`. Every helper is **pure**: it returns a new value and
+does not modify its inputs. Units and coordinate conventions are defined in
 [Transforms, Units & Coordinates](/docs/core-concepts/transforms/).
 
-## Vectors
+Results use the same types as component fields and can be assigned directly, for example
+`transform.position = v2.add(transform.position, step)` or `sprite.color = col.withAlpha(sprite.color, a)`. Each call
+allocates a new object.
 
-`v2` covers 2D vector math; `v3` mirrors the core operations for 3D.
+## Vectors
 
 ```typescript
 import { v2 } from 'esengine';
@@ -22,122 +23,139 @@ import { v2 } from 'esengine';
 // Move a point by a velocity over dt.
 const next = v2.add(pos, v2.scale(vel, dt));
 
-// Aim: unit direction from pos to target, then a step of length speed*dt.
+// Unit direction from pos to target, then a step of length speed * dt.
 const dir  = v2.normalize(v2.sub(target, pos));
 const step = v2.scale(dir, speed * dt);
 
-v2.dist(pos, target);                 // distance (for a range check)
+v2.dist(pos, target);                 // distance
 v2.fromAngle(Math.PI / 2, 10);        // { x: 0, y: 10 }
 v2.rotate({ x: 1, y: 0 }, Math.PI);   // { x: -1, y: 0 }
 ```
 
-- Arithmetic: `add` / `sub` / `scale` / `mul` (component-wise) / `neg`.
-- Products & length: `dot`, `cross`, `len` / `len2`, `dist` / `dist2`.
-- Direction: `normalize`, `angle`, `fromAngle`, `rotate`, `perp` (90° CCW).
-- Also: `create`, `clone`, `lerp`, `equals` (epsilon compare).
+| Group | `v2` | `v3` |
+|---|---|---|
+| Construction | `create`, `clone` | `create`, `clone` |
+| Arithmetic | `add`, `sub`, `scale`, `mul` (component-wise), `neg` | `add`, `sub`, `scale`, `mul`, `neg` |
+| Products and length | `dot`, `cross`, `len`, `len2`, `dist`, `dist2` | `dot`, `cross`, `len`, `len2`, `dist` |
+| Direction | `normalize`, `angle`, `fromAngle`, `rotate`, `perp` (90° counter-clockwise) | `normalize` |
+| Other | `lerp`, `equals` (epsilon comparison) | `lerp`, `equals` |
 
-## Colors
+## Colours
 
-`col` builds and blends colors on the `{r, g, b, a}` (0..1) convention — white is
-`{1, 1, 1, 1}`. The namespace is `col` because the bare `color` name is already an
-SDK export.
+`col` creates and blends colours in the `{r, g, b, a}` (`0..1`) convention; white is `{1, 1, 1, 1}`. The namespace is
+named `col` because `color` is a separate SDK export.
 
 ```typescript
 import { col } from 'esengine';
 
 col.rgb(1, 0, 0);            // opaque red (0..1 channels)
-col.from255(255, 128, 0);   // from 0..255 channels
-col.fromHex('#ff8800');     // #rgb / #rgba / #rrggbb / #rrggbbaa
+col.from255(255, 128, 0);    // from 0..255 channels
+col.fromHex('#ff8800');      // #rgb / #rgba / #rrggbb / #rrggbbaa
 
-col.lerp(red, blue, 0.5);   // blend halfway (e.g. a damage flash)
-col.withAlpha(white, 0.3);  // fade
-col.multiply(base, tint);   // per-channel tint
+col.lerp(red, blue, 0.5);    // halfway blend
+col.withAlpha(white, 0.3);   // change alpha
+col.multiply(base, tint);    // per-channel multiply
 ```
 
-- Build: `create`, `rgb`, `from255`, `fromHex` (throws on malformed input), `clone`.
-- HSV: `fromHsv(h, s, v, a?)` (hue in degrees, the rest `0..1`) and `toHsv`.
-- Blend: `lerp`, `withAlpha`, `multiply`, `scaleRgb`; serialize with `toHex(c, withAlpha = false)`; compare with `equals`.
+| Group | Members |
+|---|---|
+| Construction | `create`, `rgb`, `from255`, `fromHex` (throws on malformed input), `clone` |
+| HSV | `fromHsv(h, s, v, a?)` (hue in degrees, others `0..1`), `toHsv` |
+| Blending | `lerp`, `withAlpha`, `multiply`, `scaleRgb` |
+| Other | `toHex(c, withAlpha = false)`, `equals` |
 
 ## Scalars
-
-`scalar` collects the common number helpers for gameplay and tuning:
 
 ```typescript
 import { scalar } from 'esengine';
 
 scalar.clamp01(hp / maxHp);      // 0..1
 scalar.lerp(a, b, 0.25);         // interpolate
-scalar.remap(x, 0, 100, 0, 1);   // rescale one range onto another
-scalar.smoothstep(0, 1, t);      // eased 0..1 ramp
+scalar.remap(x, 0, 100, 0, 1);   // map one range onto another
+scalar.smoothstep(0, 1, t);      // smooth 0..1 ramp
 scalar.deg2rad(90);              // degrees -> radians
 ```
 
-Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
+Members: `clamp`, `clamp01`, `lerp`, `inverseLerp`, `remap`, `smoothstep`, `deg2rad`, `rad2deg`, `approximately`,
+`mod`, `sign`.
 
 ## Seeded randomness
 
-`createRng(seed)` returns a seeded generator that draws **the same sequence on every
-host** (SFC32 over 32-bit integer arithmetic), so a server that settles an outcome and a
-client that previews it agree. `hashSeed` turns a number, string or list into a stable
-32-bit hash:
+`createRng(seed)` returns a seeded generator that produces **the same sequence on every host** (SFC32 over 32-bit
+integer arithmetic), so a server that decides an outcome and a client that previews it agree. `hashSeed` turns a
+number, string or list into a stable 32-bit hash; `createRng` accepts the same seed forms.
 
 ```typescript
 import { createRng } from 'esengine';
 
 const rng = createRng(['loot', levelId]);
 rng.float();                     // [0, 1)
-rng.int(1, 6);                   // 1..6 inclusive, no modulo bias
-rng.chance(0.25);                // true 25% of the time
+rng.int(1, 6);                   // 1..6 inclusive, without modulo bias
+rng.chance(0.25);                // true with probability 0.25
 rng.pick(items);                 // one element
 rng.weighted(items, (i) => i.weight);
 rng.shuffle(items);              // a shuffled copy
-const drops = rng.fork('drops'); // an independent stream, unmoved by draws on this one
+const drops = rng.fork('drops'); // an independent stream
 ```
+
+| `Rng` member | Description |
+|---|---|
+| `nextU32()` | Next raw 32-bit value. |
+| `float()` | Value in `[0, 1)`. |
+| `int(min, max)` | Integer in `[min, max]`, without modulo bias. |
+| `chance(p)` | `true` with probability `p` (clamped to `[0, 1]`). |
+| `pick(items)` | One element. |
+| `weighted(items, weight)` | One element, chosen by weight. |
+| `shuffle(items)` | A shuffled copy. |
+| `fork(label)` | An independent generator derived from this one; draws on either do not affect the other. |
 
 ## Rotation helpers
 
-`Transform.rotation` is a quaternion; in 2D you only ever rotate about Z, and a
-handful of exports cover the angle ↔ quaternion round trip:
+`Transform.rotation` is a quaternion. 2D rotation is about Z only:
 
 ```typescript
 import { quat, quaternionToAngle2D } from 'esengine';
 import { normalizeAngle } from 'esengine/ai';
 
-// Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
+// Angle -> quaternion. The factory takes w FIRST: quat(w, x, y, z).
 const a = Math.PI / 3;
 const rot = quat(Math.cos(a / 2), 0, 0, Math.sin(a / 2));
 
 // Quaternion -> angle (radians), from the z/w components.
 const facing = quaternionToAngle2D(rot.z, rot.w);   // Math.PI / 3
 
-// Wrap to (-π, π] — the shortest signed turn from facing toward a target angle.
+// Wrap to (-π, π]: the shortest signed turn toward a target angle.
 const delta = normalizeAngle(targetAngle - facing);
 ```
 
 | Helper | Description |
 |---|---|
-| `quat(w?, x?, y?, z?)` | Quaternion factory; no arguments gives the identity `{w: 1, x: 0, y: 0, z: 0}`. |
-| `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z`/`w` (`2 * atan2(z, w)`). |
-| `normalizeAngle(a)` | Wrap any angle to `(-π, π]` for shortest-turn comparisons. |
+| `quat(w?, x?, y?, z?)` | Quaternion factory; without arguments returns the identity `{w: 1, x: 0, y: 0, z: 0}`. |
+| `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z` / `w` (`2 * atan2(z, w)`). |
+| `normalizeAngle(a)` | Wraps an angle to `(-π, π]`. From `esengine/ai`. |
 
-For full 3D rotations, the `q` namespace has `create`, `mul`, `axis(axis, rad)`, `normalize`, `conjugate`, `rotate(q, v)`, `fromEuler` / `toEuler` (Euler angles in **degrees**), `rotationTo(from, to)`, `setAngleZ(q, deg)` (degrees) / `angleZ(q)` (radians) and more.
+The `q` namespace covers 3D rotation:
 
-For direction *vectors* instead of rotations, stay in `v2`: `fromAngle` /
-`angle` / `rotate`. A full worked example (turrets facing the cursor) is in
-[Transforms, Units & Coordinates](/docs/core-concepts/transforms/#rotating-in-2d).
+| Member | Description |
+|---|---|
+| `create`, `clone` | Construction. |
+| `mul`, `dot`, `neg`, `scaled`, `normalize`, `conjugate` | Quaternion arithmetic. |
+| `axis(axis, rad)` | Rotation of `rad` radians about `axis`. |
+| `rotate(q, v)` | Rotates a vector. |
+| `fromEuler` / `toEuler` | Conversion from / to Euler angles in **degrees**. |
+| `rotationTo(from, to)` | Shortest rotation from one direction to another. |
+| `setAngleZ(q, deg)` / `angleZ(q)` | Sets the Z angle in degrees / reads it in radians. |
+
+Direction vectors are produced with `v2.fromAngle`, `v2.angle` and `v2.rotate` without a quaternion. A complete
+example (turrets facing the cursor) is in
+[Transforms, Units & Coordinates](/docs/core-concepts/transforms/#rotation-in-2d).
 
 <Aside type="tip">
-  Results use the same canonical types as components, so they drop straight in —
-  e.g. `transform.position = v2.add(transform.position, step)` or
-  `sprite.color = col.withAlpha(sprite.color, a)` — no conversion needed. Because
-  the helpers allocate a new object per call, hoist them out of hot inner loops
-  where you're counting allocations.
+  Because each helper allocates its result, hot inner loops that count allocations compute in place or hoist helper
+  calls out of the loop.
 </Aside>
 
 ## See also
 
-- [Transforms, Units & Coordinates](/docs/core-concepts/transforms/) — what the
-  numbers mean: world units = design pixels, physics meters, Y-up, and rotating
-  entities with quaternions.
-- [Physics](/docs/gameplay/physics/) — the meter-based unit surface these helpers
-  feed into.
+- [Transforms, Units & Coordinates](/docs/core-concepts/transforms/) — world units, physics metres, Y-up, and rotation.
+- [Physics](/docs/gameplay/physics-2d/overview/) — the metre-based unit surface.

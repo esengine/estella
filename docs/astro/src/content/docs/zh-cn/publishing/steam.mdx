@@ -1,91 +1,77 @@
 ---
 title: Steam
-description: 把 Estella 游戏发到 Steam——原生桌面构建、导出自动写出的 depot 脚本、成就、云存档,以及只能在合作伙伴后台填的那些值。
+description: 桌面目标的 Steam 发行渠道——原生桌面运行时、Steamworks 前置条件、渠道设置、导出写出的 depot 脚本与 STEAM.md、用 steamcmd 上传、成就、云存档路径及不支持的功能。
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-Steam 是**桌面目标下的一个发行渠道**,不是一个单独的平台。它不定义运行时、不定义渲染器、
-不定义资源格式——它定义的是这份构建**去哪儿**。所以没有"Steam 构建"这回事:只有桌面构建,
-外加一个开关,让导出顺带写出 SteamPipe 需要的东西。
+Steam 是**桌面目标的一个发行渠道**。它不增加运行时、渲染器或资产格式：Steam 构建就是桌面构建加上 SteamPipe 所需的文件。
 
-桌面构建是**原生应用**——引擎的 C++ 核心,内嵌
-[Dawn](https://dawn.googlesource.com/dawn)(macOS 走 Metal,Windows 走 D3D12,Linux 走 Vulkan)与 JS 引擎——Windows 上是带 JIT 的 [V8](https://v8.dev/),macOS 与 Linux 上是
-[QuickJS-ng](https://github.com/quickjs-ng/quickjs)——窗口与输入来自 SDL3。进程里没有浏览器,
-这也是 Steam 覆盖层、Steam Input 和独占全屏能如玩家预期那样工作的原因。
+桌面构建是原生应用：引擎的 C++ 核心配合内嵌的 [Dawn](https://dawn.googlesource.com/dawn)（macOS 上为 Metal，Windows 上为 D3D12，Linux 上为 Vulkan），运行于 SDL3 之上，并带有 JavaScript 引擎——Windows 上为带 JIT 的 [V8](https://v8.dev/)，macOS 和 Linux 上为 [QuickJS-ng](https://github.com/quickjs-ng/quickjs)。进程中没有浏览器，因此 Steam 覆盖层、Steam 输入和独占全屏的表现与其他原生游戏相同。
 
-<Aside type="note" title="每个编辑器版本下载一次">
-  引擎的已编译部分不在编辑器安装包里,而是一个**运行时模板**,每个编辑器版本装一次
-  (Package Project → Desktop 那一行)。每个 OS 一个:在 Mac 上装了 Windows 模板,
-  同一次导出就会连 Windows 版一起出——组装器是纯 Node 的,不关心是哪个 OS 在跑它。
+<Aside type="note" title="运行时模板">
+  桌面运行时是一个**运行时模板**，每个编辑器版本从打包项目的桌面行安装一次，每个操作系统一个。装配器是纯 Node 程序，因此在 Mac 上安装 Windows 模板后，同一份导出也能生成 Windows 构建。
 </Aside>
 
-## 你需要什么
+## 前置条件
 
 <Steps>
 
-1. **一个 Steamworks 应用。** 合作伙伴后台给的 App ID——depot、启动选项和成就都住在那里,
-   任何构建都写不到。
+1. **一个 Steamworks 应用。** 从 Steamworks 合作伙伴后台获得 App ID。depot、启动选项和成就均在后台配置，构建不会写入这些内容。
 
-2. **Steamworks SDK**,从合作伙伴站点自行下载。Estella 不随包携带:它的再分发只授权给
-   Steamworks 合作伙伴,而运行时模板是所有用这个引擎的游戏共用的同一个预编译二进制。
+2. **Steamworks SDK**，从合作伙伴网站下载。Estella 不附带该 SDK：其再分发权仅授予 Steamworks 合作伙伴，而运行时模板是所有游戏共用的同一个预编译二进制。
 
-3. **`steamcmd`**,Valve 的上传工具。先在终端里登录一次,让 Steam Guard 通过并缓存下来——
-   Estella 不保存任何密码。
+3. **`steamcmd`**，Valve 的上传工具。先在终端中登录一次，使 Steam 令牌验证通过并缓存；Estella 不保存任何密码。
 
 </Steps>
 
-## 怎么配
+## 渠道设置
 
-打开 **构建 → 打包项目…**,在目标列表里选 **Steam**——它列在「桌面」下面。Steam 是桌面构建的
-一个去处,所以它从那个目标分叉出来,而不是与它并列。这个渠道要填的东西都在这一页上。
+在 **构建 → 打包项目…** 中，选择目标列表里桌面下的 **Steam**。选择它会将桌面目标的 **发行渠道** 设为 Steam。
 
-![打包项目对话框的 桌面 → Steam 页:发行渠道选中 Steam,以及 Steam 分组里的 App ID、Steamworks SDK 和各 OS 的 depot id](@/assets/guides/zh/steam-channel.png)
+![打包项目对话框的 桌面 → Steam 页：发行渠道选中 Steam，以及 Steam 分组里的 App ID、Steamworks SDK 和各 OS 的 depot id](@/assets/guides/zh/steam-channel.png)
 
-| 设置 | 含义 |
+| 设置 | 说明 |
 |---|---|
-| **发行渠道** | 选 `Steam`——构建旁边会写出 depot 脚本。在目标列表里点 Steam 就是在设它,两者是同一个值。 |
-| **Steam App ID** | 来自合作伙伴后台。不填就什么也不写:用猜出来的 id 生成的脚本指向的是别人的游戏。 |
-| **Steamworks SDK** | 你下载的那份 SDK。它 `redistributable_bin/<os>/` 下的库会被打进应用。 |
-| **Depot ID** | 留 0 则用 `App ID + 1`、+2…。这些由 Valve **分配**,生成的清单会提示你去核对。 |
+| **发行渠道** | `Steam` 会在构建旁写出 depot 脚本。与在目标列表中选择 Steam 是同一个值。 |
+| **Steam App ID** | 来自合作伙伴后台。未填写时不写出脚本。 |
+| **Steamworks SDK** | 下载的 SDK。其 `redistributable_bin/<os>/` 中的库会打包进应用。 |
+| **Depot ID** | 为 0 时依次使用 `App ID + 1` 等。depot id 由 Valve 分配；`STEAM.md` 列出所用的 id 以供核对。 |
 
-**成就 id 不在这一页**,它在 **设置 → 项目 → 构建与模块 → 打包** 里——因为每个商店都有这份同样的清单,
-只是名字不同。声明它们,才能让「解锁一个后台根本没有的 id」在发生处就被拒绝,
-而不是被接受、然后悄无声息地丢掉。
+成就 id 是项目级设置：**设置 → 项目 → 构建与模块 → 打包 → 成就 ID**（[成就](#成就)）。
 
-然后点 **打包**。应用旁边会得到:
+对应的 CLI 选项为 `pipeline/bin/estella.mjs export --platform desktop` 的 `--steam-sdk <dir>` 和 `--steam-appid <id>`。
+
+## 产物
 
 ```
 dist-desktop/
-  MyGame.app/            ← macOS,以及/或者
-  MyGame/                ← Windows:MyGame.exe + Content/
-                         ← Linux:  MyGame     + Content/
+  MyGame.app/            ← macOS, and/or
+  MyGame/                ← Windows: MyGame.exe + Content/
+                         ← Linux:   MyGame     + Content/
   steam/
     app_build_<appid>.vdf
     depot_<id>_<os>.vdf
-  STEAM.md               ← 本次构建的确切取值
+  STEAM.md               ← this build's own values
 ```
 
-值得读的是 `STEAM.md`。通用说明属于本文这样的文档;查不到的是**这一个**构建需要把什么粘到哪里——
-每个 OS 的启动可执行文件、这次用的 depot id、游戏真正写入的 Auto-Cloud 路径,以及要去后台建的成就 id。
+`STEAM.md` 列出本次构建需要在合作伙伴后台填写的值：各操作系统的启动可执行文件、所用的 depot id、游戏实际写入的 Auto-Cloud 路径，以及需要创建的成就 id。构建结果中的 **打开 STEAM.md** 可直接打开它。
+
+<Aside type="caution" title="从不写出 steam_appid.txt">
+  `steam_appid.txt` 允许构建在 Steam 之外运行，而将它放进 depot 会关闭 Steam 的启动检查。导出从不写出该文件。
+</Aside>
 
 ## 上传
 
 ```bash
-steamcmd +login <你的账号> +run_app_build "…/steam/app_build_<appid>.vdf" +quit
+steamcmd +login <your-account> +run_app_build "…/steam/app_build_<appid>.vdf" +quit
 ```
 
-脚本里写着 `Preview "1"`,所以**第一次跑什么也不会上传**——它只报告它会做什么。要真上传就把它去掉。
-`SetLive` 是刻意留空的:发布到某个分支是另一个决定,在后台做,而且那正是无法靠"再传一次"撤销的那个。
-
-<Aside type="caution" title="steam_appid.txt 永远不会被写出">
-  这个文件的用途是脱离 Steam 跑构建,把它混进 depot 就等于把"这个游戏是不是由 Steam 启动的"
-  这道检查关掉发出去。导出从不写它——它是**按构造缺席**,而不是靠一条要人维护的排除规则。
-</Aside>
+生成的构建脚本包含 `Preview "1"`，因此首次运行不会上传任何内容，只报告将要执行的操作。删除该行后才会真正上传。`SetLive` 为空：将分支设为上线需在合作伙伴后台操作。
 
 ## 成就
 
-`Achievements` 与 `Ads`、`Leaderboard` 一样是**引擎服务**,所以有没有商店,游戏代码都一样:
+`Achievements` 与 `Ads`、`Leaderboard` 一样是引擎服务，因此无论是否接入商店，游戏代码都相同：
 
 ```ts
 import { Achievements } from 'esengine';
@@ -93,34 +79,32 @@ import { Achievements } from 'esengine';
 const achievements = world.getResource(Achievements);
 achievements.setStat('enemies_defeated', count);
 await achievements.unlock('FIRST_BLOOD');
-await achievements.store();      // 推到 Steam;商店在这一步后面做批量提交
+await achievements.store();      // pushes to Steam; stores batch behind this
 ```
 
-它永远可用。背后没有商店时,解锁记在本地——那正是你自己的成就界面要读的同一份数据——
-而 `available` 告诉你商店**是否也会**收到,UI 据此决定是用平台的弹窗还是自己画。
+解锁总会记录在本地，即游戏内成就界面读取的同一份数据。`available` 表示商店是否也会收到解锁，UI 据此选择使用平台通知还是自行绘制。
 
-成就静默失效有两种方式,引擎各自的处理:
-
-- **后台没有这个 id。** Steam 会接受它然后什么也不做,最后是玩家在几个月后发现。所以 id
-  在项目设置里声明一次,越界的 unlock 在发生处就被拒绝,并把已声明的清单一并报出来。
-- **包里没有 Steam 库。** 把 SDK 那一项指向你的下载;没有的话导出会警告,`STEAM.md` 开头也会写明。
+| 失效情形 | 处理方式 |
+|---|---|
+| 后台未定义的 id | id 在 **成就 ID** 中声明；不在列表中的解锁在调用处被拒绝，并列出已声明的 id。 |
+| 构建中缺少 Steam 库 | SDK 设置缺失时导出给出警告，`STEAM.md` 在开头注明。 |
 
 ## 云存档
 
-`Storage` 写在操作系统指定的位置,而那正是 Steam Auto-Cloud 能同步的路径,游戏侧一行代码都不用写。
-在 **Steam Cloud → Auto-Cloud** 里填 `STEAM.md` 打印出来的根目录——它们是照应用**实际写到哪**得出的,
-不是抄自某份文档里的表:
+`Storage` 写入操作系统规定的用户目录，Steam Auto-Cloud 无需代码即可同步。在合作伙伴后台的 **Steam Cloud → Auto-Cloud** 中，使用 `STEAM.md` 列出的根目录：
 
-| OS | 根目录 | 子路径 |
+| 操作系统 | 根目录 | 子目录 |
 |---|---|---|
-| Windows | `WinAppDataRoaming` | `Estella/<名字>` |
-| macOS | `MacHome` | `Library/Application Support/Estella/<名字>` |
-| Linux | `LinuxHome` | `.local/share/Estella/<名字>` |
+| Windows | `WinAppDataRoaming` | `Estella/<Name>` |
+| macOS | `MacHome` | `Library/Application Support/Estella/<Name>` |
+| Linux | `LinuxHome` | `.local/share/Estella/<Name>` |
 
-## 诚实边界
+## 限制
 
-- **macOS 构建是 ad-hoc 签名的**,而且只能在 Mac 上签。公开发布前请用你自己的 Developer ID 公证。
-- **`steamcmd` 没有做进编辑器。** 清单里给出的是可以照抄的确切命令;一个在这里验证不了的功能,
-  不如一行你能复制的命令诚实。
-- 创意工坊、DLC、内购、Steam Input 动作集不在覆盖范围内。它们都能挂在同一套 flat API 和同一个
-  服务面上,但每一个都是自己的需求,不该由"支持 Steam 发布"一次性带出来。
+- **macOS 构建使用 ad-hoc 签名**，且只在 Mac 上构建时签名。公开发布前需使用 Developer ID 进行公证。
+- **编辑器不运行 `steamcmd`。** `STEAM.md` 给出确切命令。
+- **不支持：** 创意工坊、DLC、微交易和 Steam 输入操作集。
+
+## 参见
+
+- [构建与导出](/docs/zh-cn/publishing/overview/)——桌面目标与打包设置。

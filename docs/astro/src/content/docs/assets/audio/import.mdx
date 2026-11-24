@@ -1,0 +1,46 @@
+---
+title: Audio Import
+description: Audio import settings reference — Load Type (decoded or streamed), Compress and Bitrate for the cook's WAV to MP3 transcode, and how packaging trims encoder silence.
+---
+
+Selecting an audio asset in the Content Browser shows its decoded waveform with play and seek controls, and its
+**Import Settings**.
+
+{/* SHOT: assets-audio-import-settings | audio-demo example: assets/audio/hum.wav selected in the Content Browser; Details shows the waveform preview and Import Settings with Load Type, Compress and Bitrate */}
+
+## Import settings
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Load Type** | `loadType` | `Auto` | How the clip is held on the web; see [Load type](#load-type). |
+| **Compress** | `compress` | on | Re-encode WAV to MP3 when the cook transcodes audio. Already-compressed formats pass through unchanged. MP3 adds an encoder delay; see [Encoder silence](#encoder-silence). |
+| **Bitrate** | `bitrateKbps` | `128` | MP3 bitrate for cooked WAV sources: 96, 128 or 192 kbps. |
+
+Transcoding runs when **Compress audio** is enabled in the Package dialog.
+
+## Load type
+
+| Value | Behaviour |
+|---|---|
+| **Auto** | Streams clips of 30 seconds or longer from their compressed file; decodes shorter clips. |
+| **Decompress On Load** (`decompress`) | Always decodes to memory. Starts instantly; a three-minute track costs about 69 MB. |
+| **Streaming** (`streaming`) | Always streams from the compressed file. |
+
+A streamed clip takes almost no memory and uses the same bus, volume and fades, but it cannot loop on an exact sample and
+plays one voice of the clip at a time. The choice ships in the exported game's audio settings, so Play, an export and a
+playable ad treat each clip the same way.
+
+Only decoded clips loop sample-exactly. A looping piece of music, and stems played with `playLayers`, need
+`loadType: 'decompress'`, at the cost of its decoded size in memory while loaded. The editor's music tool sets it for
+pieces up to two minutes long.
+
+## Encoder silence
+
+A decoder returns an encoded clip with about a fortieth of a second of silence before the sound and some after it. When a
+game is exported, the exporter records each clip's true length, and the runtime plays it from after the leading silence
+to its true end. A loop that is seamless as a `.wav` stays seamless in the build, and an effect is not delayed.
+
+## See also
+
+- [Audio](/docs/assets/audio/overview/)
+- [Assets](/docs/assets/overview/): how the cook ships assets.

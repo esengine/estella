@@ -1,18 +1,18 @@
 ---
 title: Plugins & Resources
-description: How subsystems are composed and reached — the Res(XxxAPI) pattern.
+description: How an App is composed from plugins and how subsystem APIs are reached as resources — the Plugin interface and installation, the Res(XxxAPI) pattern, Res and ResMut, defining resources, default-value cloning, components versus resources, and spawning with Commands.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-An Estella game is an `App` composed of **plugins**. Each subsystem — physics,
-audio, tilemaps, particles, UI, and so on — is a plugin that registers its
-systems and exposes a runtime API as a **resource**.
+An Estella game is an `App` composed of **plugins**. Each subsystem — physics, audio, tilemaps, particles, UI and
+others — is a plugin that registers its systems and publishes its runtime API as a **resource**.
 
-## Reaching a subsystem: `Res(XxxAPI)`
+## Resources
 
-Inside a system, list the resource you need in the parameter array; the callback
-receives it in the same order:
+### Reaching a subsystem: `Res(XxxAPI)`
+
+A system lists the resource it needs in its parameter array; the callback receives it in the same position:
 
 ```typescript
 import { defineSystem, Res, Audio } from 'esengine';
@@ -22,12 +22,12 @@ defineSystem([Res(Audio)], (audio) => {
 });
 ```
 
-Every subsystem's imperative API is reached the same way:
+Every subsystem's imperative API is reached this way:
 
 | Subsystem | Resource | Guide |
 |---|---|---|
-| Input | `Res(Input)` | [Input](/docs/scripting/input/) |
-| Audio | `Res(Audio)` | [Audio](/docs/assets/audio/) |
+| Input | `Res(Input)` | [Input](/docs/scripting/input/overview/) |
+| Audio | `Res(Audio)` | [Audio](/docs/assets/audio/overview/) |
 | Assets | `Res(Assets)` | [Assets](/docs/assets/overview/) |
 | Tilemaps | `Res(Tilemaps)` — from `esengine/tilemap` | [Tilemaps](/docs/world/tilemaps/code/) |
 | Particles | `Res(Particle)` | [Particles](/docs/world/particles/overview/#playback-control) |
@@ -36,46 +36,42 @@ Every subsystem's imperative API is reached the same way:
 | Tweens | `Res(Tween)` | [Tweens](/docs/animation/tweens/) |
 | Frame animation | `Res(SpriteAnimation)` | [Sprite animation](/docs/animation/sprite-animation/) |
 | Animator | `Res(AnimatorController)` | [Animator](/docs/animation/animator/) |
-| Timers | `Res(TimerRes)` | [Scripting](/docs/scripting/overview/) |
+| Timers | `Res(TimerRes)` | [Timers & Velocity](/docs/scripting/timers/) |
 | Timeline | `Res(Timeline)` | [Timeline](/docs/animation/timeline/playback/) |
 | Prefabs | `Res(Prefabs)` | [Prefabs](/docs/world/prefabs/) |
 | Navigation / AI | `Res(Nav)` — from `esengine/ai` | [Gameplay AI](/docs/gameplay/ai/overview/) |
 | Localization | `Res(Localization)` | [Localization](/docs/assets/localization/) |
 | Camera view | `Res(CameraView)` | [Camera](/docs/graphics/camera/overview/#screen--world-coordinates) |
 | UI events | `Res(UIEvents)` | [UI](/docs/ui/overview/) |
-| 2D physics | `Res(Physics2D)` — from `esengine/physics` | [Physics](/docs/gameplay/physics/) |
-| 3D physics | `Res(Physics3D)` — from `esengine/physics3d` | [3D Physics](/docs/gameplay/physics-3d/) |
+| 2D physics | `Res(Physics2D)` — from `esengine/physics` | [Physics](/docs/gameplay/physics-2d/overview/) |
+| 3D physics | `Res(Physics3D)` — from `esengine/physics3d` | [3D Physics](/docs/gameplay/physics-3d/overview/) |
 | Spine | `Res(Spine)` — from `esengine/spine` | [Spine](/docs/animation/spine/) |
 
-Physics (2D and 3D) and Spine are **optional side-modules** loaded on demand, and
-tilemaps and AI are optional subpath packages, so their APIs live on subpaths to keep
-the base bundle small; everything else is in the main `esengine` package. The editor
-and the web runtime install the plugins a project uses — no wiring needed; in a bare
-`new App()` you add them yourself.
+Physics (2D and 3D) and Spine are optional [side modules](/docs/core-concepts/app/overview/#side-modules) loaded on
+demand; tilemaps and AI are optional subpath packages. Their full APIs are exported from subpaths so the base bundle
+does not carry them. All other APIs are in the main `esengine` package. The editor and the web runtime install the
+plugins a project uses; an `App` built manually installs them itself.
 
-Some subsystems also publish **event resources** on the same pattern — a
-resource whose contents are this frame's events, read the same frame:
-`Res(Physics2DEvents)` (contacts), `Res(SpineEvents)` (animation events),
-`Res(UIEvents)` (clicks and input from widgets).
+Some subsystems publish **event resources** in the same way — a resource holding the current frame's events, read
+in the same frame: `Res(Physics2DEvents)` (contacts), `Res(SpineEvents)` (animation events), `Res(UIEvents)` (widget
+clicks and input).
 
-<br />
+### `Res` and `ResMut`
 
-`Res(X)` hands the system the resource **itself**. `ResMut(X)` hands it a
-**handle** wrapped around the resource — `.get()` to reach the value, `.set(v)`
-to replace it, `.modify(fn)` to mutate it in place. Use `ResMut` when the system
-replaces or mutates the resource's state — same contract as `Mut` on components.
-The next section shows both shapes side by side.
+| Parameter | Callback receives | Use |
+|---|---|---|
+| `Res(X)` | The resource value itself. | Reading, and calling methods on a resource object. |
+| `ResMut(X)` | A handle: `.get()` returns the value, `.set(v)` replaces it, `.modify(fn)` mutates it in place. | Replacing or mutating the resource's state. |
 
-## Defining your own resource
+`ResMut` has the same role for resources as `Mut` for components.
 
-A resource is just a value the app owns, and it does **not** have to be plain
-data. Every subsystem API in the table above is a class instance published as a
-resource — `Res(Audio)` is an `AudioAPI`, `Res(SceneManager)` is a
-`SceneManagerState` with `switchTo` / `load` / `unload` on it. Your own
-resources can carry methods the same way.
+### Defining a resource
 
-`defineResource(defaultValue, name)` creates the definition — an identity, not
-the value itself:
+A resource is a value owned by the app; it does not have to be plain data. Every subsystem API in the table above is
+a class instance published as a resource: `Res(Audio)` is an `AudioAPI`, and `Res(SceneManager)` is a
+`SceneManagerState` with `switchTo`, `load` and `unload`.
+
+`defineResource(defaultValue, name)` creates the resource **definition** — an identity, not the value:
 
 ```typescript
 import { defineResource } from 'esengine';
@@ -92,10 +88,10 @@ class ScoreState {
 export const Score = defineResource<ScoreState>(null!, 'Score');
 ```
 
-The `null!` is a deliberate placeholder: the real instance is inserted when the
-plugin builds, so each app gets its own. This is exactly how every engine
-subsystem is wired — `SceneManager` is declared `defineResource<SceneManagerState>(null!, 'SceneManager')`
-and its plugin does `app.insertResource(SceneManager, new SceneManagerState(app))`.
+The `null!` default is a placeholder. The instance is inserted when the plugin builds, so each app has its own. The
+engine's subsystems are wired the same way: `SceneManager` is declared as
+`defineResource<SceneManagerState>(null!, 'SceneManager')`, and its plugin calls
+`app.insertResource(SceneManager, new SceneManagerState(app))`.
 
 ```typescript
 import type { App, Plugin } from 'esengine';
@@ -108,47 +104,43 @@ export const scorePlugin: Plugin = {
 };
 ```
 
-From there it is reached like any other resource:
+The resource is then reached like any other:
 
 ```typescript
 import { defineSystem, Res, ResMut } from 'esengine';
 
 defineSystem([Res(Score)], (score) => {
-  // score IS the ScoreState instance
+  // score is the ScoreState instance
   if (score.value > 1000) { /* … */ }
 });
 
 defineSystem([ResMut(Score)], (score) => {
-  // score is the handle — unwrap it
+  // score is the handle
   score.modify((s) => s.add(100));
 });
 ```
 
-Outside ECS code — host code, a `defineBehavior` hook — use
-`app.getResource(Score)`, which returns that same live instance.
+Outside systems — host code, a `defineBehavior` hook — `app.getResource(Score)` returns the same live instance.
 
-### What the default value costs you
+### Default values
 
-A resource is materialised the first time it is read, by cloning the default you
-passed to `defineResource`. That clone is **structural, not total**:
+A resource that was never inserted is materialized on first read by cloning the default passed to
+`defineResource`. The clone is structural:
 
-| Default value | What each app ends up with |
+| Default value | Result per app |
 |---|---|
-| Plain object / array | A deep clone — one independent copy per app. |
-| Class instance | The *same* object, shared by every app that reads it. |
-| Function-valued property | Shared by reference — methods always survive the clone. |
+| Plain object or array | Deep clone — an independent copy per app. |
+| Class instance | The same object, shared by every app that reads it. |
+| Function-valued property | Shared by reference; methods are preserved. |
 
-Class instances pass through by reference on purpose: cloning them into a bare
-object would strip their prototype and with it every method. The practical
-consequence is that `defineResource(new ScoreState(), 'Score')` gives **one
-score shared by every app in the process** — and the editor runs two (edit mode
-and play mode). Prefer the `null!` + `insertResource` form above whenever the
-resource holds state.
+Class instances are passed through by reference because cloning them into a plain object would drop their prototype
+and methods. As a consequence, `defineResource(new ScoreState(), 'Score')` creates **one instance shared by every app
+in the process**; the editor runs two apps (edit mode and play mode). A resource that holds state uses the `null!` +
+`insertResource` form shown above.
 
 <Aside type="caution">
-  If you hang methods off a **plain object** default, write them as methods or
-  `function`, never as arrow functions — an arrow function captures the module
-  scope, so `this` is not the resource:
+  Methods on a **plain object** default must be written as methods or `function` expressions, not arrow functions.
+  An arrow function captures the module scope, so its `this` is not the resource:
 
   ```typescript
   defineResource({ value: 0, add(n: number) { this.value += n; } }, 'Score');        // ✅
@@ -156,21 +148,74 @@ resource holds state.
   ```
 </Aside>
 
-## Components vs. resources
+### Components vs. resources
 
-- **Components** are per-entity data. You attach them (in the editor or with
-  `Commands`) and iterate them with `Query`. C++-backed components are decoded
-  out of the wasm heap on every read, so what you get is a **copy** — change it
-  and hand it back, or the write is lost (see
-  [Scripting](/docs/scripting/overview/)).
-- **Resources** are per-app singletons — shared state and subsystem APIs — read
-  with `Res`. A resource is the **live object**, never a copy: calling a method
-  or setting a field on it takes effect immediately.
+| | Components | Resources |
+|---|---|---|
+| Scope | Per entity. | Per app (singleton). |
+| Attached by | The editor or `Commands`. | `app.insertResource`, or first read of the default. |
+| Accessed with | `Query`, `world.get`. | `Res`, `ResMut`, `app.getResource`. |
+| Value received | Built-in (C++) components read outside a `Mut` query are decoded from the WebAssembly heap and returned as a **copy**; changes must be written back ([Scripting](/docs/scripting/overview/#the-context)). | The **live object**; calling a method or setting a field takes effect immediately. |
 
-## Getting an entity
+## Plugins
 
-Subsystem APIs act on an entity, and that entity comes from a `Query` (or a
-spawn). This is the shape you'll see throughout the guides:
+A plugin is a plain object that registers systems, resources and events on the app:
+
+```typescript
+import type { App, Plugin } from 'esengine';
+import { defineResource, defineSystem, Res } from 'esengine';
+
+const Score = defineResource({ value: 0 }, 'Score');
+const scoreSystem = defineSystem([Res(Score)], (score) => { /* … */ });
+
+export const scorePlugin: Plugin = {
+  name: 'score',
+  build(app: App) {
+    app.insertResource(Score, { value: 0 });
+    app.addSystem(scoreSystem);
+  },
+};
+```
+
+| Member | Type | Description |
+|---|---|---|
+| `name` | `string?` | Recommended. A named plugin is registered in the [subsystem registry](/docs/core-concepts/app/lifecycle/#subsystem-registry), and systems added in its `build()` inherit the name for liveness reporting. |
+| `dependencies` | `PluginDependency[]?` | Prerequisites: a plugin **name** (`string`) or a **resource definition**. `addPlugin` throws when one is missing; `addPlugins` also sorts the batch by the name edges. |
+| `before` / `after` | `string[]?` | Ordering hints against other plugin names, applied when a batch is installed with `addPlugins`. |
+| `build(app)` | required | Registers systems, resources and events. Runs immediately on `addPlugin`. |
+| `activeWhen` | `ComponentDef[]?` | Components the plugin's work depends on. While no entity has any of them, the systems registered in its `build()` are skipped; they run for one more frame after the last one is removed so the plugin can release what it holds. Absent: always run. |
+| `finish(app)` | optional | Runs once after **all** plugins have built, on the app's first tick or `run()`. For wiring that needs the complete plugin set. |
+| `cleanup(app?)` | optional | Releases acquired resources on `app.quit()` (in reverse install order) or after a failed build. Must tolerate a partially completed build. |
+
+`PluginDependency = string | ResourceDef<any>`. A name requires that plugin to be installed first; a resource
+definition requires that resource to exist.
+
+The engine's water, terrain, planet, foliage, tilemap, navigation, behaviour tree, state machine, perception and
+velocity plugins declare `activeWhen`. A single system is gated in the same way with
+`app.addSystemToSchedule(schedule, system, { activeWhen: [MyComponent] })`.
+
+### Installation
+
+| Call | Behaviour |
+|---|---|
+| `app.addPlugin(plugin)` | Installs one plugin. Idempotent per instance: adding the same object twice has no effect. |
+| `app.addPlugins([...])` | Installs a batch, sorted topologically by `dependencies`, `before` and `after`; throws on a cycle. |
+
+When `build()` throws, the plugin is rolled back and the failure remains visible in the subsystem registry as an
+`error` entry.
+
+### Module-level registration
+
+`addPlugin`, `addSystem`, `addStartupSystem` and `defineBehavior` called at module scope (at import time, outside
+any plugin) are queued on the ambient context rather than on a specific app. The runtimes created by the
+[factories](/docs/core-concepts/app/overview/) drain that queue into the app — plugins first, then systems. An `App`
+built manually calls `flushPendingRegistrations(app)` to install them.
+
+## Entities
+
+### Getting an entity
+
+Subsystem APIs act on an entity, obtained from a `Query` or from a spawn:
 
 ```typescript
 import { defineSystem, Query, Res, SpriteAnimator, Tween, TweenTarget } from 'esengine';
@@ -182,9 +227,9 @@ defineSystem([Query(SpriteAnimator), Res(Tween)], (q, tween) => {
 });
 ```
 
-## Spawning: `Commands`
+### Spawning with `Commands`
 
-To create entities and attach components from a system, take `Commands()`:
+A system creates entities and attaches components through `Commands()`:
 
 ```typescript
 import { defineSystem, Commands, Transform, Sprite } from 'esengine';

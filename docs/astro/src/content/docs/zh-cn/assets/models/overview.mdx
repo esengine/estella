@@ -1,0 +1,134 @@
+---
+title: 模型
+description: 模型导入参考——glTF/GLB 与 FBX 源文件、导入写出的产物、模型导入设置、Scale 与每米单位数、重新导入、FBX 转换、压缩几何，以及只报告不导入的内容。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+引擎只加载一种网格格式：`.esmesh`。`.gltf`、`.glb` 或 `.fbx` 文件是**源文件**：放入项目时会运行一次导入，写出场景所引用的资源。glTF 与 FBX 产出相同的产物，共用同一套导入设置；FBX 特有的转换见 [FBX](#fbx)。
+
+无需导入的网格见[内置图元](/docs/zh-cn/assets/models/primitives/)。绘制结果的组件见[网格](/docs/zh-cn/graphics/drawing/meshes/)。
+
+## 导入模型
+
+| 方式 | 结果 |
+|---|---|
+| 把 `.gltf` / `.glb` / `.fbx` 拖到内容浏览器 | 源文件连同其引用的文件被复制进项目，然后导入。 |
+| 把源文件放入项目文件夹 | 编辑器检测到文件并导入（检出、文件复制、从 DCC 工具重新导出）。 |
+| `estella import-model <file> [outDir] --project <dir>` | 命令行中的同一导入。`--scale <n>` 设置 [Scale](#scale)；`--lods <0-3>` 设置[自动生成 LOD](/docs/zh-cn/assets/models/geometry/#自动生成-lod)。 |
+
+产物写在**源文件旁边**，而不是内容浏览器当前显示的文件夹，因此重新导入会覆盖相同的文件。
+
+## 产物
+
+以包含两个图元和一张内嵌图像的 `robot.gltf` 为例：
+
+| 产物 | 说明 |
+|---|---|
+| `robot_0_0.esmesh`、`robot_1_0.esmesh` | 每个图元一个，命名为 `<stem>_<mesh>_<primitive>`（只有一个图元时为 `<stem>`）。 |
+| `robot_0.png` | 源文件内嵌的图像。磁盘上已有的图像只引用，不复制。 |
+| `robot_m0.esmaterial` | 仅当源材质使用了 `MeshRenderer` 无法承载的内容时写出（[模型材质](/docs/zh-cn/assets/models/materials/)）。 |
+| `robot_Walk.estimeline` | 每个动画一个，命名为 `<stem>_<animation>`（[模型动画与绑定](/docs/zh-cn/assets/models/animation/)）。 |
+| `robot.esprefab` | 节点层级，以及每个 `MeshRenderer` 的网格、纹理、着色与标志。 |
+
+把**预制体**拖入场景。单个 `.esmesh` 文件也是资源，`MeshRenderer.mesh` 字段可以直接接受。
+
+<Aside type="caution" title="产物会被重写">
+重新导入会替换所有产物。对生成的 `.esprefab` 的修改会丢失；应把实例放入场景后编辑实例。
+</Aside>
+
+### 内容浏览器中的产物
+
+在内容浏览器中，模型的产物折叠在模型之下。模型显示为一个条目，缩略图边缘（列表视图中为行首）带展开箭头；展开后，其网格、材质、片段与预制体以底色条带紧随其后。搜索结果不折叠地列出匹配项；对折叠产物使用 **Browse to Asset** 会展开其模型并选中它。折叠不移动任何文件：产物仍在模型旁边，按 UUID 引用。
+
+{/* SHOT: assets-model-folded-products | model-import example: Content Browser at assets/models with robot.gltf expanded, its meshes, material and prefab shown folded under it on the shaded band */}
+
+每个产物的 `.meta` 在 `source` 中记录其来源模型（模型的 UUID），由导入写入。产物与模型位于同一文件夹时折叠在该模型下。在此字段出现之前导入的项目按导入的命名规则折叠（`<stem>.esprefab`，以及命名为 `<stem>_…` 的网格、材质、片段与烘焙数据）；模型旁边的图像从不按名称折叠。
+
+### 把模型赋给资源字段
+
+把模型拖到 **Details** 中的资源字段上，或通过 **Use Selected Asset** 赋值时，会赋入该字段接受的产物：网格字段得到模型的网格，材质字段得到其材质，预制体字段得到其预制体。若有多个产物符合（多部件模型的网格），会弹出菜单询问选择哪一个；若没有符合的，字段保持不变并说明原因。选中实体时，内容浏览器以灰色保留其选择，因此 **Use Selected Asset** 仍然可用。
+
+## 导入设置
+
+在内容浏览器中选中源文件即可编辑其导入设置。保存后模型重新导入。
+
+{/* SHOT: assets-model-import-settings | model-import example: assets/models/robot.gltf selected in the Content Browser; Details shows its Import Settings with advanced fields expanded (Import and Skinning categories) */}
+
+| 设置 | 键 | 默认值 | 说明 |
+|---|---|---|---|
+| **Scale** | `scale` | `1` | 预制体根节点的统一缩放（[Scale](#scale)）。 |
+| **Generate Lightmap UVs** | `lightmapUV` | 关 | 为烘焙光照展开第二套 UV（[Lightmap UV](/docs/zh-cn/assets/models/geometry/#lightmap-uv)）。 |
+| **Max Triangles** | `maxTriangles` | `0` | 把模型削减到最多这么多三角形；`0` 保留全部（[三角形预算](/docs/zh-cn/assets/models/geometry/#三角形预算)）。 |
+| **Cluster LOD** | `clusterLod` | 关 | 把高密度静态网格存为按视图绘制的簇（[簇 LOD](/docs/zh-cn/assets/models/geometry/#簇-lod)）。 |
+| **Generate LODs** | `lodLevels` | Off | 1–3 级简化网格及一个 `LODGroup`（[自动生成 LOD](/docs/zh-cn/assets/models/geometry/#自动生成-lod)）。 |
+| **LOD Minimum Triangles** | `lodMinTriangles` | `256` | 三角形数少于此值的网格不生成级别。高级。 |
+| **Character Materials** | `characterMaterials` | Off | **By Material Name** 按材质名称指定 Skin、Hair、Eye 着色器（[角色材质](/docs/zh-cn/assets/models/materials/#角色材质)）。高级。 |
+| **Spring Bones** | `springBones` | Off | **From File Data and Names** 创建弹簧骨骼与碰撞体（[弹簧骨骼](/docs/zh-cn/assets/models/animation/#弹簧骨骼)）。高级。 |
+| **Bone Influence Limit** | `boneInfluenceLimit` | Project Default | 影响单个顶点的最多关节数（1–4）（[蒙皮](/docs/zh-cn/assets/models/animation/#蒙皮)）。 |
+| **High Precision Skin Weights** | `highPrecisionSkinWeights` | Project Default | 以 16 位而非 8 位存储蒙皮权重。高级。 |
+| **Specular Map** | `specularMap` | Specular Color | FBX 高光贴图的读取方式（[高光贴图](/docs/zh-cn/assets/models/materials/#高光贴图)）。高级。 |
+
+## Scale
+
+模型以**米**为单位制作；以其他单位制作的 FBX 在导入时转换。一个世界单位是一个设计像素，一米等于项目的**每米单位数**（`features.physics.world3d.unitsPerMeter`，在项目设置 → Physics → 3D 中设置，默认 `100`）。**Scale** 为默认的 `1` 时，1.7 m 高的角色为 1.7 个世界单位。
+
+导入不会自行选择系数。当导入的模型按项目单位计算小于 0.08 m 时，导入会发出警告，并给出能使其以真实尺寸导入的 Scale：项目的每米单位数（默认为 `100`，在每米一个单位的项目中为 `1`）。
+
+`Scale` 作用于预制体根节点的 `Transform`，不烘焙进几何：`.esmesh` 忠实于源文件，该值保持可见且可编辑。
+
+## 重新导入
+
+以下情况会再次运行导入：
+
+- 源文件发生变化（例如重新导出覆盖旧文件）；
+- 在内容浏览器中对其选择 **Reimport**；
+- 保存了某项导入设置。
+
+产物的 UUID 保持不变，引用这些产物的场景与预制体继续有效。
+
+## 灯光与相机
+
+glTF 的 `KHR_lights_punctual` 灯光与相机，以及 FBX 的点光、平行光、聚光与相机，会成为预制体中对应节点上的 `Light` 与 `Camera` 组件，并像引擎自身的灯光与相机一样朝向 −Z。颜色、锥角、范围、视场与裁剪面会被保留；强度按文件中的数值保留，因为引擎的强度没有光度学单位。导入的相机永远不会成为活动相机。
+
+## FBX
+
+FBX 由编辑器内置的 [ufbx](https://github.com/ufbx/ufbx) 读取，不需要 Autodesk FBX SDK。二进制与 ASCII 格式、5000 系列及以后的所有版本都使用同一读取器。
+
+| FBX 源 | 导入结果 |
+|---|---|
+| 自身的上轴与单位（厘米、Z 轴向上等） | 转换为引擎约定：+Y 向上，在 [Scale](#scale) 之前每米一个单位。 |
+| 任意边数的多边形 | 三角形。 |
+| 相对节点有偏移、且没有节点承载该偏移的几何 | 一个名为 `GeometryTransform` 的子实体，承载该偏移。 |
+| 跨多个材质的网格 | 每段材质一个 `.esmesh`（相当于 glTF 的图元）。 |
+| 绕枢轴的欧拉旋转，带前置与后置旋转 | 烘焙为位置、旋转与缩放关键帧；曲线不是线性时以 30 fps 重采样。 |
+
+FBX 材质见[模型材质](/docs/zh-cn/assets/models/materials/#fbx-材质)。
+
+## 压缩几何（glTF）
+
+`EXT_meshopt_compression` 与 `KHR_draco_mesh_compression` 在导入时解码，因此压缩源文件与未压缩源文件产出相同的 `.esmesh`。压缩只是源文件的属性。
+
+## 只报告、不导入的内容
+
+导入从不静默丢弃数据：无法承载的内容都列在导入说明中。
+
+| 未导入 | 原因 |
+|---|---|
+| 使用 `TEXCOORD_1` 的材质纹理；带偏移、缩放或旋转的 `KHR_texture_transform`；FBX 的 UV 变换 | 材质按原样采样第一套 UV。网格保留其第二套 UV，光照贴图与材质的 `v_texCoord1` 可以读取。 |
+| 非三角形图元（`mode` ≠ 4） | 渲染器绘制三角形列表。 |
+| 着色层纹理（`clearcoatTexture`、`sheenColorTexture`、`anisotropyTexture` 等）、`specularColorFactor`、`attenuationDistance` | 每个着色层在材质内为常量；保留系数，报告纹理（[着色层](/docs/zh-cn/graphics/materials/surface-shaders/#着色层)）。 |
+| 面光源与体积光 | 列在导入说明中并跳过。点光、平行光、聚光与相机会导入（[灯光与相机](#灯光与相机)）。 |
+| FBX 不透明度贴图 | alpha 取自基础颜色图像（[FBX 材质](/docs/zh-cn/assets/models/materials/#fbx-材质)）。 |
+
+## 限制
+
+- 自行编写顶点阶段的材质不会应用到网格几何上，因为它会忽略逐对象变换。只有片元阶段的材质在网格与精灵上都可用。
+- 没有 `NORMAL` 属性的几何以 2D 表面的常量法线受光：效果平坦，但不是黑色。
+
+## 参见
+
+- [内置图元](/docs/zh-cn/assets/models/primitives/)
+- [几何处理](/docs/zh-cn/assets/models/geometry/)
+- [模型材质](/docs/zh-cn/assets/models/materials/)
+- [模型动画与绑定](/docs/zh-cn/assets/models/animation/)

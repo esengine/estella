@@ -1,0 +1,127 @@
+---
+title: 音频
+description: 音频参考——后端、Audio 资源、音效与音乐、分轨分层音乐、前奏后循环的音乐、播放句柄、已解码缓冲缓存，以及完整的 Audio API。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Audio` 资源播放一次性音效与循环音乐，为每个声音返回一个句柄，通过总线层级路由声音（[混音器](/docs/zh-cn/assets/audio/mixer/)），并通过 `AudioSource` 在世界中定位声音（[音频源与空间音频](/docs/zh-cn/assets/audio/sources/)）。
+
+| 平台 | 后端 |
+|---|---|
+| Web 浏览器 | Web Audio |
+| 微信及其他小游戏宿主 | 每个声音一个播放器 |
+| iOS 与 Android 应用 | 原生宿主的音频引擎（miniaudio） |
+
+## 模型
+
+`Audio` 是每个 App 一份的资源，默认注册，无需插件。声音文件被解码为**缓冲**，首次使用时缓存，并在**总线**（具名的音量组）上播放。每次播放返回一个 `AudioHandle`，用于控制该声音。
+
+<Aside type="note">
+  浏览器在用户手势之前会阻止音频。第一次播放应由点击或按键触发。
+</Aside>
+
+### 缓冲缓存
+
+已解码的缓冲保存在**按字节预算的温缓存**中，相当于纹理预算的音频版本（[生命周期与内存](/docs/zh-cn/assets/memory/#温缓存)）。因资源生命周期而释放的缓冲仍可播放，并在无需重新下载或解码的情况下恢复；超出预算后，最久未使用且未被持有的缓冲被丢弃。默认预算为 32 MB（`RuntimeConfig.audioCacheBudget`，或构建配置中的 `audioCacheBudget`）。收到操作系统内存警告时，引擎清空整个温缓存；正在播放的声音继续播放。
+
+解析到同一打包文件的两个片段引用，在加载方式、编码器前导与片段长度都相同时共享一个缓冲，因此同一文件可以按任意顺序既作为音乐流式播放、又作为已解码音效预加载。使文件失效会清除其所有缓存变体；正在播放的发声会播放完毕。
+
+## 音效与音乐
+
+```typescript
+import { defineSystem, Res, Audio } from 'esengine';
+
+const play = defineSystem([Res(Audio)], (audio) => {
+  const sfx = audio.playSFX('assets/hit.wav', { volume: 1, pitch: 1, pan: 0 });
+  audio.playBGM('assets/theme.ogg', { fadeIn: 0.5, crossFade: 1.0 });
+});
+```
+
+`playSFX` 在 `sfx` 总线上播放一次性音效并返回句柄。`playBGM` 在 `music` 总线上循环播放曲目，替换当前曲目，可选交叉淡入淡出。两者都会先加载未缓存的片段，就绪后播放。
+
+### 分层音乐
+
+按分轨（每种乐器一个片段，长度相同）导出的乐曲可以分层播放：所有分轨从同一采样开始，一起循环，并各自有独立的电平。
+
+```typescript
+const music = audio.playLayers(
+  { drums: 'assets/music/theme_drums.wav', bass: 'assets/music/theme_bass.wav', lead: 'assets/music/theme_lead.wav' },
+  { mix: 'assets/music/theme.wav', levels: { lead: 0 }, fadeIn: 1 },
+);
+music.setLayer('lead', 1, 2);   // 两秒内升到电平 1
+music.setLayer('drums', 0, 4);  // 四秒内降为静音
+```
+
+- 分层音乐即背景音乐：它替换 `playBGM` 正在播放的内容，`stopBGM` 会结束它。
+- 采样对齐的分层需要已解码的片段（`loadType: 'decompress'`，[音频导入](/docs/zh-cn/assets/audio/import/)），适用于 Web 与原生宿主。
+- 在每个片段各有独立播放器的环境（小游戏，或从压缩文件播放的片段）中，改为播放 `mix` 片段，`music.layered` 为 `false`。没有 `mix` 时，各层依次启动，可能逐渐错位。
+
+### 前奏后循环
+
+带前奏的乐曲是一个文件：从头播放一次，之后每次到达结尾时回到第 `loopStart` 秒：
+
+```typescript
+audio.playBGM('assets/theme.ogg', { loopStart: 12.5, fadeIn: 1 });
+```
+
+对已解码的片段（Web 上已解码的片段与原生宿主），循环点精确到采样。从压缩文件播放的片段（Web 上流式播放的长片段、小游戏）在结束时由其播放器重新开始，可能出现可闻的间隙；对接缝要求高的乐曲应使用 `loadType: 'decompress'`。
+
+## 控制声音
+
+```typescript
+const shot = audio.playSFX('assets/laser.wav');
+shot.setVolume(0.6);
+shot.setPan(-0.5);           // -1 左 … +1 右
+shot.setPlaybackRate(1.2);   // 速度与音高
+shot.setLoop(true);
+shot.pause(); shot.resume(); shot.stop();
+shot.onEnd = () => { /* 播放结束 */ };
+```
+
+| `AudioHandle` 成员 | 类别 | 说明 |
+|---|---|---|
+| `setVolume(v)` | 方法 | 音量，0–1。 |
+| `setPan(p)` | 方法 | 立体声声像，`-1`（左）到 `+1`（右）。 |
+| `setPlaybackRate(r)` | 方法 | 播放速度与音高（`1` 为正常）。 |
+| `setLoop(l)` | 方法 | 循环播放。 |
+| `pause()` / `resume()` / `stop()` | 方法 | 播放控制。 |
+| `onEnd` | 回调 | 声音结束时调用一次。 |
+| `isPlaying` | 只读 | 是否正在播放。 |
+| `currentTime` | 只读 | 播放位置（秒）。 |
+| `duration` | 只读 | 时长（秒）。 |
+
+## `Audio` API
+
+| 方法 | 说明 |
+|---|---|
+| `playSFX(url, config?)` | 在 `sfx` 上播放一次性音效；返回 `AudioHandle`。配置：`volume`、`pitch`、`pan`、`priority`。 |
+| `playBGM(url, config?)` | 循环播放音乐，替换当前曲目。配置：`volume`、`fadeIn`、`crossFade`、`loopStart`。 |
+| `playLayers(layers, config?)` | 以分层音乐播放分轨。配置：`mix`、`volume`、`levels`、`fadeIn`、`crossFade`、`loopStart`。 |
+| `playTrack(url, config?)` | 在指定 `bus` 上播放片段（[混音器](/docs/zh-cn/assets/audio/mixer/#自定义总线)）。 |
+| `stopBGM(fadeOut?)` | 停止音乐，可选在 `fadeOut` 秒内淡出。 |
+| `stopAll()` | 停止所有正在播放的声音。 |
+| `setMasterVolume(v)` / `setMusicVolume(v)` / `setSFXVolume(v)` / `setUIVolume(v)` | 设置内置总线的音量（0–1）。 |
+| `setBusVolume(name, v)` / `muteBus(name, muted)` | 按名称设置任意总线的音量 / 静音。 |
+| `preload(url)` / `preloadAll(urls)` | 提前解码并缓存片段（异步）。 |
+| `getBufferHandle(url)` | `url` 对应的已缓存缓冲，或 `undefined`。 |
+| `getSpectrum(out)` | 用主输出的频谱填充 `Uint8Array`（每个频段 0–255，由低到高）。在不支持分析的后端（微信）上返回 `false`。 |
+| `setBufferBudget(bytes)` | 覆盖温缓存预算；`null` 恢复 `RuntimeConfig` 的值，`0` 关闭缓存。 |
+| `getBufferStats()` | 驻留计数：`bufferCount`、`bufferBytes`、`bufferBudget`、`evictableCount`。 |
+| `trimBufferCache()` | 立即释放所有未使用的缓存缓冲（引擎在操作系统内存警告时调用）。 |
+
+总线效果、闪避与发声数上限见[混音器](/docs/zh-cn/assets/audio/mixer/)。
+
+## 使用建议
+
+- 预加载关键时刻需要的片段（`preload` / `preloadAll`），使首次播放不必等待解码。
+- 第一个声音由用户手势触发。
+- 把声音路由到不同的总线（`music`、`sfx`、`ui`、`voice`），以便玩家分别调节。
+- 依附于世界物体的声音使用 `AudioSource`，一次性的 UI 与玩法音效使用 `playSFX`。
+
+## 参见
+
+- [音频源与空间音频](/docs/zh-cn/assets/audio/sources/)
+- [混音器](/docs/zh-cn/assets/audio/mixer/)
+- [音效事件](/docs/zh-cn/assets/audio/sound-events/)
+- [音频导入](/docs/zh-cn/assets/audio/import/)

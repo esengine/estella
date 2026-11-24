@@ -1,0 +1,168 @@
+---
+title: Sound Events
+description: Sound event reference (beta) — the .esaudioevent format and selection modes, SoundEventSelector, managed playback through SoundEvents, the sound event editor, and the SoundEventSource component.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Beta">
+Sound events are in beta.
+</Aside>
+
+A sound event (`.esaudioevent`) is a pool of weighted clip variants with randomized volume and playback rate, voice
+limits and cooldown, for sounds such as footsteps and impacts that should not repeat identically.
+
+## Definition
+
+An `.esaudioevent` is a versioned JSON asset whose `clips` list audio references with relative `weight` values. Load it
+with `assets.load<SoundEventAsset>('sound-event', ref)`; the loader validates the document without decoding the
+candidate clips. Candidate UUID references count as export dependencies, including slots with weight zero.
+
+| Mode | Selection |
+|---|---|
+| `random` | By relative weight. |
+| `sequence` | Enabled slots in authored order, cycling. |
+| `no-repeat` | By weight, excluding the previous clip when another clip with positive weight exists. |
+
+- A weight of `0` disables a slot in every mode.
+- In random modes, slots that reference the same clip combine their weights and report the first slot.
+- An empty or entirely disabled pool returns `empty` or `zero-weight` without a selection. A pool with one enabled clip
+  may repeat.
+
+## Selection
+
+`SoundEventSelector` chooses clips and parameters only; it plays nothing:
+
+```typescript
+import { parseSoundEvent, SoundEventSelector } from 'esengine';
+
+const event = parseSoundEvent({
+  version: 1,
+  mode: 'no-repeat',
+  clips: [{ clip: 'assets/step-a.wav', weight: 1 }, { clip: 'assets/step-b.wav', weight: 3 }],
+  volume: [0.8, 1],
+  playbackRate: [0.9, 1.1],
+});
+const selector = new SoundEventSelector(event, 42);
+const result = selector.next();
+if (result.selection) {
+  const { clip, volume, playbackRate } = result.selection;
+  audio.playSFX(clip, { volume, pitch: playbackRate });
+}
+```
+
+- The seed determines clip and parameter choices independently of the playback backend. Changing parameter ranges does
+  not change the clip order.
+- Playback rate changes pitch **and** duration.
+
+## Managed playback
+
+`SoundEvents` applies an event's settings and owns loading and playback lifetimes:
+
+```typescript
+import { SoundEvents } from 'esengine';
+
+const events = app.getResource(SoundEvents);
+const emitter = await events.load('assets/steps.esaudioevent', { owner: entity, seed: 42 });
+const voice = emitter?.trigger();   // spatial events can also take a world-space position
+if (voice) {
+  await voice.ready;
+  console.log(voice.status, voice.reason, voice.selection);
+}
+```
+
+**Emitters.** An emitter holds a definition lease and its own choice stream; a fixed seed reproduces its sequence. Keep
+the emitter for repeated triggers. Emitters of the same asset share the event's concurrency and cooldown, including across
+hot-reload generations. Dispose ownerless emitters with `emitter.dispose()`; owner-bound emitters are also disposed when
+their registry disconnects.
+
+**Admission.** Event admission (event voice limit and cooldown) runs before the clip is loaded; the `Audio` voice pool then
+applies global priority and the voice limit. Pending and paused requests hold event slots. Cooldown starts at admission,
+including requests that later fail to load or are rejected by the global limit; stopping does not reset it. The Audio
+plugin advances the event clock with simulation time.
+
+**Voices.** `ready` resolves when loading completes or is cancelled. `reason` distinguishes event limits, cooldown,
+empty or disabled pools, global limits, missing positions and load failures; errors name the event and the selected clip
+slot. Volume and rate controls, pause and stop remain valid during loading. Natural completion, stop, `Audio.stopAll()`,
+owner despawn and App cleanup release the selected clip's lease.
+
+**Statistics.** `events.getStats()` reports admitted, started, ended, stopped and rejected counts without storing trigger
+history.
+
+**Spatial events** use `AudioSource` attenuation and panning ([Spatial audio](/docs/assets/audio/sources/#spatial-audio)).
+Provide an owner with a world transform, or a position to `trigger()`; without a listener the origin is used. Mini-game
+hosts without stereo panning report that limitation and still apply distance attenuation.
+
+## Sound event editor
+
+![The sound event editor: three weighted variants with waveforms, and playback, level and pitch, and voice settings](@/assets/guides/en/sound-event.png)
+
+*A sound event with three variants. Each row shows the waveform and weight (the share is the weight over the sum);
+**Trigger** plays the event at the listener with its own rules.*
+
+- **Creating.** **New → Create Sound Event** in the Content Browser, or **Create Sound Event** in the context menu of
+  selected audio assets. Dropping audio into an empty event panel creates an event next to the first clip; dropping into
+  an open event appends variants.
+- **Opening.** Double-click an `.esaudioevent`.
+- **Editing variants.** The audio picker adds or replaces clips. Drag rows or use the arrow buttons to reorder; delete
+  removes the slot and keeps the audio file. Weight `0` disables a slot.
+- **Settings.** Selection mode, volume and rate ranges, bus, priority, concurrency, cooldown and optional spatial settings
+  use the same validated format as the runtime.
+- **Document handling.** Edits support Undo/Redo, dirty-tab indicators, Save, autosave snapshots and reloading after
+  external changes. An invalid file leaves the open document unchanged.
+
+### Preview
+
+- **Trigger** plays one variation; **Continuous** plays successive variations, observing the event's cooldown and voice
+  limits.
+- Preview uses the project's mixer and global voice pool, shows the last selected slot, clip, volume and rate, and follows
+  that voice on the waveform.
+- Spatial preview places the source at the listener; test distance attenuation in the scene.
+- The preview seed belongs to the editor, not the asset; stopping or editing resets it. Set `SoundEventSource.seed` for
+  run-time playback.
+- Changing the definition, closing the panel, replacing the project or global Stop All cancels preview work.
+- Waveform peaks are cached for up to 64 clips without caching PCM; file changes and project replacement invalidate the
+  cache.
+
+## `SoundEventSource`
+
+`SoundEventSource` attaches a sound event to an entity. Scene preloading acquires the definition without decoding its
+candidate clips.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `event` | sound-event asset | `''` | The `.esaudioevent` to play. |
+| `seed` | number | `0` | Fixed 32-bit seed of this source's choice stream. |
+| `playOnAwake` | boolean | `false` | Plays once per enabled lifetime of the component. |
+| `enabled` | boolean | `true` | Disabling invalidates the source's current lifetime. |
+
+```typescript
+import { SoundEventSource, triggerSoundEventSource, stopSoundEventSource } from 'esengine';
+
+app.world.insert(entity, SoundEventSource, { event: 'assets/steps.esaudioevent', seed: 42 });
+const voice = await triggerSoundEventSource(app.world, entity);
+if (voice) {
+  await voice.ready;
+  console.log(voice.status, voice.reason, voice.selection);
+}
+stopSoundEventSource(app.world, entity);
+```
+
+- The `soundEvent.trigger` and `soundEvent.stop` actions reach the same source from script graphs, state machine hooks
+  and behaviour tree actions. Each trigger is independent, including several in one frame. Graph actions continue at once
+  while loading proceeds and do not wait for the clip to finish.
+- While the definition loads, at most **256** trigger requests per source wait in FIFO order. Excess requests,
+  unavailable or disabled sources, failed definitions and cancelled requests resolve to `null`. A returned handle reports
+  clip loading and event or global voice rejections separately. Cooldown starts when the loaded definition admits a
+  request, so several queued requests can share an admission time.
+- Stopping cancels this source's queue and voices; other emitters on the entity remain owned by their callers. A later
+  trigger restarts the source's seeded stream.
+- Changing `event` or `seed` starts a new stream. Disabling, removal, an inactive hierarchy, despawn and registry
+  disconnect end the source's lifetime; these checks also run after asynchronous loads, so a late clip does not play.
+- `Audio.stopAll()` cancels pending requests and keeps prepared definitions. Stopping a source does not replay
+  `playOnAwake` on the next frame.
+
+## See also
+
+- [Audio](/docs/assets/audio/overview/)
+- [Mixer](/docs/assets/audio/mixer/)

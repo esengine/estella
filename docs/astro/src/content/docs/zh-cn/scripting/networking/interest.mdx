@@ -1,0 +1,109 @@
+---
+title: 兴趣管理与带宽
+description: 控制每个客户端接收的内容——兴趣策略与 radiusInterest、保留空间索引的兴趣提供器、错开的兴趣刷新、带优先级的按连接带宽预算，以及量化的复制字段。
+---
+
+默认情况下，每个客户端完整接收所有复制实体。本页的各项控制用于限制一个连接接收哪些实体、其视野多久重算一次、其状态流使用多少字节，以及一个字段占用多少字节。
+
+| 控制 | 决定 |
+|---|---|
+| 兴趣策略 / 提供器 | 一个连接能看到哪些实体。 |
+| `setInterestRefresh` | 每个连接的视野多久重算一次。 |
+| `setBandwidthBudget` | 每个连接的状态流每秒可使用多少字节，以及哪些实体优先发送。 |
+| `quantizeReplicatedFields` | 每个复制数值占用多少字节。 |
+
+## 兴趣策略
+
+服务器上的**兴趣策略**将每个连接限定在与其相关的实体上。进入连接兴趣范围的实体以完整 spawn 到达，离开的实体会 despawn 其客户端 ghost，增量帧只携带范围内的内容。
+
+```typescript
+import { radiusInterest } from 'esengine/replication';
+
+// Each client sees entities within 800 units of any entity it owns.
+server.setInterestPolicy(radiusInterest(800));
+
+// A custom rule returns the relevant subset (or 'all'):
+server.setInterestPolicy(({ connectionId, world, candidates }) => {
+  const visible = new Set(candidates.filter((e) => isRelevantTo(world, e, connectionId)));
+  return visible;
+});
+```
+
+- **自有实体永不被剔除**；策略无法隐藏客户端自己的角色。
+- **重新进入**时携带实体的当前状态。
+- 目标位于客户端视野之外时，复制的实体引用读作 `0`。目标进入或返回时，该字段解析为其当前的本地实体。服务器在目标上添加或移除 `Replicated` 时，该字段同样更新。引用列表的每一项遵循同一规则，并保持原有顺序。
+- 复制的父对象离开视野时，可见的子对象保留其本地实体与挂件；在父对象返回之前，其局部变换按根节点计算。运行中的换父与解绑会发送给支持父节点更新的客户端。重连时，每个保留的 ghost 采用其新 spawn 基线中的父节点。
+- `radiusInterest` 默认读取 `Transform` 合成后的**世界**位置（`{ position }` 可覆盖）。没有位置的实体始终相关；连接尚未拥有任何带位置的实体时，策略放行全部实体。
+- 会话期间安装、替换或移除策略都是安全的；下一 tick 会调和每个连接的 ghost 集合。
+
+## 兴趣提供器
+
+策略**按连接**求值，因此它读取的所有内容都会每个连接读取一次。**提供器**每次采样构建一份空间索引，并以此回答所有连接：
+
+```typescript
+import { radiusInterestProvider } from 'esengine/replication';
+
+server.setInterestProvider(radiusInterestProvider(800));
+```
+
+`radiusInterestProvider` 返回与 `radiusInterest` 相同的结果，有两种模式：
+
+| 位置读取器 | 索引 | 原因 |
+|---|---|---|
+| 默认（`Transform`） | 跨采样保留；只更新移动过的实体。 | 引擎会报告一次合成改变了哪些世界变换。 |
+| 自定义 `position` | 每次采样重建。 | 任意函数不提供变化信息。 |
+
+没有实体进入、离开或移动时，保留的索引报告快照未变，自有实体未发生变化的连接保留之前的结果，不再查询。这只涉及可见性：可见实体上的字段变化仍会发送。
+
+物理驱动与父节点驱动的移动都会反映到保留的索引中，因为两者都经过变换合成。直接写入 `worldPosition` 的游戏则不会：该字段是合成的输出。
+
+## 兴趣刷新
+
+在每个实体都在移动的人群中，每个视野每次采样都会变化。`setInterestRefresh(n)` 每 `n` 次采样重算一次每个连接的视野，并在各连接之间错开：
+
+```typescript
+server.setInterestRefresh(4); // each connection's view every 4th sample, staggered
+```
+
+两次重算之间，连接保留其视野，并仍接收视野内实体的每一次变化。影响仅限于视野边缘：进入范围的实体最多晚 `n − 1` 次采样到达，离开范围的实体也最多多发送同样久。实体销毁在发生的那次采样中离开所有视野；自有实体发生变化的连接立即重算，兴趣源被替换时所有连接都会重算。默认值 `1` 表示每次采样重算所有视野。
+
+## 带宽预算
+
+兴趣管理决定一个连接是否能看到某个实体。当一个连接能看到数百个实体时，**带宽预算**为其状态流设置上限，并优先发送最紧急的更新：
+
+```ts
+server.setBandwidthBudget({
+    bytesPerSecond: 16_000,              // per connection
+    // optional; the default is the distance to the nearest entity the connection owns
+    priority: ({ entity, owned }) => isBoss(entity) ? 5 : 1,
+});
+```
+
+- 每次采样，连接尚欠更新的每个实体都将其优先级累加到已等待的值上。最紧急的实体依次发送，直到该连接的额度用完；其余实体继续等待。低优先级意味着更新较少，而非永不更新。
+- 被推迟的实体最终发送的那一行携带自其上一行以来所有变化字段的当前值；客户端在间隔中插值。
+- 连接自己拥有的实体总会发送（预测需要对照每一次权威更新进行和解），生成、销毁与组件移除也同样总会发送。预算只计量状态流。
+- 未用完的额度最多结转一个 tick。
+- `setBandwidthBudget(null)` 移除预算；所欠的更新在下一次采样中发出。
+- 有无兴趣源均可使用。对于默认优先级，实体位置不在 `Transform` 上时，由 `position` 指定。
+- 服务器对每个字段只记录一次其最后变化的时间，每个连接只记录每个实体最后一次发给它的时间，因此一次变化的开销与看到它的玩家数无关。
+
+即使没有连接超出预算，预算也会带来少量每 tick 开销，因此在会出现人群的地方开启。
+
+## 量化字段
+
+复制的数值默认以 32 位浮点数发送。`quantizeReplicatedFields` 将字段以步长的整数倍发送，占 1 到 3 字节：
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// At 100 units per metre: positions to 1 cm, angles to 0.01 degree.
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- 状态更新为字段中的每个数值携带最接近的步长整数倍。对 2D 精灵与 3D 网格同样适用，`Transform.position` 上的步长作用于 `x`、`y` 与 `z`。
+- 每个观察者在 spawn 时（包括重连以及重新进入兴趣范围时）收到精确值。坐标在同一量化区间内偏离该精确值超过半个步长时，若解码值更接近，服务器会为该观察者安排一次校正。收到量化更新后，跨越区间边界会触发下一次更新。校正与常规更新共用带宽预算。
+- 量化须在**两端**启动时、任何连接建立之前声明。每一端在首次使用时建表，握手会拒绝步长与服务器不一致的客户端。
+- 接收端以 32 位浮点数保存每个量化数值；插值与预测平滑使用该值。
+- 小于一个步长的位置变化不会发送。
+
+行头（实体、组件、字段）为变长编码，因此一行在数值之前只占几个字节。

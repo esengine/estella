@@ -22,7 +22,7 @@ A lightmap requires two things:
 
 - **A mesh with a second UV set.** The first UV set wraps the art and may overlap; a lightmap needs every surface in its
   own region. Both importers carry a second set through when the model has one (`TEXCOORD_1` in glTF, the second UV layer
-  in FBX). The model importer can also generate one ([Models](/docs/assets/models/)).
+  in FBX). The model importer can also generate one ([Models](/docs/assets/models/geometry/#lightmap-uvs)).
 - **A `MeshLightmap` component**, written by the bake.
 
 ### `MeshLightmap`
@@ -175,4 +175,4 @@ probe of the scene into one atlas beside the lightmap. Only the box is authored.
 
 - [Lights](/docs/graphics/lighting/lights/)
 - [Planar Reflections](/docs/graphics/lighting/planar-reflections/)
-- [Models](/docs/assets/models/)
+- [Models](/docs/assets/models/overview/)

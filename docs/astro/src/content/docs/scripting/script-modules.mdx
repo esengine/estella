@@ -1,0 +1,129 @@
+---
+title: Script Modules
+description: How project scripts are organized and bundled — the declaration entry the editor reads, the startup entry, the New Script dialog, npm dependencies and their constraints, and hot reload during play.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A project's TypeScript lives under its source root (`src/` by default) and is bundled with esbuild. Two entry modules
+have different roles:
+
+| Entry | Manifest key | Default | Role |
+|---|---|---|---|
+| Declaration entry | `scripts.register` | `src/components.ts` | Evaluated by the editor to discover components, behaviours, actions and conditions. Must contain declarations only. |
+| Startup entry | `scripts.main` | `src/main.ts` | Where the game starts at runtime. Holds startup side effects and imports the systems to register. |
+
+## Declaration entry
+
+The editor discovers project components without running the game: it evaluates **one entry module** — the
+declaration entry — and reads back everything that registered itself.
+
+Registration happens when `defineBehavior`, `defineComponent`, `registerAction` or `registerCondition` executes, so a
+module that is not imported registers nothing. Declarations may be spread across any number of files, provided the
+declaration entry reaches them:
+
+```typescript
+// src/components.ts — the editor's view of the project
+export * from './behaviors/patrol';
+export * from './components/health';
+```
+
+A declaration that the entry does not reach still works at runtime, because the game starts from the startup entry.
+It is missing from the editor:
+
+- its fields are not shown in the Details panel (the component is preserved in scene files but shown as unknown);
+- it has no entry under **Scripts** in Add Component and in the Create-entity popover;
+- its `registerAction` / `registerCondition` names are absent from the behaviour-tree and event-binding palettes.
+
+{/* SHOT: script-add-component-scripts | examples/ecs-basics, select the Camera entity and open Details → Add Component; the Scripts category lists the project's components Mover, Lifetime, Spawner and Bouncer declared in src/components.ts. */}
+
+<Aside type="caution">
+  The declaration entry and everything it imports must be **pure declarations**. The editor evaluates that module
+  graph in an isolated context with no engine and no WebAssembly; systems are queued but never run. Startup side
+  effects belong in the startup entry. `scripts.register` must not point at the startup entry.
+</Aside>
+
+Saving any file under the source root re-extracts the declarations, and new fields appear in the Details panel shortly
+after. The extracted result is written to `.esengine/cache/schemas.json`: a component absent from that file was not
+reached from the declaration entry; a component present there but missing in the Details panel indicates a different
+problem.
+
+## New Script dialog
+
+A `.ts` file created manually has no effect until an entry imports it. **Content Browser → create menu → New Script…**
+creates the module and the import together. The selected kind determines which entry the module is wired into:
+
+{/* SHOT: script-new-script-dialog | examples/ecs-basics, Content Browser opened on src/, create menu → New Script…; the dialog shows the Name field, the Component/System choice, the module path to be written and the line the entry will gain. */}
+
+| Kind | Module role | Wiring |
+|---|---|---|
+| **Component** | A declaration the editor reads without running the game. | Re-exported from the declaration entry: `export * from './Health';` |
+| **System** | Behaviour bundled and run in the play realm. | Imported by the startup entry for its registration side effect: `import './Patrol';` |
+
+The dialog shows the module path and the exact line the entry gains before creating the file.
+
+| Aspect | Behaviour |
+|---|---|
+| Name | Entered in the dialog. It is the file name, the exported identifier and the string scenes serialize, so it must be a plain JavaScript identifier. |
+| Entries | Taken from the manifest (`scripts.register` / `scripts.main`), so a project that moved its entries is wired at its own pair. |
+| Location | The folder currently browsed, when it is inside the source root; otherwise the source root. A module outside the source root (for example under `assets/`) would not be reachable from either entry. |
+| Availability | A component appears in Add Component as soon as the dialog closes; the schemas are re-extracted immediately. The new file is revealed in the Content Browser, not opened; the editor has no code editor. |
+
+## npm packages
+
+Scripts are bundled with esbuild, which resolves dependencies from the project's own `node_modules`. A library is
+added with a regular install:
+
+```bash
+cd my-game
+npm install protobufjs
+```
+
+```typescript
+import { Writer, Reader } from 'protobufjs/minimal';
+
+const packet = Writer.create().uint32(42).string('hello').finish();
+```
+
+Imported packages are bundled for **every target**: web and desktop builds, the mini-game package (down-levelled to
+the syntax that host accepts), the native content payload, and the editor's play realm. No per-platform
+configuration is required.
+
+New projects include a `package.json`. A project created before that requires `npm init -y` once.
+
+### Constraints
+
+**Node built-ins are unavailable.** A game runs in a browser or a mini-game host, neither of which provides `fs`,
+`crypto`, `path` or other Node modules. A package that imports one fails the build:
+
+```
+Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
+built-in, and a game does not run in Node…
+```
+
+Project code uses web APIs (`crypto.subtle`, `fetch`, `localStorage`) or the engine's equivalents instead —
+[Assets](/docs/assets/overview/) for files, [Saving & Loading](/docs/scripting/save/) for player data. When a dependency
+imports a Node built-in, the package's browser-safe entry point is used where one exists (`protobufjs/minimal` above
+is one); esbuild picks up a package's `browser` field automatically.
+
+**Dependencies add to package size.** A dependency is bundled whole. WeChat limits a mini-game's main package to 4 MB.
+After a build, the [size report](/docs/publishing/package-size/) lists the package contents; library code
+appears under **Scripts**.
+
+<Aside type="tip">
+  Packages documented as browser-compatible are preferred. A library written for Node either fails the build or
+  brings in a polyfill large enough to matter within a 4 MB budget.
+</Aside>
+
+## Hot reload
+
+While the editor is playing, saving code triggers a **state-preserving hot swap** when possible: if the components'
+shapes are unchanged and no system was added, removed or renamed, the live world is kept and only function bodies
+are replaced. Otherwise the editor performs a full reload. Requirements on project code:
+
+- **Component and behaviour names are identities.** Renaming one is a structural change: a full reload, and fresh
+  state for that data.
+- **`start` runs again** for live entities after any reload. `start` is written as idempotent setup.
+
+The mechanism (probe context, schema fingerprint, `App.hotSwapSystems`) is described in
+[Lifecycle & Status](/docs/core-concepts/app/lifecycle/#hot-reload).

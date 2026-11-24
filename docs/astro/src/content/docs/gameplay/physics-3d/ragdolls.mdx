@@ -1,0 +1,64 @@
+---
+title: Ragdolls
+description: 3D ragdoll reference — the Ragdoll component that turns a skinned character's bones into jointed bodies and blends back to animation, its joint limit profiles, and per-bone RagdollJoint overrides.
+---
+
+A `Ragdoll` on a skinned character turns its bones into jointed bodies while `active` is set, and returns the pose to the
+animation when it is cleared. It reads the skeleton the character already has (the joints its skinned mesh names); no
+other authoring is required.
+
+```typescript
+world.insert(enemy, Ragdoll, { active: false });
+// When it is knocked down:
+world.insert(enemy, Ragdoll, { ...world.get(enemy, Ragdoll), active: true });
+```
+
+## Behaviour
+
+- Each bone that is long enough gets a box along it, joined by a swing/twist joint to the nearest ancestor bone that has
+  a body. The bodies start in the pose the animation had that frame. The animation keeps running underneath; the bodies'
+  pose is applied over it each frame.
+- **Limits.** With the `Humanoid` profile, each joint receives the share of `swing` and `twist` appropriate to its part
+  of the body, read from the bone's name: a spine is stiff, a shoulder loose, a shin close to a hinge. Knees and elbows
+  are one-way hinges of at most `bend` degrees: a shin folds back and a forearm folds forward, determined from `facing`.
+  The `Uniform` profile gives every joint the same limits.
+- **Recovery.** Clearing `active` blends from the bodies' last pose to the animation's over `recoverTime` seconds.
+- **Editor preview.** Selecting a ragdoll in the editor shows the boxes and joint limits it would create, from the
+  skeleton's current pose.
+
+The ragdoll is passive: nothing drives the limbs.
+
+## `Ragdoll`
+
+| Property | Default | Description |
+|---|---|---|
+| `active` | `false` | Whether the character is limp. Set it when the character is knocked down; clear it to stand up. |
+| `skin` | `0` | The entity that holds the skinned mesh; `0` looks on this entity and then below it. |
+| `profile` | `Humanoid` | `Uniform` or `Humanoid` (`RagdollProfile`). |
+| `swing` | `100` | How far a limb may swing from its bone's line, degrees. With `Humanoid`, the maximum given to a loose joint (shoulder, hip). |
+| `twist` | `60` | How far a limb may twist about its own line, degrees. With `Humanoid`, the maximum given to a loose joint. |
+| `bend` | `130` | How far a knee or elbow may bend, one way only, degrees. `0` treats them as ordinary swing/twist joints. `Humanoid` only. |
+| `facing` | `+Z` | The character's own axis it looks along (`RagdollFacing`: `+Z`, `-Z`, `+X`, `-X`); distinguishes a bent knee from a hyperextended one. |
+| `thickness` | `0.25` | Limb thickness as a fraction of its length. |
+| `minBoneLength` | `0.05` | Bones shorter than this get no body of their own (fingers, toes); the parent carries them. |
+| `friction` | `0.5` | Friction of the limb bodies. |
+| `recoverTime` | `0.4` | Seconds to blend from the limp pose back to the animation. |
+
+## `RagdollJoint`
+
+A `RagdollJoint` on a bone's entity overrides that bone.
+
+| Property | Default | Description |
+|---|---|---|
+| `body` | `true` | Whether the bone gets a body of its own. `false`: the bone above carries it. |
+| `custom` | `false` | Use the limits below instead of the profile's. |
+| `swing` | `70` | Swing limit, degrees either way. |
+| `twist` | `40` | Twist limit, degrees either way. |
+| `bend` | `0` | One-way bend limit, degrees; `0` is an ordinary swing/twist joint. |
+| `fold` | `0` | Bend direction where the bone's name does not say: `0` as the name says, `1` toward the facing, `-1` away from it. |
+
+## See also
+
+- [Melee & Hitboxes](/docs/gameplay/physics-3d/combat/#hitboxes) — hitboxes give way to ragdoll bodies while limp.
+- [Joints](/docs/gameplay/physics-3d/joints/#swingtwist-and-six-axis-joints) — the swing/twist joint.
+- [Skeletal Animation](/docs/animation/overview/) — the skeleton a ragdoll reads.

@@ -1,0 +1,197 @@
+---
+title: Playable Ads
+description: The Playable target — ad network profiles and their size limits, the playableCta call-to-action API, image encoding, the playable check report, local container preview, headless verification, and defining a custom network.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **Playable** target exports the project's startup scene as one self-contained `index.html` with the engine,
+scripts and assets inlined and no external requests. Networks that take an archive also receive a ZIP beside it.
+
+![The Package Project dialog on the Playable target, with the ad network selector, configuration, compression and output folder](@/assets/guides/en/build-playable.png)
+
+*The Playable target. **Ad network** selects the size limit, the head markup, the call-to-action bridge and the
+delivery format.*
+
+## Ad networks
+
+Networks accept the same single HTML file but differ in their size limit, the markup required in `<head>`, and the
+function that opens the store. **Ad network** in the Playable target settings selects the network; the export applies
+all three. The choice is per build rather than a project property, and each network writes to its own folder,
+`dist-playable/<network>/`.
+
+| Network | Limit | Click-through | Notes |
+|---|---|---|---|
+| **Generic** | 5 MB | — | No network API. The limit is the one every listed network accepts. |
+| **Meta** (Facebook / Instagram) | 5 MB | `FbPlayableAd.onCTAClick()` | Forbids any HTTP request. |
+| **Google Ads** (App campaigns) | 5 MB (ZIP) | `ExitApi.exit()` | The Google-hosted exit API script is written as a literal `<script>` in `<head>`. Google uploads a ZIP, so the export also writes `playable.zip` and measures the limit on it. |
+| **MRAID network** (generic) | 5 MB | `mraid.open()` | Any MRAID host. `mraid` is injected by the webview; nothing is added to `<head>`. |
+| **Unity Ads** | 5 MB | `mraid.open()` | The runtime waits for MRAID readiness and viewability, pauses while the ad is hidden, and removes host listeners on exit. |
+| **AppLovin** | 5 MB | `mraid.open()` | Requires every resource embedded. |
+| **Mintegral** | 5 MB (HTML and ZIP) | `window.install()` | Exports `index.html` and a matching `index.zip`. Waits for host start; game close pauses gameplay and audio. |
+| **TikTok** | ZIP under 5 MB | `window.openAppStore()` | Root `config.json` with `Playable_orientation`; the mandatory official SDK loads before game scripts. |
+| **TikTok Ad Network (Pangle, overseas)** | ZIP under 5 MB | `window.openAppStore()` | As TikTok, with `playable_orientation` in `config.json`. |
+
+An oversized export names the limit it used and where that limit is published. An `index.html` over a network's
+uncompressed HTML limit is still written, with a warning stating its size.
+
+## Call to action
+
+Game code calls `playableCta()` and never names a network:
+
+```ts
+import { playableCta } from 'esengine';
+
+// on the end-card button, after the win — wherever the call to action is
+playableCta();
+```
+
+The export installs the bridge `playableCta()` dispatches through. With no network bridge installed it does nothing,
+so the same scene runs in the editor and on the web.
+
+**MRAID** store buttons pass a destination, `playableCta(storeUrl)`, or rely on a host-provided `window.clickTag`.
+HTTP(S), Android `market:` and iOS `itms-apps:` links are supported. A missing or invalid destination produces a
+configuration warning and `mraid.open` is not called. Other networks use their own store functions.
+
+**Mintegral** additionally expects `playableGameEnd()` on a win or loss and `playableRetry()` when the player restarts.
+The runtime calls `gameReady()` after startup and responds to `gameStart()` and `gameClose()`. Keep installation tied
+to a user gesture through `playableCta()`. The official [container checker](https://www.playturbo.com/review) does not
+replace campaign approval or device acceptance.
+
+## Orientation
+
+A playable does not lock the page orientation. Inside an ad SDK the container's size is controlled by the SDK, so a
+rotate-to-fit overlay could hide the game permanently. The playable stays responsive, and the project orientation is
+declared only where a network asks for it (for example Google's `ad.orientation` meta tag, or the orientation field in
+TikTok's `config.json`). Design for both aspects, or letterbox with a camera fit
+([Screen & Design Resolution](/docs/core-concepts/screen/overview/)).
+
+## Image encoding
+
+**Images as WebP** (Compression row, Playable target only) encodes each PNG at the chosen setting: **Off** (default),
+**Lossless**, **Quality 90** or **Quality 80**.
+
+- Font pages, nearest-filtered art and data (non-sRGB) textures are always encoded lossless.
+- A PNG with a colour profile, gamma, animation or 16-bit samples stays PNG, as does a PNG for which WebP would be
+  larger.
+- A texture whose Import Settings disable compression ships as authored.
+- Encoding uses the bundled ffmpeg. If it is not found, a warning is written and images ship as PNG.
+- Images keep their cooked dimensions and alpha.
+
+**Textures by import settings** applies each texture's Max Size (including enabled `playable` overrides), and **Audio
+to MP3** converts WAV clips at their Import Settings bitrate. No size limit enables any of these boxes. The report
+compares the package with a delivery target — the smallest of the network limit, the project size budget and an
+internal 3 MiB regression target — and warns when the package exceeds it; the 3 MiB figure is not a network limit.
+Review image and audio quality before publishing.
+
+## Starter project
+
+**Playable Ad** under Templates in the launcher creates an editable fleet-selection game with CC0 art, explicit
+installation, completion and replay, eight named export profiles, asset licenses and a portrait/landscape headless
+scenario (`playable-check.json`). The copied `README.md` covers creation through export and submission. Configure the
+store URL in `src/config.ts` for MRAID, or the campaign or container destination for other networks; no preview URL is
+shipped as the app destination.
+
+## Playable check report
+
+Playable exports include `playableCheck` in their result. The Package Project dialog displays it, and the CLI saves it
+with `--json report.json`. The check:
+
+- measures the delivered file;
+- identifies HTML and CSS resource references;
+- validates the orientation config the network requires;
+- verifies that each mandatory host SDK script is present as a literal tag in the required position — Google's exit API
+  in `<head>`, the TikTok/Pangle SDK in the body before game scripts — and fails on a missing, misplaced or deferred
+  script;
+- records file hashes that tie the findings to this export.
+
+CTA behaviour, host lifecycle, dynamic requests and device or network acceptance remain runtime checks; the report
+does not treat a bridge declaration as a successful store click.
+
+## Local container preview
+
+From the engine repository:
+
+```bash
+pnpm preview:playable path/to/index.html --report export-result.json
+```
+
+The command prints a loopback URL and does not open a browser. **Ready**, **Show** and **Hide** simulate host
+callbacks, the viewport selector changes the aspect ratio, and **Save Log** records store calls with the original HTML
+hash. `--store-url` sets the MRAID destination. The served copy substitutes mandatory SDK scripts and blocks external
+requests; the delivered HTML is unchanged.
+
+With a full export result, the preview also checks the adjacent ZIP's delivery hash, so a changed config with identical
+HTML invalidates the old report. Saved logs carry both hashes and the archive filename; without delivery evidence they
+identify the HTML only. The event history keeps 1,000 entries, and a notice and a log field indicate when older events
+were dropped.
+
+## Headless verification
+
+Requires Node 20+ and Chromium (`pnpm exec playwright install chromium`):
+
+```bash
+pnpm verify:playable output/playable/index.html --report output/playable.json --scenario examples/playable-ad/playable-check.json --out output/playable-observations --store-url https://example.com/store
+```
+
+The command runs headless Chromium with muted audio and does not use the editor. The scenario file (version 1)
+declares `viewports` and `steps`; each viewport starts fresh.
+
+| Step | Fields |
+|---|---|
+| `click` | Normalized canvas `x` / `y`. |
+| `expect` | `store-click`, `game-end` or `game-retry`, with an exact `count` and optional `userActivation`. |
+| `host` | Sends `ready`, `show` or `hide`. |
+| `frozen` | Compares canvas screenshots over `ms`. |
+| `wait`, `snapshot` | Record timing and images. |
+| `networks` (optional) | Limits a step or expectation to the listed networks. |
+
+`runtime-check.json` records the hashes of the original HTML and delivery, export report, scenario, verifier and mock,
+plus the browser version, events and screenshot hashes. Verification fails on unexpected requests (including
+CSP-blocked attempts), page errors, event-count or activation mismatches, animation or input while hidden, truncation,
+failed static or export results, and changed inputs. Archive paths resolve by the adjacent ZIP filename on Windows and
+POSIX.
+
+The verdict is **local-mock** and covers the requested observations only. Host SDK scripts are substituted, and active
+browser activation is observed rather than an SDK's synchronous gesture rule. The shipped example checks
+portrait/landscape, CTA, completion/retry and the supported hidden lifecycle; Google and Meta lifecycle checks are not
+covered. Original SDK behaviour, audio lifecycle, quality review, official tools and device acceptance remain separate.
+
+## Custom ad network
+
+A network the editor does not ship is defined by the project with the same contract as the built-in ones.
+**Package Project → New platform** with Kind *Playable ad network* scaffolds one, or write
+`.esengine/platforms/<id>.mjs`:
+
+```js
+export default {
+  id: 'acme-ads',
+  kind: 'playable',
+  label: 'Acme Ads',
+
+  // The size this network accepts, and where that number is published — the export
+  // quotes the note in its warning.
+  maxBytes: 5 * 1024 * 1024,
+  limitNote: 'Acme docs, Creative specs § playable',
+
+  // Optional: markup for <head> (an orientation meta tag, the network's SDK script).
+  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
+
+  // Installs the bridge playableCta() dispatches through. Runs before the game.
+  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
+};
+```
+
+The network appears in the **Ad network** list beside the built-in ones and packages through the same pipeline. A
+project platform module runs in the editor's main process and requires approval before it loads
+([Editor Plugins](/docs/extending/editor-plugins/#project-platform-profiles)).
+
+<Aside type="caution">
+  Local checks, mock previews and headless verification do not replace the network's official preview tools,
+  campaign approval or device testing.
+</Aside>
+
+## See also
+
+- [Building & Exporting](/docs/publishing/overview/) — the Package Project dialog and compression.
+- [Package Size](/docs/publishing/package-size/) — the size report.

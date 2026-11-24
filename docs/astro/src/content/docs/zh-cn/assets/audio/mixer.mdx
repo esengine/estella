@@ -1,0 +1,125 @@
+---
+title: 混音器
+description: 音频混音器参考——总线层级、总线音量、插入效果、侧链闪避、发声数上限、音频混音器面板与项目配置、自定义总线，以及 AudioBus、AudioMixer 与 AudioPool 类。
+---
+
+混音器是一个总线层级：`master → { music, sfx, ui, voice }`。总线音量缩放其下路由的所有声音。每条总线带有一条插入效果链和一条可选的闪避规则。
+
+## 总线
+
+```typescript
+audio.setMasterVolume(0.8);
+audio.setMusicVolume(0.6);
+audio.setSFXVolume(1.0);
+audio.setUIVolume(0.9);
+audio.muteBus('music', true);
+```
+
+- `playSFX` 在 `sfx` 上播放，`playBGM` 在 `music` 上播放。`AudioSource` 在其 `bus` 字段指定的总线上播放；`playTrack` 接受 `bus` 参数。
+- `voice` 没有具名设置方法：使用 `setBusVolume('voice', v)`（接受任意总线名）或 `muteBus('voice', …)`。
+- 默认音量：`music` 为 0.8，其他内置总线为 1。
+
+## 总线效果
+
+每条总线都有一条以数据声明的 DSP 插入链：
+
+```typescript
+audio.setBusEffects('music', [
+  { type: 'filter', filter: 'lowpass', frequency: 800, q: 1 },
+  { type: 'reverb', seconds: 1.5, wet: 0.3 },        // 程序化的房间混响尾音
+  { type: 'compressor', thresholdDb: -24, ratio: 4 },
+]);
+audio.setBusEffects('music', []);   // 清除
+```
+
+## 闪避
+
+闪避规则在一条总线有信号时压低另一条总线，例如在语音播放时压低音乐：
+
+```typescript
+audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, release: 0.4 });
+audio.setBusDucking('music', null);  // 移除
+```
+
+| `BusDuckRule` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `trigger` | — | 其信号触发规则的总线。 |
+| `amount` | — | 触发期间目标总线压低到的增益。 |
+| `attack` | `0.05` | 压低的时间常数（秒）。 |
+| `release` | `0.4` | 恢复到 1 的时间常数（秒）。 |
+| `threshold` | `0.003` | 触发总线被视为活动的 RMS 电平（0–1）。 |
+
+闪避是独立于总线音量的增益级，因此不会与玩家的音量设置冲突。在没有 Web Audio 图的后端（微信）上，`setBusEffects` 与 `setBusDucking` 为空操作，总线音量调用也是如此。
+
+## 发声数上限
+
+默认最多同时播放 **32** 个发声。在 `project.esproject` 中设置 `features.audio.maxVoices` 可修改该值（`0` 表示不限）。达到上限时，优先级最低的发声会被停止，让位给优先级更高的新发声；优先级相同时保留较早的发声；优先级低于所有正在播放发声的新声音不会启动。优先级来自 `AudioSource.priority` 或 `playSFX` 的 `priority` 选项。
+
+## 音频混音器面板
+
+底部停靠区的 **Audio Mixer** 面板用于编辑混音：每条总线一个通道条，包含音量推子、静音、效果链、闪避规则，以及自定义总线。编辑保存在 `project.esproject`（`features.audio`）中并在编辑器中实时生效；Play 与每次导出都以相同的混音启动。
+
+{/* SHOT: assets-audio-mixer-panel | audio-demo example: the Audio Mixer panel open in the bottom dock, showing the master, music, sfx, ui and voice strips with faders, mute buttons and one bus's effect chain */}
+
+## 自定义总线
+
+```typescript
+audio.ensureBus('ambience');                 // 位于 master 之下；幂等
+audio.ensureBus('footsteps', 'sfx');         // 位于已有总线之下
+audio.setBusVolume('ambience', 0.5);
+audio.playTrack('assets/wind.ogg', { bus: 'ambience' });
+```
+
+`ensureBus(name, parent?)` 在总线不存在时创建它（位于 `parent` 之下，默认 `master`），在没有混音图的后端上返回 `false`。之后所有按名称的调用（`setBusVolume`、`muteBus`、`setBusEffects`、`setBusDucking`）都可作用于它。
+
+## 混音器类
+
+`Audio` 是 Web Audio 后端组装的三个导出类的外观：`AudioMixer`、`AudioBus` 与 `AudioPool`。微信与原生后端上不存在这些类。游戏很少直接构造它们；它们公开用于在应用自有的 `AudioContext` 上搭建独立的音频管线（试听工具、自定义 `PlatformAudioBackend`、测试）。
+
+### `AudioBus`
+
+一个混音通道条：`input → [插入效果…] → duck → gain(volume) → parent`。音源与子总线连接到 `input`；`node` 是输出增益，音量与静音作用于它，父总线（或 `AnalyserNode`）也从它连接。
+
+| `AudioBusConfig` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `name` | string | — | 总线名称。 |
+| `volume` | number | `1` | 初始音量，钳制到 0–1。 |
+| `muted` | boolean | `false` | 以静音状态开始。 |
+| `parent` | string | `'master'` | 父总线名称（由 `AudioMixer.createBus` 使用）。 |
+
+| 成员 | 说明 |
+|---|---|
+| `input` / `node` | 入口 `GainNode` / 输出 `GainNode`。 |
+| `volume` | 0–1；变化在约 15 ms 内平滑，避免爆音。 |
+| `muted` | 把输出渐变到 0 再恢复，不改变 `volume`。 |
+| `effects` / `setEffects(defs)` | 读取 / 替换插入链（`BusEffectDef[]`）。 |
+| `duckTo(level, timeConstant)` | 把闪避级渐变到 `level`。 |
+| `connect(dest)` / `addChild(bus)` | 把输出连接到父总线或 `AudioNode`。 |
+
+### `AudioMixer`
+
+拥有总线树。构造函数创建连接到 `context.destination` 的 `master → { music, sfx, ui, voice }`，音量取自 `AudioMixerConfig`（`masterVolume`、`musicVolume`、`sfxVolume`、`uiVolume`、`voiceVolume`；`music` 默认 0.8，其余为 1）：
+
+```typescript
+import { AudioMixer } from 'esengine';
+
+const mixer = new AudioMixer(new AudioContext(), { musicVolume: 0.6 });
+const ambience = mixer.createBus({ name: 'ambience' });   // 位于 master 之下
+```
+
+| 成员 | 说明 |
+|---|---|
+| `master` / `music` / `sfx` / `ui` / `voice` | 内置总线（只读）。 |
+| `getBus(name)` / `busNames()` | 查找总线 / 按创建顺序列出名称，`master` 在前。 |
+| `createBus(config)` | 在 `config.parent`（默认 `master`）下创建并连接总线。 |
+| `setDucking(target, rule \| null)` / `getDucking(target)` | 设置、清除或读取 `BusDuckRule`。 |
+| `updateDucking()` | 每帧调用：测量每个触发总线的 RMS 并渐变其目标的闪避级（音频系统为引擎的混音器调用它）。 |
+
+### `AudioPool`
+
+一次性音效背后的发声池：预先构建的 `gain → panner` 节点对（`PooledAudioNode`），每次播放用 `acquire()` 获取，声音结束时用 `release()` 归还。初始为 16 对，按需增长；`activeCount` 与 `capacity` 报告使用情况。
+
+## 参见
+
+- [音频](/docs/zh-cn/assets/audio/overview/)
+- [音频源与空间音频](/docs/zh-cn/assets/audio/sources/)

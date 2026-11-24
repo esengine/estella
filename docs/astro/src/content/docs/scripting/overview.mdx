@@ -1,26 +1,35 @@
 ---
 title: Scripting
-description: Write per-entity game logic with defineBehavior — one call gives you an editor-tunable component plus a start/update/destroy lifecycle, desugared entirely onto the ECS with no second runtime.
+description: Per-entity game logic with defineBehavior — the generated component and system, the start/update/destroy lifecycle, BehaviorContext, editable state and field metadata, schedule selection, declared access, and when to use a plain system instead.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`defineBehavior` is the authoring sugar for the gameplay loop. One call gives you two
-things at once:
+`defineBehavior` declares per-entity game logic. One call produces:
 
-1. A **component** that holds this behavior's per-entity `state` — attachable to any
-   entity and tunable in the editor's Details panel.
-2. An auto-registered **system** that drives a `start` / `update` / `destroy`
-   lifecycle for every entity carrying that component.
+1. A **component** holding the behaviour's per-entity `state`. It can be attached to any entity and edited in the
+   Details panel.
+2. A registered **system** that runs the `start` / `update` / `destroy` lifecycle for every entity carrying that
+   component.
 
-There is no second scripting runtime: a behavior desugars entirely onto Estella's
-existing [ECS](/docs/core-concepts/ecs/) — the same components, systems, and
-scheduling you already use — so it stays fast and fully inspectable.
+A behaviour is exactly one `defineComponent` plus one `defineSystem` on the [ECS](/docs/core-concepts/ecs/); there is no
+separate scripting runtime.
 
-## Your first behavior
+| Page | Content |
+|---|---|
+| Scripting (this page) | `defineBehavior`. |
+| [Script Modules](/docs/scripting/script-modules/) | The declaration entry, the New Script dialog, npm packages, hot reload. |
+| [Timers & Velocity](/docs/scripting/timers/) | The timer resource and the `Velocity` component. |
+| [Input](/docs/scripting/input/overview/) | Keyboard, mouse, touch, gamepad, input actions. |
+| [Event Binding](/docs/scripting/events/) | Entity events wired to actions as data. |
+| [Saving & Loading](/docs/scripting/save/) | Save slots and key/value storage. |
+| [Networking](/docs/scripting/networking/overview/) | Sockets, replication, servers. |
+| [Math Helpers](/docs/scripting/math/) | Vector, colour, scalar and random helpers. |
 
-`defineBehavior(name, def)` returns the backing component, so you can spawn or insert
-it like any other. The `state` object becomes the component's per-entity data:
+## Defining a behaviour
+
+`defineBehavior(name, def)` returns the backing component, which is spawned or inserted like any other. The `state`
+object becomes the component's per-entity data:
 
 ```typescript
 import { defineBehavior, Transform } from 'esengine';
@@ -35,17 +44,15 @@ export const Patrol = defineBehavior('Patrol', {
 });
 ```
 
-<Aside type="caution">
-  **Engine components come back as a copy.** `ctx.get` hands you the stored object
-  for a *script* component — your own `defineComponent`, and `ctx.self` — so mutating
-  it sticks. `Transform`, `Sprite`, `RigidBody2D` and every other C++-backed component
-  are decoded out of the wasm heap on each read, so `ctx.get(Transform).position.x += …`
-  changes a value nobody keeps, silently. Read it, change it, hand it back with
-  `ctx.set`.
-</Aside>
+| `BehaviorDef` field | Type | Description |
+|---|---|---|
+| `state` | object | Per-entity data and its defaults; becomes the component's fields. |
+| `metadata` | `ComponentMetadata` | Field presentation and component metadata, forwarded to the component ([Editable state](#editable-state)). |
+| `schedule` | `Schedule` | Phase the lifecycle system runs in. Default `Schedule.Update` ([Schedule](#schedule)). |
+| `touches` | `SystemTouches` | Components reached through `ctx.get` / `ctx.set` ([Declaring accessed components](#declaring-accessed-components)). |
+| `start` / `update` / `destroy` | functions | Lifecycle hooks ([Lifecycle](#lifecycle)). |
 
-That single call registers the update system. To put the behavior on an entity, insert
-its component — optionally overriding the starting `state`:
+The behaviour is attached by inserting its component, optionally overriding the initial `state`:
 
 ```typescript
 import { defineSystem, Commands, Transform } from 'esengine';
@@ -53,182 +60,64 @@ import { defineSystem, Commands, Transform } from 'esengine';
 const spawn = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
     .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-    .insert(Patrol, { speed: 120 });   // override the default per instance
+    .insert(Patrol, { speed: 120 });   // per-instance override
 });
 ```
 
-<Aside type="tip">
-  Because a behavior *is* a component, you can also attach it in the editor — drag it
-  onto an entity in the **Details** panel and tune `speed` there. Code and editor are
-  two doors to the same data.
-</Aside>
+In the editor a behaviour is added to an entity through **Details → Add Component** (category **Scripts**), and its `state` fields are edited
+there. A behaviour appears in the editor only when it is reachable from the project's declaration entry
+([Script Modules](/docs/scripting/script-modules/#declaration-entry)).
 
-## Where declarations live
+## Lifecycle
 
-The editor knows about your components without ever running your game: it evaluates
-**one entry module** and reads back whatever declared itself. That entry is
-`src/components.ts` by default — the manifest's `scripts.register`, if you want it
-somewhere else.
-
-The rule is *reachability*, not location. `defineBehavior` and `defineComponent`
-register when the call runs, so a module nobody imports never registers anything.
-Spread declarations across as many files as you like and pull them in from the entry:
-
-```typescript
-// src/components.ts — the editor's view of your project
-export * from './behaviors/patrol';
-export * from './components/health';
-```
-
-A behavior the entry cannot reach still *works at runtime*, because the game starts
-from `src/main.ts` — which is exactly what makes this confusing. What you lose is the
-editor: no fields in the Details panel (the component round-trips but shows as
-unknown), no entry under **Scripts** in the Create-entity popover, and no
-`registerAction` / `registerCondition` names in the behavior-tree and event-binding
-palettes.
-
-<Aside type="caution">
-  The entry and everything it imports must be **pure declarations**. The editor
-  evaluates that module graph in an isolated context with no engine and no wasm —
-  systems are queued, never run. Startup side effects belong in `src/main.ts`; keep
-  the two entries separate rather than pointing `scripts.register` at your `main.ts`.
-</Aside>
-
-Saving any file under `src/` re-extracts, so new fields appear in the Details panel a
-moment after you save. If a component never shows up, look at
-`.esengine/cache/schemas.json`: absent there means it was never reached; present there
-but missing in the inspector is a different problem.
-
-### The New Script dialog
-
-Because reachability is the rule, a hand-created `.ts` file is dead until an entry
-imports it. **Content Browser → create menu → New Script…** writes both halves.
-
-Pick what the module **is**, and the editor knows which entry to wire it into — the
-distinction is your project's architecture, not a menu convenience:
-
-| Kind | What it is | Where it lands |
-|---|---|---|
-| **Component** | a declaration the editor reads without running the game | re-exported from the declaration entry — `export * from './Health';` |
-| **System** | behavior the play realm bundles and runs | imported by the startup entry for its registration side effect — `import './Patrol';` |
-
-The dialog shows the module path it will write and the exact line the entry gains,
-before the file exists. A few things worth knowing:
-
-- **The name is asked for up front**, not left to inline rename, because a script's
-  name is not only its file name — it is the exported identifier and the string every
-  scene serializes. It must be a plain JS identifier.
-- **The entries come from the manifest** (`scripts.register` / `scripts.main`), so a
-  project that moved them is wired at its own pair, not at the conventional one.
-- **The file lands in the folder you're browsing** when that folder is inside the
-  source root, and in the source root otherwise — creating "here" under `assets/`
-  would hand back a module neither entry can reach, which is the failure this exists
-  to prevent.
-- **A component is in Add Component the moment the dialog closes** — creating
-  re-extracts the schemas rather than waiting on the file watcher. The new file is
-  revealed in the Content Browser, not opened: the editor has no code editor of its
-  own.
-
-## Using an npm package
-
-Your scripts are bundled with esbuild, and it resolves dependencies out of the
-project's own `node_modules` — so a library is an ordinary install:
-
-```bash
-cd my-game
-npm install protobufjs
-```
-
-```typescript
-import { Writer, Reader } from 'protobufjs/minimal';
-
-const packet = Writer.create().uint32(42).string('hello').finish();
-```
-
-It ships with the game on **every target** — the web and desktop builds, the
-mini-game package (down-levelled to the syntax that host accepts), the native
-content payload, and the editor's own Play realm. There is no separate step and
-no per-platform configuration: what you import is what gets bundled.
-
-New projects come with a `package.json`. An older project made before that may
-not have one — `npm init -y` once, and it works the same afterwards.
-
-### What cannot come along
-
-**Anything that needs Node.** A game runs in a browser or a mini-game host,
-neither of which has `fs`, `crypto`, `path` or the rest, so a package that
-reaches for one fails the build rather than shipping broken:
-
-```
-Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
-built-in, and a game does not run in Node…
-```
-
-If the import is yours, reach for a web API (`crypto.subtle`, `fetch`,
-`localStorage`) or the engine's own equivalent — [Assets](/docs/assets/overview/) for
-files, [Save & Load](/docs/scripting/save/) for player data, both of which work
-everywhere. If a *dependency* is the one reaching, the fix is on the package:
-many publish a browser-safe entry point — `protobufjs/minimal` above is exactly
-that — and some ship a `browser` field that esbuild picks up on its own.
-
-**And it costs package size.** A dependency is bundled whole, which matters most
-where the limit is hardest: WeChat caps a mini-game's main package at 4MB. After
-a build, the [size report](/docs/publishing/overview/#package-size) breaks the package
-down — a library that grew shows up under **Scripts**.
-
-<Aside type="tip">
-  Prefer packages that say they work in browsers. A library written for Node will
-  either fail the build outright (which is fine — you find out immediately) or
-  pull in a polyfill big enough to be its own problem on a 4MB budget.
-</Aside>
-
-## The lifecycle
-
-Each hook is optional; define only the ones you need.
+Each hook is optional.
 
 | Hook | When it runs |
 |---|---|
-| `start(ctx)` | Once, the frame the behavior's component first appears on an entity. |
-| `update(ctx, dt)` | Every frame, for each entity carrying the behavior. `dt` is the frame delta in seconds (same as `ctx.time.delta`). |
-| `destroy(ctx)` | Once when the component is removed **or** the entity is despawned. |
+| `start(ctx)` | Once, in the frame the behaviour's component first appears on an entity. |
+| `update(ctx, dt)` | Every frame, for each entity carrying the behaviour. `dt` is the frame delta in seconds (equal to `ctx.time.delta`). |
+| `destroy(ctx)` | Once, when the component is removed **or** the entity is despawned. |
 
 ```typescript
 export const Enemy = defineBehavior('Enemy', {
   state: { hp: 100 },
   start(ctx) {
-    // one-time setup: seed state, cache lookups, spawn a health bar…
+    // one-time setup: initialize state, cache lookups, spawn a health bar
   },
   update(ctx, dt) {
     if (ctx.self.hp <= 0) ctx.commands.despawn(ctx.entity);
   },
   destroy(ctx) {
-    // teardown: runs whether the entity was killed or the component was detached
+    // runs whether the entity was despawned or the component was removed
   },
 });
 ```
 
-<Aside type="note">
-  `destroy` is driven by entity **presence**, not a per-frame flag: it fires the frame
-  an entity drops out of the behavior's query, whichever system removed it and in
-  whatever order. That makes cleanup order-independent and reliable.
-</Aside>
+`destroy` is driven by the entity's **presence** in the behaviour's query: it runs in the frame an entity leaves the
+query, regardless of which system removed it or in what order.
 
 ## The context
 
-Every hook receives a `BehaviorContext` — the handle to the entity it runs for and to
-the world around it:
+Every hook receives a `BehaviorContext` for the entity it runs on:
 
 | Member | Type | Description |
 |---|---|---|
-| `ctx.self` | `S` | This behavior's own `state`. **Mutate it freely — changes persist.** |
+| `ctx.self` | `S` | The behaviour's own `state`. Mutations persist. |
 | `ctx.entity` | `Entity` | The entity this instance is attached to. |
 | `ctx.time` | `TimeData` | Frame timing: `delta`, `elapsed`, `frameCount`, `fixedDelta`. |
-| `ctx.input` | `InputState` | Keyboard / mouse / touch / gamepad (see [Input](/docs/scripting/input/)). |
-| `ctx.commands` | `Commands` | Deferred spawn / despawn / insert — safe to call mid-update. |
-| `ctx.world` | `World` | Full world access for cross-entity reads and writes. |
-| `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
-| `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
+| `ctx.input` | `InputState` | Keyboard, mouse, touch and gamepad ([Input](/docs/scripting/input/overview/)). |
+| `ctx.commands` | `Commands` | Deferred spawn, despawn and insert; safe during iteration. |
+| `ctx.world` | `World` | The world, for access to other entities. |
+| `ctx.get(Comp)` | `ComponentData` | Reads another component on **this** entity. |
+| `ctx.set(Comp, data)` | `void` | Writes a component on **this** entity. |
 | `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
+
+<Aside type="caution">
+  **Engine components are returned as copies.** For a script component (a `defineComponent`, and `ctx.self`),
+  `ctx.get` returns the stored object, so mutating it persists. `Transform`, `Sprite`, `RigidBody2D` and every other
+  C++-backed component are decoded from the WebAssembly heap on each read; mutating the result has no effect. Read
+  the value, change it, and write it back with `ctx.set`.
+</Aside>
 
 ```typescript
 import { defineBehavior, Transform } from 'esengine';
@@ -241,23 +130,23 @@ export const PlayerController = defineBehavior('PlayerController', {
     if (move !== 0) {
       const t = ctx.get(Transform);                // a copy — Transform is C++-backed
       t.position.x += move * ctx.self.speed * dt;
-      ctx.set(Transform, t);                       // …so hand it back
+      ctx.set(Transform, t);                       // written back
     }
   },
 });
 ```
 
 <Aside type="caution">
-  The `ctx` object is **reused** across entities and frames for zero per-entity
-  allocation. Read from it inside the hook, but never stash it (or its
-  `self`/`time`/`input`) in a closure or array to use later — copy the values you need.
+  The `ctx` object is **reused** across entities and frames. It is valid only during the hook call; storing it, or
+  its `self`, `time` or `input`, in a closure or collection for later use reads another entity's data. Copy the values
+  needed instead.
 </Aside>
 
-## Editable state & metadata
+## Editable state
 
-The `state` object defines the component's fields and their defaults. Pass `metadata`
-to control how those fields present in the editor — ranges, steps, units, enums — the
-same field metadata any [component](/docs/core-concepts/components/) uses:
+The `state` object defines the component's fields and defaults. `metadata` controls their presentation in the Details
+panel — ranges, steps, units, enums, categories — with the same field metadata as any
+[component](/docs/core-concepts/components/#field-metadata):
 
 ```typescript
 export const Turret = defineBehavior('Turret', {
@@ -272,14 +161,12 @@ export const Turret = defineBehavior('Turret', {
 });
 ```
 
-Because the state is a real serialized component, per-entity overrides are saved with
-the scene and edited live in the Details panel.
+The state is a serialized component: per-entity values are saved with the scene and edited live in the Details panel.
 
-## Choosing a schedule
+## Schedule
 
-By default the lifecycle system runs in `Schedule.Update`, once per frame. Pass a
-different `schedule` to run elsewhere in the frame — for example
-`Schedule.FixedUpdate` to advance in lockstep with physics:
+The lifecycle system runs in `Schedule.Update`, once per frame, by default. `schedule` selects another phase, for
+example `Schedule.FixedUpdate` to step with physics:
 
 ```typescript
 import { defineBehavior, Schedule } from 'esengine';
@@ -288,19 +175,20 @@ export const Thruster = defineBehavior('Thruster', {
   schedule: Schedule.FixedUpdate,
   state: { force: 500 },
   update(ctx) {
-    // fixed cadence — read ctx.time.fixedDelta for the fixed step
+    // fixed cadence; ctx.time.fixedDelta is the fixed step
   },
 });
 ```
 
-Available phases include `Startup`, `First`, `PreUpdate`, `Update`, `PostUpdate`, `Last`, and
-the fixed trio `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`.
+Available phases: `Startup`, `First`, `PreUpdate`, `Update`, `PostUpdate`, `Last`, and `FixedPreUpdate` /
+`FixedUpdate` / `FixedPostUpdate` ([Schedules](/docs/core-concepts/systems/#schedules)).
 
-### Declaring what you touch
+### Declaring accessed components
 
-A behavior reaches other components through `ctx.get` / `ctx.set`, which the scheduler
-cannot see. Left undeclared, it is treated as opaque and conflicts with every other
-system. Pass `touches` (component names) so it can be ordered and parallelised:
+Components reached through `ctx.get` / `ctx.set` are not visible to the scheduler. Without a declaration the behaviour
+is treated as opaque and conflicts with every other system. `touches` names them so the behaviour can be ordered and
+run alongside other systems ([Declared access](/docs/core-concepts/systems/#declared-access)); the behaviour's own state
+component is already declared:
 
 ```typescript
 export const Drifter = defineBehavior('Drifter', {
@@ -310,88 +198,17 @@ export const Drifter = defineBehavior('Drifter', {
 });
 ```
 
-## Timers
+## Behaviours and systems
 
-For "in 2 seconds…" / "every 0.5 s…" logic, the built-in **timer** resource beats
-hand-rolled elapsed-time bookkeeping. It ticks with the engine loop (so it pauses
-with the game, unlike `setTimeout`):
+`defineBehavior` suits logic that is naturally **per entity**: a patrol, a projectile, a pickup. A plain
+[system](/docs/core-concepts/systems/) suits processing a whole query at once or coordinating several entities.
 
-```typescript
-import { defineSystem, Res, TimerRes } from 'esengine';
-
-const arm = defineSystem([Res(TimerRes)], (timers) => {
-  timers.delay(2, () => explode());                  // once, in 2 s
-  const h = timers.interval(0.5, (t) => spawnWave()); // repeating
-  timers.interval(1, (t) => tick(), 3);               // exactly 3 times
-  h.pause(); h.resume(); h.cancel(); h.reset();       // handle controls
-});
-```
-
-| Member | Description |
-|---|---|
-| `delay(seconds, cb)` | Run once after `seconds`; returns a `TimerHandle`. |
-| `interval(seconds, cb, maxRepeat?)` | Run every `seconds`; `maxRepeat` `0` = forever. |
-| handle `pause()` / `resume()` / `cancel()` / `reset()` | Control one timer (chainable). |
-| handle `isActive` / `elapsed` / `repeatCount` | Inspect it. |
-| `cancelAll()` · `activeCount` | Manage the whole set. |
-| `timeScale` | Slow / speed every timer at once (`0` freezes). |
-
-Timers advance in play mode only — in the editor's edit mode they hold, like the
-rest of game time.
-
-## Constant motion: the Velocity component
-
-For "just keep moving" motion — projectiles, drifting debris, spinners — attach the
-builtin `Velocity` component instead of writing a movement system. The engine
-integrates it into `Transform` every update in play mode:
-
-```typescript
-import { Velocity, Transform, Sprite } from 'esengine';
-
-const bullet = world.spawn();
-world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
-world.insert(bullet, Sprite, { texture: bulletTex });
-world.insert(bullet, Velocity, {
-  linear: { x: 240, y: 0, z: 0 },          // units per second
-  angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
-});
-```
-
-Entities with a `RigidBody2D` are skipped — the physics solver owns their transform,
-so the two never fight over one entity. `Velocity` is also replication-aware: its
-fields are replicated, so networked clients can dead-reckon between snapshots.
-
-## How it fits together
-
-A behavior is not a special case — it compiles to exactly one `defineComponent` plus
-one `defineSystem`. Reach for `defineBehavior` when your logic is naturally
-*per-entity* (a patrol, a projectile, a pickup); reach for a plain
-[system](/docs/core-concepts/systems/) when you're processing a whole query at once or
-coordinating across entities.
-
-The hook signature — `entity`, `world`, `commands`, plus `self` — is also the same
-programming model used by the [Gameplay AI](/docs/gameplay/ai/overview/) layer's actions and
-behavior-tree leaves, so moving logic between a behavior and an AI action is
-straightforward.
-
-## Hot reload
-
-While the editor plays, saving your code triggers a **state-preserving hot
-swap** when it can: if your components' shapes are unchanged and no system was
-added, removed, or renamed, the live world is kept and only your function
-bodies are replaced. Otherwise the editor falls back to a full reload. What
-that asks of your code:
-
-- **Component and behavior names are identity.** Renaming one is a structural
-  change — expect a full reload and fresh state for that data.
-- On any reload, per-entity `start` runs again for live entities — matching
-  Estella's fast-restart semantics, so treat `start` as idempotent setup.
-
-The mechanism (probe context, schema fingerprint, `App.hotSwapSystems`) is
-documented in [App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#hot-reload).
+The hook context — `entity`, `world`, `commands` and `self` — is the same programming model used by the
+[Gameplay AI](/docs/gameplay/ai/overview/) actions and behaviour-tree leaves, so logic moves between a behaviour and an
+AI action without restructuring.
 
 ## See also
 
-- [Systems](/docs/core-concepts/systems/) — the full query vocabulary, filters, and schedules.
-- [ECS Architecture](/docs/core-concepts/ecs/) — entities, components, and how systems iterate them.
-- [Input](/docs/scripting/input/) — read keyboard, pointer, and gestures from a system.
+- [Systems](/docs/core-concepts/systems/) — query vocabulary, filters and schedules.
+- [ECS Architecture](/docs/core-concepts/ecs/) — entities, components and systems.
+- [Input](/docs/scripting/input/overview/) — keyboard, pointer and gestures.

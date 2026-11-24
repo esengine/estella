@@ -1,0 +1,128 @@
+---
+title: 近战与命中盒
+description: 3D 战斗参考——由动画事件驱动的 MeleeAttack、有效帧扫掠、Damage 事件总线与 Health，以及让射线识别所命中骨骼的 Hitboxes。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+战斗把三件事分开：**动画事件**指出挥击何时到达有效时刻，**物理世界**指出攻击范围内有什么，**玩法**决定命中产生什么结果。`MeleeAttack` 连接前两者；`Health` 与 `Damage` 总线实现第三者。它们都位于 `esengine/gameplay`。
+
+## `MeleeAttack`
+
+`MeleeAttack` 与 `Animator` 放在一起，后者的攻击片段以 `customEvent` 事件声明各个节拍。
+
+```typescript
+import { MeleeAttack, Health } from 'esengine/gameplay';
+
+world.insert(player, MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+world.insert(dummy, Health, { current: 100, max: 100 });
+```
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `radius` | `60` | 命中检测所用球体的半径，世界单位。 |
+| `damage` | `25` | 一次命中造成的伤害。 |
+| `layers` | `0` | 挥击可触及的物理层掩码；`0` 为所有层。 |
+| `anchor` | `0` | 查询以其**世界**位姿为中心的实体。 |
+| `enabled` | `true` | 为 `false` 时禁用攻击。 |
+| `attackId` | `0` | 引擎写入：当前进行中的挥击，没有时为 `0`。 |
+| `hitCount` | `0` | 引擎写入：当前挥击已命中的目标数。 |
+
+<Aside type="caution">
+  `anchor` 应是挂在动画关节下的插槽实体，而不是角色本身。以角色为中心时，查询从脚部计算攻击距离，与动画无关。查询前会先组合锚点的世界位姿，因此查询使用的是当前帧的动画姿态。
+</Aside>
+
+{/* SHOT: gameplay-melee-attack-details | third-person-3d example, arena scene: the Player entity selected, Details panel showing the Melee Attack card with radius, damage and anchor */}
+
+### 动画事件
+
+| 事件名 | 形式 | 含义 |
+|---|---|---|
+| `attack-start` | 事件 | 挥击开始。 |
+| `hit` | 事件 | 在锚点处检测半径为 `radius` 的球体。 |
+| `attack-end` | 事件 | 挥击结束。 |
+| `attack-active` | 窗口（带 `duration` 的事件） | 有效帧：窗口打开期间，挥击扫掠锚点的运动路径。 |
+| `combo` | 窗口 | 可接续下一段连招的区间：带 `{ param: 'combo', op: 'window' }` 的动画器转移只在其中衔接。 |
+
+这些名称以 `COMBAT_ATTACK_START`、`COMBAT_HIT`、`COMBAT_ATTACK_END`、`COMBAT_ATTACK_ACTIVE` 与 `COMBAT_COMBO_WINDOW` 导出。
+
+一次挥击是一个实例，拥有自己的 id 与已命中实体集合：一次挥击对每个目标只命中一次，下一次挥击可再次命中。因此一个命中窗口可以包含多个 `hit` 事件，而不会重复造成伤害。
+
+### 有效帧
+
+刀刃在一帧内的移动距离可能超过其攻击范围，从而在两次 `hit` 检测之间穿过目标。`attack-active` 窗口声明挥击可以命中的帧：
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+窗口打开期间，挥击扫掠锚点自上一帧以来经过的路径：沿上一帧与当前帧锚点位置之间的线段放置半径为 `radius` 的球体，间距不超过半径的一半。窗口打开即挥击开始；窗口关闭，或在关闭前离开该片段（例如取消为闪避）即挥击结束。无论目标在范围内停留多久，挥击对其只命中一次。连招中的两段攻击即使窗口相接也是两次挥击。同时声明 `attack-start` 的片段只产生一次挥击，而不是两次。
+
+## 伤害与 `Health`
+
+挥击不会写入 `Health`。命中会以事件形式发送到 `Damage` 总线，并由唯一的系统响应，因此 `Health` 只有一个写入者，护甲、无敌等规则只有一个插入位置。
+
+| `DamagePayload` 字段 | 说明 |
+|---|---|
+| `target` | 被命中的实体。 |
+| `source` | 造成伤害的实体。 |
+| `amount` | 伤害量。 |
+| `x`、`y`、`z` | 命中点，世界空间。 |
+
+该总线为双缓冲：本帧发送的伤害在下一帧生效。指向没有 `Health` 的实体或 `current` 已为 0 的实体的伤害不会生效。表现层系统读取同一总线：
+
+```typescript
+import { defineSystem, EventReader, GetWorld, Res, Children, ParticleEmitter, Particle } from 'esengine';
+import { Damage } from 'esengine/gameplay';
+
+const hitSparks = defineSystem(
+  [EventReader(Damage), GetWorld(), Res(Particle)],
+  (blows, world, particles) => {
+    for (const blow of blows) {
+      if (!world.has(blow.target, Children)) continue;
+      for (const child of world.get(blow.target, Children).entities) {
+        if (world.has(child, ParticleEmitter)) particles.play(child);
+      }
+    }
+  },
+  { name: 'HitSparkSystem' },
+);
+```
+
+| `Health` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `current` | `100` | 剩余生命值。 |
+| `max` | `100` | 满生命值。 |
+
+`Health` 同时决定实体是否可受伤：物理查询返回碰撞体（地面也是其中之一），只有带 `Health` 的实体会受到伤害。自身与已命中的目标由挥击排除。`restoreToFull(world, entity)` 将 `current` 恢复为 `max`（用于重生）；`applyDamage(world, blows)` 是伤害系统执行的函数。
+
+## 命中盒
+
+角色的胶囊是一个形状，因此命中它的射击无法区分头部与靴子。`Hitboxes` 为每根足够长的骨骼沿骨骼方向生成一个盒体，尺寸与其布娃娃刚体相同：这是一个每帧移动到动画所放骨骼位置的运动学刚体，同时是传感器，因此任何物体（包括所属角色）都不会撞上或推动它。射线随后命中骨骼，`hitPartOf` 报告该骨骼属于谁。
+
+```typescript
+import { Hitboxes, hitPartOf } from 'esengine/physics3d';
+
+world.insert(soldier, Hitboxes, { layer: HITBOXES });
+// a shot:
+const hit = physics.raycast(muzzle, aim, WORLD | HITBOXES_MASK);
+const part = hit && hitPartOf(world, hit.entity);   // { character, bone: 'head' }
+const damage = part?.bone.toLowerCase().includes('head') ? 100 : 34;
+```
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `skin` | `0` | 其骨骼获得盒体的蒙皮网格；`0` 查找本实体或其下的第一个。 |
+| `thickness` | `0.25` | 盒体厚度占骨骼长度的比例。 |
+| `minBoneLength` | `5` | 短于该长度（世界单位）的骨骼不生成盒体；其几何归属父骨骼的盒体。 |
+| `layer` | `0` | 盒体所在的碰撞层，使射击可以包含它们，视线检测可以排除它们。 |
+| `enabled` | `true` | 为 `false` 时移除盒体。 |
+
+`hitPartOf(world, entity)` 对 `Hitboxes` 或 `Ragdoll` 角色下的骨骼实体返回 `{ character, bone }`，否则返回 `null`。角色的 `Ragdoll` 处于激活状态时，其骨骼自身就是刚体，同样会被射线命中；此时盒体让位于它们，角色站起后再恢复。各部位的价值由游戏逻辑决定。
+
+## 另请参阅
+
+- [角色](/docs/zh-cn/gameplay/physics-3d/characters/)——`ThirdPersonController` 设置 `attack` 触发器。
+- [Hunter](/docs/zh-cn/gameplay/ai/hunter/)——通过 `MeleeAttack` 攻击的敌人。
+- [布娃娃](/docs/zh-cn/gameplay/physics-3d/ragdolls/)——瘫软期间替代命中盒的骨骼刚体。
+- [动画事件](/docs/zh-cn/animation/animator-events/)——在片段上声明 `customEvent` 事件。

@@ -1,0 +1,60 @@
+---
+title: Shaders, Redraw & Power
+description: Delivery settings that apply at every quality level — background shader compilation and warm-up, render on demand with RenderDemand, and power saving on low battery or thermal pressure.
+---
+
+These settings are on the same Project Settings page as the quality levels but apply whatever the level, **Off**
+included. They are saved under `features.rendering.quality`.
+
+![Project Settings, Rendering page: the Shader Compilation, Render on Demand, Power Saving and Antialiasing groups](@/assets/guides/en/settings-shader-compilation.png)
+
+## Shader compilation and render on demand
+
+### Shader Compilation
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Compile shaders in the background** | `asyncShaderCompile` | Default | **Default** enables background compilation in Web exports and editor Play, and disables it for other export targets. **On** or **Off** overrides it for all targets. With `KHR_parallel_shader_compile`, materials appear as their programs become ready; browsers without the extension compile synchronously. |
+| **Warm up behind the loading screen** | `prewarmShaders` | off | Draws the first scene behind the loading screen while its shaders compile, so it appears complete. Available when background compilation is **Default** or **On**. |
+| **Warm-up timeout** | `prewarmTimeoutMs` | 30 s | Longest the loading screen waits before opening. Shown once warm-up is on. |
+
+### Render on Demand
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Draw only changing frames** | `renderOnDemand` | off | A still screen costs only the game's logic. A frame is drawn when something requests it, the player provides input, the surface is resized, entities are created or destroyed, or shaders are still compiling. |
+| **Frames kept after a change** | `renderOnDemandTail` | 30 | Frames still drawn after the last reason to draw, so fades and settling motion complete. |
+
+The engine does not detect changes a script makes on its own (a colour, an animation). Request a frame with
+`RenderDemand.request()`, or hold drawing on with `RenderDemand.hold()`, which returns a function that releases the hold,
+for something that moves by itself. Without either, such a change is not drawn until something else causes a frame. This
+is why the setting is opt-in.
+
+## Power saving
+
+**Save power when the battery is low or the device is hot** (`QualityConfig.power`, off by default) makes the engine
+check the device every few seconds. While saving, it lowers the frame cap and caps the quality level; when the device
+recovers it restores both. With the setting off, the device is not checked.
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Battery below** | `lowBattery` | 20% | Saves while the battery is below this share and not charging; `0` never saves for the battery. |
+| **Thermal pressure** | `thermal` | Serious | Saves when the platform reports this thermal level or worse: Serious, Critical or Never. |
+| **Frame cap while saving** | `fps` | 30 | Frames per second while saving. A lower cap the game already set is kept. |
+| **Level ceiling while saving** | `ceiling` | Medium | No level above this while saving; a lower level is left unchanged. |
+
+- At **Critical** thermal pressure the frame cap is halved (never below 15) and the level is held at Low;
+  `severe: 'never'` disables this step.
+- A signal the platform does not report never triggers saving. A browser without the Battery API never saves for the
+  battery, and most browsers report no thermal state (Chromium reports battery and processor pressure; the WeChat
+  mini-game platform reports the battery).
+- `Device.power()` returns the same values (`level`, `charging`, `thermal`, each `null` where the platform does not
+  report it). The `Quality` report lists `power-saver` among its limitations while it is holding the level down.
+- The frame cap is restored only if the game has not changed it since.
+
+For a still screen (a menu, a card table), [render on demand](#render-on-demand) saves more by drawing nothing.
+
+## See also
+
+- [Quality Levels](/docs/performance/quality-levels/overview/)
+- [Editor Settings](/docs/editor/settings/)

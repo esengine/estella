@@ -25,12 +25,12 @@ A Canvas entity carries `Transform`, `Canvas` and `UINode` (the root layout box)
 | **Pixels Per Unit** | `100` | Physics scale (pixels per metre); no effect on rendering. |
 
 Scale modes and design resolution are shared with the camera fit and are specified with worked values in
-[Screen & Design Resolution](/docs/core-concepts/screen/). Layout guidelines:
+[Screen & Design Resolution](/docs/core-concepts/screen/overview/). Layout guidelines:
 
 - Sizes and offsets are in design pixels and independent of the output resolution.
 - Use anchors and `percent` sizes for elements that must track screen edges ([Layout](/docs/ui/layout/)).
 - Validate other aspect ratios with the device menu in the scene view toolbar and with
-  [screen presets](/docs/core-concepts/screen/).
+  [screen presets](/docs/core-concepts/screen/overview/).
 
 ## Design frame
 
@@ -79,6 +79,6 @@ world.insert(hud, UINode, {});
 
 ## See also
 
-- [Screen & Design Resolution](/docs/core-concepts/screen/)
+- [Screen & Design Resolution](/docs/core-concepts/screen/overview/)
 - [Layout](/docs/ui/layout/)
 - [Your First Screen](/docs/ui/first-screen/)

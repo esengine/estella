@@ -1,0 +1,104 @@
+---
+title: 脚本模块
+description: 项目脚本的组织与打包方式——编辑器读取的声明入口、启动入口、新建脚本对话框、npm 依赖及其限制，以及运行期间的热重载。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+项目的 TypeScript 位于其源码根目录（默认 `src/`）下，由 esbuild 打包。两个入口模块承担不同职责：
+
+| 入口 | 清单键 | 默认值 | 职责 |
+|---|---|---|---|
+| 声明入口 | `scripts.register` | `src/components.ts` | 由编辑器求值，用于发现组件、behavior、动作与条件。只能包含声明。 |
+| 启动入口 | `scripts.main` | `src/main.ts` | 运行时游戏的启动位置。承载启动副作用，并导入需要注册的系统。 |
+
+## 声明入口
+
+编辑器在不运行游戏的情况下发现项目组件：它求值**一个入口模块**——即声明入口——并读回所有完成自注册的内容。
+
+注册发生在 `defineBehavior`、`defineComponent`、`registerAction` 或 `registerCondition` 执行时，因此未被导入的模块不会注册任何内容。声明可分布在任意数量的文件中，前提是声明入口能够到达它们：
+
+```typescript
+// src/components.ts — the editor's view of the project
+export * from './behaviors/patrol';
+export * from './components/health';
+```
+
+声明入口未到达的声明在运行时仍然有效，因为游戏从启动入口开始运行。但它在编辑器中缺失：
+
+- 其字段不在细节面板中显示（组件在场景文件中保留，但显示为未知组件）；
+- 在添加组件和创建实体弹窗的 **Scripts** 下没有对应条目；
+- 其 `registerAction` / `registerCondition` 名称不出现在行为树与事件绑定的候选列表中。
+
+{/* SHOT: script-add-component-scripts | examples/ecs-basics，选中 Camera 实体并打开细节面板 → 添加组件；Scripts 类别列出 src/components.ts 中声明的项目组件 Mover、Lifetime、Spawner 与 Bouncer。 */}
+
+<Aside type="caution">
+  声明入口及其导入的全部模块必须是**纯声明**。编辑器在一个没有引擎、没有 WebAssembly 的隔离上下文中求值该模块图；系统会入队但从不运行。启动副作用应放在启动入口中。`scripts.register` 不得指向启动入口。
+</Aside>
+
+保存源码根目录下的任意文件都会重新提取声明，新字段随后很快出现在细节面板中。提取结果写入 `.esengine/cache/schemas.json`：该文件中缺失的组件表示未从声明入口到达；该文件中存在但细节面板中缺失的组件则说明是另一类问题。
+
+## 新建脚本对话框
+
+手动创建的 `.ts` 文件在被某个入口导入之前不起作用。**内容浏览器 → 创建菜单 → 新建脚本…** 同时创建模块和导入。所选类型决定模块接入哪个入口：
+
+{/* SHOT: script-new-script-dialog | examples/ecs-basics，内容浏览器打开 src/，创建菜单 → 新建脚本…；对话框显示名称字段、Component/System 选项、将写入的模块路径以及入口将新增的那一行。 */}
+
+| 类型 | 模块职责 | 接入方式 |
+|---|---|---|
+| **Component** | 编辑器无需运行游戏即可读取的声明。 | 从声明入口重新导出：`export * from './Health';` |
+| **System** | 在运行域中打包并运行的行为。 | 由启动入口导入以执行其注册副作用：`import './Patrol';` |
+
+对话框在创建文件之前显示模块路径以及入口将新增的确切代码行。
+
+| 方面 | 行为 |
+|---|---|
+| 名称 | 在对话框中输入。它同时是文件名、导出标识符以及场景序列化的字符串，因此必须是普通的 JavaScript 标识符。 |
+| 入口 | 取自清单（`scripts.register` / `scripts.main`），因此移动过入口的项目会接入其自身的那一对入口。 |
+| 位置 | 当前浏览的文件夹位于源码根目录内时使用该文件夹，否则使用源码根目录。源码根目录之外的模块（例如 `assets/` 下）无法从任一入口到达。 |
+| 可用性 | 对话框关闭后组件即出现在添加组件中；schema 会立即重新提取。新文件在内容浏览器中定位显示，而不会被打开；编辑器不含代码编辑器。 |
+
+## npm 包
+
+脚本由 esbuild 打包，依赖从项目自身的 `node_modules` 中解析。库通过常规安装添加：
+
+```bash
+cd my-game
+npm install protobufjs
+```
+
+```typescript
+import { Writer, Reader } from 'protobufjs/minimal';
+
+const packet = Writer.create().uint32(42).string('hello').finish();
+```
+
+导入的包会针对**所有目标**打包：Web 与桌面构建、小游戏包（降级到该宿主接受的语法）、原生内容载荷，以及编辑器的运行域。无需按平台配置。
+
+新项目自带 `package.json`。在此之前创建的项目需执行一次 `npm init -y`。
+
+### 限制
+
+**Node 内置模块不可用。** 游戏运行在浏览器或小游戏宿主中，两者都不提供 `fs`、`crypto`、`path` 或其他 Node 模块。导入此类模块的包会导致构建失败：
+
+```
+Could not resolve "crypto" (imported by src/net/sign.ts). "crypto" is a Node
+built-in, and a game does not run in Node…
+```
+
+项目代码应改用 Web API（`crypto.subtle`、`fetch`、`localStorage`）或引擎的对应功能——文件使用[资源](/docs/zh-cn/assets/overview/)，玩家数据使用[存档与读档](/docs/zh-cn/scripting/save/)。当依赖导入 Node 内置模块时，如该包提供浏览器安全的入口则使用该入口（上文的 `protobufjs/minimal` 即是一例）；esbuild 会自动采用包的 `browser` 字段。
+
+**依赖会增加包体。** 依赖会被整体打包。微信将小游戏主包限制为 4 MB。构建完成后，[体积报告](/docs/zh-cn/publishing/package-size/)列出包内容；库代码归在 **Scripts** 下。
+
+<Aside type="tip">
+  优先选用标明兼容浏览器的包。为 Node 编写的库要么导致构建失败，要么引入体积足以影响 4 MB 预算的 polyfill。
+</Aside>
+
+## 热重载
+
+编辑器运行时，保存代码会在可能的情况下触发**保留状态的热替换**：若组件的结构未变，且没有系统被添加、删除或重命名，则保留实时世界，仅替换函数体。否则编辑器执行完整重载。对项目代码的要求：
+
+- **组件与 behavior 的名称即身份。** 重命名属于结构性变更：触发完整重载，相关数据的状态重新初始化。
+- **任何重载之后，`start` 都会对存活实体再次运行。** `start` 应写成幂等的初始化。
+
+其机制（探测上下文、schema 指纹、`App.hotSwapSystems`）见[生命周期与状态](/docs/zh-cn/core-concepts/app/lifecycle/#热重载)。

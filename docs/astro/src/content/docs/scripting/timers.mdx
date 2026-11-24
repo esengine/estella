@@ -1,0 +1,67 @@
+---
+title: Timers & Velocity
+description: The TimerRes resource for delayed and repeating callbacks driven by game time, and the Velocity component for constant linear and angular motion without a physics body.
+---
+
+## Timers
+
+The **`TimerRes`** resource runs callbacks after a delay or at an interval. Timers advance with game time — the timer
+system runs in `PreUpdate` on the frame delta — so they stop while the game is paused, unlike `setTimeout`.
+
+```typescript
+import { defineSystem, Res, TimerRes } from 'esengine';
+
+const arm = defineSystem([Res(TimerRes)], (timers) => {
+  timers.delay(2, () => explode());                    // once, after 2 s
+  const h = timers.interval(0.5, (t) => spawnWave());  // repeating
+  timers.interval(1, (t) => tick(), 3);                // exactly 3 times
+  h.pause(); h.resume(); h.reset(); h.cancel();        // handle controls
+});
+```
+
+| `TimerRes` member | Description |
+|---|---|
+| `delay(seconds, cb)` | Runs `cb` once after `seconds`. Returns a `TimerHandle`. |
+| `interval(seconds, cb, maxRepeat?)` | Runs `cb` every `seconds`. `maxRepeat` `0` (default) repeats indefinitely. Returns a `TimerHandle`. |
+| `cancelAll()` | Cancels every timer. |
+| `activeCount` | Number of active timers. |
+| `timeScale` | Multiplier for every timer; `0` freezes them. Negative values are clamped to `0`. Default `1`. |
+
+| `TimerHandle` member | Description |
+|---|---|
+| `pause()` / `resume()` / `reset()` | Controls the timer; each returns the handle for chaining. |
+| `cancel()` | Removes the timer. |
+| `isActive` | Whether the timer is still scheduled. |
+| `elapsed` | Seconds elapsed in the current period. |
+| `repeatCount` | Number of times the callback has run. |
+| `id` | Timer identifier. |
+
+Callbacks receive the timer's handle. Timers advance during play only; in the editor's edit mode they are held, like
+the rest of game time.
+
+## The `Velocity` component
+
+`Velocity` moves an entity at a constant rate without a movement system — projectiles, drifting debris, spinning
+objects. The engine integrates it into `Transform` every `Update` during play.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `linear` | Vec3 | `{0, 0, 0}` | Units per second, added to `Transform.position`. |
+| `angular` | Vec3 | `{0, 0, 0}` | Radians per second about the world axes; `z` is the 2D spin. |
+
+```typescript
+import { Velocity, Transform, Sprite } from 'esengine';
+
+const bullet = world.spawn();
+world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
+world.insert(bullet, Sprite, { texture: bulletTex });
+world.insert(bullet, Velocity, {
+  linear: { x: 240, y: 0, z: 0 },          // units per second
+  angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
+});
+```
+
+- Entities with a `RigidBody2D` are skipped; the physics solver owns their transform.
+- Both fields are replicated by [state replication](/docs/scripting/networking/replication/), so clients can
+  extrapolate motion between snapshots.
+- The velocity plugin declares `activeWhen: [Velocity]`: with no `Velocity` in the scene, its system is skipped.

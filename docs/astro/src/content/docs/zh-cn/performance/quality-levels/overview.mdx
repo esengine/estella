@@ -1,0 +1,85 @@
+---
+title: 画质档位
+description: 画质档位参考——Low、Medium、High 三套配置、按模式或设备规则选择档位、动态分辨率、在项目设置中编辑档位、配置的存储方式，以及 QualityConfig 与 Quality API。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**画质档位**是 **Low**、**Medium**、**High** 三套配置，每套说明渲染器在该档位上的开销：分辨率、阴影、反射、粒子、运行哪些后处理效果以及效果的采样数。项目可以指定一个档位，也可以让设备选择。
+
+| 主题 | 页面 |
+|---|---|
+| 选择档位、编辑配置、存储、代码 | 本页 |
+| 每项档位设置及其默认值 | [档位设置](/docs/zh-cn/performance/quality-levels/settings/) |
+| 各档位运行的效果、效果分辨率、采样与步数 | [各档位的效果](/docs/zh-cn/performance/quality-levels/effects/) |
+| 纹理流式加载 | [纹理流式加载](/docs/zh-cn/performance/quality-levels/texture-streaming/) |
+| 后台着色器编译、按需渲染、省电 | [着色器、重绘与省电](/docs/zh-cn/performance/quality-levels/runtime/) |
+
+## 选择档位
+
+**Settings → Project → Rendering → Device Quality → Quality level：**
+
+| 模式 | 含义 |
+|---|---|
+| Default | 未选择模式：**手机与平板上为 Medium**，其他设备上为 Off。小游戏保留自身的默认值。 |
+| Off | 在任何设备上都不做画质管理；项目按原样渲染。 |
+| Low / Medium / High | 在所有设备上使用该档位。 |
+| Auto | 由设备选择档位：使用第一条匹配的[设备规则](#设备规则)，否则按内存与核心数选择。 |
+
+### 动态分辨率
+
+**动态分辨率**（`dynamicResolution`，默认关闭）在 GPU 压力下降低场景的渲染比例，最低到档位的 **Min render scale**，帧时间有余量时再提高；UI 保持显示分辨率。**目标帧率**（`targetFps`，默认 60，范围 15–120）是它追求的帧率。
+
+以低于屏幕尺寸绘制的场景使用钳制到相邻纹素的 Catmull-Rom 滤波放大，比双线性复制更锐利且不产生光晕；整数倍缩放时为精确复制。
+
+### 设备规则
+
+模式为 **Auto** 时显示。每一行指定一个档位，以及设备必须满足的条件：**Model contains**、**GPU contains**、**Max RAM** 与 **Max cores**；一行中的所有条件都必须满足。第一条匹配的规则决定档位。没有任何条件的行会匹配所有设备，因此不允许。
+
+## 编辑档位
+
+档位的设置分为十二组。每组是一张表：每项设置一行，每个档位一列，**Low、Medium、High 并排**，每个单元格都可编辑。
+
+![项目设置的 Rendering 页：画质档位，每组一张表，Low、Medium、High 并排](@/assets/guides/zh/settings-quality-levels.png)
+
+- 组内的效果是一个“效果 × 档位”矩阵，勾选表示该档位运行该效果（[各档位的效果](/docs/zh-cn/performance/quality-levels/effects/)）。
+- 修改过的单元格带底色并显示重置箭头；其提示信息给出该档位的默认值，单击即可恢复。
+- 设置在该档位不起作用的单元格以暗色显示，例如使用时间性抗锯齿的档位上的 MSAA，或关闭了后处理的档位上的效果分辨率。
+- 设置窗口窄到放不下三列时，页面改为一次显示一个档位：**Quality Levels → Editing level** 选择档位，在该档位不起作用的行被隐藏。
+
+![有一个修改过的单元格的档位表：Medium 的渲染比例为 0.75，带底色与重置箭头](@/assets/guides/zh/settings-quality-changed.png)
+
+<Aside type="note">
+单元格只与其所在档位的默认值比较，因此同一数值可能在一个档位是修改，在另一个档位是默认值：0.75 是 Low 的渲染比例，在 Medium 与 High 上则是修改。
+</Aside>
+
+### 存储
+
+每个档位都从引擎为该档位提供的默认值开始，**只保存修改过的值**，位于 `project.esproject` 的 `features.rendering.quality.profiles.<level>` 下。后续引擎版本改进的默认值会自动应用到未修改该值的项目，改回默认值的设置也不会被保存。
+
+```json
+"quality": { "mode": "auto", "profiles": { "medium": { "aoResolution": 0.25, "fogResolution": 0.25 } } }
+```
+
+取决于网络与包体而非 GPU 的加载与流式上限不是档位设置；它们位于 **Project Settings → Game → Runtime → Loading & Streaming**（[档位设置](/docs/zh-cn/performance/quality-levels/settings/#加载与流式上限)）。
+
+## 代码
+
+这些设置构成 `QualityConfig`；`QualityController`、`parseQualityConfig`、`resolveQualityProfile` 与 `defaultQualityProfile` 用于构建与读取它们。当前生效的档位是 `Quality` 资源。
+
+```typescript
+import { Quality, qualityRunsEffect } from 'esengine';
+
+const quality = app.getResource(Quality);
+const ambientOcclusion = qualityRunsEffect(quality?.profile ?? null, 'ssao');
+```
+
+- `qualityRunsEffect(profile, effect)` 报告当前档位是否运行某个效果（[各档位的效果](/docs/zh-cn/performance/quality-levels/effects/#查询效果是否运行)）。
+- `quality.setPreferences({ … })` 在档位之上应用玩家偏好：`renderScale`、`antialiasing`（`'off'`、`'msaa'` 或 `'temporal'`）、`ssao`、`skipEffects`，以及条目允许偏好的设置（各效果分辨率）。`setPreferences(null)` 恢复档位的值。
+
+每项档位设置都是 `QUALITY_SETTINGS` 中的一个条目，声明在 `sdk/src/render/qualitySettings/` 下其所属组的文件中。条目给出其键、类型（带范围的数值、开关、数值选项或名称选项）、三个默认值、所属组，以及中英文的标签与说明。配置类型、默认值、解析、玩家偏好与编辑器中的行都由这些条目生成。
+
+## 参见
+
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)：draw 数与档位预算的比较。
+- [颜色与画质](/docs/zh-cn/graphics/lighting/color-and-quality/)：3D 光照级别。

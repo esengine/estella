@@ -1,0 +1,175 @@
+---
+title: 角色
+description: 3D 角色参考——扫掠式运动学移动器 CharacterController3D，ThirdPersonController 与 ThirdPersonCamera，FirstPersonController 与 FirstPersonViewModel，及其字段、输入与动画器参数。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+3D 角色在世界中被扫掠移动，而不是由求解器模拟。`CharacterController3D` 是移动器；`esengine/gameplay` 中的第三人称与第一人称控制器把输入转换为它所需的速度。
+
+## `CharacterController3D`
+
+`CharacterController3D` 在实体上取代 `RigidBody3D`，不与其同时使用。玩法代码每个固定步设置 `velocity`，并在之后读取结果。
+
+```typescript
+const drive = defineSystem([Query(Mut(CharacterController3D)), Res(Input)], (q, input) => {
+  for (const [, c] of q) {
+    c.velocity.x = (input.isKeyDown('KeyD') ? 200 : 0) - (input.isKeyDown('KeyA') ? 200 : 0);
+    if (input.isKeyPressed('Space') && c.isOnFloor) c.velocity.y = 500;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `velocity` | Vec3 | `{0, 0, 0}` | 请求的速度，世界单位/秒。`y` 为正表示跳跃。 |
+| `radius` / `halfHeight` | number | `30` / `50` | 被扫掠的竖直胶囊，形状与 `CapsuleCollider3D` 相同，世界单位。 |
+| `maxSlope` | number | `0.87` | 可站立的最陡地面，弧度（约 50°）；更陡时会滑下。 |
+| `stepHeight` | number | `40` | 可爬上而非停下的最高台阶。`0` 表示不爬任何台阶。 |
+| `snapDown` | number | `50` | 越过坡顶时向下贴地的探测距离。`0` 表示关闭。 |
+| `mass` | number | `70` | 千克；推动刚体时使用。 |
+| `pushForce` | number | `5000` | 推动所撞到的动态刚体时使用的力。`0` 表示不推动任何物体。 |
+| `layer` | number | `0` | [碰撞层](/docs/zh-cn/gameplay/physics-3d/overview/#碰撞层)，0–15。 |
+| `enabled` | boolean | `true` | 为 `false` 时禁用该角色。 |
+| `isOnFloor` / `floorNormal` / `realVelocity` | — | — | **输出**，在物理步之后读取。 |
+
+默认值按每米 100 世界单位的参考比例书写（1.6 m 的胶囊）。
+
+<Aside type="note">
+  竖直分量由模块承担：`velocity.y = 0` 表示行走，而不是悬停。模块会为角色积分重力。
+
+  由于角色是被扫掠的，物体不会自行让开：`pushForce` 是可用于推动的力。默认值可推动与角色体型相当的木箱；更重的刚体需要更大的值，`0` 则把所有刚体都当作墙。
+</Aside>
+
+角色的位置是物理步的输出；`Physics3D.teleportCharacter(entity, position)` 可直接放置角色（[查询、力与事件](/docs/zh-cn/gameplay/physics-3d/queries/#力与速度)）。
+
+![Player 的细节面板：带半径、半高与坡度的 Character Controller 3D，以及带移动速度与加速度的 Third Person Controller](@/assets/guides/zh/details-character-3d.png)
+
+*第三人称示例中玩家的 **Character Controller 3D** 与 **Third Person Controller**。*
+
+## 第三人称
+
+`ThirdPersonController` 与 `ThirdPersonCamera` 是位于 `CharacterController3D` 之上的场景组件：输入变为移动请求，角色控制器解算该请求，实际产生的运动再报告给 `Animator`。无需游戏代码。
+
+```typescript
+import { ThirdPersonController, ThirdPersonCamera } from 'esengine/gameplay';
+
+world.insert(player, ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
+```
+
+移动输入在相机的地面平面中读取，因此即使相机陡峭俯视，角色仍沿地面移动；俯仰角不会传给角色。
+
+### `ThirdPersonController`
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `moveSpeed` | `320` | 地面最高速度，世界单位/秒。 |
+| `acceleration` / `deceleration` | `2400` / `3200` | 达到与降低该速度的速率，世界单位/秒²。 |
+| `rotationSpeed` | `720` | 转向运动方向的速率，度/秒。 |
+| `jumpSpeed` | `0` | 起跳时的向上速度。`0` 表示禁用跳跃。 |
+| `airControl` | `0.3` | 离地时 `acceleration` 生效的比例，0–1。 |
+| `cameraRelative` | `true` | 在相机的地面平面而非世界中读取输入。 |
+| `camera` | `0` | 输入所依据其前方向的 `ThirdPersonCamera`；`0` 使用找到的第一个。 |
+| `idleThreshold` | `8` | 低于该速度时，动画器被告知角色静止。 |
+| `enabled` | `true` | 为 `false` 时控制器停止工作。 |
+
+| 输入 | 效果 |
+|---|---|
+| W / A / S / D | 移动。 |
+| Space | 当 `jumpSpeed` 大于 0 且角色在地面上时跳跃。 |
+| 左 Shift | 设置动画器触发器 `dodge`。 |
+| J | 设置动画器触发器 `attack`。 |
+
+| 动画器参数 | 类型 | 写入内容 |
+|---|---|---|
+| `speed` | float | 角色**实际达到**的地面速度（来自 `realVelocity`），低于 `idleThreshold` 时为 `0`。推着墙的角色报告 `0`。 |
+| `grounded` | bool | `CharacterController3D.isOnFloor`。 |
+| `jump` | trigger | 跳跃实际生效的那一步。 |
+| `dodge` / `attack` | trigger | 按键按下时设置；由动画器图决定是否有片段响应。 |
+
+动画驱动根运动期间，角色的速度与朝向来自动画而非输入。
+
+### `ThirdPersonCamera`
+
+`ThirdPersonCamera` 在指针控制下环绕 `target`，并在支点与视点之间对物理世界做扫掠检测，有实体阻挡时拉近。它只移动自身。
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `target` | `0` | 环绕的实体；`0` 时相机不动作。 |
+| `distance` | `420` | 无遮挡时位于支点后方的距离，世界单位。 |
+| `yaw` / `pitch` | `0` / `15` | 绕世界上方向的旋转，以及高于地平线的仰角（正值向下看），度。 |
+| `minPitch` / `maxPitch` | `-30` / `70` | 俯仰限位，度。 |
+| `sensitivity` | `0.2` | 指针每移动一像素对应的度数。 |
+| `followDamping` | `12` | 位置跟随的速率，每秒；`0` 为刚性跟随。 |
+| `targetOffset` | `{0, 90, 0}` | 将支点从目标原点抬高，使相机取景胸部而非脚部。 |
+| `obstruction` / `obstructionRadius` / `obstructionLayers` | `true` / `15` / `0` | 支点与视点之间有障碍时拉近；探测半径；检测的层（`0` 为全部）。 |
+| `enabled` | `true` | 为 `false` 时相机停止工作。 |
+
+## 第一人称
+
+`FirstPersonController` 通过 `CharacterController3D` 实现环视、行走、跳跃与下蹲。它放在身体实体上，`Camera` 放在子实体上；身体随偏航转动，相机随俯仰倾斜。
+
+```typescript
+import { FirstPersonController, FirstPersonViewModel } from 'esengine/gameplay';
+
+world.insert(player, CharacterController3D, { radius: 30, halfHeight: 90 });
+world.insert(player, FirstPersonController, { moveSpeed: 320, jumpSpeed: 420 });
+// …and a Camera on a child of `player`.
+```
+
+| 输入 | 效果 |
+|---|---|
+| 鼠标（Web） | 启用 `pointerLock` 时，首次点击会捕获指针，之后鼠标转动视角；否则按住按键时转动视角。 |
+| 触屏 | 从屏幕横向至少 `touchLookFrom` 像素处开始的手指转动视角；左侧留给摇杆。小游戏无法捕获指针，通过触屏环视。 |
+| W / A / S / D、方向键 | 移动。 |
+| 左 Shift | 冲刺。 |
+| Space | 跳跃。 |
+| 左 Ctrl 或 C | 下蹲。 |
+
+下蹲会以 `crouchHalfHeight` 重建胶囊并保持脚部位置不变；物理世界无法调整角色尺寸，因此旧角色会被释放一步。起身前会检测天花板，空间不足时玩家保持下蹲。
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `moveSpeed` | `320` | 地面最高速度，世界单位/秒。 |
+| `sprintMultiplier` / `crouchMultiplier` | `1.6` / `0.5` | 冲刺 / 下蹲时的速度倍率。 |
+| `acceleration` / `deceleration` | `2400` / `3200` | 世界单位/秒²。 |
+| `airControl` | `0.3` | 空中 `acceleration` 生效的比例，0–1。 |
+| `jumpSpeed` | `420` | 起跳时的向上速度；`0` 表示禁用跳跃。 |
+| `gravityScale` | `1` | 玩家重力占世界重力的比例。大于 1 时，控制器在空中自行承担竖直速度。 |
+| `coyoteTime` / `jumpBuffer` | `0.1` / `0.12` | 离开边缘后跳跃仍有效的秒数 / 提前按下的跳跃被保留的秒数。 |
+| `lookSensitivity` / `touchSensitivity` | `0.12` / `0.2` | 指针 / 手指每移动一像素对应的度数。 |
+| `pitchMin` / `pitchMax` | `-85` / `85` | 俯仰限位，度。 |
+| `eyeHeight` / `crouchEyeHeight` | `70` / `28` | 站立 / 下蹲时视点高于角色中心的高度。 |
+| `crouchHalfHeight` | `45` | 下蹲时胶囊的半高；站立值取角色控制器自身的值。 |
+| `eyeSpeed` | `400` | 视点在两个高度之间移动的速度，世界单位/秒。 |
+| `camera` | `0` | 负责观察的相机子实体；`0` 使用第一个带 `Camera` 的子实体。 |
+| `pointerLock` | `true` | 点击后捕获指针（Web）。 |
+| `touchLook` / `touchLookFrom` | `true` / `480` | 在屏幕右侧拖动以环视，起点需在横向该像素数之外。 |
+| `yaw` / `pitch` | `0` / `0` | 当前视线方向，度；设置它们可转动玩家（出生点、传送）。 |
+| `enabled` | `true` | 为 `false` 时控制器停止工作。 |
+
+### 视图模型
+
+由世界相机绘制的手持物体可能穿入墙体，并在宽视场下被拉伸。`FirstPersonViewModel` 放在玩家相机上，用第二台相机绘制手持物体：在玩家相机下创建一台相机，只绘制排序层 `layer`，拥有独立的视场角与裁剪面，叠加在世界之上且不清除画面。玩家相机不再绘制该层。手持物体放在相机下，并为其渲染器设置该层。
+
+```typescript
+world.insert(camera, FirstPersonViewModel, { layer: 20, fov: 50, nearPlane: 1 });
+world.insert(weapon, MeshRenderer, { mesh: 'builtin:cube', layer: 20 });
+```
+
+| 属性 | 默认值 | 说明 |
+|---|---|---|
+| `layer` | `20` | 手持物体的排序层，0–31。 |
+| `fov` | `60` | 视图模型相机的视场角，度。 |
+| `nearPlane` / `farPlane` | `1` / `1000` | 视图模型相机的裁剪面，世界单位。 |
+
+第一人称组件不包含武器系统、弹道或伤害，也没有模板。输入为键盘、指针与触屏；不读取虚拟摇杆与手柄。
+
+## 另请参阅
+
+- [近战与命中盒](/docs/zh-cn/gameplay/physics-3d/combat/)——由 `attack` 触发器驱动的攻击。
+- [Hunter](/docs/zh-cn/gameplay/ai/hunter/)——通过同一角色管线驱动的敌人。
+- [Animator](/docs/zh-cn/animation/animator/)——接收这些参数的状态机。
+- [2D 物理：角色控制器](/docs/zh-cn/gameplay/physics-2d/characters/)——2D 移动器。

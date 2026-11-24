@@ -1,0 +1,41 @@
+---
+title: 会话
+description: 使用 esengine/session 为异步在线游戏提供请求/响应联网——SessionHost、ClientSession、幂等键、使用 defineContract 与 s 校验器的类型化契约，以及 protobuf 线格式。
+---
+
+[状态复制](/docs/zh-cn/scripting/networking/replication/)让服务器与客户端共享一个模拟 tick。在共享世界中**异步**进行的游戏——城建、卡牌、抽卡——没有共享 tick；它需要在不可靠链路下依然成立的请求与应答。`esengine/session` 提供这一能力，且独立于复制。
+
+| 组件 | 职责 |
+|---|---|
+| `SessionHost` | 服务器端。在服务每个连接之前先对其认证，限制帧大小与消息速率，向客户端发送 ping，并让同一玩家的新连接替换旧连接。它不持有游戏状态：每个处理函数都从其上下文中获得玩家。 |
+| `ClientSession` | 客户端。负责拨号，链路断开时以退避加抖动的方式重新拨号，发送请求前等待服务器就绪，并在重连之间保留事件订阅。`retryNow()` 立即重新拨号；`serverNow()` 返回服务器时钟。 |
+| 幂等键 | 每个请求都带有一个键，因此应答丢失后再次发送的请求会从记忆中应答，而不会执行两次（购买、出发）。多个服务器进程共用一个 `IdempotencyStore`。 |
+| `defineContract` | 用 `s` 校验器（`s.object`、`s.int`、`s.string`……）将每个请求与事件声明一次。服务器据此校验每个请求，客户端据此校验每个应答，两端的类型也由它推出。其 `fingerprint` 让服务器能够拒绝按另一份契约构建的客户端。 |
+
+```typescript
+import { defineContract, s, SessionHost, ClientSession, acceptWebSocket } from 'esengine/session';
+import { createSocket } from 'esengine';
+
+const api = defineContract({
+  requests: { buy: { req: s.object({ item: s.string() }), res: s.object({ gold: s.int() }) } },
+  events: { news: s.object({ text: s.string() }) },
+});
+
+// SERVER (Node): each `ws` socket is attached to the host.
+const host = new SessionHost({ authenticate: (cred) => ({ playerId: String((cred as any).id) }) });
+api.serve(host, { buy: async ({ item }, ctx) => ({ gold: await purchase(ctx.playerId, item) }) });
+// wss.on('connection', (socket) => acceptWebSocket(host, socket));
+
+// CLIENT: one object for the whole run, across any number of disconnects.
+const session = new ClientSession({ connect: () => createSocket({ url: 'wss://example.com/play' }), credentials: () => ({ id: 'p1' }) });
+await session.start();
+const { gold } = await api.client(session).buy({ item: 'sword' });
+```
+
+## 线格式
+
+会话可以使用 protobuf 代替 JSON：客户端设置 `wire: 'pb'`，host 端设置 `wire`。`proto()` / `protoAs()` 将 `.proto` 消息引入契约。protobuf 会话在调试器中仍可按 JSON 阅读。
+
+## 拒绝会话
+
+从 `authenticate` 中抛出 `SessionRejected` 即拒绝一个连接。带 `fatal: false` 时，客户端会继续重新拨号。同样由 `esengine/session` 导出的 `serverAddress` 与 `TokenBook` 在[部署服务器](/docs/zh-cn/scripting/networking/deploy/)中介绍。

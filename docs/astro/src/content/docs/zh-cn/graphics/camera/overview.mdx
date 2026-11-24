@@ -99,7 +99,7 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 
 适配生效时，`orthoSize` 仍是缩放，不会被设计高度取代；场景中存在 `Canvas` 时上述补间同样适用。UI 不随缩放变化：UI 在适配到屏幕的设计分辨率中布局，缩放相机不会使其重新排版，屏幕空间 UI 也使用独立的投影绘制。
 
-`orthoSize` 取 `designResolution.y / 2` 时恰好显示设计画面；默认值 `540` 对应默认的 1080 像素设计高度。缩放模式、黑边示例与 `ScreenScaling` 字段见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。
+`orthoSize` 取 `designResolution.y / 2` 时恰好显示设计画面；默认值 `540` 对应默认的 1080 像素设计高度。缩放模式、黑边示例与 `ScreenScaling` 字段见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)。
 
 ## 匹配画布宽高比
 
@@ -139,7 +139,7 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 
 ## 另请参阅
 
-- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)：设计分辨率适配、缩放模式、`ScreenScaling` 与 `pixelPerfect`。
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)：设计分辨率适配、缩放模式、`ScreenScaling` 与 `pixelPerfect`。
 - [补间](/docs/zh-cn/animation/tweens/)：对 `orthoSize` 做补间。
-- [输入](/docs/zh-cn/scripting/input/)：用于拾取的指针输入。
+- [输入](/docs/zh-cn/scripting/input/overview/)：用于拾取的指针输入。
 - [UI](/docs/zh-cn/ui/overview/)：UI 在屏幕空间渲染，与相机无关。

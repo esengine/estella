@@ -1,21 +1,17 @@
 ---
-title: Below the components
-description: "The primitives under the component layer — pathfinding by hand, perception internals, and wiring the plugins in a bare App."
+title: Below the Components
+description: AI primitives reference — findPath over a NavGrid, building grids from tile data, the perception functions senseTarget, facingFromRotation, makeLosCheck and stepPerception, and adding the AI plugins to a bare App.
 ---
 
-`Nav`, `NavAgent`, and `Perceiver` — the component layer — cover the common cases.
-The primitives beneath them are exported too, all pure TypeScript with no engine
-or wasm dependency, for when you need a path without an agent or a sight check
-without a `Perceiver`.
+`Nav`, `NavAgent` and `Perceiver` cover the common cases. The primitives beneath them are exported as well, as plain
+TypeScript with no engine or WebAssembly dependency, for a path without an agent or a sight check without a `Perceiver`.
 
-### Pathfinding by hand
+## Pathfinding by hand
 
-`findPath` is the A\* the nav plugin uses: uniform-cost search over `NavGrid`
-cells, 4- or 8-connected, with an octile/manhattan heuristic and no corner
-cutting (a diagonal step needs both shared orthogonal cells open). Drop to it
-when you steer movement yourself, draw a path preview, or compute reachability
-for turn-based ranges — or when one grid isn't enough, since the `Nav` resource
-holds one active surface:
+`findPath` is the A\* the nav plugin uses on grids: a uniform-cost search over `NavGrid` cells, 4- or 8-connected, with an
+octile or Manhattan heuristic and no corner cutting (a diagonal step needs both shared orthogonal cells open). It suits
+movement steered by game code, path previews, reachability for turn-based ranges, or a second grid beside the one active
+`Nav` surface.
 
 ```typescript
 import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
@@ -33,20 +29,18 @@ if (path) {
 }
 ```
 
-`findPath(grid, start, goal, opts?)` returns the `Cell[]` path inclusive of both
-endpoints, or `null` when unreachable. A `Cell` is an integer grid coordinate
-`{ x, y }` (kept distinct from `Vec2` to flag cell space); convert with
-`grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)`, or turn a whole path into world-space
-waypoints with `pathToWorld`.
+`findPath(grid, start, goal, opts?)` returns the `Cell[]` path including both endpoints, or `null` when the goal is
+unreachable. A `Cell` is an integer grid coordinate `{ x, y }`, distinct from `Vec2` to mark cell space. Conversion uses
+`grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)`, or `pathToWorld` for a whole path.
 
 | `PathfindOptions` field | Default | Description |
 |---|---|---|
-| `diagonal` | `true` | Allow 8-connected diagonal moves. |
-| `snapRadius` | `8` | When start/goal lands on a blocked cell, snap to the nearest walkable cell within this ring radius before searching; `0` disables snapping. |
-| `clearance` | `0` | Cells of room the body needs on every step (`0` plans for a point). A `NavAgent`'s `radius` is turned into this for you. |
+| `diagonal` | `true` | Allows 8-connected diagonal moves. |
+| `snapRadius` | `8` | When the start or goal is on a blocked cell, snaps to the nearest walkable cell within this ring radius before searching; `0` disables snapping. |
+| `clearance` | `0` | Cells of room the body needs on every step (`0` plans for a point). A `NavAgent`'s `radius` is converted to this. |
 
-`navGridFromTiles` builds the walkability mask from any tile reader — it is the
-core under `navGridFromTilemapLayer`, which just plugs in `TilemapAPI.getTile`:
+`navGridFromTiles` builds the walkability mask from any tile reader. `navGridFromTilemapLayer` uses it with
+`TilemapAPI.getTile`:
 
 ```typescript
 import { navGridFromTiles } from 'esengine/tilemap';
@@ -59,28 +53,21 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
 
 | `BuildNavGridOptions` field | Description |
 |---|---|
-| `width` / `height` / `cellSize` / `origin?` | Same as the `NavGrid` options (see [Building a grid](/docs/gameplay/ai/navigation/#building-a-grid)). |
-| `blockedTileIds?` | Exact set of tile ids that block movement. |
-| `isBlocked?` | Custom predicate over the tile id (`0` = empty); overrides `blockedTileIds`. With neither given, any non-empty tile blocks. |
+| `width` / `height` / `cellSize` / `origin?` | As the `NavGrid` options ([Building a grid](/docs/gameplay/ai/navigation/overview/#building-a-grid)). |
+| `blockedTileIds?` | Tile ids that block movement. |
+| `isBlocked?` | Predicate over the tile id (`0` = empty); overrides `blockedTileIds`. With neither, any non-empty tile blocks. |
 
-### Perception internals
+## Perception internals
 
-The perception plugin is a thin wrapper over exported functions — useful for
-one-off sight checks from an action, custom senses (memory, hearing, multiple
-targets), or unit tests against a fake world:
+The perception plugin wraps exported functions, usable for one-off sight checks from an action, custom senses, or tests
+against a fake world:
 
-- **`senseTarget(observer, facing, target, range, halfFov, isBlocked?)`** — the pure
-  geometry, all in 3D (`Vec3` points; a flat scene is the case where `z` is constant): a range
-  check, a FOV cone check (`halfFov` is *half* the cone in radians; ≥ π means
-  omnidirectional), then the optional occlusion callback.
-- **`facingFromRotation(rotation, axis?)`** — the world direction an entity faces, from a
-  `Transform` rotation and a `FacingAxis` (`'x'` by default, or `'-z'`).
-- **`makeLosCheck(physics)`** — builds the occlusion callback from a 2D physics
-  raycast: occluded when any hit lands clearly short of the target
-  (`fraction < 0.98` — the last ~2% is the target itself).
-- **`stepPerception(world, isBlocked?)`** — the exact per-frame step the plugin
-  runs in `PreUpdate`: for every `Perceiver`, sense all `PerceptionTarget`s, keep
-  the nearest visible one, and write the `Perception` component.
+| Function | Description |
+|---|---|
+| `senseTarget(observer, facing, target, range, halfFov, isBlocked?)` | The geometry, in 3D (`Vec3` points; a flat scene has constant `z`): a range check, a cone check (`halfFov` is half the cone in radians; π or more is omnidirectional), then the optional occlusion callback. |
+| `facingFromRotation(rotation, axis?)` | The world direction an entity faces, from a `Transform` rotation and a `FacingAxis` (`'x'` by default, or `'-z'`). |
+| `makeLosCheck(physics)` | Builds an occlusion callback from a 2D physics raycast: occluded when a hit lands short of the target (`fraction < 0.98`, the last 2% being the target itself) on a body other than the observer's or the target's. |
+| `stepPerception(world, isBlocked?, noises?, dt?)` | The per-frame step the plugin runs in `PreUpdate`: for every `Perceiver`, senses every `PerceptionTarget`, keeps the nearest visible one, processes this step's `Noise` payloads, ages `sinceHeard` by `dt`, and writes the `Perception` component. |
 
 ```typescript
 import { Transform, registerCondition } from 'esengine';
@@ -101,19 +88,17 @@ registerCondition('seesShrine', (ctx) => {
 
 | `SenseResult` field | Description |
 |---|---|
-| `visible` | The target is within range, inside the cone, and not occluded. |
-| `distance` | Distance to the target — always set, even when not visible. |
-| `dir` | Unit direction observer → target as a `Vec3`; zero when not visible. |
+| `visible` | The target is within range, inside the cone and not occluded. |
+| `distance` | Distance to the target; always set, even when not visible. |
+| `dir` | Unit direction from observer to target as a `Vec3`; zero when not visible. |
 
-The built-in system wires in a line-of-sight check only when a physics module is
-loaded (the 3D solver if the scene has one, otherwise 2D); with neither, sensing
-is range + FOV only — the AI layer has no hard physics dependency.
+The plugin adds a line-of-sight check only when a physics module is loaded: the 3D world if the scene has one,
+otherwise 2D. With neither, sensing is range and cone only; the AI layer has no hard physics dependency.
 
 ## Custom app setup
 
-Importing `esengine/ai` registers the perception, FSM, BT, and navigation plugins, so
-the **editor and the `esengine` web runtime add them for you**. Only when you build
-an app from a bare `new App()` do you add them explicitly:
+Importing `esengine/ai` registers the perception, FSM, BT and navigation plugins, and the editor and the `esengine` web
+runtime add them. An app built from a bare `new App()` adds them explicitly:
 
 ```typescript
 import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine/ai';
@@ -124,5 +109,9 @@ app.addPlugin(btPlugin);
 app.addPlugin(navPlugin);
 ```
 
-Each is exported both as a ready-to-use singleton (`navPlugin`) and as a class
-(`NavPlugin`) if you need multiple instances.
+Each is exported as a ready-to-use instance (`navPlugin`) and as a class (`NavPlugin`) for multiple instances.
+
+## See also
+
+- [Navigation Basics](/docs/gameplay/ai/navigation/overview/) — the `Nav` resource and grid surfaces.
+- [Perception](/docs/gameplay/ai/perception/) — the component layer over these functions.

@@ -1,407 +1,188 @@
 ---
 title: Android 与 iOS
-description: 把 Estella 项目打包成真正的原生移动应用——arm64 构建,经内嵌 Dawn(Metal / Vulkan)渲染,而不是 WebView。工具链前置条件、导出、组装应用,以及只在真机上才会咬人的那些事。
+description: 原生 Android 与 iOS 应用——运行时（arm64、内嵌 Dawn 于 Vulkan 或 Metal 之上、V8 或 QuickJS-ng）、设备要求、运行时模板、导出产物、签名、应用标识、设备上的引擎子系统、Spine 运行时、脚本执行与启动诊断。
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-**Android** 和 **iOS** 把你的项目打包成**真正的原生应用**:引擎的 C++ 核心编译到 arm64,
-经内嵌的 [Dawn](https://dawn.googlesource.com/dawn) 渲染(WebGPU → iOS 上是 **Metal**、
-Android 上是 **Vulkan**),游戏脚本跑在内嵌的 JS 引擎上——Android 上是 [V8](https://v8.dev/)(Chrome 用的那个 JIT),
-iOS 上是 [QuickJS-ng](https://github.com/quickjs-ng/quickjs)(Apple 不允许 JIT)。它**不是** WebView,
-也不是网页构建的壳——这个进程里没有浏览器。
+**Android** 与 **iOS** 目标将项目打包为原生应用：引擎的 C++ 核心编译为 arm64，通过内嵌的 [Dawn](https://dawn.googlesource.com/dawn) 渲染（Android 上为基于 **Vulkan** 的 WebGPU，iOS 上为基于 **Metal** 的 WebGPU）。游戏脚本运行在内嵌的 JavaScript 引擎上——Android 上为带 JIT 的 [V8](https://v8.dev/)，iOS 上为 [QuickJS-ng](https://github.com/quickjs-ng/quickjs)（iOS 不允许 JIT）。应用中不包含 WebView 或浏览器。
 
-创作模型和其他任何目标完全一致。同样的场景、同样的组件、同样的 TypeScript。
-项目里没有任何东西是"移动端专用"的。
+场景、组件和 TypeScript 与其他所有目标相同；项目不需要任何移动端专属内容。
 
-<Aside type="note" title="每个编辑器版本装一次">
-  引擎被编译的那一半不在编辑器下载包里,而是一份**运行时模板**,每个编辑器版本装一次
-  (见[前置条件](#前置条件))——因为绝大多数项目从不发到手机上,而它有几十 MB。
-  装好之后,打包既不需要引擎源码,也不需要 Android SDK;iOS 另需 Xcode,那只有 Apple 能提供。
-</Aside>
+## 目标
 
-## 两个平台,一套运行时
-
-Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们被组装成的东西完全不同——
-这边是已签名的 `.apk`,那边是 Xcode 工程——而且只有其中一个能在任意系统上收尾。
-一行说不清这台机器能不能把活干完,也说不清出来的是什么。
-
-它们确实共享**同一套运行时和同一份导出载荷**。引擎、SDK 和游戏运行时都住在应用二进制里,
-所以导出写出的是应用**内容**——你的场景、脚本和烘焙后的资产——而不是像 `dist-web/`
-那样可直接运行的包。
+Android 和 iOS 是两个独立目标，因为二者的产物和装配宿主不同。它们共享同一个运行时和同一份导出内容：引擎、SDK 和游戏运行时位于应用二进制中，导出写出的是应用**内容**——场景、脚本和烘焙后的资产。
 
 | | Android | iOS |
 |---|---|---|
-| 图形 | Vulkan(经 Dawn) | Metal(经 Dawn) |
-| 导出产物 | `dist-android/` | `dist-ios/` |
-| 组装方 | 编辑器(不需要 Android SDK) | 编辑器,然后 Xcode |
-| 组装所需系统 | 任意桌面系统 | **仅 macOS** |
-| 结果 | 一个已签名的 `.apk`,**或**一个 Android Studio 工程 | 一个可打开、签名并运行的 Xcode 工程 |
+| 图形 | Vulkan（经 Dawn） | Metal（经 Dawn） |
+| 导出目录 | `dist-android/` | `dist-ios/` |
+| 装配者 | 编辑器（无需 Android SDK） | 编辑器，然后 Xcode |
+| 装配宿主操作系统 | 任意桌面系统 | 仅 macOS |
+| 结果 | 签名的 `.apk`（可选附带 `.aab`），或 Android Studio 工程 | Xcode 工程 |
 
-Android 两者都给,是因为它两者都做得到:编辑器既能直接装配出安装包,也能写出这个安装包
-本该由之构建的那个 Gradle 工程。游戏需要接自己的 SDK、加权限或加 Activity 时,在 Android
-分区的**输出**里选「Android Studio 工程」——这正是 iOS 一直以来的形状,那边由 Xcode 收尾。
-
-## 打出来的游戏跑在什么设备上
+## 设备要求
 
 | | Android | iOS |
 |---|---|---|
-| 最低系统 | **Android 10**(API 29) | **iOS 17.0** |
-| 声明的 target | API 33 | — |
-| CPU | `arm64-v8a`(所有真机);`x86_64`(模拟器)仅在勾选时打入 | arm64 真机 + 模拟器切片 |
-| GPU | **要求 Vulkan 1.0.3**——声明为 `required="true"`,不具备的设备在 Play 上根本看不到这个应用 | Metal |
+| 最低系统 | **Android 10**（API 29） | **iOS 17.0** |
+| 目标 API | 33 | — |
+| CPU | `arm64-v8a`；`x86_64`（模拟器）仅在要求时包含 | arm64 真机与模拟器切片 |
+| GPU | **Vulkan 1.0.3**，声明为 `required="true"` | Metal |
 
-Android 安装包默认只打入真机的 ABI，体积比之前小了约一半。要在模拟器里试玩，请在 Android 设置里勾选“包含模拟器（x86_64）”（命令行用 `--emulator-abi`）再安装那一份；要发布的包请保持关闭。
-
-Android 的下限是 29,因为引擎的字体路径调用 `AFontMatcher_create`,那是 API 29——
-再往下没有可退的路。直到 v0.37.0 它**声明**的都还是 26,而那是个说法而非能力:
-那些构建能装到 Android 10 和 11 上,然后起不来——因为 NDK 被要求按更高的 API 构建,
-于是把每个受保护的符号都变成了加载期的硬依赖。v0.37.0 上能跑的东西在 v0.38.0 上
-一样能跑,这个数字只是终于说了实话。
-
-<Aside type="note">
-  Vulkan 的要求来自这套运行时:引擎经 Dawn 渲染,而 Dawn 的 Android 后端就是 Vulkan。
-  打包后的游戏里没有 GLES 退路。它写在清单里,所以 Play 会据此过滤,而不是让不具备
-  条件的设备装上再失败。
-</Aside>
+- Android 最低为 API 29，因为字体路径调用的 `AFontMatcher_create` 需要 API 29。
+- Vulkan 要求来自 Dawn 的 Android 后端；没有 GLES 回退。由于在 manifest 中声明，Google Play 不会向不支持 Vulkan 的设备提供该应用。
+- Android 包只携带手机 ABI。在 Android 目标设置中勾选 **包含模拟器（x86_64）**，或在命令行使用 `--emulator-abi`，可加入模拟器库；发布构建应关闭。
 
 ## 前置条件
 
-打包对话框区分**两类**缺失的前置条件,二者严重程度并不相同:
-
-- 缺**引擎运行时**——对移动目标来说就是缺它的**运行时模板**——意味着根本产不出包。
-- 缺**原生工具链**则不然。导出照样把应用内容写出来;只有最后的组装步骤需要工具链,
-  而**那一步可以在另一台机器上跑**——编辑器在 Windows 上时,iOS 构建本来就得如此。
-
 <Steps>
 
-1. **拿到该目标的运行时。**
-   安装**运行时模板**:随每个版本发布的、已为 arm64 预编译好的引擎。目标那一行提供
-   **下载**——如果你已经有归档文件(离线、镜像、公司共享盘),也可以*从文件安装…*。
-   它与编辑器版本**精确匹配**,因为 SDK 是编译进应用二进制的,所以每次升级编辑器
-   下载一次即可——引擎自己那一堆构建依赖一样都不用装。
+1. **安装运行时模板。** 模板是该目标预编译好的引擎，随每个版本发布。打包项目中该目标的行提供 **下载**，或对单独获取的归档文件使用 **从文件安装…**。模板必须与编辑器版本完全一致，因为 SDK 编译在应用二进制中。
 
-   Android 此外别无所需:APK 的编译、对齐与签名都由编辑器在它所运行的任何操作系统上完成。
-
-   :::tip[下载走的是哪儿]
-   发布会同步一份到镜像 `dl.estella.games`,编辑器**先问镜像再问源站**——一个模板几百 MB,而 GitHub 的
-   速度并非各地一致。镜像只是捷径,从来不是权威:每个归档都会按发布索引里写的大小与
-   SHA-256 校验,缺失、过期或被替换的副本过不了这一关,下载会自动回落到 GitHub。要指
-   到别处(公司共享、自建 CDN,或者干脆不用镜像),设 `ESTELLA_RELEASE_MIRROR`(逗号
-   分隔,按顺序尝试);每个镜像里版本的摆法与发布完全一致,都在 `v<版本号>/` 下。
+   :::tip[下载来源]
+   发布文件镜像在 `dl.estella.games`，编辑器优先尝试该镜像。每个归档都会按发布索引中给出的大小和 SHA-256 校验；缺失、过期或不匹配的副本回退到 GitHub。`ESTELLA_RELEASE_MIRROR` 可设置其他镜像（逗号分隔，按顺序尝试）；每个镜像须按发布的结构在 `v<version>/` 下存放对应版本。
    :::
 
-2. **装好平台工具链——只有 iOS 需要。**
-   - *Android* —— 不需要。这条路径上没有 Android SDK、NDK 或 JDK。
-   - *iOS* —— **装有 Xcode 的 macOS**,仅此而已:不需要 CMake、Ninja、xcodegen,
-     也不需要 Dawn 源码。Apple 不为其他操作系统提供工具链,所以对话框直说,而不是
-     假装可以——但导出照样会写出一份完整的工程,你可以拷到 Mac 上打开。
+2. **安装平台工具链（仅 iOS）。**
+   - *Android*：无需安装。APK 由编辑器在任意操作系统上编译、对齐和签名；不需要 Android SDK、NDK 或 JDK。
+   - *iOS*：**装有 Xcode 的 macOS**。不需要 CMake、Ninja、xcodegen 或 Dawn 源码。在其他操作系统上，导出仍会写出一个完整的工程，可在 Mac 上打开。
 
-3. **看对话框。** 探测通过之前,该目标那一行会一直带着警告三角,面板里会点名缺什么。
+3. **检查对话框。** 前置条件满足之前，目标所在行显示警告，面板中列出缺少的内容。
 
 </Steps>
+
+含 `@compiled` 系统的项目在导出 Android 时，导出机器上还需要 **Android NDK**（[脚本执行](#脚本执行)）。
 
 ## 导出
 
 <Steps>
 
-1. **构建 → 打包项目…**,在**移动**分组下选 **Android** 或 **iOS**。
-2. 选构建配置和输出目录(默认 `dist-android` / `dist-ios`)。这里不提供 source map——
-   没有浏览器 devtools 来消费它。
-3. 和其他目标一样检查**构建场景**列表。
-4. **Package**。导出会烘焙资产、打包脚本,写出应用内容,外加一份携带应用身份的
-   `app.config.json`。
+1. **构建 → 打包项目…**，在 **移动** 下选择 **Android** 或 **iOS**。
+2. 选择配置和输出目录（默认 `dist-android` / `dist-ios`）。不提供源码映射。
+3. 检查 **构建包含的场景**。
+4. 点击 **打包**。导出会烘焙资产、打包脚本、写出内容和包含应用标识的 `app.config.json`，并围绕这些内容装配应用。
 
 </Steps>
 
-**导出到这一步就完事了。** 装好运行时模板后,输出目录里放的就是成品应用:
-
-- **Android** —— 一个已签名的 `.apk`,可直接 `adb install -r` 或拷到设备上。它由编辑器
-  首次使用时生成的开发密钥签名(与 Android Studio 的 debug key 同等地位:装设备够用,
-  任何应用商店都不收)。要用你自己的密钥,给
-  `node build-tools/cli.js native --package --content dist-android` 传 `--key`/`--cert`。
-
-  要发 **Google Play**,在 Android 分区勾上 *Google Play App Bundle(.aab)*:导出会在
-  APK 旁边再写一份。Play 自 2021 年起对新应用强制要求 bundle 而非 APK——它是上传格式,
-  无法直接装到设备上,所以你测试用的仍然是那个 APK。
-- **Android,且**输出**选了「Android Studio 工程」** —— 给的不是安装包,而是一个普通的
-  Gradle 工程:内容在 `app/src/main/assets`,引擎在 `app/src/main/jniLibs`,宿主的 Java
-  shim 以源码形式在 `app/src/main/java`,应用身份写在 `app/build.gradle.kts` 里。用
-  Android Studio 打开该文件夹直接 Run;要接 SDK 就像在任何 Android 应用里那样加进
-  `build.gradle.kts`。再次导出只会重写游戏内容,不动这个构建脚本——已经长出 SDK 的工程
-  不会因为重新打包游戏而被抹掉。
-- **iOS** —— 一个 Xcode 工程:`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的
-  内容写出。打开它,在 *Signing & Capabilities* 下选好签名 Team,Run。
-
-<Aside type="tip" title="导出为什么能不带编译器就做到这些">
-  应用被编译的那一半不含任何项目数据——每个游戏装的都是同一份引擎二进制,而导出只有内容。
-  所以它每个版本构建一次、以模板形式分发,组装一个应用不过是拷文件加写工程文件。这正是它
-  属于导出流程、而不该藏在一条命令后面的原因;也正因如此,没装模板的编辑器会直说这件事,
-  而不是写出一个链接不起来的工程。
-</Aside>
-
-![打包对话框的 Android 目标页,可见运行时模板提示和 Android 设置](@/assets/guides/zh/build-android.png)
-
-*Android 目标页。运行时模板装好之前,对话框会这样提示,并给出**下载**和**从文件安装**。*
-
-## 应用身份
-
-原生应用有一些引擎永远不读的系统级属性——运行时转不动手机,而应用商店会永久沿用 bundle id
-——所以它们是写给"组装应用的人"看的,位置在 **设置 → 项目 → 构建与模块 → 打包**:
-
-| 设置 | 它会变成什么 |
+| 产物 | 内容 |
 |---|---|
-| **应用图标** | 两个平台的启动图标——项目内的一张方形 PNG(建议 1024×1024)。Android 用作 launcher mipmap,iOS 用作 Xcode 据以派生各尺寸的 asset catalog,所以不做任何缩放,只需保留这一张。留空则使用 Estella 的标识,而不是平台的占位图。 |
-| **应用 ID** | Android 的 manifest package 和 iOS 的 bundle id(反向域名)。留空则按项目名推导;正式发布的应用应当自己指定。 |
-| **Android 版本号** | Google Play 用来排序构建的整数,每次上传都必须递增。用户看到的版本号来自项目版本。 |
-| **朝向** | *设置 → 项目 → 游戏 → 显示 → 朝向*,一个项目级设置,所有目标都遵守。不设则跟随设计分辨率的宽高比。 |
+| **Android**，*打包为：安装包（.apk）* | 签名的 `.apk`，可直接 `adb install -r`。勾选 **Google Play App Bundle（.aab）** 时会在其旁写出 `.aab`；Bundle 是 Google Play 的上传格式，不能直接安装到设备上。 |
+| **Android**，*打包为：Android Studio 工程* | 一个 Gradle 工程：内容位于 `app/src/main/assets`，引擎位于 `app/src/main/jniLibs`，宿主的 Java 适配层以源码形式提供，`app/build.gradle.kts` 包含应用标识。用 Android Studio 打开并运行。重新导出会重写游戏内容而保留构建脚本，因此加入 `build.gradle.kts` 的 SDK 会保留下来。 |
+| **iOS** | 一个 Xcode 工程：`.xcframework`、应用外壳以及围绕内容生成的 `.pbxproj`。打开后在 *Signing & Capabilities* 中选择签名团队并运行。 |
 
-导出把这些写进内容旁边的 `app.config.json`——刻意**不**放进 `game.config.json`,
-后者才是运行时读的那份。
+所有游戏的应用二进制相同，导出只是内容，因此装配只涉及复制文件和写出工程文件，不需要编译器。
 
-## 真机上跑得起来的东西
+![打包对话框的 Android 目标页，可见运行时模板提示和 Android 设置](@/assets/guides/zh/build-android.png)
 
-**全部。** 移动目标编译整份引擎源码清单;在网页端以独立 WebAssembly side module 发布的
-三个子系统(Box2D、Spine 运行时、MPEG-1 视频解码器)在这里是**编进应用二进制**的——
-设备没有动态链接这套故事,也没有理由要有。`app.sideModules` 仍然如实作答,
-所以运行时自己的特性门控和浏览器里表现一致。
+*Android 目标。安装运行时模板之前，对话框提供 **下载** 或 **从文件安装**。*
 
-| 子系统 | 真机上 |
+{/* SHOT: publish-ios-target | Package Project dialog with the iOS target selected under Mobile: the target settings, the runtime-template or Xcode prerequisite notice, Configuration, Output folder and Scenes in build; any example project */}
+
+### Android 签名
+
+| 构建 | 签名密钥 |
 |---|---|
-| 精灵、瓦片地图、粒子、后处理 | 原生(Dawn) |
-| 文本、位图字体、富文本 | 与网页端相同的图集与排版;字形从系统字体栅格化 |
-| 物理(Box2D) | 编译进包;跨工作线程求解 |
-| Spine | 编译进包——全部版本,每个骨架由自己的版本读取;见 [Spine 版本](#spine-版本) |
-| DragonBones | 编译进包——只有一个运行时,因为格式是固定的 |
-| 视频 | 编译进包(构建时 cook,真机解码) |
-| 音频 | 原生混音器([miniaudio](https://miniaud.io/))—— CoreAudio / AAudio |
-| 文本输入 | 平台**软键盘**就是输入框的编辑面 |
-| 网络 | 系统网络栈(`NSURLSession` / `HttpURLConnection`) |
-| 地形与流式世界 | 在原生运行时上运行。地形的图层纹理和其他纹理一样以字节送到设备(设备上没有可供拷贝的 wasm 堆);分块世界的生成器使用自己的取消句柄,因为原生运行时没有 `AbortController` |
-| 压缩纹理 | KTX2 转码到设备支持的格式(ASTC → ETC2 → BC),含 mip 链 |
-| 生命周期 | `onShow` / `onHide` 与系统内存警告都能到达应用 |
+| 开发 | 编辑器首次使用时生成的开发密钥。设备可安装，商店不接受。 |
+| 发行 | 设置后使用项目的发布密钥：Android 目标签名分组中的 **发布私钥** 和 **发布证书**（PEM，项目相对路径或绝对路径）。签名前会核对二者是否匹配。**发布私钥密码** 保存在本机钥匙串中；CLI 读取 `ESTELLA_ANDROID_KEY_PASSPHRASE`。 |
 
-### Spine 版本
+不要将发布密钥放入项目仓库。也可以用 `node build-tools/cli.js native --package --content dist-android` 从导出内容装配应用，通过 `--key` / `--cert`（及 `--passphrase`）指定签名密钥，用 `--aab` 写出 Bundle。
 
-原生应用和编辑器一样能读取所有 Spine 版本:2.1、3.8、4.1、4.2 和 4.3。和网页构建一样,
-每个骨架都由它导出时所用版本的运行时来读取,所以一个项目里可以混用多个版本。
-项目设置里的 Spine 版本只是偏好。
+### 原生库
 
-各版本运行时的 C 符号同名,所以宿主把每个版本加上各自的前缀分别编译,再链接到一起。
-Android 上每个版本是一个单独的库(每个 ABI 0.2 到 1 MB)。导出时会读取每个要打包的骨架的版本,
-只放入这些骨架需要的库。iOS 和桌面端把所有版本都链接进应用,大约增加 1 MB。
+**压缩原生库**（Android 目标设置，默认开启）在 APK 中以 deflate 压缩原生库：空项目的下载体积约为 20 MB 而非 54 MB，Android 在安装时解压一次。关闭后原生库以存储方式放置，供系统直接映射：安装体积约减半，下载体积接近三倍。App Bundle 始终以存储方式放置原生库；Google Play 会压缩其分发内容。
 
-一个包带哪些运行时,由同一处逻辑统一决定,网页、试玩广告、小游戏和 Android 都一样。
-项目设置 → Spine 里每个运行时一行,每行都会显示构建会怎么处理它:
+## 应用标识
 
-- **自动**(默认):包里有骨架是用这个版本导出的就带上。
-- **包含**:即使包里没有骨架用到也带上。用于只有代码才会加载的骨架,比如运行时拼出来的路径、之后才下载的内容。
-- **排除**:不带。如果包里有骨架需要这个运行时,导出会失败并点名该骨架,不会打出一个骨架播不了的包。
+以下设置写入内容旁的 `app.config.json`，而不是运行时读取的 `game.config.json`：
 
-导出结果里会列出每个运行时带或不带,以及原因。
+| 设置 | 位置 | 作用 |
+|---|---|---|
+| **应用图标** | 设置 → 项目 → 构建与模块 → 打包 | 一张项目相对路径下的方形 PNG（建议 1024×1024）。Android 用作启动器 mipmap，iOS 用作资源目录，由 Xcode 派生全部尺寸。留空时使用 Estella 标志。 |
+| **应用 ID** | 同上 | Android manifest 包名和 iOS bundle id（反向域名）。留空时由项目名派生。 |
+| **Android 版本号** | Android 目标设置 | Google Play 用来排序构建的整数，每次上传都必须递增。用户可见的版本号来自项目版本。 |
+| **屏幕方向** | 设置 → 项目 → 游戏 → 显示 | 项目级设置；未设置时按设计分辨率的宽高比决定。 |
 
-旧版本的运行时模板只编入一个 Spine 版本。如果用旧模板打包,导出会列出模板播放不了的每个骨架。
-在“打包项目”里安装当前编辑器版本的模板即可解决。
+## 设备上的引擎子系统
 
-万一将来某个构建*真的*砍掉了某个子系统,导出会点名它——连同用到它的场景——
-而不是悄悄发出一个缺了半个场景的包。
+移动目标编译完整的引擎源码列表。在 Web 上作为独立侧模块的子系统（Box2D、Spine 运行时、MPEG-1 视频解码器）编译进应用二进制。`app.sideModules` 仍会报告它们，因此运行时的功能检查与浏览器中一致。
 
-## 调用你自己的原生代码
+| 子系统 | 设备上 |
+|---|---|
+| 精灵、瓦片地图、粒子、后处理 | 原生（Dawn） |
+| 文本、位图文本、富文本 | 与 Web 相同的图集和排版；字形由系统字体光栅化 |
+| 物理（Box2D） | 编译在内；在多个工作线程上求解 |
+| Spine | 编译在内，包含所有版本；见 [Spine 运行时](#spine-运行时) |
+| DragonBones | 编译在内，一个运行时 |
+| 视频 | 编译在内（构建时烘焙，设备上解码） |
+| 音频 | 原生混音器（[miniaudio](https://miniaud.io/)），基于 CoreAudio / AAudio |
+| 文本输入 | 平台**软键盘**作为输入框的编辑界面 |
+| 网络 | 系统网络栈（`NSURLSession` / `HttpURLConnection`） |
+| 地形与流式世界 | 支持。地形图层纹理以字节形式传给设备；分块世界的生成器使用自身的取消句柄，因为原生运行时没有 `AbortController`。 |
+| 压缩纹理 | KTX2 转码为设备格式（ASTC、ETC2、BC），保留 mip 链 |
+| 生命周期 | `onShow` / `onHide` 和系统内存警告可传达到应用 |
 
-打包后的游戏就是一个普通应用，可以链接广告 SDK、商店、登录或统计库。这些是 Java、
-Kotlin、Objective-C 或 Swift，属于项目自己，引擎一个都不链接。脚本通过 `NativeChannel`
-够到它们：原生侧应答一个名字，脚本调用这个名字，值以 JSON 传递。
+若将来的构建缺少某个子系统，导出会指明该子系统及使用它的场景。
 
-```typescript title="src/shop.ts"
-import { NativeChannel } from 'esengine';
+### Spine 运行时
 
-if (NativeChannel.has('store.buy')) {
-    const receipt = await NativeChannel.call<{ token: string }>('store.buy', { sku: 'gems_100' });
-}
-const off = NativeChannel.on<{ sku: string }>('store.restored', (p) => grant(p.sku));
-```
+原生应用可读取 Spine 2.1、3.8、4.1、4.2 和 4.3。每个骨架由其导出版本对应的运行时读取，因此项目可以混用多个版本；项目设置中的 Spine 版本只是一项偏好。各运行时定义了相同的 C 名称，因此宿主以各自的前缀分别编译它们。Android 上每个版本是一个独立的库（每个 ABI 0.2–1 MB），导出只包含打包的骨架所需的库。iOS 和桌面上所有版本都链接进应用（约 1 MB）。
 
-| 调用 | 作用 |
-| --- | --- |
-| `NativeChannel.available` | 这个平台有没有原生代码可调。Web、小游戏和编辑器里是 `false`。 |
-| `NativeChannel.has(method)` | 调用 `method` 会不会有人应答。提供功能之前先问。 |
-| `NativeChannel.call(method, args?)` | 运行处理器，以它的应答 resolve。没有人应答这个名字时 reject，处理器给了失败原因时带着原因 reject。 |
-| `NativeChannel.on(event, handler)` | 监听原生侧主动发出的事件。返回取消订阅函数。 |
+Web、Playable、小游戏和 Android 包携带哪些运行时，按同一规则决定。项目设置 → Spine 中每个运行时一行：
 
-先问 `has` 的游戏在所有平台上不用改：没有原生代码的地方 `has` 是 `false`，什么也不会被调用。
+| 值 | 行为 |
+|---|---|
+| **Auto**（默认） | 包中有骨架由该版本导出时携带。 |
+| **Include** | 始终携带。用于只由代码加载的骨架（运行时拼出的路径、之后获取的内容）。 |
+| **Exclude** | 从不携带。若打包的骨架需要它，导出失败并指明该骨架。 |
 
-每个原生构建自己应答 `app.info`：Android 和 iOS 上是
-`{ os, osVersion, device, id, version, build }`（包名和版本号，脚本没有别的办法读到），
-桌面上是 `{ device }`。
+导出结果列出每个运行时及其被携带或排除的原因。旧版本的运行时模板只携带一个 Spine 版本；用它打包时，会列出模板无法播放的每个骨架。安装与当前编辑器版本对应的模板即可解决。
 
-### Android
+## 设备上的资产
 
-导出 **Android Studio 工程**（你的代码要编进应用，一键 APK 带不了）。把类放在
-`app/src/game/java` 下，重新导出不会动这个目录，然后从一个插件里注册它们应答什么：
+- **只被代码引用的资产会被剔除。** 构建只打包从构建场景可达的资产。在内容浏览器中将只被代码引用的文件夹标记为 **交付方式 → 总是打进构建（即使无人引用）**，这会在 `.esengine/asset-groups.json` 中写入 `alwaysInclude`：
 
-```java title="app/src/game/java/com/example/game/GamePlugin.java"
-package com.example.game;
-
-import android.app.Activity;
-import com.estella.host.NativeChannel;
-
-public final class GamePlugin implements NativeChannel.Plugin {
-    @Override public void register(Activity activity) {
-        NativeChannel.register("store.buy", (args, reply) -> {
-            // args 是 JSON 文本。调用你的 SDK，然后应答一次，哪个线程都可以:
-            reply.resolve("{\"token\":\"abc\"}");   // 或 reply.reject("cancelled")
-        });
-    }
-}
-```
-
-在 `app/src/game/resources/META-INF/services/com.estella.host.NativeChannel$Plugin`
-里写上插件的类名，一行一个。插件靠这个文件在第一帧之前被找到（Java 的 `ServiceLoader`），
-所以一个库可以自带插件，清单里不用点名。
-
-处理器在 UI 线程上运行，要显示界面的 SDK 必须在那里调用。
-`NativeChannel.emit("store.restored", json)` 可以从任何线程发出事件，
-`NativeChannel.activity()` 是游戏的 Activity，给需要它的 SDK 用。
-
-这个版本之前导出的工程，`app/build.gradle.kts` 里没有 `src/game` 源码集；这个文件归你，
-不会被重写，手动加上：
-
-```kotlin title="app/build.gradle.kts"
-android {
-    sourceSets {
-        getByName("main") {
-            java.srcDir("src/game/java")
-            resources.srcDir("src/game/resources")
-        }
-    }
-}
-```
-
-### iOS
-
-导出的 Xcode 工程里带着 `App/EstellaNativeChannel.h`。把你自己的源文件加进应用 target
-（放在 `App/` 之外，重新导出会重写那个目录），在 `+load` 里注册，它在游戏启动之前运行：
-
-```objc title="GamePlugin.m"
-#import "App/EstellaNativeChannel.h"
-
-@interface GamePlugin : NSObject
-@end
-
-@implementation GamePlugin
-+ (void)load {
-    [EstellaNativeChannel registerMethod:@"store.buy"
-                                 handler:^(NSString* args, EstellaNativeReply reply) {
-        // 调用你的 SDK，然后应答一次，哪个线程都可以:
-        reply(@"{\"token\":\"abc\"}", nil);   // 或 reply(nil, @"cancelled")
-    }];
-}
-@end
-```
-
-`[EstellaNativeChannel emitEvent:@"store.restored" json:json]` 发出事件。处理器在主线程上运行。
-
-### 广告
-
-只要你的原生代码应答两个名字，引擎自带的 [`Ads` 服务](/docs/zh-cn/publishing/ads-sharing/#激励视频)
-在真机上就能用，游戏里别的都不用改：`Ads.available` 变成 `true`，`showRewarded`
-像在小游戏里一样，在广告前后暂停游戏、静音、再恢复。
-
-| 方法 | 参数 | 应答 |
-| --- | --- | --- |
-| `ads.show` | `{ kind: "rewarded" \| "interstitial", unitId }` | 广告**关闭**时应答。激励广告在奖励确实获得时应答 `{ "completed": true }`，其他任何应答都不发奖励。没有广告可放时 reject。 |
-| `ads.preload` | 同上 | 可选。广告加载好时应答。 |
-
-用哪家广告 SDK（AdMob、穿山甲、聚合层）由项目决定，体积、隐私条款和账号都是项目自己的，
-所以引擎不替你选。
-
-## 只在真机上才咬人的那些事
-
-这些是你第一次做真机构建前值得知道的差异。每一条都至少发过一次坏包,
-因为编辑器直接从磁盘伺服项目,根本不会察觉。
-
-### 只有代码点名的资产会被剔除
-
-构建发布的是它能从入口场景**可达**的东西。对场景点名的一切来说这是对的——
-但对**只在代码里**点名的东西它是瞎的:富文本标记里的纹理、按 url 播放的音频、
-按路径 spawn 的预制体。这些会被剔除,而你第一次听说这件事,
-是手机上一个没声的按钮或一张缺失的图。
-
-在**内容浏览器**里标记这个文件夹:右键 → **交付方式 → 总是打进构建**。
-它会把 `alwaysInclude` 写进那份已经在决定本地 / 分包 / 远端交付的
-`.esengine/asset-groups.json`:
-
-```json
-{
-  "version": "1.0",
-  "groups": {
-    "markup-images": {
-      "folder": "assets/textures",
-      "mode": "local",
-      "alwaysInclude": true
+  ```json
+  {
+    "version": "1.0",
+    "groups": {
+      "markup-images": {
+        "folder": "assets/textures",
+        "mode": "local",
+        "alwaysInclude": true
+      }
     }
   }
-}
-```
+  ```
 
-默认关闭,这是刻意的——正是可达性分析拦住了"什么都往包里塞"。
-见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
+  默认关闭。见[资产](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
+- **按平台的纹理设置。** 导入设置按平台分页，包括移动目标，因此可以在不修改源文件的情况下为手机设置更强的压缩。
 
-### 为内存最紧张的平台单独调纹理
+## 脚本执行
 
-逐资产的**导入设置**每个平台一个页签,移动目标也在其中——所以一张纹理可以为手机压得比
-网页端更狠,而不用动源 PNG。见[资源](/docs/zh-cn/assets/overview/)。
+| | Android | iOS |
+|---|---|---|
+| 引擎 | 带 JIT 的 V8（每个 ABI 一个 `libv8android.so`） | QuickJS-ng 解释器 |
+| 语言支持 | 提供 `Intl` 和 Unicode 正则表达式（`/\p{L}/u`）所需的 ICU 数据；`TextEncoder` / `TextDecoder` 由宿主提供 | — |
+| `@compiled` 系统 | 用 Android NDK 为包内每个 64 位 ABI 交叉编译，放在 `lib/<abi>/` 中 | 解释执行 |
+| 首次启动时的 SDK 包 | 启动时编译，并缓存在应用缓存目录 | 预编译字节码随应用发布 |
 
-### 游戏脚本跑多快
+- **Android 的 `@compiled` 系统** 从第一帧起即以机器码运行。导出机器上必须安装 NDK（Android Studio 的 SDK Manager，或设置 `ANDROID_NDK_HOME`）；项目含编译系统而缺少 NDK 时，打包对话框会给出提示。宿主无法绑定的系统在该帧以解释方式运行。
+- **iOS** 以解释方式执行所有脚本。用 TypeScript 编写的逐实体循环比在浏览器中开销更大；热路径中应优先使用引擎系统和批量 API。
+- **iOS 首次启动。** SDK 字节码随应用一同构建，因此全新安装后无需解析脚本包即可到达第一帧。构建机器没有 C 编译器时无法生成字节码，应用会在首次运行时编译，该次启动约需十秒，之后不再发生。
 
-引擎在各平台都以原生全速运行。**Android** 上游戏脚本也一样:它跑在带 JIT 的 V8 上,
-和 Chrome 是同一个引擎——同一份脚本会像在浏览器里那样编译成机器码,项目里什么都不用改。
-在骁龙 8 Elite 手机上:5000 个脚本实体的一帧,解释器要 64 毫秒,V8 上是 14 毫秒
-(桌面 CPU 上是 76 → 8 毫秒)。V8 是每个 ABI 一份 `libv8android.so`,带上 `Intl` 与 Unicode 正则(`/\p{L}/u`)要用的
-Unicode 数据,所以脚本看到的是和浏览器一样的语言;`TextEncoder` / `TextDecoder` 由宿主提供。
+启动记录（[启动诊断](#启动诊断)）会说明实际情况——`SDK bundle: loaded from the cache shipped with the app` 或 `bundle: no compile cache`——其开头几行给出引擎名称（`engine: V8 …` 或 `engine: QuickJS-ng …`）。
 
-**APK 会压缩存放原生库**(项目设置 → Android → *压缩原生库*,默认开启):空项目下载约 20 MB
-而不是 54 MB,安装时由 Android 解压一次。关闭则不压缩存放、由系统直接映射——安装后占用减半,
-下载体积接近三倍。App Bundle 始终不压缩:Google Play 会自行压缩下发。
+## 启动诊断
 
-**iOS** 上游戏脚本由 QuickJS 解释执行:Apple 不允许自家浏览器以外的 JIT。
-用 TypeScript 写的逐实体循环,是那里比浏览器里明显更贵的那一样东西——
-热路径上优先用引擎自己的系统和批量 API,而不是手写逐实体迭代。
-
-**在 Android 上,标记了 `@compiled` 的系统不等 JIT 就以机器码运行。** 导出时会用 Android NDK
-把每个 `/** @compiled */` 系统交叉编译,包里每个 64 位 ABI 各一份(arm64-v8a,模拟器还有
-x86_64),APK 把它们放在 `lib/<abi>/`。解释器每个实体要花微秒级,编译后只要几十纳秒——在 JIT 之上它仍能把一帧再砍掉一大截
-(那台手机上 14 毫秒 → 4.2 毫秒,桌面上 8.3 → 1.4 毫秒)。导出机器
-需要装好 NDK(Android Studio 的 SDK Manager,或设置 `ANDROID_NDK_HOME`);项目承诺了编译系统
-而缺少 NDK 时,打包对话框会提示。宿主绑定不了的系统会在那一帧退回解释器,所以缺模块只影响速度,
-不影响正确性。iOS 目前仍全部解释执行。
-
-### 安装后的第一次启动
-
-**Android** 上,V8 在启动时编译 SDK bundle——不到一秒——并把结果存进应用缓存,
-之后的启动连这一步也省了。
-
-**iOS** 上,解释器解析 SDK bundle 要约 14 秒,而编译缓存要等一次启动付过账才存在——
-那次启动恰好就是刚装完的那一次。所以**字节码是随应用一起构建**的,跟着资产一起走:
-全新安装到第一帧从约 10 秒变成约 0.1 秒。
-
-构建机上没有 C 编译器就产不出它,应用会退回到首次运行时现编译:能用,
-但那一次启动会有十秒停在一块被玩家读成「卡死」的画面上。启动记录会说明是哪种情况——
-`SDK bundle: loaded from the cache shipped with the app`,或者 `bundle: no compile cache`
-——所以首次启动慢是一个有答案的问题,而不是一桩悬案。记录开头还会写明用的是哪个引擎
-(`engine: V8 …` 或 `engine: QuickJS-ng …`)。
-
-### 真机上出问题时
-
-每次启动都会在游戏旁边写一份记录,所以只在别人手机上出现的故障也能留下东西:
+每次启动都会写出启动记录：
 
 ```
-Android   Android/data/<你的包名>/files/estella-boot.log
-iOS       应用的 Documents 目录
+Android   Android/data/<your.package.id>/files/estella-boot.log
+iOS       the app's Documents directory
 ```
 
-上一次运行保留为 `estella-boot.prev.log`——否则应用崩掉后再打开一次,
-死亡的记录就被重试的记录覆盖了。
+上一次运行的记录保存为 `estella-boot.prev.log`。
 
 ```
 estella boot record — 2026-07-29 19:07:38
@@ -416,8 +197,7 @@ phase: game script
 ready in 105 ms
 ```
 
-有用的是那些 **phase**:文件里最后一个 phase,就是这次没能跑完的启动停在哪儿。
-跑完了的会写 `ready in`。原生崩溃会追加信号、崩在哪个阶段、以及返回地址:
+未完成的启动中，最后一行 `phase:` 即停止的位置；完成的启动以 `ready in` 结尾。原生崩溃会追加信号、所处阶段和返回地址：
 
 ```
 FATAL SIGSEGV (bad memory access) during phase: js runtime
@@ -425,42 +205,38 @@ backtrace (symbolize against this version's unstripped libestella_js_host.so):
   0x7b41e2632c  /data/app/.../libestella_js_host.so+0x1e32c
 ```
 
-这些地址要拿**对应引擎版本、没有 strip 过**的 `libestella_js_host.so` 来符号化
-(`llvm-addr2line -e libestella_js_host.so 0x1e32c`);APK 里那份是 strip 过的。
+这些地址需用同一引擎版本**未剥离符号**的 `libestella_js_host.so` 解析（`llvm-addr2line -e libestella_js_host.so 0x1e32c`）；APK 中的副本已剥离符号。
 
-从 Android 设备上取回:
+从 Android 设备读取记录：
 
 ```bash
-adb shell cat /sdcard/Android/data/<你的包名>/files/estella-boot.log
-adb pull /sdcard/Android/data/<你的包名>/files/estella-boot.log
+adb shell cat /sdcard/Android/data/<your.package.id>/files/estella-boot.log
+adb pull /sdcard/Android/data/<your.package.id>/files/estella-boot.log
 ```
 
 <Aside type="caution">
-  这条路径是给你的,不是给玩家的:Android 11 起,一个应用的 `Android/data` 对文件管理器
-  和系统「文件」应用都是关的,`adb shell` 能读只是因为那个用户恰好在 `ext_data_rw` 组里。
+  自 Android 11 起，文件管理器和系统“文件”应用无法访问应用的 `Android/data` 目录。`adb shell` 能够读取，是因为其用户属于 `ext_data_rw` 组。
 </Aside>
 
-**游戏崩溃后,下一次启动会把记录发布到玩家能拿到的地方**——
-`Android/media/<你的包名>/`(文件管理器能列出),取不到时退回 `Download/`。
-文件名是 `estella-crash-<日期>.log`,新那次运行自己的记录里也会写明它去了哪儿:
+发生崩溃后，下一次启动会将记录复制到文件管理器可访问的 `Android/media/<your.package.id>/`（回退到 `Download/`），文件名为 `estella-crash-<date>.log`。新运行的记录会给出该路径：
 
 ```
 previous run CRASHED; its record was copied to
   /storage/emulated/0/Android/media/com.example.game/estella-crash-20260729-190738.log
 ```
 
-所以给报障的人的说法是:**再打开一次游戏,然后把那个目录里最新的 `estella-crash-*.log` 发过来**。
-只有崩溃才会被发布——正常跑完的启动不会在那儿留下任何东西。
+向玩家收集崩溃报告的方式：再打开一次游戏，然后发送该目录中最新的 `estella-crash-*.log`。只有崩溃会被复制。
 
-设备连着的时候,同样的内容也在 `logcat` 里:
+设备连接期间，同样的内容也会出现在 `logcat` 中：
 
 ```bash
-adb logcat --pid=$(adb shell pidof <你的包名>)
+adb logcat --pid=$(adb shell pidof <your.package.id>)
 ```
 
-## 另见
+## 参见
 
-- [构建与导出](/docs/zh-cn/publishing/overview/) —— 所有目标、cook 选项与打包对话框。
-- [资源](/docs/zh-cn/assets/overview/) —— 可达性剔除、交付分组与导入设置。
-- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/) —— 为手机的宽高比做设计。
-- [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md) —— 宿主架构与完整构建配方。
+- [原生代码](/docs/zh-cn/publishing/native-code/)——通过 `NativeChannel` 从脚本调用 Java、Kotlin、Objective-C 或 Swift。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——目标、压缩与打包项目对话框。
+- [资产](/docs/zh-cn/assets/overview/)——可达性、交付组与导入设置。
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)——针对手机宽高比的设计。
+- [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md)——宿主架构与构建步骤。

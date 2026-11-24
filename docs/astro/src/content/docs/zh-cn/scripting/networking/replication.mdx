@@ -1,0 +1,171 @@
+---
+title: 状态复制
+description: 服务器权威的实体复制——Replicated 与复制字段、服务器与客户端设置、握手、复制原型、运行时组件增删、传输、游戏消息、归属、服务器限制、玩家身份与重连、编辑器预览、专用服务器以及 Online 3D 模板。
+---
+
+复制层是**服务器权威**的。在服务器上标记了 `Replicated` 的实体会在每个客户端上生成；其声明的字段以二进制增量发送，远端实体以快照插值渲染。组件声明即定义线格式，无需手写同步代码。
+
+## 基本设置
+
+```typescript
+import { defineComponent, Net, Replicated, Transform, createMemoryTransportPair } from 'esengine';
+
+// Replicated fields are declared on the component. Built-ins such as Transform
+// declare `replicated` in C++; user components declare replicatedFields.
+const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
+  replicatedFields: ['hp'],
+});
+
+// A transport carries frames between two ends. In-process (tests, a listen
+// server) a memory pair is used; over a network, a GameSocket on each side.
+const [serverEnd, clientEnd] = createMemoryTransportPair();
+
+// --- SERVER app (the authority) ---
+const server = serverApp.getResource(Net).startServer();
+const connectionId = server.attachConnection(serverEnd);   // returns the connection id
+const e = serverApp.world.spawn('player');
+serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+serverApp.world.insert(e, Health, {});
+serverApp.world.insert(e, Replicated, { owner: connectionId });   // owned by that client
+const input = server.inputOf(connectionId);        // that client's latest input
+// server.presentIds — polled each tick to spawn or retire a pawn per player.
+
+// --- CLIENT app ---
+const clientNet = clientApp.getResource(Net);
+await clientNet.connect(clientEnd, { interpolationDelayTicks: 2 });   // interpolation delay in ticks
+clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input
+```
+
+| 元素 | 说明 |
+|---|---|
+| `Replicated` | 将实体标记为参与复制。`owner` 为所属连接的 id；`archetype` 指定[复制原型](#复制原型)。 |
+| `replicatedFields` | 列出参与复制字段的组件元数据（[组件](/docs/zh-cn/core-concepts/components/#组件元数据)）。没有复制字段的组件永远不会到达客户端。 |
+| `NetGhost` | 客户端上服务器实体代理所带的标签。 |
+| `server.presentIds` | 已连接的连接，以及已掉线但仍处于重连宽限期内的连接。未配置 `authenticate` 时等于 `server.clientIds`。 |
+| `server.inputOf(id)` | 该客户端最新的输入命令。 |
+| `client.sendInput(actions)` | 每 tick 发送一条输入命令。 |
+
+## 权威与握手
+
+只有服务器进行模拟；客户端显示经复制并插值的状态。握手在协议、ABI 或 schema 不匹配时以错误拒绝连接。比对的 schema 包含字段名**以及**其线上形状，因此一端默认值为 `0`、另一端为 `false` 的字段也能被发现。
+
+## 复制原型
+
+ghost 由声明的原型构建，而非由服务器的组件集合构建。一条 spawn 消息携带三项内容：身份（`netId`、`owner`、父节点、名称）、构建键，以及已声明复制字段的基线。没有复制字段的组件，以及复制组件中未声明的字段，均不会发送。
+
+因此，代理实体存在所需的一切都在原型中声明：
+
+```typescript
+import { registerReplicationArchetype, Replicated, Sprite } from 'esengine';
+
+registerReplicationArchetype('pawn', (world, entity) => {
+    world.insert(entity, Sprite, { size: { x: 36, y: 36 }, layer: 2 });
+});
+
+// On the server, the archetype is named when the entity starts replicating.
+world.insert(e, Replicated, { owner: connectionId, archetype: 'pawn' });
+```
+
+原型构建函数先执行，权威端的基线随后覆盖其上，因此离开客户端兴趣范围后又返回的实体以其当前状态到达。客户端若没有该键的构建函数，会拒绝这次 spawn。
+
+## 运行时组件增删
+
+复制组件可在运行时添加和移除：
+
+- 添加组件时发送其声明的字段。
+- 移除组件时，已收到该组件的 ghost 也会移除它。
+- 客户端按发送顺序应用生成、更新与移除。
+- 重连时，保留下来的 ghost 会去掉服务器在此期间移除的组件。其仅本地存在的组件，以及仍存在组件中的本地字段，保持原值。预测以最近收到的字段为基础重建。
+
+## 传输
+
+链路必须**可靠且有序**：客户端按到达顺序应用消息，即权威端的顺序。`startServer().attachConnection` 与 `Net.connect` 接受 `ReliableOrderedTransport`。所有内置 socket 均满足该要求；自定义传输需声明 `delivery: 'reliable-ordered'`，缺少该声明的传输会产生编译错误。
+
+## 游戏消息
+
+除状态流之外，服务器与客户端还可以交换游戏自定义类型的消息——聊天、通知、状态中不包含的请求：
+
+| 调用 | 方向 |
+|---|---|
+| `server.message(id, type, data)` | 服务器 → 单个客户端。 |
+| `server.broadcastMessage(type, data, filter?)` | 服务器 → 所有客户端（可选过滤）。返回发送的数量。 |
+| `client.onMessage(type, handler)` | 客户端接收，按到达顺序。 |
+| `client.message(type, data)` | 客户端 → 服务器。未连接时返回 `false`；消息不会跨重连排队。 |
+| `server.onMessage(type, (connectionId, data) => …)` | 服务器接收，仅来自已完成 hello 的连接，并受与其他流量相同的限制。 |
+
+以 `repl:` 开头的类型保留给协议使用。
+
+## 归属
+
+`Replicated.owner` 将某连接的 `sendInput` 命令路由到其实体。`client.ownsEntity(e)` 返回某个 ghost 是否归本客户端所有。归属是 spawn 载荷的一部分，在 spawn 时指定。
+
+## 服务器限制
+
+每个连接默认都有以下限制：
+
+| 限制 | 默认值 |
+|---|---|
+| 最大帧大小；超出的帧不经解析直接丢弃 | 256 KiB |
+| 控制消息（hello、输入命令） | 每秒 120 条，突发 240 条 |
+| 连接被踢出前允许的上述违规次数 | 每分钟 100 次 |
+| hello 之前允许的时间 | 10 秒；超时后关闭连接 |
+| 第二次 hello | 拒绝 |
+| `maxConnections` | 超出后的新连接以 "server full, try again" 拒绝 |
+| 服务器心跳 | 每 5 秒 ping 一次；静默 15 秒的链路被关闭。已认证的玩家随后获得正常的重连宽限期。 |
+| `webSocketTransport` 发送缓冲（`maxBufferedBytes`） | 读取落后超过 4 MiB 的客户端被关闭。 |
+
+这些限制通过 `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })` 配置；对 `limits` 或 `heartbeat` 传入 `false` 即关闭。客户端在平台 socket 上同样会 ping（5 秒 / 15 秒），因此未关闭连接便消失的服务器会被检测到并重新拨号。
+
+## 玩家与重连
+
+默认情况下连接是匿名的，掉线后再连回的连接视为新客户端。`authenticate` 函数用于识别玩家，玩家随后在重连之间保持其 id：
+
+```ts
+// server: turn the hello's credentials into a player, or throw to refuse
+const server = net.startServer({
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    reconnectGraceMs: 30_000,   // how long a dropped player remains present (default 30 s)
+});
+// client: the same credentials on every hello, and redial on a drop
+const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+```
+
+- 服务器记得某个玩家期间，该玩家始终使用同一个连接 id，因此 `Replicated.owner`、`tickInputOf` 及其他按连接保存的状态得以延续。
+- 掉线的玩家在宽限期内仍位于 `presentIds` 中（不在 `clientIds` 中，也不发送输入）。宽限期内重新拨号会得到同一个 id，客户端已有的 ghost 仍是同一批实体，并更新到当前状态。
+- 以同一 `playerId` 再次登录会替换前一次登录；`server.kick(id)` 立即结束一个会话。旧客户端进入 `state === 'closed'`，`closeReason` 为 `'replaced'` 或 `'kicked'`，且不再重新拨号。
+- 抛出带 `fatal: false` 的 `SessionRejected`（来自 `esengine/session`）可拒绝一次 hello，而不中止客户端的重新拨号。
+- `reconnect` 适用于平台 socket（`GameSocket`、`createSocket`）；使用其他传输时，由游戏调用 `client.resume(newTransport)`。
+
+凭据的内容，以及由谁签发和校验，由游戏定义。
+
+| 服务器成员 | 说明 |
+|---|---|
+| `clientIds` | 已连接的连接。 |
+| `presentIds` | 已连接或处于重连宽限期内的连接。 |
+| `playerIdOf(id)` / `connectionIdOf(playerId)` | 在连接 id 与玩家 id 之间映射。 |
+| `isAway(id)` | 在场的玩家当前是否处于断开状态。 |
+| `kick(id, message?)` | 结束一个玩家的会话。 |
+
+## 编辑器预览
+
+Play 模式下拉菜单提供 **2–4 Players**：listen server 与各客户端视图在编辑器中并排运行，无需任何网络配置。
+
+{/* SHOT: script-play-players | examples/multiplayer-arena，打开主工具栏上的 Play 模式下拉菜单；菜单中显示 2–4 Players 选项。 */}
+
+## 专用服务器
+
+同一份玩法代码可在 Node 下无头运行：
+
+```ts
+import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node';
+```
+
+- `flushPendingRegistrations(app)` 安装项目在模块作用域注册的内容，与 Web 运行时的做法相同，因此服务器运行的是项目自身的系统。
+- 每个接入的 `ws` socket 通过 `server.attachConnection(webSocketTransport(socket))`（来自 `esengine/replication`）接入。一个 tick 发给某个客户端的全部内容在一次 socket 写出中完成。
+- `startSocketWorker({ port })`（来自 `esengine/node`）将 socket 移出模拟线程：它在工作线程上监听，在该线程写出每个客户端的帧，并将每个连接作为一个传输交出。服务器随后调用 `server.attachConnection(transport)` 与 `transport.onClose(() => server.detachConnection(link))`。适用于有数百名玩家的服务器。
+
+**Multiplayer Arena** 示例展示了复制、每 tick 输入与客户端预测；其 `server/` 目录是专用服务器部分，在 WebSocket 之后无头运行同一个项目。
+
+## Online 3D 模板
+
+**Online 3D** 模板（`estella create online-3d ./my-game`，或编辑器的新建项目画廊）是基于该模型构建游戏的起点：一块有光照的 3D 地面，每名玩家一个角色（在其所有者屏幕上预测，并复制给其他所有人），一台跟随本地角色的相机，以及无头运行同一份代码的 `server/`。两端必须一致的规则（速度、世界边界）位于 `src/shared/rules.ts`，不在任何系统中，因此服务器可以拒绝规则所禁止的操作。模板的 README 列出了留给游戏实现的部分：玩家身份、世界保存与可见性。

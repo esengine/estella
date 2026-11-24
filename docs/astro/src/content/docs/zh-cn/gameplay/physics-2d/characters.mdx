@@ -1,0 +1,118 @@
+---
+title: 角色控制器
+description: 2D 角色移动参考——沿表面滑动并报告接触的运动学移动器 CharacterController2D，以及根据输入驱动其奔跑与跳跃的 PlatformerController2D。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+角色控制器沿表面移动物体，而不是将其作为动态刚体模拟。`CharacterController2D` 按请求的速度移动；`PlatformerController2D` 根据键盘输入或游戏提供的输入生成该速度。
+
+## `CharacterController2D`
+
+玩法代码在每个固定步设置 `velocity`。控制器用 Box2D 的原生运动学移动器（`b2World_CollideMover` + `b2SolvePlanes`）推进一步：将形状与接触平面碰撞并求解去穿插滑动，写回解算后的位姿，并报告接触到的表面。
+
+```typescript
+import { defineSystem, Query, Mut, Res, Time, Schedule, CharacterController2D } from 'esengine';
+
+const drive = defineSystem([Query(Mut(CharacterController2D)), Res(Time)], (q, time) => {
+  for (const [entity, cc] of q) {
+    cc.velocity = { x: moveX * 240, y: cc.velocity.y - 900 * time.fixedDelta };  // gravity
+    if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);   // moveX / jumpPressed: your input
+```
+
+要求与行为：
+
+- 实体需要一个碰撞体，移动器形状由它推导。盒子会变为沿其长轴内接的胶囊。
+- 只有角色还带有**运动学（Kinematic）**`RigidBody2D` 时，其他物体才会与它碰撞。
+- 移动器会排除角色自身的刚体，因此 `maskBits` 无需排除自身的碰撞层。
+- `velocity` 由固定步长系统驱动，使运动与帧率无关。跳跃按下之类的输入边沿会正确投递到 `FixedUpdate`（[输入](/docs/zh-cn/scripting/input/overview/)）。
+- 传感器从不阻挡角色。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `velocity` | Vec2 | `{0, 0}` | 请求的速度，世界像素/秒，每步设置。 |
+| `up` | Vec2 | `{0, 1}` | 地面 / 墙壁 / 天花板分类所用的上方向。 |
+| `floorMaxAngle` | number | `0.785` | 相对 `up` 的最大可行走坡度，弧度（45°）。 |
+| `skinWidth` | number | `1` | 与表面保持的间隙（像素），避免粘滞与抖动。 |
+| `maxSlides` | number | `4` | 每次移动的最大去穿插滑动迭代次数（至少为 1）。 |
+| `snapLength` | number | `0` | 向下探测长度（像素），使物体贴住下行的台阶与斜坡；`0` 表示关闭。上升时跳过，因此跳跃仍能离地。 |
+| `slideOnCeiling` | boolean | `true` | 为 `false` 时，撞到天花板会取消向上运动，而不是沿其滑动。 |
+| `maskBits` | number | `0xFFFF` | 阻挡角色的层。 |
+| `stepHeight` | number | `0` | 无需跳跃即可走上的最高台阶（像素）。`0` 表示只能越过圆形脚底自然滑过的高度。 |
+| `stopOnSlope` | boolean | `true` | 在可行走斜坡上静止站立，并沿坡面而非朝坡内行走。 |
+| `constantSlopeSpeed` | boolean | `false` | 沿坡面保持请求的速度。为 `false` 时保持水平速度，因此上坡所用时间与平地上相同水平距离相同。 |
+| `blockSteepSlopes` | boolean | `true` | 坡度超过 `floorMaxAngle` 的斜坡视为墙：走向它无法爬上，角色会沿其滑下。 |
+| `followPlatform` | boolean | `true` | 随脚下的物体移动，包括水平与竖直方向。 |
+| `dynamicBodies` | `CharacterDynamicBodies` | `Block` | 与动态刚体的交互：`Block` 挡住角色；`Push` 挡住角色并以不超过 `pushForce` 的力推动该刚体；`Ignore` 穿过。 |
+| `pushForce` | number | `40` | 最大推力，牛顿（仅 `Push`）。 |
+| `dropThrough` | boolean | `false` | 置位期间穿过单向平台。 |
+| `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **输出**：本次移动接触到的表面。 |
+| `floorNormal` | Vec2 | — | **输出**：最后接触的地面法线（离地时为零）。 |
+| `floorEntity` | Entity | — | **输出**：脚下的实体；离地时为 `0`。 |
+| `floorVelocity` | Vec2 | — | **输出**：该实体的速度，像素/秒。 |
+| `realVelocity` | Vec2 | — | **输出**：碰撞后的实际位移 / dt，像素/秒。 |
+
+<Aside type="note">
+  `skinWidth`、`maxSlides`、`snapLength` 与 `slideOnCeiling` 同时由原生移动器和 `esengine/physics` 中独立的 `moveAndSlide` 解算器遵循。表中 `maskBits` 之后的字段只对原生移动器生效；`moveAndSlide` 不支持它们。
+</Aside>
+
+## `PlatformerController2D`
+
+将 `PlatformerController2D` 添加在 `CharacterController2D` 旁边，即可读取输入并驱动角色奔跑、跳跃与下落，无需游戏系统。它实现了跳跃缓冲（落地前 `jumpBuffer` 秒内按下的跳跃会在落地时执行）与土狼时间（离开边缘后 `coyoteTime` 秒内按下的跳跃按地面起跳处理）。
+
+```typescript
+import { Transform, CapsuleCollider2D, CharacterController2D, CharacterDynamicBodies, PlatformerController2D } from 'esengine';
+
+const player = world.spawn();
+world.insert(player, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(player, CapsuleCollider2D, { radius: 0.1, halfHeight: 0.15 });
+world.insert(player, CharacterController2D, { stepHeight: 12, snapLength: 8, dynamicBodies: CharacterDynamicBodies.Push });
+world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 });
+```
+
+### 输入
+
+`readKeyboard` 置位时，控制器读取键盘：
+
+| 操作 | 按键 |
+|---|---|
+| 移动 | A / D、左 / 右方向键 |
+| 跳跃 | Space、W、上方向键 |
+| 穿过单向平台 | 下方向键或 S，加跳跃 |
+
+`readKeyboard: false` 时，由游戏、触屏控件或 AI 通过输入字段驱动：`moveInput` 与 `jumpHeld` 为电平值；`jumpPressed` 与 `dropPressed` 由下一个固定步消费。按键按渲染帧锁存，因此两个固定步之间的短按不会丢失。
+
+### 字段
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `moveSpeed` | number | `260` | 最高奔跑速度，像素/秒。 |
+| `groundAcceleration` / `airAcceleration` | number | `2400` / `1500` | 地面 / 空中趋向该速度的加速度，像素/秒²。 |
+| `groundDeceleration` / `airDeceleration` | number | `3000` / `900` | 输入回中时的减速度。 |
+| `gravity` | number | `1600` | 向下的加速度，像素/秒²。 |
+| `fallGravityScale` | number | `1.25` | 下落时的重力倍率。大于 1 时下落快于上升。 |
+| `maxFallSpeed` | number | `1000` | 最大下落速度，像素/秒。 |
+| `jumpSpeed` | number | `620` | 起跳时的向上速度；`0` 表示禁用跳跃。 |
+| `jumpCut` | number | `0.5` | 松开跳跃键时保留的上升速度比例，0–1。`1` 使每次跳跃都达到满高度。 |
+| `coyoteTime` | number | `0.1` | 离地后多少秒内的跳跃仍按地面起跳处理。 |
+| `jumpBuffer` | number | `0.12` | 提前按下的跳跃被记住的秒数，在落地时执行。 |
+| `airJumps` | number | `0` | 再次落地前的额外跳跃次数。 |
+| `dropTime` | number | `0.2` | 穿过单向平台持续的秒数。 |
+| `keepPlatformVelocity` | boolean | `true` | 起跳时保留所离开平台的速度。 |
+| `readKeyboard` | boolean | `true` | 自行读取键盘。 |
+| `moveInput` | number | `0` | 输入：-1（左）到 1（右）。 |
+| `jumpHeld` | boolean | `false` | 输入：跳跃键处于按下状态。 |
+| `jumpPressed` | boolean | `false` | 输入：跳跃键刚按下；由下一个固定步消费。 |
+| `dropPressed` | boolean | `false` | 输入：请求穿过单向平台；由下一个固定步消费。 |
+| `enabled` | boolean | `true` | 为 `false` 时控制器停止工作。 |
+
+{/* SHOT: gameplay-platformer-controller | platformer example, main scene: the Player entity selected, Details panel showing the Character Controller 2D and Platformer Controller 2D cards */}
+
+## 另请参阅
+
+- [刚体与碰撞体](/docs/zh-cn/gameplay/physics-2d/bodies/#单向平台)——单向平台。
+- [3D 物理：角色](/docs/zh-cn/gameplay/physics-3d/characters/)——`CharacterController3D` 与 3D 控制器。
+- [输入](/docs/zh-cn/scripting/input/overview/)——键盘与触屏输入。

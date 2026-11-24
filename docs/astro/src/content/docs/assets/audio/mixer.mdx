@@ -1,0 +1,141 @@
+---
+title: Mixer
+description: Audio mixer reference — the bus hierarchy, bus volumes, insert effects, sidechain ducking, the voice limit, the Audio Mixer panel and project config, custom buses, and the AudioBus, AudioMixer and AudioPool classes.
+---
+
+The mixer is a bus hierarchy, `master → { music, sfx, ui, voice }`. A bus volume scales everything routed under it. Each
+bus carries an insert effect chain and an optional ducking rule.
+
+## Buses
+
+```typescript
+audio.setMasterVolume(0.8);
+audio.setMusicVolume(0.6);
+audio.setSFXVolume(1.0);
+audio.setUIVolume(0.9);
+audio.muteBus('music', true);
+```
+
+- `playSFX` plays on `sfx` and `playBGM` on `music`. An `AudioSource` plays on its `bus` field; `playTrack` takes a `bus`.
+- `voice` has no named setter: use `setBusVolume('voice', v)` (which accepts any bus name) or `muteBus('voice', …)`.
+- Default volumes: `music` 0.8, every other built-in bus 1.
+
+## Bus effects
+
+Each bus has a DSP insert chain declared as data:
+
+```typescript
+audio.setBusEffects('music', [
+  { type: 'filter', filter: 'lowpass', frequency: 800, q: 1 },
+  { type: 'reverb', seconds: 1.5, wet: 0.3 },        // procedural room tail
+  { type: 'compressor', thresholdDb: -24, ratio: 4 },
+]);
+audio.setBusEffects('music', []);   // clear
+```
+
+## Ducking
+
+A ducking rule lowers one bus while another carries signal, for example music under voice lines:
+
+```typescript
+audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, release: 0.4 });
+audio.setBusDucking('music', null);  // remove
+```
+
+| `BusDuckRule` field | Default | Description |
+|---|---|---|
+| `trigger` | — | Bus whose signal activates the rule. |
+| `amount` | — | Gain the target bus ducks to while the trigger is active. |
+| `attack` | `0.05` | Time constant in seconds for ducking. |
+| `release` | `0.4` | Time constant in seconds for returning to 1. |
+| `threshold` | `0.003` | RMS level (0–1) above which the trigger bus counts as active. |
+
+Ducking is a separate gain stage from the bus volume, so it never conflicts with the player's volume setting. On
+backends without a Web Audio graph (WeChat) `setBusEffects` and `setBusDucking` are no-ops, as are the bus volume calls.
+
+## Voice limit
+
+At most **32** voices play at once by default. Set `features.audio.maxVoices` in `project.esproject` to change it (`0`
+disables the limit). When the limit is reached, the voice with the lowest priority is stopped for a new voice with a
+higher one; ties keep the older voice, and a new sound with lower priority than every playing voice is not started.
+Priority comes from `AudioSource.priority` or the `priority` option of `playSFX`.
+
+## Audio Mixer panel
+
+The **Audio Mixer** panel in the bottom dock edits the mix: one strip per bus with a volume fader, mute, the effect chain,
+a duck-by rule, and custom buses. Edits are stored in `project.esproject` (`features.audio`) and apply live in the editor;
+Play and every export start with the same mix.
+
+{/* SHOT: assets-audio-mixer-panel | audio-demo example: the Audio Mixer panel open in the bottom dock, showing the master, music, sfx, ui and voice strips with faders, mute buttons and one bus's effect chain */}
+
+## Custom buses
+
+```typescript
+audio.ensureBus('ambience');                 // under master; idempotent
+audio.ensureBus('footsteps', 'sfx');         // under an existing bus
+audio.setBusVolume('ambience', 0.5);
+audio.playTrack('assets/wind.ogg', { bus: 'ambience' });
+```
+
+`ensureBus(name, parent?)` creates the bus if missing (under `parent`, default `master`) and returns `false` on backends
+without a mixer graph. All by-name calls (`setBusVolume`, `muteBus`, `setBusEffects`, `setBusDucking`) then reach it.
+
+## Mixer classes
+
+`Audio` is a facade over three exported classes that the Web Audio backend assembles: `AudioMixer`, `AudioBus` and
+`AudioPool`. They do not exist on the WeChat and native backends. A game rarely constructs them; they are public for
+standalone audio pipelines (an audition tool, a custom `PlatformAudioBackend`, tests) on an application-owned
+`AudioContext`.
+
+### `AudioBus`
+
+One mixer strip: `input → [insert effects…] → duck → gain(volume) → parent`. Sources and child buses connect to `input`;
+`node` is the output gain, which volume and mute act on and which parents (or an `AnalyserNode`) connect from.
+
+| `AudioBusConfig` | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | — | Bus name. |
+| `volume` | number | `1` | Initial volume, clamped to 0–1. |
+| `muted` | boolean | `false` | Start muted. |
+| `parent` | string | `'master'` | Parent bus name (used by `AudioMixer.createBus`). |
+
+| Member | Description |
+|---|---|
+| `input` / `node` | Entry `GainNode` / output `GainNode`. |
+| `volume` | 0–1; changes are smoothed over about 15 ms to avoid clicks. |
+| `muted` | Ramps the output to 0 and back without changing `volume`. |
+| `effects` / `setEffects(defs)` | Read / replace the insert chain (`BusEffectDef[]`). |
+| `duckTo(level, timeConstant)` | Ramp the duck stage towards `level`. |
+| `connect(dest)` / `addChild(bus)` | Connect the output to a parent bus or an `AudioNode`. |
+
+### `AudioMixer`
+
+Owns the bus tree. The constructor builds `master → { music, sfx, ui, voice }` connected to `context.destination`, with
+volumes from `AudioMixerConfig` (`masterVolume`, `musicVolume`, `sfxVolume`, `uiVolume`, `voiceVolume`; `music`
+defaults to 0.8, the rest to 1):
+
+```typescript
+import { AudioMixer } from 'esengine';
+
+const mixer = new AudioMixer(new AudioContext(), { musicVolume: 0.6 });
+const ambience = mixer.createBus({ name: 'ambience' });   // under master
+```
+
+| Member | Description |
+|---|---|
+| `master` / `music` / `sfx` / `ui` / `voice` | The built-in buses (read-only). |
+| `getBus(name)` / `busNames()` | Look up a bus / list names in creation order, `master` first. |
+| `createBus(config)` | Create and connect a bus under `config.parent` (default `master`). |
+| `setDucking(target, rule \| null)` / `getDucking(target)` | Install, clear or read a `BusDuckRule`. |
+| `updateDucking()` | Per frame: measure each trigger's RMS and ramp its target's duck stage (the audio system calls it for the engine's mixer). |
+
+### `AudioPool`
+
+The voice pool behind one-shots: prebuilt `gain → panner` node pairs (`PooledAudioNode`) acquired per play with
+`acquire()` and returned with `release()` when the sound ends. It starts with 16 pairs and grows on demand;
+`activeCount` and `capacity` report usage.
+
+## See also
+
+- [Audio](/docs/assets/audio/overview/)
+- [Sources & Spatial Audio](/docs/assets/audio/sources/)

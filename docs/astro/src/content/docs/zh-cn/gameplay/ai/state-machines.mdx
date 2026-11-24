@@ -1,14 +1,13 @@
 ---
 title: 状态机
-description: "运行 .esfsm 图:带 enter/update/exit 钩子的状态、带守卫的转移,以及一次性触发器。"
+description: 状态机参考——StateMachineAgent、.esfsm 图与 registerFsm、状态钩子、tick 顺序，以及带触发器、条件与黑板守卫的转移。
 ---
 
-![状态机编辑器——Patrol 与 Chase 状态由带守卫的转移连接](@/assets/guides/zh/ai-fsm.png)
+![FSM 编辑器——Patrol 与 Chase 两个状态,由带守卫的转移相连](@/assets/guides/zh/ai-fsm.png)
 
-*状态机编辑器:状态(Patrol / Chase)由带守卫的转移(`?seesPlayer`、`?lostPlayer`)连接。*
+*状态机编辑器：由带守卫的转移（`?seesPlayer`、`?lostPlayer`）连接的状态（Patrol / Chase）。*
 
-状态机是一组由带守卫的**转移**连接起来的**状态**。任一时刻恰好一个状态处于激活;每个 tick,
-它的出边按顺序被检查,第一条满足条件的被采用。加一个 `StateMachineAgent` 并指向一个图:
+状态机是由**转移**连接的一组**状态**。任一时刻只有一个状态处于激活；每次 tick 按顺序检查其出向转移，并执行第一个可用的转移。`StateMachineAgent` 在其实体上运行状态机：
 
 ```typescript
 import { StateMachineAgent } from 'esengine/ai';
@@ -17,16 +16,17 @@ cmds.spawn()
   .insert(NavAgent, {})
   .insert(Perceiver, { range: 240 })
   .insert(Perception, {})
-  .insert(StateMachineAgent, { fsm: 'assets/ai/enemy.esfsm' });   // 一个编辑器编排的资产
+  .insert(StateMachineAgent, { fsm: 'assets/ai/enemy.esfsm' });   // an editor-authored asset
 ```
 
 | `StateMachineAgent` 字段 | 说明 |
 |---|---|
-| `fsm` | 要运行的机器的 key:一个 `registerFsm` 名字**或**一个 `.esfsm` 资产路径。 |
-| `current` | 当前激活状态名,每 tick 写入(只读;在检视面板可见)。 |
+| `fsm` | 要运行的状态机：`registerFsm` 名称或 `.esfsm` 资源路径。 |
+| `current` | 当前激活的状态名，每次 tick 写入（只读；显示在 Inspector 中）。 |
 
-推荐做法是**在编辑器里把图编排成 `.esfsm` 资产**(见[在编辑器里编排](/docs/zh-cn/gameplay/ai/authoring/))。
-状态用字符串引用你注册的动作/条件名。你也可以用代码构建一台机器:
+## 定义状态机
+
+状态机通常在编辑器中创作为 `.esfsm` 资源（[在编辑器中创作](/docs/zh-cn/gameplay/ai/authoring/)）；状态引用已注册的动作与条件名称。也可以在代码中注册：
 
 ```typescript
 import { registerFsm } from 'esengine/ai';
@@ -49,19 +49,33 @@ registerFsm('guard', {
 });
 ```
 
-每个状态最多带三个具名钩子——`onEnter`、`onUpdate`、`onExit`——以及一组 `transitions`。钩子是一个已注册的动作名,
-需要参数时写成 `{ name, arg?, params? }`。`onEnter` 在该状态激活后的第一个 tick 运行(也就是转移进入它之后的
-下一个 tick),`onExit` 在转移被采用时运行,`onUpdate` 在没有转移触发的 tick 上运行。每个 tick 最多采用一条转移。
-指名了一个未注册条件的转移永远不会启用。当一条
-转移所指定的机制**全部**成立时它才被启用;一条什么都不指定的转移是无条件的:
+## 状态与钩子
+
+每个状态最多有三个钩子 `onEnter`、`onUpdate`、`onExit`，以及一个 `transitions` 列表。钩子是已注册的动作名称，需要参数时写作 `{ name, arg?, params? }`。
+
+| 钩子 | 运行时机 |
+|---|---|
+| `onEnter` | 状态激活后的第一次 tick，即转入后的下一次 tick。 |
+| `onExit` | 执行离开该状态的转移时。 |
+| `onUpdate` | 没有转移触发的 tick。 |
+
+每次 tick 最多执行一个转移。FSM 动作的返回值被忽略。
+
+## 转移
+
+当转移指定的**所有**机制都满足时，该转移可用；未指定任何机制的转移是无条件的。引用未注册条件的转移永远不可用。
 
 | 转移字段 | 说明 |
 |---|---|
 | `to` | 目标状态名。 |
-| `trigger` | 必须被 fire 的一次性事件名(采用时消费)。 |
-| `condition` | 必须返回真的一个已注册条件。 |
-| `guard` | 一个或多个黑板比较,按 AND 组合。 |
+| `trigger` | 必须已被触发的一次性事件名；执行转移时被消费。 |
+| `condition` | 必须返回 true 的已注册条件。 |
+| `guard` | 一个或多个黑板比较，以 AND 组合。 |
 
-守卫用 `==`、`!=`、`<`、`<=`、`>`、`>=`、`truthy`、`falsy` 比较一个黑板 key——例如
-`{ key: 'health', op: '<', value: 20 }`。`truthy` / `falsy` 忽略 `value`;key 不存在时读作 `undefined`,
-大小比较按数值进行。
+守卫以 `==`、`!=`、`<`、`<=`、`>`、`>=`、`truthy` 或 `falsy` 比较黑板键，例如 `{ key: 'health', op: '<', value: 20 }`。`truthy` / `falsy` 忽略 `value`；缺失的键读作 `undefined`；大小比较运算符按数值比较。触发器与守卫值存放在代理的[黑板](/docs/zh-cn/gameplay/ai/blackboard/)上。
+
+## 另请参阅
+
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/)——钩子与转移引用的名字。
+- [黑板](/docs/zh-cn/gameplay/ai/blackboard/)——游戏代码通过 `AiFsm` 访问状态与触发器。
+- [行为树](/docs/zh-cn/gameplay/ai/behavior-trees/)——基于同一组叶子的另一种创作形式。

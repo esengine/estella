@@ -1,0 +1,161 @@
+---
+title: Models
+description: Model import reference — glTF/GLB and FBX sources, the products an import writes, model import settings, Scale and units per metre, re-importing, FBX conversion, compressed geometry, and what is reported rather than imported.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The engine loads one mesh format, `.esmesh`. A `.gltf`, `.glb` or `.fbx` file is a **source**: bringing one into a
+project runs an import that writes the assets scenes reference. glTF and FBX produce the same products and share the
+same import settings; FBX-specific conversion is described under [FBX](#fbx).
+
+Meshes that need no import are listed in [Built-in Primitives](/docs/assets/models/primitives/). For the components that
+draw the result see [Meshes](/docs/graphics/drawing/meshes/).
+
+## Importing a model
+
+| Method | Result |
+|---|---|
+| Drag a `.gltf` / `.glb` / `.fbx` onto the Content Browser | The source is copied into the project with the files it references, then imported. |
+| Place a source in the project folder | The editor detects the file and imports it (a checkout, a file copy, a re-export from a DCC tool). |
+| `estella import-model <file> [outDir] --project <dir>` | The same import from the command line. `--scale <n>` sets [Scale](#scale); `--lods <0-3>` sets [Generate LODs](/docs/assets/models/geometry/#generated-levels-of-detail). |
+
+Products are written **next to the source**, not into the folder the Content Browser is showing, so a re-import
+overwrites the same files.
+
+## Products
+
+For `robot.gltf` with two primitives and one embedded image:
+
+| Product | Description |
+|---|---|
+| `robot_0_0.esmesh`, `robot_1_0.esmesh` | One per primitive, named `<stem>_<mesh>_<primitive>` (`<stem>` alone for a single primitive). |
+| `robot_0.png` | Images embedded in the source. An image already on disk is referenced, not copied. |
+| `robot_m0.esmaterial` | Written only when the source material uses something a `MeshRenderer` cannot carry ([Model Materials](/docs/assets/models/materials/)). |
+| `robot_Walk.estimeline` | One per animation, named `<stem>_<animation>` ([Model Animation & Rigs](/docs/assets/models/animation/)). |
+| `robot.esprefab` | The node hierarchy, with each `MeshRenderer` and its mesh, texture, tint and flags. |
+
+Drag the **prefab** into a scene. Individual `.esmesh` files are also assets, and a `MeshRenderer.mesh` field accepts
+one directly.
+
+<Aside type="caution" title="Products are rewritten">
+Re-importing replaces every product. Edits to a generated `.esprefab` are lost; place an instance in a scene and edit
+the instance.
+</Aside>
+
+### Products in the Content Browser
+
+A model's products are folded under it in the Content Browser. The model is one entry with an expand arrow at the edge of
+its thumbnail (at the start of its row in list view); when expanded, its meshes, materials, clips and prefab follow it on
+a shaded band. A search lists matches unfolded, and **Browse to Asset** on a folded product expands its model and selects
+it. Folding moves no files: products remain next to the model and are referenced by UUID.
+
+{/* SHOT: assets-model-folded-products | model-import example: Content Browser at assets/models with robot.gltf expanded, its meshes, material and prefab shown folded under it on the shaded band */}
+
+Each product's `.meta` records the model it came from in `source` (the model's UUID), written by the import. A product
+folds under that model while both are in the same folder. Projects imported before this field existed fold by the import's
+naming (`<stem>.esprefab` and meshes, materials, clips and baked data named `<stem>_…`); an image next to the model is
+never folded by name.
+
+### Assigning a model to an asset field
+
+Dropping a model on an asset field in **Details**, or assigning it with **Use Selected Asset**, assigns the product the
+field accepts: a mesh field receives the model's mesh, a material field its material, a prefab field its prefab. When
+several products match (the meshes of a multi-part model), a menu asks which one; when none matches, the field is left
+unchanged and reports why. The Content Browser keeps its selection, greyed, while an entity is selected, so **Use
+Selected Asset** remains available.
+
+## Import settings
+
+Select the source in the Content Browser to edit its Import Settings. Saving re-imports the model.
+
+{/* SHOT: assets-model-import-settings | model-import example: assets/models/robot.gltf selected in the Content Browser; Details shows its Import Settings with advanced fields expanded (Import and Skinning categories) */}
+
+| Setting | Key | Default | Description |
+|---|---|---|---|
+| **Scale** | `scale` | `1` | Uniform scale on the prefab root ([Scale](#scale)). |
+| **Generate Lightmap UVs** | `lightmapUV` | off | Unwraps a second UV set for baked light ([Lightmap UVs](/docs/assets/models/geometry/#lightmap-uvs)). |
+| **Max Triangles** | `maxTriangles` | `0` | Cuts the model to at most this many triangles; `0` keeps every triangle ([Triangle budget](/docs/assets/models/geometry/#triangle-budget)). |
+| **Cluster LOD** | `clusterLod` | off | Stores dense static meshes as clusters drawn per view ([Cluster LOD](/docs/assets/models/geometry/#cluster-lod)). |
+| **Generate LODs** | `lodLevels` | Off | 1–3 simplified levels and a `LODGroup` ([Generated levels of detail](/docs/assets/models/geometry/#generated-levels-of-detail)). |
+| **LOD Minimum Triangles** | `lodMinTriangles` | `256` | Meshes with fewer triangles get no generated levels. Advanced. |
+| **Character Materials** | `characterMaterials` | Off | **By Material Name** assigns Skin, Hair and Eye shaders by material name ([Character materials](/docs/assets/models/materials/#character-materials)). Advanced. |
+| **Spring Bones** | `springBones` | Off | **From File Data and Names** creates spring bones and colliders ([Spring bones](/docs/assets/models/animation/#spring-bones)). Advanced. |
+| **Bone Influence Limit** | `boneInfluenceLimit` | Project Default | Most joints that move one vertex (1–4) ([Skinning](/docs/assets/models/animation/#skinning)). |
+| **High Precision Skin Weights** | `highPrecisionSkinWeights` | Project Default | 16-bit instead of 8-bit skin weights. Advanced. |
+| **Specular Map** | `specularMap` | Specular Color | How an FBX specular map is read ([Specular map](/docs/assets/models/materials/#specular-map)). Advanced. |
+
+## Scale
+
+Models are authored in **metres**; an FBX authored in other units is converted on import. A world unit is a design
+pixel, and one metre is the project's **units per metre** (`features.physics.world3d.unitsPerMeter`, set in Project
+Settings → Physics → 3D; default `100`). At the default **Scale** of `1`, a 1.7 m character is 1.7 world units tall.
+
+The import does not choose a factor. When the imported model measures under 0.08 m across in the project's units, the
+import warns and names the Scale that brings it in at real size: the project's units per metre (`100` by default, `1`
+in a project of one unit per metre).
+
+`Scale` is applied to the prefab root's `Transform` and is not baked into the geometry: the `.esmesh` stays faithful to
+the source, and the value remains visible and editable.
+
+## Re-importing
+
+An import runs again when:
+
+- the source file changes (for example, re-exported over the old file);
+- **Reimport** is chosen on it in the Content Browser;
+- an import setting is saved.
+
+Product UUIDs are preserved, so scenes and prefabs that reference the products remain valid.
+
+## Lights and cameras
+
+glTF `KHR_lights_punctual` lights and cameras, and FBX point, directional and spot lights and cameras, become `Light` and
+`Camera` components on their nodes in the prefab, rotated to face −Z as the engine's do. Colour, cone angles, range, field
+of view and clip planes are carried over; intensity is carried as stated in the file, since the engine's intensity has no
+photometric unit. An imported camera is never made the active camera.
+
+## FBX
+
+FBX is read by [ufbx](https://github.com/ufbx/ufbx), built into the editor; no Autodesk FBX SDK is required. Binary and
+ASCII files of every version from the 5000 series onwards use the same reader.
+
+| FBX source | Imported as |
+|---|---|
+| Its own up axis and unit (centimetres, Z-up, …) | Converted to the engine's: +Y up, one unit per metre before [Scale](#scale). |
+| Polygons of any size | Triangles. |
+| Geometry offset from its node with no node to hold the offset | A child entity named `GeometryTransform` holding the offset. |
+| A mesh split across several materials | One `.esmesh` per material run (the equivalent of a glTF primitive). |
+| Euler rotations around pivots, with pre- and post-rotation | Baked into position, rotation and scale keyframes, resampled at 30 fps where the curves are not already linear. |
+
+FBX materials are covered in [Model Materials](/docs/assets/models/materials/#fbx-materials).
+
+## Compressed geometry (glTF)
+
+`EXT_meshopt_compression` and `KHR_draco_mesh_compression` are decoded during import, so a compressed source produces the
+same `.esmesh` as an uncompressed one. Compression is a property of the source file only.
+
+## What is reported, not imported
+
+The import never drops data silently: whatever it cannot carry is listed in the import notes.
+
+| Not imported | Reason |
+|---|---|
+| A material texture that uses `TEXCOORD_1`; a `KHR_texture_transform` that offsets, scales or rotates; an FBX UV transform | Materials sample the first UV set as authored. The mesh keeps its second UV set, which lightmaps and a material's `v_texCoord1` can read. |
+| Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
+| Shading-layer textures (`clearcoatTexture`, `sheenColorTexture`, `anisotropyTexture`, …), `specularColorFactor`, `attenuationDistance` | Each shading layer is a constant per material; factors are kept and textures reported ([Shading layers](/docs/graphics/materials/surface-shaders/#shading-layers)). |
+| Area and volume lights | Listed in the import notes and skipped. Point, directional and spot lights and cameras are imported ([Lights and cameras](#lights-and-cameras)). |
+| An FBX opacity map | Alpha comes from the base colour image ([FBX materials](/docs/assets/models/materials/#fbx-materials)). |
+
+## Limits
+
+- A material that writes its own vertex stage is not applied to mesh geometry, because it would ignore the per-object
+  transform. Fragment-only materials work on meshes and sprites.
+- Geometry without a `NORMAL` attribute is lit with the constant normal of a 2D surface: flat, but not black.
+
+## See also
+
+- [Built-in Primitives](/docs/assets/models/primitives/)
+- [Geometry Processing](/docs/assets/models/geometry/)
+- [Model Materials](/docs/assets/models/materials/)
+- [Model Animation & Rigs](/docs/assets/models/animation/)

@@ -1,54 +1,53 @@
 ---
 title: 帧调试器
-description: 在编辑器里捕获一帧,列出它的每个 draw call,看每一个为什么没能和上一个合批,并把画面重放到任意一个 draw。
+description: 帧调试器参考——从视口、运行中的游戏或设备捕获一帧、带合批中断原因的 draw 列表、单个 draw 的详情，以及把帧重放到某个 draw。
 ---
 
-**帧调试器**回答"这一帧为什么有这么多 draw call"。它捕获一帧,按顺序列出每个 draw call,
-并给出每个 draw **为什么开了新批**——着色器、混合模式、材质、纹理、裁剪矩形不同等等。
-它是 SDK 在[性能剖析与诊断](/docs/zh-cn/performance/profiling/)里那套帧捕获的编辑器视图。
+**帧调试器**捕获单独一帧，按顺序列出每个 draw call，并说明每一个**为何开始新的批次**（着色器、混合模式、材质、纹理、裁剪矩形不同等）。它是[帧捕获 API](/docs/zh-cn/performance/profiling/frame-capture/) 的编辑器视图。
 
-用 **窗口 → 帧调试器** 打开,或在命令面板里搜**帧调试器**。它停靠在性能分析器旁边。
+通过 **Window → Frame Debugger** 打开，或在命令面板中搜索 **Frame Debugger**。它停靠在性能剖析器旁边。
+
+{/* SHOT: perf-frame-debugger | third-person-3d example running in Play: Frame Debugger after Capture frame with realm Running game, the pass list, the Break reason chips above the draw list, and one draw row selected with its details and entities */}
 
 ## 捕获一帧
 
-1. 选**捕获对象**:**视口**(编辑器自己的画面)、**运行中的游戏**(Play 时)、**设备**(已连接的设备预览)。
-2. 点**捕获一帧**。面板把这一帧列成一个或多个 **pass**——每台相机一个相机 pass,
-   再加一个画在最上面的屏幕叠加层 pass——并显示各自的 draw 数。
+1. 选择**范围（realm）**：**Viewport**（编辑器视图）、**Running game**（Play 期间）或 **Device**（已连接的设备预览）。
+2. 单击 **Capture frame**。该帧以一个或多个**通道**列出：每个相机一个相机通道，再加上 UI 在最上层绘制的屏幕浮层通道，各自带有 draw 数。
 
-捕获是快照。之后场景变了,面板会提示;重新捕获即可看新的一帧。
+捕获是一份快照。之后场景发生变化时，面板会给出提示；再次捕获即可查看新的帧。
 
-## 读 draw 列表
+## draw 列表
 
-每一行是一个 draw call:
+每一行是一个 draw call：
 
-| 列 | 含义 |
+| 列 | 内容 |
 |---|---|
-| **类型** | 画的是什么——精灵、文字、网格、瓦片块、特效…… |
-| **断批原因** | 这个 draw 为什么没能并进上一个。 |
-| **内容** | 画了什么:材质、着色器、纹理。 |
-| **三角形** | 三角形数。 |
+| **Type** | draw 的类型：精灵、文本、网格、瓦片地图分块、特效… |
+| **Break reason** | 该 draw 为何无法并入前一个。 |
+| **Drew** | 材质、着色器与纹理。 |
+| **Triangles** | 三角形数。 |
 
-列表上方的**断批原因**标签可以只看某一种原因。常见的有:
+列表上方的 **Break reason** 标签按原因筛选行：
 
-- **所在 pass 的第一个 draw**——没东西可合;每个 pass 都有一个。
-- **着色器 / 材质 / 混合模式**——相邻 draw 用了不同的。把同类 draw 排在一起,或共用材质,可以消除。
-- **纹理槽位**——上一个 draw 已用满纹理槽。把精灵打进更少的图集有帮助。
-- **裁剪 / 模板**——两个 draw 之间 UI 遮罩或裁剪区域变了。
-- **深度 / 剔除 / 渲染状态**——深度测试、背面剔除或自定义状态不同。
-- **顶点布局 / 索引不连续**——几何体种类不同,放不进同一段缓冲。
+| 中断原因 | 原因 | 处理 |
+|---|---|---|
+| **First draw of its pass** | 每个通道都开始一个批次。 | — |
+| **Shader / Material / Blend mode** | 相邻 draw 使用了不同的着色器、材质或混合模式。 | 调整实体顺序使同类 draw 相邻，或共用材质。 |
+| **Texture slots** | 前一个 draw 已用满所有纹理槽位。 | 把精灵打包进更少的图集。 |
+| **Scissor / Stencil** | 两个 draw 之间 UI 遮罩或裁剪区域发生变化。 | — |
+| **Depth / Culling / Render state** | 深度测试、面剔除或自定义状态不同。 | — |
+| **Vertex layout / Index gap** | 不同类型的几何无法共享一段缓冲。 | — |
+
+UI 通道中大量出现 **Blend** 与 **Material** 中断，说明不同类型的控件交错排列；应调整兄弟节点顺序或合并材质。
 
 ## 查看单个 draw
 
-点一行,或用**上一个 draw** / **下一个 draw** 逐个走,可以看到它的详情:材质、着色器、纹理、
-三角形、实例数、层、裁剪矩形和模板,以及它画的**实体**(**在大纲中选中**可以跳到该实体)。
-没有实体的 draw——文字、辅助图形、特效——会明说。
+单击某一行，或用 **Previous draw** / **Next draw** 逐个查看，会显示其详情：材质、着色器、纹理、三角形、实例、层、裁剪与模板，以及它绘制的**实体**（**Select in the Outliner** 选中其中一个）。没有实体的 draw（字形串、gizmo、特效）会标明这一点。
 
-视口还能把画面**重放**到所选 draw,让你看到画到那一步时的样子。draw 无法重放时,面板会告诉你,
-而不是给出一张错误的图。
+视口可以把帧**重放**到所选 draw，显示到该时刻为止已绘制的内容。无法重放的 draw 会给出提示，而不是显示错误的图像。
 
-## 用好它
+## 参见
 
-- 捕获**繁忙**的一帧而不是空闲帧,先看标签——通常一种原因占大头。
-- UI 画布的 pass 里一大串**混合模式**和**材质**断批,说明不同种类的控件交错排列;调整兄弟节点顺序或合并材质。
-- 配合[性能分析器](/docs/zh-cn/performance/profiling/)和[静态合并](/docs/zh-cn/performance/static-batching/):
-  帧调试器告诉你 draw *为什么*拆开,其余的告诉你有多少、合并省了多少。
+- [帧捕获 API](/docs/zh-cn/performance/profiling/frame-capture/)：在代码中获取相同数据。
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)：每帧与每个通道的 draw 数。
+- [静态合并](/docs/zh-cn/performance/static-batching/)：把不同网格合并为更少的 draw。

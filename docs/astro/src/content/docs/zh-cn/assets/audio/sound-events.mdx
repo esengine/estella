@@ -1,0 +1,132 @@
+---
+title: 音效事件
+description: 音效事件参考（beta）——.esaudioevent 格式与选择模式、SoundEventSelector、通过 SoundEvents 的托管播放、音效事件编辑器，以及 SoundEventSource 组件。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Beta">
+音效事件处于 beta 阶段。
+</Aside>
+
+音效事件（`.esaudioevent`）是一组带权重的片段变体，带随机化的音量与播放速率、发声上限与冷却，用于脚步声、撞击声等不应完全重复的声音。
+
+## 定义
+
+`.esaudioevent` 是带版本号的 JSON 资源，其 `clips` 列出音频引用及相对 `weight`。用 `assets.load<SoundEventAsset>('sound-event', ref)` 加载；加载器校验文档，但不解码候选片段。候选片段的 UUID 引用计入导出依赖，包括权重为零的槽位。
+
+| 模式 | 选择方式 |
+|---|---|
+| `random` | 按相对权重。 |
+| `sequence` | 按制作顺序循环选择已启用的槽位。 |
+| `no-repeat` | 按权重选择，在存在其他正权重片段时排除上一次的片段。 |
+
+- 权重为 `0` 的槽位在所有模式下都被禁用。
+- 在随机模式中，引用同一片段的槽位合并权重，并报告第一个槽位。
+- 空池或全部禁用的池返回 `empty` 或 `zero-weight`，不产生选择。只有一个启用片段的池可能重复。
+
+## 选择
+
+`SoundEventSelector` 只选择片段与参数，不播放任何声音：
+
+```typescript
+import { parseSoundEvent, SoundEventSelector } from 'esengine';
+
+const event = parseSoundEvent({
+  version: 1,
+  mode: 'no-repeat',
+  clips: [{ clip: 'assets/step-a.wav', weight: 1 }, { clip: 'assets/step-b.wav', weight: 3 }],
+  volume: [0.8, 1],
+  playbackRate: [0.9, 1.1],
+});
+const selector = new SoundEventSelector(event, 42);
+const result = selector.next();
+if (result.selection) {
+  const { clip, volume, playbackRate } = result.selection;
+  audio.playSFX(clip, { volume, pitch: playbackRate });
+}
+```
+
+- 种子决定片段与参数的选择，与播放后端无关。修改参数范围不会改变片段顺序。
+- 播放速率同时改变音高**与**时长。
+
+## 托管播放
+
+`SoundEvents` 应用事件的设置，并负责加载与播放的生命周期：
+
+```typescript
+import { SoundEvents } from 'esengine';
+
+const events = app.getResource(SoundEvents);
+const emitter = await events.load('assets/steps.esaudioevent', { owner: entity, seed: 42 });
+const voice = emitter?.trigger();   // 空间事件也可以传入世界空间位置
+if (voice) {
+  await voice.ready;
+  console.log(voice.status, voice.reason, voice.selection);
+}
+```
+
+**发射器。** 发射器持有定义的租约和自己的选择流；固定种子可复现其序列。重复触发时应保留同一个发射器。同一资源的发射器共享事件的并发与冷却，包括跨热重载世代。没有所有者的发射器用 `emitter.dispose()` 释放；绑定所有者的发射器在其注册表断开时也会释放。
+
+**准入。** 事件准入（事件发声上限与冷却）在加载片段之前进行；之后 `Audio` 发声池再应用全局优先级与发声数上限。挂起与暂停的请求占用事件槽位。冷却从准入时开始，包括之后加载失败或被全局上限拒绝的请求；停止不会重置冷却。Audio 插件以模拟时间推进事件时钟。
+
+**发声。** `ready` 在加载完成或取消时 resolve。`reason` 区分事件上限、冷却、空池或禁用池、全局上限、缺少位置与加载失败；错误信息包含事件与所选片段槽位。加载期间，音量与速率控制、暂停与停止仍然有效。自然结束、停止、`Audio.stopAll()`、所有者被销毁以及 App 清理都会释放所选片段的租约。
+
+**统计。** `events.getStats()` 报告已准入、已开始、已结束、已停止与被拒绝的数量，不保存触发历史。
+
+**空间事件**使用 `AudioSource` 的衰减与声像（[空间音频](/docs/zh-cn/assets/audio/sources/#空间音频)）。应提供带世界变换的所有者，或向 `trigger()` 传入位置；没有听者时以原点为参照。不支持立体声声像的小游戏宿主会报告这一限制，并仍应用距离衰减。
+
+## 音效事件编辑器
+
+![音效事件编辑器：三个带波形的加权变体，以及播放、电平与音高、发声设置](@/assets/guides/zh/sound-event.png)
+
+*包含三个变体的音效事件。每行显示波形与权重（占比为该权重除以权重之和）；**Trigger** 按事件自身的规则在听者处播放。*
+
+- **创建。** 在内容浏览器中选择 **New → Create Sound Event**，或在选中音频资源的右键菜单中选择 **Create Sound Event**。把音频拖入空的事件面板会在第一个片段旁创建事件；拖入已打开的事件会追加变体。
+- **打开。** 双击 `.esaudioevent`。
+- **编辑变体。** 音频选择器用于添加或替换片段。拖动行或使用箭头按钮调整顺序；删除会移除槽位并保留音频文件。权重 `0` 禁用槽位。
+- **设置。** 选择模式、音量与速率范围、总线、优先级、并发、冷却及可选的空间设置，使用与运行时相同的校验格式。
+- **文档处理。** 编辑支持撤销/重做、未保存标记、保存、自动保存快照，以及外部修改后的重新加载。无效文件不会改动已打开的文档。
+
+### 预览
+
+- **Trigger** 播放一个变体；**Continuous** 连续播放变体，并遵循事件的冷却与发声上限。
+- 预览使用项目的混音器与全局发声池，显示最近一次选中的槽位、片段、音量与速率，并在波形上跟随该发声。
+- 空间预览把音源放在听者处；距离衰减应在场景中测试。
+- 预览种子属于编辑器而不属于资源；停止或编辑会重置它。运行时播放请设置 `SoundEventSource.seed`。
+- 修改定义、关闭面板、切换项目或全局 Stop All 会取消预览工作。
+- 波形峰值最多为 64 个片段缓存，不缓存 PCM；文件变化与切换项目会使缓存失效。
+
+## `SoundEventSource`
+
+`SoundEventSource` 把音效事件附加到实体上。场景预加载会获取定义，但不解码其候选片段。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `event` | 音效事件资源 | `''` | 要播放的 `.esaudioevent`。 |
+| `seed` | number | `0` | 该音频源选择流的固定 32 位种子。 |
+| `playOnAwake` | boolean | `false` | 在组件每个启用期内播放一次。 |
+| `enabled` | boolean | `true` | 禁用会结束该音频源当前的生命周期。 |
+
+```typescript
+import { SoundEventSource, triggerSoundEventSource, stopSoundEventSource } from 'esengine';
+
+app.world.insert(entity, SoundEventSource, { event: 'assets/steps.esaudioevent', seed: 42 });
+const voice = await triggerSoundEventSource(app.world, entity);
+if (voice) {
+  await voice.ready;
+  console.log(voice.status, voice.reason, voice.selection);
+}
+stopSoundEventSource(app.world, entity);
+```
+
+- 脚本图、状态机钩子与行为树动作中的 `soundEvent.trigger` 与 `soundEvent.stop` 作用于同一音频源。每次触发相互独立，包括同一帧内的多次触发。图动作在加载进行时立即继续，不等待片段播放结束。
+- 定义加载期间，每个音频源最多有 **256** 个触发请求按先进先出顺序等待。超出的请求、不可用或禁用的音频源、加载失败的定义以及被取消的请求都 resolve 为 `null`。返回的句柄分别报告片段加载与事件或全局发声的拒绝。冷却从已加载的定义准入请求时开始，因此多个排队的请求可能共享同一准入时间。
+- 停止会取消该音频源的队列与发声；实体上的其他发射器仍归其调用方所有。之后的触发会重新开始该音频源的种子流。
+- 修改 `event` 或 `seed` 会开始新的流。禁用、移除、层级未激活、销毁与注册表断开都会结束音频源的生命周期；这些检查也在异步加载之后执行，因此迟到的片段不会播放。
+- `Audio.stopAll()` 取消挂起的请求并保留已准备好的定义。停止音频源不会在下一帧重新触发 `playOnAwake`。
+
+## 参见
+
+- [音频](/docs/zh-cn/assets/audio/overview/)
+- [混音器](/docs/zh-cn/assets/audio/mixer/)

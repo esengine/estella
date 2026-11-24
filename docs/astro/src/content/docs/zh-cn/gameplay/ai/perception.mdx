@@ -1,45 +1,79 @@
 ---
 title: 感知
-description: "Perceiver 在视锥内感知附近目标,并把看到的写进 Perception 组件。"
+description: 感知参考——Perceiver 的视野锥与听觉范围、PerceptionTarget、写入的 Perception 组件、基于 2D 或 3D 物理的视线检测，以及 Noise 事件。
 ---
 
-`Perceiver` 每帧扫描最近的、可见的 `PerceptionTarget`,把结果写进同一实体上的 `Perception`
-组件(实体上没有时会自动加一个)。`Perceiver` 不会感知自己。决策读 `Perception`;感知只是 ECS 数据,
-而不是一条旁路。这一步在 `PreUpdate` 里运行、只在运行模式下执行,所以决策系统同一帧就能读到新结果。
+`Perceiver` 每帧感知最近的可见 `PerceptionTarget` 以及听觉范围内最近的 `Noise`，并把结果写入同一实体上的 `Perception` 组件；实体没有该组件时会自动添加。`Perceiver` 从不感知自身。决策像读取其他组件一样读取 `Perception`。
 
-![Perceiver 及其 Perception 的 Details:范围、视野、朝向轴和视线层](@/assets/guides/zh/details-perceiver.png)
+感知步骤运行于 `PreUpdate`，仅在运行模式中执行，因此决策系统读取的是同一帧的结果。位置均为世界位置：感知者可以放在眼睛实体（头部骨骼、传感器）上，目标可以放在被观察的部位上。
 
-***Perceiver**(上)和它写入的 **Perception**(下,运行前是关闭的)。*
+![Perceiver 及其 Perception 的细节面板：范围、视野、朝向轴与视线层](@/assets/guides/zh/details-perceiver.png)
+
+*一个 **Perceiver**（上）及其写入的 **Perception**（下，在 Play 中填充）。*
 
 ```typescript
 import { Perceiver, PerceptionTarget, Perception } from 'esengine/ai';
 
-// 猎手负责感知……
+// The hunter senses…
 cmds.spawn()
   .insert(Transform, { position: { x: -200, y: 0, z: 0 } })
   .insert(Perceiver, { range: 260, fovDegrees: 120 })
-  .insert(Perception, {});          // 由感知插件每帧写入
+  .insert(Perception, {});          // written every frame by the perception plugin
 
-// ……任何被标记为目标的实体。
+// …anything tagged as a target.
 cmds.spawn()
   .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
   .insert(PerceptionTarget, {});
 ```
 
-| 组件 | 字段 | 默认 | 说明 |
-|---|---|---|---|
-| **`Perceiver`** | `range` | `220` | 视野范围(世界像素)。 |
-| | `fovDegrees` | `360` | 视野锥角度,范围 `0`–`360`(`360` = 全向)。 |
-| | `facingAxis` | `'x'` | 视野锥沿实体自身哪根轴指向:`'x'` 是屏幕右方(平面场景),`'-z'` 是导入 3D 模型的朝向。 |
-| | `losLayers` | `0` | 仅 3D:视线射线可命中的物理层(`0` = 所有层)。 |
-| **`Perception`** | `visible` | `false` | 当前是否看见一个目标。 |
-| | `distance` | `0` | 到所见目标的距离。 |
-| | `targetX`、`targetY`、`targetZ` | `0` | 所见目标位置(世界像素)。 |
-| | `dirX`、`dirY`、`dirZ` | `0` | 从观察者指向目标的单位方向。 |
-| **`PerceptionTarget`** | *(标签)* | — | 把实体标记为可被 `Perceiver` 感知。 |
+## 组件
 
-感知是三维的(平面场景只是 `z` 恒定的特例),所以视野锥和距离在 3D 场景里同样适用。
-视野锥的朝向由感知者的 `Transform` 旋转沿 `facingAxis` 决定。场景里有物理世界时,
-视线射线会对它投射,墙体因此能挡住视线:有 3D 求解器就用 3D 的,否则用 2D 的;两者都没有时,
-感知只做距离 + 视野锥。`Perception` 是一个瞬态、仅运行时的组件——
-插件每帧重写它,所以你从不需要手写它的值。
+| 组件 | 字段 | 默认值 | 说明 |
+|---|---|---|---|
+| **`Perceiver`** | `range` | `220` | 视野范围，世界单位。 |
+| | `fovDegrees` | `360` | 视野锥角度，`0`–`360` 度（`360` 为全向）。 |
+| | `facingAxis` | `'x'` | 视野锥所沿的实体自身轴：`'x'` 为屏幕右方（平面场景），`'-z'` 为导入 3D 模型的朝向。 |
+| | `losLayers` | `0` | 仅 3D：视线射线可命中的物理层（`0` 为所有层）。 |
+| | `hearingRange` | `0` | 响度为 1 的声音可被听到的距离，可穿墙；`0` 表示失聪。 |
+| **`Perception`** | `visible` | `false` | 当前看到了目标。 |
+| | `distance` | `0` | 到所见目标的距离。 |
+| | `targetX`、`targetY`、`targetZ` | `0` | 所见目标的位置，世界单位。 |
+| | `dirX`、`dirY`、`dirZ` | `0` | 从观察者指向目标的单位方向。 |
+| | `heard` | `false` | 本步听到了声音。 |
+| | `noiseX`、`noiseY`、`noiseZ` | `0` | 最近一次听到的声音的来源位置。 |
+| | `sinceHeard` | `-1` | 距该声音的秒数；`-1` 表示尚未听到任何声音。 |
+| **`PerceptionTarget`** | *（标签）* | — | 将实体标记为可被感知者感知。 |
+
+`Perception` 是瞬态、仅运行时的组件：插件每帧重写它，其值无需创作。
+
+## 视觉
+
+感知是三维的；平面场景是 `z` 恒定的情形。视野锥由感知者的世界旋转沿 `facingAxis` 确定方向。目标位于 `range` 内、视野锥内且未被遮挡时为可见；在可见目标中报告最近的一个。
+
+存在物理世界时，视线射线会针对其投射，墙体会阻挡视线。场景有 3D 世界时使用 3D 世界，否则使用 2D 世界；两者都没有时，感知仅检查范围与视野锥。命中观察者自身或目标自身的刚体不计为遮挡。在 3D 中，`losLayers` 将射线限制在阻挡视线的层上。
+
+## 听觉
+
+`Noise` 事件宣告一个感知者可能听到的声音：枪声、门响、脚步声。
+
+| `NoisePayload` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `x`、`y`、`z` | `0` | 声音发出的位置。 |
+| `loudness` | `1` | 作用于各感知者 `hearingRange` 的倍率：声音在 `hearingRange * loudness` 范围内可被听到。 |
+| `source` | `0` | 发出声音的实体；它不会听到自己。`0` 表示无特定实体。 |
+
+```typescript
+import { defineSystem, EventWriter } from 'esengine';
+import { Noise } from 'esengine/ai';
+
+const gunshot = defineSystem([EventWriter(Noise)], (noises) => {
+  noises.send({ x: muzzle.x, y: muzzle.y, z: muzzle.z, loudness: 2, source: shooter });
+});
+```
+
+与所有事件一样，感知步骤在声音发送后的下一帧读取。每个感知者记录范围内最近的声音（`heard`、`noiseX/Y/Z`、`sinceHeard = 0`）；没有新声音的步中，`sinceHeard` 按帧时间增加，并保留上一次的位置。听觉不受几何阻挡。
+
+## 另请参阅
+
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/)——读取 `Perception` 的条件。
+- [组件层之下](/docs/zh-cn/gameplay/ai/advanced/#感知内部)——`senseTarget` 与感知步骤。

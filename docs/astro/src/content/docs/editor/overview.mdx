@@ -33,7 +33,7 @@ A project is a folder:
 | `.esengine/workspace.json` | Editor-local state (last scene, panel layout). Git-ignored. |
 | `assets/scenes/*.esscene` | Scenes. |
 | `assets/…` | Textures, materials, tilesets and other assets, each with a `.meta` sidecar. |
-| `src/components.ts` | **Declaration entry**: the editor evaluates this module and its imports to discover project components. See [Scripting](/docs/scripting/overview/#where-declarations-live). |
+| `src/components.ts` | **Declaration entry**: the editor evaluates this module and its imports to discover project components. See [Scripting](/docs/scripting/script-modules/#declaration-entry). |
 | `src/main.ts` | **Startup entry**: registers systems; runs the game. Never evaluated by the editor. |
 
 Assets are referenced by UUID (`@uuid:…`), so moving or renaming files does not break references.

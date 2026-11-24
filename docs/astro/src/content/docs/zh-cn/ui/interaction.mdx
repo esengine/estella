@@ -197,7 +197,7 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 
 <Aside type="note">
   手柄导航未内置于焦点系统——焦点环只随 `Tab` / `Shift+Tab` 移动
-  (`Enter` / `Space` / `Escape` 与方向键作用于当前聚焦的控件)。手柄菜单请用[输入映射](/docs/zh-cn/scripting/input/)自行驱动选择,
+  (`Enter` / `Space` / `Escape` 与方向键作用于当前聚焦的控件)。手柄菜单请用[输入映射](/docs/zh-cn/scripting/input/overview/)自行驱动选择,
   直接调用控件状态。
 </Aside>
 
@@ -270,4 +270,4 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 - [UI 组件](/docs/zh-cn/ui/widgets/) —— 事件已接好线的控件工厂。
 - [UI 控制器](/docs/zh-cn/ui/controllers/) —— 由交互控制器驱动的悬停/按下**视觉**状态。
 - [UI 数据绑定](/docs/zh-cn/ui/data-binding/) —— 基于 `change` 事件的控件值双向绑定。
-- [输入](/docs/zh-cn/scripting/input/) —— UI 层之下的 `Input` 资源、输入映射与手势。
+- [输入](/docs/zh-cn/scripting/input/overview/) —— UI 层之下的 `Input` 资源、输入映射与手势。

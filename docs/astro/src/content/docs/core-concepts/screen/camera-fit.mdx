@@ -1,0 +1,171 @@
+---
+title: Camera Fit
+description: How the design-resolution fit is applied — fit sources and their precedence, the ScreenScaling resource, render resolution policies, the UI layout box, screen roots and world-space UI, camera culling of UI through Canvas.layer, pixel-perfect cameras, and the project Display settings.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The [scale mode](/docs/core-concepts/screen/overview/#scale-modes) defines how a design resolution fits a screen. This
+page describes where that fit is declared, what it is applied to, and the related rendering settings.
+
+## Fit sources
+
+The fit is computed against `designResolution.y / 2`. Each frame the camera plugin resolves a **fit source** in this
+order:
+
+1. **`ScreenScaling`** (the project-level fit) when its `scaleMode` is a real mode (`≥ 0`). Authoritative; requires no
+   UI.
+2. Otherwise the scene's **`Canvas`** component, if one exists.
+3. Otherwise **no fit**: the camera renders its own `orthoSize`.
+
+The camera fit and the [UI layout box](#ui-layout-box) resolve through the same order, so only one design
+resolution is in effect at a time. A scene whose `Canvas` carries a different resolution than the project fit lays
+out UI identically in the editor and in the exported game.
+
+While a fit source is active, the `orthoSize` of a full-screen orthographic scene camera is its half-height **at the
+design aspect**, and the scale mode adapts it to the screen. `orthoSize` remains the zoom: editing or tweening it
+zooms the camera while a `Canvas` is present. The UI layout box is the design resolution fitted to the screen, not
+the camera's view, so zooming does not reflow UI. Sub-viewport cameras, cameras rendering into a texture and
+perspective cameras are not fitted.
+
+The default scene camera is authored with `orthoSize: 540 = designResolution.y / 2`, so the fitted and unfitted
+views are identical at the design aspect: a 1920×1080 window shows exactly one design box either way.
+
+## The `ScreenScaling` resource
+
+`ScreenScaling` makes the design-resolution fit a project setting rather than a property of a UI canvas; a scene with
+no `Canvas` is fitted as well. It is the runtime form of **Settings → Project → Game → Display → Camera fit**.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `designWidth` | number | `1920` | Design resolution width in px. |
+| `designHeight` | number | `1080` | Design resolution height in px. |
+| `scaleMode` | number | `SCREEN_FIT_OFF` (`-1`) | A `ScaleMode` (`0`–`4`) turns the project fit **on**. `SCREEN_FIT_OFF` uses the `Canvas` fit when present, otherwise the raw `orthoSize`. |
+| `matchWidthOrHeight` | number | `0.5` | `Match`-mode blend, 0–1 (`0` fits width, `1` fits height). Ignored by other modes. |
+| `renderPolicy` | `RenderResolution` (optional) | `RenderResolution.Surface` | How the scene's own render resolution is chosen ([Render resolution](#render-resolution)). Independent of `scaleMode`. |
+
+`DEFAULT_SCREEN_SCALING` is the default value above, and `SCREEN_FIT_OFF` (`-1`) is the off sentinel. The resource is
+installed when `scaleMode` is a real mode **or** `renderPolicy` is not `Surface`; the camera fit requires the former.
+When the project fit is on, it is authoritative for both the camera and the UI layout box.
+
+The runtimes install the resource from the project configuration (the `screenFit` option of
+[`createWebApp`](/docs/core-concepts/app/overview/#createwebappoptions)). The camera plugin reads it every frame, so
+game code can change it at runtime:
+
+```typescript
+import { defineSystem, Res, ScreenScaling, ScaleMode } from 'esengine';
+
+const enableProjectFit = defineSystem([Res(ScreenScaling)], (fit) => {
+  fit.designWidth = 1280;
+  fit.designHeight = 720;
+  fit.scaleMode = ScaleMode.Expand;   // any real mode (≥ 0) switches the fit on
+});
+```
+
+### Render resolution
+
+`renderPolicy` selects the resolution the scene is rendered at:
+
+| `RenderResolution` | Value | Behaviour |
+|---|---|---|
+| `Surface` | `0` | Renders directly to the screen. Each sprite is scaled individually, so a non-integer texel-to-pixel ratio can show seams at sprite boundaries. |
+| `Design` | `1` | Renders at the size the camera's world height requires (one world unit = one rendered pixel), then scales that single image to the screen. No seams between sprites; slightly soft at non-integer ratios. |
+| `IntegerMultiple` | `2` | As `Design`, but the image is presented at a whole multiple of its size, with black bars where that does not fill the screen. |
+
+## UI layout box
+
+UI is laid out inside a world-space rectangle computed by `uiLayoutRect`. For scene cameras this rectangle is the
+fitted camera extent. Because world units are design pixels, `px(300)` on a `UINode` is 300 design pixels on every
+device; the scale mode changes how much world is visible around the UI, not the UI's proportions.
+
+In the **editor viewport**, the navigation camera renders the world at a free zoom (raw `orthoSize`, no fit). UI is
+not laid out against those extents; the editor lays it out in the fixed design-resolution box recovered from the fit.
+The layout is therefore identical at any zoom, and the UI still scales visually with the scene because it renders
+through the same view. The device simulator passes a preview aspect into the same computation, so its letterboxed
+preview matches the exported game.
+
+`uiLayoutRect` and `computeEffectiveOrthoSize` are exported for tools and tests.
+
+### Screen roots and world-space UI
+
+The layout box has a **size** (the area UI lays out in) and a **position** in the world:
+
+| UI root | Placement |
+|---|---|
+| No parent entity — a *screen root* | Placed at the box's centre every frame. During play that centre is the camera, so the UI stays on screen as the camera moves. In the editor the box is anchored at the world origin (`EDITOR_UI_ANCHOR`), where the design-frame overlay is drawn. |
+| Parented to an entity — *world-space UI* | Follows its parent's transform (a health bar over a unit, a panel on a wall); the box only determines its size. |
+
+A HUD follows the camera by default. To place UI in the world, give its root a parent.
+
+## Camera culling of UI
+
+Every drawable belongs to one **sorting layer**, and `Camera.cullingMask` is the set of layers a camera renders, as a
+bitmask: bit *i* = layer *i*, all bits set by default.
+
+A UI draw's ordering `layer` is its tree position (`1000 + tree order`), outside the 0–31 range the mask addresses.
+UI membership is therefore taken from `Canvas.layer`: a sorting layer that does not affect draw order and is used only
+by cameras to include or exclude that canvas's UI.
+
+A minimap that does not draw the HUD places the HUD's `Canvas` on its own layer and clears that bit on the minimap
+camera:
+
+```typescript
+import { defineSystem, GetWorld, Camera, Canvas } from 'esengine';
+
+const UI_LAYER = 1;
+
+const setupMinimap = defineSystem([GetWorld()], (world) => {
+  // The HUD declares its layer...
+  world.set(hudCanvas, Canvas, { ...world.get(hudCanvas, Canvas), layer: UI_LAYER });
+  // ...and the minimap camera excludes it.
+  const cam = world.get(minimapCamera, Camera);
+  world.set(minimapCamera, Camera, { ...cam, cullingMask: cam.cullingMask & ~(1 << UI_LAYER) });
+});
+```
+
+In the Details panel the mask is a multi-select of the project's **sorting layer names** (Settings → Project →
+Rendering → Layer names). The editor viewport ignores the mask and shows every layer.
+
+<Aside>
+  A sub-viewport camera draws and clears only its own rectangle, so two cameras with half the screen each give a
+  split screen. The culling mask decides *what* such a camera draws; its `viewport` decides *where*
+  ([Multiple Cameras](/docs/graphics/camera/multiple-cameras/)).
+</Aside>
+
+## Pixel-perfect cameras
+
+`Camera.pixelPerfect` (default `false`) snaps the camera position to the **world-space pixel grid** before the view
+matrix is built, so static pixel art samples the same texels every frame instead of shimmering when the camera moves
+by sub-pixel amounts.
+
+- Orthographic cameras only.
+- One grid cell is one rendered pixel: `worldPerPixel = 2 × halfHeight / viewportHeightInDevicePixels`. It follows the
+  current fit and window size.
+- The snapped position is also used for screen ↔ world conversion, so picking matches what is drawn.
+- The editor's navigation view never snaps; the flag applies during play and at runtime.
+
+Snapping quantizes camera motion; it is intended for pixel-art games.
+
+## Project Display settings
+
+**Settings → Project → Game → Display** fields, their manifest keys and their runtime effect:
+
+{/* SHOT: core-display-settings | Any example (e.g. examples/mobile-controls): open Settings → Project → Game → Display; the page shows Design width/height, Orientation, Camera fit, Camera fit match and Render resolution. */}
+
+| Editor setting | Project manifest | Runtime effect |
+|---|---|---|
+| Design width / height | `designResolution.width` / `.height` | Seeds new scene `Canvas` components and editor cameras; fills `ScreenScaling.designWidth` / `designHeight` (through `createWebApp`'s `screenFit`). |
+| Orientation | `packaging.orientation` (`'portrait'` \| `'landscape'`; absent = derived from the design aspect) | WeChat `game.json`, web/playable rotate hint, desktop window aspect, editor device preview ([Orientation](/docs/core-concepts/screen/devices/#orientation)). |
+| Camera fit | `features.rendering.cameraScaleMode` (`'none'`, `'fixed-width'`, `'fixed-height'`, `'expand'`, `'shrink'`, `'match'`; absent = `'none'`) | `ScreenScaling.scaleMode` (`'none'` → `SCREEN_FIT_OFF`). |
+| Camera fit match | `features.rendering.cameraMatch` (0–1, default `0.5`) | `ScreenScaling.matchWidthOrHeight`. |
+| Render resolution | `features.rendering.renderResolution` (`'surface'`, `'design'`, `'integer'`; absent = `'surface'`) | `ScreenScaling.renderPolicy` (`Surface` / `Design` / `IntegerMultiple`). |
+
+A new `Canvas` starts with `scaleMode` `FixedHeight` (`1`) and `matchWidthOrHeight` `0.5`, the component defaults.
+Canvases saved in a scene keep their saved values. The project fit is preferred over the `Canvas` fit: it applies to
+scenes without UI and keeps the camera fit independent of UI.
+
+## See also
+
+- [Camera](/docs/graphics/camera/overview/) — `orthoSize`, follow, blending, split screen.
+- [UI](/docs/ui/overview/) — the layout that consumes the design-pixel box.
+- [Physics](/docs/gameplay/physics-2d/overview/) — where `pixelsPerUnit` applies.

@@ -1,242 +1,36 @@
 ---
 title: 游戏 AI
-description: 游戏 AI 层——感知、基于网格的 A* 寻路导航、状态机与行为树,全部由同一份具名动作/条件注册表驱动,并在编辑器里可视化编排。
+description: 游戏 AI 参考——感知、导航、状态机与行为树各层，共享的动作与条件注册表，插件安装，以及一个完整示例。
 ---
 
-import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移动**的角色。它由四个协作部件
-组成,而这四者共享同一套设计:
+游戏 AI 层使实体能够感知、决策与移动。它由四个部分组成，共享同一份具名动作与条件注册表：
 
-<CardGrid>
-  <Card title="感知 Perception" icon="magnifier">
-    `Perceiver` 在视野锥内感知附近的 `PerceptionTarget`,把看到的东西写进 `Perception` 组件。
-  </Card>
-  <Card title="导航 Navigation" icon="rocket">
-    格子网格,或从几何烘焙出来的导航网格,把 `NavAgent` 移动到任意世界坐标,
-    并随目标移动而重新规划。
-  </Card>
-  <Card title="状态机 FSM" icon="list-format">
-    `StateMachineAgent` 运行一个 `.esfsm` 图——带进入/更新/退出钩子和带守卫的转移的状态。
-  </Card>
-  <Card title="行为树 BT" icon="puzzle">
-    `BehaviorTreeAgent` 运行一个 `.esbt` 图——选择器、序列、装饰器与叶子。
-  </Card>
-</CardGrid>
-
-统一的核心思想:**状态机和行为树是同一套构件之上的两种编排范式。** 你在代码里注册一次具名
-的*动作*与*条件*,然后把它们连进 FSM 或 BT——图在编辑器里可视化编排,而不是写死在代码里。
-感知喂给决策,决策驱动导航。
-
-<Aside type="note">
-  这里的一切都是 `esengine/ai` 子路径里的纯 TypeScript(没有 WebAssembly 侧模块)。感知、FSM、BT、
-  导航这四个插件在你的游戏导入 `esengine/ai` 时安装,编辑器和 Web 运行时会把它们加进应用。
-  只有当你从一个裸的 `new App()` 起步时,才需要自己加插件(见[自定义应用](/docs/zh-cn/gameplay/ai/advanced/#自定义应用))。
-</Aside>
-
-## 共享注册表
-
-一个**动作**做某件事(追击、攻击、放个音效);一个**条件**回答一个是/否问题(我看得见玩家吗?)。
-你按名字注册一次,FSM 和 BT 都会对同一份注册表按名字解析——于是一套叶子同时服务两种范式。
-
-```typescript
-import { registerAction, registerCondition } from 'esengine';
-import { Status, Perception, setNavDestination } from 'esengine/ai';
-
-registerCondition('seesPlayer', (ctx) =>
-  ctx.has(Perception) && ctx.get(Perception).visible);
-
-registerAction('chase', (ctx) => {
-  const per = ctx.get(Perception);
-  setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
-});
-```
-
-每个动作和条件都会收到它所运行实体的 **`AiContext`**。它和一个
-[`defineBehavior`](/docs/zh-cn/scripting/overview/) 的 update 是同一套编程模型——实体、世界、
-命令的访问——外加一个每个 agent 独有的 `blackboard`(黑板):
-
-| 成员 | 类型 | 说明 |
+| 部分 | 组件 | 说明 |
 |---|---|---|
-| `ctx.entity` | `Entity` | 该动作/条件运行所在的 agent 实体。 |
-| `ctx.dt` | `number` | 帧间隔(秒)。 |
-| `ctx.world` | `World` | 完整世界访问,用于跨实体读取。 |
-| `ctx.commands` | `Commands` | 延迟的 spawn/despawn,tick 中调用安全。 |
-| `ctx.input` | `InputState` | 运行时输入——和 `defineBehavior` 读到的是同一份状态。宿主没有输入设备时为空(什么都没按下)。 |
-| `ctx.blackboard` | `Blackboard` | 该 agent 的 AI 数据面(见[黑板](/docs/zh-cn/gameplay/ai/blackboard/))。 |
-| `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
-| `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
-| `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
+| [感知](/docs/zh-cn/gameplay/ai/perception/) | `Perceiver`、`PerceptionTarget`、`Perception` | 感知视野锥内最近的可见目标以及听觉范围内的声音，并把结果写入组件。 |
+| [导航](/docs/zh-cn/gameplay/ai/navigation/overview/) | `NavAgent`、`NavVolume`、`NavLink`、`NavArea`、`NavObstacle` | 在格子网格或由几何烘焙的导航网格上把代理移动到世界坐标点，并随目标移动重新规划。 |
+| [状态机](/docs/zh-cn/gameplay/ai/state-machines/) | `StateMachineAgent` | 运行 `.esfsm` 图：带进入/更新/退出钩子的状态与带守卫的转移。 |
+| [行为树](/docs/zh-cn/gameplay/ai/behavior-trees/) | `BehaviorTreeAgent` | 运行 `.esbt` 图：选择器、序列、装饰器与叶子。 |
 
-动作的调用形式是 `(ctx, blackboard, arg?, params?, out?)`,条件是 `(ctx, blackboard)`;
-`registerAction` 也接受一个规格对象(`{ run, params, outputs, pure, touches, separator }`)来
-声明带类型的参数,编辑器随之把它渲染成真正的控件而不是一个文本框。
-`registerValue(name, spec)` 注册一个只回答问题的纯名字,供脚本图读取。
+状态机与行为树是同一组构件之上的两种创作形式。动作与条件在代码中按名称注册一次（[动作与条件](/docs/zh-cn/gameplay/ai/actions/)）；使用它们的图是在编辑器中创作的资源（[在编辑器中创作](/docs/zh-cn/gameplay/ai/authoring/)）。感知为决策提供输入，决策设置导航目标。
 
-<Aside type="tip">
-  在模块加载时(顶层,或在一个 `Schedule.Startup` 系统里)注册你的动作和条件,好让它们在任何
-  agent 开始 tick 之前就已存在。注册表是进程级的,在多个 `App` 实例间共享。
-</Aside>
+## 安装
 
-### 声明一个叶子碰什么
+AI 层是 `esengine/ai` 子路径中的 TypeScript 代码，没有 WebAssembly 侧模块。导入 `esengine/ai` 即注册感知、状态机、行为树与导航插件；编辑器与 Web 运行时会把它们加入应用。从裸 `new App()` 构建的应用需显式添加（[自定义应用](/docs/zh-cn/gameplay/ai/advanced/#自定义应用)）。
 
-跑你的状态机的那个系统,够到的东西就是它的**叶子**够到的东西——而这只有在图加载之后才
-知道。在注册时声明出来,调度器就能把这个系统和「可能碰任何东西」的系统区分开:
+注册函数（`registerAction`、`registerCondition`、`registerValue`、`aiRegistry`）也从主 `esengine` 入口导出。
 
-```typescript
-registerAction('chase', {
-  run: (ctx) => { /* ... */ },
-  touches: { reads: ['Perception'], writes: ['NavAgent'] },
-});
+## 示例
 
-registerCondition('seesPlayer', {
-  check: (ctx) => ctx.has(Perception) && ctx.get(Perception).visible,
-  touches: { reads: ['Perception'] },
-});
-```
-
-可选,但值得知道不写的代价:**只要有一个叶子没声明,整个系统就退回「碰一切」**——因为
-一份悄悄丢掉了读不懂那部分的并集,是一个调度器会信、而帧会推翻的声明。参见
-[系统碰什么](/docs/zh-cn/core-concepts/systems/#系统碰什么)。
-
-### 动作的返回值
-
-**条件**总是返回 `boolean`。**动作**可以返回一个 `Status`,也可以什么都不返回:
-
-```typescript
-export enum Status { Success = 'success', Failure = 'failure', Running = 'running' }
-```
-
-- 在**行为树**里,叶子返回 `Status` 以跨帧运行(`Running`)、成功或失败。什么都不返回视为
-  `Success`。
-- 在**状态机**里,返回值被忽略——FSM 动作是一次性的副作用。
-
-写一个返回 `Status` 的动作,就能让*同一个*动作既当 BT 叶子又当 FSM 钩子。
-
-### 内建名字
-
-引擎预注册了少量名字,常见的胶水逻辑因此**完全不用写代码**——它们会和你自己注册的
-名字一起出现在编辑器调色板里。它们全部只操作代理实体自身的组件(与你的代码、
-编辑器共用同一条通道):
-
-| 名字 | 类别 | 效果 |
-|---|---|---|
-| `timeline.play` | 动作 | 拉起该实体 [`TimelinePlayer`](/docs/zh-cn/animation/timeline/playback/#timelineplayer-组件) 的播放旗标。对已播完的片段,从头重播。 |
-| `timeline.pause` | 动作 | 放下播放旗标(用 `timeline.play` 恢复)。 |
-| `timeline.finished` | 条件 | 片段已完成(`once` 片段播到末尾)且未在播放时为真。 |
-| `spriteAnim.play` | 动作 | 播放代理实体的精灵翻页动画;**参数**可切换到指定剪辑。 |
-| `spriteAnim.restart` | 动作 | 回卷到第 0 帧并播放(参数可切换剪辑)。 |
-| `spriteAnim.stop` | 动作 | 暂停翻页动画。 |
-| `spriteAnim.finished` | 条件 | 一次性精灵剪辑播完后为真。 |
-| `audio.play` | 动作 | 拉起该实体 `AudioSource` 的播放旗标;参数可切换到指定剪辑。已在播放同一剪辑时不会重播。 |
-| `audio.stop` | 动作 | 放下 `AudioSource` 的播放旗标。 |
-| `audio.finished` | 条件 | 非循环剪辑播完且已停止播放时为真。 |
-| `soundEvent.trigger` / `soundEvent.stop` | 动作 | 触发 / 停止该实体的 `SoundEventSource`。 |
-| `property.set` | 动作 | 按 `Component.field` 路径与取值写入代理实体(或通过可选的 `entity` 参数指定的另一实体)的任意组件字段,例如 `UIVisual.color.a`。字符串参数形式为 `path=value`;取值能按 JSON 解析时按 JSON 读(`3`、`true`、`{"r":1}`),否则当作字符串。 |
-
-动作可携带一个可选**字符串参数**——在 FSM 状态检查器的动作名旁(或 BT 动作节点上)填写。
-内置动作用它承载组件无法按状态携带的数据,比如 `spriteAnim.play` 要切换到哪个剪辑;
-你自己注册的动作在第三个参数收到它:`(ctx, blackboard, arg) => …`。声明了 `params` 的动作还会在第四个参数里按名字收到同样的值。
-
-三者组合出一个**零代码的过场状态**:进入状态即播放片段,片段播完即驱动转移:
-
-```typescript
-import { registerFsm } from 'esengine/ai';
-
-registerFsm('intro', {
-  initial: 'Cutscene',
-  states: [
-    {
-      name: 'Cutscene',
-      onEnter: 'timeline.play',
-      transitions: [{ to: 'Gameplay', condition: 'timeline.finished' }],
-    },
-    { name: 'Gameplay' },
-  ],
-});
-```
-
-代理实体自己携带 `TimelinePlayer`(播哪个片段、速度、循环模式)——FSM 只翻它的
-旗标。内建名字永远不会遮蔽你的注册:同名时你的注册获胜。游戏侧的名字请避开
-`timeline.` 前缀,保持命名空间分离。
-
-在 FSM / 行为树编辑器里,动作与条件输入框会随输入提示所有已注册的名字——按命名
-空间分组,内建项带一行"它做什么"的说明。自由输入仍然合法,留给游戏运行时注册的
-名字。
-
-[`cutscene` 示例](https://github.com/esengine/estella/tree/master/examples/cutscene)
-就是这个模式的完整落地:场景开始即播开场时间轴,播完解锁操作,按 R 重播——
-全程零注册动作。
-
-## 四个部分
-
-<CardGrid>
-  <LinkCard title="感知" href="/docs/zh-cn/gameplay/ai/perception/" description="视锥,以及一个 agent 此刻看到了什么。" />
-  <LinkCard title="导航" href="/docs/zh-cn/gameplay/ai/navigation/" description="格子给瓦片、烘焙出来的网格给几何,以及在两者上移动 agent。" />
-  <LinkCard title="状态机" href="/docs/zh-cn/gameplay/ai/state-machines/" description="状态、带守卫的转移,以及一次性触发器。" />
-  <LinkCard title="行为树" href="/docs/zh-cn/gameplay/ai/behavior-trees/" description="选择、序列、装饰器与叶子。" />
-  <LinkCard title="黑板" href="/docs/zh-cn/gameplay/ai/blackboard/" description="两种范式共同读写的每-agent 数据面。" />
-  <LinkCard title="在编辑器里编排" href="/docs/zh-cn/gameplay/ai/authoring/" description="叶子在代码里注册,图在编辑器里搭。" />
-  <LinkCard title="组件层之下" href="/docs/zh-cn/gameplay/ai/advanced/" description="手动寻路、感知内幕,以及裸 App 接线。" />
-</CardGrid>
-
-## 不用写代码的近战敌人
-
-`Hunter` 是 `ThirdPersonController` 的具体孪生：那个把**输入**变成请求，这个把
-**感知**变成请求。往下的一切都是玩家走的同一套机器——路线是导航的，移动是角色控制器的，
-动画器听到的速度是世界允许的那个，而一次挥击是一个动画器触发器、并且从同一个
-`MeleeAttack` 回来。攻击者是程序而不是人，不改变任何机制。
-
-```typescript
-enemy.add(Perceiver, { range: 420 });
-enemy.add(Perception, {});
-enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
-enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
-enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
-enemy.add(Health, { current: 50, max: 50 });
-```
-
-`Hunter` 是 3D 组件:它在 x/z 地平面上量距离,通过 `CharacterController3D` 移动,并设置名为
-`attack` 的动画器触发器,所以该实体需要一个能响应这个触发器的 `Animator`。
-
-| 字段 | 默认值 | 作用 |
-|---|---|---|
-| `attackRange` | `110` | 地平面上靠近到多远才挥击。 |
-| `attackInterval` | `1.6` | 两次挥击之间的秒数。 |
-| `rotationSpeed` | `540` | 转身速度，度/秒。 |
-| `idleThreshold` | `8` | 低于这个速度就告诉动画器它站着不动。 |
-| `enabled` | `true` | 关闭后这个猎手被整个跳过。 |
-| `state` | 引擎写入：`idle` / `chase` / `attack` / `dead`。 |
-| `cooldown` | 引擎写入：还有多少秒才能再挥。 |
-
-四个状态，没有任何创作面——这是一个具体的敌人，不是框架。上面的 FSM 与行为树运行时才是
-**游戏**声明自己 AI 的地方；等到第二种敌人想有不同行为时再去拿它们。
-
-<Aside>
-  状态每帧重算而不是锁存，所以在挥击中途走开的目标会被重新追，而不是被对着空气挥。
-  「朝哪看」是两个问题不是一个：追击时朝它**实际走**的方向，挥击时朝目标——
-  一刀顺着残余漂移挥出去，会落在它本来瞄的东西旁边。
-</Aside>
-
-<Aside type="caution">
-  导航会**跳过**没有目的地的 agent，所以清掉目标不等于停下——它上一次写的速度会带着身体
-  继续走。`Hunter` 会把速度一并清零，任何别的「让 agent 停下」的代码也必须这么做。
-</Aside>
-
-`Health` 归零就是 `dead`：导航停止，动画器被告知站着不动，不再设触发器。主人倒下时
-已经挥在空中的那一刀不会打到任何人——那一半是 `MeleeAttack` 的责任，所以不用指望
-谁记得去关掉什么开关。
-
-## 组合起来
-
-[`enemy-ai` 示例](https://github.com/esengine/estella/tree/master/examples/enemy-ai)
-用两个敌人猎杀玩家,它们共享同一套感官和叶子——一个由状态机驱动,另一个由行为树驱动:
+[`enemy-ai` 示例](https://github.com/esengine/estella/tree/master/examples/enemy-ai)中有两个共享同一套感知与叶子的敌人；一个由状态机驱动，另一个由行为树驱动：
 
 ```typescript
 import { defineSystem, Res, registerAction, registerCondition } from 'esengine';
 import { Nav, NavGrid, setNavDestination, Perception } from 'esengine/ai';
 
-// 共享叶子——同一批名字同时服务 .esfsm 和 .esbt。
+// Shared leaves — the same names serve BOTH the .esfsm and the .esbt.
 registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);
 registerCondition('lostPlayer', (ctx) => !ctx.has(Perception) || !ctx.get(Perception).visible);
 
@@ -245,21 +39,35 @@ registerAction('chase', (ctx) => {
   const per = ctx.get(Perception);
   if (per.visible) setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
 });
-registerAction('patrol', () => { /* 在看见玩家之前保持原地 */ });
+registerAction('patrol', () => { /* hold position until the player is seen */ });
 
-// 一张覆盖竞技场的开阔导航网格。
+// One open nav grid over the arena.
 export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
   nav.setSurface(new NavGrid({ width: 60, height: 44, cellSize: 20, origin: { x: -600, y: -440 } }));
 }, { name: 'SetupNavGrid' });
 ```
 
-两个敌人的 `StateMachineAgent.fsm` 和 `BehaviorTreeAgent.bt` 分别指向 `enemy.esfsm` /
-`enemy.esbt`——在编辑器里编排,由引擎加载。感知、FSM/BT 的 tick、以及跟随导航全是内置的,
-所以唯一的游戏代码就是上面的共享叶子加上那张一次性的网格。
+两个敌人的 `StateMachineAgent.fsm` 与 `BehaviorTreeAgent.bt` 分别指向 `enemy.esfsm` 与 `enemy.esbt`，它们在编辑器中创作并随场景加载。感知、FSM 与 BT 的 tick 以及路径跟随都是内建的；游戏代码只包括共享的叶子与网格设置。
 
-## 参见
+<Aside type="note">
+  [`Hunter`](/docs/zh-cn/gameplay/ai/hunter/) 是现成的 3D 近战敌人，无需状态机或行为树即可组合感知、导航与 `MeleeAttack`。
+</Aside>
 
-- [脚本](/docs/zh-cn/scripting/overview/) —— 行为是声明式系统;叶子就是普通函数。
-- [精灵动画](/docs/zh-cn/animation/sprite-animation/#状态机动作) —— 用状态机驱动精灵动画。
-- [场景](/docs/zh-cn/world/scenes/) —— `.esfsm` / `.esbt` 资产随场景加载与序列化。
-- [事件绑定](/docs/zh-cn/scripting/events/) —— 点击或触发可以 `fsm.fire` 进状态机；动作与条件出自同一个注册表。
+## 本章页面
+
+- [动作与条件](/docs/zh-cn/gameplay/ai/actions/)——注册表、`AiContext`、返回值与内建名字。
+- [感知](/docs/zh-cn/gameplay/ai/perception/)——视野锥、听觉与 `Perception` 组件。
+- [导航](/docs/zh-cn/gameplay/ai/navigation/overview/)——网格、导航网格、代理与路线查询。
+- [状态机](/docs/zh-cn/gameplay/ai/state-machines/)——状态、带守卫的转移与触发器。
+- [行为树](/docs/zh-cn/gameplay/ai/behavior-trees/)——组合节点、装饰器与叶子。
+- [黑板](/docs/zh-cn/gameplay/ai/blackboard/)——叶子与守卫共享的每代理数据。
+- [在编辑器中创作](/docs/zh-cn/gameplay/ai/authoring/)——构建 `.esfsm` 与 `.esbt` 资源。
+- [Hunter](/docs/zh-cn/gameplay/ai/hunter/)——内建的 3D 近战敌人。
+- [组件层之下](/docs/zh-cn/gameplay/ai/advanced/)——寻路与感知的底层函数，裸应用的接线。
+
+## 另请参阅
+
+- [脚本](/docs/zh-cn/scripting/overview/)——系统与行为；叶子是普通函数。
+- [脚本图](/docs/zh-cn/gameplay/script-graphs/)——调用相同动作的可视化逻辑。
+- [精灵动画](/docs/zh-cn/animation/sprite-animation/#状态机动作)——由状态机驱动的精灵片段。
+- [事件绑定](/docs/zh-cn/scripting/events/)——点击或触发器可通过 `fsm.fire` 向状态机发送事件。

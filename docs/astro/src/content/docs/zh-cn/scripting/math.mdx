@@ -1,19 +1,15 @@
 ---
 title: 数学辅助
-description: 在引擎的规范类型上做向量、颜色与标量运算。
+description: SDK 数学命名空间——v2 与 v3 向量、col 颜色、标量辅助函数、带种子的随机数生成器，以及作用于引擎规范类型的 2D 与 3D 旋转辅助函数。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-SDK 附带了几个小的数学命名空间——`v2` / `v3`(向量)、`col`(颜色)、`scalar`(数值)
-——它们操作的正是你组件里用的那套规范类型(`{x, y}` 向量、0..1 的 `{r, g, b, a}` 颜色)。
-每个辅助函数都是**纯函数**:返回新值,绝不修改入参。至于这些数字*意味着*什么——世界
-单位、设计像素、物理米制以及 Y 轴向上的坐标系——见
-[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)。
+SDK 提供若干小型数学命名空间——`v2` / `v3`（向量）、`col`（颜色）、`scalar`（数值）与 `q`（四元数）——它们作用于组件所用的规范类型：`{x, y}` / `{x, y, z}` 向量、`{w, x, y, z}` 四元数，以及取值 `0..1` 的 `{r, g, b, a}` 颜色。所有辅助函数都是**纯函数**：返回新值，不修改输入。单位与坐标约定见[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)。
+
+结果与组件字段类型相同，可直接赋值，例如 `transform.position = v2.add(transform.position, step)` 或 `sprite.color = col.withAlpha(sprite.color, a)`。每次调用都会分配一个新对象。
 
 ## 向量
-
-`v2` 覆盖 2D 向量运算;`v3` 为 3D 提供同样的核心运算。
 
 ```typescript
 import { v2 } from 'esengine';
@@ -21,116 +17,132 @@ import { v2 } from 'esengine';
 // Move a point by a velocity over dt.
 const next = v2.add(pos, v2.scale(vel, dt));
 
-// Aim: unit direction from pos to target, then a step of length speed*dt.
+// Unit direction from pos to target, then a step of length speed * dt.
 const dir  = v2.normalize(v2.sub(target, pos));
 const step = v2.scale(dir, speed * dt);
 
-v2.dist(pos, target);                 // distance (for a range check)
+v2.dist(pos, target);                 // distance
 v2.fromAngle(Math.PI / 2, 10);        // { x: 0, y: 10 }
 v2.rotate({ x: 1, y: 0 }, Math.PI);   // { x: -1, y: 0 }
 ```
 
-- 四则:`add` / `sub` / `scale` / `mul`(逐分量)/ `neg`。
-- 点积/长度:`dot`、`cross`、`len` / `len2`、`dist` / `dist2`。
-- 方向:`normalize`、`angle`、`fromAngle`、`rotate`、`perp`(逆时针 90°)。
-- 还有:`create`、`clone`、`lerp`、`equals`(带 epsilon 的比较)。
+| 分组 | `v2` | `v3` |
+|---|---|---|
+| 构造 | `create`、`clone` | `create`、`clone` |
+| 算术 | `add`、`sub`、`scale`、`mul`（逐分量）、`neg` | `add`、`sub`、`scale`、`mul`、`neg` |
+| 积与长度 | `dot`、`cross`、`len`、`len2`、`dist`、`dist2` | `dot`、`cross`、`len`、`len2`、`dist` |
+| 方向 | `normalize`、`angle`、`fromAngle`、`rotate`、`perp`（逆时针 90°） | `normalize` |
+| 其他 | `lerp`、`equals`（epsilon 比较） | `lerp`、`equals` |
 
 ## 颜色
 
-`col` 在 `{r, g, b, a}`(0..1)约定上构造与混合颜色——白色是 `{1, 1, 1, 1}`。命名空间
-叫 `col` 是因为裸的 `color` 名字已经是一个 SDK 导出。
+`col` 按 `{r, g, b, a}`（`0..1`）约定创建与混合颜色；白色为 `{1, 1, 1, 1}`。该命名空间名为 `col`，因为 `color` 是另一个 SDK 导出。
 
 ```typescript
 import { col } from 'esengine';
 
 col.rgb(1, 0, 0);            // opaque red (0..1 channels)
-col.from255(255, 128, 0);   // from 0..255 channels
-col.fromHex('#ff8800');     // #rgb / #rgba / #rrggbb / #rrggbbaa
+col.from255(255, 128, 0);    // from 0..255 channels
+col.fromHex('#ff8800');      // #rgb / #rgba / #rrggbb / #rrggbbaa
 
-col.lerp(red, blue, 0.5);   // blend halfway (e.g. a damage flash)
-col.withAlpha(white, 0.3);  // fade
-col.multiply(base, tint);   // per-channel tint
+col.lerp(red, blue, 0.5);    // halfway blend
+col.withAlpha(white, 0.3);   // change alpha
+col.multiply(base, tint);    // per-channel multiply
 ```
 
-- 构造:`create`、`rgb`、`from255`、`fromHex`(格式非法时抛错)、`clone`。
-- HSV:`fromHsv(h, s, v, a?)`(色相为角度,其余 `0..1`)与 `toHsv`。
-- 混合:`lerp`、`withAlpha`、`multiply`、`scaleRgb`;用 `toHex(c, withAlpha = false)` 序列化;用 `equals` 比较。
+| 分组 | 成员 |
+|---|---|
+| 构造 | `create`、`rgb`、`from255`、`fromHex`（输入格式错误时抛出异常）、`clone` |
+| HSV | `fromHsv(h, s, v, a?)`（色相以度计，其余为 `0..1`）、`toHsv` |
+| 混合 | `lerp`、`withAlpha`、`multiply`、`scaleRgb` |
+| 其他 | `toHex(c, withAlpha = false)`、`equals` |
 
 ## 标量
-
-`scalar` 汇集了玩法与数值调校常用的数值辅助:
 
 ```typescript
 import { scalar } from 'esengine';
 
 scalar.clamp01(hp / maxHp);      // 0..1
 scalar.lerp(a, b, 0.25);         // interpolate
-scalar.remap(x, 0, 100, 0, 1);   // rescale one range onto another
-scalar.smoothstep(0, 1, t);      // eased 0..1 ramp
+scalar.remap(x, 0, 100, 0, 1);   // map one range onto another
+scalar.smoothstep(0, 1, t);      // smooth 0..1 ramp
 scalar.deg2rad(90);              // degrees -> radians
 ```
 
-还有:`clamp`、`inverseLerp`、`rad2deg`、`approximately`、`mod`、`sign`。
+成员：`clamp`、`clamp01`、`lerp`、`inverseLerp`、`remap`、`smoothstep`、`deg2rad`、`rad2deg`、`approximately`、`mod`、`sign`。
 
 ## 带种子的随机数
 
-`createRng(seed)` 返回一个带种子的生成器,**在每个宿主上抽出相同的序列**(基于 32 位整数运算的 SFC32),
-所以裁定结果的服务器和做预览的客户端能得到一致的数。`hashSeed` 把数字、字符串或列表变成稳定的 32 位哈希:
+`createRng(seed)` 返回一个带种子的生成器，它在**所有宿主上产生相同的序列**（基于 32 位整数运算的 SFC32），因此决定结果的服务器与预览结果的客户端保持一致。`hashSeed` 将数字、字符串或列表转换为稳定的 32 位哈希；`createRng` 接受相同形式的种子。
 
 ```typescript
 import { createRng } from 'esengine';
 
 const rng = createRng(['loot', levelId]);
 rng.float();                     // [0, 1)
-rng.int(1, 6);                   // 1..6(含两端),无取模偏差
-rng.chance(0.25);                // 25% 概率为 true
-rng.pick(items);                 // 随机取一个元素
+rng.int(1, 6);                   // 1..6 inclusive, without modulo bias
+rng.chance(0.25);                // true with probability 0.25
+rng.pick(items);                 // one element
 rng.weighted(items, (i) => i.weight);
-rng.shuffle(items);              // 洗牌后的副本
-const drops = rng.fork('drops'); // 独立的随机流,不受本流抽取次数影响
+rng.shuffle(items);              // a shuffled copy
+const drops = rng.fork('drops'); // an independent stream
 ```
 
-## 旋转辅助
+| `Rng` 成员 | 说明 |
+|---|---|
+| `nextU32()` | 下一个原始 32 位值。 |
+| `float()` | `[0, 1)` 内的值。 |
+| `int(min, max)` | `[min, max]` 内的整数，无取模偏差。 |
+| `chance(p)` | 以概率 `p`（钳制到 `[0, 1]`）返回 `true`。 |
+| `pick(items)` | 一个元素。 |
+| `weighted(items, weight)` | 按权重选出的一个元素。 |
+| `shuffle(items)` | 打乱后的副本。 |
+| `fork(label)` | 从本生成器派生的独立生成器；任一方的抽取不影响另一方。 |
 
-`Transform.rotation` 是四元数;2D 下只会绕 Z 轴旋转,几个导出就覆盖了
-角度 ↔ 四元数的往返:
+## 旋转辅助函数
+
+`Transform.rotation` 是四元数。2D 旋转仅绕 Z 轴：
 
 ```typescript
 import { quat, quaternionToAngle2D } from 'esengine';
 import { normalizeAngle } from 'esengine/ai';
 
-// Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
+// Angle -> quaternion. The factory takes w FIRST: quat(w, x, y, z).
 const a = Math.PI / 3;
 const rot = quat(Math.cos(a / 2), 0, 0, Math.sin(a / 2));
 
 // Quaternion -> angle (radians), from the z/w components.
 const facing = quaternionToAngle2D(rot.z, rot.w);   // Math.PI / 3
 
-// Wrap to (-π, π] — the shortest signed turn from facing toward a target angle.
+// Wrap to (-π, π]: the shortest signed turn toward a target angle.
 const delta = normalizeAngle(targetAngle - facing);
 ```
 
 | 辅助函数 | 说明 |
 |---|---|
-| `quat(w?, x?, y?, z?)` | 四元数工厂;不传参数得到单位四元数 `{w: 1, x: 0, y: 0, z: 0}`。 |
-| `quaternionToAngle2D(rz, rw)` | 由四元数的 `z`/`w` 求 Z 角度(弧度,`2 * atan2(z, w)`)。 |
-| `normalizeAngle(a)` | 把任意角度归一到 `(-π, π]`,用于最短转向比较。 |
+| `quat(w?, x?, y?, z?)` | 四元数工厂函数；无参数时返回单位四元数 `{w: 1, x: 0, y: 0, z: 0}`。 |
+| `quaternionToAngle2D(rz, rw)` | 由四元数的 `z` / `w` 计算以弧度计的 Z 角（`2 * atan2(z, w)`）。 |
+| `normalizeAngle(a)` | 将角度规整到 `(-π, π]`。来自 `esengine/ai`。 |
 
-完整的 3D 旋转用 `q` 命名空间:`create`、`mul`、`axis(axis, rad)`、`normalize`、`conjugate`、`rotate(q, v)`、`fromEuler` / `toEuler`(欧拉角单位是**度**)、`rotationTo(from, to)`、`setAngleZ(q, deg)`(度)/ `angleZ(q)`(弧度)等。
+`q` 命名空间涵盖 3D 旋转：
 
-如果需要的是方向*向量*而不是旋转,留在 `v2` 里就好:`fromAngle` / `angle` /
-`rotate`。完整的工作示例(炮塔朝向光标)见
-[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/#2d-旋转)。
+| 成员 | 说明 |
+|---|---|
+| `create`、`clone` | 构造。 |
+| `mul`、`dot`、`neg`、`scaled`、`normalize`、`conjugate` | 四元数运算。 |
+| `axis(axis, rad)` | 绕 `axis` 旋转 `rad` 弧度。 |
+| `rotate(q, v)` | 旋转一个向量。 |
+| `fromEuler` / `toEuler` | 与以**度**计的欧拉角相互转换。 |
+| `rotationTo(from, to)` | 从一个方向到另一个方向的最短旋转。 |
+| `setAngleZ(q, deg)` / `angleZ(q)` | 以度设置 Z 角 / 以弧度读取 Z 角。 |
+
+方向向量可通过 `v2.fromAngle`、`v2.angle` 与 `v2.rotate` 生成，无需四元数。完整示例（朝向光标的炮塔）见[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/#2d-旋转)。
 
 <Aside type="tip">
-  返回值用的是和组件一样的规范类型,可以直接落回去——例如
-  `transform.position = v2.add(transform.position, step)` 或
-  `sprite.color = col.withAlpha(sprite.color, a)`,无需转换。因为每次调用都会分配一个
-  新对象,在计较分配次数的热点内循环里请把它们提到循环外。
+  由于每个辅助函数都会分配结果对象，对分配次数敏感的热点内层循环应就地计算，或将辅助函数调用移出循环。
 </Aside>
 
-## 另请参阅
+## 参见
 
-- [变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)——这些数字的含义:
-  世界单位 = 设计像素、物理米制、Y 轴向上,以及用四元数旋转实体。
-- [物理](/docs/zh-cn/gameplay/physics/)——这些辅助函数最终喂给的米制单位面。
+- [变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)——世界单位、物理米制、Y 轴向上与旋转。
+- [物理](/docs/zh-cn/gameplay/physics-2d/overview/)——基于米的单位体系。

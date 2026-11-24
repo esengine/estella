@@ -1,0 +1,160 @@
+---
+title: Effects per Level
+description: Post-process effect quality reference — which effects each level runs, effect resolution, sample and step counts of lighting, reflection, sky and post-processing effects, bloom levels, planar reflection caps, and the per-frame quality constants materials read.
+---
+
+The groups Global Illumination & Occlusion, Reflections, Sky & Volumetrics and Post-Processing decide which post-process
+effects run at each level and how much work each one does. Defaults are given as Low / Medium / High; the key is the field
+name in `features.rendering.quality.profiles.<level>`.
+
+## Effects each level runs
+
+Every post-process effect is ticked per level in the group it belongs to. An unticked effect is skipped at that level
+wherever a camera's volume requests it, completely: an effect with several passes, such as ambient occlusion or auto
+exposure, is removed whole. The profile stores the effects left out:
+
+```json
+"quality": { "mode": "auto", "profiles": { "low": { "skipEffects": ["ssr", "taa", "depthOfField"] } } }
+```
+
+| Level | Effects left out by default |
+|---|---|
+| Low | screen-space reflections, temporal anti-aliasing, depth of field, light shafts, motion blur, lens flare, ambient occlusion (SSAO and GTAO), subsurface scattering, voxel GI, dynamic GI |
+| Medium | screen-space reflections, depth of field |
+| High | none |
+
+These defaults follow the per-pixel work of each effect; they are not measurements on target devices. The editor's
+`fx-cost` check measures each effect's cost on the machine it runs on.
+
+**Post-processing** (`postProcess`, on at every level) is a master switch: off runs no effect at that level, whatever a
+camera's volume requests.
+
+### Asking whether an effect runs
+
+`qualityRunsEffect(profile, effect)` reports whether the level in force runs an effect. The skip list is not the whole
+rule: a level with post-processing off runs nothing, and a level that uses Temporal anti-aliasing runs TAA whatever it
+skips and never runs FXAA. The resolved profile has no `ssao` field; use `qualityRunsEffect(quality.profile, 'ssao')`.
+
+A profile written in the earlier format may contain `"ssao": false`, which is read as `ssao` and `gtao` in the skip list,
+or `"ssao": true`, which removes `ssao` from it; the editor writes the list instead the next time that level's effects are
+edited. `quality.setPreferences({ ssao: false })` is read the same way.
+
+## Effect resolution
+
+Some effects work at half the picture's size per side and are composited over it. Each has a resolution setting that
+multiplies that size: `1` draws it at half the picture per side, `0.5` at a quarter, `0.25` at an eighth, down to the
+effect's smallest size, below which its image breaks up. Tone mapping, FXAA, grading and every other full-picture pass
+always run at full size.
+
+| Setting | Key | Effect | Group | Smallest |
+|---|---|---|---|---|
+| Ambient occlusion resolution | `aoResolution` | SSAO and GTAO | Global Illumination & Occlusion | a quarter |
+| Screen-space GI resolution | `ssgiResolution` | Screen-space GI | Global Illumination & Occlusion | an eighth |
+| Voxel GI gather resolution | `voxelGIResolution` | Voxel GI gather on WebGL2 | Global Illumination & Occlusion | a quarter |
+| Fog volume resolution | `fogResolution` | Light in height fog | Sky & Volumetrics | an eighth |
+| Lens flare resolution | `lensFlareResolution` | Lens flare | Post-Processing | an eighth |
+
+Each defaults to 0.25 / 0.5 / 1. At Low, ambient occlusion and the voxel gather stop at a quarter and the others draw at an
+eighth; at Medium all draw at a quarter; at High as authored. Each can be overridden by a player preference, for example
+`quality.setPreferences({ fogResolution: 0.5 })`.
+
+The ambient occlusion term is composited by depth, and the depth tolerance grows as the term is drawn smaller, so a
+quarter-size term does not band on ground seen at a grazing angle. Sky clouds and bloom always draw at half size and have
+no resolution setting.
+
+## Samples, steps and bakes
+
+How many samples, rays and steps lighting effects take, how large a grid or bake they keep and how often they rebake are
+settings of their group. Each shader is compiled once with the High count as its bound and stops early at the level's
+count, so changing level compiles nothing. A shortened loop keeps its reach: SSR with 16 steps marches as far as with 48
+in longer strides, a GTAO slice or GI ray spreads fewer samples over the same radius, and a smaller voxel grid or distance
+field covers the same world with larger cells.
+
+| Setting | Key | Effect | Low / Medium / High |
+|---|---|---|---|
+| SSAO samples | `ssaoSamples` | SSAO | 6 / 8 / 12 |
+| GTAO slices × steps | `gtaoSlices`, `gtaoSteps` | GTAO | 2 × 4 / 2 × 5 / 3 × 6 |
+| Ambient occlusion blur radius | `aoBlurRadius` | Blur after SSAO and GTAO, texels per side | 2 / 3 / 3 |
+| Screen-space GI rays × steps | `ssgiRays`, `ssgiSteps` | Screen-space GI | 4 × 4 / 6 × 5 / 8 × 6 |
+| Screen-space GI denoise width | `ssgiDenoiseKernel` | Bilateral filter that composites screen-space GI | 3 × 3 / 3 × 3 / 5 × 5 |
+| Voxel GI grid | `voxelGIGridSize` | Voxel GI on WebGPU, voxels across (half as many high) | 64 / 128 / 128 |
+| Voxel GI sun samples | `voxelGISunSamples` | Voxel GI on WebGPU, samples per side of each sun shadow tile | 64 / 128 / 256 |
+| Voxel GI bounce rays | `voxelGIBounceRays` | Voxel GI on WebGL2 | 1 / 2 / 2 |
+| Cheaper dynamic GI | `dynamicGIReduced` | Dynamic GI | on / on / off |
+| Dynamic GI probe rows | `dynamicGIProbeRows` | Dynamic GI | 30 / 45 / 90 |
+| Dynamic GI field size | `dynamicGIFieldSize` | Dynamic GI distance field, cells per side of each level | 64 / 128 / 128 |
+| Dynamic GI field build budget | `dynamicGIFieldBuildMs` | ms per frame the field rebuilds in after a move (four times this for a scene's first field) | 1 / 2 / 3 |
+| Per-pixel light probes | `probesPerPixel` | Probe volume lookup for meshes without lightmap UVs | off / on / on |
+| Contact shadow steps | `contactShadowSteps` | Contact Shadows, steps marched per pixel | 8 / 12 / 20 |
+| SSR steps + refinement | `ssrSteps`, `ssrRefine` | Screen-space reflections | 16 + 4 / 32 + 5 / 48 + 6 |
+| Sky lighting update interval | `skyEnvironmentInterval` | Seconds between bakes of a changing sky | 4 / 2 / 1 |
+| Sky lighting cloud steps | `skyEnvironmentCloudSteps` | The sky bake's march through clouds | 8 / 12 / 16 |
+| Environment reflection size | `environmentMapSize` | Sky and captured probe reflections, texels per side | 16 / 32 / 32 |
+| Probe capture size | `probeCaptureSize` | Each face a capturing light probe volume draws | 16 / 32 / 32 |
+| Still sky from a panorama | `stillSky` | A still sky is drawn once into a panorama and read from it, instead of computed per pixel every frame | on / on / off |
+
+- **Cheaper dynamic GI**: one pixel in four queries the probes, a probe traces a quarter of its rays per frame, cards are
+  relit over eight frames, and two thirds of the probe rows are used. Light can spread a pixel or two across a shared edge,
+  and changing light takes about twice as long to settle.
+- **Dynamic GI probe rows** no longer depend on the platform; the cheaper mode keeps two thirds of the level's rows.
+- **Per-pixel light probes** off: a mesh reads one probe value at its position (as meshes with lightmap UVs always do)
+  and no brick atlas is kept on the GPU, so a long mesh spanning lit and dark areas is lit uniformly.
+- GTAO uses at least two slices; with a single slice, the per-pixel slice rotation repeats every other pixel of a pass
+  drawn below half size and samples only a few directions, producing bands.
+- Low leaves SSR, SSAO, GTAO, voxel GI and dynamic GI out by default, so their Low values matter only to a project that
+  enables them at Low. Without temporal anti-aliasing, 16 SSR steps leave a visible stipple in reflections.
+
+### Planar reflections
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Planar reflection scale | `planarReflectionScale` | 0.25 / 0.5 / 1 | Share of the screen resolution (per side) a planar reflection is drawn at. |
+| Planar reflection max size | `planarReflectionMaxSize` | 512 / 1024 / 2048 | Most texels per side, whatever the scale gives on a large screen. |
+| Planar reflection updates / s | `planarReflectionUpdatesPerSecond` | 30 / 0 / 0 | Redraws per second; `0` is every frame. Never caps the main scene. |
+
+While a level is in force, a planar reflection set to its own values (**Custom**) is held under the level's: its scale and
+size no larger than the level's, and, where the level sets an update rate, drawn no more often (a reflection drawn only on
+request is unaffected). The author's values can only make it cheaper. With no level in force a Custom reflection keeps
+its own values ([Planar Reflections](/docs/graphics/lighting/planar-reflections/)).
+
+## Steps and samples
+
+Effects that march a ray or gather a ring of taps take their count from the level. Each shader is compiled for High's
+count and stops at the level's; fewer steps are longer steps over the same distance, so a cloud is as deep, a light shaft
+as long and a blur as wide. What is lost is smoothness: grain where a jittered march has too few steps, or a horizon
+slightly off where the sky's air is integrated in fewer pieces.
+
+| Setting | Key | Counts | Group | Low / Medium / High |
+|---|---|---|---|---|
+| Fog light steps | `fogVolumeSteps` | Steps of sunlight through height fog | Sky & Volumetrics | 8 / 16 / 24 |
+| Fog cloud samples | `fogCloudSamples` | Points up through the clouds per fog step | Sky & Volumetrics | 2 / 3 / 4 |
+| Cloud steps | `cloudSteps` | Steps of a sky ray through the main cloud layer | Sky & Volumetrics | 12 / 14 / 16 |
+| Upper cloud steps | `cloudUpperSteps` | Steps through the upper cloud layer | Sky & Volumetrics | 3 / 4 / 6 |
+| Cloud shadow samples | `cloudShadowSamples` | Points along the sun's ray for cloud shadows on the ground | Sky & Volumetrics | 3 / 4 / 6 |
+| Sky scattering steps | `skyScatterSteps` | Steps the sky colour is integrated in | Sky & Volumetrics | 8 / 12 / 16 |
+| Sky sunlight steps | `skyLightDepthSteps` | Steps from a sky point to the sun | Sky & Volumetrics | 3 / 3 / 4 |
+| Depth of field samples | `dofSamples` | Taps a blurred pixel gathers | Post-Processing | 16 / 32 / 64 |
+| Light shaft samples | `lightShaftSamples` | Points a pixel samples towards the sun | Post-Processing | 16 / 24 / 40 |
+| Motion blur samples | `motionBlurSamples` | Points a moving pixel is smeared over | Post-Processing | 6 / 10 / 16 |
+| Subsurface scattering samples | `subsurfaceSamples` | Taps per side in each of the two passes | Post-Processing | 3 / 4 / 6 |
+| Refraction blur samples | `refractionSamples` | Taps of the scene behind a rough transmissive surface | Effects & Particles | 4 / 6 / 8 |
+
+- Low leaves depth of field, light shafts, motion blur and subsurface scattering out by default, so their Low counts
+  matter only to a project that enables them at Low.
+- The cloud march starts each pixel at a 4 × 4 ordered offset, which the composite's four-texel read evens out.
+
+**Bloom levels** (`bloomLevels`, Post-Processing; 3 / 4 / 5) is how many times bloom halves the bright image before
+building it back up; at 5 it reaches a sixty-fourth of the picture. One level fewer drops the smallest down and up steps,
+so the glow reaches less far around a light; the remaining steps cost the same.
+
+### Counts in materials
+
+A material reads its count from the engine rather than from its own parameters: the frame's `u_quality` constants,
+whose first slot is the refraction count. A setting claims a slot with `materialSlot`. A slot holding zero, which is its
+value with the quality system off, means the maximum count.
+
+## See also
+
+- [Quality Levels](/docs/performance/quality-levels/overview/)
+- [Level Settings](/docs/performance/quality-levels/settings/)
+- [Post-processing lighting effects](/docs/graphics/post-processing/lighting/)

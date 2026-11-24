@@ -1,0 +1,74 @@
+---
+title: Device Capabilities
+description: The Device API — capability reporting, motion sensors with sampling rates and units, vibration, screen wake, fullscreen and pointer lock, user-gesture and HTTPS requirements, and platform support.
+---
+
+`Device` exposes host capabilities beyond input events: motion sensors, vibration, screen wake, fullscreen and pointer
+lock.
+
+`Device.capabilities()` reports the host APIs available. It does not certify that a physical sensor or vibration motor
+is present. Requests resolve to `ok`, `unavailable`, `denied` or `failed`; results are checked instead of catching
+exceptions on unsupported platforms.
+
+```ts
+import { Device } from 'esengine';
+
+const off = Device.motion.onChange(sample => {
+  if (sample.gravity) console.log(sample.gravity);
+});
+// Called from the player's gesture where the browser requires permission.
+const result = await Device.motion.start({ accelerometer: true, gyroscope: false, rate: 'game' });
+await Device.vibrate({ duration: 'short' });
+await Device.keepScreenOn(true);
+await Device.fullscreen(true);
+await Device.pointerLock(true);
+// Stop subscriptions and requests when the controls are retired.
+off();
+await Device.motion.stop();
+await Device.keepScreenOn(false);
+```
+
+## Motion
+
+| Rate | Interval |
+|---|---|
+| `game` | about 16 ms |
+| `ui` | 60 ms |
+| `normal` | 200 ms |
+
+Host sampling limits still apply.
+
+| Channel | Unit |
+|---|---|
+| Acceleration, filtered gravity | m/s² |
+| Gyroscope | rad/s |
+| Filtered web orientation | degrees |
+
+Missing channels are `null`. Native and mini-game adapters provide raw acceleration and gyroscope data and gravity
+filtering; absolute orientation is not available there. Device axes are not rotated to the screen orientation, and no
+pose fusion is performed.
+
+## Requirements
+
+- Web motion permission requests, fullscreen and pointer lock must run inside the originating player event. The
+  `userGesture: true` option of `createButton` provides this.
+- Motion and screen wake require HTTPS or localhost.
+- `Device.onChange` observes fullscreen and pointer-lock exits and suspension.
+- Motion and a requested screen wake resume when the game returns to the foreground; `stop()` and
+  `keepScreenOn(false)` withdraw that request.
+
+## Vibration
+
+Vibration has `short` and `long` durations, with an optional `light` / `medium` / `heavy` intensity for short
+vibration where the platform reports support. Web vibration cannot control intensity.
+
+## Platform support
+
+Older native binaries and platforms without the APIs return `unavailable`. Native support requires the current
+Android and iOS runtime with its sensor, permission and framework bindings. The **Mobile Controls** example is a
+complete project using these APIs.
+
+Platform references: [Web motion permission](https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent/requestPermission),
+[screen wake](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API),
+[Android sensors](https://developer.android.com/ndk/reference/group/sensor),
+[iOS CoreMotion](https://developer.apple.com/documentation/coremotion/cmmotionmanager).

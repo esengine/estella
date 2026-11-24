@@ -1,0 +1,149 @@
+---
+title: Melee & Hitboxes
+description: 3D combat reference — MeleeAttack driven by animation events, active-frame sweeps, the Damage event bus and Health, and Hitboxes that let a ray identify the bone it hit.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Combat separates three things: an **animation event** says when a swing reaches its effective moment, the **physics
+world** says what was in reach, and **gameplay** decides what the hit does. `MeleeAttack` connects the first two;
+`Health` and the `Damage` bus implement the third. All are in `esengine/gameplay`.
+
+## `MeleeAttack`
+
+`MeleeAttack` sits beside an `Animator` whose attack clip declares its beats as `customEvent` events.
+
+```typescript
+import { MeleeAttack, Health } from 'esengine/gameplay';
+
+world.insert(player, MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+world.insert(dummy, Health, { current: 100, max: 100 });
+```
+
+| Property | Default | Description |
+|---|---|---|
+| `radius` | `60` | Radius of the sphere a hit tests, world units. |
+| `damage` | `25` | Amount a landed blow deals. |
+| `layers` | `0` | Physics layer mask the swing can reach; `0` = every layer. |
+| `anchor` | `0` | The entity whose **world** placement the query is centred on. |
+| `enabled` | `true` | `false` disables the attack. |
+| `attackId` | `0` | Engine-written: the live swing, `0` when none is running. |
+| `hitCount` | `0` | Engine-written: number of targets the current swing has hit. |
+
+<Aside type="caution">
+  `anchor` is a socket entity parented to an animated joint, not the character itself. Centred on the character, the
+  query measures reach from its feet regardless of the animation. The anchor's world placement is composed before the
+  query, so the query uses the animated pose of the current frame.
+</Aside>
+
+{/* SHOT: gameplay-melee-attack-details | third-person-3d example, arena scene: the Player entity selected, Details panel showing the Melee Attack card with radius, damage and anchor */}
+
+### Animation events
+
+| Event name | Form | Meaning |
+|---|---|---|
+| `attack-start` | Event | A swing begins. |
+| `hit` | Event | Tests a sphere of `radius` at the anchor. |
+| `attack-end` | Event | The swing ends. |
+| `attack-active` | Window (event with `duration`) | The active frames: the swing sweeps the anchor's path while the window is open. |
+| `combo` | Window | Where the next attack of a combo may be taken: an animator transition with `{ param: 'combo', op: 'window' }` chains only inside it. |
+
+The names are exported as `COMBAT_ATTACK_START`, `COMBAT_HIT`, `COMBAT_ATTACK_END`, `COMBAT_ATTACK_ACTIVE` and
+`COMBAT_COMBO_WINDOW`.
+
+A swing is an instance with its own id and its own set of entities already hit: one swing hits each target once, and the
+next swing may hit it again. A hit window can therefore contain several `hit` events without dealing damage twice.
+
+### Active frames
+
+A blade can move farther in one frame than its reach, passing through a target between two `hit` tests. An
+`attack-active` window declares the frames in which the swing can land:
+
+```json
+{ "time": 0.18, "duration": 0.12, "name": "attack-active", "payload": {} }
+```
+
+While the window is open, the swing sweeps the path its anchor travelled since the previous frame: spheres of `radius`
+along the segment from the previous to the current anchor position, spaced at most half the radius apart. The window
+opening begins the swing; the window closing, or leaving the clip before it closes (for example by cancelling into a
+dodge), ends it. The swing hits each target once however long it stays in reach. Two attacks of a combo are two swings
+even when their windows touch. A clip that also declares `attack-start` produces one swing, not two.
+
+## Damage and `Health`
+
+A swing does not write `Health`. A landed blow is sent on the `Damage` event bus, and one system answers it, so `Health`
+has a single writer and rules such as armour or invulnerability have one place to go.
+
+| `DamagePayload` field | Description |
+|---|---|
+| `target` | The entity hit. |
+| `source` | The entity that dealt the blow. |
+| `amount` | Damage amount. |
+| `x`, `y`, `z` | The point the blow landed at, world space. |
+
+The bus is double-buffered: a blow sent this frame is applied on the next. A blow aimed at an entity without `Health`,
+or at one whose `current` is already 0, is not applied. Presentation systems read the same bus:
+
+```typescript
+import { defineSystem, EventReader, GetWorld, Res, Children, ParticleEmitter, Particle } from 'esengine';
+import { Damage } from 'esengine/gameplay';
+
+const hitSparks = defineSystem(
+  [EventReader(Damage), GetWorld(), Res(Particle)],
+  (blows, world, particles) => {
+    for (const blow of blows) {
+      if (!world.has(blow.target, Children)) continue;
+      for (const child of world.get(blow.target, Children).entities) {
+        if (world.has(child, ParticleEmitter)) particles.play(child);
+      }
+    }
+  },
+  { name: 'HitSparkSystem' },
+);
+```
+
+| `Health` field | Default | Description |
+|---|---|---|
+| `current` | `100` | Remaining health. |
+| `max` | `100` | Full health. |
+
+`Health` is also what makes an entity damageable: the physics query returns colliders, the floor among them, and only
+entities with `Health` take damage. Self-hits and already-hit targets are excluded by the swing. `restoreToFull(world,
+entity)` sets `current` back to `max` (for a respawn); `applyDamage(world, blows)` is the function the damage system
+runs.
+
+## Hitboxes
+
+A character's capsule is one shape, so a shot that hits it cannot tell a head from a boot. `Hitboxes` gives each bone
+that is long enough a box along it, sized as its ragdoll body would be: a kinematic body moved each frame to where the
+animation put the bone, and a sensor, so nothing walks into it or is pushed by it, including its own character. A ray
+then hits the bone, and `hitPartOf` reports whose bone it is.
+
+```typescript
+import { Hitboxes, hitPartOf } from 'esengine/physics3d';
+
+world.insert(soldier, Hitboxes, { layer: HITBOXES });
+// a shot:
+const hit = physics.raycast(muzzle, aim, WORLD | HITBOXES_MASK);
+const part = hit && hitPartOf(world, hit.entity);   // { character, bone: 'head' }
+const damage = part?.bone.toLowerCase().includes('head') ? 100 : 34;
+```
+
+| Property | Default | Description |
+|---|---|---|
+| `skin` | `0` | The skinned mesh whose bones get boxes; `0` finds the first on the entity or below it. |
+| `thickness` | `0.25` | Box thickness as a fraction of the bone's length. |
+| `minBoneLength` | `5` | Bones shorter than this (world units) get no box; their geometry belongs to the parent bone's box. |
+| `layer` | `0` | Collision layer of the boxes, so a shot can include them and a line-of-sight check exclude them. |
+| `enabled` | `true` | `false` removes the boxes. |
+
+`hitPartOf(world, entity)` returns `{ character, bone }` for a bone entity under a `Hitboxes` or `Ragdoll` character,
+or `null`. While the character's `Ragdoll` is active its bones are bodies of their own, which rays hit equally; the
+boxes give way to them and return when it stands up. The value of each part is game logic.
+
+## See also
+
+- [Characters](/docs/gameplay/physics-3d/characters/) — `ThirdPersonController` sets the `attack` trigger.
+- [Hunter](/docs/gameplay/ai/hunter/) — an enemy that attacks through `MeleeAttack`.
+- [Ragdolls](/docs/gameplay/physics-3d/ragdolls/) — bone bodies that replace the hitboxes while limp.
+- [Animation Events](/docs/animation/animator-events/) — declaring `customEvent` events on clips.

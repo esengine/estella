@@ -347,10 +347,10 @@ releases its cell and proxy registrations.
   distance-based quadtree out to `drawDistance`; tiled ground draws distant terrain from an overview that is always in
   memory and reads full-detail tiles only near the view; a planet is drawn to its horizon), and plants (the far cards of
   [Foliage](/docs/graphics/foliage/) and `PlacedFoliage`, and of a generated world's plants), which cover a whole area
-  at once. Mesh textures are kept at the size their views need ([texture streaming](/docs/performance/quality-levels/),
+  at once. Mesh textures are kept at the size their views need ([texture streaming](/docs/performance/quality-levels/texture-streaming/),
   a quality setting).
 - **Navigation** is baked one tile per cell square and follows residency (see
-  [Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded.
+  [Navigation](/docs/gameplay/ai/navigation/navmesh/#in-a-streamed-world)), but agents walk only where the world is loaded.
 - **The world origin is never rebased.** `setRenderOriginStep` keeps drawing precise far from zero (see
   [Camera](/docs/graphics/camera/multiple-cameras/#large-worlds)); simulation precision is measured below.
 

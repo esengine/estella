@@ -1,0 +1,85 @@
+---
+title: Project Native Modules
+description: Third-party WebAssembly runtimes supplied by a project under .esengine/modules — directory layout, module.json, per-platform builds, acquiring a module with app.sideModules.acquire, rendering its output, and per-target support.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **project module** is a WebAssembly runtime the project supplies — a vector-animation player, a solver, any library
+with an emscripten build. It is handled like the engine's own side modules (physics, the Basis transcoder,
+DragonBones, the video decoder, the Spine runtimes): acquired through one call, staged into every package, required by
+name in the generated mini-game entry, inlined in a playable, and loaded in Play.
+
+## Layout
+
+```
+<project>/.esengine/modules/rive/
+  module.json          { "file": "rive", "globalName": "RiveModule" }
+  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
+  wechat/rive.js  rive.wasm    ← every mini-game vendor
+```
+
+The **directory name is the module id** passed to `acquire`.
+
+`module.json` is optional:
+
+| Field | Default | Description |
+|---|---|---|
+| `file` | The directory name | Artifact base name: the glue is `<file>.js`, the binary `<file>.wasm`. |
+| `globalName` | — | The emscripten `EXPORT_NAME`. Set it when the glue was built with `MODULARIZE` and a named export; omit it when the glue is an ES module whose `default` export is the factory. |
+
+Mini-game hosts need their own emscripten build (`WXWebAssembly` glue, a lower ES target), so builds are kept per
+platform directory. When no build exists for the target, the module is not staged and a warning names the files that
+were looked for; acquiring it then returns `null`.
+
+## Using a module
+
+`app.sideModules.acquire(id)` returns the emscripten instance, typed as `Record<string, unknown>`. Declare the
+surface the game uses and cast once:
+
+```typescript
+interface RiveModule {
+  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+const raw = await app.sideModules?.acquire('rive');
+if (!raw) return;                        // not packaged for this target — degrade
+const rive = raw as unknown as RiveModule;
+const version = rive.cwrap('rive_version', 'string', [])() as string;
+```
+
+`acquire` caches per id, including failures, so a missing artifact is not fetched again every frame. It returns `null`
+instead of throwing when the module is unavailable; check the result as gameplay code checks `Ads.available`.
+
+To draw geometry the runtime produces, pass its positions, UVs, colours and indices to
+[MeshRenderer](/docs/graphics/drawing/meshes/); this is the path the built-in Spine integration uses and it renders on
+every backend.
+
+<Aside type="note">
+  The module must be built with emscripten into the layout above, as the engine builds its own modules. Most
+  third-party runtimes publish an official WASM build.
+</Aside>
+
+## Target support
+
+| Target | Project modules |
+|---|---|
+| Web, Playable | Staged from `web/` |
+| WeChat | Staged from `wechat/` |
+| Other mini-game hosts | Staged from a directory named for the vendor id, else `wechat/`, else `web/` |
+| Play (editor) | Loaded from `web/` |
+| Desktop, Android, iOS | **Not supported.** The native host links its modules into the app binary, so a module shipped with the content cannot load; the export warns and stages nothing. Build the module into the native host instead. |
+
+A module that could not be staged is not declared to the runtime, so `acquire` reports an unavailable module rather
+than a missing file.
+
+Ids the engine owns (`physics`, `spine:4.2`, …) cannot be registered by a project; such a registration is refused.
+
+## See also
+
+- [Building & Exporting](/docs/publishing/overview/#side-modules) — the engine's side modules.
+- [App Setup & Lifecycle](/docs/core-concepts/app/overview/#side-modules) — the side-module runtime API.
+- [Editor Plugins](/docs/extending/editor-plugins/) — editor-side extensions.

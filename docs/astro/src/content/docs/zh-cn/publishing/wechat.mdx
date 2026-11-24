@@ -1,109 +1,98 @@
 ---
 title: 微信小游戏
-description: 为微信小游戏构建和导出游戏，并使用分包。
+description: 微信小游戏目标——微信引擎运行时与侧模块、目标设置、包结构、压缩纹理、引擎二进制选项、EmscriptenGLX、分包以及微信起始项目。
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Estella 能把同一个项目导出为**微信小游戏**。你从编辑器导出游戏，
-再用微信开发者工具打开结果。
+**微信小游戏** 目标将项目导出为微信小游戏包，在微信开发者工具中打开、测试和提交。
 
-## 为微信构建引擎
+## 微信运行时
 
-编辑器下载包已经自带微信引擎和它的侧模块，装好的编辑器不需要做这一步。在引擎源码检出里，
-需要先构建一次。微信目标用微信的 `WXWebAssembly` 垫片编译 C++ 内核：
+微信通过 `WXWebAssembly` 加载 WebAssembly，因此使用带微信适配的独立引擎构建，以及微信版的侧模块。编辑器安装包已包含这些内容。在引擎源码检出中需构建一次：
 
 ```bash
 node build-tools/cli.js build -t wechat
-# 侧模块，仅当你的游戏用到时：
-node build-tools/cli.js build -t physics-wechat   # 物理
-node build-tools/cli.js build -t spine-wechat     # Spine（一次构建 2.1 + 3.8 + 4.1 + 4.2 + 4.3）
+# side modules, only if the game uses them:
+node build-tools/cli.js build -t physics-wechat     # physics
+node build-tools/cli.js build -t spine-wechat       # Spine (builds 2.1 + 3.8 + 4.1 + 4.2 + 4.3)
 node build-tools/cli.js build -t dragonbones-wechat # DragonBones
-node build-tools/cli.js build -t basis-wechat     # KTX2 / 压缩纹理
-node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码器）
+node build-tools/cli.js build -t basis-wechat       # KTX2 / compressed textures
+node build-tools/cli.js build -t videodec-wechat    # video (MPEG-1 wasm decoder)
 ```
 
 <Aside type="note">
-  **缺失运行时是导出硬错误，不是警告。** 如果某个场景用了物理或 Spine，或构建里
-  带 KTX2 纹理，而对应的 `*-wechat` 模块没构建，导出会直接停下，并给出要运行的
-  确切构建命令。导出器只暂存场景实际需要的侧模块，未用到的不会增加包体。
+  **缺少运行时是导出错误。** 若场景使用了物理或 Spine，或构建发布了 KTX2 纹理，而对应的 `*-wechat` 模块尚未构建，导出会停止并给出构建命令。包中只放入场景需要的侧模块。
 </Aside>
 
-## 从编辑器导出
+## 导出
 
 <Steps>
 
-1. 在**设置 → 项目 → 构建与模块 → 打包 → 微信**中，填写 AppID。屏幕方向是项目级设置——在**设置 → 项目 → 游戏 → 显示 → 屏幕方向**里设一次即可(它驱动下面 `game.json` 的 `deviceOrientation`)。
-
-2. 打开**构建 → 打包项目…**，在 Package Project 对话框里选 **WeChat** 平台，
-   检查**构建场景**列表，点击 **Package**。Estella 会烘焙资源，把 SDK 与你的
-   脚本打包（用 esbuild 打成 CommonJS），转换场景，并写出一个独立的小游戏包。
-
-3. 用**微信开发者工具**打开输出目录，编译、测试、提交。如果 AppID 留空了，
-   在开发者工具里填进 `project.config.json` 即可。
+1. 打开 **构建 → 打包项目…**，在 **小游戏** 下选择 **微信小游戏**。
+2. 在微信目标设置中填写 **AppID**。屏幕方向是项目级设置 **设置 → 项目 → 游戏 → 显示 → 屏幕方向**，写入 `game.json` 的 `deviceOrientation`。
+3. 检查 **构建包含的场景** 后点击 **打包**。导出会烘焙资产，用 esbuild 将 SDK 和脚本打包为 CommonJS，转换场景并写出小游戏包。
+4. 用 **微信开发者工具** 打开输出目录进行编译、测试和提交。如果 AppID 留空，可在开发者工具中于 `project.config.json` 里填写。
 
 </Steps>
 
-输出目录包含 `game.js`（入口，负责引导 `game-bundle.js` —— SDK + 你的脚本）、
-`game.json` / `project.config.json`（微信配置）、`asset-manifest.json`、以
-`scenes/<名字>.json` 存放的场景，以及 `wasm/` 目录 —— 引擎加上场景实际需要的
-侧模块。构建里的每个场景都是 `SceneManager.switchTo` 的切换目标——非启动场景在
-首次切换时才加载（见[场景](/docs/zh-cn/world/scenes/)）。
+![打包对话框的微信小游戏目标页，可见 wasm 压缩、引擎分包、AppID 和 EmscriptenGLX 设置](@/assets/guides/zh/build-wechat.png)
+
+*微信目标：标题下方是体积上限，其后是目标设置和共用的构建选项。*
+
+### 目标设置
+
+| 设置 | 默认值 | 说明 |
+|---|---|---|
+| **AppID** | 空 | 写入 `project.config.json`。 |
+| **压缩 wasm 二进制** | 关 | 引擎与每个侧模块以 `.wasm.br` 形式发布。见[引擎二进制](#引擎二进制)。 |
+| **引擎放入分包** | 关 | 将引擎二进制移入启动时加载的分包。 |
+| **通过 EmscriptenGLX 渲染** | 关 | 将引擎与微信的 EmscriptenGLX 链接。见 [EmscriptenGLX](#emscriptenglx)。 |
+
+### 包结构
+
+| 路径 | 内容 |
+|---|---|
+| `game.js` | 入口；启动 `game-bundle.js`。 |
+| `game-bundle.js` | SDK 和项目脚本。 |
+| `game.json`、`project.config.json` | 微信配置。 |
+| `asset-manifest.json` | 可寻址资产清单。 |
+| `scenes/<name>.json` | 构建中的每个场景；非启动场景在首次 `SceneManager.switchTo` 时加载（[场景](/docs/zh-cn/world/scenes/)）。 |
+| `wasm/` | 引擎及场景所需的侧模块。 |
 
 <Aside type="caution">
-  不要手改 `game.js` 或移动 `wasm/` 下的文件——引导序列按暂存时的确切文件名
-  实例化，改名会让游戏在开发者工具里直接挂掉。
+  不要编辑 `game.js`，也不要重命名 `wasm/` 下的文件。启动流程按原样实例化这些文件。
 </Aside>
-
-![打包对话框的微信小游戏目标页,可见 wasm 压缩、引擎分包、AppID 和 EmscriptenGLX 设置](@/assets/guides/zh/build-wechat.png)
-
-*微信小游戏目标页:标题下是体积上限,然后是该目标自己的设置,再往下是通用的构建选项。*
 
 ## 压缩纹理
 
-打包对话框的**资源压缩**选**按导入设置**时，纹理按各自导入设置里的**压缩**
-（自动、GPU 压缩或原图）烘焙为 KTX2 —— 包更小、首屏更快。两个微信
-特有的细节，都已自动处理：
+勾选“压缩”中的 **纹理按导入设置压缩** 后，纹理按其 **Compression** 导入设置（Auto、GPU compressed 或 Original image）烘焙为 KTX2。微信专属的处理：
 
-- Basis 转码器以 `basis-wechat` 侧模块的形式随包发布——构建一次（见上），否则
-  导出会失败并给出确切命令。
-- 微信的代码包只接受白名单后缀，`ktx2` 不在其中——所以导出器把每个 `.ktx2` 暂存为
-  `.ktx2.bin`，运行时两种拼写都能解析。导出器还会在 `project.config.json` 里为每个
-  暂存的自定义扩展名（`.skel`、`.atlas`、`.bin` 等）生成 `packOptions.include`
-  规则，让开发者工具打包并读取它们。
+- Basis 转码器以 `basis-wechat` 侧模块形式发布；缺少时导出失败并给出构建命令。
+- 微信代码包只接受白名单中的文件后缀，而 `ktx2` 不在其中。导出器将每个 `.ktx2` 存为 `.ktx2.bin`，运行时两种写法都能解析。导出器还会在 `project.config.json` 中为每个自定义扩展名（`.skel`、`.atlas`、`.bin` 等）写入 `packOptions.include` 规则，使开发者工具将它们打包。
 
 ## 引擎二进制
 
-引擎的 `.wasm` 是小游戏里最大的单个文件。**打包项目**微信页上的两个选项可以让它不占 4 MB 主包：
+引擎 `.wasm` 是小游戏中最大的单个文件。以下两项设置可使其不占用 4 MB 主包：
 
-- **压缩 wasm 二进制**把引擎和每个侧模块都以 `.wasm.br` 发布，大小约为三分之一；微信在加载时解压。
-  这需要**基础库 2.14.0** 或更高。包里只带压缩后的文件，运行时也不会检查版本，所以打开它时，
-  请在微信后台把小游戏的最低基础库设为 2.14.0。
-- **引擎放入分包**把二进制挪进一个启动时加载的分包。它不再计入主包；启动会等这次下载完成，
-  加载条显示其进度。
+- **压缩 wasm 二进制**（与“压缩”中的 **压缩引擎二进制** 为同一设置）将引擎和每个侧模块以 `.wasm.br` 形式发布，约为原大小的三分之一，由微信在加载时解压。需要**基础库 2.14.0** 或更高版本。包中只有压缩后的文件，运行时不检查版本，因此开启后需在微信后台将小游戏的最低基础库设为 2.14.0。
+- **引擎放入分包** 将二进制移入启动时加载的分包，不再计入主包；启动需等待其下载完成，加载条显示下载进度。
 
 ## EmscriptenGLX
 
-微信的 EmscriptenGLX 让引擎的 GL 调用在 wasm 内执行、批量交给宿主，而不必每一次都跨到
-JavaScript。在约一千次 draw call 的场景里，它在 Android 手机上让渲染耗时少了约 12%。
-
-在 **打包项目** 的微信页打开 **通过 EmscriptenGLX 渲染**，并构建一次它需要的引擎：
+微信的 EmscriptenGLX 在 wasm 内部执行引擎的 GL 调用，并分批交给宿主，而不是每次调用都进入 JavaScript；在绘制密集的场景中渲染耗时约降低 12%。开启 **通过 EmscriptenGLX 渲染**，并构建一次所需的引擎：
 
 ```bash
 node build-tools/cli.js build -t wechat-glx
 ```
 
-构建会下载固定版本的微信库并校验哈希，并使用 emsdk 4.0.10（首次安装到 `tools/emsdk-glx`）——
-那个库只为这个版本发布。wasm 多约 310 KB。
+构建会下载固定版本的微信库并校验其哈希，使用 emsdk 4.0.10（首次使用时安装到 `tools/emsdk-glx`），即该库发布时所对应的版本。wasm 增加约 310 KB。
 
-它在基础库 3.8.12 及以上的 Android、以及开启高性能+模式的 iOS 上生效。其他宿主（包括开发者工具）
-照旧走 WebGL2；日志里的 `rendering through …` 一行会说明设备用的是哪一条。
+它在基础库 3.8.12 及以上的 Android 上生效，在 iOS 上需开启高性能+模式。其他宿主（包括开发者工具）通过 WebGL2 渲染。日志中的 `rendering through …` 一行说明设备实际使用的路径。
 
-## 分包（subpackages）
+## 分包
 
-惰性资源分组会成为 `game.json` 里的微信 **subPackages**。运行时，
-`assets.loadGroup('level2')` 底层会触发 `wx.loadSubpackage`，于是关卡按需下载，而不会
-撑大初始包：
+懒加载的资产分组会成为 `game.json` 中的微信 `subPackages`。运行时调用 `assets.loadGroup('level2')` 会触发 `wx.loadSubpackage`：
 
 ```json
 {
@@ -114,26 +103,21 @@ node build-tools/cli.js build -t wechat-glx
 }
 ```
 
-## 最佳实践
+## 建议
 
-- **保持在 4 MB 主包限制以内**：把按需内容移到 `subpackages/<name>/`——见
-  [资源](/docs/zh-cn/assets/overview/)。导出会设置 `bigPackageSizeSupport`，超限的包
-  在开发者工具里仍可*预览*——但上传照样卡限制。
-- **压缩纹理** —— 见上文（让**资源压缩**保持**按导入设置**）；这是包体最大的一笔节省。
-- **在微信开发者工具里测试**，而不只是浏览器——文件系统、存储与套接字后端都与 Web 不同。
-- **在游玩中预加载下一关的分组**（`loadGroup`），让分包下载不卡过渡。
+- **将主包控制在 4 MB 以内**，把按需内容移入分包（[资产](/docs/zh-cn/assets/overview/)）。导出会设置 `bigPackageSizeSupport`，因此超限的包仍可在开发者工具中预览，但上传时会强制执行上限。见[包体体积](/docs/zh-cn/publishing/package-size/)。
+- **压缩纹理**：勾选 **纹理按导入设置压缩**。
+- **在微信开发者工具和真机上测试**；文件系统、存储和套接字后端与 Web 不同。
+- **在游玩过程中预加载下一关的分组**（`loadGroup`），避免分包下载拖慢关卡切换。
+
+## 起始项目
+
+启动器中的 **WeChat Mini Game** 模板会创建一个 CC0 舰队游戏，包含登录码/服务端换取钩子、分享请求、已配置的激励视频以及保存在设备本地的积分。其 `README.md` 涵盖创建、定制、导出和提交。`wechat` 导出配置档启用引擎分包；`web` 配置档在本地运行游戏，并禁用仅宿主可用的按钮。广告位和服务端集成在 `src/config.ts` 中设置。项目不包含 AppSecret 或示例账号。登录码不是已认证的身份，分享请求不代表分享已完成，本地积分也不是云端备份。
 
 ## 参见
 
-启动器的 **WeChat Mini Game** 模板包含 CC0 选船小关卡、登录码/服务器交换
-扩展点、分享请求、配置后启用的激励视频和设备本地积分。按复制后的
-`README.md` 完成创建、改造、导出与提交。`wechat` 导出档启用引擎分包与
-压缩 WASM；`web` 导出档可在本地游玩，并禁用不可用的宿主按钮。
-在 `src/config.ts` 配置自己的广告单元与服务器交换，不把 AppSecret 放进项目。
-取得登录码不等于认证，分享请求不证明完成，本地积分也不是云备份；
-真实账号、后端、广告和设备仍需分别验收。
-
-- [资源](/docs/zh-cn/assets/overview/) —— 可寻址分组与 cook 映射到分包。
-- [构建与导出](/docs/zh-cn/publishing/overview/) —— Package Project 对话框。
-- [视频](/docs/zh-cn/graphics/video/) —— 为微信随包发布的 MPEG-1 wasm 解码路径。
-- [联网](/docs/zh-cn/scripting/networking/) —— 那里套接字用 `wx.connectSocket`。
+- [资产](/docs/zh-cn/assets/overview/)——可寻址分组与烘焙。
+- [小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)——小游戏平台家族与其他宿主。
+- [构建与导出](/docs/zh-cn/publishing/overview/)——打包项目对话框。
+- [视频](/docs/zh-cn/graphics/video/)——MPEG-1 wasm 解码器。
+- [网络](/docs/zh-cn/scripting/networking/overview/)——微信上套接字使用 `wx.connectSocket`。

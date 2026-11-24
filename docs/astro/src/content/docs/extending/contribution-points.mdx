@@ -1,0 +1,278 @@
+---
+title: Contribution Points
+description: What an editor plugin can register through PluginContext — commands, panels, rail buttons, Inspector sections, viewport gizmos and tools, settings, asset types, entity templates, context menus, importers, file system access, agent tools and undoable scene edits.
+---
+
+Every contribution is registered on the `PluginContext` passed to `activate`. Each `register` call returns a
+disposable, and every contribution is withdrawn automatically when the plugin unloads.
+
+| Member | Registers |
+|---|---|
+| `ctx.commands.register` | A command in the command palette and optionally a menu. |
+| `ctx.panels.register` | A dock panel. |
+| `ctx.activityBar.register` | A button on the far-left rail. |
+| `ctx.inspector.register` | An Inspector section under a component or asset type. |
+| `ctx.overlays.register` | A viewport gizmo drawn every frame. |
+| `ctx.tools.register` | A viewport tool that receives pointer strokes. |
+| `ctx.settings.register` | A row under **Settings ▸ Plugins ▸ \<plugin\>**. |
+| `ctx.assets.registerType` | An asset type. |
+| `ctx.assets.registerImporter` | An importer for a file type. |
+| `ctx.entities.registerTemplate` | An entity in the Create picker. |
+| `ctx.contextMenus.register` | A row in the Outliner or Content Browser context menu. |
+| `ctx.agentTools.register` | A tool offered to connected MCP agents. |
+
+## Commands
+
+A command appears in the command palette and, with `menu`, in a menu. Label, shortcut hint, enablement and checked
+state come from the one declaration.
+
+```ts
+ctx.commands.register({
+  id: 'acme.level-tools.bake',
+  title: { en: 'Bake Occlusion' },
+  keybinding: 'mod+alt+b',
+  menu: 'tools',
+  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
+  run: () => { /* … */ },
+});
+```
+
+## Panels
+
+`mount` receives a host element and returns its teardown function. The editor provides the tab, the error boundary and
+pop-out. `ctx.panels.open(id)` opens a registered panel.
+
+```ts
+ctx.panels.register({
+  id: 'acme.level-tools.budget',
+  title: { en: 'Level Budget' },
+  placement: 'bottom',
+  mount: (host) => {
+    host.textContent = 'hello';
+    return () => { /* teardown */ };
+  },
+});
+```
+
+Style panels with the editor's CSS variables so they match the surrounding chrome:
+
+| Variable | Use |
+|---|---|
+| `--srf-2` | Panel body background |
+| `--text`, `--text-dim` | Text |
+| `--star` | Accent |
+| `--groove` | Edges |
+| `--fs-body` | Body font size |
+
+CSS does not report unknown variables; a misspelled variable draws nothing.
+
+React may be used. The editor provides its own instance, so hooks work and no second copy is loaded:
+
+```ts
+import { createRoot } from 'react-dom/client';
+```
+
+## Rail buttons
+
+A button on the far-left rail, beside the buttons for the editor's own panels:
+
+```ts
+ctx.activityBar.register({
+  id: 'acme.level-tools.rail',
+  title: { en: 'Level Budget' },
+  // Inline SVG, drawn at 19px. `currentColor` is what makes it follow the rail
+  // through hover and both themes.
+  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
+  run: () => ctx.panels.open('acme.level-tools.budget'),
+});
+```
+
+Without `icon`, the button uses the generic plug icon shared by every contribution; provide an icon so buttons from
+different plugins are distinguishable. The rail is shared: contribute one button for the plugin's main surface and
+put other actions in commands.
+
+## Inspector sections
+
+A section under a component (`kind: 'component'`) or an asset type, built from rows the editor renders with its own
+property controls:
+
+```ts
+ctx.inspector.register({
+  kind: 'component',
+  id: 'budget',
+  component: 'Sprite',
+  title: { en: 'Budget' },
+  build: (entity, ui) => {
+    ui.info({ en: 'Texture' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
+    ui.number('weight', { en: 'Weight' }, 1, { min: 0, max: 10 });
+  },
+  write: (entity, key, value) => { /* an edit to a row you built */ },
+});
+```
+
+`write` receives edits to rows the section built.
+
+## Viewport gizmos
+
+Gizmos are drawn every frame in **world coordinates**; the editor projects them, so they follow the scene through pan
+and zoom, and a radius in world units scales with it. Stroke widths and text are in screen pixels.
+
+```ts
+ctx.overlays.register({
+  id: 'acme.spawn-radius',
+  render: (g) => {
+    const id = ctx.scene.getSelection();
+    if (id == null) return;
+    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
+    if (!Array.isArray(p)) return;
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--star)', dashed: true });
+  },
+});
+```
+
+## Viewport tools
+
+While a tool is active, it receives every pointer stroke first. Returning `true` from `onPointerDown` claims the stroke
+and its move and up events. Selecting any built-in tool deactivates it.
+
+```ts
+ctx.tools.register({
+  id: 'acme.measure',
+  title: { en: 'Measure' },
+  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
+  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
+  onPointerUp: (p, tc) => tc.release(p.pointerId),
+});
+ctx.tools.activate('acme.measure');
+```
+
+## Settings, asset types, templates and menus
+
+| Call | Contribution |
+|---|---|
+| `ctx.settings.register(…)` | A row under **Settings ▸ Plugins ▸ \<plugin\>**. |
+| `ctx.assets.registerType(…)` | An asset type: extensions, tile badge, double-click action and a **New ▸ …** entry. |
+| `ctx.entities.registerTemplate(…)` | A ready-made entity in the Create picker. |
+| `ctx.contextMenus.register(…)` | A row in the Outliner or Content Browser context menu, enabled according to the clicked item. |
+
+## Importers
+
+An importer converts a file the engine cannot read into assets it can. The editor calls it when a claimed file
+appears or changes, and on **Reimport** in the Content Browser:
+
+```typescript
+ctx.assets.registerImporter({
+  id: 'ldtk',                     // becomes acme.level-tools.ldtk
+  extensions: ['ldtk'],
+  async import(path) {
+    const level = JSON.parse(await ctx.fs.readProject(path));
+    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
+  },
+});
+```
+
+- The `id` is prefixed with the plugin id.
+- The output is ordinary project assets, so the registry, Inspector, cook and shipped build need no knowledge of the
+  source format. Declare the `fs:project` capability to write it.
+- A throw or rejection is reported against the plugin in the Output Log; other importers continue.
+- A file is never imported twice concurrently, so the writes an import makes cannot re-enter it.
+
+## File system
+
+`ctx.fs` operates in the plugin's own directory, including user-installed plugins outside the project. The `*Project`
+methods operate in the open project and require `fs:project`. All paths are relative to the corresponding root;
+traversal and escaping symlinks are rejected.
+
+| Operation | Plugin directory | Project directory |
+| --- | --- | --- |
+| UTF-8 text | `read`, `write` | `readProject`, `writeProject` |
+| Binary `Uint8Array` | `readBytes`, `writeBytes` | `readProjectBytes`, `writeProjectBytes` |
+| Directory entries | `readDir` | `readProjectDir` |
+| Size, modified time, directory flag | `stat` | `statProject` |
+| Create directory | `mkdir` | `mkdirProject` |
+| Move / rename | `rename` | `renameProject` |
+| Move to OS trash | `delete` | `deleteProject` |
+
+```typescript
+const blob = await new Promise<Blob>((resolve, reject) =>
+  canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG encoding failed')), 'image/png'));
+await ctx.fs.writeProjectBytes('assets/generated/atlas.png', new Uint8Array(await blob.arrayBuffer()));
+await ctx.project.refreshAssets();
+```
+
+Behaviour:
+
+- Binary writes store the bytes as given (no data URL or base64), create parent directories and publish a complete
+  file.
+- `rename` preserves the `.meta` sidecar and UUID and refuses existing targets, including orphaned metadata.
+- `delete` moves the item and its sidecar to the OS trash.
+- `mkdir` refuses an existing directory; other I/O failures reject normally.
+- Directory reads include dotfiles and metadata, unlike the Content Browser's filtered view.
+- Project writes are recorded in the agent file journal; plugin-local files outside the project are not.
+- A disposed context, or one belonging to a previously open project, cannot write.
+- Files generated in a plugin directory reload the plugin only if they are bundle inputs. Editing an imported source
+  file, imported JSON or `plugin.json` reloads it.
+
+## Agent tools
+
+An agent connected over [MCP](/docs/agents/mcp/) can use only the tools in its tool list. `ctx.agentTools.register`
+adds a plugin capability to that list:
+
+```typescript
+ctx.agentTools.register({
+  // Your plugin id with its dots as `_` — plugin `acme.level-tools` prefixes
+  // its tools with `acme_level_tools_`.
+  name: 'acme_level_tools_bake-occlusion',
+  description: 'Bake occlusion for the open scene. Use after moving walls.',
+  schema: { type: 'object', properties: { quality: { type: 'number' } } },
+  effect: 'undoable',
+  run: ({ quality }) => bake(quality ?? 1),
+});
+```
+
+| Field | Description |
+|---|---|
+| `name` | Must start with the plugin id with dots replaced by `_` (plugin `acme.level-tools` owns `acme_level_tools_`). Letters, digits, `_` and `-` only, at most 64 characters. |
+| `description` | The only text the model reads when choosing a tool: state what it does and when to use it. |
+| `schema` | JSON Schema of the arguments. Calls with a missing argument, or an argument the schema does not declare, are refused before `run`. |
+| `effect` | `read`, `undoable`, `journaled` or `irreversible` (below). |
+| `run` | Runs in the editor. The return value is JSON-encoded for the model; a throw is reported as a failed call with its message. |
+
+| `effect` | Meaning | Offered |
+|---|---|---|
+| `read` | Reads only. | To every connected agent. |
+| `undoable` | Edits through the undo history. | Only while agents may change the project (**Can edit**). |
+| `journaled` | Writes project files through `ctx.fs.writeProject`, captured before they land. | As `undoable`. |
+| `irreversible` | Work outside the open project, or effects that are not enumerated. | As `undoable`. |
+
+`effect` is not verified; a plugin already runs with full editor access and is bounded by the install-time trust
+prompt. Declare it accurately: a tool declared `read` that changes the project runs for an agent that was only
+permitted to read.
+
+A tool that breaks the naming rules is refused with the reason in the Output Log. Namespacing prevents a plugin tool
+from shadowing a built-in, and the character set matches what model endpoints accept (an invalid name causes the whole
+request to be refused). The tool is listed to every connected MCP client beside the editor's own tools; a tool
+registered during an open conversation becomes available in the next conversation, because the tool list precedes the
+cached conversation context. A client that does not refresh its tool list reaches plugin tools with `enable_tools` and
+the `plugins` group.
+
+## Editing the scene
+
+Scene edits go through `ctx.scene`, which runs them through the editor's command layer: they enter the undo history
+and survive Play → Stop. Writing to the live engine directly bypasses both.
+
+```ts
+ctx.scene.transact('Rename Markers', () => {
+  for (const node of ctx.scene.getSceneTree()) {
+    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
+  }
+});
+```
+
+All edits inside one `transact` form a single undo step.
+
+## See also
+
+- [Editor Plugins](/docs/extending/editor-plugins/) — creating, sharing and trusting plugins.
+- [Connecting an Agent (MCP)](/docs/agents/mcp/) — the MCP tool surface.

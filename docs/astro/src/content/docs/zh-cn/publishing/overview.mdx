@@ -1,440 +1,241 @@
 ---
 title: 构建与导出
-description: 从编辑器的"打包项目"对话框把一个项目发布到 Web、桌面、微信小游戏、单文件 Playable 广告,或原生 Android / iOS 应用——构建配置、输出目录、打包设置与运行时前置条件。
+description: “打包项目”对话框与各导出目标（Web、桌面、小游戏、Playable、Android、iOS）——构建包含的场景、构建配置、压缩、打包设置、运行时前置条件、侧模块与构建 CLI。
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-一个 Estella 项目可发布到 **Web**、**桌面**、**微信小游戏**和其他小游戏平台(抖音、快手、B 站、快游戏、
-支付宝、华为快游戏)、单文件 **Playable 广告**,以及原生 **Android** / **iOS** 应用——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,
-所以你发布的就是你测过的(*play == ship*)。
+Estella 项目从编辑器导出到 **Web**、**桌面**、**微信小游戏**及其他小游戏宿主（抖音、快手、B 站、快游戏、支付宝、华为）、单文件 **Playable** 试玩广告，以及原生 **Android** 与 **iOS** 应用。所有导出都运行在与编辑器“运行”模式相同的运行时上。
 
-## 从编辑器导出
+## 打包项目对话框
 
 ![打包项目对话框——目标列表、构建配置、输出目录与构建场景](@/assets/guides/zh/build-dialog.png)
 
-*打包项目对话框:从左边分组的列表里选一个**目标**,再看这个目标自己的设置、**配置档**、构建配置、压缩方式、输出目录和要发布的场景——然后 Package。*
+*左侧：分组的目标列表。右侧：所选目标的设置、配置档、配置、压缩、输出目录、构建包含的场景与“高级”选项。*
 
 <Steps>
 
-1. 打开 **构建 → 打包项目…** 调出 **打包项目(Package Project)** 对话框。
-2. 从列表里选一个**目标**——分为*通用*(Web / 桌面 / Playable)、*小游戏*
-   (微信、抖音、快手、B 站、快游戏、支付宝、华为快游戏——见[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/))、*移动*(Android / iOS)。发往不止一个地方的目标会把这些
-   去处列在它下面:桌面分叉为*独立发行*与 *[Steam](/docs/zh-cn/publishing/steam/)*。
-3. 填这个目标自己的设置,就在它的页面上——应用叫什么、用什么 id 认它,
-   以及它要发往的那个商店需要的东西。
-4. 选一个**配置档**(项目设置,或一份存好的)、一个**构建配置**——*Development* 或 *Shipping*
-   (Shipping 会压缩)——**压缩**方式([资产烘焙选项](#资产烘焙选项))、一个**输出目录**,以及在
-   **高级**里的 CDN 地址、体积预算和 source map。
-5. 检查**构建场景(Scenes in build)**列表——取消勾选不想发布的场景,需要的话换一个
-   启动场景(见下文)。
-6. 点 **Package**,看实时构建日志。完成后输出目录会自动打开(有复选框可关掉),
-   Web / Playable 构建还会提供 **Preview over http**。
+1. 打开 **构建 → 打包项目…**。
+2. 选择**目标**。目标分为 *通用*（网页、桌面、Playable）、*小游戏*（微信、抖音、快手、B 站、快游戏、支付宝、华为快游戏，见[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)）、*移动*（Android、iOS）和 *项目自定义*（项目定义的平台）。有多个发行去向的目标在其下列出各去向：桌面分为 *独立发行* 和 *[Steam](/docs/zh-cn/publishing/steam/)*。
+3. 填写目标自身的设置（*\<目标\>设置*）：应用标识及商店相关的值。
+4. 选择 **配置档**（*项目设置*，或已保存的导出配置档）、**配置**（*开发* 或 *发行*）、**压缩** 复选框（[压缩](#压缩)）和 **输出** 目录。**高级** 中包含 CDN 地址、体积预算、源码映射和 *完成后打开输出文件夹*。
+5. 检查 **构建包含的场景**（[构建包含的场景](#构建包含的场景)）。
+6. 点击 **打包**。构建日志实时显示在对话框中。构建完成后打开输出目录（除非关闭了 *完成后打开输出文件夹*），Web 与 Playable 构建提供 **通过 http 预览**。
 
 </Steps>
 
-你的选择会存进 `project.esproject`,所以对话框下次会记住它们。
+对话框中的选择保存在 `project.esproject` 中，下次打开时恢复。
 
-## 构建场景
+### 导出配置档
 
-项目场景目录下的每个场景都随导出发布,并成为 `SceneManager.switchTo` 的目标——游戏脚本
-如何切换见[场景](/docs/zh-cn/world/scenes/)。对话框的**构建场景**列表控制这个集合:
+导出配置档是针对单个目标的一组具名覆盖值，保存在 `project.esproject` 的 `packaging.profiles` 中：配置、源码映射、压缩复选框、CDN 地址、排除的场景以及目标专属设置。选中配置档时，对话框中的控件编辑的是该配置档；每个被覆盖的值旁有重置按钮，可将该设置交还给项目。*为这个平台新建配置档* 用于创建配置档。CLI 通过 `--profile <name>` 选择配置档。
 
-- **启动场景**置顶并带播放徽标。它总是发布——点其他场景的播放按钮可把启动权移过去,
-  或在内容浏览器里右键任意场景选**设为启动场景(Set as Startup Scene)**。
-- **取消勾选一个场景**把它排除出构建(存为 `project.esproject` 里的
-  `packaging.excludeScenes`)。被排除的场景在编辑器里仍可正常编辑和运行;只被排除场景
-  引用的资产不会烘焙进构建。
-- **Playable** 只带启动场景——它是一个有体积上限的单文件。
+## 导出目标
 
-## 预览导出
-
-**Web** 或 **Playable** 构建完成后,点 **Preview over http** ——编辑器把输出目录架在
-本机回环服务器上(`http://127.0.0.1:<端口>/`)并用浏览器打开。
-
-<Aside type="caution">
-  Web 构建需要 **http 源**——直接从磁盘打开 `index.html`(`file://`)无法流式加载
-  WebAssembly。用预览按钮,或把文件夹上传到任意静态托管。
-</Aside>
-
-## 各个目标
-
-| 目标 | 产出什么 | 输出 | 下一步 |
+| 目标 | 产物 | 默认目录 | 后续步骤 |
 |---|---|---|---|
-| **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
-| **桌面** | 每装了一个桌面运行时模板,就出一个可直接运行的**原生**应用——macOS 上是 `.app`,Windows 与 Linux 上是 `<Name>/` 目录(其中分别是 `<Name>.exe` 和 `<Name>`)。没有 Chromium,也没有 npm 工程。 | `dist-desktop/` | 双击即可。选了 **Steam** 渠道还会写出 depot 脚本和一份带本次构建确切取值的 `STEAM.md`——见 [Steam](/docs/zh-cn/publishing/steam/)。 |
-| **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
-| **抖音**、**快手**、**B 站**、**快游戏**、**支付宝**、**华为快游戏** | 对应宿主的小游戏包(快游戏和华为是已签名的 `.rpk`),走与微信同一条管线——见[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)。 | `dist-douyin/`、`dist-kuaishou/`、`dist-bilibili/`、`dist-quickgame/`、`dist-alipay/`、`dist-huawei/` | 在该平台的开发者工具里打开(抖音和 B 站的 AppID 填在项目设置里,快手和支付宝在开发者工具里填;华为需要在 AppGallery Connect 注册应用)。 |
-| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
-| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | 装好 Android 运行时模板后,导出本身就写出已签名的 APK(也可以写 Android Studio 工程,或在 APK 旁再写一个 App Bundle)。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
-| **iOS** | **原生** arm64 应用(Metal)的内容;装好 iOS 运行时模板后,还会围着它写出 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
+| **网页** | 静态、自包含的 Web 构建。 | `dist-web/` | **通过 http 预览**，或将目录上传到静态托管。 |
+| **桌面** | 每个已安装桌面运行时模板对应一个原生应用：macOS 上为 `.app`，Windows 上为包含 `<Name>.exe` 的 `<Name>/` 目录，Linux 上为 `<Name>`。不含 Chromium，也不是 npm 工程。 | `dist-desktop/` | 直接运行。**Steam** 渠道还会写出 depot 脚本和 `STEAM.md`，见 [Steam](/docs/zh-cn/publishing/steam/)。 |
+| **微信小游戏** | 微信小游戏包。 | `dist-wechat/` | 用微信开发者工具打开该目录，见[微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
+| **抖音**、**快手**、**B 站**、**快游戏**、**支付宝**、**华为快游戏** | 对应宿主的小游戏包（快游戏和华为为签名的 `.rpk`），与微信使用同一条流水线构建。 | `dist-douyin/`、`dist-kuaishou/`、`dist-bilibili/`、`dist-quickgame/`、`dist-alipay/`、`dist-huawei/` | 用该平台的开发者工具打开。抖音和 B 站的 AppID 在目标设置中填写；快手和支付宝的 AppID 在开发者工具中填写；华为需要在 AppGallery Connect 注册应用。 |
+| **Playable** | 一个内联全部资源的自包含 `index.html`。 | `dist-playable/<network>/` | **通过 http 预览**，然后上传到所选广告平台，见[试玩广告](/docs/zh-cn/publishing/playable-ads/)。 |
+| **Android** | 通过 Vulkan 渲染的原生 arm64 应用：签名 APK、Android Studio 工程，或 APK 加 App Bundle。 | `dist-android/` | 安装 APK，或用 Android Studio 打开工程，见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
+| **iOS** | 通过 Metal 渲染的原生 arm64 应用，以 Xcode 工程形式写出。 | `dist-ios/` | 用 Xcode 打开工程，选择签名团队后运行。 |
 
-桌面、Android 与 iOS 导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在
-应用二进制里。三者都由编辑器安装的运行时模板组装而成,所以打包本身不需要任何工具链——见下文的
-[前置条件](#运行时前置条件)。只有 iOS 仍然需要 Xcode,因为只有 Apple 能为真机签名。
+桌面、Android 和 iOS 导出的是应用**内容**；引擎、SDK 和游戏运行时位于应用二进制中，该二进制由编辑器安装的运行时模板装配而成（[运行时前置条件](#运行时前置条件)）。
 
-## 试玩广告平台
+## 构建包含的场景
 
-资产优化为 **Auto** 时，试玩导出先应用 PNG 的 **Max Size**（含启用的 `playable` 覆盖）及各 WAV 资源的码率。实际包体超出网络上限、项目交付预算和 **3 MiB 回归目标** 的最小值时，依次尝试无损 WebP、允许压缩音频的较低码率（128、96 kbps），再尝试 WebP 质量 90 和 80。每个候选按实际 HTML、ZIP 测量；交付体积与 HTML 上限均达标即停止。纹理保持烘焙后的尺寸和透明度；nearest 过滤像素画、位图字体页和数据纹理仅使用无损编码；含 gamma/色彩配置、动画或 16 位采样的 PNG 保持原格式，以保留渲染语义。图片及音频的禁用压缩设置生效，**Skip** 保留源文件载荷。
+项目场景文件夹中的每个场景都会导出，并可作为 `SceneManager.switchTo` 的目标（[场景](/docs/zh-cn/world/scenes/)）。**构建包含的场景** 列表控制该集合：
 
-导出自检报告和编辑器结果展示优化前后体积及每个资源选用的编码。3 MiB 是内部回归目标，不是平台官方上限；达到质量下限仍未满足目标会明确报告，`index.html` 超过平台的未压缩 HTML 上限时，文件照常写出，并给出带体积的警告——瘦身还是照发由你决定，不会让构建失败。当任何编码器都压不小的部分（字体等文件）本身就已超过目标时，会跳过优化搜索，直接按原样构建并报告体积和构成；每个阶段都会报告进度。WebP 使用随产品提供的 ffmpeg 编码器；不可用时保留图片并给出警告。源文件和导入设置不被修改。发布前请检查图片、音频质量，并在官方容器验证交付包；体积达标不等同平台验收。
+- **启动场景** 固定在首位并带运行标记，始终打包。点击其他场景的运行按钮可移动该标记，也可在内容浏览器中场景的右键菜单里选择 **设为启动场景**。
+- 取消勾选的场景不进入构建（记录在 `project.esproject` 的 `packaging.excludeScenes` 中）。被排除的场景在编辑器中仍可编辑和运行；只被排除场景引用的资产不会被烘焙。
+- **Playable** 只导出启动场景。CLI 选项 `--all-scenes` 可内联全部场景。
 
-各家平台收的都是同一个单文件 HTML,但在三件事上不一致:体积上限、`<head>` 里必须放什么、
-以及用哪个函数把玩家送去商店。在**打包项目**对话框里选平台(就在 Playable 目标自己的设置里),
-导出会把这三件事都处理掉。同一个游戏投多家是常事,所以这是**每次打包时的选择**而不是项目属性;
-每个平台还各有自己的输出目录(`dist-playable/<平台>`),打一家不会覆盖上一家。
+## 构建配置
 
-游戏代码里不出现任何平台名字,只调一次 CTA:
+| 配置 | 行为 |
+|---|---|
+| **开发** | 脚本不压缩。可配合源码映射调试。支持的目标的开发构建可连接编辑器的帧调试器（“高级”中的 *帧调试器连接*）。 |
+| **发行** | 脚本经过压缩（项目打包设置中的 *压缩脚本*，默认开启）。用于正式发布。 |
 
-```ts
-import { playableCta } from 'esengine';
+**包含源码映射**（高级）将运行中的包映射回 TypeScript 源码。仅对支持的目标（Web 和桌面）提供；发布构建应关闭。
 
-// 结束卡的按钮、通关之后——凡是"号召点击"的地方
-playableCta();
-```
+## 压缩
 
-导出会注入 `playableCta()` 要分发到的桥接层。未选平台时它是空操作,所以同一个场景在编辑器里
-和网页上照样能跑。
+每种压缩在 **压缩** 一行中各有一个复选框。所有复选框默认关闭；未勾选时资源原样输出，体积预算也不会自动勾选任何一项。各项所用的参数（纹理的格式和 Max Size、音频的码率）位于检视器中每个资产的 **导入设置**，按平台分页。
 
-| 平台 | 上限 | 点击跳转 | 说明 |
-|---|---|---|---|
-| **通用** | 5MB | — | 不接任何平台接口。上限取这里列出的各平台都接受的那一档——毕竟未指名的目标可能是其中任何一家。 |
-| **Meta**(Facebook / Instagram) | 5MB | `FbPlayableAd.onCTAClick()` | Meta 把一个 HTML5 试玩文件限制在 5MB;常被引用的 2MB 不在 Meta 的任何规范里。禁止任何 HTTP 请求。 |
-| **Google Ads**(应用广告系列) | 5MB | `ExitApi.exit()` | 它的退出接口是 Google 托管的脚本,官方要求以字面 `<script>` 写在 `<head>` 里——导出会帮你写好。Google 上传 **ZIP**,所以导出还会在 HTML 旁写一个 `playable.zip`,体积上限按它来量。 |
-| **MRAID 平台**(通用) | 5MB | `mraid.open()` | 适用于任何 MRAID 宿主。`mraid` 由宿主 webview 注入,`<head>` 无需任何内容。 |
-| **Unity Ads** | 5MB | `mraid.open()` | 运行时自动等待 MRAID ready 和 viewable，隐藏时暂停游戏及音频，退出时释放宿主监听。 |
-| **AppLovin** | 5MB | `mraid.open()` | 要求所有资源内嵌——单文件试玩本来就是。 |
-| **Mintegral** | 5MB | `window.install()` | 导出资源内嵌的 `index.html` 和同名 `index.zip`。等待宿主开始，关闭时暂停游戏和音频。 |
-| **TikTok / 海外 Pangle** | ZIP &lt;5MB | `window.openAppStore()` | 根目录包含 `config.json`，方向字段按平台区分；游戏脚本前注入官方 SDK。仍需广告管理平台预览验收。 |
+{/* SHOT: publish-compression | Package Project dialog with the Web target selected; the Build group visible with the Compression row showing the three boxes (Textures by import settings, Pack atlases, Audio to MP3) and the hint line below them; any example project */}
 
-上限会变,所以每条警告都指名它用的是哪一家的上限、以及这个数字出自哪里,而不是丢一个
-让你盲信的数字。
-
-Mintegral 中，胜负结束时调用 `playableGameEnd()`，玩家重玩时调用 `playableRetry()`。运行时在启动完成后调用 `gameReady()`，并响应 `gameStart()` / `gameClose()`；安装按钮通过用户手势调用 `playableCta()`。参见 `playable-ad` 示例和[官方容器检测工具](https://www.playturbo.com/review)。检测通过仍需广告审核和真机验收。
-
-需要完整起点时，在启动器的 Templates 中选择 **Playable Ad**。新项目包含
-可编辑的选船小关卡、CC0 美术、明确的安装按钮、完成与重玩、八个导出档、
-素材许可和横竖屏无头检查场景。按复制后的 `README.md` 连续完成创建、
-导出、自检与平台提交。MRAID 的真实商店地址填写在 `src/config.ts`；其他
-渠道在活动或容器中配置自己的目标，模板不携带无关应用的商店地址。
-下方验证器命令的场景路径改为新项目中的 `playable-check.json`。
-官方预览、真机测试与外部开发者独立发布演练仍需单独验收。
-
-MRAID 安装按钮须通过 `playableCta(storeUrl)` 传入目标地址，或由宿主提供 `window.clickTag`。支持 HTTP(S)、Android `market:` 和 iOS `itms-apps:` 商店链接；地址缺失或无效时提示配置问题，不调用 `mraid.open`。其他网络继续使用自己的商店接口。
-
-试玩导出结果包含 `playableCheck`，打包窗口可查看，命令行可通过 `--json report.json` 保存。报告测量实际交付文件，检查 HTML/CSS 资源引用及必需的方向配置；只按所选 profile 放行指定的宿主 SDK 脚本。文件哈希将检查结果对应到本次导出。CTA、宿主生命周期、动态请求和设备／平台验收保持待运行验证，不把接口声明算作商店跳转成功。
-
-在引擎仓库执行 `pnpm preview:playable path/to/index.html --report export-result.json` 可启动本地容器模拟，只打印回环地址，不自动打开浏览器。Ready、Show、Hide 模拟宿主回调，可切换横竖屏；Save Log 保存商店调用及原 HTML 哈希。MRAID 可通过 `--store-url` 配置商店地址。预览副本替换必需 SDK 并阻止外部请求，原导出 HTML 不变；模拟记录不代替官方 SDK 或真机验收。
-
-要重复执行**无头本地观察**，使用 Node 20+，先执行 `pnpm exec playwright install chromium`，再运行：
-
-```bash
-pnpm verify:playable output/playable/index.html --report output/playable.json --scenario examples/playable-ad/playable-check.json --out output/playable-observations --store-url https://example.com/store
-```
-
-请按自己的场景调整点击计划。版本 1 声明 `viewports` 和 `steps`：`click` 的 `x`/`y` 是相对 canvas 的归一化坐标；`expect` 指定 `store-click`、`game-end` 或 `game-retry` 的准确 `count`，以及可选 `userActivation`。`host` 发送 `ready`、`show`、`hide`；`frozen` 在 `ms` 间隔比较画面；`wait`、`snapshot` 记录等待及截图。步骤或期望可用 `networks` 明确限定，每个视口独立启动。示例覆盖横竖屏、CTA、完成/重玩及支持的隐藏生命周期；Google/Meta 生命周期保持待验证。
-
-命令仅使用无头 Chromium，静音且不启动编辑器。`runtime-check.json` 记录原 HTML/交付文件、导出报告、场景计划、检查器和 mock 哈希，浏览器版本、事件及截图哈希。非预期请求（含 CSP 阻止的尝试）、页面错误、事件数量/激活状态不符、隐藏动画或输入、截断、静态/导出失败及输入变更都使检查失败。Windows/POSIX 归档路径均按相邻 ZIP 文件名解析。结论仅为 **local-mock**，覆盖明确请求的观察；宿主 SDK 被替换，浏览器激活状态观察不能证明原 SDK 的同步调用规则。原 SDK 行为、音频生命周期、质量复核、官方工具和真机验收仍待完成。
-
-必需宿主 SDK 检查会核对真实的 script 标签及其位置：Google Exit API 位于 head，TikTok／Pangle 位于 body 且在游戏脚本之前。缺少脚本、位置错误或 TikTok／Pangle SDK 延迟加载都会使静态检查失败。真实 SDK 是否可用及 CTA 行为仍需运行验证。
-
-提供完整导出结果时，预览还会核对同目录 ZIP 的交付哈希；只改配置而 HTML 不变，也会使旧报告失效。保存的日志记录两种哈希和文件名；缺少交付证据时明确标为仅关联 HTML。事件历史最多保留 1,000 条，界面和日志会说明省略了多少早期记录。
-
-### 我们没内置的平台
-
-自己定义就行——内置的那几家写的就是这份契约,没有做不到的事。**打包项目 → 新建平台** 可以
-生成脚手架(类型选*试玩广告平台*),也可以手写 `.esengine/platforms/<id>.mjs`:
-
-```js
-export default {
-  id: 'acme-ads',
-  kind: 'playable',
-  label: 'Acme Ads',
-
-  // 这家接受的体积,以及这个数字出自哪里——导出的警告会引用这条说明。
-  maxBytes: 5 * 1024 * 1024,
-  limitNote: 'Acme 文档,创意规格 § playable',
-
-  // 可选:注入 <head>(方向 meta、平台自己的 SDK 脚本)。
-  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
-
-  // 注入 playableCta() 要分发到的桥接层,在游戏代码之前执行。
-  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
-};
-```
-
-它随后就会和内置平台并列出现在对话框的"广告平台"下拉里,并走同一条导出管线。
-
-![打包对话框的 Playable 目标页,可见广告网络选择、配置、压缩和输出目录](@/assets/guides/zh/build-playable.png)
-
-*Playable 目标页。**广告网络**决定包要遵守的体积上限和交付形式。*
-
-## 运行时前置条件
-
-Web、桌面与 **Playable** 都复用随编辑器附带的引擎运行时,所以导出无需准备——试玩包内联的
-就是同一份 web 运行时(glue 作为 blob 模块、wasm 以 base64 传入),不需要单独构建。在这些基于
-网页的目标里 **微信**是例外:它的 WebAssembly 加载器不同,用的是自己的运行时。编辑器下载包也自带这份运行时,
-连同微信需要的侧模块,所以装好的编辑器导出微信无需任何准备;在引擎源码检出里则需先构建一次:
-
-```bash
-# 仅源码检出,首次微信导出前
-node build-tools/cli.js build -t wechat
-```
-
-当某个目标的运行时缺失时,打包项目对话框会提醒你,而微信导出会**直接失败**并给出确切的
-构建命令——而不是产出一个运行时才崩的包。微信还需要为游戏用到的每个引擎特性构建对应的
-侧模块(`physics-wechat`、`spine-wechat`、`dragonbones-wechat`,压缩纹理用 `basis-wechat`,视频用 `videodec-wechat`)——见
-[微信小游戏](/docs/zh-cn/publishing/wechat/)。
-
-对话框区分**两类**缺失的前置条件,因为它们挡住的程度并不一样:
-
-- 缺**引擎运行时**(Web / Playable / 微信)意味着根本产不出包。
-- 缺**原生工具链**(Android / iOS)则不然。导出照样把应用内容写出来;只有最后组装成
-  可安装应用那一步需要工具链,而那一步可以在另一台机器上跑——编辑器在 Windows 上时,
-  iOS 构建本来就得如此。
-
-<Aside type="caution" title="移动端需要运行时模板">
-  Android 和 iOS 是唯一一对编辑器下载包没有自带的目标:引擎编译好的那一半是**运行时模板**,
-  每个编辑器版本下载一次(打包对话框里该目标的那一行有**下载**按钮)。Android 只需要这个——
-  不需要引擎源码检出、SDK、NDK 或 JDK。iOS 另外需要装有 Xcode 的 macOS 来签名和运行。见
-  [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。
-</Aside>
-
-## 目标渲染不了的内容
-
-一个目标未必编译了编辑器能创作的每个子系统。当它确实缺某个子系统时,导出会**点名这个缺口
-以及踩到它的场景**,而不是写出一个悄悄少了半个场景的包——警告会列出子系统(瓦片地图、粒子、
-后处理、物理、Spine、视频、文本)和创作它的文件。
-
-目前没有任何目标存在缺口:原生应用编译整份引擎源码清单,网页端作为独立侧模块的那三个子系统
-在这里是编进二进制的。这项检查保留着,因为情况可能变。
-
-## 侧模块
-
-可选的引擎特性以独立的 WebAssembly **侧模块**发布——每个模块是一对 emscripten
-产物:`<file>.js` 胶水加 `<file>.wasm`——按需加载,让基础引擎保持小体积:
-
-| 模块 | 产物 | 何时加载 |
+| 复选框 | 目标 | 作用 |
 |---|---|---|
-| 物理(Box2D) | `physics.js` / `physics.wasm` | 项目声明了物理,或场景使用了 2D 物理组件。 |
-| 3D 物理(Jolt) | `physics3d.js` / `physics3d.wasm` | 场景使用了 3D 刚体(`RigidBody3D`)。只在这时加载,与 2D 模块并存,不取代它。 |
-| 3D 物理(PhysX) | `physics3d-physx.js` / `physics3d-physx.wasm` | 同上,用于 3D 求解器选了 PhysX 的项目。一个包只带两种 3D 模块之一,不会同时带。 |
-| Spine | `spine21` / `spine38` / `spine41` / `spine42` / `spine43` 的 `.js`/`.wasm` | 场景使用了对应格式版本的 Spine 骨骼。 |
-| DragonBones | `dragonbones.js` / `dragonbones.wasm` | 场景使用了 DragonBones 骨架。一个模块读所有版本。 |
-| Basis 转码器 | `basis.js` / `basis.wasm` | 构建里发布了 KTX2 压缩纹理。 |
-| 视频解码器 | `videodec.js` / `videodec.wasm` | wasm 视频路径解码片段时。 |
+| **纹理按导入设置压缩** | 全部 | 应用每张纹理的导入设置：目标支持时转为 GPU 格式（KTX2），并按 Max Size 缩小。Playable 只发布图片，因此只应用 Max Size。勾选期间，视口按本次构建的发布结果显示纹理。 |
+| **打包图集** | 全部 | 将每个 `<name>.atlas/` 文件夹，或 `.esengine/asset-groups.json` 中的每个 [`atlases` 条目](/docs/zh-cn/publishing/hot-update/#esengineasset-groupsjson)，打包为图集页。 |
+| **音频转 MP3** | 全部 | 按各音频导入设置中的码率将 WAV 转为 MP3；导入设置中关闭压缩的音频保持 WAV。 |
+| **压缩引擎二进制** | 小游戏 | 在宿主能够加载时，以 Brotli 压缩发布引擎 `.wasm`（及侧模块）。与微信目标页的 *压缩 wasm 二进制* 为同一设置。 |
+| **图片转 WebP**（不转 / 无损 / 质量 90 / 质量 80） | Playable | 将 PNG 编码为 WebP，见[试玩广告](/docs/zh-cn/publishing/playable-ads/#图片编码)。 |
 
-- **Web / 桌面** —— 产物作为零散文件放在 `esengine.wasm` 旁;运行时经 fetch
-  侧模块 host 从 `wasmBaseUrl`(引擎自身加载自的目录)拉取。
-- **Playable** —— 不允许任何外部请求,导出器把模块以 base64 内联进单个 HTML
-  文件;启动代码(`initPlayableRuntime`)拿到的是内嵌侧模块 host 而非 URL。
-- **微信** —— 侧模块打包为微信预编译的模块工厂(这也是每个特性都需要上文
-  `*-wechat` 运行时构建的原因)。
+### 压缩纹理
 
-编辑器自己的播放模式也经由同一个发行运行时启动(`initPlayRealmRuntime`),从
-编辑器 origin 拉取侧模块——所以"玩到的即发布的"同样覆盖这些模块。运行时 API 见
-[应用设置与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/#侧模块)。
+运行时将 KTX2 纹理转码为设备支持的最佳格式（依次为 ASTC、ETC2、S3TC，最终回退到 RGBA8），并保留 mip 链。
 
-## 不支持 WebAssembly 的浏览器
-
-打开 **项目设置 → 打包 → Web → 无 WebAssembly 时运行** 后，Web 导出会带两份引擎：
-`wasm/esengine.wasm`，以及同一引擎编译成纯 JavaScript 的 `wasm/esengine.asm.js`。
-页面启动时二选一。有 `WebAssembly` 的环境加载 wasm 引擎，JavaScript 版本不会被下载。
-没有 `WebAssembly` 的环境（一些锁死的 WebView、嵌入式浏览器）加载 `esengine.asm.js`，
-游戏照常运行同样的场景和脚本。清单里对应的写法：
-
-```json
-"packaging": { "platforms": { "web": { "engineJs": true } } }
-```
-
-默认关闭。有 WebAssembly 的用户不会下载这个文件，但每个包都会多出约 4 MB，
-会计入托管平台的上传限制。关闭时，没有 WebAssembly 的浏览器会显示一条写明这个设置的报错。
-小游戏目标从不带它：它们支持的平台都能跑 WebAssembly，而且单这一个文件就超过微信 4 MB 的主包。
-
-要在普通浏览器里试 JavaScript 引擎，打开这个设置导出，再在页面地址后加 `?engine=js`。
-
-代价（`hello-world`，headless Chromium 实测）：
-
-| | WebAssembly 引擎 | JavaScript 引擎 |
-|---|---|---|
-| 引擎文件 | 2.1 MB（gzip 0.67 MB） | 4.3 MB（gzip 0.98 MB） |
-| 每帧主线程耗时 | 9.3 ms | 约 11.5 ms |
-
-它没有的：
-
-- **WebGPU**：JavaScript 引擎始终走 WebGL2。
-- **侧模块**（2D 与 3D 物理、Spine、DragonBones、Basis、视频）：它们是 WebAssembly 二进制。
-  在没有 WebAssembly 的环境里，每个侧模块只报一条写明模块名的错误，然后保持缺席，
-  它提供的功能不会运行。
-- **编译（`@compiled`）系统**：它们也是 wasm 模块，这里保持解释执行，
-  结果和不开 AOT 的导出一样。
-
-## 构建配置与 source map
-
-- **Development** —— 不压缩的构建;配上 source map 得到可调试的输出。
-- **Shipping** —— 为体积和速度压缩。这是你发布用的。
-- **source map** 把运行的 bundle 映射回你的 TypeScript。Web 和桌面可用;发布构建请关掉。
-
-## 资产烘焙选项
-
-烘焙如何处理**某一个**资产,是那个资产自己的事——在检视面板的逐资产**导入设置**里,
-每个平台一个页签,所以一张纹理可以为手机压得比网页端更狠。构建这一层只决定是否遵循这些设置:
-
-- **资源压缩 → 按导入设置** —— 每张纹理与每段音频按各自的导入设置压缩
-  (PNG → **KTX2** Basis Universal、Max Size、WAV → MP3),同属一张图集的纹理打包成图集页,
-  于是许多小精灵作为一张纹理发布、在一次绘制里合批。图集成员来自 `<name>.atlas/` 文件夹,
-  或 `.esengine/asset-groups.json` 里的
-  [`atlases` 条目](/docs/zh-cn/publishing/hot-update/#esengineasset-groupsjson)。
-- **资源压缩 → 全部跳过** —— 一律原样输出,便于快速迭代。
-
-KTX2 纹理由运行时转码为设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8),并带上
-mip 链——下载更小、显存更省。
-
-:::caution[只有尺寸是完整 4×4 块的纹理才会被压缩]
-KTX2 能转码到的每一种格式都是块压缩格式,而 WebGPU 拒绝宽或高不是 4 的倍数的压缩纹理——
-所以一张 70×70 的精灵在原生运行时上会创建失败,**而一张纹理失败就会让整帧变黑**。
-构建会把这类纹理**原样发布**,并在警告里点名:
+<Aside type="caution" title="块压缩纹理的尺寸必须是 4 的倍数">
+KTX2 可转码到的格式均为块压缩格式，而 WebGPU 拒绝宽或高不是 4 的倍数的压缩纹理。构建会将此类纹理以未压缩形式发布，并在警告中列出：
 
 ```
 assets/textures/platform.png: shipped raw — 70x70 is not a multiple of 4,
 which a block-compressed texture must be
 ```
 
-把它改成 4 的倍数(缩放或补边)就能恢复压缩。图集页永远是完整块,所以把尺寸零碎的小图
-打进图集是另一条出路。
-:::
+将纹理缩放或填充到 4 的倍数，或将其打包进图集（图集页总是整块尺寸）。
+</Aside>
 
-**内容寻址** 默认开启(Web、桌面和小游戏目标;每个文件按字节哈希命名——URL 不可变、自动去重)。
-**高级**里放着[热更新](/docs/zh-cn/publishing/hot-update/)的 CDN 根地址、source map,
-以及构建结束后是否打开输出目录。
+### 内容寻址与资产包
 
-**资产打包**(Web):浏览器对同一个站点只开 6 条连接,所以一个有上千个小资产的场景,加载速度取决于请求数。Web 导出会把小的本地资产——网格、材质、KTX2 纹理、时间线、动画资产——打进少数几个 `packs/*.pack` 文件,每个文件一次请求取完;清单里记着每个资产在哪个包、哪个位置。一个有 1500 个网格的场景,首帧从 15 秒降到 7 秒。配置了[热更新](/docs/zh-cn/publishing/hot-update/)的导出仍然每个资产一个文件,因为热更新是按单个资产下载的。
+- **内容寻址** 在 Web、桌面和小游戏目标上默认开启：每个文件以其字节的哈希命名，因此 URL 不可变，相同文件只存一份。
+- **资产包**（Web）：导出将小型本地资产（网格、材质、KTX2 纹理、时间轴、动画资产）打包为少量 `packs/*.pack` 文件，每个文件一次请求加载；清单记录每个资产所在的位置。配置了[热更新](/docs/zh-cn/publishing/hot-update/) CDN 地址的导出保持每个资产一个文件，因为更新按资产逐个下载。
 
-<Aside type="caution" title="只有代码点名的资产会被剔除">
-  cook 发布的是它能从构建场景**可达**的东西。只在代码里点名的东西——富文本标记里的纹理、
-  按 url 播放的音频、按路径 spawn 的预制体——会被剔除,而编辑器直接从磁盘伺服项目,
-  根本不会察觉。请在内容浏览器里把那个文件夹标记为 **交付方式 → 总是打进构建**。见
-  [资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。
+<Aside type="caution" title="只被代码引用的资产会被剔除">
+  烘焙只打包从构建场景可达的资产。只在代码中引用的资产——富文本标记中的纹理、按 URL 播放的音频、按路径生成的预制体——会被剔除。编辑器直接从磁盘读取项目，因此这一遗漏只在导出的构建中可见。在内容浏览器中将这类文件夹标记为 **交付方式 → 总是打进构建（即使无人引用）**（[资产](/docs/zh-cn/assets/overview/#只有代码点名的资产)）。
 </Aside>
 
 ## 打包设置
 
-某**一个目标**叫什么、发往哪里、商店用什么认它,在 **构建 → 打包项目…** 里那个目标自己的
-页面上编辑——就在它所改变的那次构建旁边:
+单个目标专属的设置在 **打包项目** 中该目标的页面上编辑（在设置对话框中搜索会链接到这些设置）：
 
-- **微信** —— AppID。
-- **桌面** —— 应用 id 覆盖、产品名(用于命名应用),以及发行渠道
-  (独立发行或 [Steam](/docs/zh-cn/publishing/steam/))。
-- **Android** —— 版本号(Google Play 用来排序构建的整数)、构建产出安装包还是 Gradle 工程,
-  以及是否在 APK 之外再写一份 App Bundle。
+| 目标 | 设置 |
+|---|---|
+| **网页** | Web 发行渠道（独立发行、Poki、CrazyGames、YouTube Playables，见 [Web 游戏平台](/docs/zh-cn/publishing/web-portals/)）、无 WebAssembly 时运行、方向不对时提示旋转设备。 |
+| **微信小游戏** | AppID、压缩 wasm 二进制、引擎放入分包、通过 EmscriptenGLX 渲染。 |
+| **桌面** | 桌面 App ID（覆盖值）、产品名称（决定应用名称）、发行渠道（独立发行或 Steam）。 |
+| **Android** | Android 版本号、打包为（安装包或 Android Studio 工程）、包含模拟器（x86_64）、压缩原生库、Google Play App Bundle（.aab）、发布签名密钥。 |
 
-**无论发往哪里都成立**的那些,留在 **设置 → 项目 → 构建与模块 → 打包(Packaging)**,并随项目保存:
+项目级设置位于 **设置 → 项目 → 构建与模块 → 打包**，随项目保存：
 
-- **应用 ID** —— 已安装应用的反向域名 id:Android 的 manifest package、iOS 的 bundle id、
-  桌面安装包的 id。留空则按项目名推导;正式发布的应用应当自己指定,因为应用商店会永久沿用它。
-- **应用图标** —— 一张方形 PNG,供所有可安装目标使用。
-- **成就** —— 你的游戏会解锁的 id。**平台中立**:每个商店都有这份同样的清单,只是名字不同。
+| 设置 | 说明 |
+|---|---|
+| **应用 ID** | 已安装应用的反向域名标识：Android manifest 的包名、iOS 的 bundle id、桌面安装程序的 id。留空时由项目名派生。发布前应设置，商店会永久保留该值。 |
+| **应用图标** | 一张方形 PNG，供所有可安装目标使用。 |
+| **成就 ID** | 游戏会解锁的成就 id。与平台无关；供 [Steam](/docs/zh-cn/publishing/steam/#成就) 等商店使用。 |
+| **压缩脚本** | 在发行构建中压缩游戏与引擎的 JavaScript。默认开启。 |
+| **编译所有系统** | 发行构建将编译器能处理的所有系统编译为机器码；关闭时只编译标记了 `@compiled` 的系统。默认开启。 |
+
+{/* SHOT: publish-packaging-settings | Settings dialog, Project category, Build and modules page scrolled to the Packaging section, showing Application ID, App Icon, Achievement IDs, Minify scripts and Compile all systems; any example project */}
 
 ### 屏幕方向
 
-方向是**一个项目级设置**,而非逐平台:**设置 → 项目 → 游戏 → 显示(Display) → 屏幕方向**(竖屏或横屏),就在设计分辨率旁边。所有目标都遵循它——微信 `game.json` 的 `deviceOrientation`、Web 构建尽力而为的 `screen.orientation.lock`、桌面窗口的宽高比,以及原生应用的 `app.config.json`(引擎能 letterbox,却转不动手机)。留空则**从设计分辨率的宽高比推导**(更宽或方形 ⇒ 横屏,更高 ⇒ 竖屏),因此横屏设计零配置即在各处横屏发布。
+屏幕方向是唯一的项目级设置：**设置 → 项目 → 游戏 → 显示 → 屏幕方向**（竖屏或横屏）。未设置时由设计分辨率推导（宽 ≥ 高为横屏，否则为竖屏）。各目标的应用方式：
 
-在网页上，手机方向拿反时默认照常显示游戏、按比例留黑边，不会有东西挡住画面。想让页面提示玩家旋转的工程，打开 **项目设置 → 打包 → Web → 方向不对时提示旋转设备**。打开后，触屏设备方向拿反时画布会被"Rotate your device"提示盖住，直到玩家把手机转过来；电脑浏览器始终显示游戏。工程文件里的写法是:
+| 目标 | 应用方式 |
+|---|---|
+| 微信及其他小游戏 | `game.json` 中的 `deviceOrientation` |
+| 网页 | 尽力调用 `screen.orientation.lock` |
+| 桌面 | 窗口宽高比 |
+| Android、iOS | 原生应用的 `app.config.json` |
+| Playable | 仅在广告平台要求时向平台声明；不锁定页面方向（[试玩广告](/docs/zh-cn/publishing/playable-ads/#屏幕方向)） |
+
+在 Web 上，以另一方向握持手机时游戏以加黑边方式显示。开启 **方向不对时提示旋转设备**（网页目标设置）后，触屏设备方向不对时画布被“请旋转设备”提示遮住，直到转正为止；桌面浏览器始终显示游戏。清单写法如下，默认关闭：
 
 ```json
 "packaging": { "platforms": { "web": { "rotateHint": true } } }
 ```
 
-默认关闭，没动过的工程不会为它写任何内容。
+## 预览导出结果
 
-**试玩包是有意的例外**:它从不锁定页面方向。在广告 SDK 里,容器尺寸由 SDK 决定,因此"请旋转设备"这类遮罩可能把游戏永久挡住——玩家转了手机却毫无变化,因为那条 media query 一直在读容器而不是设备。试玩包保持自适应(各平台都要求如此),方向只在平台需要时**声明**出去,例如 Google 的 `ad.orientation` meta 标签。请为两种比例都设计,或用[相机适配](/docs/zh-cn/core-concepts/screen/)做 letterbox,让构图在任一比例下都成立。
+**网页** 或 **Playable** 构建完成后，**通过 http 预览** 在回环地址（`http://127.0.0.1:<port>/`）上提供输出目录并在浏览器中打开。
 
-设置界面见 [编辑器](/docs/zh-cn/editor/overview/)。
-
-## 包体体积
-
-导出完成后包体会被称重,结果显示在构建日志下方:玩家要为它付出多少、它由什么组成、哪些文件最大。
-
-三个数字,因为字节**待在哪里**比总共多少更重要:
-
-- **首包** —— 玩家在能玩之前必须下载的部分:宿主页面、引擎运行时、你的脚本,以及 `local` 组里的资产。
-- **按需分包** —— 分包,在游戏请求那个组时才拉取。
-- **CDN(不进包)** —— `remote` 组里的资产。它们是真实存在的字节,但住在你的 CDN 上,对包体零成本。见[热更新](/docs/zh-cn/publishing/hot-update/)。
-
-这个划分读自运行时加载的同一份清单,所以报告说的和游戏做的不可能对不上。把一个关卡挪进分包是真的把它移出了主包,报告在你操作后立刻反映出来。
-
-### 引擎本身占多少
-
-包里只带这个项目用到的引擎子系统，用不到的不带。「用到」由导出时已有的证据判定：场景或
-预制体里的组件、资产扩展名（`.esgraph`、`.esfsm`、`.esbt`）、side-module 扫描找到的 wasm，
-以及你自己脚本里 import 的 `esengine/*`。
-
-所以没有瓦片地图的游戏不会带瓦片地图解析器，从不开会话的游戏不会带复制协议。如果你是从
-代码而不是内容里用到某个子系统——手写构建 tilemap、自己开 socket——import 它的子路径，导出
-会跟着走：
-
-```ts
-import { Tilemap } from 'esengine/tilemap';
-```
-
-只有一个子系统暂时没有子路径：用到 **Video** 的项目会拿整份引擎，包含全部可选子系统。其他
-什么都不变——两种情况下 API 完全一样。
-
-用微信运行时的小游戏目标(微信、抖音、快手、B 站)上的引擎二进制也是同样的道理。当没有任何场景或预制体里有粒子发射器、后处理体积或瓦片地图，脚本里也没有提到它们时，包里带的是
-**精简引擎**：同一个引擎去掉这三个子系统，在 4 MB 主包限制下小约 200 KB。脚本里只要出现一次（`ParticleEmitter`、`PostProcess…`、`Tilemap…`）就会带完整版，
-在项目设置里把 `esengine/tilemap` 设为**包含**也一样；拿不准时总是全带。
-
-### 上限
-
-凡是平台公布了上限的目标,构建都会被对照判定,并且会说明是哪一条、数字从哪来——原文引用,好让你去核对该平台当前的文档,而不是相信我们:
-
-| 目标 | 上限 |
-| --- | --- |
-| 微信小游戏 | 主包 4MB,主包与所有分包合计 30MB |
-| 试玩广告 | 取决于所选平台 —— Meta 5MB、Google ZIP 5MB 等 |
-| 网页 / 桌面 / Android / iOS | 无公开上限;可用下面的方式自定 |
-
-超出上限只报告、不阻断——它构建成功也能跑,是否卡发布由你决定(见下面的[用体积卡构建](#用体积卡构建))。超过上限的 90% 后进度条转为琥珀色,因为再来一轮美术就该破线了。
-
-### 自定预算
-
-**打包项目 → 高级 → 体积预算** 为当前所选目标设置一个 MB 上限,按平台保存在 `packaging.sizeBudget` 里。两种用途:你的包远低于微信 4MB,想在它悄悄涨上去之前就收到提醒;或者你的目标平台上限编辑器并不知道。
-
-它**替换该目标的主上限** —— 微信那条 4MB 主包数字会换成你的 —— 并且归因为"本项目自定的体积预算",而不是伪装成一条平台规则。它不是豁免:微信的 30MB 总量依然生效。清空该字段即恢复平台自身的上限。
-
-### 用体积卡构建
-
-无头导出器的结果里带着同一份报告,并且可以据此失败:
-
-```bash
-node pipeline/bin/estella.mjs export ./my-game \
-  --platform wechat --json report.json --enforce-budget
-```
-
-加上 `--enforce-budget`,任何一条上限被突破都会以非零码退出,并在 stderr 上点名是哪一条;不加则同样报告事实但构建通过。报告就是 JSON 里的 `result.size`——与对话框绘制的是同一批判定,所以 CI 和编辑器永远不会对"这个包放不放得下"给出两种答案。
-
-## 构建 CLI(进阶)
-
-编辑器打包你的**游戏**。而 `build-tools/cli.js` 命令构建的是**引擎和 SDK 本身**——你只在要产出上面
-的微信运行时、或开发引擎时才需要它。常用命令:
-
-```bash
-node build-tools/cli.js build -t web        # 构建引擎(web 目标)
-node build-tools/cli.js build -t wechat     # …微信运行时
-node build-tools/cli.js sdk                 # 只构建 SDK
-node build-tools/cli.js watch               # 改动即重建(引擎开发)
-node build-tools/cli.js native --target ios # …原生移动宿主
-```
-
-<Aside type="note">
-  大多数游戏开发者除了那一次性的微信运行时构建外,从不需要动构建 CLI——日常工作都在
-  编辑器和 SDK 里。例外是[移动端](/docs/zh-cn/publishing/android-ios/):在那里,围绕导出组装应用
-  也由这个 CLI 完成。
+<Aside type="caution">
+  Web 构建需要 **http 源**。直接从磁盘打开 `index.html`（`file://`）无法流式加载 WebAssembly。请使用预览按钮或静态托管。
 </Aside>
+
+## 运行时前置条件
+
+| 目标 | 运行时 | 准备工作 |
+|---|---|---|
+| 网页、Playable | 随编辑器提供的引擎运行时。Playable 将其内联（glue 作为 blob 模块，wasm 作为 base64）。 | 无。 |
+| 微信及使用微信运行时的小游戏 | 由于 WebAssembly 加载方式不同而单独构建的运行时，以及微信侧模块。随编辑器安装包提供。 | 已安装的编辑器无需准备。在源码检出中需构建一次（见下）。 |
+| 桌面、Android、iOS | 每个编辑器版本一个**运行时模板**。安装前，打包项目中该目标的行会提供 **下载** 和 **从文件安装…**。 | iOS 另需装有 Xcode 的 macOS。含 `@compiled` 系统的项目，桌面需要 C 编译器（clang 或 gcc），Android 需要 Android NDK。 |
+
+```bash
+# source checkout only, before the first WeChat export
+node build-tools/cli.js build -t wechat
+```
+
+对话框区分两类缺失的前置条件：
+
+- 缺少**引擎运行时**（网页、Playable、微信）会阻止导出。微信导出会停止并给出需要运行的构建命令。微信还要求游戏用到的每个引擎功能都有对应的侧模块（`physics-wechat`、`spine-wechat`、`dragonbones-wechat`、`basis-wechat`、`videodec-wechat`），见[微信小游戏](/docs/zh-cn/publishing/wechat/)。
+- 缺少**原生工具链**（iOS）不会阻止导出。应用内容照常写出；只有装配为可安装应用的最后一步需要工具链，且这一步可以在另一台机器上完成。
+
+<Aside type="caution" title="原生目标需要运行时模板">
+  桌面、Android 和 iOS 的运行时模板不包含在编辑器安装包中。每个编辑器版本需从打包项目中目标所在的行安装一次对应模板，且模板版本必须与编辑器完全一致。Android 不需要引擎源码、SDK 或 JDK；iOS 另需装有 Xcode 的 macOS。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/#前置条件) 和 [Steam](/docs/zh-cn/publishing/steam/)。
+</Aside>
+
+## 侧模块
+
+可选的引擎功能以 WebAssembly **侧模块**形式发布——一个 emscripten `<file>.js` glue 加一个 `<file>.wasm`——按需加载：
+
+| 模块 | 产物 | 加载时机 |
+|---|---|---|
+| 物理（Box2D） | `physics.js` / `physics.wasm` | 项目声明了物理，或场景使用 2D 物理组件。 |
+| 3D 物理（Jolt） | `physics3d.js` / `physics3d.wasm` | 场景使用 `RigidBody3D`。与 2D 模块同时加载，而非替代。 |
+| 3D 物理（PhysX） | `physics3d-physx.js` / `physics3d-physx.wasm` | 同上，用于 3D 求解器为 PhysX 的项目。一个包只携带两个 3D 模块中的一个。 |
+| Spine | `spine21`、`spine38`、`spine41`、`spine42`、`spine43`（`.js` / `.wasm`） | 场景使用对应格式版本的 Spine 骨架。 |
+| DragonBones | `dragonbones.js` / `dragonbones.wasm` | 场景使用 DragonBones 骨架。一个模块读取所有版本。 |
+| Basis 转码器 | `basis.js` / `basis.wasm` | 构建发布了 KTX2 纹理。 |
+| 视频解码器 | `videodec.js` / `videodec.wasm` | wasm 视频路径解码视频。 |
+
+| 目标 | 侧模块的交付方式 |
+|---|---|
+| 网页、桌面 | 作为独立文件放在 `esengine.wasm` 旁，从 `wasmBaseUrl`（引擎加载所在的目录）获取。 |
+| Playable | 以 base64 内联到 HTML 中；`initPlayableRuntime` 接收一个内嵌的侧模块宿主。 |
+| 微信 | 微信预编译的模块工厂，因此每个功能需要一个 `*-wechat` 运行时构建。 |
+| Android、iOS、桌面应用 | 编译进应用二进制。 |
+
+编辑器的运行模式通过同一运行时（`initPlayRealmRuntime`）启动，从编辑器源获取侧模块。运行时 API 见[应用初始化与生命周期](/docs/zh-cn/core-concepts/app/overview/#侧模块)。
+
+## 目标无法渲染的内容
+
+如果某个目标没有编译项目所用的子系统，导出会报告该子系统（瓦片地图、粒子、后处理、物理、Spine、视频、文本）以及使用它的场景或文件，而不会写出缺少该部分的包。当前所有目标都不存在这种缺口：原生应用编译了完整的引擎源码列表，包括在 Web 上作为独立侧模块的部分。
+
+## 无 WebAssembly 的浏览器
+
+**无 WebAssembly 时运行**（网页目标设置）会在 `wasm/esengine.wasm` 旁增加编译为纯 JavaScript 的引擎 `wasm/esengine.asm.js`。页面在启动时选择：存在 `WebAssembly` 时加载 wasm 引擎，且不会下载 JavaScript 版本；不存在时（部分受限的 WebView 和内嵌浏览器）加载 `esengine.asm.js`，运行相同的场景和脚本。清单写法：
+
+```json
+"packaging": { "platforms": { "web": { "engineJs": true } } }
+```
+
+该设置默认关闭。它使包体增加约 4 MB，计入宿主的上传上限。关闭时，没有 WebAssembly 的浏览器会显示一条指明该设置的错误。小游戏目标从不包含该文件。要在普通浏览器中测试 JavaScript 引擎，可在开启该设置后导出，并在 URL 后加上 `?engine=js`。
+
+| `hello-world` 示例，无头 Chromium | WebAssembly 引擎 | JavaScript 引擎 |
+|---|---|---|
+| 引擎文件 | 2.1 MB（gzip 0.67 MB） | 4.3 MB（gzip 0.98 MB） |
+| 每帧主线程耗时 | 9.3 ms | ~11.5 ms |
+
+JavaScript 引擎不支持：
+
+- **WebGPU**——始终通过 WebGL2 渲染。
+- **侧模块**（2D 与 3D 物理、Spine、DragonBones、Basis、视频）——每个模块记录一条指明模块的错误，其功能不运行。
+- **已编译（`@compiled`）系统**——以解释方式运行，与未启用 AOT 的导出相同。
+
+## 构建 CLI
+
+编辑器负责打包游戏。`build-tools/cli.js` 用于构建**引擎和 SDK**；在源码检出中构建微信运行时、开发引擎以及装配原生应用时需要它：
+
+```bash
+node build-tools/cli.js build -t web        # build the engine (web target)
+node build-tools/cli.js build -t wechat     # the WeChat runtime
+node build-tools/cli.js sdk                 # build the SDK only
+node build-tools/cli.js watch               # rebuild on change (engine development)
+node build-tools/cli.js native --target ios # the native mobile host
+```
+
+不经编辑器打包项目使用 `pipeline/bin/estella.mjs export <projectDir>`；`--help` 列出其选项（`--platform`、`--profile`、`--out`、`--json`、`--enforce-budget` 等）。CI 示例见[包体体积](/docs/zh-cn/publishing/package-size/#按体积拦截构建)。
 
 ## 参见
 
-- [Android 与 iOS](/docs/zh-cn/publishing/android-ios/) —— 原生应用:前置条件、如何组装,以及只在真机上才咬人的那些事。
-- [微信小游戏](/docs/zh-cn/publishing/wechat/) —— 分包布局与平台差异。
-- [资源](/docs/zh-cn/assets/overview/) —— cook 步骤如何打包与内容寻址资产。
-- [性能剖析与诊断](/docs/zh-cn/performance/profiling/) —— 发布前检查帧时间与 draw call。
+- [包体体积](/docs/zh-cn/publishing/package-size/)——体积报告、平台上限与预算。
+- [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)——原生应用的前置条件、装配与设备诊断。
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)——分包与微信专属选项。
+- [资产](/docs/zh-cn/assets/overview/)——烘焙、交付组与内容寻址。
+- [性能剖析与诊断](/docs/zh-cn/performance/profiling/overview/)——发布前检查帧耗时和绘制调用。

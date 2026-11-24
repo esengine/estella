@@ -1,44 +1,41 @@
 ---
 title: ECS Architecture
-description: Entities, components, and systems in Estella.
+description: The Entity-Component-System model Estella is built on — entities, components and systems, component storage in the engine core, and the three SDK primitives a game is composed from.
 ---
 
-Estella is built on an **Entity-Component-System** (ECS) architecture. Instead
-of deep class hierarchies, game state is plain data in components, and behavior
-lives in systems that run over that data.
+Estella uses an **Entity-Component-System** (ECS) architecture. Game state is plain data held in components;
+behaviour is implemented by systems that run over that data.
 
-- **Entity** — an identifier. It owns no data and no behavior; it is just a
-  handle that components attach to.
-- **Component** — a small, plain data struct (position, velocity, sprite). An
-  entity is defined by which components it has.
-- **System** — a function that runs each frame over every entity matching a
-  query, reading and writing components.
+| Concept | Definition |
+|---|---|
+| **Entity** | An identifier. It holds no data and no behaviour; components are attached to it. |
+| **Component** | A plain data struct (position, velocity, sprite). An entity is defined by the set of components it carries. |
+| **System** | A function that runs every frame over all entities matching a query, reading and writing their components. |
 
-## Why data-oriented
+## Storage
 
-Components are stored in cache-friendly pools — one densely packed sparse set
-per component type — so a system iterating "all entities with a `Transform` and
-a `Speed`" walks contiguous memory. Storage lives in the C++/WebAssembly core, and the SDK reads
-it with zero copies through a generated, hash-checked memory layout — so the
-TypeScript and C++ views of a component can never silently drift apart.
+Each component type is stored in its own densely packed sparse set, so a system iterating all entities with a
+`Transform` and a `Speed` reads contiguous memory. Storage lives in the C++/WebAssembly core. The SDK reads it without
+copying through a generated memory layout that is checked by hash, which keeps the TypeScript and C++ views of a
+component identical.
 
-## The authored surface
+## SDK primitives
 
-You compose a game from three SDK primitives:
+A game is composed from three SDK primitives:
 
-- [`defineComponent`](/docs/core-concepts/components/) — declare a component type.
-- [`defineSystem`](/docs/core-concepts/systems/) — declare a system and what it
-  queries.
-- [`App` / plugins](/docs/core-concepts/plugins-resources/) — assemble systems,
-  resources, and subsystems ([physics](/docs/gameplay/physics/),
-  [spine](/docs/animation/spine/), [tilemap](/docs/world/tilemaps/overview/),
-  [UI](/docs/ui/overview/), [audio](/docs/assets/audio/),
-  [scene](/docs/world/scenes/)) into a running game.
+| Primitive | Purpose | Reference |
+|---|---|---|
+| `defineComponent` | Declares a component type. | [Components](/docs/core-concepts/components/) |
+| `defineSystem` | Declares a system and the data it queries. | [Systems](/docs/core-concepts/systems/) |
+| `App` and plugins | Assemble systems, resources and subsystems ([physics](/docs/gameplay/physics-2d/overview/), [Spine](/docs/animation/spine/), [tilemaps](/docs/world/tilemaps/overview/), [UI](/docs/ui/overview/), [audio](/docs/assets/audio/overview/), [scenes](/docs/world/scenes/)) into a running game. | [Plugins & Resources](/docs/core-concepts/plugins-resources/), [App & Factories](/docs/core-concepts/app/overview/) |
 
 ```typescript
 import { App } from 'esengine';
 
 const app = App.new();
-// register components, systems, and plugins on the app…
+// register components, systems and plugins on the app
 app.run();
 ```
+
+Per-entity logic with an editor-tunable state can also be written with `defineBehavior`, which expands to one
+component and one system ([Scripting](/docs/scripting/overview/)).

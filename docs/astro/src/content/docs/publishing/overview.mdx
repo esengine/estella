@@ -1,550 +1,297 @@
 ---
 title: Building & Exporting
-description: Ship one project to Web, Desktop, WeChat MiniGame, a single-file Playable Ad, or a native Android / iOS app from the editor's Package Project dialog — build configs, output folders, packaging settings, and the runtime prerequisites.
+description: The Package Project dialog and the export targets (Web, Desktop, mini-games, Playable, Android, iOS) — scenes in build, build configurations, compression, packaging settings, runtime prerequisites, side modules and the build CLI.
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-One Estella project ships to **Web**, **Desktop**, **WeChat MiniGame** and the other
-mini-game platforms (Douyin, Kuaishou, Bilibili, quick games, Alipay, Huawei), a
-single-file **Playable Ad**, and native **Android** / **iOS** apps — all from the editor. The export uses the **same runtime you played in the editor**,
-so what you shipped is what you tested (*play == ship*).
+An Estella project is exported from the editor to **Web**, **Desktop**, **WeChat MiniGame** and the other mini-game
+hosts (Douyin, Kuaishou, Bilibili, quick games, Alipay, Huawei), a single-file **Playable** ad, and native
+**Android** and **iOS** apps. Every export runs on the same runtime that the editor's Play mode uses.
 
-## Exporting from the editor
+## Package Project dialog
 
 ![The Package Project dialog — the target list, build configuration, output folder, and scenes in build](@/assets/guides/en/build-dialog.png)
 
-*The Package Project dialog: pick a **target** from the categorized list on the left, then that target's settings, a **profile**, a configuration, compression, the output folder and the scenes to ship — then Package.*
+*Left: the categorized target list. Right: the selected target's settings, profile, configuration, compression,
+output folder, scenes in build and Advanced options.*
 
 <Steps>
 
-1. Open **Build → Package Project…** to bring up the **Package Project** dialog.
-2. Pick a **target** from the list — grouped as *General* (Web / Desktop /
-   Playable), *Mini-games* (WeChat, Douyin, Kuaishou, Bilibili, quick games, Alipay, Huawei — see
-   [Mini-game platforms](/docs/publishing/minigame-platforms/)), and *Mobile*
-   (Android / iOS). A target that ships to more than one place lists them beneath
-   it: Desktop branches into *Standalone* and *[Steam](/docs/publishing/steam/)*.
-3. Fill in that target's own settings, shown on its page — what the app is called
-   and identified by, and anything the store it goes to needs.
-4. Choose a **profile** (the project's settings, or a saved one), a **build config** —
-   *Development* or *Shipping* (Shipping minifies) — the **compression** choice (the
-   [asset cook options](#asset-cook-options)), an **output folder**, and under **Advanced**
-   the CDN root, a size budget and source maps.
-5. Check the **Scenes in build** list — untick scenes you don't want to ship, and
-   pin a different startup scene if needed (see below).
-6. Click **Package** and watch the live build log. When it finishes, the output
-   folder opens (there's a checkbox to turn that off), and Web / Playable builds
-   offer **Preview over http**.
+1. Open **Build → Package Project…**.
+2. Select a **target**. Targets are grouped as *General* (Web, Desktop, Playable), *Mini-Games* (WeChat, Douyin,
+   Kuaishou, Bilibili, Quick game, Alipay, Huawei quick game — see [Mini-Game Platforms](/docs/publishing/minigame-platforms/)),
+   *Mobile* (Android, iOS) and *Project* (platforms the project defines). A target with more than one destination
+   lists them beneath it: Desktop branches into *Standalone* and *[Steam](/docs/publishing/steam/)*.
+3. Fill in the target's own settings (*\<target\> settings*): application identity and store-specific values.
+4. Choose a **Profile** (*Project settings*, or a saved export profile), a **Configuration** (*Development* or
+   *Shipping*), the **Compression** boxes ([Compression](#compression)) and the **Output** folder. **Advanced**
+   holds the CDN root, the size budget, source maps and *Open output folder when done*.
+5. Review **Scenes in build** ([Scenes in build](#scenes-in-build)).
+6. Click **Package**. The build log streams in the dialog. When the build finishes, the output folder opens (unless
+   *Open output folder when done* is off), and Web and Playable builds offer **Preview over http**.
 
 </Steps>
 
-Your choices are saved into `project.esproject`, so the dialog remembers them next
-time.
+The dialog's choices are saved in `project.esproject` and restored the next time it opens.
+
+### Export profiles
+
+An export profile is a named set of overrides for one target, stored in `packaging.profiles` of
+`project.esproject`: configuration, source maps, compression boxes, CDN root, excluded scenes and per-target
+settings. With a profile selected, the dialog's controls edit the profile; each overridden value has a reset button
+that hands the setting back to the project. *New profile for this target* creates one. The CLI selects a profile
+with `--profile <name>`.
+
+## Targets
+
+| Target | Output | Default folder | Next step |
+|---|---|---|---|
+| **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to a static host. |
+| **Desktop** | A native app per installed desktop runtime template: a `.app` on macOS, a `<Name>/` directory with `<Name>.exe` on Windows or `<Name>` on Linux. No Chromium and no npm project. | `dist-desktop/` | Run it. The **Steam** channel also writes depot scripts and `STEAM.md` — see [Steam](/docs/publishing/steam/). |
+| **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools — see [WeChat MiniGame](/docs/publishing/wechat/). |
+| **Douyin**, **Kuaishou**, **Bilibili**, **Quick game**, **Alipay**, **Huawei quick game** | A mini-game package for that host (a signed `.rpk` for quick games and Huawei), built by the same pipeline as WeChat. | `dist-douyin/`, `dist-kuaishou/`, `dist-bilibili/`, `dist-quickgame/`, `dist-alipay/`, `dist-huawei/` | Open it in the platform's developer tool. Douyin and Bilibili take an AppID in the target settings; Kuaishou and Alipay take it in the developer tool; Huawei needs an app registered in AppGallery Connect. |
+| **Playable** | One self-contained `index.html` with every resource inlined. | `dist-playable/<network>/` | **Preview over http**, then upload to the selected ad network — see [Playable Ads](/docs/publishing/playable-ads/). |
+| **Android** | A native arm64 app rendering through Vulkan: a signed APK, an Android Studio project, or an APK plus App Bundle. | `dist-android/` | Install the APK, or open the project in Android Studio — see [Android & iOS](/docs/publishing/android-ios/). |
+| **iOS** | A native arm64 app rendering through Metal, written as an Xcode project. | `dist-ios/` | Open the project in Xcode, select a signing team, run. |
+
+Desktop, Android and iOS exports contain app **content**; the engine, the SDK and the game runtime are in the app
+binary, which is assembled from a runtime template the editor installs ([Runtime prerequisites](#runtime-prerequisites)).
 
 ## Scenes in build
 
-Every scene in the project's scenes folder ships with the export and becomes a
-`SceneManager.switchTo` target — see [Scenes](/docs/world/scenes/) for how a game
-script switches between them. The dialog's **Scenes in build** list controls the
-set:
+Every scene in the project's scenes folder is exported and is a `SceneManager.switchTo` target
+([Scenes](/docs/world/scenes/)). The **Scenes in build** list controls the set:
 
-- The **startup scene** is pinned first with a play badge. It always ships — move
-  the pin to another scene by clicking its play button, or right-click any scene in
-  the Content Browser and choose **Set as Startup Scene**.
-- **Untick a scene** to leave it out of the build (saved as
-  `packaging.excludeScenes` in `project.esproject`). Excluded scenes stay fully
-  editable and playable in the editor; assets referenced only by excluded scenes
-  are not cooked into the build.
-- **Playable** ships the startup scene only — it's a size-capped single file.
+- The **startup scene** is pinned first with a play badge and always ships. Click another scene's play button to move
+  the pin, or use **Set as Startup Scene** on a scene's context menu in the Content Browser.
+- Unticking a scene excludes it from the build (`packaging.excludeScenes` in `project.esproject`). Excluded scenes
+  remain editable and playable in the editor; assets referenced only by excluded scenes are not cooked.
+- **Playable** exports the startup scene only. The CLI option `--all-scenes` inlines every scene.
 
-## Preview an export
+## Build configuration
 
-After a **Web** or **Playable** build, click **Preview over http** — the editor
-serves the output folder on a local loopback server (`http://127.0.0.1:<port>/`)
-and opens it in your browser.
+| Configuration | Behaviour |
+|---|---|
+| **Development** | Unminified scripts. Pair with source maps for debugging. Development builds of targets that support it can connect to the editor's Frame Debugger (*Frame debugger connection* under Advanced). |
+| **Shipping** | Minified scripts (*Minify scripts* in project packaging settings, on by default). Use for release. |
 
-<Aside type="caution">
-  A web build needs an **http origin** — opening `index.html` directly from disk
-  (`file://`) won't stream the WebAssembly. Use the preview button, or upload the
-  folder to any static host.
-</Aside>
+**Include source maps** (Advanced) maps the running bundle to the TypeScript sources. It is offered for targets that
+support it (Web and Desktop); turn it off for release builds.
 
-## The targets
+## Compression
 
-| Target | What it produces | Output | Next step |
-|---|---|---|---|
-| **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
-| **Desktop** | A runnable **native** app per installed desktop template — a `.app` on macOS, a `<Name>/` directory holding `<Name>.exe` on Windows or `<Name>` on Linux. No Chromium and no npm project. | `dist-desktop/` | Double-click it. Selecting the **Steam** channel also writes the depot scripts and a `STEAM.md` with this build's own values — see [Steam](/docs/publishing/steam/). |
-| **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/publishing/wechat/). |
-| **Douyin**, **Kuaishou**, **Bilibili**, **Quick games**, **Alipay**, **Huawei** | A mini-game package for that host (a signed `.rpk` for quick games and Huawei), on the same pipeline as WeChat — see [Mini-game platforms](/docs/publishing/minigame-platforms/). | `dist-douyin/`, `dist-kuaishou/`, `dist-bilibili/`, `dist-quickgame/`, `dist-alipay/`, `dist-huawei/` | Open it in that platform's developer tool (Douyin and Bilibili take an AppID in Project Settings; Kuaishou and Alipay take it in the developer tool; Huawei needs an app registered in AppGallery Connect). |
-| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
-| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | With the Android runtime template installed, the export writes the signed APK itself (or an Android Studio project, or an App Bundle beside the APK). See [Android & iOS](/docs/publishing/android-ios/). |
-| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project written around it once the iOS runtime template is installed. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/publishing/android-ios/). |
+Each kind of compression is a separate box under **Compression**. Every box is off by default; an unticked box ships
+the assets as they are, and a size budget never turns a box on. The parameters each box applies (a texture's format
+and Max Size, a clip's bitrate) are per-asset **Import Settings** in the Inspector, with a tab per platform.
 
-Desktop, Android and iOS export app **content**, not a runnable payload: the
-engine, the SDK and the game runtime live in the app binary. Each is assembled
-from a runtime template the editor installs, so packaging needs no toolchain of
-its own — see [prerequisites](#runtime-prerequisites) below. Only iOS still needs
-Xcode, because only Apple can sign for a device.
+{/* SHOT: publish-compression | Package Project dialog with the Web target selected; the Build group visible with the Compression row showing the three boxes (Textures by import settings, Pack atlases, Audio to MP3) and the hint line below them; any example project */}
 
-## Playable ad networks
-
-With asset optimization set to **Auto**, playable exports first honor PNG **Max Size** (including enabled `playable` overrides) and each WAV clip's bitrate. If the assembled package exceeds the smallest of the network limit, project delivery budget and **3 MiB regression target**, the exporter tries lossless WebP, lower eligible audio bitrates (128 then 96 kbps), then WebP quality 90 and 80. Each candidate is measured as actual HTML and ZIP; optimization stops when both delivery and any HTML limit are met. Images retain their cooked dimensions and alpha; pixel art using nearest filtering, bitmap-font pages and data textures only use lossless encoding. PNGs with gamma/color-profile metadata, animation or 16-bit samples stay PNG, preserving their rendering semantics. Texture/audio compression opt-outs are honored, and **Skip** preserves source payloads.
-
-The export's check report and editor result show baseline/selected sizes and each selected encoding. The 3 MiB target is an internal regression target, not a claim about a network's official limit. If the target cannot be met at the quality floor, the report says so; an `index.html` over the network's uncompressed HTML limit is written anyway, with a warning that gives its size — whether to slim it or ship it is your call, not a failed build. When the parts no encoder can shrink (fonts and other files) are already over the target, the optimization search is skipped and the package is built as it is, with its size and contents reported; each stage reports its progress. WebP uses the bundled ffmpeg encoder, with a warning and unchanged images if unavailable. Sources and import settings remain unchanged. Review image/audio quality and test the delivered package in the official container before publishing; size success does not prove platform acceptance.
-
-Every network takes the same single HTML file but disagrees on three things: how big
-it may be, what must sit in `<head>`, and which function sends the player to the
-store. Pick the network in the **Package Project** dialog — it sits with the Playable
-target's own settings — and the export handles all three. Shipping the same game to
-several networks is a normal day, so it is a per-build choice rather than a project
-property; each network also gets its own output folder (`dist-playable/<network>`), so
-packaging for one never overwrites the last.
-
-Your game code never names a network. Call the CTA once:
-
-```ts
-import { playableCta } from 'esengine';
-
-// on your end-card button, after the win — wherever the call to action is
-playableCta();
-```
-
-The export installs the bridge `playableCta()` dispatches through. With no network
-selected it is a no-op, so the same scene still runs in the editor and on the web.
-
-| Network | Limit | Click-through | Notes |
-|---|---|---|---|
-| **Generic** | 5MB | — | No network API. The cap is the one every network listed here accepts, since an unnamed target could be any of them. |
-| **Meta** (Facebook / Instagram) | 5MB | `FbPlayableAd.onCTAClick()` | Meta caps a playable HTML5 file at 5MB; the 2MB figure often quoted for it is in no Meta specification. Forbids any HTTP request. |
-| **Google Ads** (App campaigns) | 5MB | `ExitApi.exit()` | Its exit API is a Google-hosted script, which the docs require as a literal `<script>` in `<head>` — the export writes it for you. Google uploads a **ZIP**, so the export also writes `playable.zip` beside the HTML and measures the limit on that. |
-| **MRAID network** (generic) | 5MB | `mraid.open()` | For any MRAID host. `mraid` is injected by the webview, so nothing goes in `<head>`. |
-| **Unity Ads** | 5MB | `mraid.open()` | The runtime waits for MRAID readiness and viewability, pauses on hidden ads, and removes host listeners on exit. |
-| **AppLovin** | 5MB | `mraid.open()` | Requires every resource embedded — which a single-file playable already is. |
-| **Mintegral** | 5MB | `window.install()` | Exports embedded `index.html` and matching `index.zip`. Waits for host start; game close pauses gameplay and audio. |
-| **TikTok / overseas Pangle** | ZIP &lt;5MB | `window.openAppStore()` | Includes root `config.json`, each network’s orientation field, and the mandatory official SDK before game scripts. Ads Manager preview acceptance remains required. |
-
-Limits move, so each one is reported against the network it came from: an oversized
-export names the cap it used and where that number is published, rather than a bare
-number to trust.
-
-For Mintegral, call `playableGameEnd()` on a win or loss and `playableRetry()` when the player restarts. The runtime calls `gameReady()` after startup finishes and responds to `gameStart()` / `gameClose()`. Keep installation tied to a user gesture through `playableCta()`. See the `playable-ad` example and [official container checker](https://www.playturbo.com/review). Passing that checker does not replace campaign approval or device acceptance.
-
-For a complete starting project, choose **Playable Ad** under Templates in the
-launcher. It copies an editable fleet-selection game with CC0 art, explicit
-installation, completion and replay, eight named export profiles, asset licenses
-and a portrait/landscape headless scenario. Follow the copied `README.md` from
-creation through export and platform submission. Configure your own store URL
-in `src/config.ts` for MRAID, or the campaign/container destination for other
-networks. An unrelated preview URL is never shipped as your app destination.
-Use the new project's `playable-check.json` with the verifier commands below.
-Official previews, device testing and external developer publication exercises
-remain separate from local checks.
-
-MRAID store buttons must pass a destination with `playableCta(storeUrl)` or use a host-provided `window.clickTag`. HTTP(S), Android `market:` and iOS `itms-apps:` links are supported. Missing or invalid destinations produce a configuration warning without calling `mraid.open`. Other networks continue using their own store hooks.
-
-Playable exports include `playableCheck` in their result; the package dialog displays it and the CLI can save it with `--json report.json`. Checks measure the actual delivered file, identify HTML/CSS resource references and validate required orientation config. Exact mandatory host SDK scripts are allowed by the selected profile. File hashes tie the findings to this export. CTA, host lifecycle, dynamic requests and device/network acceptance remain pending runtime verification. The report does not claim that a bridge declaration proves a successful store click.
-
-Use `pnpm preview:playable path/to/index.html --report export-result.json` from the engine repository for a local container mock. It prints a loopback URL and does not open a browser. Ready, Show and Hide simulate host callbacks; the viewport selector changes aspect ratio, and Save Log records store calls with the original HTML hash. MRAID can use `--store-url` for your destination. The served copy substitutes mandatory SDK scripts and blocks external requests; the delivered HTML stays unchanged. These mock records do not replace official SDK or device acceptance.
-
-For repeatable **headless local observations**, use Node 20+ and install Chromium with `pnpm exec playwright install chromium`, then run:
-
-```bash
-pnpm verify:playable output/playable/index.html --report output/playable.json --scenario examples/playable-ad/playable-check.json --out output/playable-observations --store-url https://example.com/store
-```
-
-Adapt the scenario to your scene. Version 1 declares `viewports` and `steps`: `click` uses normalized canvas `x`/`y`; `expect` names `store-click`, `game-end` or `game-retry` with an exact `count` and optional `userActivation`. `host` sends `ready`, `show` or `hide`; `frozen` compares canvas screenshots over `ms`; `wait` and `snapshot` record timing/images. Optional `networks` limits a step or expectation explicitly. Each viewport starts fresh. The shipping example checks portrait/landscape, CTA, completion/retry and supported hidden lifecycle; Google/Meta lifecycle remains pending.
-
-The command always uses headless Chromium with muted audio, without the editor. `runtime-check.json` saves original HTML/delivery, export-report, scenario, verifier and mock hashes, browser version, events and screenshot hashes. Unexpected requests—including CSP-blocked attempts—page errors, event-count/activation mismatches, hidden animation/input, truncation, failed static/export results and changed inputs fail verification. Windows/POSIX archive paths both resolve by the adjacent ZIP filename. The verdict is **local-mock**, covering the requested observations only; it substitutes host SDK scripts and observes active browser activation rather than proving an SDK's synchronous gesture rule. Original SDK behavior, audio lifecycle, quality review, official tools and device acceptance remain pending.
-
-The required host SDK check verifies literal script tags and their placement. Google Exit API belongs in head; TikTok/Pangle must load before game scripts in body. Missing scripts, incorrect positions and delayed TikTok/Pangle SDK loading fail this static check. Actual SDK availability and CTA behavior remain runtime checks.
-
-With a full export result, preview also checks the adjacent ZIP’s delivery hash; changing config while keeping identical HTML still invalidates the old report. Saved logs carry both hashes and the archive filename. Without delivery evidence they identify HTML only. A visible notice and log field disclose when older events were omitted from the 1,000-entry history.
-
-### A network we don't ship
-
-Define it yourself — the built-in networks are written against this exact contract,
-so nothing is out of reach. **Package Project → New platform** scaffolds one (pick
-*Playable ad network*), or write `.esengine/platforms/<id>.mjs` by hand:
-
-```js
-export default {
-  id: 'acme-ads',
-  kind: 'playable',
-  label: 'Acme Ads',
-
-  // The size this network accepts, and where that number is published — the export
-  // quotes the note in its warning.
-  maxBytes: 5 * 1024 * 1024,
-  limitNote: 'Acme docs, Creative specs § playable',
-
-  // Optional: markup for <head> (an orientation meta tag, the network's SDK script).
-  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
-
-  // Installs the bridge playableCta() dispatches through. Runs before the game.
-  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
-};
-```
-
-It then appears in the dialog's Ad network dropdown beside the built-in ones, and
-packages through the same pipeline.
-
-![The Package Project dialog on the Playable target, with the ad network selector, configuration, compression and output folder](@/assets/guides/en/build-playable.png)
-
-*The Playable target. The **Ad network** picks the size limit and the delivery shape the package is held to.*
-
-## Runtime prerequisites
-
-Web, Desktop and **Playable** all reuse the engine runtime that ships with the
-editor, so they export with no setup — a playable inlines that same web runtime
-(glue as a blob module, wasm as base64) rather than needing a build of its own.
-**WeChat** is the exception among the web-based targets: its WebAssembly loader
-differs, so it runs on a runtime of its own. The editor download carries that too, with
-the side modules WeChat needs, so an installed editor exports to WeChat with no setup. In
-an engine source checkout it is built once:
-
-```bash
-# source checkout only, before the first WeChat export
-node build-tools/cli.js build -t wechat
-```
-
-The Package Project dialog reminds you when a target's runtime is missing, and a
-WeChat export **fails fast** — naming the exact build command — rather than
-producing a package that breaks at runtime. WeChat also needs a matching side
-module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
-`dragonbones-wechat`, `basis-wechat` for compressed textures, `videodec-wechat` for
-video) — see [WeChat MiniGame](/docs/publishing/wechat/).
-
-The dialog distinguishes **two kinds** of missing prerequisite, because they don't
-block the same amount:
-
-- A missing **engine runtime** (Web / Playable / WeChat) means the package cannot
-  be produced at all.
-- A missing **native toolchain** (Android / iOS) does not. The export still writes
-  the app's content; only the final assembly into an installable app needs the
-  toolchain, and that step can run on another machine — an iOS build always does
-  when the editor is on Windows.
-
-<Aside type="caution" title="Mobile needs a runtime template">
-  Android and iOS are the one pair of targets the editor download does not carry:
-  the engine's compiled half is a runtime template you download once per editor
-  version (the target's row in Package Project offers **Download**). That is all
-  Android needs — no engine checkout, SDK, NDK or JDK. iOS additionally needs macOS
-  with Xcode to sign and run. See [Android & iOS](/docs/publishing/android-ios/).
-</Aside>
-
-## Content a target cannot render
-
-A target does not necessarily compile every subsystem the editor can author. When
-one doesn't, the export **names the gap and the scenes that hit it** rather than
-writing a package that is quietly missing half a scene — the warning lists the
-subsystem (tilemaps, particles, post-processing, physics, Spine, video, text) and
-the files that authored it.
-
-No target currently has a gap: the native app compiles the whole engine source
-list, and the three subsystems that are separate side modules on the web are
-compiled into its binary instead. The check stays because that can change.
-
-## Side modules
-
-Optional engine features ship as separate WebAssembly **side modules** — an
-emscripten `<file>.js` glue plus `<file>.wasm` per module — loaded on demand so
-the base engine stays small:
-
-| Module | Artifacts | Loaded when |
+| Box | Targets | Effect |
 |---|---|---|
-| Physics (Box2D) | `physics.js` / `physics.wasm` | The project declares physics or a scene uses 2D physics components. |
-| 3D physics (Jolt) | `physics3d.js` / `physics3d.wasm` | A scene uses 3D rigid bodies (`RigidBody3D`). Loaded only then, and alongside the 2D module, not in place of it. |
-| 3D physics (PhysX) | `physics3d-physx.js` / `physics3d-physx.wasm` | The same, in a project whose 3D solver is PhysX. A package carries one of the two 3D modules, never both. |
-| Spine | `spine21` / `spine38` / `spine41` / `spine42` / `spine43` `.js`/`.wasm` | A scene uses a Spine skeleton of that format version. |
-| DragonBones | `dragonbones.js` / `dragonbones.wasm` | A scene uses a DragonBones armature. One module reads every version. |
-| Basis transcoder | `basis.js` / `basis.wasm` | The build shipped KTX2-compressed textures. |
-| Video decoder | `videodec.js` / `videodec.wasm` | The wasm video path decodes a clip. |
+| **Textures by import settings** | All | Applies each texture's Import Settings: the GPU format (KTX2) where the target ships one, and Max Size. A playable ships images, so only Max Size applies there. The viewport draws textures as the build will ship them while this box is ticked. |
+| **Pack atlases** | All | Packs each `<name>.atlas/` folder, or each [`atlases` entry](/docs/publishing/hot-update/#esengineasset-groupsjson) in `.esengine/asset-groups.json`, into atlas pages. |
+| **Audio to MP3** | All | Converts WAV clips to MP3 at each clip's Import Settings bitrate; a clip whose settings disable compression stays WAV. |
+| **Compress the engine binary** | Mini-games | Ships the engine `.wasm` (and side modules) Brotli-compressed where the host can load it. Same setting as *Compress wasm binaries* on the WeChat page. |
+| **Images as WebP** (Off / Lossless / Quality 90 / Quality 80) | Playable | Encodes PNGs as WebP — see [Playable Ads](/docs/publishing/playable-ads/#image-encoding). |
 
-- **Web / Desktop** — the artifacts sit as loose files next to `esengine.wasm`;
-  the runtime fetches them from `wasmBaseUrl` (the directory the engine itself
-  was loaded from) via a fetch side-module host.
-- **Playable** — nothing external is allowed, so the exporter inlines the
-  modules as base64 into the single HTML file; the boot code
-  (`initPlayableRuntime`) is handed an embedded side-module host instead of a
-  URL.
-- **WeChat** — side modules are packaged as WeChat-precompiled module
-  factories (that's why each feature needs its `*-wechat` runtime build,
-  above).
+### Compressed textures
 
-The editor's own play mode boots through the same shipping runtime
-(`initPlayRealmRuntime`), fetching side modules over the editor origin — so
-play == ship covers these modules too. See
-[App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#side-modules) for the
-runtime API.
+KTX2 textures are transcoded by the runtime to the best format the device supports (ASTC, then ETC2, then S3TC,
+falling back to RGBA8), with their mip chains.
 
-## Browsers without WebAssembly
-
-Turn on **Project Settings → Packaging → Web → Run without WebAssembly** and a
-Web export carries the engine twice: `wasm/esengine.wasm`, and the same engine
-compiled to plain JavaScript as `wasm/esengine.asm.js`. The page picks at boot.
-Where `WebAssembly` exists it loads the wasm engine, and the JavaScript one is
-never downloaded. Where it does not exist (some locked-down WebViews and
-embedded browsers), the page loads `esengine.asm.js`, and the game runs the same
-scenes and scripts. In the manifest the setting is:
-
-```json
-"packaging": { "platforms": { "web": { "engineJs": true } } }
-```
-
-It is off by default. Nobody with WebAssembly downloads the file, but it adds
-about 4 MB to every package, which counts against a host's upload limit. With
-it off, a browser with no WebAssembly shows an error that names the setting.
-Mini-game targets never carry it: every one they support runs WebAssembly, and
-the file alone is larger than WeChat's 4 MB main package.
-
-To try the JavaScript engine in an ordinary browser, export with the setting on
-and add `?engine=js` to the page URL.
-
-What it costs, measured on `hello-world` in headless Chromium:
-
-| | WebAssembly engine | JavaScript engine |
-|---|---|---|
-| Engine file | 2.1 MB (0.67 MB gzip) | 4.3 MB (0.98 MB gzip) |
-| Main-thread time per frame | 9.3 ms | ~11.5 ms |
-
-What it does not have:
-
-- **WebGPU.** The JavaScript engine always renders through WebGL2.
-- **Side modules** (2D and 3D physics, Spine, DragonBones, Basis, video). These are
-  WebAssembly binaries. On a host without WebAssembly each one logs a single
-  error naming the module and stays absent, and the features it provides do not run.
-- **Compiled (`@compiled`) systems.** These are wasm modules too. They stay
-  interpreted, which is the same result as an export without AOT.
-
-## Build config & source maps
-
-- **Development** — an unminified build; pair it with source maps for debuggable
-  output.
-- **Shipping** — minified for size and speed. This is what you release.
-- **Source maps** map the running bundle back to your TypeScript. They're available for
-  Web and Desktop; leave them off for a release build.
-
-## Asset cook options
-
-What the **cook** does to an individual asset is that asset's own business —
-per-asset **Import Settings** in the Inspector, with a tab per platform, so a
-texture can be compressed harder for a phone than for the web. The build only
-picks whether to honor those settings at all:
-
-- **Compression → By import settings** — each texture and audio clip compresses per
-  its Import Settings (PNG → **KTX2** Basis Universal, Max Size, WAV → MP3), and
-  textures that share an atlas pack into atlas pages so many small sprites ship as
-  one texture and batch in one draw call. Membership comes from a `<name>.atlas/`
-  folder, or from an [`atlases` entry](/docs/publishing/hot-update/#esengineasset-groupsjson)
-  in `.esengine/asset-groups.json`.
-- **Compression → Skip all** — ship everything raw, for fast iteration.
-
-KTX2 textures are transcoded by the runtime to the best format each device
-supports (ASTC → ETC2 → S3TC, falling back to RGBA8), with their mip chains —
-smaller downloads and less VRAM.
-
-:::caution[A texture is compressed only if its size is whole 4×4 blocks]
-Every format a KTX2 transcodes to is block-compressed, and WebGPU refuses a
-compressed texture whose width or height is not a multiple of 4 — so a 70×70
-sprite would fail to create on the native runtime, and one failed texture blanks
-the frame. The build ships such a texture **raw** instead and names it in a
-warning:
+<Aside type="caution" title="Block-compressed textures need dimensions that are multiples of 4">
+Every format a KTX2 transcodes to is block-compressed, and WebGPU rejects a compressed texture whose width or height
+is not a multiple of 4. The build ships such a texture uncompressed and names it in a warning:
 
 ```
 assets/textures/platform.png: shipped raw — 70x70 is not a multiple of 4,
 which a block-compressed texture must be
 ```
 
-Resize it (or pad it) to a multiple of 4 to get the compression back. Atlas pages
-are always whole blocks, so packing small odd-sized sprites is the other way out.
-:::
+Resize or pad the texture to a multiple of 4, or pack it into an atlas (atlas pages are always whole blocks).
+</Aside>
 
-**Content addressing** is on by default (Web, Desktop and the mini-game targets; each file named by a hash
-of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN root
-for [hot update](/docs/publishing/hot-update/), source maps, and whether to open the
-output folder when the build finishes.
+### Content addressing and asset packs
 
-**Asset packs** (Web): a browser holds six connections to a site, so a scene of
-thousands of small assets loads at the pace of its requests. The Web export packs
-its small local assets — meshes, materials, KTX2 textures, timelines, animation
-assets — into a few `packs/*.pack` files that load in one request each; the manifest
-says where every asset sits. A scene of 1,500 meshes went from 15 s to 7 s to its
-first frame. An export with [hot update](/docs/publishing/hot-update/) configured
-keeps one file per asset, since an update downloads assets one by one.
+- **Content addressing** is on by default for Web, Desktop and the mini-game targets: each file is named by a hash of
+  its bytes, so URLs are immutable and identical files are stored once.
+- **Asset packs** (Web): the export packs small local assets (meshes, materials, KTX2 textures, timelines, animation
+  assets) into a few `packs/*.pack` files, each loaded in one request; the manifest records where each asset sits.
+  An export with a [hot update](/docs/publishing/hot-update/) CDN root keeps one file per asset, because an update
+  downloads assets individually.
 
-<Aside type="caution" title="Assets only your code names are culled">
-  The cook ships what it can **reach** from the scenes in the build. Anything named
-  only in code — a texture in rich-text markup, a clip played by url, a prefab
-  spawned by path — is culled, and the editor never notices because it serves the
-  project straight off disk. Mark that folder **Delivery → Always include in
-  builds** in the Content Browser. See
-  [Assets](/docs/assets/overview/#shipping-what-only-code-names).
+<Aside type="caution" title="Assets referenced only from code are culled">
+  The cook ships the assets reachable from the scenes in the build. An asset named only in code — a texture in
+  rich-text markup, a clip played by URL, a prefab spawned by path — is culled. The editor reads the project from
+  disk, so the omission is visible only in an exported build. Mark such folders **Delivery → Always include in
+  builds** in the Content Browser ([Assets](/docs/assets/overview/#shipping-what-only-code-names)).
 </Aside>
 
 ## Packaging settings
 
-What one *target* is called, where it goes and what a store knows it by is edited
-on that target's page in **Build → Package Project…**, beside the build it changes:
+Settings specific to one target are edited on that target's page in **Package Project** (a search in the Settings
+dialog links to them):
 
-- **WeChat** — AppID.
-- **Desktop** — application id override, the product name (which names the app),
-  and the distribution channel (Standalone or [Steam](/docs/publishing/steam/)).
-- **Android** — version code (the integer Google Play orders builds by), whether
-  the build ends at an installable package or at the Gradle project, and whether
-  an App Bundle is written beside the APK.
+| Target | Settings |
+|---|---|
+| **Web** | Web channel (Standalone, Poki, CrazyGames, YouTube Playables — see [Web Portals](/docs/publishing/web-portals/)), Run without WebAssembly, Ask to rotate the device when held the wrong way. |
+| **WeChat** | AppID, Compress wasm binaries, Engine in a subpackage, Render through EmscriptenGLX. |
+| **Desktop** | Desktop App ID (override), Product name (names the app), Channel (Standalone or Steam). |
+| **Android** | Android Version Code, Package as (installable package or Android Studio project), Include the emulator (x86_64), Compress native libraries, Google Play App Bundle (.aab), release signing key. |
 
-What holds for the project *whatever* it ships to stays in **Settings → Project → Build and modules → Packaging**, and is saved with the project:
+Project-wide settings are in **Settings → Project → Build and modules → Packaging** and are saved with the project:
 
-- **Application ID** — the reverse-DNS id the installed app is known by: the
-  Android manifest package, the iOS bundle id, the desktop installer id. Empty
-  derives one from the project name; a published app should set its own, because a
-  store keeps it forever.
-- **Icon** — one square PNG for every installable target.
-- **Achievements** — the ids your game unlocks. Platform-neutral: every store
-  keeps this same list under a different name.
+| Setting | Description |
+|---|---|
+| **Application ID** | Reverse-DNS id of the installed app: the Android manifest package, the iOS bundle id, the desktop installer id. Empty derives an id from the project name. Set it before publishing; stores keep it permanently. |
+| **App Icon** | One square PNG used by every installable target. |
+| **Achievement IDs** | The achievement ids the game unlocks. Platform-neutral; used by [Steam](/docs/publishing/steam/#achievements) and other stores. |
+| **Minify scripts** | Minifies game and engine JavaScript in Shipping builds. Default on. |
+| **Compile all systems** | Shipping builds compile every system the compiler accepts to machine code; off compiles only systems marked `@compiled`. Default on. |
+
+{/* SHOT: publish-packaging-settings | Settings dialog, Project category, Build and modules page scrolled to the Packaging section, showing Application ID, App Icon, Achievement IDs, Minify scripts and Compile all systems; any example project */}
 
 ### Screen orientation
 
-Orientation is **one project-wide setting**, not per-target: **Settings → Project → Game → Display → Orientation** (portrait or landscape), right beside the design resolution.
-Every target honors it — the WeChat `game.json` `deviceOrientation`, the web build's
-best-effort `screen.orientation.lock`, the desktop window's aspect, and the native
-app's `app.config.json` (the engine can letterbox but cannot rotate a phone). Left
-unset, it's **derived from the design resolution's aspect** (wider-or-square ⇒
-landscape, taller ⇒ portrait), so a landscape design ships landscape everywhere
-with zero configuration.
+Orientation is one project-wide setting: **Settings → Project → Game → Display → Orientation** (portrait or
+landscape). Unset, it is derived from the design resolution (width ≥ height gives landscape, otherwise portrait).
+Every target applies it:
 
-On the web, a phone held the wrong way shows the game letterboxed by default:
-nothing covers it. A project that wants the page to ask instead turns on
-**Project Settings → Packaging → Web → Ask to rotate the device when held the wrong way**.
-Then, on a touch screen held the wrong way, the canvas is hidden behind a
-"Rotate your device" notice until the player turns the phone; a desktop browser
-always shows the game. In the manifest the setting is:
+| Target | Applied as |
+|---|---|
+| WeChat and mini-games | `deviceOrientation` in `game.json` |
+| Web | A best-effort `screen.orientation.lock` |
+| Desktop | The window's aspect |
+| Android, iOS | `app.config.json` of the native app |
+| Playable | Declared to the network only where the network asks for it; the page is not locked ([Playable Ads](/docs/publishing/playable-ads/#orientation)) |
+
+On the web, a phone held in the other orientation shows the game letterboxed. With **Ask to rotate the device when
+held the wrong way** (Web target settings) on, a touch device held the wrong way hides the canvas behind a "Rotate
+your device" notice until it is turned; desktop browsers always show the game. Manifest form, off by default:
 
 ```json
 "packaging": { "platforms": { "web": { "rotateHint": true } } }
 ```
 
-It is off by default, and an untouched project writes nothing for it.
+## Preview an export
 
-A **playable is the exception, deliberately**: it never pins the page. Inside an ad
-SDK the container's size is the SDK's business, so a rotate-to-fit overlay can hide
-the game for good — the player turns the phone and nothing changes, because the media
-query was reading the container all along. Playables stay responsive (every network
-asks for that), and the orientation is only *declared* to the platform where one wants
-it, e.g. Google's `ad.orientation` meta tag. Design for both aspects, or letterbox
-with [a camera fit](/docs/core-concepts/screen/) so the framing survives either one.
+After a **Web** or **Playable** build, **Preview over http** serves the output folder on a loopback server
+(`http://127.0.0.1:<port>/`) and opens it in the browser.
 
-See [The Editor](/docs/editor/overview/) for the settings UI.
+<Aside type="caution">
+  A web build requires an **http origin**. Opening `index.html` from disk (`file://`) cannot stream the WebAssembly.
+  Use the preview button or a static host.
+</Aside>
 
-## Package size
+## Runtime prerequisites
 
-A finished export is weighed, and the result appears under the build log: what the
-package costs a player, what it's made of, and which files are the largest.
-
-Three figures, because where the bytes sit matters more than how many there are:
-
-- **Initial** — what a player downloads before the game is playable: the host page,
-  the engine runtime, your scripts, and the assets in `local` groups.
-- **On demand** — subpackages, fetched when the game asks for that group.
-- **CDN (not packaged)** — assets in `remote` groups. Real bytes, but they live on
-  your CDN and cost the package nothing. See [Hot Update](/docs/publishing/hot-update/).
-
-That split is read from the same manifest the runtime loads, so what the report says
-and what the game does cannot disagree. Moving a level behind a subpackage genuinely
-removes it from the main package, and the report shows it the moment you do.
-
-### What the engine costs
-
-A package carries the engine subsystems its project uses, and not the others. What
-counts as "uses" is evidence the export already has: a component in a scene or prefab,
-an asset extension (`.esgraph`, `.esfsm`, `.esbt`), the wasm a side-module scan finds,
-and any `esengine/*` your own scripts import.
-
-So a game with no tilemap ships no tilemap parser, and one that never opens a session
-ships no replication protocol. If you reach a subsystem from code that the content does
-not mention — building a tilemap by hand, opening a socket — import its subpath and the
-export follows you:
-
-```ts
-import { Tilemap } from 'esengine/tilemap';
-```
-
-One subsystem has no subpath yet: a project using **Video** takes the whole engine, with
-every optional subsystem in it. Nothing else changes — the API is identical either way.
-
-The same goes for the engine binary on the WeChat-runtime mini-game targets (WeChat, Douyin, Kuaishou, Bilibili). When no scene or prefab has a particle emitter, a post-process volume or a
-tilemap, and no script mentions them, the package carries the **lite engine**: the same engine without those three subsystems, about
-200 KB smaller against the 4 MB main package. A single mention in a script (`ParticleEmitter`, `PostProcess…`, `Tilemap…`) is enough to carry
-the full one, as is naming `esengine/tilemap` as **Include** in Project Settings; a doubt always ships everything.
-
-### Limits
-
-Where a platform publishes a limit, the build is judged against it and the meter says
-which one and where the number came from — quoted, so you can check it against that
-platform's current docs rather than trusting us:
-
-| Target | Limit |
-| --- | --- |
-| WeChat MiniGame | 4MB main package, and 30MB across the main package and all subpackages |
-| Playable ad | whatever the chosen network accepts — Meta 5MB, Google 5MB for a ZIP, etc. |
-| Web / Desktop / Android / iOS | none published; set your own below |
-
-A build over a limit is reported, not blocked — it built and it runs, and whether
-that's release-blocking is your call (see [the gate](#gating-a-build-on-size) below).
-Past 90% of a limit the meter turns amber, because the pass after that is the one
-that breaks it.
-
-### Your own budget
-
-**Package Project → Advanced → Size budget** sets a ceiling in MB for the selected
-target, saved per platform in `packaging.sizeBudget`. Two reasons to use it: you ship
-well under WeChat's 4MB and want to hear about it before it creeps up, or you target a
-host whose cap the editor doesn't know.
-
-It **replaces the target's primary limit** — WeChat's 4MB main-package figure becomes
-yours — and is attributed to your project rather than quoted as a platform rule. It's
-not a waiver: WeChat's 30MB total still applies. Clear the field to go back to the
-platform's own limit.
-
-### Gating a build on size
-
-The headless exporter carries the same report on its result and can fail on it:
+| Target | Runtime | Setup |
+|---|---|---|
+| Web, Playable | The engine runtime shipped with the editor. A playable inlines it (glue as a blob module, wasm as base64). | None. |
+| WeChat and WeChat-runtime mini-games | A separate runtime, because the WebAssembly loader differs, plus WeChat side modules. Shipped with the editor download. | None in an installed editor. In a source checkout, build it once (below). |
+| Desktop, Android, iOS | A **runtime template** per editor version. Until it is installed, the target's row in Package Project offers **Download** and **Install from file…**. | iOS also needs macOS with Xcode. A project with `@compiled` systems needs a C compiler (clang or gcc) for Desktop and the Android NDK for Android. |
 
 ```bash
-node pipeline/bin/estella.mjs export ./my-game \
-  --platform wechat --json report.json --enforce-budget
+# source checkout only, before the first WeChat export
+node build-tools/cli.js build -t wechat
 ```
 
-With `--enforce-budget`, a package over any limit in force exits non-zero and names
-the limit on stderr. Without it, the same facts are reported and the build passes.
-The report is `result.size` in the JSON — the same verdicts the dialog draws, so CI
-and the editor never disagree about whether a build fits.
+The dialog distinguishes two kinds of missing prerequisite:
 
-## The build CLI (advanced)
+- A missing **engine runtime** (Web, Playable, WeChat) blocks the export. A WeChat export stops and names the build
+  command to run. WeChat also needs a side module per engine feature the game uses (`physics-wechat`,
+  `spine-wechat`, `dragonbones-wechat`, `basis-wechat`, `videodec-wechat`) — see [WeChat MiniGame](/docs/publishing/wechat/).
+- A missing **native toolchain** (iOS) does not block the export. The content is written; only the final assembly
+  into an installable app needs the toolchain, and that step can run on another machine.
 
-The editor packages your **game**. The `build-tools/cli.js` command builds the
-**engine and SDK** themselves — you only need it to produce the WeChat runtime above,
-or when working on the engine. Common commands:
+<Aside type="caution" title="Native targets need a runtime template">
+  The Desktop, Android and iOS runtime templates are not part of the editor download. Install each template once per
+  editor version from the target's row in Package Project; it must match the editor version exactly. Android needs no
+  engine checkout, SDK or JDK. iOS also needs macOS with Xcode. See
+  [Android & iOS](/docs/publishing/android-ios/#prerequisites) and [Steam](/docs/publishing/steam/).
+</Aside>
+
+## Side modules
+
+Optional engine features ship as WebAssembly **side modules** — an emscripten `<file>.js` glue plus `<file>.wasm` —
+loaded on demand:
+
+| Module | Artifacts | Loaded when |
+|---|---|---|
+| Physics (Box2D) | `physics.js` / `physics.wasm` | The project declares physics or a scene uses 2D physics components. |
+| 3D physics (Jolt) | `physics3d.js` / `physics3d.wasm` | A scene uses `RigidBody3D`. Loaded in addition to the 2D module. |
+| 3D physics (PhysX) | `physics3d-physx.js` / `physics3d-physx.wasm` | As above, in a project whose 3D solver is PhysX. A package carries one of the two 3D modules. |
+| Spine | `spine21`, `spine38`, `spine41`, `spine42`, `spine43` (`.js` / `.wasm`) | A scene uses a Spine skeleton of that format version. |
+| DragonBones | `dragonbones.js` / `dragonbones.wasm` | A scene uses a DragonBones armature. One module reads every version. |
+| Basis transcoder | `basis.js` / `basis.wasm` | The build ships KTX2 textures. |
+| Video decoder | `videodec.js` / `videodec.wasm` | The wasm video path decodes a clip. |
+
+| Target | How side modules are delivered |
+|---|---|
+| Web, Desktop | Loose files next to `esengine.wasm`, fetched from `wasmBaseUrl` (the directory the engine was loaded from). |
+| Playable | Inlined as base64 in the HTML; `initPlayableRuntime` receives an embedded side-module host. |
+| WeChat | WeChat-precompiled module factories, hence one `*-wechat` runtime build per feature. |
+| Android, iOS, desktop apps | Compiled into the app binary. |
+
+The editor's Play mode boots through the same runtime (`initPlayRealmRuntime`) and fetches side modules from the
+editor origin. See [App Setup & Lifecycle](/docs/core-concepts/app/overview/#side-modules) for the runtime API.
+
+## Content a target cannot render
+
+If a target does not compile a subsystem the project uses, the export reports the subsystem (tilemaps, particles,
+post-processing, physics, Spine, video, text) and the scenes or files that use it, instead of writing a package that
+omits it. No current target has such a gap: the native apps compile the whole engine source list, including the
+modules that are separate side modules on the web.
+
+## Browsers without WebAssembly
+
+**Run without WebAssembly** (Web target settings) adds the engine compiled to plain JavaScript,
+`wasm/esengine.asm.js`, beside `wasm/esengine.wasm`. The page selects at boot: where `WebAssembly` exists it loads
+the wasm engine and never downloads the JavaScript one; where it does not (some locked-down WebViews and embedded
+browsers), it loads `esengine.asm.js` and runs the same scenes and scripts. Manifest form:
+
+```json
+"packaging": { "platforms": { "web": { "engineJs": true } } }
+```
+
+The setting is off by default. It adds about 4 MB to the package, which counts against host upload limits. With it
+off, a browser without WebAssembly shows an error naming the setting. Mini-game targets never include the file. To
+test the JavaScript engine in a normal browser, export with the setting on and append `?engine=js` to the URL.
+
+| `hello-world` example, headless Chromium | WebAssembly engine | JavaScript engine |
+|---|---|---|
+| Engine file | 2.1 MB (0.67 MB gzip) | 4.3 MB (0.98 MB gzip) |
+| Main-thread time per frame | 9.3 ms | ~11.5 ms |
+
+Not available with the JavaScript engine:
+
+- **WebGPU** — it always renders through WebGL2.
+- **Side modules** (2D and 3D physics, Spine, DragonBones, Basis, video) — each logs one error naming the module and
+  its features do not run.
+- **Compiled (`@compiled`) systems** — they run interpreted, as in an export without AOT.
+
+## Build CLI
+
+The editor packages the game. `build-tools/cli.js` builds the **engine and SDK**; it is needed for the WeChat runtime
+in a source checkout, for engine development, and to assemble native apps:
 
 ```bash
 node build-tools/cli.js build -t web        # build the engine (web target)
-node build-tools/cli.js build -t wechat     # …the WeChat runtime
+node build-tools/cli.js build -t wechat     # the WeChat runtime
 node build-tools/cli.js sdk                 # build the SDK only
-node build-tools/cli.js watch               # rebuild on change (engine dev)
-node build-tools/cli.js native --target ios # …the native mobile host
+node build-tools/cli.js watch               # rebuild on change (engine development)
+node build-tools/cli.js native --target ios # the native mobile host
 ```
 
-<Aside type="note">
-  Most game developers never run the build CLI beyond the one-time WeChat
-  runtime build — day-to-day work happens in the editor and the SDK. The
-  exception is [mobile](/docs/publishing/android-ios/), where the CLI is also what
-  assembles the app around an export.
-</Aside>
+A project is packaged without the editor by `pipeline/bin/estella.mjs export <projectDir>`; `--help` lists its options
+(`--platform`, `--profile`, `--out`, `--json`, `--enforce-budget` and others). See
+[Package Size](/docs/publishing/package-size/#gating-a-build-on-size) for a CI example.
 
 ## See also
 
-- [Android & iOS](/docs/publishing/android-ios/) — the native app: prerequisites, assembling it, and what only bites on a device.
-- [WeChat MiniGame](/docs/publishing/wechat/) — subpackage layout and platform-specific quirks.
-- [Assets](/docs/assets/overview/) — how the cook step bundles and content-addresses assets.
-- [Profiling & Diagnostics](/docs/performance/profiling/) — check frame time and draw calls before you ship.
+- [Package Size](/docs/publishing/package-size/) — the size report, platform limits and budgets.
+- [Android & iOS](/docs/publishing/android-ios/) — native app prerequisites, assembly and device diagnostics.
+- [WeChat MiniGame](/docs/publishing/wechat/) — subpackages and WeChat-specific options.
+- [Assets](/docs/assets/overview/) — cooking, delivery groups and content addressing.
+- [Profiling & Diagnostics](/docs/performance/profiling/overview/) — frame time and draw calls before release.

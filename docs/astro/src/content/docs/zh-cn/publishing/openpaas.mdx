@@ -1,0 +1,107 @@
+---
+title: SUD OpenPaaS
+description: 面向 2D 和 3D 游戏的可选 SUD OpenPaaS 项目平台——启用预设、兼容运行时、导出、在 PinK 中导入第三方产物、用 package-openpaas 生成签名 .sp 包、无头约定检查及当前限制。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 为 2D 和 3D 游戏提供一个可选的 **OpenPaaS** 预设，以[项目平台](/docs/zh-cn/publishing/minigame-platforms/#项目平台)形式提供。它使用共享的烘焙、SDK 和渲染器。
+
+<Aside type="caution">
+  **开发集成；设备验收待完成。** 无头约定宿主可以渲染导出的 2D 和 3D 包，但不复现 SUD 的原生渲染器、音频或 iOS WASM 实现。需在 Android 和 iOS 设备上验证：输入、挂起/恢复、旋转、音频、资源加载，以及项目使用的物理、动画或 AOT 模块。官方 WASM 文档说明 iOS 不支持导入的 Table/Global 对象；接受缺少 `module` 的实例并不能解除这些限制。
+</Aside>
+
+## 启用预设
+
+将 `pipeline/platforms/openpaas.mjs` 复制到项目中，保存为 `.esengine/platforms/openpaas.mjs`。不需要自定义编辑器布局。在编辑器中，通过常规的项目代码信任提示批准该平台配置。
+
+## 运行时
+
+| 方面 | 行为 |
+|---|---|
+| 引擎构建 | CommonJS 兼容运行时（`build -t quickgame`），JS 边界不使用 WASM SIMD 或 BigInt i64。 |
+| 平台服务 | `sud` 画布、输入、生命周期和音频。XHR、原生 WebSocket 和 localStorage 桥接到相同的平台接口。 |
+| WASM 加载 | `WebAssembly.instantiateFromFile`，包内相对路径会规范化。加载器按 iOS 文档的说明接受没有已编译 `module` 的实例。 |
+| 图形 | WebGL2。未启用 WebGPU 和 EmscriptenGLX。 |
+| 未启用 | 登录、广告、支付、平台分包拆分、Brotli WASM 加载。资产放在主目录中。 |
+| 可选模块 | 物理、Spine 等可选 WASM 模块需要在所选 `wasmDir` 中有对应产物；内容需要而缺失时导出失败。这些模块未在 OpenPaaS 上认证。 |
+| 流式世界 | 受现有小游戏限制约束。 |
+
+## 导出
+
+在 Estella 源码检出中构建兼容运行时并导出：
+
+```sh
+node build-tools/cli.js build -t quickgame --no-sync
+node pipeline/bin/estella.mjs export <project> --platform openpaas --out output/my-sud-game
+```
+
+## 导入 PinK
+
+在 **PinK → Project → Third-party generated** 中，选择包含 `main.js`、`game-bundle.js` 和 `wasm/` 的导出目录。选择平台游戏 ID，设置与项目一致的方向和版本，然后构建并上传。在 OpenPaaS 中打开开发版本，用 **Hello PinK** 扫描其包二维码。平台为其他引擎提供的指南使用相同的第三方目录流程，其引擎专属转换器在此不需要。
+
+官方 [web2sp 1.0.0 归档](https://download.sudden.ltd/assets/openpaas/guide/attachment/web2sp-1.0.0.tgz) 复制 Web 目录，生成 `main.js` 和适配器，并在没有 `manifest.json` 时创建一个空文件；其中不包含二进制 `.sp` 打包器。Estella 直接生成自己的运行时入口和初始清单。上传、审核和发布由开发者完成。
+
+## 生成 `.sp` 包
+
+PinK 0.0.1.39 附带可独立调用的 `sud-package-sign-tool`。在已安装或解压的 PinK 包中，其位置为：
+
+| 操作系统 | 相对 `resources/app/extensions/sud-pink-debug/` 的路径 |
+|---|---|
+| Windows | `tools/package-sign/win/sud-package-sign-tool.exe` |
+| macOS | `tools/package-sign/mac/sud-package-sign-tool` |
+
+Estella 不再分发该可执行文件；需配置其本地路径。不会启动 PinK 界面。
+
+签名和加密密钥应放在导出目录之外。Ed25519 私钥可为 raw、hex、base64 或 PKCS8 编码；AES-128 密钥文件必须包含 32 个十六进制字符。配置文件中的路径相对于配置文件解析：
+
+```json
+{
+  "mode": "development",
+  "toolPath": "<PinK>/resources/app/extensions/sud-pink-debug/tools/package-sign/win/sud-package-sign-tool.exe",
+  "gameId": "estella-local-test",
+  "version": "0.1.0",
+  "privateKeyPath": "development-private.pem",
+  "encryptionKeyPath": "development-encryption.hex",
+  "orientation": "landscape"
+}
+```
+
+```sh
+node pipeline/bin/estella.mjs package-openpaas output/my-sud-game --config <local.json> --out output/my-sud-game.sp
+```
+
+该命令在临时暂存目录中准备清单，调用官方工具完成 Deflate 压缩、AES-128-CTR 加密和 Ed25519 签名，并校验包中的每个文件。只有通过校验的结果才会替换输出；源导出不会被修改。输出文件和密钥文件必须位于输入目录之外。
+
+| 模式 | 用途 |
+|---|---|
+| `development` | 独立的测试密钥。不构成已授权的 OpenPaaS 游戏，也不证明 Hello PinK 会接受该包。 |
+| `platform` | 已存在的平台游戏：需要已登记的 `publicKeyHash`、`contextFile`、`contextSignatureFile` 和 `contextPublicKeyPath`。打包前会校验上下文签名和公钥哈希。 |
+
+## 无头检查
+
+本地约定检查无需编辑器：
+
+```sh
+node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-runtime
+```
+
+使用实际示例检查完整打包链路：
+
+```sh
+node tools/tests/openpaas-runtime.e2e.mjs --packer <official-tool-path> --project-2d examples/sprite-rendering --project-3d examples/device-quality --out output/openpaas-package-check
+```
+
+该检查生成临时测试密钥，导出两个示例，创建加密并签名的 `.sp` 文件，校验并解密每个文件，比对载荷哈希，然后在无头约定宿主中渲染还原出的游戏。临时密钥在完成后删除。检查会写出 2D 和 3D 帧以及一份将设备验收标记为待完成的报告。
+
+## 设备日志
+
+Android 上的 Hello PinK 提供 vConsole。SUD 指南给出的设备日志位于 `/storage/emulated/0/Android/data/global.sud.hellopink/files/SUD/SUDLogs/SUDGI/`；指南说明 iOS 上没有 vConsole。
+
+PinK 构建成功、上传、审核和设备验收需与 Estella 导出成功分开记录。
+
+## 参考资料
+
+- [引擎适配](https://developer.sud.tech/openpaas/minigame/guide/game-engine/engine-adaptation.html)
+- [适配器](https://developer.sud.tech/openpaas/minigame/guide/runtime/adapter.html)
+- [WASM API](https://developer.sud.tech/openpaas/minigame/client-api/web-assembly-apis/webAssemblyApis.html)

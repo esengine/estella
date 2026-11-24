@@ -1,65 +1,59 @@
 ---
 title: Steam
-description: Ship an Estella game on Steam — the native desktop build, the depot scripts the export writes, achievements, cloud saves, and the settings only the partner backend holds.
+description: The Steam channel of the Desktop target — the native desktop runtime, Steamworks prerequisites, channel settings, the depot scripts and STEAM.md the export writes, uploading with steamcmd, achievements, cloud save paths and unsupported features.
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-Steam is a **channel on the desktop target**, not a platform of its own. It defines
-no runtime, no renderer and no asset format — it defines where a desktop build
-goes. So there is no "Steam build": there is a desktop build, and a switch that
-also writes what SteamPipe needs.
+Steam is a **channel of the Desktop target**. It adds no runtime, renderer or asset format: a Steam build is a desktop
+build plus the files SteamPipe needs.
 
-The desktop build is a **native app** — the engine's C++ core with an embedded
-[Dawn](https://dawn.googlesource.com/dawn) (Metal on macOS, D3D12 on Windows,
-Vulkan on Linux) and a JS engine — [V8](https://v8.dev/), with its JIT, on Windows;
-[QuickJS-ng](https://github.com/quickjs-ng/quickjs) on macOS and Linux — on SDL3. There is no browser
-in the process, which is also why the Steam overlay, Steam Input and exclusive
-fullscreen behave the way players expect them to.
+The desktop build is a native app: the engine's C++ core with an embedded [Dawn](https://dawn.googlesource.com/dawn)
+(Metal on macOS, D3D12 on Windows, Vulkan on Linux) on SDL3, and a JavaScript engine — [V8](https://v8.dev/) with JIT
+on Windows, [QuickJS-ng](https://github.com/quickjs-ng/quickjs) on macOS and Linux. The process contains no browser, so
+the Steam overlay, Steam Input and exclusive fullscreen work as for any native game.
 
-<Aside type="note" title="One download per editor version">
-  The engine's compiled half is a **runtime template** you install once per editor
-  version (Package Project → the Desktop row). One per OS: install the Windows
-  template on a Mac and the same export produces the Windows build too — the
-  assembler is plain Node and does not care which OS runs it.
+<Aside type="note" title="Runtime template">
+  The desktop runtime is a **runtime template** installed once per editor version from the Desktop row of Package
+  Project, one per OS. The assembler is plain Node, so a Windows template installed on a Mac produces the Windows build
+  from the same export.
 </Aside>
 
-## What you need
+## Prerequisites
 
 <Steps>
 
-1. **A Steamworks app.** An App ID from the partner backend — depots, launch
-   options and achievements live there and no build can write to them.
+1. **A Steamworks app.** An App ID from the Steamworks partner backend. Depots, launch options and achievements are
+   configured there; no build writes to them.
 
-2. **The Steamworks SDK**, downloaded from the partner site. Estella ships no copy
-   of it: its redistribution is licensed to Steamworks partners, and the runtime
-   template is one prebuilt binary shared by every game made with the engine.
+2. **The Steamworks SDK**, downloaded from the partner site. Estella does not ship it: its redistribution is licensed
+   to Steamworks partners, and the runtime template is one prebuilt binary shared by every game.
 
-3. **`steamcmd`**, Valve's uploader. Log in with it once in a terminal so Steam
-   Guard is satisfied and cached — nothing in Estella stores a password.
+3. **`steamcmd`**, Valve's uploader. Log in once in a terminal so Steam Guard is satisfied and cached; Estella stores
+   no password.
 
 </Steps>
 
-## Setting it up
+## Channel settings
 
-Open **Build → Package Project…** and pick **Steam**, listed under Desktop in the target
-list — Steam is a destination for the desktop build, so it branches that target
-rather than standing beside it. Everything the channel needs is on that page.
+In **Build → Package Project…**, select **Steam** under Desktop in the target list. Selecting it sets the Desktop
+target's **Channel** to Steam.
 
 ![The Package Project dialog on Desktop → Steam: the Channel row set to Steam, and the Steam group with App ID, Steamworks SDK and the per-OS depot ids](@/assets/guides/en/steam-channel.png)
 
-| Setting | What it is |
+| Setting | Description |
 |---|---|
-| **Channel** | `Steam` — writes the depot scripts beside the build. Picking Steam in the target list sets this; they are the same value. |
-| **Steam App ID** | From the partner backend. Without it no scripts are written: a script built around a guessed id names someone else's game. |
-| **Steamworks SDK** | The SDK you downloaded. Its `redistributable_bin/<os>/` library ships inside the app. |
-| **Depot IDs** | Leave at 0 to use `App ID + 1`, … Valve *assigns* these; the generated checklist tells you to check them. |
+| **Channel** | `Steam` writes the depot scripts beside the build. Same value as selecting Steam in the target list. |
+| **Steam App ID** | From the partner backend. Without it no scripts are written. |
+| **Steamworks SDK** | The downloaded SDK. Its `redistributable_bin/<os>/` library ships inside the app. |
+| **Depot IDs** | 0 uses `App ID + 1`, and so on. Valve assigns depot ids; `STEAM.md` lists the ones used for verification. |
 
-The **achievement ids** are not here: they live in **Settings → Project → Build and modules → Packaging**, because every store keeps that same list under a different name.
-Declaring them is what lets an unlock of an id no backend has be refused where it
-happens, instead of being accepted and silently dropped.
+Achievement ids are a project-wide setting: **Settings → Project → Build and modules → Packaging → Achievement IDs**
+([Achievements](#achievements)).
 
-Then press **Package**. Beside the app you get:
+The CLI equivalents are `--steam-sdk <dir>` and `--steam-appid <id>` on `pipeline/bin/estella.mjs export --platform desktop`.
+
+## Output
 
 ```
 dist-desktop/
@@ -72,10 +66,14 @@ dist-desktop/
   STEAM.md               ← this build's own values
 ```
 
-`STEAM.md` is the part worth reading. Generic instructions belong in docs like this
-one; what cannot be looked up is what **this** build needs pasted where — the launch
-executable per OS, the depot ids it used, the Auto-Cloud paths the game really
-writes to, and the achievement ids to create.
+`STEAM.md` lists the values to enter in the partner backend for this build: the launch executable per OS, the depot
+ids used, the Auto-Cloud paths the game writes to, and the achievement ids to create. **Open STEAM.md** in the build
+result opens it.
+
+<Aside type="caution" title="steam_appid.txt is never written">
+  `steam_appid.txt` lets a build run outside Steam, and shipping it in a depot disables Steam's launch check. The
+  export never writes it.
+</Aside>
 
 ## Uploading
 
@@ -83,21 +81,12 @@ writes to, and the achievement ids to create.
 steamcmd +login <your-account> +run_app_build "…/steam/app_build_<appid>.vdf" +quit
 ```
 
-The script is written with `Preview "1"`, so **the first run uploads nothing** — it
-reports what it would do. Remove it to upload for real. `SetLive` is deliberately
-empty: publishing to a branch is a separate decision, made in the backend, and it
-is the one that cannot be undone by uploading again.
-
-<Aside type="caution" title="steam_appid.txt is never written">
-  That file lets a build run outside Steam, and shipping it in a depot disables the
-  check that the game was launched by Steam at all. The export never writes one —
-  it is absent by construction, not by an exclusion rule someone has to maintain.
-</Aside>
+The generated build script contains `Preview "1"`, so the first run uploads nothing and reports what it would do.
+Remove the line to upload. `SetLive` is empty: setting a branch live is done in the partner backend.
 
 ## Achievements
 
-`Achievements` is an engine service like `Ads` and `Leaderboard`, so the game's code
-is the same with or without a store:
+`Achievements` is an engine service, like `Ads` and `Leaderboard`, so game code is the same with or without a store:
 
 ```ts
 import { Achievements } from 'esengine';
@@ -108,25 +97,18 @@ await achievements.unlock('FIRST_BLOOD');
 await achievements.store();      // pushes to Steam; stores batch behind this
 ```
 
-It always works. With no store behind it the unlock is recorded locally — the same
-data your own achievements screen reads — and `available` tells you whether a store
-will *also* hear about it, which is what a UI reads to decide between the platform's
-toast and drawing its own.
+Unlocks are always recorded locally, in the same data an in-game achievements screen reads. `available` reports
+whether a store also receives them, which a UI uses to choose between the platform's notification and its own.
 
-Two ways an achievement silently does nothing, and what the engine does about each:
-
-- **An id the backend does not have.** Steam accepts it and does nothing; a player
-  finds out months later. So ids are declared once in Project Settings, and an
-  unlock outside that set is refused where it happens, listing what *is* declared.
-- **A build with no Steam library.** Point the SDK setting at your download; if it
-  is missing, the export warns and `STEAM.md` says so at the top.
+| Failure mode | Handling |
+|---|---|
+| An id the backend does not define | Ids are declared in **Achievement IDs**; an unlock outside that list is refused at the call, with the declared ids listed. |
+| A build without the Steam library | The export warns when the SDK setting is missing, and `STEAM.md` states it at the top. |
 
 ## Cloud saves
 
-`Storage` writes where the OS says it should, which is a path Steam Auto-Cloud can
-sync with no code in the game. Under **Steam Cloud → Auto-Cloud**, use the roots
-`STEAM.md` prints — they are read off what the app actually does, not from a table
-in a document:
+`Storage` writes to the OS's standard per-user location, which Steam Auto-Cloud can sync without code. Under
+**Steam Cloud → Auto-Cloud** in the partner backend, use the roots listed in `STEAM.md`:
 
 | OS | Root | Subdirectory |
 |---|---|---|
@@ -134,13 +116,13 @@ in a document:
 | macOS | `MacHome` | `Library/Application Support/Estella/<Name>` |
 | Linux | `LinuxHome` | `.local/share/Estella/<Name>` |
 
-## Honest boundaries
+## Limitations
 
-- **macOS builds are signed ad-hoc**, and only on a Mac. Notarize with your own
-  Developer ID before a public release.
-- **`steamcmd` is not driven from the editor.** The checklist gives you the exact
-  command instead; a feature that cannot be verified here is worse than a line you
-  can copy.
-- Workshop, DLC, microtransactions and Steam Input action sets are not covered.
-  They all hang off the same flat API and the same service surface, but each is its
-  own feature rather than something "Steam support" drags in.
+- **macOS builds are signed ad-hoc**, and only when built on a Mac. Notarize with a Developer ID before public
+  release.
+- **`steamcmd` is not run by the editor.** `STEAM.md` gives the exact command.
+- **Not covered:** Workshop, DLC, microtransactions and Steam Input action sets.
+
+## See also
+
+- [Building & Exporting](/docs/publishing/overview/) — the Desktop target and packaging settings.

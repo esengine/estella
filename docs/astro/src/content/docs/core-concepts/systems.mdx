@@ -1,13 +1,12 @@
 ---
 title: Systems
-description: Declaring systems with defineSystem, Query, Res, and Mut.
+description: Declaring systems with defineSystem — system parameters, schedules and phases, ordering edges, system sets, run conditions, query filters and change detection, declared access, ambiguity detection, and events.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A **system** is a function that runs each frame. You declare what it needs — a
-query over components, plus resources and events — and Estella calls it with
-exactly those, in the schedule.
+A **system** is a function the schedule runs every frame. Its parameter list declares the data it receives — queries
+over components, resources, commands and events — and the system is called with exactly those values.
 
 ```typescript
 import {
@@ -27,115 +26,141 @@ addSystem(defineSystem(
 ));
 ```
 
+`defineSystem(params, fn, options?)` returns a `SystemDef`. The callback receives one argument per parameter, in the
+same order.
+
 ## Parameters
 
-A system's first argument is its **parameter list** — the data it will receive,
-in order:
-
-- **`Query(...)`** — iterate every entity that has all listed components. Each
-  iteration yields `[entity, ...components]`.
-- **`Mut(Component)`** — a component the system writes. Unwrapped components are
-  read-only.
-- **`Res(Resource)`** / **`ResMut(Resource)`** — a shared resource, read-only or
-  writable (such as `Time` for frame timing). `Res` gives you the resource
-  itself; `ResMut` gives you a handle around it — `.get()` / `.set(v)` /
-  `.modify(fn)`.
-- **`Commands()`** — deferred structural changes (spawn / despawn / add / remove),
-  applied **when the declaring system returns** — the same frame, so a system
-  running later that frame already sees them.
-- **`EventReader(E)`** / **`EventWriter(E)`** — read or send a typed event stream.
+| Parameter | Callback receives |
+|---|---|
+| `Query(...)` | An iterable over every entity that has all listed components. Each item is `[entity, ...components]`. |
+| `Mut(Component)` | Inside a query: a component the system writes. Unwrapped components are read-only. |
+| `Res(Resource)` | The resource value itself, for reading (for example `Time`). |
+| `ResMut(Resource)` | A handle around the resource: `.get()`, `.set(v)`, `.modify(fn)`. |
+| `Commands()` | Deferred structural changes (spawn, despawn, insert, remove). They are applied when the declaring system returns, so systems that run later in the same frame see them. |
+| `EventReader(E)` / `EventWriter(E)` | A typed event stream to read or send ([Events](#events)). |
+| `GetWorld()` | The `World` itself ([Declared access](#declared-access)). |
+| `Removed(C)` | The entities that lost component `C` ([Filters](#filters-and-change-detection)). |
 
 <Aside type="caution">
-  Only wrap a component in `Mut` when you actually write it. Read-only queries
-  let the engine skip needless change-detection, and the parameter list is also
-  what the schedule reads to tell whether two systems can be reordered — see
-  [What a system touches](#what-a-system-touches).
+  Wrap a component in `Mut` only when the system writes it. Read-only access skips change-detection work, and the
+  parameter list is what the scheduler reads to decide whether two systems conflict
+  ([Declared access](#declared-access)).
 </Aside>
 
-## Running order
+## Options
 
-Systems live in a **schedule** of ordered phases. Register into the default
-`Update` phase with `addSystem`, into `Startup` (runs once) with `addStartupSystem`,
-or into any phase with `addSystemToSchedule(Schedule.X, system)`:
+| Option | Type | Description |
+|---|---|---|
+| `name` | `string` | Name referenced by ordering edges and shown in timings. |
+| `runBefore` | `string[]` | The system runs before each named system or set. |
+| `runAfter` | `string[]` | The system runs after each named system or set. |
+| `runWhenPaused` | `boolean` | Runs in `First`, `PreUpdate`, `Update` and `PostUpdate` while the app is paused. `Last` always runs; fixed steps stay stopped. |
+| `touches` | `SystemTouches \| () => SystemTouches` | Components reached through `GetWorld()` ([Declared access](#declared-access)). |
+
+## Schedules
+
+Systems are registered into a **schedule** of ordered phases:
 
 | Phase | When it runs |
 |---|---|
 | `Startup` | Once, before the first frame. |
 | `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | Every frame, in this order. |
-| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | On the fixed timestep (physics / replication cadence) — 0..n times per frame. |
+| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | On the fixed timestep, zero or more times per frame. |
 
-Within a phase, systems run in **registration order** — a straight-line flow needs
-no annotations at all. Beyond that, reach for the coarsest lever that expresses
-what you mean.
+| Function | Registers into |
+|---|---|
+| `addSystem(system)` | `Update` |
+| `addStartupSystem(system)` | `Startup` |
+| `addSystemToSchedule(Schedule.X, system)` | Any phase |
 
-### Phases first
+These top-level functions queue registrations at module scope; the `App` methods of the same names register on a
+specific app ([App API](/docs/core-concepts/app/app-api/#systems-and-events)). Within one frame the phases run as
+listed in [The frame loop](/docs/core-concepts/app/app-api/#the-frame-loop).
 
-Most "run this after that" is really "this belongs in the next phase". Order
-across phases is fixed, so it costs no edges: read input in `PreUpdate`, move in
-`Update`, follow with the camera in `PostUpdate`.
+Systems registered by a scene run only while that scene is active, so several scenes can share one world.
+
+## Ordering
+
+Within a phase, systems run in **registration order**. Phase order is fixed: input read in `PreUpdate`, movement in
+`Update` and camera follow in `PostUpdate` need no further ordering.
 
 ### Ordering edges
 
-Where one system genuinely depends on another inside the same phase, say so.
-Edges reference system **names**, so name the systems you want to order. Ordering
-declared on `defineSystem` travels with the definition — which is how the
-top-level `addSystem`, which takes no options of its own, gets ordered:
+`runBefore` and `runAfter` order a system relative to other systems in the same phase. Edges reference system
+**names**. Edges declared on `defineSystem` travel with the definition, which is how a system registered with the
+top-level `addSystem` (which takes no options) is ordered:
 
 ```typescript
 const move = defineSystem([...], moveFn, { name: 'move' });
 const camera = defineSystem([...], cameraFn, {
   name: 'camera',
-  runAfter: ['move'],          // camera follows movement
+  runAfter: ['move'],
 });
 
 addSystem(move);
 addSystem(camera);
 ```
 
-Registering on the **`App`** takes the same edges plus `runIf`, and **adds** to
-whatever the definition declared rather than replacing it:
+`app.addSystemToSchedule(schedule, system, options)` accepts the same edges plus `runIf` and `activeWhen`. Edges given
+at registration are **added** to those declared on the definition:
 
 ```typescript
 import { Schedule } from 'esengine';
 
 app.addSystemToSchedule(Schedule.Update, camera, {
-  runAfter: ['input'],         // on top of the 'move' edge above
-  runIf: () => isPlaying,      // skip this system when the condition is false
+  runAfter: ['input'],         // in addition to the 'move' edge
+  runIf: () => isPlaying,      // the system is skipped while this returns false
 });
 ```
 
-An edge naming a system that isn't in that phase is ignored, and if the edges ever
-form a loop the scheduler throws with the offending path —
-`Circular system dependency: move → camera → move`.
+| Registration option | Description |
+|---|---|
+| `runBefore` / `runAfter` | Additional ordering edges. |
+| `runIf` | Run condition checked every frame; `false` skips the system. |
+| `activeWhen` | Components the system's work depends on. While no entity has any of them the system is skipped; it runs for one more frame after the last one is removed. |
+
+An edge naming a system that is not in the phase is ignored. Edges that form a cycle make the scheduler throw with
+the offending path, for example `Circular system dependency: move → camera → move`.
+
+<Aside type="note">
+  The top-level `addSystem` / `addSystemToSchedule` take no options; `name`, `runBefore` and `runAfter` are declared
+  on `defineSystem`. A run condition has no definition-site form: it is given to `app.addSystemToSchedule` or to the
+  enclosing system set.
+</Aside>
 
 ### System sets
 
-Naming a dependency once per system gets old. `defineSystemSet` gives a **group**
-one name: the set's `runIf` and edges apply to every member, and any other system
-can constrain the whole group by referring to that name.
+`defineSystemSet(name, options)` groups systems under one name. The set's `runIf` and edges apply to every member,
+and any system or set can order itself against the set's name.
+
+| Option | Type | Description |
+|---|---|---|
+| `systems` | `SystemDef[]` | Members, run in the order listed. |
+| `runIf` | `() => boolean` | Checked every frame; `false` skips every member. |
+| `runBefore` / `runAfter` | `string[]` | Edges applied to every member. |
 
 ```typescript
 import { Schedule, defineSystemSet } from 'esengine';
 
 const physics = defineSystemSet('physics', {
   systems: [applyForces, integrateVelocity, resolveContacts],
-  runBefore: ['render'],       // all three run before 'render'
-  runIf: () => !paused,        // ...and none of them run while paused
+  runBefore: ['render'],
+  runIf: () => !paused,
 });
 
 app.addSystemSetToSchedule(Schedule.FixedUpdate, physics);
 
-// One edge waits for the entire set:
+// One edge orders against every member of the set:
 app.addSystemToSchedule(Schedule.FixedUpdate, debugDraw, { runAfter: ['physics'] });
 ```
 
-Members keep the order they are listed in. `app.addSystemSet(set)` is the shortcut
-for the `Update` phase.
+`app.addSystemSet(set)` registers a set into `Update`.
 
-### Priority numbers
+### Numeric priorities
 
-There is no `order: 100` option, and none is needed: registration order *is* the
-default order, so a numeric scheme is a sort at the call site.
+There is no numeric priority option. Registration order is the default order, so a numeric scheme is implemented by
+sorting before registration:
 
 ```typescript
 const ordered = [
@@ -148,68 +173,57 @@ for (const { system } of ordered.sort((a, b) => a.order - b.order)) {
 }
 ```
 
-The engine does not build this in because a number is an implicit global protocol:
-values collide, inserting between neighbours needs a magic gap, and deleting a
-system quietly takes an implied dependency with it. `runAfter: ['move']` states the
-dependency itself — local, composable across plugins, and checkable.
-
-Scene systems only run while their scene is active, so multiple scenes can coexist
-in one world without interfering.
-
-<Aside type="note">
-  The top-level `addSystem` / `addSystemToSchedule` take **no** options — put `name`,
-  `runBefore` and `runAfter` in `defineSystem`. A run condition (`runIf`) has no
-  definition-site form, so it comes from `app.addSystemToSchedule(schedule, system,
-  options)` or from the enclosing `SystemSet`.
-</Aside>
-
-## Filtering & change detection
-
-A query can narrow beyond "has these components" and react to changes:
+## Filters and change detection
 
 ```typescript
-// Extra presence filters — components you require/exclude but don't read:
+// Presence filters — components required or excluded but not read:
 Query(Transform, Mut(Velocity)).without(Frozen).with(Enemy)
 
-// Boolean combinations via filter():
+// Boolean combinations:
 import { Query, With, Without, Or, Not } from 'esengine';
 Query(Transform).filter(Or(With(Player), With(Ally)))
 
-// Change detection — only entities whose component was added/changed since
-// this system last ran:
+// Change detection — entities whose component was added or changed since this system last ran:
 import { Query, Added, Changed } from 'esengine';
-Query(Added(Health))       // newly-added this frame
-Query(Changed(Transform))  // written since the last run
+Query(Added(Health))
+Query(Changed(Transform))
 ```
 
-`Removed(C)` is its own query that yields entities that **lost** `C`:
+| Filter | Matches |
+|---|---|
+| `.with(C)` / `.without(C)` | Entities that have / do not have `C`. |
+| `.filter(expr)` | A boolean expression built from `With`, `Without`, `Or` and `Not`. |
+| `Added(C)` | Entities whose `C` was added since the system last ran. |
+| `Changed(C)` | Entities whose `C` was written since the system last ran. |
+
+`Removed(C)` is a separate parameter that yields the entities that lost `C`:
 
 ```typescript
 import { defineSystem, Removed } from 'esengine';
-defineSystem([Removed(Health)], (removed) => {  // Health is your own component
+
+defineSystem([Removed(Health)], (removed) => {
   for (const entity of removed) { /* cleanup */ }
 });
 ```
 
-A query result also has convenience methods beyond `for…of`:
+A query result provides the following methods besides `for…of`:
 
 | Method | Returns |
 |---|---|
-| `query.single()` | The one match (or `null`) — for a lone player/camera. |
-| `query.count()` / `query.isEmpty()` | Match count / whether empty. |
-| `query.toArray()` | All results as an array. |
-| `query.forEach((e, ...c) => …)` | Callback per match. |
+| `single()` | The first match, or `null`. For a single player or camera. |
+| `count()` | Number of matches. |
+| `isEmpty()` | Whether there are no matches. Does not mark `Mut` components as changed. |
+| `toArray()` | All matches as an array. |
+| `forEach((entity, ...components) => …)` | Calls the callback per match. |
 
-## What a system touches
+## Declared access
 
-A system's parameter list is also its **declaration**: `Query(Mut(Transform))`
-says "I write Transform", `Res(Time)` says "I read Time". The schedule reads that
-to answer two questions — whether two systems could ever run at the same time,
-and whether the order they *do* run in was decided by anyone.
+A system's parameter list declares its access: `Query(Mut(Transform))` writes `Transform`, `Res(Time)` reads `Time`.
+The scheduler uses this to determine whether two systems can run at the same time and whether their relative order
+was specified.
 
-`GetWorld()` is the escape hatch, and it answers neither: a system holding the
-World may touch anything, so it conflicts with everything. Where you need it,
-say what you reach for and get the answer back:
+`GetWorld()` gives unrestricted access, so a system that takes it conflicts with every other system. The `touches`
+option declares what such a system actually reads and writes, by component name:
 
 ```typescript
 defineSystem([GetWorld()], (world) => { /* ... */ }, {
@@ -221,52 +235,50 @@ defineSystem([GetWorld()], (world) => { /* ... */ }, {
 });
 ```
 
-Components are named by string here, because the reason to reach through the
-World is usually a type registered later than the system. Three things this
-supports:
+| `SystemTouches` field | Description |
+|---|---|
+| `reads` | Component names the system reads. |
+| `writes` | Component names the system writes. |
+| `opaque` | `true` states that the access cannot be fully named. Treated like an omitted `touches` (conflicts with everything), but declared explicitly. |
 
-- `opaque: true` — you genuinely cannot say. Different from leaving `touches`
-  out (both mean "assume everything"), but only this one says so on purpose.
-- A **function** instead of an object, re-read every time the access is. That is
-  how a system running authored data answers from what is actually loaded: the
-  state-machine system's reach is the union over the leaves the loaded `.esfsm`
-  graphs name.
-- `defineBehavior({ touches })`, for the same reason — a behaviour's body is
-  your code, and undeclared it is assumed to touch anything.
+Components are named by string because a system reaching through the world usually accesses types registered after
+it. `touches` may be a function, re-evaluated each time the access is read; a system that runs authored data uses
+this to report the access of the data actually loaded — the state-machine system reports the union over the leaves
+the loaded `.esfsm` graphs name. `defineBehavior` accepts `touches` for the same purpose
+([Scripting](/docs/scripting/overview/#declaring-accessed-components)).
 
-### Two systems that wait
+### Asynchronous systems
 
-Systems start in schedule order, and a synchronous one runs to completion before
-the next starts — nothing overlaps there. An **async** system is different: while
-it is parked on an `await`, the schedule may start the next system, provided that
-one neither depends on it nor touches what it touches.
+Systems start in schedule order, and a synchronous system runs to completion before the next one starts. While an
+**async** system is suspended on an `await`, the scheduler may start the next system if that system neither depends
+on it nor touches the same data. Two async systems loading unrelated data therefore wait concurrently. A required
+order between them is expressed with an ordering edge, not by registration order.
 
-So two async systems loading different things wait at the same time instead of
-one after another. If you need a particular order between them, that is an
-ordering edge (`runAfter`), not something to infer from registration order.
+### Unordered conflicts
 
-### Finding the pairs nobody ordered
-
-Two systems in one phase that touch the same data with no edge between them run
-in whatever order registration produced — so adding a third system, or moving a
-plugin in the build list, can change what your game does with nothing to point
-at. Ask:
+Two systems in one phase that touch the same data without an edge between them run in the order registration
+produced, which changes when systems or plugins are added or reordered. The app reports such pairs (both methods
+are `@beta`):
 
 ```typescript
 app.scheduleAmbiguities(Schedule.Update);
 // [{ a: 'Move', b: 'Cull', over: ['Transform'] }]
 
 app.scheduleBatches(Schedule.Update);
-// [['Move', 'Spin'], ['Cull']] — how much of the phase is inherently sequential
+// [['Move', 'Spin'], ['Cull']]
 ```
 
-Fix one by deciding the order (`runAfter`) or by making the overlap not exist.
+| Method | Returns |
+|---|---|
+| `scheduleAmbiguities(schedule)` | Pairs of systems that touch the same data with no edge between them, and the data they share. |
+| `scheduleBatches(schedule)` | The phase grouped into batches of systems that could run at the same time; a measure of how much of the phase is inherently sequential. |
+
+An ambiguity is resolved by adding an ordering edge or by removing the overlap.
 
 ## Events
 
-Events are a typed, decoupled message stream — one system `send`s, another reads
-next frame, with no direct reference between them. Define an event, register it on
-the app, then take an `EventWriter` / `EventReader` as a system parameter:
+Events are a typed message stream between systems with no direct reference to each other. `defineEvent<T>(name)`
+defines an event, `app.addEvent` registers it, and systems take `EventWriter` / `EventReader` parameters:
 
 ```typescript
 import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'esengine';
@@ -274,16 +286,17 @@ import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'e
 const Damaged = defineEvent<{ entity: number; amount: number }>('Damaged');
 app.addEvent(Damaged);
 
-// Producer:
+// Producer
 addSystem(defineSystem([EventWriter(Damaged)], (damaged) => {
   damaged.send({ entity: 12, amount: 5 });
 }));
 
-// Consumer (reads what was sent since it last ran):
+// Consumer — reads what was sent since it last ran
 addSystem(defineSystem([EventReader(Damaged), Commands()], (damaged, cmds) => {
   for (const evt of damaged) { /* evt.entity, evt.amount */ }
 }));
 ```
 
-A reader is iterable and also offers `.isEmpty()` / `.toArray()`. See the
-**event-system** example for the full producer/consumer pattern.
+Event channels are double-buffered and swapped every frame. A reader is iterable and also provides `isEmpty()` and
+`toArray()`. The **event-system** example shows the complete producer/consumer pattern. Entity-addressed events
+authored in the editor are described in [Event Binding](/docs/scripting/events/).

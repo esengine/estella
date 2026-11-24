@@ -1,0 +1,115 @@
+---
+title: 导航基础
+description: 导航参考——Nav 资源及其两种表面、构建 NavGrid 及由瓦片地图派生、路线平滑、异步工作完成后替换表面，以及导航工坊示例。
+---
+
+导航沿绕开障碍的路线把代理移动到世界坐标点。路线在 **`Nav`** 资源（一个 `Navigation` 实例）的当前**表面**上规划。表面有两种：
+
+| 表面 | 说明 |
+|---|---|
+| **`NavGrid`** | 由可通行与阻挡格子构成的矩形掩码。与瓦片地图对应，格子可在游戏运行时修改。 |
+| **`NavMesh`** | 由场景碰撞几何烘焙出的凸多边形。可贴合斜坡与多层地面（[导航网格](/docs/zh-cn/gameplay/ai/navigation/navmesh/)）。 |
+
+代理、调试叠加层与路线查询在两种表面上的工作方式相同。
+
+## 构建网格
+
+```typescript
+import { defineSystem, Res } from 'esengine';
+import { Nav, NavGrid } from 'esengine/ai';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setSurface(new NavGrid({
+    width: 60,          // columns
+    height: 44,         // rows
+    cellSize: 20,       // world pixels per cell
+    origin: { x: -600, y: -440 },  // world position of cell (0,0)'s center
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` 选项 | 类型 | 说明 |
+|---|---|---|
+| `width` | number | 格子列数。 |
+| `height` | number | 格子行数。 |
+| `cellSize` | number | 每格的世界单位（正方形）。 |
+| `origin` | `{ x, y, z? }` | 格子 `(0,0)` 中心的世界位置。其 `z` 是所有路径点返回时的深度。默认 `(0,0,0)`。 |
+| `walkable` | `ArrayLike<number>` | 可选的行优先 `width*height` 掩码，`1` 为可通行，`0` 为阻挡。省略时全部可通行。数组会被复制。 |
+
+`navGridFromTilemapLayer`（由图层的实心瓦片决定阻挡格）与 `navGridFromTiles`（任意瓦片读取函数）可由瓦片地图派生掩码（[组件层之下](/docs/zh-cn/gameplay/ai/advanced/#手动寻路)）。[可破坏瓦片地图](/docs/zh-cn/world/tilemaps/code/#可破坏瓦片地图)会让其网格与挖掘、建造保持同步。
+
+修改可通行性应通过 `grid.setWalkable(x, y, walkable)`、`setObstructed` 与 `clearObstructions`，以便同时使余量与缓存的连通性失效。被关闭的格子（门关上、塔建成）会在下一次规划中被绕开。
+
+### 路线平滑
+
+网格路线在返回前会做**拉绳平滑**：A\* 以单格为步长给出结果，只保留路线转弯处的格子。捷径只会沿搜索本身可以走的直线选取（它经过的每个格子都容得下身体，斜向需要两个共享的正交格都可通行），因此平滑后的路线与阶梯状路线同样有效。捷径从不穿越与起点所在地面价格不同的地面（[`NavArea`](/docs/zh-cn/gameplay/ai/navigation/navmesh/#navarea)）。
+
+## `Nav` 资源
+
+| 成员 | 说明 |
+|---|---|
+| `setSurface(surface)` / `surface` | 安装当前表面。 |
+| `findWorldPath(from, to)` | 尽力而为的世界空间路径点（[路线查询](/docs/zh-cn/gameplay/ai/navigation/route-queries/)）。 |
+| `queryWorldPath(from, to, { radius })` | 带完成状态与原因的路径点。 |
+| `beginSurfaceUpdate()` / `surfaceUpdatePending` | 分阶段替换表面（[见下文](#异步工作完成后替换表面)）。 |
+| `planningBudgetMs` / `maxPlansPerFrame` / `planningStats` | 代理规划队列（[导航代理](/docs/zh-cn/gameplay/ai/navigation/agents/#规划队列)）。 |
+| `invalidatePaths()` | 自定义表面或其代价、连接被原地修改后，丢弃代理缓存的路线。 |
+
+## 异步工作完成后替换表面
+
+`nav.beginSurfaceUpdate()` 返回带版本号的 `NavSurfaceUpdate`。替换表面单独构建，再以 `update.commit(surface)` 安装。只有最新的待处理请求可以提交；被取代、已取消或已完成的句柄返回 `false`。`nav.setSurface(...)` 与对 `nav.surface` 赋值也会取消待处理的请求。`update.cancel()` 保留之前的表面并恢复其路线。
+
+`nav.surfaceUpdatePending` 为真期间：
+
+- 导航驱动保留代理的目的地并停止操控；角色重力仍然生效；
+- 资源查询不返回路线，`queryWorldPath` 报告 `unavailable` / `building`；
+- 编辑器的路线检查器显示待处理的更新，规划计数包含等待它的代理。
+
+```typescript
+import { Navigation, NavGrid, type NavGridOptions } from 'esengine/ai';
+
+async function replaceTerrain(nav: Navigation, load: () => Promise<NavGridOptions>) {
+  const update = nav.beginSurfaceUpdate();
+  try {
+    const data = await load();
+    if (update.pending) update.commit(new NavGrid(data));
+  } finally {
+    update.cancel(); // Also releases a failed request; harmless after commit.
+  }
+}
+```
+
+所有者在销毁时同样应取消。取消会撤销提交的权利；中止生成表面的 I/O 或工作线程由生产方负责。该协议不调度后台任务，也不会使同步的网格烘焙变为异步。分阶段替换期间不应修改当前表面，因为取消无法回滚这些修改。
+
+## 示例：Citadel Route Workshop
+
+`examples/navigation-workshop` 包含可编辑的城门与仓库障碍以及八个预置的信使：
+
+| 按键 | 操作 |
+|---|---|
+| **G** | 切换城门开关。 |
+| **B** | 放置 / 移除仓库。 |
+| **C** | 派出 8 或 24 个信使。 |
+| **R** | 重置投递。 |
+
+同样的操作也有触屏按钮，在被占用的格子上放置或关闭会被拒绝。接近关闭城门的信使会保留目的地，并在城门重新打开后继续前进；仓库会造成绕行。该示例还提供使用 JSON 资源、配合上述分阶段替换的地形重载与取消控件。其纹理为 Kenney CC0 资源与原创 SVG 图形；`ASSET_LICENSES.md` 记录了来源。
+
+Web 验收检查会导出该示例并以无头方式驱动其按钮，检查信使在城门处保留并恢复路线、24 个代理完成投递，以及每个模拟帧中身体都不进入仓库占地范围：
+
+```sh
+node pipeline/bin/estella.mjs export examples/navigation-workshop --platform web --out output/navigation-workshop-web
+node tools/verify-navigation-workshop.mjs --dir output/navigation-workshop-web
+```
+
+报告包含原始位置、接触容差、导出哈希，以及在较小横屏触控视口中的一次运行。
+
+## 本章页面
+
+- [导航网格](/docs/zh-cn/gameplay/ai/navigation/navmesh/)——`NavVolume`、流送世界、`NavLink`、`NavArea`、`NavObstacle` 与导航叠加层。
+- [导航代理](/docs/zh-cn/gameplay/ai/navigation/agents/)——`NavAgent`、规划队列、角色、避让与代理宽度。
+- [路线查询](/docs/zh-cn/gameplay/ai/navigation/route-queries/)——`findWorldPath`、`queryWorldPath` 与路线检查器。
+
+## 另请参阅
+
+- [组件层之下](/docs/zh-cn/gameplay/ai/advanced/)——`findPath` 与由瓦片构建网格。
+- [代码中的瓦片地图](/docs/zh-cn/world/tilemaps/code/)——派生网格所用的瓦片地图数据。

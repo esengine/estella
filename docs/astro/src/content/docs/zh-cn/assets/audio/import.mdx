@@ -1,0 +1,39 @@
+---
+title: 音频导入
+description: 音频导入设置参考——加载方式（解码或流式）、烘焙时 WAV 转 MP3 的 Compress 与 Bitrate，以及打包时如何裁掉编码器静音。
+---
+
+在内容浏览器中选中音频资源后，会显示其解码后的波形（带播放与定位控件）以及**导入设置**。
+
+{/* SHOT: assets-audio-import-settings | audio-demo example: assets/audio/hum.wav selected in the Content Browser; Details shows the waveform preview and Import Settings with Load Type, Compress and Bitrate */}
+
+## 导入设置
+
+| 设置 | 键 | 默认值 | 说明 |
+|---|---|---|---|
+| **Load Type** | `loadType` | `Auto` | 片段在 Web 上的保存方式；见[加载方式](#加载方式)。 |
+| **Compress** | `compress` | 开 | 烘焙转码音频时把 WAV 重新编码为 MP3。已压缩的格式原样通过。MP3 会引入编码器延迟；见[编码器静音](#编码器静音)。 |
+| **Bitrate** | `bitrateKbps` | `128` | 烘焙 WAV 源时的 MP3 码率：96、128 或 192 kbps。 |
+
+在打包对话框中启用 **Compress audio** 时才会转码。
+
+## 加载方式
+
+| 取值 | 行为 |
+|---|---|
+| **Auto** | 30 秒及以上的片段从压缩文件流式播放；更短的片段解码。 |
+| **Decompress On Load**（`decompress`） | 总是解码到内存。启动即时；三分钟的曲目约占 69 MB。 |
+| **Streaming**（`streaming`） | 总是从压缩文件流式播放。 |
+
+流式片段几乎不占内存，使用相同的总线、音量与淡入淡出，但无法精确到采样循环，且同一片段同时只能有一个发声。该选择写入导出游戏的音频设置，因此 Play、导出与试玩广告对每个片段的处理方式一致。
+
+只有已解码的片段能精确到采样循环。循环的音乐以及用 `playLayers` 播放的分轨需要 `loadType: 'decompress'`，代价是加载期间占用其解码后的内存。编辑器的音乐工具会为两分钟以内的乐曲设置该值。
+
+## 编码器静音
+
+解码器返回的编码片段在声音之前约有四十分之一秒的静音，之后也有一些。导出游戏时，导出器记录每个片段的真实长度，运行时从前导静音之后播放到真实结尾。在 `.wav` 中无缝的循环在构建中仍然无缝，音效也不会延迟。
+
+## 参见
+
+- [音频](/docs/zh-cn/assets/audio/overview/)
+- [资源](/docs/zh-cn/assets/overview/)：烘焙如何发布资源。

@@ -1,0 +1,129 @@
+---
+title: Input Actions
+description: Named input actions with InputMap — defineInputMap, Button, Axis1D and Axis2D actions, binding constructors, action queries, the serializable binding data model, interactive rebinding and persistence, and .inputmap assets.
+---
+
+An **input map** defines each action once, with any number of keyboard, mouse, gamepad and virtual bindings. Gameplay
+code queries actions by name rather than by device input.
+
+![The Input Map editor — named actions with keyboard and gamepad bindings](@/assets/guides/en/input-map.png)
+
+*The Input Map editor: named actions (Move, Jump, Fire), each with keyboard, mouse and gamepad bindings.*
+
+## Defining a map
+
+```typescript
+import {
+  defineInputMap, Button, Axis2D,
+  Key, Keys2D, Stick, GpButton, GamepadButton,
+} from 'esengine';
+
+export const Controls = defineInputMap({
+  Move: Axis2D(Keys2D('KeyW', 'KeyS', 'KeyA', 'KeyD'), Stick('left')),
+  Jump: Button(Key('Space'), GpButton(GamepadButton.South)),
+});
+```
+
+`defineInputMap` registers the map's evaluation systems (after input is polled, before `Update`), so the map is
+queryable immediately from any system that imports it:
+
+```typescript
+const dir = Controls.axis2d('Move');          // { x, y }, length ≤ 1
+if (Controls.pressed('Jump')) { /* edge this frame */ }
+```
+
+| Query | Returns |
+|---|---|
+| `down(name)` | Held: the action's magnitude is ≥ 0.5. |
+| `pressed(name)` / `released(name)` | Edges in the current frame. |
+| `value(name)` | Button `0..1`; axis `-1..1`; axis2d magnitude `0..1`. |
+| `axis2d(name)` | `{ x, y }` direction, normalized when longer than 1. Scalar actions return `{ x: value, y: 0 }`. |
+
+## Actions
+
+| Action | Value | Combination of bindings |
+|---|---|---|
+| `Button(...bindings)` | `0..1` | The strongest binding, clamped to `0..1`. |
+| `Axis1D(...bindings)` | `-1..1` | Sum of the bindings, clamped to `-1..1`. |
+| `Axis2D(...bindings)` | `{ x, y }` | Sum of the bindings, clamped to length 1. |
+
+## Bindings
+
+| Binding | Feeds | Description |
+|---|---|---|
+| `Key(code)` | button / axis | One keyboard key. |
+| `MouseButton(b)` | button / axis | A mouse button. `MouseButton.Left` / `.Middle` / `.Right` = `0` / `1` / `2`; the same names work with `input.isMouseButtonDown`. |
+| `GpButton(btn, pad?)` | button / axis | A gamepad button; analog value for triggers. |
+| `GpAxis(axis, pad?, scale?)` | axis | A raw gamepad axis. |
+| `Keys1D(neg, pos)` | axis | Two keys as a signed 1D axis. |
+| `Keys2D(up, down, left, right)` | axis2d | Four keys as a 2D direction. |
+| `Stick('left' \| 'right', pad?)` | axis2d | A gamepad stick; up is `+y`, matching `Keys2D`. |
+| `Virtual(id)` | button / axis / axis2d | A named value written with `input.setVirtual(id, x, y)`. On-screen [VirtualJoystick and VirtualButton](/docs/ui/widgets/#virtualjoystick) widgets write these, so touch controls drive the same actions as keys. |
+
+![The Mobile Controls example: a virtual joystick at the lower left and a Fire button at the lower right over a dungeon](@/assets/guides/en/play-mobile-controls.png)
+
+*The Mobile Controls example: a **VirtualJoystick** and a **VirtualButton** drive the same input actions as the keyboard.*
+
+## Data model
+
+The constructors produce plain, serializable data. `Binding` is a tagged union; an action is a `type` and a binding
+list:
+
+```typescript
+import { type Binding, type ActionDef } from 'esengine';
+
+const jump: ActionDef = {
+  type: 'button',                          // 'button' | 'axis' | 'axis2d'
+  bindings: [
+    { kind: 'key', code: 'Space' },        // Key('Space')
+    { kind: 'gpButton', button: 0 },       // GpButton(GamepadButton.South)
+  ],
+};
+```
+
+| `Binding` kind | Fields | Constructor |
+|---|---|---|
+| `key` | `code` | `Key` |
+| `mouse` | `button` | `MouseButton` |
+| `gpButton` | `button`, `pad?` | `GpButton` |
+| `gpAxis` | `axis`, `pad?`, `scale?` | `GpAxis` |
+| `keys1d` | `neg`, `pos` | `Keys1D` |
+| `keys2d` | `up`, `down`, `left`, `right` | `Keys2D` |
+| `stick` | `stick: 'left' \| 'right'`, `pad?` | `Stick` |
+| `virtual` | `id` | `Virtual` |
+
+The same data is the rebinding and persistence format:
+
+| Method | Description |
+|---|---|
+| `toJSON()` / `loadJSON(data)` | Bindings only, per action (`Record<string, Binding[]>`). `loadJSON` ignores actions the map does not define, so saved data for a removed action is not restored. |
+| `toAsset()` | The full map including action types, as an `InputMapAsset` (`{ version, actions }`) — the content of an `.inputmap` file. |
+| `getBindings(name)` / `setBindings(name, bindings)` | Reads / replaces one action's bindings. |
+| `actions()` | The action names. |
+
+## Rebinding and persistence
+
+```typescript
+// "Press any input…" — captures the next key or gamepad button
+await Controls.rebind('Jump');            // replaces; { append: true } adds instead
+Controls.save('controls');                // persists to platform Storage
+// at startup:
+Controls.load('controls');                // re-applies saved bindings, if any
+```
+
+| Method | Description |
+|---|---|
+| `rebind(name, options?)` | Captures the next discrete input and assigns it to the action. Resolves with the captured `Binding`, or `null` when cancelled. `append: true` adds the binding instead of replacing. |
+| `listenForBinding(options?)` | Captures the next discrete input without assigning it. |
+| `isListening()` | Whether a capture is pending. |
+| `cancelListen()` | Aborts a pending capture; it resolves with `null`. |
+| `save(key)` / `load(key)` | Writes / reads the bindings through [`Storage`](/docs/scripting/save/#keyvalue-storage). `load` returns whether saved data was found. |
+
+`ListenOptions` selects the device families a capture listens to: `keyboard` and `gamepad` default to **on**, `mouse`
+to **off**, so the click that pressed a rebind button is not itself captured. Axis sources are never captured.
+
+## `.inputmap` assets
+
+A map can be authored as an asset: **Content Browser → New Input Map** creates an `.inputmap` file, edited in the Input
+Map editor. `loadInputMapAsset(asset)` builds the live map from the parsed `InputMapAsset`, in place of
+`defineInputMap`. `toAsset()` produces the same format from code.

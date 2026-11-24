@@ -1,0 +1,109 @@
+---
+title: Quality Levels
+description: Quality level reference — the Low, Medium and High profiles, choosing a level by mode or device rules, dynamic resolution, editing levels in Project Settings, how profiles are stored, and the QualityConfig and Quality APIs.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**Quality levels** are three profiles, **Low**, **Medium** and **High**, each stating what the renderer spends at that
+level: resolution, shadows, reflections, particles, which post-process effects run and how many samples they take. A
+project selects one level, or lets the device select it.
+
+| Topic | Page |
+|---|---|
+| Choosing a level, editing profiles, storage, code | This page |
+| Every per-level setting with its defaults | [Level Settings](/docs/performance/quality-levels/settings/) |
+| Effects per level, effect resolution, samples and steps | [Effects per Level](/docs/performance/quality-levels/effects/) |
+| Texture streaming | [Texture Streaming](/docs/performance/quality-levels/texture-streaming/) |
+| Background shader compilation, render on demand, power saving | [Shaders, Redraw & Power](/docs/performance/quality-levels/runtime/) |
+
+## Choosing the level
+
+**Settings → Project → Rendering → Device Quality → Quality level:**
+
+| Mode | Meaning |
+|---|---|
+| Default | No mode chosen: **Medium on phones and tablets**, Off on other devices. Mini-games keep their own defaults. |
+| Off | No quality management on any device; the project renders as authored. |
+| Low / Medium / High | That level on every device. |
+| Auto | The level is chosen by the device: the first matching [device rule](#device-rules), otherwise memory and core count. |
+
+### Dynamic resolution
+
+**Dynamic resolution** (`dynamicResolution`, off by default) lowers the scene's render scale under GPU pressure, down to
+the level's **Min render scale**, and raises it again when frames have headroom; UI stays at display resolution. **Target
+frame rate** (`targetFps`, default 60, range 15–120) is the frame rate it aims for.
+
+A scene drawn below the screen's size is upscaled with a Catmull-Rom filter clamped to the neighbouring texels, which
+keeps edges sharper than a bilinear copy without haloing; an integer scale factor is an exact copy.
+
+### Device rules
+
+Shown when the mode is **Auto**. Each row names a level and the conditions a device must meet: **Model contains**, **GPU
+contains**, **Max RAM** and **Max cores**; all conditions of a row must hold. The first matching row decides the level. A
+row without any condition would match every device and is not allowed.
+
+## Editing levels
+
+The settings of a level are grouped into twelve groups. Each group is a table with one row per setting and one column per
+level, **Low, Medium and High side by side**, with every cell editable.
+
+![Project Settings, Rendering page: the quality levels, a table per group with Low, Medium and High side by side](@/assets/guides/en/settings-quality-levels.png)
+
+- A group's effects are a matrix of effect by level, ticked where the level runs the effect
+  ([Effects per Level](/docs/performance/quality-levels/effects/)).
+- A changed cell is tinted and shows a reset arrow; its tooltip names the level's default, and clicking it restores that
+  value.
+- A cell whose setting has no effect at that level is dimmed, for example MSAA at a level that uses Temporal
+  anti-aliasing, or an effect's resolution at a level with post-processing off.
+- In a settings window too narrow for three columns, the page shows one level at a time: **Quality Levels → Editing
+  level** selects the level, and rows with no effect at that level are hidden.
+
+![A level table with one changed cell: Medium's render scale at 0.75, tinted, with its reset arrow](@/assets/guides/en/settings-quality-changed.png)
+
+<Aside type="note">
+A cell is compared only with its own level's default, so the same value can be a change at one level and the default at
+another: 0.75 is Low's render scale and a change at Medium and High.
+</Aside>
+
+### Storage
+
+Each level starts from the engine's defaults for that level, and **only changed values are saved**, in
+`project.esproject` under `features.rendering.quality.profiles.<level>`. A default improved in a later engine version
+reaches every project that did not change it, and a value set back to its default is not stored.
+
+```json
+"quality": { "mode": "auto", "profiles": { "medium": { "aoResolution": 0.25, "fogResolution": 0.25 } } }
+```
+
+Loading and streaming limits that depend on the network and the package rather than the GPU are not per-level settings;
+they are in **Project Settings → Game → Runtime → Loading & Streaming**
+([Level Settings](/docs/performance/quality-levels/settings/#loading-and-streaming-limits)).
+
+## In code
+
+The settings are a `QualityConfig`; `QualityController`, `parseQualityConfig`, `resolveQualityProfile` and
+`defaultQualityProfile` build and read them. The level in force is the `Quality` resource.
+
+```typescript
+import { Quality, qualityRunsEffect } from 'esengine';
+
+const quality = app.getResource(Quality);
+const ambientOcclusion = qualityRunsEffect(quality?.profile ?? null, 'ssao');
+```
+
+- `qualityRunsEffect(profile, effect)` reports whether the level in force runs an effect
+  ([Effects per Level](/docs/performance/quality-levels/effects/#asking-whether-an-effect-runs)).
+- `quality.setPreferences({ … })` applies player preferences over the level: `renderScale`, `antialiasing`
+  (`'off'`, `'msaa'` or `'temporal'`), `ssao`, `skipEffects`, and the settings whose entry allows a preference (the
+  effect resolutions). `setPreferences(null)` restores the level's values.
+
+Every per-level setting is one entry of `QUALITY_SETTINGS`, declared in the file of its group under
+`sdk/src/render/qualitySettings/`. An entry states its key, kind (a number with a range, a switch, a choice of numbers or
+a choice of names), its three defaults, its group, and its label and description in English and Chinese. The profile type,
+its defaults, its parsing, player preferences and the editor rows are all generated from these entries.
+
+## See also
+
+- [Profiling](/docs/performance/profiling/overview/): draw counts against the level's budget.
+- [Color & Quality](/docs/graphics/lighting/color-and-quality/): the 3D lighting level.

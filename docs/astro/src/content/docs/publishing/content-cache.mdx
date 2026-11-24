@@ -1,79 +1,80 @@
 ---
 title: Device Disk Cache
-description: What a hot-updated game keeps on the device's disk, which versions are protected, and how to inspect, budget and clean that cache from the editor's Profiler.
+description: The on-device disk cache of hot-updated assets — where it exists, the Profiler's Device disk cache section, protected and reclaimable bytes, version labels, keeping a version, and cleaning the cache to a budget.
 ---
 
-A game that loads [Remote content](/docs/publishing/hot-update/) writes the verified
-bytes to a **disk cache** on the device, so updated assets load without the network on
-the next launch. Left alone that cache only grows: every update leaves the previous
-revision's files behind. The Profiler's **Device disk cache** section shows what is
-stored, what is safe to remove, and cleans it down to a budget — without ever deleting
-a revision the game may still need.
+A game that loads [Remote content](/docs/publishing/hot-update/) writes verified bytes to a **disk cache** on the
+device, so updated assets load without the network at the next launch. Each update leaves the previous revision's
+files behind, so the cache grows over time. The Profiler's **Device disk cache** section shows what is stored and what
+can be removed, and cleans the cache to a budget without deleting a revision the game may still need.
 
-## Where the cache exists
+## Platform support
 
 | Target | Disk cache |
 | --- | --- |
-| **Desktop** | Managed — it can be listed, measured and cleaned. |
-| **Mini-games**, **Native (iOS / Android)** | Managed when the host's file API can list and delete files; otherwise storage only (below). |
+| **Desktop** | Managed: can be listed, measured and cleaned. |
+| **Mini-games**, **Native (iOS, Android)** | Managed when the host's file API can list and delete files; otherwise storage only. |
 | **Web** | None. The next launch refetches from the CDN. |
 
-The section reports which of three states the connected host is in:
+The section reports the connected host's state:
 
-- **Managed** — the full controls below.
-- **Storage only** — the host stores cache bytes but cannot list or safely delete
-  them, so usage is not available.
-- **Unavailable** — the platform has no managed disk cache.
+| State | Meaning |
+|---|---|
+| **Managed** | All controls below are available. |
+| **Storage only** | The host stores cache bytes but cannot list or safely delete them; usage is not available. |
+| **Unavailable** | The platform has no managed disk cache. |
 
-## Opening it
+## Opening the section
 
-Connect a device (see [Hot update](/docs/publishing/hot-update/)), open the
-**Profiler**, and set **Profiler source** to **Device**. The **Device disk cache**
-section appears under the device's controls. It reads once when you pick the device;
-a directory scan is too expensive to poll, so use **Rescan** to refresh it.
+With a device connected to the editor, open the **Profiler** and set **Profiler source** to **Device**. The **Device
+disk cache** section appears under the device's controls. It is read once when the device is selected; directory scans
+are not polled, so use **Rescan** to refresh.
 
-## What it shows
+## Summary
 
-One summary line:
+The summary line has the form *Resources · protected · reclaimable · index*:
 
-> Resources *used* · protected *protected* · reclaimable *free* · index *index*
+| Figure | Meaning |
+|---|---|
+| **Resources** | Bytes of cached assets on disk. |
+| **Protected** | Bytes the game may still need: files of a protected version, and files whose owner is unknown. |
+| **Reclaimable** | All other bytes; the only bytes a cleanup can free. |
+| **Index** | The cache's bookkeeping file, counted separately. |
 
-- **Resources** — bytes of cached assets on disk.
-- **Protected** — bytes the game may still need: files that belong to a protected
-  version, plus files whose owner is unknown.
-- **Reclaimable** — everything else; the only bytes a cleanup can free.
-- **Index** — the cache's own bookkeeping file, counted separately.
+## Versions
 
-Below it, one row per **version** the cache knows, with its revision, why it is kept
-and how many of its files are **missing** from disk:
+Below the summary, one row per version the cache knows lists its revision, why it is kept, and how many of its files
+are missing from disk:
 
 | Label | Meaning |
 | --- | --- |
-| **Current** | The revision the game is running on. |
-| **Pending** | An update that was found and staged, not yet committed. |
+| **Current** | The revision the game is running. |
+| **Pending** | An update that was found and staged but not committed. |
 | **Rollback** | The previous revision, kept so a failed update can fall back. |
-| **Next launch / Retained** | A revision you chose to keep. |
-| **Old version** | Nothing protects it — its files are reclaimable. |
+| **Next launch / retained** | A revision kept by request. |
+| **Old version** | Unprotected; its files are reclaimable. |
 
-Files with unknown ownership (from before the cache tracked them) are protected until
-a verified write establishes what they are, and saves are always excluded from cleanup.
+Files of unknown ownership (written before the cache tracked ownership) are protected until a verified write
+establishes their owner. Saves are always excluded from cleanup.
 
 ## Keeping a version
 
-On the running build's own versions, **Keep version** reserves a revision — say the
-build QA is testing — so advancing the current/rollback pair cannot release it.
-**Release reservation** gives it back. Retention is stored apart from the automatic
-protection, so an update never silently drops a revision you kept.
+On the running build's versions, **Keep version** reserves a revision — for example the build under QA — so that
+advancing the current/rollback pair does not release it. **Release reservation** removes the reservation. Retention is
+stored separately from automatic protection, so an update never drops a reserved revision.
 
 ## Cleaning to a budget
 
 1. Set **Resource budget** in MiB (default 128).
-2. **Preview cleanup** — shows how many files would be released and how many bytes,
-   deleting nothing.
-3. **Clean unprotected resources** — deletes them, least recently used first, until the
-   cache fits the budget, and reports the bytes released and any deletions that failed.
+2. **Preview cleanup** shows how many files and bytes would be released, without deleting anything.
+3. **Clean unprotected resources** deletes them, least recently used first, until the cache fits the budget, and
+   reports the bytes released and any failed deletions.
 
-Only unprotected files are ever candidates. If the protected files alone exceed the
-budget the panel says so and keeps them — the budget is a target, never a reason to
-delete a version the game needs. If the cleanup freed space but could not store the
-updated index, it says so; the next scan reconciles it.
+Only unprotected files are candidates. If the protected files alone exceed the budget, the panel reports it and keeps
+them. If the cleanup freed space but could not store the updated index, the panel reports it; the next scan reconciles
+the index.
+
+## See also
+
+- [Hot Update](/docs/publishing/hot-update/) — remote delivery groups and persistence.
+- [Profiling & Diagnostics](/docs/performance/profiling/overview/) — the Profiler.

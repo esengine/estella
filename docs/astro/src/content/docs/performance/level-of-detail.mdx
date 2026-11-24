@@ -1,160 +1,129 @@
 ---
 title: Level of Detail
-description: Swap a mesh for a cheaper stand-in as it shrinks on screen, with LODGroup — thresholds, hysteresis, and how it interacts with culling, instancing and multiple cameras.
+description: LODGroup and Impostor reference — screen-size thresholds, hysteresis, per-camera selection, authoring rules, impostor cards, and baking static cluster proxies with bakeStaticProxy.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A rock a hundred units away and a rock two thousand units away are drawn with the
-same number of triangles, and at two thousand units almost all of them land inside
-a single pixel. **`LODGroup`** lets an object hand over to a cheaper mesh once it
-is small enough that nobody can tell — the single biggest saving available to a
-scene with many props in it.
-
-In Estella's own third-person sample, a field of 35 rocks drops from
-1.9 million triangles to 42 thousand and from 3.5 ms of GPU time to 0.27 ms at ten
-thousand props ([the numbers](#what-it-buys)).
+**`LODGroup`** replaces a mesh with cheaper stand-ins as it shrinks on screen and stops drawing it below a minimum size.
+**`Impostor`** replaces a distant mesh with a camera-facing picture of it.
 
 ## The LODGroup component
 
-`LODGroup` sits on the **same entity as a `MeshRenderer`**. The renderer says what
-the object *is* — that mesh is level 0, the full-detail one. The group says what
-may stand in for it as it shrinks:
+`LODGroup` sits on the **same entity as a `MeshRenderer`**. The renderer's mesh is level 0, the full-detail mesh; the
+group lists the meshes that replace it as it shrinks:
 
 ```typescript
 world.insert(rock, MeshRenderer, { mesh: 'assets/models/rock-lod0.esmesh', lit: true });
 world.insert(rock, LODGroup, {
     lod1: 'assets/models/rock-lod1.esmesh',
     lod2: 'assets/models/rock-lod2.esmesh',
-    lod1Size: 0.25,   // below a quarter of the screen height, lod1 takes over
-    lod2Size: 0.11,   // below an eighth, lod2
-    cullSize: 0.02,   // below a fiftieth, nothing is drawn at all
+    lod1Size: 0.25,   // below a quarter of the screen height, lod1 is drawn
+    lod2Size: 0.11,   // below 0.11, lod2
+    cullSize: 0.02,   // below a fiftieth, nothing is drawn
     hysteresis: 0.1,
 });
 ```
 
-Remove the component and the full-detail mesh comes back — nothing else about the
-renderer changes.
+Removing the component restores the full-detail mesh.
 
 ![Details of a LOD Group: the current level, the projected size, the level table and the three level meshes](@/assets/guides/en/details-lod-group.png)
 
-*A **LOD Group** in the editor: the level in use, the projected size of the entity, and the table of thresholds.*
+*A **LOD Group** in the editor: the level in use, the entity's projected size and the threshold table.*
 
-## The sizes are fractions of the screen, not distances
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `lod1` / `lod2` / `lod3` | mesh | — | Stand-in meshes, coarsest last. |
+| `lod1Size` | number | `0.5` | Screen-height fraction below which `lod1` is drawn. |
+| `lod2Size` | number | `0.25` | Screen-height fraction below which `lod2` is drawn. |
+| `lod3Size` | number | `0.1` | Screen-height fraction below which `lod3` is drawn. |
+| `cullSize` | number | `0.02` | Screen-height fraction below which nothing is drawn; `0` never culls. |
+| `hysteresis` | number | `0.1` | Fraction an object must grow past a threshold before the finer level returns (0–1). |
+| `enabled` | boolean | `true` | Off: the renderer's own mesh is always drawn. |
 
-`lod1Size` and its siblings are the fraction of the **viewport's height** the
-object's bounds cover. `1.0` is an object exactly one screen tall; `0.02` is a
-fiftieth of one.
+`LODMember` draws its own `MeshRenderer` only while another entity's `LODGroup` selects its level, for levels that are
+whole entities (such as a groom's strands and its cards).
 
-That is deliberately not a distance, because a distance answers the same at every
-scale and through every lens:
+## Screen-size thresholds
 
-- a tower and a pebble a hundred metres away are not the same size on screen;
-- a 30° field of view shows an object twice as big as a 60° one, from the same spot;
-- an orthographic camera's answer does not change with distance at all.
+`lod1Size` and the other sizes are the fraction of the **viewport height** covered by the object's bounds: `1.0` is an
+object exactly one screen tall, `0.02` a fiftieth of it.
 
-A screen fraction covers all three, and it is free of the resolution too — the
-same number is right on a phone and on a desktop.
+A screen fraction, unlike a distance, accounts for object size, field of view and orthographic projection, and is
+independent of resolution, so one value applies on phones and desktops. The quality level's **LOD distance scale**
+multiplies the measured size ([View Distance & Draws](/docs/performance/quality-levels/settings/#view-distance--draws)).
 
 <Aside type="tip">
-To pick thresholds, put the camera where a level's action happens and look at the
-object. The size you want is roughly "the fraction of the window's height it
-covers"; anything under about 5% is a candidate for the coarsest mesh you have.
+To choose thresholds, place the camera where the action happens and estimate the fraction of the window height the
+object covers. Objects under about 5% are candidates for the coarsest mesh.
 </Aside>
 
-## Hysteresis — why the levels do not flicker
+## Hysteresis
 
-A boundary crossed at exactly one number flips back and forth for a camera that is
-merely breathing, and a mesh swapping every frame is far more visible than the
-swap itself. `hysteresis` makes each boundary asymmetric: an object hands *down* to
-the coarser mesh at the threshold, and only comes back up once it has grown past
-it by that fraction.
+A threshold crossed at a single value flips back and forth when the camera moves slightly. `hysteresis` makes each
+threshold asymmetric: an object switches to the coarser mesh at the threshold and returns only after growing past it by
+that fraction. With the default `0.1` and `lod1Size: 0.20`:
 
-At the default `0.1`, a `lod1Size` of `0.20` means:
+- shrinking below **0.20** switches to level 1;
+- growing above **0.22** returns to level 0.
 
-- shrinking past **0.20** → level 1 takes over;
-- growing back past **0.22** → level 0 returns.
+`0` gives a bare threshold. Hysteresis also applies to `cullSize`.
 
-Set it to `0` and you get a bare threshold, which flickers. It applies to
-`cullSize` too, so an object at the edge of visibility does not blink.
+## Selection
 
-## What the selection is, and is not
-
-**It belongs to the camera, not the entity.** Two cameras in one frame — a main
-view and a minimap, or a split screen — see the same object at two different sizes
-and may draw it at two different levels. There is no `currentLOD` on the entity to
-read or to set.
-
-**It is measured on the whole group's bounds.** The bounds used to choose are the
-union of every level's, so they do not change with the level being drawn. Bounds
-read off the current mesh would feed back into the choice that picked it and
-oscillate.
-
-**Culling runs first.** An object the frustum already rejected is never measured,
-so the cost is paid only for what could have been seen.
-
-**Instancing is unaffected.** Choosing a level changes which geometry a draw names
-and nothing else, so props sharing a level still fold into one instanced call.
-A field at three levels reaches the GPU as roughly three draws, not as one per prop.
+- **Per camera.** Two cameras in one frame (a main view and a minimap, or split screen) can draw the same object at
+  different levels. The entity has no `currentLOD` field.
+- **Measured on the union of all levels' bounds**, so the measured size does not change with the level drawn.
+- **After frustum culling.** Objects outside the frustum are not measured.
+- **Compatible with instancing.** Selecting a level only changes the mesh a draw references, so props at the same level
+  are still drawn as one instanced call.
 
 ## Authoring rules
 
-- **Fill the slots in order** — `lod1`, then `lod2`, then `lod3`. A slot left empty
-  ends the ladder, and anything after it is never reached (the engine warns).
-- **Defaults.** `lod1Size` 0.5, `lod2Size` 0.25, `lod3Size` 0.1, `cullSize` 0.02, `hysteresis` 0.1 (0 to 1); the component's `enabled` switch, when off, always draws the renderer's own mesh.
-- **The sizes must descend.** `lod2Size` below `lod1Size`, and so on.
-- **`cullSize: 0`** disables culling entirely, so the group is never invisible.
-- **A group may have no stand-in at all.** With only a `cullSize` it draws the renderer's own mesh while it is big enough and nothing once it is smaller: the right group for a tuft of grass, which has no cheaper version and is not worth drawing past a distance.
-- **The levels can be generated at import.** Set **Generate LODs** to 1–3 levels in a model's import settings (or pass `--lods <n>` to `import-model`): each mesh is collapsed into copies with about 50%, 20% and 7% of its triangles, written as `<mesh>_lod<n>.esmesh`, with a `LODGroup` on the entity. Skinned and morphing meshes, and meshes under **LOD Minimum Triangles** (256), keep one level.
-- **A skinned group must share one skeleton.** Every level of a skinned mesh needs
-  the same joint count; a level that disagrees is drawn in its bind pose, and the
-  engine says so.
+- Fill the slots in order: `lod1`, then `lod2`, then `lod3`. An empty slot ends the chain; later slots are never reached,
+  and the engine warns.
+- The sizes must decrease: `lod2Size` below `lod1Size`, and so on.
+- `cullSize: 0` disables culling, so the group is never invisible.
+- A group may have no stand-ins. With only `cullSize`, it draws the renderer's mesh while large enough and nothing below
+  that, which suits objects with no cheaper version, such as grass tufts.
+- Levels can be generated at import with **Generate LODs**, which also adds the `LODGroup`
+  ([Generated levels of detail](/docs/assets/models/geometry/#generated-levels-of-detail)).
+- Every level of a skinned group must share one skeleton (the same joint count). A level that differs is drawn in its
+  bind pose, and the engine reports it.
 
-## What it buys
+## Impostors
 
-Measured on a receding field of props, 512×512, WebGL2:
-
-| props | triangles | GPU |
-|---|---|---|
-| 1 000, always full detail | 195 776 | 0.505 ms |
-| 1 000, with `LODGroup` | 4 248 | 0.116 ms |
-| 10 000, always full detail | 1 912 960 | 3.595 ms |
-| 10 000, with `LODGroup` | 42 392 | 0.27 ms |
-
-Selection costs 0.2–0.3 ms of CPU per ten thousand props, which is the trade:
-CPU spent choosing, GPU saved drawing. The exchange rate improves with the count,
-which is the point — it is the mechanism that decides whether a field of ten
-thousand props is shippable at all.
-
-## Impostors: a picture in place of a far mesh
-
-An `Impostor` beside a MeshRenderer stands a card in for the mesh once the object covers less than `screenSize` of the view.
-The card shows a picture of the mesh taken from the direction the view is looking from, so from far away it is the object, at
-two triangles.
+An `Impostor` next to a `MeshRenderer` replaces the mesh with a camera-facing card once the object covers less than
+`screenSize` of the view height. The card shows a picture of the mesh taken from the direction of the view.
 
 ```typescript
 world.insert(tree, Impostor, { screenSize: 0.06, frames: 8, resolution: 1024 });
 ```
 
-- **The pictures** are taken while the game runs, once per kind: `frames` x `frames` orthographic cameras of the engine's own look
-  at a copy of the mesh from the directions of the upper half of a sphere, each into its own cell of one atlas `resolution`
-  pixels on a side. They are ordinary cameras, so the pictures have the mesh's material, textures and the scene's light, on
-  every backend. Entities with the same mesh, material, texture and colour share one atlas; kinds are photographed one after
-  another, a frame or two each.
-- **The card** is drawn by the renderer in each view: the picture taken nearest that view's direction, on a square facing it.
-  Every card is drawn through the sprite batch, so cards whose atlases fit in one draw's texture slots are one draw. In the
-  `impostor` editor check, five objects of five kinds draw as one draw where their meshes, instanced by shape, drew as two.
-- **What it cannot do.** A picture keeps the light it was taken in, in the object's own frame: an object turned in the world is lit
-  as if the sun had turned with it, so impostors suit objects lit softly or not turned. The picture changes in steps as the view
-  goes round (more `frames` is smaller steps), a card casts no shadow and is not seen from below, and the pictures are taken in
-  Play and in a built game, not in the editor's own viewport.
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `screenSize` | number | `0.06` | Screen-height fraction below which the card replaces the mesh. |
+| `frames` | number | `8` | Pictures along each side of the atlas (`frames × frames` in all), 2–16. More pictures give smaller steps as the view goes round, each at a lower resolution. |
+| `resolution` | number | `1024` | Atlas side in pixels, 128–4096; each picture is `resolution / frames`. |
+| `enabled` | boolean | `true` | Off: the mesh is always drawn. |
 
-## Baking static cluster geometry
+- **Capture.** Pictures are taken while the game runs, once per kind: `frames × frames` orthographic cameras look at a copy
+  of the mesh from directions over the upper hemisphere, each into its own atlas cell. They are ordinary cameras, so the
+  pictures include the mesh's material, textures and the scene's light on every backend. Entities with the same mesh,
+  material, texture and colour share one atlas; kinds are captured one after another, a frame or two each.
+- **Drawing.** Each view draws the picture taken closest to its direction on a square facing it. Cards are drawn through
+  the sprite batch, so cards whose atlases fit in one draw's texture slots are one draw. The quality level's **LOD distance
+  scale** also applies to `screenSize`.
+- **Limits.** A picture keeps the lighting it was captured in, in the object's own frame: a rotated object is lit as if
+  the light rotated with it, so impostors suit objects that are softly lit or not rotated. The picture changes in steps as
+  the view goes round. Cards cast no shadow and are not seen from below. Pictures are captured in Play and in built games,
+  not in the editor viewport.
 
-Node authoring tools can call `bakeStaticProxy` from `@estella/pipeline` to merge and
-simplify an already-partitioned cluster. Each source supplies decoded mesh data, a
-world matrix, draw state and an explicit motion/blending classification. The baker
-uses the same geometry merge and draw grouping as static batching.
+## Baking static cluster proxies
+
+Node authoring tools can call `bakeStaticProxy` from `@estella/pipeline` to merge and simplify an already-partitioned
+cluster of static surfaces. Each source supplies decoded mesh data, a world matrix, its draw state and an explicit motion
+and blending classification. The baker uses the same geometry merge and draw grouping as static batching.
 
 ```typescript
 import { bakeStaticProxy } from '@estella/pipeline';
@@ -166,38 +135,35 @@ const proxy = await bakeStaticProxy(sources, {
 });
 ```
 
-The result contains cluster-local meshes, their original draw state, source ids,
-before/after triangle and byte counts, measured error and input fingerprints.
-Place them at `proxy.origin`. Material, texture, tint, layer, lighting and shadow
-differences remain separate draws. The caller writes the mesh assets and resolves
-the collected draw identifiers to asset references; this API does not modify a scene.
+| Option | Description |
+|---|---|
+| `origin` | Cluster-local origin; the returned meshes are placed here. |
+| `ratio` | Target triangle share, in (0, 1]. The error limit takes precedence and can keep more triangles. |
+| `maxWorldError` | Maximum simplification error in world units, independent of the cluster's extent. |
+| `pruneDisconnected` | Allows small disconnected pieces to be removed within the error bound. Off by default; requires visual review. |
+| `maxVertices` | Vertex budget per group before simplification. |
 
-`maxWorldError` is in world units, so adding a distant building does not enlarge the
-allowed error. `ratio` is a target; the error limit can retain more triangles.
-Vertex colours and both UV sets contribute to the simplification error. Set
-`preserveGeometry: true` on emissive or other sensitive surfaces; any protected
-source preserves the geometry of its compatible group while still allowing merging.
-`pruneDisconnected: true` permits deletion of entire small disconnected pieces and
-requires image comparison. It is off by default.
+- The result contains cluster-local meshes with their original draw state, source ids, triangle and byte counts before
+  and after, the measured error and input fingerprints. Material, texture, tint, layer, lighting and shadow differences
+  remain separate draws.
+- The caller writes the mesh assets and resolves draw identifiers to asset references; the API does not modify a scene.
+- Vertex colours and both UV sets contribute to the simplification error. Setting `preserveGeometry: true` on a source
+  (emissive or other high-contrast surfaces) preserves the geometry of its whole group while still allowing merging.
+- Moving, deformed, billboard, blended, baked-light, skinned and morphing surfaces are returned in `refused` and remain
+  the caller's responsibility.
 
-Moving, deformed, billboard, blended, lightmapped, skinned and morphing surfaces
-are reported in `refused`. Keep those surfaces under their existing ownership.
-A streamed world uses the same grouping for its cells: tick **Far proxies** on
-`StreamedWorld` and each cell ships a baked stand-in that the streamer shows while
-the cell is not resident (see [World streaming](/docs/world/streaming/)). The proxy
-does not yet bake its own texture or emission, and there is no chain of coarser proxies
-further out. (Texture streaming, which holds textures at the size their views need, is a
-separate thing that exists: see [Quality levels](/docs/performance/quality-levels/).)
+A streamed world uses the same grouping for its cells: with **Far proxies** enabled on `StreamedWorld`, each cell ships a
+baked stand-in that is shown while the cell is not resident ([World Streaming](/docs/world/streaming/)). The proxy does
+not bake its own texture or emission, and there is no chain of coarser proxies further out.
 
-## What this is not
+## Scope
 
-`LODGroup` is about **one object at different sizes**. It is not a streaming
-system: every level's mesh is resident, nothing is loaded or unloaded, and an
-object that is `cullSize`-small is simply not drawn rather than removed from the
-world. Combining distant objects into one merged proxy (HLOD) and loading a world
-in pieces are separate concerns; a streamed world's cells get far proxies from the
-baker above. Existing runtime choices for content that is always resident are the far versions
-of plants (`Foliage`, `PlacedFoliage` — see [Foliage](/docs/graphics/foliage/)),
-the terrain's own distance-based quadtree
-([Terrain](/docs/graphics/terrain/overview/)), and [static batching](/docs/performance/static-batching/),
-which merges different meshes to save draws but does not make them cheaper far away.
+`LODGroup` changes how one object is drawn at different sizes. It does not stream: every level's mesh is resident, and an
+object below `cullSize` is not drawn but remains in the world. Related systems:
+
+- [World Streaming](/docs/world/streaming/) loads a world in cells, with far proxies from the baker above.
+- [Foliage](/docs/graphics/foliage/): far versions of plants (`Foliage`, `PlacedFoliage`).
+- [Terrain](/docs/graphics/terrain/overview/): the terrain's distance-based quadtree.
+- [Static Batching](/docs/performance/static-batching/) merges different meshes to save draws without simplifying them.
+- [Texture streaming](/docs/performance/quality-levels/texture-streaming/) holds textures at the size their views need.
+- [Cluster LOD](/docs/assets/models/geometry/#cluster-lod) draws dense static meshes per view without a `LODGroup`.

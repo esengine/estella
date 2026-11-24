@@ -1,0 +1,148 @@
+---
+title: 2D Physics Basics
+description: 2D physics reference — the Box2D side module, Physics2DPlugin setup and configuration, the metre/pixel unit boundary, the runtime debug overlay, and the chapter's pages.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+2D physics runs in the C++/WebAssembly core on Box2D v3. An entity takes part in the simulation when it carries a
+`RigidBody2D` and a collider. The world advances at a **fixed timestep**, independent of the frame rate.
+
+## Setup
+
+Physics is an optional side module. In the editor and the web runtime it loads automatically when a scene uses physics
+components. A custom app adds the plugin:
+
+```typescript
+import { Physics2DPlugin } from 'esengine/physics';
+
+app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
+```
+
+The second argument is a `Physics2DPluginConfig`; every field is optional.
+
+| Field | Default | Description |
+|---|---|---|
+| `gravity` | `{ x: 0, y: -9.81 }` | World gravity, m/s². |
+| `fixedTimestep` | `1/30` | Physics step in seconds. The plugin also sets the app's fixed step to this value, so `FixedUpdate` systems run at the same 30 Hz. |
+| `subStepCount` | `4` | Solver substeps per step. |
+| `contactHertz` / `contactDampingRatio` / `contactSpeed` | `30` / `10` / `3` | Contact softness and the maximum push-out speed (m/s). |
+| `collisionLayerMasks` | none | Per-layer collision masks (index = layer 0–15) that replace each collider's own `maskBits`. The editor fills it from the collision matrix ([Collision filtering](/docs/gameplay/physics-2d/bodies/#collision-filtering)). |
+| `enableSleep` | `true` | Resting bodies sleep. |
+| `enableContinuous` | `true` | Continuous collision for fast bodies. |
+| `restitutionThreshold` | Box2D default | Minimum impact speed (m/s) that produces a bounce; `0` or less keeps the default. |
+| `maxLinearSpeed` | Box2D default | Upper limit on body speed; `0` or less keeps the default. |
+
+Components (`RigidBody2D`, the colliders, joints, `OneWayPlatform2D`, `CharacterController2D`,
+`PlatformerController2D`) and the `Physics2DPlugin`, `Physics2D`, `Physics2DEvents` and `Physics2DEventType` exports
+are available from the main `esengine` barrel. The `esengine/physics` subpath additionally exports the API types,
+`Physics2DDebugDraw` and `moveAndSlide`.
+
+## Units
+
+Box2D simulates in **metres**; the rest of the engine works in **world pixels**. The conversion factor is the live
+**pixels per unit** (PPU), `Canvas.pixelsPerUnit`, `100` pixels per metre by default. Each part of the physics API is on
+a fixed side of that boundary:
+
+| Surface | Units |
+|---|---|
+| Collider component dimensions: `halfExtents`, `radius`, `offset`, … | **Metres.** |
+| Solver methods: `applyForce` / `applyImpulse`, `setLinearVelocity` / `getLinearVelocity`, `setGravity`, … | **Metres** (m/s, m/s²). |
+| Spatial queries: `raycast`, `shapeCast*`, `overlapCircle` / `overlapAABB`, `moveCharacter` | **World pixels**, scaled by the live PPU. |
+| `CharacterController2D.velocity`, `MotorJoint2D.linearVelocity` | World pixels per second. |
+| Joint components' `anchorA` / `anchorB`, `length`, `minLength` / `maxLength`, `lowerTranslation` / `upperTranslation`; the pixel joint methods (`setDistanceJointLength`, `setDistanceJointLimits`, `setPrismaticJointLimits`, `setWheelJointLimits`, …) and their getters | **World pixels.** Angles (`lowerAngle`, a hinge's `motorSpeed`) are radians. |
+| Contact event positions and speeds: `contactX/Y`, `pointX/Y`, `approachSpeed` | World pixels, pixels per second. |
+| `createRevoluteJoint`'s `anchorA` / `anchorB` | **Metres**, passed to the solver unchanged, unlike the joint components' pixel anchors. |
+
+`physics.getPixelsPerUnit()` returns the live PPU, pushed from the `Canvas` each frame:
+
+```typescript
+const ppu = physics.getPixelsPerUnit();               // world pixels per meter
+const speedPx = physics.getLinearVelocity(e).x * ppu; // m/s → px/s
+physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
+```
+
+<Aside type="caution">
+  Components and solver methods take metres; queries and the character controller take pixels. Passing pixels to
+  `applyForce`, or metres to `raycast`, produces values off by a factor of the PPU.
+</Aside>
+
+## A minimal body
+
+```typescript
+import {
+  defineSystem, Commands, Transform,
+  RigidBody2D, BodyType, CircleCollider2D,
+} from 'esengine';
+
+const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.getPixelsPerUnit()
+
+const spawnBall = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 250, z: 0 } })
+    .insert(RigidBody2D, { bodyType: BodyType.Dynamic, gravityScale: 1 })
+    .insert(CircleCollider2D, { radius: 24 / PPU, density: 1, friction: 0.3, restitution: 0.4 });
+});
+```
+
+Body and collider fields are listed in [Bodies & Colliders](/docs/gameplay/physics-2d/bodies/).
+
+## Debug draw
+
+The physics plugin installs a **`Physics2DDebugDraw`** resource: an in-game overlay that strokes collider outlines,
+velocity vectors and contact points through the [`Draw`](/docs/graphics/drawing/overview/#the-draw-api) API. It is
+disabled by default.
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+import { Physics2DDebugDraw } from 'esengine/physics';
+
+const toggleDebug = defineSystem([Res(Input), Res(Physics2DDebugDraw)], (input, dbg) => {
+  if (input.isKeyPressed('F1')) dbg.enabled = !dbg.enabled;
+});
+```
+
+| `Physics2DDebugDrawConfig` field | Default | Draws |
+|---|---|---|
+| `enabled` | `false` | Master switch for the overlay. |
+| `showColliders` | `true` | Collider outlines, coloured by body: blue = static, green = dynamic, cyan = kinematic; sensors are yellow. |
+| `showVelocity` | `false` | A red arrow per dynamic body along its linear velocity. |
+| `showContacts` | `false` | A red dot at each contact that began this frame. |
+
+The overlay draws in world pixels at each body's live transform, scaled by the live PPU, so it shows the colliders where
+the queries see them. `setupPhysics2DDebugDraw(app, Physics2D, Physics2DEvents)` is the wiring `Physics2DPlugin`
+performs: it inserts the resource and registers the draw callback. A custom host that bypasses the plugin calls it, or
+calls the per-frame `drawPhysics2DDebug(app, Physics2D, Physics2DEvents)` directly.
+
+<Aside type="note">
+  This is the runtime overlay. The editor viewport draws its own collider and joint gizmos under the **Physics** show
+  flag ([Joints in the editor](/docs/gameplay/physics-2d/joints/#in-the-editor)); the two are independent.
+</Aside>
+
+## Guidelines
+
+- Apply continuous forces from a `FixedUpdate` system. Read `Physics2DEvents` every frame: the resource is published
+  once per frame and holds the contacts of every fixed step in it.
+- Set `bullet: true` on fast, thin bodies (bullets, thin platforms) to prevent tunnelling.
+- Set `fixedRotation: true` on characters so they do not topple.
+- Use sensors (`isSensor: true`) for trigger zones: they report enter and exit events with no physical response.
+- Filter interactions with collision layers (`categoryBits` / `maskBits`) rather than by checking entity types in
+  event handlers.
+
+## Chapter pages
+
+- [Bodies & Colliders](/docs/gameplay/physics-2d/bodies/) — `RigidBody2D`, collider shapes, polygon editing, collision
+  filtering and one-way platforms.
+- [Forces, Queries & Events](/docs/gameplay/physics-2d/queries/) — the `Physics2D` API, spatial queries, contact and
+  sensor events, grid placement.
+- [Joints](/docs/gameplay/physics-2d/joints/) — joint components, joint control methods and the drag joint.
+- [Character Controllers](/docs/gameplay/physics-2d/characters/) — `CharacterController2D` and
+  `PlatformerController2D`.
+
+## See also
+
+- [3D Physics](/docs/gameplay/physics-3d/overview/) — the separate 3D rigid-body world.
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — sensor regions authored as markers.
+- [Tile Collision](/docs/world/tilemaps/collision/) — colliders generated from tilemaps.
+- [Scenes](/docs/world/scenes/) — physics components serialize with the scene.
+- [Math Helpers](/docs/scripting/math/) — vector math for velocities and directions.

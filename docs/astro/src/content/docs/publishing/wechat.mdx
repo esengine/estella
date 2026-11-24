@@ -1,130 +1,118 @@
 ---
 title: WeChat MiniGame
-description: Build and export a game for WeChat MiniGames, with subpackages.
+description: The WeChat MiniGame target — the WeChat engine runtime and side modules, target settings, package layout, compressed textures, engine binary options, EmscriptenGLX, subpackages and the WeChat starter project.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Estella exports the same project to **WeChat MiniGames**. You export the game from
-the editor and open the result in WeChat DevTools.
+The **WeChat** target exports the project as a WeChat MiniGame package, which is opened, tested and submitted in
+WeChat DevTools.
 
-## Build the engine for WeChat
+## WeChat runtime
 
-The editor download already carries the WeChat engine and its side modules, so an
-installed editor needs none of this. In an engine source checkout, build them once.
-The WeChat target compiles the C++ core with WeChat's `WXWebAssembly` shims:
+WeChat loads WebAssembly through `WXWebAssembly`, so it uses a separate engine build with WeChat shims, plus WeChat
+builds of the side modules. The editor download includes them. In an engine source checkout, build them once:
 
 ```bash
 node build-tools/cli.js build -t wechat
-# side modules, only if your game uses them:
-node build-tools/cli.js build -t physics-wechat   # physics
-node build-tools/cli.js build -t spine-wechat     # Spine (builds 2.1 + 3.8 + 4.1 + 4.2 + 4.3)
+# side modules, only if the game uses them:
+node build-tools/cli.js build -t physics-wechat     # physics
+node build-tools/cli.js build -t spine-wechat       # Spine (builds 2.1 + 3.8 + 4.1 + 4.2 + 4.3)
 node build-tools/cli.js build -t dragonbones-wechat # DragonBones
-node build-tools/cli.js build -t basis-wechat     # KTX2 / compressed textures
-node build-tools/cli.js build -t videodec-wechat  # video (MPEG-1 wasm decoder)
+node build-tools/cli.js build -t basis-wechat       # KTX2 / compressed textures
+node build-tools/cli.js build -t videodec-wechat    # video (MPEG-1 wasm decoder)
 ```
 
 <Aside type="note">
-  **A missing runtime is a hard export error, not a warning.** If a scene uses
-  physics or Spine, or the build ships KTX2 textures, and the matching
-  `*-wechat` module isn't built, the export stops and names the exact build
-  command to run. The exporter stages only the side modules your scenes
-  actually need, so unused ones add no package weight.
+  **A missing runtime is an export error.** If a scene uses physics or Spine, or the build ships KTX2 textures, and the
+  matching `*-wechat` module is not built, the export stops and names the build command. Only the side modules the
+  scenes need are staged into the package.
 </Aside>
 
-## Export from the editor
+## Exporting
 
 <Steps>
 
-1. In **Settings → Project → Build and modules → Packaging → WeChat**, set your AppID. Screen orientation
-   is project-wide — set it once in **Settings → Project → Game → Display → Orientation** (it
-   drives the `game.json` `deviceOrientation` below).
-
-2. Open **Build → Package Project…**, pick the **WeChat** platform in the Package Project
-   dialog, review the **Scenes in build** list, and click **Package**. Estella
-   cooks assets, bundles the SDK + your scripts (as CommonJS, via esbuild),
-   transforms scenes, and writes a standalone MiniGame package.
-
-3. Open the output folder in **WeChat DevTools** to compile, test, and submit.
-   If you left the AppID empty, fill it in `project.config.json` from DevTools.
+1. Open **Build → Package Project…** and select **WeChat** under Mini-Games.
+2. In the WeChat target settings, set the **AppID**. Orientation is the project-wide setting **Settings → Project →
+   Game → Display → Orientation**, written as `deviceOrientation` in `game.json`.
+3. Review **Scenes in build** and click **Package**. The export cooks assets, bundles the SDK and scripts as CommonJS
+   with esbuild, transforms scenes, and writes the package.
+4. Open the output folder in **WeChat DevTools** to compile, test and submit. If the AppID was left empty, set it in
+   `project.config.json` from DevTools.
 
 </Steps>
 
-The output directory contains `game.js` (the entry, which boots
-`game-bundle.js` — the SDK + your scripts), `game.json` /
-`project.config.json` (WeChat config), the `asset-manifest.json`, your scenes
-as `scenes/<name>.json`, and a `wasm/` folder holding the engine plus exactly
-the side modules your scenes need. Every scene in the build is a
-`SceneManager.switchTo` target — non-startup scenes load on their first switch
-(see [Scenes](/docs/world/scenes/)).
-
-<Aside type="caution">
-  Don't hand-edit `game.js` or move files under `wasm/` — the boot sequence
-  instantiates exactly those staged files, so renames break the game in
-  DevTools.
-</Aside>
-
 ![The Package Project dialog on the WeChat target, with the wasm compression, engine subpackage, AppID and EmscriptenGLX settings](@/assets/guides/en/build-wechat.png)
 
-*The WeChat target: the size limits under the title, then the target's own settings, then the shared build options.*
+*The WeChat target: the size limits under the title, then the target settings, then the shared build options.*
+
+### Target settings
+
+| Setting | Default | Description |
+|---|---|---|
+| **AppID** | empty | Written into `project.config.json`. |
+| **Compress wasm binaries** | off | Ships the engine and every side module as `.wasm.br`. See [Engine binary](#engine-binary). |
+| **Engine in a subpackage** | off | Moves the engine binary into a subpackage loaded at startup. |
+| **Render through EmscriptenGLX** | off | Links the engine with WeChat's EmscriptenGLX. See [EmscriptenGLX](#emscriptenglx). |
+
+### Package layout
+
+| Path | Contents |
+|---|---|
+| `game.js` | Entry; boots `game-bundle.js`. |
+| `game-bundle.js` | The SDK and the project's scripts. |
+| `game.json`, `project.config.json` | WeChat configuration. |
+| `asset-manifest.json` | The addressable asset manifest. |
+| `scenes/<name>.json` | Each scene in the build; non-startup scenes load on their first `SceneManager.switchTo` ([Scenes](/docs/world/scenes/)). |
+| `wasm/` | The engine and the side modules the scenes need. |
+
+<Aside type="caution">
+  Do not edit `game.js` or rename files under `wasm/`. The boot sequence instantiates exactly those staged files.
+</Aside>
 
 ## Compressed textures
 
-With the Package dialog's **Compression** set to **By import settings**, textures
-cook to KTX2 per their **Compression** import setting (Auto, GPU compressed or
-Original image) — a smaller package and faster first load. Two WeChat-specific
-details, both handled automatically:
+With **Textures by import settings** ticked under Compression, textures cook to KTX2 according to their
+**Compression** import setting (Auto, GPU compressed or Original image). WeChat-specific handling:
 
-- The Basis transcoder ships as the `basis-wechat` side module — build it once
-  (above), or the export fails with the exact command to run.
-- WeChat's code package only accepts whitelisted file suffixes, and `ktx2`
-  isn't one — so the exporter stages every `.ktx2` as `.ktx2.bin`, and the
-  runtime resolves both spellings. The exporter also emits
-  `packOptions.include` rules in `project.config.json` for every staged custom
-  extension (`.skel`, `.atlas`, `.bin`, …) so DevTools packs and serves them.
+- The Basis transcoder ships as the `basis-wechat` side module; without it the export fails with the build command.
+- WeChat's code package accepts only whitelisted file suffixes, and `ktx2` is not one. The exporter stages each
+  `.ktx2` as `.ktx2.bin`, and the runtime resolves both spellings. The exporter also writes `packOptions.include`
+  rules in `project.config.json` for every staged custom extension (`.skel`, `.atlas`, `.bin`, …) so DevTools packs
+  them.
 
-## The engine binary
+## Engine binary
 
-The engine's `.wasm` is the largest single file a mini-game ships. Two options
-on the WeChat page of **Package Project** keep it out of the 4 MB main package:
+The engine `.wasm` is the largest single file in a mini-game. Two settings keep it out of the 4 MB main package:
 
-- **Compress wasm binaries** ships the engine and every side module as
-  `.wasm.br`, roughly a third of the size; WeChat decompresses them on load.
-  This needs **base library 2.14.0** or later. The package carries only the
-  compressed file and nothing checks the version at run time, so set the
-  minimum base library of your mini-game in the WeChat console to 2.14.0 when
-  you turn this on.
-- **Engine in a subpackage** moves the binary into a 分包 that loads at
-  startup. It no longer counts against the main package; startup waits for
-  that download, with the loading bar showing its progress.
+- **Compress wasm binaries** (also **Compress the engine binary** under Compression; same setting) ships the engine
+  and every side module as `.wasm.br`, about a third of the size, decompressed by WeChat on load. It requires **base
+  library 2.14.0** or later. The package carries only the compressed file and the version is not checked at run time,
+  so set the mini-game's minimum base library to 2.14.0 in the WeChat console.
+- **Engine in a subpackage** moves the binary into a subpackage (分包) loaded at startup. It no longer counts toward
+  the main package; startup waits for the download, and the loading bar shows its progress.
 
 ## EmscriptenGLX
 
-WeChat's EmscriptenGLX runs the engine's GL calls inside the wasm and hands them
-to the host in batches, instead of crossing into JavaScript for each one. In a
-scene of about a thousand draw calls it cut render time by about 12% on an
-Android phone.
-
-Turn on **Render through EmscriptenGLX** on the WeChat page of **Package
-Project**, and build the engine it needs once:
+WeChat's EmscriptenGLX executes the engine's GL calls inside the wasm and passes them to the host in batches instead
+of calling into JavaScript for each one; in a draw-heavy scene render time is about 12% lower. Turn on **Render
+through EmscriptenGLX** and build the engine once:
 
 ```bash
 node build-tools/cli.js build -t wechat-glx
 ```
 
-The build downloads WeChat's library at a pinned version and checks its hash,
-and uses emsdk 4.0.10 (installed into `tools/emsdk-glx` the first time) — the
-version that library is published for. It adds about 310 KB of wasm.
+The build downloads WeChat's library at a pinned version, checks its hash, and uses emsdk 4.0.10 (installed into
+`tools/emsdk-glx` on first use), the version the library is published for. It adds about 310 KB of wasm.
 
-It takes effect on Android with base library 3.8.12 or later, and on iOS in
-高性能+ mode. Any other host, including DevTools, renders through WebGL2 as
-before; the log's `rendering through …` line says which one a device used.
+It takes effect on Android with base library 3.8.12 or later, and on iOS in 高性能+ mode. Other hosts, including
+DevTools, render through WebGL2. The log's `rendering through …` line states which path a device used.
 
-## Subpackages (分包)
+## Subpackages
 
-Lazy asset groups become WeChat **subPackages** in `game.json`. At runtime,
-`assets.loadGroup('level2')` triggers `wx.loadSubpackage` under the hood, so
-levels download on demand rather than bloating the initial package:
+Lazy asset groups become WeChat `subPackages` in `game.json`. At runtime, `assets.loadGroup('level2')` calls
+`wx.loadSubpackage`:
 
 ```json
 {
@@ -135,31 +123,29 @@ levels download on demand rather than bloating the initial package:
 }
 ```
 
-## Best practices
+## Recommendations
 
-- **Stay under the 4 MB main-package limit** by moving on-demand content into
-  `subpackages/<name>/` — see [Assets](/docs/assets/overview/). The export sets
-  `bigPackageSizeSupport`, so an oversized package still *previews* in
-  DevTools — but upload enforces the cap.
-- **Compress textures** — see above (leave **Compression** on **By import settings**); the single biggest package-size win.
-- **Test in WeChat DevTools**, not just the browser — the file system, storage,
-  and socket backends differ from the web.
-- **Preload the next level's group** (`loadGroup`) during play so the
-  subpackage download doesn't stall the transition.
+- **Keep the main package under 4 MB** by moving on-demand content into subpackages ([Assets](/docs/assets/overview/)).
+  The export sets `bigPackageSizeSupport`, so an oversized package still previews in DevTools, but upload enforces the
+  limit. See [Package Size](/docs/publishing/package-size/).
+- **Compress textures** with **Textures by import settings**.
+- **Test in WeChat DevTools** and on devices; the file system, storage and socket backends differ from the web.
+- **Preload the next level's group** with `loadGroup` during play so the subpackage download does not delay the
+  transition.
+
+## Starter project
+
+The **WeChat Mini Game** template in the launcher creates a CC0 fleet game with a login-code/server-exchange hook, a
+share request, a configured rewarded video and device-local saved credits. Its `README.md` covers creating,
+customizing, exporting and submitting. The `wechat` export profile enables the engine subpackage; the `web` profile
+runs the game locally with host-only buttons disabled. Set the ad unit and server integration in `src/config.ts`. No
+AppSecret or sample account is included. A login code is not an authenticated identity, a share request does not
+confirm a share, and saved credits are not a cloud backup.
 
 ## See also
 
-The **WeChat Mini Game** starter in the launcher includes a CC0 fleet game,
-login-code/server-exchange hook, share request, configured rewarded video and
-device-local saved credits. Follow its copied `README.md` to create, customize,
-export and submit. Its named `wechat` profile enables compressed engine
-subpackaging; its `web` profile offers local gameplay with unavailable host
-buttons disabled. Set your own ad unit and server integration in `src/config.ts`.
-No AppSecret or sample account is shipped. Login codes are not authenticated
-identity, share requests do not prove completion, and saved credits are not cloud
-backup. Validate your real account, backend, ads and devices separately.
-
-- [Assets](/docs/assets/overview/) — addressable groups and cooking map onto subpackages.
+- [Assets](/docs/assets/overview/) — addressable groups and cooking.
+- [Mini-Game Platforms](/docs/publishing/minigame-platforms/) — the mini-game family and other hosts.
 - [Building & Exporting](/docs/publishing/overview/) — the Package Project dialog.
-- [Video](/docs/graphics/video/) — the MPEG-1 wasm decode path shipped for WeChat.
-- [Networking](/docs/scripting/networking/) — sockets use `wx.connectSocket` here.
+- [Video](/docs/graphics/video/) — the MPEG-1 wasm decoder.
+- [Networking](/docs/scripting/networking/overview/) — sockets use `wx.connectSocket` on WeChat.

@@ -1,10 +1,10 @@
 ---
 title: Components
-description: Declaring and using components — defineComponent, field types, tags, editor metadata, and the built-in component set.
+description: Declaring components with defineComponent and defineTag — field types, editor field metadata, component-level metadata, the built-in component set, the entity metadata components, and reading and writing component data.
 ---
 
-A **component** is a small, plain data struct attached to an entity. Declare one
-with `defineComponent`, giving it a name and its default values:
+A **component** is a plain data struct attached to an entity. `defineComponent(name, defaults, metadata?)` declares
+one:
 
 ```typescript
 import { defineComponent } from 'esengine';
@@ -13,30 +13,38 @@ const Speed = defineComponent('Speed', { value: 200 });
 const Health = defineComponent('Health', { current: 100, max: 100 });
 ```
 
-The defaults define both the shape (fields and types) and the initial values a
-new instance gets. Components are pure data — no methods, no behavior. Behavior
-lives in [systems](/docs/core-concepts/systems/).
+The defaults define the component's fields, their types and the initial values of a new instance. Components hold
+data only; behaviour belongs in [systems](/docs/core-concepts/systems/). The name is the component's identity: it is
+what scenes serialize and what [hot reload](/docs/scripting/script-modules/#hot-reload) matches on.
+
+{/* SHOT: core-component-details | Run examples/ecs-basics, pause Play, select one of the spawned entities that carries the Mover component; Details shows the Mover card (speed, directionX, directionY) below Transform. */}
 
 ## Field types
 
-A field's type is inferred from its default. Numbers, booleans, and strings work
-as you'd expect, and structured shapes get matching editor controls:
+A field's type is inferred from its default value. Structured values receive matching editor controls:
+
+| Default value | Type | Details control |
+|---|---|---|
+| `400` | number | Number field |
+| `true` | boolean | Checkbox |
+| `''` | string | Text field |
+| `{ x: 0, y: 0 }` | vector | X/Y fields |
+| `{ r: 1, g: 1, b: 1, a: 1 }` | colour | Colour picker |
 
 ```typescript
 const Missile = defineComponent('Missile', {
-  speed: 400,                          // number
-  homing: true,                        // boolean
-  targetTag: '',                       // string
-  velocity: { x: 0, y: 0 },            // vector — edited as an X/Y pair
-  tint: { r: 1, g: 1, b: 1, a: 1 },    // {r,g,b,a} fields render a color picker
+  speed: 400,
+  homing: true,
+  targetTag: '',
+  velocity: { x: 0, y: 0 },
+  tint: { r: 1, g: 1, b: 1, a: 1 },
 });
 ```
 
-## Tags — components with no data
+## Tags
 
-A **tag** is a zero-field marker used purely for filtering — `Player`, `Enemy`,
-`Frozen`. Declare it with `defineTag` and use it in queries with `.with()` /
-`.without()`:
+A **tag** is a component with no fields, used only for filtering (`Player`, `Enemy`, `Frozen`). `defineTag(name)`
+declares one; queries require or exclude it with `.with()` and `.without()`:
 
 ```typescript
 import { defineTag, defineSystem, Query, Mut, Transform } from 'esengine';
@@ -47,10 +55,10 @@ const Frozen = defineTag('Frozen');
 defineSystem([Query(Mut(Transform)).with(Player).without(Frozen)], (q) => { /* … */ });
 ```
 
-## Editor metadata
+## Field metadata
 
-A third argument controls how fields present in the editor's Details panel —
-ranges, sliders, units, enums, and asset pickers:
+The third argument of `defineComponent` controls how fields are presented in the **Details** panel. `fields` maps a
+field name to its presentation:
 
 ```typescript
 const Turret = defineComponent('Turret', {
@@ -64,71 +72,80 @@ const Turret = defineComponent('Turret', {
 });
 ```
 
-Useful `fields` options: `min` / `max` / `step`, `slider`, `unit`, `enum`
-(dropdown storing the option's int), `flags` (bitmask multi-select), `tooltip`.
-Other component-level metadata: `assetFields` (marks a field as an asset
-reference, so Details renders a picker and the cook ships the dependency),
-`animatableFields` (which fields the [Sequencer](/docs/animation/timeline/sequencer/) can
-key — defaults to all numeric fields), `transient` (never saved into the scene —
-for per-frame runtime state), `replicatedFields` (synced by
-[networking](/docs/scripting/networking/)'s state replication), and
-`renderableField`.
+| Option | Type | Description |
+|---|---|---|
+| `min` / `max` | number | Hard range; clamps typed entry and drag-scrub. |
+| `step` | number | Scrub and arrow-key granularity. |
+| `slider` | boolean | Renders the number as a slider. Requires finite `min` and `max`. |
+| `unit` | string | Unit shown after the value (`'px'`, `'°'`, `'%'`). |
+| `enum` | `{ label, value }[]` | Dropdown; stores the selected option's integer value. |
+| `flags` | `{ label, value }[]` | Bitmask multi-select; each option is one bit. |
+| `label` / `tooltip` | string | Overrides the label derived from the field name; hover text. |
+| `category` | string | Groups the field under a category header. |
+| `advanced` | boolean | Places the field behind a fold. |
 
-`renderableField` names the boolean field that gates your component's drawing —
-declare it if the component draws something of its own (say through a custom
-draw callback), and hiding the entity reaches it: the Outliner's eye,
-`setEntityVisible`, and a sleeping scene all switch that field off and restore it
-afterwards. Leave it out for a component that only carries data or behaviour;
-plenty of those have an `enabled` field that has nothing to do with drawing, and
-switching it off would stop the wrong thing.
+Fields without metadata use the control inferred from their value.
+
+## Component metadata
+
+The same argument also carries metadata about the component as a whole:
+
+| Key | Description |
+|---|---|
+| `assetFields` | Fields holding asset references. Details renders an asset picker, and the cook ships the referenced asset. |
+| `entityFields` | Fields holding entity references. |
+| `animatableFields` | Fields the [Sequencer](/docs/animation/timeline/sequencer/) can key. Default: all numeric fields. |
+| `replicatedFields` | Fields synchronized by [state replication](/docs/scripting/networking/replication/). Omitted: the component does not replicate. |
+| `worldUnitFields` | Fields that are world lengths, speeds or accelerations. Their defaults are written at 100 units per metre and scale with the project's units per metre; values stated in a scene are not scaled. |
+| `transient` | `true` excludes the component from scene saves. For per-frame runtime state. |
+| `renderableField` | Name of the boolean field that gates the component's drawing (see below). |
+
+`renderableField` applies to a component that draws something of its own, for example through a custom draw
+callback. When it is declared, hiding the entity reaches the component: the Outliner's visibility toggle,
+`setEntityVisible` and scene sleep switch that field off and restore it afterwards. Omit it for components that only
+carry data or behaviour; an unrelated `enabled` field must not be declared as the renderable field.
 
 ## Built-in components
 
-The engine registers more than 150 components you query alongside your own — `Transform`,
-`Sprite`, `ShapeRenderer`, `Camera`, `Light`, `ParticleEmitter`,
-`SpineAnimation`, `TilemapLayer`, the UI set, the physics colliders, and more.
-Each subsystem guide teaches the ones it owns; the
-[component reference](/docs/reference/components/core/) lists every one of them
-with its fields, types and authoring defaults, derived from the same registry the
-editor's Details panel reads.
+The engine registers more than 150 components, queried in the same way as user components: `Transform`, `Sprite`,
+`ShapeRenderer`, `Camera`, `Light`, `ParticleEmitter`, `SpineAnimation`, `TilemapLayer`, the UI components, the
+physics colliders and others. Each subsystem chapter documents the components it owns. The
+[component reference](/docs/reference/components/core/) lists every component with its fields, types and authoring
+defaults, generated from the same registry the Details panel reads.
 
-### The ones the engine reads about your entities
+Built-in components are C++ structs annotated with `ES_COMPONENT` / `ES_PROPERTY`. Their TypeScript layout is
+generated from those annotations, so the SDK and the engine core use the same field layout.
 
-Four of them carry no subsystem of their own — they are how the engine and the
-editor describe an entity to themselves, and you will meet them in the Outliner
-and in scene files before you ever query them.
+### Entity metadata components
 
-| Component | What it is |
+Four built-in components describe the entity itself rather than belong to a subsystem. They appear in the World
+Outliner and in scene files.
+
+| Component | Description |
 |---|---|
-| `Name` | The entity's display name — what the World Outliner shows and what name lookups resolve against. |
-| `Parent` / `Children` | The hierarchy. The engine keeps the pair in step; see [Transforms](/docs/core-concepts/transforms/#parenting--hierarchy). |
-| `Disabled` | A tag. `setEntityActive(entity, false)` adds it and `isEntityActive` is simply its absence, so "active" is a question about one component rather than a flag to keep in sync. |
-| `RuntimeOnly` | A tag for an entity a system *derives* rather than one you authored — the layer entities a `Tilemap` projects, runtime tile colliders. Scene saving skips them, because persisting a derived entity would duplicate it against the next derivation. |
+| `Name` | Display name of the entity. Shown in the World Outliner and used by name lookups. |
+| `Parent` / `Children` | The hierarchy. The engine keeps both sides consistent; see [Transforms](/docs/core-concepts/transforms/#parenting-and-hierarchy). |
+| `Disabled` | Tag. `setEntityActive(world, entity, false)` adds it; `isEntityActive` returns whether it is absent. |
+| `RuntimeOnly` | Tag for an entity derived by a system rather than authored, such as the layer entities a `Tilemap` projects or runtime tile colliders. Scene saves skip these entities, because a saved copy would duplicate the next derivation. |
 
-Both tags are ordinary components: query them with `.with(Disabled)` /
-`.without(Disabled)` like any other, and add or remove them directly if you
-prefer that to `setEntityActive`. Note that the Outliner's eye is a *different*
-thing — an edit-time visibility fold that never touches `Disabled`, so hiding an
-entity while you work does not change what the running game does with it.
+`Disabled` and `RuntimeOnly` are ordinary components: queries filter them with `.with()` / `.without()`, and they can
+be inserted or removed directly instead of through `setEntityActive`. The Outliner's visibility toggle is a
+separate, edit-time setting; it does not add `Disabled` and does not change what the running game does with the
+entity.
 
 ## Reading and writing
 
-Systems receive component data through a query. Wrap a component in `Mut(...)`
-when a system writes to it, so change detection and the renderer know the data
-was touched:
+Systems receive component data through a query. A component the system writes is wrapped in `Mut(...)`, which lets
+change detection and the renderer register the write:
 
 ```typescript
 Query(Mut(Transform), Speed)
 // Transform is written; Speed is read-only
 ```
 
-Because writes are tracked, systems can also react to lifecycle:
-`Added(Comp)` / `Changed(Comp)` narrow a query to entities whose component just
-appeared / just changed — see [Systems](/docs/core-concepts/systems/) for the
-full query vocabulary.
+`Added(C)` and `Changed(C)` narrow a query to entities whose component was just added or changed. See
+[Systems](/docs/core-concepts/systems/#filters-and-change-detection) for the full query vocabulary.
 
-<br />
-
-Under the hood a component is a C++ struct annotated with `ES_COMPONENT` /
-`ES_PROPERTY`; the cross-boundary layout is generated, so the TypeScript
-component and the C++ struct are always in sync.
+A component wrapped in `Mut` is written back after each iteration. Built-in components read in any other way —
+`world.get`, `ctx.get` — are decoded from the WebAssembly heap and returned as a copy, which must be written back
+with `world.set` / `ctx.set`; see [Components vs. resources](/docs/core-concepts/plugins-resources/#components-vs-resources).

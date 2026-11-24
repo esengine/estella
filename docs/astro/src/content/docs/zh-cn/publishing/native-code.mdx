@@ -1,0 +1,106 @@
+---
+title: 原生代码
+description: NativeChannel——在 Android 和 iOS 构建中从游戏脚本调用应用自身的 Java、Kotlin、Objective-C 或 Swift 代码，注册处理函数、发出事件、内置的 app.info 方法，以及响应 Ads 服务。
+---
+
+打包后的原生应用可以链接自己的 SDK——广告、商店、登录、统计——以 Java、Kotlin、Objective-C 或 Swift 编写。引擎不链接其中任何一个。**`NativeChannel`** 将脚本与这些代码连接起来：原生侧注册一个方法名，脚本调用该名称，数值以 JSON 传递。
+
+```typescript title="src/shop.ts"
+import { NativeChannel } from 'esengine';
+
+if (NativeChannel.has('store.buy')) {
+    const receipt = await NativeChannel.call<{ token: string }>('store.buy', { sku: 'gems_100' });
+}
+const off = NativeChannel.on<{ sku: string }>('store.restored', (p) => grant(p.sku));
+```
+
+## API
+
+| 成员 | 说明 |
+|---|---|
+| `NativeChannel.available` | 当前平台是否有可调用的原生代码。在 Web、小游戏和编辑器中为 `false`。 |
+| `NativeChannel.has(method)` | 对 `method` 的调用是否会得到响应。 |
+| `NativeChannel.call(method, args?)` | 执行处理函数并以其答复 resolve。没有为该名称注册处理函数时 reject，或以处理函数给出的原因 reject。 |
+| `NativeChannel.on(event, handler)` | 订阅原生侧发出的事件。返回取消订阅函数。 |
+
+调用前先检查 `has` 的代码可在所有平台上原样运行：没有原生代码时 `has` 返回 `false`，不会发起调用。
+
+每个原生构建都会响应 `app.info`：Android 和 iOS 上为 `{ os, osVersion, device, id, version, build }`（包 id 和版本，脚本无法通过其他方式读取），桌面上为 `{ device }`。
+
+## Android
+
+原生代码需要编译进应用，因此以 **打包为：Android Studio 工程** 导出。将类放在 `app/src/game/java` 下（重新导出不会改动该目录），并在插件中注册处理函数：
+
+```java title="app/src/game/java/com/example/game/GamePlugin.java"
+package com.example.game;
+
+import android.app.Activity;
+import com.estella.host.NativeChannel;
+
+public final class GamePlugin implements NativeChannel.Plugin {
+    @Override public void register(Activity activity) {
+        NativeChannel.register("store.buy", (args, reply) -> {
+            // args is JSON text. Call your SDK, then answer once, from any thread:
+            reply.resolve("{\"token\":\"abc\"}");   // or reply.reject("cancelled")
+        });
+    }
+}
+```
+
+在 `app/src/game/resources/META-INF/services/com.estella.host.NativeChannel$Plugin` 中列出插件类，每行一个类名。插件在第一帧之前通过 Java 的 `ServiceLoader` 发现，因此库可以自带插件，manifest 中无需引用。
+
+- 处理函数在 UI 线程上运行。
+- `NativeChannel.emit("store.restored", json)` 可在任意线程发出事件。
+- `NativeChannel.activity()` 返回游戏的 Activity，供需要它的 SDK 使用。
+
+在 `src/game` 源码集出现之前导出的项目，其 `app/build.gradle.kts` 中没有对应条目，而重新导出不会重写该文件。需手动添加：
+
+```kotlin title="app/build.gradle.kts"
+android {
+    sourceSets {
+        getByName("main") {
+            java.srcDir("src/game/java")
+            resources.srcDir("src/game/resources")
+        }
+    }
+}
+```
+
+## iOS
+
+导出的 Xcode 工程包含 `App/EstellaNativeChannel.h`。在 `App/`（重新导出会重写）之外向应用 target 添加源文件，并在游戏启动前运行的 `+load` 中注册：
+
+```objc title="GamePlugin.m"
+#import "App/EstellaNativeChannel.h"
+
+@interface GamePlugin : NSObject
+@end
+
+@implementation GamePlugin
++ (void)load {
+    [EstellaNativeChannel registerMethod:@"store.buy"
+                                 handler:^(NSString* args, EstellaNativeReply reply) {
+        // Call your SDK, then answer once, from any thread:
+        reply(@"{\"token\":\"abc\"}", nil);   // or reply(nil, @"cancelled")
+    }];
+}
+@end
+```
+
+`[EstellaNativeChannel emitEvent:@"store.restored" json:json]` 发出事件。处理函数在主线程上运行。
+
+## 广告
+
+原生代码响应以下方法后，[`Ads` 服务](/docs/zh-cn/publishing/ads-sharing/#激励视频)即可在设备上使用。此时 `Ads.available` 返回 `true`，`showRewarded` 会像在小游戏宿主上一样，在广告期间暂停游戏并挂起音频。
+
+| 方法 | 参数 | 答复 |
+| --- | --- | --- |
+| `ads.show` | `{ kind: "rewarded" \| "interstitial", unitId }` | 在广告**关闭**后答复。激励广告在获得奖励时答复 `{ "completed": true }`；其他答复不发放奖励。无广告可展示时 reject。 |
+| `ads.preload` | 同上 | 可选。广告加载完成后答复。 |
+
+使用哪个广告 SDK（广告平台 SDK 或聚合层）由项目决定。
+
+## 参见
+
+- [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)——导出与装配原生应用。
+- [广告与平台服务](/docs/zh-cn/publishing/ads-sharing/)——与平台无关的 `Ads` 服务。

@@ -1,21 +1,24 @@
 ---
-title: Ads & Sharing
-description: Rewarded and interstitial ads with the pause ceremony built in, and both of the host's share surfaces.
+title: Ads & Platform Services
+description: Platform services available on every target — rewarded and interstitial ads, the Share card, clip recording, the friends leaderboard in the open data context, sign-in codes and in-game purchase — with per-platform availability.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-On a mini-game host (WeChat, Douyin), monetization and sharing are platform
-calls every game wires up by hand — and the wiring is the part that goes wrong:
-the game keeps simulating under a rewarded video, audio keeps playing under the
-ad, an error path leaves the world paused forever. The `Ads` and `Share`
-services own that ceremony, and they exist on every platform, so gameplay code
-is written once and *asks* what this platform can do instead of branching on it.
+The `Ads`, `Share`, `Recorder`, `Leaderboard`, `Identity` and `Payment` services wrap mini-game host APIs. Each
+service exists on every platform and reports what the current platform supports through `available`, so gameplay code
+checks capability instead of branching on the platform.
+
+| Service | Package | Mock in Play mode |
+|---|---|---|
+| `Ads` | `esengine` | Yes |
+| `Identity` | `esengine` | No |
+| `Share`, `Recorder`, `Leaderboard`, `Payment` | `estella-plugin-minigame-services` | `Recorder` records; `Leaderboard` renders locally; `Share` and `Payment` report unavailable |
 
 ## Rewarded ads
 
-`Ads.showRewarded(adUnitId)` shows a rewarded video and resolves — after the ad
-closed and the game is running again — with whether the reward was earned:
+`Ads.showRewarded(adUnitId)` shows a rewarded video and resolves, after the ad has closed and the game is running
+again, with whether the reward was earned:
 
 ```typescript
 import { defineSystem, Res, GetWorld, Ads } from 'esengine';
@@ -31,51 +34,43 @@ const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
 }, { name: 'ReviveSystem' });
 ```
 
-While the ad covers the screen, the service:
+While the ad is shown, the service:
 
-- **pauses the game clock** — a revive must not cost the player their run;
-- **suspends the audio device** — without touching any volume the user set;
-- **restores both however the ad ends**, including every error path. A game you
-  paused yourself before the ad stays paused after it.
+- pauses the game clock;
+- suspends the audio device without changing any user volume;
+- restores both however the ad ends, including on every error path. A game paused before the ad stays paused.
 
-The hosts' load/show dance (an ad with no fill must be loaded and retried once)
-is folded in, as is the runtime that grants a reward without reporting
-`isEnded` — an absent close record counts as completed, because that is what
-the host meant.
+The host's load/show sequence (an ad with no fill is loaded and retried once) is handled internally. On runtimes that
+grant a reward without reporting `isEnded`, an absent close record counts as completed.
 
-`Ads.showInterstitial(adUnitId)` is the same contract minus the reward, and
-`Ads.preloadRewarded(adUnitId)` warms a unit so the show starts instantly.
+| Method | Description |
+|---|---|
+| `Ads.showRewarded(adUnitId)` | Shows a rewarded ad; resolves with `{ completed }`. |
+| `Ads.showInterstitial(adUnitId)` | Same contract without the reward. |
+| `Ads.preloadRewarded(adUnitId)` | Loads a unit in advance so the next show starts immediately. |
 
 <Aside type="tip">
-The `adUnitId` comes from the host's ad console (WeChat: 流量主 → ad units in
-the MP dashboard). Ads only serve in a game that has monetization enabled
-there; the devtools simulator shows a test ad.
+The `adUnitId` comes from the host's ad console (WeChat: 流量主 → ad units in the MP dashboard). Ads serve only in a
+game with monetization enabled there; the DevTools simulator shows a test ad.
 </Aside>
 
-### Where ads exist
+### Availability
 
-`Ads.available` is `true` where SOME ad source exists — the platform's, or an
-installed provider. Use it to hide the "watch ad" button honestly:
+`Ads.available` is `true` where an ad source exists — the platform's or an installed provider:
 
-- **Mini-game builds** (WeChat, Douyin and the other family hosts) — the host's
-  rewarded/interstitial ads, one family implementation. A vendor whose host has no
-  ad call reports `available` as `false`.
-- **Web exports on a channel with ads** — Poki, CrazyGames and YouTube Playables
-  install their own provider (see below).
-- **The editor's Play mode** — a **mock provider** is installed automatically:
-  `showRewarded` "plays" for a moment and resolves `completed: true`, with the
-  real pause/audio ceremony running. Your revive flow rehearses at your desk.
-- **Android and iOS builds** — the ad SDK is your own native code, and the engine
-  links none. `available` is `true` once that code answers `ads.show`
-  (see [Calling your own native code](/docs/publishing/android-ios/#ads)).
-- **Plain web and desktop builds** — no ad system, `available` is `false`.
+| Platform | Ad source |
+|---|---|
+| Mini-games (WeChat, Douyin and the other family hosts) | The host's rewarded and interstitial ads. A vendor whose host has no ad API reports `false`. |
+| Web on a portal channel | Poki, CrazyGames and YouTube Playables install their own provider ([Web Portals](/docs/publishing/web-portals/)). |
+| Editor Play mode | A mock provider: `showRewarded` resolves `completed: true` after a moment, with the real pause and audio handling. |
+| Android, iOS | The project's native ad SDK, once its code answers `ads.show` ([Native Code](/docs/publishing/native-code/#ads)). |
+| Standalone web, desktop | None; `false`. |
 
 ## Sharing
 
-Sharing and [in-game purchase](#in-game-purchase) ship as a package rather than
-inside the engine — most games open neither. The editor carries it, so there is
-nothing to install: import it, in play and in every export. (A copy the project
-installs into its own `node_modules` takes precedence over the editor's.)
+Sharing, recording, the leaderboard and in-game purchase are provided by the `estella-plugin-minigame-services`
+package. The editor carries the package, so it can be imported in Play and in every export without installation; a
+copy installed in the project's own `node_modules` takes precedence.
 
 ```typescript title="src/main.ts"
 import { addPlugin } from 'esengine';
@@ -84,7 +79,7 @@ import { miniGameServicesPlugin } from 'estella-plugin-minigame-services';
 addPlugin(miniGameServicesPlugin);
 ```
 
-A mini-game host has **two** share surfaces, and a game should configure both:
+A mini-game host has two share surfaces; configure both:
 
 ```typescript
 import { defineSystem, addStartupSystem, Res } from 'esengine';
@@ -105,18 +100,20 @@ share.share();                          // the default card
 share.share({ title: 'Join my game' }); // or a one-off card
 ```
 
-Whoever opens the shared card receives `query` in the host's launch options —
-that is how invite links and room codes travel.
+| Surface | Configured by |
+|---|---|
+| The host's own share menu | `setShareCard(card \| () => card)`; also the default for `share()`. |
+| The game's share button | `share(card?)`. |
 
-Sharing is fire-and-forget by design: since 2021 no mini-game host reports
-whether the player actually shared, so there is nothing to await. Off-platform
-(web, native, the editor) `Share.available` is `false` and `share()` returns
-`false` — hide the button rather than promise a sheet that cannot open.
+The player who opens a shared card receives `query` in the host's launch options; invite links and room codes travel
+this way.
+
+Sharing is fire-and-forget: mini-game hosts do not report whether the player completed a share. Off-platform (web,
+native, the editor), `Share.available` is `false` and `share()` returns `false`; hide the button.
 
 ## Recording a clip
 
-A short clip of a run is how a mini-game spreads on Douyin, and WeChat can
-share one too. `Recorder` ships in the same package as `Share`:
+`Recorder` (same package) records the game canvas for sharing:
 
 ```typescript
 import { Recorder } from 'estella-plugin-minigame-services';
@@ -135,46 +132,33 @@ await recorder.stop();
 if (recorder.canShare) await recorder.share({ title: 'Look at this run' });
 ```
 
-With highlights, the shared clip is the highlights, in order; without, it is
-the whole recording. Every call resolves when the host says the thing
-happened, and rejects with the host's own reason (and `code`, where it gave
-one). A recording the host ends with an error is heard through
-`recorder.onFailure(...)`, and `state` is back to `'idle'`.
+With highlights, the shared clip is the highlights in order; without, it is the whole recording. Every call resolves
+when the host confirms the action and rejects with the host's reason (and `code`, where given). A recording the host
+ends with an error is reported through `recorder.onFailure(...)`, and `state` returns to `'idle'`.
 
 | | WeChat | Douyin | Editor / web |
 |---|---|---|---|
-| Length (`maxSeconds`) | 5 – 7200 s | 4 – 300 s | any |
-| What `stop()` gives | the duration; WeChat keeps the video | a temp file (`path`) | a WebM preview (`blob`) |
-| Shared clip | at most 60 s of highlights, at least 2 s | the highlights, merged | cannot share |
+| Length (`maxSeconds`) | 5–7200 s | 4–300 s | Any |
+| `stop()` result | The duration; WeChat keeps the video | A temporary file (`path`) | A WebM preview (`blob`) |
+| Shared clip | At most 60 s of highlights, at least 2 s | The highlights, merged | Cannot share |
 
-`maxSeconds` defaults to 300 and is kept inside the host's range. Only the
-game canvas is recorded — an ad or a host dialog on top of it is not.
+`maxSeconds` defaults to 300 and is clamped to the host's range. Only the game canvas is recorded; ads and host
+dialogs over it are not.
 
 <Aside type="caution">
-Douyin's developer tools do not record: "开发者工具不支持录屏调试，请在真机上调试录屏相关功能".
-WeChat shares a recording from WeChat 8.0.28 on Android and 8.0.30 on iOS;
-where the host has no share call, `canShare` is `false`.
+Douyin's developer tools do not support recording ("开发者工具不支持录屏调试，请在真机上调试录屏相关功能"). WeChat
+shares a recording from WeChat 8.0.28 on Android and 8.0.30 on iOS; where the host has no share call, `canShare` is
+`false`.
 </Aside>
 
-In the editor's play mode the recording is real: `stop()` hands back the
-canvas as WebM, so a record button can be built and tried at your desk.
-`canShare` is `false` there, so the share button hides itself exactly as it
-would on a host that cannot share. The `record-share` example is all of this in
-one screen.
+In Play mode the recording is real: `stop()` returns the canvas as WebM. `canShare` is `false`, so a share button
+hides as it would on a host that cannot share. The `record-share` example demonstrates the complete flow.
 
 ## Friends leaderboard
 
-A mini-game leaderboard is not a list you fetch. The player's friends can be
-**read only inside the open data context** — a second JavaScript runtime the
-host starts beside your game, with no engine, no WebGL and no wasm in it — and
-there is no channel back from that runtime to yours. So the board is drawn
-*over there* and arrives here as pixels.
-
-It ships in the same package as sharing (which the editor carries — nothing to
-install), rather than in the engine, because a game that never opens one should
-not carry a renderer for it.
-
-The API says the host's constraint out loud rather than hiding it:
+On a mini-game host, friends' data can be read only inside the **open data context**: a second JavaScript runtime the
+host starts beside the game, with no engine, WebGL or wasm, and no channel back to the game. The leaderboard is drawn
+there and reaches the game as a texture.
 
 ```typescript
 import { UIVisual } from 'esengine';
@@ -197,53 +181,43 @@ world.get(panel, UIVisual).texture = leaderboard.texture;
 leaderboard.hide();   // clears the board and stops sampling
 ```
 
-`Leaderboard.available` is `false` where there is no context — web, native, and
-any package that declares none. Hide the button rather than open a panel that
-stays blank.
+| Member | Description |
+|---|---|
+| `submit(score)` | Writes the player's own row — the only cloud operation the game itself may perform. |
+| `show(options)` | Requests a draw. Returns no rows or status. Options: `limit`, `order`, `style` (colours, row height, font size, avatars). |
+| `texture` | The drawn board, as a texture handle for any `UIVisual`. |
+| `hide()` | Clears the board and stops sampling. |
+| `available` | `false` where there is no context: web, native, and packages that declare none. |
 
-### The other half
+The board ranks rows, emphasizes the player's own row, and omits friends who have never played. The canvas has a
+fixed size and **cannot scroll** — no pointer or key events reach the context — so `limit` is the number of rows
+that fit.
 
-The project owns the context directory; the package supplies what goes in it:
+### Open data context file
+
+The project owns the context directory; the package supplies its content:
 
 ```typescript title="open-data/index.ts"
 import 'estella-plugin-minigame-services/open-data';
 ```
 
-That is the whole file. The exporter bundles `open-data/` separately and names
-it in `game.json`; a project without one ships no context, and `available` says
-so rather than a board failing on a device.
+The exporter bundles `open-data/` separately and names it in `game.json`. A project without the directory ships no
+context, and `available` reports `false`.
 
-What arrives is a board with the rows ranked, the player's own row emphasised,
-and a friend who has never played left off rather than shown as zero. Style it
-through `show({ style })` — colours, row height, font size, avatars. The canvas
-is a fixed size and **cannot scroll**: no pointer or key event reaches that
-runtime, so `limit` is how many rows fit, not a page.
+To draw a custom board, write the file without importing the package. It runs in the context, so it must **not import
+`esengine`**; the export and entering Play both fail if it does. The context provides a 2D canvas from
+`wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`, and `wx.onMessage()` carrying the options sent by `show()`.
 
-### Your own board
+### Play mode
 
-Write the file yourself instead of importing the package's. It runs in the
-context, so it may **not import `esengine`** — the export fails if it does, and
-so does entering Play, which is better than finding out on a device. Inside, you
-have a 2D canvas from `wx.getSharedCanvas()`, `wx.getFriendCloudStorage()`, and
-`wx.onMessage()` carrying whatever `show()` sent.
-
-### At your desk
-
-Play mode has no host, so the editor stands in for one: it runs **your**
-`open-data/index.ts` against an offscreen canvas and obviously-invented friends,
-and answers `Leaderboard` through the same capabilities a device would. The
-board you lay the panel out against is the one that ships — whoever wrote it —
-and `submit()` reaches it, so your own row moves.
-
-What it cannot rehearse is the part that is genuinely the host's: real friends
-and the sandbox they live in. Check that on a device before you ship.
+Play mode runs the project's `open-data/index.ts` against an offscreen canvas with generated placeholder friends, and
+answers `Leaderboard` through the same capabilities a device uses. `submit()` reaches it, so the player's row moves.
+Real friends and the host sandbox can be checked only on a device.
 
 ## Signing in
 
-A mini-game host signs the player in and hands back a **one-time code**. That
-code is not an identity: turning it into one takes your app secret, and an app
-secret in a client is an app secret anyone can read. So the exchange belongs to
-your own server, and the engine's job ends at the code.
+A mini-game host signs the player in and returns a **one-time code**. Exchanging the code for an identity requires the
+app secret, which must stay on the game's server; the engine's role ends at the code.
 
 ```typescript
 import { defineSystem, Res, Identity } from 'esengine';
@@ -257,25 +231,19 @@ const { code } = await identity.login();     // a CODE, not a session
 const session = await postToYourServer('/session', { code });
 ```
 
-`login()` rejects — with the host's own words — when the sign-in fails, and
-rejects immediately where the platform has none, so a caller that skipped
-`available` hears about it instead of awaiting a promise that never settles.
-The code is short-lived and single-use: cache the session your server returns,
-never the code.
+| Member | Description |
+|---|---|
+| `available` | Whether the platform has sign-in. |
+| `sessionValid()` | Whether the host session is still valid. |
+| `login()` | Resolves with `{ code }`. Rejects with the host's message when sign-in fails, and immediately where the platform has no sign-in. |
 
-There is deliberately **no local stand-in** for this in play mode, unlike ads
-and the leaderboard. A pretend ad is still a real pause and a pretend board is
-still the real renderer, so rehearsing them tells you something. A pretend code
-is a string no server can exchange — rehearsing with it would only rehearse a
-request that is going to fail. Off-platform, `available` is `false`, and a game
-takes whatever path it takes when there is no account.
+The code is short-lived and single-use: cache the session the server returns, never the code. Play mode has no mock
+for sign-in, because a placeholder code cannot be exchanged by any server; `available` is `false` off-platform.
 
 ## In-game purchase
 
-Buying inside a mini-game is a **permission, not a feature**. On WeChat it is
-Android-only: the call is present on an iPhone and the platform refuses it. So
-`available` answers for the **device**, and a shop asks before it opens rather
-than finding out when someone taps Buy.
+In-game purchase is a device permission. On WeChat it is Android-only: the call exists on iOS and the platform refuses
+it. `Payment.available` therefore reports for the **device**; check it before opening a shop.
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
@@ -296,113 +264,16 @@ try {
 }
 ```
 
-Pass `sandbox: true` while you build the flow, and `zoneId` if your game has
-more than one server.
+`request()` options: `offerId`, `quantity`, `sandbox: true` while developing the flow, and `zoneId` for games with more
+than one server.
 
-Two things this service deliberately does not do. It **does not interpret the
-host's error codes** — they differ between vendors, and a mapping invented in
-the engine is a guess your game would then branch on. And it **grants nothing**:
-a purchase the client believes in is a purchase an attacker can claim. The host
-notifies your server, and your server is what hands out currency; `request()`
-resolving is the cue to go and ask it.
+- The service **does not interpret host error codes**; they differ between vendors and are passed through unchanged.
+- The service **grants nothing**. The host notifies the game's server, which grants currency; a resolved `request()`
+  is the signal to query the server.
+- Play mode has no mock for purchases.
 
-There is no local stand-in in play mode, for the same reason sign-in has none —
-a rehearsed purchase that charges nothing and grants nothing rehearses only the
-dialog, and the part that goes wrong is behind it.
+## See also
 
-
-## Poki Web exports
-
-In Settings → Project → Build and modules → Packaging → Web, select **Poki**. The same choice can be
-saved in `packaging.platforms.web.channel` as `"poki"`, including a named Web
-export profile. Standalone is the default.
-
-The page loads the official Poki SDK in its head. Boot initializes it before
-project scripts and reports `gameLoadingFinished` after scene and asset loading.
-Initialization failure continues the game with ads unavailable. A pending SDK
-initialization is bounded to ten seconds; this does not bound script downloads.
-
-Use the existing `Ads` resource for rewarded and commercial breaks. Poki ignores
-the ad unit identifier: its SDK selects the placement. Grant rewards only when
-`completed` is true. The service pauses simulation and suspends audio while the
-break is pending, and rejects concurrent breaks without queuing them.
-
-Game logic must call the official `PokiSDK.gameplayStart()` and
-`PokiSDK.gameplayStop()` at actual play/pause/end transitions. The exporter does
-not infer gameplay from page loading or arbitrary input. These events, no-fill
-and successful ad behavior, and audio/input restoration require testing in the
-[Poki Inspector](https://developers.poki.com/guide/sdk-html5). A Web export is not
-platform approval. The channel page permits HTTPS resources/frames for the
-SDK-managed ads; standalone retains its same-origin policy.
-
-
-The Mobile Controls example includes a `poki` export profile. Its three-hit
-training round reports actual START, PAUSE, completion and REPLAY transitions,
-with opt-in rewarded credits and explicit commercial opportunities. Initial
-loading, device-control buttons and returning from the background do not start
-gameplay. Export with `estella export examples/mobile-controls --profile poki`.
-The existing standalone profile keeps its original controls. The room requires
-landscape orientation; in portrait it shows the game letterboxed, with no rotate
-notice. CI checks these flows
-in headless Chromium using SDK mocks and that commit's Web runtime; official
-Inspector and physical-device approval remain separate.
-
-
-To inspect the real SDK without the editor, serve the exported folder on
-localhost and enter that URL in the Inspector's URL field. Keep the server
-running for the session; the Inspector supplies its testing context. This path
-has been checked with the training example's real SDK initialization, loading,
-play/pause and rewarded completion. Complete the remaining QA modules before
-submission; these observations do not certify devices or production ad fill.
-
-## CrazyGames Web exports
-
-In the same Web packaging setting select **CrazyGames**, or set
-`packaging.platforms.web.channel` to `"crazygames"`. The export connects the official
-v3 SDK: it reports loading start and stop, serves rewarded and midgame breaks
-through the existing `Ads` resource, stores saves through the SDK's Data API (switch on
-**Progress Save** in the CrazyGames developer console; `setItem` is not a cloud-backup
-acknowledgment) and follows the host's audio mute. If initialization fails the game
-continues with the host services off.
-
-As with Poki, game logic reports the real gameplay start and stop transitions; the
-exporter does not infer them. `Scores.submit` can send an encrypted score for an invited
-CrazyGames leaderboard — enter the base64 **Encryption Key** from the platform
-configuration in Project Settings (never the server API key; it ships in the Web
-package), and leave it empty to disable submission. A sent score does not prove the
-leaderboard accepted it, and an export is not platform approval: complete the official
-checks separately.
-
-## YouTube Playables Web exports
-
-Export checks stored total size below 250 MiB, each file below 30 MiB, at most
-8000 files and supported filenames. Both CLI and editor show recommendation
-warnings. Static initial content is an estimate; actual compressed transfer
-through gameReady must remain below 30 MiB. Verify loading and peak heap on
-target devices and in the official Test Suite.
-
-Headless CI also applies the official guide's CSP response header and detects
-policy violations, with a deliberately blocked external request as a control.
-For independent static validation, run the official
-[bundle analyzer](https://developers.google.com/youtube/gaming/playables/samples/bundle_analyzer).
-This does not replace SDK Test Suite or device certification.
-
-Select **YouTube Playables** in Web packaging or set
-`packaging.platforms.web.channel` to `"youtube"`. The Mobile Controls example
-provides a named `youtube` profile. The official SDK loads before game code;
-`firstFrameReady` reports the painted loading screen and `gameReady` waits
-until the scene is interactive and the loading overlay has disappeared.
-
-SDK pause/resume holds engine frames, input, audio and video independently of
-player pause. Game-owned asynchronous work must cooperate with execution
-notifications. Visibility events do not override SDK pause. Reward credits
-require a true SDK result. Cloud data must load successfully before writes;
-failed or unreadable loads preserve existing progress. Await `Storage.flush()`
-or `SaveManager.saveAsync()` to observe SDK save acknowledgment. Saves at or above
-3 MiB are rejected; pause-time saves above 64 KiB remain pending. The example
-sends the highest score only after saving that value successfully.
-
-Outside the Playables environment, local SDK no-ops do not enable ads, scores
-or cloud saving. Headless SDK mock checks are separate from official Test Suite
-certification, real cloud restoration and physical-device acceptance. See the
-[official integration requirements](https://developers.google.com/youtube/gaming/playables/certification/requirements_integration).
+- [Web Portals](/docs/publishing/web-portals/) — ads and saves on Poki, CrazyGames and YouTube Playables.
+- [Native Code](/docs/publishing/native-code/) — answering `ads.show` on Android and iOS.
+- [Steam](/docs/publishing/steam/#achievements) — the `Achievements` service.

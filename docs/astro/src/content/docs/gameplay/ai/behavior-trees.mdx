@@ -1,15 +1,16 @@
 ---
-title: Behavior trees
-description: "Running an .esbt graph: selectors, sequences, decorators and leaves, and how a tick resolves."
+title: Behavior Trees
+description: Behavior tree reference — BehaviorTreeAgent, .esbt graphs and registerBt, reactive ticking, and the composite, decorator and leaf node types.
 ---
 
 ![The behavior-tree editor — a Selector over a Sequence and a fallback action](@/assets/guides/en/ai-bt.png)
 
-*The behavior-tree editor: a **Selector** root over a **Sequence** (Condition `seesPlayer` → Action `chase`) with a fallback `patrol` action.*
+*The behavior-tree editor: a **Selector** root over a **Sequence** (Condition `seesPlayer` → Action `chase`) with a
+fallback `patrol` action.*
 
-A behavior tree ticks from its **root** every frame and returns a `Status`. Composite
-nodes control flow; decorators transform one child's result; leaves are your
-registered actions and conditions. Attach a `BehaviorTreeAgent`:
+A behavior tree is ticked from its **root** every frame and returns a `Status`. Composite nodes control flow, decorators
+transform one child's result, and leaves are registered actions and conditions. A `BehaviorTreeAgent` runs a tree on its
+entity:
 
 ```typescript
 import { BehaviorTreeAgent } from 'esengine/ai';
@@ -22,10 +23,13 @@ cmds.spawn()
 
 | `BehaviorTreeAgent` field | Description |
 |---|---|
-| `bt` | Key of the tree to run: a `registerBt` name **or** an `.esbt` asset path. |
+| `bt` | The tree to run: a `registerBt` name or an `.esbt` asset path. |
 | `status` | Last root status, written each tick (read-only). |
 
-Author the tree visually in the editor, or build it in code with `registerBt`:
+## Defining a tree
+
+Trees are normally authored in the editor ([Authoring in the Editor](/docs/gameplay/ai/authoring/)), or registered in
+code with `registerBt`:
 
 ```typescript
 import { registerBt } from 'esengine/ai';
@@ -47,12 +51,13 @@ registerBt('guard', {
 });
 ```
 
-The tree is **reactive**: composites re-evaluate their children from the first one every tick and
-keep no memory of which child was running, so a higher-priority branch whose condition just became
-true preempts a lower-priority branch that was `Running`. Only `wait` and `repeater` keep per-node
-state (elapsed time, completed runs).
+## Ticking
 
-Node types:
+The tree is **reactive**: composites re-evaluate their children from the first one on every tick and keep no record of
+which child was running, so a higher-priority branch whose condition has become true preempts a lower-priority branch
+that was `Running`. Only `wait` and `repeater` keep per-node state (elapsed time, completed runs).
+
+## Node types
 
 | Category | Type | Behavior |
 |---|---|---|
@@ -63,5 +68,11 @@ Node types:
 | | `succeeder` | Reports Success whenever its child finishes; `Running` passes through. |
 | | `repeater` | Re-runs its child `count` times (`0` = forever). Each finished run, success or failure, counts as one; it reports `Running` between runs and `Success` after the last. |
 | | `wait` | Reports `Running` for `seconds` (a leaf; it has no child), then `Success`. |
-| Leaf | `action` | Runs the registered action `name`; its `Status` (or `Success` on void) propagates up. An unregistered name fails. |
+| Leaf | `action` | Runs the registered action `name`; its `Status` (or `Success` when it returns nothing) propagates up. An unregistered name fails. |
 | | `condition` | Returns `Success` when the registered condition `name` is true, else `Failure`. |
+
+## See also
+
+- [Actions & Conditions](/docs/gameplay/ai/actions/) — the leaves and their `Status` return values.
+- [The Blackboard](/docs/gameplay/ai/blackboard/) — `AiBt` access to a tree agent's blackboard and status.
+- [State Machines](/docs/gameplay/ai/state-machines/) — the other authoring form over the same leaves.

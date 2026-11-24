@@ -1,0 +1,105 @@
+---
+title: Geometry Processing
+description: Model geometry options at import — tangents, the Max Triangles budget, Cluster LOD, generated LOD levels and generated lightmap UVs, with their costs and the meshes each option skips.
+---
+
+The model import can rewrite geometry on the way in. Each option is an [import setting](/docs/assets/models/overview/#import-settings)
+of the source; the source file is never modified, so every option can be changed and the model re-imported.
+
+## Tangents
+
+A mesh with normals and UVs is written with a **tangent** per vertex, so a normal map is read in the frame it was baked
+in rather than one derived per pixel from screen-space derivatives (which is wrong at UV seams and on stretched
+textures).
+
+- A glTF `TANGENT` attribute keeps its direction. Other meshes get tangents from their UVs, weighted by the angle each
+  triangle makes at the vertex.
+- The bitangent sign is always computed from the stored geometry, so it is correct whichever way the importer flipped V.
+- A mesh imported before tangents were written carries none and is shaded as before; re-import it to add them.
+- A custom shader that calls `perturbNormal` uses the mesh's tangent frame without changes.
+
+## Triangle budget
+
+**Max Triangles** (`maxTriangles`, default `0`) cuts a model to at most that many triangles at import, every mesh by the
+same share. `0` keeps every triangle.
+
+- Skinned meshes are simplified and keep their rig and animations; morphing meshes are left unchanged.
+- The source keeps every triangle, so the budget can be raised later.
+- A model generated with the editor's Tripo tools is low-poly by default (under 20,000 triangles). Requested at full
+  topology, it keeps every triangle unless a budget (`max_triangles`) is also requested.
+
+## Cluster LOD
+
+**Cluster LOD** (`clusterLod`, default off) keeps every triangle of a dense static mesh and draws, per view, only the
+detail the view can resolve.
+
+- Each mesh is cut into clusters of up to 128 triangles. Neighbouring clusters are simplified together to half their
+  triangles, level after level, down to a few triangles.
+- Each frame every part of the mesh is drawn at the level whose error is under one pixel from the camera's position.
+  Levels meet without seams, and no `LODGroup` is needed. Shadows use the same triangles as the surface.
+
+| Cost or limit | Detail |
+|---|---|
+| File size | The `.esmesh` grows by about the size of its index data; every level's triangles are stored and share the mesh's vertices. |
+| Memory | The engine keeps all levels' indices resident. |
+| CPU | When the camera moves, the index buffer of each mesh whose cluster selection changed is rewritten. |
+| Download | Not reduced. Where package size is the limit (mini-games), use a [triangle budget](#triangle-budget). |
+| Excluded meshes | Skinned and morphing meshes, and meshes placed through `MeshInstances`, are drawn whole. |
+| Generated LODs | A mesh with Cluster LOD gets no [generated levels](#generated-levels-of-detail). |
+
+### Inspecting clusters
+
+| Counter | Meaning |
+|---|---|
+| `render.cluster.sourceTriangles` | Triangles of all clustered meshes in the scene. |
+| `render.cluster.triangles` | Of those, the triangles drawn this frame. |
+| `render.cluster.rebuilt` | Clustered meshes whose index buffer was rewritten this frame. |
+
+**Clusters** in the viewport's shading menu draws each cluster in its own colour; patch size shows which level each part
+of a surface is drawn at. With one clustered mesh selected, the viewport's selection readout shows what the view draws
+of it (for example **8,512 of 9,216 tris drawn · 67 clusters**) and updates as the camera moves.
+
+## Generated levels of detail
+
+**Generate LODs** (`lodLevels`, Off or 1–3 levels) simplifies each mesh into cheaper copies with about 50%, 20% and 7%
+of its triangles, written next to it as `<mesh>_lod1.esmesh`, `_lod2` and `_lod3`, and adds a
+[`LODGroup`](/docs/performance/level-of-detail/) to the entity that draws it. The group switches to a level as the object
+shrinks below 40%, 18% and 7% of the viewport height. The command-line import takes `--lods <0-3>`.
+
+- Simplification keeps the shape within a small error relative to the mesh's size and does not separate UV seams or hard
+  edges, so textures stay in place.
+- Every remaining vertex is a copy of a source vertex, so vertex colours and lightmap UVs are preserved.
+- A level that would remove less than 15% of the triangles of the level above is omitted.
+- A mesh with fewer triangles than **LOD Minimum Triangles** (`lodMinTriangles`, default 256) gets no levels.
+- Skinned and morphing meshes keep a single level.
+
+Levels are additional files; three levels add about three quarters of the original meshes' size to the project. They
+reduce drawing cost, not package size, and occupy memory only when a view selects them.
+
+## Lightmap UVs
+
+A baked lightmap is read through a **second** UV set in which no two surfaces share texels. The primary UV set usually
+reuses texels (mirrored parts share one image), which would let one part's baked shadow appear on another.
+
+**Generate Lightmap UVs** (`lightmapUV`, default off) unwraps a second set:
+
+- The surface is cut into nearly flat charts, each projected onto its own plane, and the charts are packed into the unit
+  square at a **single** world-to-texel ratio, so adjoining surfaces have the same lightmap resolution.
+- Vertices on chart boundaries are split, so the mesh has more vertices than the source. Positions are unchanged, and
+  blend shapes, skin weights and vertex colours follow their vertices.
+- The import reports how much of the atlas the charts fill. A low value means many small charts; a larger chart angle
+  merges them at the cost of more stretch within each chart.
+
+The option is off by default because most models are never baked and split vertices cost memory regardless. Two kinds
+of model never receive generated lightmap UVs:
+
+- **Skinned** meshes, because bones move them and a bake cannot follow.
+- Models that **already carry** a second UV set, whose layout is the author's (for example a second UV map created with
+  Blender's *Smart UV Project*).
+
+See [Baked Light](/docs/graphics/lighting/baked/) for how the result is used.
+
+## See also
+
+- [Models](/docs/assets/models/overview/): import settings and products.
+- [Level of Detail](/docs/performance/level-of-detail/): the `LODGroup` component.

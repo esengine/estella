@@ -1,0 +1,133 @@
+---
+title: Joints
+description: 3D joint reference — point, hinge, slider, distance and fixed joints, swing/twist and six-axis joints, anchors and limits, motors, breaking joints, and the joint gizmos.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A joint constrains how two bodies may move relative to each other. The joint component lives on the entity that
+declares it and names the other body in `connectedEntity`.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(RigidBody3D, {})
+  .insert(BoxCollider3D, { halfExtents: { x: 50, y: 100, z: 5 } })
+  .insert(HingeJoint3D, {
+    connectedEntity: frame,
+    anchor: { x: -50, y: 0, z: 0 },   // the door's own edge
+    axis: { x: 0, y: 1, z: 0 },       // upright
+    enableLimit: true, lowerAngle: 0, upperAngle: Math.PI / 2,
+  });
+```
+
+| Component | Constraint |
+|---|---|
+| `PointJoint3D` | A shared point; free rotation on all three axes. |
+| `HingeJoint3D` | One axis of rotation, with optional limits and motor. |
+| `SliderJoint3D` | One axis of translation, with optional limits and motor. |
+| `DistanceJoint3D` | A distance range: a rope with `maxLength`, a rod when the lengths meet, a spring when `frequency` is set. |
+| `FixedJoint3D` | No freedom; the two bodies move as one. |
+| `SwingTwistJoint3D` | Locked translation; rotation limited by an elliptical swing cone and a separate twist interval. |
+| `SixDOFJoint3D` | Each translation and rotation axis independently locked, limited or free. |
+
+![Details of a Hinge Joint 3D: connected entity, anchor, axis, angle limits and motor](@/assets/guides/en/details-hinge-joint-3d.png)
+
+*A **Hinge Joint 3D** on the 3D Physics example's door: the connected frame, the hinge axis and its angle limits.*
+
+## Fields
+
+Every joint has `connectedEntity`, `collideConnected` (`false`), `enabled` (`true`), `breakForce` (`0`, N) and
+`breakTorque` (`0`, N·m).
+
+| Component | Fields (defaults) |
+|---|---|
+| `PointJoint3D` | `anchor` (`{0, 0, 0}`). |
+| `HingeJoint3D` | `anchor`; `axis` (`{0, 1, 0}`); `enableLimit` (`false`), `lowerAngle` / `upperAngle` (`-π/2` / `π/2`); `enableMotor` (`false`), `motorSpeed` (`0`), `maxMotorTorque` (`0`); `angle` (output). |
+| `SliderJoint3D` | `anchor`; `axis` (`{0, 1, 0}`); `enableLimit` (`false`), `lowerTranslation` / `upperTranslation` (`-100` / `100`); `enableMotor` (`false`), `motorSpeed` (`0`), `maxMotorForce` (`0`); `translation` (output). |
+| `DistanceJoint3D` | `anchor`, `connectedAnchor` (`{0, 0, 0}`); `minLength` (`0`), `maxLength` (`100`); `frequency` (`0`), `damping` (`0.5`). |
+| `FixedJoint3D` | Common fields only. |
+| `SwingTwistJoint3D` | `anchor`; `axis` (`{0, 1, 0}`), `normalAxis` (`{1, 0, 0}`); `normalHalfConeAngle`, `planeHalfConeAngle` (`π/4`); `twistMinAngle` / `twistMaxAngle` (`-π/6` / `π/6`); motor fields. |
+| `SixDOFJoint3D` | `anchor`, `axis`, `normalAxis`; `translationMotion`, `rotationMotion` (all `Locked`); `translationLower` / `translationUpper` (`-100` / `100` per axis); `rotationLower` / `rotationUpper` (`-π/6` / `π/6` per axis); motor fields including `linearVelocity` and `maxMotorForce` (`100`). |
+
+## Anchors, axes and limits
+
+`anchor` and `axis` are in the declaring entity's local space, in world units, and are resolved against its transform
+when the joint is created. That pose is the **zero** of every limit: a door placed closed has `angle` 0 and opens to
+`upperAngle`. A range always includes the creation pose: one that does not reach 0 (`lowerAngle: 0.2`) is widened to 0.
+A hinge's range goes no further than half a turn either way, in both solvers.
+
+`HingeJoint3D.angle` and `SliderJoint3D.translation` are written back each step.
+
+## Changing a joint at run time
+
+The following fields can change while the game runs; the world is re-driven when they change:
+
+- `motorSpeed`;
+- a hinge's or slider's `enableLimit`, `lowerAngle` / `upperAngle` or `lowerTranslation` / `upperTranslation`, and
+  `maxMotorTorque` / `maxMotorForce`;
+- a distance joint's `minLength`, `maxLength`, `frequency` and `damping`.
+
+For example, a door locked by narrowing its range stops, and a rope shortened while something hangs on it pulls the
+load up.
+
+## Breaking joints
+
+A joint held with more than `breakForce` or `breakTorque` over a step is removed from the world, its `enabled` is
+lowered, and the break is reported in `Physics3DEvents.jointBreaks`. Setting `enabled` again rejoins the two bodies in
+their current positions. `0` never breaks. Example: a chandelier on a `FixedJoint3D` with a `breakForce` falls when a
+shot or a blast pulls harder than the mount holds.
+
+<Aside type="note">
+  `collideConnected: false` joins the two bodies into one **assembly**: every body a chain of joints reaches stops
+  colliding with the rest of that chain. A door does not collide with its frame, and a ragdoll's limbs do not collide
+  with each other. Set it to `true` when the two bodies should collide.
+
+  An entity carries one joint: the world keys a constraint by the entity that declares it. A second joint goes on a
+  child entity.
+</Aside>
+
+## Swing/twist and six-axis joints
+
+`SwingTwistJoint3D` locks translation and limits rotation with an elliptical swing cone and a separate twist interval.
+`axis` is the local constraint X (twist) and `normalAxis` its local Y reference. Directions are normalised and
+orthogonalised; zero or parallel directions are rejected.
+
+`SixDOFJoint3D` controls each axis with `JointMotion3D.Locked` (0), `Limited` (1) or `Free` (2) in `translationMotion`
+and `rotationMotion`. Locked axes stay at the creation pose; limited axes use the corresponding lower/upper vector; free
+axes ignore those bounds. Limited lower bounds must be strictly below upper bounds. Angular limits lie within −π to π;
+the Y/Z rotation limits are pyramid limits in Jolt.
+
+```typescript
+cmds.spawn().insert(SixDOFJoint3D, {
+  connectedEntity: base,
+  translationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
+  translationLower: { x: -100, y: 0, z: 0 },
+  translationUpper: { x: 100, y: 0, z: 0 },
+});
+```
+
+The Inspector shows these joints' angles in degrees; files and scripts store radians. Translation limits and linear
+velocity are in world units and world units per second. Angular velocity is rad/s; force and torque are N and N·m,
+independent of `pixelsPerUnit`.
+
+Motors are off by default. `enableMotor`, `linearVelocity` (SixDOF only), `angularVelocity`, `maxMotorForce` and
+`maxMotorTorque` can change while running without rebuilding the joint. Targets describe connected body B relative to
+the owning body A, in constraint axes; if B is static, A moves in the opposite direction. Each motor axis shares the
+specified force or torque cap. This is velocity control, not a pose servo.
+
+Changing a frame, the collision setting or a limit rebuilds these joints with the current pose as zero. Disabling or
+removing the component releases the joint before its bodies are removed. `joint3DSettingsError(settings)` returns a
+description of invalid settings, or `null`; an invalid joint is not created.
+
+The **3D Physics** example includes a shoulder/arm joint and a limited carriage: **J** reverses their motors and **F1**
+toggles collider debug drawing. Selecting either joint in the editor shows its limits in the viewport; the gizmo is
+read-only and the values are edited in Details. These two components are experimental.
+
+{/* SHOT: gameplay-six-dof-joint | physics-3d example, main scene: the SixDOFCarriage entity selected, viewport showing the six-axis joint's limit gizmo, Details panel showing the Six DOF Joint 3D card with translation and rotation motion */}
+
+## See also
+
+- [Bodies & Shapes](/docs/gameplay/physics-3d/bodies/) — the bodies joints connect.
+- [Ragdolls](/docs/gameplay/physics-3d/ragdolls/) — swing/twist joints generated from a skeleton.
+- [2D Physics: Joints](/docs/gameplay/physics-2d/joints/) — the 2D joint components.

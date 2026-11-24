@@ -1,21 +1,26 @@
 ---
-title: Authoring in the editor
-description: "The intended workflow: register leaf logic once in code, then build and tune the graphs visually as .esfsm / .esbt assets."
+title: Authoring in the Editor
+description: Authoring workflow for AI graphs — creating .esfsm and .esbt assets, filling leaves with registered names, and assigning the asset to a StateMachineAgent or BehaviorTreeAgent.
 ---
 
-The intended workflow is **data, not code** for the graphs themselves — you register
-the leaf logic once, then build and tune the machines/trees visually:
+State machines and behavior trees are data: leaf logic is registered once in code
+([Actions & Conditions](/docs/gameplay/ai/actions/)), and the machines and trees are built and tuned as assets in the
+editor.
 
-1. In the **Content Browser**, use the create menu (**New State Machine** / **New Behavior
-   Tree**) to make a `.esfsm` or `.esbt` asset and double-click it to open the node-graph editor.
-2. Add states/nodes, drag to connect them, and fill each leaf's **action** or
-   **condition** with one of your registered names. Set transition conditions,
-   triggers, and blackboard guards in the inspector.
-3. On the agent entity, set `StateMachineAgent.fsm` (or `BehaviorTreeAgent.bt`) to the
-   asset's path.
+1. In the **Content Browser**, the create menu's **New State Machine** / **New Behavior Tree** creates a `.esfsm` or
+   `.esbt` asset. Double-clicking it opens the node-graph editor.
+2. Add states or nodes, drag to connect them, and fill each leaf's **action** or **condition** with a registered name.
+   Transition conditions, triggers and blackboard guards are set in the inspector. The name fields suggest every
+   registered name as you type.
+3. On the agent entity, set `StateMachineAgent.fsm` or `BehaviorTreeAgent.bt` to the asset's path.
 
-The asset is referenced by path and **preloaded with the scene**, so the graph is
-registered before the agent first ticks — no `registerFsm`/`registerBt` call needed.
-Because both paradigms resolve leaves from the same registry, you can prototype an
-enemy as a state machine and later swap in a behavior tree (or run both) without
-touching your action/condition code.
+The asset is referenced by path and **preloaded with the scene**, so the graph is registered before the agent's first
+tick; no `registerFsm` / `registerBt` call is needed. Because both forms resolve leaves from the same registry, an enemy
+prototyped as a state machine can later use a behavior tree (or both) without changes to the action and condition code.
+
+## See also
+
+- [State Machines](/docs/gameplay/ai/state-machines/) and [Behavior Trees](/docs/gameplay/ai/behavior-trees/) — what
+  the graphs contain.
+- [Script Graphs](/docs/gameplay/script-graphs/) — visual event logic over the same registry.
+- [Asset Editors](/docs/editor/asset-editors/) — the node-graph editors.

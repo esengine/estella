@@ -1,0 +1,104 @@
+---
+title: Model Materials
+description: How imported glTF and FBX materials map to MeshRenderer fields and .esmaterial parameters on the Model shader, including KHR material extensions, specular-glossiness, character materials, the specular map setting and FBX material conversion.
+---
+
+An imported material is split by what can carry it: base colour and draw flags go on the `MeshRenderer`; shading
+parameters go into an `.esmaterial` on the built-in **Model** shader, written only when the source uses one of them.
+
+## `MeshRenderer` fields
+
+The engine's mesh path draws `texture(uv) × vertexColor × tint`, which covers a material's base colour:
+
+| glTF | `MeshRenderer` field |
+|---|---|
+| `baseColorTexture` | `texture` |
+| `baseColorFactor` | `color` |
+| `alphaMode` ≠ `BLEND` | `opaque` |
+| `doubleSided: false` | `cullBackfaces` |
+| a `NORMAL` attribute | `lit: true` |
+
+## `.esmaterial` parameters
+
+| glTF | Model shader parameter |
+|---|---|
+| `normalTexture` / `normalTexture.scale` | `u_normalMap` / `u_normalScale` (default 1) |
+| `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
+| `occlusionTexture` (+ `strength`) | `u_occlusionMap` / `u_occlusionStrength` |
+| `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+| `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+| `KHR_materials_pbrSpecularGlossiness` | Model variant `ES_SPECULAR_GLOSSINESS`; `u_specularColor`, `u_glossiness`, and the packed map in `u_metallicRoughnessMap` |
+| `KHR_materials_clearcoat` | `u_clearcoat` / `u_clearcoatRoughness` |
+| `KHR_materials_sheen` | `u_sheenColor` / `u_sheenRoughness` |
+| `KHR_materials_anisotropy` | `u_anisotropy` / `u_anisotropyRotation` |
+| `KHR_materials_ior`, `KHR_materials_specular` (`specularFactor`) | `u_ior`, `u_specular` |
+| `KHR_materials_iridescence` | `u_iridescence` / `u_iridescenceIor` / `u_iridescenceThickness` (the middle of the min–max range) |
+| `KHR_materials_diffuse_transmission` | `u_translucency` / `u_translucencyColor` |
+| `KHR_materials_transmission`, `KHR_materials_volume` | `u_transmission`, `u_thickness`, `u_attenuationColor`; the material draws blended |
+
+- Metalness and roughness are always written. glTF defaults both factors to 1 (fully rough metal) while the shader
+  defaults metalness to 0, so omitting them would describe a different surface.
+- The material also states the draw's blending, depth and culling, because a material replaces those of the draw.
+- A texture the material names that is missing from the project is omitted: the model imports without it and a warning
+  names it.
+- Normal strength scales the tangent-space X and Y channels before normalization, on Model, Skin and Hair materials.
+  `0` gives a flat normal; negative values invert the relief.
+- Blended model materials test depth against opaque geometry with depth writes off, so a transparent surface behind a
+  wall stays hidden.
+
+### Specular-glossiness
+
+For a `KHR_materials_pbrSpecularGlossiness` material, the diffuse texture and factor become the `MeshRenderer` base
+colour. Specular RGB and glossiness alpha use the same lighting path as other Model materials: RGB is decoded from sRGB,
+alpha stays linear, and roughness is `1 − glossiness`. The packed map uses the existing `u_metallicRoughnessMap` slot.
+[Character materials](#character-materials) do not replace this workflow. The variant preserves existing exports without
+an approximate conversion; new content can use metallic-roughness.
+
+## Character materials
+
+**Character Materials** (`characterMaterials`, default Off) set to **By Material Name** assigns the **Skin**, **Hair** or
+**Eye** shader instead of Model to a material whose name contains skin, face, head, hair or eye, and binds its normal map
+and occlusion/roughness map.
+
+- Names are matched word by word: `BodySkin` and `Hair_A` match; `Eyelashes` and `Headband` do not. The colour
+  texture's file name is also considered.
+- Hair triangles are reordered for blended drawing, cards nearest the centre first, which is back to front from any side
+  for a shell of cards around a head (strands that leave the shell, such as a ponytail, are not ordered by it).
+- A hair material is cut out by alpha (`u_alphaCutoff`, 0.5 unless the source states otherwise) and drawn without
+  blending, with coverage-feathered edges.
+- Hair strand-direction and highlight-shift maps have no glTF slot. A hair material names them in its extras
+  (`flow_map`, `shift_map` as paths relative to the model, and `suggested_tipSoftness`); the import binds them as
+  `u_flowMap`, `u_shiftMap` and `u_tipSoftness`.
+- Eye iris maps (`u_depthMap`, `u_irisNormalMap`) have no source slot and are assigned by hand.
+
+Matching by name is a convention. Check the shaders chosen in the written materials and correct any by hand. The setting
+is off by default, so a re-import never changes a material that was not opted in.
+
+## Specular map
+
+**Specular Map** (`specularMap`, FBX only) states what an FBX specular map holds:
+
+| Value | Behaviour |
+|---|---|
+| **Specular Color** (default) | Read as a highlight tint; the metal/rough shading has no slot for it. |
+| **Packed ORM** | Bound as occlusion, roughness and metalness, for scenes that pack them in the specular map (Bistro, Sun Temple). |
+
+## FBX materials
+
+FBX materials are read through ufbx's own mapping, so Phong, Lambert, Maya Standard Surface, 3ds Max Physical and
+Blender Principled materials all arrive as the parameters above. A Phong material's roughness is derived from its
+specular exponent, and it reports **no** metalness rather than an explicit zero.
+
+- **Separate metalness, roughness and occlusion maps are packed.** The Model shader samples one map packed as glTF
+  packs it (occlusion in red, roughness in green, metalness in blue). The import reads separate maps (the value is the red
+  channel; a glossiness map is inverted), packs them into `<material>_orm.png` next to the model and binds it to both
+  slots. A channel without a map is set to full, so the material's constant metallic or roughness value applies. Maps of
+  different sizes are resampled to the largest. Only PNG and DDS can be packed; for other formats the import reports it
+  and uses the constants.
+- **Opacity maps are not imported.** Alpha comes from the base colour image's own channel.
+
+## See also
+
+- [Models](/docs/assets/models/overview/)
+- [Materials](/docs/graphics/materials/overview/)
+- [Surface shaders](/docs/graphics/materials/surface-shaders/#shading-layers): shading layers.

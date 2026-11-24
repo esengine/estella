@@ -1,0 +1,38 @@
+---
+title: 内置图元
+description: 内置网格参考——七种 `builtin:` 网格（cube、sphere、capsule、cylinder、cone、plane、quad）、尺寸、剔除与光照默认值，以及相机摆放。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+引擎内置七种网格，无需导入，也没有文件。**+ Add → Create entity… → Cube**（或 Sphere、Capsule、Cylinder、Cone、Plane、Quad）会创建一个实体，其 `MeshRenderer.mesh` 为 `builtin:` 引用。这七种网格也出现在每个 `MeshRenderer.mesh` 字段选择器的顶部。
+
+| 引用 | 形状 |
+|---|---|
+| `builtin:cube` | 边长 100 单位的立方体，每个面一条平面法线。 |
+| `builtin:sphere` | 直径 100 单位的球体，平滑法线。 |
+| `builtin:capsule` | 高 100 单位：半径 25，两端半球之间为 50 单位的圆柱段，即 `CapsuleCollider3D` 描述的形状。 |
+| `builtin:cylinder` | 100 单位的直立圆柱，平顶平底。 |
+| `builtin:cone` | 100 单位的圆锥，底面着地。 |
+| `builtin:plane` | XZ 平面上边长 100 单位的正方形，朝上。 |
+| `builtin:quad` | XY 平面上边长 100 单位的正方形，朝向相机。 |
+
+图元在加载时由代码生成：不占用包体字节，引用它的场景没有资源依赖。七种图元的尺寸都与新建的 `ShapeRenderer` 相同，因此放入场景后无需缩放即可看见；与导入的模型一样，通过其 `Transform` 调整尺寸。
+
+## 剔除与光照
+
+- 五种封闭形状创建为**不透明并剔除背面**，因此它们相互遮挡，而不是按提交顺序混合。`plane` 与 `quad` 是平面，保持双面。
+- 图元创建为**受光**（`lit`），与带法线的导入几何相同。
+
+<Aside type="caution" title="受光网格需要光源">
+光照是乘法运算且从零开始，因此没有 `Light` 的场景会把受光网格绘制成黑色。**+ Add → Create entity… → Sun** 添加一盏平行光。清除 `lit` 则以无光照方式绘制网格。
+</Aside>
+
+## 相机摆放
+
+图元的深度与宽度都是 100 单位。相机位于 2D 默认位置时，每个实体靠近相机的一半落在近裁剪面之前。应像 3D 示例那样把场景相机放在数百单位之外。
+
+## 参见
+
+- [模型](/docs/zh-cn/assets/models/overview/)：导入 glTF 与 FBX。
+- [网格](/docs/zh-cn/graphics/drawing/meshes/)：`MeshRenderer` 与网格绘制。

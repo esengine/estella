@@ -1,20 +1,21 @@
 ---
 title: 本地化
-description: i18n 完整指南——翻译目录、插值、复数与语言切换,通过 Res(Localization)。
+description: 本地化参考——Localization 资源与插件、翻译目录、插值、复数形式、伪本地化、.eslocale 字符串表及其编辑器，以及把 Text 绑定到键。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-为每个 locale 注册一份翻译目录(catalog),切换当前 locale,并用 `t()` 查字符串——都通过
-`Localization` 资源完成。它刻意不依赖 `Intl`,所以在 Web 与微信上行为一致。
+`Localization` 资源为每个语言区域保存一份翻译目录，记录当前与回退语言区域，并用 `t()` 解析字符串。它不使用 `Intl`，因此在 Web 与微信上结果一致。
 
-`Localization` 是**可选(opt-in)**的——在任何系统读 `Res(Localization)` 之前先装一次它的插件:
+## 安装
+
+`Localization` 需要显式启用。在任何系统读取 `Res(Localization)` 之前安装其插件：
 
 ```typescript
-import { App, localizationPlugin, LocalizationPlugin } from 'esengine';
+import { localizationPlugin, LocalizationPlugin } from 'esengine';
 
 app.addPlugin(localizationPlugin);
-// …或提前预载目录 + 设置初始/回退 locale:
+// 或带选项：
 app.addPlugin(new LocalizationPlugin({
   locale: 'en',
   fallback: 'en',
@@ -22,7 +23,16 @@ app.addPlugin(new LocalizationPlugin({
 }));
 ```
 
-## 目录与翻译
+| `LocalizationOptions` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `locale` | string | `'en'` | 当前语言区域。 |
+| `fallback` | string | `'en'` | 当前语言区域缺少某个键时使用的语言区域。 |
+| `catalogs` | `Record<string, LocaleCatalog>` | — | 启动时注册的目录，按语言区域分组。 |
+| `tables` | string[] | — | 启动时通过 `Assets` 加载的 `.eslocale` 资源（路径或 `@uuid:` 引用）。需要资源插件。 |
+
+把 `Text` 绑定到键的场景会自动安装该插件（[把 Text 绑定到键](#把-text-绑定到键)）。
+
+## 目录与查找
 
 ```typescript
 import { defineSystem, Res, Localization } from 'esengine';
@@ -36,43 +46,38 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 });
 ```
 
-- **`addCatalog(locale, entries)`** 把 key 合并进某个 locale——可多次调用追加(后面的会覆盖)。
-- **`t(key, params?)`** 会插值 `{placeholder}` 的值。缺失的 key 回退到 fallback locale,再回退
-  到 key 本身(一个可见、可 grep 的兜底)。
+- `addCatalog(locale, entries)` 把键合并进某个语言区域；后调用的覆盖先前的同名键。
+- `t(key, params?)` 替换 `{placeholder}` 占位符。当前语言区域缺少的键在回退语言区域中查找，仍找不到则原样返回键名。
 
 ## 复数
 
-目录条目可以携带复数形式——CLDR 全集 `zero` / `one` / `two` / `few` / `many` / `other`;
-`t` 会根据 `count` 参数选出一个(且 `count === 0` 时若有 `zero` 形式总是它胜出)。默认选择器
-是英语式(`one`/`other`);斯拉夫语 / 阿拉伯语等规则用
-`setPluralSelector(locale, (count) => category)` 注册,返回上述六个类别之一。
+条目可以携带 CLDR 集合中的复数形式：`zero`、`one`、`two`、`few`、`many`、`other`。`t` 根据 `count` 参数选择形式；`count === 0` 时总是使用 `zero` 形式。默认选择器实现英语规则（`one` / `other`）。其他语言用 `setPluralSelector(locale, (count) => category)` 注册选择器，返回这六种类别之一。
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
 i18n.t('apples', { count: 3 });   // "3 apples"
 ```
 
-## `Localization` 参考
+## `Localization` API
 
-| 方法 | 说明 |
+| 成员 | 说明 |
 |---|---|
-| `addCatalog(locale, entries)` | 把翻译 key 合并进某个 locale。 |
-| `t(key, params?)` | 查找 + 插值一个字符串。 |
-| `setLocale(locale)` | 设置当前 locale。 |
-| `setFallbackLocale(locale)` | 设置 key 缺失时使用的 locale。 |
-| `setPseudoLocalization(options \| null)` | 可选的长度压力预览(`expansion`、`accents`);`null` 恢复正常翻译。 |
-| `setPluralSelector(locale, selector)` | 为某 locale 设自定义复数规则。 |
-| `availableLocales()` | 列出已注册的 locale。 |
-| `has(key)` | key 是否存在于当前/回退 locale。 |
+| `addCatalog(locale, entries)` | 把键合并进某个语言区域。 |
+| `t(key, params?)` | 查找并插值字符串。 |
+| `setLocale(locale)` / `locale` | 设置 / 读取当前语言区域。 |
+| `setFallbackLocale(locale)` / `fallbackLocale` | 设置 / 读取回退语言区域。 |
+| `setPluralSelector(locale, selector)` | 为某个语言区域注册复数规则。 |
+| `setPseudoLocalization(options \| null)` | 启用伪本地化（`expansion`、`accents`）；`null` 恢复正常查找。`@experimental`。 |
+| `availableLocales()` | 已注册的语言区域。 |
+| `has(key)` | 当前或回退语言区域中是否存在该键。 |
 
-## 字符串表(`.eslocale`)
+### 伪本地化
 
-![检视器里的 .eslocale 字符串表——key 与它们的值](@/assets/guides/zh/localization.png)
+`setPseudoLocalization({ expansion: 0.35, accents: true })` 拉长每个已翻译字符串并加上重音符号，同时保持占位符、富文本标签与换行不变，用于检验布局能否容纳更长的语言。`setPseudoLocalization(null)` 恢复真实文本。
 
-*检视器里的 `.eslocale` 表:每个 key 在当前语言下的值,下方以另一种语言作为翻译提示。*
+## 字符串表（`.eslocale`）
 
-翻译可以作为**数据**发布,而不是写死在代码里:一个 `.eslocale` 资产装着一种语言的目录,
-游戏只加载它需要的语言。
+`.eslocale` 资源只保存**一个**语言区域的目录，因此游戏只加载需要的语言：
 
 ```json
 // assets/i18n/zh-CN.eslocale
@@ -86,46 +91,55 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 }
 ```
 
-在编辑器里创建(内容浏览器 → 右键 → **新建本地化表**)或手写皆可。**选中一张表,细节面板
-就是它的编辑器**:键/译文行(支持复数形式)、其他表的参照译文淡显在每行下方、缺失的 key
-一键补齐——每次编辑立即保存。显式加载用
-`Assets.loadLocaleTable(path)`(需要本地化插件——否则大声报错),预载用
-`new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`,或者让
-[下面的 Text 绑定](#把-ui-text-绑到-key)全自动加载。导出 cook 永远会把 `.eslocale`
-打进包里——它们按 key 加载,可达性分析看不见它们,所以强制收入。
+字符串表可通过三种方式加载：
 
-双击 `.eslocale` 会打开**字符串表**编辑器,把项目的所有语言并排显示:每个 key 一行、每张表一列,未翻译的格子有标记,
-带筛选,可以添加和删除 key(每次编辑立即写入对应语言的文件)。它能**导入** Excel(`.xlsx`)、CSV 或 XLIFF(`.xlf`)文件,
-按 key 合并进各张表;也能把所有语言**导出**成一张 Excel 或 CSV 表,或 XLIFF 1.2,并先列出发现的问题;复数条目在检查器里编辑。
+- `assets.loadLocaleTable(path)`：需要本地化插件，否则失败；
+- `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`；
+- 由含键绑定 `Text` 的场景自动加载（[见下文](#把-text-绑定到键)）。
 
-想看更长的语言排版会不会放不下,可以用 `i18n.setPseudoLocalization({ expansion: 0.35, accents: true })`
-(`@experimental`):它把每条译文拉长并加上重音符号,同时保留占位符、富文本标签和换行;`setPseudoLocalization(null)` 恢复真实文本。
+烘焙始终发布 `.eslocale` 文件，因为它们按键寻址，没有场景会引用它们。
 
-## 把 UI Text 绑到 key
+### 检视器
 
-设置 `Text.i18nKey`(编辑器细节面板里的 **I18n Key** 下拉,列出项目全部表里的 key 及其
-译文预览),`content` 就变成派生值:**每帧**重新解析,所以 `setLocale`——或者一张晚到的
-表——都会让所有绑定的标签自动重排,零代码。场景驱动的项目免费得到整条链路:只要场景里
-有任何绑定的 key,加载时会自动安装插件、加载全部已发布的表,并在有匹配的表时以
-**玩家的系统语言**启动(自己安装插件、或调用过 `setLocale` 的游戏永远不会被覆盖)。
+用 **内容浏览器 → 右键 → New Locale Table** 创建字符串表。选中字符串表时，Details 面板变为其编辑器：键与文本行（含复数形式）、以暗色显示的项目其他字符串表中的对应文本作为参考，以及可一键补充的缺失键列表。每次编辑立即保存。
 
-**动态**标签(`Score: 42`)请保持代码驱动——绑定的 content 是派生的,代码会改写的标签
-不能同时携带 key;在拥有它的系统里调 `t('score', { n })` 即可。
+![检视器中的 .eslocale 字符串表——各个键及其取值](@/assets/guides/zh/localization.png)
 
-## 最佳实践
+*检视器中的 `.eslocale` 字符串表：每个键在本语言区域的取值，下方以另一语言区域作为参考。*
 
-- **一切都经 `t()` 或 `i18nKey`**——绝不硬编码面向用户的字符串,连占位符也不。
-- **插值,别拼接**(`'Score: {n}'`),这样语序能因语言而异。
-- **设一个回退 locale**,让缺失的翻译退化到另一种语言,而不是裸 key。
-- **一种语言一个 `.eslocale`**,放在同一目录(`assets/i18n/`),key 完全一致——缺失的
-  key 会以 key 字符串可见地兜底。
+### String Table 编辑器
+
+双击 `.eslocale` 打开 **String Table** 编辑器，并排显示项目的所有语言：每个键一行，每张字符串表一列，未翻译的单元格有标记，并提供筛选及添加、删除键的命令。每次编辑立即写入对应语言的文件。复数条目在检视器中编辑。
+
+{/* SHOT: assets-string-table-editor | ui-controls example: assets/i18n/en.eslocale opened by double-click; the String Table editor shows the en and zh-CN columns side by side with the filter and the Import / Export commands visible */}
+
+- **Import** 读取 Excel（`.xlsx`）、CSV 或 XLIFF（`.xlf`）文件，并按键合并到字符串表。
+- **Export** 把所有语言写成一张 Excel 或 CSV 表，或 XLIFF 1.2，并先列出发现的问题。
+
+## 把 Text 绑定到键
+
+设置 `Text.i18nKey`（Details 面板中的 **I18n Key** 字段，列出项目所有字符串表中的键并带翻译预览）后，`content` 成为派生值：**每帧**重新解析，因此 `setLocale` 或稍后加载完成的字符串表会更新所有绑定的标签，无需代码。
+
+绑定了任意键的场景：
+
+- 加载时若游戏尚未安装本地化插件，则自动安装；
+- 加载所有已发布的字符串表；
+- 若发布了与**玩家系统语言**匹配的字符串表，则以该语言启动。自行安装插件或调用 `setLocale` 的游戏不会被覆盖。
+
+动态标签（`Score: 42`）由代码驱动：内容由代码改写的标签不能再绑定键。应在负责该标签的系统中调用 `t('score', { n })`。
 
 <Aside type="tip">
-  看 `examples/ui-controls` 的零代码闭环:五个标签绑 `i18nKey`,`en` + `zh-CN` 两张表,
-  没有一行本地化代码。
+  `examples/ui-controls` 用 `i18nKey` 把五个标签绑定到 `en` 与 `zh-CN` 字符串表，不含任何本地化代码。
 </Aside>
+
+## 使用建议
+
+- 所有面向用户的字符串都通过 `t()` 或 `i18nKey` 解析。
+- 使用插值（`'Score: {n}'`）而非拼接，使不同语言可以有不同的语序。
+- 设置回退语言区域，使缺失的翻译回退到另一种语言而不是键名。
+- 每种语言一个 `.eslocale`，放在同一文件夹（`assets/i18n/`）中，键保持一致。
 
 ## 参见
 
-- [UI](/docs/zh-cn/ui/overview/) —— 绑定所依托的 `Text` 组件。
-- [资源](/docs/zh-cn/assets/overview/) —— 资产如何发布与加载。
+- [文本](/docs/zh-cn/ui/text/)：携带 `i18nKey` 的 `Text` 组件。
+- [资源](/docs/zh-cn/assets/overview/)：资源如何发布与加载。

@@ -1,0 +1,118 @@
+---
+title: Lifetime & Memory
+description: Asset lifetime reference — reference counting, the evictable warm caches, the texture budget and resource statistics, and how content is restored after the GPU context is lost.
+---
+
+Loaded assets are reference-counted and released assets are kept in byte-budgeted warm caches. This page covers the
+rules that decide when an asset is freed, the budgets that bound residency, and what the engine restores after a GPU
+context loss.
+
+## Reference counting
+
+Each `load*()` call counts as one reference and requires a matching `release*()`; scene loading and unloading do both
+for the assets a scene references. An asset shared by two scenes survives the unload of the first and is freed when its
+last holder releases it.
+
+Release calls take the same ref that was loaded (for example `assets.releaseTexture('assets/textures/player.png')`),
+except `releaseMaterial`, which takes the material handle.
+
+Hot-reloaded bindings follow the same ownership rule. A scene owns the replacement resources for its entities; a
+runtime entity without a scene, or a persistent entity that outlived its scene, owns its replacements until it is
+despawned. Repeated reloads do not keep replacement resources alive for the lifetime of the application. Explicit
+`load*()` and `acquire*()` calls still require matching releases.
+
+## Warm cache
+
+A released texture or decoded audio buffer is not destroyed at once. It stays resident as an **evictable cache entry**,
+and a later load of the same asset (re-entering a scene, streaming an area back in) **revives it in place** without a
+new download or decode.
+
+- A byte-budgeted LRU evicts the least recently used unreferenced entries once residency exceeds the budget. Held
+  assets are never evicted.
+- An OS memory warning drops every evictable entry; held assets are unaffected.
+
+| Cache | Default budget | Configured by |
+|---|---|---|
+| Textures | 64 MB | `RuntimeConfig.textureCacheBudget`, `textureCacheBudget` in the build config, `setTextureBudget(bytes)` |
+| Decoded audio | 32 MB | `RuntimeConfig.audioCacheBudget`, `audioCacheBudget` in the build config, `Audio.setBufferBudget(bytes)` ([Audio](/docs/assets/audio/overview/#audio-api)) |
+
+## Texture budget & statistics
+
+`setTextureBudget` sets the budget of the C++ texture pool; it is the only texture budget. `getResourceStats` reports
+residency:
+
+```typescript
+import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // 256 MB
+
+const stats = getResourceStats();      // null before the engine initializes
+if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
+  const freed = trimTextureCache();    // drops every evictable texture, returns the count
+}
+```
+
+| `ResourceStats` field | Description |
+|---|---|
+| `textureBytes` | Resident texture bytes (RGBA8 estimate), held and evictable. |
+| `textureBudget` | Current budget; `0` disables the warm cache. |
+| `textureEvictableCount` | Unreferenced textures awaiting revival or eviction. |
+| `textureCount` | Live GPU textures. |
+| `shaderCount` | Live compiled shaders. |
+| `vertexBufferCount` / `indexBufferCount` | Live GPU buffers. |
+| `cacheHits` / `cacheMisses` | Resource-cache hit and miss counters. |
+| `retainedBytes` | CPU copies kept to restore content after a GPU context loss ([below](#gpu-context-loss)). Also the per-frame counter `render.retained.bytes`. |
+
+- `setTextureBudget(0)` disables the warm cache: a texture is freed as soon as its last reference is released.
+- `trimTextureCache()` frees every evictable texture and returns how many it freed. The engine calls it on OS memory
+  warnings; call it before a known memory peak.
+- `getTextureDimensions(handle)` returns a texture's `{ width, height }` and caches it on the TypeScript side
+  ([Textures](/docs/assets/textures/#from-a-handle-you-did-not-load)). `evictTextureDimensions(handle)` drops the cached
+  entry. The asset system calls it when a texture is freed; call it only when replacing texture contents under an
+  existing handle outside the asset system.
+
+The [Profiler](/docs/performance/profiling/overview/) shows these values per frame.
+
+## GPU context loss
+
+When the graphics context is lost (a driver reset, a mobile browser reclaiming the GPU), the engine rebuilds every
+texture and buffer behind the handles the game holds:
+
+- Content with a source is rebuilt from it: an asset is loaded again, a text page is repainted from its glyphs, a
+  skeleton's atlas page is decoded again, and a terrain's layer textures are read and packed again from their files and
+  its page atlases refilled.
+- Content without a source (a mesh built at run time, a tile collection composed at load) is kept as a CPU copy.
+  `ResourceStats.retainedBytes` reports its size. It counts against process memory, not against any GPU figure, and the
+  engine warns once when it exceeds `RuntimeConfig.retainedBudget` (default **16 MB**; also `retainedBudget` in the
+  build config or `setRetainedBudget(bytes)`; `0` disables the warning). Content the engine can rebuild is not copied.
+
+Recovery is a single device transaction. While textures are reloading, frames the device refuses start empty and
+collect nothing, so staging memory does not grow. On the web the restored WebGL context receives its extensions again
+before the device probes its capabilities, so an HDR scene is restored correctly.
+
+### Render textures
+
+A render texture is GPU storage and comes back blank after a rebuild. `onDeviceRestored` signals when to redraw, and
+`RenderTexture.contentLost` reports whether a target needs it. A target a camera renders every frame never does.
+
+```typescript
+import { onDeviceRestored, RenderTexture } from 'esengine';
+
+const minimap = RenderTexture.create({ width: 256, height: 256 });
+onDeviceRestored(() => {
+  if (!RenderTexture.contentLost(minimap)) return;
+  drawMinimap(minimap);                  // game code
+  RenderTexture.contentDrawn(minimap);   // mark the target as holding content again
+});
+```
+
+## Guidelines
+
+- Set a texture budget on memory-constrained targets and leave the rest to reference counting.
+- Watch `textureBytes` against `textureBudget`, and call `trimTextureCache()` before a known memory peak.
+
+## See also
+
+- [Assets](/docs/assets/overview/): references, loaders, groups and the cook.
+- [Textures](/docs/assets/textures/): import settings and texture sizes.
+- [Profiling](/docs/performance/profiling/overview/): resource statistics in the Profiler.

@@ -1,0 +1,148 @@
+---
+title: Bodies & Colliders
+description: 2D body and collider reference — RigidBody2D fields, the collider components and their shape parameters, concave polygons and vertex editing, collision layers and the collision matrix, and OneWayPlatform2D.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A simulated 2D entity carries one `RigidBody2D` and at least one collider. Collider dimensions are in **metres**: divide
+a pixel size by the pixels per unit ([Units](/docs/gameplay/physics-2d/overview/#units)).
+
+![Collider gizmos in the editor viewport — the selected Ground's outline plus walls and a ramp](@/assets/guides/en/physics-collider.png)
+
+*Collider gizmos in the viewport: the selected **Ground**'s box outline (amber), the walls and the ramp. The viewport's
+**Physics** show flag toggles them.*
+
+## `RigidBody2D`
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static` (immovable), `Kinematic` (moved by code), `Dynamic` (simulated). |
+| `gravityScale` | number | `1` | Multiplier on world gravity (`0` = no gravity). |
+| `linearDamping` | number | `0` | Linear velocity drag. |
+| `angularDamping` | number | `0` | Angular velocity drag. |
+| `fixedRotation` | boolean | `false` | Locks rotation; used for characters. |
+| `bullet` | boolean | `false` | Continuous collision for fast, thin bodies (prevents tunnelling). |
+| `enabled` | boolean | `true` | `false` removes the body from the simulation. |
+
+## Colliders
+
+The colliders share the following fields; each adds its own shape parameters. Exceptions are listed in the shape table.
+
+| Shared property | Type | Default | Description |
+|---|---|---|---|
+| `offset` | Vec2 | `{0, 0}` | Local offset from the entity origin, metres. |
+| `density` | number | `1` | Mass per area; determines the body's mass. |
+| `friction` | number | `0.3` | Surface friction, 0 and above. |
+| `restitution` | number | `0` | Bounciness, 0–1. |
+| `isSensor` | boolean | `false` | Detects overlaps without a physical response (trigger). |
+| `categoryBits` | number | `0x0001` | The collision layers this collider is on. |
+| `maskBits` | number | `0xFFFF` | The layers it collides with. |
+| `enabled` | boolean | `true` | `false` removes this shape only. The body keeps its velocity, joints and other colliders; nothing collides with the disabled shape, and no query, raycast or character cast finds it. |
+
+| Component | Shape parameters |
+|---|---|
+| `BoxCollider2D` | `halfExtents` (`{0.5, 0.5}`). Corners are always rounded by `0.05` m; no field changes this, and a `radius` written to the component is not stored. |
+| `CircleCollider2D` | `radius` (`0.5`). |
+| `CapsuleCollider2D` | `radius` (`0.25`), `halfHeight` (`0.5`). |
+| `SegmentCollider2D` | `point1` (`{-0.5, 0}`), `point2` (`{0.5, 0}`). A one-sided edge; no `offset`. |
+| `PolygonCollider2D` | `vertices: Vec2[]` (any outline, concave allowed; default a unit square), `radius` (corner rounding, `0`). No `offset`. |
+| `ChainCollider2D` | `points: Vec2[]` (at least 4), `isLoop` (`true`). A static edge chain; `friction` defaults to `0.6`; no `offset`, `density` or `isSensor`. |
+
+### Concave polygons
+
+`PolygonCollider2D.vertices` accepts any number of points in any outline, concave included. Box2D builds only convex
+polygons of at most 8 vertices, so an outline that is concave or has more vertices is partitioned into convex pieces,
+each a separate shape on the same body. The 8-vertex limit applies to each piece, not to the authored outline.
+
+The pieces act as one collider: their mass adds up as for any colliders on one body, and a contact with any piece is a
+contact with the entity. Each piece is a separate shape in the broadphase, so the cost grows with the number of pieces.
+
+Constraints of a partitioned polygon:
+
+- **`radius`** rounds the outer boundary only. It applies only when the outline stays in one piece.
+- **A self-intersecting outline** cannot be partitioned. It falls back to its convex hull; the editor draws the authored
+  outline beside it as a dashed amber line. The solid outline is the collision shape; the dashed one is the authored
+  outline.
+
+`ChainCollider2D` suits long static edge geometry (terrain, cave walls) where the inside need not be solid. A chain has no
+`density` or `isSensor`, its points are not rebuilt at run time, and it is one shape regardless of length.
+
+### Editing vertices in the viewport
+
+When the entity is selected, the collider's points become handles:
+
+- Drag a point to move it.
+- Click a point to delete it.
+- Click the hollow handle on an edge to insert a vertex there and drag it into place; insertion and drag are one undo
+  step.
+
+The editor refuses to go below the minimum the solver builds (3 points for a polygon, 4 for a chain) and names the limit.
+
+{/* SHOT: gameplay-polygon-collider-edit | physics-playground example, showcase scene: the Wedge entity selected, viewport showing the PolygonCollider2D vertex handles and the hollow edge handles, Details panel showing the Polygon Collider 2D card */}
+
+## Collision filtering
+
+![Settings → Project → Physics — collision layer names and the collision matrix](@/assets/guides/en/collision-matrix.png)
+
+*Settings → Project → Physics: the names of the 16 collision layers, the matrix of layer pairs that collide, and the
+solver settings.*
+
+`categoryBits` (the layers a collider is on) and `maskBits` (the layers it collides with) are 16-bit filters. Two
+colliders collide only if each one's category is in the other's mask:
+
+```typescript
+const LAYER_PLAYER = 0x0001;
+const LAYER_ENEMY  = 0x0002;
+const LAYER_GROUND = 0x0008;
+
+.insert(CircleCollider2D, {
+  radius: 16 / PPU,
+  categoryBits: LAYER_PLAYER,
+  maskBits: LAYER_ENEMY | LAYER_GROUND,   // ignores other players
+});
+```
+
+When the project defines a collision matrix, it is passed to the plugin as `collisionLayerMasks` and replaces each
+collider's own `maskBits`.
+
+The layer filter is the single control for what interacts: collisions, hit events and sensor detection all use it. A
+collider is detected by a sensor whenever its layers pass the sensor's filter; there is no per-collider opt-in. To keep a
+collider out of a sensor, exclude it by layer. In a busy world, placing sensors and their targets on dedicated layers
+narrows what each sensor considers.
+
+## One-way platforms
+
+`OneWayPlatform2D` on a static or kinematic collider makes it one-sided: a body lands on it from one direction and passes
+through from the others. It is implemented with Box2D's pre-solve callback, which is enabled only on entities that carry
+the component.
+
+```typescript
+import { OneWayPlatform2D } from 'esengine/physics';
+
+const platform = world.spawn('ledge');
+world.insert(platform, Transform, { position: { x: 0, y: 0 } });
+world.insert(platform, RigidBody2D, { bodyType: BodyType.Static });
+world.insert(platform, BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } });
+world.insert(platform, OneWayPlatform2D, { normal: { x: 0, y: 1 } }); // solid top: land from above, pass from below
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `normal` | Vec2 | `{0, 1}` | Direction of the solid side, in world space (`{0, 1}` = solid top). |
+| `localSpace` | boolean | `false` | Rotates `normal` with the body, including its parent's rotation. |
+| `enabled` | boolean | `true` | `false` makes the collider solid from every side. |
+
+In the editor, a one-way platform's collider gizmo shows an arrow along the solid-side normal. A
+`CharacterController2D` passes through one-way platforms while its `dropThrough` is set
+([Character Controllers](/docs/gameplay/physics-2d/characters/)).
+
+![A one-way platform with an upward normal: a body coming from below passes through, a body coming from above lands on top](@/assets/guides/oneway-platform.svg)
+
+{/* SHOT: gameplay-one-way-platform | physics-playground example, showcase scene: the OneWayLedge entity selected, viewport showing its collider outline with the solid-side arrow, Details panel showing the One Way Platform 2D card */}
+
+## See also
+
+- [2D Physics Basics](/docs/gameplay/physics-2d/overview/) — setup and units.
+- [Tile Collision](/docs/world/tilemaps/collision/) — colliders generated from tilemap layers.
+- [Markers & Trigger Areas](/docs/gameplay/markers/) — sensor regions authored as markers.

@@ -1,70 +1,46 @@
 ---
 title: Markers & Trigger Areas
-description: Place named gameplay points and trigger zones as real entities — spawn points, waypoints, doors, and sensor regions you author in the editor and read with Query(Marker).
+description: Marker and Trigger Area reference — named gameplay points and sensor regions authored as entities, the Marker component, reading markers and trigger events, markers imported from Tiled object layers, and nearest-marker queries.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A **Marker** is a named point of gameplay interest — a spawn point, a waypoint, a
-door, a pickup location — placed in the editor as a real ECS entity. A **Trigger
-Area** is a Marker plus a sensor collider: a region that fires overlap events when a
-body enters it. Together they are Estella's modern "object layer": instead of a
-parallel data structure you reach through a loader, gameplay objects are plain
-entities you select, edit in the Inspector, serialize with the scene, and read with
-`Query(Marker)`.
+A **Marker** is a named point of gameplay interest (a spawn point, a waypoint, a door, a pickup location) placed in the
+editor as an ordinary entity. A **Trigger Area** is a Marker with a sensor collider: a region that reports when a body
+enters or leaves it. Both serialize with the scene, are edited in the Inspector, and are read with `Query(Marker)`.
 
-## How it works
+## The `Marker` component
 
-A Marker is just the `Marker` component (a `type` string and a free-form
-`properties` map) on an entity that also has a `Transform`. On its own it's a
-point — the game asks "where do I spawn the player?" by querying markers of a given
-`type`. Add a static [`RigidBody2D`](/docs/gameplay/physics/) and a sensor collider and
-the same entity becomes a trigger zone; the **Trigger Area** preset wires all of
-that up for you.
+A Marker is the `Marker` component on an entity that also has a `Transform`. `Marker` is exported from the main
+`esengine` barrel and needs no plugin.
 
-Because a Marker is pure ECS, there is nothing special to load or parse:
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `type` | string | `''` | The kind of marker (`spawn`, `waypoint`, `door`, …). Free-form; the game defines the vocabulary. |
+| `properties` | `Record<string, string>` | `{}` | Per-marker data (`team`, `targetScene`, `event`, …), edited as a key→value map in the Inspector. Properties of imported Tiled objects are stored here too. |
 
-- It **serializes** with the scene like any component.
-- It shows in the **Inspector**, including a key→value editor for its properties.
-- It's **`Query`-able** — one code path reads markers you placed by hand *and*
-  markers imported from a [Tiled](/docs/world/tilemaps/tiled/) `.tmj` object layer.
+<Aside type="note">
+  `properties` values are strings. Parse them where they are read (`Number(marker.properties.hp)`,
+  `marker.properties.locked === 'true'`).
+</Aside>
 
-The `type` vocabulary is entirely yours: `spawn`, `waypoint`, `door`, `chest`,
-`checkpoint` — the game defines what the strings mean.
+## Placing markers in the editor
 
-## Setup
+- **+ Add → Create entity… → Common → Marker** creates a named point at the scene origin. A Marker shows a pin gizmo in
+  the viewport.
+- **+ Add → Create entity… → Physics → Trigger Area** creates a sensor region: `Transform`, a static `RigidBody2D`, a
+  `BoxCollider2D` with `isSensor: true`, and a `Marker`. It also draws its collider outline, edited with the
+  [collider gizmo](/docs/gameplay/physics-2d/bodies/).
 
-`Marker` lives in the main `esengine` barrel — no plugin needed to place or query
-one. A **Trigger Area** carries a sensor collider, so it needs [physics](/docs/gameplay/physics/):
-in the editor and web runtime the physics module loads automatically when a scene
-uses physics components; in a custom app, add the plugin yourself:
-
-```typescript
-import { Physics2DPlugin } from 'esengine/physics';
-
-app.addPlugin(new Physics2DPlugin('physics.js'));
-```
-
-## Place one in the editor
-
-**+ Add → Create entity… → Common → Marker** drops a named point at the scene origin; **+ Add → Create entity… → Physics → Trigger Area** drops a sensor region (Transform + static RigidBody2D + sensor
-BoxCollider2D + Marker). A Marker shows a **pin gizmo** in the viewport; a Trigger Area
-also draws its collider outline, which you shape with the same
-[collider gizmo](/docs/gameplay/physics/) as any other body.
-
-In the Inspector, set the marker's **Type** and add any number of custom
-**properties** (a key→value map — `targetScene: "level2"`, `team: "red"`, and so on).
-Both survive save/load and travel into the build.
+In the Inspector, **Type** sets the marker's type and **Properties** holds any number of key→value rows. Both are saved
+with the scene and included in the build.
 
 ![The Marker component in the Inspector — a Type field and a key→value Properties map with an Add-property button](@/assets/guides/en/marker-inspector.png)
 
-*A `spawn` marker in the Inspector: the **Type** drives `Query(Marker)`, and each
-**Properties** row is one entry of the free-form string→string map.*
+*A `spawn` marker in the Inspector: **Type** is what `Query(Marker)` code filters on; each **Properties** row is one
+entry of the string→string map.*
 
-## Quick start
-
-Place a few Markers of type `spawn` in the editor, then read them at startup to
-position the player:
+## Reading markers
 
 ```typescript
 import { defineSystem, Commands, Query, Marker, Transform } from 'esengine';
@@ -81,32 +57,13 @@ const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, 
 });
 ```
 
-`marker.properties` carries the per-marker data — read `marker.properties.targetScene`,
-`marker.properties.team`, and the like as plain strings.
-
-## `Marker` component reference
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `type` | string | `''` | Gameplay identity — the kind of marker (`spawn`, `waypoint`, `door`, …). `Query(Marker)` filters on it. Free-form; the game defines the vocabulary. |
-| `properties` | `Record<string, string>` | `{}` | Arbitrary per-marker data (`team`, `targetScene`, `event`, …), edited as a key→value map in the Inspector. Imported `.tmj` object properties land here too. |
-
-<Aside type="note">
-  `properties` values are **strings**. Parse them where you read them
-  (`Number(marker.properties.hp)`, `marker.properties.locked === 'true'`) — the
-  editor stores whatever you type.
-</Aside>
+`marker.properties` carries the per-marker data as strings (`marker.properties.targetScene`, `marker.properties.team`).
 
 ## Trigger Areas
 
-A **Trigger Area** is the Create preset for a sensor region: a `Transform`, a static
-`RigidBody2D` (`bodyType: 0`), a `BoxCollider2D` with `isSensor: true`, and a `Marker`.
-Because the collider is a sensor it detects overlaps **without** a physical response —
-nothing bounces off a trigger; it just reports who entered.
-
-Read entries and exits from the `Physics2DEvents` resource. Each sensor event names the
-`sensorEntity` (the trigger) and the `visitorEntity` (the body that crossed it), so
-you can look up the trigger's `Marker` to decide what it does:
+A Trigger Area's collider is a sensor: it detects overlaps without a physical response. Entries and exits are read from
+the `Physics2DEvents` resource. Each sensor event names the `sensorEntity` (the trigger) and the `visitorEntity` (the
+body that crossed it); the trigger's `Marker` determines the response.
 
 ```typescript
 import { defineSystem, Res, Query, Marker } from 'esengine';
@@ -126,34 +83,37 @@ const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, m
 });
 ```
 
-Keep sensors cheap in a busy world by putting triggers and the bodies that should
-notice them on dedicated [collision layers](/docs/gameplay/physics/#collision-filtering),
-so each sensor's mask narrows what it considers. See
-[Collision & sensor events](/docs/gameplay/physics/#collision--sensor-events) for the
-full event surface. The same crossings are also sent as per-entity `trigger_enter` /
-`trigger_exit` events, which an [event binding](/docs/scripting/events/) on the area can
-react to without code.
+Trigger Areas use the 2D physics module. The editor and the web runtime load it when a scene uses physics components; a
+custom app adds the plugin ([2D Physics Basics](/docs/gameplay/physics-2d/overview/#setup)).
+
+The same crossings are also sent to the entities as `trigger_enter` / `trigger_exit` events, to which an
+[event binding](/docs/scripting/events/) on the area reacts without code. The complete event surface is described in
+[Collision & sensor events](/docs/gameplay/physics-2d/queries/#collision--sensor-events). Placing triggers and the
+bodies that should notice them on dedicated [collision layers](/docs/gameplay/physics-2d/bodies/#collision-filtering)
+limits what each sensor considers.
+
+Trigger Areas do not block movement. Blocking geometry uses a non-sensor collider or a tilemap
+[collision layer](/docs/world/tilemaps/collision/#collision-layers).
 
 ## Imported from Tiled
 
-When a [`Tilemap`](/docs/world/tilemaps/tiled/) loads a `.tmj` map, its **object layers**
-converge onto the same entities you author by hand — no separate structure to walk:
+When a [`Tilemap`](/docs/world/tilemaps/tiled/) loads a `.tmj` map, its object layers become the same entities:
 
 | Tiled object | Becomes |
 |---|---|
-| **Point** | A `Marker` (its `type` = the Tiled class, its custom properties → `Marker.properties`). |
-| **Rectangle / ellipse / polygon / polyline** | A trigger **Region** — a `Marker` (its `type` = the Tiled class) plus a static body and a matching collider: a box, a circle, a polygon of up to 8 vertices (more falls back to its bounding box) or an open chain. It is a sensor, or solid geometry when the object group is named `collision`. |
+| **Point** | A `Marker`: `type` is the Tiled class; custom properties go to `Marker.properties`. |
+| **Rectangle / ellipse / polygon / polyline** | A trigger region: a `Marker` (`type` = the Tiled class) plus a static body and a matching collider: a box, a circle, a polygon of up to 8 vertices (more falls back to its bounding box) or an open chain. It is a sensor, or solid geometry when the object group is named `collision`. |
 | **Tile object** (has a gid) | A sprite child of the map. |
 
-So one `Query(Marker)` reads spawn points whether you dropped them in the Estella
-editor or drew them in Tiled. (Imported objects are re-derived from the `.tmj` on each
-load, so they exist in play mode only; hand-authored Markers are ordinary serialized
-entities.) The raw object-group data is still available through `tilemapSource(assets, ref)`
-(from `esengine/tilemap`) if you need a shape's exact vertices.
+One `Query(Marker)` therefore reads markers placed in the editor and markers drawn in Tiled. Imported objects are
+re-derived from the `.tmj` on each load and exist in play mode only; markers placed in the editor are serialized
+entities. The raw object-group data is available through `tilemapSource(assets, ref)` from `esengine/tilemap`, for
+example for a shape's exact vertices.
 
-## Finding what is nearest
+## Nearest markers
 
-An "interact" button needs one fact before it decides what it does: what stands near the player, and how near. `nearestMarkers(world, from, options)` answers it, nearest first:
+`nearestMarkers(world, from, options)` from `esengine/gameplay` returns the markers near a point, nearest first, for
+example to decide what an interact button does:
 
 ```typescript
 import { nearestMarkers, nearestEntities } from 'esengine/gameplay';
@@ -162,29 +122,27 @@ const near = nearestMarkers(world, { x: player.x, y: player.y }, { radius: 60, t
 if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // what the button says is the game's
 ```
 
-`type` takes one type or several, `has` keeps only markers whose `properties` carry every given key and value, `radius` and `limit` bound the answer, and `plane: 'xz'` measures on the ground (then `from.y` is the ground z). Each result is `{ entity, distance, x, y }`.
-`nearestEntities(world, Component, from, options)` is the same over any component, with a `filter` on its data. An entity switched off with `Disabled` is not found. It is one pass over
-the entities that carry the component each time it is asked, which a button press or a prompt refreshed once a frame affords over the hundreds of things a village holds.
+| Option | Description |
+|---|---|
+| `type` | One type or an array of types. |
+| `has` | Keeps only markers whose `properties` contain every given key and value. |
+| `radius` | Maximum distance. |
+| `limit` | Maximum number of results. |
+| `plane` | `'xy'` (default) or `'xz'`, measuring on the ground plane; with `'xz'`, `from.y` is the ground z. |
 
-## Best practices
+Each result is `{ entity, distance, x, y }`. `nearestEntities(world, Component, from, options)` does the same over any
+component, with a `filter` on its data. Entities switched off with `Disabled` are not returned. Each call is one pass
+over the entities that carry the component.
 
-- **Type by role, detail by properties.** A small, stable set of `type` values the
-  game switches on, with the variable data in `properties` — not a new `type` per
-  instance.
-- **Query once where you can.** Spawn points, waypoint graphs, and patrol routes are
-  usually read at scene start; cache the result instead of re-querying every frame.
-- **Reuse one marker vocabulary** across hand-authored scenes and imported Tiled maps
-  — the query code doesn't care where the marker came from.
-- **Trigger Areas are sensors** — for anything you want to *block* (a wall, a ledge),
-  paint a [collision layer](/docs/world/tilemaps/collision/#collision-layers) or use a
-  non-sensor collider instead.
+## Guidelines
+
+- Use a small, stable set of `type` values for roles and put variable data in `properties`.
+- Read spawn points, waypoint graphs and patrol routes once at scene start and cache them.
+- Use the same marker vocabulary in editor scenes and Tiled maps; the query code does not depend on the source.
 
 ## See also
 
-- [Tilemaps](/docs/world/tilemaps/overview/) — collision (obstacle) layers and Tiled object
-  layers that feed the same Markers.
-- [Physics](/docs/gameplay/physics/) — sensors, collision filtering, and the
-  `Physics2DEvents` resource behind Trigger Areas.
+- [Tilemaps](/docs/world/tilemaps/overview/) — collision layers and Tiled object layers.
+- [2D Physics](/docs/gameplay/physics-2d/overview/) — sensors, collision filtering and `Physics2DEvents`.
 - [Scenes](/docs/world/scenes/) — Markers and Trigger Areas serialize with the scene.
-- [Event Binding](/docs/scripting/events/) — run an action when something enters a Trigger
-  Area, authored on the area itself with no code.
+- [Event Binding](/docs/scripting/events/) — actions run when something enters a Trigger Area.

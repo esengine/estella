@@ -1,0 +1,161 @@
+---
+title: 日志与错误上报
+description: 日志与诊断参考——结构化日志、日志级别与自定义处理器，以及汇总已发布游戏的错误并交给游戏自定义接收端的 Diagnostics 资源。
+---
+
+SDK 通过结构化日志报告自身的诊断信息，游戏代码也可以使用它。`Diagnostics` 资源汇总运行中游戏的错误，并交给游戏选择的目标。
+
+## 日志
+
+每条消息都有**级别**、自由格式的**类别**（`'physics'`、`'net'`、`'gameplay'`…）、消息文本和可选的结构化 `data`：
+
+```typescript
+import { log, setLogLevel, LogLevel } from 'esengine';
+
+setLogLevel(LogLevel.Debug);              // 默认：LogLevel.Info
+
+log.debug('gameplay', 'Wave spawned', { wave: 3, enemies: 12 });
+log.info('save', 'Game saved');
+log.warn('net', 'High latency', { rttMs: 240 });
+log.error('boot', 'Asset manifest failed', err);   // Error 保留其调用栈
+```
+
+- `LogLevel` 的顺序为 `Debug < Info < Warn < Error`。`setLogLevel` 设置最低级别；低于该级别的消息在到达任何处理器之前被丢弃。
+- 独立函数 `debug`、`info`、`warn` 与 `error` 转发到同一个默认日志器；`getLogger()` 返回 `Logger` 实例。
+- 默认的控制台处理器按 `[time] [LEVEL] [category] message` 格式化，调用对应的 `console` 方法，并把 `Error` 数据作为单独参数传入，以便显示调用栈。
+
+### 自定义处理器
+
+`LogHandler` 以 `LogEntry` 形式接收每条被接受的消息，可用于游戏内控制台、文件写入或崩溃报告的面包屑记录。处理器抛出的异常会被捕获并报告。
+
+```typescript
+import { getLogger, LogLevel, type LogEntry, type LogHandler } from 'esengine';
+
+class Breadcrumbs implements LogHandler {
+  entries: LogEntry[] = [];
+  handle(entry: LogEntry): void {
+    if (entry.level >= LogLevel.Warn) {
+      this.entries.push(entry);
+      if (this.entries.length > 100) this.entries.shift();
+    }
+  }
+}
+
+const crumbs = new Breadcrumbs();
+getLogger().addHandler(crumbs);
+// getLogger().removeHandler(crumbs) 解除；
+// getLogger().clearHandlers() 移除所有处理器，包括控制台处理器。
+```
+
+| `LogEntry` 字段 | 类型 | 说明 |
+|---|---|---|
+| `timestamp` | number | 记录时的 `Date.now()`（epoch 毫秒）。 |
+| `level` | `LogLevel` | `Debug`、`Info`、`Warn` 或 `Error`。 |
+| `category` | string | 调用方传入的类别。 |
+| `message` | string | 消息文本。 |
+| `data` | unknown | 可选负载（对象、`Error` 等）。 |
+
+## 错误上报
+
+`Diagnostics` 资源收集运行中游戏的错误，并分批交给游戏安装的**接收端（sink）**。该插件默认安装。
+
+**引擎没有默认目标。** 它没有端点、不捆绑任何服务商、也不打开套接字。没有接收端时，事件在本地汇总并可读取，不会离开设备。
+
+```typescript
+import { Diagnostics, type DiagnosticEvent } from 'esengine';
+
+const diagnostics = app.getResource(Diagnostics);
+
+diagnostics.setSink((events: readonly DiagnosticEvent[]) => {
+  // 一批带计数的不同问题，而不是每次发生调用一次。
+  void fetch('https://your-service.example/errors', {
+    method: 'POST',
+    body: JSON.stringify({ build: '1.4.2', events }),
+  });
+});
+```
+
+接收端不得抛出异常（异常会被捕获，该批次被丢弃），也不应阻塞；应异步发送。
+
+### 收集的类型
+
+| 类型 | 来源 |
+|---|---|
+| `engine` | 引擎记录为错误的所有内容：调度中抛出异常的系统、加载失败的资源、启动失败的子系统。 |
+| `unhandled` | 未被捕获而到达宿主的错误：`window.onerror` / `unhandledrejection`、`wx.onError` / `wx.onUnhandledRejection`。 |
+| `context-lost` | GPU 上下文丢失。之后的帧不绘制任何内容，也不抛出错误。 |
+| `memory` | 操作系统报告内存不足，发生在进程可能被终止之前。 |
+| `game` | 游戏代码通过 `report` 或 `reportError` 报告。 |
+
+`engine` 类型监听日志广播，因此安装接收端不会影响 `app.onError`、`app.onSystemError` 或自定义日志处理器。其他类型依赖宿主信号：
+
+| 类型 | Web | 微信 / 小游戏 | 原生（Android / iOS） |
+|---|---|---|---|
+| `unhandled` | 是 | 是 | 取决于宿主外壳是否提供 |
+| `memory` | 否 | 是 | 取决于宿主外壳是否提供 |
+| `context-lost` | 是 | 否（小游戏画布不是 DOM 元素，也没有宿主 API 报告该事件） | 取决于宿主外壳是否提供 |
+
+默认不收集警告；向插件传入 `captureLevel: LogLevel.Warn` 可包含警告。
+
+### 汇总
+
+上报的单位是**带计数的不同问题**。当类型、来源、消息与**抛出位置**都相同时，两次发生视为同一问题：使用完整调用栈会把一个缺陷按调用方拆开，只用消息则会把无关的缺陷合并。消息中的数字会被归一化，因此 `Entity 41 has no Transform` 对所有实体都是同一个问题。
+
+```typescript
+diagnostics.setSink((events) => {
+  for (const e of events) {
+    console.log(`${e.kind} ${e.source ?? ''}: ${e.message} ×${e.count}`);
+  }
+});
+```
+
+| `DiagnosticEvent` 字段 | 类型 | 说明 |
+|---|---|---|
+| `kind` | `DiagnosticKind` | 五种类型之一。 |
+| `id` | string | 跨重复保持稳定的标识。 |
+| `message` | string | 报告时的消息。 |
+| `source` | string? | 日志类别或系统名。 |
+| `stack` | string? | 抛出带调用栈的对象时存在。 |
+| `count` | number | 首次出现以来的发生次数。 |
+| `firstAt` / `lastAt` | number | 首次与最近一次发生的 epoch 毫秒。 |
+| `context` | object? | 报告方附加的数据；以最新的为准。 |
+
+### 从游戏代码报告
+
+```typescript
+diagnostics.report({
+  kind: 'game',
+  message: 'Cloud save rejected the payload',
+  context: { slot: 3, bytes: 41_233 },
+});
+
+try { risky(); } catch (err) {
+  diagnostics.reportError('game', err, 'shop');
+}
+```
+
+`context` 会随接收端发送到任何地方；其中不应包含可识别玩家身份的数据。
+
+### 选项
+
+```typescript
+import { DiagnosticsPlugin } from 'esengine';
+
+app.addPlugin(new DiagnosticsPlugin({
+  maxDistinct: 64,        // 同时跟踪的不同问题数
+  flushIntervalSec: 10,   // 交给接收端的批次间隔秒数
+}));
+```
+
+| `DiagnosticsPlugin` 选项 | 默认值 | 说明 |
+|---|---|---|
+| `maxDistinct` | `64` | 同时跟踪的不同问题数。达到上限后，新问题被丢弃，已知问题继续计数；`diagnostics.dropped` 报告丢弃的数量。保留的是最早出现的问题。 |
+| `flushIntervalSec` | `10` | 批次之间的秒数。 |
+| `captureLevel` | `LogLevel.Error` | 作为 `engine` 事件收集的最低日志级别。 |
+
+刷新由引擎时钟而非定时器驱动，因此后台标签页或挂起的小游戏不会上报。`flush()` 立即发送（例如在关卡切换之前），关闭时也会刷新一次。
+
+## 参见
+
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)
+- [App 与生命周期](/docs/zh-cn/core-concepts/app/overview/)：`app.onError` 与 `app.onSystemError`。

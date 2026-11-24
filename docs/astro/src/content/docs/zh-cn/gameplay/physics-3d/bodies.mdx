@@ -1,0 +1,143 @@
+---
+title: 刚体与形状
+description: 3D 刚体与碰撞体参考——RigidBody3D 字段，盒体、球体与胶囊形状，用于导入几何的网格与凸包碰撞体，CompoundCollider3D，无刚体的静态碰撞体，形状选择与视口线框，以及星球重力。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+3D 刚体是带有 `RigidBody3D` 与碰撞体的实体。没有启用碰撞体的 `RigidBody3D` 没有体积，不会加入世界。没有 `RigidBody3D` 的碰撞体自身构成一个静态刚体（[无刚体的碰撞体](#无刚体的碰撞体)）。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(CapsuleCollider3D, { radius: 30, halfHeight: 50 });
+```
+
+## `RigidBody3D`
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `bodyType` | `BodyType` | `Dynamic` | `Static` 永不移动；`Kinematic` 由代码移动；`Dynamic` 参与模拟。 |
+| `layer` | number | `0` | [碰撞层](/docs/zh-cn/gameplay/physics-3d/overview/#碰撞层)，0–15。 |
+| `gravityScale` | number | `1` | 世界重力的倍率。`0` 表示该刚体不受重力。 |
+| `mass` | number | `0` | 千克。`0` 表示按水的密度由形状推算质量（半径 10 cm 的球为 4.2 kg）。修改会作用于已在世界中的刚体。静态与运动学刚体没有质量。 |
+| `linearDamping` / `angularDamping` | number | `0.05` / `0.05` | 运动衰减的速率。 |
+| `fixedRotation` | boolean | `false` | 将刚体朝向冻结在当前值。不会扶正初始即倾斜的刚体。 |
+| `continuousCollision` | boolean | `false` | 检查一步所经过的整条路径，而不仅是终点位置；用于抛射物等快速刚体。开销更大。 |
+| `enabled` | boolean | `true` | 为 `false` 时从世界中移除该刚体。 |
+
+## 基本形状
+
+| 组件 | 尺寸 | 默认值 |
+|---|---|---|
+| `BoxCollider3D` | 各轴的 `halfExtents`。 | `{50, 50, 50}`（1 m 立方体） |
+| `SphereCollider3D` | `radius`。 | `50` |
+| `CapsuleCollider3D` | 竖直胶囊：`halfHeight` 为圆柱部分的一半，两端各有半径为 `radius` 的半球，总高度为 `2 * (halfHeight + radius)`。 | `radius` `30`、`halfHeight` `50` |
+
+三者还都具有：
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `center` | Vec3 | `{0, 0, 0}` | 形状相对实体原点的偏移，世界单位。刚体仍位于实体处，因此动态刚体绕实体原点旋转，偏心形状会绕其摆动。 |
+| `friction` | number | `0.3` | 表面摩擦。 |
+| `restitution` | number | `0` | 弹性。 |
+| `isSensor` | boolean | `false` | 报告重叠但不阻挡任何物体（[碰撞事件](/docs/zh-cn/gameplay/physics-3d/queries/#碰撞事件)）。 |
+| `enabled` | boolean | `true` | 为 `false` 时移除该形状。 |
+
+默认值按每米 100 世界单位的参考比例书写。
+
+## 导入几何
+
+### `MeshCollider3D`
+
+`MeshCollider3D` 与网格自身的三角形碰撞：地形、楼梯、房间内部。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, {})
+  .insert(RigidBody3D, { bodyType: BodyType.Static })
+  .insert(MeshCollider3D, { mesh: 'assets/models/level.esmesh' });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `mesh` | 网格资源 | 无 | 参与碰撞的三角形所属的网格。资源加载完成前，碰撞体不产生任何作用。 |
+| `layer` | number | `0` | 实体没有 `RigidBody3D` 时，碰撞体构成的静态刚体所在的碰撞层。 |
+| `friction` / `restitution` | number | `0.3` / `0` | 表面属性。 |
+| `enabled` | boolean | `true` | 为 `false` 时移除该形状。 |
+
+<Aside type="caution">
+  网格碰撞体始终是静态的，无论其 `RigidBody3D` 如何设置：三角形集合没有惯性张量。其三角形是**单面**的：环绕方向朝下的地面仍会被射线报告，但物体会从中穿过。
+</Aside>
+
+### `ConvexCollider3D`
+
+`ConvexCollider3D` 与网格顶点的凸包碰撞。求解器移动凸包与移动盒体一样容易，因此它用于需要移动的导入几何：岩石、倒角木箱、滚动的木桶。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 400, z: 0 } })
+  .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
+  .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
+```
+
+字段：`mesh`、`friction`（`0.3`）、`restitution`（`0`）、`isSensor`（`false`）、`enabled`（`true`）。
+
+网格与凸包碰撞体会将实体的组合缩放应用到其源顶点。
+
+## 复合碰撞体
+
+`CompoundCollider3D` 将盒体、球体与胶囊组合成一个刚体，位于与 `RigidBody3D` 相同的实体上。Jolt 与 PhysX 由同一组件构建它。
+
+```typescript
+import { CompoundCollider3D } from 'esengine/physics3d';
+
+world.insert(cart, CompoundCollider3D, {
+  parts: [
+    { kind: 'box', position: { x: 0, y: 20, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, halfExtents: { x: 60, y: 20, z: 40 } },
+    { kind: 'sphere', position: { x: 0, y: 60, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, radius: 20 },
+  ],
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `parts` | array | `[]` | 组成的基本形状。每项包含 `kind`（`'box'`、`'sphere'` 或 `'capsule'`）、局部 `position` 与 `rotation`，以及 `halfExtents`、`radius` 或 `radius` + `halfHeight`。 |
+| `friction` / `restitution` | number | `0.3` / `0` | 表面属性。 |
+| `isSensor` | boolean | `false` | 报告重叠但不阻挡任何物体。 |
+| `mass` | number | `1` | 传给求解器的复合刚体质量。 |
+| `enabled` | boolean | `true` | 为 `false` 时移除复合形状。 |
+
+各部分的尺寸与偏移以模型单位表示：实体的组合缩放先将其放置到世界空间，再进行单位换算。放置缩放必须为有限正数。非均匀缩放下的旋转盒体或胶囊会被拒绝，而不是构建出不匹配的形状；这种情况需要烘焙的碰撞几何。
+
+## 无刚体的碰撞体
+
+位于没有 `RigidBody3D` 的实体上的 3D 碰撞体自身构成一个**静态刚体**，因此导入的关卡只需在每个网格上放置 `MeshCollider3D`，无需其他组件即可参与碰撞。以下情况除外：
+
+- 实体带有 `CharacterController3D`；
+- 祖先实体带有 `RigidBody3D`，此时碰撞体属于该刚体。
+
+之后添加或移除 `RigidBody3D` 时，刚体会按新的类型重建。
+
+## 查看形状
+
+视口在**物理**显示标记下（与 2D 碰撞体 gizmo 共用），按实体朝向将每个 3D 碰撞体绘制为线框。
+
+一个实体只有**一个**刚体形状，按以下顺序选取：`CompoundCollider3D`、`BoxCollider3D`、`SphereCollider3D`、`MeshCollider3D`、`ConvexCollider3D`、`CapsuleCollider3D`。未被使用的碰撞体以暗淡虚线绘制：被禁用的碰撞体、在该顺序中落选的碰撞体，或位于 `RigidBody3D` 被禁用的实体上的任何碰撞体。`CharacterController3D` 的胶囊也会一并绘制。
+
+<Aside type="note">
+  网格碰撞体绘制其三角形的包围盒而非每条边；三角形本身就是可见的网格。
+</Aside>
+
+运行中游戏的碰撞体由 `Physics3DDebugDraw` 叠加层绘制（[调试绘制](/docs/zh-cn/gameplay/physics-3d/overview/#调试绘制)）。
+
+## 星球重力
+
+`gravity` 大于 0 的 `Planet` 会把每个动态刚体拉向其中心，而不是沿世界的重力向量，使球形世界处处都有局部的“下方”。星球本身见[大世界](/docs/zh-cn/graphics/terrain/large-worlds/#星球)。
+
+## 另请参阅
+
+- [3D 物理基础](/docs/zh-cn/gameplay/physics-3d/overview/)——安装、求解器与碰撞层。
+- [查询、力与事件](/docs/zh-cn/gameplay/physics-3d/queries/)——移动刚体与读取接触。
+- [可破碎物体](/docs/zh-cn/gameplay/physics-3d/breakables/)——对模型做碎裂得到的凸包碎块。

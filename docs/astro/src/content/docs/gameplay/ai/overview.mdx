@@ -1,269 +1,38 @@
 ---
 title: Gameplay AI
-description: The gameplay AI layer — perception, grid navigation with A* pathfinding, state machines, and behavior trees, all driven by one shared registry of named actions and conditions and authored visually in the editor.
+description: Gameplay AI reference — the perception, navigation, state machine and behavior tree layers, the shared action and condition registry, plugin setup, and a worked example.
 ---
 
-import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-Estella's AI layer turns an entity into an actor that **senses**, **decides**, and
-**moves**. It is built from four cooperating pieces that share one design:
+The gameplay AI layer makes an entity sense, decide and move. It consists of four parts that share one registry of named
+actions and conditions:
 
-<CardGrid>
-  <Card title="Perception" icon="magnifier">
-    A `Perceiver` senses nearby `PerceptionTarget`s within a sight cone and writes
-    what it sees into a `Perception` component.
-  </Card>
-  <Card title="Navigation" icon="rocket">
-    A grid of cells or a navmesh baked from geometry moves a `NavAgent` to any
-    world point, replanning
-    as the target moves.
-  </Card>
-  <Card title="State machines" icon="list-format">
-    A `StateMachineAgent` runs an `.esfsm` graph — states with enter/update/exit
-    hooks and guarded transitions.
-  </Card>
-  <Card title="Behavior trees" icon="puzzle">
-    A `BehaviorTreeAgent` runs an `.esbt` graph — selectors, sequences, decorators,
-    and leaves.
-  </Card>
-</CardGrid>
-
-The unifying idea: **state machines and behavior trees are two authoring paradigms
-over the same building blocks.** You register named *actions* and *conditions* once,
-in code, then wire them into either an FSM or a BT — graphs authored visually in the
-editor, not hardcoded. Perception feeds the decision; the decision drives navigation.
-
-<Aside type="note">
-  Everything here is pure TypeScript in the `esengine/ai` subpath (no WebAssembly
-  side-module). All four plugins — perception, FSM, BT, and navigation — are installed
-  by importing `esengine/ai`, and the editor and the web runtime add them to the app.
-  You only wire plugins yourself in a bare `new App()` (see
-  [Custom app setup](/docs/gameplay/ai/advanced/#custom-app-setup)).
-</Aside>
-
-## The shared registry
-
-An **action** does something (chase, attack, play a sound); a **condition** answers
-a yes/no question (do I see the player?). You register each under a name, once, and
-both the FSM and the BT resolve those names against the same registry — so one set
-of leaves serves both paradigms.
-
-```typescript
-import { registerAction, registerCondition } from 'esengine';
-import { Status, Perception, setNavDestination } from 'esengine/ai';
-
-registerCondition('seesPlayer', (ctx) =>
-  ctx.has(Perception) && ctx.get(Perception).visible);
-
-registerAction('chase', (ctx) => {
-  const per = ctx.get(Perception);
-  setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
-});
-```
-
-Every action and condition receives an **`AiContext`** for the agent it runs on. It
-is the same programming model as a [`defineBehavior`](/docs/scripting/overview/) update
-— entity, world, and commands access — plus a per-agent `blackboard`:
-
-| Member | Type | Description |
+| Part | Components | Description |
 |---|---|---|
-| `ctx.entity` | `Entity` | The agent this action/condition runs for. |
-| `ctx.dt` | `number` | Frame delta in seconds. |
-| `ctx.world` | `World` | Full world access for cross-entity reads. |
-| `ctx.commands` | `Commands` | Deferred spawn/despawn, safe mid-tick. |
-| `ctx.input` | `InputState` | Runtime input — the same state a `defineBehavior` reads. Empty (nothing pressed) when the host has no devices. |
-| `ctx.blackboard` | `Blackboard` | This agent's AI data plane (see [Blackboard](/docs/gameplay/ai/blackboard/)). |
-| `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
-| `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
-| `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
+| [Perception](/docs/gameplay/ai/perception/) | `Perceiver`, `PerceptionTarget`, `Perception` | Senses the nearest visible target within a sight cone, and noises within hearing range, and writes the result to a component. |
+| [Navigation](/docs/gameplay/ai/navigation/overview/) | `NavAgent`, `NavVolume`, `NavLink`, `NavArea`, `NavObstacle` | Moves an agent to a world point over a cell grid or a navigation mesh baked from geometry, replanning as the target moves. |
+| [State machines](/docs/gameplay/ai/state-machines/) | `StateMachineAgent` | Runs an `.esfsm` graph: states with enter/update/exit hooks and guarded transitions. |
+| [Behavior trees](/docs/gameplay/ai/behavior-trees/) | `BehaviorTreeAgent` | Runs an `.esbt` graph: selectors, sequences, decorators and leaves. |
 
-An action is called as `(ctx, blackboard, arg?, params?, out?)` and a condition as
-`(ctx, blackboard)`; `registerAction` also accepts a spec object
-(`{ run, params, outputs, pure, touches, separator }`) that declares typed parameters, which the
-editor then renders as real controls instead of one text box. `registerValue(name, spec)`
-registers a pure name that only answers a question, for script graphs to read.
+State machines and behavior trees are two authoring forms over the same building blocks. Actions and conditions are
+registered by name once, in code ([Actions & Conditions](/docs/gameplay/ai/actions/)); the graphs that use them are
+assets authored in the editor ([Authoring in the Editor](/docs/gameplay/ai/authoring/)). Perception provides the input to
+decisions, and decisions set navigation targets.
 
-<Aside type="tip">
-  Register your actions and conditions at module load (top-level, or in a
-  `Schedule.Startup` system) so they exist before any agent ticks. The
-  registry is process-wide and shared across `App` instances.
-</Aside>
+## Setup
 
-### Saying what a leaf touches
+The AI layer is TypeScript in the `esengine/ai` subpath, with no WebAssembly side module. Importing `esengine/ai`
+registers the perception, state machine, behavior tree and navigation plugins; the editor and the web runtime add them to
+the app. A bare `new App()` adds them explicitly ([Custom app setup](/docs/gameplay/ai/advanced/#custom-app-setup)).
 
-The system that ticks your state machines reaches for whatever its leaves reach
-for, which is knowable only once the graphs are loaded. Declare it on the
-registration and the schedule can tell that system apart from one that might
-touch anything:
+The registry functions (`registerAction`, `registerCondition`, `registerValue`, `aiRegistry`) are also exported from the
+main `esengine` barrel.
 
-```typescript
-registerAction('chase', {
-  run: (ctx) => { /* ... */ },
-  touches: { reads: ['Perception'], writes: ['NavAgent'] },
-});
+## Example
 
-registerCondition('seesPlayer', {
-  check: (ctx) => ctx.has(Perception) && ctx.get(Perception).visible,
-  touches: { reads: ['Perception'] },
-});
-```
-
-Optional, and worth knowing what leaving it out costs: one undeclared leaf makes
-the whole system opaque, because a union that quietly dropped it would be a
-claim the scheduler trusts and the frame disproves. See
-[What a system touches](/docs/core-concepts/systems/#what-a-system-touches).
-
-### Action return values
-
-A **condition** always returns a `boolean`. An **action** may return a `Status`
-or nothing:
-
-```typescript
-export enum Status { Success = 'success', Failure = 'failure', Running = 'running' }
-```
-
-- In a **behavior tree**, a leaf returns `Status` to run across frames (`Running`),
-  succeed, or fail. Returning nothing counts as `Success`.
-- In a **state machine**, the return value is ignored — FSM actions are one-shot
-  side effects.
-
-Writing an action that returns `Status` lets the *same* action serve as a BT leaf and
-an FSM hook.
-
-### Built-in names
-
-The engine pre-registers a handful of names, so common glue needs **no code at all** — they
-appear in the editor palettes next to your own. All of them operate on components of
-the agent entity (the same channel your code and the editor use):
-
-| Name | Kind | Effect |
-|---|---|---|
-| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/animation/timeline/playback/#timelineplayer-component) play flag. On a finished clip this replays it from the top. |
-| `timeline.pause` | action | Lower the play flag (resume with `timeline.play`). |
-| `timeline.finished` | condition | True once the clip has completed (a `once` clip that ran to its end) and is not playing. |
-| `spriteAnim.play` | action | Play the agent's sprite flipbook; the **argument** switches to that clip. |
-| `spriteAnim.restart` | action | Rewind the flipbook to frame 0 and play (argument switches clip). |
-| `spriteAnim.stop` | action | Pause the flipbook. |
-| `spriteAnim.finished` | condition | True once a one-shot sprite clip has finished. |
-| `audio.play` | action | Raise the agent's `AudioSource` play flag; the argument switches to that clip. Already sounding the same clip is a no-op. |
-| `audio.stop` | action | Lower the `AudioSource` play flag. |
-| `audio.finished` | condition | True once a non-looping clip has ended and is no longer playing. |
-| `soundEvent.trigger` / `soundEvent.stop` | action | Start / stop the agent's `SoundEventSource`. |
-| `property.set` | action | Write any component field on the agent (or another entity, via the optional `entity` parameter) by `Component.field` path and a value, e.g. `UIVisual.color.a`. The argument form is `path=value`; the value is read as JSON when it parses (`3`, `true`, `{"r":1}`), otherwise kept as a string. |
-
-Actions can carry an optional **string argument** — set it next to the action
-name in the FSM state inspector (or on a BT action node). Built-ins use it for
-data the component can't carry per-state, like which clip `spriteAnim.play`
-should switch to; your own registered actions receive it as their third
-parameter: `(ctx, blackboard, arg) => …`. An action that declares `params` also
-receives the same values by name as the fourth.
-
-Together they make a **code-free cutscene state**: entering the state starts the
-clip, and its completion drives the transition out.
-
-```typescript
-import { registerFsm } from 'esengine/ai';
-
-registerFsm('intro', {
-  initial: 'Cutscene',
-  states: [
-    {
-      name: 'Cutscene',
-      onEnter: 'timeline.play',
-      transitions: [{ to: 'Gameplay', condition: 'timeline.finished' }],
-    },
-    { name: 'Gameplay' },
-  ],
-});
-```
-
-The agent entity carries the `TimelinePlayer` (which clip, speed, wrap mode) — the
-FSM only flips its flags. Built-in names never shadow yours: if you register an
-action or condition under the same name, your registration wins. Avoid the
-`timeline.` prefix for game names to keep the namespaces apart.
-
-In the FSM / behavior-tree editors, the action and condition fields suggest every
-registered name as you type — grouped by namespace, with built-ins carrying a short
-description of what they do. Free text stays legal for names your game registers at
-runtime.
-
-The [`cutscene` example](https://github.com/esengine/estella/tree/master/examples/cutscene)
-is this pattern end-to-end: an intro timeline plays on scene start, gameplay
-unlocks when it completes, and R replays it — with zero registered actions.
-
-## The four pieces
-
-<CardGrid>
-  <LinkCard title="Perception" href="/docs/gameplay/ai/perception/" description="Sight cones, and what an agent currently sees." />
-  <LinkCard title="Navigation" href="/docs/gameplay/ai/navigation/" description="A grid for cells, a baked mesh for geometry, and moving an agent over either." />
-  <LinkCard title="State machines" href="/docs/gameplay/ai/state-machines/" description="States, guarded transitions, and one-shot triggers." />
-  <LinkCard title="Behavior trees" href="/docs/gameplay/ai/behavior-trees/" description="Selectors, sequences, decorators and leaves." />
-  <LinkCard title="The blackboard" href="/docs/gameplay/ai/blackboard/" description="The per-agent data plane both paradigms read and write." />
-  <LinkCard title="Authoring in the editor" href="/docs/gameplay/ai/authoring/" description="Register the leaves in code, build the graphs visually." />
-  <LinkCard title="Below the components" href="/docs/gameplay/ai/advanced/" description="Pathfinding by hand, perception internals, and bare-App wiring." />
-</CardGrid>
-
-## A melee enemy without writing one
-
-`Hunter` is the concrete twin of `ThirdPersonController`: that one turns INPUT
-into a request, this one turns PERCEPTION into one. Everything downstream is the
-same machinery a player goes through — the route is navigation's, the movement is
-the character controller's, the speed the animator hears is the one the world
-allowed, and a swing is an animator trigger that comes back through the same
-`MeleeAttack`. An attacker being a program rather than a person changes nothing
-about the mechanism.
-
-```typescript
-enemy.add(Perceiver, { range: 420 });
-enemy.add(Perception, {});
-enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
-enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
-enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
-enemy.add(Health, { current: 50, max: 50 });
-```
-
-`Hunter` is a 3D component: it measures distance in the x/z ground plane, moves through
-`CharacterController3D`, and sets the animator trigger named `attack`, so the entity
-needs an `Animator` whose graph answers that trigger.
-
-| Field | Default | What it does |
-|---|---|---|
-| `attackRange` | `110` | Ground-plane distance it closes to before it swings. |
-| `attackInterval` | `1.6` | Seconds between swings. |
-| `rotationSpeed` | `540` | How fast it turns to face, degrees/second. |
-| `idleThreshold` | `8` | Speed under which the animator is told it is standing still. |
-| `enabled` | `true` | When off, the hunter is skipped entirely. |
-| `state` | Engine-written: `idle` / `chase` / `attack` / `dead`. |
-| `cooldown` | Engine-written: seconds until it may swing again. |
-
-Four states, and no authoring surface — this is a concrete enemy, not a
-framework. The FSM and behaviour-tree runtimes above are how a GAME declares its
-own; reach for those the moment two enemies want to behave differently.
-
-<Aside>
-  The state is recomputed every frame rather than latched, so a target that steps
-  away mid-swing is chased again instead of being swung at. Which way it looks is
-  two questions, not one: while chasing it faces where it actually WENT, and
-  while swinging it faces the target — a swing aimed down the last of a drift
-  lands beside what it was aimed at.
-</Aside>
-
-<Aside type="caution">
-  Navigation SKIPS an agent with no destination, so clearing the target is not
-  stopping — the velocity it last wrote would carry the body on. `Hunter` zeroes
-  it as well, and anything else that stops an agent must do the same.
-</Aside>
-
-`Health` reaching zero is what makes it `dead`: navigation stops, the animator is
-told it is standing still, and no trigger is set. A swing already in the air when
-its owner went down lands on nobody — that half is `MeleeAttack`'s, so it is not
-left to whoever remembers to switch something off.
-
-## Putting it together
-
-The [`enemy-ai` example](https://github.com/esengine/estella/tree/master/examples/enemy-ai)
-hunts a player with two enemies that share the same senses and leaves — one driven by
-a state machine, the other by a behavior tree:
+The [`enemy-ai` example](https://github.com/esengine/estella/tree/master/examples/enemy-ai) has two enemies that share
+the same senses and leaves; one is driven by a state machine, the other by a behavior tree:
 
 ```typescript
 import { defineSystem, Res, registerAction, registerCondition } from 'esengine';
@@ -286,15 +55,30 @@ export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
 }, { name: 'SetupNavGrid' });
 ```
 
-The two enemies' `StateMachineAgent.fsm` and `BehaviorTreeAgent.bt` point at
-`enemy.esfsm` / `enemy.esbt` — authored in the editor, loaded by the engine.
-Perception, the FSM/BT ticks, and nav following are all built-in, so the only game
-code is the shared leaves above plus the one-time grid.
+The enemies' `StateMachineAgent.fsm` and `BehaviorTreeAgent.bt` point at `enemy.esfsm` and `enemy.esbt`, authored in the
+editor and loaded with the scene. Perception, the FSM and BT ticks and path following are built in; the game code
+consists of the shared leaves and the grid setup.
+
+<Aside type="note">
+  [`Hunter`](/docs/gameplay/ai/hunter/) is a ready-made 3D melee enemy that combines perception, navigation and
+  `MeleeAttack` without a state machine or behavior tree.
+</Aside>
+
+## Chapter pages
+
+- [Actions & Conditions](/docs/gameplay/ai/actions/) — the registry, `AiContext`, return values and built-in names.
+- [Perception](/docs/gameplay/ai/perception/) — sight cones, hearing and the `Perception` component.
+- [Navigation](/docs/gameplay/ai/navigation/overview/) — grids, navigation meshes, agents and route queries.
+- [State Machines](/docs/gameplay/ai/state-machines/) — states, guarded transitions and triggers.
+- [Behavior Trees](/docs/gameplay/ai/behavior-trees/) — composites, decorators and leaves.
+- [The Blackboard](/docs/gameplay/ai/blackboard/) — per-agent data shared by leaves and guards.
+- [Authoring in the Editor](/docs/gameplay/ai/authoring/) — building `.esfsm` and `.esbt` assets.
+- [Hunter](/docs/gameplay/ai/hunter/) — the built-in 3D melee enemy.
+- [Below the Components](/docs/gameplay/ai/advanced/) — pathfinding and perception primitives, bare-app wiring.
 
 ## See also
 
-- [Scripting](/docs/scripting/overview/) — behaviors are declarative systems; leaves are plain functions.
-- [Sprite animation](/docs/animation/sprite-animation/#state-machine-actions) — drive sprite clips from a state machine.
-- [Scenes](/docs/world/scenes/) — `.esfsm` / `.esbt` assets load and serialize with the scene.
-- [Event Binding](/docs/scripting/events/) — a click or a trigger can `fsm.fire` into a state
-  machine; actions and conditions come from this same registry.
+- [Scripting](/docs/scripting/overview/) — systems and behaviors; leaves are plain functions.
+- [Script Graphs](/docs/gameplay/script-graphs/) — visual logic that calls the same actions.
+- [Sprite Animation](/docs/animation/sprite-animation/#state-machine-actions) — sprite clips driven from a state machine.
+- [Event Binding](/docs/scripting/events/) — a click or a trigger can `fsm.fire` into a state machine.

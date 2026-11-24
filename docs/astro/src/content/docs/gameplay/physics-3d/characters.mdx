@@ -1,0 +1,194 @@
+---
+title: Characters
+description: 3D character reference — CharacterController3D, the swept kinematic mover, ThirdPersonController and ThirdPersonCamera, FirstPersonController and FirstPersonViewModel, their fields, input and animator parameters.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A 3D character is swept through the world rather than simulated by the solver. `CharacterController3D` is the mover;
+the third- and first-person controllers in `esengine/gameplay` turn input into the velocity it is asked for.
+
+## `CharacterController3D`
+
+A `CharacterController3D` replaces a `RigidBody3D` on the entity; it is not used together with one. Gameplay sets
+`velocity` each fixed step and reads the result back.
+
+```typescript
+const drive = defineSystem([Query(Mut(CharacterController3D)), Res(Input)], (q, input) => {
+  for (const [, c] of q) {
+    c.velocity.x = (input.isKeyDown('KeyD') ? 200 : 0) - (input.isKeyDown('KeyA') ? 200 : 0);
+    if (input.isKeyPressed('Space') && c.isOnFloor) c.velocity.y = 500;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `velocity` | Vec3 | `{0, 0, 0}` | Requested velocity in world units/second. A positive `y` is a jump. |
+| `radius` / `halfHeight` | number | `30` / `50` | The upright capsule that is swept, shaped like a `CapsuleCollider3D`, world units. |
+| `maxSlope` | number | `0.87` | Steepest ground it stands on, radians (about 50°); steeper ground makes it slide. |
+| `stepHeight` | number | `40` | Tallest step it climbs instead of stopping at. `0` climbs nothing. |
+| `snapDown` | number | `50` | How far it reaches down to stay on the floor over a crest. `0` disables it. |
+| `mass` | number | `70` | Kilograms; used when it pushes bodies. |
+| `pushForce` | number | `5000` | Force it spends pushing dynamic bodies it walks into. `0` moves nothing. |
+| `layer` | number | `0` | [Collision layer](/docs/gameplay/physics-3d/overview/#collision-layers), 0–15. |
+| `enabled` | boolean | `true` | `false` disables the character. |
+| `isOnFloor` / `floorNormal` / `realVelocity` | — | — | **Outputs**, read after the step. |
+
+Defaults are written at the reference scale of 100 world units per metre (a 1.6 m capsule).
+
+<Aside type="note">
+  The vertical component is carried by the module: `velocity.y = 0` means walk, not hover. The module integrates
+  gravity for the character.
+
+  Because the character is swept, nothing moves out of its way on its own: `pushForce` is the force available for
+  pushing. The default moves a crate of the character's size; heavier bodies need more, and `0` treats every body as
+  a wall.
+</Aside>
+
+A character's position is an output of the step; `Physics3D.teleportCharacter(entity, position)` places it directly
+([Queries, Forces & Events](/docs/gameplay/physics-3d/queries/#forces--velocity)).
+
+![Details of the Player: Character Controller 3D with radius, half height and slope, and Third Person Controller with move speed and acceleration](@/assets/guides/en/details-character-3d.png)
+
+*The **Character Controller 3D** and **Third Person Controller** of the Third Person example's player.*
+
+## Third person
+
+`ThirdPersonController` and `ThirdPersonCamera` are scene components above a `CharacterController3D`: input becomes a
+movement request, the character controller resolves it, and the resulting motion is reported to the `Animator`. No game
+code is required.
+
+```typescript
+import { ThirdPersonController, ThirdPersonCamera } from 'esengine/gameplay';
+
+world.insert(player, ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
+```
+
+The movement input is read in the camera's ground plane, so a camera angled steeply down still moves the character
+across the floor; pitch never reaches the character.
+
+### `ThirdPersonController`
+
+| Property | Default | Description |
+|---|---|---|
+| `moveSpeed` | `320` | Top speed on the ground, world units/second. |
+| `acceleration` / `deceleration` | `2400` / `3200` | Rate of reaching and shedding that speed, world units/second². |
+| `rotationSpeed` | `720` | Turn rate toward the direction of motion, degrees/second. |
+| `jumpSpeed` | `0` | Upward speed at the start of a jump. `0` disables jumping. |
+| `airControl` | `0.3` | Share of `acceleration` that applies off the ground, 0–1. |
+| `cameraRelative` | `true` | Reads input in the camera's ground plane rather than the world's. |
+| `camera` | `0` | The `ThirdPersonCamera` whose forward the input is read against; `0` uses the first one found. |
+| `idleThreshold` | `8` | Speed below which the animator is told the character is standing still. |
+| `enabled` | `true` | `false` stops the controller. |
+
+| Input | Effect |
+|---|---|
+| W / A / S / D | Movement. |
+| Space | Jump, when `jumpSpeed` is above 0 and the character is on the floor. |
+| Left Shift | Sets the animator trigger `dodge`. |
+| J | Sets the animator trigger `attack`. |
+
+| Animator parameter | Type | Written |
+|---|---|---|
+| `speed` | float | The ground speed the character **reached** (from `realVelocity`), `0` below `idleThreshold`. A character pushing against a wall reports `0`. |
+| `grounded` | bool | `CharacterController3D.isOnFloor`. |
+| `jump` | trigger | The step a jump was applied. |
+| `dodge` / `attack` | trigger | On the key press; the animator graph decides whether a clip answers it. |
+
+While an animation drives root motion, the character's velocity and heading come from the animation instead of the
+input.
+
+### `ThirdPersonCamera`
+
+`ThirdPersonCamera` orbits a `target` under pointer control and sweeps the physics world between the pivot and the eye,
+pulling in when something solid stands between them. It moves only itself.
+
+| Property | Default | Description |
+|---|---|---|
+| `target` | `0` | The entity it orbits; `0` leaves the camera inert. |
+| `distance` | `420` | Distance behind the pivot when nothing is in the way, world units. |
+| `yaw` / `pitch` | `0` / `15` | Rotation about world up, and elevation above the horizon (positive looks down), degrees. |
+| `minPitch` / `maxPitch` | `-30` / `70` | Pitch limits, degrees. |
+| `sensitivity` | `0.2` | Degrees per pixel of pointer travel. |
+| `followDamping` | `12` | Rate at which the position catches up, per second; `0` is rigid. |
+| `targetOffset` | `{0, 90, 0}` | Lifts the pivot from the target's origin, so the camera frames the chest rather than the feet. |
+| `obstruction` / `obstructionRadius` / `obstructionLayers` | `true` / `15` / `0` | Pull in when an obstacle is between pivot and eye; the probe radius; the layers it hits (`0` = all). |
+| `enabled` | `true` | `false` stops the camera. |
+
+## First person
+
+`FirstPersonController` looks, walks, jumps and crouches through a `CharacterController3D`. It goes on the body, with a
+`Camera` on a child entity; the body turns with the yaw and the camera tilts with the pitch.
+
+```typescript
+import { FirstPersonController, FirstPersonViewModel } from 'esengine/gameplay';
+
+world.insert(player, CharacterController3D, { radius: 30, halfHeight: 90 });
+world.insert(player, FirstPersonController, { moveSpeed: 320, jumpSpeed: 420 });
+// …and a Camera on a child of `player`.
+```
+
+| Input | Effect |
+|---|---|
+| Mouse (web) | With `pointerLock`, the first click captures the pointer and the mouse turns the view; otherwise the view turns while a button is held. |
+| Touch | A finger that starts at least `touchLookFrom` pixels across the screen turns the view; the left side remains free for a stick. Mini games, which cannot capture the pointer, look by touch. |
+| W / A / S / D, arrow keys | Movement. |
+| Left Shift | Sprint. |
+| Space | Jump. |
+| Left Ctrl or C | Crouch. |
+
+Crouching rebuilds the capsule at `crouchHalfHeight` with the feet in place; the physics world cannot resize a
+character, so the old one is released for a step. Standing up first checks for a ceiling, and the player stays crouched
+where there is no room.
+
+| Property | Default | Description |
+|---|---|---|
+| `moveSpeed` | `320` | Top speed on the ground, world units/second. |
+| `sprintMultiplier` / `crouchMultiplier` | `1.6` / `0.5` | Speed multipliers while sprinting / crouched. |
+| `acceleration` / `deceleration` | `2400` / `3200` | World units/second². |
+| `airControl` | `0.3` | Share of `acceleration` that applies in the air, 0–1. |
+| `jumpSpeed` | `420` | Upward speed at the start of a jump; `0` disables jumping. |
+| `gravityScale` | `1` | The player's gravity as a share of the world's. Above 1 the controller carries its own vertical speed while airborne. |
+| `coyoteTime` / `jumpBuffer` | `0.1` / `0.12` | Seconds after leaving an edge that a jump still works / seconds an early press is kept. |
+| `lookSensitivity` / `touchSensitivity` | `0.12` / `0.2` | Degrees per pixel of pointer / finger movement. |
+| `pitchMin` / `pitchMax` | `-85` / `85` | Pitch limits, degrees. |
+| `eyeHeight` / `crouchEyeHeight` | `70` / `28` | Eye height above the character's centre, standing / crouched. |
+| `crouchHalfHeight` | `45` | Capsule half height when crouched; the standing value is the character controller's own. |
+| `eyeSpeed` | `400` | Speed of the eye between the two heights, world units/second. |
+| `camera` | `0` | The camera child that looks; `0` uses the first child with a `Camera`. |
+| `pointerLock` | `true` | Captures the pointer after a click (web). |
+| `touchLook` / `touchLookFrom` | `true` / `480` | Look by dragging on the right of the screen, starting this many pixels across. |
+| `yaw` / `pitch` | `0` / `0` | Current view direction, degrees; set them to turn the player (spawn, teleport). |
+| `enabled` | `true` | `false` stops the controller. |
+
+### View model
+
+An object held in view and drawn by the world camera can intersect walls and stretch with a wide field of view.
+`FirstPersonViewModel`, on the player's camera, draws it with a second camera: a camera is created under the player's
+camera that draws only the sorting layer `layer`, with its own field of view and clip planes, over the world and without
+clearing it. The player's camera stops drawing that layer. The held object is placed under the camera and its renderers
+are given that layer.
+
+```typescript
+world.insert(camera, FirstPersonViewModel, { layer: 20, fov: 50, nearPlane: 1 });
+world.insert(weapon, MeshRenderer, { mesh: 'builtin:cube', layer: 20 });
+```
+
+| Property | Default | Description |
+|---|---|---|
+| `layer` | `20` | Sorting layer of the held object, 0–31. |
+| `fov` | `60` | Field of view of the view-model camera, degrees. |
+| `nearPlane` / `farPlane` | `1` / `1000` | Clip planes of the view-model camera, world units. |
+
+The first-person components include no weapon system, ballistics or damage, and no template. Input is the keyboard,
+the pointer and the touch screen; virtual sticks and gamepads are not read.
+
+## See also
+
+- [Melee & Hitboxes](/docs/gameplay/physics-3d/combat/) — attacks driven by the `attack` trigger.
+- [Hunter](/docs/gameplay/ai/hunter/) — an enemy driven through the same character pipeline.
+- [Animator](/docs/animation/animator/) — the state machine that receives the parameters.
+- [2D Physics: Character Controllers](/docs/gameplay/physics-2d/characters/) — the 2D movers.

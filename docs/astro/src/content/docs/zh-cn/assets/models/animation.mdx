@@ -1,0 +1,59 @@
+---
+title: 模型动画与绑定
+description: 模型导入为动画产出的内容——时间轴片段、MeshSkin 蒙皮及其限制、MeshMorph 变形目标及其限制，以及根据文件数据与命名生成的弹簧骨骼。
+---
+
+带绑定或动画的源文件导入时会带上动画数据：片段成为时间轴，蒙皮成为 `MeshSkin`，混合形状成为 `MeshMorph`，可选的弹簧骨骼数据成为 `SpringBone` 组件。
+
+## 动画
+
+源文件中的每个动画都成为网格旁的一个 `.estimeline`。预制体根节点带有一个 `TimelinePlayer`，引用第一个片段且 `playing` 为关闭；设置 `playing` 或使用时间轴 API 即可播放（[时间轴](/docs/zh-cn/animation/timeline/overview/)）。
+
+- 片段通过预制体根节点下的名称路径寻址每个节点。同名的兄弟节点在导入时会被重命名，避免轨道驱动错误的节点；预制体中显示的是新名称。
+- `LINEAR`、`STEP` 与 `CUBICSPLINE` 插值连同切线一起保留。
+- `weights` 通道（变形目标动画）为节点绘制的每个图元生成一条轨道，每个目标一个通道，驱动 `MeshMorph` 的权重（[Morph target](#morph-target)）。
+
+## 蒙皮
+
+带绑定的模型导入后仍带绑定：网格携带关节索引、权重与绑定姿势，预制体给实体添加 `MeshSkin`，按绑定矩阵的顺序列出关节实体。移动关节（手动或通过动画）会使网格变形。
+
+按 glTF 的要求，蒙皮网格自身的变换被忽略：它的关节已经放置在世界中。应移动绑定的根节点或关节，而不是网格实体。
+
+| 导入设置 | 默认值 | 说明 |
+|---|---|---|
+| **Bone Influence Limit**（`boneInfluenceLimit`） | Project Default | 影响单个顶点的最多关节数，1–4。保留权重最大的影响并重新归一化。影响越少，蒙皮与存储越便宜。Project Default 使用项目设置 → Rendering → Skinning。 |
+| **High Precision Skin Weights**（`highPrecisionSkinWeights`） | Project Default | 以 16 位而非 8 位存储权重，用于取整后的小权重会明显移动顶点的绑定（面部）。权重存储翻倍。 |
+
+| 限制 | 原因 |
+|---|---|
+| 每个网格 256 个关节 | 姿势存放在一个 uniform 块中，此数量下为 16 KB，正是 WebGL2 保证的大小。一次绘制只上传它用到的关节。关节更多的网格以未变形状态绘制。 |
+| 关节数必须与绑定姿势一致 | `MeshSkin` 列出的关节数与之不同的网格以未变形状态绘制。 |
+
+## Morph target
+
+带混合形状的模型会导入这些形状：`.esmesh` 为每个目标的每个顶点存储一个差值，预制体给实体添加 `MeshMorph`，其 `weights` 决定网格向各目标混合的程度。第 *i* 项对应第 *i* 个目标，顺序与文件中一致；目标名称随几何一起保存。
+
+权重为 0 时网格保持原样，为 1 时完全应用目标。权重不做钳制：glTF 未定义范围，0–1 以外的值也有效。
+
+| 限制 | 说明 |
+|---|---|
+| 同时混合 64 个目标 | 限制的是活动目标，而不是每个网格的目标数。每个活动目标每个顶点需要一到两次纹理读取。超过 64 个时，使用权重最大的 64 个，其余按零处理。 |
+| 每个网格 4,194,304 个差值 | 目标数 × 顶点数，包含法线时翻倍：即 2048 × 2048 纹理，WebGL2 保证的最大尺寸。超过后网格仍绘制，但不变形。 |
+| 只有带法线的网格才会变形法线 | 没有 `NORMAL` 的网格以常量法线着色。 |
+| 不含切线差值 | 网格保留其静止姿态的切线坐标系；目标移动表面，但不移动法线贴图的坐标系。 |
+| FBX 中间形状 | 含中间形状的通道只保留最后一个形状；导入会列出丢弃的内容。 |
+
+## 弹簧骨骼
+
+**Spring Bones**（`springBones`，默认 Off）设为 **From File Data and Names** 时，根据模型已有的数据为头发添加次级运动：
+
+- VRM 弹簧骨骼扩展，或节点自定义属性 `extras.estella.springBone` / `springCollider`，按原样使用。
+- 否则，名为 `Hair_<region>_<chain>_00` 的骨骼成为 `SpringBone`，名为 `SBC_Sphere_<name>_r<cm>` 或 `SBC_Capsule_<name>_r<cm>_h<cm>` 的空节点成为碰撞体。
+
+按名称匹配只是约定，应检查导入识别出的结果。见[弹簧骨骼](/docs/zh-cn/animation/spring-bones/)。
+
+## 参见
+
+- [模型](/docs/zh-cn/assets/models/overview/)
+- [时间轴](/docs/zh-cn/animation/timeline/overview/)
+- [弹簧骨骼](/docs/zh-cn/animation/spring-bones/)

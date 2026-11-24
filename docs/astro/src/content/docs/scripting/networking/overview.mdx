@@ -1,0 +1,104 @@
+---
+title: Networking
+description: The networking stack — the cross-platform WebSocket from createSocket, the typed NetChannel message and RPC layer, the Net resource and its roles, and an index of the replication, persistence, zone, metrics, session and deployment modules.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella's networking is layered. The transport and message layers run on every platform; the replication layer
+synchronizes entities between a server and its clients; the server modules add persistence, multi-process worlds,
+monitoring and deployment.
+
+| Layer | Module | Page |
+|---|---|---|
+| WebSocket transport | `createSocket` (`esengine`) | This page |
+| Typed messages and RPC | `NetChannel` (`esengine`) | This page |
+| Server-authoritative entity replication | `Net`, `Replicated` (`esengine`), `esengine/replication` | [State Replication](/docs/scripting/networking/replication/) |
+| Interest management and bandwidth | `esengine/replication` | [Interest & Bandwidth](/docs/scripting/networking/interest/) |
+| Client-side prediction | `Net.connect({ prediction })` | [Client Prediction](/docs/scripting/networking/prediction/) |
+| Server-side persistence | `esengine/persist` | [Server Persistence](/docs/scripting/networking/persistence/) |
+| One world across several server processes | `esengine/zones` | [Zones](/docs/scripting/networking/zones/) |
+| Prometheus metrics | `esengine/metrics` | [Server Metrics](/docs/scripting/networking/metrics/) |
+| Request/response sessions for asynchronous games | `esengine/session` | [Sessions](/docs/scripting/networking/sessions/) |
+| Server export and deployment | `export --platform server` | [Deploying a Server](/docs/scripting/networking/deploy/) |
+
+## `createSocket`
+
+`createSocket` returns the platform's WebSocket implementation behind one interface: a browser `WebSocket` on the web,
+`wx.connectSocket` on WeChat mini-games, `ws` under Node, and the native and other mini-game hosts' own sockets.
+
+```typescript
+import { createSocket } from 'esengine';
+
+const socket = createSocket({ url: 'wss://example.com/game' });
+
+socket.on('open', () => {
+  socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
+});
+socket.on('message', (data) => {
+  const msg = JSON.parse(data as string);   // a message from the server
+});
+socket.on('close', (code, reason) => { /* … */ });
+socket.on('error', (err) => { /* … */ });
+
+socket.connect();
+```
+
+`createSocket` takes `{ url, protocols? }`; `protocols` is the WebSocket sub-protocol string or list.
+
+| Member | Description |
+|---|---|
+| `connect()` | Opens the connection. |
+| `send(data)` | Sends a `string` or `ArrayBuffer`. Data sent before `open` is queued and sent on connection. |
+| `close(code?, reason?)` | Closes the connection. |
+| `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`. |
+| `on(event, fn)` | Subscribes to `'open'`, `'message'`, `'close'` or `'error'`. Returns an unsubscribe function. |
+
+## `NetChannel`
+
+`NetChannel` wraps a transport with **typed messages routed by type** and **request/response** calls:
+
+```typescript
+import { NetChannel } from 'esengine';
+
+const channel = new NetChannel(socket);
+
+// Events, routed by type.
+const off = channel.on<{ x: number; y: number }>('move', (p) => { /* … */ });
+channel.send('move', { x: 3, y: 5 });
+
+// Request/response: resolves with the reply, rejects on timeout or remote error.
+channel.handle<{ id: string }, { hp: number }>('getStats', async (req) => {
+  return { hp: 100 };
+});
+const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 5000);
+```
+
+| Method | Description |
+|---|---|
+| `on(type, handler)` | Subscribes to a message type. Returns an unsubscribe function. |
+| `send(type, payload)` | Sends a typed event. |
+| `handle(type, handler)` | Registers a request handler. Returns an unsubscribe function. |
+| `request(type, payload, options?)` | Sends a request and resolves with the reply. `options` is a timeout in milliseconds or `{ timeoutMs, idempotencyKey, codec }`. The default timeout is 10 s (`requestTimeoutMs` on the channel); `0` disables it. |
+| `sendBinary(channel, bytes)` / `onBinary(channel, handler)` | Raw binary frames on a numbered channel. |
+| `dispose(reason?)` | Closes the channel and rejects pending requests. |
+
+A lost reply rejects after the timeout. Requests where a player is waiting use a shorter `timeoutMs`; `0` (no timeout)
+leaves a request pending indefinitely.
+
+## The `Net` resource
+
+The replication layer is ECS-native: a `Net` resource and systems on the fixed timestep, installed by default and idle
+until a session starts. `app.getResource(Net).role` is `'server'`, `'client'` or `'offline'`; systems check it so that
+the same code runs as server, client or offline single-player. Received state is applied to components so gameplay
+remains in the ECS.
+
+<Aside type="note">
+  `createSocket` and `NetChannel` are plain classes, created wherever needed. Only the replication layer is tied to
+  the ECS.
+</Aside>
+
+## See also
+
+- [WeChat Mini Game](/docs/publishing/wechat/) — sockets use `wx.connectSocket` there.
+- [Saving & Loading](/docs/scripting/save/) — local persistence between sessions.

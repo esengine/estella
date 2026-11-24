@@ -1,0 +1,80 @@
+---
+title: 模型材质
+description: 导入的 glTF 与 FBX 材质如何映射到 MeshRenderer 字段与 Model 着色器上的 .esmaterial 参数，包括 KHR 材质扩展、高光-光泽度工作流、角色材质、高光贴图设置与 FBX 材质转换。
+---
+
+导入的材质按承载方拆分：基础颜色与绘制标志放在 `MeshRenderer` 上；着色参数写入使用内置 **Model** 着色器的 `.esmaterial`，且仅在源材质用到这些参数时写出。
+
+## `MeshRenderer` 字段
+
+引擎的网格路径绘制 `texture(uv) × vertexColor × tint`，覆盖材质的基础颜色：
+
+| glTF | `MeshRenderer` 字段 |
+|---|---|
+| `baseColorTexture` | `texture` |
+| `baseColorFactor` | `color` |
+| `alphaMode` ≠ `BLEND` | `opaque` |
+| `doubleSided: false` | `cullBackfaces` |
+| 存在 `NORMAL` 属性 | `lit: true` |
+
+## `.esmaterial` 参数
+
+| glTF | Model 着色器参数 |
+|---|---|
+| `normalTexture` / `normalTexture.scale` | `u_normalMap` / `u_normalScale`（默认 1） |
+| `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
+| `occlusionTexture`（+ `strength`） | `u_occlusionMap` / `u_occlusionStrength` |
+| `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
+| `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+| `KHR_materials_pbrSpecularGlossiness` | Model 变体 `ES_SPECULAR_GLOSSINESS`；`u_specularColor`、`u_glossiness`，打包贴图放在 `u_metallicRoughnessMap` |
+| `KHR_materials_clearcoat` | `u_clearcoat` / `u_clearcoatRoughness` |
+| `KHR_materials_sheen` | `u_sheenColor` / `u_sheenRoughness` |
+| `KHR_materials_anisotropy` | `u_anisotropy` / `u_anisotropyRotation` |
+| `KHR_materials_ior`、`KHR_materials_specular`（`specularFactor`） | `u_ior`、`u_specular` |
+| `KHR_materials_iridescence` | `u_iridescence` / `u_iridescenceIor` / `u_iridescenceThickness`（取最小–最大范围的中点） |
+| `KHR_materials_diffuse_transmission` | `u_translucency` / `u_translucencyColor` |
+| `KHR_materials_transmission`、`KHR_materials_volume` | `u_transmission`、`u_thickness`、`u_attenuationColor`；材质以混合方式绘制 |
+
+- 金属度与粗糙度总是写出。glTF 中两个系数默认均为 1（完全粗糙的金属），而着色器的金属度默认为 0，省略它们会描述另一种表面。
+- 材质同时声明绘制的混合、深度与剔除状态，因为材质会替换绘制本身的这些状态。
+- 材质引用、但项目中缺失的纹理会被省略：模型在没有该纹理的情况下导入，并有警告指出缺失的文件。
+- 法线强度在归一化之前缩放切线空间的 X 与 Y 通道，适用于 Model、Skin 与 Hair 材质。`0` 得到平坦法线；负值反转凹凸。
+- 混合的模型材质对不透明几何进行深度测试，但关闭深度写入，因此墙后的透明表面仍被遮挡。
+
+### 高光-光泽度
+
+对于 `KHR_materials_pbrSpecularGlossiness` 材质，漫反射纹理与系数成为 `MeshRenderer` 的基础颜色。高光 RGB 与光泽度 alpha 使用与其他 Model 材质相同的光照路径：RGB 按 sRGB 解码，alpha 保持线性，粗糙度为 `1 − glossiness`。打包贴图使用现有的 `u_metallicRoughnessMap` 槽。[角色材质](#角色材质)不会替换这一工作流。该变体在不做近似转换的前提下保留已有导出文件的效果；新内容可以使用金属度-粗糙度工作流。
+
+## 角色材质
+
+**Character Materials**（`characterMaterials`，默认 Off）设为 **By Material Name** 时，名称中包含 skin、face、head、hair 或 eye 的材质改用 **Skin**、**Hair** 或 **Eye** 着色器而非 Model，并绑定其法线贴图与遮蔽/粗糙度贴图。
+
+- 名称按单词匹配：`BodySkin` 与 `Hair_A` 匹配；`Eyelashes` 与 `Headband` 不匹配。颜色纹理的文件名也参与判断。
+- 头发三角形会为混合绘制重新排序，最靠近中心的面片在前；对于围绕头部的一层面片，这在任何方向上都是由后到前（离开这一层的发束，如马尾，不受此排序约束）。
+- 头发材质按 alpha 镂空（`u_alphaCutoff`，除非源文件另有指定，否则为 0.5），不做混合绘制，边缘按覆盖率羽化。
+- 头发的发丝方向贴图与高光偏移贴图在 glTF 中没有槽位。头发材质在其 extras 中指定它们（`flow_map`、`shift_map` 为相对模型的路径，以及 `suggested_tipSoftness`）；导入将其绑定为 `u_flowMap`、`u_shiftMap` 与 `u_tipSoftness`。
+- 眼睛的虹膜贴图（`u_depthMap`、`u_irisNormalMap`）在源文件中没有槽位，需要手动指定。
+
+按名称匹配只是约定。应检查写出材质中选用的着色器，并手动修正不正确的项。该设置默认关闭，因此重新导入不会改变未选择启用的材质。
+
+## 高光贴图
+
+**Specular Map**（`specularMap`，仅 FBX）说明 FBX 高光贴图中存储的内容：
+
+| 取值 | 行为 |
+|---|---|
+| **Specular Color**（默认） | 作为高光色调读取；金属度/粗糙度着色没有对应槽位。 |
+| **Packed ORM** | 作为遮蔽、粗糙度与金属度绑定，用于把它们打包在高光贴图中的场景（Bistro、Sun Temple）。 |
+
+## FBX 材质
+
+FBX 材质通过 ufbx 自身的映射读取，因此 Phong、Lambert、Maya Standard Surface、3ds Max Physical 与 Blender Principled 材质都会转换为上述参数。Phong 材质的粗糙度由其高光指数推导，并且报告为**无**金属度，而不是显式的零。
+
+- **分离的金属度、粗糙度与遮蔽贴图会被打包。** Model 着色器采样一张按 glTF 方式打包的贴图（红色为遮蔽，绿色为粗糙度，蓝色为金属度）。导入读取分离的贴图（取红色通道；光泽度贴图会反转），打包为模型旁的 `<material>_orm.png`，并绑定到两个槽位。没有贴图的通道设为满值，因此材质的金属度或粗糙度常量仍然生效。尺寸不同的贴图重采样到最大尺寸。只有 PNG 与 DDS 可以打包；其他格式时导入会报告并使用常量。
+- **不导入不透明度贴图。** alpha 取自基础颜色图像自身的通道。
+
+## 参见
+
+- [模型](/docs/zh-cn/assets/models/overview/)
+- [材质](/docs/zh-cn/graphics/materials/overview/)
+- [表面着色器](/docs/zh-cn/graphics/materials/surface-shaders/#着色层)：着色层。

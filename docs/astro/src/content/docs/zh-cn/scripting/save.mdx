@@ -1,17 +1,15 @@
 ---
 title: 存档与读档
-description: 带 schema 迁移的版本化存档槽位,构建在 Storage API 之上。
+description: 基于 SaveManager 的带版本存档槽与前向 schema 迁移、Storage 键值 API、等待异步写入，以及各平台使用的底层存储。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`SaveManager` 把命名的存档槽位持久化为版本化的信封(envelope)。每份存档都记录它写入
-时的 schema `version`,所以已发布的游戏之后可以修改存档结构、仍能读取旧存档——读档时
-旧数据会被向前迁移。
+`SaveManager` 以带版本的封装（`{ version, data, savedAt }`）存储具名存档槽。每次存档都记录写入时的 schema `version`，因此游戏可以更改存档格式，同时仍能读取旧存档：读档时，旧数据会被前向迁移。
 
-## 存档槽位
+## 存档槽
 
-为你的游戏创建一个管理器(选定当前的 schema `version`),然后按名字读写槽位:
+游戏使用当前 schema `version` 创建一个管理器，并按名称读写存档槽：
 
 ```typescript
 import { SaveManager } from 'esengine';
@@ -21,21 +19,33 @@ const saves = new SaveManager({ version: 1 });
 saves.save('slot1', { level: 3, score: 1200, hp: 80 });
 
 const data = saves.load<{ level: number; score: number; hp: number }>('slot1');
-// -> { level: 3, score: 1200, hp: 80 }   (or null if the slot is empty)
+// -> { level: 3, score: 1200, hp: 80 }   (null if the slot is empty)
 
 saves.has('slot1');       // true
-saves.savedAt('slot1');   // epoch ms the slot was written, or null
-saves.remove('slot1');    // delete the slot
+saves.savedAt('slot1');   // epoch ms when the slot was written, or null
+saves.remove('slot1');    // deletes the slot
 ```
 
-- **`save(slot, data)`** 把 `data` 打上当前版本与时间戳后写入。
-- **`load(slot)`** 返回槽位的数据(已向前迁移);槽位为空或无法读取时返回 `null`。
-- **`has` / `remove` / `savedAt`** 分别用于查询、删除、取写入时间。
+| 方法 | 说明 |
+|---|---|
+| `save(slot, data)` | 以当前版本与时间写入 `data`。 |
+| `saveAsync(slot, data)` | 同 `save`，并在写入刷新后兑现（[异步写入](#异步写入)）。 |
+| `load(slot)` | 返回迁移到当前版本的存档槽数据；存档槽为空或不可读时返回 `null`。 |
+| `has(slot)` | 存档槽是否存在。 |
+| `remove(slot)` | 删除存档槽。 |
+| `savedAt(slot)` | 存档槽的写入时间（epoch 毫秒），或 `null`。 |
+
+| `SaveManagerOptions` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `version` | `number` | — | 当前 schema 版本。必填。 |
+| `migrations` | `Record<number, SaveMigration>` | — | 迁移步骤（[Schema 迁移](#schema-迁移)）。 |
+| `keyPrefix` | `string` | `'save:'` | 管理器的存档槽在存储中的命名空间。 |
+| `storage` | `SaveStorage` | 平台 `Storage` | 注入的存储，用于测试。 |
+| `now` | `() => number` | `Date.now` | `savedAt` 使用的时钟，用于确定性测试。 |
 
 ## Schema 迁移
 
-当存档结构变化时,提升 `version` 并为每一步加一个迁移函数。`migrations[n]` 把版本 `n`
-写入的存档升级到 `n + 1`;读档时,从存档版本到当前版本的每一步按顺序依次执行:
+存档格式变更时，递增 `version`，并为每一步添加一个迁移。`migrations[n]` 将版本 `n` 写入的存档升级到 `n + 1`；读档时，从存档版本到当前版本的每一步依次运行：
 
 ```typescript
 const saves = new SaveManager({
@@ -49,24 +59,17 @@ const saves = new SaveManager({
   },
 });
 
-// A v1 save on disk is upgraded to the v2 shape transparently on load.
+// A v1 save is upgraded to the v2 format on load.
 const data = saves.load('slot1');
 ```
 
-迁移是**单向向前**的:读取比当前版本**更新**的存档会抛错(不支持降级),迁移链中缺步
-同样抛错——这样缺口会被立即发现,而不是悄悄损坏数据。
+迁移**只能向前**。读取比当前版本更新的存档会抛出异常，迁移链中缺少某一步同样会抛出异常。
 
-<Aside type="tip">
-  迁移链也作为纯函数导出——`migrateSaveData(version, data, currentVersion, migrations)`
-  ——用于在 `SaveManager` 之外迁移数据(比如单元测试或一次性导入)。`SaveManager` 还接受
-  可注入的 `storage` 与 `now` 选项,便于写确定性的测试;另有 `keyPrefix`(默认 `save:`),
-  给槽位在存储里加命名空间前缀。
-</Aside>
+`migrateSaveData(version, data, currentVersion, migrations)` 以纯函数形式提供迁移链，用于在 `SaveManager` 之外迁移数据（单元测试、一次性导入）。
 
-## 普通键值存储
+## 键值存储
 
-对于不需要版本化的简单开关和偏好设置,直接用 `Storage` API——一个逐平台的键值存储
-(浏览器 `localStorage`、微信存储……),带类型化的辅助方法:
+`Storage` 是按平台实现、带类型化辅助方法的键值存储，用于无需版本管理的标志与偏好设置：
 
 ```typescript
 import { Storage } from 'esengine';
@@ -80,62 +83,54 @@ Storage.getNumber('volume', 1);       // 0.8
 Storage.has('keybinds');              // true
 ```
 
-`Storage` 还有 `getString` / `setString`、`remove(key)` 和 `clear()`。`SaveManager`
-就构建在它之上,两者持久化到同一个逐平台后端。
+| 分组 | 成员 |
+|---|---|
+| 类型化访问 | `getString` / `setString`、`getNumber` / `setNumber`、`getBoolean` / `setBoolean`、`getJSON` / `setJSON` |
+| 键 | `has(key)`、`remove(key)`、`clear()` |
+| 刷新 | `flush()` |
+
+`SaveManager` 构建于 `Storage` 之上，因此二者使用同一底层存储。
 
 <Aside>
-  读取和暂存写入仍是同步的；异步宿主的写入可能需要等待存储服务确认。存档只放游戏状态，
-  不要放大块资源，并遵守目标平台的大小限制。
+  读取与暂存写入均为同步操作。异步宿主可能在其存储服务确认之前保持写入为待定状态。存档保存的是游戏状态而非大块资源，且必须控制在目标平台的存储上限之内。
 </Aside>
 
-## 等待异步保存
+## 异步写入
 
-在必须保存进度的节点，等待写入结果：
+需要确认进度已保存时，等待写入完成：
 
 ```typescript
 await saves.saveAsync('slot1', { level: 4, score: 1500, hp: 80 });
-// 或者在多次 Storage 写入之后：
+// Or after several Storage writes:
 Storage.setNumber('completedLevels', 4);
 await Storage.flush();
 ```
 
-暂存写入失败或宿主 flush 失败时，这些方法会拒绝。云请求失败后，最新内存进度仍可能可读；
-应显示保存失败并重试 `Storage.flush()`，不能把可读当作已保存。
-`SaveManager.saveAsync` 保留同样的版本化信封与迁移规则。
+- 暂存写入或宿主刷新失败时，二者均会拒绝。云端请求失败后，最新的内存数据可能仍可读取；在重试的 `Storage.flush()` 成功之前，它并未保存。
+- `SaveManager.saveAsync` 写入相同的带版本封装，并遵循与 `save` 相同的迁移规则。
+- 异步平台适配器实现 `PlatformAdapter.flushStorage()`，且必须在接受写入之前加载已有数据。将数据存为单个云端数据块的适配器会串行化请求，并在较早的存档仍在进行时保留较新的更改。加载失败或不受支持时，不得视为空存档。
+- 在同步适配器上，等待 `flush()` 仅完成已有的写入；它不会增加云存储，也不会确认服务商的云端备份。例如 CrazyGames SDK Data 的备份调度独立于 `setItem`。
 
-异步适配器提供 `PlatformAdapter.flushStorage()`，必须先成功读取已有数据，再允许写入。
-使用单一云端字符串的宿主应串行发送保存请求，保留保存期间的新变化。读取失败或遇到不支持
-的存档格式时，不能改写为空存档。
+## 底层存储
 
-同步适配器上的 flush 只表示已有写入完成，不会增加云存储，也不证明服务商的云备份成功。
-例如 CrazyGames SDK Data 会在 `setItem` 返回后单独安排备份。
+`Storage` 不提供文件系统路径；Web 与小游戏平台没有路径命名空间。各平台使用其持久化存储：
 
-## 实际存在哪里
-
-没有目录可以打开,这是刻意的:Web 和小游戏平台根本没有路径命名空间可给,所以
-`getSaveDirectory()` 会是一个五个平台里只有两个答得上来的函数,而每个调用它的游戏
-都会因此长出逐平台分支。`Storage` 就是可移植的答案——写进去,各平台的耐久存储会被
-替你选好。
-
-| 平台 | 后端存储 |
+| 平台 | 底层存储 |
 | --- | --- |
 | Web | `localStorage` |
-| 微信 / 小游戏 | `wx.setStorageSync` 等 |
+| 微信及其他小游戏 | `wx.setStorageSync` 及相关 API |
 | iOS | `Application Support/estella-storage.json` |
-| Android | `files/estella-storage.json`(应用内部数据目录) |
-| Node | 仅内存——不跨进程存活 |
+| Android | `files/estella-storage.json`（应用内部数据目录） |
+| Node | 仅内存；不会在进程结束后保留 |
 
-iOS 上用的是 Application Support 而不是 Caches,这是有意为之——iOS 想要回空间时随时
-会清空 Caches,存在那里的存档玩家可能凭空丢失。两个移动平台的目录都是应用私有的,并且
-会进入玩家换新手机时恢复的设备备份。
+iOS 上文件保存在 Application Support 中，因为系统可能清空 Caches 以回收空间。两个移动端位置均为应用私有，并包含在设备备份中。
 
-Estella 0.41 之前的构建把同一个文件放在缓存目录里。如果你已经发布过这样的版本,更新
-后的第一次启动会找到那份存档并把它搬过来——玩家的进度不会丢,你也不需要写任何代码。
+Estella 0.41 之前的构建将文件保存在缓存目录中。新版本构建首次启动时，会将该处已有的文件移到当前位置。
 
-`platformReadFile()` **不是**读它们的途径。它读的是**打包进**构建产物里的文件
-(APK 的 `assets/`、iOS 的 app bundle),且只读。
+`platformReadFile()` 不访问这些存储。它读取打包进构建的文件（APK 的 `assets/`、iOS 应用包），且为只读。
 
 ## 参见
 
-- [场景](/docs/zh-cn/world/scenes/) —— 加载与切换存档所指向的场景。
-- [资源](/docs/zh-cn/assets/overview/) —— 为什么大块数据应放资源而非存档槽。
+- [场景](/docs/zh-cn/world/scenes/)——加载与切换存档所引用的场景。
+- [资源](/docs/zh-cn/assets/overview/)——大块数据应放在资源中，而非存档槽中。
+- [服务器持久化](/docs/zh-cn/scripting/networking/persistence/)——在游戏服务器上保存状态。

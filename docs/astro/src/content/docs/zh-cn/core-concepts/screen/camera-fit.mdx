@@ -1,0 +1,152 @@
+---
+title: 相机适配
+description: 设计分辨率适配的应用方式——适配来源及其优先级、ScreenScaling 资源、渲染分辨率策略、UI 布局盒、屏幕根与世界空间 UI、通过 Canvas.layer 实现的相机对 UI 的剔除、像素完美相机，以及项目显示设置。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+[缩放模式](/docs/zh-cn/core-concepts/screen/overview/#缩放模式)定义设计分辨率如何适配屏幕。本页说明适配在何处声明、作用于什么，以及相关的渲染设置。
+
+## 适配来源
+
+适配以 `designResolution.y / 2` 为基准计算。相机插件每帧按以下顺序解析**适配来源**：
+
+1. **`ScreenScaling`**（项目级适配），当其 `scaleMode` 为实际模式（`≥ 0`）时。具有最高权威；不需要 UI。
+2. 否则使用场景的 **`Canvas`** 组件（如果存在）。
+3. 否则**不适配**：相机按自身的 `orthoSize` 渲染。
+
+相机适配与 [UI 布局盒](#ui-布局盒)按同一顺序解析，因此同一时刻只有一个设计分辨率生效。即使场景的 `Canvas` 带有与项目适配不同的分辨率，
+UI 在编辑器与导出游戏中的布局也完全相同。
+
+适配来源生效期间，全屏正交场景相机的 `orthoSize` 是其**在设计宽高比下**的半高，由缩放模式将其适应到屏幕。`orthoSize` 仍然是缩放：
+存在 `Canvas` 时，编辑或补间 `orthoSize` 会缩放相机。UI 布局盒是适配到屏幕的设计分辨率，而不是相机的视野，因此缩放不会使 UI 重新排布。
+子视口相机、渲染到纹理的相机与透视相机不参与适配。
+
+默认场景相机以 `orthoSize: 540 = designResolution.y / 2` 创作，因此在设计宽高比下，适配与未适配的视图完全相同：
+无论哪种情况，1920×1080 的窗口都恰好显示一个设计盒。
+
+## `ScreenScaling` 资源
+
+`ScreenScaling` 使设计分辨率适配成为项目设置，而不是 UI 画布的属性；没有 `Canvas` 的场景同样会被适配。
+它是**设置 → 项目 → 游戏 → 显示 → 相机适配**的运行时形式。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `designWidth` | number | `1920` | 设计分辨率宽度，单位 px。 |
+| `designHeight` | number | `1080` | 设计分辨率高度，单位 px。 |
+| `scaleMode` | number | `SCREEN_FIT_OFF`（`-1`） | `ScaleMode`（`0`–`4`）**开启**项目适配。`SCREEN_FIT_OFF` 在存在 `Canvas` 时使用其适配，否则使用原始 `orthoSize`。 |
+| `matchWidthOrHeight` | number | `0.5` | `Match` 模式的混合系数，0–1（`0` 适配宽度，`1` 适配高度）。其他模式忽略此项。 |
+| `renderPolicy` | `RenderResolution`（可选） | `RenderResolution.Surface` | 场景自身渲染分辨率的选择方式（[渲染分辨率](#渲染分辨率)）。与 `scaleMode` 相互独立。 |
+
+`DEFAULT_SCREEN_SCALING` 即上述默认值，`SCREEN_FIT_OFF`（`-1`）是表示关闭的哨兵值。当 `scaleMode` 为实际模式，**或** `renderPolicy`
+不是 `Surface` 时安装该资源；相机适配要求前者。项目适配开启时，它对相机与 UI 布局盒都具有最高权威。
+
+运行时根据项目配置安装该资源（[`createWebApp`](/docs/zh-cn/core-concepts/app/overview/#createwebappoptions) 的 `screenFit` 选项）。
+相机插件每帧读取它，因此游戏代码可以在运行时修改：
+
+```typescript
+import { defineSystem, Res, ScreenScaling, ScaleMode } from 'esengine';
+
+const enableProjectFit = defineSystem([Res(ScreenScaling)], (fit) => {
+  fit.designWidth = 1280;
+  fit.designHeight = 720;
+  fit.scaleMode = ScaleMode.Expand;   // any real mode (≥ 0) switches the fit on
+});
+```
+
+### 渲染分辨率
+
+`renderPolicy` 选择场景的渲染分辨率：
+
+| `RenderResolution` | 值 | 行为 |
+|---|---|---|
+| `Surface` | `0` | 直接渲染到屏幕。每个精灵单独缩放，因此纹素与像素之比不为整数时，精灵边界处可能出现接缝。 |
+| `Design` | `1` | 按相机世界高度所需的尺寸渲染（一个世界单位 = 一个渲染像素），再将这张图像整体缩放到屏幕。精灵之间没有接缝；比例不为整数时略显模糊。 |
+| `IntegerMultiple` | `2` | 与 `Design` 相同，但图像以其尺寸的整数倍呈现，未填满屏幕的部分显示黑边。 |
+
+## UI 布局盒
+
+UI 在由 `uiLayoutRect` 计算出的世界空间矩形内布局。对场景相机而言，该矩形即适配后的相机范围。由于世界单位就是设计像素，
+`UINode` 上的 `px(300)` 在任何设备上都是 300 设计像素；缩放模式改变的是 UI 周围可见的世界范围，而不是 UI 的比例。
+
+在**编辑器视口**中，导航相机以自由缩放渲染世界（原始 `orthoSize`，不适配）。UI 不按该范围布局；编辑器在由适配还原出的固定设计分辨率盒中布局 UI。
+因此在任何缩放下布局都相同，而 UI 由于通过同一视图渲染，在视觉上仍随场景缩放。设备模拟器将预览宽高比传入同一计算，
+因此其加黑边的预览与导出游戏一致。
+
+`uiLayoutRect` 与 `computeEffectiveOrthoSize` 已导出，供工具与测试使用。
+
+### 屏幕根与世界空间 UI
+
+布局盒具有**尺寸**（UI 布局的区域）以及在世界中的**位置**：
+
+| UI 根 | 放置方式 |
+|---|---|
+| 无父实体——*屏幕根* | 每帧放置在盒的中心。运行时该中心即相机，因此相机移动时 UI 保持在屏幕上。在编辑器中，盒锚定在世界原点（`EDITOR_UI_ANCHOR`），即绘制设计框叠加层的位置。 |
+| 挂在某个实体下——*世界空间 UI* | 跟随父实体的变换（单位头顶的血条、墙上的面板）；盒只决定其尺寸。 |
+
+HUD 默认跟随相机。要将 UI 放置在世界中，为其根节点设置父实体。
+
+## 相机对 UI 的剔除
+
+每个可绘制对象属于一个**排序层**，`Camera.cullingMask` 是相机渲染的层集合，以位掩码表示：第 *i* 位 = 第 *i* 层，默认所有位都置位。
+
+UI 绘制的排序 `layer` 是其树位置（`1000 + tree order`），超出掩码可寻址的 0–31 范围。因此 UI 的层归属取自 `Canvas.layer`：
+它是一个不影响绘制顺序的排序层，仅供相机包含或排除该画布的 UI。
+
+不绘制 HUD 的小地图，将 HUD 的 `Canvas` 放在单独的层上，并在小地图相机上清除该位：
+
+```typescript
+import { defineSystem, GetWorld, Camera, Canvas } from 'esengine';
+
+const UI_LAYER = 1;
+
+const setupMinimap = defineSystem([GetWorld()], (world) => {
+  // The HUD declares its layer...
+  world.set(hudCanvas, Canvas, { ...world.get(hudCanvas, Canvas), layer: UI_LAYER });
+  // ...and the minimap camera excludes it.
+  const cam = world.get(minimapCamera, Camera);
+  world.set(minimapCamera, Camera, { ...cam, cullingMask: cam.cullingMask & ~(1 << UI_LAYER) });
+});
+```
+
+在细节面板中，该掩码是按项目**排序层名称**列出的多选框（设置 → 项目 → 渲染 → 层名称）。编辑器视口忽略该掩码，显示所有层。
+
+<Aside>
+  子视口相机只绘制并清除其自身的矩形，因此两个各占半屏的相机构成分屏。剔除掩码决定此类相机绘制*什么*；其 `viewport` 决定绘制在*哪里*
+  （[多相机与大世界](/docs/zh-cn/graphics/camera/multiple-cameras/)）。
+</Aside>
+
+## 像素完美相机
+
+`Camera.pixelPerfect`（默认 `false`）在构建视图矩阵之前将相机位置吸附到**世界空间像素网格**，使静态像素画每帧采样相同的纹素，
+而不会在相机以亚像素幅度移动时闪烁。
+
+- 仅适用于正交相机。
+- 一个网格单元为一个渲染像素：`worldPerPixel = 2 × halfHeight / viewportHeightInDevicePixels`。它随当前适配与窗口尺寸变化。
+- 吸附后的位置也用于屏幕 ↔ 世界坐标转换，因此拾取结果与绘制结果一致。
+- 编辑器的导航视图从不吸附；该标志在运行模式与运行时生效。
+
+吸附会使相机运动量化；它面向像素画游戏。
+
+## 项目显示设置
+
+**设置 → 项目 → 游戏 → 显示**中的字段、对应的 manifest 键及其运行时效果：
+
+{/* SHOT: core-display-settings | 任一示例（例如 examples/mobile-controls）：打开设置 → 项目 → 游戏 → 显示；页面显示设计宽度/高度、屏幕方向、相机适配、相机适配匹配与渲染分辨率。 */}
+
+| 编辑器设置 | 项目 manifest | 运行时效果 |
+|---|---|---|
+| 设计宽度 / 高度 | `designResolution.width` / `.height` | 作为新场景 `Canvas` 组件与编辑器相机的初始值；填入 `ScreenScaling.designWidth` / `designHeight`（经由 `createWebApp` 的 `screenFit`）。 |
+| 屏幕方向 | `packaging.orientation`（`'portrait'` \| `'landscape'`；缺省时由设计宽高比推导） | 微信 `game.json`、web/playable 的旋转提示、桌面窗口宽高比、编辑器设备预览（[屏幕方向](/docs/zh-cn/core-concepts/screen/devices/#屏幕方向)）。 |
+| 相机适配 | `features.rendering.cameraScaleMode`（`'none'`、`'fixed-width'`、`'fixed-height'`、`'expand'`、`'shrink'`、`'match'`；缺省为 `'none'`） | `ScreenScaling.scaleMode`（`'none'` → `SCREEN_FIT_OFF`）。 |
+| 相机适配匹配 | `features.rendering.cameraMatch`（0–1，默认 `0.5`） | `ScreenScaling.matchWidthOrHeight`。 |
+| 渲染分辨率 | `features.rendering.renderResolution`（`'surface'`、`'design'`、`'integer'`；缺省为 `'surface'`） | `ScreenScaling.renderPolicy`（`Surface` / `Design` / `IntegerMultiple`）。 |
+
+新建的 `Canvas` 以组件默认值开始：`scaleMode` 为 `FixedHeight`（`1`），`matchWidthOrHeight` 为 `0.5`。场景中已保存的画布保留其保存值。
+项目适配优先于 `Canvas` 适配：它适用于没有 UI 的场景，并使相机适配独立于 UI。
+
+## 另请参阅
+
+- [相机基础](/docs/zh-cn/graphics/camera/overview/)——`orthoSize`、跟随、混合、分屏。
+- [UI](/docs/zh-cn/ui/overview/)——使用设计像素盒的布局。
+- [物理](/docs/zh-cn/gameplay/physics-2d/overview/)——`pixelsPerUnit` 的作用范围。

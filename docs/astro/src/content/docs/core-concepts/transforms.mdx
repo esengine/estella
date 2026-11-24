@@ -1,36 +1,33 @@
 ---
 title: Transforms, Units & Coordinates
-description: The Transform component, the world/design-pixel unit system, physics meters, Y-up coordinates, 2D rotation with quaternions, and the parent/child hierarchy.
+description: The Transform component and its local and world fields, the Y-up coordinate system, design pixels and physics metres, 2D rotation with quaternions, the parent/child hierarchy and world-transform composition, and scale.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every entity that exists somewhere in the world carries a `Transform` — its
-position, rotation, and scale. This page is the foundation the other guides build
-on: what the Transform fields mean, what a "world unit" actually is (a design
-pixel), where meters come in (physics), which way Y points, and how transforms
-compose down a parent/child hierarchy.
+Every entity that has a position in the world carries a `Transform`: position, rotation and scale. This page defines
+the Transform fields, the unit system (world units are design pixels; physics uses metres), the coordinate
+conventions, and how transforms compose through the parent/child hierarchy.
+
+{/* SHOT: core-transform-details | examples/platformer, select any sprite entity in the World Outliner; Details shows the Transform card with Position, Rotation (X/Y/Z in degrees) and Scale. */}
 
 ## The `Transform` component
 
-`Transform` stores **local** values you write and **world** values the engine
-computes. Local fields are relative to the parent (or to the world origin when
-the entity has no parent); each frame the transform system composes them down the
-hierarchy and writes the results into the world fields.
+`Transform` stores **local** values, which are authored, and **world** values, which the engine computes. Local
+fields are relative to the parent, or to the world origin for an entity without a parent. Each frame the transform
+system composes the local values down the hierarchy and writes the results to the world fields.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `position` | Vec3 | `{0, 0, 0}` | Local position in world units, relative to the parent. `z` breaks draw-order ties within a sorting layer. |
-| `rotation` | Quat | `{w: 1, x: 0, y: 0, z: 0}` | Local rotation as a quaternion (identity = no rotation). In 2D you rotate about Z — see [Rotating in 2D](#rotating-in-2d). |
-| `scale` | Vec3 | `{1, 1, 1}` | Local scale per axis (`1` = original size; negative flips). |
-| `worldPosition` | Vec3 | `{0, 0, 0}` | **Read-only.** Final world-space position, composed by the engine. |
-| `worldRotation` | Quat | identity | **Read-only.** Final world-space rotation. |
-| `worldScale` | Vec3 | `{1, 1, 1}` | **Read-only.** Final world-space scale. |
+| `position` | Vec3 | `{0, 0, 0}` | Local position in world units, relative to the parent. In a 2D scene `z` breaks draw-order ties within a sorting layer. |
+| `rotation` | Quat | `{w: 1, x: 0, y: 0, z: 0}` | Local rotation as a quaternion; identity means no rotation. 2D rotation is about Z ([Rotation in 2D](#rotation-in-2d)). |
+| `scale` | Vec3 | `{1, 1, 1}` | Local scale per axis. `1` is original size; negative values mirror. |
+| `worldPosition` | Vec3 | `{0, 0, 0}` | **Read-only.** World-space position composed by the engine. |
+| `worldRotation` | Quat | identity | **Read-only.** World-space rotation. |
+| `worldScale` | Vec3 | `{1, 1, 1}` | **Read-only.** World-space scale. |
 
-Write the local fields; read the world fields. The world fields are engine
-outputs — writing them does nothing lasting, because the transform system
-recomputes them from the local fields and the parent chain. For a root entity
-with no parent, world equals local.
+Systems write the local fields and read the world fields. Writes to the world fields do not persist: the transform
+system recomputes them from the local fields and the parent chain. For a root entity, world equals local.
 
 ```typescript
 import { defineSystem, Query, Mut, Transform } from 'esengine';
@@ -43,87 +40,77 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 });
 ```
 
-`position.x/y/z`, `rotation.x/y/z/w`, `rotation.angle` (the Z turn, in radians, which leaves the other two axes intact) and `scale.x/y/z` are animatable (the
-[Sequencer](/docs/animation/timeline/sequencer/) and [tweens](/docs/animation/tweens/)
-can key them), and `position` / `rotation` / `scale` are replicated by
-[networking](/docs/scripting/networking/)'s state replication.
+| Capability | Fields |
+|---|---|
+| Animatable by the [Sequencer](/docs/animation/timeline/sequencer/) and [tweens](/docs/animation/tweens/) | `position.x/y/z`, `rotation.x/y/z/w`, `rotation.angle` (the Z rotation in radians; the other two axes are left unchanged), `scale.x/y/z` |
+| Replicated by [state replication](/docs/scripting/networking/replication/) | `position`, `rotation`, `scale` |
+
+The Details panel displays rotation as **X / Y / Z Euler angles in degrees**, applied X, then Y, then Z; 2D content
+rotates about Z only. The stored value is always the quaternion.
 
 <Aside type="note">
-  `LocalTransform` and `WorldTransform` are exported as **aliases of the same
-  component** — `Transform === LocalTransform === WorldTransform`. There is one
-  unified component holding both local and world data; use whichever name reads
-  best in your code.
-</Aside>
-
-<Aside type="tip">
-  The editor's Details panel shows rotation as **X / Y / Z Euler angles in
-  degrees** (applied X, then Y, then Z; 2D content turns about Z alone), but the
-  stored data is always the quaternion.
+  `LocalTransform` and `WorldTransform` are exported as aliases of the same component:
+  `Transform === LocalTransform === WorldTransform`. One component holds both the local and the world data.
 </Aside>
 
 ## Coordinate system
 
-- **World space is Y-up**: `+Y` is up, `+X` is right, angle `0` points along
-  `+X`, and positive angles turn counter-clockwise (`Math.atan2(dy, dx)` gives
-  the angle toward a target directly).
-- **`position.z` is draw-order in a 2D scene, a real depth axis in a 3D one**. In a
-  3D scene (meshes, a perspective camera, [3D physics](/docs/gameplay/physics-3d/)) the
-  axes stay Y-up and `z` is ordinary space: cameras and lights look down `-Z`, and the
-  ground plane is XZ. For 2D sprites, rendering orders coarsely
-  by each renderer's sorting `layer`; within a layer, use `z` for fine ordering
-  (or a [y-sorted layer](/docs/graphics/sprites/sorting/#y-sorted-layers) for
-  top-down depth). It does not foreshorten or scale sprites.
-- **Screen space is Y-down**: pointer coordinates (`Input.mouseX/mouseY`, UI hit
-  testing) are pixels from the **top-left** of the canvas, Y increasing
-  downward.
+| Space | Convention |
+|---|---|
+| World | **Y-up.** `+X` is right, `+Y` is up. Angle `0` points along `+X`; positive angles turn counter-clockwise, so `Math.atan2(dy, dx)` gives the angle toward a target. |
+| 3D | Same axes. `z` is a spatial axis; cameras and lights look down `-Z`, and the ground plane is XZ. Applies to meshes, perspective cameras and [3D physics](/docs/gameplay/physics-3d/overview/). |
+| 2D | `position.z` is a draw-order tie-break. Renderers sort first by their sorting `layer`, then by `z` within the layer, or by Y in a [y-sorted layer](/docs/graphics/sprites/sorting/#y-sorted-layers). `z` does not scale or foreshorten sprites. |
+| Screen | **Y-down.** Pointer coordinates (`Input.mouseX` / `mouseY`, UI hit testing) are pixels from the **top-left** of the canvas. |
 
-Convert between the two with the `CameraView` resource (see
-[Camera](/docs/graphics/camera/overview/#screen--world-coordinates) for the full API):
+The `CameraView` resource converts between screen and world coordinates (full API in
+[Camera](/docs/graphics/camera/overview/#screen--world-coordinates)):
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
 
 const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
-  // Screen px (Y-down, top-left origin) -> world units (Y-up). null if no camera.
+  // Screen px (Y-down, top-left origin) -> world units (Y-up). null without a camera.
   const world = view.screenToWorld(input.mouseX, input.mouseY);
   if (world) { /* world.x, world.y */ }
 });
 ```
 
-## Units — design pixels, world units, and meters
+## Units
 
-Estella has **one spatial unit** for authoring: the design pixel. And **one
-derived unit** for physics: the meter.
+Authoring uses one spatial unit, the design pixel. Physics uses one derived unit, the metre.
 
 ```text
 screen px (Y-down)  ── CameraView.screenToWorld ──▶  world units = design px (Y-up)
-world / design px   ── ÷ Canvas.pixelsPerUnit (100) ──▶  physics meters (Box2D)
+world / design px   ── ÷ Canvas.pixelsPerUnit (100) ──▶  physics metres (Box2D)
 ```
 
-**1 world unit = 1 design pixel.** The default design resolution is 1920×1080
-(`Canvas.designResolution`), and editor scene cameras author
-`orthoSize = designResolution.y / 2 = 540` — the camera sees exactly one design
-resolution's worth of world. The practical consequences:
+### Design pixels
 
-- A texture dropped into the scene spawns a sprite at its **pixel dimensions**
-  (a 128×128 image is 128×128 world units on screen at default zoom).
-- `UINode` px sizes map **1:1** to design pixels under scene cameras.
-- Distances, offsets, speeds in gameplay code are all in design pixels
-  (px and px/second).
+**1 world unit = 1 design pixel.** The default design resolution is 1920×1080 (`Canvas.designResolution`), and
+editor scene cameras are authored with `orthoSize = designResolution.y / 2 = 540`, so the camera shows exactly one
+design resolution of world. Consequently:
 
-**Physics is metric.** `Canvas.pixelsPerUnit` (default `100`) is the number of
-world pixels per physics **meter** — it scales the Box2D world and tile
-colliders. It is *not* a sprite display scale. The split to remember:
+- A texture dropped into the scene creates a sprite at the texture's **pixel size**; a 128×128 image is 128×128 world
+  units at default zoom.
+- `UINode` pixel sizes map 1:1 to design pixels under scene cameras.
+- Gameplay distances, offsets and speeds are in design pixels (px, px/s).
+
+The fit of the design resolution onto real screens is described in
+[Screen & Design Resolution](/docs/core-concepts/screen/overview/).
+
+### Physics metres
+
+`Canvas.pixelsPerUnit` (default `100`) is the number of world pixels per physics **metre**. It scales the Box2D world
+and tile colliders and is not a sprite display scale.
 
 | Physics surface | Unit |
 |---|---|
-| Collider dimensions (`halfExtents`, `radius`, …) | **meters** (divide px by PPU) |
-| Solver-facing methods — forces, impulses, velocities, `setGravity` | **meters** |
-| Spatial queries — `raycast`, `shapeCast*`, `overlapCircle`, `overlapAABB` | **world pixels** (auto-scaled) |
-| `CharacterController2D.velocity` / `moveCharacter` | **world pixels**/second |
+| Collider dimensions (`halfExtents`, `radius`, …) | **metres** (pixels ÷ `pixelsPerUnit`) |
+| Solver methods — forces, impulses, velocities, `setGravity` | **metres** |
+| Spatial queries — `raycast`, `shapeCast*`, `overlapCircle`, `overlapAABB` | **world pixels** (scaled automatically) |
+| `CharacterController2D.velocity` / `moveCharacter` | **world pixels** per second |
 
-The defaults are exported as constants, so code that needs them never hard-codes
-the numbers:
+The defaults are exported as constants read from the engine's Canvas defaults:
 
 ```typescript
 import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
@@ -135,36 +122,30 @@ DEFAULT_PIXELS_PER_UNIT; // 100
 const radiusMeters = 24 / DEFAULT_PIXELS_PER_UNIT; // a 24 px circle collider
 ```
 
-These constants are read from the engine's own Canvas defaults, so they cannot
-drift from the C++ values.
+## Rotation in 2D
 
-## Rotating in 2D
-
-`Transform.rotation` is a quaternion `{w, x, y, z}`. A pure 2D rotation is a
-rotation about the Z axis, which uses only the `z` and `w` components:
+`Transform.rotation` is a quaternion `{w, x, y, z}`. A 2D rotation is a rotation about Z and uses only the `z` and `w`
+components:
 
 ```text
 angle a (radians)  ->  { w: cos(a/2), x: 0, y: 0, z: sin(a/2) }
 ```
 
-The `quat()` factory builds one — **note the argument order: `w` comes first**
-(`quat(w = 1, x = 0, y = 0, z = 0)`), matching the identity default:
+The `quat()` factory builds a quaternion. Its argument order is **`w` first**: `quat(w = 1, x = 0, y = 0, z = 0)`.
 
 ```typescript
 import { quat } from 'esengine';
 
-const angle = Math.PI / 4;                                   // 45° CCW
+const angle = Math.PI / 4;                                   // 45° counter-clockwise
 const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 ```
 
-To read the angle back, `2 * atan2(z, w)`:
-
-| Helper | Signature | Notes |
+| Helper | Signature | Description |
 |---|---|---|
-| `quaternionToAngle2D` | `(rz, rw) => number` | Z angle in radians from a quaternion's `z`/`w`. |
-| `normalizeAngle` | `(a) => number` | Wrap any angle to `(-π, π]` — for shortest-turn deltas. |
+| `quaternionToAngle2D` | `(rz, rw) => number` | Z angle in radians from a quaternion's `z` / `w` (`2 * atan2(z, w)`). From `esengine`. |
+| `normalizeAngle` | `(a) => number` | Wraps an angle to `(-π, π]`, for shortest-turn deltas. From `esengine/ai`. |
 
-A complete example — turrets tracking the cursor:
+Turrets tracking the cursor:
 
 ```typescript
 import { defineSystem, defineTag, Query, Mut, Res, Transform, CameraView, quat, quaternionToAngle2D } from 'esengine';
@@ -182,27 +163,20 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
     );
     t.rotation = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 
-    // Or, to turn gradually: read the current facing and step toward the target.
+    // Gradual turning: read the current facing and step toward the target.
     const facing = quaternionToAngle2D(t.rotation.z, t.rotation.w);
     const delta = normalizeAngle(angle - facing); // shortest signed turn
   }
 });
 ```
 
-To animate a rotation, `TweenTarget.RotationZ` drives the Z angle **in radians**
-(the engine rebuilds the quaternion each step), and the Sequencer keys
-`rotation.angle` the same way — see [Animation](/docs/animation/tweens/).
+`TweenTarget.RotationZ` animates the Z angle **in radians** and rebuilds the quaternion each step; the Sequencer keys
+`rotation.angle` in the same way ([Tweens](/docs/animation/tweens/)). Direction vectors without a rotation are
+produced by `v2.fromAngle(angle, len)` and `v2.rotate(v, angle)` ([Math Helpers](/docs/scripting/math/)).
 
-<Aside type="tip">
-  For aiming math without touching rotation at all, `v2.fromAngle(angle, len)`
-  and `v2.rotate(v, angle)` from the [math helpers](/docs/scripting/math/) produce
-  direction vectors directly.
-</Aside>
+## Parenting and hierarchy
 
-## Parenting & hierarchy
-
-Entities form a tree through the `Parent` and `Children` components, but you
-never write those directly — use the world's hierarchy API:
+Entities form a tree through the `Parent` and `Children` components. The hierarchy is edited through the world API:
 
 ```typescript
 import { defineSystem, addStartupSystem, GetWorld, Transform } from 'esengine';
@@ -218,16 +192,17 @@ const build = defineSystem([GetWorld()], (world) => {
 addStartupSystem(build);
 ```
 
-- `world.setParent(child, parent)` — attach (or re-attach) `child` under
-  `parent`. Maintains **both sides**: the child's `Parent` and the parent's
-  `Children` list. Cycle-safe — parenting an entity to itself or to one of its
-  own descendants is silently ignored.
-- `world.removeParent(entity)` — detach; the entity becomes a root again.
-- `world.despawn(entity)` — despawns the **whole subtree**, children first, so
-  no orphans are left rendering.
+| Method | Behaviour |
+|---|---|
+| `world.setParent(child, parent)` | Attaches or re-attaches `child` under `parent`, updating both the child's `Parent` and the parent's `Children`. The child is appended after its new siblings. Parenting an entity to itself or to one of its descendants is rejected without changes. |
+| `world.removeParent(entity)` | Detaches the entity, which becomes a root. Its own children stay attached to it. |
+| `world.despawn(entity)` | Despawns the **whole subtree**, children first. |
 
-For reading the tree, `Parent` holds `{ entity }` (the parent) and `Children`
-holds `{ entities }` (an `Entity[]`) — query them like any component:
+Inserting or setting `Parent` or `Children` directly is routed through the same operation, so both sides of the link
+stay consistent; `world.setParent` is the explicit form.
+
+`Parent` holds `{ entity }` (the parent) and `Children` holds `{ entities }` (an `Entity[]`). They are queried like any
+component:
 
 ```typescript
 import { defineSystem, Query, Parent, Children, Transform } from 'esengine';
@@ -237,76 +212,48 @@ const followers = defineSystem([Query(Transform, Parent)], (q) => {
 });
 ```
 
-### How world transforms compose
+### World-transform composition
 
-Each frame the transform system walks the tree depth-first from the roots. For
-every entity it builds the local matrix as **translate × rotate × scale** (TRS)
-and multiplies by the parent's world matrix:
+Each frame the transform system walks the tree depth-first from the roots. For each entity it builds the local matrix
+as **translate × rotate × scale** (TRS) and multiplies it by the parent's world matrix:
 
 ```text
 world = parentWorld × T(position) × R(rotation) × S(scale)
 ```
 
-So a child's `position` is measured in the parent's rotated, scaled frame: a
-child at local `{x: 24, y: 0}` under a parent rotated 90° sits 24 px *above*
-the parent in world space. The decomposed results land in
-`worldPosition` / `worldRotation` / `worldScale`.
+A child's `position` is therefore measured in the parent's rotated and scaled frame: a child at local `{x: 24, y: 0}`
+under a parent rotated 90° lies 24 px *above* the parent in world space. The decomposed result is written to
+`worldPosition`, `worldRotation` and `worldScale`.
 
-### Gotchas
+### Hierarchy behaviour
 
-- **Reparenting keeps local values.** `setParent` does not recompute local
-  fields to preserve the world pose — a child at local `{0, 0}` jumps to its
-  new parent's position. If you want the entity to stay put visually, convert
-  its world position into the new parent's frame yourself before reparenting.
-- **Never insert `Parent` directly.** `world.insert(entity, Parent, …)` writes
-  only the child-side link and leaves the parent's `Children` list stale — half
-  the engine (layout, rendering, despawn) walks `Children`. Always
-  `world.setParent`.
-- **Sibling order is not stable across removals.** Detaching a child swap-removes
-  it from `Children`, reordering the remaining siblings. `Children` order is what UI
-  layout and UI draw order follow, and what hierarchy-order layers
-  (`Renderer.setTreeSortLayers`) stack by — so reorder those in the editor's Outliner rather than by detaching and
-  re-attaching. For ordinary 2D
-  draw order, don't encode meaning in it: use `position.z` or sorting layers.
+- **Reparenting keeps local values.** `setParent` does not adjust the local fields to preserve the world pose; a child
+  at local `{0, 0}` moves to its new parent's position. To keep the entity in place, convert its world position into
+  the new parent's frame before reparenting.
+- **`Children` order is meaningful.** UI layout and UI draw order follow it, and hierarchy-order layers
+  (`Renderer.setTreeSortLayers`) stack by it. Detaching a child keeps the remaining siblings in order; re-attaching
+  appends it last. Sibling order is set in the World Outliner. For ordinary 2D draw order use `position.z` or sorting
+  layers.
 
 ## Scale
 
-`scale` is per-axis. `{2, 2, 1}` doubles an entity uniformly; `{2, 1, 1}`
-stretches it horizontally; negative values mirror (`{-1, 1, 1}` flips
-horizontally — though for sprites, `Sprite.flipX` does this without touching the
-transform).
+`scale` is per axis. `{2, 2, 1}` doubles an entity uniformly, `{2, 1, 1}` stretches it horizontally, and negative
+values mirror it: `{-1, 1, 1}` flips horizontally. For sprites, `Sprite.flipX` flips without changing the transform.
 
-Scale composes down the hierarchy through `worldScale`: a child under a
-`{2, 2, 1}` parent renders at twice its own scale, and its local `position` is
-stretched by the parent's scale too (local `{x: 10, y: 0}` lands 20 px away in
-world space).
+Scale composes down the hierarchy through `worldScale`. A child under a `{2, 2, 1}` parent renders at twice its own
+scale, and its local `position` is scaled by the parent as well: local `{x: 10, y: 0}` lands 20 px away in world
+space.
 
 <Aside type="caution">
-  Prefer **uniform** scale (equal x and y) on parents. Non-uniform parent scale
-  combined with child rotation produces skew — the composed matrix is no longer
-  a clean rotation, and physics colliders (which are unscaled meter-space
-  shapes) will no longer match what you see. Zoom a camera with
-  `Camera.orthoSize`, never by scaling its Transform.
+  Non-uniform scale on a parent combined with rotation on a child produces skew: the composed matrix is no longer a
+  pure rotation, and physics colliders (unscaled shapes in metres) no longer match the rendered result. Use uniform
+  scale (equal x and y) on parents. A camera is zoomed with `Camera.orthoSize`, not by scaling its Transform.
 </Aside>
-
-## Best practices
-
-- **Write local, read world.** Treat `worldPosition` / `worldRotation` /
-  `worldScale` as outputs; all authoring goes through `position` / `rotation` /
-  `scale`.
-- **Think in design pixels** for gameplay — positions, speeds, distances —
-  and convert only at the physics boundary (÷ `pixelsPerUnit` for collider
-  dimensions and solver calls).
-- **Use `world.setParent`**, never a hand-written `Parent` insert.
-- **Wrap Transform in `Mut(...)`** in queries that write it, so change
-  detection and the renderer see the update.
-- **Reserve `position.z` for draw-order tie-breaks** within a sorting layer;
-  use layers (or y-sorted layers) for coarse ordering.
 
 ## See also
 
-- [Components](/docs/core-concepts/components/) — how components declare and store data.
-- [Camera](/docs/graphics/camera/overview/) — orthoSize, follow, and screen ↔ world conversion.
-- [Draw Order & Sorting](/docs/graphics/sprites/sorting/) — sorting layers, y-sort, and draw order.
-- [Physics](/docs/gameplay/physics/) — the meter-based side of the unit system.
+- [Components](/docs/core-concepts/components/) — declaring and storing component data.
+- [Camera](/docs/graphics/camera/overview/) — `orthoSize`, follow, and screen ↔ world conversion.
+- [Draw Order & Sorting](/docs/graphics/sprites/sorting/) — sorting layers, y-sort and draw order.
+- [Physics](/docs/gameplay/physics-2d/overview/) — the metre-based side of the unit system.
 - [Math Helpers](/docs/scripting/math/) — vector and rotation math on the canonical types.

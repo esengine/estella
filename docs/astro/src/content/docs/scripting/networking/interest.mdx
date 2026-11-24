@@ -1,0 +1,142 @@
+---
+title: Interest & Bandwidth
+description: Controlling what each client receives — interest policies and radiusInterest, interest providers with a kept spatial index, staggered interest refresh, per-connection bandwidth budgets with priorities, and quantized replicated fields.
+---
+
+By default every client receives every replicated entity in full. The controls on this page limit which entities a
+connection receives, how often its view is recomputed, how many bytes its state stream uses, and how many bytes a
+field occupies.
+
+| Control | Decides |
+|---|---|
+| Interest policy / provider | Which entities a connection sees. |
+| `setInterestRefresh` | How often each connection's view is recomputed. |
+| `setBandwidthBudget` | How many bytes per second each connection's state stream may use, and which entities go first. |
+| `quantizeReplicatedFields` | How many bytes each replicated number occupies. |
+
+## Interest policies
+
+An **interest policy** on the server restricts each connection to the entities relevant to it. Entities entering a
+connection's interest arrive as full spawns, leaving entities despawn their client ghost, and delta frames carry only
+what is inside.
+
+```typescript
+import { radiusInterest } from 'esengine/replication';
+
+// Each client sees entities within 800 units of any entity it owns.
+server.setInterestPolicy(radiusInterest(800));
+
+// A custom rule returns the relevant subset (or 'all'):
+server.setInterestPolicy(({ connectionId, world, candidates }) => {
+  const visible = new Set(candidates.filter((e) => isRelevantTo(world, e, connectionId)));
+  return visible;
+});
+```
+
+- **Owned entities are never culled**; a policy cannot hide a client's own pawn.
+- **Re-entry** carries the entity's current state.
+- A replicated entity reference reads `0` while its target is outside the client's view. When the target enters or
+  returns, the field resolves to its current local entity. The field also updates when the server adds or removes
+  `Replicated` on the target. Lists of references follow the same rule per slot and keep their order.
+- A visible child keeps its local entity and attachments when its replicated parent leaves the view; its local
+  transform is evaluated at the root until the parent returns. Live reparenting and detachment are sent to clients
+  that support parent updates. On reconnect, each retained ghost takes the parent in its new spawn baseline.
+- `radiusInterest` reads the composed **world** position of `Transform` by default (`{ position }` overrides it).
+  Entities without a position are always relevant, and the policy admits everything while a connection owns no
+  positioned entity.
+- Installing, replacing or removing the policy during a session is safe; the next tick reconciles every connection's
+  ghost set.
+
+## Interest providers
+
+A policy is evaluated **per connection**, so everything it reads is read once per connection. A **provider** builds
+one spatial index per sample and answers every connection from it:
+
+```typescript
+import { radiusInterestProvider } from 'esengine/replication';
+
+server.setInterestProvider(radiusInterestProvider(800));
+```
+
+`radiusInterestProvider` returns the same result as `radiusInterest` and has two modes:
+
+| Position reader | Index | Reason |
+|---|---|---|
+| Default (`Transform`) | Kept between samples; only entities that moved are updated. | The engine reports which world transforms a composition changed. |
+| Custom `position` | Rebuilt every sample. | An arbitrary function gives no change information. |
+
+When no entity entered, left or moved, the kept index reports an unchanged snapshot, and connections whose owned
+entities have not changed keep their previous answer without being queried. This concerns visibility only: a field
+change on a visible entity is still sent.
+
+Physics-driven and parent-driven movement both reach the kept index, because both go through transform composition. A
+game that writes `worldPosition` directly does not: that field is the composition's output.
+
+## Interest refresh
+
+In a crowd where every entity moves, every view changes every sample. `setInterestRefresh(n)` recomputes each
+connection's view every `n`-th sample, staggered across connections:
+
+```typescript
+server.setInterestRefresh(4); // each connection's view every 4th sample, staggered
+```
+
+Between recomputations a connection keeps its view and still receives every change to entities in it. The effect is
+limited to the edge of the view: an entity moving into range arrives up to `n − 1` samples late, and one moving out is
+sent for up to as long. A despawn leaves every view in the sample it happens; a connection whose own entities change is
+recomputed immediately, and every connection is recomputed when the interest source is replaced. The default, `1`,
+recomputes every view every sample.
+
+## Bandwidth budget
+
+Interest decides whether a connection sees an entity. Where a connection sees hundreds of entities, a **bandwidth
+budget** caps its state stream and sends the most urgent updates first:
+
+```ts
+server.setBandwidthBudget({
+    bytesPerSecond: 16_000,              // per connection
+    // optional; the default is the distance to the nearest entity the connection owns
+    priority: ({ entity, owned }) => isBoss(entity) ? 5 : 1,
+});
+```
+
+- Every sample, each entity a connection is owed an update for adds its priority to its accumulated wait. The most
+  urgent entities are sent until the connection's allowance is spent; the rest wait. A low priority means less
+  frequent updates, never none.
+- A deferred entity's eventual row carries every field changed since its last row, at current values; the client
+  interpolates across the gap.
+- Entities the connection owns are always sent (prediction reconciles against every authoritative update), and so are
+  spawns, despawns and component removals. The budget meters the state stream only.
+- Unused allowance carries over by at most one tick.
+- `setBandwidthBudget(null)` removes the budget; owed updates go out on the next sample.
+- It works with or without an interest source. For the default priority, `position` specifies where an entity is when
+  that is not `Transform`.
+- The server records once when each field last changed, and each connection only when it was last sent each entity,
+  so a change costs the same regardless of how many players see it.
+
+The budget adds a small per-tick cost even where no connection exceeds it, so it is enabled where crowds occur.
+
+## Quantized fields
+
+A replicated number is sent as a 32-bit float by default. `quantizeReplicatedFields` sends a field as a whole number of
+steps, in one to three bytes:
+
+```typescript
+import { quantizeReplicatedFields } from 'esengine/replication';
+
+// At 100 units per metre: positions to 1 cm, angles to 0.01 degree.
+quantizeReplicatedFields('Transform', { position: 1, rotation: 0.01, scale: 0.001 });
+```
+
+- A state update carries the nearest multiple of the step for each number in the field. For 2D sprites and 3D meshes
+  alike, a step on `Transform.position` applies to `x`, `y` and `z`.
+- Each viewer receives the exact value on spawn, including on reconnect and on re-entry into its interest. When a
+  coordinate moves more than half a step from that exact value within the same cell, the server schedules a correction
+  for that viewer if the decoded value is closer. After a quantized update, crossing a cell boundary triggers the next
+  update. Corrections share the regular bandwidth budget.
+- Quantization is declared at startup on **both** ends, before any connection. Each end builds its table on first use,
+  and the handshake refuses a client whose steps differ from the server's.
+- The receiver stores each quantized number as a 32-bit float; interpolation and prediction smoothing use that value.
+- A position change smaller than one step is not sent.
+
+The row header (entity, component, fields) is variable-length, so a row costs a few bytes before its values.

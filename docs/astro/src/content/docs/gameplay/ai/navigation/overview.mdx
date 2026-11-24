@@ -1,0 +1,139 @@
+---
+title: Navigation Basics
+description: Navigation reference — the Nav resource and its two surfaces, building a NavGrid and deriving one from a tilemap, route smoothing, replacing a surface after asynchronous work, and the navigation workshop example.
+---
+
+Navigation moves an agent to a world point along a route around obstacles. Routes are planned over the active
+**surface** of the **`Nav`** resource (a `Navigation` instance). There are two surface types:
+
+| Surface | Description |
+|---|---|
+| **`NavGrid`** | A rectangular mask of walkable and blocked cells. Matches a tilemap, and cells can be changed while the game runs. |
+| **`NavMesh`** | Convex polygons baked from the scene's collision geometry. Follows sloped and stacked ground ([Navigation Meshes](/docs/gameplay/ai/navigation/navmesh/)). |
+
+Agents, the debug overlay and the route queries work the same way on either surface.
+
+## Building a grid
+
+```typescript
+import { defineSystem, Res } from 'esengine';
+import { Nav, NavGrid } from 'esengine/ai';
+
+export const setupNav = defineSystem([Res(Nav)], (nav) => {
+  nav.setSurface(new NavGrid({
+    width: 60,          // columns
+    height: 44,         // rows
+    cellSize: 20,       // world pixels per cell
+    origin: { x: -600, y: -440 },  // world position of cell (0,0)'s center
+  }));
+}, { name: 'SetupNav' });
+```
+
+| `NavGrid` option | Type | Description |
+|---|---|---|
+| `width` | number | Cell columns. |
+| `height` | number | Cell rows. |
+| `cellSize` | number | World units per cell (square). |
+| `origin` | `{ x, y, z? }` | World position of the centre of cell `(0,0)`. Its `z` is the depth every waypoint is returned at. Default `(0,0,0)`. |
+| `walkable` | `ArrayLike<number>` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted: all walkable. The array is copied. |
+
+`navGridFromTilemapLayer` (cells blocked by a layer's solid tiles) and `navGridFromTiles` (any tile reader) derive the
+mask from a tilemap ([Below the Components](/docs/gameplay/ai/advanced/#pathfinding-by-hand)). A
+[destructible tilemap](/docs/world/tilemaps/code/#destructible-tilemaps) keeps its grid in step with what is dug and
+built.
+
+Change walkability through `grid.setWalkable(x, y, walkable)`, `setObstructed` and `clearObstructions`, so clearance and
+cached connectivity are invalidated together. A closed cell (a door shuts, a tower is built) is routed around by the next
+plan.
+
+### Route smoothing
+
+A grid route is **string-pulled** before it is returned: A\* produces steps of one cell, and only the cells where the
+route turns are kept. A shortcut is taken only along a line the search itself could have walked (every cell it touches
+fits the body, and a diagonal needs both shared orthogonal cells open), so a smoothed route is as valid as the stepped
+one. A shortcut never crosses ground priced differently from the ground it starts on
+([`NavArea`](/docs/gameplay/ai/navigation/navmesh/#navarea)).
+
+## The `Nav` resource
+
+| Member | Description |
+|---|---|
+| `setSurface(surface)` / `surface` | Installs the active surface. |
+| `findWorldPath(from, to)` | World-space waypoints, best effort ([Route Queries](/docs/gameplay/ai/navigation/route-queries/)). |
+| `queryWorldPath(from, to, { radius })` | Waypoints with a completion status and reason. |
+| `beginSurfaceUpdate()` / `surfaceUpdatePending` | Staged surface replacement ([below](#replacing-a-surface-after-asynchronous-work)). |
+| `planningBudgetMs` / `maxPlansPerFrame` / `planningStats` | The agent planning queue ([Navigation Agents](/docs/gameplay/ai/navigation/agents/#planning-queue)). |
+| `invalidatePaths()` | Discards agents' cached routes after a custom surface or its costs or links change in place. |
+
+## Replacing a surface after asynchronous work
+
+`nav.beginSurfaceUpdate()` returns a versioned `NavSurfaceUpdate`. A replacement is built separately and installed with
+`update.commit(surface)`. Only the latest pending request can commit; a superseded, cancelled or completed handle returns
+`false`. `nav.setSurface(...)` and assigning `nav.surface` also cancel a pending request. `update.cancel()` keeps the
+previous surface and resumes its routes.
+
+While `nav.surfaceUpdatePending` is true:
+
+- the navigation driver keeps agent destinations and stops steering; character gravity remains active;
+- resource queries return no route, and `queryWorldPath` reports `unavailable` / `building`;
+- the editor's route inspector shows the pending update, and planning counters include agents waiting for it.
+
+```typescript
+import { Navigation, NavGrid, type NavGridOptions } from 'esengine/ai';
+
+async function replaceTerrain(nav: Navigation, load: () => Promise<NavGridOptions>) {
+  const update = nav.beginSurfaceUpdate();
+  try {
+    const data = await load();
+    if (update.pending) update.commit(new NavGrid(data));
+  } finally {
+    update.cancel(); // Also releases a failed request; harmless after commit.
+  }
+}
+```
+
+The owner also cancels on teardown. Cancellation revokes the right to commit; aborting the I/O or worker that produces
+the surface is the producer's responsibility. The protocol schedules no background work and does not make synchronous
+mesh baking asynchronous. The live surface is not mutated while a replacement is staged, because cancellation cannot
+roll those mutations back.
+
+## Example: Citadel Route Workshop
+
+`examples/navigation-workshop` contains editable gate and storehouse obstacles and eight authored couriers:
+
+| Key | Action |
+|---|---|
+| **G** | Toggle the gate. |
+| **B** | Place / remove the storehouse. |
+| **C** | Dispatch 8 or 24 couriers. |
+| **R** | Reset deliveries. |
+
+The same actions have touch buttons, and placing or closing over an occupied cell is refused. Couriers approaching a
+closed gate keep their destinations and continue when it reopens; the storehouse produces a detour. The example also
+provides terrain reload and cancel controls that use a JSON asset with the staged replacement above. Its textures are
+Kenney CC0 assets and original SVG graphics; `ASSET_LICENSES.md` records the sources.
+
+The web acceptance check exports the example and drives its buttons headlessly, checking that couriers keep and resume
+their routes at the gate, that 24 agents deliver, and that bodies stay clear of the storehouse footprint each simulation
+frame:
+
+```sh
+node pipeline/bin/estella.mjs export examples/navigation-workshop --platform web --out output/navigation-workshop-web
+node tools/verify-navigation-workshop.mjs --dir output/navigation-workshop-web
+```
+
+The report includes raw positions, the contact tolerance, export hashes and a run in a smaller landscape touch viewport.
+
+## Chapter pages
+
+- [Navigation Meshes](/docs/gameplay/ai/navigation/navmesh/) — `NavVolume`, streamed worlds, `NavLink`, `NavArea`,
+  `NavObstacle` and the navigation overlay.
+- [Navigation Agents](/docs/gameplay/ai/navigation/agents/) — `NavAgent`, the planning queue, characters, avoidance and
+  agent width.
+- [Route Queries](/docs/gameplay/ai/navigation/route-queries/) — `findWorldPath`, `queryWorldPath` and the route
+  inspector.
+
+## See also
+
+- [Below the Components](/docs/gameplay/ai/advanced/) — `findPath` and grid construction from tiles.
+- [Tilemaps in Code](/docs/world/tilemaps/code/) — tilemap data a grid is derived from.

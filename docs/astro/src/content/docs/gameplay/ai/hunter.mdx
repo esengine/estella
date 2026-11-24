@@ -1,0 +1,70 @@
+---
+title: Hunter
+description: Hunter reference — the built-in 3D melee enemy that chases what it perceives through navigation and a CharacterController3D and attacks through MeleeAttack, its fields, states and requirements.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Hunter` is a ready-made 3D melee enemy. It turns perception into a movement request the same way
+`ThirdPersonController` turns input into one: the route comes from navigation, movement from the character controller,
+the speed reported to the animator is the speed the character reached, and an attack is an animator trigger that lands
+through `MeleeAttack`.
+
+```typescript
+enemy.add(Perceiver, { range: 420 });
+enemy.add(Perception, {});
+enemy.add(NavAgent, { speed: 320, radius: 30, arriveRadius: 40 });
+enemy.add(Hunter, { attackRange: 100, attackInterval: 1.6 });
+enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
+enemy.add(Health, { current: 50, max: 50 });
+```
+
+## Requirements
+
+- `Perceiver` and `Perception` ([Perception](/docs/gameplay/ai/perception/)).
+- `NavAgent` and `CharacterController3D` ([Navigation Agents](/docs/gameplay/ai/navigation/agents/#agents-with-a-character-body)).
+- An `Animator` whose graph answers the trigger `attack`, and a `MeleeAttack`
+  ([Melee & Hitboxes](/docs/gameplay/physics-3d/combat/)).
+- `Health`, which determines the `dead` state.
+
+`Hunter` is exported from `esengine/gameplay`. It measures distance in the x/z ground plane.
+
+## Fields
+
+| Field | Default | Description |
+|---|---|---|
+| `attackRange` | `110` | Ground-plane distance it closes to before attacking, world units. |
+| `attackInterval` | `1.6` | Seconds between attacks. |
+| `rotationSpeed` | `540` | Turn rate, degrees/second. |
+| `idleThreshold` | `8` | Speed below which the animator is told it is standing still. |
+| `enabled` | `true` | `false` skips the hunter entirely. |
+| `state` | `idle` | Engine-written: `idle`, `chase`, `attack` or `dead`. |
+| `cooldown` | `0` | Engine-written: seconds until it may attack again. |
+
+{/* SHOT: gameplay-hunter-details | third-person-3d example, main scene: the Enemy entity selected, Details panel showing the Hunter, Nav Agent and Perceiver cards */}
+
+## Behaviour
+
+| State | Behaviour |
+|---|---|
+| `idle` | No target is perceived. |
+| `chase` | Navigates toward the perceived target, facing the direction it actually moves. |
+| `attack` | Within `attackRange`: faces the target and sets the `attack` trigger every `attackInterval` seconds. |
+| `dead` | `Health` has reached zero: navigation stops, the animator is told it is standing still, and no trigger is set. |
+
+The state is recomputed every frame rather than latched, so a target that steps away during an attack is chased again.
+An attack already in progress when the hunter dies lands on nobody; `MeleeAttack` handles that case.
+
+<Aside type="caution">
+  Navigation skips an agent with no destination, so clearing the destination does not stop the body; the velocity last
+  written would continue. `Hunter` zeroes it when it stops, and any other code that stops a steered agent does the same.
+</Aside>
+
+`Hunter` has a fixed set of four states and no authoring surface. Enemies that need different behaviours use a
+[state machine](/docs/gameplay/ai/state-machines/) or [behavior tree](/docs/gameplay/ai/behavior-trees/).
+
+## See also
+
+- [Characters](/docs/gameplay/physics-3d/characters/#third-person) — `ThirdPersonController`, the player-side
+  counterpart.
+- [Gameplay AI](/docs/gameplay/ai/overview/) — perception, navigation and decision layers.

@@ -1,0 +1,93 @@
+---
+title: 生命周期与内存
+description: 资源生命周期参考——引用计数、可淘汰的温缓存、纹理预算与资源统计，以及 GPU 上下文丢失后内容如何恢复。
+---
+
+已加载的资源参与引用计数，已释放的资源保留在按字节预算的温缓存中。本页说明决定资源何时释放的规则、限制驻留量的预算，以及 GPU 上下文丢失后引擎恢复的内容。
+
+## 引用计数
+
+每次 `load*()` 调用计为一个引用，需要一次对应的 `release*()`；场景加载与卸载会为场景引用的资源完成这两步。被两个场景共享的资源在第一个场景卸载后仍然保留，直到最后一个持有者释放时才被释放。
+
+释放调用传入加载时使用的同一个引用（例如 `assets.releaseTexture('assets/textures/player.png')`），`releaseMaterial` 除外，它接受材质句柄。
+
+热重载的绑定遵循相同的所有权规则。场景拥有其实体的替换资源；没有场景的运行时实体，或比其场景存活更久的持久实体，在被销毁之前拥有自己的替换资源。反复重载不会让替换资源在整个应用生命周期内驻留。显式的 `load*()` 与 `acquire*()` 调用仍需配对释放。
+
+## 温缓存
+
+已释放的纹理或已解码的音频缓冲不会立即销毁，而是作为**可淘汰的缓存项**保留；之后再次加载同一资源（重新进入场景、流式加载回某个区域）时**原地恢复**，无需重新下载或解码。
+
+- 驻留量超过预算后，按字节计的 LRU 淘汰最久未使用的未引用项。被持有的资源从不被淘汰。
+- 操作系统内存警告会丢弃全部可淘汰项；被持有的资源不受影响。
+
+| 缓存 | 默认预算 | 配置方式 |
+|---|---|---|
+| 纹理 | 64 MB | `RuntimeConfig.textureCacheBudget`、构建配置中的 `textureCacheBudget`、`setTextureBudget(bytes)` |
+| 已解码音频 | 32 MB | `RuntimeConfig.audioCacheBudget`、构建配置中的 `audioCacheBudget`、`Audio.setBufferBudget(bytes)`（[音频](/docs/zh-cn/assets/audio/overview/#audio-api)） |
+
+## 纹理预算与统计
+
+`setTextureBudget` 设置 C++ 纹理池的预算，这是唯一的纹理预算。`getResourceStats` 报告驻留情况：
+
+```typescript
+import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // 256 MB
+
+const stats = getResourceStats();      // 引擎初始化前为 null
+if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
+  const freed = trimTextureCache();    // 丢弃全部可淘汰纹理，返回数量
+}
+```
+
+| `ResourceStats` 字段 | 说明 |
+|---|---|
+| `textureBytes` | 驻留纹理字节数（按 RGBA8 估算），含被持有的与可淘汰的。 |
+| `textureBudget` | 当前预算；`0` 表示关闭温缓存。 |
+| `textureEvictableCount` | 等待恢复或淘汰的未引用纹理数。 |
+| `textureCount` | 存活的 GPU 纹理数。 |
+| `shaderCount` | 存活的已编译着色器数。 |
+| `vertexBufferCount` / `indexBufferCount` | 存活的 GPU 缓冲数。 |
+| `cacheHits` / `cacheMisses` | 资源缓存命中与未命中计数。 |
+| `retainedBytes` | 为在 GPU 上下文丢失后恢复内容而保留的 CPU 副本（[见下文](#gpu-上下文丢失)）。同时也是每帧计数器 `render.retained.bytes`。 |
+
+- `setTextureBudget(0)` 关闭温缓存：纹理在最后一个引用释放时立即释放。
+- `trimTextureCache()` 释放全部可淘汰纹理并返回释放数量。引擎在操作系统内存警告时调用它；在已知的内存峰值之前也可以主动调用。
+- `getTextureDimensions(handle)` 返回纹理的 `{ width, height }` 并在 TypeScript 侧缓存（[纹理](/docs/zh-cn/assets/textures/#从非自行加载的句柄读取尺寸)）。`evictTextureDimensions(handle)` 丢弃该缓存项。资源系统在纹理释放时会调用它；只有在资源系统之外替换某个已有句柄的纹理内容时才需要手动调用。
+
+[性能剖析器](/docs/zh-cn/performance/profiling/overview/)逐帧显示这些数值。
+
+## GPU 上下文丢失
+
+图形上下文丢失时（驱动重置、移动浏览器回收 GPU），引擎会重建游戏所持句柄背后的每个纹理与缓冲：
+
+- 有来源的内容从来源重建：资源重新加载，文本页按字形重绘，骨骼动画的图集页重新解码，地形的图层纹理从文件重新读取并打包、页图集重新填充。
+- 没有来源的内容（运行时构建的网格、加载时合成的瓦片集合）以 CPU 副本保留。`ResourceStats.retainedBytes` 报告其大小。它计入进程内存而不计入任何 GPU 指标；超过 `RuntimeConfig.retainedBudget`（默认 **16 MB**；也可在构建配置中设置 `retainedBudget`，或调用 `setRetainedBudget(bytes)`；`0` 表示不警告）时引擎警告一次。引擎可以重建的内容不会再保留副本。
+
+恢复是一次设备事务。纹理重新加载期间，设备拒绝的帧以空内容开始且不收集任何内容，因此暂存内存不会增长。在 Web 上，恢复后的 WebGL 上下文会在设备探测能力之前重新获得其扩展，因此 HDR 场景能正确恢复。
+
+### 渲染纹理
+
+渲染纹理是 GPU 存储，重建后内容为空。`onDeviceRestored` 指示何时重绘，`RenderTexture.contentLost` 报告某个目标是否需要重绘。相机每帧都渲染的目标从不需要。
+
+```typescript
+import { onDeviceRestored, RenderTexture } from 'esengine';
+
+const minimap = RenderTexture.create({ width: 256, height: 256 });
+onDeviceRestored(() => {
+  if (!RenderTexture.contentLost(minimap)) return;
+  drawMinimap(minimap);                  // 游戏代码
+  RenderTexture.contentDrawn(minimap);   // 标记该目标重新持有内容
+});
+```
+
+## 使用建议
+
+- 在内存受限的平台上设置纹理预算，其余交给引用计数。
+- 关注 `textureBytes` 与 `textureBudget` 的关系，并在已知的内存峰值之前调用 `trimTextureCache()`。
+
+## 参见
+
+- [资源](/docs/zh-cn/assets/overview/)：引用、加载器、寻址组与烘焙。
+- [纹理](/docs/zh-cn/assets/textures/)：导入设置与纹理尺寸。
+- [性能剖析](/docs/zh-cn/performance/profiling/overview/)：性能剖析器中的资源统计。

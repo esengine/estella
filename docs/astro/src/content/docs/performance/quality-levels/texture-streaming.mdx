@@ -1,0 +1,69 @@
+---
+title: Texture Streaming
+description: Texture streaming reference — how mesh textures are loaded small and resized to the texel density their views need, the per-level streaming settings, the reduced copies web builds ship, and what is not streamed.
+---
+
+**Texture streaming** holds each texture that only meshes draw at the size its views need. It is a per-level setting:
+on at Low and Medium, off at High.
+
+## Behaviour
+
+- A texture a `MeshRenderer` draws (as its texture, its normal map or through its material) is first loaded no larger
+  than the **starting size** on its longest side, so a scene starts with a fraction of the memory.
+- For every mesh a view draws, the renderer computes how many texels across its textures need for one texel to cover
+  about one pixel, from the mesh's UV density, its size and its distance.
+- At each **interval**, textures of the wrong size are decoded again from their files at the next power of two above
+  that need and replaced behind the same handle. Up to **textures at once** are in flight.
+- A texture grows as soon as it is needed larger, and shrinks only after it has been needed smaller for the **shrink
+  delay**. A texture no view has drawn for the **unseen hold** goes down to the **smallest size**.
+- A mesh drawn as many placements (`MeshInstances`: the trees and rocks `PlacedFoliage` and a world's plants place)
+  requests what its nearest drawn placement needs. Materials and textures of plants a world grows start small like a
+  scene's.
+- **Texture streaming budget** caps the memory of all streamed textures together; past it, textures are held one level
+  smaller.
+- For a streamed PNG, JPEG or image recipe, the starting size limits the longest edge of the GPU upload: with a 64-texel
+  start, a 240 × 120 image starts at 64 × 32 and can return to 240 × 120 on the same handle.
+
+## Settings
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| Texture streaming | `textureStreaming` | on / on / off | Enables streaming. |
+| Texture streaming budget (MB) | `textureStreamingBudget` | 128 / 256 / 0 | Cap on streamed textures together; `0` is no cap. |
+| Streaming smallest size | `textureStreamingMinEdge` | 32 / 64 / 64 | Size of a texture no view draws. |
+| Streaming shrink delay (ms) | `textureStreamingShrinkMs` | 2,000 / 3,000 / 3,000 | Time a texture must be needed smaller before it shrinks. |
+| Streaming unseen hold (ms) | `textureStreamingUnseenMs` | 3,000 / 5,000 / 5,000 | Time without a view before a texture drops to the smallest size. |
+| Streaming interval (ms) | `textureStreamingIntervalMs` | 500 / 250 / 250 | Time between resize passes. |
+| Streaming textures at once | `textureStreamingInFlight` | 2 / 4 / 4 | Resizes in flight at once. |
+| Streaming starting size | `textureStreamingStartEdge` | 128 / 256 / 256 | Longest side a streamed texture is first loaded at. |
+
+The parameters are read only while streaming is on at the level.
+
+## Reduced copies in web builds
+
+A web build ships a reduced copy next to each texture a mesh draws as its surface that is larger than 512 texels per
+side. The copy is at most 256 texels per side, in the same format (a KTX2 re-encoded in its own mode; a PNG or JPEG
+written as such), downsampled from the shipped file with the box filter the cook uses for mip chains.
+
+Streaming starts the texture from the copy and downloads the full file only when a view needs more than the copy
+holds, so textures that are never seen up close are never downloaded in full. The copies add their own size to the
+package. Mini-games download their package whole, so no copies are made for them, nor for textures drawn by anything
+other than a mesh.
+
+## Limits
+
+- Until a view requests more, a texture is drawn at its starting size, so the first second or two of a scene can be
+  softer.
+- A resize costs a decode and an upload on the frame it completes, which can show as a frame or two of tens of
+  milliseconds while a scene settles.
+- A texture that a sprite, UI element, tilemap, particle or trail also draws is restored to its imported size and left
+  there. A texture used only by sprites loads at its imported size.
+- A KTX2 file is cut at a mip level without decoding. Where the host transcodes KTX2 itself (the native builds), it cannot
+  be cut, and the texture is left at its size.
+- Older hosts that cannot replace a texture's contents in place load the full image at once.
+
+## See also
+
+- [Quality Levels](/docs/performance/quality-levels/overview/)
+- [Lifetime & Memory](/docs/assets/memory/)
+- [Textures](/docs/assets/textures/)

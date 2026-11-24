@@ -1,15 +1,14 @@
 ---
-title: State machines
-description: "Running an .esfsm graph: states with enter/update/exit hooks, guarded transitions, and one-shot triggers."
+title: State Machines
+description: State machine reference — StateMachineAgent, .esfsm graphs and registerFsm, state hooks, tick order, transitions with triggers, conditions and blackboard guards.
 ---
 
 ![The FSM editor — Patrol and Chase states linked by guarded transitions](@/assets/guides/en/ai-fsm.png)
 
 *The state-machine editor: states (Patrol / Chase) linked by guarded transitions (`?seesPlayer`, `?lostPlayer`).*
 
-A state machine is a set of **states** connected by guarded **transitions**. Exactly
-one state is active; each tick, its outgoing transitions are checked in order and the
-first enabled one is taken. Attach a `StateMachineAgent` and point it at a graph:
+A state machine is a set of **states** connected by **transitions**. Exactly one state is active; each tick, its outgoing
+transitions are checked in order and the first enabled one is taken. A `StateMachineAgent` runs a machine on its entity:
 
 ```typescript
 import { StateMachineAgent } from 'esengine/ai';
@@ -23,12 +22,14 @@ cmds.spawn()
 
 | `StateMachineAgent` field | Description |
 |---|---|
-| `fsm` | Key of the machine to run: a `registerFsm` name **or** an `.esfsm` asset path. |
-| `current` | Active state name, written each tick (read-only; visible in the inspector). |
+| `fsm` | The machine to run: a `registerFsm` name or an `.esfsm` asset path. |
+| `current` | Active state name, written each tick (read-only; shown in the Inspector). |
 
-The recommended path is to **author the graph in the editor** as an `.esfsm` asset
-(see [Authoring in the editor](/docs/gameplay/ai/authoring/)). The states reference your
-registered action/condition names by string. You can also build a machine in code:
+## Defining a machine
+
+Machines are normally authored in the editor as `.esfsm` assets
+([Authoring in the Editor](/docs/gameplay/ai/authoring/)); states reference registered action and condition names. A
+machine can also be registered in code:
 
 ```typescript
 import { registerFsm } from 'esengine/ai';
@@ -51,21 +52,38 @@ registerFsm('guard', {
 });
 ```
 
-Each state carries up to three named hooks — `onEnter`, `onUpdate`, `onExit` — and a
-list of `transitions`. A hook is a registered action name, or `{ name, arg?, params? }` when it
-needs an argument. `onEnter` runs on the first tick the state is active (so the tick after a
-transition into it), `onExit` runs as a transition is taken, and `onUpdate` runs on ticks where no
-transition fires. At most one transition is taken per tick. A transition naming a condition that is
-not registered is never enabled. A transition is enabled when **all** of its specified
-mechanisms hold; a transition with none is unconditional:
+## States and hooks
+
+Each state has up to three hooks, `onEnter`, `onUpdate` and `onExit`, and a list of `transitions`. A hook is a registered
+action name, or `{ name, arg?, params? }` when it needs an argument.
+
+| Hook | Runs |
+|---|---|
+| `onEnter` | On the first tick the state is active, i.e. the tick after the transition into it. |
+| `onExit` | When a transition out of the state is taken. |
+| `onUpdate` | On ticks where no transition fires. |
+
+At most one transition is taken per tick. Return values of FSM actions are ignored.
+
+## Transitions
+
+A transition is enabled when **all** of its specified mechanisms hold; a transition with none is unconditional. A
+transition that names a condition that is not registered is never enabled.
 
 | Transition field | Description |
 |---|---|
 | `to` | Destination state name. |
-| `trigger` | A one-shot event name that must be fired (consumed when taken). |
+| `trigger` | A one-shot event name that must have been fired; consumed when the transition is taken. |
 | `condition` | A registered condition that must return true. |
-| `guard` | One or more blackboard comparisons, AND-combined. |
+| `guard` | One or more blackboard comparisons, combined with AND. |
 
-Guards compare a blackboard key with `==`, `!=`, `<`, `<=`, `>`, `>=`, `truthy`, or
-`falsy` — e.g. `{ key: 'health', op: '<', value: 20 }`. `value` is ignored by `truthy` / `falsy`;
-a missing key reads as `undefined`, and the ordering operators compare numerically.
+A guard compares a blackboard key with `==`, `!=`, `<`, `<=`, `>`, `>=`, `truthy` or `falsy`, for example
+`{ key: 'health', op: '<', value: 20 }`. `value` is ignored by `truthy` / `falsy`; a missing key reads as `undefined`;
+the ordering operators compare numerically. Triggers and guard values live on the agent's
+[blackboard](/docs/gameplay/ai/blackboard/).
+
+## See also
+
+- [Actions & Conditions](/docs/gameplay/ai/actions/) — the names hooks and transitions refer to.
+- [The Blackboard](/docs/gameplay/ai/blackboard/) — `AiFsm` access to state and triggers from game code.
+- [Behavior Trees](/docs/gameplay/ai/behavior-trees/) — the other authoring form over the same leaves.

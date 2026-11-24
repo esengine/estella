@@ -1,0 +1,69 @@
+---
+title: Breakables
+description: Breakable reference — swapping a whole object for its pre-fractured pieces, breaking by flag or by impact impulse, burst and lifetime settings, and the Broke event.
+---
+
+A `Breakable` replaces a whole object with pieces cut beforehand. A model's `fracture` step writes the pieces as a
+prefab, each piece a mesh with a body and a convex hull; the pieces fit together with no gap. Nothing is cut at run time.
+
+```typescript
+world.insert(pot, Breakable, { pieces: 'assets/models/pot_pieces.esprefab', burst: 300 });
+// when it is hit:
+world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken = true; });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `pieces` | prefab | `''` | The prefab of its pieces. |
+| `broken` | boolean | `false` | Set to break it; clear to make it whole again. |
+| `burst` | number | `300` | Speed at which the pieces leave, out from `origin`, world units/second. `0` lets them fall in place. |
+| `origin` | Vec3 | `{0, 0, 0}` | Where it was struck, relative to its own origin. |
+| `lifetime` | number | `0` | Seconds before the pieces are removed; `0` keeps them. |
+| `breakImpulse` | number | `0` | An impact at least this strong breaks it, in kg × world units/second. `0` breaks it only when `broken` is set. |
+| `enabled` | boolean | `true` | `false` keeps it whole: it is not broken by `broken` or by impacts. |
+
+## Breaking
+
+When it breaks, the whole is hidden, not removed: its renderer, body and colliders are switched off, and return when
+`broken` is cleared. Without a 3D physics world the pieces appear in place and stay there.
+
+### Breaking on impact
+
+A breakable with a `breakImpulse` and a collider of its own breaks when a contact is at least that strong. (When the
+editor fractures a model it also provides a `ConvexCollider3D` of the whole shape as `hull`.) The pieces leave from the
+point of contact; when several contacts occur in one step, the strongest is used.
+
+The strength of an impact is the closing speed times the mass of the meeting ([Collision
+events](/docs/gameplay/physics-3d/queries/#collision-events)). At 100 units per metre, a 1 kg stone landing at 10 m/s is
+1000 and a 50 g pebble at the same speed is 50. With only a collider the breakable stays still, and a stone meets it with
+the stone's own mass; with a dynamic `RigidBody3D` as well it can be knocked over, and when it falls it meets the floor
+with its own mass. Masses are set through `RigidBody3D.mass`.
+
+A character that runs into a breakable strikes it with its `characterHits` impulse, so a dive through a window breaks it
+and leaning on it does not. `Physics3D.explode` strikes every breakable in its radius.
+
+`Physics3D.setLinearVelocity(entity, velocity)` throws the pieces; it returns `false` for an entity that has no body yet,
+which includes the frame an entity is spawned in.
+
+## The `Broke` event
+
+`Broke` is sent once the pieces stand in place of the whole, for sound, dust and scoring. It is not sent when the
+breakable is made whole again.
+
+| `BrokePayload` field | Description |
+|---|---|
+| `entity` | The breakable. |
+| `x`, `y`, `z` | Where it was struck, world space. |
+| `impulse` | How hard it was struck; `0` when `broken` was set directly. |
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke), Res(Audio)], (broke, audio) => {
+  // Louder the harder it was struck; a pot broken by hand makes its quietest sound.
+  for (const b of broke) audio.playSFX('assets/shatter.wav', { volume: Math.min(1, 0.3 + b.impulse / 3000) });
+}));
+```
+
+## See also
+
+- [Bodies & Shapes](/docs/gameplay/physics-3d/bodies/#convexcollider3d) — convex colliders.
+- [Queries, Forces & Events](/docs/gameplay/physics-3d/queries/) — `explode` and contact impulses.

@@ -1,50 +1,33 @@
 ---
-title: AI 代理 (MCP)
-description: Estella 编辑器本身就是一个 MCP 服务器——接入 Claude Code、Cursor 或任何支持 MCP 的 AI 工具，让它打开项目、搭建场景、编辑组件、运行 Play 模式、截图验证并导出成品。
+title: AI 智能体（MCP）
+description: 编辑器的 Model Context Protocol 服务器——连接 AI 工具、手动配置、附加到已打开的编辑器、多个编辑器、权限、工具分组、Tripo AI 生成、工具约定、预制体编辑、批量场景程序、事件绑定、撤销与调用日志。
 ---
 
 import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Estella 编辑器支持 **Model Context Protocol (MCP)**。任何支持 MCP 的 AI 工具——
-Claude Code、Cursor，或你自己写的代理——都能驱动真实的编辑器：打开或创建项目、
-打开场景、用与你相同的"创建"菜单目录生成实体、编辑组件字段、在活的引擎 World
-里验证结果、进入 Play 模式、截图*亲眼看到*它搭出来的东西，并把成品游戏导出
-——走的都是 UI 自己的管线，共一百多个工具。
+Estella 编辑器是一个 **Model Context Protocol（MCP）** 服务器。支持 MCP 的 AI 工具——Claude Code、Cursor 或自定义智能体——通过与界面相同的流水线驱动编辑器：创建和打开项目与场景、从创建菜单目录生成实体、编辑组件字段、检查运行中的引擎 World、运行游戏、截图以及导出构建。编辑器提供 180 多个工具。
 
 <Aside type="tip">
-代理做的每件事都经过编辑器自己的命令面——创建可撤销、Play 模式不会弄脏编辑
-场景、保存就是工具栏的保存。你可以在编辑器窗口里看着它干活，随时接手。
+智能体的操作经由编辑器的命令层执行：编辑可撤销，运行模式不会修改编辑中的场景，保存即工具栏上的保存。智能体的工作在编辑器窗口中可见，用户可以同时操作。
 </Aside>
 
-## 接入 AI 工具
+## 连接 AI 工具
 
-### 一键加入
+**窗口 → 连接 AI 工具…**（也可点击状态栏中的 AI 智能体标记，或设置中的 *连接 AI 工具…* 按钮）打开连接对话框。它列出本机安装的 Claude Code、Cursor、Claude Desktop 和 VS Code，每项带有 **连接** / **断开** 按钮。
 
-菜单**窗口 → 连接 AI 工具…**（或状态栏上的"AI 代理"标记、设置里"连接 AI 工具…"按钮）
-打开连接对话框。它会列出本机已安装的 Claude Code、Cursor、Claude Desktop、VS Code，
-每个一个"连接 / 断开"按钮：连接就是把编辑器写进那个工具自己的 MCP 配置（只动
-`estella` 这一条，其余内容原样保留），并同时开启"允许 AI 代理连接"。状态读的是配置文件
-里的实际内容，所以手动删掉条目后它会自己变回"未连接"。配置文件读不懂时，编辑器会拒绝写入，
-不会覆盖你的文件。
+{/* SHOT: extend-connect-ai-tools | Connect AI Tools dialog opened from Window → Connect AI Tools…: the list of AI tools with Connect/Disconnect buttons, the Read only / Can edit permission switch, the editor's project/pid/port line, the "Last call" line and the Other tools section; any example project */}
 
-- **不需要另装 Node.js**：写进去的条目用编辑器自己的可执行文件运行内置脚本。
-- **代理权限**在对话框里切换：只读 / 可修改。它属于你切换它的那个编辑器窗口：不会被保存，每个编辑器启动时都是只读，在一个打开的编辑器里授权不影响另一个。它由编辑器实时决定，条目里不带权限，
-  所以切换立即对所有已连接的工具生效，不需要重启它们，也不会改写它们的配置。
-- **是否真的连上了**看对话框底部："最近一次调用：Claude Code，12 秒前"。条目写进去不等于
-  工具在用它，这一行才是证据。
-- Windsurf、Zed、Codex 等编辑器不能替你写的工具，在"其它工具"里给出同一条配置的现成文本
-  （JSON、TOML 或命令），路径已填好，复制即可。
+- **连接** 会在该工具自己的 MCP 配置中写入 `estella` 条目（文件中的其他条目保持不变），并开启 *允许 AI 代理连接*。该条目用编辑器自身的可执行文件（`ELECTRON_RUN_AS_NODE`）运行内置的 MCP 脚本，因此无需安装 Node.js，并附加到已打开的编辑器（`--attach`）。连接状态读取自配置文件，因此手动删除的条目会显示为未连接。无法解析的配置文件不会被修改。
+- **权限**——*只读* 或 *可修改*——在对话框中设置。它属于设置它的那个编辑器窗口，不会保存（每个编辑器都以只读启动），也不影响其他已打开的编辑器。编辑器在调用时决定权限，配置条目不携带任何权限，因此更改会立即作用于所有已连接的工具。
+- **最近一次调用**（例如“最近一次调用：Claude Code，12 秒前”）确认某个工具确实在使用该连接。
+- **其它工具** 以 JSON、TOML 或命令形式给出条目（已填好路径），供对话框无法写入的工具（Windsurf、Zed、Codex 等）复制使用。
 
-下面是手动配置，用于一键加入覆盖不到的情况。
-下面是手动配置，用于一键加入覆盖不到的工具。
+### 手动配置
 
-MCP 服务器是随编辑器一起分发的一个小 node 脚本。它对你的 AI 工具讲 stdio MCP，
-并为你驱动一个编辑器实例（拉起新的，或挂到已打开的那个上）。
+MCP 服务器是编辑器内的一个 Node 脚本。它通过 stdio 与 AI 工具通信 MCP，并驱动一个编辑器实例——启动新实例或附加到已打开的实例。在已安装的编辑器中，其路径为：
 
-它在安装版编辑器里的路径：
-
-- **Windows** — `%LOCALAPPDATA%\Programs\@estellaeditor\resources\app.asar.unpacked\dist-electron\mcp\editor-mcp.mjs`
-- **macOS** — `/Applications/Estella Editor.app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs`
+- **Windows**——`%LOCALAPPDATA%\Programs\@estellaeditor\resources\app.asar.unpacked\dist-electron\mcp\editor-mcp.mjs`
+- **macOS**——`/Applications/Estella Editor.app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs`
 
 <Tabs>
 <TabItem label="Claude Code">
@@ -72,103 +55,123 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 </TabItem>
 </Tabs>
 
-`--editor` 会以启用 MCP 端点的方式启动安装版编辑器。PATH 里需要 Node.js 20+。
+手动配置的服务器要求 `PATH` 上有 Node.js 20 或更高版本。
 
-编辑器在第一次调用工具时才启动,而不是在 AI 工具启动服务器的时候:服务器立刻就能应答,一次工具都没调用的会话不会拉起编辑器,冷启动慢的编辑器也不会让 AI 工具放弃这个服务器。加 `--eager` 可以在 AI 工具连上后就在后台启动它,加 `--hidden` 则不显示窗口。
+| 选项 | 作用 |
+|---|---|
+| `--editor` | 启动已安装的编辑器并开启 MCP 端点。 |
+| `--attach` | 附加到已打开的编辑器（[附加到已打开的编辑器](#附加到已打开的编辑器)）。 |
+| `--eager` | 客户端连接后立即在后台启动编辑器，而不是等到第一次工具调用。 |
+| `--hidden` | 与 `--editor` 一起使用，以无窗口方式驱动编辑器。 |
+| `--all-tools` | 一开始就列出所有工具，供不跟踪工具列表变化的客户端使用。 |
+| `--instance <pid \| project name>` | 固定本会话驱动的编辑器（也可用 `ESTELLA_MCP_INSTANCE`）。 |
+
+| 环境变量 | 作用 |
+|---|---|
+| `ESTELLA_MCP_ALLOW_WRITES=1` | 允许修改项目的工具，不受编辑器 *只读* / *可修改* 设置的约束。没有权限设置的宿主需要它。未设置时由编辑器的设置决定。 |
+| `ESTELLA_MCP_INSTANCE` | 同 `--instance`。 |
+| `ESTELLA_MCP_CALL_LOG=0` | 关闭本地调用日志（[调用日志](#调用日志)）。 |
+
+编辑器在第一次工具调用时启动，而不是在 AI 工具启动服务器时：服务器立即响应握手，没有调用任何工具的会话不会启动编辑器。
 
 <Aside type="caution">
-不设 `ESTELLA_MCP_ALLOW_WRITES=1` 时代理只能**观察**——所有会产生修改的工具
-（创建实体、改字段、保存、导出）都被隐藏并拒绝。写权限请有意识地授予。
+不允许写入时，所有修改项目的工具（创建实体、编辑字段、保存、导出）都会从工具列表中隐藏并被拒绝。请审慎授予写权限。
 </Aside>
 
-## 驱动你正看着的编辑器
+## 附加到已打开的编辑器
 
-想让代理在你已经打开的编辑器会话里干活，把 `--editor` 换成 `--attach` 即可：
+`--attach` 驱动一个已经打开的编辑器会话：
 
 <Steps>
 
-1. AI 工具的配置里用 `--attach`：
+1. 用 `--attach` 配置 AI 工具：
 
    ```json
    "args": ["<path-to>/editor-mcp.mjs", "--attach"]
    ```
 
-2. 打开**设置 → 编辑器 → 工具与 AI → AI 代理 → 允许 AI 代理连接**。编辑器会开启一个仅限本机的端口，
-   并往自己的 user-data 目录写一个发现文件 `mcp-endpoint.json`，`--attach` 会自己
-   找到它——只有你把它挪了位置，才需要显式传路径。那一行会显示当前监听的端口；
-   这个开关会被记住，所以此后你双击图标启动的编辑器同样是就绪状态。
+2. 确认 **设置 → 编辑器 → 工具与 AI → AI 代理 → 允许 AI 代理连接** 已开启（默认开启）。编辑器在仅限本机的端口上监听，并在其用户数据目录中写出发现文件 `mcp-endpoint.json`，`--attach` 会自动找到它；只有文件被移动时才需要显式传入路径。该设置行显示正在监听的端口。
 
-   在终端里用 `--mcp` 启动（`estella-editor --mcp`）效果相同，只对当次会话生效，
-   且在该会话内优先于这个设置。
+   用 `--mcp` 启动编辑器（`estella-editor --mcp`）会为该次会话开启端点，并在会话期间覆盖该设置。
 
-3. 代理现在驱动的就是你眼前的这个窗口——选择、编辑、Play 全部同步——你可以
-   一边看一边随时介入。
+3. 智能体驱动同一个窗口——选择、编辑和运行模式——用户可以同时观看和干预。
 
 </Steps>
 
-启动顺序无所谓：服务器**每次调用时**才去解析编辑器，所以你可以先开 AI 工具、
-后开编辑器；会话中途重启编辑器也会自动重连，不会把代理晾在那儿。
+服务器在每次调用时解析编辑器，因此 AI 工具可以先于编辑器启动；会话中途重启编辑器会自动重新连接。
 
-### 同时打开多个编辑器
+### 多个编辑器
 
-每个编辑器都在 user-data 目录里写一个属于自己的文件（`mcp-instances/<pid>.json`），带上进程 id、当前项目、端口和它自己的权限，代理因此能把它们分开。
-只开了一个编辑器时，会话直接驱动它。开了两个或更多时，不让代理去猜——调用落到错误的窗口，改的就是错误的项目：在它选定之前，除了两个工具外，其他工具都只会回答编辑器列表。
+每个编辑器在用户数据目录的 `mcp-instances/<pid>.json` 中声明自身，包括进程 id、项目、端口和权限。只有一个编辑器打开时，会话直接驱动它。打开两个或更多时，除 `list_editors` 和 `select_editor` 外，所有工具都会返回编辑器列表，直到选定其中一个。
 
-- `list_editors` 列出每个已打开的编辑器：pid、项目、端口，以及是否允许代理修改项目。
-- `select_editor` 接受 pid、端口，或项目名/路径的一部分。此后会话只驱动那一个编辑器，之后才打开的编辑器不会把它抢走；那个编辑器关闭后，会话会再次询问。
-- 想把选择固定在工具配置里，可以给脚本传 `--instance <pid | 项目名>`，或设置环境变量 `ESTELLA_MCP_INSTANCE`。
+| 工具 | 说明 |
+|---|---|
+| `list_editors` | 列出已打开的编辑器：pid、项目、端口，以及是否允许智能体修改项目。 |
+| `select_editor` | 接受 pid、端口，或项目名称/路径的一部分。此后会话只驱动该编辑器；之后打开的编辑器不会接管。所选编辑器关闭后，会话会再次询问。 |
 
-权限（只读 / 可修改）属于每个编辑器窗口，启动时都是只读，所以给一个编辑器授权不会授权另一个。连接对话框会显示这是哪个编辑器：它的项目、进程 id 和端口。
+`--instance` 或 `ESTELLA_MCP_INSTANCE` 可在工具配置中固定选择。权限属于每个编辑器窗口，并以只读开始。连接对话框通过项目、进程 id 和端口标明其所属编辑器。
 
-## 代理能做什么
+## 工具分组
 
-常用的工具(约五十个:场景、Play、打开和保存、截图、日志)一开始就列出;其余分在若干组里,代理需要时用 `enable_tools` 打开:`assets`、`timeline`、`prefab`、`authoring`、`view`、`play`、`render`、`project`、`code` 和 `device`。第一次调用之前就把全部工具交过去,每个会话都要多花几千 token,也更难挑出合适的那个;不管列没列出,任何工具都可以直接按名字调用。客户端跟不上工具列表变化的,加 `--all-tools`。下表列出的工具来自所有组。
+约五十个日常工具（场景、运行、打开与保存、截图、日志）一开始就会列出。其余工具位于分组中，由智能体通过 `enable_tools` 开启：
 
-### 用 Tripo AI 生成模型
+`look`、`assets`、`timeline`、`prefab`、`authoring`、`view`、`play`、`render`、`project`、`code`、`image`、`sound`、`terrain`、`modeling`、`tripo`、`device`，以及 `plugins`（项目编辑器插件添加的工具）。
 
-`tripo` 组用 [Tripo AI](https://www.tripo3d.ai/) 从一句话或一张图片生成带贴图的 3D 模型,并按拖入 `.glb` 的方式导入,所以返回结果里有一个代理可以直接放进场景的预制体,旁边附上 Tripo 的预览图。它需要一个 Tripo API 密钥,在**设置 > 工具与 AI > AI 代理 > Tripo API 密钥**里填写(密钥在 developers.tripo3d.ai 申请)。Tripo 还为中国大陆开设了国内站 tripo3d.com,账号、密钥和积分都与国际站分开:在同一处的**Tripo 站点**里选择国内站,并在国际站密钥下方填入国内站的密钥。切换站点后,已经在运行的生成任务仍在原来的站点完成。密钥保存在本机钥匙串里:不会写进项目,编辑器窗口也读不回来。每次生成都会消耗账号的积分,`tripo_balance` 可以查看余额。
-
-一次生成需要两到五分钟,任务由编辑器负责,而不是挂在代理的那次调用上:`tripo_generate` 立即返回任务 id,编辑器在后台查询 Tripo,模型好了就自动导入,代理等不等都一样;`tripo_task` 等待某个任务完成并返回它的预制体,不会重复扣积分。生成期间,角落里用一条通知显示所有任务(只有一个时显示名字和百分比,多个时显示数量,点**详情**看列表),内容浏览器在每个模型将要放的位置显示一个带进度的占位图块。编辑器关闭时还没完成的生成,下次打开项目会接着处理。导入发生在代理的撤销步骤之外,所以撤销不会删掉生成的模型,需要时在内容浏览器里删除。
-
-Tripo 的其余能力也在这一组里。`tripo_process` 处理项目里已有的模型,在旁边生成一个新模型:重新贴图、减面到适合游戏的面数、展开 UV、拆分部件并补全、检查能否绑骨(免费)、绑骨、给骨骼套用预设动画,或转换成其他格式。Tripo 生成的模型会在 `.meta` 里记下生成它的任务 id,下一步处理直接引用这个任务,不用重新上传文件;其他模型则会先上传。`tripo_image` 用文字或其他图片生成图片,也能生成一个物体的四个侧面,`tripo_generate` 用 `images` 接收这四张图,生成的模型比单张图更接近想要的样子。除检查能否绑骨外,每个操作都会消耗积分,每个工具的说明里都写了具体数目。
-
-Tripo 做过的东西都有记录:项目会把每个任务存成历史,包括当时要求的内容、结果放在哪里、花了多少积分。代理在花积分之前可以先用 `tripo_history` 查一下有没有现成的。它还会列出项目里由 Tripo 生成的模型(从 `.meta` 里读出,所以克隆来的项目也能看到);加上 `remote_days: 31` 还能看到这个 Tripo 账号最近一个月在任何地方做过的任务。历史里的结果如果文件已经不在了,用 `tripo_task` 可以重新取回,不花积分。这一组工具还能把模型或图片智能分割成带名字的部件,以及把一张图片生成高斯泼溅(`.splat` 文件,引擎暂时还不能显示)。
-
-工具的说明都控制在客户端能完整交给模型的长度以内:有的客户端会把过长的说明截断,截掉的部分模型就再也看不到。要教的东西最多的几个工具(`model_write`、`image_write`、`music_write`)把其余内容分成主题,在说明末尾列出每个主题的名字和用途,代理在做到相应内容之前用 `tool_guide` 读取需要的主题。它直接由工具目录回答,不会启动编辑器。
-
-同一样东西在所有工具里只有一个名字,参数里和返回里都一样:实体叫 `entity`(打开的场景或运行中游戏里的实体编号),组件字段叫 `field`,搜索词叫 `query`,返回数量上限叫 `limit`。有些工具以前用的名字(`id`、`key`、`match`、`maxResults`)仍然会被当成这些名字读取。`entity` 也可以直接写实体名字:场景和运行中的游戏给同一个实体编的号不一样,所以名字会到工具作用的那一边去查(`inspect_entity` 查运行中的游戏,其余查打开的场景);两个实体同名时会被拒绝并列出各自的编号,在场景里可以用路径(如 `"HUD/ScoreText"`)指定其中一个。
+任何工具都可以不经列出直接按名称调用。`--all-tools` 一开始就列出全部工具。连接时智能体会收到操作规则：工具分组、打开的场景与运行中游戏的区别、用 `step` 代替等待，以及每次调用对应一个撤销步骤。
 
 | 领域 | 工具（节选） |
 | --- | --- |
-| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个 draw call、断批原因、画了哪些实体） |
-| 编辑场景 | `apply_scene_ops`（批量搭建）、`create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
-| 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（把任意资产在它自己的编辑器里打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
-| 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（Prefab Mode）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
-| 零代码行为 | `get_event_bindings` / `set_event_bindings`（给按钮接线）、`add_component` / `remove_component` |
+| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整个窗口，含运行画面）、`world_component`（运行中 World 探查）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个绘制调用、其起因及绘制的实体） |
+| 编辑场景 | `apply_scene_ops`（批量编辑）、`create_entity`（通过 `list_entity_templates` 使用创建菜单目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
+| 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（在资产自己的编辑器中打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
+| 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（预制体模式）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
+| 无代码行为 | `get_event_bindings` / `set_event_bindings`、`add_component` / `remove_component` |
 | 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |
-| 运行与发布 | `set_play`（playing / paused / stopped）+ `get_play_state`、`step`、`play_input`、`export_game`（打包对话框列表里的任一目标：web、desktop、wechat、playable、android 等） |
+| 运行与发布 | `set_play`（playing / paused / stopped）与 `get_play_state`、`step`、`play_input`、`export_game`（打包项目中的任意目标：web、desktop、wechat、playable、android 等） |
 
-典型的代理循环：`open_project` → `open_scene` → `list_entity_templates` →
-`apply_scene_ops` → `get_diagnostics` → `screenshot` 检查成果 → `save_scene` →
-`set_play` → 再次 `screenshot` → `export_game`。
+典型流程：`open_project` → `open_scene` → `list_entity_templates` → `apply_scene_ops` → `get_diagnostics` → `screenshot` → `save_scene` → `set_play` → `screenshot` → `export_game`。
 
-### 编辑预制体
+### 工具约定
 
-对 `.esprefab` 调 `open_asset`（或对实例调 `edit_prefab`）就进入 **Prefab Mode**：
-从此每个场景工具作用的都是**那个预制体**，`save_scene` 写的是资产——每个实例都会跟着变。
-`get_document` 告诉你当前开着哪个文档：打开之后先查它，别默认保存写的是场景。
-`exit_prefab_mode` 回到原来的场景。
+- **描述** 足够简短，客户端会完整传递。带有扩展说明的工具（`model_write`、`image_write`、`music_write` 等）在描述末尾列出主题；智能体通过 `tool_guide` 阅读，它由工具目录直接回答，不会启动编辑器。
+- **参数名称** 统一：实体为 `entity`（打开的场景或运行中游戏里的编号），组件字段为 `field`，搜索文本为 `query`，结果上限为 `limit`。旧名称（`id`、`key`、`match`、`maxResults`）仍被接受。
+- **按名称指定实体。** `entity` 也接受名称，在工具作用的世界中查找（打开的场景，或 `inspect_entity` 对应的运行中游戏），因为两者对实体的编号不同。两个实体同名时会被拒绝并列出各自编号；在场景中可用 `"HUD/ScoreText"` 这样的路径指定其一。
 
-人看到对话框的地方，代理拿到的是能据此行动的答复：会丢掉未保存改动的打开一律**被拒绝**，
-除非你传 `discardChanges`；而 `apply_prefab`（它会重写每个实例的基）要求 `confirm: true`
-——人是靠那张逐条 diff 确认的，代理则把意图直接说出来。
+## Tripo AI
 
-### 规模化搭建场景
+`tripo` 分组通过 [Tripo AI](https://www.tripo3d.ai/) 从文字或图片生成带纹理的 3D 模型，并像拖入 `.glb` 一样导入；结果给出智能体可放置的预制体，以及 Tripo 的预览图。
 
-`set_field` 一次只写一个字段——改一个值够用，搭一个场景就没戏了：一个 UI 面板
-动辄上百个节点、每个十几个字段。`apply_scene_ops` 收的是一段**程序**：创建、
-改父子、加组件、写字段按顺序执行，合成**一个可撤销步骤**。操作之间用名字互相
-引用，所以整棵子树一次调用就能落地：
+| 设置（设置 → 编辑器 → 工具与 AI → AI 代理） | 说明 |
+|---|---|
+| **Tripo 站点** | 国际站（tripo3d.ai）或国内站（tripo3d.com）。两个站点的账号、密钥和额度相互独立。正在进行的生成保持在发起它的站点上。 |
+| **Tripo API 密钥（国际站）** | 在 developers.tripo3d.ai 获取的密钥。 |
+| **Tripo API 密钥（国内站）** | 在 developers.tripo3d.com 获取的密钥，站点为国内站时使用。 |
+
+密钥保存在本机钥匙串中，从不写入项目，编辑器窗口也不会读回。每次生成都会消耗账号额度；`tripo_balance` 报告余额。
+
+| 工具 | 说明 |
+|---|---|
+| `tripo_generate` | 从文字或图片发起生成（`images` 接受 `tripo_image` 生成的四视图），并立即返回任务 id。 |
+| `tripo_task` | 等待任务并返回其预制体，不会再次消耗额度。也可恢复文件缺失的已列出结果。 |
+| `tripo_process` | 基于已有模型生成新模型：重新贴图、减面到指定面数、展开 UV、拆分部件并封闭、检查能否绑定骨骼（免费）、绑定骨骼、应用预设动画或转换格式。还可将模型或图片智能分割为命名部件，以及将图片转换为高斯泼溅（`.splat`，引擎暂不渲染）。 |
+| `tripo_image` | 从文字或图片生成图片，包括物体的四视图。 |
+| `tripo_history` | 列出项目的 Tripo 任务（请求内容、结果位置、花费）以及项目中由 Tripo 生成的模型（依据其 `.meta`）；`remote_days: 31` 还会加入该账号近一个月生成的全部内容。 |
+| `tripo_balance` | 报告剩余额度。 |
+
+- 一次生成需要两到五分钟。编辑器轮询 Tripo，并在模型就绪时导入，无论智能体是否仍在等待。角落的通知显示正在进行的生成（单个显示名称和百分比，多个显示数量，**Details** 中列出明细），内容浏览器在每个模型的落点显示带进度的占位项。编辑器关闭时仍在进行的生成会在下次打开项目时继续。
+- Tripo 生成的模型在其 `.meta` 中保存任务 id，因此后续操作引用该任务而无需上传文件；其他模型会被上传。
+- 每个工具的描述中注明其额度消耗；除骨骼绑定检查外，所有操作都会消耗额度。
+- 导入发生在智能体的撤销步骤之外：撤销不会移除生成的模型，需在内容浏览器中删除。
+
+## 编辑预制体
+
+对 `.esprefab` 使用 `open_asset`，或对实例使用 `edit_prefab`，会进入**预制体模式**：此后所有场景工具都作用于预制体，`save_scene` 为所有实例写入预制体资产。`get_document` 报告当前打开的文档；打开后、以及假定保存会写入场景之前，都应先检查。`exit_prefab_mode` 返回场景。
+
+在用户会看到确认对话框的地方，智能体会收到可据以处理的拒绝：打开会丢弃未保存工作的内容时，除非传入 `discardChanges`，否则会被拒绝；`apply_prefab` 会为所有实例重写预制体，需要传入 `confirm: true`。
+
+## 批量场景程序
+
+`set_field` 每次调用写入一个字段。`apply_scene_ops` 接受一个**程序**——创建、重新设置父级、添加组件和写入字段——按顺序执行，作为**一个可撤销步骤**。操作通过 `ref` 引用自己创建的实体，因此一次调用即可生成整个子树：
 
 ```json
 {
@@ -181,25 +184,19 @@ Tripo 做过的东西都有记录:项目会把每个任务存成历史,包括当
 }
 ```
 
-它是原子的：任何一步失败，报错会指名是哪一步挂的（`op[7] set: …`），整批回滚
-——**包括它已经创建出来的实体**——一段写错的程序不会留下一棵搭到一半的子树。
+程序是原子的：任一操作失败时，错误会指明该操作（`op[7] set: …`），整个批次回滚，包括已经创建的实体。
 
-字段路径可以只点名结构字段里的**一个成员**（`"Transform.position.x"`、
-`"FlexContainer.gap.y"`、`"UINode.width.value"`），其余部分会被读出来原样写回，
-所以只挪一个轴不必先读再改再写。
+字段路径可以指定结构化字段的单个成员（`"Transform.position.x"`、`"FlexContainer.gap.y"`、`"UINode.width.value"`）；其他成员保持不变。
 
-节点数量上到几百之后，程序本身就成了负担——一个真实面板是几百 KB 的 JSON，
-不该塞进对话里。用 `write_project_file` 写成文件，再把路径交给 `apply_scene_ops`：
+较大的程序可以先用 `write_project_file` 写入文件，再按路径传入：
 
 ```json
-{ "opsPath": "assets/scenes/shop.ops.json", "label": "搭建商店" }
+{ "opsPath": "assets/scenes/shop.ops.json", "label": "Build the shop" }
 ```
 
-### 给按钮接线
+## 事件绑定
 
-场景不写一行游戏代码也能给按钮行为——一行[事件绑定](/docs/zh-cn/scripting/events/)
-说的是*当这个事件发生，就跑那个具名动作*。`set_event_bindings` 在**一个撤销步骤**
-里整体替换某实体的绑定行（传空列表即拆线），`get_event_bindings` 读回来：
+[事件绑定](/docs/zh-cn/scripting/events/)行在事件触发时运行具名动作，使按钮无需游戏代码即可具备行为。`set_event_bindings` 在一个撤销步骤中替换实体的所有行（空列表即移除），`get_event_bindings` 读取它们：
 
 ```json
 { "entity": 42, "rows": [
@@ -208,49 +205,34 @@ Tripo 做过的东西都有记录:项目会把每个任务存成历史,包括当
 ] }
 ```
 
-`action` 是动作注册表里的任意名字——引擎内置的（`property.set`、`ui.setVisible`、
-`fsm.fire`……）或项目自己注册的——而 `target` 点名要在哪个实体上跑，从当前实体
-就近解析。
+`action` 是动作注册表中的任意名称——引擎内置动作（`property.set`、`ui.setVisible`、`fsm.fire` 等）或项目注册的动作。`target` 指定在另一个实体上运行，从当前实体起按就近原则解析。
 
 <Aside type="caution">
-`EventBinding` **没有 Add Component 入口**（你加第一条线时细节面板会隐式加上它），
-所以拿这个名字调 `add_component` 建不出来——`set_event_bindings` 才是它的门。
-另外 `add_component` 现在会拒绝不认识的组件名而不是默默接受，所以打错字会当场报错。
+`EventBinding` 没有“添加组件”入口（细节面板在添加第一个绑定时自动添加），因此 `add_component` 无法创建它；请使用 `set_event_bindings`。`add_component` 会拒绝未知的组件名称。
 </Aside>
 
 <Aside type="note">
-有些东西在**导入设置**里，不在组件上——最容易踩的是纹理的九宫格边框：
-`UIVisual` 设成 NineSlice 后，边框是从纹理元数据读的，所以没配
-`set_import_settings` 就搭出来的边框和按钮，四角会被拉伸变形。
-`get_import_settings` 会把每个选项连同默认值一起列出来。
-`set_import_settings` 的 path 可以传**数组**——一次调用把同一份 patch 打到整个文件夹上，
-每个资产保留 patch 没点名的设置。
+有些属性属于**导入设置**而非组件字段。NineSlice 模式的 `UIVisual` 从纹理元数据读取切片边界，因此未经 `set_import_settings` 设置的边框会拉伸四角。`get_import_settings` 列出每项设置及其默认值。`set_import_settings` 接受路径**数组**，可将同一补丁应用到多个资产；每个资产保留补丁未涉及的设置。
 </Aside>
 
 ## 撤销、权限与进度
 
-- **一次调用就是一步撤销。** 一次调用改的所有东西——场景改动*和*它写的项目文件——按一次 **Ctrl/⌘ + Z** 一起退回,重做再一起回来。
-  这一步在**历史**里显示为 **AI · *工具名***。只写了文件的调用不会把场景标成未保存。代理自己的 `undo` / `redo` 工具会等文件回到磁盘上才回复。
-  保存、导出、新建项目以及对运行中游戏做的事不算步骤:撤销不会把一次保存退回去。
-  历史面板会在每次代理运行开始的地方画一条线(**AI 运行 · *客户端* · *时间***):点它上面那一行,就把整次运行退回去。
-  写过的文件副本在 512 MB 以内都会保留;副本不得不清掉的步骤会标出**文件不可撤回**,撤销它只退回场景部分。
-- **客户端知道每个工具会做什么。** 每个工具都带 MCP 注解:读取类标为只读,只有离开当前项目、或执行没人列得清后果的代码(编辑器命令、在运行中的游戏里跑探针)的才标为破坏性。
-  会在这类调用前询问的客户端,只会在这些调用前问。
-- **长调用会说自己还在跑。** 请求了进度的客户端每五秒会收到一次:哪个工具在跑、跑了多久——打开大场景或导出不再像卡住了。
-  开始前就被取消的调用不会执行,组合调用会在下一步停下;已经在跑的单个编辑器操作(导出、烘焙)会跑完。
-- **编辑器起不来时**,这次调用会用编辑器自己的话说明原因,下一次调用会重试——连接不会断。
-- **代理一连上就知道规矩**:工具分组、打开的场景和运行中的游戏的区别、用 `step` 而不是干等、一次调用一步撤销。
-  跟不上工具列表变化的客户端,也能用 `enable_tools` 的 `plugins` 组拿到插件工具。
-- **在这台机器上,哪些工具最常失败。** 连接会把每次调用(工具、客户端、成败、耗时、报错开头——从不记参数)记在 `~/.estella/mcp-calls.jsonl`。
-  `node desktop/scripts/mcp-call-stats.mjs` 列出最常失败的工具和原因。不会发到任何地方;`ESTELLA_MCP_CALL_LOG=0` 可以关掉。
+- **一次调用即一个撤销步骤。** 一次调用改动的所有内容——场景编辑及其写入的项目文件——用一次 **Ctrl/⌘ + Z** 撤销，用重做恢复。该步骤在 **历史** 中显示为 **AI · *tool***。只写入文件的调用不会将场景标记为未保存。智能体的 `undo` / `redo` 工具在文件恢复后返回。保存、导出、创建项目以及对运行中游戏的操作不是撤销步骤。
+- **历史中的智能体运行。** 历史在每次智能体运行开始处画一条分隔线（**AI run · *client* · *time***）；点击其上方紧邻的一行即可撤销整次运行。写入文件的副本最多保留 512 MB；副本被丢弃的步骤标记为 **files kept**，撤销时只恢复场景部分。
+- **工具注解。** 每个工具都带有 MCP 注解：读取类工具标记为只读，只有离开项目或运行任意代码的工具（编辑器命令、运行中游戏里的探针）标记为破坏性。
+- **进度。** 请求进度的客户端每五秒收到一次通知，说明正在运行的工具及其耗时。开始前被取消的调用不会运行；组合调用在下一步停止；已在运行的编辑器操作（导出、烘焙）会执行完毕。
+- **启动失败。** 编辑器无法启动时，调用返回编辑器给出的原因，下一次调用会重试；连接保持打开。
 
-## 从源码仓库使用（贡献者）
+### 调用日志
 
-源码仓库里，`pnpm --filter @estella/editor editor:mcp` 用无头夹具宿主提供同一套
-注册表（仅场景工具），`editor:mcp -- --editor` 拉起开发版编辑器(加 `--hidden` 不显示窗口)；两套 e2e
-（`editor:mcp:e2e`、`editor:mcp:editor-e2e`）验证完整闭环。
+服务器将每次调用——工具、客户端、结果、时间以及错误的开头部分，从不记录参数——写入 `~/.estella/mcp-calls.jsonl`。`node desktop/scripts/mcp-call-stats.mjs` 列出最常失败的工具及失败方式。日志不会发送到任何地方。`ESTELLA_MCP_CALL_LOG=0` 关闭日志。
+
+## 从源码检出运行
+
+在源码检出中，`pnpm --filter @estella/editor editor:mcp` 在无头 fixtures 宿主上提供工具注册表（仅场景工具）；`editor:mcp -- --editor` 启动开发版编辑器（`--hidden` 隐藏其窗口）。`editor:mcp:e2e` 和 `editor:mcp:editor-e2e` 两套测试验证完整流程。
 
 ## 参见
 
-- [编辑器](/docs/zh-cn/editor/overview/) —— 这个自动化面驱动的可视化编辑器。
-- [脚本](/docs/zh-cn/scripting/overview/) —— 同一套场景 / 组件模型,从游戏代码这边看。
+- [编辑器](/docs/zh-cn/editor/overview/)——该服务器驱动的编辑器。
+- [贡献点](/docs/zh-cn/extending/contribution-points/#agent-工具)——通过编辑器插件添加 Agent 工具。
+- [脚本](/docs/zh-cn/scripting/overview/)——从游戏代码使用场景与组件模型。

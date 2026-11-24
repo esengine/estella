@@ -1,0 +1,96 @@
+---
+title: 联网
+description: 联网栈——createSocket 提供的跨平台 WebSocket、类型化的 NetChannel 消息与 RPC 层、Net 资源及其角色，以及复制、持久化、分区、指标、会话与部署各模块的索引。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 的联网是分层的。传输层与消息层在所有平台上运行；复制层在服务器与其客户端之间同步实体；服务器模块提供持久化、多进程世界、监控与部署。
+
+| 层 | 模块 | 页面 |
+|---|---|---|
+| WebSocket 传输 | `createSocket`（`esengine`） | 本页 |
+| 类型化消息与 RPC | `NetChannel`（`esengine`） | 本页 |
+| 服务器权威的实体复制 | `Net`、`Replicated`（`esengine`）、`esengine/replication` | [状态复制](/docs/zh-cn/scripting/networking/replication/) |
+| 兴趣管理与带宽 | `esengine/replication` | [兴趣管理与带宽](/docs/zh-cn/scripting/networking/interest/) |
+| 客户端预测 | `Net.connect({ prediction })` | [客户端预测](/docs/zh-cn/scripting/networking/prediction/) |
+| 服务器端持久化 | `esengine/persist` | [服务器持久化](/docs/zh-cn/scripting/networking/persistence/) |
+| 跨多个服务器进程的单一世界 | `esengine/zones` | [分区](/docs/zh-cn/scripting/networking/zones/) |
+| Prometheus 指标 | `esengine/metrics` | [服务器指标](/docs/zh-cn/scripting/networking/metrics/) |
+| 面向异步游戏的请求/响应会话 | `esengine/session` | [会话](/docs/zh-cn/scripting/networking/sessions/) |
+| 服务器导出与部署 | `export --platform server` | [部署服务器](/docs/zh-cn/scripting/networking/deploy/) |
+
+## `createSocket`
+
+`createSocket` 通过同一接口返回平台的 WebSocket 实现：Web 上为浏览器 `WebSocket`，微信小游戏上为 `wx.connectSocket`，Node 下为 `ws`，原生及其他小游戏宿主使用各自的 socket。
+
+```typescript
+import { createSocket } from 'esengine';
+
+const socket = createSocket({ url: 'wss://example.com/game' });
+
+socket.on('open', () => {
+  socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
+});
+socket.on('message', (data) => {
+  const msg = JSON.parse(data as string);   // a message from the server
+});
+socket.on('close', (code, reason) => { /* … */ });
+socket.on('error', (err) => { /* … */ });
+
+socket.connect();
+```
+
+`createSocket` 接受 `{ url, protocols? }`；`protocols` 为 WebSocket 子协议字符串或列表。
+
+| 成员 | 说明 |
+|---|---|
+| `connect()` | 打开连接。 |
+| `send(data)` | 发送 `string` 或 `ArrayBuffer`。`open` 之前发送的数据会排队，并在连接建立时发出。 |
+| `close(code?, reason?)` | 关闭连接。 |
+| `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`。 |
+| `on(event, fn)` | 订阅 `'open'`、`'message'`、`'close'` 或 `'error'`。返回取消订阅函数。 |
+
+## `NetChannel`
+
+`NetChannel` 在传输之上提供**按类型路由的类型化消息**与**请求/响应**调用：
+
+```typescript
+import { NetChannel } from 'esengine';
+
+const channel = new NetChannel(socket);
+
+// Events, routed by type.
+const off = channel.on<{ x: number; y: number }>('move', (p) => { /* … */ });
+channel.send('move', { x: 3, y: 5 });
+
+// Request/response: resolves with the reply, rejects on timeout or remote error.
+channel.handle<{ id: string }, { hp: number }>('getStats', async (req) => {
+  return { hp: 100 };
+});
+const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 5000);
+```
+
+| 方法 | 说明 |
+|---|---|
+| `on(type, handler)` | 订阅一种消息类型。返回取消订阅函数。 |
+| `send(type, payload)` | 发送一个类型化事件。 |
+| `handle(type, handler)` | 注册请求处理器。返回取消订阅函数。 |
+| `request(type, payload, options?)` | 发送请求，并以回复 resolve。`options` 为毫秒超时，或 `{ timeoutMs, idempotencyKey, codec }`。默认超时 10 秒（通道的 `requestTimeoutMs`）；`0` 表示不超时。 |
+| `sendBinary(channel, bytes)` / `onBinary(channel, handler)` | 在编号通道上收发原始二进制帧。 |
+| `dispose(reason?)` | 关闭通道并 reject 所有挂起的请求。 |
+
+回复丢失时，请求在超时后 reject。玩家正在等待的请求应使用较短的 `timeoutMs`；`0`（不超时）会让请求无限期挂起。
+
+## `Net` 资源
+
+复制层是 ECS 原生的：一个 `Net` 资源加上固定时间步上的系统，默认安装，在会话开始前不做任何工作。`app.getResource(Net).role` 为 `'server'`、`'client'` 或 `'offline'`；系统据此判断，同一份代码即可作为服务器、客户端或离线单机运行。收到的状态写入组件，玩法逻辑因此保留在 ECS 中。
+
+<Aside type="note">
+  `createSocket` 与 `NetChannel` 是普通类，可在任意需要的位置创建。只有复制层与 ECS 绑定。
+</Aside>
+
+## 参见
+
+- [微信小游戏](/docs/zh-cn/publishing/wechat/)——该平台上 socket 使用 `wx.connectSocket`。
+- [存档与读档](/docs/zh-cn/scripting/save/)——会话之间的本地持久化。

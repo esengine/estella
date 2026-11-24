@@ -5,7 +5,7 @@ description: 运行时播放时间轴——TimelinePlayer 组件及其字段、T
 
 import { Aside } from '@astrojs/starlight/components';
 
-`TimelinePlayer` 组件在其实体上播放时间轴。组件字段即播放控制：引擎每帧将其应用到内部时钟，因此代码、检视器以及修改 `playing` 的 [AI 动作](/docs/zh-cn/gameplay/ai/overview/#内建名字)都通过同一通道控制播放。播放在运行模式和独立运行时中推进，在编辑器的编辑模式下冻结。
+`TimelinePlayer` 组件在其实体上播放时间轴。组件字段即播放控制：引擎每帧将其应用到内部时钟，因此代码、检视器以及修改 `playing` 的 [AI 动作](/docs/zh-cn/gameplay/ai/actions/#内建名字)都通过同一通道控制播放。播放在运行模式和独立运行时中推进，在编辑器的编辑模式下冻结。
 
 ## TimelinePlayer 组件
 
@@ -74,7 +74,7 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 播放方法直接写入 `TimelinePlayer` 的标志：`timeline.play(e)` 与 `player.playing = true` 是同一操作。
 
 <Aside type="tip">
-  无代码过场可将该组件与状态机配合使用：内置的 `timeline.play` 动作与 `timeline.finished` 条件构成一个 FSM 状态，进入时播放剪辑，播放完毕后转出。见 [AI 内建名字](/docs/zh-cn/gameplay/ai/overview/#内建名字)。
+  无代码过场可将该组件与状态机配合使用：内置的 `timeline.play` 动作与 `timeline.finished` 条件构成一个 FSM 状态，进入时播放剪辑，播放完毕后转出。见 [AI 内建名字](/docs/zh-cn/gameplay/ai/actions/#内建名字)。
 </Aside>
 
 ## 播放事件

@@ -1,0 +1,160 @@
+---
+title: Input
+description: The Input resource — keyboard, mouse, touch and gamepad state with held state and per-frame edges, the world-space cursor, edge delivery in fixed-timestep systems, touch gestures, multi-touch mode, and the method reference.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Systems read input through the **`Input`** resource. It tracks **held** state and the current frame's **edges**
+(pressed, released). An edge is true only for the frame in which the change occurred, so input is polled every frame.
+
+| Page | Content |
+|---|---|
+| Input (this page) | The `Input` resource: keyboard, mouse, touch, gamepad, gestures. |
+| [Input Actions](/docs/scripting/input/input-map/) | Named, rebindable actions with `InputMap` and `.inputmap` assets. |
+| [Input Routing](/docs/scripting/input/routing/) | The editor, UI and game tiers that raw events pass through. |
+| [Device Capabilities](/docs/scripting/input/device/) | Motion sensors, vibration, screen wake, fullscreen and pointer lock. |
+
+## Keyboard
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+
+const keys = defineSystem([Res(Input)], (input) => {
+  if (input.isKeyDown('KeyW'))       { /* held */ }
+  if (input.isKeyPressed('Space'))   { /* pressed this frame */ }
+  if (input.isKeyReleased('Escape')) { /* released this frame */ }
+});
+```
+
+Keys are identified by DOM `code` strings: `KeyW`, `KeyA`, `ArrowUp`, `Space`, `Escape`, `Digit1`, …
+
+## Mouse
+
+```typescript
+const mouse = defineSystem([Res(Input)], (input) => {
+  if (input.isMouseButtonPressed(0)) { /* left button pressed this frame */ }
+  const screenX = input.mouseX, screenY = input.mouseY;   // screen pixels
+  const wheel = input.scrollDeltaY;
+});
+```
+
+Buttons: `0` = left, `1` = middle, `2` = right (also available as `MouseButton.Left` / `.Middle` / `.Right`).
+
+### World-space cursor
+
+`input.mouseX` / `mouseY` are screen pixels (Y-down, top-left origin). The **`UICameraInfo`** resource provides the
+cursor projected into the world, for placing or picking entities:
+
+```typescript
+import { defineSystem, Commands, Res, Input, UICameraInfo, Transform } from 'esengine';
+
+const spawnAtCursor = defineSystem(
+  [Res(Input), Res(UICameraInfo), Commands()],
+  (input, camera, cmds) => {
+    if (!camera.valid) return;
+    if (input.isMouseButtonPressed(0)) {
+      cmds.spawn().insert(Transform, {
+        position: { x: camera.worldMouseX, y: camera.worldMouseY, z: 0 },
+      });
+    }
+  }
+);
+```
+
+Arbitrary screen points are converted with `CameraView.screenToWorld`
+([Camera](/docs/graphics/camera/overview/#screen--world-coordinates)). `isPointerOverUI()` returns whether the cursor is
+over a UI element; world clicks are guarded with it so that a click on a button does not also reach the world.
+
+## Fixed-timestep systems
+
+Systems in the `FixedUpdate` family run zero times on a frame shorter than the timestep and several times when
+catching up. `*Pressed` / `*Released` edges are delivered to **exactly one** fixed step — the first one at or after
+the edge arrived — so an edge read in a fixed-step system is neither dropped nor repeated, without buffering in game
+code.
+
+```typescript
+// Schedule.FixedPreUpdate — the edge is delivered to one step.
+const jump = defineSystem([Query(Mut(CharacterController2D)), Res(Input)], (players, input) => {
+  for (const [, cc] of players) {
+    if (cc.isOnFloor && input.isKeyPressed('Space')) cc.velocity.y = JUMP_FORCE;
+  }
+});
+```
+
+<Aside type="note">
+  Held state (`isKeyDown`) is level-triggered and reads correctly from any schedule. Step-accurate edge delivery
+  covers keyboard and mouse buttons; gamepad edges are per frame.
+</Aside>
+
+## Touch gestures
+
+`GestureDetector` converts raw touches into tap, long-press, swipe and pinch callbacks. It is constructed over the
+`Input` resource and updated from a system:
+
+```typescript
+import { defineSystem, Res, Input, Time, GestureDetector } from 'esengine';
+
+let gestures: GestureDetector | null = null;
+
+const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
+  if (!gestures) {
+    gestures = new GestureDetector(input);
+    gestures.onTap       = (x, y) => { /* screen px */ };
+    gestures.onLongPress = (x, y) => { /* held without moving */ };
+    gestures.onSwipe     = (dir, speed) => { /* 'left' | 'right' | 'up' | 'down' */ };
+    gestures.onPinch     = (scale, cx, cy) => { /* frame-to-frame zoom factor */ };
+  }
+  gestures.update(time.delta);
+});
+```
+
+| Gesture | Recognized when |
+|---|---|
+| Tap | A touch shorter than 0.3 s with less than 10 px of travel. |
+| Long press | A touch held 0.5 s with less than 10 px of travel. |
+| Swipe | At least 50 px of travel at 200 px/s or more. |
+| Pinch | Two touches; reports the frame-to-frame scale of their spread and its centre point. |
+
+## Multi-touch
+
+Multi-touch is on by default: every touch reaches the UI and the game. **Project Settings → Game → Runtime →
+Multi-touch** sets the initial mode. The mode can be changed while the game runs; a call to `setMultiTouch` overrides
+the project setting until the game restarts:
+
+```ts
+const input = app.getResource(Input);
+input.setMultiTouch(false);   // one touch at a time
+input.setMultiTouch(true);    // all touches
+input.isMultiTouchEnabled();  // current mode
+```
+
+With multi-touch off:
+
+- the first touch to begin is handled until it ends;
+- touches beginning during that time are ignored until they end, by the UI as well as the game, so a second finger
+  cannot press a button or move a joystick;
+- when the mode is switched off with several touches active, the earliest is kept and the others are cancelled: they
+  end without a release edge, and a button they were pressing is released without a click.
+
+The mode applies on every platform: web, mini-games and native apps.
+
+## Reference
+
+| Group | Members |
+|---|---|
+| Keyboard | `isKeyDown(code)`, `isKeyPressed(code)`, `isKeyReleased(code)`. |
+| Mouse | `isMouseButtonDown(b)`, `isMouseButtonPressed(b)`, `isMouseButtonReleased(b)`; `mouseX` / `mouseY` (or `getMousePosition()`); `scrollDeltaX` / `scrollDeltaY` (or `getScrollDelta()`). |
+| Touch | `isTouchActive(id)`, `getTouches()`, `getTouch(id)`, `getTouchCount()`; the `touches` map of active points; `touchesStarted` / `touchesEnded` for the current frame's edges. |
+| Gamepad | `isGamepadConnected(pad?)`, `isGamepadButtonDown(btn, pad?)`, `isGamepadButtonPressed(btn, pad?)` / `isGamepadButtonReleased(btn, pad?)`, `getGamepadButtonValue(btn, pad?)` (analog `0..1`), `getGamepadAxis(axis, pad?)`, `getGamepads()`. `pad` defaults to `0`. |
+| Pointer | `isPointerOverUI()` — the cursor is over a UI element. |
+| Touch mode | `setMultiTouch(enabled)`, `isMultiTouchEnabled()`. |
+| Virtual input | `setVirtual(id, x, y)` — writes a named value read by `Virtual` [input bindings](/docs/scripting/input/input-map/#bindings). |
+
+`*Down` members read held state; `*Pressed` / `*Released` are the current frame's edges (or one fixed step inside
+`FixedUpdate`).
+
+## See also
+
+- [Camera](/docs/graphics/camera/overview/#screen--world-coordinates) — `screenToWorld` for arbitrary screen points.
+- [UI](/docs/ui/overview/) — UI consumes pointer input before the game world.

@@ -1,0 +1,123 @@
+---
+title: 各档位的效果
+description: 后处理效果画质参考——各档位运行哪些效果、效果分辨率、光照、反射、天空与后处理效果的采样数与步数、泛光级数、平面反射上限，以及材质读取的每帧画质常量。
+---
+
+全局光照与遮蔽、反射、天空与体积、后处理这几组决定每个档位运行哪些后处理效果以及每个效果的工作量。默认值按 Low / Medium / High 给出；键是 `features.rendering.quality.profiles.<level>` 中的字段名。
+
+## 各档位运行的效果
+
+每个后处理效果都在其所属组中按档位勾选。未勾选的效果在该档位上被跳过，无论相机的体积是否请求它，并且是完整跳过：包含多个通道的效果（如环境光遮蔽或自动曝光）整体移除。配置中存储被省略的效果：
+
+```json
+"quality": { "mode": "auto", "profiles": { "low": { "skipEffects": ["ssr", "taa", "depthOfField"] } } }
+```
+
+| 档位 | 默认省略的效果 |
+|---|---|
+| Low | 屏幕空间反射、时间性抗锯齿、景深、光束、运动模糊、镜头光晕、环境光遮蔽（SSAO 与 GTAO）、次表面散射、体素 GI、动态 GI |
+| Medium | 屏幕空间反射、景深 |
+| High | 无 |
+
+这些默认值依据各效果的逐像素工作量确定，并非在目标设备上测得。编辑器的 `fx-cost` 检查会在其运行的机器上测量每个效果的开销。
+
+**Post-processing**（`postProcess`，所有档位默认开启）是总开关：关闭时该档位不运行任何效果，无论相机的体积请求什么。
+
+### 查询效果是否运行
+
+`qualityRunsEffect(profile, effect)` 报告当前档位是否运行某个效果。省略列表并不是全部规则：关闭后处理的档位什么都不运行，使用时间性抗锯齿的档位无论省略什么都运行 TAA，且从不运行 FXAA。解析后的配置没有 `ssao` 字段；请使用 `qualityRunsEffect(quality.profile, 'ssao')`。
+
+旧格式写出的配置可能包含 `"ssao": false`，它被解读为省略列表中的 `ssao` 与 `gtao`；或 `"ssao": true`，它把 `ssao` 从列表中移除。下次编辑该档位的效果时，编辑器会改写为列表形式。`quality.setPreferences({ ssao: false })` 按同样的方式解读。
+
+## 效果分辨率
+
+部分效果在每边为画面一半的尺寸上计算，再合成到画面上。每个此类效果都有一项分辨率设置，乘以该尺寸：`1` 表示每边为画面的一半，`0.5` 为四分之一，`0.25` 为八分之一，直到效果的最小尺寸，再小图像就会破碎。色调映射、FXAA、调色以及其他全画面通道始终以全尺寸运行。
+
+| 设置 | 键 | 效果 | 组 | 最小尺寸 |
+|---|---|---|---|---|
+| Ambient occlusion resolution | `aoResolution` | SSAO 与 GTAO | 全局光照与遮蔽 | 四分之一 |
+| Screen-space GI resolution | `ssgiResolution` | 屏幕空间 GI | 全局光照与遮蔽 | 八分之一 |
+| Voxel GI gather resolution | `voxelGIResolution` | WebGL2 上的体素 GI 收集 | 全局光照与遮蔽 | 四分之一 |
+| Fog volume resolution | `fogResolution` | 高度雾中的光照 | 天空与体积 | 八分之一 |
+| Lens flare resolution | `lensFlareResolution` | 镜头光晕 | 后处理 | 八分之一 |
+
+默认均为 0.25 / 0.5 / 1。在 Low 上，环境光遮蔽与体素收集停在四分之一，其余为八分之一；在 Medium 上全部为四分之一；在 High 上按原样绘制。每项都可以被玩家偏好覆盖，例如 `quality.setPreferences({ fogResolution: 0.5 })`。
+
+环境光遮蔽项按深度合成，深度容差随其绘制尺寸缩小而增大，因此四分之一尺寸的遮蔽在掠射角观察的地面上不会出现条带。天空云层与泛光始终以一半尺寸绘制，没有分辨率设置。
+
+## 采样、步数与烘焙
+
+光照效果的采样数、射线数与步数，所保留网格或烘焙的大小以及重新烘焙的频率，都是其所属组的设置。每个着色器以 High 的数量为上界只编译一次，并在档位的数量处提前结束，因此切换档位不会触发编译。缩短的循环保持其覆盖范围：16 步的 SSR 以更长的步幅到达与 48 步相同的距离，GTAO 切片或 GI 射线把更少的采样分布在相同半径上，更小的体素网格或距离场以更大的单元覆盖相同的世界。
+
+| 设置 | 键 | 效果 | Low / Medium / High |
+|---|---|---|---|
+| SSAO samples | `ssaoSamples` | SSAO | 6 / 8 / 12 |
+| GTAO slices × steps | `gtaoSlices`、`gtaoSteps` | GTAO | 2 × 4 / 2 × 5 / 3 × 6 |
+| Ambient occlusion blur radius | `aoBlurRadius` | SSAO 与 GTAO 之后的模糊，每边纹素数 | 2 / 3 / 3 |
+| Screen-space GI rays × steps | `ssgiRays`、`ssgiSteps` | 屏幕空间 GI | 4 × 4 / 6 × 5 / 8 × 6 |
+| Screen-space GI denoise width | `ssgiDenoiseKernel` | 合成屏幕空间 GI 的双边滤波 | 3 × 3 / 3 × 3 / 5 × 5 |
+| Voxel GI grid | `voxelGIGridSize` | WebGPU 上的体素 GI，横向体素数（纵向为一半） | 64 / 128 / 128 |
+| Voxel GI sun samples | `voxelGISunSamples` | WebGPU 上的体素 GI，每个太阳阴影图块的每边采样数 | 64 / 128 / 256 |
+| Voxel GI bounce rays | `voxelGIBounceRays` | WebGL2 上的体素 GI | 1 / 2 / 2 |
+| Cheaper dynamic GI | `dynamicGIReduced` | 动态 GI | 开 / 开 / 关 |
+| Dynamic GI probe rows | `dynamicGIProbeRows` | 动态 GI | 30 / 45 / 90 |
+| Dynamic GI field size | `dynamicGIFieldSize` | 动态 GI 距离场，每级每边单元数 | 64 / 128 / 128 |
+| Dynamic GI field build budget | `dynamicGIFieldBuildMs` | 移动后每帧用于重建距离场的毫秒数（场景首次构建为其四倍） | 1 / 2 / 3 |
+| Per-pixel light probes | `probesPerPixel` | 无 lightmap UV 网格的探针体积查询 | 关 / 开 / 开 |
+| Contact shadow steps | `contactShadowSteps` | 接触阴影，每像素步进数 | 8 / 12 / 20 |
+| SSR steps + refinement | `ssrSteps`、`ssrRefine` | 屏幕空间反射 | 16 + 4 / 32 + 5 / 48 + 6 |
+| Sky lighting update interval | `skyEnvironmentInterval` | 变化天空两次烘焙之间的秒数 | 4 / 2 / 1 |
+| Sky lighting cloud steps | `skyEnvironmentCloudSteps` | 天空烘焙穿过云层的步进数 | 8 / 12 / 16 |
+| Environment reflection size | `environmentMapSize` | 天空与捕获探针的反射，每边纹素数 | 16 / 32 / 32 |
+| Probe capture size | `probeCaptureSize` | 捕获型光照探针体积绘制的每个面 | 16 / 32 / 32 |
+| Still sky from a panorama | `stillSky` | 静止的天空绘制一次到全景图后读取，而不是每帧逐像素计算 | 开 / 开 / 关 |
+
+- **Cheaper dynamic GI**：四个像素中只有一个查询探针，每个探针每帧追踪四分之一的射线，卡片分八帧重新照亮，并使用三分之二的探针行。光照可能越过共享边缘扩散一两个像素，变化的光照需要约两倍的时间稳定。
+- **Dynamic GI probe rows** 不再依赖平台；较便宜的模式保留档位行数的三分之二。
+- **Per-pixel light probes** 关闭时：网格在其所在位置读取一个探针值（带 lightmap UV 的网格始终如此），GPU 上不保留砖块图集，因此横跨明暗区域的长网格被均匀照亮。
+- GTAO 至少使用两个切片；只用一个切片时，逐像素的切片旋转在以低于一半尺寸绘制的通道中每隔一个像素重复，只采样少数方向，产生条带。
+- Low 默认省略 SSR、SSAO、GTAO、体素 GI 与动态 GI，因此它们的 Low 值只对在 Low 上启用这些效果的项目有意义。没有时间性抗锯齿时，16 步的 SSR 会在反射中留下可见的点状纹理。
+
+### 平面反射
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Planar reflection scale | `planarReflectionScale` | 0.25 / 0.5 / 1 | 平面反射绘制时占屏幕分辨率的比例（按边长）。 |
+| Planar reflection max size | `planarReflectionMaxSize` | 512 / 1024 / 2048 | 每边的最大纹素数，无论比例在大屏幕上得到多大。 |
+| Planar reflection updates / s | `planarReflectionUpdatesPerSecond` | 30 / 0 / 0 | 每秒重绘次数；`0` 为每帧。从不限制主场景。 |
+
+档位生效期间，使用自身数值（**Custom**）的平面反射受档位约束：其比例与尺寸不超过档位的值，若档位设置了更新频率，则重绘不超过该频率（仅按请求绘制的反射不受影响）。作者设置的值只能让它更便宜。没有档位生效时，Custom 反射保持自身的值（[平面反射](/docs/zh-cn/graphics/lighting/planar-reflections/)）。
+
+## 步数与采样
+
+步进射线或收集一圈采样的效果从档位获取其数量。每个着色器按 High 的数量编译，并在档位的数量处停止；步数更少意味着在相同距离上步幅更长，因此云层同样厚、光束同样长、模糊同样宽。损失的是平滑度：抖动步进的步数不足以掩盖其图案时出现颗粒，或者天空大气以更少的分段积分时地平线略有偏差。
+
+| 设置 | 键 | 计数对象 | 组 | Low / Medium / High |
+|---|---|---|---|---|
+| Fog light steps | `fogVolumeSteps` | 阳光穿过高度雾的步数 | 天空与体积 | 8 / 16 / 24 |
+| Fog cloud samples | `fogCloudSamples` | 每个雾步向上穿过云层的采样点数 | 天空与体积 | 2 / 3 / 4 |
+| Cloud steps | `cloudSteps` | 天空射线穿过主云层的步数 | 天空与体积 | 12 / 14 / 16 |
+| Upper cloud steps | `cloudUpperSteps` | 穿过上层云的步数 | 天空与体积 | 3 / 4 / 6 |
+| Cloud shadow samples | `cloudShadowSamples` | 云在地面阴影沿太阳射线的采样点数 | 天空与体积 | 3 / 4 / 6 |
+| Sky scattering steps | `skyScatterSteps` | 天空颜色的积分步数 | 天空与体积 | 8 / 12 / 16 |
+| Sky sunlight steps | `skyLightDepthSteps` | 从天空中一点到太阳的步数 | 天空与体积 | 3 / 3 / 4 |
+| Depth of field samples | `dofSamples` | 模糊像素收集的采样数 | 后处理 | 16 / 32 / 64 |
+| Light shaft samples | `lightShaftSamples` | 像素朝太阳方向的采样点数 | 后处理 | 16 / 24 / 40 |
+| Motion blur samples | `motionBlurSamples` | 运动像素拖尾的采样点数 | 后处理 | 6 / 10 / 16 |
+| Subsurface scattering samples | `subsurfaceSamples` | 两个通道中每侧的采样数 | 后处理 | 3 / 4 / 6 |
+| Refraction blur samples | `refractionSamples` | 粗糙透射表面后方场景的采样数 | 特效与粒子 | 4 / 6 / 8 |
+
+- Low 默认省略景深、光束、运动模糊与次表面散射，因此它们的 Low 数量只对在 Low 上启用这些效果的项目有意义。
+- 云层步进以 4 × 4 有序偏移作为每个像素的起点，合成时读取四个纹素将其平均。
+
+**Bloom levels**（`bloomLevels`，后处理；3 / 4 / 5）是泛光在重建之前把明亮图像减半的次数；为 5 时达到画面的六十四分之一。少一级会去掉最小的一步下采样与上采样，光晕在光源周围扩散得更近；保留的各步开销不变。
+
+### 材质中的数量
+
+材质从引擎而不是自身参数读取数量：即每帧的 `u_quality` 常量，其第一个槽位是折射采样数。设置通过 `materialSlot` 占用一个槽位。槽位为零（关闭画质系统时的值）表示使用最大数量。
+
+## 参见
+
+- [画质档位](/docs/zh-cn/performance/quality-levels/overview/)
+- [档位设置](/docs/zh-cn/performance/quality-levels/settings/)
+- [后处理光照效果](/docs/zh-cn/graphics/post-processing/lighting/)

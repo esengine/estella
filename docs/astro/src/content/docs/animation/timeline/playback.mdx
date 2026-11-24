@@ -6,7 +6,7 @@ description: Playing timelines at runtime — the TimelinePlayer component and i
 import { Aside } from '@astrojs/starlight/components';
 
 A `TimelinePlayer` component plays a timeline on its entity. Its fields are the playback controls: the engine applies
-them to its internal clock every frame, so code, the inspector and [AI actions](/docs/gameplay/ai/overview/#built-in-names)
+them to its internal clock every frame, so code, the inspector and [AI actions](/docs/gameplay/ai/actions/#built-in-names)
 that change `playing` all control playback through the same channel. Playback advances in Play mode and in the
 standalone runtime, and is frozen in the editor's edit mode.
 
@@ -82,7 +82,7 @@ the same operation.
 <Aside type="tip">
   A cutscene without code pairs the component with a state machine: the built-in `timeline.play` action and
   `timeline.finished` condition form an FSM state that plays a clip on entry and transitions out when it completes.
-  See [AI built-in names](/docs/gameplay/ai/overview/#built-in-names).
+  See [AI built-in names](/docs/gameplay/ai/actions/#built-in-names).
 </Aside>
 
 ## Playback events

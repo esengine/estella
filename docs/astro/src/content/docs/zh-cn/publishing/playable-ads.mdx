@@ -1,0 +1,148 @@
+---
+title: 试玩广告
+description: Playable 目标——广告平台配置及其体积上限、playableCta 行动号召 API、图片编码、试玩包检查报告、本地容器预览、无头验证，以及自定义广告平台。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**Playable** 目标将项目的启动场景导出为一个自包含的 `index.html`，内联引擎、脚本和资产，不发出任何外部请求。接受压缩包的平台还会在其旁写出一个 ZIP。
+
+![打包对话框的 Playable 目标页，可见广告平台选择、配置、压缩和输出目录](@/assets/guides/zh/build-playable.png)
+
+*Playable 目标。**广告平台** 决定体积上限、head 中的标记、行动号召桥接以及交付格式。*
+
+## 广告平台
+
+各平台接受同样的单个 HTML 文件，但在体积上限、`<head>` 中必须包含的标记以及跳转商店的函数上各不相同。Playable 目标设置中的 **广告平台** 选择平台，导出会同时处理这三项。该选择按构建而非按项目设定，每个平台写入各自的目录 `dist-playable/<network>/`。
+
+| 平台 | 上限 | 跳转 | 说明 |
+|---|---|---|---|
+| **Generic** | 5 MB | — | 无平台 API。该上限是所列平台都接受的值。 |
+| **Meta**（Facebook / Instagram） | 5 MB | `FbPlayableAd.onCTAClick()` | 禁止任何 HTTP 请求。 |
+| **Google Ads**（应用广告系列） | 5 MB（ZIP） | `ExitApi.exit()` | Google 托管的退出 API 脚本以字面 `<script>` 写入 `<head>`。Google 上传的是 ZIP，因此导出还会写出 `playable.zip`，并以其大小判定上限。 |
+| **MRAID network**（通用） | 5 MB | `mraid.open()` | 适用于任意 MRAID 宿主。`mraid` 由 WebView 注入，`<head>` 中不添加内容。 |
+| **Unity Ads** | 5 MB | `mraid.open()` | 运行时等待 MRAID 就绪和可见，广告隐藏时暂停，退出时移除宿主监听。 |
+| **AppLovin** | 5 MB | `mraid.open()` | 要求所有资源内嵌。 |
+| **Mintegral** | 5 MB（HTML 与 ZIP） | `window.install()` | 导出 `index.html` 和对应的 `index.zip`。等待宿主开始；游戏关闭时暂停玩法和音频。 |
+| **TikTok** | ZIP 小于 5 MB | `window.openAppStore()` | 根目录 `config.json` 含 `Playable_orientation`；必需的官方 SDK 在游戏脚本之前加载。 |
+| **TikTok Ad Network（Pangle，海外）** | ZIP 小于 5 MB | `window.openAppStore()` | 同 TikTok，`config.json` 中为 `playable_orientation`。 |
+
+超出体积的导出会给出所用上限及其出处。超过平台未压缩 HTML 上限的 `index.html` 仍会写出，并附带一条说明其大小的警告。
+
+## 行动号召
+
+游戏代码调用 `playableCta()`，不涉及具体平台：
+
+```ts
+import { playableCta } from 'esengine';
+
+// on the end-card button, after the win — wherever the call to action is
+playableCta();
+```
+
+导出会安装 `playableCta()` 所调用的桥接。未安装平台桥接时该调用不执行任何操作，因此同一场景在编辑器和 Web 上照常运行。
+
+**MRAID** 的商店按钮需传入目标地址 `playableCta(storeUrl)`，或依赖宿主提供的 `window.clickTag`。支持 HTTP(S)、Android `market:` 和 iOS `itms-apps:` 链接。目标地址缺失或无效时会产生配置警告，且不调用 `mraid.open`。其他平台使用各自的商店函数。
+
+**Mintegral** 还要求在胜负时调用 `playableGameEnd()`，在玩家重开时调用 `playableRetry()`。运行时在启动完成后调用 `gameReady()`，并响应 `gameStart()` 和 `gameClose()`。安装操作应通过 `playableCta()` 与用户手势绑定。官方[容器检查工具](https://www.playturbo.com/review)不能替代投放审核或设备验收。
+
+## 屏幕方向
+
+Playable 不锁定页面方向。在广告 SDK 中容器尺寸由 SDK 控制，“旋转以适配”的遮罩可能永久挡住游戏。Playable 保持自适应，项目方向只在平台要求时声明（例如 Google 的 `ad.orientation` meta 标签，或 TikTok `config.json` 中的方向字段）。应针对两种宽高比设计，或通过相机适配加黑边（[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)）。
+
+## 图片编码
+
+**图片转 WebP**（压缩一行，仅 Playable 目标）按所选设置编码每张 PNG：**不转**（默认）、**无损**、**质量 90** 或 **质量 80**。
+
+- 字体页、nearest 过滤的像素图和数据（非 sRGB）纹理始终以无损编码。
+- 带色彩配置、gamma、动画或 16 位采样的 PNG 保持 PNG；转换后反而更大的 PNG 也保持 PNG。
+- 导入设置中关闭压缩的纹理按原样发布。
+- 编码使用随附的 ffmpeg。找不到时写出警告，图片以 PNG 发布。
+- 图片保留烘焙后的尺寸和 alpha。
+
+**纹理按导入设置压缩** 应用每张纹理的 Max Size（包括已启用的 `playable` 覆盖），**音频转 MP3** 按导入设置中的码率转换 WAV。任何体积上限都不会自动勾选这些选项。报告将包体与交付目标比较——取平台上限、项目体积预算和内部 3 MiB 回归目标中的最小值——超出时给出警告；3 MiB 并非平台上限。发布前应检查图片和音频质量。
+
+## 起始项目
+
+启动器“模板”中的 **Playable Ad** 会创建一个可编辑的舰队选择游戏，包含 CC0 美术、明确的安装、完成与重玩流程、八个具名导出配置档、资产许可，以及一个竖屏/横屏无头场景（`playable-check.json`）。复制出的 `README.md` 覆盖从创建到导出和提交的全过程。MRAID 的商店地址在 `src/config.ts` 中配置，其他平台配置投放或容器目标地址；不会将预览地址作为应用目标发布。
+
+## 试玩包检查报告
+
+Playable 导出的结果中包含 `playableCheck`。打包项目对话框会显示它，CLI 可通过 `--json report.json` 保存。检查内容：
+
+- 测量交付文件；
+- 识别 HTML 和 CSS 中的资源引用；
+- 校验平台要求的方向配置；
+- 校验每个必需的宿主 SDK 脚本以字面标签出现在要求的位置——Google 的退出 API 在 `<head>` 中，TikTok/Pangle SDK 在 body 中、游戏脚本之前——缺失、位置错误或延迟加载均判为失败；
+- 记录文件哈希，将结论与本次导出绑定。
+
+行动号召行为、宿主生命周期、动态请求以及设备或平台验收仍属于运行时检查；报告不会把桥接声明视为商店跳转成功。
+
+## 本地容器预览
+
+在引擎仓库中运行：
+
+```bash
+pnpm preview:playable path/to/index.html --report export-result.json
+```
+
+该命令输出一个回环 URL，不会打开浏览器。**Ready**、**Show** 和 **Hide** 模拟宿主回调，视口选择器改变宽高比，**Save Log** 记录商店调用及原始 HTML 哈希。`--store-url` 设置 MRAID 的目标地址。提供的副本会替换必需的 SDK 脚本并阻止外部请求；交付的 HTML 本身不变。
+
+提供完整导出结果时，预览还会校验相邻 ZIP 的交付哈希，因此 HTML 相同而配置改变也会使旧报告失效。保存的日志带有两个哈希和压缩包文件名；没有交付证据时只标识 HTML。事件历史保留 1,000 条，较早事件被丢弃时会有提示和日志字段说明。
+
+## 无头验证
+
+需要 Node 20+ 和 Chromium（`pnpm exec playwright install chromium`）：
+
+```bash
+pnpm verify:playable output/playable/index.html --report output/playable.json --scenario examples/playable-ad/playable-check.json --out output/playable-observations --store-url https://example.com/store
+```
+
+该命令在静音的无头 Chromium 中运行，不使用编辑器。场景文件（版本 1）声明 `viewports` 和 `steps`；每个视口从头开始。
+
+| 步骤 | 字段 |
+|---|---|
+| `click` | 归一化的画布坐标 `x` / `y`。 |
+| `expect` | `store-click`、`game-end` 或 `game-retry`，带精确的 `count` 和可选的 `userActivation`。 |
+| `host` | 发送 `ready`、`show` 或 `hide`。 |
+| `frozen` | 在 `ms` 时长内比较画布截图。 |
+| `wait`、`snapshot` | 记录时间和图像。 |
+| `networks`（可选） | 将某一步骤或期望限定于所列平台。 |
+
+`runtime-check.json` 记录原始 HTML 与交付文件、导出报告、场景、验证器和模拟器的哈希，以及浏览器版本、事件和截图哈希。出现意外请求（包括被 CSP 拦截的尝试）、页面错误、事件数量或激活不匹配、隐藏时仍有动画或输入、截断、静态检查或导出结果失败、输入被修改时，验证失败。压缩包路径在 Windows 和 POSIX 上都按相邻 ZIP 的文件名解析。
+
+结论为 **local-mock**，只覆盖所请求的观察项。宿主 SDK 脚本被替换，观察的是浏览器的活跃激活状态，而非 SDK 的同步手势规则。随附示例检查竖屏/横屏、行动号召、完成/重玩以及受支持的隐藏生命周期；Google 和 Meta 的生命周期不在其中。原始 SDK 行为、音频生命周期、质量审查、官方工具和设备验收需单独进行。
+
+## 自定义广告平台
+
+编辑器未内置的平台可由项目以与内置平台相同的约定自行定义。**打包项目 → 新建平台**，类型选择 *试玩广告平台* 可生成脚手架，也可手写 `.esengine/platforms/<id>.mjs`：
+
+```js
+export default {
+  id: 'acme-ads',
+  kind: 'playable',
+  label: 'Acme Ads',
+
+  // The size this network accepts, and where that number is published — the export
+  // quotes the note in its warning.
+  maxBytes: 5 * 1024 * 1024,
+  limitNote: 'Acme docs, Creative specs § playable',
+
+  // Optional: markup for <head> (an orientation meta tag, the network's SDK script).
+  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
+
+  // Installs the bridge playableCta() dispatches through. Runs before the game.
+  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
+};
+```
+
+该平台会与内置平台一起出现在 **广告平台** 列表中，并经由同一流水线打包。项目平台模块运行在编辑器主进程中，加载前需要批准（[编辑器插件](/docs/zh-cn/extending/editor-plugins/#项目平台配置)）。
+
+<Aside type="caution">
+  本地检查、模拟预览和无头验证不能替代平台的官方预览工具、投放审核或设备测试。
+</Aside>
+
+## 参见
+
+- [构建与导出](/docs/zh-cn/publishing/overview/)——打包项目对话框与压缩。
+- [包体体积](/docs/zh-cn/publishing/package-size/)——体积报告。

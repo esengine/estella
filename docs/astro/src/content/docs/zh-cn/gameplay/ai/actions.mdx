@@ -1,0 +1,150 @@
+---
+title: 动作与条件
+description: AI 注册表参考——注册具名动作、条件与值，传给它们的 AiContext，类型化参数，声明叶子访问的组件，返回值，以及内建名字。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**动作**执行某件事（追击、攻击、播放声音）；**条件**回答一个是/否问题（玩家是否可见？）。每个都按名称注册一次，状态机、行为树、脚本图与事件绑定都在同一份进程级注册表中解析这些名称。
+
+```typescript
+import { registerAction, registerCondition } from 'esengine';
+import { Status, Perception, setNavDestination } from 'esengine/ai';
+
+registerCondition('seesPlayer', (ctx) =>
+  ctx.has(Perception) && ctx.get(Perception).visible);
+
+registerAction('chase', (ctx) => {
+  const per = ctx.get(Perception);
+  setNavDestination(ctx.world, ctx.entity, { x: per.targetX, y: per.targetY });
+});
+```
+
+| 函数 | 说明 |
+|---|---|
+| `registerAction(name, fn \| spec)` | 以函数或规格对象注册一个动作。 |
+| `registerCondition(name, fn)` | 注册一个条件函数。 |
+| `registerValue(name, spec)` | 注册一个只回答问题的纯值，供脚本图通过其声明的输出读取。 |
+| `aiRegistry` | 注册表实例；`aiRegistry.registerCondition(name, spec)` 也接受规格对象。 |
+
+<Aside type="tip">
+  动作与条件在模块加载时注册（顶层，或在 `Schedule.Startup` 系统中），以确保在任何代理 tick 之前就已存在。注册表在多个 `App` 实例间共享。
+</Aside>
+
+## `AiContext`
+
+每个动作与条件都会收到其所运行代理的 `AiContext`。它提供与 [`defineBehavior`](/docs/zh-cn/scripting/overview/) 的 update 相同的实体、世界与命令访问，外加代理的黑板。
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `ctx.entity` | `Entity` | 动作或条件运行所针对的代理。 |
+| `ctx.dt` | `number` | 帧间隔（秒）。 |
+| `ctx.world` | `World` | 用于读取其他实体的世界访问。 |
+| `ctx.commands` | `Commands` | 延迟执行的生成/销毁，在 tick 中调用安全。 |
+| `ctx.input` | `InputState` | 运行时输入，与 `defineBehavior` 读取的状态相同。宿主没有输入设备时为空（无任何按下）。 |
+| `ctx.blackboard` | `Blackboard` | 代理的数据存储（[黑板](/docs/zh-cn/gameplay/ai/blackboard/)）。 |
+| `ctx.get(Comp)` | `ComponentData` | 读取本实体上的组件。 |
+| `ctx.set(Comp, data)` | `void` | 写入本实体上的组件。 |
+| `ctx.has(Comp)` | `boolean` | 本实体是否带有 `Comp`。 |
+
+## 签名与规格对象
+
+动作的调用形式为 `(ctx, blackboard, arg?, params?, out?)`，条件为 `(ctx, blackboard)`。
+
+`registerAction` 也接受规格对象：
+
+| 规格字段 | 说明 |
+|---|---|
+| `run` | 动作函数。 |
+| `params` | 声明的参数（`name`、`type`：`'string'`、`'number'`、`'bool'` 或 `'enum'` 等）。编辑器将其渲染为类型化控件而非单个文本框，动作以第四个参数按名称接收这些值。 |
+| `outputs` | 声明的输出，写入 `out` 记录。 |
+| `pure` | 运行时不改变任何东西时为 `true`。纯名称可按需、按任意顺序求值，因此脚本图可沿数据线拉取其值。 |
+| `touches` | 它读取与写入的组件（[见下文](#声明叶子访问的组件)）；可以是动作输入的函数。 |
+| `separator` | 参数字符串中连接各参数值的分隔符（默认 `:`）。最后一个参数吸收其余的分隔符。 |
+
+动作可带一个可选的**字符串参数**，在 FSM 状态 Inspector 中动作名旁，或在 BT 动作节点上设置。内建动作用它传递数据，例如 `spriteAnim.play` 要切换到的片段；注册的动作以第三个参数接收：`(ctx, blackboard, arg) => …`。
+
+## 声明叶子访问的组件
+
+运行状态机的系统会访问其叶子所访问的内容，而这只有在图加载后才能确定。在注册时声明这些访问，调度器就能把该系统与可能访问任何东西的系统区分开：
+
+```typescript
+import { registerAction, aiRegistry } from 'esengine';
+import { Perception } from 'esengine/ai';
+
+registerAction('chase', {
+  run: (ctx) => { /* ... */ },
+  touches: { reads: ['Perception'], writes: ['NavAgent'] },
+});
+
+aiRegistry.registerCondition('seesPlayer', {
+  check: (ctx) => ctx.has(Perception) && ctx.get(Perception).visible,
+  touches: { reads: ['Perception'] },
+});
+```
+
+该声明是可选的。只要有一个叶子未声明，调度器就无法得知整个系统的访问范围。参见[声明访问](/docs/zh-cn/core-concepts/systems/#声明访问)。
+
+## 返回值
+
+条件返回 `boolean`。动作可以返回 `Status`，也可以不返回：
+
+```typescript
+export enum Status { Success = 'success', Failure = 'failure', Running = 'running' }
+```
+
+- 在**行为树**中，叶子返回 `Status` 以跨帧运行（`Running`）、成功或失败。不返回值视为 `Success`。
+- 在**状态机**中，返回值被忽略；FSM 动作是一次性的副作用。
+
+因此，返回 `Status` 的动作既可作为 BT 叶子，也可作为 FSM 钩子。
+
+## 内建名字
+
+引擎预注册了以下名字。它们与游戏自己的名字一起出现在编辑器调色板中，并作用于代理实体上的组件。
+
+| 名字 | 类别 | 效果 |
+|---|---|---|
+| `timeline.play` | 动作 | 置位代理 [`TimelinePlayer`](/docs/zh-cn/animation/timeline/playback/#timelineplayer-组件) 的播放标志。已播放完的片段从头重播。 |
+| `timeline.pause` | 动作 | 清除播放标志（用 `timeline.play` 恢复）。 |
+| `timeline.finished` | 条件 | 片段已完成（`once` 片段播放到末尾）且未在播放时为真。 |
+| `spriteAnim.play` | 动作 | 播放代理的精灵翻页动画；参数切换到指定片段。 |
+| `spriteAnim.restart` | 动作 | 将翻页动画回卷到第 0 帧并播放（参数切换片段）。 |
+| `spriteAnim.stop` | 动作 | 暂停翻页动画。 |
+| `spriteAnim.finished` | 条件 | 单次播放的精灵片段结束后为真。 |
+| `audio.play` | 动作 | 置位代理 `AudioSource` 的播放标志；参数切换到指定片段。同一片段已在播放时无效果。 |
+| `audio.stop` | 动作 | 清除 `AudioSource` 的播放标志。 |
+| `audio.finished` | 条件 | 非循环片段已结束且不再播放时为真。 |
+| `soundEvent.trigger` / `soundEvent.stop` | 动作 | 启动 / 停止代理的 `SoundEventSource`。 |
+| `property.set` | 动作 | 按 `Component.field` 路径与值写入代理（或通过可选 `entity` 参数指定的其他实体）上的组件字段，例如 `UIVisual.color.a`。参数形式为 `path=value`；值能解析为 JSON 时按 JSON 读取（`3`、`true`、`{"r":1}`），否则保留为字符串。 |
+
+以与内建名字相同的名称注册会替换它。游戏自定义的名字应避免使用内建前缀（`timeline.`、`spriteAnim.`、`audio.` 等），以保持命名空间分离。
+
+在 FSM 与行为树编辑器中，动作与条件字段会提示所有已注册的名字，按命名空间分组，内建名字附有简短说明。对于游戏在运行时注册的名字，仍可输入任意文本。
+
+### 示例：过场动画状态
+
+`timeline.play` 与 `timeline.finished` 无需游戏代码即可构成过场动画状态：进入状态时开始片段，片段完成时驱动转出。
+
+```typescript
+import { registerFsm } from 'esengine/ai';
+
+registerFsm('intro', {
+  initial: 'Cutscene',
+  states: [
+    {
+      name: 'Cutscene',
+      onEnter: 'timeline.play',
+      transitions: [{ to: 'Gameplay', condition: 'timeline.finished' }],
+    },
+    { name: 'Gameplay' },
+  ],
+});
+```
+
+代理实体带有 `TimelinePlayer`（片段、速度、循环模式）；状态机只切换其标志。[`cutscene` 示例](https://github.com/esengine/estella/tree/master/examples/cutscene)采用这一模式：开场时间轴在场景开始时播放，完成后进入游戏流程，按 R 重播，不注册任何动作。
+
+## 另请参阅
+
+- [状态机](/docs/zh-cn/gameplay/ai/state-machines/)与[行为树](/docs/zh-cn/gameplay/ai/behavior-trees/)——使用这些名字的地方。
+- [脚本图](/docs/zh-cn/gameplay/script-graphs/)——来自同一注册表的动作节点与查询节点。
+- [事件绑定](/docs/zh-cn/scripting/events/)——执行已注册动作的事件行。

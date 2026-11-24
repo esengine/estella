@@ -1,0 +1,203 @@
+---
+title: State Replication
+description: Server-authoritative entity replication — Replicated and replicated fields, server and client setup, the handshake, replication archetypes, runtime component changes, transports, game messages, ownership, server limits, player identity and reconnects, editor preview, dedicated servers and the Online 3D template.
+---
+
+The replication layer is **server-authoritative**. An entity marked `Replicated` on the server is spawned on every
+client; its declared fields are sent as binary deltas, and remote entities are rendered with snapshot interpolation.
+The component declarations define the wire format; no synchronization code is written by hand.
+
+## Setup
+
+```typescript
+import { defineComponent, Net, Replicated, Transform, createMemoryTransportPair } from 'esengine';
+
+// Replicated fields are declared on the component. Built-ins such as Transform
+// declare `replicated` in C++; user components declare replicatedFields.
+const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
+  replicatedFields: ['hp'],
+});
+
+// A transport carries frames between two ends. In-process (tests, a listen
+// server) a memory pair is used; over a network, a GameSocket on each side.
+const [serverEnd, clientEnd] = createMemoryTransportPair();
+
+// --- SERVER app (the authority) ---
+const server = serverApp.getResource(Net).startServer();
+const connectionId = server.attachConnection(serverEnd);   // returns the connection id
+const e = serverApp.world.spawn('player');
+serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+serverApp.world.insert(e, Health, {});
+serverApp.world.insert(e, Replicated, { owner: connectionId });   // owned by that client
+const input = server.inputOf(connectionId);        // that client's latest input
+// server.presentIds — polled each tick to spawn or retire a pawn per player.
+
+// --- CLIENT app ---
+const clientNet = clientApp.getResource(Net);
+await clientNet.connect(clientEnd, { interpolationDelayTicks: 2 });   // interpolation delay in ticks
+clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input
+```
+
+| Element | Description |
+|---|---|
+| `Replicated` | Marks an entity for replication. `owner` is the owning connection id; `archetype` names the [replication archetype](#replication-archetypes). |
+| `replicatedFields` | Component metadata listing the fields that replicate ([Components](/docs/core-concepts/components/#component-metadata)). A component without replicated fields never reaches a client. |
+| `NetGhost` | Tag on client-side proxies of server entities. |
+| `server.presentIds` | Connections that are connected, or dropped and still within their reconnect grace period. Equal to `server.clientIds` without `authenticate`. |
+| `server.inputOf(id)` | The client's latest input command. |
+| `client.sendInput(actions)` | Sends one input command per tick. |
+
+## Authority and the handshake
+
+Only the server simulates; clients display replicated, interpolated state. The handshake refuses a protocol, ABI or
+schema mismatch with an error. The compared schema includes field names **and** their wire shapes, so a field that
+defaults to `0` on one end and `false` on the other is detected.
+
+## Replication archetypes
+
+A ghost is constructed from a declared archetype, not from the server's component set. A spawn message carries three
+things: identity (`netId`, `owner`, parent, name), the construction key, and a baseline of the declared replicated
+fields. Components without replicated fields, and undeclared fields of replicated components, are not sent.
+
+Everything a proxy needs in order to exist is therefore declared in an archetype:
+
+```typescript
+import { registerReplicationArchetype, Replicated, Sprite } from 'esengine';
+
+registerReplicationArchetype('pawn', (world, entity) => {
+    world.insert(entity, Sprite, { size: { x: 36, y: 36 }, layer: 2 });
+});
+
+// On the server, the archetype is named when the entity starts replicating.
+world.insert(e, Replicated, { owner: connectionId, archetype: 'pawn' });
+```
+
+The archetype builder runs first and the authority's baseline is applied on top, so an entity that leaves a client's
+interest and returns arrives in its current state. A client without a builder for the key refuses the spawn.
+
+## Runtime component changes
+
+Replicated components can be added and removed at runtime:
+
+- Adding one sends its declared fields.
+- Removing one also removes the component from ghosts that received it.
+- Clients apply spawns, updates and removals in send order.
+- On reconnect, a retained ghost drops components the server removed meanwhile. Its local-only components, and local
+  fields of components still present, keep their values. Prediction rebuilds from the latest fields received.
+
+## Transports
+
+The link must be **reliable and ordered**: the client applies messages in arrival order, which is the authority's
+order. `startServer().attachConnection` and `Net.connect` take a `ReliableOrderedTransport`. Every built-in socket
+satisfies it; a custom transport declares `delivery: 'reliable-ordered'`, and a transport without that declaration is
+a compile error.
+
+## Game messages
+
+Beside the state stream, server and clients exchange messages of the game's own types — chat, notices, requests the
+state does not carry:
+
+| Call | Direction |
+|---|---|
+| `server.message(id, type, data)` | Server → one client. |
+| `server.broadcastMessage(type, data, filter?)` | Server → all clients (optionally filtered). Returns the number sent. |
+| `client.onMessage(type, handler)` | Client receives, in arrival order. |
+| `client.message(type, data)` | Client → server. Returns `false` while not connected; messages are not queued across a reconnect. |
+| `server.onMessage(type, (connectionId, data) => …)` | Server receives, from connections that completed the hello, under the same limits as other traffic. |
+
+Types beginning with `repl:` are reserved for the protocol.
+
+## Ownership
+
+`Replicated.owner` routes a connection's `sendInput` commands to its entities. `client.ownsEntity(e)` returns whether a
+ghost is owned by this client. Ownership is part of the spawn payload and is assigned at spawn.
+
+## Server limits
+
+Every connection has limits by default:
+
+| Limit | Default |
+|---|---|
+| Maximum frame size; larger frames are dropped unread | 256 KiB |
+| Control messages (hello, input commands) | 120 per second, burst 240 |
+| Violations of the above before the connection is kicked | 100 per minute |
+| Time allowed before the hello | 10 s; the connection is then closed |
+| Second hello | Refused |
+| `maxConnections` | Newcomers beyond it are refused with "server full, try again" |
+| Server heartbeat | Ping every 5 s; a link silent for 15 s is closed. An authenticated player then receives the normal reconnect grace. |
+| `webSocketTransport` send buffer (`maxBufferedBytes`) | A client more than 4 MiB behind on reading is closed. |
+
+The limits are configured with `startServer({ limits, heartbeat, helloTimeoutMs, maxConnections })`; `false` disables
+`limits` or `heartbeat`. The client also pings over a platform socket (5 s / 15 s), so a server that disappeared without
+closing the connection is detected and redialed.
+
+## Players and reconnects
+
+By default a connection is anonymous, and a connection that drops and returns is a new client. An `authenticate`
+function identifies players, who then keep their id across reconnects:
+
+```ts
+// server: turn the hello's credentials into a player, or throw to refuse
+const server = net.startServer({
+    authenticate: (credentials) => ({ playerId: checkToken(credentials) }),
+    reconnectGraceMs: 30_000,   // how long a dropped player remains present (default 30 s)
+});
+// client: the same credentials on every hello, and redial on a drop
+const client = await net.connect(socket, { credentials: { token }, reconnect: true });
+```
+
+- A player keeps one connection id while the server remembers them, so `Replicated.owner`, `tickInputOf` and other
+  per-connection state carry over.
+- A dropped player stays in `presentIds` (not in `clientIds`, sending no input) for the grace period. A redial within
+  it receives the same id, and the client's existing ghosts remain the same entities, updated to the current state.
+- A second login with the same `playerId` replaces the first; `server.kick(id)` ends a session immediately. The old
+  client goes to `state === 'closed'` with `closeReason` `'replaced'` or `'kicked'` and does not redial.
+- Throwing `SessionRejected` (from `esengine/session`) with `fatal: false` refuses a hello without stopping the
+  client's redial.
+- `reconnect` works over a platform socket (`GameSocket`, `createSocket`); with another transport,
+  `client.resume(newTransport)` is called by the game.
+
+The content of the credentials, and who issues and checks them, is defined by the game.
+
+| Server member | Description |
+|---|---|
+| `clientIds` | Connected connections. |
+| `presentIds` | Connected or within reconnect grace. |
+| `playerIdOf(id)` / `connectionIdOf(playerId)` | Maps between connection ids and player ids. |
+| `isAway(id)` | Whether a present player is currently disconnected. |
+| `kick(id, message?)` | Ends a player's session. |
+
+## Editor preview
+
+The Play-mode dropdown offers **2–4 Players**: a listen server and client views run side by side in the editor, with
+no network configuration.
+
+{/* SHOT: script-play-players | examples/multiplayer-arena, open the Play-mode dropdown on the main toolbar; the menu shows the 2–4 Players options. */}
+
+## Dedicated servers
+
+The same gameplay code runs headless under Node:
+
+```ts
+import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node';
+```
+
+- `flushPendingRegistrations(app)` installs what the project registered at module scope, as the web runtime does, so
+  the server runs the project's own systems.
+- Each accepted `ws` socket is attached with `server.attachConnection(webSocketTransport(socket))` (from
+  `esengine/replication`). Everything one tick sends a client leaves in a single socket write.
+- `startSocketWorker({ port })` (from `esengine/node`) moves sockets off the simulation thread: it listens on a
+  worker thread, writes each client's frames there and hands each connection over as a transport. The server then
+  calls `server.attachConnection(transport)` and `transport.onClose(() => server.detachConnection(link))`. Intended
+  for servers with hundreds of players.
+
+The **Multiplayer Arena** example shows replication, per-tick input and client prediction; its `server/` directory is
+the dedicated-server half, running the same project headless behind a WebSocket.
+
+## Online 3D template
+
+The **Online 3D** template (`estella create online-3d ./my-game`, or the editor's New project gallery) is a starting
+point for a game on this model: a lit 3D ground, a pawn per player predicted on its owner's screen and replicated to
+everyone else, a camera following the local pawn, and a `server/` that runs the same code headless. Rules both ends
+must agree on (speed, world bounds) are in `src/shared/rules.ts`, outside any system, so the server can reject what
+they forbid. The template's README lists what it leaves to the game: player identity, world saving and visibility.

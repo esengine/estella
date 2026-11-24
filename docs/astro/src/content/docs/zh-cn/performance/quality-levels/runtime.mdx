@@ -1,0 +1,50 @@
+---
+title: 着色器、重绘与省电
+description: 在所有画质档位下都生效的发布设置——后台着色器编译与预热、基于 RenderDemand 的按需渲染，以及低电量或高温时的省电。
+---
+
+这些设置与画质档位位于项目设置的同一页面，但无论档位如何（包括 **Off**）都生效。它们保存在 `features.rendering.quality` 下。
+
+![项目设置的 Rendering 页：Shader Compilation、Render on Demand、Power Saving 与 Antialiasing 组](@/assets/guides/zh/settings-shader-compilation.png)
+
+## 着色器编译与按需渲染
+
+### 着色器编译
+
+| 设置 | 键 | 默认值 | 说明 |
+|---|---|---|---|
+| **Compile shaders in the background** | `asyncShaderCompile` | Default | **Default** 在 Web 导出与编辑器 Play 中启用后台编译，其他导出目标则关闭。**On** 或 **Off** 对所有目标覆盖该默认值。支持 `KHR_parallel_shader_compile` 时，材质在其程序就绪后出现；不支持该扩展的浏览器同步编译。 |
+| **Warm up behind the loading screen** | `prewarmShaders` | 关 | 在加载画面之后绘制第一个场景，同时编译其着色器，使场景完整出现。后台编译为 **Default** 或 **On** 时可用。 |
+| **Warm-up timeout** | `prewarmTimeoutMs` | 30 秒 | 加载画面最多等待多久后打开。开启预热后显示。 |
+
+### 按需渲染
+
+| 设置 | 键 | 默认值 | 说明 |
+|---|---|---|---|
+| **Draw only changing frames** | `renderOnDemand` | 关 | 静止画面只消耗游戏逻辑的开销。以下情况会绘制一帧：有对象请求、玩家输入、画布尺寸变化、实体被创建或销毁，或着色器仍在编译。 |
+| **Frames kept after a change** | `renderOnDemandTail` | 30 | 最后一个绘制原因之后继续绘制的帧数，使淡入淡出与收尾动作完成。 |
+
+引擎无法检测脚本自行做出的改变（颜色、动画）。用 `RenderDemand.request()` 请求一帧，或对自行运动的内容用 `RenderDemand.hold()` 保持绘制（它返回一个用于解除保持的函数）。两者都不使用时，这类改变要等到其他原因触发一帧时才会绘制。因此该设置需要显式启用。
+
+## 省电
+
+**Save power when the battery is low or the device is hot**（`QualityConfig.power`，默认关闭）使引擎每隔几秒检查一次设备状态。省电期间，它降低帧率上限并限制画质档位；设备恢复后两者都恢复。该设置关闭时，不检查设备。
+
+| 设置 | 键 | 默认值 | 说明 |
+|---|---|---|---|
+| **Battery below** | `lowBattery` | 20% | 电量低于该比例且未充电时省电；`0` 表示从不因电量省电。 |
+| **Thermal pressure** | `thermal` | Serious | 平台报告该热状态或更严重时省电：Serious、Critical 或 Never。 |
+| **Frame cap while saving** | `fps` | 30 | 省电期间的每秒帧数。游戏已设置的更低上限会被保留。 |
+| **Level ceiling while saving** | `ceiling` | Medium | 省电期间不高于该档位；已经更低的档位保持不变。 |
+
+- 热状态达到 **Critical** 时，帧率上限减半（不低于 15），档位固定为 Low；`severe: 'never'` 可关闭这一步。
+- 平台不报告的信号永远不会触发省电。没有 Battery API 的浏览器不会因电量省电，大多数浏览器不报告热状态（Chromium 报告电量与处理器压力；微信小游戏平台报告电量）。
+- `Device.power()` 返回相同的数值（`level`、`charging`、`thermal`，平台不报告时为 `null`）。在限制档位期间，`Quality` 的报告会在其限制项中列出 `power-saver`。
+- 只有当游戏此后未自行修改帧率上限时，才会恢复它。
+
+对于静止画面（菜单、牌桌），[按需渲染](#按需渲染)通过不绘制任何内容节省更多。
+
+## 参见
+
+- [画质档位](/docs/zh-cn/performance/quality-levels/overview/)
+- [编辑器设置](/docs/zh-cn/editor/settings/)

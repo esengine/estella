@@ -18,7 +18,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 光照贴图需要两样东西：
 
-- **带第二套 UV 的网格。** 第一套 UV 用于包裹美术资源，可以重叠；光照贴图要求每个表面拥有独立区域。模型带第二套 UV 时，两个导入器都会保留它（glTF 的 `TEXCOORD_1`、FBX 的第二个 UV 层）。模型导入器也可以生成一套（[模型](/docs/zh-cn/assets/models/)）。
+- **带第二套 UV 的网格。** 第一套 UV 用于包裹美术资源，可以重叠；光照贴图要求每个表面拥有独立区域。模型带第二套 UV 时，两个导入器都会保留它（glTF 的 `TEXCOORD_1`、FBX 的第二个 UV 层）。模型导入器也可以生成一套（[模型](/docs/zh-cn/assets/models/geometry/#lightmap-uv)）。
 - **`MeshLightmap` 组件**，由烘焙写入。
 
 ### `MeshLightmap`
@@ -144,4 +144,4 @@ world.insert(room, ReflectionProbe, { halfExtents: { x: 400, y: 220, z: 400 } })
 
 - [光源](/docs/zh-cn/graphics/lighting/lights/)
 - [平面反射](/docs/zh-cn/graphics/lighting/planar-reflections/)
-- [模型](/docs/zh-cn/assets/models/)
+- [模型](/docs/zh-cn/assets/models/overview/)

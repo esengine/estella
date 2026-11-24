@@ -1,0 +1,116 @@
+---
+title: App API
+description: The public members of App — world and resources, the embedding contract, system and event registration, the frame loop and its timing controls, execution holds, error handlers, physics readiness and frame statistics.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page lists the `App` members available to games and hosts. The factories that create an app are described in
+[App & Factories](/docs/core-concepts/app/overview/).
+
+## World, resources and modules
+
+| Member | Description |
+|---|---|
+| `app.world` | The ECS `World`: entities, components, queries. |
+| `app.insertResource(def, value)` | Inserts or replaces a resource. |
+| `app.getResource(def)` | Returns a resource. For a resource never inserted, installs and returns the definition's default value. |
+| `app.hasResource(def)` | Whether the resource has been inserted. |
+| `app.pipeline` | The `RenderPipeline`, or `null` in headless apps. |
+| `app.subsystems` | The app's [`SubsystemRegistry`](/docs/core-concepts/app/lifecycle/#subsystem-registry). |
+| `app.sideModules` | The app's [`SideModuleHost`](/docs/core-concepts/app/overview/#side-modules), or `null` (headless or test apps without one). |
+| `app.getPlugin(Ctor)` | The installed instance of a plugin class, if any. |
+| `app.wasmModule` | The connected `ESEngineModule`, or `null` before connection. Part of the embedding contract. |
+
+### Embedding contract
+
+`connectCpp`, `app.wasmModule` and `world.getCppRegistry()` are how a **host** — the editor, the packaged game shell,
+a custom runtime — binds an engine core to an app. Games receive an app that is already connected and do not call
+them. They are marked `@internal`, and the types they use (`ESEngineModule`, `CppRegistry`, `CppResourceManager`) are
+exported from `esengine/wasm` rather than `esengine`.
+
+## Systems and events
+
+| Member | Description |
+|---|---|
+| `app.addSystem(sys)` | Registers on `Schedule.Update`. |
+| `app.addStartupSystem(sys)` | Registers on `Schedule.Startup` (runs once, before the first frame's schedules). |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf?, activeWhen? })` | Registers on any schedule. Edges are added to those the definition declares ([Systems](/docs/core-concepts/systems/#ordering-edges)). |
+| `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | Registers a `SystemSet`. Members inherit the set's `runIf` and edges, and other systems can order against the set's name. |
+| `app.removeSystem(systemId)` | Removes a system by its definition's `_id` symbol. |
+| `app.addEvent(eventDef)` | Registers an event channel (double-buffered, swapped each frame). |
+
+## The frame loop
+
+| Member | Default | Description |
+|---|---|---|
+| `app.run()` | — | Starts the `requestAnimationFrame` loop. |
+| `app.tick(delta)` | — | Advances exactly one frame (`delta` in seconds). Used by headless and test hosts. |
+| `app.quit({ keepRenderer? })` | — | Stops the loop, runs plugin `cleanup` in reverse install order, despawns all entities and tears down the renderer (unless `keepRenderer`, used by hot reload). |
+| `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | `1/60` | The `FixedUpdate` step. |
+| `app.setMaxDeltaTime(s)` | `0.25` | Upper bound on one frame's delta. |
+| `app.setMaxFixedSteps(n)` | `8` | Upper bound on fixed steps per frame. A time budget additionally limits catch-up, so an overloaded simulation slows down instead of stalling. |
+| `app.setPaused(v)` / `app.isPaused()` | `false` | User pause. `Schedule.Last` and systems declared with `runWhenPaused` still prepare and draw the frame. |
+| `app.stepFrame()` | — | Queues exactly one full frame while paused (the editor's Step). |
+| `app.setPlaySpeed(x)` / `app.getPlaySpeed()` | `1.0` | Time scale, clamped to `0.1`–`4.0`. |
+| `app.setTargetFrameRate(fps)` / `app.getTargetFrameRate()` | `0` | Frame-rate cap; `0` is uncapped (vsync). |
+| `app.setRunInBackground(on)` / `app.getRunInBackground()` | `false` | Keeps simulating while the page is hidden. A browser stops `requestAnimationFrame` for a hidden document; with this on, the loop runs on a timer at the frame cap (60 fps when uncapped) while hidden. |
+| `app.holdExecution()` | — | Acquires an [execution hold](#execution-holds); returns an idempotent release function. |
+| `app.isExecutionHeld()` / `app.onExecutionChange(fn)` | — | Queries the hold, or observes it (with an initial notification; returns a disposer). Observers are removed on quit. |
+
+### Frame order
+
+Within one frame the schedules run in this order: `First` → the fixed phases (`FixedPreUpdate`, `FixedUpdate`,
+`FixedPostUpdate`, zero or more times, driven by the accumulator) → `PreUpdate` → `Update` → `PostUpdate` → `Last`.
+`Startup` systems run before the first frame.
+
+### Game time
+
+The renderer, the material and post-process `u_time.x` uniform, and camera blends and shakes use `Time.elapsed`:
+accumulated, scaled game time. Pausing freezes this clock; an explicit frame step advances it by the scaled step
+duration; `Time.scale = 0` also freezes it. A paused frame still responds to viewport and property changes. In the
+editor's edit mode the preview keeps animating, while `renderCameraFrame()` redraws at the most recently sampled
+time.
+
+## Execution holds
+
+An execution hold stops a game from rendering and receiving input while a host requires it:
+
+```typescript
+const release = app.holdExecution();
+// Other host components may acquire their own holds.
+release(); // the last release resumes execution; a user pause is preserved
+```
+
+While any hold is active, automatic frames, `tick`, stepping and native game input are suspended. Audio and video
+plugins cooperate with the hold.
+
+| Aspect | Behaviour during or after a hold |
+|---|---|
+| Input | Held keys and press edges are discarded. UI gesture captures are cancelled rather than turned into clicks on release. |
+| Audio and video | Audio resume and video play cannot override a hold. Videos paused, stopped or completed during the hold remain so after release. |
+| Startup | Startup systems that had not begun are retained. Resuming waits for an interrupted asynchronous startup before the first new frame. |
+| Clock | The frame clock is rebased, so the hold's duration is not simulated as catch-up. |
+| Async systems | Asynchronous systems already started may still settle; later systems and frame-completion observers do not run for the interrupted frame. |
+| Quit | Quitting invalidates outstanding release functions. |
+
+Promises, timers and network requests created by game code are not managed by the hold; `onExecutionChange` is used
+to suspend or abort them and restart them after release.
+
+## Errors, physics and statistics
+
+| Member | Description |
+|---|---|
+| `app.onError(fn)` | Observes any system exception: `(error, systemName)`. |
+| `app.onSystemError(fn)` | Decides per exception: return `'continue'` or `'pause'` (pauses the rest of the frame). |
+| `app.onWasmError(fn)` | Observes errors crossing the WebAssembly bridge. |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | Awaits / queries the asynchronous physics initialization. Without `Physics2DPlugin`: resolves immediately / `false`. |
+| `app.enableStats()` | Enables timing collection. |
+| `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | Per-system, per-schedule and sub-frame CPU timings for the current frame; `null` while statistics are off. |
+| `app.measureFrameScope(name, fn)` | Times `fn` as a named sub-frame scope. A single-branch no-op while statistics are off. |
+| `app.getEntityCount()` | Number of live entities. |
+
+<Aside type="tip">
+  Plugins with a `name` are attributed in the timings and in the subsystem registry
+  ([Lifecycle & Status](/docs/core-concepts/app/lifecycle/#subsystem-registry)).
+</Aside>

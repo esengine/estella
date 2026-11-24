@@ -1,0 +1,74 @@
+---
+title: 项目原生模块
+description: 项目在 .esengine/modules 下提供的第三方 WebAssembly 运行时——目录结构、module.json、按平台的构建、用 app.sideModules.acquire 获取模块、渲染其输出，以及各目标的支持情况。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+**项目模块** 是项目自行提供的 WebAssembly 运行时——矢量动画播放器、求解器，或任何有 emscripten 构建的库。它的处理方式与引擎自身的侧模块（物理、Basis 转码器、DragonBones、视频解码器、各版本 Spine 运行时）相同：通过一次调用获取，打包进每个包，在生成的小游戏入口中按名称 require，在试玩包中内联，并在运行模式中加载。
+
+## 目录结构
+
+```
+<project>/.esengine/modules/rive/
+  module.json          { "file": "rive", "globalName": "RiveModule" }
+  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
+  wechat/rive.js  rive.wasm    ← every mini-game vendor
+```
+
+**目录名即模块 id**，即传给 `acquire` 的值。
+
+`module.json` 可选：
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `file` | 目录名 | 产物基础名：glue 为 `<file>.js`，二进制为 `<file>.wasm`。 |
+| `globalName` | — | emscripten 的 `EXPORT_NAME`。glue 以 `MODULARIZE` 和具名导出构建时设置；glue 是以 `default` 导出工厂函数的 ES 模块时省略。 |
+
+小游戏宿主需要各自的 emscripten 构建（`WXWebAssembly` glue、更低的 ES 目标），因此构建按平台目录分开存放。目标没有可用构建时，模块不会被打包，警告中会列出查找过的文件；此时 `acquire` 返回 `null`。
+
+## 使用模块
+
+`app.sideModules.acquire(id)` 返回 emscripten 实例，类型为 `Record<string, unknown>`。声明游戏用到的接口并一次性转换类型：
+
+```typescript
+interface RiveModule {
+  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+const raw = await app.sideModules?.acquire('rive');
+if (!raw) return;                        // not packaged for this target — degrade
+const rive = raw as unknown as RiveModule;
+const version = rive.cwrap('rive_version', 'string', [])() as string;
+```
+
+`acquire` 按 id 缓存结果，包括失败结果，因此缺失的产物不会每帧重新获取。模块不可用时返回 `null` 而不是抛出异常；应像玩法代码检查 `Ads.available` 一样检查返回值。
+
+要绘制运行时生成的几何体，将其位置、UV、颜色和索引交给 [MeshRenderer](/docs/zh-cn/graphics/drawing/meshes/)；内置 Spine 集成使用同一路径，可在所有后端上渲染。
+
+<Aside type="note">
+  模块必须用 emscripten 构建为上述结构，与引擎构建自身模块的方式相同。大多数第三方运行时都发布了官方 WASM 构建。
+</Aside>
+
+## 目标支持
+
+| 目标 | 项目模块 |
+|---|---|
+| 网页、Playable | 取自 `web/` |
+| 微信 | 取自 `wechat/` |
+| 其他小游戏宿主 | 依次取自以厂商 id 命名的目录、`wechat/`、`web/` |
+| 运行模式（编辑器） | 从 `web/` 加载 |
+| 桌面、Android、iOS | **不支持。** 原生宿主将模块链接进应用二进制，随内容发布的模块无法加载；导出会给出警告且不打包任何模块。应将模块构建进原生宿主。 |
+
+未能打包的模块不会向运行时声明，因此 `acquire` 报告的是模块不可用，而不是文件缺失。
+
+引擎拥有的 id（`physics`、`spine:4.2` 等）不能由项目注册；此类注册会被拒绝。
+
+## 参见
+
+- [构建与导出](/docs/zh-cn/publishing/overview/#侧模块)——引擎的侧模块。
+- [应用初始化与生命周期](/docs/zh-cn/core-concepts/app/overview/#侧模块)——侧模块运行时 API。
+- [编辑器插件](/docs/zh-cn/extending/editor-plugins/)——编辑器侧扩展。

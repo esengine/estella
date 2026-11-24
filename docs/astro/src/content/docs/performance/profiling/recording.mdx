@@ -1,0 +1,78 @@
+---
+title: Device Captures
+description: ProfileRecorder reference — recording .esprof profile captures from a running game on any platform, saving them, opening them in the editor's Profiler, and observing frames with app.onFrameEnd.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`ProfileRecorder` records frames from a running game into an **`.esprof` capture** that the editor's Profiler panel
+opens with the same tree, rows and totals as a live session. It runs on every platform the engine runs on, so a capture
+can be taken on the device where a problem occurs.
+
+## Recording
+
+```typescript
+import { ProfileRecorder } from 'esengine';
+
+const recorder = new ProfileRecorder(app, {
+  maxFrames: 1800,                       // oldest frames are dropped past this
+  source: { platform: 'wechat', label: 'Redmi Note 12 · boss fight' },
+});
+
+recorder.start();
+// … play the section to measure …
+recorder.stop();
+
+const capture = recorder.take();          // a plain object
+```
+
+| `ProfileRecorderOptions` | Type | Default | Description |
+|---|---|---|---|
+| `maxFrames` | number | `1800` | Frames kept before the oldest is dropped. |
+| `budgetMs` | number | `1000 / 60` | Frame budget a reader judges the capture against. |
+| `source` | `CaptureSource` | `{}` | Identifying data: device, build, scene. |
+
+`start()` enables the instrumentation the recorder reads, both the TypeScript-side stats and the engine's C++
+profiling, and `stop()` restores the previous state. Nothing is measured or recorded before `start()`.
+
+<Aside type="note" title="No destination is built in">
+`take()` returns an object. The engine opens no socket, has no endpoint and writes no file; the game decides where a
+capture goes (a download, an upload, a log line).
+</Aside>
+
+## Saving and opening
+
+From a web build, a capture can be saved with standard DOM APIs:
+
+```typescript
+const blob = new Blob([JSON.stringify(recorder.take())], { type: 'application/json' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'boss-fight.esprof';
+a.click();
+```
+
+Open the file with **Profiler ▸ Open…** in the editor.
+
+- `parseProfileCapture(text)` returns `{ capture }` or `{ error }` with the reason (not JSON, no version, malformed
+  frames, a version newer than the editor reads) instead of throwing.
+- `summarizeCapture(capture)` is the function the live view uses, so a recorded file and the editor's live data report
+  the same statistics for the same frames.
+
+## Observing frames — `app.onFrameEnd`
+
+The recorder is a consumer of `app.onFrameEnd(fn)`, which fires once per frame after its systems have run and its
+timings are final. It is a broadcast, so other observers can run alongside the recorder:
+
+```typescript
+const off = app.onFrameEnd((dtMs) => {
+  if (dtMs > 33) console.warn(`long frame: ${dtMs.toFixed(1)}ms`);
+});
+```
+
+It returns a disposer. `app.getFrameCosts()` returns the per-system and per-scope costs of the frame that just ended.
+
+## See also
+
+- [Profiling](/docs/performance/profiling/overview/)
+- [Logging & Error Reporting](/docs/performance/profiling/logging/)

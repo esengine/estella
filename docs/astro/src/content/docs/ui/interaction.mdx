@@ -215,7 +215,7 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
   Gamepad navigation is not built into the focus system — the ring moves with
   `Tab` / `Shift+Tab` only (`Enter` / `Space` / `Escape` and the arrow keys act on the
   focused widget). For gamepad menus,
-  drive selection yourself from an [input map](/docs/scripting/input/) and call
+  drive selection yourself from an [input map](/docs/scripting/input/overview/) and call
   widget state directly.
 </Aside>
 
@@ -296,4 +296,4 @@ a system must claim *raw* events before the `Input` resource sees them at all
 - [UI Components](/docs/ui/widgets/) — widget factories with events pre-wired.
 - [UI Controllers](/docs/ui/controllers/) — hover/press **visual** states driven by the interaction controller.
 - [UI Binding](/docs/ui/data-binding/) — two-way widget-value binding over `change` events.
-- [Input](/docs/scripting/input/) — the `Input` resource, input maps, and gestures below the UI layer.
+- [Input](/docs/scripting/input/overview/) — the `Input` resource, input maps, and gestures below the UI layer.

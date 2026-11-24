@@ -1,0 +1,145 @@
+---
+title: 力、查询与事件
+description: 2D 物理运行时 API——Physics2D 资源的力、速度与质量方法，射线、重叠与形状投射查询，Physics2DEvents 接触与传感事件，以及网格放置检查。
+---
+
+`Physics2D` 资源是一个 `Physics2DAPI` 实例，用于驱动刚体和查询世界。每个方法都以拥有刚体的实体为参数。`Physics2DEvents` 携带当前帧的接触。
+
+## 力与速度
+
+这些方法直接把数值传给求解器，以**米**为单位（m/s、m/s²；见[单位](/docs/zh-cn/gameplay/physics-2d/overview/#单位)）。
+
+```typescript
+import { defineSystem, Query, Res, RigidBody2D } from 'esengine';
+import { Physics2D } from 'esengine/physics';
+
+const move = defineSystem([Query(RigidBody2D), Res(Physics2D)], (q, physics) => {
+  for (const [entity] of q) {
+    physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
+    physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)
+    physics.setLinearVelocity(entity, { x: 3, y: 0 });
+  }
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `applyForce(e, v)` / `applyImpulse(e, v)` | 持续力 / 瞬时冲量。 |
+| `applyTorque(e, t)` / `applyAngularImpulse(e, i)` | 旋转力 / 角冲量。 |
+| `setLinearVelocity(e, v)` / `getLinearVelocity(e)` | 设置 / 读取线速度。 |
+| `setAngularVelocity(e, w)` / `getAngularVelocity(e)` | 设置 / 读取角速度。 |
+| `setGravity(v)` / `getGravity()` | 世界重力。 |
+| `getMass(e)` / `getInertia(e)` / `getCenterOfMass(e)` / `getMassData(e)` | 质量属性。 |
+| `setAwake(e, awake)` / `isAwake(e)` | 休眠控制。 |
+| `getPixelsPerUnit()` | 当前每单位像素数。 |
+
+`getMassData(e)` 返回 `MassData`：
+
+| `MassData` 字段 | 类型 | 说明 |
+|---|---|---|
+| `mass` | number | 刚体质量（碰撞体 `density` × 面积）。 |
+| `inertia` | number | 绕质心的转动惯量。 |
+| `centerOfMass` | `Vec2` | 刚体局部坐标系中的质心，以像素计（× PPU）。 |
+
+## 空间查询
+
+查询以**像素空间**为参数，按当前 PPU 缩放。每个查询都接受可选的 `maskBits` 层过滤。
+
+```typescript
+// Raycast — every hit along the ray, nearest first.
+const hits = physics.raycast(origin, direction, 200);
+for (const hit of hits) {
+  // hit.entity, hit.point, hit.normal
+}
+
+const nearby = physics.overlapCircle(center, 64);   // Entity[]
+const inBox  = physics.overlapAABB(min, max);       // Entity[]
+const swept  = physics.shapeCastCircle(center, 16, { x: 100, y: 0 });  // ShapeCastHit[]
+```
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `raycast(origin, dir, dist, maskBits?)` | `RaycastHit[]` | 射线上的所有命中，近者在前。`dir` 为方向；`dist` 以像素计。 |
+| `overlapCircle(center, radius, maskBits?)` | `Entity[]` | 与圆重叠的碰撞体。 |
+| `overlapAABB(min, max, maskBits?)` | `Entity[]` | 与矩形重叠的碰撞体。 |
+| `shapeCastCircle(center, radius, translation, maskBits?)` / `shapeCastBox(center, halfExtents, angle, translation, maskBits?)` / `shapeCastCapsule(center1, center2, radius, translation, maskBits?)` | `ShapeCastHit[]` | 沿 `translation` 扫掠形状，返回其会碰到的所有物体。 |
+
+投射返回 `RaycastHit` 记录；`ShapeCastHit` 字段相同。
+
+| `RaycastHit` 字段 | 类型 | 说明 |
+|---|---|---|
+| `entity` | `Entity` | 被命中碰撞体所属的实体。 |
+| `point` | `Vec2` | 命中点，世界像素。 |
+| `normal` | `Vec2` | 命中点处的表面法线（单位向量）。 |
+| `fraction` | number | 命中处占投射距离的比例，`0..1`。结果按此排序，近者在前。 |
+
+## 碰撞与传感事件
+
+`Physics2DEvents` 资源携带当前帧的接触。`isSensor: true` 的碰撞体产生传感器进入/离开事件，不产生物理响应。
+
+```typescript
+import { defineSystem, Res } from 'esengine';
+import { Physics2DEvents } from 'esengine/physics';
+
+const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
+  for (const c of events.collisionEnters) { /* c.entityA, c.entityB, c.normalX/Y, c.contactX/Y */ }
+  for (const x of events.collisionExits)  { /* x.entityA, x.entityB */ }
+  for (const h of events.collisionHits)   { /* h.approachSpeed, h.pointX/Y, h.normalX/Y */ }
+  for (const s of events.sensorEnters)    { /* s.sensorEntity, s.visitorEntity */ }
+  for (const s of events.sensorExits)     { /* … */ }
+});
+```
+
+| 事件列表 | 触发时机 |
+|---|---|
+| `collisionEnters` / `collisionExits` | 两个实心碰撞体开始 / 停止接触。 |
+| `collisionHits` | 高速撞击；携带 `approachSpeed`。 |
+| `sensorEnters` / `sensorExits` | 物体进入 / 离开传感碰撞体。 |
+
+位置（`contactX/Y`、`pointX/Y`）为世界像素，`approachSpeed` 为像素/秒。该资源每渲染帧发布一次，包含该帧内所有固定步的接触。
+
+同样的事件还会以 `collision_enter`、`collision_exit`、`collision_hit`、`trigger_enter`、`trigger_exit`（即 `Physics2DEventType` 常量）发送给参与的实体。双方各收到一条，并以 `other` 携带对方实体；触发区上的[事件绑定](/docs/zh-cn/scripting/events/)无需代码即可响应。
+
+## 网格放置
+
+`esengine/gameplay` 提供用于网格建造的纯函数（没有组件，也没有系统）：占地范围吸附到哪里，以及能否放在那里。跟随指针的预览精灵、其着色以及确认放置后的处理由游戏代码负责。
+
+```typescript
+import { snapFootprint, checkPlacement, type PlacementGrid } from 'esengine/gameplay';
+
+const grid: PlacementGrid = { cellWidth: 32, cellHeight: 32 };      // originX / originY if cell (0, 0) is not at the world origin
+const spot = snapFootprint(grid, fingerX, fingerY, 3, 1);           // a 3 by 1 wall, centred on its middle cell
+ghost.position.x = spot.x; ghost.position.y = spot.y;               // the ghost sits on whole cells
+
+const check = checkPlacement(grid, spot, {
+    physics,                                  // the Physics2D resource: any collider in the footprint is in the way
+    mask: SOLID_LAYERS,
+    solidAt: (x, y) => isTileSolid(layer, ...), // a solid tile under it blocks (see the tilemap guide)
+    blocked: (col, row) => buildings.has(col, row), // your own table of what is taken
+    ignore: new Set([ghostEntity]),
+});
+ghostSprite.color = check.clear ? GREEN : RED;     // check.blockers and check.blockedCells say what is in the way
+```
+
+| 函数 | 说明 |
+|---|---|
+| `snapToGrid(grid, x, y, mode?)` | 将点吸附到格子中心（`'centre'`，默认）或格角（`'corner'`）。 |
+| `gridCellAt(grid, x, y)` / `gridCellCentre(grid, col, row)` | 在世界坐标与格子之间换算。 |
+| `snapFootprint(grid, x, y, cols, rows)` | 吸附一个 `cols` × `rows` 的占地范围。每个轴上，奇数尺寸以格子中心对齐，偶数尺寸以格角对齐。 |
+| `checkPlacement(grid, footprint, probes?)` | 返回 `{ clear, blockers, blockedCells }`。 |
+
+| `checkPlacement` 探测项 | 说明 |
+|---|---|
+| `physics` / `mask` | 物理资源与层掩码。占地范围内的任何碰撞体都会阻挡。重叠查询前占地范围会略微缩小，因此只与边缘相接的碰撞体不会阻挡。 |
+| `solidAt(x, y)` | 实心瓦片检测，在每个格子上按 `solidStep`（默认四分之一格）的网格采样。比步长更窄的实心区域可能落在采样点之间。 |
+| `solidStep` | `solidAt` 的采样步长。 |
+| `blocked(col, row)` | 游戏自身的占用检测。 |
+| `ignore` | 永不阻挡的实体（预览本身）。 |
+
+所有探测项均可选；省略的探测项不阻挡任何东西。
+
+## 另请参阅
+
+- [刚体与碰撞体](/docs/zh-cn/gameplay/physics-2d/bodies/)——`maskBits` 使用的碰撞层。
+- [标记与触发区](/docs/zh-cn/gameplay/markers/)——传感区域及其事件。
+- [输入](/docs/zh-cn/scripting/input/overview/)——在固定步系统中读取输入。

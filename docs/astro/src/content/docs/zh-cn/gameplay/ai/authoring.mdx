@@ -1,16 +1,18 @@
 ---
-title: 在编辑器里编排
-description: "推荐工作流:叶子逻辑在代码里注册一次,图本身在编辑器里以 .esfsm / .esbt 资产可视化搭建与调参。"
+title: 在编辑器中创作
+description: AI 图的创作流程——创建 .esfsm 与 .esbt 资源，用已注册的名字填写叶子，并把资源指定给 StateMachineAgent 或 BehaviorTreeAgent。
 ---
 
-设想的工作流是图本身**用数据、不用代码**——你注册一次叶子逻辑,然后可视化地构建并调优机器/树:
+状态机与行为树是数据：叶子逻辑在代码中注册一次（[动作与条件](/docs/zh-cn/gameplay/ai/actions/)），状态机与行为树作为资源在编辑器中构建与调整。
 
-1. 在**内容浏览器**的新建菜单里选**新建状态机**或**新建行为树**,得到一个 `.esfsm` 或 `.esbt` 资产,双击它打开
-   节点图编辑器。
-2. 添加状态/节点,拖拽连线,把每个叶子的**动作**或**条件**填成你注册的某个名字。在检视面板里
-   设置转移的条件、触发器和黑板守卫。
-3. 在 agent 实体上,把 `StateMachineAgent.fsm`(或 `BehaviorTreeAgent.bt`)设为资产的路径。
+1. 在**内容浏览器**中，通过创建菜单的 **New State Machine** / **New Behavior Tree** 创建 `.esfsm` 或 `.esbt` 资源。双击即可打开节点图编辑器。
+2. 添加状态或节点，拖动以连接，并用已注册的名字填写每个叶子的**动作**或**条件**。转移条件、触发器与黑板守卫在 Inspector 中设置。名字字段在输入时提示所有已注册的名字。
+3. 在代理实体上，将 `StateMachineAgent.fsm` 或 `BehaviorTreeAgent.bt` 设为该资源的路径。
 
-资产按路径引用并**随场景预加载**,所以图在 agent 首次 tick 之前就已注册——不需要
-`registerFsm`/`registerBt` 调用。因为两种范式都从同一份注册表解析叶子,你可以先把一个敌人
-原型成状态机,之后再换成行为树(或两者都跑),而不用动你的动作/条件代码。
+资源按路径引用并**随场景预加载**，因此图在代理首次 tick 前即已注册，无需调用 `registerFsm` / `registerBt`。由于两种形式都从同一注册表解析叶子，以状态机原型实现的敌人日后可以改用行为树（或两者并用），而无需修改动作与条件代码。
+
+## 另请参阅
+
+- [状态机](/docs/zh-cn/gameplay/ai/state-machines/)与[行为树](/docs/zh-cn/gameplay/ai/behavior-trees/)——图的内容。
+- [脚本图](/docs/zh-cn/gameplay/script-graphs/)——基于同一注册表的可视化事件逻辑。
+- [资源编辑器](/docs/zh-cn/editor/asset-editors/)——节点图编辑器。

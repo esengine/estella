@@ -1,0 +1,79 @@
+---
+title: 生命周期与状态
+description: App 的运行时信号——Lifecycle 资源及其 show、hide、pause、resume 事件与自动暂停，带阶段与活跃度的 SubsystemRegistry，以及热重载机制。
+---
+
+## 生命周期事件
+
+两个工厂函数都会安装 `lifecyclePlugin`（以 `new LifecyclePlugin(options)` 配置）。它发布 **`Lifecycle`** 资源，即一个跟踪页面可见性与焦点、
+并可自动暂停游戏的 `LifecycleManager`：
+
+```typescript
+import { Lifecycle } from 'esengine';
+
+const lifecycle = app.getResource(Lifecycle);
+const off = lifecycle.on((event) => {
+  if (event === 'pause') saveGame();
+});
+```
+
+| 成员 | 类型 | 说明 |
+|---|---|---|
+| `visible` | `boolean` | 当前页面或应用的可见性。 |
+| `focused` | `boolean` | 窗口焦点。会被跟踪；变化时不发出事件。 |
+| `autoPause` | `boolean` | 页面隐藏时是否暂停 app。默认 `true`；运行时可写，初始值来自 `new LifecyclePlugin({ autoPause })`。 |
+| `on(listener)` / `off(listener)` | — | 订阅 / 取消订阅监听器。`on` 返回取消订阅函数。 |
+
+`LifecycleEvent` 为 `'show' | 'hide' | 'pause' | 'resume'`；`LifecycleListener` 为 `(event: LifecycleEvent) => void`。
+
+| 事件 | 发出时机 |
+|---|---|
+| `hide` / `show` | 每次可见性变化：浏览器的 `visibilitychange`；微信上的 `wx.onHide` / `wx.onShow`。 |
+| `pause` | 生命周期管理器暂停了 app：页面被隐藏、`autoPause` 开启，且 app 尚未处于暂停状态。 |
+| `resume` | 生命周期管理器解除了自身施加的暂停。以 `app.setPaused(true)` 设置的暂停不会在页面变为可见时解除。 |
+
+无头宿主（Node、worker）没有可见性信号；该资源存在，并始终保持 `visible`。
+
+要禁用自动暂停，应设置 `new LifecyclePlugin({ autoPause: false })` 或 `lifecycle.autoPause = false`，而不是在监听器中取消暂停；
+管理器只恢复由它自己施加的暂停。
+
+## 子系统注册表
+
+每个 app 在 `app.subsystems` 上都有一个 **`SubsystemRegistry`**，报告哪些引擎模块已加载、已就绪、正在步进或已失败。
+具名插件会被自动登记；异步插件（物理）报告自身的 `initializing → ready` / `error` 转换。
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(s.id, s.phase, s.activity, s.lastError ?? '');
+}
+```
+
+| 类型 | 说明 |
+|---|---|
+| `SubsystemPhase` | 记录的生命周期：`'registered'` → `'initializing'` → `'ready'`；`'error'` 为终止状态。 |
+| `SubsystemActivity` | 活跃度，读取时根据看门狗心跳推导（每次系统运行都会为其所属插件发出心跳）：`'stepping'`（最近 400 ms 内有心跳）、`'idle'`（已就绪但近期无心跳，例如编辑模式下停止的物理）、`'inactive'`（从未发出心跳；活跃度未知）。 |
+| `SubsystemStatus` | 每个子系统一条，按安装顺序排列：`id`、`displayName`、`phase`、`activity`、`detail`、`lastError`（在后续转换中保留）、`dependsOn`（声明的插件名依赖）、`phaseAgeMs`。 |
+| `SubsystemEvent` | 一次记录的转换：`id`、`phase`、`detail?`、`atMs`、`seq`。 |
+
+| 方法 | 说明 |
+|---|---|
+| `getStatuses()` | 当前的 `SubsystemStatus` 列表。 |
+| `recentEvents(limit?)` | 保留的最近转换记录（最多 128 条）。 |
+| `subscribe(fn)` | 在阶段转换时通知（心跳不触发）。返回取消订阅函数。 |
+
+`phase` 区分*已加载*与*已就绪*；`activity` 区分*已就绪*与*正在运行*。编辑器的状态显示同时呈现二者。注册表按 app 独立：
+编辑器的编辑 app 与运行 app 分别报告。相比探测资源是否存在，应优先检查 `app.subsystems`，因为它还保留了最近一次错误。
+
+## 热重载
+
+编辑器处于运行模式时若项目代码发生变化，编辑器会先尝试**保留状态的热替换**，失败后再回退到完整重载。它通过
+**`probeRegistrations(register)`** 在隔离的探测上下文中重新导入代码包，该函数返回一个 `ProbedRegistrations`：
+
+| 字段 | 说明 |
+|---|---|
+| `fingerprint` | 代码包所声明用户组件 **schema** 的摘要（形状，而非值）。未变化时保留当前的 `World`，只替换系统函数体。变化时执行完整重载。 |
+| `pending` | 代码包排队登记的系统，传给 `App.hotSwapSystems`。若添加、移除或重命名了用户系统，替换会被拒绝，并执行完整重载。 |
+
+组件身份**按名称**解析：重新导入后再次求值的 `defineComponent('Health', …)` 返回相同的组件身份，因此重新导入的系统的查询能访问到当前存储。
+因此，重命名组件或 behavior 属于结构性变化（完整重载，并丢失该数据），且逐实体的 `start` 钩子在重载后会再次运行。
+这对项目代码提出的要求列于[脚本模块](/docs/zh-cn/scripting/script-modules/#热重载)。

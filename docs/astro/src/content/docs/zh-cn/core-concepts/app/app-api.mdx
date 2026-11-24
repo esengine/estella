@@ -1,0 +1,109 @@
+---
+title: App API
+description: App 的公开成员——世界与资源、嵌入契约、系统与事件注册、帧循环及其计时控制、执行挂起、错误处理器、物理就绪状态与帧统计。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+本页列出游戏与宿主可用的 `App` 成员。创建 app 的工厂函数见[应用与工厂函数](/docs/zh-cn/core-concepts/app/overview/)。
+
+## 世界、资源与模块
+
+| 成员 | 说明 |
+|---|---|
+| `app.world` | ECS `World`：实体、组件、查询。 |
+| `app.insertResource(def, value)` | 插入或替换资源。 |
+| `app.getResource(def)` | 返回资源。对从未插入过的资源，安装并返回定义的默认值。 |
+| `app.hasResource(def)` | 资源是否已被插入。 |
+| `app.pipeline` | `RenderPipeline`；无头 app 中为 `null`。 |
+| `app.subsystems` | app 的 [`SubsystemRegistry`](/docs/zh-cn/core-concepts/app/lifecycle/#子系统注册表)。 |
+| `app.sideModules` | app 的 [`SideModuleHost`](/docs/zh-cn/core-concepts/app/overview/#侧模块)，或 `null`（没有宿主的无头或测试 app）。 |
+| `app.getPlugin(Ctor)` | 某插件类已安装的实例（如果有）。 |
+| `app.wasmModule` | 已连接的 `ESEngineModule`；连接前为 `null`。属于嵌入契约。 |
+
+### 嵌入契约
+
+`connectCpp`、`app.wasmModule` 与 `world.getCppRegistry()` 是**宿主**——编辑器、打包后的游戏外壳、自定义运行时——将引擎内核绑定到 app 的方式。
+游戏收到的 app 已经连接完毕，不调用这些成员。它们标记为 `@internal`，所用类型（`ESEngineModule`、`CppRegistry`、`CppResourceManager`）
+从 `esengine/wasm` 而不是 `esengine` 导出。
+
+## 系统与事件
+
+| 成员 | 说明 |
+|---|---|
+| `app.addSystem(sys)` | 注册到 `Schedule.Update`。 |
+| `app.addStartupSystem(sys)` | 注册到 `Schedule.Startup`（在第一帧的各调度之前运行一次）。 |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf?, activeWhen? })` | 注册到任意调度。排序边追加到定义所声明的排序边之上（[系统](/docs/zh-cn/core-concepts/systems/#排序边)）。 |
+| `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | 注册 `SystemSet`。成员继承集合的 `runIf` 与排序边，其他系统可以相对于集合名称排序。 |
+| `app.removeSystem(systemId)` | 按定义的 `_id` symbol 移除系统。 |
+| `app.addEvent(eventDef)` | 注册事件通道（双缓冲，每帧交换）。 |
+
+## 帧循环
+
+| 成员 | 默认值 | 说明 |
+|---|---|---|
+| `app.run()` | — | 启动 `requestAnimationFrame` 循环。 |
+| `app.tick(delta)` | — | 精确推进一帧（`delta` 以秒计）。供无头与测试宿主使用。 |
+| `app.quit({ keepRenderer? })` | — | 停止循环，按安装的逆序运行插件 `cleanup`，销毁所有实体并拆除渲染器（`keepRenderer` 时除外，热重载使用该选项）。 |
+| `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | `1/60` | `FixedUpdate` 的步长。 |
+| `app.setMaxDeltaTime(s)` | `0.25` | 单帧帧间隔的上限。 |
+| `app.setMaxFixedSteps(n)` | `8` | 每帧固定步数的上限。另有时间预算限制追赶，因此过载的模拟会变慢而不是卡死。 |
+| `app.setPaused(v)` / `app.isPaused()` | `false` | 用户暂停。`Schedule.Last` 与以 `runWhenPaused` 声明的系统仍会准备并绘制该帧。 |
+| `app.stepFrame()` | — | 暂停时排入恰好一个完整帧（编辑器的单步）。 |
+| `app.setPlaySpeed(x)` / `app.getPlaySpeed()` | `1.0` | 时间缩放，限制在 `0.1`–`4.0`。 |
+| `app.setTargetFrameRate(fps)` / `app.getTargetFrameRate()` | `0` | 帧率上限；`0` 表示不限（垂直同步）。 |
+| `app.setRunInBackground(on)` / `app.getRunInBackground()` | `false` | 页面隐藏时继续模拟。浏览器会对隐藏的文档停止 `requestAnimationFrame`；开启后，隐藏期间循环由定时器按帧率上限驱动（不限时为 60 fps）。 |
+| `app.holdExecution()` | — | 取得一个[执行挂起](#执行挂起)；返回幂等的释放函数。 |
+| `app.isExecutionHeld()` / `app.onExecutionChange(fn)` | — | 查询挂起状态，或观察其变化（含一次初始通知；返回销毁函数）。退出时移除观察者。 |
+
+### 帧顺序
+
+一帧之内，各调度按以下顺序运行：`First` → 固定阶段（`FixedPreUpdate`、`FixedUpdate`、`FixedPostUpdate`，由累加器驱动，零次或多次）
+→ `PreUpdate` → `Update` → `PostUpdate` → `Last`。`Startup` 系统在第一帧之前运行。
+
+### 游戏时间
+
+渲染器、材质与后处理的 `u_time.x` uniform，以及相机混合与震动使用 `Time.elapsed`：累积的、经过缩放的游戏时间。
+暂停会冻结该时钟；显式单步按缩放后的步长推进它；`Time.scale = 0` 同样冻结它。暂停的帧仍会响应视口与属性变化。
+在编辑器的编辑模式中，预览持续播放动画，而 `renderCameraFrame()` 按最近一次采样的时间重绘。
+
+## 执行挂起
+
+执行挂起使游戏在宿主需要时停止渲染与接收输入：
+
+```typescript
+const release = app.holdExecution();
+// Other host components may acquire their own holds.
+release(); // the last release resumes execution; a user pause is preserved
+```
+
+任一挂起处于活动状态时，自动帧、`tick`、单步与原生游戏输入均暂停。音频与视频插件配合挂起。
+
+| 方面 | 挂起期间或之后的行为 |
+|---|---|
+| 输入 | 丢弃按住的按键与按下沿。UI 手势捕获被取消，而不会在释放时转为点击。 |
+| 音频与视频 | 音频恢复与视频播放无法覆盖挂起。挂起期间被暂停、停止或播放完毕的视频在释放后保持原状态。 |
+| 启动 | 保留尚未开始的 Startup 系统。恢复时先等待被中断的异步启动完成，再运行第一个新帧。 |
+| 时钟 | 帧时钟重新定基，因此挂起的时长不会作为追赶被模拟。 |
+| 异步系统 | 已启动的异步系统仍可能完成；被中断帧中后续的系统与帧完成观察者不会运行。 |
+| 退出 | 退出会使尚未调用的释放函数失效。 |
+
+游戏代码创建的 promise、定时器与网络请求不受挂起管理；应使用 `onExecutionChange` 挂起或中止它们，并在释放后重新启动。
+
+## 错误、物理与统计
+
+| 成员 | 说明 |
+|---|---|
+| `app.onError(fn)` | 观察任何系统异常：`(error, systemName)`。 |
+| `app.onSystemError(fn)` | 逐个异常作出决定：返回 `'continue'` 或 `'pause'`（暂停该帧的其余部分）。 |
+| `app.onWasmError(fn)` | 观察跨越 WebAssembly 桥的错误。 |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | 等待 / 查询异步的物理初始化。未安装 `Physics2DPlugin` 时：立即完成 / `false`。 |
+| `app.enableStats()` | 启用耗时收集。 |
+| `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | 当前帧按系统、按调度以及帧内子范围的 CPU 耗时；统计关闭时为 `null`。 |
+| `app.measureFrameScope(name, fn)` | 将 `fn` 作为具名帧内子范围计时。统计关闭时仅为一次分支判断，不执行任何操作。 |
+| `app.getEntityCount()` | 存活实体的数量。 |
+
+<Aside type="tip">
+  带 `name` 的插件会在耗时统计与子系统注册表中被归属
+  （[生命周期与状态](/docs/zh-cn/core-concepts/app/lifecycle/#子系统注册表)）。
+</Aside>

@@ -1,0 +1,71 @@
+---
+title: 部署服务器
+description: 导出与部署游戏服务器——project.esproject 中的 server 块、export --platform server 及其输出、配合 Caddy 的 Docker Compose 与 systemd、客户端的 serverAddress 解析、外部页面托管，以及 TokenBook 登录。
+---
+
+## `server` 块
+
+带服务器的项目在 `project.esproject` 中声明它：
+
+```json
+"server": {
+  "entry": "server/main.ts",
+  "path": "/play",
+  "port": 8090,
+  "args": ["--port", "{port}", "--host", "{host}", "--data", "{data}/world.json"],
+  "health": "/healthz"
+}
+```
+
+| 字段 | 说明 |
+|---|---|
+| `entry` | 服务器入口模块。 |
+| `path` | WebSocket 端点的 URL 路径。只有该路径上的 WebSocket 升级请求会到达服务器。 |
+| `port` | 服务器监听的端口。 |
+| `args` | 命令行参数。`{port}`、`{host}`、`{data}` 与 `{wasm}` 按每种部署形式替换。 |
+| `health` | 健康检查路径。 |
+| `url` | 页面托管在别处时的服务器地址（[外部托管](#外部托管)）。 |
+
+## 导出
+
+```bash
+node pipeline/bin/estella.mjs export my-game --platform server
+```
+
+导出写出 `dist-server/`：
+
+| 输出 | 内容 |
+|---|---|
+| `server.mjs` | 打包为单个文件的服务器，Node 20 无需安装任何包即可运行（`esengine` 为 SDK 的无头构建）。 |
+| `web/` | 游戏的 Web 导出。`--no-web` 省略它。 |
+| `wasm/` | 服务器运行引擎时所需的引擎。 |
+| `compose.yaml`、`Dockerfile` | 容器部署：`SITE_ADDRESS=play.example.com docker compose up -d --build`；证书由 Caddy 获取。 |
+| `deploy/<game>.service`、`deploy/Caddyfile` | 位于 Caddy 之后的 systemd 部署。 |
+
+页面与服务器共用一个地址。
+
+## 客户端的服务器地址
+
+客户端无需在游戏代码中编译进地址即可解析服务器：
+
+```ts
+import { serverAddress } from 'esengine/session';
+
+// wss://<the page's host>/play, or ?server=ws://127.0.0.1:8090/play during development.
+const url = serverAddress({ path: '/play' });
+```
+
+解析顺序：`?server=` 查询参数，然后是写入构建的地址，最后是页面自身的主机。
+
+## 外部托管
+
+从别处提供的页面（GitHub Pages、CDN、桌面应用）需指明其服务器：在 `server` 块中写入 `"url": "wss://sector.example.com/play"`，或在导出时使用 `--server-url`。Web 与桌面导出会将其写入页面，并在页面的内容安全策略中放行该来源，`serverAddress` 随即拨号到该地址。服务器的 `compose.yaml` 与 `Caddyfile` 也将在该主机上应答。
+
+## Token 登录
+
+与已知玩家进行测试时，`TokenBook` 以每人一个 token 的方式让玩家登录。名单从数据目录读取，而非来自游戏代码，每个 token 由 `newToken()` 生成：
+
+```ts
+const book = TokenBook.parse(JSON.parse(readFileSync(`${data}/players.json`, 'utf8')));
+// in authenticate: const who = book.check(raw.account, raw.token); if (!who) throw new SessionRejected('UNKNOWN PLAYER');
+```

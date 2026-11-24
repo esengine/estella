@@ -1,0 +1,145 @@
+---
+title: Navigation Agents
+description: NavAgent reference — setting and stopping destinations, agent fields, the planning queue and its budget, partial routes, agents steering a CharacterController3D, local avoidance between agents, and agent width.
+---
+
+A `NavAgent` moves its entity along a route to a destination. The built-in nav plugin plans the route and advances the
+agent each frame; game code sets the destination.
+
+```typescript
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine/ai';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 140, arriveRadius: 8 });
+
+// From any system/action with world access — safe to call every frame:
+setNavDestination(world, entity, { x: 320, y: -120 });
+// …and to halt in place:
+stopNavAgent(world, entity);
+```
+
+![Details of a Nav Agent: speed, radius, arrive radius and repath interval, then the target](@/assets/guides/en/details-nav-agent.png)
+
+*A **Nav Agent**: movement settings, then the destination.*
+
+## `NavAgent`
+
+| Field | Default | Description |
+|---|---|---|
+| `speed` | `120` | Movement speed, world units per second. |
+| `radius` | `0` | Body radius, world units. On a grid, planning keeps the agent out of gaps it does not fit through, and a radius above `0` enables [avoidance](#avoidance). On a mesh the volume's `agentRadius` applies instead. |
+| `arriveRadius` | `6` | Stopping distance from the final goal. |
+| `repathInterval` | `0.5` | Seconds between periodic replans; `0` disables periodic replanning. Target or topology changes and blocked-route recovery still replan. |
+| `hasTarget` | `false` | Whether a destination is set. Set by `setNavDestination`; cleared on arrival and by `stopNavAgent`. |
+| `targetX`, `targetY`, `targetZ` | `0` | Current destination, world units. |
+| `arrived` | `false` | Set when the agent reaches its goal; stays set until the next `setNavDestination`. |
+
+`setNavDestination` may be called every frame to follow a moving target: the agent replans when the target or topology
+changes, when a route stalls, or when the periodic timer elapses. `agent.arrived` (or `Perception`) tells a behaviour when
+to switch.
+
+### Partial routes
+
+On the built-in surfaces, reaching the end of a **partial** route (the goal is unreachable) keeps `hasTarget` true and
+`arrived` false. The agent waits near the obstacle and resumes when the surface changes, even with periodic replanning
+disabled. `stopNavAgent` cancels the intent. Custom surfaces without `queryWorldPath` keep their earlier arrival
+behaviour, because completeness is unknown.
+
+### Standing room
+
+`surface.isNavigable(point, { radius })` checks whether a body can stand at a point: a grid tests a disc against tile
+faces and world bounds; a mesh refuses a radius larger than its baked radius. Grid planning adds half a tile when
+converting a body radius to clearance cells, so a fractional radius cannot pass a door narrower than the body. Kinematic
+grid followers validate sampled movement segments and replan from the current position after a blocked or stalled step.
+This is navigation steering, not a substitute for a physics collision solver.
+
+## Planning queue
+
+`NavAgentSystem` serves planning requests in FIFO order across frames. By default it allows **16 plans** and a **2 ms
+soft planning budget** per tick. At least one query runs each tick; the time check happens between synchronous queries,
+so one query can exceed the budget. A burst of requests is spread over frames at the cost of route latency. Direct
+`findWorldPath` / `queryWorldPath` calls are synchronous and bypass the queue.
+
+```typescript
+const nav = app.getResource(Nav);
+nav.planningBudgetMs = 2;
+nav.maxPlansPerFrame = 16;
+// Set either limit to 0 to disable that limit.
+console.info(nav.planningStats); // completed, pending, elapsedMs from the last tick
+```
+
+Queued requests read the latest position, target and radius when served. Agents without a valid route pause, with
+horizontal character steering stopped and gravity still active; periodic refreshes keep following valid cached routes.
+Replacing the surface, editing built-in grid topology or changing an agent's radius retires stale routes, including for
+agents whose periodic replanning is disabled. After a custom surface or its costs or links change in place,
+`nav.invalidatePaths()` discards cached routes. A transient failed query on an unchanged surface may keep an existing
+route while an agent crosses a link; an invalidated route is discarded.
+
+To compare unlimited planning with the defaults on identical building maps:
+
+```sh
+node tools/navigation-planning-benchmark.mjs output/navigation-planning.json
+```
+
+The headless report records all 64 route shapes, per-frame CPU and callback gaps, batch completion latency and total
+CPU. It covers obstacle marking and the agent step over an in-memory world with zero movement speed, and excludes
+rendering, physics and the rest of an application frame.
+
+## Agents with a character body
+
+An agent whose entity also has a **`CharacterController3D`** is **steered** rather than moved: the plugin writes the
+controller's horizontal velocity toward the next waypoint, and the character's own solver moves it, so the agent
+collides with the world, climbs steps and falls where it should. The vertical axis is never written.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 200, z: 0 } })
+  .insert(CharacterController3D, { radius: 30, halfHeight: 50 })
+  .insert(NavAgent, { speed: 400, arriveRadius: 90 });
+```
+
+Distances for such an agent are measured in the ground plane, because the capsule's centre is above the floor the route
+was planned on. The volume's `agentRadius` is set to the controller's `radius`, and `agentHeight` to about twice
+`halfHeight` plus the radius, so the mesh matches the body.
+
+Navigation skips an agent with no destination. Clearing the destination, including with `stopNavAgent`, therefore does
+not stop a steered character: the horizontal velocity last written to its `CharacterController3D` remains. Code that
+stops a steered agent also zeroes that velocity, as [`Hunter`](/docs/gameplay/ai/hunter/) does.
+
+Without a controller, the agent's Transform is moved along the path directly.
+
+## Avoidance
+
+Routes are planned against a static world. An agent whose `radius` is above zero is a body and steers around other
+bodies on the same ground, so agents sent to one place do not walk the same route as one body:
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(NavAgent, { speed: 300, radius: 40, arriveRadius: 60 });
+```
+
+Each agent takes half of the avoidance, so two agents meeting head-on part rather than both dodging the same way. A
+perfectly symmetric meeting is resolved by keeping right. A sidestep is checked against the navigable surface before it
+is taken, so steering never moves an agent into a wall; two bodies too wide to pass in one corridor wait rather than
+pass.
+
+An agent with `radius` `0` is routed as a point, avoids no one and is avoided by no one.
+
+## Agent width
+
+On a **grid**, `radius` is set to the body's half-width so planning keeps it out of gaps it cannot fit through. An agent
+with radius `0` is routed as a point; a body routed as a point can stop in a doorway narrower than itself, because the
+cell it was routed to is walkable but the part of the body over the neighbouring cell is not.
+
+On a **mesh**, width is settled at bake time by `agentRadius`, so routes are already clear of walls.
+
+A goal the body cannot stand on (a pickup in a corner) is still reached on either surface: the plan ends as close as the
+body fits, and `arriveRadius` covers the rest.
+
+## See also
+
+- [Route Queries](/docs/gameplay/ai/navigation/route-queries/) — inspecting an agent's route in the editor.
+- [Characters](/docs/gameplay/physics-3d/characters/#charactercontroller3d) — the controller an agent steers.
+- [Hunter](/docs/gameplay/ai/hunter/) — an enemy built on a steered agent.

@@ -1,19 +1,21 @@
 ---
-title: 广告与分享
-description: 内置暂停仪式的激励视频/插屏广告,以及宿主的两个分享面。
+title: 广告与平台服务
+description: 所有目标上都可用的平台服务——激励视频与插屏广告、分享卡片、录屏、开放数据域中的好友排行榜、登录码和游戏内购买——以及各平台的可用情况。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-在小游戏宿主(微信、抖音)上,变现与分享是每个游戏都要手动接的平台调用——而接错的
-恰恰是接线本身:激励视频盖着屏幕时游戏还在跑、广告底下音频还在响、出错路径把世界
-永远留在暂停里。`Ads` 与 `Share` 服务把这套仪式收进引擎,并且在每个平台上都存在,
-所以玩法代码只写一份,用**询问**代替按平台分支。
+`Ads`、`Share`、`Recorder`、`Leaderboard`、`Identity` 和 `Payment` 服务封装了小游戏宿主 API。每个服务在所有平台上都存在，并通过 `available` 报告当前平台的支持情况，因此玩法代码检查能力即可，无需按平台分支。
+
+| 服务 | 包 | 运行模式中的模拟 |
+|---|---|---|
+| `Ads` | `esengine` | 有 |
+| `Identity` | `esengine` | 无 |
+| `Share`、`Recorder`、`Leaderboard`、`Payment` | `estella-plugin-minigame-services` | `Recorder` 实际录制；`Leaderboard` 在本地渲染；`Share` 和 `Payment` 报告不可用 |
 
 ## 激励视频
 
-`Ads.showRewarded(adUnitId)` 展示一条激励视频,并在广告关闭、游戏恢复运行**之后**
-resolve,结果是奖励有没有赚到:
+`Ads.showRewarded(adUnitId)` 展示激励视频，在广告关闭且游戏恢复运行后 resolve，结果说明是否获得奖励：
 
 ```typescript
 import { defineSystem, Res, GetWorld, Ads } from 'esengine';
@@ -21,52 +23,47 @@ import { defineSystem, Res, GetWorld, Ads } from 'esengine';
 const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
   if (!reviveClicked(world)) return;
   ads.showRewarded('adunit-xxxx').then(({ completed }) => {
-    if (completed) revivePlayer(world);   // 看完了 → 发奖
-    else showToast(world, '看完整条视频才能复活');
+    if (completed) revivePlayer(world);   // watched to the end → grant the reward
+    else showToast(world, 'Watch the whole ad to revive');
   }).catch(() => {
-    showToast(world, '暂时没有可用的广告');
+    showToast(world, 'No ad available right now');
   });
 }, { name: 'ReviveSystem' });
 ```
 
-广告覆盖屏幕期间,服务会:
+广告展示期间，该服务会：
 
-- **暂停游戏时钟**——复活广告不能反过来害玩家丢掉这条命;
-- **挂起音频设备**——不碰用户设置的任何音量;
-- **无论广告怎么结束都恢复以上两者**,包括所有出错路径。你自己在广告前暂停的游戏,
-  广告后保持暂停。
+- 暂停游戏时钟；
+- 挂起音频设备，不改变用户设置的任何音量；
+- 无论广告如何结束（包括所有错误路径）都恢复二者。广告前已暂停的游戏在广告后仍保持暂停。
 
-宿主文档里的 load/show 补救舞步(没有填充的广告要 load 一次再重试)已经折叠在内;
-老运行时"发了奖但不报 `isEnded`"的情况也是——关闭记录缺失按看完处理,因为宿主
-就是这个意思。
+宿主的加载/展示流程（无填充的广告会加载并重试一次）在内部处理。对于发放奖励却不报告 `isEnded` 的运行时，没有关闭记录视为已完成。
 
-`Ads.showInterstitial(adUnitId)` 是同一契约去掉奖励;`Ads.preloadRewarded(adUnitId)`
-预热一个广告位,让展示即点即出。
+| 方法 | 说明 |
+|---|---|
+| `Ads.showRewarded(adUnitId)` | 展示激励广告；以 `{ completed }` resolve。 |
+| `Ads.showInterstitial(adUnitId)` | 约定相同，但没有奖励。 |
+| `Ads.preloadRewarded(adUnitId)` | 预先加载广告位，使下一次展示立即开始。 |
 
 <Aside type="tip">
-`adUnitId` 来自宿主的广告后台(微信:MP 后台的流量主 → 广告位)。只有开通了流量主
-的游戏才会出真广告;开发者工具的模拟器里出的是测试广告。
+`adUnitId` 来自宿主的广告后台（微信：MP 后台的 流量主 → 广告位）。只有在后台开通流量主的游戏才会投放广告；开发者工具模拟器显示测试广告。
 </Aside>
 
-### 广告在哪些地方存在
+### 可用性
 
-`Ads.available` 在**存在某个广告源**时为 true——平台自带的,或安装进来的 provider。
-用它诚实地隐藏"看广告"按钮:
+存在广告来源（平台自身或已安装的提供方）时，`Ads.available` 为 `true`：
 
-- **小游戏构建**(微信、抖音和其他同族宿主)——宿主的激励/插屏广告,同一份家族实现。
-  宿主没有广告接口的厂商,`available` 为 false。
-- **带广告的渠道 Web 导出**——Poki、CrazyGames 和 YouTube Playables 会安装各自的 provider(见下文)。
-- **编辑器 Play 模式**——自动安装 **mock provider**:`showRewarded`"播放"片刻后
-  resolve `completed: true`,真实的暂停/音频仪式照常运行。复活流程在工位上就能排练。
-- **Android 与 iOS 构建**——广告 SDK 是你自己的原生代码,引擎一个都不链接。那段代码应答
-  `ads.show` 之后 `available` 为 true(见[调用你自己的原生代码](/docs/zh-cn/publishing/android-ios/#广告))。
-- **普通 Web 与桌面构建**——没有广告系统,`available` 为 false。
+| 平台 | 广告来源 |
+|---|---|
+| 小游戏（微信、抖音及其他同族宿主） | 宿主的激励视频和插屏广告。宿主没有广告 API 的厂商报告 `false`。 |
+| 设置了平台渠道的 Web | Poki、CrazyGames 和 YouTube Playables 安装各自的提供方（[Web 游戏平台](/docs/zh-cn/publishing/web-portals/)）。 |
+| 编辑器运行模式 | 模拟提供方：`showRewarded` 片刻后以 `completed: true` resolve，暂停与音频处理与真实情况一致。 |
+| Android、iOS | 项目自己的原生广告 SDK，在其代码响应 `ads.show` 之后（[原生代码](/docs/zh-cn/publishing/native-code/#广告)）。 |
+| 独立发行的 Web、桌面 | 无；`false`。 |
 
 ## 分享
 
-分享和[内购](#内购)以包的形式发布，不在引擎里——大多数游戏两个都不会打开。这个包由
-编辑器自带，不用安装：直接 import，Play 和所有导出都能解析到。(项目自己装进
-`node_modules` 的副本优先于编辑器自带的。)
+分享、录屏、排行榜和游戏内购买由 `estella-plugin-minigame-services` 包提供。编辑器自带该包，因此在运行模式和所有导出中都可直接导入，无需安装；项目自身 `node_modules` 中安装的副本优先。
 
 ```typescript title="src/main.ts"
 import { addPlugin } from 'esengine';
@@ -75,87 +72,76 @@ import { miniGameServicesPlugin } from 'estella-plugin-minigame-services';
 addPlugin(miniGameServicesPlugin);
 ```
 
-小游戏宿主有**两个**分享面,游戏两个都该配置:
+小游戏宿主有两个分享入口，两者都应配置：
 
 ```typescript
 import { defineSystem, addStartupSystem, Res } from 'esengine';
 import { Share } from 'estella-plugin-minigame-services';
 
 addStartupSystem(defineSystem([Res(Share)], (share) => {
-  // 默认卡片:宿主自己的分享菜单(微信右上角)展示的内容,也是 share() 不带参数时
-  // 用的内容。传函数则在分享那一刻被询问,卡片可以携带实时状态——分数、房间号。
+  // The DEFAULT card: what the host's own share menu (top-right on WeChat)
+  // shows, and what share() without arguments uses. A function is asked at
+  // share time, so the card can carry live state — a score, a room code.
   share.setShareCard(() => ({
-    title: `我拿了 ${currentScore()} 分,来超过我!`,
+    title: `I scored ${currentScore()} — beat me!`,
     query: `room=${currentRoomCode()}`,
   }));
 }, { name: 'SetupShare' }));
 
-// 在游戏自己的分享按钮回调里(share 同上,来自 Res(Share)):
-share.share();                        // 默认卡片
-share.share({ title: '来加入我的游戏' }); // 或一次性卡片
+// In the game's own share button handler (share is Res(Share) as above):
+share.share();                          // the default card
+share.share({ title: 'Join my game' }); // or a one-off card
 ```
 
-打开被分享卡片的人会在宿主的启动参数里收到 `query`——邀请链接和房间号就是这样
-传递的。
+| 入口 | 配置方式 |
+|---|---|
+| 宿主自带的分享菜单 | `setShareCard(card \| () => card)`；也是 `share()` 的默认卡片。 |
+| 游戏内的分享按钮 | `share(card?)`。 |
 
-分享是有意的 fire-and-forget:2021 年起没有任何小游戏宿主报告玩家是否真的分享了,
-所以没有可等待的结果。平台之外(web、原生、编辑器)`Share.available` 为 false 且
-`share()` 返回 false——把按钮藏起来,而不是承诺一张打不开的分享面板。
+打开分享卡片的玩家会在宿主的启动参数中收到 `query`；邀请链接和房间号通过这种方式传递。
+
+分享是“发出即不管”的：小游戏宿主不报告玩家是否完成分享。在平台之外（Web、原生、编辑器），`Share.available` 为 `false`，`share()` 返回 `false`；此时应隐藏按钮。
 
 ## 录屏
 
-录一段对局来分享，是小游戏在抖音上传播的主要方式，微信也能分享对局回放。`Recorder`
-和 `Share` 在同一个包里：
+`Recorder`（同一个包）录制游戏画布以供分享：
 
 ```typescript
 import { Recorder } from 'estella-plugin-minigame-services';
 
-// 一局开始时(recorder 来自 Res(Recorder)):
+// When the run starts (recorder is Res(Recorder)):
 if (recorder.available) await recorder.start();
 
-// 刚发生了值得留下的事——击杀、险些翻车:
-recorder.highlight(3, 2);   // 保留此刻之前 3 秒、之后 2 秒
+// When something worth keeping just happened — a kill, a near miss:
+recorder.highlight(3, 2);   // keep 3s before now and 2s after
 
-// 一局结束时:
+// When the run ends:
 await recorder.stop();
 
-// 在「分享这一局」按钮的点击回调里——两家宿主都拒绝不是玩家点出来的分享:
-if (recorder.canShare) await recorder.share({ title: '看我这一局' });
+// In the "share my run" button's tap handler — both hosts refuse a share
+// the player did not tap for:
+if (recorder.canShare) await recorder.share({ title: 'Look at this run' });
 ```
 
-标过精彩片段时，分享出去的是这些片段(按顺序)；没标过就是整段录像。每个调用都在宿主
-确认之后才 resolve，失败时带着宿主自己的原因(有错误码时也带上 `code`)。录制中途被宿主
-报错终止的，通过 `recorder.onFailure(...)` 通知，`state` 回到 `'idle'`。
+有高光片段时，分享的视频按顺序由高光片段组成；没有时为完整录制。每个调用在宿主确认后 resolve，并以宿主给出的原因（及 `code`，若有）reject。宿主因错误结束的录制通过 `recorder.onFailure(...)` 报告，`state` 回到 `'idle'`。
 
-| | 微信 | 抖音 | 编辑器 / web |
+| | 微信 | 抖音 | 编辑器 / Web |
 |---|---|---|---|
-| 时长(`maxSeconds`) | 5 – 7200 秒 | 4 – 300 秒 | 不限 |
-| `stop()` 给出 | 时长；视频由微信保管 | 临时文件(`path`) | WebM 预览(`blob`) |
-| 分享的片段 | 精彩片段最多 60 秒、至少 2 秒 | 精彩片段合并 | 不能分享 |
+| 时长（`maxSeconds`） | 5–7200 秒 | 4–300 秒 | 任意 |
+| `stop()` 的结果 | 时长；视频由微信保存 | 临时文件（`path`） | WebM 预览（`blob`） |
+| 分享的视频 | 最多 60 秒高光，至少 2 秒 | 合并后的高光片段 | 无法分享 |
 
-`maxSeconds` 默认 300，并被收进宿主接受的范围。只录游戏画布——盖在上面的广告和宿主
-弹窗不会被录进去。
+`maxSeconds` 默认为 300，并限制在宿主的范围内。只录制游戏画布；覆盖在其上的广告和宿主对话框不会被录入。
 
 <Aside type="caution">
-抖音开发者工具不录屏:「开发者工具不支持录屏调试，请在真机上调试录屏相关功能」。
-微信从安卓 8.0.28、iOS 8.0.30 起支持分享对局回放；宿主没有分享接口时 `canShare` 为 `false`。
+抖音开发者工具不支持录屏（“开发者工具不支持录屏调试，请在真机上调试录屏相关功能”）。微信在 Android 8.0.28、iOS 8.0.30 起支持分享录屏；宿主没有分享接口时 `canShare` 为 `false`。
 </Aside>
 
-编辑器 Play 里的录屏是真的：`stop()` 把画布录成 WebM 交回来，录屏按钮在自己桌面上就能
-做和试。那里 `canShare` 为 `false`，分享按钮会像在不能分享的宿主上一样自己藏起来。`record-share`
-示例把这些都放在了一个画面里。
+运行模式中的录制是真实的：`stop()` 以 WebM 返回画布内容。`canShare` 为 `false`，因此分享按钮会像在不支持分享的宿主上一样隐藏。`record-share` 示例演示了完整流程。
 
 ## 好友排行榜
 
-小游戏的排行榜不是一个「拉回来的列表」。玩家的好友数据**只能在开放数据域里读**
-——那是宿主在你的游戏旁边启动的第二个 JavaScript 运行时，里面没有引擎、没有
-WebGL、也没有 wasm——而且它没有回到你这边的通道。所以榜是**在那边画的**，到你
-这边时已经是像素。
-
-它和分享在同一个包里(编辑器自带，不用安装)，而不是待在引擎里：一个从不开排行榜的
-游戏，不该背着一份榜的渲染器。
-
-API 把宿主的这条约束直说，而不是遮掩：
+在小游戏宿主上，好友数据只能在**开放数据域**中读取：这是宿主在游戏旁启动的第二个 JavaScript 运行时，没有引擎、WebGL 和 wasm，也没有回到游戏的通道。排行榜在那里绘制，以纹理形式传回游戏。
 
 ```typescript
 import { UIVisual } from 'esengine';
@@ -164,194 +150,101 @@ import { miniGameServicesPlugin, Leaderboard } from 'estella-plugin-minigame-ser
 addPlugin(miniGameServicesPlugin);
 const leaderboard = app.getResource(Leaderboard);
 
-// 你这一半：写自己的那一行。这是游戏本身唯一能做的云操作——
-// 读任何人的（包括你自己的）都属于开放数据域。
+// Your half: write your own row. It is the one cloud operation the game
+// itself may do — reading anyone's, including your own, belongs to the context.
 leaderboard.submit(score);
 
-// 请开放数据域画。这是请求不是提问：不会有行数据回来，
-// 没有条数，也没有「成功了吗」。
+// Ask the context to draw. This is a request, not a question: no rows come
+// back, no count, no "did it work".
 leaderboard.show({ limit: 10, order: 'desc' });
 
-// 它画出来的东西，作为纹理句柄，任何 UIVisual 都能戴上。
+// What it drew, as a texture handle any UIVisual can wear.
 world.get(panel, UIVisual).texture = leaderboard.texture;
 
-leaderboard.hide();   // 清空并停止采样
+leaderboard.hide();   // clears the board and stops sampling
 ```
 
-没有开放数据域的地方 `Leaderboard.available` 是 `false`——网页、原生，以及任何
-没有声明开放数据域的包。**把按钮藏起来**，别打开一个永远空白的面板。
+| 成员 | 说明 |
+|---|---|
+| `submit(score)` | 写入玩家自己的记录——游戏自身唯一可执行的云端操作。 |
+| `show(options)` | 请求绘制。不返回任何记录或状态。选项：`limit`、`order`、`style`（颜色、行高、字号、头像）。 |
+| `texture` | 绘制出的排行榜，作为任意 `UIVisual` 可用的纹理句柄。 |
+| `hide()` | 清除排行榜并停止采样。 |
+| `available` | 没有开放数据域时为 `false`：Web、原生，以及未声明开放数据域的包。 |
 
-### 另外那一半
+排行榜对记录排序、突出显示玩家自己的一行，并省略从未玩过的好友。画布尺寸固定且**不能滚动**——开放数据域收不到任何指针或按键事件——因此 `limit` 是能容纳的行数。
 
-开放数据域这个目录属于项目，里面放什么由包提供：
+### 开放数据域文件
+
+开放数据域目录归项目所有，内容由包提供：
 
 ```typescript title="open-data/index.ts"
 import 'estella-plugin-minigame-services/open-data';
 ```
 
-整个文件就这一行。导出器会把 `open-data/` 单独打一个包并写进 `game.json`；项目
-里没有这个目录就不带开放数据域，`available` 会如实说没有，而不是让一块榜到设备
-上才画不出来。
+导出器单独打包 `open-data/` 并在 `game.json` 中声明。没有该目录的项目不发布开放数据域，`available` 报告 `false`。
 
-带来的这块榜：行会排名，玩家自己那一行会加重，**从没玩过的好友不会以 0 分出现**，
-而是不出现。样式走 `show({ style })`——颜色、行高、字号、画不画头像。画布尺寸固定
-且**不能滚动**：没有任何指针或按键事件能到达那个运行时，所以 `limit` 是「放得下
-几行」，不是分页。
+要绘制自定义排行榜，可不导入包而自行编写该文件。它运行在开放数据域中，因此**不得导入 `esengine`**；若导入，导出和进入运行模式都会失败。开放数据域提供 `wx.getSharedCanvas()` 得到的 2D 画布、`wx.getFriendCloudStorage()`，以及携带 `show()` 所传选项的 `wx.onMessage()`。
 
-### 自己写一份
+### 运行模式
 
-不 import 包的那份，自己写这个文件就行。它运行在开放数据域里，所以**不允许
-import `esengine`**——真这么写导出会失败，进 Play 也会失败，这比到设备上才发现要
-好。在里面你有 `wx.getSharedCanvas()` 给的 2D 画布、`wx.getFriendCloudStorage()`，
-以及 `wx.onMessage()` 收到的 `show()` 发过去的内容。
-
-### 在你自己的桌面上
-
-Play 模式里没有宿主，所以**编辑器来当这个宿主**：它跑的是**你自己那份**
-`open-data/index.ts`，画在离屏画布上，配一份一眼就看得出是假的好友数据，并按设备
-上同样的那几个能力回答 `Leaderboard`。所以你对着排版的那块榜就是会发出去的那块
-——不管它是谁写的——而且 `submit()` 真的能进去，自己那一行会动。
-
-它替代不了的是真正属于宿主的那部分——真实好友，以及它们所在的沙箱。发版前请在真
-机上过一眼。
+运行模式会在离屏画布上运行项目的 `open-data/index.ts`，使用生成的占位好友数据，并通过与设备相同的能力响应 `Leaderboard`。`submit()` 会作用于它，因此玩家自己的那一行会变化。真实好友和宿主沙箱只能在设备上检查。
 
 ## 登录
 
-小游戏宿主把玩家登录后交给你一个**一次性 code**。这个 code 不是身份：要把它换成
-身份需要你的 app secret，而放在客户端里的 app secret 等于人人可读。所以**这一步
-交换属于你自己的服务器**，引擎的职责到 code 为止。
+小游戏宿主为玩家登录并返回一个**一次性登录码**。将登录码换成身份需要 app secret，而 app secret 必须保存在游戏的服务端；引擎的职责止于登录码。
 
 ```typescript
 import { defineSystem, Res, Identity } from 'esengine';
 
-if (!identity.available) return;             // 网页、原生、编辑器都没有
+if (!identity.available) return;             // web, native, the editor
 
-// 你服务器手上的会话还有效时，跳过这趟往返。
+// Skip the round trip when the session your server holds is still good.
 if (await identity.sessionValid()) return;
 
-const { code } = await identity.login();     // 是 code，不是会话
+const { code } = await identity.login();     // a CODE, not a session
 const session = await postToYourServer('/session', { code });
 ```
 
-登录失败时 `login()` 会 **reject**，并带上宿主自己的说法；平台压根没有登录时也会
-立刻 reject——这样跳过了 `available` 的调用方会听到消息，而不是 await 一个永远不
-settle 的 promise。code 短期有效且只能用一次：**缓存你服务器返回的会话，不要缓存
-code**。
+| 成员 | 说明 |
+|---|---|
+| `available` | 平台是否支持登录。 |
+| `sessionValid()` | 宿主会话是否仍然有效。 |
+| `login()` | 以 `{ code }` resolve。登录失败时以宿主消息 reject；平台不支持登录时立即 reject。 |
 
-这里**刻意没有本地替身**，和广告、排行榜不同。假广告仍然是真的暂停、假排行榜仍然
-是真的渲染器，排练它们有意义；而假 code 是任何服务器都换不了的字符串——拿它排练，
-排练的只是一个注定失败的请求。在没有该能力的平台上 `available` 是 `false`，游戏走
-它在「没有账号」时本来该走的那条路。
+登录码有效期短且只能使用一次：缓存服务端返回的会话，而不要缓存登录码。运行模式不模拟登录，因为任何服务端都无法换取占位登录码；在平台之外 `available` 为 `false`。
 
-## 内购
+## 游戏内购买
 
-在小游戏里付费是一种**权限，不是功能**。微信上它**只在安卓可用**：在 iPhone 上这个
-调用是存在的，而平台会拒绝它。所以 `available` 回答的是**这台设备**能不能买，商店
-应该在打开之前就问，而不是等玩家点了「购买」才发现。
+游戏内购买是一项设备权限。微信上仅 Android 支持：iOS 上该接口存在但会被平台拒绝。因此 `Payment.available` 针对的是**设备**；打开商店前应先检查。
 
 ```typescript
 import { defineSystem, Res } from 'esengine';
 import { Payment } from 'estella-plugin-minigame-services';
 
-if (!payment.available) return;   // iOS、网页、原生——不要打开商店
+if (!payment.available) return;   // iOS, web, native — do not open the shop
 
 try {
-  await payment.request({ offerId: '你的 offerId', quantity: 10 });
-  // 是**宿主**说购买完成了。现在去问**你自己的服务器**玩家拥有什么，
-  // 不要在这里发货。
+  await payment.request({ offerId: 'your-offer-id', quantity: 10 });
+  // The HOST says the purchase completed. Now ask YOUR server what the player
+  // owns — do not add the coins here.
   await refreshInventoryFromYourServer();
 } catch (err) {
-  // 宿主自己的消息和错误码，包括「玩家改主意了」。
-  // 这两种要不同的 UI，而只有宿主分得清。
-  if ((err as { code?: number }).code === /* 你的宿主的取消码 */ 2) return;
+  // The host's own message and code, including "the player changed their mind".
+  // Those are different UI, and only the host can tell them apart.
+  if ((err as { code?: number }).code === /* your host's cancel code */ 2) return;
   showPurchaseFailed(err);
 }
 ```
 
-调试期传 `sandbox: true`；游戏有多个区服时传 `zoneId`。
+`request()` 的选项：`offerId`、`quantity`，开发流程期间使用 `sandbox: true`，多区服的游戏使用 `zoneId`。
 
-这个服务**刻意不做**两件事。它**不解释宿主的错误码**——各家不一样，引擎自己编一张
-映射表就是一个猜测，而你的游戏会照着它分支。它也**不发货**：客户端相信的购买等于
-攻击者可以声称的购买。宿主通知的是**你的服务器**，发货是服务器的事；`request()`
-resolve 只是「去问服务器」的信号。
+- 该服务**不解释宿主的错误码**；各厂商的错误码不同，原样传出。
+- 该服务**不发放任何物品**。宿主通知游戏服务端，由服务端发放货币；`request()` resolve 后应向服务端查询。
+- 运行模式不模拟购买。
 
-Play 模式里没有本地替身，理由和登录那节一样——一次不扣钱也不发货的排练，排练的只有
-那个弹窗，而真正会出问题的是弹窗后面。
+## 参见
 
-
-## Poki Web 导出
-
-在设置 → 项目 → 构建与模块 → 打包 → Web 中选择 **Poki**，或设置
-`packaging.platforms.web.channel` 为 `"poki"`；命名的 Web 导出配置也可以
-保存此设置。默认仍为独立发行。
-
-页面在 head 加载官方 SDK，启动时在项目脚本之前初始化，并在场景与资源
-加载完成后发送 `gameLoadingFinished`。初始化失败时继续运行游戏，广告
-不可用；SDK 初始化等待上限为十秒，该上限不包含脚本下载时间。
-
-奖励广告与插屏继续使用 `Ads` 资源。Poki 由 SDK 选择广告位置，因此忽略
-广告单元 ID。只在 `completed` 为 true 时发放奖励。服务在广告请求期间
-暂停模拟、挂起音频，重叠请求直接拒绝且不排队。
-
-游戏逻辑应在实际开始、暂停、结束时调用官方
-`PokiSDK.gameplayStart()` / `PokiSDK.gameplayStop()`。导出器不把页面加载或
-任意输入推断为 gameplay 开始。事件顺序、无填充/成功广告、音频与输入
-恢复仍需在 [Poki Inspector](https://developers.poki.com/guide/sdk-html5)
-验证，成功导出不代表平台验收。渠道页面为 SDK 管理的广告允许 HTTPS
-资源和 iframe；独立发行继续使用同源资源策略。
-
-
-Mobile Controls 示例提供 `poki` 导出配置：三次命中的训练回合按实际开始、
-暂停、完成与重玩上报事件；奖励广告由玩家主动选择，商业广告在继续游戏
-或重玩前请求。初始加载、设备控制按钮和从后台返回都不触发 gameplay 开始。
-运行 `estella export examples/mobile-controls --profile poki` 即可导出。
-默认独立发行继续使用原有操作。该训练房要求横屏，竖屏时游戏按比例留黑边显示，不出旋转提示。
-CI 使用真正无头 Chromium、SDK 模拟和同提交 Web WASM 检查这些流程；
-官方 Inspector 与物理设备验收仍需单独完成。
-
-
-无需启动编辑器也可检查真实 SDK：在 localhost 提供导出目录，在 Inspector
-的 URL 输入框填写该地址并选择 Open；整个会话期间保持服务运行。
-Inspector 会提供测试上下文。训练示例的真实 SDK 初始化、加载、开始/暂停
-和奖励完成已通过这条入口核实；提交前仍须逐项完成其余 QA 模块，不能把
-这些观察等同于设备验收或正式投放的广告填充保证。
-
-## CrazyGames Web 导出
-
-在同一个 Web 打包设置里选择 **CrazyGames**,或设置 `packaging.platforms.web.channel`
-为 `"crazygames"`。导出会接入官方 v3 SDK:上报加载开始与结束,奖励广告和中插广告走现有的
-`Ads` 资源,存档通过 SDK 的 Data API 保存(须在 CrazyGames 开发者后台开启 **Progress Save**;
-`setItem` 不代表云备份确认),并跟随宿主的静音设置。初始化失败时,游戏继续运行,宿主服务关闭。
-
-与 Poki 一样,由游戏逻辑上报真实的 gameplay 开始与结束;导出器不会去推断。`Scores.submit`
-可以向已获邀请的 CrazyGames 分数榜发送加密后的分数——在项目设置里填平台配置中的
-Base64 **Encryption Key**(切勿填服务器 API Key;它会随 Web 包发布),留空则禁用提交。
-发送了分数不代表榜单接受它,导出也不是平台审核:官方检查须另行完成。
-
-## YouTube Playables Web 导出
-
-导出检查总包低于 250 MiB、单文件低于 30 MiB、最多 8000 个文件，以及
-文件名只使用允许的字符。CLI 与编辑器都会显示建议限额警告。
-静态首包只是估算；截至 gameReady 的实际压缩传输须低于 30 MiB，
-加载速度与峰值堆内存仍须在目标设备和官方 Test Suite 中测量。
-
-无头 CI 还施加官方指南的 CSP 响应头并捕获违规；故意访问外部地址作为
-对照，确认限制和检测器生效。独立的静态复核可使用
-[官方包分析器](https://developers.google.com/youtube/gaming/playables/samples/bundle_analyzer)。
-它不能代替 SDK Test Suite 或设备认证。
-
-在 Web 打包设置选择 **YouTube Playables**，或将
-`packaging.platforms.web.channel` 设置为 `"youtube"`。Mobile Controls
-提供同名导出档。官方 SDK 在游戏代码前加载：加载画面绘制后通知
-`firstFrameReady`，场景可交互且加载遮罩消失后通知 `gameReady`。
-
-SDK 的暂停/恢复独立控制引擎帧、输入、音频和视频，保留玩家暂停选择。
-游戏自有异步任务须配合执行状态通知；页面可见性事件不能覆盖宿主暂停。
-奖励只有在 SDK 返回 true 时发放。云数据读取成功前不能写入，读取失败或
-数据无法识别时保留已有进度。通过 `await Storage.flush()` 或
-`SaveManager.saveAsync()` 等待 SDK 保存确认。存档上限为 3 MiB；暂停时
-超过 64 KiB 的保存保持待重试，不截断数据。示例保存最高分成功后才提交同一分数。
-
-本地 SDK 的空操作不启用广告、分数或云存档。无头 SDK 模拟检查与官方
-Test Suite 认证、真实云恢复和物理设备验收分别记录。参见
-[官方接入要求](https://developers.google.com/youtube/gaming/playables/certification/requirements_integration)。
+- [Web 游戏平台](/docs/zh-cn/publishing/web-portals/)——Poki、CrazyGames 和 YouTube Playables 上的广告与存档。
+- [原生代码](/docs/zh-cn/publishing/native-code/)——在 Android 和 iOS 上响应 `ads.show`。
+- [Steam](/docs/zh-cn/publishing/steam/#成就)——`Achievements` 服务。

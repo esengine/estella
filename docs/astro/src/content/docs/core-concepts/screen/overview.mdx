@@ -1,0 +1,133 @@
+---
+title: Screen & Design Resolution
+description: How a design resolution maps onto real screens — design pixels as world units, the Canvas component, the five scale modes and computeEffectiveOrthoSize, with a worked 4:3 example.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A game is authored against **one design resolution** (1920×1080 by default). At runtime the engine fits that design
+box onto the actual screen. This chapter covers the fit:
+
+| Page | Content |
+|---|---|
+| Screen & Design Resolution (this page) | Units, the `Canvas` component, scale modes. |
+| [Camera Fit](/docs/core-concepts/screen/camera-fit/) | Fit sources, the `ScreenScaling` resource, render resolution, the UI layout box, camera culling of UI, pixel-perfect rendering, project Display settings. |
+| [Orientation & Safe Areas](/docs/core-concepts/screen/devices/) | `ScreenInfo`, orientation, the `SafeArea` component. |
+
+## Design pixels
+
+- **1 world unit = 1 design pixel.** A 100×200 texture creates a 100×200 sprite; a `UINode` sized `px(300)` is 300
+  design pixels wide.
+- The default scene camera's `orthoSize` is `designResolution.y / 2` = **540**, half the design height, so at the
+  design aspect the camera shows exactly one design box (1920×1080 world units).
+- The world is **Y-up**; screen coordinates are **Y-down**. [`CameraView`](/docs/graphics/camera/overview/#screen--world-coordinates)
+  converts between them.
+- `Canvas.pixelsPerUnit` (default `100`) is the **physics scale** — world pixels per Box2D metre — and not a display
+  scale. Rendering never divides by it.
+
+When the screen's aspect differs from the design resolution, the **scale mode** determines how the design box is
+fitted. It changes the visible area of the world; sprite sizes and positions are unaffected.
+
+## The `Canvas` component
+
+One entity per scene carries a `Canvas`, which declares the design resolution and how it adapts. The editor adds it
+when a scene is created. When a scene contains several, the first one found is used.
+
+{/* SHOT: core-canvas-details | examples/mobile-controls, select the entity carrying the Canvas component in the World Outliner; Details shows the Canvas card with Design Resolution, Pixels Per Unit, Scale Mode, Match Width Or Height, Background Color and Layer. */}
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `designResolution` | Vec2 | `{x: 1920, y: 1080}` | Design (reference) resolution in pixels. |
+| `pixelsPerUnit` | number | `100` | World pixels per physics metre (Box2D and tile-collider scale). Minimum `1`. Not a display scale. |
+| `scaleMode` | `ScaleMode` | `FixedHeight` | How the design resolution adapts to the screen's aspect ([Scale modes](#scale-modes)). |
+| `matchWidthOrHeight` | number | `0.5` | `Match`-mode blend, 0–1: `0` fits width, `1` fits height. Ignored by other modes. |
+| `backgroundColor` | Color | `{r:0, g:0, b:0, a:1}` | Colour declared for the areas outside the design box. |
+| `layer` | number | `0` | Sorting layer this canvas's UI belongs to; cameras include or exclude the UI by it ([Camera culling](/docs/core-concepts/screen/camera-fit/#camera-culling-of-ui)). |
+
+```typescript
+import { defineSystem, GetWorld, Canvas } from 'esengine';
+
+const readCanvas = defineSystem([GetWorld()], (world) => {
+  const [canvasEntity] = world.getEntitiesWithComponents([Canvas]);
+  if (canvasEntity === undefined) return;
+
+  const canvas = world.get(canvasEntity, Canvas);
+  const designW = canvas.designResolution.x;   // 1920
+  const designH = canvas.designResolution.y;   // 1080
+});
+```
+
+<Aside type="note">
+  `pixelsPerUnit` affects physics and tile colliders only. With the default `100`, a 100-pixel crate is one Box2D
+  metre, which keeps physics values in the numeric range the solver is tuned for. Changing it rescales collider
+  sizes and the effect of gravity, not rendering.
+</Aside>
+
+## Scale modes
+
+![On a 4:3 screen, FixedWidth/Expand reveal extra world above and below the 16:9 design box, while FixedHeight/Shrink fill the height and crop the sides](@/assets/guides/scale-modes.svg)
+
+The fit is computed by one pure function, exported as `computeEffectiveOrthoSize`. From the design box and the
+screen's aspect it returns the **effective ortho half-height**: half the height, in world units, of the area the
+camera shows. Two candidate values exist:
+
+| Candidate | Formula | Meaning |
+|---|---|---|
+| `orthoForWidth` | `(designResolution.y / 2) × designAspect / actualAspect` | Half-height at which the design **width** exactly spans the screen. |
+| `orthoForHeight` | `designResolution.y / 2` | Half-height at which the design **height** exactly spans the screen. |
+
+Each `ScaleMode` selects between them:
+
+| `ScaleMode` | Value | Effective half-height | Behaviour |
+|---|---|---|---|
+| `FixedWidth` | `0` | `orthoForWidth` | The design width always spans the screen. Taller screens show extra world above and below; wider screens crop the top and bottom. |
+| `FixedHeight` | `1` (default) | `orthoForHeight` | The design height always spans the screen. Wider screens show extra world at the sides; narrower screens crop the sides. |
+| `Expand` | `2` | `max(orthoForWidth, orthoForHeight)` | The **whole design box is always visible**; the other axis shows extra world beyond it. |
+| `Shrink` | `3` | `min(orthoForWidth, orthoForHeight)` | The **screen is always filled by the design box**; the overflowing axis is cropped. Nothing outside the design box is shown. |
+| `Match` | `4` | `orthoForWidth^(1−t) × orthoForHeight^t` | Geometric blend by `matchWidthOrHeight` (`t`): `0` equals `FixedWidth`, `1` equals `FixedHeight`. |
+
+`ScaleMode.ShowAll` and `ScaleMode.NoBorder` are aliases with the same values as `ScaleMode.Expand` and
+`ScaleMode.Shrink`; they are not additional modes.
+
+```typescript
+import { computeEffectiveOrthoSize, ScaleMode } from 'esengine';
+
+const halfH = computeEffectiveOrthoSize(
+  540,          // baseOrthoSize = designResolution.y / 2
+  1920 / 1080,  // design aspect (≈ 1.778)
+  1024 / 768,   // screen aspect (4:3 ≈ 1.333)
+  ScaleMode.Expand,
+  0.5,          // matchWidthOrHeight (Match mode only)
+);
+// halfH === 720 → the camera shows 1920 × 1440 design pixels
+```
+
+### Example: 1920×1080 design on a 4:3 screen
+
+On a 1024×768 screen, `orthoForWidth = 540 × (16/9) / (4/3) = 720` and `orthoForHeight = 540`:
+
+| Mode | Half-height | Visible world (design px) | Result |
+|---|---|---|---|
+| `FixedWidth` | `720` | 1920 × 1440 | Full design width; 180 px of extra world above and below. |
+| `FixedHeight` | `540` | 1440 × 1080 | Full design height; 240 design px **cropped on each side**. |
+| `Expand` / `ShowAll` | `720` | 1920 × 1440 | Whole design box visible, extra world above and below. On a screen wider than the design it equals `FixedHeight`. |
+| `Shrink` / `NoBorder` | `540` | 1440 × 1080 | Screen filled; sides cropped. |
+| `Match` (t = 0.5) | `≈ 623.5` | ≈ 1663 × 1247 | Partial crop at the sides and partial extra world above and below. |
+
+<Aside type="tip">
+  The camera viewport always fills its screen rectangle; no scale mode draws black bars. Where a mode shows area
+  beyond the design box, that area shows the world, so backgrounds intended for `Expand` extend past the design
+  frame. `Canvas.backgroundColor` declares the colour for the area outside the design box. The `IntegerMultiple`
+  [render resolution](/docs/core-concepts/screen/camera-fit/#render-resolution) is a separate setting that presents
+  the frame with black bars.
+</Aside>
+
+## Choosing a mode
+
+| Content | Mode |
+|---|---|
+| Content that must never be cropped (UI-heavy, puzzle) | `Expand`, with backgrounds extending past the design frame. |
+| Full-bleed artwork where cropping the edges is acceptable | `Shrink`. |
+
+Content is authored at the design resolution and is not scaled per screen; the scale mode handles the fit. A camera
+zoom is `orthoSize`, not `pixelsPerUnit`.

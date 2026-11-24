@@ -1,0 +1,63 @@
+---
+title: 计时器与 Velocity
+description: 由游戏时间驱动、用于延迟与重复回调的 TimerRes 资源，以及无需物理刚体即可实现匀速线性与角运动的 Velocity 组件。
+---
+
+## 计时器
+
+**`TimerRes`** 资源在延迟之后或按间隔运行回调。计时器随游戏时间推进——计时器系统在 `PreUpdate` 中按帧间隔运行——因此与 `setTimeout` 不同，它们在游戏暂停时停止。
+
+```typescript
+import { defineSystem, Res, TimerRes } from 'esengine';
+
+const arm = defineSystem([Res(TimerRes)], (timers) => {
+  timers.delay(2, () => explode());                    // once, after 2 s
+  const h = timers.interval(0.5, (t) => spawnWave());  // repeating
+  timers.interval(1, (t) => tick(), 3);                // exactly 3 times
+  h.pause(); h.resume(); h.reset(); h.cancel();        // handle controls
+});
+```
+
+| `TimerRes` 成员 | 说明 |
+|---|---|
+| `delay(seconds, cb)` | 在 `seconds` 秒后运行一次 `cb`。返回 `TimerHandle`。 |
+| `interval(seconds, cb, maxRepeat?)` | 每隔 `seconds` 秒运行 `cb`。`maxRepeat` 为 `0`（默认）时无限重复。返回 `TimerHandle`。 |
+| `cancelAll()` | 取消所有计时器。 |
+| `activeCount` | 活动计时器的数量。 |
+| `timeScale` | 作用于所有计时器的倍率；`0` 冻结所有计时器。负值被钳制为 `0`。默认 `1`。 |
+
+| `TimerHandle` 成员 | 说明 |
+|---|---|
+| `pause()` / `resume()` / `reset()` | 控制计时器；均返回该句柄以便链式调用。 |
+| `cancel()` | 移除计时器。 |
+| `isActive` | 计时器是否仍在调度中。 |
+| `elapsed` | 当前周期内已经过的秒数。 |
+| `repeatCount` | 回调已运行的次数。 |
+| `id` | 计时器标识符。 |
+
+回调接收计时器的句柄。计时器仅在运行期间推进；在编辑器的编辑模式下，它们与其余游戏时间一样保持不动。
+
+## `Velocity` 组件
+
+`Velocity` 使实体以恒定速率移动，无需编写移动系统——适用于投射物、漂移的碎片、旋转的物体。运行期间，引擎在每次 `Update` 中将其积分到 `Transform`。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `linear` | Vec3 | `{0, 0, 0}` | 每秒单位数，累加到 `Transform.position`。 |
+| `angular` | Vec3 | `{0, 0, 0}` | 绕世界轴的每秒弧度数；`z` 为 2D 旋转。 |
+
+```typescript
+import { Velocity, Transform, Sprite } from 'esengine';
+
+const bullet = world.spawn();
+world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
+world.insert(bullet, Sprite, { texture: bulletTex });
+world.insert(bullet, Velocity, {
+  linear: { x: 240, y: 0, z: 0 },          // units per second
+  angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
+});
+```
+
+- 带有 `RigidBody2D` 的实体会被跳过；其变换由物理求解器负责。
+- 两个字段均由[状态复制](/docs/zh-cn/scripting/networking/replication/)同步，因此客户端可在快照之间外推运动。
+- 速度插件声明了 `activeWhen: [Velocity]`：场景中没有 `Velocity` 时，其系统被跳过。

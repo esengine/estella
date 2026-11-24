@@ -1,0 +1,131 @@
+---
+title: Character Controllers
+description: 2D character movement reference — CharacterController2D, the kinematic mover that slides along surfaces and reports contact, and PlatformerController2D, which runs and jumps it from input.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A character controller moves a body along surfaces instead of simulating it as a dynamic body.
+`CharacterController2D` moves by a requested velocity; `PlatformerController2D` produces that velocity from keyboard
+input or game-supplied input.
+
+## `CharacterController2D`
+
+Gameplay sets `velocity` each fixed step. The controller advances the body one step with Box2D's native kinematic mover
+(`b2World_CollideMover` + `b2SolvePlanes`): it collides the shape against contact planes and solves a depenetrating
+slide, writes the resolved pose back, and reports what it touched.
+
+```typescript
+import { defineSystem, Query, Mut, Res, Time, Schedule, CharacterController2D } from 'esengine';
+
+const drive = defineSystem([Query(Mut(CharacterController2D)), Res(Time)], (q, time) => {
+  for (const [entity, cc] of q) {
+    cc.velocity = { x: moveX * 240, y: cc.velocity.y - 900 * time.fixedDelta };  // gravity
+    if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);   // moveX / jumpPressed: your input
+```
+
+Requirements and behaviour:
+
+- The entity needs a collider; the mover shape is derived from it. A box becomes a capsule inscribed along its longer
+  axis.
+- Other bodies collide with the character only if it also has a **Kinematic** `RigidBody2D`.
+- The mover excludes the character's own body, so `maskBits` need not exclude its own collision layer.
+- `velocity` is driven from a fixed-timestep system so motion is independent of the frame rate. Input edges such as a
+  jump press are delivered correctly to `FixedUpdate` ([Input](/docs/scripting/input/overview/#fixed-timestep-systems)).
+- Sensors never block a character.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `velocity` | Vec2 | `{0, 0}` | Requested velocity in world pixels/second, set each step. |
+| `up` | Vec2 | `{0, 1}` | Up direction for floor / wall / ceiling classification. |
+| `floorMaxAngle` | number | `0.785` | Maximum walkable slope measured from `up`, radians (45°). |
+| `skinWidth` | number | `1` | Gap kept from surfaces, pixels, so the body does not stick or jitter. |
+| `maxSlides` | number | `4` | Maximum depenetration slide iterations per move (at least 1). |
+| `snapLength` | number | `0` | Downward probe length, pixels, that keeps the body on descending stairs and slopes; `0` disables it. Skipped while rising, so a jump still leaves the ground. |
+| `slideOnCeiling` | boolean | `true` | `false`: a ceiling hit cancels the upward motion instead of sliding along it. |
+| `maskBits` | number | `0xFFFF` | Layers that block the character. |
+| `stepHeight` | number | `0` | Highest ledge it walks up without jumping, pixels. `0` leaves only what its rounded foot rides over. |
+| `stopOnSlope` | boolean | `true` | Stands still on a walkable slope, and walks along it rather than into it. |
+| `constantSlopeSpeed` | boolean | `false` | Keeps the requested speed along a slope. When `false`, the horizontal speed is kept, so a climb takes as long as the same horizontal distance on flat ground. |
+| `blockSteepSlopes` | boolean | `true` | A slope steeper than `floorMaxAngle` is a wall: walking into it does not climb it, and the character slides down it. |
+| `followPlatform` | boolean | `true` | Moves with the body it stands on, horizontally and vertically. |
+| `dynamicBodies` | `CharacterDynamicBodies` | `Block` | Interaction with dynamic bodies: `Block` stops the character; `Push` stops it and pushes the body with up to `pushForce`; `Ignore` passes through. |
+| `pushForce` | number | `40` | Maximum push force, newtons (`Push` only). |
+| `dropThrough` | boolean | `false` | Passes through one-way platforms while set. |
+| `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **Output**: surfaces touched during this move. |
+| `floorNormal` | Vec2 | — | **Output**: normal of the last floor touched (zero when airborne). |
+| `floorEntity` | Entity | — | **Output**: the entity it stands on; `0` when airborne. |
+| `floorVelocity` | Vec2 | — | **Output**: velocity of that entity, pixels/second. |
+| `realVelocity` | Vec2 | — | **Output**: actual displacement / dt after collisions, pixels/second. |
+
+<Aside type="note">
+  `skinWidth`, `maxSlides`, `snapLength` and `slideOnCeiling` are honoured both by the native mover and by the
+  standalone `moveAndSlide` resolver in `esengine/physics`. The fields after `maskBits` in the table apply to the native
+  mover only; `moveAndSlide` has none of them.
+</Aside>
+
+## `PlatformerController2D`
+
+`PlatformerController2D`, added beside a `CharacterController2D`, reads input and runs, jumps and falls the character
+with no game system. It implements jump buffering (a jump pressed up to `jumpBuffer` seconds before landing is
+performed on landing) and coyote time (a jump pressed up to `coyoteTime` seconds after leaving a ledge counts as a
+ground jump).
+
+```typescript
+import { Transform, CapsuleCollider2D, CharacterController2D, CharacterDynamicBodies, PlatformerController2D } from 'esengine';
+
+const player = world.spawn();
+world.insert(player, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(player, CapsuleCollider2D, { radius: 0.1, halfHeight: 0.15 });
+world.insert(player, CharacterController2D, { stepHeight: 12, snapLength: 8, dynamicBodies: CharacterDynamicBodies.Push });
+world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 });
+```
+
+### Input
+
+With `readKeyboard` set, the controller reads the keyboard:
+
+| Action | Keys |
+|---|---|
+| Move | A / D, Left / Right arrows |
+| Jump | Space, W, Up arrow |
+| Drop through a one-way platform | Down arrow or S, plus jump |
+
+With `readKeyboard: false`, a game, touch controls or an AI drive it through the input fields: `moveInput` and
+`jumpHeld` are levels; `jumpPressed` and `dropPressed` are consumed by the next fixed step. Presses are latched per
+rendered frame, so a tap between two fixed steps is not lost.
+
+### Fields
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `moveSpeed` | number | `260` | Top running speed, pixels/second. |
+| `groundAcceleration` / `airAcceleration` | number | `2400` / `1500` | Acceleration toward that speed on the ground / in the air, pixels/second². |
+| `groundDeceleration` / `airDeceleration` | number | `3000` / `900` | Deceleration when the input centres. |
+| `gravity` | number | `1600` | Downward acceleration, pixels/second². |
+| `fallGravityScale` | number | `1.25` | Gravity multiplier while falling. Above 1, the character falls faster than it rose. |
+| `maxFallSpeed` | number | `1000` | Maximum fall speed, pixels/second. |
+| `jumpSpeed` | number | `620` | Upward speed at the start of a jump; `0` disables jumping. |
+| `jumpCut` | number | `0.5` | Share of the rising speed kept when jump is released, 0–1. `1` makes every jump full height. |
+| `coyoteTime` | number | `0.1` | Seconds after leaving the ground during which a jump counts as a ground jump. |
+| `jumpBuffer` | number | `0.12` | Seconds an early jump press is remembered, to be performed on landing. |
+| `airJumps` | number | `0` | Extra jumps before landing again. |
+| `dropTime` | number | `0.2` | Seconds a drop through a one-way platform lasts. |
+| `keepPlatformVelocity` | boolean | `true` | A jump keeps the velocity of the platform it left. |
+| `readKeyboard` | boolean | `true` | Reads the keyboard itself. |
+| `moveInput` | number | `0` | Input: -1 (left) to 1 (right). |
+| `jumpHeld` | boolean | `false` | Input: the jump button is down. |
+| `jumpPressed` | boolean | `false` | Input: the jump button went down; consumed by the next fixed step. |
+| `dropPressed` | boolean | `false` | Input: request a drop through a one-way platform; consumed by the next fixed step. |
+| `enabled` | boolean | `true` | `false` stops the controller. |
+
+{/* SHOT: gameplay-platformer-controller | platformer example, main scene: the Player entity selected, Details panel showing the Character Controller 2D and Platformer Controller 2D cards */}
+
+## See also
+
+- [Bodies & Colliders](/docs/gameplay/physics-2d/bodies/#one-way-platforms) — one-way platforms.
+- [3D Physics: Characters](/docs/gameplay/physics-3d/characters/) — `CharacterController3D` and the 3D controllers.
+- [Input](/docs/scripting/input/overview/) — keyboard and touch input.

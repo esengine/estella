@@ -291,8 +291,8 @@ report.loadCount;            // 启动以来带进来过多少个地方
 - **自带远景表示的内容：** 地面（[地形](/docs/zh-cn/graphics/terrain/overview/)是按距离划分的四叉树，绘制到 `drawDistance`；
   分块地面的远处由常驻内存的概览绘制，只在视野附近读入全精度分块；星球一直绘制到地平线），以及植物（[植被](/docs/zh-cn/graphics/foliage/)
   和 `PlacedFoliage` 的远景卡片，以及生成世界中植物的远景版本），它们一次覆盖整片区域。网格纹理按视图需要的尺寸保留
-  （[纹理流送](/docs/zh-cn/performance/quality-levels/)，一项画质设置）。
-- **导航**按格子方块逐块烘焙并跟随常驻状态（见[导航](/docs/zh-cn/gameplay/ai/navigation/#在流送世界里)），但智能体只在已加载的区域行走。
+  （[纹理流送](/docs/zh-cn/performance/quality-levels/texture-streaming/)，一项画质设置）。
+- **导航**按格子方块逐块烘焙并跟随常驻状态（见[导航](/docs/zh-cn/gameplay/ai/navigation/navmesh/#在流送世界里)），但智能体只在已加载的区域行走。
 - **世界原点从不重定基准。** `setRenderOriginStep` 让远离原点处的绘制保持精确（见[相机](/docs/zh-cn/graphics/camera/multiple-cameras/#大世界)）；
   模拟精度的实测见下文。
 

@@ -1,0 +1,86 @@
+---
+title: Lifecycle & Status
+description: Runtime signals of an App — the Lifecycle resource and its show, hide, pause and resume events with auto-pause, the SubsystemRegistry with its phases and liveness, and the hot-reload mechanism.
+---
+
+## Lifecycle events
+
+`lifecyclePlugin` is installed by both factories (configured with `new LifecyclePlugin(options)`). It publishes the
+**`Lifecycle`** resource, a `LifecycleManager` that tracks page visibility and focus and can pause the game
+automatically:
+
+```typescript
+import { Lifecycle } from 'esengine';
+
+const lifecycle = app.getResource(Lifecycle);
+const off = lifecycle.on((event) => {
+  if (event === 'pause') saveGame();
+});
+```
+
+| Member | Type | Description |
+|---|---|---|
+| `visible` | `boolean` | Current page or app visibility. |
+| `focused` | `boolean` | Window focus. Tracked; changes emit no event. |
+| `autoPause` | `boolean` | Whether hiding the page pauses the app. Default `true`; writable at runtime and initialized from `new LifecyclePlugin({ autoPause })`. |
+| `on(listener)` / `off(listener)` | — | Subscribes / unsubscribes a listener. `on` returns an unsubscribe function. |
+
+`LifecycleEvent` is `'show' | 'hide' | 'pause' | 'resume'`; a `LifecycleListener` is
+`(event: LifecycleEvent) => void`.
+
+| Event | Emitted when |
+|---|---|
+| `hide` / `show` | Every visibility change: browser `visibilitychange`; `wx.onHide` / `wx.onShow` on WeChat. |
+| `pause` | The lifecycle manager paused the app: the page was hidden, `autoPause` is on, and the app was not already paused. |
+| `resume` | The lifecycle manager lifted its own pause. A pause set with `app.setPaused(true)` is not lifted when the page becomes visible. |
+
+Headless hosts (Node, workers) have no visibility signal; the resource exists and stays `visible`.
+
+To disable automatic pausing, set `new LifecyclePlugin({ autoPause: false })` or `lifecycle.autoPause = false`
+rather than unpausing from a listener; the manager only resumes pauses it made itself.
+
+## Subsystem registry
+
+Every app has a **`SubsystemRegistry`** at `app.subsystems`, reporting which engine modules are loaded, ready,
+stepping or failed. Named plugins are registered automatically; asynchronous plugins (physics) report their own
+`initializing → ready` / `error` transitions.
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(s.id, s.phase, s.activity, s.lastError ?? '');
+}
+```
+
+| Type | Description |
+|---|---|
+| `SubsystemPhase` | Recorded lifecycle: `'registered'` → `'initializing'` → `'ready'`; `'error'` is terminal. |
+| `SubsystemActivity` | Liveness, derived when read from watchdog beats (each system run beats for its owning plugin): `'stepping'` (a beat within the last 400 ms), `'idle'` (ready but no recent beat, for example physics stopped in edit mode), `'inactive'` (never beat; liveness unknown). |
+| `SubsystemStatus` | One entry per subsystem, in install order: `id`, `displayName`, `phase`, `activity`, `detail`, `lastError` (kept across later transitions), `dependsOn` (declared plugin-name dependencies), `phaseAgeMs`. |
+| `SubsystemEvent` | One recorded transition: `id`, `phase`, `detail?`, `atMs`, `seq`. |
+
+| Method | Description |
+|---|---|
+| `getStatuses()` | Current `SubsystemStatus` list. |
+| `recentEvents(limit?)` | The retained tail of transitions (at most 128). |
+| `subscribe(fn)` | Notifies on phase transitions (not on beats). Returns an unsubscribe function. |
+
+`phase` distinguishes *loaded* from *ready*; `activity` distinguishes *ready* from *running*. The editor's status
+display shows both. The registry is per app: the editor's edit and play apps report independently. Checking
+`app.subsystems` is preferred over probing for resources, because it also retains the last error.
+
+## Hot reload
+
+When project code changes while the editor is playing, the editor attempts a **state-preserving hot swap** before
+falling back to a full reload. It re-imports the bundle in an isolated probe context through
+**`probeRegistrations(register)`**, which returns a `ProbedRegistrations`:
+
+| Field | Description |
+|---|---|
+| `fingerprint` | A digest of the user component **schemas** the bundle declared (shape, not values). Unchanged: the live `World` is kept and only system function bodies are replaced. Changed: full reload. |
+| `pending` | The systems the bundle queued, passed to `App.hotSwapSystems`. The swap is rejected — and a full reload performed — when a user system was added, removed or renamed. |
+
+Component identity is resolved **by name**: `defineComponent('Health', …)` evaluated again after a re-import returns
+the same component identity, so the re-imported systems' queries reach the live storage. Renaming a component or
+behaviour is therefore a structural change (full reload, loss of that data), and per-entity `start` hooks run again
+after a reload. The requirements this places on project code are listed in
+[Script Modules](/docs/scripting/script-modules/#hot-reload).

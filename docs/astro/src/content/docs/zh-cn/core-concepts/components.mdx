@@ -1,10 +1,9 @@
 ---
 title: 组件
-description: 声明和使用组件——defineComponent、字段类型、标签组件、编辑器元数据与内置组件集。
+description: 使用 defineComponent 与 defineTag 声明组件——字段类型、编辑器字段元数据、组件级元数据、内置组件集、实体元数据组件，以及组件数据的读取与写入。
 ---
 
-**组件**是挂在实体上的一小块纯数据结构。用 `defineComponent` 声明一个组件，给它一个
-名字和默认值：
+**组件**是挂载在实体上的纯数据结构。`defineComponent(name, defaults, metadata?)` 声明一个组件：
 
 ```typescript
 import { defineComponent } from 'esengine';
@@ -13,28 +12,37 @@ const Speed = defineComponent('Speed', { value: 200 });
 const Health = defineComponent('Health', { current: 100, max: 100 });
 ```
 
-默认值同时定义了组件的形状（字段与类型）和新实例的初始值。组件是纯数据——没有方法、
-没有行为。行为存在于[系统](/docs/zh-cn/core-concepts/systems/)里。
+默认值定义组件的字段、字段类型以及新实例的初始值。组件只保存数据；行为属于[系统](/docs/zh-cn/core-concepts/systems/)。
+名称即组件的身份：场景按名称序列化组件，[热重载](/docs/zh-cn/scripting/script-modules/#热重载)也按名称匹配组件。
+
+{/* SHOT: core-component-details | 运行 examples/ecs-basics，暂停 Play，选中一个带 Mover 组件的生成实体；细节面板在 Transform 下方显示 Mover 卡片（speed、directionX、directionY）。 */}
 
 ## 字段类型
 
-字段的类型由默认值推断。数字、布尔、字符串如你所想，结构化形状会得到对应的编辑器
-控件：
+字段类型由默认值推断。结构化值会获得对应的编辑器控件：
+
+| 默认值 | 类型 | 细节面板控件 |
+|---|---|---|
+| `400` | number | 数字字段 |
+| `true` | boolean | 复选框 |
+| `''` | string | 文本字段 |
+| `{ x: 0, y: 0 }` | 向量 | X/Y 字段 |
+| `{ r: 1, g: 1, b: 1, a: 1 }` | 颜色 | 拾色器 |
 
 ```typescript
 const Missile = defineComponent('Missile', {
-  speed: 400,                          // number
-  homing: true,                        // boolean
-  targetTag: '',                       // string
-  velocity: { x: 0, y: 0 },            // 向量——以 X/Y 一对编辑
-  tint: { r: 1, g: 1, b: 1, a: 1 },    // {r,g,b,a} 字段渲染成拾色器
+  speed: 400,
+  homing: true,
+  targetTag: '',
+  velocity: { x: 0, y: 0 },
+  tint: { r: 1, g: 1, b: 1, a: 1 },
 });
 ```
 
-## 标签——没有数据的组件
+## 标签
 
-**标签（tag）**是零字段的标记组件，纯粹用于过滤——`Player`、`Enemy`、`Frozen`。
-用 `defineTag` 声明，在查询里配合 `.with()` / `.without()` 使用：
+**标签（tag）**是没有字段的组件，仅用于过滤（`Player`、`Enemy`、`Frozen`）。`defineTag(name)` 声明标签；
+查询通过 `.with()` 与 `.without()` 要求或排除标签：
 
 ```typescript
 import { defineTag, defineSystem, Query, Mut, Transform } from 'esengine';
@@ -45,9 +53,9 @@ const Frozen = defineTag('Frozen');
 defineSystem([Query(Mut(Transform)).with(Player).without(Frozen)], (q) => { /* … */ });
 ```
 
-## 编辑器元数据
+## 字段元数据
 
-第三个参数控制字段在编辑器 Details 面板里的呈现——范围、滑杆、单位、枚举：
+`defineComponent` 的第三个参数控制字段在**细节面板**中的呈现方式。`fields` 将字段名映射到其呈现设置：
 
 ```typescript
 const Turret = defineComponent('Turret', {
@@ -61,58 +69,72 @@ const Turret = defineComponent('Turret', {
 });
 ```
 
-常用的 `fields` 选项：`min` / `max` / `step`、`slider`、`unit`、`enum`（下拉，
-存储选项的整数值）、`flags`（位掩码多选）、`tooltip`。其他组件级元数据：
-`assetFields`（把字段标记为资产引用，Details 渲染选择器、cook 会带上依赖）、
-`animatableFields`（[Sequencer](/docs/zh-cn/animation/timeline/sequencer/) 可打关键帧的字段
-——默认为全部数字字段）、`transient`（永不存进场景——用于逐帧运行时状态）、
-`replicatedFields`（由[联网](/docs/zh-cn/scripting/networking/)的状态复制同步），以及
-`renderableField`。
+| 选项 | 类型 | 说明 |
+|---|---|---|
+| `min` / `max` | number | 硬性范围；限制键入值与拖动调整。 |
+| `step` | number | 拖动调整与方向键的步长。 |
+| `slider` | boolean | 以滑杆显示数值。要求 `min` 与 `max` 为有限值。 |
+| `unit` | string | 显示在数值后的单位（`'px'`、`'°'`、`'%'`）。 |
+| `enum` | `{ label, value }[]` | 下拉列表；存储所选选项的整数值。 |
+| `flags` | `{ label, value }[]` | 位掩码多选；每个选项占一位。 |
+| `label` / `tooltip` | string | 覆盖由字段名派生的标签；悬停提示文本。 |
+| `category` | string | 将字段归入某个分类标题下。 |
+| `advanced` | boolean | 将字段置于折叠区内。 |
 
-`renderableField` 指出哪个布尔字段控制你的组件绘不绘制——如果组件自己画东西
-（比如通过自定义绘制回调），就声明它，隐藏实体便能作用到它：Outliner 的眼睛、
-`setEntityVisible`、以及场景休眠都会关掉该字段并在之后恢复。只携带数据或行为的
-组件不要声明——这类组件里有不少也有 `enabled` 字段，但与绘制无关，关掉它停错东西。
+未设置元数据的字段使用由其值推断的控件。
+
+## 组件元数据
+
+同一参数还携带关于整个组件的元数据：
+
+| 键 | 说明 |
+|---|---|
+| `assetFields` | 保存资源引用的字段。细节面板渲染资源选择器，cook 会打包所引用的资源。 |
+| `entityFields` | 保存实体引用的字段。 |
+| `animatableFields` | [Sequencer](/docs/zh-cn/animation/timeline/sequencer/) 可打关键帧的字段。默认：全部数值字段。 |
+| `replicatedFields` | 由[状态复制](/docs/zh-cn/scripting/networking/replication/)同步的字段。省略时组件不参与复制。 |
+| `worldUnitFields` | 表示世界长度、速度或加速度的字段。其默认值按每米 100 单位书写，并随项目的每米单位数缩放；场景中写明的值不缩放。 |
+| `transient` | `true` 时组件不写入场景保存。用于逐帧运行时状态。 |
+| `renderableField` | 控制组件是否绘制的布尔字段名（见下文）。 |
+
+`renderableField` 适用于自行绘制内容的组件，例如通过自定义绘制回调。声明后，隐藏实体会作用到该组件：
+大纲的可见性开关、`setEntityVisible` 与场景休眠会关闭该字段，并在之后恢复。仅携带数据或行为的组件应省略此项；
+与绘制无关的 `enabled` 字段不得声明为可渲染字段。
 
 ## 内置组件
 
-引擎注册了 150 多个组件，与你自己的组件一起查询——`Transform`、`Sprite`、
-`ShapeRenderer`、`Camera`、`Light`、`ParticleEmitter`、`SpineAnimation`、
-`TilemapLayer`、UI 组件族、物理碰撞体等等。每个子系统指南讲它自己那一批；
-[组件参考](/docs/zh-cn/reference/components/core/)则逐个列出全部组件的字段、类型与
-创作默认值——数据来自编辑器 Details 面板读的同一份注册表。
+引擎注册了 150 多个组件，查询方式与用户组件相同：`Transform`、`Sprite`、`ShapeRenderer`、`Camera`、`Light`、
+`ParticleEmitter`、`SpineAnimation`、`TilemapLayer`、UI 组件、物理碰撞体等。各子系统章节介绍其所属的组件。
+[组件参考](/docs/zh-cn/reference/components/core/)列出每个组件的字段、类型与创作默认值，数据生成自细节面板读取的同一份注册表。
 
-### 引擎用来描述实体的那几个
+内置组件是带 `ES_COMPONENT` / `ES_PROPERTY` 注解的 C++ 结构体。其 TypeScript 布局由这些注解生成，
+因此 SDK 与引擎内核使用相同的字段布局。
 
-有四个不属于任何子系统——它们是引擎和编辑器用来描述一个实体本身的方式，你在 Outliner
-里和场景文件里遇到它们，会远早于你去查询它们。
+### 实体元数据组件
 
-| 组件 | 是什么 |
+有四个内置组件描述实体本身，而不属于某个子系统。它们出现在世界大纲与场景文件中。
+
+| 组件 | 说明 |
 |---|---|
-| `Name` | 实体的显示名——World Outliner 显示的就是它，按名字查找也解析到它。 |
-| `Parent` / `Children` | 层级关系。引擎保证这一对同步；见[变换](/docs/zh-cn/core-concepts/transforms/#父子层级)。 |
-| `Disabled` | 一个标签。`setEntityActive(entity, false)` 加上它，而 `isEntityActive` 就是「它不在」——所以「是否激活」是关于一个组件的问题，而不是一个要额外同步的标志位。 |
-| `RuntimeOnly` | 标记一个由系统**派生**出来、而非你手工创作的实体——`Tilemap` 投影出的层实体、运行时瓦片碰撞体。场景保存会跳过它们，因为把派生实体存下来，会在下一次派生时变成重复。 |
+| `Name` | 实体的显示名。显示在世界大纲中，并用于按名称查找。 |
+| `Parent` / `Children` | 层级关系。引擎保持两侧一致；见[变换](/docs/zh-cn/core-concepts/transforms/#父子层级)。 |
+| `Disabled` | 标签。`setEntityActive(world, entity, false)` 添加该标签；`isEntityActive` 返回其是否不存在。 |
+| `RuntimeOnly` | 标记由系统派生而非手工创作的实体的标签，例如 `Tilemap` 投影出的层实体或运行时瓦片碰撞体。场景保存会跳过这些实体，因为保存下来的副本会与下一次派生的结果重复。 |
 
-这两个标签都是普通组件：像别的组件一样用 `.with(Disabled)` / `.without(Disabled)` 查询，
-你也可以直接增删它们而不走 `setEntityActive`。注意 Outliner 的眼睛是**另一回事**——那是
-编辑期的可见性折叠，完全不碰 `Disabled`，所以编辑时把实体藏起来不会改变运行中的游戏。
+`Disabled` 与 `RuntimeOnly` 是普通组件：查询通过 `.with()` / `.without()` 过滤它们，也可以直接添加或移除它们，
+而不经过 `setEntityActive`。大纲的可见性开关是独立的编辑期设置；它不添加 `Disabled`，也不改变运行中的游戏对该实体的处理。
 
 ## 读取与写入
 
-系统通过查询拿到组件数据。当系统要写入某个组件时，把它包进 `Mut(...)`，这样变更检测
-和渲染器就知道这块数据被改动过：
+系统通过查询获取组件数据。系统写入的组件以 `Mut(...)` 包裹，使变更检测与渲染器能记录这次写入：
 
 ```typescript
 Query(Mut(Transform), Speed)
-// Transform 会被写入；Speed 只读
+// Transform is written; Speed is read-only
 ```
 
-因为写入被跟踪，系统也能响应生命周期：`Added(Comp)` / `Changed(Comp)` 把查询收窄到
-组件刚出现 / 刚变化的实体——完整的查询词汇见
-[系统](/docs/zh-cn/core-concepts/systems/)。
+`Added(C)` 与 `Changed(C)` 将查询收窄到组件刚被添加或刚发生变化的实体。完整的查询词汇见
+[系统](/docs/zh-cn/core-concepts/systems/#过滤与变更检测)。
 
-<br />
-
-在底层，一个组件是带 `ES_COMPONENT` / `ES_PROPERTY` 注解的 C++ 结构体；跨边界的内存
-布局是生成的，因此 TypeScript 组件与 C++ 结构体始终保持一致。
+以 `Mut` 包裹的组件在每次迭代后写回。以其他方式读取的内置组件（`world.get`、`ctx.get`）从 WebAssembly 堆解码并以副本返回，
+必须通过 `world.set` / `ctx.set` 写回；见[组件与资源的区别](/docs/zh-cn/core-concepts/plugins-resources/#组件与资源的区别)。

@@ -1,0 +1,62 @@
+---
+title: 路线查询
+description: 路线查询参考——findWorldPath 尽力而为的路径点、queryWorldPath 的状态与原因代码、编辑器中 NavAgent 的路线检查器，以及导航重建基准测试。
+---
+
+`Nav` 资源无需 `NavAgent` 即可回答一次性的路线查询。两种查询都是同步的，不经过代理的[规划队列](/docs/zh-cn/gameplay/ai/navigation/agents/#规划队列)。
+
+## `findWorldPath`
+
+`nav.findWorldPath(from, to)` 返回世界空间路径点数组。
+
+对于无法到达的目标（关闭的门后、孤岛上、网格之外），它返回通往最近可达位置的路线，使被派往该处的代理走到门前而不是原地不动。路线是否到达目标，需比较最后一个路径点与目标来判断。返回 `null` 表示起点不在可导航表面上，因此不存在从它出发的路线。
+
+## `queryWorldPath`
+
+`nav.queryWorldPath(from, to, { radius })` 区分尽力而为的路线与到达目的地的路线。它返回 `{ path, status, reason }`：
+
+| 状态 / 原因 | 含义 |
+|---|---|
+| `complete` / `none` | 到达表面解析出的目的地，包括常规的端点吸附。 |
+| `partial` / `disconnected` | 停在不连通区域或关闭通道的可达一侧。 |
+| `partial` / `insufficient-clearance` | 一个点可以穿过网格，但请求的身体不能。 |
+| `unavailable` / `no-surface` | 未安装导航表面。 |
+| `unavailable` / `building` | 表面更新待处理（`nav.surfaceUpdatePending`）。 |
+| `unavailable` / `start-unavailable` | 未找到可用的起点。 |
+| `unavailable`（格子网格）或 `partial`（导航网格）/ `target-unavailable` | 未找到可用的目的地；导航网格仍会返回朝向它的部分路线。 |
+| `unavailable` / `radius-mismatch` | 请求的身体比网格烘焙的半径更宽。 |
+| `unknown` / `diagnostics-unavailable` | 自定义表面只实现了旧的路径 API。 |
+
+```typescript
+const result = nav.queryWorldPath(from, target, { radius: 20 });
+if (result.status !== 'complete') console.info(result.reason);
+// result.path can still describe a useful partial approach.
+```
+
+`findWorldPath` 保持其尽力而为的行为。诊断查询描述的是当前安装的表面，不会触发重建。动态阻挡物计入身体余量；区域代价实时生效，无需重建连通性。重复的网格查询复用工作内存，返回的路线是独立的数组，调用方可以保留或修改。
+
+## 检查代理路线
+
+在 **Play** 中选中带 `NavAgent` 的实体并在 Details 中展开该组件，会显示 **Inspect current route**。它以代理半径，从代理当前世界位置向其存储的目标查询一次，并显示原因、采样的世界端点、路径点数量与查询耗时。它还会采样上一次规划 tick 的已完成与待处理计数、耗时以及配置的限制。
+
+- 结果是快照；门、障碍或目标变化后需再次按下按钮。周期性的检查器刷新不运行搜索。
+- 检查器描述的是已安装的表面，而非待处理的重建或代理缓存的移动路线。
+- 它需要本地 Play 会话；对已连接设备的检查不支持该查询。
+
+{/* SHOT: gameplay-nav-route-inspector | navigation-workshop example in Play with the gate closed: a courier entity selected, Details panel with the Nav Agent card expanded after pressing Inspect current route, showing status, reason, endpoints and planning-queue counts */}
+
+## 重建基准测试
+
+导航重建基准测试在无头 Chromium 中运行，在 32、64 与 128 格的地图上改变门与建筑，并同时进行 64 次重新规划：
+
+```sh
+node tools/navigation-rebuild-benchmark.mjs output/navigation-current.json
+node tools/navigation-rebuild-benchmark.mjs output/navigation-reference.json --search-reference=48631844c53113825a15493afeb8e6e2b972900c
+```
+
+`--search-reference=<commit>` 只替换为该提交中的搜索；两次运行都使用当前的障碍余量。报告记录源代码与包的标识、原始重建与查询耗时以及帧间隔。它们测量导航的 CPU 工作，不包括物理几何收集、避让、渲染与游戏帧的其余部分。
+
+## 另请参阅
+
+- [导航代理](/docs/zh-cn/gameplay/ai/navigation/agents/)——跟随这些路线的代理。
+- [导航网格](/docs/zh-cn/gameplay/ai/navigation/navmesh/#查看烘焙结果)——绘制查询所用的表面。

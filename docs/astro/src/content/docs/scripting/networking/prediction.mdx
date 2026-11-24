@@ -1,0 +1,55 @@
+---
+title: Client Prediction
+description: Zero-latency local input with client-side prediction — the shared apply function, tickInputOf on the server, reconciliation against authoritative state, input cadence requirements and correction smoothing.
+---
+
+Without prediction, a client's own pawn moves only after a full server round trip. Prediction applies the client's
+input locally at once and reconciles with the server's authoritative state. It uses the **same input-to-state function
+on both ends**:
+
+```typescript
+// The movement rule, shared by server and client.
+function applyMove(world, entity, actions, dt) {
+  const move = actions.move;
+  if (!move) return;
+  const pos = world.tryGet(entity, NetPos);
+  pos.x += move.x * SPEED * dt;
+  pos.y += move.y * SPEED * dt;
+  world.set(entity, NetPos, pos);
+}
+
+// SERVER gameplay (FixedUpdate): per-tick input via tickInputOf.
+const input = server.tickInputOf(repl.owner);
+if (input) applyMove(world, e, input.actions, time.fixedDelta);
+
+// CLIENT: enable prediction; sendInput once per fixed tick.
+await clientNet.connect(clientEnd, {
+  prediction: { apply: applyMove },
+});
+clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // the pawn moves immediately
+```
+
+## Mechanism
+
+1. `sendInput` applies the command to the client's owned entities immediately and stores it in a pending buffer.
+2. The server consumes commands **exactly one per fixed tick** through `tickInputOf` and acknowledges the consumed
+   sequence number. Predicted gameplay uses `tickInputOf`, not `inputOf`.
+3. Every fixed tick, the client rebuilds each owned entity as the last authoritative state plus a replay of the
+   unacknowledged commands.
+
+Server-side corrections (walls, knockback) therefore always take effect, and mispredictions do not accumulate; fields
+the server does not resend also return to the authoritative value. Owned entities bypass snapshot interpolation.
+
+## Requirements
+
+| Requirement | Reason |
+|---|---|
+| Send an input every fixed tick, including idle input (`{ move: { x: 0, y: 0 } }`). | When the queue is empty the server repeats the last command, so silence means "continue", not "stop". |
+| Assign `Replicated.owner` at spawn. | Ownership is part of the spawn payload. |
+| `apply` depends only on world state, actions and `dt`. | It is re-run during reconciliation. |
+
+## Smoothing
+
+`prediction: { apply, smoothing: { halfLife: 0.08 } }` eases corrections instead of snapping: the visual error halves
+every `halfLife` seconds. `maxError` sets a distance beyond which a correction still snaps, so teleports are not
+smoothed. Smoothing is presentational; the simulation state is unaffected.

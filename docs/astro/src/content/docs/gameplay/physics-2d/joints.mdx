@@ -1,0 +1,112 @@
+---
+title: Joints
+description: 2D joint reference — the six joint components and their fields, the Physics2D joint control methods, motor joints, the joint gizmos in the editor, and the pointer drag joint.
+---
+
+A joint constrains two bodies. It is added as a component on one body's entity, or created from code through the
+`Physics2D` resource and then driven through its motor and limit methods.
+
+![The joint types and what each constrains — Revolute, Distance, Prismatic, Weld, Wheel, Motor](@/assets/guides/physics-joints.svg)
+
+*What each joint constrains: a **Revolute** hinge (rotation about a pin), a **Distance** spring or rod, a **Prismatic**
+slider (one axis), a rigid **Weld**, a **Wheel** (suspension and free spin), and a **Motor** (driven toward a target
+velocity).*
+
+## Joint components
+
+| Component | Solver joint | Constraint |
+|---|---|---|
+| `HingeJoint2D` | Revolute | Rotation about a shared point, with optional limits and motor. |
+| `DistanceJoint2D` | Distance | A distance between two anchors: rod, spring, limits and motor. |
+| `SliderJoint2D` | Prismatic | Translation along one axis, with optional spring, limits and motor. |
+| `FixedJoint2D` | Weld | Rigid attachment, with optional linear and angular spring give. |
+| `WheelJoint2D` | Wheel | A suspension axis plus free rotation. |
+| `MotorJoint2D` | Motor | Drives the entity toward a target velocity relative to the connected body. |
+
+The joint's own entity is body B; `connectedEntity` names body A. Anchors are in world pixels, in the frame of the body
+they belong to. Every joint component also has `collideConnected` (`false`: the two bodies do not collide with each
+other) and `enabled` (`true`).
+
+| Component | Fields (defaults) |
+|---|---|
+| `HingeJoint2D` | `anchorA`, `anchorB` (`{0, 0}`); `enableMotor` (`false`), `motorSpeed` (`0`, rad/s), `maxMotorTorque` (`0`); `enableLimit` (`false`), `lowerAngle`, `upperAngle` (`0`, radians). |
+| `DistanceJoint2D` | `anchorA`, `anchorB`; `length` (`1`); `enableSpring` (`false`), `hertz` (`1`), `dampingRatio` (`0.5`); `enableLimit` (`false`), `minLength` (`0.5`), `maxLength` (`2`); `enableMotor` (`false`), `maxMotorForce` (`0`), `motorSpeed` (`0`). |
+| `SliderJoint2D` | `anchorA`, `anchorB`; `axis` (`{1, 0}`, in the connected body's frame); `enableSpring` (`false`), `hertz` (`1`), `dampingRatio` (`0.5`); `enableLimit` (`false`), `lowerTranslation`, `upperTranslation` (`0`); `enableMotor` (`false`), `maxMotorForce` (`0`), `motorSpeed` (`0`). |
+| `FixedJoint2D` | `anchorA`, `anchorB`; `linearHertz`, `angularHertz` (`0` = rigid); `linearDampingRatio`, `angularDampingRatio` (`1`). |
+| `WheelJoint2D` | `anchorA`, `anchorB`; `axis` (`{0, 1}`); `enableSpring` (`true`), `hertz` (`5`), `dampingRatio` (`0.7`); `enableLimit` (`false`), `lowerTranslation`, `upperTranslation` (`0`); `enableMotor` (`false`), `maxMotorTorque` (`0`), `motorSpeed` (`0`). |
+| `MotorJoint2D` | `linearVelocity` (`{0, 0}`, world px/s), `maxVelocityForce` (`0`); `angularVelocity` (`0`, rad/s), `maxVelocityTorque` (`0`); spring position control `linearHertz`, `linearDampingRatio`, `maxSpringForce`, `angularHertz`, `angularDampingRatio`, `maxSpringTorque` (all `0`; `0` hertz = velocity-only motor). |
+
+## Creating and controlling joints from code
+
+```typescript
+// A hinge with a motor (a powered wheel or swinging door).
+physics.createRevoluteJoint(bodyA, bodyB, anchorA, anchorB, {
+  enableMotor: true, motorSpeed: 6, maxMotorTorque: 200,
+  enableLimit: true, lowerAngle: -1.0, upperAngle: 1.0,
+});
+
+physics.setRevoluteMotorSpeed(bodyA, 10);
+physics.setRevoluteLimits(bodyA, -0.5, 0.5);
+const angle = physics.getRevoluteAngle(bodyA);
+physics.destroyJoint(bodyA);
+```
+
+`createRevoluteJoint` takes its anchors in **metres**, unlike the joint components' pixel anchors.
+
+| Joint | Control methods |
+|---|---|
+| Revolute (hinge) | `setRevoluteMotorSpeed`, `setRevoluteMaxMotorTorque`, `enableRevoluteMotor`, `enableRevoluteLimit`, `setRevoluteLimits`, `getRevoluteAngle`, `getRevoluteMotorTorque`. |
+| Distance (spring) | `setDistanceJointLength`, `getDistanceJoint*Length`, `enableDistanceJointSpring`/`Limit`/`Motor`, `setDistanceJointLimits`, `setDistanceJointMotorSpeed`, … |
+| Prismatic (slider) | `getPrismaticJointTranslation`/`Speed`, `enablePrismaticJointSpring`/`Limit`/`Motor`, `setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce`, … |
+| Wheel | `enableWheelJointSpring`/`Limit`/`Motor`, `setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`, `getWheelJointMotorTorque`. |
+| Motor | `setMotorJointLinearVelocity`, `setMotorJointAngularVelocity`, `setMotorJointMaxVelocityForce`, `setMotorJointMaxVelocityTorque`. |
+
+`destroyJoint(bodyA)` destroys any joint.
+
+## Motor joints
+
+A motor joint drives body B toward a target velocity, or a spring-held offset, relative to body A. Typical uses are
+conveyors and powered platforms.
+
+```typescript
+// A conveyor: drive the crate toward +x at a fixed speed.
+world.insert(crate, MotorJoint2D, {
+  connectedEntity: anchor,
+  linearVelocity: { x: 200, y: 0 }, // world px/s
+  maxVelocityForce: 500,            // newtons available to reach it
+});
+physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // reverse at runtime
+```
+
+## In the editor
+
+Joints authored in a scene draw a gizmo in the viewport: a dashed link between the two anchors. The anchor dots are
+draggable; dragging writes `anchorA` / `anchorB` in the owning body's local frame. Prismatic and wheel joints also show
+their slide axis, whose tip can be dragged to re-aim the axis. Motor joints show an arrow along their target linear
+velocity. Colliders, one-way arrows and joints are all toggled by the **Physics** entry in the viewport's show flags.
+
+{/* SHOT: gameplay-wheel-joint-gizmo | physics-playground example, showcase scene: the CartWheelFront entity selected, viewport showing the wheel joint's dashed anchor link and slide axis, Details panel showing the Wheel Joint 2D card */}
+
+## Drag joint
+
+A drag joint lets the player pull a body with the pointer. Box2D v3 has no dedicated mouse joint; the drag joint is a
+spring that pulls the body toward a moving target. Create it on pointer down, move its target on pointer move, and
+destroy it on pointer up:
+
+```typescript
+// pointer down — grab the body at the world-space cursor:
+physics.createMouseJoint(entity, cursorWorld);         // maxForce auto-sizes to the body
+// pointer move:
+physics.setMouseTarget(cursorWorld);
+// pointer up:
+physics.destroyMouseJoint();
+```
+
+`cursorWorld` is in world pixels. One drag joint exists at a time. The optional third argument
+`{ hertz, dampingRatio, maxForce }` sets the spring stiffness (`hertz`, default `7.5`), damping (`dampingRatio`,
+default `1`) and grip (`maxForce`, default sized from the body's weight).
+
+## See also
+
+- [Bodies & Colliders](/docs/gameplay/physics-2d/bodies/) — the bodies joints connect.
+- [3D Physics: Joints](/docs/gameplay/physics-3d/joints/) — the 3D joint components.

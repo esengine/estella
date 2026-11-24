@@ -1,0 +1,123 @@
+---
+title: 输入动作
+description: 基于 InputMap 的具名输入动作——defineInputMap，Button、Axis1D 与 Axis2D 动作，绑定构造函数，动作查询，可序列化的绑定数据模型，交互式改键与持久化，以及 .inputmap 资源。
+---
+
+**输入映射**为每个动作定义一次，可附带任意数量的键盘、鼠标、手柄与虚拟绑定。玩法代码按名称查询动作，而不是查询设备输入。
+
+![输入映射编辑器——带有键盘与手柄绑定的具名动作](@/assets/guides/zh/input-map.png)
+
+*输入映射编辑器：具名动作（Move、Jump、Fire），各自带有键盘、鼠标与手柄绑定。*
+
+## 定义映射
+
+```typescript
+import {
+  defineInputMap, Button, Axis2D,
+  Key, Keys2D, Stick, GpButton, GamepadButton,
+} from 'esengine';
+
+export const Controls = defineInputMap({
+  Move: Axis2D(Keys2D('KeyW', 'KeyS', 'KeyA', 'KeyD'), Stick('left')),
+  Jump: Button(Key('Space'), GpButton(GamepadButton.South)),
+});
+```
+
+`defineInputMap` 注册映射的求值系统（在输入轮询之后、`Update` 之前），因此任何导入该映射的系统都能立即查询：
+
+```typescript
+const dir = Controls.axis2d('Move');          // { x, y }, length ≤ 1
+if (Controls.pressed('Jump')) { /* edge this frame */ }
+```
+
+| 查询 | 返回值 |
+|---|---|
+| `down(name)` | 按住：动作幅值 ≥ 0.5。 |
+| `pressed(name)` / `released(name)` | 当前帧的边沿。 |
+| `value(name)` | 按钮为 `0..1`；轴为 `-1..1`；axis2d 为幅值 `0..1`。 |
+| `axis2d(name)` | `{ x, y }` 方向，长度大于 1 时归一化。标量动作返回 `{ x: value, y: 0 }`。 |
+
+## 动作
+
+| 动作 | 值 | 绑定的合成方式 |
+|---|---|---|
+| `Button(...bindings)` | `0..1` | 取最强的绑定，钳制到 `0..1`。 |
+| `Axis1D(...bindings)` | `-1..1` | 各绑定求和，钳制到 `-1..1`。 |
+| `Axis2D(...bindings)` | `{ x, y }` | 各绑定求和，长度钳制为 1。 |
+
+## 绑定
+
+| 绑定 | 供给 | 说明 |
+|---|---|---|
+| `Key(code)` | button / axis | 一个键盘按键。 |
+| `MouseButton(b)` | button / axis | 一个鼠标按键。`MouseButton.Left` / `.Middle` / `.Right` = `0` / `1` / `2`；同样的名称也适用于 `input.isMouseButtonDown`。 |
+| `GpButton(btn, pad?)` | button / axis | 一个手柄按键；扳机键提供模拟量。 |
+| `GpAxis(axis, pad?, scale?)` | axis | 一个原始手柄轴。 |
+| `Keys1D(neg, pos)` | axis | 两个按键组成的有符号 1D 轴。 |
+| `Keys2D(up, down, left, right)` | axis2d | 四个按键组成的 2D 方向。 |
+| `Stick('left' \| 'right', pad?)` | axis2d | 一个手柄摇杆；上为 `+y`，与 `Keys2D` 一致。 |
+| `Virtual(id)` | button / axis / axis2d | 通过 `input.setVirtual(id, x, y)` 写入的具名值。屏幕上的 [VirtualJoystick 与 VirtualButton](/docs/zh-cn/ui/widgets/#virtualjoystick) 控件写入这些值，因此触控操作与按键驱动相同的动作。 |
+
+![Mobile Controls 示例：地牢画面上，左下角为虚拟摇杆，右下角为 Fire 按钮](@/assets/guides/zh/play-mobile-controls.png)
+
+*Mobile Controls 示例：**VirtualJoystick** 与 **VirtualButton** 驱动与键盘相同的输入动作。*
+
+## 数据模型
+
+构造函数生成可序列化的普通数据。`Binding` 是一个标签联合；动作由 `type` 与绑定列表组成：
+
+```typescript
+import { type Binding, type ActionDef } from 'esengine';
+
+const jump: ActionDef = {
+  type: 'button',                          // 'button' | 'axis' | 'axis2d'
+  bindings: [
+    { kind: 'key', code: 'Space' },        // Key('Space')
+    { kind: 'gpButton', button: 0 },       // GpButton(GamepadButton.South)
+  ],
+};
+```
+
+| `Binding` kind | 字段 | 构造函数 |
+|---|---|---|
+| `key` | `code` | `Key` |
+| `mouse` | `button` | `MouseButton` |
+| `gpButton` | `button`、`pad?` | `GpButton` |
+| `gpAxis` | `axis`、`pad?`、`scale?` | `GpAxis` |
+| `keys1d` | `neg`、`pos` | `Keys1D` |
+| `keys2d` | `up`、`down`、`left`、`right` | `Keys2D` |
+| `stick` | `stick: 'left' \| 'right'`、`pad?` | `Stick` |
+| `virtual` | `id` | `Virtual` |
+
+同一份数据也是改键与持久化的格式：
+
+| 方法 | 说明 |
+|---|---|
+| `toJSON()` / `loadJSON(data)` | 仅包含绑定，按动作组织（`Record<string, Binding[]>`）。`loadJSON` 忽略映射中未定义的动作，因此已删除动作的存储数据不会被恢复。 |
+| `toAsset()` | 包含动作类型的完整映射，形式为 `InputMapAsset`（`{ version, actions }`）——即 `.inputmap` 文件的内容。 |
+| `getBindings(name)` / `setBindings(name, bindings)` | 读取 / 替换某一动作的绑定。 |
+| `actions()` | 动作名称列表。 |
+
+## 改键与持久化
+
+```typescript
+// "Press any input…" — captures the next key or gamepad button
+await Controls.rebind('Jump');            // replaces; { append: true } adds instead
+Controls.save('controls');                // persists to platform Storage
+// at startup:
+Controls.load('controls');                // re-applies saved bindings, if any
+```
+
+| 方法 | 说明 |
+|---|---|
+| `rebind(name, options?)` | 捕获下一个离散输入并将其分配给该动作。以捕获到的 `Binding` 兑现，取消时为 `null`。`append: true` 追加绑定而非替换。 |
+| `listenForBinding(options?)` | 捕获下一个离散输入但不分配。 |
+| `isListening()` | 是否有待完成的捕获。 |
+| `cancelListen()` | 中止待完成的捕获；其以 `null` 兑现。 |
+| `save(key)` / `load(key)` | 通过 [`Storage`](/docs/zh-cn/scripting/save/#键值存储) 写入 / 读取绑定。`load` 返回是否找到已存储的数据。 |
+
+`ListenOptions` 选择捕获时监听的设备类别：`keyboard` 与 `gamepad` 默认**开启**，`mouse` 默认**关闭**，因此按下改键按钮的那次点击本身不会被捕获。轴类输入源从不被捕获。
+
+## `.inputmap` 资源
+
+映射可作为资源创作：**内容浏览器 → 新建输入映射** 创建 `.inputmap` 文件，在输入映射编辑器中编辑。`loadInputMapAsset(asset)` 由解析后的 `InputMapAsset` 构建实时映射，用以替代 `defineInputMap`。`toAsset()` 从代码生成相同格式。

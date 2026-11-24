@@ -1,0 +1,213 @@
+---
+title: Profiling
+description: Profiling reference — the editor's Profiler panel, statsPlugin and the Stats resource, the stats overlay, Renderer.getStats, draw counts by pass, frame-history utilities, resource statistics and subsystem health.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella's diagnostics are SDK APIs that the editor's tools are built on:
+
+| Topic | Page |
+|---|---|
+| Per-frame statistics, the overlay, renderer counters, resource and subsystem status | This page |
+| Recording `.esprof` captures on a device | [Device Captures](/docs/performance/profiling/recording/) |
+| Per-draw-call capture, batch-break reasons, replay, GL error checks | [Frame Capture API](/docs/performance/profiling/frame-capture/) |
+| Structured logging and error reporting from shipped games | [Logging & Error Reporting](/docs/performance/profiling/logging/) |
+| The editor's draw-call inspector | [Frame Debugger](/docs/performance/frame-debugger/) |
+
+## Profiler panel
+
+The editor's **Profiler** panel shows a live frame-time graph with per-phase and per-system breakdowns; clicking a frame
+inspects it. The **Render** module splits the frame's GPU draws by pass and compares them with the draw call budget of
+the quality level in force ([Draws by pass](#draws-by-pass)). The viewport also has a performance overlay with an FPS
+readout.
+
+{/* SHOT: perf-profiler-panel | third-person-3d example running in Play: the Profiler panel docked with the frame-time graph, a selected frame's cost tree and the Render module showing GPU draws by pass against the budget */}
+
+- Clicking a column header of the cost tree or the systems list sorts by name or by time; clicking again reverses the
+  order. The choice is remembered.
+- Sorting by time reorders rows whenever two systems swap places, which on a live window happens every few frames; sort
+  by name to follow one system.
+- The systems list shows twelve systems.
+- **Profiler ▸ Open…** opens a recorded `.esprof` capture ([Device Captures](/docs/performance/profiling/recording/)).
+
+In a game build, `statsPlugin` provides the equivalent data.
+
+## `statsPlugin`
+
+`statsPlugin` collects per-frame data into the `Stats` resource every frame, in the `Last` schedule:
+
+```typescript
+import { statsPlugin } from 'esengine';
+
+app.addPlugin(statsPlugin);
+```
+
+`statsPlugin` is an instance with default options. For other options construct `StatsPlugin`:
+
+```typescript
+import { StatsPlugin } from 'esengine';
+
+app.addPlugin(new StatsPlugin({ overlay: true, position: 'top-right' }));
+```
+
+| `StatsPluginOptions` | Type | Default | Description |
+|---|---|---|---|
+| `overlay` | boolean | `true` | Show the DOM overlay; skipped where there is no `document`. |
+| `position` | `StatsPosition` | `'bottom-left'` | Overlay corner: `'top-left'`, `'top-right'`, `'bottom-left'`, `'bottom-right'`. |
+| `container` | HTMLElement | `document.body` | Element the overlay is appended to. |
+
+The plugin also calls `app.enableStats()`, which turns on per-system and per-phase timing. Timing is off otherwise, so a
+game without the plugin does not pay for it.
+
+### Reading `Stats`
+
+```typescript
+import { defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const watchPerf = defineSystem([Res(Stats)], (stats) => {
+  if (stats.fps > 0 && stats.fps < 30) {
+    console.warn(`slow frame: ${stats.frameTimeMs.toFixed(1)}ms, ${stats.drawCalls} draw calls`);
+  }
+});
+addSystem(watchPerf);
+```
+
+`fps` and `frameTimeMs` are averaged over a 60-frame sliding window; the render counters are the current frame's.
+
+| `FrameStats` field | Type | Description |
+|---|---|---|
+| `fps` | number | Frames per second over the last 60 frames. |
+| `frameTimeMs` | number | Average frame time in milliseconds over the same window. |
+| `entityCount` | number | Live entities. |
+| `systemTimings` | `Map<string, number>` | CPU ms per system this frame, keyed by system name. |
+| `phaseTimings` | `Map<string, number>` | CPU ms per schedule phase this frame. |
+| `drawCalls` | number | Draws of the scene's and the overlay's lists after batching, as listed by a frame capture. |
+| `gpuDraws` | number | Every draw issued to the GPU this frame, all passes included: shadow maps, depth pre-pass, reflections, motion vectors and post-processing as well as the scene. |
+| `drawCallBudget` | number | Draw call budget of the quality level in force; `0` without quality levels. |
+| `triangles` | number | Triangles submitted. |
+| `sprites` | number | Sprites rendered. |
+| `text` | number | Text entities rendered. |
+| `skeletal` | number | Triangles posed by a skeletal runtime (Spine and DragonBones). |
+| `meshes` | number | Meshes rendered. |
+| `culled` | number | Entities culled (not submitted). |
+
+## Stats overlay
+
+With `overlay: true` the plugin renders a fixed-position panel showing FPS and frame time; draw calls, triangles,
+sprites and culled count; entity count; and the **top 5 systems** ranked by their worst frame, each as `avg / max ms`. The
+panel refreshes at most every 500 ms and accumulates system timings in between, so a one-frame spike appears in the
+`max` column. The **GPU** entry shows `gpuDraws` against the quality level's draw call budget and turns red when the
+budget is exceeded.
+
+A `StatsOverlay` can also be driven directly, for example behind a debug key:
+
+```typescript
+import { StatsOverlay, defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const overlay = new StatsOverlay(document.body, 'top-right');
+
+const feedOverlay = defineSystem([Res(Stats)], (stats) => {
+  overlay.update(stats);
+});
+addSystem(feedOverlay);
+
+// overlay.hide() / overlay.show() toggle it; overlay.dispose() removes it.
+```
+
+<Aside type="note">
+  The overlay is DOM-based: it exists on web and desktop builds, and `statsPlugin` skips it in environments without a
+  DOM. The `Stats` resource works everywhere.
+</Aside>
+
+## Renderer counters
+
+`Renderer.getStats()` returns the render counters of `FrameStats` as a `RenderStats` (`drawCalls`, `gpuDraws`,
+`triangles`, `sprites`, `text`, `skeletal`, `meshes`, `culled`) without the stats plugin:
+
+```typescript
+import { Renderer } from 'esengine';
+
+const rs = Renderer.getStats();
+console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
+```
+
+### Draws by pass
+
+`drawCalls` counts the draw lists; `gpuDraws` counts every GPU draw, including passes the lists never see. Draw call
+budgets apply to `gpuDraws`.
+
+`drawBudgetReport` splits `gpuDraws` by pass using engine counters from a frame stats report:
+
+| Pass | Counter |
+|---|---|
+| `lists` | `batch.draws` |
+| `shadow` | `render.shadow.draws` |
+| `prepass` | `render.prepass.draws` |
+| `reflection` | `render.planar.draws` |
+| `motion` | `render.motion.draws` |
+| `cover` | `render.cover.draws` |
+| `other` | The remainder, so the shares always sum to `gpuDraws`. |
+
+The per-pass counters are published only while the frame profiler is on; without them, every draw outside the lists is
+`other`.
+
+```typescript
+import { drawBudgetReport } from 'esengine';
+
+const r = drawBudgetReport(gpuDraws, budget, counters);
+for (const p of r.passes) console.log(`${p.pass}: ${p.draws}`);
+if (r.over > 0) console.warn(`${r.over} draws over the budget of ${r.budget}`);
+```
+
+The budget is a setting of each [quality level](/docs/performance/quality-levels/settings/#view-distance--draws).
+
+## Frame-history utilities
+
+Two utilities behind the plugin are exported for custom tools:
+
+- **`StatsCollector`**: the 60-frame sliding window behind `fps` and `frameTimeMs`. `pushFrame(deltaSeconds)` adds a
+  frame; `getFps()` and `getFrameTimeMs()` read the averages; `reset()` clears the window.
+- **`FrameHistory`**: a ring buffer of `FrameSnapshot`s (default capacity 300 frames) for frame-time graphs.
+  `push(frameTimeMs, phaseTimings, systemTimings?)` copies the maps, so snapshots stay valid; `getLatest()` returns the
+  newest snapshot, `getAll()` the whole window oldest first; `count` and `reset()` report and clear it.
+
+| `FrameSnapshot` field | Description |
+|---|---|
+| `frameTimeMs` | Total CPU time of the frame. |
+| `phaseTimings` | Per-phase ms, copied at push time. |
+| `systemTimings` | Per-system ms, copied at push time. |
+
+## Resource statistics
+
+`getResourceStats()` reports GPU resource residency: texture bytes against the texture budget, evictable textures, live
+shaders, textures and buffers, cache hits and misses, and CPU copies retained for context loss. The fields,
+`setTextureBudget`, `trimTextureCache` and the warm-cache model are documented in
+[Lifetime & Memory](/docs/assets/memory/#texture-budget--statistics).
+
+## Subsystem health
+
+Every `App` has a `SubsystemRegistry` at `app.subsystems` that tracks each engine subsystem's lifecycle phase
+(`registered` → `initializing` → `ready`, with `error` terminal) and derived activity (`stepping`, `idle`, `inactive`):
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(`${s.displayName}: ${s.phase} (${s.activity})`, s.lastError ?? '');
+}
+```
+
+`recentEvents()` returns recent lifecycle transitions and `subscribe(fn)` notifies on phase changes. See
+[App & Lifecycle](/docs/core-concepts/app/overview/).
+
+## Guidelines
+
+- Ship without `statsPlugin`, or behind a debug flag; timing collection is off by default.
+- Read `systemTimings` and `phaseTimings` to find the slow system before optimizing; the overlay's `max` column shows
+  single-frame spikes an average hides.
+- Compare `gpuDraws`, not only `drawCalls`, with the draw call budget.
+
+## See also
+
+- [Frame Debugger](/docs/performance/frame-debugger/)
+- [Quality Levels](/docs/performance/quality-levels/overview/)
+- [Systems](/docs/core-concepts/systems/): schedules and system names (the keys of `systemTimings`).

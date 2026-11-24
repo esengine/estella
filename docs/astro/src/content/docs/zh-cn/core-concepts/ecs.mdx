@@ -1,40 +1,40 @@
 ---
 title: ECS 架构
-description: Estella 中的实体、组件与系统。
+description: Estella 所基于的实体-组件-系统模型——实体、组件与系统，引擎内核中的组件存储，以及组成游戏的三个 SDK 原语。
 ---
 
-Estella 构建在 **Entity-Component-System**（ECS，实体-组件-系统）架构之上。
-它不用层层继承的类，而是把游戏状态放进纯数据的组件里，把行为放进遍历这些数据的
-系统里。
+Estella 采用 **Entity-Component-System**（ECS，实体-组件-系统）架构。游戏状态是存放在组件中的纯数据；
+行为由遍历这些数据的系统实现。
 
-- **实体（Entity）** —— 一个标识符。它不持有数据、也不含行为，只是组件挂载的句柄。
-- **组件（Component）** —— 一小块纯数据结构（位置、速度、精灵）。一个实体由它拥有
-  哪些组件来定义。
-- **系统（System）** —— 每帧运行的函数，遍历所有匹配某个查询的实体，读写它们的组件。
+| 概念 | 定义 |
+|---|---|
+| **实体（Entity）** | 一个标识符。不持有数据，也不包含行为；组件挂载于其上。 |
+| **组件（Component）** | 纯数据结构（位置、速度、精灵）。实体由其所带的组件集合定义。 |
+| **系统（System）** | 每帧运行的函数，遍历所有匹配某个查询的实体，读写其组件。 |
 
-## 为什么要数据导向
+## 存储
 
-组件存放在缓存友好的池里——每个组件类型一个紧密排布的稀疏集（sparse set）——
-因此一个系统遍历「所有同时拥有 `Transform` 与 `Speed` 的实体」时走的是连续内存。存储位于
-C++/WebAssembly 内核中，SDK 通过一份生成并经哈希校验的内存布局**零拷贝**读取它——
-于是同一个组件的 TypeScript 视图与 C++ 视图永远不会悄悄地对不上。
+每个组件类型存放于各自紧密排布的稀疏集（sparse set）中，因此遍历所有同时带有 `Transform` 与 `Speed` 的实体的系统
+读取的是连续内存。存储位于 C++/WebAssembly 内核中。SDK 通过一份生成并经哈希校验的内存布局零拷贝读取存储，
+使同一组件的 TypeScript 视图与 C++ 视图保持一致。
 
-## 你编写的界面
+## SDK 原语
 
-你用三个 SDK 原语组装一个游戏：
+游戏由三个 SDK 原语组成：
 
-- [`defineComponent`](/docs/zh-cn/core-concepts/components/) —— 声明一个组件类型。
-- [`defineSystem`](/docs/zh-cn/core-concepts/systems/) —— 声明一个系统及其查询。
-- [`App` / 插件](/docs/zh-cn/core-concepts/plugins-resources/) —— 把系统、资源与
-  各子系统（[物理](/docs/zh-cn/gameplay/physics/)、[Spine](/docs/zh-cn/animation/spine/)、
-  [瓦片地图](/docs/zh-cn/world/tilemaps/overview/)、[UI](/docs/zh-cn/ui/overview/)、
-  [音频](/docs/zh-cn/assets/audio/)、[场景](/docs/zh-cn/world/scenes/)）组装成一个
-  运行中的游戏。
+| 原语 | 用途 | 参考 |
+|---|---|---|
+| `defineComponent` | 声明组件类型。 | [组件](/docs/zh-cn/core-concepts/components/) |
+| `defineSystem` | 声明系统及其查询的数据。 | [系统](/docs/zh-cn/core-concepts/systems/) |
+| `App` 与插件 | 将系统、资源与子系统（[物理](/docs/zh-cn/gameplay/physics-2d/overview/)、[Spine](/docs/zh-cn/animation/spine/)、[瓦片地图](/docs/zh-cn/world/tilemaps/overview/)、[UI](/docs/zh-cn/ui/overview/)、[音频](/docs/zh-cn/assets/audio/overview/)、[场景](/docs/zh-cn/world/scenes/)）组装为运行中的游戏。 | [插件与资源](/docs/zh-cn/core-concepts/plugins-resources/)、[应用与工厂函数](/docs/zh-cn/core-concepts/app/overview/) |
 
 ```typescript
 import { App } from 'esengine';
 
 const app = App.new();
-// 在 app 上注册组件、系统与插件……
+// register components, systems and plugins on the app
 app.run();
 ```
+
+带有可在编辑器中调整的状态的逐实体逻辑，也可以用 `defineBehavior` 编写，它展开为一个组件和一个系统
+（[脚本](/docs/zh-cn/scripting/overview/)）。

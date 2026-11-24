@@ -1,0 +1,109 @@
+---
+title: Queries, Forces & Events
+description: 3D physics runtime API — Physics3D raycasts, shape casts and overlaps, impulses, forces, velocities, mass data and explosions, and the Physics3DEvents contact, sensor, character and joint-break channels.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Physics3D` resource holds a `Physics3DQueries` object that queries the 3D world and pushes its bodies. It is `null`
+until the physics module has loaded, so a system that runs in the first frames checks for it. `Physics3DEvents` carries
+each step's contacts.
+
+## Spatial queries
+
+Positions, directions and sizes are in world units.
+
+```typescript
+const q = app.getResource(Physics3D);
+
+// The nearest body on a line.
+const hit = q.raycast(muzzle, { x: 0, y: 0, z: -2000 }, ENEMIES);
+
+// The first body a moving sphere would meet; a ray passes through gaps a body would not fit.
+const blocked = q.sphereCast(from, 30, travel, WORLD);
+
+// Bodies already inside a volume.
+const occupants = q.overlapSphere(spawnPoint, 50);
+```
+
+| Query | Returns |
+|---|---|
+| `raycast(origin, direction, layerMask?, options?)` | The nearest body on a line as `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`, or `null`. `direction` carries the ray's length. Characters (`CharacterController3D`) are passed through unless `options.characters` is `true`; a ray that starts inside a character meets it at once. |
+| `raycastAll(origin, direction, layerMask?, maxHits?)` | Every body on the line, nearest first (at most `maxHits`, default 16). Each hit also has `exitFraction`, where the line leaves the body, and `thickness`, the length of line inside it in world units. Characters are not met; a character with `Hitboxes` is met by its bones. |
+| `sphereCast(origin, radius, direction, layerMask?)` | The first body a sphere swept along `direction` would meet, in the `raycast` shape, or `null`. |
+| `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | The same for a box, optionally rotated by the quaternion `rotation`. |
+| `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | The same for a capsule standing along its own y; `halfHeight` is half its straight part. |
+| `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | Every body inside a volume, as `{ entity, x, y, z }[]`. |
+
+A layer mask of `0` means every layer. Hit normals are unit vectors and are not scaled by `pixelsPerUnit`.
+
+## Forces & velocity
+
+Lengths and speeds are in world units, masses in kilograms, angles in radians. An impulse is kilograms × world units per
+second: a 2 kg body given an impulse of 200 gains 100 world units per second. A force is the same per second.
+
+```typescript
+const physics = app.getResource(Physics3D);
+// Kick a ball where the foot meets it: it flies and spins.
+physics.applyImpulse(ball, { x: 0, y: 150, z: -600 }, footPoint);
+// A blast: every moving body within 400 thrown away and a little up,
+// and every Breakable it reaches hard enough broken.
+physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
+```
+
+| Call | Description |
+|---|---|
+| `applyImpulse(entity, impulse, at?)` | Changes the velocity at once by impulse / mass. Applied at the world point `at`, it also adds spin; without `at`, at the centre of mass. Wakes the body. |
+| `applyForce(entity, force, at?)` | Pushes over the next fixed step only. A continuous push is applied every step from a `Schedule.FixedUpdate` system. |
+| `applyTorque(entity, torque)` / `applyAngularImpulse(entity, impulse)` | Twists the body about each world axis, over the next step or at once. Units: kg·(world units)²/s² and kg·(world units)²/s. |
+| `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | Linear velocity, world units per second. |
+| `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | Angular velocity, radians per second. |
+| `getMass(entity)` | Kilograms; `null` for a body that does not move. Set through `RigidBody3D.mass`. |
+| `getMassData(entity)` | `{ mass, centre, inertia }`: kilograms, the centre of mass in world space, and the moments of inertia about the body's own axes in kg·(world units)² (`Infinity` about an axis it may not rotate on). `null` for a body that does not move. |
+| `setAwake(entity, awake)` / `isAwake(entity)` | Wakes a sleeping body, or puts one to sleep until something touches it. |
+| `setGravity(g)` / `getGravity()` | World gravity in m/s². A sleeping body stays put until woken. |
+| `explode(centre, radius, impulse, { upward?, layers? })` | Strikes every moving body within `radius` away from `centre` with `impulse`, decreasing with distance to zero at the edge; `upward` (0–1) tilts the push upward. A `Breakable` in range is struck as hard, whether or not it has a body. Returns the number of bodies moved. |
+| `hasBody(entity)` | Whether the world has a body for the entity yet. |
+| `teleportCharacter(entity, position)` | Places a `CharacterController3D` at a position and drops its velocity. A character's position is an output of the step, so this is the way to move one directly. Returns `false` when the entity has no character. |
+
+A body that does not move ignores forces and impulses. Each call returns `false` (or `null`) for an entity the world
+has no body for yet, which includes the frame an entity is spawned in.
+
+## Collision events
+
+Each step publishes its contacts into the `Physics3DEvents` resource. The resource is drained per fixed step, so a system
+reading it runs in `Schedule.FixedUpdate`; a read from `Update` sees whatever the last step left.
+
+```typescript
+const events = app.getResource(Physics3DEvents);
+for (const hit of events.contactEnters) {
+  // both entities, and where they met
+  spawnSparks(hit.pointX, hit.pointY, hit.pointZ);
+}
+for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
+  if (sensorEntity === goalZone) score(visitorEntity);
+}
+```
+
+| Channel | Content |
+|---|---|
+| `contactEnters` | Both entities, the contact normal and point (world units), and `speed`: how fast the first body was closing on the second along the normal, in world units per second, read before the solver responded. `mass` is the effective mass of the meeting, 1 / (1/a + 1/b) with a body that does not move counting as zero inverse mass. `impulse` is `speed` × `mass`. |
+| `contactExits` | The pair only (`entityA`, `entityB`). |
+| `characterHits` | What a character ran into that it was not already touching, once per meeting: `character`, `other`, the point, the normal toward the character, `speed`, `mass` (the character's own against a body that does not move) and `impulse`. A `Breakable` a character runs into is struck with this impulse. |
+| `jointBreaks` | Joints that gave way this step: `entity`, `force` (N) and `torque` (N·m). |
+| `sensorEnters` / `sensorExits` | `sensorEntity` first, then `visitorEntity`. |
+
+A collider with `isSensor` reports overlaps and stops nothing: the visitor passes through and appears in `sensorEnters`
+instead of `contactEnters`.
+
+<Aside type="note">
+  An ended contact carries no geometry: when it is reported the solver has both bodies locked, and one may already
+  have been destroyed. A contact also ends when a body falls asleep, so an exit means "this pair is no longer
+  touching", not "something moved".
+</Aside>
+
+## See also
+
+- [Bodies & Shapes](/docs/gameplay/physics-3d/bodies/) — the bodies these calls act on.
+- [Collision layers](/docs/gameplay/physics-3d/overview/#collision-layers) — the layer masks queries take.
+- [Breakables](/docs/gameplay/physics-3d/breakables/) — what `explode` and contact impulses break.

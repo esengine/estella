@@ -1,0 +1,47 @@
+---
+title: Sessions
+description: Request/response networking for asynchronous online games with esengine/session — SessionHost, ClientSession, idempotency keys, typed contracts with defineContract and the s validators, and the protobuf wire format.
+---
+
+[State replication](/docs/scripting/networking/replication/) shares a simulation tick between server and clients. A
+game played **asynchronously** over a shared world — a city builder, a card game, a gacha game — has no shared tick; it
+needs requests and replies that survive an unreliable link. `esengine/session` provides this, independently of
+replication.
+
+| Component | Role |
+|---|---|
+| `SessionHost` | Server side. Authenticates each connection before serving it, limits frame size and message rate, pings the client, and lets a newer connection for the same player replace the older one. It holds no game state: every handler receives the player from its context. |
+| `ClientSession` | Client side. Dials, redials with backoff and jitter when the link drops, waits for the server before sending a request, and keeps event subscriptions across reconnects. `retryNow()` redials immediately; `serverNow()` returns the server's clock. |
+| Idempotency keys | Every request carries a key, so a request whose reply was lost and is sent again is answered from memory instead of executing twice (a purchase, a departure). Several server processes share one `IdempotencyStore`. |
+| `defineContract` | Declares every request and event once with the `s` validators (`s.object`, `s.int`, `s.string`, …). The server validates each request against it, the client validates each reply, and both are typed from it. Its `fingerprint` lets the server refuse a client built against another contract. |
+
+```typescript
+import { defineContract, s, SessionHost, ClientSession, acceptWebSocket } from 'esengine/session';
+import { createSocket } from 'esengine';
+
+const api = defineContract({
+  requests: { buy: { req: s.object({ item: s.string() }), res: s.object({ gold: s.int() }) } },
+  events: { news: s.object({ text: s.string() }) },
+});
+
+// SERVER (Node): each `ws` socket is attached to the host.
+const host = new SessionHost({ authenticate: (cred) => ({ playerId: String((cred as any).id) }) });
+api.serve(host, { buy: async ({ item }, ctx) => ({ gold: await purchase(ctx.playerId, item) }) });
+// wss.on('connection', (socket) => acceptWebSocket(host, socket));
+
+// CLIENT: one object for the whole run, across any number of disconnects.
+const session = new ClientSession({ connect: () => createSocket({ url: 'wss://example.com/play' }), credentials: () => ({ id: 'p1' }) });
+await session.start();
+const { gold } = await api.client(session).buy({ item: 'sword' });
+```
+
+## Wire format
+
+A session can use protobuf instead of JSON: `wire: 'pb'` on the client and `wire` on the host. `proto()` / `protoAs()`
+bring a `.proto` message into a contract. Protobuf sessions remain readable as JSON in a debugger.
+
+## Refusing a session
+
+Throwing `SessionRejected` from `authenticate` refuses a connection. With `fatal: false` the client keeps redialing.
+`serverAddress` and `TokenBook`, also exported from `esengine/session`, are described in
+[Deploying a Server](/docs/scripting/networking/deploy/).

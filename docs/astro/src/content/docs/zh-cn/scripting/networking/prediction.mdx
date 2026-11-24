@@ -1,0 +1,48 @@
+---
+title: 客户端预测
+description: 通过客户端预测实现零延迟的本地输入——共享的 apply 函数、服务器上的 tickInputOf、与权威状态的和解、输入频率要求以及校正平滑。
+---
+
+不开启预测时，客户端自己的角色要等一次完整的服务器往返后才会移动。预测在本地立即应用客户端的输入，并与服务器的权威状态和解。它在**两端使用同一个输入→状态函数**：
+
+```typescript
+// The movement rule, shared by server and client.
+function applyMove(world, entity, actions, dt) {
+  const move = actions.move;
+  if (!move) return;
+  const pos = world.tryGet(entity, NetPos);
+  pos.x += move.x * SPEED * dt;
+  pos.y += move.y * SPEED * dt;
+  world.set(entity, NetPos, pos);
+}
+
+// SERVER gameplay (FixedUpdate): per-tick input via tickInputOf.
+const input = server.tickInputOf(repl.owner);
+if (input) applyMove(world, e, input.actions, time.fixedDelta);
+
+// CLIENT: enable prediction; sendInput once per fixed tick.
+await clientNet.connect(clientEnd, {
+  prediction: { apply: applyMove },
+});
+clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // the pawn moves immediately
+```
+
+## 工作原理
+
+1. `sendInput` 立即将命令应用到客户端拥有的实体，并将其存入待确认缓冲。
+2. 服务器通过 `tickInputOf` **每个固定 tick 恰好消费一条**命令，并确认已消费的序号。参与预测的玩法使用 `tickInputOf`，而非 `inputOf`。
+3. 每个固定 tick，客户端将每个自有实体重建为最新权威状态加上未确认命令的重放。
+
+因此服务器端的校正（墙体、击退）总会生效，误预测不会累积；服务器不再重发的字段同样会回到权威值。自有实体绕过快照插值。
+
+## 要求
+
+| 要求 | 原因 |
+|---|---|
+| 每个固定 tick 都发送一条输入，包括空闲输入（`{ move: { x: 0, y: 0 } }`）。 | 队列为空时服务器会重复上一条命令，因此沉默表示「继续」，而非「停止」。 |
+| 在 spawn 时指定 `Replicated.owner`。 | 归属是 spawn 载荷的一部分。 |
+| `apply` 只依赖世界状态、actions 与 `dt`。 | 和解时它会被重新执行。 |
+
+## 平滑
+
+`prediction: { apply, smoothing: { halfLife: 0.08 } }` 使校正渐变而非瞬间跳变：视觉误差每 `halfLife` 秒减半。`maxError` 设置一个距离，超过该距离的校正仍会瞬间跳变，因此传送不会被平滑。平滑只作用于表现层，不影响模拟状态。

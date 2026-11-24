@@ -1,38 +1,36 @@
 ---
 title: Editor Plugins
-description: Extend the Estella editor with your own TypeScript — commands, panels, inspector sections, viewport gizmos and tools, asset types and context-menu actions — with no build step and hot reload while you write.
+description: Editor plugins — creating one, the plugin.json manifest, API stability policy, the Plugins window, packaging and installing .esplugin files, trust, npm packages, typings, plugin locations, permitted imports, project platform profiles and troubleshooting.
 ---
 
 import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 
-A plugin adds your own tools to the editor: a command in the Tools menu, a docked
-panel, an extra section in the Inspector, a gizmo drawn in the viewport, a new
-asset type. Plugins are TypeScript, they live in your project, and there is **no
-build step** — the editor compiles them, and re-compiles the moment you save.
+An editor plugin adds tools to the editor: commands, docked panels, Inspector sections, viewport gizmos and tools,
+asset types, importers and agent tools. Plugins are TypeScript in the project or the user folder. The editor compiles
+them with no build step and recompiles on save.
 
-Everything a plugin registers goes through the same registries the editor's own
-features use. A contributed command is a command; a contributed panel is a dock
-panel with a tab, a close button and pop-out. There is no reduced "plugin version"
-of anything.
+Plugin contributions go through the same registries as the editor's own features: a contributed panel is a dock panel
+with a tab, a close button and pop-out. The contribution points are described in
+[Contribution Points](/docs/extending/contribution-points/).
 
-## Your first plugin
+## Creating a plugin
 
 <Steps>
 
-1. Open **Window ▸ Plugins** and choose **New plugin** (or search the command
-   palette for it).
+1. Open **Window ▸ Plugins** and choose **Add ▸ New Plugin…** (also available in the command palette).
 
-2. Give it a name. The id is derived from it and can be edited — dotted and
-   lowercase, like `acme.level-tools`. Choose whether it installs into the
-   **project** (versioned with it, shared by the team) or into your **user**
-   folder (personal, available in every project).
+2. Enter a **Name**. The **Id** is derived from it and can be edited; it is dotted and lowercase, such as
+   `acme.level-tools`. Under **Install to**, choose **project** (versioned with the project and shared with the team)
+   or **user** (personal, available in every project).
 
-3. Tick the samples you want — command, panel, inspector section, viewport gizmo,
-   viewport tool — and choose **Create**.
+3. Under **Start from**, tick the samples to include — Command, Panel, Inspector section, Viewport gizmo, Viewport
+   tool — and choose **Create**.
 
 </Steps>
 
-The editor writes a plugin that already runs, and loads it:
+{/* SHOT: extend-new-plugin | Plugins window (Window ▸ Plugins) with the New plugin dialog open from Add ▸ New Plugin…: Name, Id, Install to (project / user) and the Start from sample checkboxes, with the Create button; any example project */}
+
+The editor writes a working plugin and loads it:
 
 <FileTree>
 - .esengine/
@@ -54,12 +52,6 @@ The editor writes a plugin that already runs, and loads it:
 }
 ```
 
-Four more fields decide how the plugin looks in the Plugins window, as an Unreal
-`.uplugin`'s do: `category` files it in the tree ("Importers", "Audio"; Other when
-absent), `icon` is a square picture inside the plugin folder (PNG, JPEG, WebP or
-SVG, Unreal's `Resources/Icon128.png`), `docsUrl` adds a Documentation link, and
-`"beta": true` marks it Beta. `publisher` is shown under the version.
-
 ```ts title="src/editor.ts"
 import { definePlugin, type PluginContext } from '@estella/editor-api';
 
@@ -75,89 +67,110 @@ export default definePlugin({
 });
 ```
 
-Your command is now in the Tools menu and the command palette. Edit `editor.ts`
-and save: the editor recompiles and re-activates it, and any panel it contributed
-reopens on the new build.
+The command appears in the Tools menu and the command palette. Saving `editor.ts` recompiles and re-activates the
+plugin, and any panel it contributed reopens on the new build.
 
-<Aside type="tip" title="Let the editor write engines.editor">
-`engines.editor` is the editor range a plugin claims to work with. Below 1.0 the
-**minor is the breaking-change axis** — `^0.97` does not match `0.98`. Creating a
-plugin pins it to the editor doing the creating, so copying an older range in from
-somewhere else is how a plugin arrives already marked *incompatible*.
+## Manifest
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Required. Dotted, lowercase, namespaced (`<publisher>.<name>` by convention), such as `acme.level-tools`. |
+| `name` | localized string | Required. Display name. |
+| `version` | `string` | Required. Plugin version. |
+| `description` | localized string | Short description. |
+| `publisher` | `string` | Shown under the version in the Plugins window. |
+| `engines.editor` | `string` | Editor version range the plugin supports, such as `^0.97`. |
+| `main.editor` | `string` | Entry point, relative to the plugin folder; runs in the editor's renderer. |
+| `capabilities` | `string[]` | Declared side effects shown at the trust prompt: `fs:project`, `net`, `shell`, `process`. Convenience APIs are gated on them (`fs:project` for project file access). |
+| `category` | `string` | Category in the Plugins window tree, such as "Importers" or "Audio". Absent files the plugin under Other. |
+| `icon` | `string` | A square picture inside the plugin folder (PNG, JPEG, WebP or SVG), such as `Resources/Icon128.png`. |
+| `docsUrl` | `string` | An http(s) address; adds a Documentation link. |
+| `beta` | `boolean` | Marks the plugin Beta. |
+
+A localized string is either a string or an object keyed by locale (`{ "en": …, "zh-CN": … }`).
+
+<Aside type="tip" title="engines.editor">
+Below 1.0 the **minor version is the breaking-change axis**: `^0.97` does not match `0.98`. **New Plugin** pins the
+range to the editor that creates it. A range copied from an older plugin marks the plugin *incompatible*.
 </Aside>
 
 ## What this API promises
 
-The plugin API is **experimental**, and it is not part of Estella's 1.x
-compatibility contract — it will keep changing after 1.0. That is a decision, and
-[VERSIONING.md](https://github.com/esengine/estella/blob/master/VERSIONING.md)
-states it alongside the SDK's own [stability tiers](/docs/reference/api-stability/):
-the extension points are still converging on one mechanism, a plugin runs as
-trusted code in the editor's renderer rather than in isolation, and no shipped
-plugin yet holds any of these shapes up.
+The plugin API is **experimental** and is not part of Estella's 1.x compatibility contract; it will continue to change
+after 1.0. [VERSIONING.md](https://github.com/esengine/estella/blob/master/VERSIONING.md) states this alongside the
+SDK's [stability tiers](/docs/reference/api-stability/): the extension points are still converging on one mechanism, a
+plugin runs as trusted code in the editor's renderer rather than in isolation, and no shipped plugin yet exercises
+these shapes.
 
-Three things you can rely on while that is true:
+The following commitments apply:
 
-- **`engines.editor` is honoured.** A plugin outside its declared range is refused
-  with a stated reason and never half-loaded, so a change on our side costs you a
-  version bump — never a user a broken editor.
-- **Breaking changes are written down**, in the CHANGELOG under **Editor plugin
-  API**, with what to change.
-- **Removal is deprecated first** — a contribution point being withdrawn keeps
-  working, and says so, for at least one minor release.
+- **`engines.editor` is honoured.** A plugin outside its declared range is refused with a stated reason and never
+  partially loaded.
+- **Breaking changes are recorded** in the CHANGELOG under **Editor plugin API**, with migration instructions.
+- **Removal is deprecated first.** A contribution point being withdrawn keeps working, with a notice, for at least
+  one minor release.
 
-Parts of this surface will be frozen individually, as shipped plugins come to
-exercise them, rather than all at once by a version number.
+Parts of the API will be frozen individually as shipped plugins exercise them.
 
-## Seeing what a plugin contributed
+## Plugins window
 
-Open a running plugin's **Details** in the Plugins window for its **Contributes**:
-everything it has registered right now — commands, panels, settings, tools, gizmos,
-inspector sections, asset types, entity templates, menu items — each with its id.
-
-"Why isn't my panel showing up?" is usually answered here: either it isn't in the
-list (`activate` never reached that line), or it is, under an id you didn't expect.
+**Window ▸ Plugins** lists every plugin the editor found.
 
 ![The Plugins window: a tree of groups and categories with counts on the left, the plugins as cards on the right](@/assets/guides/en/plugins-panel.png)
 
-*The Plugins window, as Unreal's Plugins browser: **Add** (a new plugin, or one from a package), Refresh and search across the top; on the left All Plugins, anything that needs attention, then Project, Installed and Built-in by category, each with its count; on the right a card per plugin with its enable box, icon, version, publisher, and Edit, Package, Show in Folder, Reload and Details.*
+*Toolbar: **Add** (New Plugin…, Install from Package…), Refresh and search. Left: All Plugins, Needs attention, then
+Project, Installed and Built-in by category, each with a count. Right: one card per plugin with its enable box, icon,
+version and publisher, and Edit, Package, Show in Folder, Reload and Details.*
+
+| Card action | Effect |
+|---|---|
+| Enable box | Enables or disables the plugin. |
+| **Edit** | Opens `plugin.json`. |
+| **Package** | Packs the plugin into an `.esplugin` file ([Sharing a plugin](#sharing-a-plugin)). |
+| **Show in Folder** | Opens the plugin folder. |
+| **Reload** | Recompiles from source and re-activates. |
+| **Details** | Shows the plugin's state, errors and **Contributes** list. |
+
+**Contributes** lists everything the running plugin has registered — commands, panels, settings, tools, gizmos,
+Inspector sections, asset types, importers, entity templates, menu items, rail buttons and agent tools — each with its
+id. A contribution that does not appear in the editor is either absent from the list (`activate` did not reach the
+registration) or registered under a different id.
+
+{/* SHOT: extend-plugin-details | Plugins window with a built-in plugin's card expanded via Details, showing its state and the Contributes list with kinds and ids; any example project */}
 
 ## Sharing a plugin
 
-**Package** on a plugin's card packs it into a single `.esplugin` file —
-a ZIP, so renaming it to `.zip` opens it anywhere. `node_modules`, `dist`, and the
-generated typings are left out.
+**Package** on a plugin's card packs it into one `.esplugin` file, a ZIP archive. `node_modules`, `dist` and the
+generated typings are excluded.
 
-The other side installs it with **Add ▸ Install from Package…**, which first lists what is inside — the
-manifest, the declared capabilities, every file — without unpacking or writing
-anything. Only after that does it land on disk, and **installing is not running**:
-it arrives needing trust, so loading it stays a separate decision.
+**Add ▸ Install from Package…** installs a package. It first lists the contents — the manifest, the declared
+capabilities and every file — without unpacking or writing anything. Installing does not run the plugin: it arrives
+needing trust.
+
+### Trust
 
 <Aside type="caution" title="Trust">
-A plugin runs with the same access the editor has — your project files and
-anything the editor can reach. That is why nothing loads until you approve it, and
-why you should only load plugins whose source you trust. The prompt lists what the
-plugin declared, but declared capabilities describe *intent*: they are not a
-sandbox.
+A plugin runs with the same access as the editor: project files and anything else the editor can reach. No plugin
+loads until it is approved (**Trust and load**). Load only plugins from trusted sources. The prompt lists the
+declared capabilities, but declared capabilities describe intent and are not a sandbox.
 
-Approval covers that version from that folder. A new version, or a different
-folder claiming the same id, asks again.
+Approval covers one version from one folder. A new version, or a different folder claiming the same id, asks again.
+**Withdraw trust** revokes approval.
 </Aside>
 
-## From npm
+## npm packages
 
-A plugin can also be an npm package the project depends on:
+A plugin can be an npm package the project depends on:
 
 ```bash
 npm install estella-plugin-tiled
 ```
 
-Any **direct** dependency that ships a `plugin.json` at its root is a plugin. The
-editor lists it like any other, needing trust the same way — and because approval
-covers a version, an update asks again.
+Any **direct** dependency with a `plugin.json` at its root is a plugin. It is listed and requires trust like any other;
+approval covers a version, so an update asks again. Packages that arrive as dependencies of other packages are not
+considered.
 
-A package is also the way to ship a plugin's two halves together: the editor half
-the manifest points at, and runtime code the game imports itself.
+A package can ship both halves of a plugin: the editor half the manifest points at, and runtime code the game imports.
 
 <FileTree>
 - node_modules/estella-plugin-tiled/
@@ -176,23 +189,15 @@ import { TiledPlugin } from 'estella-plugin-tiled';
 addPlugin(TiledPlugin);
 ```
 
-The runtime half needs no mechanism of its own — it is an ordinary module, bundled
-into your game like the rest of `src/`. Declare `esengine` as a **peer**
-dependency, never a regular one: the project's bundler leaves every `esengine`
-import external so the whole game shares one engine instance, and a copy vendored
-inside your package would be a second component registry whose systems register
-into nothing.
-
-Only direct dependencies are considered. A package that arrives because something
-else depends on it is not something the project asked to run in its editor.
+The runtime half is an ordinary module bundled into the game. Declare `esengine` as a **peer** dependency: the
+project's bundler keeps every `esengine` import external so the game shares one engine instance, and a vendored copy
+would be a second component registry whose systems register into nothing.
 
 ## Typings
 
-The editor writes `@estella/editor-api`'s typings into your project at
-`.esengine/plugins/.types/editor-api.d.ts` every time it opens the project, so they
-always match the editor you're running. Your plugin's `tsconfig.json` points at
-them — **New plugin writes this for you**; it is spelled out here for anyone
-authoring one by hand:
+Each time it opens a project, the editor writes `@estella/editor-api` typings to
+`.esengine/plugins/.types/editor-api.d.ts`, matching the running editor. **New Plugin** writes a `tsconfig.json` that
+points at them; for a plugin written by hand:
 
 ```json
 {
@@ -205,309 +210,35 @@ authoring one by hand:
 }
 ```
 
-Nothing to install, and no copy that can go stale.
+## Plugin locations
 
-## What a plugin can contribute
+| Location | Use |
+|---|---|
+| `<project>/.esengine/plugins/<id>/` | Versioned with the project and shared with the team. |
+| A direct npm dependency of the project | See [npm packages](#npm-packages). |
+| `<userData>/plugins/<id>/` | Personal tools available in every project. |
 
-Every `register` returns a disposable, and everything is retracted automatically
-when the plugin unloads — you rarely need to keep the handle.
+On an id collision the first location in this order wins; the others are listed as **Shadowed** with the plugin that
+took the id.
 
-### Commands
+## Permitted imports
 
-Land in the command palette, and optionally a menu. Label, shortcut hint,
-enablement and checked state all come from this one declaration.
+A plugin runs in the editor's realm and imports the editor's own module instances, so what it registers is what the
+editor uses. A plugin may import:
 
-```ts
-ctx.commands.register({
-  id: 'acme.level-tools.bake',
-  title: { en: 'Bake Occlusion' },
-  keybinding: 'mod+alt+b',
-  menu: 'tools',
-  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
-  run: () => { /* … */ },
-});
-```
+- `react`, `react-dom`, `react-dom/client`, `react/jsx-runtime`
+- `@estella/editor-api`
+- `esengine`, `esengine/terrain`, `esengine/worldgen`, `esengine/water`, `esengine/spline`, `esengine/voxel`,
+  `esengine/rig2d`, `esengine/tilemap`, `esengine/replication`
 
-### Panels
+Any other bare specifier is a load error that names this list; bundle such dependencies into the plugin.
 
-`mount` gets a plain host element and returns its teardown. The editor owns the
-tab, the error boundary and pop-out. Style against the editor's CSS variables —
-`--srf-2` for the panel body, `--text` / `--text-dim` for copy, `--star` for the
-accent, `--groove` for edges, `--fs-body` for body size — and the panel matches the
-surrounding chrome. Use a variable that exists: CSS has no unknown-variable
-error, so a misspelled one simply does not draw.
+### Game-registered providers in the editor
 
-```ts
-ctx.panels.register({
-  id: 'acme.level-tools.budget',
-  title: { en: 'Level Budget' },
-  placement: 'bottom',
-  mount: (host) => {
-    host.textContent = 'hello';
-    return () => { /* teardown */ };
-  },
-});
-```
-
-You may use React — the editor injects its own instance, so hooks work and there
-is no second copy:
-
-```ts
-import { createRoot } from 'react-dom/client';
-```
-
-### A button on the rail
-
-A panel reachable only through a menu is a panel nobody opens. One button on the
-far-left rail, beside the ones that reveal the editor's own panels:
-
-```ts
-ctx.activityBar.register({
-  id: 'acme.level-tools.rail',
-  title: { en: 'Level Budget' },
-  // Inline SVG, drawn at 19px. `currentColor` is what makes it follow the rail
-  // through hover and both themes.
-  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
-    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
-  run: () => ctx.panels.open('acme.level-tools.budget'),
-});
-```
-
-Leave `icon` out and you get the plug every contributed thing wears — which is
-also what two plugins would collide on, so ship one.
-
-The rail is short and shared. Contribute a button for the thing your plugin **is**;
-anything else is a command, and the Tools menu is where commands go.
-
-### Inspector sections
-
-Adds a section under a component (or for an asset type), built from rows the
-editor renders with its own property UI — so it looks native with no styling.
-
-```ts
-ctx.inspector.register({
-  kind: 'component',
-  id: 'budget',
-  component: 'Sprite',
-  title: { en: 'Budget' },
-  build: (entity, ui) => {
-    ui.info({ en: 'Texture' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
-    ui.number('weight', { en: 'Weight' }, 1, { min: 0, max: 10 });
-  },
-  write: (entity, key, value) => { /* an edit to a row you built */ },
-});
-```
-
-### Viewport gizmos
-
-Drawn every frame, in **world coordinates** — the editor projects them, so a gizmo
-follows the scene through pan and zoom, and a radius in world units scales with
-it. Stroke widths and text stay in screen pixels.
-
-```ts
-ctx.overlays.register({
-  id: 'acme.spawn-radius',
-  render: (g) => {
-    const id = ctx.scene.getSelection();
-    if (id == null) return;
-    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
-    if (!Array.isArray(p)) return;
-    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--star)', dashed: true });
-  },
-});
-```
-
-### Viewport tools
-
-While *armed*, a tool gets first refusal on every pointer stroke. Returning `true`
-from `onPointerDown` claims the stroke and its move/up. Picking any built-in tool
-disarms it, so you can never get stuck in a plugin's tool.
-
-```ts
-ctx.tools.register({
-  id: 'acme.measure',
-  title: { en: 'Measure' },
-  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
-  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
-  onPointerUp: (p, tc) => tc.release(p.pointerId),
-});
-ctx.tools.activate('acme.measure');
-```
-
-### The rest
-
-- `ctx.settings.register(…)` — a row under **Settings ▸ Plugins ▸ your plugin**.
-- `ctx.assets.registerType(…)` — a new asset type: extensions, tile badge,
-  double-click action, and a **New ▸ …** entry.
-- `ctx.entities.registerTemplate(…)` — a ready-made entity in the Create picker.
-- `ctx.contextMenus.register(…)` — a row in the Outliner or Content Browser
-  right-click menu, gated by the thing that was clicked.
-
-### Importers
-
-An importer turns a file the engine cannot read into assets it can. The editor
-calls it when a claimed file appears or changes, and on **Reimport** in the
-Content Browser:
-
-```typescript
-ctx.assets.registerImporter({
-  id: 'ldtk',                     // becomes acme.level-tools.ldtk
-  extensions: ['ldtk'],
-  async import(path) {
-    const level = JSON.parse(await ctx.fs.readProject(path));
-    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
-  },
-});
-```
-
-What you write is an ordinary project asset, so nothing downstream — the
-registry, the inspector, cooking, the shipped build — learns your format. Declare
-the `fs:project` capability, or there is nowhere to put the output.
-
-Throwing (or rejecting) reports the failure against your plugin in the Output Log
-and leaves the other importers running. A file is never imported twice at once, so
-an import that takes a while cannot be re-entered by the writes it is making.
-
-### Binary assets and filesystem operations
-
-`ctx.fs` works in the plugin's own directory, including user-installed plugins outside
-the project. The `*Project` methods work in the open project and require `fs:project`.
-All paths are relative to the corresponding root; traversal and escaping symlinks are rejected.
-
-| Operation | Plugin directory | Project directory |
-| --- | --- | --- |
-| UTF-8 text | `read`, `write` | `readProject`, `writeProject` |
-| Binary `Uint8Array` | `readBytes`, `writeBytes` | `readProjectBytes`, `writeProjectBytes` |
-| Directory entries | `readDir` | `readProjectDir` |
-| Size, modified time, directory flag | `stat` | `statProject` |
-| Create directory | `mkdir` | `mkdirProject` |
-| Move / rename | `rename` | `renameProject` |
-| Move to OS trash | `delete` | `deleteProject` |
-
-```typescript
-const blob = await new Promise<Blob>((resolve, reject) =>
-  canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG encoding failed')), 'image/png'));
-await ctx.fs.writeProjectBytes('assets/generated/atlas.png', new Uint8Array(await blob.arrayBuffer()));
-await ctx.project.refreshAssets();
-```
-
-The file contains actual PNG bytes: no data URL, base64 text or external decoder is needed.
-Binary writes create parent directories and publish a complete file. Rename preserves the
-`.meta` sidecar and UUID and refuses existing targets, including orphaned metadata. Delete
-moves the item and its sidecar to the OS trash. Project mutations participate in the existing
-agent file journal; plugin-local files outside the project do not. Directory reads include
-dotfiles and metadata, rather than the Content Browser's filtered view. `mkdir` refuses an
-existing directory; other I/O failures reject normally. A disposed context or a context
-belonging to an old project cannot continue writing through this API.
-
-Generated files in a plugin directory do not reload the plugin unless they are actual
-bundle inputs. Editing an imported source, imported JSON or `plugin.json` still reloads it.
-
-### Lending the agent a tool
-
-An agent connected over [MCP](/docs/agents/mcp/) can do only what the tool list
-offers. A plugin that adds a capability without adding a tool has added it for
-the person and not for the agent — so if your plugin can bake occlusion, teach
-the agent to ask for it:
-
-```typescript
-ctx.agentTools.register({
-  // Your plugin id with its dots as `_` — plugin `acme.level-tools` prefixes
-  // its tools with `acme_level_tools_`.
-  name: 'acme_level_tools_bake-occlusion',
-  description: 'Bake occlusion for the open scene. Use after moving walls.',
-  schema: { type: 'object', properties: { quality: { type: 'number' } } },
-  effect: 'undoable',
-  run: ({ quality }) => bake(quality ?? 1),
-});
-```
-
-`description` is not documentation — it is the only thing the model reads when
-deciding whether this is the right tool. Say what it does and when to reach for
-it.
-
-The tool is listed to every connected MCP client beside the editor's own, and a
-call runs your `run` in the editor. `schema` is checked first: a call with a
-missing argument, or one the schema does not declare, is refused before your
-handler sees it.
-
-`effect` decides who may call it. A `read` tool is offered to every connected
-agent. `undoable` (edits that go through the undo history), `journaled` (project
-files written through `ctx.fs.writeProject`, which are captured before they land)
-and `irreversible` (work outside the open project, or code whose effects nobody
-enumerated) are offered only while the person lets agents change the project
-(**Settings › AI Agents**), and refused otherwise.
-
-Nothing verifies the field, and that is not a gap — your plugin already runs
-with the whole editor surface in reach, so it could do the same work through a
-command. The boundary is the trust prompt at install. What the field buys is
-the permission behaving correctly for an honest plugin, so declare it honestly:
-a tool that calls itself `read` while changing the project runs for an agent
-the person only let look.
-
-The name must be namespaced with your plugin id, and may contain only letters,
-digits, `_` and `-` — up to 64 of them. Both halves of that matter. An
-un-namespaced tool could shadow a built-in, and a model calling `delete_entity`
-believes it knows what happens next; a name outside the character set is one the
-model's endpoint refuses, and it refuses the whole request rather than the tool,
-which takes every conversation down with it.
-
-Plugin ids are dotted by convention and tool names cannot be, so the prefix is
-your id with its dots folded to `_`: plugin `acme.level-tools` owns the
-`acme_level_tools_` prefix. A tool that breaks any of these rules is refused
-with the reason in the Output Log, rather than dropped silently.
-
-Whatever `run` returns is JSON-encoded for the model; throwing reports the
-message as a failed call, which the model can read and act on. A tool that
-appears while a conversation is open joins the NEXT one — the tool list renders
-first in the prompt, so changing it mid-conversation would throw away every
-cached byte after it.
-
-## Editing the scene
-
-Always go through `ctx.scene`. Those writes run through the editor's command
-layer, which means they land in the undo history and survive Play → Stop. Reaching
-around it to the live engine loses both.
-
-```ts
-ctx.scene.transact('Rename Markers', () => {
-  for (const node of ctx.scene.getSceneTree()) {
-    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
-  }
-});
-```
-
-Everything inside one `transact` is a single undo step, however many edits it
-makes.
-
-## When something goes wrong
-
-Open **Window ▸ Plugins**. Every plugin the editor found is listed — including the
-broken ones, with the reason: a manifest that failed to parse, a compile error, or
-an id another plugin already claimed. Errors thrown by your plugin appear in the
-**Output Log** tagged `plugin:<your-id>`, with a stack.
-
-If a plugin keeps throwing, the editor disables it rather than letting it break a
-surface on every render. Fix it and press **Reload**.
-
-<Aside type="tip">
-A plugin's own timings show up in the profiler under `plugin.<id>.<what>`, next to
-the editor's own work — so a slow overlay or command is visible rather than
-mysterious.
-</Aside>
-
-## What a plugin may import
-
-A plugin runs in the editor's own realm and imports the editor's own instances, so what it registers is what the editor uses. It may import
-`react`, `@estella/editor-api`, `esengine`, and the engine subpaths the editor is built on: `esengine/terrain`, `esengine/worldgen`,
-`esengine/water`, `esengine/spline`, `esengine/tilemap` and `esengine/replication`. Anything else is a load error naming this list; bundle it into
-the plugin instead.
-
-### Show your game's generated ground in the editor
-
-The editor does not run your game's scripts while you edit: it reads the declaration module for component schemas and nothing else. A terrain
-provider a game registers (a `Terrain` with `provider: 'my-game:planet'`) is therefore not there in the viewport, and the terrain asks for a
-provider that does not exist. A project plugin that imports the module registering it fixes that, with the same code in the editor as in the game:
+The editor does not run the game's scripts while editing; it reads the declaration module for component schemas only.
+A terrain provider the game registers (a `Terrain` with `provider: 'my-game:planet'`) is therefore absent in the
+viewport. A project plugin that imports the module registering it makes the provider available, with the same code in
+the editor and in the game:
 
 ```ts title=".esengine/plugins/my-game.ground/src/editor.ts"
 import { definePlugin } from '@estella/editor-api';
@@ -516,114 +247,30 @@ import '../../../../src/planet/terrain.ts';   // registerTerrainProvider(...), a
 export default definePlugin({ activate: () => {} });
 ```
 
-The editor asks you once to trust the plugin, since it runs project code. The project's `.gitignore` leaves `.esengine/plugins/` out of the ignored
-set (new projects are written that way), so the plugin travels with the project and the whole team sees the same ground.
-
-## Where plugins live
-
-- **`<project>/.esengine/plugins/<id>/`** — versioned with the project and shared
-  with your team. This is the usual place.
-- **an npm package the project depends on** — see [From npm](#from-npm) above.
-- **`<userData>/plugins/<id>/`** — your own tools, across every project.
-
-On an id collision the first of those three wins, and the others are listed saying
-who took it.
+The plugin runs project code, so the editor asks to trust it once. New projects' `.gitignore` does not ignore
+`.esengine/plugins/`, so the plugin is committed with the project.
 
 ## Project platform profiles
 
-A `.esengine/platforms/<id>.mjs` packaging profile (see
-[Mini-Game Platforms](/docs/publishing/minigame-platforms/)) is imported into the editor's
-main process with full system access. It is listed in the Plugins panel and needs
-the same approval — until you approve it, its target shows as not ready in the
-Package dialog.
+A `.esengine/platforms/<id>.mjs` packaging profile ([Mini-Game Platforms](/docs/publishing/minigame-platforms/#project-platforms),
+[Playable Ads](/docs/publishing/playable-ads/#custom-ad-network)) is imported into the editor's main process with full
+system access. It is listed in the Plugins window and requires the same approval; until approved, its target is shown
+as not ready in Package Project.
 
-## Project native modules
+## Troubleshooting
 
-Some runtimes arrive as WASM: a vector-animation player, a solver, anything with
-a C++ heritage and an official emscripten build. The engine already loads its own
-that way — physics, the Basis transcoder, the DragonBones runtime, the video decoder,
-the per-version Spine runtimes — and a project can add its own on the same terms.
+**Window ▸ Plugins** lists every plugin found, including broken ones with the reason: a manifest that failed to parse,
+a compile error, an id already claimed, or an incompatible `engines.editor` range. Errors thrown by a plugin appear in
+the **Output Log** tagged `plugin:<id>`, with a stack trace.
 
-Fetching one by hand works on the web and nowhere else. A mini-game has no
-`fetch` and needs the binary *inside* the package; a playable has no files at
-all. A **project module** gets the treatment the engine's own get: acquired
-through one call, staged into every package, required by name in the generated
-mini-game entry, and loaded in Play so you can develop against it.
+A plugin that keeps throwing is disabled so it cannot break a surface on every render. Fix it and click **Reload**.
 
-### Laying one out
-
-```
-<project>/.esengine/modules/rive/
-  module.json          { "file": "rive", "globalName": "RiveModule" }
-  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
-  wechat/rive.js  rive.wasm    ← every mini-game vendor
-```
-
-The **directory name is the id** you acquire by. `module.json` is optional: with
-no manifest the artifact base name defaults to the directory name, so a module
-whose files are `rive/web/rive.js` needs nothing else. `globalName` is the
-emscripten `EXPORT_NAME` — set it when the glue was built with `MODULARIZE` and a
-named export, omit it when the glue is an ES module whose `default` is the
-factory.
-
-Per-platform directories are not bureaucracy. A mini-game host needs its own
-emscripten build (WXWebAssembly glue, a lower es-target) — which is why the
-engine builds its own modules twice too. The editor will **not** substitute the
-web build for a mini-game one: that produces a package that builds clean and dies
-on a device, so it is refused, with a warning naming the file it looked for.
-
-### Using it
-
-`acquire` hands back the emscripten instance. It is typed as
-`Record<string, unknown>` — the engine cannot know your module's exports — so
-declare the surface you use and wrap it once, which is exactly what the built-in
-Spine integration does:
-
-```typescript
-interface RiveModule {
-  cwrap(name: string, ret: string | null, args: string[]): (...a: unknown[]) => unknown;
-  _malloc(size: number): number;
-  _free(ptr: number): void;
-  HEAPU8: Uint8Array;
-}
-
-const raw = await app.sideModules?.acquire('rive');
-if (!raw) return;                        // not packaged for this target — degrade
-const rive = raw as unknown as RiveModule;
-const version = rive.cwrap('rive_version', 'string', [])() as string;
-```
-
-`acquire` caches per id — including the failure, so a missing artifact is not
-re-fetched every frame — and returns `null` rather than throwing when the module
-is unavailable. Gate on it the way gameplay code gates on `Ads.available`: a
-target without the module should degrade, not crash.
-
-To draw what such a runtime produces, hand its triangles to
-[MeshRenderer](/docs/graphics/drawing/meshes/) — positions, UVs, colors and indices go through the
-same path the engine's own Spine integration uses, so it renders on every backend
-the engine supports.
-
-<Aside type="note">
-  Writing the C++ yourself is a separate job and this does not do it for you: the
-  module has to be built with emscripten into the layout above, the same way the
-  engine builds its own. Most third-party runtimes publish an official WASM build
-  already — start there rather than compiling one.
+<Aside type="tip">
+A plugin's timings appear in the profiler under `plugin.<id>.<what>`, next to the editor's own work.
 </Aside>
 
-### What each target does
+## See also
 
-| Target | Project modules |
-|---|---|
-| Web / Desktop / Playable | staged from `web/` |
-| WeChat & other mini-games | staged from `wechat/` (or a directory named for your vendor id) |
-| Play (in the editor) | staged from `web/`, so you develop against the real module |
-| Android / iOS | **not supported** — the native host links its modules into the app binary, so one arriving with the content has no way to load. Build it into your native host instead. |
-
-A module that could not be staged is never declared to the runtime. That is
-deliberate: a declaration whose binary is absent would report a missing file
-instead of an unsupported target, which is much harder to understand from a
-phone.
-
-Two ids are reserved in the sense that you cannot take them: registering over one
-the engine owns (`physics`, `spine:4.2`, …) is refused, because `physics` meaning
-two different binaries depending on load order is not a capability.
+- [Contribution Points](/docs/extending/contribution-points/) — what a plugin can register.
+- [Project Native Modules](/docs/extending/native-modules/) — third-party WebAssembly runtimes in a project.
+- [Connecting an Agent (MCP)](/docs/agents/mcp/) — the agent tools plugins can add.

@@ -1,18 +1,13 @@
 ---
 title: 组件层之下
-description: "组件层之下的原语——手动寻路、感知内幕,以及在裸 App 里自己接插件。"
+description: AI 底层函数参考——基于 NavGrid 的 findPath、由瓦片数据构建网格、感知函数 senseTarget、facingFromRotation、makeLosCheck 与 stepPerception，以及向裸 App 添加 AI 插件。
 ---
 
-`Nav`、`NavAgent`、`Perceiver`——组件层——覆盖了常见场景。它们底下的原语同样被导出,
-全是不依赖引擎/wasm 的纯 TypeScript,供你在不要 agent 的情况下求一条路径、
-或在没有 `Perceiver` 时做一次视线检查。
+`Nav`、`NavAgent` 与 `Perceiver` 覆盖常见情形。它们之下的底层函数同样导出，是不依赖引擎或 WebAssembly 的纯 TypeScript，用于不需要代理的寻路或不需要 `Perceiver` 的视线检测。
 
-### 手动寻路
+## 手动寻路
 
-`findPath` 就是导航插件用的那个 A\*:在 `NavGrid` 格子上做均匀代价搜索,4 连通或
-8 连通,octile/曼哈顿启发式,且不切角(走对角线要求两个共享的正交格子都可通行)。
-当你要自己驱动移动、画路径预览、或计算可达性(回合制的移动范围)时下沉到它——
-或者当一张网格不够用时,因为 `Nav` 资源只持有一个当前表面:
+`findPath` 是导航插件在网格上使用的 A\*：在 `NavGrid` 格子上的一致代价搜索，4 连通或 8 连通，使用八方向距离或曼哈顿启发函数，不允许切角（斜向一步需要两个共享的正交格都可通行）。它适用于由游戏代码操控的移动、路径预览、回合制的可达范围，或在唯一激活的 `Nav` 表面之外的第二张网格。
 
 ```typescript
 import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
@@ -30,19 +25,15 @@ if (path) {
 }
 ```
 
-`findPath(grid, start, goal, opts?)` 返回含首尾两端的 `Cell[]` 路径,不可达时返回
-`null`。`Cell` 是整数网格坐标 `{ x, y }`(与 `Vec2` 刻意区分,以标示格子空间);用
-`grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)` 互转,或用 `pathToWorld` 把整条路径转成
-世界空间路点。
+`findPath(grid, start, goal, opts?)` 返回包含两个端点的 `Cell[]` 路径，目标不可达时返回 `null`。`Cell` 是整数网格坐标 `{ x, y }`，与 `Vec2` 区分以标明格子空间。换算使用 `grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)`，整条路径使用 `pathToWorld`。
 
-| `PathfindOptions` 字段 | 默认 | 说明 |
+| `PathfindOptions` 字段 | 默认值 | 说明 |
 |---|---|---|
-| `diagonal` | `true` | 允许 8 连通的对角移动。 |
-| `snapRadius` | `8` | 起点/终点落在被阻挡格子上时,先在此环半径内吸附到最近的可走格子再搜索;`0` 关闭吸附。 |
-| `clearance` | `0` | 身体每一步需要的余量(格数,`0` 按一个点规划)。`NavAgent` 的 `radius` 会自动换算成它。 |
+| `diagonal` | `true` | 允许 8 连通的斜向移动。 |
+| `snapRadius` | `8` | 起点或终点位于阻挡格时，在搜索前吸附到该环半径内最近的可通行格；`0` 表示不吸附。 |
+| `clearance` | `0` | 每一步身体所需的格子余量（`0` 按点规划）。`NavAgent` 的 `radius` 会被换算为该值。 |
 
-`navGridFromTiles` 从任意瓦片读取器构建可走掩码——它是 `navGridFromTilemapLayer`
-底下的核心,后者只是接上了 `TilemapAPI.getTile`:
+`navGridFromTiles` 由任意瓦片读取函数构建可通行掩码。`navGridFromTilemapLayer` 以 `TilemapAPI.getTile` 调用它：
 
 ```typescript
 import { navGridFromTiles } from 'esengine/tilemap';
@@ -55,56 +46,49 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
 
 | `BuildNavGridOptions` 字段 | 说明 |
 |---|---|
-| `width` / `height` / `cellSize` / `origin?` | 与 `NavGrid` 选项相同(见[构建网格](/docs/zh-cn/gameplay/ai/navigation/#构建网格))。 |
-| `blockedTileIds?` | 阻挡移动的瓦片 id 的精确集合。 |
-| `isBlocked?` | 针对瓦片 id 的自定义谓词(`0` = 空);覆盖 `blockedTileIds`。二者都不给时,任何非空瓦片都阻挡。 |
+| `width` / `height` / `cellSize` / `origin?` | 同 `NavGrid` 选项（[构建网格](/docs/zh-cn/gameplay/ai/navigation/overview/#构建网格)）。 |
+| `blockedTileIds?` | 阻挡移动的瓦片 id。 |
+| `isBlocked?` | 针对瓦片 id 的谓词（`0` 为空）；优先于 `blockedTileIds`。两者均未给出时，任何非空瓦片都会阻挡。 |
 
-### 感知内幕
+## 感知内部
 
-感知插件是若干导出函数之上的薄封装——适合在动作里做一次性视线检查、做自定义感官
-(记忆、听觉、多目标),或对着一个假 world 做单元测试:
+感知插件封装了以下导出函数，可用于动作中的一次性视线检测、自定义感知或针对模拟世界的测试：
 
-- **`senseTarget(observer, facing, target, range, halfFov, isBlocked?)`**——纯几何,全部按 3D
-  计算(参数是 `Vec3` 点;平面场景只是 `z` 恒定的特例):先查距离,再查视野锥(`halfFov`
-  是锥角的*一半*,弧度;≥ π 表示全向),最后走可选的遮挡回调。
-- **`facingFromRotation(rotation, axis?)`**——由 `Transform` 旋转和 `FacingAxis`(默认 `'x'`,
-  或 `'-z'`)求实体朝向的世界方向。
-- **`makeLosCheck(physics)`**——用 2D 物理射线构建遮挡回调:任何命中明显落在目标之前
-  (`fraction < 0.98`——最后约 2% 是目标自己)即视为遮挡。
-- **`stepPerception(world, isBlocked?)`**——插件每帧在 `PreUpdate` 跑的那一步:
-  对每个 `Perceiver`,感知全部 `PerceptionTarget`,留下最近的可见者,写入
-  `Perception` 组件。
+| 函数 | 说明 |
+|---|---|
+| `senseTarget(observer, facing, target, range, halfFov, isBlocked?)` | 三维几何计算（`Vec3` 点；平面场景的 `z` 恒定）：范围检测、视野锥检测（`halfFov` 为锥角的一半，弧度；π 及以上为全向），然后是可选的遮挡回调。 |
+| `facingFromRotation(rotation, axis?)` | 由 `Transform` 旋转与 `FacingAxis`（默认 `'x'`，或 `'-z'`）得到实体朝向的世界方向。 |
+| `makeLosCheck(physics)` | 由 2D 物理射线构建遮挡回调：当命中点明显早于目标（`fraction < 0.98`，最后 2% 为目标自身）且命中的不是观察者或目标的刚体时，视为被遮挡。 |
+| `stepPerception(world, isBlocked?, noises?, dt?)` | 插件在 `PreUpdate` 中运行的逐帧步骤：对每个 `Perceiver` 感知所有 `PerceptionTarget`，保留最近的可见目标，处理本步的 `Noise` 负载，按 `dt` 累加 `sinceHeard`，并写入 `Perception` 组件。 |
 
 ```typescript
 import { Transform, registerCondition } from 'esengine';
 import { senseTarget, facingFromRotation } from 'esengine/ai';
 
-// 对一个"点"做一次性视线检查——不需要 PerceptionTarget。
+// A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
   const tf = ctx.get(Transform);
   return senseTarget(
     tf.position, facingFromRotation(tf.rotation),
-    SHRINE,                      // 一个 { x, y, z } 点
-    300, Math.PI / 3,            // 300 px 范围,120° 视野锥
+    SHRINE,                      // a { x, y, z } point
+    300, Math.PI / 3,            // 300 px range, 120° cone
   ).visible;
 });
 ```
 
-`senseTarget` 返回一个 `SenseResult`:
+`senseTarget` 返回 `SenseResult`：
 
 | `SenseResult` 字段 | 说明 |
 |---|---|
-| `visible` | 目标在范围内、在锥内、且未被遮挡。 |
-| `distance` | 到目标的距离——即使不可见也总是被设置。 |
-| `dir` | 观察者 → 目标的单位方向(`Vec3`);不可见时为零向量。 |
+| `visible` | 目标在范围内、视野锥内且未被遮挡。 |
+| `distance` | 到目标的距离；即使不可见也会设置。 |
+| `dir` | 从观察者指向目标的单位方向（`Vec3`）；不可见时为零。 |
 
-内置系统只在物理模块已加载时才接入视线检查(场景有 3D 求解器就用 3D 的,否则用 2D 的);
-两者都没有时感知只做距离 + 视野锥——AI 层没有对物理的硬依赖。
+插件仅在加载了物理模块时添加视线检测：场景有 3D 世界时使用 3D，否则使用 2D。两者都没有时，感知仅检查范围与视野锥；AI 层不强依赖物理。
 
 ## 自定义应用
 
-导入 `esengine/ai` 会注册感知、FSM、BT、导航这四个插件,所以**编辑器和 `esengine` Web 运行时会替你
-加上它们**。只有当你从一个裸的 `new App()` 构建应用时,才需要显式加:
+导入 `esengine/ai` 会注册感知、FSM、BT 与导航插件，编辑器与 `esengine` Web 运行时会添加它们。从裸 `new App()` 构建的应用需显式添加：
 
 ```typescript
 import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine/ai';
@@ -115,4 +99,9 @@ app.addPlugin(btPlugin);
 app.addPlugin(navPlugin);
 ```
 
-每个都同时导出为一个开箱即用的单例(`navPlugin`)和一个类(`NavPlugin`),需要多个实例时用类。
+每个插件既导出为可直接使用的实例（`navPlugin`），也导出为类（`NavPlugin`），以便创建多个实例。
+
+## 另请参阅
+
+- [导航基础](/docs/zh-cn/gameplay/ai/navigation/overview/)——`Nav` 资源与网格表面。
+- [感知](/docs/zh-cn/gameplay/ai/perception/)——基于这些函数的组件层。

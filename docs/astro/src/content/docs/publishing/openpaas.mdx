@@ -1,0 +1,127 @@
+---
+title: SUD OpenPaaS
+description: The opt-in SUD OpenPaaS project platform for 2D and 3D games — enabling the preset, the compatibility runtime, exporting, PinK third-party import, generating a signed .sp package with package-openpaas, headless contract checks and current limitations.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella ships an opt-in **OpenPaaS** preset for 2D and 3D games, delivered as a
+[project platform](/docs/publishing/minigame-platforms/#project-platforms). It uses the shared cook, SDK and renderer.
+
+<Aside type="caution">
+  **Development integration; device acceptance pending.** The headless contract host renders exported 2D and 3D
+  packages but does not reproduce SUD's native renderer, audio or iOS WASM implementation. Validate on Android and iOS
+  devices: input, suspend/resume, rotation, audio, resource loading and any physics, animation or AOT modules the
+  project uses. The official WASM documentation marks imported Table/Global objects unsupported on iOS; accepting an
+  absent `module` does not lift those restrictions.
+</Aside>
+
+## Enabling the preset
+
+Copy `pipeline/platforms/openpaas.mjs` into the project as `.esengine/platforms/openpaas.mjs`. No custom editor layout
+is required. In the editor, approve the platform profile through the normal project-code trust prompt.
+
+## Runtime
+
+| Aspect | Behaviour |
+|---|---|
+| Engine build | The CommonJS compatibility runtime (`build -t quickgame`), without WASM SIMD or BigInt i64 at the JS boundary. |
+| Platform services | `sud` canvas, input, lifecycle and audio. XHR, native WebSocket and localStorage are bridged to the same platform interfaces. |
+| WASM loading | `WebAssembly.instantiateFromFile`, with package-relative paths normalized. The loader accepts an instance without a compiled `module`, as documented for iOS. |
+| Graphics | WebGL2. WebGPU and EmscriptenGLX are not enabled. |
+| Not enabled | Login, ads, payment, platform subpackage splitting, Brotli WASM loading. Assets are carried in the main directory. |
+| Optional modules | Physics, Spine and other optional WASM modules need matching artifacts in the selected `wasmDir`; the export fails if content requires one that is absent. They are not certified on OpenPaaS. |
+| Streaming worlds | Subject to the existing mini-game restriction. |
+
+## Exporting
+
+From an Estella source checkout, build the compatibility runtime and export:
+
+```sh
+node build-tools/cli.js build -t quickgame --no-sync
+node pipeline/bin/estella.mjs export <project> --platform openpaas --out output/my-sud-game
+```
+
+## Importing into PinK
+
+In **PinK → Project → Third-party generated**, select the exported directory containing `main.js`, `game-bundle.js`
+and `wasm/`. Select the platform game ID, set orientation and version to match the project, then build and upload.
+Open the development version in OpenPaaS and scan its package QR code with **Hello PinK**. The platform's guides for
+other engines use the same third-party directory workflow; their engine-specific converters are not required.
+
+The official [web2sp 1.0.0 archive](https://download.sudden.ltd/assets/openpaas/guide/attachment/web2sp-1.0.0.tgz)
+copies a web directory, emits `main.js` and an adapter, and creates an empty `manifest.json` when none exists; it
+contains no binary `.sp` packer. Estella emits its own runtime entry and the initial manifest directly. Uploading,
+review and publishing are performed by the developer.
+
+## Generating a `.sp` package
+
+PinK 0.0.1.39 bundles the independently callable `sud-package-sign-tool`. In an installed or extracted PinK package it
+is at:
+
+| OS | Path under `resources/app/extensions/sud-pink-debug/` |
+|---|---|
+| Windows | `tools/package-sign/win/sud-package-sign-tool.exe` |
+| macOS | `tools/package-sign/mac/sud-package-sign-tool` |
+
+Estella does not redistribute this executable; configure its local path. The PinK UI is not launched.
+
+Keep signing and encryption keys outside the exported directory. The Ed25519 private key may be raw, hex, base64 or
+PKCS8; the AES-128 key file must contain 32 hex characters. Paths in the config file resolve relative to it:
+
+```json
+{
+  "mode": "development",
+  "toolPath": "<PinK>/resources/app/extensions/sud-pink-debug/tools/package-sign/win/sud-package-sign-tool.exe",
+  "gameId": "estella-local-test",
+  "version": "0.1.0",
+  "privateKeyPath": "development-private.pem",
+  "encryptionKeyPath": "development-encryption.hex",
+  "orientation": "landscape"
+}
+```
+
+```sh
+node pipeline/bin/estella.mjs package-openpaas output/my-sud-game --config <local.json> --out output/my-sud-game.sp
+```
+
+The command prepares the manifest in a temporary staging directory, invokes the official tool for Deflate compression,
+AES-128-CTR encryption and Ed25519 signing, and verifies every packaged file. Only a verified result replaces the
+output; the source export is not modified. The output and key files must be outside the input directory.
+
+| Mode | Use |
+|---|---|
+| `development` | Independent test keys. Does not make an authorized OpenPaaS game and does not prove that Hello PinK accepts the package. |
+| `platform` | An existing platform game: requires the registered `publicKeyHash`, `contextFile`, `contextSignatureFile` and `contextPublicKeyPath`. The context signature and public-key hash are checked before packaging. |
+
+## Headless checks
+
+The local contract check runs without an editor:
+
+```sh
+node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-runtime
+```
+
+The complete package chain with authored examples:
+
+```sh
+node tools/tests/openpaas-runtime.e2e.mjs --packer <official-tool-path> --project-2d examples/sprite-rendering --project-3d examples/device-quality --out output/openpaas-package-check
+```
+
+This generates temporary test keys, exports both examples, creates encrypted and signed `.sp` files, verifies and
+decrypts every file, compares payload hashes, and renders the recovered games in the headless contract host. The
+temporary keys are removed afterwards. The check writes 2D and 3D frames and a report that marks device acceptance as
+pending.
+
+## Device logs
+
+Android Hello PinK exposes vConsole. The SUD guide names device logs under
+`/storage/emulated/0/Android/data/global.sud.hellopink/files/SUD/SUDLogs/SUDGI/`; it states that iOS has no vConsole.
+
+PinK build success, upload, review and device acceptance are recorded separately from Estella export success.
+
+## References
+
+- [Engine adaptation](https://developer.sud.tech/openpaas/minigame/guide/game-engine/engine-adaptation.html)
+- [Adapter](https://developer.sud.tech/openpaas/minigame/guide/runtime/adapter.html)
+- [WASM API](https://developer.sud.tech/openpaas/minigame/client-api/web-assembly-apis/webAssemblyApis.html)

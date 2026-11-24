@@ -1,0 +1,140 @@
+---
+title: 档位设置
+description: 各档位画质设置参考——分辨率与抗锯齿、视距与绘制、光源、阴影、特效与粒子、地形与植被、水体以及内存，并列出每项设置在 Low、Medium、High 上的默认值。
+---
+
+本页列出除效果设置与纹理流式加载以外所有组的档位设置；效果设置见[各档位的效果](/docs/zh-cn/performance/quality-levels/effects/)，纹理流式加载见[纹理流式加载](/docs/zh-cn/performance/quality-levels/texture-streaming/)。默认值按 Low / Medium / High 给出；键是 `features.rendering.quality.profiles.<level>` 中的字段名。High 全部使用引擎自身的数值，因此 High 档位的项目按原样渲染。
+
+## 分辨率与抗锯齿
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Render scale | `renderScale` | 0.75 / 1 / 1 | 3D 场景绘制时占屏幕分辨率的比例（按边长），之后放大。启用动态分辨率时为起始与最大比例。范围 0.25–1。 |
+| Min render scale | `minRenderScale` | 0.5 / 0.65 / 0.75 | 动态分辨率可降到的最低比例。不高于渲染比例。 |
+| Anti-aliasing | `antialiasing` | MSAA / Temporal / MSAA | MSAA 或 Temporal；见下文。 |
+| MSAA | `msaaSamples` | Off (1) / 2× / 4× | 使用 MSAA 时每像素的采样数（1、2、4 或 8）。Temporal 下忽略。 |
+
+**Temporal** 以 1 个采样绘制，由 TAA 通道利用之前的帧平滑：在高分辨率下便宜得多，画面略软，没有运动向量的表面（水）在相机移动时会有轻微拖影。它要求相机上有后处理体积。
+
+## 视距与绘制
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Depth pre-pass | `depthPrepass` | 关 / 开 / 开 | 先只绘制不透明几何的深度，使每个像素只着色一次。 |
+| Draw call budget | `drawCallBudget` | 150 / 400 / 1,500 | 每帧 GPU draw 的目标上限。 |
+| LOD distance scale | `lodDistanceScale` | 0.6 / 0.8 / 1 | LOD 与 Impostor 切换尺寸的乘数。范围 0.25–2。 |
+| Occlusion grid | `occlusionGridSize` | 64 / 64 / 64 | CPU 遮挡网格的边长：16、32 或 64。 |
+| Batch scan interval | `batchScanFrames` | 60 / 30 / 30 | 静态合并与组合合批两次重新扫描之间的帧数。 |
+
+- **Depth pre-pass** 在表面重叠较多（茂密植被、人群）且 GPU 对光栅化内容逐一着色时有收益；在把着色推迟到图块末尾的 GPU 上，它相当于几何绘制两遍。预通道与颜色通道在 WebGL2 与 WebGPU 上都把顶点位置声明为不变量，因此表面总能通过与自身深度相等的深度测试。
+- **Draw call budget** 统计所有通道：每个阴影级联都会再次绘制其投射者，深度预通道再次绘制不透明场景，后处理每个通道增加一次 draw。不会为满足预算而省略任何绘制。性能剖析器的 **Render** 模块按通道显示 GPU draw 与预算的对比，统计浮层在超出预算时以红色显示该数值（[性能剖析](/docs/zh-cn/performance/profiling/overview/#按通道统计-draw)）。要减少 draw，见[静态合并](/docs/zh-cn/performance/static-batching/)，阴影通道则可减少阴影级联。
+- **LOD distance scale** 作用于每个 `LODGroup` 测得的屏幕尺寸，因此设计为在 40 m 处切换的组在 0.6 时于 24 m 处切换。迟滞与组的级别不变。`Foliage` 植被区的远景版本也是 LOD 组，同时受此设置与[细节距离](#地形与植被)影响。
+- **Occlusion grid**：网格越粗，需要填充的纹素越少，而遮挡体必须完整覆盖一个纹素才能隐藏内容，因此隐藏得更少（[遮挡剔除](/docs/zh-cn/performance/occlusion-culling/#遮挡网格)）。
+- **Batch scan interval**：`refresh()` 不受此限制，立即重新扫描。
+
+## 光源与着色
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| 3D lighting | `lighting` | Direct / Direct / Full | 受光网格使用 Full 或 Direct 光照。 |
+| Per-pixel lights | `loopLights` | 8 / 12 / 16 | 每个受光像素计算的光源数，最多为光源块的 16 个。 |
+| Tiled lights | `tiledLights` | 32 / 64 / 96 | 逐像素光源之外、按屏幕图块着色的点光与聚光数。仅限 Full 光照。 |
+
+- **Direct** 以 `#pragma lighting direct` 的方式编译所有受光网格：使用相同的光照模型、光源块中的十六盏光源与硬阴影，不含其后的光源、软阴影与头发阴影（[3D 光照级别](/docs/zh-cn/graphics/lighting/color-and-quality/#3d-光照级别)）。精灵在两种取值下都保持其 2D 光照。
+- **Per-pixel lights** 优先保留太阳与投射阴影的光源，其次是最亮的光源。
+- **Tiled lights**：逐像素光源之外、不投射阴影的点光或聚光只在其范围覆盖的屏幕图块（16 × 12）上着色；超过该数量时丢弃最暗的。Direct 光照下这些光源不绘制。
+
+## 阴影
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Atlas size | `shadowAtlasSize` | 1024 / 2048 / 4096 | 一帧所有阴影贴图打包进的纹理边长（纹素）。单张贴图最多占其一半。 |
+| Cell size | `shadowCellSize` | 256 / 512 / 1024 | 单张阴影贴图（一个级联、一盏聚光）的边长（纹素）。 |
+| Cascades | `shadowCascades` | 2 / 3 / 4 | 透视太阳阴影的级联数；每个级联都再次绘制投射者。带自身阴影范围的太阳只绘制一张贴图，不使用此项与 Distance。 |
+| Distance | `shadowDistance` | 0 / 0 / 0 | 太阳级联覆盖的场景单位；`0` 跟随相机远裁剪面。显式的光源覆盖范围不变。 |
+| 2D soft-shadow samples | `shadowSoftSamples` | 8 / 12 / 16 | 2D 软阴影在 2D 光源上的采样数；采样少时半影呈条带。3D 阴影不读取此项。 |
+| Shadow maps | `shadowTiles` | 8 / 12 / 16 | 每帧绘制的阴影贴图数。 |
+| 3D soft-shadow search samples | `shadowBlockerSamples` | 8 / 8 / 16 | 搜索遮挡像素之物的读取次数。 |
+| 3D soft-shadow filter samples | `shadowFilterSamples` | 8 / 16 / 32 | 宽半影平均所用的读取次数。 |
+| 3D soft-shadow max radius | `shadowSearchRadius` | 12 / 16 / 24 | 最宽的半影，以其贴图的纹素计。 |
+
+- **Shadow maps**：一个级联、一盏聚光与天空的云影各占一张贴图，点光占六张。有位置的光源先申请，所需贴图要么全部得到，要么一张也不得到；之后太阳放弃其最远的级联。
+- **Cell size**：在 512 时，贴近面部的面片（眉毛、发际线）落在皮肤的一个纹素之内，阴影会出现斑点；1024 时，一臂距离内的角色可以清晰分辨。
+- 三项 **3D soft-shadow** 设置只在绘制软阴影时（带光源尺寸的光源，且为 Full 光照）起作用。Low 与 Medium 默认使用 Direct 光照，除非项目把该档位设为 Full，否则这些设置不起作用。
+
+## 特效与粒子
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Particle limit | `particleLimit` | 1,000 / 5,000 / 20,000 | 整个场景同时存活的粒子上限。 |
+| 2D rain shelter mask | `shelterMaskSize` | 256 / 512 / 1024 | 2D 雨遮蔽遮罩的最大边长（纹素），每帧绘制。越小越便宜，干燥区域的边缘越柔和。 |
+| Refraction blur samples | `refractionSamples` | 4 / 6 / 8 | 见[各档位的效果](/docs/zh-cn/performance/quality-levels/effects/#步数与采样)。 |
+| Particle collision queries | `particleCollisionQueries` | 1,024 / 2,048 / 4,096 | 粒子与物理刚体碰撞每帧投射的射线上限。 |
+| Particle collision events | `particleCollisionEvents` | 256 / 512 / 1,024 | 每帧报告给游戏的粒子碰撞上限。 |
+| GPU particle depth grid | `particleDepthGrid` | 320 / 480 / 640 | GPU 模拟粒子用于碰撞的场景深度副本的宽度（纹素）。仅 WebGPU。 |
+
+游戏通过 `Particle.setCollisionBudget` 设置的碰撞预算按字段优先于档位的值。
+
+## 地形与植被
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Detail distance | `detailScale` | 0.5 / 0.8 / 1 | 地面与植物保留其细节距离的比例。 |
+| Terrain surface page size | `terrainSurfaceTexels` | 128 / 256 / 256 | 启用 Virtual Texture 时地形烘焙表面每页的纹素数（64、128 或 256）。 |
+| Terrain surface pages a frame | `terrainSurfacesPerFrame` | 1 / 2 / 2 | 每帧烘焙的页数。 |
+| Terrain page atlas | `terrainAtlasSize` | 1024 / 2048 / 2048 | 地形或星球存放高度页与绘制页的图集边长（512、1024 或 2048）。 |
+| Planet draw levels | `planetDrawLevels` | 10 / 11 / 12 | 星球树结构绘制的最多层级数。 |
+| Voxel rebuild budget (ms) | `voxelRebuildBudgetMs` | 2 / 3 / 4 | 体素地形每帧用于重建被编辑区域的毫秒数。 |
+| Plants that bend | `plantInteractionActive` | 128 / 256 / 512 | `PlantInteraction` 同时弯曲的植物上限。 |
+| Plants starting to bend a frame | `plantInteractionPerFrame` | 16 / 32 / 48 | 每帧开始弯曲的植物上限。 |
+
+- **Detail distance** 为 0.5 时：在 60 m 处切换到较便宜网格、150 m 外不再以自身绘制的树，改为在 30 m 与 75 m 处，其远景卡片也更早接替；`Foliage` 植被区保留较细草叶的距离减半；地形或星球在地面变粗之前保留最细单元的距离减半。
+- **Terrain page atlas**：1024 的图集只能容纳 2048 图集四分之一的页；需要更多页的地面按能容纳的细节距离比例绘制。
+- **Planet draw levels**：单元尺寸需要更多层级的星球最多绘制到整面以下该层数；碰撞与地面查询仍使用星球自身的单元尺寸。
+- **植物交互**：游戏自身设置的更低的 `maxActive` 或 `maxActivatedPerFrame` 会被保留。
+
+## 水体
+
+构建中包含水体模块时显示。
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| Water waves | `waterWaves` | 3 / 5 / 8 | 水体八道波中参与叠加的数量（从最长的开始），作用于几何、着色与 `Waters.sample`。 |
+| Water ripple cells | `waterRippleCells` | 32 / 64 / 128 | 水体涟漪网格每边的最多单元数；`0` 表示不保留。 |
+| Water displacement | `waterDisplacement` | 关 / 开 / 开 | 关闭为简化水体：表面平坦，波浪只存在于着色中，代码读取时为平面。 |
+| Water mirror | `waterMirror` | 关 / 开 / 开 | 从水下看时表面是否倒映其下方的世界（每像素一次屏幕空间步进）。 |
+| Water caustics | `waterCaustics` | 关 / 开 / 开 | 是否在水下物体上绘制焦散，以及从水下看到的光束。 |
+| Underwater light shaft steps | `waterShaftSteps` | 16 / 16 / 24 | 水下光束每像素的采样数。 |
+| Water reflection steps | `waterReflectionSteps` | 8 / 12 / 20 | 水面反射射线（从上方，以及从下方的镜像）的步数。 |
+| Wave caustic resolution | `waterCausticFieldSize` | 0 / 128 / 256 | 焦散所用实时波浪与接收者贴图的每边采样数；`0` 使用程序化近似。需要开启 Water caustics。 |
+| Caustic layers | `waterCausticLayers` | 2 / 3 / 3 | 铺在水下物体上的焦散图案的尺度层数。 |
+
+步数与层数循环按 High 的数量编译，并在档位的数量处提前结束。较少的反射步数每步更长，因此射线到达的距离与 High 相同，只是落点不够精确。光束采样逐像素抖动，因此采样较少时表现为颗粒而不是条带。没有画质策略的小游戏使用 Low 档位的水体。
+
+## 纹理与显存
+
+| 设置 | 键 | Low / Medium / High | 说明 |
+|---|---|---|---|
+| 纹理流式加载及其参数 | `textureStreaming…` | — | 见[纹理流式加载](/docs/zh-cn/performance/quality-levels/texture-streaming/#设置)。 |
+| Idle render targets (MB) | `renderTargetIdleMB` | 64 / 128 / 256 | 渲染器为复用而保留、未被任何通道使用的渲染目标；超出后销毁空闲最久的。 |
+| Terrain tile memory (MB) | `terrainTileBudgetMB` | 64 / 128 / 256 | 瓦片地形保留的全细节瓦片；最久未使用的被释放，需要时再读取。 |
+
+## 加载与流式上限
+
+同时进行多少加载、生成的世界保留多少内容不是档位设置，因为它们取决于网络与包体而非 GPU。这些设置位于 **Project Settings → Game → Runtime → Loading & Streaming**：
+
+| 设置 | 默认值 |
+|---|---|
+| 同时预加载的场景数 | 6 |
+| 每个流式层同时生成的分块数 | 16 |
+| 同时请求的地面页数 | 16 |
+| 保留的星球表面瓦片数 | 6,000 |
+| 世界规划缓存 | 40,000 |
+| 每个规划工作线程保留的规划数 | 24 |
+
+与运行时设置块的其他内容一样，只有与这些默认值不同的值才写入 `project.esproject`。
+
+## 参见
+
+- [画质档位](/docs/zh-cn/performance/quality-levels/overview/)
+- [各档位的效果](/docs/zh-cn/performance/quality-levels/effects/)

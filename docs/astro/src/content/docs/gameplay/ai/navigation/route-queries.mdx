@@ -1,0 +1,78 @@
+---
+title: Route Queries
+description: Route query reference — findWorldPath best-effort waypoints, queryWorldPath status and reason codes, the editor's route inspector for a NavAgent, and the navigation rebuild benchmark.
+---
+
+The `Nav` resource answers one-off route queries without a `NavAgent`. Both queries are synchronous and run outside the
+agent [planning queue](/docs/gameplay/ai/navigation/agents/#planning-queue).
+
+## `findWorldPath`
+
+`nav.findWorldPath(from, to)` returns an array of world-space waypoints.
+
+A goal it cannot reach (behind a closed door, on an island, off the mesh) is answered with the route to the nearest
+reachable place, so an agent sent toward it walks to the door rather than standing still. Whether the route reaches the
+goal is determined by comparing the last waypoint with the goal. `null` means the start point is not on the navigable
+surface, so no route exists from it.
+
+## `queryWorldPath`
+
+`nav.queryWorldPath(from, to, { radius })` distinguishes a best-effort route from one that reaches the destination. It
+returns `{ path, status, reason }`:
+
+| Status / reason | Meaning |
+|---|---|
+| `complete` / `none` | Reaches the surface's resolved destination, including normal endpoint snapping. |
+| `partial` / `disconnected` | Stops on the reachable side of a disconnected region or closed passage. |
+| `partial` / `insufficient-clearance` | A point can pass through the grid, but the requested body cannot. |
+| `unavailable` / `no-surface` | No navigation surface is installed. |
+| `unavailable` / `building` | A surface update is pending (`nav.surfaceUpdatePending`). |
+| `unavailable` / `start-unavailable` | No usable start point was found. |
+| `unavailable` (grid) or `partial` (mesh) / `target-unavailable` | No usable destination was found; a mesh still returns a partial approach toward it. |
+| `unavailable` / `radius-mismatch` | The requested body is wider than the mesh's baked radius. |
+| `unknown` / `diagnostics-unavailable` | A custom surface implements only the older path API. |
+
+```typescript
+const result = nav.queryWorldPath(from, target, { radius: 20 });
+if (result.status !== 'complete') console.info(result.reason);
+// result.path can still describe a useful partial approach.
+```
+
+`findWorldPath` keeps its best-effort behaviour. The diagnostic query describes the currently installed surface and does
+not start a rebuild. Dynamic blockers contribute to body clearance; area costs remain live without rebuilding
+connectivity. Repeated grid queries reuse working memory, and returned routes are independent arrays that callers may
+keep or modify.
+
+## Inspecting an agent's route
+
+In **Play**, selecting an entity with a `NavAgent` and expanding the component in Details shows **Inspect current
+route**. It queries once from the agent's current world position to its stored target with the agent's radius, and shows
+the reason, sampled world endpoints, waypoint count and query time. It also samples the last planning tick's completed
+and pending counts, its time and the configured limits.
+
+- Results are snapshots; the button is pressed again after doors, obstacles or targets change. Recurring inspector
+  refreshes run no search.
+- The inspector describes the installed surface, not pending rebuilds or the agent's cached movement route.
+- It requires a local Play session; inspection of a connected device does not support this query.
+
+{/* SHOT: gameplay-nav-route-inspector | navigation-workshop example in Play with the gate closed: a courier entity selected, Details panel with the Nav Agent card expanded after pressing Inspect current route, showing status, reason, endpoints and planning-queue counts */}
+
+## Rebuild benchmark
+
+The navigation rebuild benchmark runs in headless Chromium with door and building changes on 32, 64 and 128-cell maps
+and 64 simultaneous replans:
+
+```sh
+node tools/navigation-rebuild-benchmark.mjs output/navigation-current.json
+node tools/navigation-rebuild-benchmark.mjs output/navigation-reference.json --search-reference=48631844c53113825a15493afeb8e6e2b972900c
+```
+
+`--search-reference=<commit>` substitutes only the search from that commit; both runs use the current obstacle
+clearance. Reports record source and bundle identity, raw rebuild and query times, and frame gaps. They measure
+navigation CPU work and exclude physics geometry collection, avoidance, rendering and the rest of the game frame.
+
+## See also
+
+- [Navigation Agents](/docs/gameplay/ai/navigation/agents/) — agents that follow these routes.
+- [Navigation Meshes](/docs/gameplay/ai/navigation/navmesh/#viewing-the-baked-surface) — drawing the surface the
+  queries run on.

@@ -1,17 +1,19 @@
 ---
 title: Perception
-description: "A Perceiver senses nearby targets within a sight cone and writes what it sees into a Perception component."
+description: Perception reference — Perceiver sight cones and hearing range, PerceptionTarget, the Perception component it writes, line-of-sight checks against 2D or 3D physics, and Noise events.
 ---
 
-A `Perceiver` scans for the nearest visible `PerceptionTarget` each frame and writes
-the result into a `Perception` component on the same entity (adding one if the entity has none). A
-`Perceiver` never senses itself. Decisions read `Perception`; sensing is just ECS data, not a side
-channel. The step runs in `PreUpdate`, in play mode only, so a decision system reads a fresh result
-the same frame.
+A `Perceiver` senses the nearest visible `PerceptionTarget` each frame and the nearest `Noise` within hearing range, and
+writes the result into a `Perception` component on the same entity, adding one if the entity has none. A `Perceiver`
+never senses itself. Decisions read `Perception` like any other component.
+
+The perception step runs in `PreUpdate`, in play mode only, so decision systems read a result from the same frame.
+Positions are world positions: a perceiver may sit on an eye entity (a head bone, a sensor) and a target on what is looked
+at.
 
 ![Details of a Perceiver and its Perception: range, field of view, facing axis and line-of-sight layers](@/assets/guides/en/details-perceiver.png)
 
-*A **Perceiver** (above) and the **Perception** it writes (below, off until play).*
+*A **Perceiver** (above) and the **Perception** it writes (below, filled in during Play).*
 
 ```typescript
 import { Perceiver, PerceptionTarget, Perception } from 'esengine/ai';
@@ -28,22 +30,60 @@ cmds.spawn()
   .insert(PerceptionTarget, {});
 ```
 
+## Components
+
 | Component | Field | Default | Description |
 |---|---|---|---|
-| **`Perceiver`** | `range` | `220` | Sight range in world pixels. |
-| | `fovDegrees` | `360` | Field-of-view cone in degrees, `0`–`360` (`360` = omnidirectional). |
-| | `facingAxis` | `'x'` | Which of the entity's own axes the cone points down: `'x'` is screen-right (a flat scene), `'-z'` is where an imported 3D model faces. |
+| **`Perceiver`** | `range` | `220` | Sight range, world units. |
+| | `fovDegrees` | `360` | Field-of-view cone, `0`–`360` degrees (`360` = omnidirectional). |
+| | `facingAxis` | `'x'` | The entity's own axis the cone points along: `'x'` is screen-right (a flat scene), `'-z'` is the facing of an imported 3D model. |
 | | `losLayers` | `0` | 3D only: physics layers the line-of-sight ray may hit (`0` = every layer). |
+| | `hearingRange` | `0` | Distance at which a noise of loudness 1 is heard, through walls; `0` = deaf. |
 | **`Perception`** | `visible` | `false` | A target is currently seen. |
 | | `distance` | `0` | Distance to the seen target. |
-| | `targetX`, `targetY`, `targetZ` | `0` | Seen target position, world pixels. |
+| | `targetX`, `targetY`, `targetZ` | `0` | Position of the seen target, world units. |
 | | `dirX`, `dirY`, `dirZ` | `0` | Unit direction from observer to target. |
-| **`PerceptionTarget`** | *(tag)* | — | Marks an entity as sensable by `Perceiver`s. |
+| | `heard` | `false` | A noise was heard this step. |
+| | `noiseX`, `noiseY`, `noiseZ` | `0` | Where the last noise heard came from. |
+| | `sinceHeard` | `-1` | Seconds since that noise; `-1` = nothing heard yet. |
+| **`PerceptionTarget`** | *(tag)* | — | Marks an entity as sensable by perceivers. |
 
-Sensing is three-dimensional (a flat scene is the case where `z` is constant), so the
-cone and the distance work in a 3D scene too. The FOV cone is oriented by the perceiver's
-`Transform` rotation along `facingAxis`. When a physics world is present the sight ray is
-cast against it, so walls block sight: the 3D solver is used if the scene has one, otherwise
-the 2D one; with neither, sensing is range + cone only. `Perception` is a
-transient, runtime-only component — the plugin rewrites it every frame, so you never
-author its values.
+`Perception` is a transient, runtime-only component: the plugin rewrites it every frame and its values are not authored.
+
+## Sight
+
+Sensing is three-dimensional; a flat scene is the case where `z` is constant. The cone is oriented by the perceiver's
+world rotation along `facingAxis`. A target is visible when it is within `range`, inside the cone and not occluded; of
+the visible targets the nearest is reported.
+
+When a physics world is present, the sight ray is cast against it and walls block sight. The 3D world is used if the
+scene has one, otherwise the 2D world; with neither, sensing is range and cone only. Hits on the observer's own body and
+on the target's body do not count as occlusion. In 3D, `losLayers` restricts the ray to the layers that block sight.
+
+## Hearing
+
+A `Noise` event announces a sound perceivers may hear: a gunshot, a door, a footstep.
+
+| `NoisePayload` field | Default | Description |
+|---|---|---|
+| `x`, `y`, `z` | `0` | Where the noise was made. |
+| `loudness` | `1` | Multiplier on each perceiver's `hearingRange`: a noise is heard within `hearingRange * loudness`. |
+| `source` | `0` | The entity that made it; it does not hear itself. `0` = no particular entity. |
+
+```typescript
+import { defineSystem, EventWriter } from 'esengine';
+import { Noise } from 'esengine/ai';
+
+const gunshot = defineSystem([EventWriter(Noise)], (noises) => {
+  noises.send({ x: muzzle.x, y: muzzle.y, z: muzzle.z, loudness: 2, source: shooter });
+});
+```
+
+The perception step reads noises the frame after they are sent, as with every event. Each perceiver records the nearest
+noise within reach (`heard`, `noiseX/Y/Z`, `sinceHeard = 0`); on steps without a new noise, `sinceHeard` increases by the
+frame time and the last position is kept. Hearing is not blocked by geometry.
+
+## See also
+
+- [Actions & Conditions](/docs/gameplay/ai/actions/) — conditions that read `Perception`.
+- [Below the Components](/docs/gameplay/ai/advanced/#perception-internals) — `senseTarget` and the perception step.

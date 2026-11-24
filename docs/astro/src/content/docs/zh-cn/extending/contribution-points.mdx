@@ -1,0 +1,255 @@
+---
+title: 贡献点
+description: 编辑器插件可通过 PluginContext 注册的内容——命令、面板、侧栏按钮、检视器分区、视口 gizmo 与工具、设置项、资产类型、实体模板、右键菜单、导入器、文件系统访问、Agent 工具以及可撤销的场景编辑。
+---
+
+所有贡献都在传给 `activate` 的 `PluginContext` 上注册。每个 `register` 调用返回一个可释放对象，插件卸载时所有贡献会自动撤除。
+
+| 成员 | 注册内容 |
+|---|---|
+| `ctx.commands.register` | 命令面板中的命令，可选加入菜单。 |
+| `ctx.panels.register` | 停靠面板。 |
+| `ctx.activityBar.register` | 最左侧栏上的按钮。 |
+| `ctx.inspector.register` | 组件或资产类型下的检视器分区。 |
+| `ctx.overlays.register` | 每帧绘制的视口 gizmo。 |
+| `ctx.tools.register` | 接收指针操作的视口工具。 |
+| `ctx.settings.register` | **设置 ▸ 插件 ▸ \<插件\>** 下的一行设置。 |
+| `ctx.assets.registerType` | 资产类型。 |
+| `ctx.assets.registerImporter` | 某种文件类型的导入器。 |
+| `ctx.entities.registerTemplate` | 创建选择器中的实体。 |
+| `ctx.contextMenus.register` | 大纲或内容浏览器右键菜单中的一行。 |
+| `ctx.agentTools.register` | 提供给已连接 MCP 智能体的工具。 |
+
+## 命令
+
+命令出现在命令面板中，设置 `menu` 时也出现在菜单中。标签、快捷键提示、启用状态和勾选状态都来自同一份声明。
+
+```ts
+ctx.commands.register({
+  id: 'acme.level-tools.bake',
+  title: { en: 'Bake Occlusion' },
+  keybinding: 'mod+alt+b',
+  menu: 'tools',
+  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
+  run: () => { /* … */ },
+});
+```
+
+## 面板
+
+`mount` 接收一个宿主元素并返回其清理函数。编辑器提供标签页、错误边界和弹出功能。`ctx.panels.open(id)` 打开已注册的面板。
+
+```ts
+ctx.panels.register({
+  id: 'acme.level-tools.budget',
+  title: { en: 'Level Budget' },
+  placement: 'bottom',
+  mount: (host) => {
+    host.textContent = 'hello';
+    return () => { /* teardown */ };
+  },
+});
+```
+
+使用编辑器的 CSS 变量设置面板样式，使其与周围界面一致：
+
+| 变量 | 用途 |
+|---|---|
+| `--srf-2` | 面板主体背景 |
+| `--text`、`--text-dim` | 文字 |
+| `--star` | 强调色 |
+| `--groove` | 边线 |
+| `--fs-body` | 正文字号 |
+
+CSS 不会报告未知变量；拼错的变量不会产生任何绘制效果。
+
+可以使用 React。编辑器提供自己的实例，因此 hooks 可用，且不会加载第二份副本：
+
+```ts
+import { createRoot } from 'react-dom/client';
+```
+
+## 侧栏按钮
+
+最左侧栏上的按钮，与打开编辑器自身面板的按钮并列：
+
+```ts
+ctx.activityBar.register({
+  id: 'acme.level-tools.rail',
+  title: { en: 'Level Budget' },
+  // Inline SVG, drawn at 19px. `currentColor` is what makes it follow the rail
+  // through hover and both themes.
+  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">'
+    + '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>',
+  run: () => ctx.panels.open('acme.level-tools.budget'),
+});
+```
+
+未提供 `icon` 时，按钮使用所有贡献通用的插头图标；应提供图标，以便区分不同插件的按钮。侧栏是共享的：为插件的主要界面贡献一个按钮，其他操作放在命令中。
+
+## 检视器分区
+
+组件（`kind: 'component'`）或资产类型下的一个分区，由编辑器以自身属性控件渲染的行组成：
+
+```ts
+ctx.inspector.register({
+  kind: 'component',
+  id: 'budget',
+  component: 'Sprite',
+  title: { en: 'Budget' },
+  build: (entity, ui) => {
+    ui.info({ en: 'Texture' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
+    ui.number('weight', { en: 'Weight' }, 1, { min: 0, max: 10 });
+  },
+  write: (entity, key, value) => { /* an edit to a row you built */ },
+});
+```
+
+`write` 接收对分区所建行的编辑。
+
+## 视口 gizmo
+
+gizmo 每帧以**世界坐标**绘制；编辑器负责投影，因此它们随场景平移和缩放，以世界单位表示的半径随之缩放。线宽和文字以屏幕像素计。
+
+```ts
+ctx.overlays.register({
+  id: 'acme.spawn-radius',
+  render: (g) => {
+    const id = ctx.scene.getSelection();
+    if (id == null) return;
+    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
+    if (!Array.isArray(p)) return;
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--star)', dashed: true });
+  },
+});
+```
+
+## 视口工具
+
+工具处于激活状态时，优先接收每次指针操作。`onPointerDown` 返回 `true` 即接管该次操作及其后续的移动和抬起事件。选择任意内置工具会使其失活。
+
+```ts
+ctx.tools.register({
+  id: 'acme.measure',
+  title: { en: 'Measure' },
+  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
+  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
+  onPointerUp: (p, tc) => tc.release(p.pointerId),
+});
+ctx.tools.activate('acme.measure');
+```
+
+## 设置项、资产类型、模板与菜单
+
+| 调用 | 贡献内容 |
+|---|---|
+| `ctx.settings.register(…)` | **设置 ▸ 插件 ▸ \<插件\>** 下的一行。 |
+| `ctx.assets.registerType(…)` | 资产类型：扩展名、图块角标、双击操作，以及 **新建 ▸ …** 条目。 |
+| `ctx.entities.registerTemplate(…)` | 创建选择器中的现成实体。 |
+| `ctx.contextMenus.register(…)` | 大纲或内容浏览器右键菜单中的一行，依据被点击的对象启用。 |
+
+## 导入器
+
+导入器将引擎无法读取的文件转换为引擎可读取的资产。编辑器在被认领的文件出现或改变时，以及在内容浏览器中执行 **重新导入** 时调用它：
+
+```typescript
+ctx.assets.registerImporter({
+  id: 'ldtk',                     // becomes acme.level-tools.ldtk
+  extensions: ['ldtk'],
+  async import(path) {
+    const level = JSON.parse(await ctx.fs.readProject(path));
+    await ctx.fs.writeProject(path.replace(/\.ldtk$/, '.tmj'), toTiled(level));
+  },
+});
+```
+
+- `id` 会加上插件 id 作为前缀。
+- 输出是普通的项目资产，因此资产注册表、检视器、烘焙和发布构建都无需了解源格式。写出输出需要声明 `fs:project` 能力。
+- 抛出异常或 reject 会在输出日志中归到该插件名下；其他导入器继续运行。
+- 同一文件不会被并发导入，因此导入过程中的写入不会再次触发它。
+
+## 文件系统
+
+`ctx.fs` 在插件自身目录中操作，包括位于项目之外的用户插件。`*Project` 方法在打开的项目中操作，需要 `fs:project`。所有路径都相对于对应根目录；路径穿越和逃逸的符号链接会被拒绝。
+
+| 操作 | 插件目录 | 项目目录 |
+| --- | --- | --- |
+| UTF-8 文本 | `read`、`write` | `readProject`、`writeProject` |
+| 二进制 `Uint8Array` | `readBytes`、`writeBytes` | `readProjectBytes`、`writeProjectBytes` |
+| 目录条目 | `readDir` | `readProjectDir` |
+| 大小、修改时间、是否目录 | `stat` | `statProject` |
+| 创建目录 | `mkdir` | `mkdirProject` |
+| 移动 / 重命名 | `rename` | `renameProject` |
+| 移到系统回收站 | `delete` | `deleteProject` |
+
+```typescript
+const blob = await new Promise<Blob>((resolve, reject) =>
+  canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG encoding failed')), 'image/png'));
+await ctx.fs.writeProjectBytes('assets/generated/atlas.png', new Uint8Array(await blob.arrayBuffer()));
+await ctx.project.refreshAssets();
+```
+
+行为：
+
+- 二进制写入按原样保存字节（不是 data URL 或 base64），会创建父目录，并发布完整文件。
+- `rename` 保留 `.meta` 附属文件和 UUID，目标已存在（包括孤立的元数据）时拒绝。
+- `delete` 将条目及其附属文件移到系统回收站。
+- `mkdir` 在目录已存在时拒绝；其他 I/O 失败照常 reject。
+- 目录读取包含点文件和元数据，与内容浏览器经过过滤的视图不同。
+- 项目写入会记录到 Agent 文件日志中；项目之外的插件本地文件不记录。
+- 已释放的上下文，或属于之前打开项目的上下文，不能再写入。
+- 插件目录中生成的文件只有作为打包输入时才会触发插件重新加载。编辑被导入的源文件、被导入的 JSON 或 `plugin.json` 会触发重新加载。
+
+## Agent 工具
+
+通过 [MCP](/docs/zh-cn/agents/mcp/) 连接的智能体只能使用其工具列表中的工具。`ctx.agentTools.register` 将插件的能力加入该列表：
+
+```typescript
+ctx.agentTools.register({
+  // Your plugin id with its dots as `_` — plugin `acme.level-tools` prefixes
+  // its tools with `acme_level_tools_`.
+  name: 'acme_level_tools_bake-occlusion',
+  description: 'Bake occlusion for the open scene. Use after moving walls.',
+  schema: { type: 'object', properties: { quality: { type: 'number' } } },
+  effect: 'undoable',
+  run: ({ quality }) => bake(quality ?? 1),
+});
+```
+
+| 字段 | 说明 |
+|---|---|
+| `name` | 必须以插件 id（点替换为 `_`）开头（插件 `acme.level-tools` 拥有前缀 `acme_level_tools_`）。只能包含字母、数字、`_` 和 `-`，最多 64 个字符。 |
+| `description` | 模型选择工具时唯一读取的文字：说明它做什么、何时使用。 |
+| `schema` | 参数的 JSON Schema。缺少参数或包含 schema 未声明参数的调用会在 `run` 之前被拒绝。 |
+| `effect` | `read`、`undoable`、`journaled` 或 `irreversible`（见下）。 |
+| `run` | 在编辑器中运行。返回值经 JSON 编码后交给模型；抛出异常则作为失败调用报告其消息。 |
+
+| `effect` | 含义 | 提供给 |
+|---|---|---|
+| `read` | 只读。 | 所有已连接的智能体。 |
+| `undoable` | 通过撤销历史进行编辑。 | 仅在允许智能体修改项目（**可修改**）时。 |
+| `journaled` | 通过 `ctx.fs.writeProject` 写入项目文件，写入前会被捕获。 | 同 `undoable`。 |
+| `irreversible` | 在打开的项目之外工作，或影响未经列举。 | 同 `undoable`。 |
+
+`effect` 不经校验；插件本就拥有完整的编辑器访问权限，其边界是安装时的信任提示。应如实声明：声明为 `read` 却修改项目的工具，会在只被允许读取的智能体手中运行。
+
+违反命名规则的工具会被拒绝，原因写入输出日志。命名空间可防止插件工具遮蔽内置工具，字符集与模型端点接受的范围一致（无效名称会导致整个请求被拒绝）。工具会与编辑器自身的工具一起列给所有已连接的 MCP 客户端；在对话进行中注册的工具从下一次对话起可用，因为工具列表位于已缓存的对话上下文之前。不刷新工具列表的客户端可通过 `enable_tools` 和 `plugins` 分组使用插件工具。
+
+## 编辑场景
+
+场景编辑应通过 `ctx.scene` 进行，它经由编辑器的命令层执行：编辑进入撤销历史，并在“运行 → 停止”后保留。直接写入运行中的引擎会绕过这两者。
+
+```ts
+ctx.scene.transact('Rename Markers', () => {
+  for (const node of ctx.scene.getSceneTree()) {
+    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
+  }
+});
+```
+
+同一个 `transact` 中的所有编辑构成一个撤销步骤。
+
+## 参见
+
+- [编辑器插件](/docs/zh-cn/extending/editor-plugins/)——创建、分享和信任插件。
+- [连接智能体 (MCP)](/docs/zh-cn/agents/mcp/)——MCP 工具接口。

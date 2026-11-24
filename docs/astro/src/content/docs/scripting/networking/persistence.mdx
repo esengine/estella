@@ -1,0 +1,107 @@
+---
+title: Server Persistence
+description: Keeping server state across restarts with esengine/persist — PersistStore and its versioned writes, MemoryStore and FileStore, transactions, RecordBook migrations, entity snapshots, PlayerPersistence and WorldPersistence, multi-player transactions, and sharing one store between processes with StoreHub and RemoteStore.
+---
+
+State held by a server process is lost when the process ends unless it is written to storage. `esengine/persist`
+provides server-side persistence in four layers that can be used independently. It does not run on the client; local
+saves on the client use [Saving & Loading](/docs/scripting/save/).
+
+| Layer | Types | Purpose |
+|---|---|---|
+| Store | `PersistStore`, `MemoryStore`, `FileStore`, `StoreHub`, `RemoteStore` | Versioned asynchronous document storage. |
+| Records | `RecordBook` | Records with a schema version and migrations. |
+| Entity snapshots | `snapshotEntity`, `restoreEntity` | One entity's components as JSON. |
+| Players and world | `PlayerPersistence`, `WorldPersistence`, `Persistent` | Loading, saving and autosaving player records and persistent world entities. |
+
+## Stores
+
+`PersistStore` is an asynchronous document store: a key, a JSON value, and a version incremented by every write.
+
+- A write may name the version it read (`expectVersion`; `0` means "must not exist"). It is refused with
+  `PersistConflict` if another write happened in between.
+- `transact(ops)` writes several keys atomically, all or none.
+
+| Implementation | Description |
+|---|---|
+| `MemoryStore` | In memory, for tests. |
+| `FileStore(dir)` | One file per key, replaced atomically. Transactions go through a journal that a crash cannot leave half-applied. For a server running as one process. |
+| `RemoteStore` | A store served by a `StoreHub` in another process ([Shared store](#shared-store)). |
+| Custom | The `PersistStore` methods implemented over a database, with `expectVersion` as a real compare-and-set. |
+
+## Records
+
+`RecordBook` writes each record with its schema version and reads it back through `migrations`; `migrations[n]`
+upgrades version `n` to `n + 1`. This is the same contract as the client-side
+[`SaveManager`](/docs/scripting/save/#schema-migration).
+
+## Entity snapshots
+
+`snapshotEntity(world, e, { include })` and `restoreEntity(world, snapshot, into?)` save and restore what a scene would
+save for one entity — built-in and script components alike — as JSON. `Replicated` keeps its archetype but not its
+`netId` or owner. References to other entities are written as `0`.
+
+## Players and the world
+
+| Class | Behaviour |
+|---|---|
+| `PlayerPersistence` | Follows the present players. `track(playerIds)` is called every tick: it loads newcomers, saves and releases players who left, and autosaves changed records (`autosaveMs`, default 60 s). Writes to one player run in order, so a player who leaves and returns immediately reads what they left with. A write never overwrites a newer record written by another process; it fails and `onError` is notified. |
+| `WorldPersistence` | Keeps every entity marked `Persistent`, under its `key` (generated on first flush if empty). `restore(world)` at startup; `flush(world)` at any time writes only changed entities and deletes removed ones. |
+
+```ts
+import { FileStore, PlayerPersistence, WorldPersistence, snapshotEntity, restoreEntity } from 'esengine/persist';
+
+const store = new FileStore('data');
+const players = new PlayerPersistence({ store, schema: 1, create: () => ({ pawn: null }) });
+const world = new WorldPersistence({ store, schema: 1 });
+await world.restore(app.world);
+
+// each tick, with replication's player identity:
+const present = new Map(server.presentIds.map((id) => [server.playerIdOf(id)!, id]));
+players.track(present.keys());
+for (const [playerId, id] of present) {
+    if (!players.isReady(playerId) || pawnOf.has(playerId)) continue;
+    const pawn = spawnPawn(id);                       // game code
+    const saved = players.get(playerId)!.pawn;
+    if (saved) restoreEntity(app.world, saved, pawn);
+}
+// when a player leaves, before track() releases them:
+players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Transform', 'Inventory'] }) });
+
+// on shutdown:
+await players.flush();
+await world.flush(app.world);
+```
+
+### Multi-player transactions
+
+`players.saveTogether(['ana', 'bo'])` writes both records in one transaction, each against the version it was loaded
+at — for trades, gifts and other operations that must not half-complete. If either record was written meanwhile,
+neither is written and the call rejects with `PersistConflict`.
+
+## Shared store
+
+`StoreHub` serves any store over WebSockets. Each server process uses a `RemoteStore`, which is itself a store, so
+records, leases, tickets and transactions behave across processes as within one: every versioned write runs where the
+store is.
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// the process that owns the data
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// every server process
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+- A call made while the hub is unreachable waits for it (`timeoutMs`, default 10 s).
+- A call sent before a disconnect and not answered fails rather than being sent twice; a versioned write's retry
+  reveals whether it was applied.
+- The hub checks a shared secret only. It is intended for a private network.
+
+The content of records, when the world is flushed, and which database backs the store are defined by the game.
