@@ -109,7 +109,8 @@ export interface UIVisualInit {
 
 export function buildUIVisual(init: UIVisualInit = {}): UIVisualData {
     return {
-        visualType: init.visualType ?? UIVisualType.SolidColor,
+        // A texture with no mode named is a picture to show, not a white box behind it.
+        visualType: init.visualType ?? (init.texture ? UIVisualType.Image : UIVisualType.SolidColor),
         texture: init.texture ?? 0,
         color: init.color ?? { r: 1, g: 1, b: 1, a: 1 },
         fit: init.fit ?? UIVisualFit.Fill,
