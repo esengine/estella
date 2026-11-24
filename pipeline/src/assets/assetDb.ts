@@ -47,8 +47,34 @@ export interface AssetEntry {
   path: string;
   type: string;
   importer?: Record<string, unknown>;
+  labels?: string[];
   /** The uuid of the asset an import made this from (a model's mesh, material, clip, prefab): `source` in its `.meta`. */
   source?: string;
+}
+
+interface AssetMetaFields {
+  uuid?: unknown;
+  type?: unknown;
+  importer?: unknown;
+  source?: unknown;
+  labels?: unknown;
+}
+
+function entryFromMeta(path: string, meta: AssetMetaFields | null): AssetEntry | undefined {
+  if (typeof meta?.uuid !== 'string' || typeof meta.type !== 'string') return undefined;
+  const labels = new Set<string>();
+  if (Array.isArray(meta.labels)) {
+    for (const raw of meta.labels) {
+      const label = typeof raw === 'string' ? raw.trim() : '';
+      if (label) labels.add(label);
+    }
+  }
+  return {
+    uuid: meta.uuid.toLowerCase(), path, type: canonicalMetaType(meta.type),
+    importer: (meta.importer as Record<string, unknown>) ?? {},
+    ...(typeof meta.source === 'string' ? { source: meta.source.toLowerCase() } : {}),
+    ...(labels.size ? { labels: [...labels] } : {}),
+  };
 }
 
 /**
@@ -561,24 +587,14 @@ export async function scanAssetDatabase(
   for await (const metaRel of walkMeta(root, '', exclude)) metaRels.push(metaRel);
   type WalkResult = { entry?: AssetEntry; warning?: string };
   const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, async (metaRel): Promise<WalkResult> => {
-    let meta: { uuid?: unknown; type?: unknown; importer?: unknown; source?: unknown };
+    let meta: AssetMetaFields;
     try {
       meta = JSON.parse(await readTextInRoot(path.join(root, metaRel)));
     } catch (err) {
       return { warning: `${metaRel}: ${err instanceof Error ? err.message : String(err)}` };
     }
-    if (typeof meta?.uuid !== 'string' || typeof meta?.type !== 'string') {
-      return { warning: `${metaRel}: missing uuid or type` };
-    }
-    return {
-      entry: {
-        uuid: meta.uuid.toLowerCase(),
-        path: metaRel.replace(/\.meta$/, ''),
-        type: canonicalMetaType(meta.type),
-        importer: (meta.importer as Record<string, unknown>) ?? {},
-        ...(typeof meta.source === 'string' ? { source: meta.source.toLowerCase() } : {}),
-      },
-    };
+    const entry = entryFromMeta(metaRel.slice(0, -META_EXT.length), meta);
+    return entry ? { entry } : { warning: `${metaRel}: missing uuid or type` };
   });
   for (const r of walkResults) {
     if (r.entry) entries.push(r.entry);
@@ -705,20 +721,14 @@ export async function updateAssetIndex(
       if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
       else { drop(before, content); continue; }
     }
-    let meta: { uuid?: unknown; type?: unknown; importer?: unknown; source?: unknown };
+    let meta: AssetMetaFields;
     try {
       meta = JSON.parse(await readTextInRoot(abs + META_EXT));
     } catch {
       continue; // unreadable/partial .meta — a later event will settle it
     }
-    if (typeof meta.uuid !== 'string' || typeof meta.type !== 'string') continue;
-    const entry: AssetEntry = {
-      uuid: meta.uuid.toLowerCase(),
-      path: content,
-      type: meta.type,
-      importer: (meta.importer as Record<string, unknown>) ?? {},
-      ...(typeof meta.source === 'string' ? { source: meta.source.toLowerCase() } : {}),
-    };
+    const entry = entryFromMeta(content, meta);
+    if (!entry) continue;
     if (!before || before.uuid !== entry.uuid || before.type !== entry.type || before.source !== entry.source) resolutionChanged = true;
     byPath.set(content, entry);
   }

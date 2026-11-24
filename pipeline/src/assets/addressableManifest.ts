@@ -17,37 +17,11 @@
  */
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { deriveManifestRevision, type AddressableManifest, type AddressableManifestAsset } from '../../../sdk/src/asset/AddressableManifest';
-import { textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportSettings';
-import { spineManifestContractFrom } from '../../../sdk/src/asset/spineImportSettings';
+import { deriveManifestRevision, type AddressableManifest } from '../../../sdk/src/asset/AddressableManifest';
+import { addressableKeys, addressableRecord } from './addressableRecord';
 import type { FlatCookEntry } from './cookAssets';
 
-export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object.freeze({
-  imageSource: 'texture',
-  soundSource: 'audio',
-  musicSource: 'audio',
-  animclip: 'anim-clip',
-  animation: 'timeline',
-  bitmapfont: 'font',
-  shader: 'material-shader',
-  scene: 'json',
-  inputmap: 'json',
-  'terrain-tiles': 'json',
-  'terrain-layer-info': 'json',
-  'physical-material': 'json',
-  // The Groom plugin fetches a groom as text, by path; the curves it names are bytes (unloaded, below).
-  groom: 'json',
-});
-
-export const UNLOADED_TYPE = 'binary';
-
-export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
-  'video', 'dragonbones',
-  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'rig', 'curves',
-]);
-
-export const addrType = (metaType: string): string =>
-  UNLOADED_META_TYPES.has(metaType) ? UNLOADED_TYPE : LOADER_TYPE_OF_META_TYPE[metaType] ?? metaType;
+export { addrType, LOADER_TYPE_OF_META_TYPE, UNLOADED_META_TYPES, UNLOADED_TYPE } from './addressableRecord';
 
 /** A group's bundleMode from its assets' cooked `groupMode`, with the legacy
  *  fallback (an entry without groupMode): `main` → local, else lazy subpackage. */
@@ -66,17 +40,7 @@ export function bundleModeFor(groupName: string, groupMode: string | undefined):
 export async function buildAddressableManifest(absOut: string): Promise<string> {
   const flat = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as { entries: FlatCookEntry[] };
   const groups: AddressableManifest['groups'] = {};
-  // Every spelling this build knows an asset by → its key. A spine contract
-  // names the atlas it was promised against however the author's metadata
-  // spelled it; what ships is this build's key for that asset.
-  const keyOfRef = new Map<string, string>();
-  for (const e of flat.entries) {
-    const key = e.uuid.toLowerCase();
-    for (const spelling of [e.uuid, e.uuid.toLowerCase(), `@uuid:${e.uuid}`,
-                            `@uuid:${e.uuid.toLowerCase()}`, e.path, e.sourcePath]) {
-      if (spelling) keyOfRef.set(spelling, key);
-    }
-  }
+  const keys = addressableKeys(flat.entries);
   for (const e of flat.entries) {
     let size = e.size ?? 0;
     if (e.size == null) {
@@ -88,27 +52,13 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     const group = (groups[groupName] ??= {
       bundleMode: bundleModeFor(groupName, e.groupMode), labels: [], assets: {},
     });
-    const entry: AddressableManifestAsset = { path: e.path, type: addrType(e.type), size, labels: [] };
+    const entry = addressableRecord(e, size, keys);
     if (e.contentHash) entry.contentHash = e.contentHash;
     // Which GPU formats the texture was encoded for. The runtime reads this off
     // the addressable manifest — the flat one it came from is a build-time
     // intermediate that no longer ships.
     if (e.compressedFormats?.length) entry.compressedFormats = e.compressedFormats;
     if (e.streamTail) entry.streamTail = e.streamTail;
-    // Parsed here, not shipped raw: the runtime needs how the texture is sampled
-    // and sliced, never the cook's own knobs (maxSize, compression format). This
-    // is the ONLY channel a packaged build has for the `.meta` — without it a
-    // 9-sliced frame stretches in the shipped game while looking right in the
-    // editor.
-    const textureImport = textureImportSettingsFrom(e.importer);
-    if (textureImport) entry.textureImport = textureImport;
-    // Same channel and the same reason: without it a shipped game poses every
-    // skeleton every frame while the editor honoured the author's promise.
-    const spineImport = spineManifestContractFrom(e.importer, (ref) => keyOfRef.get(ref));
-    if (spineImport) entry.spineImport = spineImport;
-    // The logical source path rides as the asset's address: path-style refs
-    // resolve through it. Only meaningful when staging renamed the file.
-    if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;
     if (e.pack) entry.pack = e.pack;
     if (e.atlas) {
       entry.metadata = {

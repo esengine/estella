@@ -140,7 +140,7 @@ describe('diffManifests', () => {
         { textureImport: { sliceBorder: { left: 2, right: 2, bottom: 1, top: 1 } } },
         { metadata: { atlasFrame: { x: 4, y: 0, width: 8, height: 8 }, atlasPageWidth: 32, atlasPageHeight: 32 } },
         { spineImport: { atlas: 'atlas-key', cullingBounds: { x: 0, y: 0, width: 5, height: 10 } } },
-        { address: 'assets/renamed.png' }, { labels: ['ui'] },
+        { address: 'assets/renamed.png' },
     ])('detects changed settings on an unchanged payload even with a legacy revision', settings => {
         const before = manifest({ art: { contentHash: 'same' } }, 'legacy');
         const after = manifest({ art: { ...settings, contentHash: 'same' } }, 'legacy');
@@ -149,6 +149,17 @@ describe('diffManifests', () => {
             const plan = diffManifests(model(from), model(to));
             expect(plan).toMatchObject({ hasUpdate: true, changedAssets: [], changedGroups: ['cdn'], totalBytes: 0 });
             expect(plan.reconfiguredAssets.map(a => a.key)).toEqual(['art']);
+        }
+    });
+
+    it('installs a label-only edit without downloading or invalidating a held resource', () => {
+        const a = manifest({ art: { contentHash: 'same', labels: ['intro'] } }, 'legacy');
+        const b = manifest({ art: { contentHash: 'same', labels: ['outro'] } }, 'legacy');
+        expect(deriveManifestRevision(a)).not.toBe(deriveManifestRevision(b));
+        for (const [before, after] of [[a, b], [b, a]]) {
+            expect(diffManifests(model(before), model(after))).toMatchObject({
+                hasUpdate: true, changedGroups: ['cdn'], downloadFiles: [], changedAssets: [], reconfiguredAssets: [],
+            });
         }
     });
 

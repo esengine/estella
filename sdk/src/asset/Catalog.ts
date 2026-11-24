@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { StreamTailInfo } from './AddressableManifest';
+import type { ManifestModel, StreamTailInfo } from './AddressableManifest';
 import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 
 export interface AtlasFrameInfo {
@@ -72,6 +72,7 @@ export class Catalog {
         entries: Map<string, CatalogEntry>,
         addresses: Map<string, string>,
         labels: Map<string, string[]>,
+        private readonly manifest_: ManifestModel | null = null,
     ) {
         this.entries_ = entries;
         this.addresses_ = addresses;
@@ -89,6 +90,11 @@ export class Catalog {
         return new Catalog(new Map(), new Map(), new Map());
     }
 
+    /** @internal Keep explicit catalog tags and use the active manifest for packaged membership. */
+    withManifestLabels(model: ManifestModel | null): Catalog {
+        return model === this.manifest_ ? this : new Catalog(this.entries_, this.addresses_, this.labels_, model);
+    }
+
     resolve(ref: string): string {
         const addressPath = this.addresses_.get(ref);
         if (addressPath) return addressPath;
@@ -97,7 +103,10 @@ export class Catalog {
     }
 
     getEntry(path: string): CatalogEntry | null {
-        return this.entries_.get(path) ?? null;
+        const entry = this.entries_.get(path);
+        if (entry) return entry;
+        const asset = this.manifest_?.recordForRef(path)?.asset;
+        return asset?.labels?.length ? { type: asset.type, buildPath: asset.path } : null;
     }
 
     getAtlasFrame(path: string): AtlasFrameInfo | null {
@@ -142,7 +151,7 @@ export class Catalog {
     }
 
     getBuildPath(path: string): string {
-        const entry = this.entries_.get(path);
+        const entry = this.getEntry(path);
         return entry?.buildPath ?? path;
     }
 
@@ -152,15 +161,27 @@ export class Catalog {
     }
 
     getByLabel(label: string): string[] {
-        return this.labels_.get(label) ?? [];
+        const legacy = this.labels_.get(label) ?? [];
+        const model = this.manifest_;
+        if (!model) return legacy;
+        const members = new Map<string, string>();
+        for (const { key, asset } of model.entriesByLabel(label)) {
+            const path = asset.address ?? asset.path;
+            members.set(key, model.recordForRef(path)?.key === key ? path : `${UUID_REF_PREFIX}${key}`);
+        }
+        for (const ref of legacy) {
+            const key = model.recordForRef(ref)?.key ?? ref;
+            if (!members.has(key)) members.set(key, ref);
+        }
+        return [...members.values()];
     }
 
     getAllLabels(): string[] {
-        return Array.from(this.labels_.keys());
+        return [...new Set([...this.labels_.keys(), ...(this.manifest_?.labelNames() ?? [])])];
     }
 
     hasEntry(path: string): boolean {
-        return this.entries_.has(path);
+        return this.getEntry(path) !== null;
     }
 
     hasAddress(address: string): boolean {
@@ -168,6 +189,6 @@ export class Catalog {
     }
 
     get isEmpty(): boolean {
-        return this.entries_.size === 0;
+        return this.entries_.size === 0 && !this.manifest_?.labelNames().length;
     }
 }

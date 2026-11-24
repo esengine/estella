@@ -8,6 +8,7 @@ import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
 interface ManifestRecord {
+    group: string;
     key: string;
     asset: AddressableManifestAsset;
     remote: boolean;
@@ -140,8 +141,9 @@ export interface AddressableManifest {
 }
 
 /** The cook and update planner compare the same wire fields, independent of JSON member order. */
-export function assetManifestSignature(asset: AddressableManifestAsset): string {
-    return JSON.stringify(asset, (key, value: unknown) => {
+export function assetManifestSignature(asset: AddressableManifestAsset, includeLabels = true): string {
+    const record = includeLabels ? asset : { ...asset, labels: undefined };
+    return JSON.stringify(record, (key, value: unknown) => {
         if (Array.isArray(value)) {
             return key === 'labels' || key === 'compressedFormats' ? [...value].sort() : value;
         }
@@ -316,17 +318,23 @@ export class ManifestModel {
         return this.manifest.revision ?? null;
     }
 
-    /** Assets carrying `label` across all groups, deduped by path. */
+    /** Labels carried by this manifest's asset records. */
+    labelNames(): string[] {
+        return [...this.indexes().labels.keys()];
+    }
+
+    /** Logical records carrying the label, including records that share a staged file. */
+    entriesByLabel(label: string): readonly ManifestRecord[] {
+        return [...(this.indexes().labels.get(label)?.values() ?? [])];
+    }
+
+    /** Assets carrying the label across groups, deduped by staged path. */
     assetsByLabel(label: string): AddressableManifestAsset[] {
-        const seen = new Set<string>();
-        const out: AddressableManifestAsset[] = [];
-        for (const a of this.allAssets()) {
-            if (a.labels.includes(label) && !seen.has(a.path)) {
-                seen.add(a.path);
-                out.push(a);
-            }
+        const paths = new Map<string, AddressableManifestAsset>();
+        for (const { asset } of this.entriesByLabel(label)) {
+            if (!paths.has(asset.path)) paths.set(asset.path, asset);
         }
-        return out;
+        return [...paths.values()];
     }
 
     /** Find an asset by its path or its address (null if absent). */
@@ -341,16 +349,29 @@ export class ManifestModel {
     // Resolution (uuid/address key → asset → build path)
     // -------------------------------------------------------------------------
 
-    private index_?: { names: Map<string, ManifestRecord>; files: Map<string, ManifestRecord>; shared: Set<string> };
+    private index_?: {
+        names: Map<string, ManifestRecord>;
+        files: Map<string, ManifestRecord>;
+        shared: Set<string>;
+        labels: Map<string, Map<string, ManifestRecord>>;
+    };
 
     private indexes() {
         if (this.index_) return this.index_;
         const names = new Map<string, ManifestRecord>(), files = new Map<string, ManifestRecord>();
         const shared = new Set<string>();
-        for (const group of Object.values(this.manifest.groups)) {
+        const labels = new Map<string, Map<string, ManifestRecord>>();
+        for (const [name, group] of Object.entries(this.manifest.groups)) {
             const remote = normalizeBundleMode(group.bundleMode) === 'remote';
             for (const [key, asset] of Object.entries(group.assets)) {
-                const record = { key, asset, remote };
+                const record = { group: name, key, asset, remote };
+                const logical = extractUuid(key) ?? key;
+                for (const label of asset.labels ?? []) {
+                    let members = labels.get(label);
+                    if (!members) labels.set(label, members = new Map());
+                    if (!members.has(logical)) members.set(logical, record);
+                }
+                if (!names.has(logical)) names.set(logical, record);
                 if (!names.has(key)) names.set(key, record);
                 if (asset.address) {
                     for (const name of [asset.address, `/${asset.address}`]) if (!names.has(name)) names.set(name, record);
@@ -360,7 +381,7 @@ export class ManifestModel {
                 else if (first.key !== key) shared.add(asset.path);
             }
         }
-        return this.index_ = { names, files, shared };
+        return this.index_ = { names, files, shared, labels };
     }
 
     /** @internal A staged file used by several records names the first one in manifest order. */

@@ -257,8 +257,10 @@ export function catalogFromManifest(manifest: AddressableManifest): Catalog | un
 }
 
 function catalogForModel(model: ManifestModel): Catalog | undefined {
-    const entries: Record<string, CatalogEntry> = {};
+    const entries: Record<string, CatalogEntry> = Object.create(null);
+    let tagged = false;
     for (const { key: uuid, asset } of model.entries()) {
+        tagged ||= !!asset.labels?.length;
         const md = asset.metadata;
         const atlasFields = md?.atlasFrame && md.atlasPageWidth && md.atlasPageHeight
             ? atlasCatalogFields(
@@ -276,7 +278,8 @@ function catalogForModel(model: ManifestModel): Catalog | undefined {
         entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
         entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
     }
-    return Object.keys(entries).length > 0 ? Catalog.fromJson({ version: 1, entries }) : undefined;
+    return Object.keys(entries).length || tagged
+        ? Catalog.fromJson({ version: 1, entries }).withManifestLabels(model) : undefined;
 }
 
 /** Read + index the packaged addressable manifest through the platform's reader. */

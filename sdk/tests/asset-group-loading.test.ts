@@ -137,6 +137,39 @@ function createManifest(): AddressableManifest {
 }
 
 describe('Assets.loadGroup', () => {
+    it('loads labeled 2D and 3D manifest records after mounting their groups', async () => {
+        const assets = Assets.create({ backend: createMockBackend(), module: mockModule });
+        const manifest = createManifest();
+        const tagged = { path: 'ca/shared.esmesh', type: 'mesh', size: 8, labels: ['encounter'] };
+        manifest.groups.extra.assets = {
+            rock: { ...tagged, address: 'assets/rock.esmesh' },
+            gate: { ...tagged, address: 'assets/gate.esmesh' },
+        };
+        manifest.groups.main.assets['tex1.png'].labels.push('encounter');
+        assets.setManifest(manifest);
+        const order: string[] = [];
+        const releases: string[] = [];
+        const sub = vi.mocked(platform.platformLoadSubpackage);
+        sub.mockImplementationOnce(async (name) => { order.push(name); });
+        vi.spyOn(assets, 'acquireTyped').mockImplementation(async (_type, ref) => {
+            order.push(ref);
+            return { key: ref, generation: 1, value: { handle: 7 }, release: () => releases.push(ref) } as any;
+        });
+        vi.spyOn(assets, 'acquireTexture').mockImplementation(async (ref) => {
+            order.push(ref);
+            return { key: ref, generation: 1, value: { handle: 2 }, release: () => releases.push(ref) } as any;
+        });
+        const progress: [number, number][] = [];
+        const bundle = await assets.loadByLabel('encounter', (done, total) => progress.push([done, total]));
+        expect(progress).toEqual([[0, 3], [1, 3], [2, 3], [3, 3]]);
+        expect(order[0]).toBe('extra');
+        expect([...bundle.textures.keys()]).toEqual(['tex1.png']);
+        expect([...bundle.meshes.keys()].sort()).toEqual(['gate', 'rock']);
+        bundle.release();
+        bundle.release();
+        expect(releases.sort()).toEqual(['gate', 'rock', 'tex1.png']);
+    });
+
     it('dispatches every asset in a group through the typed loader, into the bundle', async () => {
         const assets = createAssets();
         assets.setManifest(createManifest());
@@ -183,6 +216,58 @@ describe('Assets.loadGroup', () => {
         expect(progressCalls).toContainEqual([0, 0]);
     });
 
+    it('shares a lazy mount across refs, labels and groups, and retries a failed mount', async () => {
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('offline'));
+        const load = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:3', generation: 1, value: { handle: 3 }, release: () => {},
+        } as any);
+        vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 3 } as any);
+        const failed = await assets.preload(['tex3.png', 'tex3.png'], undefined, { maxConcurrent: 1 });
+        expect(failed.failed).toHaveLength(2);
+        expect(failed.failed[0]).toMatchObject({ ref: 'tex3.png', reason: 'load-failed' });
+        const [label, group, refs] = await Promise.all([
+            assets.loadByLabel('gameplay'), assets.loadGroup('extra'), assets.preload(['tex3.png']),
+        ]);
+        expect(mount.mock.calls).toEqual([['extra'], ['extra']]);
+        expect(load.mock.calls).toEqual([['tex3.png'], ['tex3.png']]);
+        expect(refs.failed).toEqual([]);
+        expect(label.scope.size).toBe(1);
+        label.release();
+        expect(group.scope.size).toBe(1);
+        group.release();
+    });
+
+    it('releases every successful receipt when a progress listener throws', async () => {
+        const assets = createAssets();
+        const release = vi.fn();
+        vi.spyOn(assets, 'acquireTexture').mockResolvedValue({ key: 'x', generation: 1, value: {}, release } as any);
+        await expect(assets.loadByLabel('ui', count => { if (count) throw new Error('cancel'); })).rejects.toThrow('cancel');
+        expect(release).toHaveBeenCalledTimes(2);
+    });
+
+    it('preloads a labeled data document by UUID without a host-supplied path resolver', async () => {
+        const backend = createMockBackend();
+        const assets = Assets.create({ backend, module: mockModule });
+        const key = 'b0000000-0000-4000-8000-000000000001';
+        const path = 'subpackages/extra/data.json';
+        assets.setManifest({ version: '2.0', groups: { extra: { bundleMode: 'lazy', labels: [], assets: {
+            [key]: { type: 'json', path, address: 'assets/data.json', labels: ['data'], size: 2 },
+        } } } });
+        const ref = '@uuid:' + key;
+        expect((await assets.preload([ref])).failed).toEqual([]);
+        const labeled = await assets.loadByLabel('data');
+        expect(labeled.failed).toEqual([]);
+        expect(labeled.scope.size).toBe(1);
+        expect(backend.fetchText).toHaveBeenCalledTimes(1);
+        expect(backend.fetchText).toHaveBeenCalledWith(path);
+        labeled.release();
+        assets.releaseTyped('json', ref);
+        expect(assets.sizes().refRows).toBe(0);
+    });
+
     it('is a no-op when no manifest is set', async () => {
         const assets = createAssets();
         const progressCalls: [number, number][] = [];
@@ -216,6 +301,7 @@ describe('Assets.loadGroup', () => {
 
         const bundle = await assets.loadGroup('main');
         expect(bundle.textures.size).toBe(0);
+        expect(bundle.failed.map(missing => missing.ref).sort()).toEqual(['tex1.png', 'tex2.png']);
 
         const said = warn.mock.calls.find((c) => String(c[1]).includes('failed to load'));
         expect(said, 'loadGroup returned an empty bundle without saying why').toBeDefined();

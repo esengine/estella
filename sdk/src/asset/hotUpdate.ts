@@ -120,11 +120,12 @@ export function diffManifests(current: ManifestModel | null, next: ManifestModel
             || asset.pack?.size !== prev.pack?.size) {
             changedAssets.push(toChange(group, key, asset));
         } else if (prior.group !== group || (rerouted && asset.streamTail && moved(asset.streamTail.path))
-            || assetManifestSignature(prev) !== assetManifestSignature(asset)) {
+            || assetManifestSignature(prev, false) !== assetManifestSignature(asset, false)) {
             reconfiguredAssets.push(toChange(group, key, asset));
-        } else {
+        } else if (JSON.stringify([...(prev.labels ?? [])].sort()) === JSON.stringify([...(asset.labels ?? [])].sort())) {
             continue;
         }
+        // A label edit installs new membership while existing leases and decoded content stay current.
         if (prior) changedGroups.add(prior.group);
         changedGroups.add(group);
     }

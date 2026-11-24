@@ -20,6 +20,9 @@ interface AssetManifest {
   entries: Array<{ uuid: string; path: string; type: string; contentHash?: string; size?: number; compressedFormats?: string[]; cook?: TextureCookDecision }>;
 }
 
+import { scanAssetDatabase, updateAssetIndex } from '../src/assets/assetDb';
+import type { CookManifest } from '../src/assets/cookAssets';
+
 let root: string;
 
 const USED_TEX = '11111111-1111-4111-8111-111111111111';
@@ -81,6 +84,31 @@ describe('cookAssets (A4)', () => {
     expect(res.included.sort()).toEqual([ENTRY_SCENE, USED_TEX, LOCALE_TABLE].sort());
     // Culled: the orphan scene, its texture, and the totally-unreferenced one.
     expect(res.unused.sort()).toEqual([ORPHAN_SCENE, ORPHAN_TEX, STRAY_TEX].sort());
+  });
+
+  it('retains a labeled document and its dependencies, and follows sidecar-only membership edits', async () => {
+    const file = path.join(root, 'assets/scenes/orphan.esscene.meta');
+    const original = readFileSync(file, 'utf8');
+    const tag = (labels: unknown[]) => writeFileSync(file, JSON.stringify({ ...JSON.parse(original), labels }));
+    try {
+      tag([' encounter ', null, 'encounter', '']);
+      const { index } = await scanAssetDatabase(root, { write: false });
+      expect(index.entries.find(e => e.uuid === ORPHAN_SCENE)?.labels).toEqual(['encounter']);
+      const options = { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build/label-case' };
+      const cooked = await cookAssets(root, options);
+      expect(cooked.inclusion['assets/scenes/orphan.esscene']).toEqual({ reason: 'label' });
+      expect(cooked.inclusion['assets/textures/orphan.png']).toEqual({ reason: 'dependency', via: 'assets/scenes/orphan.esscene' });
+      expect(cooked.unused).toContain(STRAY_TEX);
+      const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as CookManifest;
+      expect(manifest.entries.find(e => e.uuid === ORPHAN_SCENE)?.labels).toEqual(['encounter']);
+      tag([]);
+      const changed = await updateAssetIndex(root, index, ['assets/scenes/orphan.esscene.meta'], { write: false });
+      expect(changed.fullRescan).toBe(false);
+      expect(changed.index.entries.find(e => e.uuid === ORPHAN_SCENE)?.labels).toBeUndefined();
+      expect((await cookAssets(root, options)).unused).toEqual(expect.arrayContaining([ORPHAN_SCENE, ORPHAN_TEX]));
+    } finally {
+      writeFileSync(file, original);
+    }
   });
 
   it('stages reachable files + writes a runtime manifest; excludes culled files', async () => {

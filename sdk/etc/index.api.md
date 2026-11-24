@@ -2803,6 +2803,7 @@ v1: number
 
 ## Catalog — class @experimental
 ```
+@internal withManifestLabels: (model: ManifestModel | null) => Catalog
 addressOf: (path: string) => string | null
 getAllLabels: () => string[]
 getAtlasFrame: (path: string) => AtlasFrameInfo | null
@@ -2817,7 +2818,7 @@ isEmpty: boolean
 resolve: (ref: string) => string
 static empty: () => Catalog
 static fromJson: (data: CatalogData) => Catalog
-static new (entries: Map<string, CatalogEntry>, addresses: Map<string, string>, labels: Map<string, string[]>): Catalog
+static new (entries: Map<string, CatalogEntry>, addresses: Map<string, string>, labels: Map<string, string[]>, manifest_?: ManifestModel | null): Catalog
 static prototype: Catalog
 ```
 
@@ -6905,10 +6906,12 @@ assetsByLabel: (label: string) => AddressableManifestAsset[]
 assetsInGroup: (name: string) => AddressableManifestAsset[]
 bundleMode: (name: string) => BundleMode
 entries: () => Array<{ group: string; key: string; asset: AddressableManifestAsset; }>
+entriesByLabel: (label: string) => readonly ManifestRecord[]
 findAsset: (pathOrAddress: string) => AddressableManifestAsset | null
 group: (name: string) => AddressableManifestGroup | null
 groupNames: () => string[]
 groupsByMode: (mode: BundleMode) => string[]
+labelNames: () => string[]
 packMembers: () => Map<string, Set<string>>
 packOf: (path: string) => AssetPackRef | null
 remoteAssetIdentity: (ref: string) => string | null

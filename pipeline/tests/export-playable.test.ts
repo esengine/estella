@@ -253,7 +253,7 @@ describe('exportGame (playable)', () => {
     const TILED = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     writeFileSync(path.join(root, 'assets', 'tiled.png'), solidPng(8, 8, [90, 90, 90, 255]));
     writeFileSync(path.join(root, 'assets', 'tiled.png.meta'),
-      JSON.stringify({ uuid: TILED, version: '2.0', type: 'texture', importer: { wrapMode: 'repeat', filterMode: 'nearest', sRGB: false } }));
+      JSON.stringify({ uuid: TILED, version: '2.0', type: 'texture', labels: ['level'], importer: { wrapMode: 'repeat', filterMode: 'nearest', sRGB: false } }));
     writeFileSync(path.join(root, 'scenes', 'tiled.esscene'),
       JSON.stringify({ version: '1.0', name: 'Tiled', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TILED}` } }] }] }));
     writeFileSync(path.join(root, 'scenes', 'tiled.esscene.meta'), meta('ffffffff-ffff-4fff-8fff-ffffffffffff', 'scene'));
@@ -269,7 +269,7 @@ describe('exportGame (playable)', () => {
     const json = html.slice(at + 'window.__GAME_MANIFEST__='.length);
     const manifest = JSON.parse(json.slice(0, json.indexOf(';window.'))) as { groups: { main: { assets: Record<string, { path: string; textureImport: unknown }> } } };
     expect(manifest.groups.main.assets[TILED]).toEqual({
-      path: 'assets/tiled.png', type: 'texture', size: 0, labels: [],
+      path: 'assets/tiled.png', type: 'texture', size: 0, labels: ['level'],
       textureImport: { filter: 'nearest', wrap: 'repeat', srgb: false },
     });
     // And the host hands it on: the runtime reads nothing it was not given.

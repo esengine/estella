@@ -30,7 +30,8 @@ import { writeFile, mkdir, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 import path from 'node:path';
-import { cookAssets } from '../assets/cookAssets';
+import { cookAssets, type CookManifest } from '../assets/cookAssets';
+import { addressableKeys, addressableRecord } from '../assets/addressableRecord';
 import { scanAssetDatabase } from '../assets/assetDb';
 import { optimizePlayableAssets, playableAssetsJsonBytes, type PlayableOptimizationAsset, type PlayablePayload } from './playableOptimization';
 import type { OnExportProgress } from './exportProgress';
@@ -48,8 +49,8 @@ import { engineInstalls, forcedSideModules, moduleChoices, moduleForAsset } from
 import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
 import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
-import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
-import { atlasCatalogFields, type CatalogData, type CatalogEntry, type CookedAtlasInfo } from '../../../sdk/src/asset/Catalog';
+import type { AddressableManifest } from '../../../sdk/src/asset/AddressableManifest';
+import { atlasCatalogFields, type CatalogData, type CatalogEntry } from '../../../sdk/src/asset/Catalog';
 import type { ModuleChoice, PlayableReady, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
@@ -76,10 +77,6 @@ export interface ExportPlayableResult {
   playableCheck?: PlayableCheckReport;
   warnings: string[];
   errors: string[];
-}
-
-interface CookManifest {
-  entries: { uuid: string; path: string; sourcePath?: string; type: string }[];
 }
 
 const MIME: Record<string, string> = {
@@ -300,9 +297,8 @@ export async function exportPlayable(opts: {
   const pathMap: Record<string, string> = {};
   const optimizationAssets: PlayableOptimizationAsset[] = [];
   let manifestEntries: CookManifest['entries'] = [];
-  // How each texture is sampled and sliced, as its .meta says: the one thing of the manifest a single file needs. Without it every
-  // texture of a playable took the defaults, so a ground whose layers repeat drew one copy of each and smeared its edge over the rest.
-  const textureImports: Record<string, { path: string; address?: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
+  // Bytes are embedded, so even a source subpackage is already local. Keep its name for group selection.
+  const embeddedGroups: AddressableManifest['groups'] = Object.create(null);
   // Atlas frames: where each sits on its page, by every spelling a load uses (its `@uuid:`, its source path), the way the
   // web build's catalog has them. A page is inlined once, under its first frame's key; every other frame of it points
   // there through the path map, so a page of twenty sprites costs one image, not twenty copies of it.
@@ -311,23 +307,25 @@ export async function exportPlayable(opts: {
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
+    const keys = addressableKeys(manifest.entries);
     for (const e of manifest.entries) {
       const key = `@uuid:${e.uuid}`;
+      const logical = e.sourcePath ?? e.path;
+      // Entry scenes already travel in the scene table. Only duplicate their raw document when a label addresses it.
+      if (e.type === 'scene' && !e.labels?.length && sceneList.some(scene => scene.path === logical)) continue;
+      const group = embeddedGroups[e.group ?? 'main'] ??= { bundleMode: 'local', labels: [], assets: {} };
+      const atlas = e.atlas;
+      const record = addressableRecord({ ...e, path: atlas ? e.path : logical }, 0, keys);
+      group.assets[e.uuid.toLowerCase()] = record;
       const left = baked.get(e.path);
       if (left && modelBakes) {
-        const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
-        if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
-        (modelBakes.models[left.model]!.products as Record<string, string[]>)[left.role] = [key, e.sourcePath ?? e.path];
+        (modelBakes.models[left.model]!.products as Record<string, string[]>)[left.role] = [key, logical];
         continue;
       }
-      if ((e as { type?: string }).type === 'scene' && sceneList.some((scene) => scene.path === (e.sourcePath ?? e.path))) continue;
-      const atlas = (e as { atlas?: CookedAtlasInfo }).atlas;
       if (atlas) {
-        const logical = e.sourcePath ?? e.path;
+        record.metadata = { atlasPage: atlas.page, atlasFrame: atlas.frame, atlasPageWidth: atlas.pageWidth, atlasPageHeight: atlas.pageHeight };
         const frame: CatalogEntry = { type: 'texture', buildPath: e.path, ...atlasCatalogFields(atlas, e.path) };
         for (const spelling of [key, logical, `/${logical}`]) atlasEntries[spelling] = frame;
-        const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
-        if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.path, address: logical, type: 'texture', size: 0, labels: [], textureImport };
         const page = pageKeys.get(e.path);
         if (page) {
           pathMap[logical] = page;
@@ -338,8 +336,6 @@ export async function exportPlayable(opts: {
         pathMap[e.path] = key;
       }
       const buf = await readFile(path.join(cookDir, e.path));
-      const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
-      if (textureImport && !atlas) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
       const dataUrl = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
       // The data URL, not the file: base64 is what the asset costs the package.
@@ -480,8 +476,8 @@ export async function exportPlayable(opts: {
     span('wasm/side-modules', `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};`);
   const afterAssets =
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
-    (Object.keys(textureImports).length > 0
-      ? `window.__GAME_MANIFEST__=${JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: textureImports } } })};`
+    (Object.keys(embeddedGroups).length > 0
+      ? `window.__GAME_MANIFEST__=${inlineSafe(JSON.stringify({ version: '2.0', groups: embeddedGroups }))};`
       : '') +
     (Object.keys(atlasEntries).length > 0
       ? `window.__GAME_CATALOG__=${JSON.stringify({ version: 1, entries: atlasEntries } satisfies CatalogData)};`

@@ -49,8 +49,8 @@ import { MeshAssetLoader, type MeshResult } from './loaders/MeshAssetLoader';
 import type { MeshData } from './meshFormat';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import { isBuiltinMeshRef } from './builtinMeshes';
-import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
-import { ProbeVolumeAssetLoader } from './loaders/ProbeVolumeAssetLoader';
+import { EnvironmentAssetLoader, type EnvironmentResult } from './loaders/EnvironmentAssetLoader';
+import { ProbeVolumeAssetLoader, type ProbeVolumeResult } from './loaders/ProbeVolumeAssetLoader';
 import { MeshSdfAssetLoader } from './loaders/MeshSdfAssetLoader';
 import { MeshCardsAssetLoader } from './loaders/MeshCardsAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
@@ -245,6 +245,11 @@ export interface AssetBundle {
     materials: Map<string, MaterialResult>;
     spine: Map<string, SpineResult>;
     fonts: Map<string, FontResult>;
+    meshes: Map<string, MeshResult>;
+    environments: Map<string, EnvironmentResult>;
+    probeVolumes: Map<string, ProbeVolumeResult>;
+    /** Selected assets whose loaders failed, with their refs and reasons. */
+    failed: MissingAsset[];
     /**
      * What this load actually acquired. Release through it rather than by group
      * name: a manifest can be updated between the two, and then the group's
@@ -259,6 +264,7 @@ function emptyBundle(): AssetBundle {
     const scope = new AssetScope();
     return {
         textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map(),
+        meshes: new Map(), environments: new Map(), probeVolumes: new Map(), failed: [],
         scope, release: () => scope.releaseAll(),
     };
 }
@@ -272,10 +278,8 @@ function emptyBundle(): AssetBundle {
  * the group loads now supplies the matching release.
  */
 interface GroupAssetChannel {
-    load(assets: Assets, path: string, bundle: AssetBundle): Promise<void>;
+    load(assets: Assets, ref: string, bundle: AssetBundle, name: string): Promise<void>;
     release(assets: Assets, path: string): void;
-    /** In the bundle `loadByLabel` returns: the types a scene can display. */
-    displayable: boolean;
 }
 
 const SCENE_HANDLE_TYPES = ['texture', 'material', 'font', 'mesh', 'environment', 'probeVolume'] as const satisfies readonly AssetFieldType[];
@@ -285,45 +289,44 @@ function isSceneHandleType(type: string): type is SceneHandleType {
     return (SCENE_HANDLE_TYPES as readonly string[]).includes(type);
 }
 
-function scopedGroupChannel(type: string): GroupAssetChannel {
+interface BatchAsset {
+    ref: string;
+    type: string;
+    name: string;
+    group?: string;
+}
+
+function scopedGroupChannel<T>(type: string, values?: (bundle: AssetBundle) => Map<string, T>): GroupAssetChannel {
     return {
-        load: (assets, path, bundle) => assets.acquireTyped(type, path).then(lease => { bundle.scope.add(lease); }),
-        release: (assets, path) => assets.releaseTyped(type, path),
-        displayable: false,
+        async load(assets, ref, bundle, name) {
+            const lease = bundle.scope.add(await assets.acquireTyped<T>(type, ref));
+            values?.(bundle).set(name, lease.value);
+        },
+        release: (assets, ref) => assets.releaseTyped(type, ref),
     };
 }
 
 const GROUP_ASSET_CHANNELS: ReadonlyMap<string, GroupAssetChannel> = new Map(Object.entries({
     texture: {
-        load: (a, path, b) => a.acquireTexture(path)
-            .then((l) => { b.scope.add(l); b.textures.set(path, l.value); }),
-        release: (a, path) => a.releaseTexture(path),
-        displayable: true,
-    },
-    material: {
-        load: (a, path, b) => a.acquireTyped<MaterialResult>('material', path)
-            .then((l) => { b.scope.add(l); b.materials.set(path, l.value); }),
-        release: (a, path) => a.releaseTyped('material', path),
-        displayable: true,
-    },
-    font: {
-        load: (a, path, b) => a.acquireTyped<FontResult>('font', path)
-            .then((l) => { b.scope.add(l); b.fonts.set(path, l.value); }),
-        release: (a, path) => a.releaseTyped('font', path),
-        displayable: true,
+        async load(assets, ref, bundle, name) {
+            const lease = bundle.scope.add(await assets.acquireTexture(ref));
+            bundle.textures.set(name, lease.value);
+        },
+        release: (assets, ref) => assets.releaseTexture(ref),
     },
     spine: {
-        load: (a, path, b) => a.acquireSpine(path)
-            .then((l) => { b.scope.add(l); b.spine.set(path, l.value); }),
-        release: (a, path) => a.releaseTyped('spine', path),
-        displayable: true,
+        async load(assets, ref, bundle, name) {
+            const lease = bundle.scope.add(await assets.acquireSpine(ref));
+            bundle.spine.set(name, lease.value);
+        },
+        release: (assets, ref) => assets.releaseTyped('spine', ref),
     },
-    mesh: scopedGroupChannel('mesh'),
-    environment: scopedGroupChannel('environment'),
-    probeVolume: scopedGroupChannel('probeVolume'),
-    prefab: scopedGroupChannel('prefab'),
-    audio: scopedGroupChannel('audio'),
-} satisfies Record<SceneHandleType | 'spine' | 'prefab' | 'audio', GroupAssetChannel>));
+    material: scopedGroupChannel('material', b => b.materials),
+    font: scopedGroupChannel('font', b => b.fonts),
+    mesh: scopedGroupChannel('mesh', b => b.meshes),
+    environment: scopedGroupChannel('environment', b => b.environments),
+    probeVolume: scopedGroupChannel('probeVolume', b => b.probeVolumes),
+} satisfies Record<SceneHandleType | 'spine', GroupAssetChannel>));
 
 /**
  * Describes one asset a scene / prefab referenced that couldn't be
@@ -454,6 +457,7 @@ export class Assets {
     private baseUrl_?: string;
 
     private module_: ESEngineModule | null;
+    private readonly subpackages_ = new Map<string, Promise<void>>();
     private manifestModel_: ManifestModel | null = null;
     private readonly manifestBindings_ = new ManifestBindingHistory();
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
@@ -1122,8 +1126,13 @@ export class Assets {
             manifest == null ? null
             : manifest instanceof ManifestModel ? manifest
             : ManifestModel.fromJson(manifest);
-        if (this.activateManifest_) this.catalog_ = this.activateManifest_(model);
+        const catalog = this.activateManifest_?.(model) ?? this.catalog_;
+        this.catalog_ = catalog.withManifestLabels(model);
         this.manifestModel_ = model;
+        // A platform subpackage is mounted by name for this app version. A label edit can reuse that mount.
+        for (const name of this.subpackages_.keys()) {
+            if (model?.bundleMode(name) !== 'lazy') this.subpackages_.delete(name);
+        }
         this.loadContext_ = null;
     }
 
@@ -1139,81 +1148,79 @@ export class Assets {
         label: string,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<AssetBundle> {
-        const bundle = emptyBundle();
-        let loadedCount = 0;
-        const promises: Promise<void>[] = [];
-        const track = (p: Promise<void>): Promise<void> =>
-            p.then(() => { onProgress?.(++loadedCount, totalCount); })
-             .catch(() => { onProgress?.(++loadedCount, totalCount); });
-
-        for (const path of this.catalog.getByLabel(label)) {
-            const entry = this.catalog.getEntry(path);
-            if (!entry) continue;
-            const task = this.bundleLoadTask_(path, entry.type, bundle);
-            if (task) promises.push(track(task));
+        const members: BatchAsset[] = [];
+        for (const ref of this.catalog.getByLabel(label)) {
+            const record = this.manifestRecord_(ref);
+            if (record) members.push(this.batchAsset_(record.key, record.asset, record.group));
+            else {
+                const entry = this.catalog.getEntry(ref);
+                if (entry) members.push({ ref, name: ref, type: entry.type });
+            }
         }
-
-        const totalCount = promises.length;
-        onProgress?.(0, totalCount);
-        loadedCount = 0;
-
-        await Promise.allSettled(promises);
-        return bundle;
+        return this.loadBatch_(`loadByLabel('${label}')`, members, onProgress);
     }
 
-    /**
-     * Load every asset in an addressable group through the typed loaders,
-     * warming the cache (and populating the returned bundle for the four
-     * displayable types). Requires a manifest (see {@link setManifest}); with
-     * no manifest set, this is a no-op returning an empty bundle.
-     *
-     * This is the single group-loading channel — the basis for on-demand /
-     * subpackage delivery. It dispatches through the same per-type loaders as
-     * {@link loadByLabel}, so the two never diverge.
-     */
+    /** Load the registered asset types in a group, mounting its subpackage before reading its files. */
     async loadGroup(
         groupName: string,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<AssetBundle> {
+        const group = this.manifestModel_?.group(groupName);
+        if (!this.manifestModel_) log.warn('asset', `loadGroup('${groupName}') called but no manifest is set`);
+        const members = Object.entries(group?.assets ?? {}).map(([key, asset]) => this.batchAsset_(key, asset, groupName));
+        return this.loadBatch_(`loadGroup('${groupName}')`, members, onProgress, groupName);
+    }
+
+    private batchAsset_(key: string, asset: AddressableManifestAsset, group: string): BatchAsset {
+        const ref = this.groupAssetRef_(key, asset, this.manifestModel_?.bundleMode(group) === 'remote');
+        // An atlas frame owns a receipt for the page texture but keeps its authored name in the bundle.
+        const name = asset.metadata?.atlasFrame ? asset.address ?? key : ref;
+        return { ref, name, group, type: asset.type };
+    }
+
+    private batchChannel_(type: string): GroupAssetChannel | undefined {
+        return GROUP_ASSET_CHANNELS.get(type) ?? (this.loaders_.has(type) ? scopedGroupChannel(type) : undefined);
+    }
+
+    /** Concurrent callers share a mount. A rejected request leaves the package available for retry. */
+    private mountSubpackage_(group: string): Promise<void> {
+        const existing = this.subpackages_.get(group);
+        if (existing) return existing;
+        const mount = Promise.resolve().then(() => platformLoadSubpackage(group)).catch(error => {
+            if (this.subpackages_.get(group) === mount) this.subpackages_.delete(group);
+            throw error;
+        });
+        this.subpackages_.set(group, mount);
+        return mount;
+    }
+
+    private async loadBatch_(
+        caller: string, members: Iterable<BatchAsset>,
+        onProgress?: (loaded: number, total: number) => void, requestedGroup?: string,
+    ): Promise<AssetBundle> {
         const bundle = emptyBundle();
-        const model = this.manifestModel_;
-        if (!model) {
-            log.warn('asset', `loadGroup('${groupName}') called but no manifest is set`);
-            onProgress?.(0, 0);
-            return bundle;
+        const groups = new Set<string>(requestedGroup ? [requestedGroup] : []);
+        const tasks: Array<() => Promise<void>> = [];
+        for (const { ref, name, type, group } of members) {
+            const channel = this.batchChannel_(type);
+            if (!channel) continue;
+            if (group) groups.add(group);
+            tasks.push(async () => {
+                try { await channel.load(this, ref, bundle, name); }
+                catch (error) { bundle.failed.push({ ref, type, reason: 'load-failed', error: String(error) }); }
+            });
         }
-
-        const mode = model.bundleMode(groupName);
-        // A lazy group is an on-demand subpackage — download it before loading its
-        // assets (no-op on platforms without a subpackage concept, e.g. web).
-        if (mode === 'lazy') {
-            await platformLoadSubpackage(groupName);
+        let loaded = 0;
+        onProgress?.(0, tasks.length);
+        const lazy = [...groups].filter(group => this.manifestModel_?.bundleMode(group) === 'lazy');
+        await Promise.all(lazy.map(group => this.mountSubpackage_(group)));
+        try {
+            await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => onProgress?.(++loaded, tasks.length));
+        } catch (error) {
+            bundle.release();
+            throw error;
         }
-
-        let loadedCount = 0;
-        const promises: Promise<void>[] = [];
-        // A subpackage that downloads but stages nothing reads exactly like a
-        // group that was always empty, so the failures are named, not counted.
-        const failed: MissingAsset[] = [];
-        const track = (p: Promise<void>, ref: string, type: string): Promise<void> =>
-            p.then(() => { onProgress?.(++loadedCount, totalCount); })
-             .catch((e: unknown) => {
-                 failed.push({ ref, type, reason: 'load-failed', error: String(e) });
-                 onProgress?.(++loadedCount, totalCount);
-             });
-
-        for (const [key, asset] of Object.entries(model.group(groupName)?.assets ?? {})) {
-            const path = this.groupAssetRef_(key, asset, mode === 'remote');
-            const task = this.groupLoadTask_(path, asset.type, bundle);
-            if (task) promises.push(track(task, path, asset.type));
-        }
-
-        const totalCount = promises.length;
-        onProgress?.(0, totalCount);
-        loadedCount = 0;
-
-        await Promise.allSettled(promises);
-        warnFailedLoads(failed, `loadGroup('${groupName}')`);
+        warnFailedLoads(bundle.failed, caller);
         return bundle;
     }
 
@@ -1236,7 +1243,7 @@ export class Assets {
             // way here would release a key nobody holds, which is a leak that
             // looks exactly like a working release.
             const path = this.groupAssetRef_(key, asset, mode === 'remote');
-            GROUP_ASSET_CHANNELS.get(asset.type)?.release(this, path);
+            this.batchChannel_(asset.type)?.release(this, path);
         }
     }
 
@@ -1612,33 +1619,6 @@ export class Assets {
     }
 
     /**
-     * Load one asset into the displayable bundle maps. Returns the in-flight
-     * promise for the four bundle-able types (texture / material / spine /
-     * font), or null for any other type. Shared by `loadByLabel` and
-     * `loadGroup` so both dispatch through one channel.
-     */
-    private bundleLoadTask_(
-        path: string, type: string, bundle: AssetBundle,
-    ): Promise<void> | null {
-        const channel = GROUP_ASSET_CHANNELS.get(type);
-        if (!channel?.displayable) return null;
-        return channel.load(this, path, bundle);
-    }
-
-    /**
-     * Like {@link bundleLoadTask_} but also warms the cache for non-displayable
-     * types (mesh, lighting, prefab, audio), so a whole group / sub-
-     * package preloads. Raw types (json / text / binary) and unknowns return
-     * null — they have no typed loader and are fetched lazily on demand.
-     */
-    private groupLoadTask_(
-        path: string, type: string, bundle: AssetBundle,
-    ): Promise<void> | null {
-        const channel = GROUP_ASSET_CHANNELS.get(type);
-        return channel ? channel.load(this, path, bundle) : null;
-    }
-
-    /**
      * Preload an explicit list of refs (`@uuid:` or paths) through the typed
      * loaders, warming every cache with bounded concurrency and progress.
      * This is the streaming prefetch primitive: point it at the next area's
@@ -1657,10 +1637,12 @@ export class Assets {
     ): Promise<{ failed: MissingAsset[] }> {
         const failed: MissingAsset[] = [];
         const tasks: Array<() => Promise<void>> = [];
+        const mounts = new Map<string, Promise<void>>();
 
         for (const ref of refs) {
             const path = this.resolveLoadPath_(ref);
-            const type = this.manifestRecord_(ref)?.asset.type ?? this.inferAssetType_(path);
+            const record = this.manifestRecord_(ref);
+            const type = record?.asset.type ?? this.inferAssetType_(path);
             if (!type) {
                 log.warn('asset', `preload: cannot determine asset type for ${ref}`);
                 failed.push({ ref, reason: 'unresolved' });
@@ -1672,15 +1654,20 @@ export class Assets {
                 failed.push({ ref, type, reason: 'unresolved' });
                 continue;
             }
-            tasks.push(() =>
-                load().then(() => {}).catch(e => {
+            const lazy = record && this.manifestModel_?.bundleMode(record.group) === 'lazy' ? record.group : undefined;
+            tasks.push(async () => {
+                try {
+                    if (lazy) {
+                        const mount = mounts.get(lazy) ?? this.mountSubpackage_(lazy);
+                        mounts.set(lazy, mount);
+                        await mount;
+                    }
+                    await load();
+                } catch (e) {
                     log.warn('asset', `preload: failed to load ${ref}`, e);
-                    failed.push({
-                        ref, type, reason: 'load-failed',
-                        error: e instanceof Error ? e.message : String(e),
-                    });
-                }),
-            );
+                    failed.push({ ref, type, reason: 'load-failed', error: e instanceof Error ? e.message : String(e) });
+                }
+            });
         }
 
         let loadedCount = 0;
@@ -2855,7 +2842,7 @@ export class Assets {
         // Deliberately NOT assetIdentity_: for a remote-group asset that answers
         // with the ADDRESS, and the package carries the STAGED name. Where the
         // bytes are is the realm's question, so its resolver gets it.
-        const resolved = this.assetRefResolver_?.(ref) ?? this.sceneHandleRecord_(ref)?.asset.path ?? ref;
+        const resolved = this.assetRefResolver_?.(ref) ?? this.manifestRecord_(ref)?.asset.path ?? ref;
         return this.catalog.resolve(resolved);
     }
 

@@ -169,13 +169,15 @@ const INVARIANTS = [
         rule: 'The cook and the editor\'s play manifest write a contract through ONE function. Two writers is how "works in Play, not in the build" is born — and the promise a player never gets is the one nobody notices.',
         proof: 'is named by uuid the whole way, because that is how the delivery failed',
         holds: () => {
-            const writers = ['pipeline/src/assets/addressableManifest.ts',
-                             'desktop/src/project/ProjectStore.ts'];
+            const builder = 'pipeline/src/assets/addressableRecord.ts';
+            if (!/spineManifestContractFrom\s*\(/.test(strip(read(builder)))) return `${builder} omits the spine contract`;
+            const writers = ['pipeline/src/assets/addressableManifest.ts', 'pipeline/src/export/exportPlayable.ts',
+                             'desktop/src/project/playAssetManifest.ts'];
             const missing = writers
                 .filter((f) => existsSync(path.join(ROOT, f)))
                 // A CALL, not a mention: an import the file no longer uses is
                 // exactly how one writer quietly grew its own way of doing this.
-                .filter((f) => !/spineManifestContractFrom\s*\(/.test(strip(read(f))));
+                .filter((f) => !/addressableRecord\s*\(/.test(strip(read(f))));
             return missing.length === 0 ? null
                 : `${missing.join(', ')} writes a spine contract its own way`;
         },

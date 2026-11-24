@@ -81,6 +81,26 @@ describe('buildAddressableManifest — texture import settings', () => {
     expect(JSON.stringify(asset)).not.toContain('compressFormat');
   });
 
+  it('ships each source record’s labels even when staged bytes are shared', async () => {
+    const manifest = await build([
+      { ...SLICED, path: 'ca/shared.png', sourcePath: SLICED.path, labels: ['hud', 'stage'] },
+      { ...PLAIN, path: 'ca/shared.png', sourcePath: PLAIN.path, labels: ['stage'] },
+    ]);
+    const assets = manifest.groups.main.assets;
+    expect(assets[SLICED.uuid.toLowerCase()].labels).toEqual(['hud', 'stage']);
+    expect(assets[PLAIN.uuid.toLowerCase()].labels).toEqual(['stage']);
+    const catalog = indexPackagedManifest(manifest).catalog!;
+    expect(catalog.getByLabel('stage')).toEqual([SLICED.path, PLAIN.path]);
+    for (const ref of catalog.getByLabel('stage')) expect(catalog.getEntry(ref)?.buildPath).toBe('ca/shared.png');
+    const runtime = Assets.create({ backend: {} as never, catalog, manifest, module: null });
+    const next = structuredClone(manifest);
+    next.groups.main.assets[SLICED.uuid.toLowerCase()].labels = ['title'];
+    runtime.setManifest(next);
+    expect(runtime.catalog.getAllLabels().sort()).toEqual(['stage', 'title']);
+    expect(runtime.catalog.getByLabel('stage')).toEqual([PLAIN.path]);
+    expect((await runtime.loadByLabel('hud')).scope.size).toBe(0);
+  });
+
   it('omits the field for an asset whose importer says nothing renderable', async () => {
     const manifest = await build([PLAIN]);
     const asset = manifest.groups.main.assets[PLAIN.uuid.toLowerCase()];

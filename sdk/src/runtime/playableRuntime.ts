@@ -106,6 +106,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         const uuid = extractUuid(ref);
         return keyToPath[uuid ? UUID_REF_PREFIX + uuid : ref] ?? ref;
     };
+    const model = config.manifest && Object.keys(config.manifest.groups).length
+        ? ManifestModel.fromJson(config.manifest) : undefined;
     const inlined: RuntimeAssetSource = {
         backend,
         resolveRef: resolveRefToPath,
@@ -117,9 +119,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         // A single-file playable inlines the bytes but still ships the manifest,
         // so filter/wrap/sRGB and the 9-slice border reach it the same way they
         // reach every other packaged realm.
-        textureImportSettings: config.manifest
-            ? ManifestModel.fromJson(config.manifest).textureImportLookup()
-            : undefined,
+        textureImportSettings: model?.textureImportLookup(),
+        spineCulling: model?.spineCullingLookup(),
     };
 
     const source = config.serve ? config.serve(inlined) : inlined;
@@ -148,6 +149,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         firstScene,
         ...runtimeProjectSettings(config),
         aspectRatio: config.canvas.width / config.canvas.height,
+        manifest: model,
         ...(config.catalog ? { catalog: Catalog.fromJson(config.catalog) } : {}),
     });
 

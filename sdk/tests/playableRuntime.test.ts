@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ManifestModel } from '../src/asset/AddressableManifest';
 
 vi.mock('../src/runtime/runtimeLoader', () => ({
     initRuntime: vi.fn().mockResolvedValue(undefined),
@@ -126,6 +127,18 @@ describe('initPlayableRuntime', () => {
         const boot = vi.mocked(initRuntime).mock.calls[0]![0];
         expect(boot).toMatchObject(settings);
         expect(boot.manifest).toBeUndefined();
+    });
+
+    it('installs the embedded asset records for group and label loads', async () => {
+        await initPlayableRuntime(createMockConfig({ manifest: { version: '2.0', groups: {
+            art: { bundleMode: 'local', labels: [], assets: {
+                tile: { type: 'texture', path: 'tiles.png', labels: ['encounter'], size: 0 },
+                rock: { type: 'mesh', path: 'rock.esmesh', labels: ['encounter'], size: 0 },
+            } },
+        } } }));
+        const model = vi.mocked(initRuntime).mock.calls[0]![0].manifest;
+        expect(model).toBeInstanceOf(ManifestModel);
+        expect((model as ManifestModel).entriesByLabel('encounter').map(record => record.key)).toEqual(['tile', 'rock']);
     });
 
     it('passes scenes array and firstScene to initRuntime', async () => {

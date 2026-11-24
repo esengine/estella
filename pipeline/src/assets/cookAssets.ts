@@ -151,6 +151,8 @@ export type InclusionReason =
     | 'group'
     /** In a group the project declared always-include. */
     | 'always-include'
+    /** Addressed from code by a label on the asset. */
+    | 'label'
     /** A locale table — loaded by code, so reachability would cull it. */
     | 'locale'
     /** A data asset (`.json`), named by the code that loads it. */
@@ -645,6 +647,7 @@ export async function cookAssets(
     // time, a texture in rich-text markup). Reachability would cull it, and the
     // first anyone would hear of that is a missing image on a device.
     else if (group.alwaysInclude) seed(e.uuid, { reason: 'always-include' });
+    else if (e.labels?.length) seed(e.uuid, { reason: 'label' });
   }
   // Force-include locale string tables: translations load by code / plugin
   // option (a scene never references them — Text carries KEYS, not paths), so
@@ -866,6 +869,7 @@ export async function cookAssets(
         sourcePath: entry.path,
         type: entry.type,
         importer: entry.importer,
+        ...(entry.labels?.length ? { labels: entry.labels } : {}),
         contentHash: framePlan.pageHash,
         size: framePlan.pageSize,
         group: fg.name,
@@ -1094,6 +1098,7 @@ export async function cookAssets(
         sourcePath: entry.path,
         type: entry.type,
         importer: entry.importer,
+        ...(entry.labels?.length ? { labels: entry.labels } : {}),
         contentHash: hash,
         size: fromRecipe ? 0 : data.byteLength,
         group,

@@ -101,7 +101,9 @@ assets.releaseGroup('level2');
 
 `releaseGroup` 通过各资源类型的释放路径释放该组获取的全部资源，结果由引用计数决定：仍被其他场景或组持有的资源保持加载；无人持有的资源进入可淘汰的温缓存（[生命周期与内存](/docs/zh-cn/assets/memory/#温缓存)），之后再次加载时无需下载即可恢复。
 
-`loadByLabel(...)` 按标签而非文件夹组加载资源。寻址组映射为[微信分包](/docs/zh-cn/publishing/wechat/)。
+在资源的 `.meta` 顶层添加 `"labels": ["encounter"]`，构建会包含该资源及其依赖。
+`await assets.loadByLabel('encounter')` 可以跨组加载带此标签的纹理、字体、网格和光照资源，并先挂载所需的[微信分包](/docs/zh-cn/publishing/wechat/)。
+通过 `bundle.failed` 查看加载失败的资源。关卡结束时调用 `bundle.release()`，即使期间标签发生变化，也能准确释放本次取得的引用。
 
 ### 预加载列表
 
