@@ -146,9 +146,11 @@ public:
         return index < screen_root_by_index_.size() ? screen_root_by_index_[index] : 0;
     }
 
+    bool hasLayoutFor(const Registry& registry) const { return layoutEntitySet_ == registry.entitySetId(); }
+
     bool isScreenDomain(const Registry& registry, u32 entity) const {
         // Resolved entries belong to the registry that last completed layout.
-        return lastRegistryId_ == registry.instanceId()
+        return hasLayoutFor(registry)
             && registry.valid(Entity::fromRaw(entity))
             && screen_domain_.count(entity) != 0;
     }
@@ -174,7 +176,8 @@ private:
 
     std::vector<Entity> pickResults_;
 
-    u64 hit_registry_{0};
+    u64 hit_result_entity_set_{0};
+    u64 hit_entity_set_{0};
     u32 hit_activity_{0};
     u32 hit_tick_{0};
     u64 hit_meshes_{0};
@@ -188,9 +191,8 @@ private:
     f32 lastBoxW_{0}, lastBoxH_{0}, lastBoxCX_{0}, lastBoxCY_{0};
     bool lastAnimActive_{false};
     bool layoutPrimed_{false};  // force a solve on the very first pass
-    // Which registry the retained Yoga nodes belong to — entity ids restart with
-    // each one, so they mean nothing across registries (Registry::instanceId).
-    u64 lastRegistryId_{0};
+    // Population whose entity IDs name the retained Yoga nodes.
+    u64 layoutEntitySet_{0};
 
     std::unordered_set<u32> screen_domain_;
     std::vector<u32> screen_roots_;

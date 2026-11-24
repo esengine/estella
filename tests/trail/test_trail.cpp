@@ -91,6 +91,22 @@ TEST_CASE("a trail records its newly composed parent transform before rendering"
     CHECK(points.back().position.x == 8);
 }
 
+TEST_CASE("a standalone trail starts a new ribbon when a cleared registry reissues its emitter") {
+    ecs::Registry registry;
+    TrailSystem trail;
+    const auto e = emitter(registry, -3);
+    trail.update(registry, 0.1f);
+    REQUIRE(trail.getState(e));
+    registry.clear();
+    REQUIRE_FALSE(trail.getState(e));
+    REQUIRE(emitter(registry, 9).raw == e.raw);
+    trail.update(registry, 0.1f);
+    REQUIRE(trail.getState(e));
+    REQUIRE(trail.getState(e)->points.size() == 1);
+    CHECK(trail.getState(e)->points.front().position.x == 9);
+    CHECK(trail.now() == doctest::Approx(0.2f));
+}
+
 TEST_CASE("a temporary engine created during despawn releases its trail simulation after dispatch") {
     ecs::Registry registry;
     Weak<TrailSystem> retired;
@@ -100,4 +116,22 @@ TEST_CASE("a temporary engine created during despawn releases its trail simulati
     });
     registry.destroy(registry.create());
     CHECK(retired.expired());
+}
+
+TEST_CASE("a standalone trail reconnects when its previous registry has closed") {
+    TrailSystem trail;
+    {
+        ecs::Registry old;
+        emitter(old, -3);
+        trail.update(old, 0.1f);
+    }
+    CHECK(trail.entitySetId() == 0);
+    ecs::Registry next;
+    const auto e = emitter(next, 4);
+    trail.update(next, 0.1f);
+    REQUIRE(trail.getState(e));
+    REQUIRE(trail.getState(e)->points.size() == 1);
+    CHECK(trail.getState(e)->points.front().position.x == 4);
+    next.destroy(e);
+    CHECK_FALSE(trail.getState(e));
 }

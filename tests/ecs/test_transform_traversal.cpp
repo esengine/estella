@@ -152,6 +152,25 @@ TEST_CASE("traversal stamps are independent across compositions and registries")
     }
 }
 
+TEST_CASE("clearing a population recomposes reused transforms and invalidates the old change list") {
+    Registry registry;
+    TransformSystem system;
+    system.setChangeTracking(true);
+    const auto old = registry.create();
+    registry.emplace<Transform>(old).position.x = 3;
+    system.ensureComposed(registry);
+    system.takeChanges();
+    registry.clear();
+    const auto fresh = registry.create();
+    REQUIRE(fresh.raw == old.raw);
+    registry.emplace<Transform>(fresh).position.x = 12;
+    system.ensureComposed(registry);
+    auto& pose = registry.get<Transform>(fresh);
+    pose.ensureDecomposed();
+    CHECK(pose.worldPosition.x == doctest::Approx(12));
+    CHECK(system.changesOverflowed());
+}
+
 TEST_CASE("a static childless root builds its matrix when its first child arrives") {
     Registry r; TransformSystem system;
     auto root = r.create(); r.emplace<Transform>(root).position.x = 10;

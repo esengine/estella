@@ -41,7 +41,10 @@ struct UITree {
     // rebuild the retained Yoga hierarchy rather than reuse it.
     u64 structure_sig_{0};
 
+    bool builtFor(const Registry& registry) const { return entity_set_ == registry.entitySetId(); }
+
     void rebuild(Registry& reg) {
+        entity_set_ = reg.entitySetId();
         nodes_.clear();
         for (Entity entity : canvasRoots(reg, true)) {
             buildDFS(reg, entity, INVALID_ENTITY, 0);
@@ -56,6 +59,7 @@ struct UITree {
     }
 
 private:
+    u64 entity_set_{0};
     struct Frame {
         Entity entity;
         Entity layoutParent;

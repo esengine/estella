@@ -1836,6 +1836,37 @@ TEST_CASE("detached UI refreshes inherited state without relocating its geometry
     CHECK(registry.get<ecs::UINode>(leaf).alpha_in_tree_ == doctest::Approx(.4f));
 }
 
+TEST_CASE("a rebuilt canvas solves again and its reused ID has no screen membership before layout") {
+    ecs::Registry registry;
+    ecs::UISystem ui;
+    const ecs::PickRay outside{{400, 400, 100}, {0, 0, -1}};
+    const ecs::PickRay inside{{0, 0, 100}, {0, 0, -1}};
+    const auto addCanvas = [&] {
+        const auto root = registry.create();
+        registry.emplace<ecs::Transform>(root);
+        registry.emplace<ecs::UINode>(root).computed_size_ = {20, 20};
+        registry.emplace<ecs::Canvas>(root);
+        registry.emplace<ecs::Interactable>(root);
+        return root;
+    };
+    const auto root = addCanvas();
+    REQUIRE(ui.layoutUpdate(registry, -100, -100, 100, 100, true));
+    REQUIRE(ui.isScreenDomain(registry, root.raw));
+    ui.hitTestUpdate(registry, outside, inside, nullptr);
+    REQUIRE(ui.getHitEntity() == root.id());
+    registry.clear();
+    REQUIRE(addCanvas().raw == root.raw);
+    CHECK_FALSE(ui.isScreenDomain(registry, root.raw));
+    CHECK(ui.pickAll(registry, 0, 0) == 0);
+    ui.tree.rebuild(registry);
+    CHECK(ui.pick(registry, 0, 0) == root.id());
+    ui.hitTestUpdate(registry, outside, inside, nullptr);
+    CHECK(ui.getHitEntity() == INVALID_ENTITY.id());
+    CHECK(ui.getPrevHitEntity() == INVALID_ENTITY.id());
+    CHECK(ui.layoutUpdate(registry, -100, -100, 100, 100, false));
+    CHECK(ui.isScreenDomain(registry, root.raw));
+}
+
 TEST_CASE("pointer events: Receive takes the pointer back under a None ancestor, in and out of the layout tree") {
     for (bool inTree : {true, false}) {
         ecs::Registry registry;

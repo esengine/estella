@@ -735,7 +735,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     if (++cast_look_ == 0) cast_look_ = 1;
     u32 why = 0;
     bool heldMoved = false;
-    if (registry.identity() != cast_registry_) {
+    if (registry.entitySetId() != cast_registry_) {
         why |= 1u;
         clearMovers();
         cast_changed_at_.clear();
@@ -775,7 +775,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     ES_PROFILE_COUNTER("render.mesh.castChanged", why);
     ES_PROFILE_COUNTER("render.mesh.castMovers", static_cast<u32>(movers_.size()));
     if (why & 127u) ++cast_serial_;
-    cast_registry_ = registry.identity();
+    cast_registry_ = registry.entitySetId();
     cast_activity_ = registry.activityEpoch();
     cast_tick_ = now;
     cast_held_vouched_ = false;
@@ -783,7 +783,7 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
 
     u64 h = hash::kFnv64Offset;
     const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
-    mix(registry.identity());
+    mix(registry.entitySetId());
     mix(ctx.materials ? ctx.materials->revision() : 0);
     mix(ctx.materials ? ctx.materials->builtVariantCount() : 0);
     mix(ctx.resources.meshesRevision());
@@ -1352,15 +1352,15 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     u32 now = 0, rulesChangedAt = 0;
     proxies_kept_ = proxies_built_ = 0;
     if (keeping) {
-        if (renderOrigin() != proxy_origin_ || ctx.materials != proxy_materials_ || registry.identity() != proxy_registry_) {
-            if (registry.identity() != proxy_registry_) {
+        if (renderOrigin() != proxy_origin_ || ctx.materials != proxy_materials_ || registry.entitySetId() != proxy_registry_) {
+            if (registry.entitySetId() != proxy_registry_) {
                 proxies_.clear();
                 proxy_slot_.clear();
             }
             ++proxy_epoch_;
             proxy_origin_ = renderOrigin();
             proxy_materials_ = ctx.materials;
-            proxy_registry_ = registry.identity();
+            proxy_registry_ = registry.entitySetId();
         }
         now = registry.beginChangeRead();
         rulesChangedAt = ruledOutChangedAt(registry);

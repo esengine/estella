@@ -591,11 +591,11 @@ bool UISystem::layoutUpdate(
     // the new world the previous world's layout. This is only load-bearing now
     // that styles persist between frames: the old pass reset every node it
     // touched, which hid the aliasing by throwing the stale state away.
-    if (lastRegistryId_ != registry.instanceId()) {
+    if (layoutEntitySet_ != registry.entitySetId()) {
         layoutCache_.reset();
         inherited_cache_.clear();
     }
-    lastRegistryId_ = registry.instanceId();
+    layoutEntitySet_ = registry.entitySetId();
     if (!layoutCache_) {
         layoutCache_ = std::make_unique<LayoutCache>();
         layoutPrimed_ = false;  // a fresh cache has no hierarchy to reuse

@@ -128,6 +128,15 @@ private:
 template<class... Args>
 class Signal<void(Args...)> : public detail::SignalStorage<void(Args...)> {
 public:
+    /** Stop dispatch if a callback invalidates the event being delivered. */
+    template<class Predicate>
+    void publishWhile(Predicate stillCurrent, Args... args) {
+        this->visit([&](const auto& callback) {
+            callback(args...);
+            return stillCurrent();
+        });
+    }
+
     void publish(Args... args) {
         this->visit([&](const auto& callback) {
             callback(args...);

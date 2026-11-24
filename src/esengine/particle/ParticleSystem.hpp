@@ -89,6 +89,8 @@ static_assert(sizeof(CollisionEvent) == 56 && sizeof(CollisionStats) == 40);
 
 /// What one frame asks of a GPU-simulated emitter: how long to advance, how many to spawn and where in the ring they go.
 struct GpuStep {
+    u64 entitySet = 0;
+    Entity emitter = INVALID_ENTITY;
     f32 dt = 0.0f;
     f32 noiseTime = 0.0f;
     u32 capacity = 0;
@@ -300,6 +302,8 @@ private:
     struct GpuCollisions { Entity entity; u32 total; std::vector<CollisionEvent> events; };
     std::vector<GpuCollisions> gpu_collisions_;
     void onEntityDestroyed(Entity entity) override;
+    void onRegistryCleared() override;
+    void clearCollisionFrame();
 };
 
 }  // namespace esengine::particle

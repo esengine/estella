@@ -81,19 +81,14 @@ public:
     Registry(Registry&&) noexcept = default;
     Registry& operator=(Registry&&) noexcept = default;
 
-    /**
-     * @brief Which registry this is — unique for the process, never reused.
-     *
-     * @details Entity ids are only meaningful WITHIN a registry: a fresh one
-     *          hands out 1, 2, 3 again, so anything caching per entity across
-     *          registries (a scene reload, an editor play/stop) would silently
-     *          serve the previous world's data for the new world's entities.
-     *          Comparing addresses cannot answer this — a destroyed registry's
-     *          storage is routinely reused by the next one. Systems that keep
-     *          per-entity state hold this alongside it and drop the lot when it
-     *          changes; see UISystem's retained Yoga nodes.
-     */
+    /** Identity of this registry, preserved by a move and by clear(). Use it for
+     *  subscriptions and services that remain attached across scene reloads. */
     u64 instanceId() const { return instance_id_; }
+
+    /** Identity of the current entity population. A bulk clear assigns a new ID
+     *  before notifying observers. Compare this when retaining entity handles,
+     *  draw data or simulation work across frames. */
+    u64 entitySetId() const { return entity_set_id_; }
 
     // Local authoring state is distinct from effective activity. Disabling a
     // parent never overwrites a child's own switch. All engine consumers share
@@ -158,12 +153,8 @@ public:
     /** @brief The tick a write made now is stamped with. */
     u32 changeTick() const { return change_tick_; }
 
-    /**
-     * @brief Which registry this is, never shared with another made in this process (a registry assigned over this one brings
-     *        its own). Ticks and entities are each registry's own, so a reader that keeps what it derived from one asks this
-     *        before trusting a tick or an entity it kept.
-     */
-    u64 identity() const { return identity_; }
+    /** Compatibility spelling of instanceId(). */
+    u64 identity() const { return instanceId(); }
 
     /**
      * @brief For a reader about to look: the tick it is looking at, after which the clock moves on.
@@ -468,7 +459,9 @@ public:
         // Signal handles re-entrant connect/disconnect during publish; its RAII
         // Connection (via Sink::connect) keeps subscriber lifetimes safe in both
         // teardown orders — Registry-first or system-first (RC12, fixes A12).
-        on_destroy_signal_.publish(entity);
+        const u64 set = entitySetId();
+        on_destroy_signal_.publishWhile([&] { return entitySetId() == set; }, entity);
+        if (entitySetId() != set) return;
         // After the callbacks, which may still ask where the entity stood; before the slot can be handed to anyone else. Children
         // it leaves behind are roots now, composed under no parent: their world transforms are stale.
         if (child_of_.hasSources(entity)) invalidateTransformComposition();
@@ -791,6 +784,7 @@ public:
         entityValid_.clear();
         child_of_.clear();
         disabled_.clear();
+        destruction_pending_.clear();
         inactive_.clear();
         activity_state_.clear();
         disabled_count_ = 0;
@@ -801,6 +795,10 @@ public:
         next_index_ = 0;
         entity_count_ = 0;
         retired_slots_ = 0;
+        audit_copies_.clear();
+        entity_set_id_ = nextRevision();
+        if (observed_entity_set_) *observed_entity_set_ = entity_set_id_;
+        on_system_reset_.publish();
         on_clear_signal_.publish();
     }
 
@@ -942,10 +940,15 @@ public:
     }
 
 private:
-    // Handed out once per registry and never recycled, so it survives one being
-    // destroyed and the next taking its address. See instanceId().
-    static inline std::atomic<u64> next_instance_id_{0};
-    u64 instance_id_{++next_instance_id_};
+    // The initial population shares the registry's ID. Replacements use the same unique-ID source.
+    u64 instance_id_{nextRevision()};
+    u64 entity_set_id_{instance_id_};
+    // A system's weak reference follows a moved registry and expires on teardown.
+    Shared<u64> observed_entity_set_;
+    Weak<const u64> observeEntitySet() {
+        if (!observed_entity_set_) observed_entity_set_ = makeShared<u64>(entity_set_id_);
+        return observed_entity_set_;
+    }
 
     // =========================================================================
     // Private Helpers
@@ -1105,14 +1108,15 @@ private:
 
     /// The tick a write is stamped with (see beginChangeRead). Starts at 1: 0 is "never written".
     u32 change_tick_ = 1;
-    /// See identity(): drawn from the counter every revision comes from, so no two registries share one.
-    u64 identity_ = nextRevision();
     bool change_audit_ = false;
     std::vector<SparseSetBase::AuditCopy> audit_copies_;
     std::vector<u8> audit_reported_;
     u32 audit_unstamped_total_ = 0;
 
     Signal<void(Entity)> on_destroy_signal_;
+    // Built-in stores have released the old population when public onClear observers run.
+    friend class RegistrySystem;
+    Signal<void()> on_system_reset_;
     Signal<void()> on_clear_signal_;
     // Indexed by the canonical entity slot/generation. Grow during activation,
     // never allocate one hash node per teardown or a whole-world array on the

@@ -92,8 +92,8 @@ f32 uiNode_computedHeight(ecs::Registry& r, u32 e) {
 // What the Canvases hold with no uiOrder of its own; the frame borrows it. One table: the order pass and every collect it serves run in turn.
 static ecs::UITreeOrder g_uiTreeOrder;
 
-const std::unordered_map<u32, i32>* uiTreeLayers() {
-    return &g_uiTreeOrder.layers;
+const std::unordered_map<u32, i32>* uiTreeLayers(const ecs::Registry& registry) {
+    return g_uiTreeOrder.entitySet == registry.entitySetId() ? &g_uiTreeOrder.layers : nullptr;
 }
 
 void uiRenderOrder_update(ecs::Registry& registry) {

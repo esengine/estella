@@ -29,10 +29,31 @@ void ParticleSystem::onEntityDestroyed(Entity entity) {
     burstSchedules_.erase(entity);
 }
 
-void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
+void ParticleSystem::clearCollisionFrame() {
     collision_queries_.clear(); collision_pending_.clear(); collision_events_.clear();
     collision_stats_.clear(); collision_cameras_.clear();
     event_attempts_ = 0; collision_child_bursts_ = 0;
+}
+
+void ParticleSystem::onRegistryCleared() {
+    states_.clear();
+    pending_play_.clear();
+    colorLuts_.clear();
+    sizeLuts_.clear();
+    speedLuts_.clear();
+    burstSchedules_.clear();
+    clearCollisionFrame();
+    gpu_collisions_.clear();
+    collision_quotas_.clear();
+    collision_frame_ = 0;
+    scene_emitters_.clear();
+    subemit_requests_.clear();
+    force_fields_.clear();
+    sdf_colliders_.clear();
+}
+
+void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
+    clearCollisionFrame();
     if (!std::isfinite(frameDt) || frameDt < 0) return;
     auto cameras = registry.activeView<ecs::Camera, ecs::Transform>();
     for (auto entity : cameras) {
@@ -384,6 +405,8 @@ bool ParticleSystem::peekGpuStep(Entity entity, GpuStep& out) const {
     if (it == states_.end() || !it->second.gpu) return false;
     const EmitterState& state = it->second;
     out = {};
+    out.entitySet = entitySetId();
+    out.emitter = entity;
     out.capacity = state.gpuCapacity;
     // A frame that went long (a stall, a hidden tab) is not simulated as one huge step.
     out.dt = std::min(state.gpuDt, 0.1f);
@@ -399,6 +422,7 @@ bool ParticleSystem::peekGpuStep(Entity entity, GpuStep& out) const {
 }
 
 void ParticleSystem::commitGpuStep(Entity entity, const GpuStep& step) {
+    if (step.entitySet != entitySetId() || step.emitter != entity) return;
     auto it = states_.find(entity);
     if (it == states_.end() || !it->second.gpu) return;
     EmitterState& state = it->second;

@@ -938,12 +938,12 @@ void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr,
     ecs::applySceneEntityOrder(registry, order.data(), order.size());
 }
 
-/** The screen's entities, as a membership set the renderer can partition by.
- *  Empty when there is no UI system — then every collect is a world one, which
- *  is what a project with no Canvas has always had. */
-static const std::unordered_set<u32>* screenDomain() {
+static void bindUILayout(const ecs::Registry& registry) {
     auto* ui = ctx().tryGet<ecs::UISystem>();
-    return ui ? &ui->screenDomain() : nullptr;
+    const bool current = ui && ui->hasLayoutFor(registry);
+    g_renderFrame->setScreenDomain(current ? &ui->screenDomain() : nullptr);
+    g_renderFrame->setScreenRoots(current ? &ui->screenRoots() : nullptr, current ? &ui->screenRootByIndex() : nullptr);
+    g_renderFrame->setUITreeLayers(uiTreeLayers(registry));
 }
 
 void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH) {
@@ -956,8 +956,7 @@ void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 
 void renderer_submitScreenOverlay(ecs::Registry& registry) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
-    g_renderFrame->setScreenDomain(screenDomain());
-    g_renderFrame->setUITreeLayers(uiTreeLayers());
+    bindUILayout(registry);
     g_renderFrame->submitScreenOverlay(registry);
 }
 
@@ -965,10 +964,7 @@ bool renderer_keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
     if (!g_renderFrame) return false;
     // Composed first, as a collect would: a composition that moves a world matrix stamps it, and that is a change to see.
     ensureTransformsUpdated(registry);
-    g_renderFrame->setScreenDomain(screenDomain());
-    g_renderFrame->setUITreeLayers(uiTreeLayers());
-    if (auto* ui = ctx().tryGet<ecs::UISystem>()) g_renderFrame->setScreenRoots(&ui->screenRoots(), &ui->screenRootByIndex());
-    else g_renderFrame->setScreenRoots(nullptr, nullptr);
+    bindUILayout(registry);
     return g_renderFrame->keepScreenOverlay(registry, hostStill);
 }
 
@@ -995,8 +991,7 @@ void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 
     // What this camera must NOT draw. Set on every collect rather than once a
     // frame: the set is rebuilt by each layout pass, and a camera holding the
     // previous one would draw a just-reparented element in the wrong domain.
-    g_renderFrame->setScreenDomain(screenDomain());
-    g_renderFrame->setUITreeLayers(uiTreeLayers());
+    bindUILayout(registry);
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
 
     g_renderFrame->collectAll(registry);

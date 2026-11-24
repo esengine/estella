@@ -62,7 +62,7 @@ f32 uiNode_computedHeight(ecs::Registry& registry, u32 entity);
 
 void uiRenderOrder_update(ecs::Registry& registry);
 /** The layers of what the Canvases hold with no uiOrder of its own, by entity id. */
-const std::unordered_map<u32, i32>* uiTreeLayers();
+const std::unordered_map<u32, i32>* uiTreeLayers(const ecs::Registry& registry);
 
 /** An entity's UI draw order, so the SDF text path can interleave glyph quads
  *  with UI quads. -1 = not a UI node. */

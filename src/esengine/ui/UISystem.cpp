@@ -36,8 +36,13 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& ray,
 
 void UISystem::hitTestUpdate(Registry& registry, const PickRay& worldRay, const PickRay& screenRay,
                              const resource::ResourceManager* resources) {
-    hitResult.prev_hit_entity = hitResult.hit_entity;
+    hitResult.prev_hit_entity = hit_result_entity_set_ == registry.entitySetId() ? hitResult.hit_entity : INVALID_ENTITY;
+    hit_result_entity_set_ = registry.entitySetId();
     hitResult.hit_entity = INVALID_ENTITY;
+    if (!tree.builtFor(registry)) {
+        hitWorldContent(registry, worldRay, resources);
+        return;
+    }
 
     const auto& nodes = tree.nodes_;
 
@@ -52,7 +57,7 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& worldRay, const 
         // Which projection this node was drawn through decides which ray reaches
         // it. Resolved from the same set the renderer partitions by, so what is
         // clickable and what is visible cannot come apart.
-        const PickRay& ray = screen_domain_.count(entity.id()) != 0 ? screenRay : worldRay;
+        const PickRay& ray = isScreenDomain(registry, entity.id()) ? screenRay : worldRay;
 
         auto& t = registry.get<Transform>(entity);
         t.ensureDecomposed();
@@ -92,7 +97,7 @@ bool UISystem::hitInputsChanged(Registry& registry, const resource::ResourceMana
     const u32 now = registry.beginChangeRead();
     const u64 meshes = resources ? resources->meshesRevision() : 0;
     const u32 since = hit_tick_;
-    bool changed = registry.identity() != hit_registry_ || registry.activityEpoch() != hit_activity_
+    bool changed = registry.entitySetId() != hit_entity_set_ || registry.activityEpoch() != hit_activity_
         || meshes != hit_meshes_
         || registry.anyChangedSince<Interactable>(since) || registry.anyChangedSince<UIMask>(since)
         || registry.anyChangedSince<Canvas>(since) || registry.anyChangedSince<Parent>(since);
@@ -110,7 +115,7 @@ bool UISystem::hitInputsChanged(Registry& registry, const resource::ResourceMana
             });
         }
     }
-    hit_registry_ = registry.identity();
+    hit_entity_set_ = registry.entitySetId();
     hit_activity_ = registry.activityEpoch();
     hit_meshes_ = meshes;
     hit_tick_ = now;
@@ -304,6 +309,7 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
 
 u32 UISystem::pickAll(Registry& registry, f32 worldX, f32 worldY) {
     pickResults_.clear();
+    if (!tree.builtFor(registry)) return 0;
     const auto& nodes = tree.nodes_;
 
     // Depth-first ranking (a label beats its panel), draw order breaking ties.

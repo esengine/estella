@@ -33,6 +33,7 @@ public:
 private:
     struct Store : TilemapSystem, ecs::RegistrySystem {
         void onEntityDestroyed(Entity entity) override { destroyLayer(entity); }
+        void onRegistryCleared() override { clearLayers(); }
     };
 
     ecs::RegistrySystems<Store> worlds_;

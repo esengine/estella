@@ -3435,7 +3435,7 @@ void RenderFrame::declareSkinCache(ecs::Registry& registry) {
 void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     ES_PROFILE_SCOPE("render.collect");
 #ifdef ES_ENABLE_GPU_PARTICLES
-    if (gpu_particles_) gpu_particles_->collect(registry.instanceId());
+    if (gpu_particles_) gpu_particles_->collect(registry.entitySetId());
 #endif
     // Split because "collect is expensive" names no mechanism: planning shadows,
     // gathering lights and walking one render type's population are different

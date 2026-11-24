@@ -47,15 +47,14 @@ public:
 
 private:
     struct Store : LodViewState, ecs::RegistrySystem {
-        explicit Store(ecs::Registry& registry, f64 seconds)
-            : reset(registry.onClear([this] { clear(); })) { beginFrame(seconds); }
+        explicit Store(f64 seconds) { beginFrame(seconds); }
         void onEntityDestroyed(Entity entity) override { forget(entity); }
-        Connection reset;
+        void onRegistryCleared() override { clear(); }
     };
     struct Hold { u32 view; Entity entity; u8 level; };
 
     Shared<Store> forRegistry(ecs::Registry& registry) {
-        auto store = worlds_.forRegistry(registry, [&] { return makeShared<Store>(registry, seconds_); });
+        auto store = worlds_.forRegistry(registry, [this] { return makeShared<Store>(seconds_); });
         if (last_.expired()) {
             for (const auto& h : pending_) {
                 if (registry.valid(h.entity)) store->preview(h.view, h.entity, h.level);

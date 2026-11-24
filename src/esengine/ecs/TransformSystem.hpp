@@ -46,7 +46,7 @@ public:
      *       holding the same epoch number has not been composed.
      */
     void ensureComposed(Registry& registry) {
-        if (registry.instanceId() == composedRegistry_
+        if (registry.entitySetId() == composedSet_
             && transformMutationEpoch() == composedEpoch_) return;
         compose(registry);
     }
@@ -98,11 +98,11 @@ private:
     // Zero, while the epoch starts at one: nothing has been composed yet, so the
     // first ensure runs rather than believing a world it has never looked at.
     u32 composedEpoch_ = 0;
-    u64 composedRegistry_ = 0;
+    u64 composedSet_ = 0;
 
     void markComposed(Registry& registry) {
         composedEpoch_ = transformMutationEpoch();
-        composedRegistry_ = registry.instanceId();
+        composedSet_ = registry.entitySetId();
     }
 
     std::vector<Entity> dirty_to_clear_;
@@ -147,6 +147,10 @@ private:
      */
     void compose(Registry& registry) {
         visited_ = 0;
+        if (tracking_ && composedSet_ && composedSet_ != registry.entitySetId()) {
+            changed_.clear();
+            overflowed_ = true;
+        }
         if (tracking_ && !overflowed_) changedOut_ = &changed_;
         updateDirtyTransforms(registry);
         changedOut_ = nullptr;
@@ -161,7 +165,6 @@ private:
 
     // What the last composition saw, to tell what has changed since: the registry, the tick it read up to (its own world-matrix
     // stamps included), the Transform pool's version (a removal moves it) and whether it composed in full at all.
-    u64 seenRegistry_ = 0;
     u32 seenTick_ = 0;
     u32 seenTransformVersion_ = 0;
     u32 seenUnstampedEpoch_ = 0;
@@ -184,7 +187,7 @@ private:
 
         // A reparent is not a reason to compose everything: the entities that moved are listed, and their subtrees recompose.
         const bool retargetsListed = rel.takeRetargeted(retargeted_);
-        const bool full = seenRegistry_ != registry.identity() || seenTick_ == 0 || !retargetsListed
+        const bool full = composedSet_ != registry.entitySetId() || seenTick_ == 0 || !retargetsListed
             || seenTransformVersion_ != registry.poolVersion<Transform>()
             || seenUnstampedEpoch_ != transformUnstampedEpoch() || registry.changeAuditEnabled();
         if (full) composeAll(registry);
@@ -196,7 +199,6 @@ private:
             }
         }
         // After its own stamps: what this composition wrote is not a change the next one has to recompose.
-        seenRegistry_ = registry.identity();
         seenTick_ = registry.beginChangeRead();
         if (seenTick_ == 0) seenTick_ = registry.beginChangeRead();
         seenTransformVersion_ = registry.poolVersion<Transform>();
@@ -528,8 +530,13 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
     struct Reservations {
         Registry& registry;
         std::vector<Entity>& owned;
-        ~Reservations() { for (Entity e : owned) registry.releaseDestruction(e); }
-    } reservations{registry, owned};
+        u64 entitySet;
+        ~Reservations() {
+            if (registry.entitySetId() == entitySet) {
+                for (Entity e : owned) registry.releaseDestruction(e);
+            }
+        }
+    } reservations{registry, owned, registry.entitySetId()};
     // Reserve the whole subtree before destroying any of it, in postorder (children before their parent, in child order):
     // an onDestroy callback that destroys part of it again joins the reservation rather than recursing.
     struct Frame { Entity entity; Entity next; };
@@ -556,6 +563,7 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
         if (!registry.valid(e)) continue;
         const Entity parent = rel.target(e);
         registry.destroy(e);
+        if (registry.entitySetId() != reservations.entitySet) return;
         if (parent.isValid() && registry.valid(parent) && registry.has<Children>(parent)) {
             auto& children = registry.get<Children>(parent).entities;
             const auto it = std::find(children.begin(), children.end(), e);

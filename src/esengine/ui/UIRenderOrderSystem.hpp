@@ -25,6 +25,7 @@ namespace esengine::ecs {
 struct UITreeOrder {
     std::unordered_map<u32, i32> layers;
     i32 base = 0;
+    u64 entitySet = 0;
 };
 
 inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32 cullBit, UITreeOrder* tree = nullptr) {
@@ -73,7 +74,10 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32
 }
 
 inline void uiRenderOrderUpdate(Registry& registry, UITreeOrder* tree = nullptr) {
-    if (tree) tree->layers.clear();
+    if (tree) {
+        tree->layers.clear();
+        tree->entitySet = registry.entitySetId();
+    }
     i32 counter = 0;
     for (Entity entity : canvasRoots(registry, false)) {
         const auto& canvas = registry.get<Canvas>(entity);

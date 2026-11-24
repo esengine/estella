@@ -62,3 +62,32 @@ TEST_CASE("the first registry adopts a headless layer and despawning its twin le
     CHECK(retiring.expired());
     CHECK(worlds.select(a)->getTile(e, 0, 0) == 7);
 }
+
+TEST_CASE("clearing one world drops its authored layers before observers can repaint reused IDs") {
+    TilemapWorlds worlds;
+    ecs::Registry edit, play;
+    const auto e = edit.create();
+    REQUIRE(play.create().raw == e.raw);
+    auto painted = worlds.legacy();
+    painted->initInfiniteLayer(e, 16, 16);
+    painted->setTile(e, 0, 0, 7);
+    const auto generation = painted->getLayerData(e)->generation;
+    REQUIRE(worlds.select(edit) == painted);
+    auto peer = worlds.select(play);
+    peer->initInfiniteLayer(e, 16, 16);
+    peer->setTile(e, 0, 0, 9);
+
+    auto repaint = edit.onClear([&] {
+        CHECK_FALSE(painted->hasLayer(e));
+        REQUIRE(edit.create().raw == e.raw);
+        painted->initInfiniteLayer(e, 16, 16);
+        painted->setTile(e, 0, 0, 3);
+    });
+    edit.clear();
+    CHECK(worlds.forRender(edit)->getTile(e, 0, 0) == 3);
+    CHECK(painted->getLayerData(e)->generation > generation);
+    CHECK(peer->getTile(e, 0, 0) == 9);
+    repaint.disconnect();
+    edit.clear();
+    CHECK_FALSE(painted->hasLayer(e));
+}

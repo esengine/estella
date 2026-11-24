@@ -54,6 +54,7 @@ private:
     f32 time_ = 0.0f;  ///< Accumulated dt; the single time reference for point ages.
     std::unordered_map<Entity, TrailState> states_;
     void onEntityDestroyed(Entity entity) override { clear(entity); }
+    void onRegistryCleared() override { states_.clear(); }
 };
 
 }  // namespace esengine::trail

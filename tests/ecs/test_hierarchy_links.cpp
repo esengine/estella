@@ -163,6 +163,36 @@ TEST_CASE("an old teardown owner cannot release a new generation's reservation")
     CHECK_FALSE(r.reserveDestruction(INVALID_ENTITY));
 }
 
+TEST_CASE("clearing inside subtree destruction leaves the replacement hierarchy and its reservations intact") {
+    Registry registry;
+    const Entity root = registry.create(), child = registry.create();
+    REQUIRE(setParent(registry, child, root));
+    const auto originalSet = registry.entitySetId();
+    const auto originalRegistry = registry.instanceId();
+    int calls = 0;
+    auto replace = registry.onDestroy([&](Entity entity) {
+        REQUIRE(entity.raw == child.raw);
+        ++calls;
+        registry.clear();
+        CHECK_FALSE(registry.destructionPending(root));
+        registry.releaseDestruction(child);
+        REQUIRE(registry.create().raw == root.raw);
+        REQUIRE(registry.create().raw == child.raw);
+        REQUIRE(setParent(registry, child, root));
+        REQUIRE(registry.reserveDestruction(root));
+    });
+    destroyWithChildren(registry, root);
+    CHECK(calls == 1);
+    CHECK(registry.entitySetId() != originalSet);
+    CHECK(registry.instanceId() == originalRegistry);
+    CHECK(registry.identity() == originalRegistry);
+    CHECK(registry.entityCount() == 2);
+    CHECK(registry.destructionPending(root));
+    CHECK(registry.childOf().target(child).raw == root.raw);
+    CHECK(registry.get<Children>(root).entities.size() == 1);
+    registry.releaseDestruction(root);
+}
+
 TEST_CASE("subtree finalization preserves a nested reservation in a reused child slot") {
     Registry r;
     const auto root = r.create(), child = r.create();

@@ -338,6 +338,17 @@ TEST_CASE("destroying the root drops its chain") {
     CHECK(rig.system.chain(rig.root) == nullptr);
 }
 
+TEST_CASE("clearing a posed rig releases its chain and the editor's captured points") {
+    Rig rig;
+    rig.frame();
+    REQUIRE(rig.system.captureSnapshot(rig.root) > 0);
+    rig.registry.clear();
+    REQUIRE(rig.registry.create().raw == rig.root.raw);
+    CHECK_FALSE(rig.system.chain(rig.root));
+    CHECK(rig.system.snapshotData().empty());
+    CHECK(rig.system.simulated() == 0);
+}
+
 TEST_CASE("a collider entity keeps the simulated bones out") {
     Rig rig;
     auto& sb = rig.registry.get<ecs::SpringBone>(rig.root);

@@ -714,7 +714,12 @@ struct GpuParticles::Job {
 };
 
 GpuParticles::GpuParticles(GfxDevice& device, const Shared<particle::ParticleSystem>& owner)
-    : device_(device), owner_(owner) {}
+    : device_(device), owner_(owner), entity_set_id_(owner->entitySetId()) {}
+
+Shared<particle::ParticleSystem> GpuParticles::owner() const {
+    auto system = owner_.lock();
+    return system && system->entitySetId() == entity_set_id_ ? system : nullptr;
+}
 
 GpuParticles::~GpuParticles() {
     release();
@@ -815,7 +820,7 @@ void GpuParticles::ensureEmpties() {
 }
 
 void GpuParticles::pollReadbacks() {
-    const auto system = owner_.lock();
+    const auto system = owner();
     if (!system) return;
     for (auto& [id, slot] : slots_) {
         if (slot.readback == ReadbackHandle::Invalid) continue;
@@ -867,8 +872,8 @@ GpuParticles::Slot* GpuParticles::ensureSlot(Entity entity, u32 capacity) {
 bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, const ecs::Transform& transform,
                           const particle::GpuStep& step, const glm::vec4& eye,
                           BufferHandle& instances, BufferHandle& segments, u32& segmentCount) {
-    const auto system = owner_.lock();
-    if (!system) return false;
+    const auto system = owner();
+    if (!system || step.entitySet != entity_set_id_ || step.emitter != entity) return false;
     if (!ensureKernel() || step.capacity == 0) return false;
     Slot* slot = ensureSlot(entity, step.capacity);
     if (!slot) return false;
@@ -1040,6 +1045,7 @@ void GpuParticles::declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene
     pass.write = graph.createTarget(token);
     const glm::dvec3 origin = renderOrigin();
     pass.execute = [this, &graph, scene, sceneW, sceneH, clip, origin](const rg::PassContext&) {
+        if (retired()) return;
         const TextureHandle depth = graph.depthTextureOf(scene);
         if (depth == TextureHandle::Invalid) { depthValid_ = false; return; }
         if (depthCopy_ == ComputeHandle::Invalid) {
@@ -1105,7 +1111,7 @@ rg::ResourceId GpuParticles::declare(rg::RenderGraph& graph) {
 
 void GpuParticles::run() {
     // A registry can close after collection, before its graph pass executes.
-    const auto system = owner_.lock();
+    const auto system = owner();
     if (!system) {
         jobs_.clear();
         return;
@@ -1254,22 +1260,22 @@ void GpuParticleWorlds::beginFrame() {
     }
 }
 
-void GpuParticleWorlds::collect(u64 registryId) {
-    auto it = worlds_.find(registryId);
+void GpuParticleWorlds::collect(u64 entitySetId) {
+    auto it = worlds_.find(entitySetId);
     if (it == worlds_.end()) return;
     auto* gpu = it->second.get();
     if (std::find(pass_.begin(), pass_.end(), gpu) == pass_.end()) pass_.push_back(gpu);
 }
 
-GpuParticles& GpuParticleWorlds::forWorld(u64 registryId, const Shared<particle::ParticleSystem>& system) {
-    auto [it, created] = worlds_.try_emplace(registryId);
+GpuParticles& GpuParticleWorlds::forWorld(const Shared<particle::ParticleSystem>& system) {
+    auto [it, created] = worlds_.try_emplace(system->entitySetId());
     auto& gpu = it->second;
     if (created) {
         gpu = makeUnique<GpuParticles>(device_, system);
         gpu->setDepthGridMax(depthGridMax_);
         gpu->beginFrame();
     }
-    collect(registryId);
+    collect(system->entitySetId());
     return *gpu;
 }
 

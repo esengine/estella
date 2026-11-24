@@ -42,7 +42,7 @@ namespace particle { class ParticleSystem; struct GpuStep; }
 class GpuParticles {
 public:
     GpuParticles(GfxDevice& device, const Shared<particle::ParticleSystem>& owner);
-    bool retired() const { return owner_.expired(); }
+    bool retired() const { return !owner(); }
     ~GpuParticles();
 
     GpuParticles(const GpuParticles&) = delete;
@@ -111,9 +111,11 @@ private:
     Slot* ensureSlot(Entity entity, u32 capacity);
     void freeSlot(Slot& slot);
     void run();
+    Shared<particle::ParticleSystem> owner() const;
 
     GfxDevice& device_;
     Weak<particle::ParticleSystem> owner_;
+    u64 entity_set_id_;
     ComputeHandle kernel_ = ComputeHandle::Invalid;
     ComputeHandle beginEvents_ = ComputeHandle::Invalid;
     ComputeHandle finishEvents_ = ComputeHandle::Invalid;
@@ -159,8 +161,8 @@ public:
     bool available() const;
     void beginFrame();
     void beginPass() { pass_.clear(); }
-    void collect(u64 registryId);
-    GpuParticles& forWorld(u64 registryId, const Shared<particle::ParticleSystem>& system);
+    void collect(u64 entitySetId);
+    GpuParticles& forWorld(const Shared<particle::ParticleSystem>& system);
 
     void declare(rg::RenderGraph& graph, std::vector<rg::ResourceId>& dependencies);
     void declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene, u32 width, u32 height, const glm::mat4& clip);

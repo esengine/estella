@@ -13,6 +13,10 @@
 #include "esengine/ecs/components/LODMember.hpp"
 #include "esengine/ecs/components/MeshRenderer.hpp"
 #include "esengine/renderer/plugins/MeshPlugin.hpp"
+#ifdef ES_ENABLE_GPU_PARTICLES
+#include "esengine/particle/ParticleWorlds.hpp"
+#include "esengine/renderer/frame/GpuParticles.hpp"
+#endif
 
 #include <cstdio>
 
@@ -121,9 +125,73 @@ void testWorldLod(RenderFrame& frame) {
     frame.endFrame();
 }
 
+#ifdef ES_ENABLE_GPU_PARTICLES
+void testGpuParticleReset() {
+    MockGfxDevice device;
+    device.computeSupported = true;
+    ecs::Registry registry;
+    particle::ParticleWorlds worlds{RandomSource(123u)};
+    worlds.setGpuAvailable(true);
+    auto system = worlds.select(registry);
+    GpuParticleWorlds buffers(device);
+    buffers.beginFrame();
+    const auto spawn = [&](int burst) {
+        const Entity e = registry.create();
+        registry.emplace<ecs::Transform>(e);
+        auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+        emitter.gpuSimulation = true;
+        emitter.rate = 0;
+        emitter.burstCount = burst;
+        system->update(registry, 0.01f);
+        return e;
+    };
+    const auto submit = [&](Entity e) {
+        particle::GpuStep step;
+        CHECK(system->peekGpuStep(e, step), "the emitter has a pending GPU step");
+        BufferHandle instances = BufferHandle::Invalid, segments = BufferHandle::Invalid;
+        u32 count = 0;
+        CHECK(buffers.forWorld(system).submit(e, registry.get<ecs::ParticleEmitter>(e),
+              registry.get<ecs::Transform>(e), step, glm::vec4(0), instances, segments, count),
+              "the GPU emitter queues its instances");
+        return instances;
+    };
+    const auto declare = [&](rg::RenderGraph& graph) {
+        graph.begin(kW, kH);
+        rg::PassDesc consumer;
+        consumer.name = "draw_particles";
+        consumer.write = graph.importTarget(FramebufferHandle::Default, kW, kH);
+        buffers.declare(graph, consumer.dependencies);
+        graph.addPass(std::move(consumer));
+    };
+
+    const auto original = spawn(3);
+    const auto oldBuffer = submit(original);
+    rg::RenderGraph beforeClear(device);
+    declare(beforeClear);
+    registry.clear();
+    const auto replacement = spawn(7);
+    CHECK(replacement == original, "the replacement GPU emitter gets the same packed ID");
+    buffers.beginPass();
+    const auto newBuffer = submit(replacement);
+    CHECK(newBuffer != oldBuffer, "replacing an emitter in the same frame allocates its own particle ring");
+    beforeClear.execute();
+    particle::GpuStep step;
+    CHECK(device.dispatchComputeCalls == 0 && system->peekGpuStep(replacement, step) && step.spawnCount == 7,
+          "the retired graph leaves the new emitter's seven births queued");
+    rg::RenderGraph afterClear(device);
+    declare(afterClear);
+    afterClear.execute();
+    CHECK(device.dispatchComputeCalls == 1 && system->peekGpuStep(replacement, step) && step.firstIndex == 7,
+          "the new graph commits exactly the replacement emitter's step");
+}
+#endif
+
 }  // namespace
 
 int main() {
+#ifdef ES_ENABLE_GPU_PARTICLES
+    testGpuParticleReset();
+#endif
     MockGfxDevice device;
     RenderContext context(device);
     resource::ResourceManager resources;

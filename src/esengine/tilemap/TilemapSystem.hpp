@@ -83,6 +83,7 @@ public:
     /// in as it is walked needs this, or every chunk it has ever held stays.
     void removeChunk(Entity entity, i32 chunkX, i32 chunkY);
     void destroyLayer(Entity entity);
+    void clearLayers() { layers_.clear(); }
     bool hasLayer(Entity entity) const;
 
     void setTile(Entity entity, i32 x, i32 y, u16 tileId);

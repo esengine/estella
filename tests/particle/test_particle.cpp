@@ -147,6 +147,38 @@ TEST_CASE("legacy particle authoring before the first registry binds to that wor
     CHECK(worlds.legacy() == authored);
 }
 
+TEST_CASE("bulk clear discards emitters, authored curves and queued play only in the cleared world") {
+    ParticleWorlds worlds{RandomSource(123u)};
+    ecs::Registry first, second;
+    auto a = worlds.select(first), b = worlds.select(second);
+    const auto e = first.create(), pending = first.create();
+    REQUIRE(second.create().raw == e.raw);
+    SizeLut curve{};
+    for (auto* registry : {&first, &second}) {
+        registry->emplace<ecs::Transform>(e);
+        registry->emplace<ecs::ParticleEmitter>(e).burstCount = 3;
+        auto system = worlds.forRegistry(*registry);
+        system->setSizeLut(e, curve.data(), kColorLutSize);
+        system->update(*registry, 0.01f);
+        REQUIRE(system->aliveCount(e) > 0);
+        REQUIRE(system->sizeLut(e));
+    }
+    a->play(pending);
+    first.clear();
+    CHECK_FALSE(a->sizeLut(e));
+    CHECK(a->aliveCount(e) == 0);
+    CHECK(b->sizeLut(e));
+    CHECK(b->aliveCount(e) > 0);
+    REQUIRE(first.create().raw == e.raw);
+    REQUIRE(first.create().raw == pending.raw);
+    first.emplace<ecs::Transform>(pending);
+    auto& replacement = first.emplace<ecs::ParticleEmitter>(pending);
+    replacement.playOnStart = false;
+    replacement.burstCount = 5;
+    a->update(first, 0.1f);
+    CHECK(a->aliveCount(pending) == 0);
+}
+
 TEST_CASE("system_no_emitters_no_crash") {
     ecs::Registry registry;
     ParticleSystem system;
@@ -991,6 +1023,33 @@ TEST_CASE("GPU steps and same-frame restarts belong to their registry") {
     REQUIRE(b->peekGpuStep(y, step));
     CHECK_FALSE(step.reset);
     CHECK_EQ(step.spawnCount, 7u);
+}
+
+TEST_CASE("a GPU completion and buffered collision from the old population cannot enter its replacement") {
+    ecs::Registry registry;
+    ParticleWorlds worlds{RandomSource(7u)};
+    worlds.setGpuAvailable(true);
+    auto system = worlds.select(registry);
+    const auto spawn = [&](int count) {
+        const auto e = makeGpuEmitter(registry, [count](auto& emitter) {
+            emitter.burstCount = count;
+            emitter.collisionEnabled = true;
+        });
+        system->update(registry, 0.01f);
+        return e;
+    };
+    const auto old = spawn(3);
+    GpuStep stale, fresh;
+    REQUIRE(system->peekGpuStep(old, stale));
+    CollisionEvent hit{};
+    system->addGpuCollisions(old, 1, &hit, 1);
+    registry.clear();
+    REQUIRE(spawn(7).raw == old.raw);
+    system->commitGpuStep(old, stale);
+    CHECK(system->collisionEvents().empty());
+    REQUIRE(system->peekGpuStep(old, fresh));
+    CHECK(fresh.spawnCount == 7);
+    CHECK(fresh.firstIndex == 0);
 }
 
 TEST_CASE("gpu_emitter_without_a_compute_device_runs_on_the_cpu_capped") {

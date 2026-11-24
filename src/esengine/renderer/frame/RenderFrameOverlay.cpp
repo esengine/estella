@@ -95,7 +95,7 @@ u64 RenderFrame::overlayInputs(ecs::Registry& registry, bool whole) const {
     mix(draw_list_.depthMask());
     mix(overlay_effect_);
     mix(linear_color_ ? 1 : 0);
-    mix(registry.identity());
+    mix(registry.entitySetId());
     mix(device_.deviceGeneration());
     mix(device_.textureShapes());
     mix(resource_manager_.textureMetadataRevision());
@@ -133,8 +133,8 @@ bool RenderFrame::overlayRegistryMoved(ecs::Registry& registry) {
 
 bool RenderFrame::keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
     if (!overlay_active_ || !overlay_reset_pending_) return false;
-    if (overlay_watched_ != registry.identity()) {
-        overlay_watched_ = registry.identity();
+    if (overlay_watched_ != registry.instanceId()) {
+        overlay_watched_ = registry.instanceId();
         overlay_reader_ = registry.watchEntityChanges();
         overlay_valid_ = false;
     }

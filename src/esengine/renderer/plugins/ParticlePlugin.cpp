@@ -105,7 +105,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 #ifdef ES_ENABLE_GPU_PARTICLES
             // The screen's overlay is not drawn through the graph the kernel runs in.
             if (!ctx.frame || !ctx.frame->gpuParticleWorlds() || collect_ctx.isOverlay()) continue;
-            auto& gpu = ctx.frame->gpuParticleWorlds()->forWorld(registry.instanceId(), system);
+            auto& gpu = ctx.frame->gpuParticleWorlds()->forWorld(system);
             buffers.reserveStream(LayoutId::ParticleInstance);
             particle::GpuStep step;
             if (!system->peekGpuStep(entity, step)) continue;

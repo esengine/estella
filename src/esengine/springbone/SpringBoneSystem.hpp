@@ -105,6 +105,11 @@ private:
     u32 simulated_ = 0;
     std::vector<f32> snapshot_;
     void onEntityDestroyed(Entity entity) override { states_.erase(entity); }
+    void onRegistryCleared() override {
+        states_.clear();
+        snapshot_.clear();
+        simulated_ = 0;
+    }
 
     void restoreBones(ecs::Registry& registry, State& state);
     void collectBones(ecs::Registry& registry, Entity root, std::vector<Entity>& out);
