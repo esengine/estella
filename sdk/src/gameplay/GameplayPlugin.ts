@@ -129,7 +129,20 @@ export function requestMotion(
             wishes.delete(entity);
         }
         let next: { x: number; z: number };
-        if (driven) {
+        if (driven && byAnimation && character.isOnFloor) {
+            // The gait says how fast; the stick says which way. Travelling along the facing alone, a character turned
+            // round at a run carries on the way it was going while it comes round and ends up a stride or two off to
+            // the side. Its velocity is brought round to the stick at the controller's rates instead: it slows along
+            // the line it was on, turns, and goes off the other way from where it stood.
+            const pace = rootMotionVelocity(driven.deltaPosition, driven.deltaTime);
+            const rate = Math.hypot(pace.x, pace.z);
+            const wish = wishes.get(entity)!;
+            const way = wish.amount > 0 ? { x: wish.x, z: wish.z } : rate > 1e-6 ? { x: pace.x / rate, z: pace.z / rate } : { x: 0, z: 0 };
+            next = approachVelocity(
+                { x: character.velocity.x, z: character.velocity.z }, { x: way.x * rate, z: way.z * rate },
+                data.acceleration, data.deceleration, dt,
+            );
+        } else if (driven) {
             next = rootMotionVelocity(driven.deltaPosition, driven.deltaTime);
         } else if (byAnimation && character.isOnFloor) {
             // Standing, or between two gaits: no state is asking to move, and the
