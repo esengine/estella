@@ -8,6 +8,7 @@
  * same thing, so the writing is here and each caller says only where the source is, where the products go and what to do just before
  * a file is written (the editor journals it for undo).
  */
+import { rebindStrayVertices } from './strayJoints';
 import { extractRootMotion } from './rootMotionExtract';
 import { maxBonesFor, type SkinningConfig } from '../project/skinning';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
@@ -202,6 +203,8 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         }
     }
 
+    // Before any product is made from the skin: a vertex left on a joint nothing moves would be a sliver in every one.
+    warnings.push(...rebindStrayVertices(meshes, nodes, animations.map((a) => a.document)));
     // First of all: the unwrap, the levels and every product below are made from what the budget leaves.
     warnings.push(...await capTriangles(meshes, maxTriangles));
     // Before anything is written, because it splits vertices: every product below is built from the mesh data this leaves behind.
