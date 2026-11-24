@@ -9,6 +9,7 @@ import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { AssetFieldType, SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
+import { recordSceneDependencies } from '../asset/entityAssetScopes';
 import type { SystemDef } from '../ecs/system';
 import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
@@ -263,8 +264,7 @@ class SceneContextImpl implements SceneContext {
         this.instance_.assetScope.absorb(scope);
         if (auxiliary) {
             for (const [entity, leases] of auxiliary) {
-                const previous = this.instance_.auxiliaryAssets.get(entity);
-                this.instance_.auxiliaryAssets.set(entity, previous ? [...previous, ...leases] : leases);
+                recordSceneDependencies(this.instance_.auxiliaryAssets, entity, leases, this.instance_.assetScope);
             }
         }
     }

@@ -167,6 +167,11 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 
 当场景通过 `@uuid` 引用远端分组的资产时，`applyUpdate` 下载新字节、切换清单，内置的重新绑定器会在所有声明了纹理的运行中字段里替换旧纹理：内置字段（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）以及在 `assetFields` 中声明的项目组件字段。
 
+如果组件也在 `discoverAssets` 返回的列表中声明了同一张纹理，`Sprite.texture` 或
+`MeshRenderer.texture` 等运行中字段会切换到更新后的图像，列表则继续持有加载时的版本。
+预制体实例和离开原场景的实体会在最后一个相应字段清空时释放字段持有的引用。
+持有列表的场景或实体会将旧版本保留到自身生命周期结束。
+
 材质文件改名后，`Sprite.material` 和 `MeshRenderer.material` 也会跟随清单中的同一条记录。
 更新移除纹理或材质时，已有字段继续使用当前句柄。后续更新恢复同一个 UUID 后，运行中的字段会切换到恢复的资产。
 

@@ -1773,7 +1773,8 @@ export class Assets {
         recorder?: DependencyRecorder,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
-        const owners = options?.entityOwnership ? new SceneAssetOwners(false, options.entityOwnership === 'auxiliary') : undefined;
+        const entityOwnership = options?.entityOwnership ?? false;
+        const owners = new SceneAssetOwners({ entityOwnership });
         const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
         const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover, (type, raw, path) =>
             !isSceneHandleType(type) && this.loaders_.get(type)?.registry ? this.registryIdentity_(raw) : path);
@@ -1798,8 +1799,12 @@ export class Assets {
         const acquisitions: SceneAssetAcquisition[] = [];
         const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
             if (recorder) recorder.own(path, lease, type);
-            else scope.add(lease);
-            acquisitions.push({ type, path, lease, entityIds: owners?.get(type, path), auxiliaryEntityIds: owners?.auxiliaryFor(type, path) });
+            else {
+                scope.add(lease);
+                if (owners.hasAuxiliary(type, path)) scope.preserveDependency(lease);
+            }
+            acquisitions.push({ type, path, lease, entityIds: entityOwnership ? owners.get(type, path) : undefined,
+                auxiliaryEntityIds: entityOwnership ? owners.auxiliaryFor(type, path) : undefined });
             releaseCallbacks.push(() => lease.release());
         };
 

@@ -34,6 +34,15 @@ function closeWorlds(entries: Iterable<WorldScopes>): void {
     AssetScope.closeAll(scopes);
 }
 
+/** Record the exact dependencies a scene lends an entity until it changes owners. */
+export function recordSceneDependencies(
+    target: Map<Entity, readonly AssetLease[]>, entity: Entity, leases: readonly AssetLease[], scope?: AssetScope,
+): void {
+    if (scope) for (const lease of leases) scope.preserveDependency(lease);
+    const previous = target.get(entity);
+    target.set(entity, previous ? [...previous, ...leases] : leases);
+}
+
 export class EntityAssetScopes {
     private readonly worlds_ = new Map<World, WorldScopes>();
     private closed_ = false;
@@ -50,8 +59,8 @@ export class EntityAssetScopes {
         });
         if (!sources.size && !auxiliary) return;
         const scope = this.ensure(world, entity);
-        for (const source of auxiliary ?? []) scope.retainAcquisition(source);
-        for (const [source, field] of sources) scope.retainAcquisition(source, field);
+        for (const source of auxiliary ?? []) scope.retainAcquisition(source, undefined, scene);
+        for (const [source, field] of sources) scope.retainAcquisition(source, field, scene);
     }
 
     /**

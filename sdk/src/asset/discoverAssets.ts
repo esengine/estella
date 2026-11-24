@@ -83,38 +83,43 @@ function usesAuthoredRef(type: string): boolean {
 
 /** Entities that named each acquisition in this preparation. */
 export class SceneAssetOwners {
-    private readonly byType = new Map<string, Map<string, { entities: Set<number>; auxiliary?: Set<number> }>>();
+    private readonly byType = new Map<string, Map<string, { entities?: Set<number>; auxiliary?: Set<number> }>>();
 
-    constructor(
-        private readonly includeAliases = false,
-        private readonly auxiliaryOnly = false,
-    ) {}
+    constructor(private readonly options: { entityOwnership: boolean | 'auxiliary'; includeAliases?: boolean }) {}
 
     asset(type: string, raw: string, path: string, entity: number, auxiliary = false, acquisitionPath?: string): void {
-        const label = this.includeAliases && type === 'bitmap-font' ? 'font' : type;
+        const label = this.options.includeAliases && type === 'bitmap-font' ? 'font' : type;
         // A clip registers under each authored spelling. Handle-backed assets share a resolved path.
         const key = acquisitionPath ?? (usesAuthoredRef(type) ? raw : path);
         this.add(label, key, entity, auxiliary);
         // Older structural providers could identify a receipt by either spelling.
-        if (this.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity, auxiliary);
+        if (this.options.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity, auxiliary);
     }
 
     add(type: string, path: string, entity: number, auxiliary = false): void {
-        if (this.auxiliaryOnly && !auxiliary) return;
+        const { entityOwnership } = this.options;
+        if (entityOwnership !== true && !auxiliary) return;
         let paths = this.byType.get(type);
         if (!paths) this.byType.set(type, paths = new Map());
         let owners = paths.get(path);
-        if (!owners) paths.set(path, owners = { entities: new Set() });
-        owners.entities.add(entity);
-        if (auxiliary) (owners.auxiliary ??= new Set()).add(entity);
+        if (!owners) paths.set(path, owners = {});
+        if (entityOwnership === true) (owners.entities ??= new Set()).add(entity);
+        if (auxiliary && entityOwnership) (owners.auxiliary ??= new Set()).add(entity);
     }
 
     get(type: string, path: string): ReadonlySet<number> | undefined {
-        return this.byType.get(type)?.get(path)?.entities;
+        const owners = this.byType.get(type)?.get(path);
+        return owners?.entities ?? owners?.auxiliary;
     }
 
     auxiliaryFor(type: string, path: string): ReadonlySet<number> | null {
         return this.byType.get(type)?.get(path)?.auxiliary ?? null;
+    }
+
+    /** When entity IDs were not requested, only independently declared paths were recorded. */
+    hasAuxiliary(type: string, path: string): boolean {
+        const owners = this.byType.get(type)?.get(path);
+        return !!owners && (!this.options.entityOwnership || !!owners.auxiliary);
     }
 }
 

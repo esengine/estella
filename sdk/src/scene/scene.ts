@@ -883,7 +883,7 @@ async function loadSceneAssetsAndSpawn(
             if (result && collector) {
                 for (const handle of result.materialHandles.values()) if (handle) collector.materialHandles.add(handle);
                 collector.scope?.absorb(result.scope);
-                if (collector.auxiliary) auxiliary?.(world, entities, collector.auxiliary);
+                if (collector.auxiliary) auxiliary?.(world, entities, collector.auxiliary, collector.scope);
             } else if (assets?.entityScopes) {
                 result?.scope.releaseAll();
             }

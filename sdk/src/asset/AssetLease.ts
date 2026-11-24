@@ -12,7 +12,8 @@
 
 import { disposeAll } from '../util/disposeAll';
 import {
-    namedBindingOf, boundValueOf, firstBindingLease, hasBindingName, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease,
+    namedBindingOf, boundValueOf, firstBindingLease, hasBindingName, hasNativeBinding, leaseBinding, LeaseBindings, sameAcquisition,
+    type BindingLease, type DependencyBinding,
 } from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
@@ -83,6 +84,7 @@ export class AssetScope {
     /** Null after the first search. Repeated lookups share an index until a receipt is removed. */
     private bindings_?: LeaseBindings | null;
     private fieldLeases_?: Map<AssetLease, FieldLeaseBinding>;
+    private dependencies_?: Map<AssetLease, DependencyBinding>;
 
     add<T>(lease: AssetLease<T>): AssetLease<T> {
         if (this.closed_) {
@@ -102,17 +104,26 @@ export class AssetScope {
         return lease;
     }
 
+    /** @internal An independently declared dependency keeps this receipt until its owner releases it. */
+    preserveDependency(lease: AssetLease, state: DependencyBinding = 'current'): void {
+        if (this.dependencies_?.has(lease)) return;
+        (this.dependencies_ ??= new Map()).set(lease, state);
+        this.fieldLeases_?.delete(lease);
+        this.bindings_ = undefined;
+    }
+
     /** @internal Keep a scene acquisition when an entity leaves its scene, once per generation. */
-    retainAcquisition(source: AssetLease, field?: FieldLeaseBinding): void {
+    retainAcquisition(source: AssetLease, field?: FieldLeaseBinding, from?: AssetScope): void {
         const held = this.leases_.find(lease => sameAcquisition(lease, source));
         if (held) {
-            if (!field) this.fieldLeases_?.delete(held);
+            if (field) this.selectDependencyBinding(field.type, field.value, held);
+            else this.preserveDependency(held, from?.dependencies_?.get(source));
             return;
         }
         const lease = source.retain();
         if (!lease) return;
         if (field) this.addFieldLease(field.type, field.value, lease);
-        else this.add(lease);
+        else this.preserveDependency(this.add(lease), from?.dependencies_?.get(source));
     }
 
     /** @internal Explicit acquisitions and opaque loader dependencies have independent lifetimes. */
@@ -162,6 +173,7 @@ export class AssetScope {
         this.leases_ = [];
         this.bindings_ = undefined;
         this.fieldLeases_ = undefined;
+        this.dependencies_ = undefined;
         return leases;
     }
 
@@ -185,6 +197,11 @@ export class AssetScope {
         if (other === this) return;
         if (this.closed_) throw new Error('Cannot transfer acquisitions to a closed asset scope');
         for (const lease of other.leases_) this.leases_.push(lease);
+        if (other.dependencies_) {
+            this.dependencies_ ??= new Map();
+            for (const [lease, state] of other.dependencies_) this.dependencies_.set(lease, state);
+            other.dependencies_ = undefined;
+        }
         if (other.fieldLeases_) {
             this.fieldLeases_ ??= new Map();
             for (const [lease, binding] of other.fieldLeases_) this.fieldLeases_.set(lease, binding);
@@ -197,6 +214,9 @@ export class AssetScope {
     /** @internal Transfer a publication in acquisition order. A full publication takes the whole loader scope. */
     absorbFieldLeases(source: AssetScope, fields: ReadonlyMap<AssetLease, FieldLeaseBinding>, auxiliary?: ReadonlySet<AssetLease>): void {
         if (!auxiliary) {
+            if (source.size !== fields.size) {
+                for (const lease of source.leases_) if (!fields.has(lease)) source.preserveDependency(lease);
+            }
             this.absorb(source);
             if (fields.size) {
                 this.fieldLeases_ ??= new Map();
@@ -209,7 +229,7 @@ export class AssetScope {
             if (!binding && !auxiliary.has(lease)) continue;
             if (!source.forget(lease)) continue;
             if (binding) this.addFieldLease(binding.type, binding.value, lease);
-            else this.add(lease);
+            else this.preserveDependency(this.add(lease));
         }
     }
 
@@ -219,8 +239,28 @@ export class AssetScope {
         if (i < 0) return false;
         this.leases_.splice(i, 1);
         this.fieldLeases_?.delete(lease);
+        this.dependencies_?.delete(lease);
         this.bindings_ = undefined;
         return true;
+    }
+
+    /** @internal Detach a replaced field receipt. An independent reader still owns its original generation. */
+    forgetReplacedBinding(lease: AssetLease): boolean {
+        if (!this.dependencies_?.has(lease)) return this.forget(lease);
+        this.dependencies_.set(lease, 'superseded');
+        this.bindings_ = undefined;
+        return false;
+    }
+
+    /** @internal A live field selected an independently held generation that shares its native value. */
+    selectDependencyBinding(type: string, value: number | string, lease: AssetLease): void {
+        if (!this.dependencies_?.has(lease) || !hasNativeBinding(lease, type, value)) return;
+        if (this.bindingLease(type, value) === lease) return;
+        for (const [held, state] of this.dependencies_) {
+            if (state === 'selected' && hasNativeBinding(held, type, value)) this.dependencies_.set(held, 'superseded');
+        }
+        this.dependencies_.set(lease, 'selected');
+        this.bindings_ = undefined;
     }
 
     /** @internal The receipt this scope owns for a live component field. */
@@ -228,10 +268,10 @@ export class AssetScope {
         if (!value || !this.leases_.length) return undefined;
         if (this.bindings_ === undefined || this.leases_.length === 1) {
             this.bindings_ = null;
-            return firstBindingLease(this.leases_, type, value, slot);
+            return firstBindingLease(this.leases_, type, value, slot, this.dependencies_);
         }
         this.bindings_ ??= new LeaseBindings();
-        return this.bindings_.find(this.leases_, type, value, slot);
+        return this.bindings_.find(this.leases_, type, value, slot, this.dependencies_);
     }
 
     /** How many acquisitions this scope still owes. Diagnostics and tests. */

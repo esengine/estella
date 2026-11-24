@@ -3,7 +3,7 @@
 import { AssetScope, type AssetLease, type FieldLeaseBinding } from '../asset/AssetLease';
 import type { SceneAssetResult } from '../asset/Assets';
 import { indexSceneAssets, SceneAssetOwners, type RefResolver } from '../asset/discoverAssets';
-import type { EntityAssetScopes } from '../asset/entityAssetScopes';
+import { recordSceneDependencies, type EntityAssetScopes } from '../asset/entityAssetScopes';
 import { namedBindingOf } from '../asset/leaseBindings';
 import type { World } from '../ecs/world';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
@@ -27,7 +27,7 @@ function sceneAcquisitionSources(
     // Older preload providers can omit ownership or the distinction between fields and other dependencies.
     let fallback: SceneAssetOwners | undefined;
     if (result.acquisitions.some(receipt => receipt.auxiliaryEntityIds === undefined || (!auxiliaryOnly && !receipt.entityIds))) {
-        fallback = new SceneAssetOwners(true);
+        fallback = new SceneAssetOwners({ entityOwnership: true, includeAliases: true });
         indexSceneAssets(scene, result.resolveRef ?? resolveRef, fallback);
     }
     for (const { type, path, lease, entityIds, auxiliaryEntityIds } of result.acquisitions) {
@@ -54,11 +54,11 @@ function sceneAcquisitionSources(
 export function prepareSceneAuxiliaryAssets(scene: SceneData, result: SceneAssetResult, resolveRef?: RefResolver) {
     const sources = sceneAcquisitionSources(scene, result, resolveRef, true);
     if (!sources.size) return undefined;
-    return (world: World, entities: ReadonlyMap<number, Entity>, target = new Map<Entity, readonly AssetLease[]>()) => {
+    return (world: World, entities: ReadonlyMap<number, Entity>, target = new Map<Entity, readonly AssetLease[]>(), scope?: AssetScope) => {
         for (const [id, leases] of sources) {
             const entity = entities.get(id);
             if (entity !== undefined && world.valid(entity)) {
-                target.set(entity, Array.from(leases.values(), source => source.lease));
+                recordSceneDependencies(target, entity, Array.from(leases.values(), source => source.lease), scope);
             }
         }
         return target;

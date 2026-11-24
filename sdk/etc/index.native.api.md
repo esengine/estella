@@ -1090,10 +1090,13 @@ refCount: number
 @internal absorbFieldLeases: (source: AssetScope, fields: ReadonlyMap<AssetLease, FieldLeaseBinding>, auxiliary?: ReadonlySet<AssetLease>) => void
 @internal addFieldLease: <T>(type: string, value: unknown, lease: AssetLease<T>) => AssetLease<T>
 @internal bindingLease: (type: string, value: number | string, slot?: object) => AssetLease | undefined
+@internal forgetReplacedBinding: (lease: AssetLease) => boolean
 @internal hasFieldLeases: boolean
 @internal leases: () => readonly AssetLease[]
+@internal preserveDependency: (lease: AssetLease, state?: DependencyBinding) => void
 @internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void, lookup?: FieldLeaseLookup) => void
-@internal retainAcquisition: (source: AssetLease, field?: FieldLeaseBinding) => void
+@internal retainAcquisition: (source: AssetLease, field?: FieldLeaseBinding, from?: AssetScope) => void
+@internal selectDependencyBinding: (type: string, value: number | string, lease: AssetLease) => void
 absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean

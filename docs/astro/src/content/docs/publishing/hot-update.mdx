@@ -193,6 +193,11 @@ and the built-in rebinder replaces the old texture in every live field that decl
 (`Sprite.texture`, `MeshRenderer.texture` / `.normalMap`, `UIVisual.texture`, `TilemapLayer.tileset`,
 `ParticleEmitter.texture`, `TrailRenderer.texture`) and fields of project components declared in `assetFields`.
 
+If a component also lists a texture in `discoverAssets`, a live field such as `Sprite.texture` or
+`MeshRenderer.texture` switches to the updated image while the list keeps the generation it acquired.
+A spawned prefab or an entity that leaves its scene releases its field receipt when its last matching field
+is cleared. The scene or entity that owns the list keeps the original generation until its own lifetime ends.
+
 Live material fields, including `Sprite.material` and `MeshRenderer.material`, also follow their manifest record
 when the cooked file moves. If an update removes a texture or material, an existing field keeps its current
 handle. Restoring the same UUID in a later update moves that field to the replacement while the game is running.

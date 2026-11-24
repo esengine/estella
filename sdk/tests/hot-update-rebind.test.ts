@@ -20,7 +20,8 @@ import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets, type AssetsOptions } from '../src/asset/Assets';
 import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
-import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
+import { loadSceneWithAssets, SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
+import { spawnPrepared } from '../src/prefab/preparedPrefab';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
@@ -33,6 +34,7 @@ import { Disabled, Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { componentsBindingAssetTypes, liveAssetBindings, visitEntityAssetBindings } from '../src/asset/liveAssetBindings';
 import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
+import { EntityAssetScopes } from '../src/asset/entityAssetScopes';
 
 /** The pool, modelled: every decode mints a handle, invalidate severs revival. */
 function createPoolFake() {
@@ -281,6 +283,136 @@ describe('a replacement is a transaction per owning scope', () => {
         installHotUpdateRebind(app, assets);
         return { app, assets, manager };
     }
+
+    it.each([
+        { component: Sprite, mode: 'managed' }, { component: MeshRenderer, mode: 'managed' },
+        { component: Sprite, mode: 'standalone' }, { component: MeshRenderer, mode: 'prefab' },
+        { component: Sprite, mode: 'adopted' },
+    ])('keeps the listed texture generation when a $mode $component._name field is replaced', async ({ component, mode }) => {
+        const { app, assets, manager } = sceneApp();
+        app.insertResource(AssetsResource, assets);
+        const world = app.world, ref = 'images/shared.png';
+        const list = defineComponent('RebindTextureList', { images: [] as string[] }, {
+            discoverAssets: data => (data.images as string[]).map(path => ({ type: 'texture', path })),
+        });
+        const row = { name: 'Surface', parent: null, children: [], components: [
+            { type: component._name, data: { texture: ref } }, { type: list._name, data: { images: [ref] } },
+        ] };
+        const data: SceneData = { version: SCENE_FORMAT_VERSION, name: 'surfaces', entities: [{ ...row, id: 1 }] };
+        let owner: SceneContext | undefined;
+        try {
+            let entity;
+            if (mode === 'standalone') {
+                entity = (await loadSceneWithAssets(world, data, { assets, abortOnMissingAssets: true })).get(1)!;
+            } else if (mode === 'prefab') {
+                vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify({ version: '2', name: 'Surface',
+                    rootEntityId: 'surface', entities: [{ ...row, prefabEntityId: 'surface' }] }));
+                const prepared = await assets.preparePrefab('surface.esprefab');
+                try { entity = spawnPrepared(world, prepared).root; } finally { prepared.release(); }
+            } else {
+                manager.register({ name: 'surfaces', data });
+                owner = await manager.loadAdditive('surfaces');
+                entity = [...owner.entities][0]!;
+                if (mode === 'adopted') {
+                    manager.register({ name: 'other' });
+                    (await manager.loadAdditive('other')).adopt(entity);
+                    await manager.unload('surfaces');
+                    owner = undefined;
+                }
+            }
+            const field = () => world.get(entity, component).texture;
+            const original = field();
+            expect(original).toBeGreaterThan(0);
+            const scope = owner ? manager.assetScopeFor('surfaces')! : assets.entityScopes.scopeFor(entity, world)!;
+            expect(scope.size).toBe(1);
+            const generations: number[] = [original];
+            for (let i = 0; i < 3; i++) {
+                assets.invalidate(ref);
+                await settle(app);
+                const previous = generations[generations.length - 1]!;
+                expect(field()).not.toBe(previous);
+                generations.push(field());
+                expect(pool.releaseTexture).not.toHaveBeenCalledWith(original);
+                if (previous !== original) expect(pool.releaseTexture).toHaveBeenCalledWith(previous);
+                expect(scope.size).toBe(2);
+            }
+            if (owner) {
+                owner.setPersistent(entity, true);
+                await manager.unload('surfaces');
+            }
+            const own = assets.entityScopes.scopeFor(entity, world)!;
+            expect(own.size).toBe(2);
+            const current = field();
+            world.remove(entity, component);
+            await Promise.resolve();
+            expect(own.size).toBe(1);
+            expect(own.bindingLease('texture', original)).toBeDefined();
+            expect(pool.releaseTexture).toHaveBeenCalledWith(current);
+            expect(pool.releaseTexture).not.toHaveBeenCalledWith(original);
+            world.despawn(entity);
+            expect(pool.releaseTexture).toHaveBeenCalledWith(original);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['provided', 'inferred', 'scope-only'] as const)('preserves a separate reader with %s scene ownership', async mode => {
+        const { app, assets, manager } = sceneApp();
+        app.insertResource(AssetsResource, assets);
+        const ref = 'shared.png', world = app.world;
+        const gallery = defineComponent('ListedGallery', {}, { discoverAssets: () => [{ type: 'texture', path: ref }] });
+        const data: SceneData = { version: SCENE_FORMAT_VERSION, name: 'room', entities: [
+            { id: 1, name: 'Canvas', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: ref } }] },
+            { id: 2, name: 'Gallery', parent: null, children: [], components: [{ type: gallery._name, data: {} }] },
+        ] };
+        if (mode === 'inferred') {
+            // A structural provider can hand back ordinary receipts without either optional ownership field.
+            const preload = assets.preloadSceneAssets.bind(assets);
+            vi.spyOn(assets, 'preloadSceneAssets').mockImplementation(async (...args) => {
+                const result = await preload(...args), scope = new AssetScope();
+                const acquisitions = result.acquisitions!.map(({ type, path, lease }) => {
+                    result.scope.forget(lease); scope.add(lease);
+                    return { type, path, lease };
+                });
+                return { ...result, scope, acquisitions };
+            });
+            manager.register({ name: 'room', data });
+        } else {
+            manager.register({ name: 'room', setup: async ctx => {
+                const canvas = ctx.spawn(), reader = ctx.spawn();
+                let scope: AssetScope, held: AssetLease;
+                if (mode === 'scope-only') {
+                    const result = await assets.preloadSceneAssets(data);
+                    scope = result.scope; held = result.acquisitions![0]!.lease;
+                } else {
+                    scope = new AssetScope(); held = scope.add(await assets.acquireTexture(ref));
+                }
+                world.insert(canvas, Sprite, { texture: (held.value as { handle: number }).handle });
+                world.insert(reader, gallery, {});
+                ctx.trackAssetScope(scope, mode === 'provided' ? new Map([[reader, [held]]]) : undefined);
+            } });
+        }
+        try {
+            const room = await manager.loadAdditive('room');
+            const canvas = [...room.entities].find(e => world.has(e, Sprite))!;
+            const reader = [...room.entities].find(e => world.has(e, gallery))!;
+            const original = world.get(canvas, Sprite).texture;
+            assets.invalidate(ref); await settle(app);
+            const updated = world.get(canvas, Sprite).texture;
+            expect(updated).not.toBe(original);
+            expect(pool.releaseTexture).not.toHaveBeenCalledWith(original);
+            expect(manager.assetScopeFor('room')!.size).toBe(2);
+            if (mode !== 'scope-only') room.setPersistent(reader, true);
+            await manager.unload('room');
+            expect(pool.releaseTexture).toHaveBeenCalledWith(updated);
+            if (mode !== 'scope-only') {
+                expect(assets.entityScopes.scopeFor(reader, world)?.bindingLease('texture', original)).toBeDefined();
+                expect(pool.releaseTexture).not.toHaveBeenCalledWith(original);
+                world.despawn(reader);
+            }
+            expect(pool.releaseTexture).toHaveBeenCalledWith(original);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
 
     /** A scene that acquires `ref` for itself and binds it to `fields`. */
     function sceneHolding(
@@ -882,6 +1014,61 @@ describe('a replacement is a transaction per owning scope', () => {
 });
 
 describe('a scope migrates all of its bindings or none', () => {
+    it.each([
+        { mode: 'typed', odd: 'mesh', even: 'mesh' }, { mode: 'structural' },
+        { mode: 'typed to structural', odd: 'mesh' }, { mode: 'structural to typed', even: 'mesh' },
+    ])('prefers the live $mode generation when pinned mesh generations reuse a handle', ({ odd, even }) => {
+        const world = new World(); connectFakeCpp(world);
+        const entity = world.spawn(); world.insert(entity, MeshRenderer, { mesh: 7 });
+        const disposed: number[] = [];
+        const next = (revision: number) => ownedAssetLease('model', revision, 7, () => disposed.push(revision), revision % 2 ? odd : even);
+        const before = new AssetScope(), active = new AssetScope();
+        const first = before.add(next(1)), second = before.add(next(2));
+        before.preserveDependency(first); before.preserveDependency(second);
+        active.absorb(before);
+        migrateLiveBindings(world, 'mesh', 7, second, () => active);
+        expect(active.size).toBe(2);
+        expect(active.bindingLease('mesh', 7)).toBe(second);
+        expect(active.bindingLease('mesh', 7)).toBe(second);
+        const owners = new EntityAssetScopes();
+        owners.retainFromScene(world, entity, active, [first, second]);
+        const promoted = owners.scopeFor(entity, world)!;
+        expect(promoted.size).toBe(2);
+        expect(promoted.bindingLease('mesh', 7)?.generation).toBe(2);
+        promoted.releaseAll();
+        for (let revision = 3; revision <= 6; revision++) {
+            const replacement = next(revision);
+            migrateLiveBindings(world, 'mesh', 7, replacement, () => active);
+            replacement.release();
+            expect(active.bindingLease('mesh', 7)?.generation).toBe(revision);
+            expect(active.bindingLease('mesh', 7)?.generation).toBe(revision);
+            expect(active.size).toBe(3);
+        }
+        expect(disposed).toEqual([3, 4, 5]);
+        active.releaseAll();
+        expect(disposed).toEqual([3, 4, 5, 6, 2, 1]);
+        world.despawn(entity);
+    });
+
+    it('uses the exact preloaded generation when another dependency has the incoming handle', () => {
+        const world = new World(); connectFakeCpp(world);
+        const entity = world.spawn(); world.insert(entity, Sprite, { texture: 7 });
+        const scope = new AssetScope(), freed: number[] = [];
+        const hold = (generation: number, value: number) =>
+            scope.add(ownedAssetLease('image', generation, value, () => freed.push(generation), 'texture'));
+        hold(1, 7);
+        const earlier = hold(2, 9), replacement = hold(3, 9);
+        scope.preserveDependency(earlier); scope.preserveDependency(replacement);
+        expect(migrateLiveBindings(world, 'texture', 7, replacement, () => scope).moved).toBe(1);
+        expect(world.get(entity, Sprite).texture).toBe(9);
+        expect(scope.size).toBe(2);
+        expect(scope.bindingLease('texture', 9)).toBe(replacement);
+        expect(scope.bindingLease('texture', 9)).toBe(replacement);
+        expect(freed).toEqual([1]);
+        scope.releaseAll();
+        expect(freed).toEqual([1, 3, 2]);
+    });
+
     it('keeps one receipt for a generation already held when the loader reuses a handle', () => {
         const world = new World(); connectFakeCpp(world);
         const scope = new AssetScope(), releaseOld = vi.fn(), releaseNew = vi.fn();

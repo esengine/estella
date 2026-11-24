@@ -57,12 +57,14 @@ interface OwnerBindings {
     fields: LiveAssetBinding[];
     outgoing?: AssetLease;
     added?: AssetLease;
+    existing?: AssetLease;
+    usesReplacement?: boolean;
 }
 
 interface ScopedBinding extends LiveAssetBinding { readonly scope: AssetScope }
 
 function releaseHeld(scope: AssetScope, lease: AssetLease | undefined): void {
-    if (!lease || !scope.forget(lease)) return;
+    if (!lease || !scope.forgetReplacedBinding(lease)) return;
     try { lease.release(); }
     catch (error) { log.warn('asset', 'hot-update rebind: could not dispose an unused acquisition', error); }
 }
@@ -99,9 +101,9 @@ export function migrateLiveBindings(
         try {
             const outgoing = scope.bindingLease(type, oldValue);
             const existing = oldValue === newValue ? outgoing : scope.bindingLease(type, newValue);
-            const alreadyHeld = existing && (sameAcquisition(existing, replacement)
-                || (oldValue === newValue && scope.leases().some(held => sameAcquisition(held, replacement))));
-            if (!alreadyHeld) {
+            group.existing = existing && (sameAcquisition(existing, replacement)
+                ? existing : scope.leases().find(held => sameAcquisition(held, replacement)));
+            if (!group.existing) {
                 const share = replacement.retain();
                 if (!share) break;
                 // A write may synchronously despawn its owner. Register the share before notifying the world.
@@ -124,7 +126,10 @@ export function migrateLiveBindings(
         const scope = ownerOf(binding.entity, false, value, prior?.scope);
         const group = scope && owners.get(scope);
         if (binding.value === newValue) {
-            if (group) group.added = undefined;
+            if (group) {
+                group.added = undefined;
+                group.usesReplacement = true;
+            }
         } else {
             if (group) group.outgoing = undefined;
             if (!group || prior?.value !== oldValue || prior.scope !== scope) result.revisit = true;
@@ -132,6 +137,7 @@ export function migrateLiveBindings(
     }
     for (const [scope, group] of owners) {
         releaseHeld(scope, group.outgoing);
+        if (group.existing && group.usesReplacement) scope.selectDependencyBinding(type, newValue, group.existing);
         releaseHeld(scope, group.added);
     }
     return result;
