@@ -121,6 +121,7 @@ function ensureRuntimeAssets(
 
     const assets = AssetsClass.create({
         backend: source.backend,
+        activateManifest: source.activateManifest?.bind(source),
         module,
         catalog,
         getAudio: () => (app.hasResource(Audio) ? app.getResource(Audio) : null),

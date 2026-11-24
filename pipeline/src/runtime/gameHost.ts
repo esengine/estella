@@ -1000,7 +1000,7 @@ async function boot(startup: GameStartup): Promise<void> {
     });
     source = bakes.serve(packaged);
   }
-  applyAssetRefResolvers(app, index.resolvePath);
+  applyAssetRefResolvers(app, packaged.resolveRef!);
   await initRuntime({
     app,
     module,
@@ -1008,7 +1008,7 @@ async function boot(startup: GameStartup): Promise<void> {
     // The compiled twins this build produced, if any. The path, not the bytes:
     // reading it is the platform seam's job, and on a mini-game only the seam
     // knows how (docs/REARCH_AOT.md §9).
-    manifest: index.manifest,
+    manifest: index.model,
     catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,
     persistUpdateKey: cfg.hotUpdate?.persistUpdateKey,

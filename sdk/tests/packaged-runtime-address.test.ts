@@ -7,7 +7,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { indexPackagedManifest, createPackagedAssetSource } from '../src/runtime/packagedRuntime';
-import type { AddressableManifest } from '../src/asset/AddressableManifest';
+import { ManifestModel, type AddressableManifest } from '../src/asset/AddressableManifest';
+import { Catalog } from '../src/asset/Catalog';
 
 // A content-addressed pack: the atlas and its page PNG are staged under hashed
 // names, but each keeps `address` — the path it was authored at.
@@ -42,6 +43,38 @@ describe('packaged addressOf / resolveAddress', () => {
     it('returns null for an unknown ref', () => {
         const index = indexPackagedManifest(manifest());
         expect(index.addressOf('assets/nope.atlas')).toBeNull();
+    });
+
+    it('switches all lookups together and keeps separate sources independent', () => {
+        const index = indexPackagedManifest(manifest());
+        const first = createPackagedAssetSource(index);
+        const second = createPackagedAssetSource(index);
+        const next = manifest();
+        const records = next.groups.main.assets;
+        const [atlas, art] = Object.keys(records);
+        records[art].path = 'assets/new.png';
+        records[art].address = 'assets/art/hero.png';
+        records[art].textureImport = { wrap: 'mirror' };
+        records[art].metadata = { atlasFrame: { x: 2, y: 0, width: 2, height: 4 }, atlasPageWidth: 4, atlasPageHeight: 4 };
+        const bounds = { x: 0, y: 0, width: 2, height: 4 };
+        records[atlas].spineImport = { atlas: art, cullingBounds: bounds };
+        const resolve = first.resolveRef!;
+        const catalog = first.activateManifest!(ManifestModel.fromJson(next), index.catalog);
+        expect(resolve(art)).toBe('assets/new.png');
+        expect(first.resolveAddress!('assets/new.png')).toBe('assets/art/hero.png');
+        expect(first.listAssetPaths!()).toContain('assets/art/hero.png');
+        expect(first.textureImportSettings!(art)).toEqual({ wrap: 'mirror' });
+        expect(first.spineCulling!(atlas, art)).toEqual(bounds);
+        expect(catalog.getAtlasFrame(art)?.uvOffset).toEqual([0.5, 0]);
+        expect(second.resolveRef!(art)).toBe('assets/bbb222.png');
+        expect(index.resolvePath(art)).toBe('assets/bbb222.png');
+        const custom = Catalog.empty();
+        expect(second.activateManifest!(ManifestModel.fromJson(next), custom)).toBe(custom);
+        expect(second.resolveRef!(art)).toBe('assets/new.png');
+
+        expect(first.activateManifest!(null).getAtlasFrame(art)).toBeNull();
+        expect(first.listAssetPaths!()).toEqual([]);
+        expect(first.textureImportSettings!(art)).toBeUndefined();
     });
 
     it('the source exposes resolveAddress, so <atlasDir>/page resolves to the staged page', () => {

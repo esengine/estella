@@ -15,18 +15,18 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 ## 工作原理
 
-每个烘焙后的资产以 `<contentHash>.<ext>` 形式发布，这是一个不可变、可永久缓存的 URL。资产改动后哈希改变，URL 也随之改变；已有文件从不被覆盖，因此缓存不会过期。
+每个烘焙后的资产以 `<contentHash>.<ext>` 形式发布，这是一个不可变、可永久缓存的 URL。修改文件内容会改变哈希和 URL。只调整纹理采样或九宫格边距时，图片沿用原来的 URL。
 
 <Steps>
 
 1. 从 CDN **获取**远端清单（`asset-manifest.json`）。
-2. 按内容哈希与运行中的清单进行**比对**。
-3. 只**下载**哈希改变的资产，并逐个校验。
-4. **切换**当前清单；引用随即解析到新的 URL。
+2. 与运行中的清单**比对**文件哈希、交付位置和运行时设置。
+3. **下载并校验** `changedAssets` 列出的文件。
+4. **切换**到新清单。场景中正在使用的纹理随即采用新图片或新设置。
 
 </Steps>
 
-比对是逐资产的哈希比较，应用更新不会修改任何已缓存的文件。所有目标使用相同的 `asset-manifest.json` 格式。
+只更新设置时，`hasUpdate` 为 `true`，`totalBytes` 为 `0`。调用 `applyUpdate` 会应用设置，开启持久化后下次启动也会沿用。
 
 ## 交付组
 
@@ -188,7 +188,7 @@ const unsub = assets.onInvalidate((event) => {
 | 方法 | 返回值 | 说明 |
 | --- | --- | --- |
 | `checkForUpdate(options)` | `Promise<UpdatePlan>` | 获取候选清单，与当前清单比对并暂存。不下载资产。 |
-| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | 原子地应用暂存的更新：下载并校验所有改动的资产，然后切换清单、重新绑定运行中的句柄并持久化。`onProgress(loaded, total)` 报告下载进度。 |
+| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | 校验 `changedAssets` 中的文件，成功后切换清单、重新绑定运行中的句柄并持久化。`onProgress(loaded, total)` 报告下载进度。 |
 | `restorePersistedUpdate(key)` | `boolean` | 启动时恢复之前 `applyUpdate` 以 `key` 持久化的清单。设置了 `persistUpdateKey` 时由运行时调用。 |
 | `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`，用于诊断界面。 |
 | `setRemoteRoot(url?)` | `void` | 设置远端分组的 CDN 根地址（`undefined` 清除，即同源）。运行时根据构建的 `remoteRoot` 设置。 |
@@ -208,10 +208,11 @@ const unsub = assets.onInvalidate((event) => {
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `hasUpdate` | `boolean` | 有任何新增或改动的资产时为 `true`。 |
-| `changedAssets` | `AssetChange[]` | 需要下载的新增或改动资产。 |
+| `hasUpdate` | `boolean` | 资产、分组设置或构建修订号发生变化时为 `true`。 |
+| `changedAssets` | `AssetChange[]` | 需要从候选清单的交付位置读取并校验的文件。 |
+| `reconfiguredAssets` | `AssetChange[]` | 可以沿用现有文件、按新设置生效的资产。 |
 | `removedAssets` | `AssetChange[]` | 不再存在的资产（仅供参考，从不下载）。 |
-| `changedGroups` | `string[]` | 至少包含一个改动资产的分组（去重）。 |
+| `changedGroups` | `string[]` | 成员、设置或资产发生变化的分组。 |
 | `totalBytes` | `number` | `changedAssets` 的大小总和，即下载量估计。 |
 | `fromRevision` / `toRevision` | `string \| null` | 旧、新清单的修订号。 |
 
@@ -231,7 +232,7 @@ const unsub = assets.onInvalidate((event) => {
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `verified` | `boolean` | 所有改动资产均已下载且与内容哈希一致。 |
+| `verified` | `boolean` | 下载计划中的文件均已通过校验。 |
 | `applied` | `boolean` | 本次会话运行在新清单上，其资产已切换完成。 |
 | `persisted` | `boolean \| null` | 下次启动从新清单开始（已存储并回读确认）。存储被拒绝（配额已满）时为 `false`；没有持久化键时为 `null`。 |
 | `cached` | `boolean \| null` | 所有改动的远端资产都在磁盘缓存中，下次启动无需网络即可读取。平台没有磁盘缓存（Web）时为 `null`。 |
@@ -259,7 +260,7 @@ assets.releaseGroup('world2');
 
 <Steps>
 
-1. **下载并校验。** 获取每个改动的资产，计算哈希并与清单中的 `contentHash` 比较。下载失败或哈希不符（响应损坏或被篡改）记为失败。此阶段不修改当前清单。
+1. **下载并校验。** 获取 `changedAssets` 中的文件，计算哈希并与清单中的 `contentHash` 比较。下载失败或哈希不符（响应损坏或被篡改）记为失败。此阶段不修改当前清单。
 2. **提交。** 仅当所有资产都成功时：切换清单和根地址、重新绑定运行中的句柄，并持久化新清单。
 
 </Steps>

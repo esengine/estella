@@ -134,6 +134,7 @@ export interface UpdateStages {
  *  is applied (`updated: 0`) and `failed` lists why (rollback). */
 export interface ApplyUpdateResult {
     ok: boolean;
+    /** Assets with new payloads or settings in the committed manifest. */
     updated: number;
     failed: AssetDownloadFailure[];
     stages: UpdateStages;
@@ -211,6 +212,8 @@ async function runWithConcurrency(
 export interface AssetsOptions {
     backend: Backend;
     catalog?: Catalog;
+    /** Switch the source's lookups, preserving a caller-supplied catalog override. */
+    activateManifest?: (model: ManifestModel | null, suppliedCatalog?: Catalog) => Catalog;
     /**
      * Addressable manifest (groups + bundle modes). When set, enables
      * `loadGroup(name)`. Accepts the raw manifest JSON or a pre-built
@@ -421,7 +424,9 @@ export function bindTextureStreamingStart(assets: Assets, provider: () => number
 
 export class Assets {
     readonly backend: Backend;
-    readonly catalog: Catalog;
+    private catalog_: Catalog;
+    private readonly activateManifest_?: AssetsOptions['activateManifest'];
+    get catalog(): Catalog { return this.catalog_; }
 
     get baseUrl(): string | undefined { return this.baseUrl_; }
     set baseUrl(url: string | undefined) {
@@ -517,12 +522,14 @@ export class Assets {
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend && packedBackend(options.backend, () => this.manifestModel_);
-        this.catalog = options.catalog ?? Catalog.empty();
+        this.catalog_ = options.catalog ?? Catalog.empty();
+        const { activateManifest, catalog } = options;
+        this.activateManifest_ = activateManifest && (model => activateManifest(model, catalog));
         this.module_ = options.module;
         this.getAudio_ = options.getAudio ?? (() => null);
         this.getSpriteAnimation_ = options.getSpriteAnimation ?? (() => null);
         this.getLocalization_ = options.getLocalization ?? (() => null);
-        this.setManifest(options.manifest ?? null);
+        if (options.manifest) this.setManifest(options.manifest);
 
         this.textureLoader_ = new TextureLoader(options.module);
         this.spineLoader_ = new SpineAssetLoader();
@@ -1092,10 +1099,12 @@ export class Assets {
      * `null` clears it.
      */
     setManifest(manifest: AddressableManifest | ManifestModel | null): void {
-        this.manifestModel_ =
+        const model =
             manifest == null ? null
             : manifest instanceof ManifestModel ? manifest
             : ManifestModel.fromJson(manifest);
+        if (this.activateManifest_) this.catalog_ = this.activateManifest_(model);
+        this.manifestModel_ = model;
     }
 
     getManifest(): ManifestModel | null {
@@ -1253,12 +1262,8 @@ export class Assets {
     /**
      * Fetch a candidate manifest and diff it against the active one WITHOUT
      * applying anything — the "is there an update, and how big?" query. The
-     * returned plan (changed assets + byte total) is what a UI shows before
-     * asking the player to download; the candidate is staged for {@link applyUpdate}.
-     *
-     * Diffing is by content hash (see {@link diffManifests}); because assets are
-     * content-addressed, a changed asset is a brand-new url, so applying can never
-     * overwrite or corrupt a cached file.
+     * returned plan lists both payloads to download and assets that can reuse
+     * their bytes. The candidate is staged for {@link applyUpdate}.
      */
     async checkForUpdate(options: CheckForUpdateOptions): Promise<UpdatePlan> {
         const text = await this.backend.fetchText(this.backend.resolveUrl(options.manifestUrl));
@@ -1306,7 +1311,8 @@ export class Assets {
         }
         // Against what runs NOW, not what ran when it was checked: an apply that
         // finished in between moved the base, and its assets need no second download.
-        const changed = diffManifests(this.manifestModel_, pending.model).changedAssets;
+        const plan = diffManifests(this.manifestModel_, pending.model);
+        const downloads = plan.changedAssets;
         const root = pending.remoteRoot ?? undefined;
         this.activeUpdate_ = pending;
         await this.protectCacheVersions_();
@@ -1318,64 +1324,52 @@ export class Assets {
         const uncached: string[] = [];
         let cacheable = false;
         let done = 0;
-        onProgress?.(0, changed.length);
-        const tasks = changed.map((c) => async (): Promise<void> => {
+        onProgress?.(0, downloads.length);
+        const tasks = downloads.map((c) => async (): Promise<void> => {
             const got = await this.fetchAndVerify_(c, pending.model, root);
             if (got.failure) failed.push({ path: c.path, reason: got.failure });
             if (got.cache !== 'unsupported' && got.cache !== undefined) cacheable = true;
             if (got.cache === 'failed') uncached.push(got.url);
         });
         await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => {
-            onProgress?.(++done, changed.length);
+            onProgress?.(++done, downloads.length);
         });
 
         if (failed.length > 0) {
-            log.warn('asset', `applyUpdate: ${failed.length}/${changed.length} asset(s) failed — update rolled back (manifest unchanged)`);
+            log.warn('asset', `applyUpdate: ${failed.length}/${downloads.length} asset(s) failed — update rolled back (manifest unchanged)`);
             return { ok: false, updated: 0, failed, stages: none, revision: revision(), uncached: [] };
         }
 
-        // Phase 2 — commit atomically. Capture the texture handle bound to each
-        // changed asset BEFORE the swap (it resolves to the OLD path), then swap
-        // root + manifest and notify with that handle so the built-in rebinder
-        // swaps it to the freshly-fetched content in live components.
-        const oldHandles = new Map<string, number>();
-        for (const c of changed) {
-            // A manifest names an asset by its bare key and a scene serializes it as
-            // `@uuid:<key>`; the two resolve down different routes. Ask both, or the
-            // handle a scene is holding is invisible from here.
-            const tex = this.getTexture(c.key) ?? this.getTexture(`${UUID_REF_PREFIX}${c.key}`);
-            if (tex) oldHandles.set(c.key, tex.handle);
-        }
         const rollback = this.cacheVersion_(this.manifestModel_, this.remoteRoot_, 'rollback');
         // Protect both sides durably BEFORE committing: a crash may still boot
         // the old persisted manifest until the new one has been stored.
         const previousRollback = this.cacheRollback_;
+        const changed = [...downloads, ...plan.reconfiguredAssets];
+        const textures = new Map<string, { ref: string; path: string; handle?: number }>();
         this.cacheRollback_ = rollback;
         try {
             await this.protectCacheVersions_(this.cacheVersion_(pending.model, root, 'current'));
+            for (const c of changed) {
+                if (c.type !== 'texture') continue;
+                const ref = extractUuid(c.key) ? `${UUID_REF_PREFIX}${c.key}` : c.key;
+                const texture = this.getTexture(ref) ?? this.getTexture(c.key);
+                textures.set(c.key, { ref, path: this.resolveLoadPath_(ref), handle: texture?.handle });
+            }
+            this.setManifest(pending.model);
         } catch (err) {
             this.cacheRollback_ = previousRollback;
             throw err;
         }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
-        this.setManifest(pending.model);
+        // A new sampler or slice border can name the same file. End its cached
+        // GPU generation before listeners acquire the new one.
+        for (const { ref, path } of textures.values()) {
+            if (path === this.resolveLoadPath_(ref)) this.invalidateTexturePath_(path);
+        }
         // A newer check staged while this one downloaded stays staged.
         if (this.pendingUpdate_ === pending) this.pendingUpdate_ = null;
-        // The manifest record already says what kind each changed asset is; the
-        // notification carries it rather than collapsing to "maybe a texture".
-        // Changing content and rebinding nothing had no words: every holder keeps
-        // the old pixels while the caller is told `applied: true, failed: 0`. With
-        // the keys, because a key the cache never saw is what that looks like.
-        if (changed.length > 0 && oldHandles.size === 0) {
-            log.warn('asset', 'applyUpdate: no changed asset is bound to a live texture, so this'
-                + ` update will rebind nothing. ${changed.map((c) => `${c.type} ${c.key}`
-                + ` -> ${this.resolveLoadPath_(c.key)}`).join('; ')}`);
-        }
-        for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
+        for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: textures.get(c.key)?.handle });
         for (const c of changed) this.fireSourceChanged_(c.key);
-        // A changed asset is content-addressed, so its next load finds the update
-        // on its own. An era already BUILT from one cannot: it holds what it read
-        // at the revision it was prepared in, and only the walk ends it.
         if (changed.length) this.track_(this.rebuildChangedFiles_(changed.map(c => c.key)));
         // The update is applied when the asset graph agrees with the manifest —
         // not when the manifest was swapped. Bindings converge on a frame, which
@@ -1483,7 +1477,9 @@ export class Assets {
         // was built for a package that is not updated, and is refused rather than
         // fetched as files that do not exist.
         if (model.packOf(c.path)) return { url: c.path, failure: 'packed' };
-        const path = this.manifestAssetUrl_(c.path, remote, root);
+        // The candidate supplies a staged path. Resolving it against the active
+        // manifest would send a move from CDN to package back to the old CDN.
+        const path = remote ? this.remoteUrlFor_(c.path, root) : c.path;
         const url = this.backend.resolveUrl(path);
         try {
             const buf = await this.backend.fetchBinary(url);
@@ -1521,8 +1517,8 @@ export class Assets {
                 platformRemoveStorageItem(key);
                 return false;
             }
-            if (parsed.remoteRoot) this.setRemoteRoot(parsed.remoteRoot);
             this.setManifest(parsed.manifest);
+            if (parsed.remoteRoot) this.setRemoteRoot(parsed.remoteRoot);
             if (parsed.cacheRollback && typeof parsed.cacheRollback.revision === 'string'
                 && Array.isArray(parsed.cacheRollback.keys) && parsed.cacheRollback.keys.every(k => typeof k === 'string')) {
                 this.cacheRollback_ = { ...parsed.cacheRollback, reason: 'rollback' };
@@ -2409,6 +2405,31 @@ export class Assets {
         return { hit, rebuilt: work.length ? Promise.all(work).then(() => undefined) : undefined };
     }
 
+    private invalidateTexturePath_(path: string): boolean {
+        let dropped = false;
+        const rm = getResourceManager();
+        // Both flip variants: the cache key carries the flag. The C++ pool's
+        // residency identity is severed too — an evictable entry under this
+        // key is freed and can never be revived with stale bytes.
+        for (const flip of [true, false]) {
+            const key = this.textureCacheKey_(path, flip);
+            if (this.textureCache_.invalidate(key)) dropped = true;
+            // The ledger is NOT dropped: holders of the outgoing generation
+            // still owe a release, and forgetting them strands their texture
+            // with nobody able to free it. The era still ends here.
+            this.textureRefs_.supersede(key);
+            if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(this.textureLoader_.poolKey(key, rm))) {
+                dropped = true;
+            }
+        }
+        // The pool's primary loader also sees files a native host published under a plain path.
+        if (typeof rm?.invalidateTexturePath === 'function' && this.textureLoader_.poolKey(path, rm) === path
+            && rm.invalidateTexturePath(path)) {
+            dropped = true;
+        }
+        return dropped;
+    }
+
     /**
      * End ONE asset's era — its type all the way down. A path can name a texture
      * and a material, and what one of them acquired changing is not a change to
@@ -2431,26 +2452,7 @@ export class Assets {
             // The handle bound to this path, captured BEFORE the caches drop it,
             // so a rebind listener can swap it in live components.
             oldValue = this.textureCache_.get(this.textureCacheKey_(path, true))?.value.handle ?? 0;
-            const rm = getResourceManager();
-            // Both flip variants: the cache key carries the flag. The C++ pool's
-            // residency identity is severed too — an evictable entry under this
-            // key is freed and can never be revived with stale bytes.
-            for (const flip of [true, false]) {
-                const key = this.textureCacheKey_(path, flip);
-                if (this.textureCache_.invalidate(key)) dropped = true;
-                // The ledger is NOT dropped: holders of the outgoing generation
-                // still owe a release, and forgetting them strands their texture
-                // with nobody able to free it. The era still ends here.
-                this.textureRefs_.supersede(key);
-                if (typeof rm?.invalidateTexturePath === 'function' && rm.invalidateTexturePath(this.textureLoader_.poolKey(key, rm))) {
-                    dropped = true;
-                }
-            }
-            // The pool's primary loader also sees files a native host published under a plain path.
-            if (typeof rm?.invalidateTexturePath === 'function' && this.textureLoader_.poolKey(path, rm) === path
-                && rm.invalidateTexturePath(path)) {
-                dropped = true;
-            }
+            dropped = this.invalidateTexturePath_(path);
         } else if (loader instanceof AudioAssetLoader) {
             const audio = this.getAudio_();
             const sourceOf = (ref: string) => audio?.getBufferSource(ref)
@@ -3229,7 +3231,7 @@ export class Assets {
         const self = this;
         this.loadContext_ = {
             backend: this.backend,
-            catalog: this.catalog,
+            get catalog() { return self.catalog; },
             resourceManager: requireResourceManager() as CppResourceManager,
             async loadTexture(path: string, flipY?: boolean): Promise<TextureResult> {
                 if (flipY === false) {

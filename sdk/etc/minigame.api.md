@@ -10701,6 +10701,7 @@ rotation: Quat
 
 ## RuntimeAssetSource — interface @experimental
 ```
+activateManifest: ((model: ManifestModel | null, suppliedCatalog?: Catalog) => Catalog) | undefined
 backend: Backend
 compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
 decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<ImageLoadResult>

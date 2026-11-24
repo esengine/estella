@@ -253,26 +253,28 @@ export function packagedRuntimeInit(
 }
 
 export function catalogFromManifest(manifest: AddressableManifest): Catalog | undefined {
+    return catalogForModel(ManifestModel.fromJson(manifest));
+}
+
+function catalogForModel(model: ManifestModel): Catalog | undefined {
     const entries: Record<string, CatalogEntry> = {};
-    for (const group of Object.values(manifest.groups)) {
-        for (const [uuid, asset] of Object.entries(group.assets)) {
-            const md = asset.metadata;
-            const atlasFields = md?.atlasFrame && md.atlasPageWidth && md.atlasPageHeight
-                ? atlasCatalogFields(
-                    { page: md.atlasPage, frame: md.atlasFrame, pageWidth: md.atlasPageWidth, pageHeight: md.atlasPageHeight },
-                    asset.path,
-                )
-                : null;
-            const tail = asset.streamTail ? { streamTail: asset.streamTail } : {};
-            if (atlasFields || asset.streamTail) {
-                entries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
-            }
-            // A texture with a small copy is found by whatever spelling a load uses, the build path among them.
-            if (asset.streamTail) entries[asset.path] = { type: asset.type, buildPath: asset.path, ...tail };
-            if (!asset.address || asset.address === asset.path) continue;
-            entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
-            entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
+    for (const { key: uuid, asset } of model.entries()) {
+        const md = asset.metadata;
+        const atlasFields = md?.atlasFrame && md.atlasPageWidth && md.atlasPageHeight
+            ? atlasCatalogFields(
+                { page: md.atlasPage, frame: md.atlasFrame, pageWidth: md.atlasPageWidth, pageHeight: md.atlasPageHeight },
+                asset.path,
+            )
+            : null;
+        const tail = asset.streamTail ? { streamTail: asset.streamTail } : {};
+        if (atlasFields || asset.streamTail) {
+            entries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
         }
+        // A texture with a small copy is found by whatever spelling a load uses, the build path among them.
+        if (asset.streamTail) entries[asset.path] = { type: asset.type, buildPath: asset.path, ...tail };
+        if (!asset.address || asset.address === asset.path) continue;
+        entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
+        entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
     }
     return Object.keys(entries).length > 0 ? Catalog.fromJson({ version: 1, entries }) : undefined;
 }
@@ -310,10 +312,12 @@ export async function loadPackagedScenes(
 /** {@link loadPackagedAssetIndex} over an already-parsed manifest. */
 export function indexPackagedManifest(manifest: AddressableManifest): PackagedAssetIndex {
     const model = ManifestModel.fromJson(manifest);
+    return { manifest, model, ...packagedLookups(model) };
+}
+
+function packagedLookups(model: ManifestModel): Omit<PackagedAssetIndex, 'manifest' | 'model'> {
     return {
-        manifest,
-        model,
-        catalog: catalogFromManifest(manifest),
+        catalog: catalogForModel(model),
         // A scene spells asset refs `@uuid:<v4>`, while the manifest indexes bare
         // uuids — strip the prefix before looking up, or every `@uuid:` ref falls
         // through as a literal path and 404s.
@@ -357,14 +361,20 @@ export function createPackagedAssetSource(
     index: PackagedAssetIndex,
     options: PackagedAssetSourceOptions = {},
 ): RuntimeAssetSource {
+    let active: ReturnType<typeof packagedLookups> = index;
     return {
         backend: options.backend ?? new FileSystemBackend(),
+        activateManifest(model, suppliedCatalog) {
+            active = model === index.model ? index : packagedLookups(model ?? ManifestModel.empty());
+            if (suppliedCatalog && suppliedCatalog !== index.catalog) return suppliedCatalog;
+            return active.catalog ?? Catalog.empty();
+        },
         decodePixels: options.decodePixels ?? ((path, _flip, maxEdge) => platformLoadImagePixels(path, maxEdge)),
-        resolveRef: index.resolvePath,
-        resolveAddress: index.addressOf,
-        listAssetPaths: index.assetPaths,
-        textureImportSettings: index.textureImport,
-        spineCulling: index.spineCulling,
+        resolveRef: ref => active.resolvePath(ref),
+        resolveAddress: ref => active.addressOf(ref),
+        listAssetPaths: () => active.assetPaths(),
+        textureImportSettings: ref => active.textureImport(ref),
+        spineCulling: (skeleton, atlas) => active.spineCulling(skeleton, atlas),
     };
 }
 

@@ -4,18 +4,12 @@
  * @file    hotUpdate.ts
  * @brief   Pure manifest-diff core for content-addressed hot updates.
  *
- * The runtime hot-update flow is: fetch the remote manifest → {@link diffManifests}
- * it against the active one → download the changed (content-addressed) assets →
- * swap the active manifest. Because every asset url is `<contentHash>.<ext>`
- * (immutable), a changed asset is a NEW url: the diff is a pure comparison of
- * per-asset `contentHash`, and applying it never overwrites or invalidates a
- * cached file — the old url simply stops being referenced.
- *
- * This module is pure — no fetch, no platform, no Assets — so it unit-tests in
- * isolation and the SAME diff drives every platform (web / mini-game / native).
+ * The same plan tells each host which payloads to verify and which assets
+ * need new runtime settings once verification succeeds.
  */
 import type { ManifestModel } from './AddressableManifest';
 import type { AddressableAssetType, AddressableManifestAsset } from './AddressableManifest';
+import { assetManifestSignature, groupManifestSignature } from './AddressableManifest';
 
 /** One asset the update touches, resolved to what the downloader needs. */
 export interface AssetChange {
@@ -34,15 +28,16 @@ export interface AssetChange {
 
 /** The result of comparing an active manifest to a candidate one. */
 export interface UpdatePlan {
-    /** True iff any asset is new / content-changed (or, absent contentHashes on
-     *  both sides, the top-level revision moved). */
+    /** True when the candidate changes the active manifest. */
     hasUpdate: boolean;
     fromRevision: string | null;
     toRevision: string | null;
-    /** Distinct groups owning ≥1 changed / added asset — the set to re-load. */
+    /** Groups with changes to their delivery settings, membership or assets. */
     changedGroups: string[];
-    /** New or content-changed assets to download. */
+    /** Assets whose bytes must be verified at their new delivery location. */
     changedAssets: AssetChange[];
+    /** Assets whose existing payload can be used with the candidate's settings. */
+    reconfiguredAssets: AssetChange[];
     /** Assets present before but absent now — informational, for cache cleanup;
      *  never downloaded. */
     removedAssets: AssetChange[];
@@ -61,41 +56,50 @@ function toChange(group: string, key: string, asset: AddressableManifestAsset): 
 /**
  * Compare the active manifest to `next` and produce the download plan.
  *
- * Matching is by group-record key (stable per asset across builds). An asset is
- * "changed" when it is brand-new, or its content differs — authoritatively by
- * `contentHash` when both sides carry one, else by build path. `current === null`
- * (no manifest yet, e.g. first launch off a persisted-manifest miss) treats every
- * asset as new — a full fetch.
+ * Assets match by record key across builds, including moves between groups.
+ * Compare their settings even when a legacy cook supplied the same revision.
  */
 export function diffManifests(current: ManifestModel | null, next: ManifestModel): UpdatePlan {
     const changedAssets: AssetChange[] = [];
+    const reconfiguredAssets: AssetChange[] = [];
     const changedGroups = new Set<string>();
+    const previous = new Map(current?.entries().map(entry => [entry.key, entry]));
     let totalBytes = 0;
 
     for (const { group, key, asset } of next.entries()) {
-        const prev = current?.assetByKey(key) ?? null;
-        const changed = !prev
-            || (asset.contentHash != null && prev.contentHash != null
-                ? asset.contentHash !== prev.contentHash
-                : asset.path !== prev.path);
-        if (changed) {
+        const prior = previous.get(key);
+        previous.delete(key);
+        const prev = prior?.asset;
+        const deliveryChanged = prior && current?.bundleMode(prior.group) !== next.bundleMode(group);
+        if (!prev || deliveryChanged || asset.path !== prev.path
+            || (asset.contentHash != null && asset.contentHash !== prev.contentHash)
+            || asset.pack?.file !== prev.pack?.file || asset.pack?.offset !== prev.pack?.offset
+            || asset.pack?.size !== prev.pack?.size) {
             changedAssets.push(toChange(group, key, asset));
-            changedGroups.add(group);
             totalBytes += asset.size ?? 0;
+        } else if (prior.group !== group || assetManifestSignature(prev) !== assetManifestSignature(asset)) {
+            reconfiguredAssets.push(toChange(group, key, asset));
+        } else {
+            continue;
         }
+        if (prior) changedGroups.add(prior.group);
+        changedGroups.add(group);
     }
 
     const removedAssets: AssetChange[] = [];
-    if (current) {
-        const nextKeys = new Set(next.entries().map((e) => e.key));
-        for (const { group, key, asset } of current.entries()) {
-            if (!nextKeys.has(key)) removedAssets.push(toChange(group, key, asset));
-        }
+    for (const { group, key, asset } of previous.values()) {
+        removedAssets.push(toChange(group, key, asset));
+        changedGroups.add(group);
+    }
+    for (const name of new Set([...(current?.groupNames() ?? []), ...next.groupNames()])) {
+        const before = current?.group(name);
+        const after = next.group(name);
+        if (!before || !after || groupManifestSignature(before) !== groupManifestSignature(after)) changedGroups.add(name);
     }
 
     const fromRevision = current?.revision() ?? null;
     const toRevision = next.revision() ?? null;
-    const hasUpdate = changedAssets.length > 0
+    const hasUpdate = changedGroups.size > 0
         || (fromRevision != null && toRevision != null && fromRevision !== toRevision);
 
     return {
@@ -104,6 +108,7 @@ export function diffManifests(current: ManifestModel | null, next: ManifestModel
         toRevision,
         changedGroups: [...changedGroups],
         changedAssets,
+        reconfiguredAssets,
         removedAssets,
         totalBytes,
     };

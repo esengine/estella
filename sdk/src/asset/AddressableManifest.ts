@@ -126,31 +126,36 @@ export interface AddressableManifestGroup {
 export interface AddressableManifest {
     version: '2.0';
     /**
-     * Build content revision — a stable hash over every asset's `contentHash`
-     * (see {@link deriveManifestRevision}). Two builds share a revision iff they
-     * ship byte-identical content under the same addressable keys, so a
-     * changed / added / removed asset flips it. It is the fast gate for "is there
-     * an update?"; the per-asset `contentHash` diff stays authoritative on WHAT
-     * changed. Optional — absent on legacy manifests, where the diff falls back
-     * to comparing contentHashes (or build paths) directly.
+     * Build revision of the assets, their runtime settings and their delivery
+     * groups. Older cooks may omit it or cover only the payload hashes.
      */
     revision?: string;
     groups: Record<string, AddressableManifestGroup>;
 }
 
-/**
- * Stable content revision of a manifest: XXH64 over every asset's sorted
- * `<group>\t<key>\t<contentHash>` line. Deterministic and order-independent, so
- * two cooks of identical content produce the same string and any content / set
- * change flips it. A BUILD-TIME helper (rides {@link contentHashOf}'s
- * `TextEncoder`); the runtime reads the emitted `revision` field and never
- * recomputes it.
- */
+/** The cook and update planner compare the same wire fields, independent of JSON member order. */
+export function assetManifestSignature(asset: AddressableManifestAsset): string {
+    return JSON.stringify(asset, (key, value: unknown) => {
+        if (Array.isArray(value)) {
+            return key === 'labels' || key === 'compressedFormats' ? [...value].sort() : value;
+        }
+        if (value === null || typeof value !== 'object') return value;
+        const fields = value as Record<string, unknown>;
+        return Object.fromEntries(Object.keys(fields).sort().map(name => [name, fields[name]]));
+    });
+}
+
+export function groupManifestSignature(group: AddressableManifestGroup): string {
+    return JSON.stringify([normalizeBundleMode(group.bundleMode), [...(group.labels ?? [])].sort()]);
+}
+
+/** XXH64 of the build's addressable records, including empty groups. */
 export function deriveManifestRevision(manifest: AddressableManifest): string {
     const lines: string[] = [];
     for (const [groupName, group] of Object.entries(manifest.groups)) {
+        lines.push(JSON.stringify([groupName, groupManifestSignature(group)]));
         for (const [key, asset] of Object.entries(group.assets)) {
-            lines.push(`${groupName}\t${key}\t${asset.contentHash ?? ''}`);
+            lines.push(JSON.stringify([groupName, key, assetManifestSignature(asset)]));
         }
     }
     lines.sort();

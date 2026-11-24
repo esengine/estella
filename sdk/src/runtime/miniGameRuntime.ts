@@ -344,7 +344,7 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
     // Canonical asset source: the host filesystem backend, host image decode,
     // manifest ref resolution (bare-uuid → build path).
     const source = createPackagedAssetSource(index);
-    applyAssetRefResolvers(app, index.resolvePath);
+    applyAssetRefResolvers(app, source.resolveRef!);
 
     // The first scene loads eagerly (the game boots into it); every other
     // registers lazily by path — SceneManager fetches scenes/<name>.json

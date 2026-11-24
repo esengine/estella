@@ -17,7 +17,9 @@ import { App } from '../src/app/app';
 import { World } from '../src/ecs/world';
 import { defineComponent, getComponent, getComponentRegistry, unregisterComponent, type AnyComponentDef } from '../src/ecs/component';
 import { COMPONENT_META } from '../src/ecs/component.generated';
-import { Assets } from '../src/asset/Assets';
+import { Assets, type AssetsOptions } from '../src/asset/Assets';
+import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
+import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
@@ -56,6 +58,7 @@ vi.mock('../src/wasm/resourceManager', () => ({
 }));
 
 const platformFactory = vi.hoisted(() => () => ({
+    isPlatformInitialized: () => false,
     platformCreateCanvas: () => ({
         width: 64, height: 64,
         getContext: () => ({
@@ -97,8 +100,9 @@ const materialFake = vi.hoisted(() => {
 });
 vi.mock('../src/render/material', () => ({ Material: materialFake.Material }));
 
-function buildAssets(docs: Record<string, string> = {}): Assets {
+function buildAssets(docs: Record<string, string> = {}, options: Pick<AssetsOptions, 'manifest' | 'activateManifest'> = {}): Assets {
     return Assets.create({
+        ...options,
         backend: {
             fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
             fetchText: vi.fn(async (url: string) => {
@@ -138,6 +142,46 @@ async function settle(app: App, frames = 4): Promise<void> {
 
 describe('the hot-update rebinder reaches every declared texture field', () => {
     beforeEach(() => { pool = createPoolFake(); });
+
+    it('applies a new slice border to sprite and mesh bindings when the image and its URL are identical', async () => {
+        const key = '22222222-2222-4222-8222-222222222222';
+        const ref = `@uuid:${key}`;
+        const shipped: AddressableManifest = {
+            version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+                [key]: { type: 'texture', path: 'art.png', contentHash: 'same', size: 16, labels: [] },
+            } } },
+        };
+        const next = structuredClone(shipped);
+        next.groups.main.assets[key].textureImport = { sliceBorder: { left: 2, right: 3, top: 4, bottom: 5 } };
+        const index = indexPackagedManifest(shipped);
+        const source = createPackagedAssetSource(index);
+        const assets = buildAssets({ 'update.json': JSON.stringify(next) }, {
+            manifest: index.model, activateManifest: source.activateManifest,
+        });
+        assets.setAssetRefResolver(source.resolveRef!);
+        assets.setTextureImportSettingsResolver(source.textureImportSettings!);
+        const app = App.new();
+        connectFakeCpp(app.world);
+        installHotUpdateRebind(app, assets);
+        const held = await assets.acquireTexture(ref);
+        const sprite = app.world.spawn();
+        const mesh = app.world.spawn();
+        app.world.insert(sprite, Sprite, { texture: held.value.handle });
+        app.world.insert(mesh, MeshRenderer, { texture: held.value.handle });
+
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+        expect(plan).toMatchObject({ hasUpdate: true, changedAssets: [], totalBytes: 0 });
+        expect(await assets.applyUpdate()).toMatchObject({ ok: true, updated: 1 });
+        await settle(app);
+
+        const handle = assets.getTexture(ref)!.handle;
+        expect(handle).not.toBe(held.value.handle);
+        expect(pool.setTextureMetadata).toHaveBeenCalledWith(handle, 2, 3, 4, 5);
+        expect(app.world.get(sprite, Sprite).texture).toBe(handle);
+        expect(app.world.get(mesh, MeshRenderer).texture).toBe(handle);
+        held.release();
+        expect(assets.getTexture(ref)!.handle).toBe(handle);
+    });
 
     it('rebinds all of them, including a component the project declared', async () => {
         // A project component is the case a hand-written list can never cover.

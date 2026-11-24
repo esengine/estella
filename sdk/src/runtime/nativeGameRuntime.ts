@@ -65,7 +65,7 @@ async function bootNativeGame(options: NativeGameOptions, startup: GameStartup):
 
     const index = await loadPackagedAssetIndex();
     const source = createPackagedAssetSource(index);
-    applyAssetRefResolvers(app, index.resolvePath);
+    applyAssetRefResolvers(app, source.resolveRef!);
 
     const selection = await loadPackagedScenes(config, index, 'main');
 
@@ -74,7 +74,7 @@ async function bootNativeGame(options: NativeGameOptions, startup: GameStartup):
         projectPlugin: options.projectPlugin,
         module: null,             // the engine core is native here
         source,
-        manifest: index.manifest,
+        manifest: index.model,
         catalog: index.catalog,
         remoteRoot: config.hotUpdate?.remoteRoot,
         persistUpdateKey: config.hotUpdate?.persistUpdateKey,

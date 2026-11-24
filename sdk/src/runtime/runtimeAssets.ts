@@ -11,6 +11,7 @@
 import { TextureContent, type ESEngineModule, type CppResourceManager } from '../wasm';
 import { samplesAsSrgb } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
+import type { AssetsOptions } from '../asset/Assets';
 import type { ImageLoadResult } from '../platform/types';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { requireResourceManager } from '../wasm/resourceManager';
@@ -31,6 +32,8 @@ import { withMalloc } from '../wasm/wasmScratch';
  */
 export interface RuntimeAssetSource {
     backend: Backend;
+    /** Refresh this source's derived lookups when a packaged manifest becomes active. */
+    activateManifest?: AssetsOptions['activateManifest'];
     decodePixels(path: string, flip: boolean, maxEdge?: number): Promise<ImageLoadResult>;
     resolveRef?(ref: string): string;
     /**

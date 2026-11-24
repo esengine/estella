@@ -6,6 +6,7 @@ import { Catalog } from '../src/asset/Catalog';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
 import { contentHashHex } from '../src/asset/contentHash';
+import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 
 // The bytes backendServing.fetchBinary returns (8 zero bytes) → the content hash a
 // candidate manifest must claim for the integrity check to pass.
@@ -331,6 +332,44 @@ describe('a hot update reaches what was built from what it changed', () => {
 });
 
 describe('Assets.checkForUpdate / applyUpdate', () => {
+    it('verifies a move from CDN to package at the candidate location', async () => {
+        const next = cdnManifest(REMOTE_HASH, 'local');
+        next.groups.cdn.bundleMode = 'local';
+        const backend = backendServing(next);
+        const assets = createAssets(backend);
+        assets.setManifest(cdnManifest(REMOTE_HASH, 'remote'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+        expect(plan.changedAssets.map(asset => asset.path)).toEqual([`assets/${REMOTE_HASH}.png`]);
+        expect((await assets.applyUpdate()).ok).toBe(true);
+        expect(backend.fetchBinary).toHaveBeenCalledWith(`assets/${REMOTE_HASH}.png`);
+    });
+
+    it('keeps the shipped settings active when another file in the candidate fails verification', async () => {
+        const shipped = cdnManifest(REMOTE_HASH, 'shipped');
+        shipped.groups.cdn.assets['uuid-1'].textureImport = { filter: 'nearest' };
+        const next = twoFileManifest(REMOTE_HASH, 'candidate');
+        next.groups.cdn.assets['uuid-1'].textureImport = { filter: 'linear' };
+        next.groups.cdn.assets['uuid-2'].contentHash = 'corrupt';
+        const index = indexPackagedManifest(shipped);
+        const backend = backendServing(next);
+        const source = createPackagedAssetSource(index, { backend });
+        const assets = Assets.create({ backend, module: mockModule, manifest: index.model, activateManifest: source.activateManifest });
+        assets.setRemoteRoot('https://cdn/v1');
+        const notify = vi.fn();
+        assets.onInvalidate(notify);
+
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json', remoteRoot: 'https://cdn/v2' });
+        expect(plan.changedAssets.map(asset => asset.key)).toEqual(['uuid-2']);
+        expect(plan.reconfiguredAssets.map(asset => asset.key)).toEqual(['uuid-1']);
+        expect(await assets.applyUpdate()).toMatchObject({ ok: false, updated: 0, failed: [{ reason: 'integrity' }] });
+        expect(backend.fetchBinary).toHaveBeenCalledTimes(1);
+        expect(source.textureImportSettings!('assets/hero.png')).toEqual({ filter: 'nearest' });
+        expect(assets.getManifest()!.revision()).toBe('shipped');
+        expect(assets.remoteRoot).toBe('https://cdn/v1');
+        expect(notify).not.toHaveBeenCalled();
+    });
+
     it('checkForUpdate diffs the fetched manifest against the active one without applying', async () => {
         const assets = createAssets(backendServing(cdnManifest('zzzz', 'rev-2')));
         assets.setManifest(cdnManifest('aaaa', 'rev-1'));
