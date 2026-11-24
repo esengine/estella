@@ -420,9 +420,6 @@ export function layoutText(
     const wrap = !!(opts.maxWidth && opts.maxWidth > 0);
     const richOpts = { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor };
 
-    // Word-wrap before stacking; explicit \n still hard-breaks. Rich lines wrap
-    // at the styled-run level so a token measures with its own size/style. Inline
-    // images survive the no-wrap path; wrapping is text-only (images drop) for now.
     // How many lines the box has room for. Below Visible only, and never zero: a
     // box too short for one line shows one clipped line rather than nothing, which
     // is what every layout engine does and what a reader can act on.
@@ -448,7 +445,7 @@ export function layoutText(
         const richLines = rawLines
             .map(l => parseRichText(l))
             .flatMap(runs => (wrap
-                ? wrapRichRuns(runs.filter((r): r is TextSegment => r.type === 'text'), atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
+                ? wrapRichRuns(runs, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
                 : [runs]));
         const kept = richLines.slice(0, maxLines === Infinity ? undefined : maxLines);
         if (ellipsis && kept.length < richLines.length && kept.length > 0) {
@@ -545,64 +542,59 @@ function measureRun(
  * {@link layoutRichRuns}. The plain-text twin is {@link wrapLine}.
  */
 export function wrapRichRuns(
-    runs: TextSegment[], atlas: GlyphAtlas, fontFamily: string,
+    runs: readonly TextSegment[], atlas: GlyphAtlas, fontFamily: string,
+    baseSizePx: number, baseStyle: number, maxWidth: number, spacing?: number,
+): TextSegment[][];
+export function wrapRichRuns(
+    runs: readonly RichTextRun[], atlas: GlyphAtlas, fontFamily: string,
+    baseSizePx: number, baseStyle: number, maxWidth: number, spacing?: number,
+): RichTextRun[][];
+export function wrapRichRuns(
+    runs: readonly RichTextRun[], atlas: GlyphAtlas, fontFamily: string,
     baseSizePx: number, baseStyle: number, maxWidth: number, spacing = 0,
-): TextSegment[][] {
-    interface Token { run: TextSegment; text: string; space: boolean }
-    const tokens: Token[] = [];
-    for (const run of runs) {
-        for (const part of run.text.split(/(\s+)/)) {
-            if (part === '') continue;
-            tokens.push({ run, text: part, space: /^\s+$/.test(part) });
-        }
-    }
-
-    const lines: TextSegment[][] = [];
-    let cur: Token[] = [];
-    let curWidth = 0;
-    const measure = (t: Token) =>
-        measureRun(t.text, t.run, atlas, fontFamily, baseSizePx, baseStyle, spacing);
+): RichTextRun[][] {
+    const lines: RichTextRun[][] = [];
+    let line: RichTextRun[] = [], width = 0;
     const flush = () => {
-        while (cur.length > 0 && cur[cur.length - 1]!.space) cur.pop();
-        // Merge adjacent tokens of the same run back into segments.
-        const segs: TextSegment[] = [];
-        for (const t of cur) {
-            const last = segs[segs.length - 1];
-            if (last && last.bold === t.run.bold && last.italic === t.run.italic
-                && last.color === t.run.color && last.fontSize === t.run.fontSize) {
-                last.text += t.text;
-            } else {
-                segs.push({ ...t.run, text: t.text });
-            }
+        let last = line[line.length - 1];
+        while (last?.type === 'text' && /^\s+$/.test(last.text)) {
+            line.pop();
+            last = line[line.length - 1];
         }
-        if (segs.length > 0) lines.push(segs);
-        cur = [];
-        curWidth = 0;
-    };
-    const push = (t: Token) => { cur.push(t); curWidth += measure(t); };
-    const charBreak = (t: Token) => {
-        for (const ch of t.text) {
-            const w = measureRun(ch, t.run, atlas, fontFamily, baseSizePx, baseStyle, spacing);
-            if (cur.length > 0 && curWidth + w > maxWidth) flush();
-            push({ run: t.run, text: ch, space: false });
+        const merged: RichTextRun[] = [];
+        for (const run of line) {
+            const prev = merged[merged.length - 1];
+            if (run.type === 'text' && prev?.type === 'text' && prev.bold === run.bold && prev.italic === run.italic
+                && prev.color === run.color && prev.fontSize === run.fontSize) prev.text += run.text;
+            else merged.push(run);
         }
+        if (merged.length) lines.push(merged);
+        line = [];
+        width = 0;
     };
-
-    for (const t of tokens) {
-        if (t.space) {
-            if (cur.length > 0) push(t); // keep inter-word spaces, drop leading
+    const place = (run: RichTextRun, advance: number) => {
+        if (line.length && width + advance > maxWidth) flush();
+        line.push(run);
+        width += advance;
+    };
+    for (const run of runs) {
+        if (run.type === 'image') {
+            place(run, run.width * run.scale);
             continue;
         }
-        const w = measure(t);
-        if (cur.length === 0) {
-            if (w <= maxWidth) push(t);
-            else charBreak(t);
-        } else if (curWidth + w <= maxWidth) {
-            push(t);
-        } else {
-            flush();
-            if (w <= maxWidth) push(t);
-            else charBreak(t);
+        const measure = (text: string) => measureRun(text, run, atlas, fontFamily, baseSizePx, baseStyle, spacing);
+        for (const text of run.text.split(/(\s+)/)) {
+            if (!text) continue;
+            if (/^\s+$/.test(text)) {
+                if (line.length) { line.push({ ...run, text }); width += measure(text); }
+                continue;
+            }
+            const advance = measure(text);
+            if (advance <= maxWidth || width + advance <= maxWidth) place({ ...run, text }, advance);
+            else {
+                flush();
+                for (const ch of text) place({ ...run, text: ch }, measure(ch));
+            }
         }
     }
     flush();

@@ -65,7 +65,7 @@ function emitTextRun(runs: RichTextRun[], text: string, style: StyleFrame): void
     runs.push({ type: 'text', text, bold: style.bold, italic: style.italic, color: style.color, fontSize: style.fontSize });
 }
 
-const IMG_ATTR_RE = /(\w+)\s*=\s*(?:"([^"]*)"|(\S+))/g;
+const IMG_ATTR_RE = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g;
 const VALID_VALIGNS = new Set<ImageValign>(['baseline', 'middle', 'top', 'bottom']);
 
 function parseImgTag(tagContent: string): ImageSegment | null {
@@ -73,7 +73,7 @@ function parseImgTag(tagContent: string): ImageSegment | null {
     let m: RegExpExecArray | null;
     IMG_ATTR_RE.lastIndex = 0;
     while ((m = IMG_ATTR_RE.exec(tagContent)) !== null) {
-        attrs.set(m[1], m[2] ?? m[3]);
+        attrs.set(m[1], m[2] ?? m[3] ?? m[4]);
     }
     const src = attrs.get('src');
     if (!src) return null;

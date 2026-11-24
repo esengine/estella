@@ -10,6 +10,7 @@ import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
 import { wrapLine, wrapByMeasure, wrapRichRuns, measureWidth, layoutText } from '../src/ui/text/layout';
+import { TextOverflow } from '../src/ui/core/text';
 import type { TextSegment } from '../src/ui/text/rich-text-parser';
 
 function makeAtlas(): GlyphAtlas {
@@ -82,6 +83,23 @@ describe('REARCH_GUI P1.4c: word-wrap', () => {
         // so "AA" (22) overflows width 12 and char-breaks.
         const lines = wrapRichRuns([seg('AA', { fontSize: 48 })], makeAtlas(), 'Arial', F, 0, 12);
         expect(lines.map((l) => l.map((r) => r.text))).toEqual([['A'], ['A']]);
+    });
+
+    it('wraps a scaled image with its neighbouring glyphs and aligns each resulting line', () => {
+        const image = '<img src="icon.png" width=4 height=6 scale=2 />';
+        const out = layoutText('AA ' + image + '<b>A</b>', makeAtlas(), 'Arial',
+            { fontSizePx: F, lineHeight: 30, maxWidth: 16, boxWidth: 20, align: 1, rich: true });
+        expect(out.lines).toEqual([{ x: 4.5, width: 11, baseline: -0 }, { x: 3.25, width: 13.5, baseline: -30 }]);
+        expect(out.images).toMatchObject([{ src: 'icon.png', x: 3.25, y: -30, w: 8, h: 12 }]);
+    });
+
+    it('keeps an oversized image whole and omits it when its line is clipped', () => {
+        const text = 'A<img src="wide.png" width=40 height=12 />B';
+        const opts = { fontSizePx: F, maxWidth: 12, lineHeight: 30, rich: true };
+        const all = layoutText(text, makeAtlas(), 'Arial', opts);
+        expect(all.lines?.map(l => l.width)).toEqual([5.5, 40, 5.5]);
+        expect(all.images).toMatchObject([{ src: 'wide.png', y: -30, w: 40 }]);
+        expect(layoutText(text, makeAtlas(), 'Arial', { ...opts, boxHeight: 30, overflow: TextOverflow.Clip }).images).toEqual([]);
     });
 
     it('layoutText wraps rich markup end-to-end', () => {

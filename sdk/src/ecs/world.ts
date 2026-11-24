@@ -1144,6 +1144,9 @@ export class World {
         this.assetFieldResolver_ = resolver;
     }
 
+    /** @internal Whether authored asset fields already have a resolver on this world. */
+    get hasAssetFieldResolver(): boolean { return this.assetFieldResolver_ !== null; }
+
     /** @internal Observe stored asset fields after a component write or removal. */
     onAssetFieldsChanged(observer: (entity: Entity, component: AnyComponentDef) => void): () => void {
         (this.assetFieldObservers_ ??= new Set()).add(observer);

@@ -10,7 +10,7 @@
  *        explicit fallback cases (overflow / bulk / directory move → full rescan).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../src/assets/assetDb';
@@ -51,6 +51,27 @@ beforeEach(() => {
   writeAsset('assets/textures/player.png', 'texture', TEX, 'PNGDATA');
   writeAsset('assets/fonts/ui.fnt', 'font', FONT, 'FNTDATA');
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, sceneBody({ texture: TEX, font: FONT }));
+});
+
+it('tracks rich Text image sources by path and UUID on a cold and an incremental scan', async () => {
+  writeAsset('assets/textures/badge.png', 'imageSource', TEX2, 'PNG');
+  const scene = 'assets/scenes/main.esscene';
+  const textScene = (richText: boolean) => JSON.stringify({ entities: [{ components: [
+    { type: 'Text', data: { richText, content: `A<img src="assets/textures/player.png"/>B<img src='@uuid:${TEX2}'/>` } },
+    { type: 'Text', data: { richText: false, content: `<img src="@uuid:${FONT}"/>` } },
+  ] }] });
+  writeFileSync(path.join(root, scene), textScene(true));
+  const first = await scanAssetDatabase(root, { write: false });
+  expect(first.index.deps[SCENE]).toEqual([TEX, TEX2].sort());
+  const cacheFile = path.join(root, '.esengine/cache/ref-candidates.json');
+  const cache = JSON.parse(readFileSync(cacheFile, 'utf8'));
+  cache.files[scene].c = [];
+  writeFileSync(cacheFile, JSON.stringify({ ...cache, version: 1 }));
+  expect((await scanAssetDatabase(root, { write: false })).index.deps[SCENE]).toEqual(first.index.deps[SCENE]);
+  writeFileSync(path.join(root, scene), textScene(false));
+  const changed = await updateAssetIndex(root, first.index, [scene]);
+  expect(changed.index.deps[SCENE] ?? []).toEqual([]);
+  expect((await scanAssetDatabase(root, { write: false })).index.deps).toEqual(changed.index.deps);
 });
 
 afterEach(() => {

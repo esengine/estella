@@ -32,6 +32,7 @@ import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
+import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 
@@ -318,28 +319,42 @@ function collectRefs(
  * What a document can refer to by name, before any of it is resolved: its `@uuid:` strings, its bare uuids and the strings that could be file paths.
  * This is what reading and parsing a document finds; which of them are assets is a question of the rest of the project, asked again on every scan.
  */
-function collectCandidates(value: unknown, into: Set<string>): void {
+function collectCandidates(value: unknown, into: Set<string>, prefabTemplate: boolean): void {
     if (typeof value === 'string') {
         if (value.startsWith(UUID_PREFIX) || UUID_V4.test(value) || (!value.includes('://') && PATH_LIKE.test(value))) into.add(value);
         return;
     }
     if (Array.isArray(value)) {
-        for (const v of value) collectCandidates(v, into);
+        for (const v of value) collectCandidates(v, into, prefabTemplate);
         return;
     }
-    if (value && typeof value === 'object') for (const v of Object.values(value as Record<string, unknown>)) collectCandidates(v, into);
+    if (value && typeof value === 'object') {
+        const row = value as {
+            type?: string; data?: { richText?: boolean; content?: unknown };
+            componentType?: string; propertyName?: string; value?: unknown;
+        };
+        // A prefab instance can override either the markup or its richText switch.
+        const content = row.type === 'Text' && (row.data?.richText || prefabTemplate) ? row.data?.content
+            : row.type === 'property' && row.componentType === 'Text' && row.propertyName === 'content' ? row.value : undefined;
+        if (typeof content === 'string' && content.includes('<img')) {
+            for (const line of content.split('\n')) {
+                for (const run of parseRichText(line)) if (run.type === 'image') collectCandidates(run.src, into, prefabTemplate);
+            }
+        }
+        for (const v of Object.values(value)) collectCandidates(v, into, prefabTemplate);
+    }
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-interface CandidateCache { version: 1; files: Record<string, { size: number; mtimeMs: number; c: string[] }> }
+interface CandidateCache { version: 2; files: Record<string, { size: number; mtimeMs: number; prefab: boolean; c: string[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
 async function readCandidateCache(root: string): Promise<CandidateCache> {
   try {
     const parsed = JSON.parse(await readFile(path.join(root, CANDIDATE_CACHE_FILE), 'utf8')) as CandidateCache;
-    if (parsed.version === 1 && parsed.files) return parsed;
+    if (parsed.version === 2 && parsed.files) return parsed;
   } catch { /* none yet, or one that cannot be read: the documents are read */ }
-  return { version: 1, files: {} };
+  return { version: 2, files: {} };
 }
 
 async function writeCandidateCache(root: string, cache: CandidateCache): Promise<void> {
@@ -416,15 +431,15 @@ async function computeDeps(
   const cache = await readCandidateCache(root);
   let cacheDirty = false;
   const seenFiles = new Set<string>();
-  const candidatesOf = async (rel: string): Promise<string[]> => {
+  const candidatesOf = async (rel: string, prefabTemplate: boolean): Promise<string[]> => {
     seenFiles.add(rel);
     const file = path.join(root, rel);
     const info = await stat(file);
     const hit = cache.files[rel];
-    if (hit && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
+    if (hit && hit.prefab === prefabTemplate && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
     const found = new Set<string>();
-    collectCandidates(JSON.parse(await readTextInRoot(file)), found);
-    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, c: [...found] };
+    collectCandidates(JSON.parse(await readTextInRoot(file)), found, prefabTemplate);
+    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, prefab: prefabTemplate, c: [...found] };
     cacheDirty = true;
     return cache.files[rel]!.c;
   };
@@ -460,7 +475,7 @@ async function computeDeps(
           if (dep) refs.add(dep.uuid);
         }
       } else {
-        const candidates = await candidatesOf(entry.path);
+        const candidates = await candidatesOf(entry.path, entry.type === 'prefab');
         const resolvePath = (ref: string): string | null => {
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
           const direct = byPath.get(normalizeRefPath(ref));

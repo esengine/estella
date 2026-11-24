@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { atlasCatalogFields } from '../src/asset/Catalog';
 import { ManifestModel } from '../src/asset/AddressableManifest';
 
 vi.mock('../src/runtime/runtimeLoader', () => ({
@@ -115,6 +116,35 @@ describe('initPlayableRuntime', () => {
         const { source } = vi.mocked(initRuntime).mock.calls[0]![0];
         expect(await source.decodePixels('art/mesh.png', true, 2)).toBe(fitted);
         expect(decode).toHaveBeenCalledWith(url, 2);
+    });
+
+    it.each(['catalog', 'manifest'])('shares one embedded page and keeps each UV rectangle using its %s', async mode => {
+        const red = '@uuid:cccc1111-1111-4111-8111-111111111111', green = '@uuid:cccc2222-2222-4222-8222-222222222222';
+        const page = 'icons.page0.png', url = 'data:image/png;base64,AA==';
+        const frame = (x: number) => ({ type: 'texture', buildPath: page, ...atlasCatalogFields({
+            frame: { x, y: 0, width: 4, height: 4 }, pageWidth: 8, pageHeight: 4,
+        }, page) });
+        const entries = { [red]: frame(0), 'art/red.png': frame(0), [green]: frame(4), 'art/green.png': frame(4) };
+        const record = (address: string, x: number) => ({
+            type: 'texture', path: page, address, labels: [], size: 4,
+            metadata: { atlasFrame: { x, y: 0, width: 4, height: 4 }, atlasPageWidth: 8, atlasPageHeight: 4 },
+        });
+        await initPlayableRuntime(createMockConfig({ assets: { [red]: url },
+            assetPathMap: { [page]: red, 'art/red.png': red, 'art/green.png': red, [green]: red },
+            ...(mode === 'catalog' ? { catalog: { version: 1, entries } } : { manifest: {
+                version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+                    [red.slice(6)]: record('art/red.png', 0), [green.slice(6)]: record('art/green.png', 4),
+                } } },
+            } }),
+        }));
+        const { source, catalog } = vi.mocked(initRuntime).mock.calls[0]![0];
+        for (const ref of [red, green, 'art/red.png', 'art/green.png', green.slice(6).toUpperCase()]) {
+            expect(source.resolveRef!(ref)).toBe(page);
+        }
+        expect(source.resolveAddress!('art/green.png')).toBe('art/green.png');
+        if (mode === 'manifest') expect(source.resolveAddress!(green)).toBe('art/green.png');
+        expect(catalog!.getAtlasFrame(red)!.uvOffset).toEqual([0, 0]);
+        expect(catalog!.getAtlasFrame(green)!.uvOffset).toEqual([0.5, 0]);
     });
 
     it('boots the embedded game with its declared achievements and resolved theme', async () => {

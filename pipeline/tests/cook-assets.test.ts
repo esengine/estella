@@ -512,6 +512,33 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
     return r;
   }
 
+  it('packs icons used by prefab rich text and instance overrides, leaving unrelated images out', async () => {
+    const r = makeAtlasProject();
+    try {
+      const prefab = 'assets/label.esprefab', id = 'cccc5555-5555-4555-8555-555555555555';
+      writeFileSync(path.join(r, prefab), JSON.stringify({ version: '2', name: 'Label', rootEntityId: 'root', entities: [{
+        prefabEntityId: 'root', name: 'Label', parent: null, children: [], components: [
+          { type: 'Text', data: { richText: false, content: '<img src="assets/sprites/heroes.atlas/a.png"/>' } },
+        ],
+      }] }));
+      writeFileSync(path.join(r, prefab + '.meta'), JSON.stringify({ uuid: id, version: '2.0', type: 'prefab', importer: {} }));
+      const override = (propertyName: string, value: unknown) => ({ type: 'property', prefabEntityId: 'root', componentType: 'Text', propertyName, value });
+      const instance = (id: number, overrides: unknown[]) => ({ id, name: 'Label', parent: null, prefab, overrides });
+      const scene = 'assets/scenes/main.esscene';
+      writeFileSync(path.join(r, scene), JSON.stringify({ version: 4, name: 'main', entities: [
+        instance(1, [override('richText', true)]),
+        instance(2, [override('richText', true), override('content', `<img src="@uuid:${TEX_B}"/>`)]),
+      ] }));
+      const res = await cookAssets(r, { entryScenes: [scene], outDir: 'out', atlasTextures: true });
+      expect(res.ok).toBe(true);
+      const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as CookManifest;
+      const frames = manifest.entries.filter(e => e.atlas);
+      expect(frames.map(e => e.uuid).sort()).toEqual([TEX_A, TEX_B]);
+      expect(new Set(frames.map(e => e.path)).size).toBe(1);
+      expect(manifest.entries.some(e => e.uuid === LOOSE)).toBe(false);
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it('packs atlas-folder PNGs into one staged page with frame metadata', async () => {
     const r = makeAtlasProject();
     try {

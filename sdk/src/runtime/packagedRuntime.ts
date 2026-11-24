@@ -256,7 +256,7 @@ export function catalogFromManifest(manifest: AddressableManifest): Catalog | un
     return catalogForModel(ManifestModel.fromJson(manifest));
 }
 
-function catalogForModel(model: ManifestModel): Catalog | undefined {
+export function catalogForModel(model: ManifestModel): Catalog | undefined {
     const entries: Record<string, CatalogEntry> = Object.create(null);
     let tagged = false;
     for (const { key: uuid, asset } of model.entries()) {

@@ -187,14 +187,9 @@ addStartupSystem(buildToast);
 offsetY=N scale=N tint=#RRGGBB />`(必须自闭合,`src` 必填)让一张图片随文本内联
 排布。摆放字形的那套富文本布局同时摆放图片盒——`valign` 决定它在行内如何对齐,
 `width`/`height`/`scale` 定尺寸,`offsetX/Y` 微调位置,`tint` 重新着色——最终作为
-`Text` 下的一个子图片 quad 渲染。`src` 经 `Assets.loadTexture` 解析,因此是项目
-相对的纹理路径。
+`Text` 的子图片渲染。给标签添加 `UINode` 布局盒。开启自动换行时，如果当前行的剩余宽度放不下缩放后的图片，整张图片会移到下一行。
 
-<Aside type="note">
-  内联图片在**不换行**的富文本上渲染(把 `Text` 的 `wordWrap` 设为 `false`);
-  换行的富文本目前只排文本,会丢弃图片片段。内联图片还要求 `Text` 有 `UINode`
-  盒子——无盒子的世界空间标签上画不出来。
-</Aside>
+`src` 支持项目相对路径和 `@uuid:` 引用。导出器会包含场景或预制体富文本引用的图片。打入图集的图片只显示自己的区域。修改文本或卸载标签后，最后一个使用者释放引用时，引擎会释放纹理。
 
 ## 测量文本
 

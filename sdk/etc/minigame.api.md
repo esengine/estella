@@ -16025,6 +16025,7 @@ Generator<number, T, void>
 @internal getWorldTick: () => number
 @internal getWorldVersion: () => number
 @internal getWrittenEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
+@internal hasAssetFieldResolver: boolean
 @internal hasCpp: boolean
 @internal hasPortableScriptAssetRefs: (component: AnyComponentDef) => boolean
 @internal invalidateStampedTransforms: () => void

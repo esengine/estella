@@ -326,10 +326,8 @@ export function shadowGlyphs(atlas: GlyphAtlas, glyphs: readonly LaidGlyph[], ta
     return out;
 }
 
-export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): number {
-    if (atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
-    const opacity = p.opacity ?? 1;
-    if (opacity <= 0) return 0;
+/** Layout and baseline shared by glyph batches and the inline visuals placed among them. */
+export function layoutDrawText(atlas: GlyphAtlas, p: DrawTextParams) {
     const layout = layoutText(p.text, atlas, p.fontFamily, {
         fontSizePx: p.fontSizePx,
         letterSpacing: p.letterSpacing,
@@ -342,12 +340,6 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         boxHeight: p.boxHeight,
         overflow: p.overflow,
     }, p.style ?? 0);
-    if (layout.glyphs.length === 0) return layout.lineHeight;
-    if (p.underline) addUnderlines(layout, atlas, p.fontFamily, layout.fontSizePx ?? p.fontSizePx, p.style ?? 0);
-
-    // Position the block within its box: [originX .. originX+boxWidth] × [originY .. -boxHeight].
-    // A boxless label (box 0×0) collapses the box to the entity origin, so align/verticalAlign
-    // ANCHOR the whole block to it rather than silently doing nothing — one rule, both cases.
     const boxHeight = p.boxHeight ?? 0;
     const boxWidth = p.boxWidth ?? 0;
 
@@ -363,10 +355,20 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         boxHeight, layout.lineHeight, fontSizePx, p.verticalAlign, lineHeightPx, ascent,
     );
 
+    const baseX = (p.originX ?? 0) + textBlockOffsetX(p.align, boxWidth, layout.width);
+    return { layout, fontSizePx, originY, baseX };
+}
+
+export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): number {
+    if (atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
+    const opacity = p.opacity ?? 1;
+    if (opacity <= 0) return 0;
+    const { layout, fontSizePx, originY, baseX } = layoutDrawText(atlas, p);
+    if (layout.glyphs.length === 0) return layout.lineHeight;
+    if (p.underline) addUnderlines(layout, atlas, p.fontFamily, fontSizePx, p.style ?? 0);
     // Split oversized pages once, before emitting effects.
     const chunks = pageChunks(layout.glyphs);
 
-    const baseX = (p.originX ?? 0) + textBlockOffsetX(p.align, boxWidth, layout.width);
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
     // glyphs in the same atlas/layer, so they batch and draw in submit order —
     // shadow + outline first (behind), fill last (on top).

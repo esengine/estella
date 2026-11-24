@@ -213,15 +213,13 @@ offsetY=N scale=N tint=#RRGGBB />` (self-closing, `src` required) flows an image
 inline with the text. The same rich-text layout that places the glyphs places
 the image box — `valign` anchors it on the line, `width`/`height`/`scale` size
 it, `offsetX/Y` nudge it, `tint` recolors it — and it renders as a child image
-quad under the `Text`. `src` resolves through `Assets.loadTexture`, so it is a
-project-relative texture path.
+quad under the `Text`. Give the label a `UINode` box. With word wrap enabled,
+the image moves to the next line when its scaled width exceeds the space left.
 
-<Aside type="note">
-  Inline images render on **non-wrapped** rich text (give the `Text`
-  `wordWrap: false`); a wrapped rich `Text` lays out its text only and drops
-  image runs for now. Inline images also need the `Text` to have a `UINode`
-  box — they don't draw on a boxless world-space label.
-</Aside>
+Use a project-relative path or an `@uuid:` reference for `src`. The exporter
+includes images referenced by scene or prefab markup. A packed image samples
+its atlas frame. Changing the markup or unloading the label releases its texture
+once its last user is gone.
 
 ## Measuring text
 

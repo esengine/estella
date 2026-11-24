@@ -14,6 +14,7 @@ import type { App } from '../app/app';
 import { setAppHostPaused } from '../app/hostPause';
 import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
+import { catalogForModel } from './packagedRuntime';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { warmShaders } from '../render/shaderWarmup';
 import { log } from '../util/logger';
@@ -102,16 +103,18 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // resolveRef contract; a ref with no known path (or already a path) passes
     // through, and the backend resolves both spellings off the same aliased map.
     const backend = new EmbeddedBackend(assets);
-    const resolveRefToPath = (ref: string): string => {
+    const model = config.manifest && Object.keys(config.manifest.groups).length
+        ? ManifestModel.fromJson(config.manifest) : undefined;
+    const catalog = config.catalog ? Catalog.fromJson(config.catalog) : model && catalogForModel(model);
+    const embeddedPath = (ref: string): string => {
         const uuid = extractUuid(ref);
         return keyToPath[uuid ? UUID_REF_PREFIX + uuid : ref] ?? ref;
     };
-    const model = config.manifest && Object.keys(config.manifest.groups).length
-        ? ManifestModel.fromJson(config.manifest) : undefined;
+    const resolveRefToPath = (ref: string) => catalog?.getAtlasFrame(ref)?.atlas ?? embeddedPath(ref);
     const inlined: RuntimeAssetSource = {
         backend,
         resolveRef: resolveRefToPath,
-        resolveAddress: resolveRefToPath,
+        resolveAddress: ref => model?.recordForRef(ref)?.asset.address ?? embeddedPath(ref),
         decodePixels: (path, _flip, maxEdge) => platformLoadImagePixels(backend.resolveUrl(path), maxEdge),
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.
@@ -150,7 +153,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         ...runtimeProjectSettings(config),
         aspectRatio: config.canvas.width / config.canvas.height,
         manifest: model,
-        ...(config.catalog ? { catalog: Catalog.fromJson(config.catalog) } : {}),
+        catalog,
     });
 
     const bridge = playableAdBridge();
