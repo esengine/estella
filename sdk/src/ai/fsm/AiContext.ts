@@ -20,7 +20,7 @@ import type { World } from '../../ecs/world';
 import type { CommandsInstance } from '../../ecs/commands';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import type { Blackboard } from './Blackboard';
-import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition, type AiValueSpec } from './registry';
+import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition, type AiConditionSpec, type AiValueSpec } from './registry';
 import { InputState } from '../../input/input';
 
 export interface AiContext {
@@ -65,8 +65,11 @@ export function registerAction(name: string, fn: AiAction<AiContext> | AiActionS
     aiRegistry.registerAction(name, fn);
 }
 
-/** Register a named condition referenced by FSM transitions / BT conditions. */
-export function registerCondition(name: string, fn: AiCondition<AiContext>): void {
+/**
+ * Register a named condition referenced by FSM transitions / BT conditions — as a
+ * bare function, or as a spec that also declares what the check reads.
+ */
+export function registerCondition(name: string, fn: AiCondition<AiContext> | AiConditionSpec<AiContext>): void {
     aiRegistry.registerCondition(name, fn);
 }
 
