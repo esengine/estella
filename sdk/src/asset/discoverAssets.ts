@@ -87,29 +87,34 @@ export function sceneAcquisitionPaths(refs: SceneAssetRefs, type: string): Reado
 
 /** Entities that named each acquisition in this preparation. */
 export class SceneAssetOwners {
-    private readonly byType = new Map<string, Map<string, Set<number>>>();
+    private readonly byType = new Map<string, Map<string, { entities: Set<number>; auxiliary?: Set<number> }>>();
 
     constructor(private readonly includeAliases = false) {}
 
-    asset(type: string, raw: string, path: string, entity: number): void {
+    asset(type: string, raw: string, path: string, entity: number, auxiliary = false): void {
         const label = type === 'bitmap-font' ? 'font' : type;
         // A clip registers under each authored spelling. Handle-backed assets share a resolved path.
         const key = usesAuthoredRef(type) ? raw : path;
-        this.add(label, key, entity);
+        this.add(label, key, entity, auxiliary);
         // Older structural providers could identify a receipt by either spelling.
-        if (this.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity);
+        if (this.includeAliases && raw !== path) this.add(label, key === raw ? path : raw, entity, auxiliary);
     }
 
-    add(type: string, path: string, entity: number): void {
+    add(type: string, path: string, entity: number, auxiliary = false): void {
         let paths = this.byType.get(type);
         if (!paths) this.byType.set(type, paths = new Map());
-        let entities = paths.get(path);
-        if (!entities) paths.set(path, entities = new Set());
-        entities.add(entity);
+        let owners = paths.get(path);
+        if (!owners) paths.set(path, owners = { entities: new Set() });
+        owners.entities.add(entity);
+        if (auxiliary) (owners.auxiliary ??= new Set()).add(entity);
     }
 
     get(type: string, path: string): ReadonlySet<number> | undefined {
-        return this.byType.get(type)?.get(path);
+        return this.byType.get(type)?.get(path)?.entities;
+    }
+
+    auxiliaryFor(type: string, path: string): ReadonlySet<number> | null {
+        return this.byType.get(type)?.get(path)?.auxiliary ?? null;
     }
 }
 
@@ -132,13 +137,13 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
     };
     return {
         refs,
-        asset(entity: number, type: string, raw: string) {
+        asset(entity: number, type: string, raw: string, auxiliary = false) {
             const path = resolve(raw);
             if (path === null) return;
             bucket(refs.byType, type, path);
             bucket(refs.rawByType, type, raw);
             if (!refs.rawFor.has(path)) refs.rawFor.set(path, raw);
-            owners?.asset(type, raw, path, entity);
+            owners?.asset(type, raw, path, entity, auxiliary);
         },
         mesh(raw: string, material: boolean) {
             const path = refResolver ? refResolver(raw) : raw;
@@ -148,7 +153,7 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners) {
             const skeleton = resolve(skelRef), atlas = resolve(atlasRef);
             if (skeleton === null || atlas === null) return;
             const key = spinePairKey(skeleton, atlas);
-            if (!dragonBones) owners?.add('spine', key, entity);
+            if (!dragonBones) owners?.add('spine', key, entity, true);
             if (skeletalKeys.has(key)) return;
             skeletalKeys.add(key);
             (dragonBones ? refs.dragonBones : refs.spines).push({ skeleton, atlas });
@@ -185,7 +190,8 @@ export function indexSceneAssets(
             if (definition.discoverAssets) {
                 for (const { type, path } of definition.discoverAssets(data)) {
                     if (typeof path === 'string' && path) {
-                        for (const index of indexes) index.asset(entity.id, type, path);
+                        const auxiliary = !!owners && !definition.assetFields.some(f => f.type === type && data[f.field] === path);
+                        for (const index of indexes) index.asset(entity.id, type, path, auxiliary);
                     }
                 }
             } else {

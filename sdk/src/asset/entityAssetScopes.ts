@@ -15,7 +15,7 @@
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import type { AnyComponentDef } from '../ecs/component';
-import { AssetScope } from './AssetLease';
+import { AssetScope, scopeFieldLease, type FieldLeaseLookup } from './AssetLease';
 import { visitEntityAssetBindings } from './liveAssetBindings';
 import { log } from '../util/logger';
 
@@ -37,6 +37,8 @@ function closeWorlds(entries: Iterable<WorldScopes>): void {
 export class EntityAssetScopes {
     private readonly worlds_ = new Map<World, WorldScopes>();
     private closed_ = false;
+
+    constructor(readonly leaseForBinding: FieldLeaseLookup = scopeFieldLease) {}
 
     /**
      * The scope this entity owns, created on first use.
@@ -104,7 +106,7 @@ export class EntityAssetScopes {
                     pending = undefined;
                     for (const [id, { owner, component }] of batch) {
                         if (scopes.get(id) !== owner || world.isDestructionPending(id)) continue;
-                        try { owner.releaseUnusedFieldLeases(read => visitEntityAssetBindings(world, id, read, component)); }
+                        try { owner.releaseUnusedFieldLeases(read => visitEntityAssetBindings(world, id, read, component), this.leaseForBinding); }
                         catch (error) { log.warn('asset', `Could not settle field acquisitions for entity ${id}`, error); }
                     }
                 });

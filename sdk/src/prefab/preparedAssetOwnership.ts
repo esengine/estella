@@ -4,6 +4,7 @@ import { AssetScope, type AssetLease, type FieldLeaseBinding } from '../asset/As
 import type { SceneAssetResult } from '../asset/Assets';
 import { indexSceneAssets, SceneAssetOwners, type RefResolver } from '../asset/discoverAssets';
 import type { EntityAssetScopes } from '../asset/entityAssetScopes';
+import { bindingSlotOf } from '../asset/leaseBindings';
 import type { World } from '../ecs/world';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
@@ -21,20 +22,26 @@ export function prepareSpawnOwnership(
     resolveRef?: RefResolver,
 ): (() => PreparedSpawnOwnership) | undefined {
     if (!owners || !result.acquisitions?.length) return undefined;
-    // A structural preload provider may return receipts without entity information.
+    // Older preload providers can omit ownership or the distinction between fields and other dependencies.
     let fallback: SceneAssetOwners | undefined;
-    if (result.acquisitions.some(receipt => !receipt.entityIds)) {
+    if (result.acquisitions.some(receipt => !receipt.entityIds || receipt.auxiliaryEntityIds === undefined)) {
         fallback = new SceneAssetOwners(true);
         indexSceneAssets(scene, result.resolveRef ?? resolveRef, fallback);
     }
-    const sources = new Map<number, Set<AssetLease>>();
-    for (const { type, path, lease, entityIds } of result.acquisitions) {
-        const entities = entityIds ?? fallback?.get(type, path);
+    const sources = new Map<number, Map<object, { lease: AssetLease; auxiliary: boolean }>>();
+    for (const { type, path, lease, entityIds, auxiliaryEntityIds } of result.acquisitions) {
+        const inferred = fallback?.get(type, path);
+        const entities = entityIds ?? inferred;
         if (!entities) continue;
+        const auxiliary = auxiliaryEntityIds === undefined ? fallback?.auxiliaryFor(type, path) : auxiliaryEntityIds;
+        const key = bindingSlotOf(lease) ?? lease;
         for (const id of entities) {
+            const independent = !!auxiliary?.has(id) || (auxiliaryEntityIds === undefined && !inferred?.has(id));
             let selected = sources.get(id);
-            if (!selected) sources.set(id, selected = new Set());
-            selected.add(lease);
+            if (!selected) sources.set(id, selected = new Map());
+            const source = selected.get(key);
+            if (!source) selected.set(key, { lease, auxiliary: independent });
+            else if (independent) source.auxiliary = true;
         }
     }
     if (!sources.size) return undefined;
@@ -46,17 +53,21 @@ export function prepareSpawnOwnership(
     }
     return () => {
         const retained = new Map<number, AssetScope>();
+        const auxiliary = new Set<AssetLease>();
         const release = (): void => {
-            for (const scope of retained.values()) scope.releaseAll();
+            const scopes = [...retained.values()];
             retained.clear();
+            auxiliary.clear();
+            AssetScope.closeAll(scopes);
         };
         try {
             for (const [id, leases] of sources) {
                 const scope = new AssetScope(); retained.set(id, scope);
-                for (const source of leases) {
+                for (const { lease: source, auxiliary: independent } of leases.values()) {
                     const lease = source.retain();
                     if (!lease) throw new Error(`Cannot spawn retired prefab: resource "${source.key}" was released`);
                     scope.add(lease);
+                    if (independent) auxiliary.add(lease);
                 }
             }
         } catch (error) { release(); throw error; }
@@ -65,21 +76,29 @@ export function prepareSpawnOwnership(
                 for (const [id, scope] of retained) {
                     const entity = entities.get(id);
                     if (entity === undefined || !world.valid(entity)) continue;
-                    const owner = owners.ensure(world, entity);
                     const fields = new Map<AssetLease, FieldLeaseBinding>();
                     for (const component of components.get(id) ?? []) {
                         const data = world.tryGet(entity, component);
                         if (!data) continue;
                         for (const { type, field } of component.assetFields) {
-                            const handle = data[field];
-                            if (typeof handle !== 'number' || !handle) continue;
-                            const held = scope.bindingLease(type, handle);
-                            if (held) fields.set(held, { type, handle });
+                            const value = data[field];
+                            if (!value || (typeof value !== 'number' && typeof value !== 'string')) continue;
+                            const held = owners.leaseForBinding(scope, type, value);
+                            if (held && !auxiliary.has(held)) fields.set(held, { type, value });
                         }
                     }
-                    owner.absorbFieldLeases(scope, fields);
+                    let kept = fields.size;
+                    if (kept !== scope.size) {
+                        for (const lease of scope.leases()) {
+                            if (fields.has(lease)) continue;
+                            // A slot uniquely identifies a named field. Other acquisitions can share a native handle or be opaque.
+                            if (!bindingSlotOf(lease)) auxiliary.add(lease);
+                            if (auxiliary.has(lease)) kept++;
+                        }
+                    }
+                    if (kept) owners.ensure(world, entity).absorbFieldLeases(scope, fields, kept === scope.size ? undefined : auxiliary);
                 }
-                // Unspawned entities release their receipts; absorbed scopes are empty.
+                // Give back unspawned rows and bindings superseded before ownership attached.
                 release();
             },
             release,

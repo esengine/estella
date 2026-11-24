@@ -16,6 +16,12 @@ function identityOf(lease: AssetLease): BindingLease[typeof leaseBinding] {
     return (lease as Partial<BindingLease>)[leaseBinding];
 }
 
+/** A registry slot can have several receipts under different authored names. */
+export function bindingSlotOf(lease: AssetLease): { readonly type: string } | undefined {
+    const identity = identityOf(lease);
+    return typeof identity === 'object' ? identity : undefined;
+}
+
 export function sameAcquisition(a: AssetLease, b: AssetLease): boolean {
     if (a.key !== b.key || a.generation !== b.generation) return false;
     const left = identityOf(a), right = identityOf(b);
@@ -34,14 +40,18 @@ function poolOf(identity: BindingIdentity): string {
     return typeof identity === 'string' ? identity : identity.type;
 }
 
+export function hasBindingName(lease: AssetLease, name: string): boolean {
+    const names = (lease as { names?: readonly string[] }).names;
+    return Array.isArray(names) && names.includes(name);
+}
+
 function customBindingLease(leases: readonly AssetLease[], value: number | string): AssetLease | undefined {
     let byName: AssetLease | undefined;
     for (const lease of leases) {
         if (identityOf(lease) !== undefined) continue;
         if (boundValueOf(lease) === value) return lease;
         if (byName || typeof value !== 'string') continue;
-        const names = (lease as { names?: readonly string[] }).names;
-        if (Array.isArray(names) && names.includes(value)) byName = lease;
+        if (hasBindingName(lease, value)) byName = lease;
     }
     return byName;
 }

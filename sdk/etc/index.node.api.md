@@ -1087,7 +1087,7 @@ refCount: number
 @internal bindingLease: (type: string, value: number | string, slot?: object) => AssetLease | undefined
 @internal hasFieldLeases: boolean
 @internal leases: () => readonly AssetLease[]
-@internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void) => void
+@internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void, lookup?: FieldLeaseLookup) => void
 absorb: (other: AssetScope) => void
 add: <T>(lease: AssetLease<T>) => AssetLease<T>
 forget: (lease: AssetLease) => boolean

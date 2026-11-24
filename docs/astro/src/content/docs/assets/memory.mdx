@@ -16,10 +16,14 @@ last holder releases it.
 Release calls take the same ref that was loaded (for example `assets.releaseTexture('assets/textures/player.png')`),
 except `releaseMaterial`, which takes the material handle.
 
-Hot-reloaded bindings follow the same ownership rule. A scene owns the replacement resources for its entities; a
-runtime entity without a scene, or a persistent entity that outlived its scene, owns its replacements until it is
-despawned. Repeated reloads do not keep replacement resources alive for the lifetime of the application. Explicit
-`load*()` and `acquire*()` calls still require matching releases.
+A scene owns the resources it acquires for its entities, including hot-reloaded replacements. A persistent entity
+that leaves its scene keeps the resources its fields still use. Instances of prepared prefabs and entities loaded
+with `loadSceneWithAssets` without a scene collector also own their field resources.
+
+Clearing or replacing the last field on an entity that uses a texture handle, animation clip, or rig avatar releases
+that entity’s reference after the synchronous edits settle. A path and a UUID resolving to the same clip share
+ownership. Other entities keep their own references, and explicit `load*()` and `acquire*()` calls require matching
+releases.
 
 ## Warm cache
 

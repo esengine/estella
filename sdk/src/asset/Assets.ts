@@ -361,6 +361,8 @@ interface SceneAssetAcquisition {
     readonly path: string;
     readonly lease: AssetLease;
     readonly entityIds?: ReadonlySet<number>;
+    /** Owners that also need this receipt outside their declared fields. Null when all uses are fields. */
+    readonly auxiliaryEntityIds?: ReadonlySet<number> | null;
 }
 
 export interface SceneAssetResult {
@@ -525,7 +527,7 @@ export class Assets {
     private invalidateListeners_ = new Set<InvalidateListener>();
     private sourceListeners_ = new Set<(path: string) => void>();
     private readonly appScope_ = new AssetScope();
-    private entityScopes_ = new EntityAssetScopes();
+    private entityScopes_ = new EntityAssetScopes(this.leaseForBinding.bind(this));
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
     private readonly handlePaths_ = new Map<string, Map<number, string>>();
@@ -1791,7 +1793,7 @@ export class Assets {
         const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
             if (recorder) recorder.own(path, lease, type);
             else scope.add(lease);
-            acquisitions.push({ type, path, lease, entityIds: owners?.get(type, path) });
+            acquisitions.push({ type, path, lease, entityIds: owners?.get(type, path), auxiliaryEntityIds: owners?.auxiliaryFor(type, path) });
             releaseCallbacks.push(() => lease.release());
         };
 
@@ -2707,7 +2709,7 @@ export class Assets {
         } finally {
             this.meshOwners_ = undefined;
             this.handlePaths_.clear();
-            this.entityScopes_ = new EntityAssetScopes();
+            this.entityScopes_ = new EntityAssetScopes(this.leaseForBinding.bind(this));
             this.releasing_ = false;
         }
     }

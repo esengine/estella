@@ -11,12 +11,24 @@
  */
 
 import { disposeAll } from '../util/disposeAll';
-import { firstBindingLease, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease } from './leaseBindings';
+import {
+    bindingSlotOf, boundValueOf, firstBindingLease, hasBindingName, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease,
+} from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
 const releaseBatch = (leases: AssetLease[]): void => disposeAll(leases, releaseLease, true);
 
-export interface FieldLeaseBinding { readonly type: string; readonly handle: number }
+export interface FieldLeaseBinding { readonly type: string; readonly value: number | string }
+export type FieldLeaseLookup = (scope: AssetScope, type: string, value: number | string) => AssetLease | undefined;
+
+/** A standalone scope knows the live names on its own receipts. Assets also knows the realm's ref resolver. */
+export const scopeFieldLease: FieldLeaseLookup = (scope, type, value) => {
+    if (typeof value === 'string') {
+        const named = scope.leases().find(lease => bindingSlotOf(lease)?.type === type && hasBindingName(lease, value));
+        if (named) return named;
+    }
+    return scope.bindingLease(type, value);
+};
 
 /** One acquisition, and the right to end it. */
 export interface AssetLease<T = unknown> {
@@ -81,10 +93,12 @@ export class AssetScope {
         return lease;
     }
 
-    /** @internal A receipt acquired for a component field. Numeric fields identify a specific native handle. */
+    /** @internal A receipt acquired for a stored component field. */
     addFieldLease<T>(type: string, value: unknown, lease: AssetLease<T>): AssetLease<T> {
         this.add(lease);
-        if (typeof value === 'number' && value) (this.fieldLeases_ ??= new Map()).set(lease, { type, handle: value });
+        if (value && (typeof value === 'number' || typeof value === 'string')) {
+            (this.fieldLeases_ ??= new Map()).set(lease, { type, value });
+        }
         return lease;
     }
 
@@ -92,22 +106,34 @@ export class AssetScope {
     get hasFieldLeases(): boolean { return !!this.fieldLeases_?.size; }
 
     /** @internal End field acquisitions that no stored field uses, keeping one receipt per generation. */
-    releaseUnusedFieldLeases(visit: (read: (type: string, value: unknown) => boolean) => void): void {
+    releaseUnusedFieldLeases(
+        visit: (read: (type: string, value: unknown) => boolean) => void, lookup: FieldLeaseLookup = scopeFieldLease,
+    ): void {
         const bindings = this.fieldLeases_;
         if (!bindings?.size) return;
-        const kept: AssetLease[] = [];
+        const kept = new Set<AssetLease>();
         visit((type, value) => {
+            if (!value || (typeof value !== 'string' && typeof value !== 'number')) return false;
+            const named = typeof value === 'string' ? lookup(this, type, value) : undefined;
+            if (typeof value === 'string' && !named) return false;
+            const matches: AssetLease[] = [];
             for (const [lease, binding] of bindings) {
-                if (binding.type !== type || binding.handle !== value) continue;
-                if (!kept.some(other => {
-                    const held = bindings.get(other)!;
-                    return held.type === type && held.handle === value && sameAcquisition(other, lease);
-                })) kept.push(lease);
+                if (binding.type !== type) continue;
+                if (named) {
+                    if (!sameAcquisition(named, lease)) continue;
+                    kept.add(lease);
+                    break;
+                }
+                // More than one generation can have the same native handle.
+                if (binding.value !== value && boundValueOf(lease) !== value) continue;
+                if (matches.some(other => sameAcquisition(other, lease))) continue;
+                matches.push(lease);
+                kept.add(lease);
             }
-            return kept.length === bindings.size;
+            return kept.size === bindings.size;
         });
-        if (this.fieldLeases_ !== bindings || kept.length === bindings.size) return;
-        const unused = [...bindings.keys()].filter(lease => !kept.includes(lease) && this.forget(lease));
+        if (this.fieldLeases_ !== bindings || kept.size === bindings.size) return;
+        const unused = [...bindings.keys()].filter(lease => !kept.has(lease) && this.forget(lease));
         releaseBatch(unused);
     }
 
@@ -169,7 +195,7 @@ export class AssetScope {
             const binding = fields.get(lease);
             if (!binding && !auxiliary.has(lease)) continue;
             if (!source.forget(lease)) continue;
-            if (binding) this.addFieldLease(binding.type, binding.handle, lease);
+            if (binding) this.addFieldLease(binding.type, binding.value, lease);
             else this.add(lease);
         }
     }

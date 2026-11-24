@@ -143,7 +143,7 @@ function retainPublished(
     for (const { type, field } of accepted) {
         const handle = stored[field] as number;
         const lease = assets.leaseForBinding(result.scope, type, handle);
-        if (lease) fields.set(lease, { type, handle });
+        if (lease) fields.set(lease, { type, value: handle });
     }
     // A partial publication still owns the dependencies that discovery reported outside the requested fields.
     const auxiliary = accepted.length === requests.length ? undefined : new Set((result.acquisitions ?? [])

@@ -17,15 +17,18 @@ import { App } from '../src/app/app';
 import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { AssetScope } from '../src/asset/AssetLease';
+import { EntityAssetScopes } from '../src/asset/entityAssetScopes';
 import { SpriteAnimation, SpriteAnimationAPI, SpriteAnimator, type SpriteAnimClip } from '../src/animation/SpriteAnimator';
 import { Animator } from '../src/animation/Animator';
 import { loadSceneWithAssets, serializeScene } from '../src/scene/scene';
+import { spawnPrepared } from '../src/prefab/preparedPrefab';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
 import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
 import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
 import { AvatarAssetLoader } from '../src/asset/loaders/AvatarAssetLoader';
 import { connectFakeCpp } from './helpers/fakeEngine';
-import { markEngineComponentBaseline, seedEngineComponents, Sprite } from '../src/ecs/component';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
+import { defineComponent, markEngineComponentBaseline, seedEngineComponents, Sprite } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { Backend } from '../src/asset/Backend';
 
@@ -162,6 +165,47 @@ describe('a persistent entity carries a ref-bound asset out of its scene', () =>
         expect(assets.sizes().registrySlots).toBe(0);
     });
 
+    it('retires a persistent entity’s clip and avatar when their last live fields change', async () => {
+        const app = App.new(), sprites = new SpriteAnimationAPI(), manager = new SceneManagerState(app);
+        connectFakeCpp(app.world);
+        const assets = buildAssets(sprites, path => path.endsWith('.esavatar')
+            ? JSON.stringify({ joints: { hip: 'Rig/Hip' } }) : clipDocument(12));
+        assets.register(new AvatarAssetLoader());
+        app.insertResource(AssetsResource, assets);
+        const clip = 'anim/walk.esanim', avatar = 'rig/hero.esavatar';
+        const alias = '@uuid:e85e5e12-93bf-4eab-93c7-88db872b7581';
+        assets.setAssetRefResolver(ref => ref === alias ? clip : ref);
+        const preview = defineComponent('ClipPreview', { clip: '' }, { assetFields: [{ field: 'clip', type: 'anim-clip' }] });
+        let actor!: Entity;
+        manager.register({ name: 'rigs', async setup(ctx) {
+            const scope = new AssetScope();
+            scope.add(await assets.acquireTyped('anim-clip', clip));
+            scope.add(await assets.acquireTyped('avatar', avatar));
+            ctx.trackAssetScope(scope);
+            actor = ctx.spawn();
+            app.world.insert(actor, SpriteAnimator, { clip });
+            app.world.insert(actor, preview, { clip: alias });
+            app.world.insert(actor, Animator, { avatar });
+            ctx.setPersistent(actor, true);
+        } });
+        try {
+            await manager.load('rigs');
+            await manager.unload('rigs');
+            app.world.remove(actor, SpriteAnimator);
+            await Promise.resolve();
+            expect(sprites.getClip(alias)?.fps).toBe(12);
+            app.world.update(actor, preview, data => { data.clip = ''; });
+            await Promise.resolve();
+            expect(sprites.getClip(clip)).toBeUndefined();
+            expect(pool.releaseTexture).toHaveBeenCalledTimes(2);
+            expect(assets.resolveRegistryAsset('avatar', avatar)).toBeDefined();
+            app.world.remove(actor, Animator);
+            await Promise.resolve();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+            expect(app.world.valid(actor)).toBe(true);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it('a persistent sprite retains the clip its remapped UUID currently names', async () => {
         const app = App.new();
         const sprites = new SpriteAnimationAPI();
@@ -187,8 +231,119 @@ describe('a persistent entity carries a ref-bound asset out of its scene', () =>
         await manager.unload('rigs');
         expect(sprites.getClip(ref)?.fps).toBe(12);
         expect(sprites.getClip('anim/old.esanim')).toBeUndefined();
+        target = 'anim/latest.esanim';
+        const latest = await assets.acquireTyped('anim-clip', ref);
+        app.world.update(entity, SpriteAnimator, data => { data.clip = ref; });
+        await Promise.resolve();
+        expect(sprites.getClip('anim/new.esanim')).toBeUndefined();
+        expect(sprites.getClip(ref)?.fps).toBe(6);
         app.world.despawn(entity);
+        latest.release();
         expect(assets.sizes().registrySlots).toBe(0);
+    });
+
+    it.skipIf(!HAS_WASM).each(['standalone scene', 'prepared prefab', 'standalone scope'])('settles named assets independently for two live instances of a %s', async publication => {
+        const core = await loadWasmModule(), app = App.new(), sprites = new SpriteAnimationAPI();
+        app.connectCpp(new core.Registry(), core, { ownedRegistry: true });
+        const clip = 'anim/walk.esanim', avatar = 'rig/hero.esavatar', ref = '@uuid:6893953c-e46d-4447-9066-5efb69798824';
+        const preview = defineComponent('ClipPreview', { clip: '' }, { assetFields: [{ field: 'clip', type: 'anim-clip' }] });
+        const components = [{ type: 'SpriteAnimator', data: { clip: ref } }, { type: preview._name, data: { clip } },
+            { type: 'Animator', data: { avatar } }];
+        const actor = { name: 'Actor', parent: null, children: [], visible: true, components };
+        const assets = buildAssets(sprites, path => {
+            if (path.endsWith('.esprefab')) return JSON.stringify({ version: '2', name: 'Actor', rootEntityId: 'actor',
+                entities: [{ prefabEntityId: 'actor', ...actor }] });
+            if (path.endsWith('.esavatar')) return JSON.stringify({ joints: { hip: 'Rig/Hip' } });
+            return clipDocument(12);
+        });
+        assets.setAssetRefResolver(name => name === ref ? clip : name);
+        assets.register(new AvatarAssetLoader());
+        const world = app.world;
+        try {
+            let first: Entity, second: Entity;
+            if (publication === 'standalone scope') vi.spyOn(assets, 'entityScopes', 'get').mockReturnValue(new EntityAssetScopes());
+            if (publication === 'prepared prefab') {
+                const recipe = await assets.preparePrefab('actor.esprefab');
+                try { first = spawnPrepared(world, recipe).root; second = spawnPrepared(world, recipe).root; }
+                finally { recipe.release(); }
+            } else {
+                const scene = await loadSceneWithAssets(world, { version: '1.0', name: 'Actors',
+                    entities: [{ id: 1, ...actor }, { id: 2, ...actor }] }, { assets, abortOnMissingAssets: true });
+                first = scene.get(1)!; second = scene.get(2)!;
+            }
+            const owner = assets.entityScopes.scopeFor(first, world)!;
+            const manual = owner.add(await assets.acquireTyped('avatar', avatar));
+            world.remove(first, SpriteAnimator);
+            world.remove(first, preview);
+            world.remove(first, Animator);
+            world.update(second, SpriteAnimator, data => { data.clip = ''; });
+            world.update(second, SpriteAnimator, data => { data.clip = clip; });
+            await Promise.resolve();
+            expect(owner.leases()).toEqual([manual]);
+            expect(sprites.getClip(ref)?.frames).toHaveLength(2);
+            world.remove(second, SpriteAnimator);
+            world.remove(second, preview);
+            world.remove(second, Animator);
+            await Promise.resolve();
+            expect(sprites.getClip(clip)).toBeUndefined();
+            expect(pool.releaseTexture).toHaveBeenCalledTimes(2);
+            expect(assets.entityScopes.scopeFor(second, world)?.size).toBe(0);
+            expect(assets.resolveRegistryAsset('avatar', avatar)).toBeDefined();
+            expect(world.valid(first) && world.valid(second)).toBe(true);
+            owner.releaseAll();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['indexed', 'legacy'])('keeps a discovered dependency shared with a field using %s ownership metadata', async mode => {
+        const app = App.new(), sprites = new SpriteAnimationAPI();
+        connectFakeCpp(app.world);
+        const assets = buildAssets(sprites, () => clipDocument(6));
+        if (mode === 'legacy') {
+            const preload = assets.preloadSceneAssets.bind(assets);
+            vi.spyOn(assets, 'preloadSceneAssets').mockImplementation(async (...args) => {
+                const result = await preload(...args);
+                return { ...result, acquisitions: result.acquisitions?.map(({ auxiliaryEntityIds, ...receipt }) => receipt) };
+            });
+        }
+        const clip = 'anim/look.esanim', alias = '@uuid:513837ff-8bb1-478e-adc5-a746a42a247c';
+        assets.setAssetRefResolver(ref => ref === alias ? clip : ref);
+        const previews = defineComponent('PreviewLibrary', { clips: [] as string[] }, {
+            discoverAssets: data => (data.clips as string[]).map(path => ({ type: 'anim-clip', path })),
+        });
+        try {
+            const scene = await loadSceneWithAssets(app.world, { version: '1.0', name: 'Library',
+                entities: [{ id: 1, name: 'Actor', parent: null, children: [], components: [
+                    { type: 'SpriteAnimator', data: { clip } }, { type: previews._name, data: { clips: [alias] } },
+                ] }] }, { assets, abortOnMissingAssets: true });
+            const entity = scene.get(1)!;
+            expect(assets.entityScopes.scopeFor(entity, app.world)?.size).toBe(1);
+            app.world.remove(entity, SpriteAnimator);
+            await Promise.resolve();
+            expect(sprites.getClip(alias)?.fps).toBe(6);
+            app.world.despawn(entity);
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('releases a named field removed by an insertion observer before scene ownership attaches', async () => {
+        const app = App.new(), sprites = new SpriteAnimationAPI();
+        connectFakeCpp(app.world);
+        const assets = buildAssets(sprites, () => clipDocument(4)), clip = 'anim/spawn.esanim';
+        const off = app.world.onAssetFieldsChanged((entity, component) => {
+            if (component === SpriteAnimator && app.world.has(entity, SpriteAnimator)) app.world.remove(entity, SpriteAnimator);
+        });
+        try {
+            const loaded = await loadSceneWithAssets(app.world, { version: '1.0', name: 'Spawn',
+                entities: [{ id: 1, name: 'Actor', parent: null, children: [], components: [
+                    { type: 'SpriteAnimator', data: { clip } },
+                ] }] }, { assets, abortOnMissingAssets: true });
+            const actor = loaded.get(1)!;
+            expect(app.world.valid(actor)).toBe(true);
+            expect(app.world.has(actor, SpriteAnimator)).toBe(false);
+            expect(sprites.getClip(clip)).toBeUndefined();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+        } finally { off(); assets.releaseAll(); app.quit(); }
     });
 
     it('the slot survives the scene, and ends with the entity', async () => {
