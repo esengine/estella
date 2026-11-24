@@ -72,9 +72,9 @@ export function installOptionalPlugins(): void {
     // Video has no subpath of its own to be installed from, so it registers here.
     setSceneOptionals({
         video: {
-            setRefResolver: (app, resolve) => {
+            setRefResolver: (app, resolve, backend) => {
                 if (!app.hasResource(VideoPlayer)) return false;
-                app.getResource(VideoPlayer).setRefResolver(resolve);
+                app.getResource(VideoPlayer).setRefResolver(resolve, backend);
                 return true;
             },
         },

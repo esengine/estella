@@ -80,6 +80,25 @@ describe('mini-game audio plays the cooked file', () => {
 });
 
 describe('AudioAssetLoader on a url-delivery backend', () => {
+    it('retries a refused package and waits for the staged file even when supplied with bytes', async () => {
+        const { g, created } = createHost();
+        const audio = new AudioAPI(new MiniGameAudioBackend(g as never, 'WeChat'));
+        let open!: () => void;
+        const ready = new Promise<void>(resolve => { open = resolve; });
+        const prepare = vi.fn().mockRejectedValueOnce(new Error('closed')).mockReturnValue(ready);
+        audio.setRefResolver(() => COOKED, undefined, prepare);
+        await expect(audio.preload('tap.wav')).rejects.toThrow('closed');
+        expect(audio.getBufferHandle('tap.wav')).toBeUndefined();
+        const pending = audio.preloadFromData('tap.wav', new ArrayBuffer(8));
+        expect(prepare.mock.calls).toEqual([[COOKED], [COOKED]]);
+        expect(audio.getBufferHandle('tap.wav')).toBeUndefined();
+        open();
+        await pending;
+        audio.playSFX('tap.wav');
+        expect(created[0].src).toBe(COOKED);
+        audio.dispose();
+    });
+
     it('preloads the clip without reading bytes it cannot use', async () => {
         const { g, created } = createHost();
         const audio = new AudioAPI(new MiniGameAudioBackend(g as never, 'WeChat'));

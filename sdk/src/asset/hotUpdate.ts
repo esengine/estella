@@ -112,8 +112,9 @@ export function diffManifests(current: ManifestModel | null, next: ManifestModel
         const prior = previous.get(key);
         previous.delete(key);
         const prev = prior?.asset;
-        const rerouted = roots.current !== roots.next && next.bundleMode(group) === 'remote';
-        const deliveryChanged = prior && current?.bundleMode(prior.group) !== next.bundleMode(group);
+        const mode = next.bundleMode(group);
+        const rerouted = roots.current !== roots.next && mode === 'remote';
+        const deliveryChanged = prior && (current?.bundleMode(prior.group) !== mode || (mode === 'lazy' && prior.group !== group));
         if (!prev || deliveryChanged || asset.path !== prev.path || (rerouted && moved(asset.path))
             || (asset.contentHash != null && asset.contentHash !== prev.contentHash)
             || asset.pack?.file !== prev.pack?.file || asset.pack?.offset !== prev.pack?.offset

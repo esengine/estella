@@ -6,6 +6,7 @@ import { Catalog } from '../src/asset/Catalog';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
 import { contentHashHex } from '../src/asset/contentHash';
+import { platformLoadSubpackage } from '../src/platform';
 import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 
 // The bytes backendServing.fetchBinary returns (8 zero bytes) → the content hash a
@@ -396,6 +397,25 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         expect(plan.changedAssets.map(asset => asset.path)).toEqual([`assets/${REMOTE_HASH}.png`]);
         expect((await assets.applyUpdate()).ok).toBe(true);
         expect(backend.fetchBinary).toHaveBeenCalledWith(`assets/${REMOTE_HASH}.png`);
+    });
+
+    it('verifies a same-path move in the candidate subpackage and shares its successful mount with later reads', async () => {
+        const shipped = cdnManifest(REMOTE_HASH, 'shipped');
+        shipped.groups.cdn.bundleMode = 'lazy';
+        const next: AddressableManifest = { ...shipped, revision: 'moved', groups: { expansion: shipped.groups.cdn } };
+        const backend = backendServing(next);
+        const assets = createAssets(backend);
+        assets.setManifest(shipped);
+        const mount = vi.mocked(platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('unavailable'));
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+        expect(plan.downloadFiles.map(file => file.group)).toEqual(['expansion']);
+        expect(await assets.applyUpdate()).toMatchObject({ ok: false, revision: 'shipped', failed: [{ reason: 'fetch' }] });
+        expect(backend.fetchBinary).not.toHaveBeenCalled();
+        expect(await assets.applyUpdate()).toMatchObject({ ok: true, revision: 'moved' });
+        await assets.fetchBinary('uuid-1');
+        expect(backend.fetchBinary).toHaveBeenCalledTimes(2);
+        expect(mount.mock.calls).toEqual([['expansion'], ['expansion']]);
     });
 
     it('keeps the shipped settings active when another file in the candidate fails verification', async () => {

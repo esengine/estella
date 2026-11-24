@@ -51,7 +51,7 @@ vi.mock('../src/platform', () => ({
 
 function createMockBackend(): Backend {
     return {
-        fetch: vi.fn(async () => new ArrayBuffer(8)),
+        fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
         fetchText: vi.fn(async () => '{}'),
         resolvePath: vi.fn((p: string) => p),
         resolveUrl: vi.fn((p: string) => p),
@@ -135,6 +135,99 @@ function createManifest(): AddressableManifest {
         },
     };
 }
+
+describe('individual lazy asset reads', () => {
+    it('mounts on first access and shares the mount across raw reads, decoders and group loads', async () => {
+        const backend = createMockBackend();
+        const assets = Assets.create({ backend, module: mockModule, manifest: createManifest() });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear();
+        let open!: () => void;
+        const ready = new Promise<void>(resolve => { open = resolve; });
+        mount.mockReturnValueOnce(ready);
+        const decode = vi.fn(async () => ({ width: 1, height: 1, pixels: new Uint8Array(4) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        await assets.fetchJson('tex1.png');
+        expect(mount).not.toHaveBeenCalled();
+        const raw = assets.fetchBinary('tex3.png');
+        const json = assets.fetchJson('tex3.png');
+        const texture = assets.acquireTexture('tex3.png');
+        await vi.waitFor(() => expect(mount.mock.calls).toEqual([['extra']]));
+        expect(backend.fetchBinary).not.toHaveBeenCalled();
+        expect(backend.fetchText).toHaveBeenCalledTimes(1);
+        expect(decode).not.toHaveBeenCalled();
+        const group = assets.loadGroup('extra');
+        open();
+        const [bytes, doc, lease, bundle] = await Promise.all([raw, json, texture, group]);
+        expect(bytes.byteLength).toBe(8);
+        expect(doc).toEqual({});
+        expect(bundle.failed).toEqual([]);
+        expect(bundle.textures.get('tex3.png')?.handle).toBe(lease.value.handle);
+        expect(decode).toHaveBeenCalledTimes(1);
+        expect(mount).toHaveBeenCalledTimes(1);
+        lease.release();
+        bundle.release();
+    });
+
+    it('does no file I/O on a refused mount and retries the same direct acquisition', async () => {
+        const backend = createMockBackend();
+        const manifest = createManifest();
+        manifest.groups.extra.assets = { rules: { path: 'subpackage/rules.json', type: 'json', size: 2, labels: [] } };
+        const assets = Assets.create({ backend, module: mockModule, manifest });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('package unavailable'));
+        await expect(assets.acquireTyped('json', 'rules')).rejects.toThrow('package unavailable');
+        expect(backend.fetchText).not.toHaveBeenCalled();
+        expect(assets.sizes().refRows).toBe(0);
+        const lease = await assets.acquireTyped('json', 'rules');
+        expect(lease.value).toEqual({ data: {} });
+        expect(backend.fetchText).toHaveBeenCalledTimes(1);
+        expect(mount.mock.calls).toEqual([['extra'], ['extra']]);
+        lease.release();
+    });
+
+    it('mounts a dependency in another group before giving its staged path to a host pixel decoder', async () => {
+        const manifest = createManifest();
+        manifest.groups.extra.assets = {
+            tile: { path: 'subpackages/extra/ca/1.png', address: 'tiles/leaf.png', type: 'texture', size: 4, labels: [] },
+        };
+        const assets = Assets.create({ backend: createMockBackend(), module: mockModule, manifest });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('temporarily offline'));
+        const decode = vi.fn(async () => ({ width: 1, height: 1, pixels: new Uint8Array(4) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        assets.register({ type: 'collection', extensions: [], load: (_path, ctx) => ctx.decodePixels!('tiles/leaf.png') });
+        await expect(assets.acquireTyped('collection', 'level.tmj')).rejects.toThrow('temporarily offline');
+        expect(decode).not.toHaveBeenCalled();
+        const lease = await assets.acquireTyped('collection', 'level.tmj');
+        expect(decode.mock.calls).toEqual([['subpackages/extra/ca/1.png', false]]);
+        expect(mount.mock.calls).toEqual([['extra'], ['extra']]);
+        lease.release();
+    });
+
+    it('keeps one native texture when a scene, a label and a group resolve a record to a host URL', async () => {
+        const manifest = createManifest();
+        const key = 'b0000000-0000-4000-8000-000000000001', path = 'assets/art.png';
+        const url = 'estella://project/' + path;
+        manifest.groups.extra.assets = { [key]: { path, type: 'texture', size: 4, labels: ['art'] } };
+        const assets = Assets.create({ backend: createMockBackend(), module: mockModule, manifest });
+        assets.setAssetRefResolver(() => url);
+        const decode = vi.fn(async () => ({ width: 1, height: 1, pixels: new Uint8Array(4) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear();
+        const scene = await assets.acquireTexture('@uuid:' + key);
+        expect(mount.mock.calls).toEqual([['extra']]);
+        const label = await assets.loadByLabel('art'), group = await assets.loadGroup('extra');
+        expect(label.textures.get(url)?.handle).toBe(scene.value.handle);
+        expect(group.textures.get(url)?.handle).toBe(scene.value.handle);
+        expect(decode).toHaveBeenCalledTimes(1);
+        scene.release();
+        label.release();
+        group.release();
+        expect(assets.sizes().refRows).toBe(0);
+    });
+});
 
 describe('Assets.loadGroup', () => {
     it('loads labeled 2D and 3D manifest records after mounting their groups', async () => {

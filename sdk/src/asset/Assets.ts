@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { RuntimeConfig } from '../defaults';
 import type { Backend } from './Backend';
-import { packedBackend } from './packedBackend';
+import { manifestBackend } from './manifestBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type AssetChange, type UpdatePlan, type UpdateFile } from './hotUpdate';
@@ -18,7 +18,7 @@ import type {
     TilemapResult, TilesetResult, TimelineResult, PrefabResult,
     LocaleResult, FsmResult, BtResult, AnimatorControllerResult, JsonResult,
 } from './AssetLoader';
-import { AsyncCache } from './AsyncCache';
+import { AsyncCache, RetryableAssetError } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
 import { assetPairKey } from './assetPairKey';
 import { bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
@@ -443,6 +443,7 @@ export function bindTextureStreamingStart(assets: Assets, provider: () => number
 
 export class Assets {
     readonly backend: Backend;
+    private readonly transport_: Backend;
     private catalog_: Catalog;
     private readonly activateManifest_?: AssetsOptions['activateManifest'];
     get catalog(): Catalog { return this.catalog_; }
@@ -518,6 +519,8 @@ export class Assets {
     private settling_ = new Set<Promise<void>>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
+    /** File locations produced by a host resolver, keyed back to the staged manifest path. */
+    private readonly stagedPaths_ = new Map<string, string>();
     private refCounter_: AssetRefCounter | null = null;
     private invalidateListeners_ = new Set<InvalidateListener>();
     private sourceListeners_ = new Set<(path: string) => void>();
@@ -542,7 +545,9 @@ export class Assets {
     private builtTextures_ = new Set<number>();
 
     private constructor(options: AssetsOptions) {
-        this.backend = options.backend && packedBackend(options.backend, () => this.manifestModel_);
+        this.transport_ = options.backend;
+        this.backend = options.backend && manifestBackend(options.backend, () => this.manifestModel_,
+            group => this.mountSubpackage_(group), this.stagedPaths_);
         this.catalog_ = options.catalog ?? Catalog.empty();
         const { activateManifest, catalog } = options;
         this.activateManifest_ = activateManifest && (model => activateManifest(model, catalog));
@@ -1129,6 +1134,9 @@ export class Assets {
         const catalog = this.activateManifest_?.(model) ?? this.catalog_;
         this.catalog_ = catalog.withManifestLabels(model);
         this.manifestModel_ = model;
+        for (const [url, path] of this.stagedPaths_) {
+            if (!model?.assetByPath(path)) this.stagedPaths_.delete(url);
+        }
         // A platform subpackage is mounted by name for this app version. A label edit can reuse that mount.
         for (const name of this.subpackages_.keys()) {
             if (model?.bundleMode(name) !== 'lazy') this.subpackages_.delete(name);
@@ -1188,7 +1196,7 @@ export class Assets {
         if (existing) return existing;
         const mount = Promise.resolve().then(() => platformLoadSubpackage(group)).catch(error => {
             if (this.subpackages_.get(group) === mount) this.subpackages_.delete(group);
-            throw error;
+            throw new RetryableAssetError(`Could not mount subpackage '${group}': ${error instanceof Error ? error.message : String(error)}`, error);
         });
         this.subpackages_.set(group, mount);
         return mount;
@@ -1533,7 +1541,8 @@ export class Assets {
     private async fetchAndVerify_(
         c: UpdateFile, model: ManifestModel, root: string | undefined,
     ): Promise<{ url: string; failure?: AssetDownloadFailure['reason']; cache?: 'stored' | 'failed' | 'unsupported' }> {
-        const remote = model.bundleMode(c.group) === 'remote';
+        const mode = model.bundleMode(c.group);
+        const remote = mode === 'remote';
         // An export with hot update configured does not pack; a manifest that does
         // was built for a package that is not updated, and is refused rather than
         // fetched as files that do not exist.
@@ -1541,9 +1550,10 @@ export class Assets {
         // The candidate supplies a staged path. Resolving it against the active
         // manifest would send a move from CDN to package back to the old CDN.
         const path = remote ? remoteAssetUrl(c.path, root) : c.path;
-        const url = this.backend.resolveUrl(path);
+        const url = this.transport_.resolveUrl(path);
         try {
-            const buf = await this.backend.fetchBinary(url);
+            if (mode === 'lazy') await this.mountSubpackage_(c.group);
+            const buf = await this.transport_.fetchBinary(url);
             if ((c.kind === 'streamTail' && c.size > 0 && buf.byteLength !== c.size)
                 || (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash)) {
                 return { url, failure: 'integrity' };
@@ -1714,10 +1724,7 @@ export class Assets {
     // =========================================================================
 
     async fetchJson<T = unknown>(ref: string): Promise<T> {
-        const path = this.resolveLoadPath_(ref);
-        const url = this.backend.resolveUrl(this.catalog.getBuildPath(path));
-        const text = await this.backend.fetchText(url);
-        return JSON.parse(text) as T;
+        return JSON.parse(await this.fetchText(ref)) as T;
     }
 
     async fetchBinary(ref: string): Promise<ArrayBuffer> {
@@ -2726,6 +2733,7 @@ export class Assets {
     }
 
     setAssetRefResolver(resolver: AssetRefResolver): void {
+        if (resolver !== this.assetRefResolver_) this.stagedPaths_.clear();
         this.assetRefResolver_ = resolver;
     }
 
@@ -2784,7 +2792,7 @@ export class Assets {
     private manifestRecord_(ref: string) {
         const model = this.manifestModel_;
         if (!model) return;
-        const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
+        const path = this.stagedPaths_.get(ref) ?? pathWithinRemoteRoot(ref, this.remoteRoot_);
         return model.recordForRef(ref) ?? (path !== ref ? model.recordForRef(path) : undefined);
     }
 
@@ -2842,8 +2850,10 @@ export class Assets {
         // Deliberately NOT assetIdentity_: for a remote-group asset that answers
         // with the ADDRESS, and the package carries the STAGED name. Where the
         // bytes are is the realm's question, so its resolver gets it.
-        const resolved = this.assetRefResolver_?.(ref) ?? this.manifestRecord_(ref)?.asset.path ?? ref;
-        return this.catalog.resolve(resolved);
+        const record = this.manifestRecord_(ref);
+        const resolved = this.catalog.resolve(this.assetRefResolver_?.(ref) ?? record?.asset.path ?? ref);
+        if (record && resolved !== record.asset.path) this.stagedPaths_.set(resolved, record.asset.path);
+        return resolved;
     }
 
     /** CDN url of `ref` when it names a `remote`-group asset AND a remote root is
@@ -3318,9 +3328,12 @@ export class Assets {
             async decodePixels(path: string) {
                 // The platform's one decode path: the runtime-injected pixel
                 // decoder when present (wechat / playable), else fetch→bitmap.
+                const file = catalog.getBuildPath(self.resolveLoadPath_(path));
+                const ready = self.backend.prepareFile?.(file);
+                if (ready) await ready;
                 const decoder = self.textureLoader_.pixelDecoder;
-                if (decoder) return decoder(path, false);
-                return fetchDecodePixels(self.backend.resolveUrl(self.catalog.getBuildPath(path)));
+                if (decoder) return decoder(file, false);
+                return fetchDecodePixels(self.backend.resolveUrl(file));
             },
             async createTextureFromPixels(width, height, pixels, flipY) {
                 return self.textureLoader_.loadFromPixels(width, height, pixels, flipY, TextureContent.Retained);

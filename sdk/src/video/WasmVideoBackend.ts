@@ -125,7 +125,7 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
 
     private async start_(url: string, options: VideoStreamOptions, deps: WasmStreamDeps): Promise<void> {
         try {
-            const [bytes, mod] = await Promise.all([this.loadBytes_(url), deps.acquire()]);
+            const [bytes, mod] = await Promise.all([options.assetBackend?.fetchBinary(url) ?? this.loadBytes_(url), deps.acquire()]);
             if (this.disposed_) return;
             if (!mod) throw new Error('the "videodec" side module is unavailable');
             const video = mod as unknown as VideoWasmModule;

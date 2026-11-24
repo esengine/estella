@@ -104,22 +104,21 @@ assets.setManifest(manifest);   // normally done by the runtime
 
 ## Addressable groups (lazy loading)
 
-Assets under a `subpackages/<name>/…` folder form the lazy group `<name>`; all other assets belong to the eagerly
-loaded `main` group. `loadGroup` downloads a group (on WeChat through `wx.loadSubpackage`; on the web the download step
-is a no-op) and then loads its assets, reporting progress:
+Choose lazy delivery for a folder in the editor, or use the `subpackages/<name>/…` folder convention.
+When a scene first needs a sprite or mesh in a lazy group, the runtime mounts the subpackage before reading the file.
+Concurrent requests share one mount. Web builds read the files directly. Use `loadGroup` to load the whole group and track its progress.
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
 
-// When the area the group backs is left:
-assets.releaseGroup('level2');
+// When the player leaves level 2
+bundle.release();
 ```
 
-`releaseGroup` releases every asset the group acquired through its type's release path. Reference counting decides
-the result: an asset another scene or group still holds stays loaded; an asset no one holds moves to the evictable warm
-cache ([Lifetime & Memory](/docs/assets/memory/#warm-cache)), from which a later load revives it without a download.
+`bundle.release()` releases the references acquired by this load, even if a hot update changes the group.
+Assets held by another scene or group stay loaded. Unreferenced textures can remain in the [warm cache](/docs/assets/memory/#warm-cache).
 
 Add a top-level `"labels": ["encounter"]` field to an asset’s `.meta` to include it and its dependencies in builds.
 `await assets.loadByLabel('encounter')` loads tagged assets across groups, including textures, fonts, meshes and lighting.

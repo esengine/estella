@@ -88,18 +88,21 @@ assets.setManifest(manifest);   // 通常由运行时完成
 
 ## 寻址组（懒加载）
 
-`subpackages/<name>/…` 文件夹下的资源构成懒加载组 `<name>`；其余资源属于立即加载的 `main` 组。`loadGroup` 先下载组（微信上通过 `wx.loadSubpackage`，Web 上下载步骤为空操作），再加载其资源，并报告进度：
+可以在编辑器中将文件夹设为按需分包，也可以沿用 `subpackages/<name>/…` 的目录约定。
+场景首次用到组里的精灵或网格时，运行时会先挂载分包，再读取文件。多个并发请求共用一次挂载。Web 构建直接读取文件。
+需要一次加载整个组并显示进度时，使用 `loadGroup`。
 
 ```typescript
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
 
-// 离开该组对应的区域时：
-assets.releaseGroup('level2');
+// 玩家离开第二关时
+bundle.release();
 ```
 
-`releaseGroup` 通过各资源类型的释放路径释放该组获取的全部资源，结果由引用计数决定：仍被其他场景或组持有的资源保持加载；无人持有的资源进入可淘汰的温缓存（[生命周期与内存](/docs/zh-cn/assets/memory/#温缓存)），之后再次加载时无需下载即可恢复。
+`bundle.release()` 释放本次加载取得的引用，即使热更新改变了组成员也能正确释放。
+其他场景或组仍在使用的资源会保留。无人引用的纹理可以留在[温缓存](/docs/zh-cn/assets/memory/#温缓存)中。
 
 在资源的 `.meta` 顶层添加 `"labels": ["encounter"]`，构建会包含该资源及其依赖。
 `await assets.loadByLabel('encounter')` 可以跨组加载带此标签的纹理、字体、网格和光照资源，并先挂载所需的[微信分包](/docs/zh-cn/publishing/wechat/)。

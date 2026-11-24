@@ -132,6 +132,7 @@ function ensureRuntimeAssets(
         app.getResource(Audio).setRefResolver(
             ref => source.backend.resolveUrl(assets.resolveLoadPath(ref)),
             source.resolveAddress ?? source.resolveRef,
+            assets.backend.prepareFile,
         );
     }
 
@@ -432,9 +433,8 @@ async function readRuntimeScene(
     // a URL it can open: identity for http/filesystem realms, the inlined data URL
     // for the single-file playable (where there is no file to fetch at all).
     if (source.resolveRef) {
-        const resolveRef = source.resolveRef;
-        const backend = source.backend;
-        videoSupport()?.setRefResolver(app, (ref) => backend.resolveUrl(resolveRef(ref)));
+        const backend = sceneAssets.backend;
+        videoSupport()?.setRefResolver(app, ref => backend.resolveUrl(sceneAssets.resolveLoadPath(ref)), backend);
     }
     const sceneRef = (ref: string) => sceneAssets.sceneAssetRef(ref) ?? ref;
     mergeSceneTextureImportSettings(sceneAssets, sceneData, sceneRef);
@@ -1116,7 +1116,7 @@ function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRunt
         const prepareDocument = async (data: SceneData, assertActive: () => void): Promise<SceneData> => {
             if (worldPath) {
                 if (!worlds.has(scene.name)) {
-                    const manifest = JSON.parse(await config.source.backend.fetchText(worldPath)) as WorldManifest;
+                    const manifest = JSON.parse(await app.getResource(AssetsResource).backend.fetchText(worldPath)) as WorldManifest;
                     assertActive();
                     if (manifest?.version !== 1 || manifest.scene !== scene.name || !Array.isArray(manifest.cells)
                         || !Array.isArray(manifest.persistentRefs)) {

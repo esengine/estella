@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig, AudioDelivery, AudioLoadOptions, AudioLoadType, AudioClipTrim } from './PlatformAudioBackend';
+import type { Backend } from '../asset/Backend';
 import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../ecs/resource';
@@ -183,6 +184,8 @@ interface LayerGroup {
  */
 const RECIPE_LOAD: AudioLoadOptions = { loadType: 'decompress' };
 
+type AudioFile = { url: string; address: string; prepareFile?: Backend['prepareFile'] };
+
 export class AudioAPI {
     private readonly voiceStates_ = new WeakMap<AudioHandle, SoftVoice>();
     private readonly playbackStops_ = new Set<(generation: number) => void>();
@@ -241,6 +244,7 @@ export class AudioAPI {
     private assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
     private refResolver_: ((ref: string) => string) | null = null;
     private addressResolver_?: (ref: string) => string | null;
+    private prepareFile_?: Backend['prepareFile'];
     baseUrl = '';
 
     constructor(backend: PlatformAudioBackend, mixer: AudioMixer | null = null) {
@@ -500,9 +504,11 @@ export class AudioAPI {
      * content-addressed staging renamed the physical files. The optional address
      * resolver recovers the project path whose importer settings belong to a UUID.
      */
-    setRefResolver(resolver: ((ref: string) => string) | null, resolveAddress?: (ref: string) => string | null): void {
+    setRefResolver(resolver: ((ref: string) => string) | null, resolveAddress?: (ref: string) => string | null,
+                   prepareFile?: Backend['prepareFile']): void {
         this.refResolver_ = resolver;
         this.addressResolver_ = resolveAddress;
+        this.prepareFile_ = prepareFile;
     }
 
     private resolveUrl_(url: string): string {
@@ -571,12 +577,15 @@ export class AudioAPI {
      * The `.wav` of a clip that is a recipe (an `.essound`, an `.esmusic`): its source read as any clip is, by the resolver that
      * holds a package's inlined files or from where the path resolves to, and made by `esengine/sound` (see asset/audioRecipe.ts).
      */
-    private recipeClip_(url: string, resolved: string, given?: ArrayBuffer): Promise<ArrayBuffer> {
+    private recipeClip_(url: string, resolved: string, given: ArrayBuffer | undefined, prepareFile = this.prepareFile_): Promise<ArrayBuffer> {
         return renderAudioRecipe(url, async (path) => {
             if (path === url && given) return given;
             const held = this.assetResolver_?.(path);
             if (held) return held;
-            return getPlatform().readFile(path === url ? resolved : this.resolveUrl_(path));
+            const file = path === url ? resolved : this.resolveUrl_(path);
+            const ready = prepareFile?.(file);
+            if (ready) await ready;
+            return getPlatform().readFile(file);
         });
     }
 
@@ -584,12 +593,18 @@ export class AudioAPI {
         await this.prepareClip_(url);
     }
 
-    private loadFile_(url: string, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+    private async loadFile_(url: string, options: AudioLoadOptions | undefined, current: () => boolean,
+                            prepareFile = this.prepareFile_): Promise<AudioBufferHandle | undefined> {
+        const ready = prepareFile?.(url);
+        if (ready) {
+            await ready;
+            if (!current()) return;
+        }
         return options ? this.backend_.loadBuffer(url, options) : this.backend_.loadBuffer(url);
     }
 
     private async prepareClip_(
-        ref: string, input?: ArrayBuffer | (() => Promise<ArrayBuffer>), file?: { url: string; address: string },
+        ref: string, input?: ArrayBuffer | (() => Promise<ArrayBuffer>), file?: AudioFile,
     ): Promise<AudioBufferHandle | undefined> {
         if (this.disposed_) return undefined;
         const cached = this.bufferCache_.get(ref);
@@ -606,10 +621,10 @@ export class AudioAPI {
             // A file change during the read must not submit old bytes to a replacement backend entry.
             if (!current()) return undefined;
             if (recipe) {
-                bytes = await this.recipeClip_(address, source, bytes ?? undefined);
+                bytes = await this.recipeClip_(address, source, bytes ?? undefined, file?.prepareFile);
                 if (!current()) return undefined;
             }
-            if (!bytes) return this.loadFile_(source, options);
+            if (!bytes || (!recipe && this.delivery === 'url')) return this.loadFile_(source, options, current, file?.prepareFile);
             return options ? this.backend_.loadBufferFromData(source, bytes, options) : this.backend_.loadBufferFromData(source, bytes);
         }, file?.url);
     }
@@ -670,7 +685,7 @@ export class AudioAPI {
     }
 
     /** @internal Pin this asset's load generation. Reserve its entry before reading packaged bytes. */
-    async acquireAssetBuffer(ref: string, file: { url: string; address: string }, read: () => Promise<ArrayBuffer>): Promise<AudioBufferHandle | undefined> {
+    async acquireAssetBuffer(ref: string, file: AudioFile, read: () => Promise<ArrayBuffer>): Promise<AudioBufferHandle | undefined> {
         return this.withPendingUse_(ref, async () => {
             const handle = await this.prepareClip_(ref, read, file);
             if (handle && this.bufferCache_.get(ref)?.handle === handle && this.retainBuffer(ref)) return handle;
@@ -692,7 +707,7 @@ export class AudioAPI {
             let buffer: AudioBufferHandle | undefined;
             try {
                 buffer = await this.ensureBuffer_(url, this.loadOptions_(url, url),
-                    (source, options) => this.loadFile_(source, options), url);
+                    (source, options, current) => this.loadFile_(source, options, current), url);
             } catch {
                 return null;
             }

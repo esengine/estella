@@ -33,6 +33,8 @@ export interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
     fetchText(path: string): Promise<string>;
     resolveUrl(path: string): string;
+    /** Wait for a packaged file before handing its URL to a decoder that performs its own I/O. */
+    prepareFile?(path: string): Promise<void> | undefined;
     setBaseUrl?(url: string): void;
 }
 
@@ -92,7 +94,18 @@ export class EmbeddedBackend implements Backend {
     private assets_: Map<string, string>;
 
     constructor(assets: Record<string, string>) {
-        this.assets_ = new Map(Object.entries(assets));
+        this.assets_ = new Map();
+        for (const [path, content] of Object.entries(assets)) {
+            if (content.startsWith('data:')) {
+                this.assets_.set(path, content);
+            } else {
+                // Hosts can inline authored documents as plain text. Give them a URL
+                // that every reader can reopen, including empty and non-ASCII text.
+                let binary = '';
+                for (const byte of new TextEncoder().encode(content)) binary += String.fromCharCode(byte);
+                this.assets_.set(path, 'data:text/plain;charset=utf-8;base64,' + btoa(binary));
+            }
+        }
     }
 
     async fetchBinary(path: string): Promise<ArrayBuffer> {

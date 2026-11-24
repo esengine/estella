@@ -20,7 +20,8 @@ export class AudioAssetLoader implements AssetLoader<AudioResult> {
             return { bufferId: path };
         }
         const buildPath = ctx.catalog.getBuildPath(resolved);
-        const buffer = await audio.acquireAssetBuffer(path, { url: ctx.backend.resolveUrl(buildPath), address }, () => ctx.loadBinary(buildPath));
+        const file = { url: ctx.backend.resolveUrl(buildPath), address, prepareFile: ctx.backend.prepareFile?.bind(ctx.backend) };
+        const buffer = await audio.acquireAssetBuffer(path, file, () => ctx.loadBinary(buildPath));
         const result = { bufferId: path };
         if (buffer) this.releases_.set(result, () => {
             if (audio.getBufferHandle(path) === buffer) audio.releaseBuffer(path);

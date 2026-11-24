@@ -92,7 +92,7 @@ node build-tools/cli.js build -t wechat-glx
 
 ## 分包
 
-懒加载的资产分组会成为 `game.json` 中的微信 `subPackages`。运行时调用 `assets.loadGroup('level2')` 会触发 `wx.loadSubpackage`：
+懒加载的资产分组会成为 `game.json` 中的微信 `subPackages`。首次读取 `level2` 中的文件时，运行时会等待 `wx.loadSubpackage` 成功。也可以调用 `assets.loadGroup('level2')` 提前加载整个组。
 
 ```json
 {

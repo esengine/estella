@@ -67,4 +67,12 @@ describe('EmbeddedBackend', () => {
         const bytes = new Uint8Array(await backend.fetchBinary(backend.resolveUrl('data.bin')));
         expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
     });
+
+    it.each(['星图', ''])('reads embedded text %j by path and by URL', async content => {
+        const embedded = new EmbeddedBackend({ 'atlas.json': content });
+        const url = embedded.resolveUrl('atlas.json');
+        expect(await embedded.fetchText('atlas.json')).toBe(content);
+        expect(await embedded.fetchText(url)).toBe(content);
+        expect(new Uint8Array(await embedded.fetchBinary(url))).toEqual(new TextEncoder().encode(content));
+    });
 });

@@ -8,7 +8,7 @@
  * fetching 1505 meshes whose upload took 0.2 s. After the cook, this moves the
  * local assets that every read reaches through the asset server into packs, and
  * records in the cook manifest where each one sits (the runtime reads them back
- * through `packedBackend`).
+ * through the runtime manifest backend).
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

@@ -7,6 +7,11 @@ import { preparationFailureReason } from './dependencies';
 
 export { reservePromise as reserveLoad };
 
+/** Delivery can be retried immediately when a platform refused to mount a package. */
+export class RetryableAssetError extends Error {
+    constructor(message: string, readonly cause: unknown) { super(message); }
+}
+
 interface PendingEntry<T> {
     promise: Promise<T>;
     aborted: boolean;
@@ -95,7 +100,8 @@ export class AsyncCache<T> {
             if (!entry.aborted) this.cache_.set(key, result);
             return result;
         } catch (err) {
-            if (this.pending_.get(key) === entry && err instanceof Error && preparationFailureReason(err) instanceof Error) {
+            const reason = preparationFailureReason(err);
+            if (this.pending_.get(key) === entry && err instanceof Error && reason instanceof Error && !(reason instanceof RetryableAssetError)) {
                 this.failed_.set(key, { error: err, expiry: Date.now() + RuntimeConfig.assetFailureCooldown });
             }
             if (err instanceof Error && err.message.startsWith('AsyncCache timeout:')) {

@@ -111,8 +111,8 @@ DevTools, render through WebGL2. The log's `rendering through …` line states w
 
 ## Subpackages
 
-Lazy asset groups become WeChat `subPackages` in `game.json`. At runtime, `assets.loadGroup('level2')` calls
-`wx.loadSubpackage`:
+Lazy asset groups become WeChat `subPackages` in `game.json`. The first read of a file in `level2` waits for
+`wx.loadSubpackage` to succeed. You can also load the whole group ahead of time with `assets.loadGroup('level2')`.
 
 ```json
 {

@@ -1280,7 +1280,7 @@ ResourceDef<AudioAPI>
 
 ## AudioAPI — class @experimental
 ```
-@internal acquireAssetBuffer: (ref: string, file: { url: string; address: string; }, read: () => Promise<ArrayBuffer>) => Promise<AudioBufferHandle | undefined>
+@internal acquireAssetBuffer: (ref: string, file: AudioFile, read: () => Promise<ArrayBuffer>) => Promise<AudioBufferHandle | undefined>
 @internal getBufferSource: (ref: string) => string | undefined
 @internal getVoiceState: (handle: AudioHandle) => "ended" | "paused" | "playing" | "stopped" | "untracked"
 @internal onPlaybackStop: (callback: (generation: number) => void) => () => void
@@ -1327,7 +1327,7 @@ setLoadTypes: (types: Readonly<Record<string, AudioLoadType>> | null) => void
 setMasterVolume: (volume: number) => void
 setMaxVoices: (max: number) => void
 setMusicVolume: (volume: number) => void
-setRefResolver: (resolver: ((ref: string) => string) | null, resolveAddress?: (ref: string) => string | null) => void
+setRefResolver: (resolver: ((ref: string) => string) | null, resolveAddress?: (ref: string) => string | null, prepareFile?: Backend["prepareFile"]) => void
 setSFXVolume: (volume: number) => void
 setUIVolume: (volume: number) => void
 stopAll: () => void
@@ -1604,6 +1604,7 @@ readonly BundleMode[]
 ```
 fetchBinary: (path: string) => Promise<ArrayBuffer>
 fetchText: (path: string) => Promise<string>
+prepareFile: ((path: string) => Promise<void> | undefined) | undefined
 resolveUrl: (path: string) => string
 setBaseUrl: ((url: string) => void) | undefined
 ```
@@ -15055,7 +15056,7 @@ backendName: string
 baseUrl: string
 dispose: () => void
 play: (source: string, options?: VideoPlayOptions) => VideoStreamHandle
-setRefResolver: (resolver: ((ref: string) => string) | null) => void
+setRefResolver: (resolver: ((ref: string) => string) | null, assetBackend?: VideoStreamOptions["assetBackend"]) => void
 stop: (handle: VideoStreamHandle) => void
 stopAll: () => void
 update: (module: ESEngineModule | null) => void
@@ -15088,7 +15089,7 @@ VideoStreamHandle
 
 ## VideoPlayOptions — type @experimental
 ```
-VideoStreamOptions
+Omit<VideoStreamOptions, 'assetBackend'>
 ```
 
 ## VideoPlayer — const @experimental
@@ -15133,6 +15134,7 @@ width: number
 
 ## VideoStreamOptions — interface @experimental
 ```
+assetBackend: Backend | undefined
 audioTrackUrl: string | undefined
 autoplay: boolean | undefined
 loop: boolean | undefined

@@ -10,12 +10,13 @@ import { probeRefs } from '../asset/AddressableManifest';
 import { getPlatform, isPlatformInitialized } from '../platform/base';
 
 export type VideoHandle = VideoStreamHandle;
-export type VideoPlayOptions = VideoStreamOptions;
+export type VideoPlayOptions = Omit<VideoStreamOptions, 'assetBackend'>;
 
 export class VideoAPI {
     private readonly backend_: PlatformVideoBackend;
     private readonly handles_ = new Set<VideoStreamHandle>();
     private refResolver_: ((ref: string) => string) | null = null;
+    private assetBackend_?: VideoStreamOptions['assetBackend'];
     private disposed_ = false;
     private hostMuted_ = false;
     private readonly muteTargets_ = new Map<VideoStreamHandle, () => void>();
@@ -50,8 +51,9 @@ export class VideoAPI {
 
     get backendName(): string { return this.backend_.name; }
 
-    setRefResolver(resolver: ((ref: string) => string) | null): void {
+    setRefResolver(resolver: ((ref: string) => string) | null, assetBackend?: VideoStreamOptions['assetBackend']): void {
         this.refResolver_ = resolver;
+        this.assetBackend_ = assetBackend;
     }
 
     private resolveUrl_(ref: string): string {
@@ -67,6 +69,7 @@ export class VideoAPI {
         let userPlaying = options.autoplay ?? true;
         const stream = this.backend_.createStream(this.resolveUrl_(source), {
             ...options,
+            ...(this.assetBackend_ && { assetBackend: this.assetBackend_ }),
             ...(this.hasHostMute_ ? { muted: userMuted || this.hostMuted_ } : {}),
             ...(this.executionHeld_ ? { autoplay: false } : {}),
             audioTrackUrl: options.audioTrackUrl ?? this.resolveAudioTrack_(source),

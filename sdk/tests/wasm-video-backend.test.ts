@@ -106,6 +106,21 @@ afterEach(() => {
 });
 
 describe('WasmVideoBackend', () => {
+    it('opens a packaged stream from the app backend after its bytes are available', async () => {
+        const { mod, raw } = mockVideoModule();
+        const video = new WasmVideoBackend({ sideModules: () => hostFor(mod) });
+        let open!: (bytes: ArrayBuffer) => void;
+        const pending = new Promise<ArrayBuffer>(resolve => { open = resolve; });
+        const source = { fetchBinary: vi.fn(() => pending), fetchText: vi.fn(), resolveUrl: (path: string) => path };
+        const handle = video.createStream('subpackages/intro/clip.esv', { assetBackend: source, muted: true });
+        expect(source.fetchBinary).toHaveBeenCalledWith('subpackages/intro/clip.esv');
+        expect(raw._es_video_open).not.toHaveBeenCalled();
+        open(new ArrayBuffer(64));
+        await flush();
+        expect(raw._es_video_open).toHaveBeenCalledOnce();
+        handle.stop();
+    });
+
     it('opens the stream through the side module and uploads the first frame', async () => {
         const { mod, raw } = mockVideoModule();
         const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod) });

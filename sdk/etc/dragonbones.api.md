@@ -172,7 +172,7 @@ textureImportSettings: ((ref: string) => ParsedTextureImportSettings | undefined
 
 ## loadDragonBonesAssets — function @experimental
 ```
-(module: ESEngineModule | null, source: RuntimeAssetSource, pairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, assets?: Pick<Assets, "acquireTexture">, scope?: AssetScope, onPairSettled?: () => void): Promise<Map<string, DragonBonesAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, pairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider, assets?: Pick<Assets, "acquireTexture"> & Partial<Pick<Assets, "fetchBinary" | "fetchText">>, scope?: AssetScope, onPairSettled?: () => void): Promise<Map<string, DragonBonesAssetInfo>>
 ```
 
 ## loadDragonBonesSceneEntities — function @experimental

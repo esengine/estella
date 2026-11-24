@@ -199,8 +199,7 @@ export function platformCreateAudioBackend(): PlatformAudioBackend {
  *  with no subpackage concept, e.g. web). The single channel lazy asset groups
  *  use before loading their assets. */
 export function platformLoadSubpackage(name: string): Promise<void> {
-    const p = getPlatform();
-    return p.loadSubpackage ? p.loadSubpackage(name) : Promise.resolve();
+    return currentPlatform?.loadSubpackage?.(name) ?? Promise.resolve();
 }
 
 /** Read a content-addressed asset from the persistent cache (hot-update's offline

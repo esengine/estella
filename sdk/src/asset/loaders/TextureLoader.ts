@@ -409,6 +409,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             const buf = await (ctx.readSharedFile?.(buildPath, 'ktx2', read) ?? read());
             return this.uploadKtx2_(path, new Uint8Array(buf), settings, maxEdge);
         }
+        // The host image and compressed-source decoders open the file themselves.
+        const ready = ctx.backend?.prepareFile?.(buildPath);
+        if (ready) await ready;
         let preview = false;
         if (!copy && this.compressedSource_) {
             const compressed = await this.compressedSource_(path);

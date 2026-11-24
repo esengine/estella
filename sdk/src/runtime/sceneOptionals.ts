@@ -15,6 +15,7 @@
  * second declaration that drifts.
  */
 import type { App } from '../app/app';
+import type { Backend } from '../asset/Backend';
 import type { SpineManager } from '../spine/SpineManager';
 import type { loadSpineAssets, applySpineEntities } from '../spine/loadSpineScene';
 import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
@@ -57,7 +58,7 @@ export interface Physics3DSupport {
 /** What a scene load needs from video, when the build ships it. */
 export interface VideoSupport {
     /** False when the realm has no VideoPlayer resource to point at the staged file. */
-    setRefResolver(app: App, resolve: (ref: string) => string): boolean;
+    setRefResolver(app: App, resolve: (ref: string) => string, backend?: Backend): boolean;
 }
 
 let spine: SpineSupport | null = null;

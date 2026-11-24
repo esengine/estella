@@ -60,11 +60,20 @@ class WebVideoStreamHandle implements VideoStreamHandle {
         video.addEventListener('loadedmetadata', this.onLoadedMetadata_);
         video.addEventListener('ended', this.onEndedEvent_);
         video.addEventListener('error', this.onErrorEvent_);
-        video.src = url;
-        video.load();
         this.video_ = video;
-
-        if (this.wantsPlay_) this.tryPlay_();
+        const open = () => {
+            if (this.disposed_) return;
+            video.src = url;
+            video.load();
+            if (this.wantsPlay_) this.tryPlay_();
+        };
+        const ready = options.assetBackend?.prepareFile?.(url);
+        if (ready) void ready.then(open).catch(error => {
+            if (this.disposed_) return;
+            log.warn('video', `Could not open "${url}"`, error);
+            this.onError?.(error);
+        });
+        else open();
     }
 
     // === lifecycle ==========================================================
@@ -86,6 +95,7 @@ class WebVideoStreamHandle implements VideoStreamHandle {
     };
 
     private tryPlay_(): void {
+        if (!this.video_.src) return;
         const p = this.video_.play() as unknown as Promise<void> | undefined;
         if (p && typeof p.catch === 'function') {
             p.catch((err) => log.warn('video', 'autoplay blocked (mute the video or start on input)', err));

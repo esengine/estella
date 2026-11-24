@@ -3,6 +3,7 @@
 // Platform-neutral video contract. A backend turns a source ref into a live
 // decode exposing an engine texture handle, refreshed each frame.
 import type { ESEngineModule } from '../wasm';
+import type { Backend } from '../asset/Backend';
 
 export interface VideoStreamHandle {
     readonly id: number;
@@ -36,6 +37,8 @@ export interface VideoStreamHandle {
 }
 
 export interface VideoStreamOptions {
+    /** The app's manifest-aware source for this stream's bytes or host-decoded URL. */
+    assetBackend?: Backend;
     autoplay?: boolean;
     loop?: boolean;
     muted?: boolean;
