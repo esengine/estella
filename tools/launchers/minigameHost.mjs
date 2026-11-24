@@ -175,7 +175,12 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
   globalThis.__estellaLoading = null;
   const wx = {
     createCanvas: makeCanvas,
-    createImage: () => new Image(),
+    createImage: () => {
+      const image = new Image();
+      // The engine reads decoded pixels through a canvas, including for images a CDN serves with CORS.
+      image.crossOrigin = 'anonymous';
+      return image;
+    },
     getFileSystemManager: () => fs,
     getSystemInfoSync: () => ({
       pixelRatio: window.devicePixelRatio || 1,
