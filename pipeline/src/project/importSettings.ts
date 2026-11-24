@@ -195,7 +195,8 @@ const AUDIO: ImporterFieldSpec[] = [
   {
     key: 'compress', label: 'Compress', type: 'bool', default: true, category: 'Audio',
     tooltip: 'Re-encode WAV to MP3 at cook (already-compressed formats pass through). '
-      + 'MP3 has a small encoder delay — disable for seamless-loop clips.',
+      + 'The export records each clip\'s real length and plays it from past the silence MP3 adds in front, '
+      + 'so loops stay seamless and effects start on time.',
   },
   {
     key: 'bitrateKbps', label: 'Bitrate', type: 'enum', default: 128, category: 'Audio',
@@ -282,6 +283,14 @@ const MODEL: ImporterFieldSpec[] = [
       + 'property (extras.estella.springBone / springCollider) is used as stated; for what they leave out, a bone called '
       + 'Hair_<region>_<chain>_00 becomes a SpringBone and an empty called SBC_Sphere_<name>_r<cm> or '
       + 'SBC_Capsule_<name>_r<cm>_h<cm> a collider. Sizes are in metres, as the model has them. A name is a convention, so check what it found.',
+  },
+  {
+    key: 'rootMotion', label: 'Root Motion', type: 'enum', default: 'off',
+    category: 'Import', advanced: true,
+    options: [{ label: 'Off', value: 'off' }, { label: 'From the Skeleton', value: 'skeleton' }],
+    tooltip: 'For clips that carry the travel of the character in the top joint of the skeleton (the hips) because the rig has no root '
+      + 'above it: take what that joint covers over the ground out of the joint and state it as a root track, at one steady rate. '
+      + 'A state with Root Motion on then moves the character by it, and the feet do not slide. A clip that ends where it began is left alone.',
   },
   {
     key: 'boneInfluenceLimit', label: 'Bone Influence Limit', type: 'enum', default: 0, category: 'Skinning',
