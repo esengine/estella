@@ -3,7 +3,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { AddressableManifest } from 'esengine';
-import { physicalAssetFiles } from '../assets/assetFiles';
+import { physicalAssetFiles } from '../../../sdk/src/asset/physicalAssetFiles';
 import { containsPath, isInsideRoot, realPathOf } from '../fs/pathSandbox';
 
 /** Physical files owned by the exported manifest; shared pack files count once. */

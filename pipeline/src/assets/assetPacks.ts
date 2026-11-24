@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { bundleModeFor } from './addressableManifest';
-import { physicalAssetFiles } from './assetFiles';
+import { physicalAssetFiles } from '../../../sdk/src/asset/physicalAssetFiles';
 import type { FlatCookEntry } from './cookAssets';
 
 /** The types read only through the asset server's backend, which is what reads a pack.

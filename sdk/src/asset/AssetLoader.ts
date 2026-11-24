@@ -6,6 +6,7 @@ import type { ScriptGraphSignature } from '../logic/nodes';
 import type { PreparedPrefab } from '../prefab/preparedPrefab';
 import type { RegistryEra } from './registryAssets';
 import type { Catalog } from './Catalog';
+import type { StreamTailInfo } from './AddressableManifest';
 import type { TextureHandle, FontHandle } from '../types';
 import type { CppResourceManager } from '../wasm';
 import type { SpineAssetValue } from '../spine/prepareSpine';
@@ -116,6 +117,8 @@ export interface JsonResult<T = unknown> {
 export interface LoadContext {
     backend: Backend;
     catalog: Catalog;
+    /** Preview of a streamed texture, resolved against the delivery root of this load. */
+    resolveStreamTail?(path: string): StreamTailInfo | null;
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
     /**

@@ -64,7 +64,7 @@ export const buildSystem = defineSystem(
                     state.message = '已是最新版本';
                 } else {
                     state.plan = {
-                        files: plan.changedAssets.length,
+                        files: plan.downloadFiles.length,
                         bytes: plan.totalBytes,
                         from: plan.fromRevision ?? '—',
                         to: plan.toRevision ?? '—',

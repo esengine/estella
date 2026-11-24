@@ -1077,12 +1077,16 @@ export async function cookAssets(
       }
       let streamTail: CookManifestEntry['streamTail'];
       if (tail) {
-        const tailRel = useCA ? `${caBase}/${contentHashHex(tail.bytes)}${tail.ext}` : `${outRel}.tail${tail.ext}`;
+        const tailHash = contentHashHex(tail.bytes);
+        const tailRel = useCA ? `${caBase}/${tailHash}${tail.ext}` : `${outRel}.tail${tail.ext}`;
         if (!staged.has(tailRel)) {
           staged.add(tailRel);
           await writeFile(path.join(absOut, tailRel), tail.bytes);
         }
-        streamTail = { path: tailRel, size: tail.bytes.byteLength, width: tail.width, height: tail.height, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight };
+        streamTail = {
+          path: tailRel, size: tail.bytes.byteLength, contentHash: tailHash, width: tail.width,
+          height: tail.height, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight,
+        };
       }
       manifestEntries.push({
         uuid: entry.uuid,

@@ -86,6 +86,40 @@ it('applies two real updates, cleans v1, restores v3 and reads current/rollback 
     expect((await restored.cleanDiskCache(0, true)).removed).toEqual([]);
 });
 
+it('protects the active and rollback previews with their full image', async () => {
+    const version = (v: number): AddressableManifest => {
+        const m = manifest(1);
+        m.revision = `preview-${v}`;
+        m.groups.cdn.assets.a.streamTail = {
+            path: url(v), size: 8, contentHash: contentHashHex(new Uint8Array(data(v))),
+            width: 1, height: 1, fullWidth: 2, fullHeight: 2,
+        };
+        return m;
+    };
+    const a = Assets.create({ module: null, backend: new HttpBackend({ baseUrl: '' }), manifest: version(2) });
+    a.setRemoteRoot(root);
+    a.restorePersistedUpdate('game:previews');
+    await platformWriteCacheFile(url(1), data(1));
+    await platformWriteCacheFile(url(2), data(2));
+    next = 3;
+    network.mockResolvedValueOnce({
+        ok: true, status: 200, statusText: 'OK', headers: {}, text: async () => JSON.stringify(version(3)),
+        json: async () => version(3), arrayBuffer: async () => data(3),
+    });
+    await a.checkForUpdate({ manifestUrl: `${root}/manifest.json` });
+    expect((await a.applyUpdate()).stages.persisted).toBe(true);
+    const clean = await a.cleanDiskCache(0, true);
+    expect(clean.removed).toEqual([]);
+    expect(clean.report.versions).toEqual(expect.arrayContaining([
+        expect.objectContaining({ revision: 'preview-3', reason: 'current', missing: 0 }),
+        expect.objectContaining({ revision: 'preview-2', reason: 'rollback', missing: 0 }),
+    ]));
+    offline = true;
+    network.mockClear();
+    for (const v of [1, 2, 3]) expect(await a.backend.fetchBinary(url(v))).toEqual(data(v));
+    expect(network).not.toHaveBeenCalled();
+});
+
 it('keeps the next-launch version and its rollback when two later manifest writes fail', async () => {
     const a = assets();
     await platformWriteCacheFile(url(1), data(1));

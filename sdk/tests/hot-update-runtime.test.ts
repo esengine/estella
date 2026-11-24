@@ -332,6 +332,59 @@ describe('a hot update reaches what was built from what it changed', () => {
 });
 
 describe('Assets.checkForUpdate / applyUpdate', () => {
+    it('verifies both files at a replacement CDN even when the manifest itself is identical', async () => {
+        const m = cdnManifest(REMOTE_HASH, 'same');
+        m.groups.cdn.assets['uuid-1'].streamTail = {
+            path: 'preview.png', size: 8, width: 1, height: 1, fullWidth: 2, fullHeight: 2, contentHash: REMOTE_HASH,
+        };
+        const backend = backendServing(m);
+        const assets = createAssets(backend);
+        assets.setManifest(m);
+        assets.setRemoteRoot('https://cdn/v1');
+        const plan = await assets.checkForUpdate({ manifestUrl: 'same.json', remoteRoot: 'https://cdn/v2' });
+        expect(plan.hasUpdate).toBe(true);
+        expect(plan.downloadFiles).toHaveLength(2);
+        expect(await assets.applyUpdate()).toMatchObject({ ok: true, updated: 1 });
+        expect(vi.mocked(backend.fetchBinary).mock.calls.map(([path]) => path).sort())
+            .toEqual([`https://cdn/v2/assets/${REMOTE_HASH}.png`, 'https://cdn/v2/preview.png']);
+    });
+
+    it('refuses a changed packed member before requesting a virtual file', async () => {
+        const shipped = cdnManifest('same', 'old');
+        const next = cdnManifest('same', 'new');
+        next.groups.cdn.assets['uuid-1'].pack = { file: 'shared.pack', offset: 4, size: 10 };
+        const backend = backendServing(next);
+        const assets = createAssets(backend);
+        assets.setManifest(shipped);
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+        expect(plan.downloadFiles).toMatchObject([{ kind: 'pack', path: 'shared.pack' }]);
+        expect(await assets.applyUpdate()).toMatchObject({ ok: false, revision: 'old', failed: [{ reason: 'packed' }] });
+        expect(backend.fetchBinary).not.toHaveBeenCalled();
+    });
+
+    it('verifies just the replacement preview, keeps the old revision on corruption and retries the staged update', async () => {
+        const shipped = cdnManifest('unchanged', 'old');
+        const tail = { path: 'assets/preview.png', size: 8, width: 1, height: 1, fullWidth: 4, fullHeight: 4 };
+        shipped.groups.cdn.assets['uuid-1'].streamTail = { ...tail, contentHash: 'old-preview' };
+        const next = cdnManifest('unchanged', 'new');
+        next.groups.cdn.assets['uuid-1'].streamTail = { ...tail, contentHash: REMOTE_HASH };
+        const backend = backendServing(next);
+        vi.mocked(backend.fetchBinary).mockResolvedValueOnce(new Uint8Array(8).fill(42).buffer);
+        const assets = createAssets(backend);
+        assets.setManifest(shipped);
+        assets.setRemoteRoot('https://cdn');
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+        expect(plan.downloadFiles).toMatchObject([{ kind: 'streamTail', path: tail.path, size: 8 }]);
+        expect(assets.updateStatus().staged).toEqual({ revision: 'new', assets: 1, bytes: 8 });
+        expect(await assets.applyUpdate()).toMatchObject({
+            ok: false, revision: 'old', updated: 0, failed: [{ path: tail.path, reason: 'integrity' }],
+        });
+        const progress = vi.fn();
+        expect(await assets.applyUpdate(progress)).toMatchObject({ ok: true, revision: 'new', updated: 1, stages: { cached: true } });
+        expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
+        expect(vi.mocked(backend.fetchBinary).mock.calls).toEqual([['https://cdn/assets/preview.png'], ['https://cdn/assets/preview.png']]);
+    });
+
     it('verifies a move from CDN to package at the candidate location', async () => {
         const next = cdnManifest(REMOTE_HASH, 'local');
         next.groups.cdn.bundleMode = 'local';
@@ -359,7 +412,7 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         const notify = vi.fn();
         assets.onInvalidate(notify);
 
-        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json', remoteRoot: 'https://cdn/v2' });
+        const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
         expect(plan.changedAssets.map(asset => asset.key)).toEqual(['uuid-2']);
         expect(plan.reconfiguredAssets.map(asset => asset.key)).toEqual(['uuid-1']);
         expect(await assets.applyUpdate()).toMatchObject({ ok: false, updated: 0, failed: [{ reason: 'integrity' }] });

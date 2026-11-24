@@ -31,7 +31,7 @@ import {
   type SizeBudget, type SizeVerdict,
 } from '../project/sizeBudget';
 import type { Inclusion, InclusionReason } from '../assets/cookAssets';
-import { physicalAssetFiles, type AssetFileRefs } from '../assets/assetFiles';
+import { physicalAssetFiles, type AssetFileRefs } from '../../../sdk/src/asset/physicalAssetFiles';
 import {
   compareSizes, readSizeRecord, recordOf, writeSizeRecord,
   type SizeComparison, type SizeSettings,

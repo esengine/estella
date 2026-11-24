@@ -52,6 +52,8 @@ export type { AddressableAssetType };
 /** Where a texture's small copy is, and how big it and the file are. */
 export interface StreamTailInfo {
     path: string;
+    /** XXH64 of the preview bytes. Older builds may carry it only in the filename. */
+    contentHash?: string;
     size: number;
     width: number;
     height: number;

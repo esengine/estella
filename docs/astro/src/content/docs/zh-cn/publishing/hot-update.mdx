@@ -21,7 +21,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 1. 从 CDN **获取**远端清单（`asset-manifest.json`）。
 2. 与运行中的清单**比对**文件哈希、交付位置和运行时设置。
-3. **下载并校验** `changedAssets` 列出的文件。
+3. **下载并校验** `downloadFiles` 列出的文件。
 4. **切换**到新清单。场景中正在使用的纹理随即采用新图片或新设置。
 
 </Steps>
@@ -141,9 +141,9 @@ async function pullUpdate(assets: Assets): Promise<void> {
     remoteRoot:  'https://cdn.example.com/my-game',
   });
   if (!plan.hasUpdate) return;
-  console.log(`Update available: ${plan.changedAssets.length} files, ${(plan.totalBytes / 1024) | 0} KB`);
+  console.log(`Update available: ${plan.downloadFiles.length} files, ${(plan.totalBytes / 1024) | 0} KB`);
 
-  // 2. Download + verify every changed asset, then swap the manifest — atomically.
+  // 2. 校验更新所需的文件，全部通过后切换清单。
   const result = await assets.applyUpdate((loaded, total) => {
     console.log(`Downloading ${loaded}/${total}`);
   });
@@ -188,7 +188,7 @@ const unsub = assets.onInvalidate((event) => {
 | 方法 | 返回值 | 说明 |
 | --- | --- | --- |
 | `checkForUpdate(options)` | `Promise<UpdatePlan>` | 获取候选清单，与当前清单比对并暂存。不下载资产。 |
-| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | 校验 `changedAssets` 中的文件，成功后切换清单、重新绑定运行中的句柄并持久化。`onProgress(loaded, total)` 报告下载进度。 |
+| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | 校验 `downloadFiles` 中的文件，成功后切换清单、重新绑定运行中的句柄并持久化。`onProgress(loaded, total)` 报告下载进度。 |
 | `restorePersistedUpdate(key)` | `boolean` | 启动时恢复之前 `applyUpdate` 以 `key` 持久化的清单。设置了 `persistUpdateKey` 时由运行时调用。 |
 | `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`，用于诊断界面。 |
 | `setRemoteRoot(url?)` | `void` | 设置远端分组的 CDN 根地址（`undefined` 清除，即同源）。运行时根据构建的 `remoteRoot` 设置。 |
@@ -202,27 +202,28 @@ const unsub = assets.onInvalidate((event) => {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `manifestUrl` | `string` | 候选（远端）清单的 URL。 |
-| `remoteRoot` | `string`（可选） | 候选清单中远端分组资产所在的 CDN 根地址。默认为当前根地址。 |
+| `remoteRoot` | `string`（可选） | 候选清单中远端资产的 CDN 根地址，默认沿用当前地址。更换根地址时，即使清单相同，也会校验实际 URL 发生变化的文件。 |
 
 **`UpdatePlan`**（`checkForUpdate` 的返回值）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `hasUpdate` | `boolean` | 资产、分组设置或构建修订号发生变化时为 `true`。 |
-| `changedAssets` | `AssetChange[]` | 需要从候选清单的交付位置读取并校验的文件。 |
-| `reconfiguredAssets` | `AssetChange[]` | 可以沿用现有文件、按新设置生效的资产。 |
+| `changedAssets` | `AssetChange[]` | 新增资产，以及主文件或交付位置发生变化的资产。 |
+| `reconfiguredAssets` | `AssetChange[]` | 可以沿用主文件、以新设置或新预览生效的资产。 |
 | `removedAssets` | `AssetChange[]` | 不再存在的资产（仅供参考，从不下载）。 |
 | `changedGroups` | `string[]` | 成员、设置或资产发生变化的分组。 |
-| `totalBytes` | `number` | `changedAssets` 的大小总和，即下载量估计。 |
+| `downloadFiles` | `UpdateFile[]` | 需要校验的实际文件。流式纹理可以同时包含原图和预览。同一交付位置的共享文件只计一次。 |
+| `totalBytes` | `number` | `downloadFiles` 的大小总和，即下载量估计。 |
 | `fromRevision` / `toRevision` | `string \| null` | 旧、新清单的修订号。 |
 
 **`ApplyUpdateResult`**（`applyUpdate` 的返回值）
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `ok` | `boolean` | 仅当所有改动资产都已下载并校验、且清单已切换时为 `true`。 |
+| `ok` | `boolean` | 所需文件全部通过校验、候选清单已生效时为 `true`。 |
 | `updated` | `number` | 已应用的资产数量（失败时为 `0`）。 |
-| `failed` | `AssetDownloadFailure[]` | 回滚原因，每项为 `{ path, reason: 'fetch' \| 'integrity' }`。 |
+| `failed` | `AssetDownloadFailure[]` | 校验未通过的文件路径及原因，包括下载失败（`fetch`）、完整性不符（`integrity`）或资源包发生变化（`packed`）。 |
 | `stages` | `UpdateStages` | 应用进行到哪一步（见下）。仅凭 `ok` 无法判断下次启动是否保留该更新。 |
 | `revision` | `string \| null` | 本次会话此后运行的修订号。 |
 | `uncached` | `string[]` | 磁盘缓存拒绝写入的改动资产（按 URL）；下次启动会重新获取。 |
@@ -260,7 +261,7 @@ assets.releaseGroup('world2');
 
 <Steps>
 
-1. **下载并校验。** 获取 `changedAssets` 中的文件，计算哈希并与清单中的 `contentHash` 比较。下载失败或哈希不符（响应损坏或被篡改）记为失败。此阶段不修改当前清单。
+1. **下载并校验。** 获取 `downloadFiles` 中的文件，计算哈希并与清单中的 `contentHash` 比较。下载失败或哈希不符（响应损坏或被篡改）记为失败。此阶段不修改当前清单。
 2. **提交。** 仅当所有资产都成功时：切换清单和根地址、重新绑定运行中的句柄，并持久化新清单。
 
 </Steps>

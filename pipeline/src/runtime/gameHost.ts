@@ -955,7 +955,7 @@ async function boot(startup: GameStartup): Promise<void> {
         const plan = await assets.checkForUpdate({ manifestUrl, remoteRoot });
         const result = await assets.applyUpdate();
         return {
-          changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length,
+          changed: plan.changedAssets.length + plan.reconfiguredAssets.length, applied: result.ok, failed: result.failed.length,
           stages: result.stages, revision: result.revision,
         };
       },

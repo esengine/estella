@@ -5,6 +5,7 @@ import { App } from '../src/app/app';
 import { Assets as AssetsResource, assetPlugin } from '../src/asset/AssetPlugin';
 import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
+import { indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import { setLinearColorSpace } from '../src/ecs/env';
 import { QualityController } from '../src/render/quality';
 import { Quality } from '../src/render/qualityRuntime';
@@ -39,6 +40,44 @@ function assetsWithPixels(): Assets {
 
 describe('the import settings of one texture request', () => {
     afterEach(() => { uploads.length = 0; setLinearColorSpace(false); });
+
+    it('reads a mesh preview from the full image’s CDN and can promote it to the full file', async () => {
+        const tail = { path: 'art/small.png', size: 8, width: 2, height: 2, fullWidth: 8, fullHeight: 8 };
+        const index = indexPackagedManifest({ version: '2.0', groups: { art: {
+            bundleMode: 'remote', labels: [], assets: { wall: {
+                path: 'art/full.png', type: 'texture', labels: [], size: 64, streamTail: tail,
+            } },
+        } } });
+        const assets = Assets.create({ module: null, backend: new HttpBackend({ baseUrl: '' }), catalog: index.catalog, manifest: index.model });
+        assets.setAssetRefResolver(index.resolvePath);
+        assets.setRemoteRoot('https://cdn.test/game');
+        assets.setTextureStreamingStart(2);
+        const paths: string[] = [];
+        assets.getTextureLoader().setPixelDecoder(async path => {
+            paths.push(path);
+            const size = path.endsWith('small.png') ? 2 : 8;
+            return { width: size, height: size, pixels: new Uint8Array(size * size * 4) };
+        });
+        try {
+            const scene = await assets.preloadSceneAssets({
+                version: '1.0', name: 'Remote mesh', entities: [
+                    { id: 1, name: 'Wall', parent: null, children: [], visible: true,
+                        components: [{ type: 'MeshRenderer', data: { texture: 'art/full.png' } }] },
+                ],
+            });
+            expect(scene.missing).toEqual([]);
+            const first = assets.getTexture('wall')!;
+            expect(first).toMatchObject({ width: 2, fullWidth: 8 });
+            expect(await assets.resizeTexture(first.handle, 0)).toEqual({ width: 8, height: 8 });
+            expect(paths).toEqual(['https://cdn.test/game/art/small.png', 'https://cdn.test/game/art/full.png']);
+            assets.setRemoteRoot('https://mirror.test/game');
+            const mirrored = await assets.acquireTexture('wall');
+            expect(mirrored.value).toMatchObject({ width: 2, fullWidth: 8 });
+            expect(paths.at(-1)).toBe('https://mirror.test/game/art/small.png');
+            mirrored.release();
+            scene.scope.releaseAll();
+        } finally { assets.releaseAll(); }
+    });
 
     it.each([true, false])('keeps its sampler when the streaming policy starts a nested load (flip %s)', async flip => {
         setLinearColorSpace(true);

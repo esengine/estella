@@ -96,7 +96,7 @@ export function textureResidencyKey(path: string, flip: boolean): string {
 /** @internal Project path and flip as displayed in diagnostics, including for secondary loaders on a device. */
 export function logicalTextureKey(poolKey: string): string { return poolKey.replace(/(:[fn]):\d+$/, '$1'); }
 
-type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog'>;
+type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog' | 'resolveStreamTail'>;
 const primaryTextureOwners = new WeakMap<CppResourceManager, number>();
 let nextTextureOwner = 0;
 
@@ -354,7 +354,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const key = textureResidencyKey(path, flip);
         const source: TextureSource = {
             handle: result.handle, key, path, flip, settings,
-            io: { backend: ctx.backend, catalog: ctx.catalog }, edge: Math.max(result.width, result.height),
+            io: { backend: ctx.backend, catalog: ctx.catalog, resolveStreamTail: ctx.resolveStreamTail },
+            edge: Math.max(result.width, result.height),
             fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height,
         };
         this.holdSource_(source);
@@ -374,8 +375,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     ): Promise<{ texture: TextureResult; decision: TextureUploadDecision }> {
         // A build that shipped a small copy beside the file (texture streaming) is read from the copy whenever the size asked for
         // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
-        const tail = maxEdge > 0 ? ctx.catalog.getStreamTail?.(path) ?? null : null;
-        const useTail = tail !== null && maxEdge <= Math.max(tail.width, tail.height);
+        const tail = maxEdge > 0 ? ctx.resolveStreamTail?.(path) ?? ctx.catalog.getStreamTail?.(path) : null;
+        const useTail = tail != null && maxEdge <= Math.max(tail.width, tail.height);
         const buildPath = useTail ? tail.path : ctx.catalog?.getBuildPath(path) ?? path;
         const { decision = RAW_PAYLOAD_UPLOAD, ...texture } = await this.decodeFile_(path, buildPath, ctx, flip, settings, maxEdge, useTail);
         if (useTail) {

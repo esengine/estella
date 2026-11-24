@@ -183,6 +183,45 @@ describe('diffManifests', () => {
         });
     });
 
+    it('charges once for a new preview shared by two textures and leaves the full images in place', () => {
+        const tail = { path: 'old.jpg', size: 23, width: 2, height: 2, fullWidth: 4, fullHeight: 4 };
+        const before = manifest({ a: { streamTail: tail }, b: { streamTail: tail } });
+        const preview = { ...tail, path: 'assets/0123456789abcdef.jpg', size: 19 };
+        const after = manifest({ a: { streamTail: preview }, b: { streamTail: preview } });
+        const plan = diffManifests(model(before), model(after));
+        expect(plan.changedAssets).toEqual([]);
+        expect(plan.reconfiguredAssets.map(a => a.key)).toEqual(['a', 'b']);
+        expect(plan.downloadFiles).toEqual([{ group: 'cdn', kind: 'streamTail', path: preview.path, size: 19, contentHash: '0123456789abcdef' }]);
+        expect(plan.totalBytes).toBe(19);
+
+        after.groups.cdn.assets.b.streamTail = undefined;
+        expect(diffManifests(model(before), model(after)).totalBytes).toBe(19);
+        expect(diffManifests(model(after), model(manifest({ a: {}, b: {} }))).downloadFiles).toEqual([]);
+    });
+
+    it('reuses the same physical file across an existing sprite and a new mesh preview', () => {
+        const sprite = { path: 'shared.png', contentHash: 'same', size: 16 };
+        const before = manifest({ sprite });
+        const after = manifest({ sprite, mesh: { path: 'full.png', size: 64, streamTail: {
+            ...sprite, width: 2, height: 2, fullWidth: 4, fullHeight: 4,
+        } } });
+        expect(diffManifests(model(before), model(after))).toMatchObject({
+            downloadFiles: [{ path: 'full.png' }], totalBytes: 64,
+        });
+        const install = diffManifests(null, model(after));
+        expect(install.downloadFiles.map(file => file.path).sort()).toEqual(['full.png', 'shared.png']);
+        expect(install.totalBytes).toBe(80);
+    });
+
+    it('charges for a CDN move only when the resolved file location changes', () => {
+        const preview = { path: 'small.png', size: 16, width: 2, height: 2, fullWidth: 4, fullHeight: 4 };
+        const m = model(manifest({ art: { path: 'https://shared.test/full.png', contentHash: 'same', streamTail: preview } }));
+        const change = diffManifests(m, m, { current: 'https://cdn.test/v1', next: 'https://cdn.test/v2' });
+        expect(change).toMatchObject({ hasUpdate: true, changedAssets: [], reconfiguredAssets: [{ key: 'art' }],
+            downloadFiles: [{ path: 'small.png' }], totalBytes: 16 });
+        expect(diffManifests(m, m, { current: 'https://cdn.test/v1/', next: 'https://cdn.test/v1' }).hasUpdate).toBe(false);
+    });
+
     it('signals hasUpdate on a revision move even if per-asset detection is blind', () => {
         // No contentHashes and identical paths → per-asset diff sees nothing, but
         // a moved top-level revision still flags that content shifted.

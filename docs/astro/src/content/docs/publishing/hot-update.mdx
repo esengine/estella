@@ -26,7 +26,7 @@ Every cooked asset ships as `<contentHash>.<ext>`, an immutable, permanently cac
 
 1. **Fetch** the remote manifest (`asset-manifest.json`) from the CDN.
 2. **Compare** its file hashes, delivery locations and runtime settings with the active manifest.
-3. **Download and verify** files listed in `changedAssets`.
+3. **Download and verify** files listed in `downloadFiles`.
 4. **Activate** the manifest. Live texture bindings pick up the new image or settings.
 
 </Steps>
@@ -163,9 +163,9 @@ async function pullUpdate(assets: Assets): Promise<void> {
     remoteRoot:  'https://cdn.example.com/my-game',
   });
   if (!plan.hasUpdate) return;
-  console.log(`Update available: ${plan.changedAssets.length} files, ${(plan.totalBytes / 1024) | 0} KB`);
+  console.log(`Update available: ${plan.downloadFiles.length} files, ${(plan.totalBytes / 1024) | 0} KB`);
 
-  // 2. Download + verify every changed asset, then swap the manifest — atomically.
+  // 2. Verify each required file before activating the manifest.
   const result = await assets.applyUpdate((loaded, total) => {
     console.log(`Downloading ${loaded}/${total}`);
   });
@@ -217,7 +217,7 @@ The hot-update API is on the `Assets` resource (`Res(Assets)`):
 | Method | Returns | Description |
 | --- | --- | --- |
 | `checkForUpdate(options)` | `Promise<UpdatePlan>` | Fetches a candidate manifest, diffs it against the active one and stages it. Downloads no assets. |
-| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | Applies the staged update atomically: verifies the files in `changedAssets`, then swaps the manifest, rebinds live handles and persists. `onProgress(loaded, total)` reports download progress. |
+| `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | Applies the staged update atomically: verifies the files in `downloadFiles`, then swaps the manifest, rebinds live handles and persists. `onProgress(loaded, total)` reports download progress. |
 | `restorePersistedUpdate(key)` | `boolean` | At boot, restores the manifest a previous `applyUpdate` persisted under `key`. Called by the runtime when `persistUpdateKey` is set. |
 | `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`, for a diagnostics screen. |
 | `setRemoteRoot(url?)` | `void` | Sets the CDN root for remote groups (`undefined` clears it: same-origin). The runtime sets it from the build's `remoteRoot`. |
@@ -231,27 +231,28 @@ The hot-update API is on the `Assets` resource (`Res(Assets)`):
 | Field | Type | Description |
 | --- | --- | --- |
 | `manifestUrl` | `string` | URL of the candidate (remote) manifest. |
-| `remoteRoot` | `string` (optional) | CDN root of the candidate's remote-group assets. Defaults to the current root. |
+| `remoteRoot` | `string` (optional) | CDN root of the candidate's remote assets. Defaults to the current root. Changing it verifies files whose resolved URL moves, even when the manifest is identical. |
 
 **`UpdatePlan`** (returned by `checkForUpdate`)
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `hasUpdate` | `boolean` | `true` when assets, group settings or the build revision change. |
-| `changedAssets` | `AssetChange[]` | Payloads to verify at their candidate locations. |
-| `reconfiguredAssets` | `AssetChange[]` | Assets whose existing bytes can be used with the new settings. |
+| `changedAssets` | `AssetChange[]` | New assets or assets whose main file or delivery changed. |
+| `reconfiguredAssets` | `AssetChange[]` | Assets that reuse their main file with changed settings or previews. |
 | `removedAssets` | `AssetChange[]` | Assets no longer present (informational; never downloaded). |
 | `changedGroups` | `string[]` | Groups with changes to their membership, settings or assets. |
-| `totalBytes` | `number` | Sum of `changedAssets` sizes; the download estimate. |
+| `downloadFiles` | `UpdateFile[]` | Distinct files to verify. A streamed texture can have a full image and a small preview. Shared files count once at each delivery location. |
+| `totalBytes` | `number` | Total size of the files in `downloadFiles`. |
 | `fromRevision` / `toRevision` | `string \| null` | Old and new manifest revisions. |
 
 **`ApplyUpdateResult`** (returned by `applyUpdate`)
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `ok` | `boolean` | `true` only when every changed asset was downloaded and verified and the manifest was swapped. |
+| `ok` | `boolean` | `true` once every required file passes verification and the candidate manifest is active. |
 | `updated` | `number` | Number of assets applied (`0` on failure). |
-| `failed` | `AssetDownloadFailure[]` | Reasons for rollback, each `{ path, reason: 'fetch' \| 'integrity' }`. |
+| `failed` | `AssetDownloadFailure[]` | Each failed file's path and reason (`fetch`, `integrity`, or `packed` for a changed pack). |
 | `stages` | `UpdateStages` | How far the apply got (below). `ok` alone does not state whether the next launch keeps the update. |
 | `revision` | `string \| null` | The revision this session runs on afterwards. |
 | `uncached` | `string[]` | Changed assets the disk cache refused, by URL; the next launch fetches them again. |
@@ -292,7 +293,7 @@ another scene still holds is kept. See [Assets → Addressable groups](/docs/ass
 
 <Steps>
 
-1. **Download and verify.** Each file in `changedAssets` is fetched, hashed and compared with the manifest's `contentHash`. A
+1. **Download and verify.** Each file in `downloadFiles` is fetched, hashed and compared with the manifest's `contentHash`. A
    failed download or a mismatch (a corrupted or tampered response) is recorded as a failure. The active manifest is
    not modified during this phase.
 2. **Commit.** Only when every asset succeeded: the manifest and root are swapped, live handles are rebound, and the

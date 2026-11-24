@@ -16,6 +16,7 @@ import {
 } from '../src/assets/ktx2Mips';
 import { cookCached } from '../src/assets/cookCache';
 import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
+import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 const SIDE = 64;
 const work = mkdtempSync(path.join(tmpdir(), 'ktx2-mips-'));
@@ -128,7 +129,9 @@ it('stages a streamed mesh preview for an authored KTX2 and keeps a sprite with 
     expect(sprite.path).toBe(wall.path);
     expect(sprite.streamTail).toBeUndefined();
     expect(wall.streamTail).toMatchObject({ width: 256, height: 16, fullWidth: 1024, fullHeight: 64 });
-    expect(readKtx2Layout(readFileSync(path.join(cook.outDir, wall.streamTail!.path)))!.width).toBe(256);
+    const preview = readFileSync(path.join(cook.outDir, wall.streamTail!.path));
+    expect(wall.streamTail!.contentHash).toBe(contentHashHex(preview));
+    expect(readKtx2Layout(preview)!.width).toBe(256);
     expect(readFileSync(path.join(cook.outDir, wall.path))).toEqual(Buffer.from(data));
 });
 

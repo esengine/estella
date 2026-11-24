@@ -4,8 +4,9 @@ import { RuntimeConfig } from '../defaults';
 import type { Backend } from './Backend';
 import { packedBackend } from './packedBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
-import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
-import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
+import { ManifestModel, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
+import { diffManifests, type UpdatePlan, type UpdateFile } from './hotUpdate';
+import { pathWithinRemoteRoot, physicalAssetFiles, remoteAssetUrl } from './physicalAssetFiles';
 import { contentHashHex } from './contentHash';
 import { encodeUtf8 } from '../util/utf8';
 import { getPlatform, isPlatformInitialized } from '../platform/base';
@@ -505,9 +506,9 @@ export class Assets {
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
     private readonly handlePaths_ = new Map<string, Map<number, string>>();
-    /** Textures a mesh draws, by resolved path, directly or through a material: what texture streaming may load small to begin with. */
+    /** Textures a mesh draws, keyed by asset identity so streaming follows a moved file. */
     private readonly meshTextures_ = new Set<string>();
-    /** Materials a mesh draws with, by resolved path: their textures join {@link meshTextures_} as the material loads them. */
+    /** Materials drawn by meshes. Their textures join {@link meshTextures_} as the material loads them. */
     private readonly meshMaterials_ = new Set<string>();
     /** The edge a mesh texture is first loaded at while texture streaming is on; 0 loads it whole. */
     private streamingStartEdge_: number | (() => number) = 0;
@@ -612,8 +613,8 @@ export class Assets {
      * @experimental
      */
     noteMeshSurface(surface: { material?: string; texture?: string }): void {
-        if (surface.material) this.meshMaterials_.add(this.resolveLoadPath_(surface.material));
-        if (surface.texture) this.meshTextures_.add(this.resolveLoadPath_(surface.texture));
+        if (surface.material) this.meshMaterials_.add(this.assetIdentity_(surface.material));
+        if (surface.texture) this.meshTextures_.add(this.assetIdentity_(surface.texture));
     }
 
     /** A positive edge overrides this App's initial mesh texture size. Zero uses its quality profile, or full size without one. */
@@ -621,8 +622,8 @@ export class Assets {
         this.streamingStartEdge_ = edge;
     }
 
-    private initialTextureEdge_(path: string): number {
-        if (!this.meshTextures_.has(path)) return 0;
+    private initialTextureEdge_(ref: string): number {
+        if (!this.meshTextures_.has(this.assetIdentity_(ref))) return 0;
         const edge = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
         return edge > 0 ? edge : streamingDefaults.get(this)?.() ?? 0;
     }
@@ -850,7 +851,7 @@ export class Assets {
             // exact key — reviving it skips the whole fetch + decode + upload.
             const revived = this.reviveResidentTexture_(cacheKey);
             if (revived) return { value: revived };
-            const options = { settings, startEdge: this.initialTextureEdge_(path) };
+            const options = { settings, startEdge: this.initialTextureEdge_(ref) };
             const ctx = this.getLoadContext_();
             const value = flip
                 ? await this.textureLoader_.load(path, ctx, options)
@@ -1105,6 +1106,7 @@ export class Assets {
             : ManifestModel.fromJson(manifest);
         if (this.activateManifest_) this.catalog_ = this.activateManifest_(model);
         this.manifestModel_ = model;
+        this.loadContext_ = null;
     }
 
     getManifest(): ManifestModel | null {
@@ -1232,15 +1234,7 @@ export class Assets {
      *  `undefined` clears it (same-origin fallback). */
     setRemoteRoot(url: string | undefined): void {
         this.remoteRoot_ = url ? url.replace(/\/+$/, '') : undefined;
-    }
-
-    /** Absolute url of a `remote`-group asset against `root` (default the active
-     *  remote root). An already-absolute manifest path (a fully-qualified CDN url)
-     *  passes through; with no root the path returns as-is (same-origin fallback). */
-    private remoteUrlFor_(path: string, root: string | undefined = this.remoteRoot_): string {
-        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return path;
-        if (!root) return path;
-        return `${root.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+        this.loadContext_ = null;
     }
 
     /** The load url for a manifest asset. A `remote`-group asset resolves to its
@@ -1251,12 +1245,16 @@ export class Assets {
      *  loadGroup'd asset and the same asset reached by a scene `@uuid` ref (via
      *  {@link resolveLoadPath_} → {@link remoteAssetPath_}) never resolve two ways. */
     private manifestAssetUrl_(path: string, isRemote: boolean, root: string | undefined = this.remoteRoot_): string {
-        return isRemote && root ? this.remoteUrlFor_(path, root) : this.resolveLoadPath_(path);
+        return isRemote && root ? remoteAssetUrl(path, root) : this.resolveLoadPath_(path);
     }
 
     private groupAssetRef_(asset: AddressableManifestAsset, remote: boolean): string {
         if (asset.type === 'audio' && asset.address) return asset.address;
         return this.manifestAssetUrl_(asset.path, remote);
+    }
+
+    private planUpdate_(model: ManifestModel, nextRoot: string | null): UpdatePlan {
+        return diffManifests(this.manifestModel_, model, { current: this.remoteRoot_, next: nextRoot });
     }
 
     /**
@@ -1269,8 +1267,8 @@ export class Assets {
         const text = await this.backend.fetchText(this.backend.resolveUrl(options.manifestUrl));
         const json = JSON.parse(text) as AddressableManifest;
         const model = ManifestModel.fromJson(json);
-        const plan = diffManifests(this.manifestModel_, model);
         const remoteRoot = options.remoteRoot ?? this.remoteRoot_ ?? null;
+        const plan = this.planUpdate_(model, remoteRoot);
         this.pendingUpdate_ = { model, manifestJson: json, remoteRoot };
         await this.protectCacheVersions_();
         return plan;
@@ -1311,8 +1309,8 @@ export class Assets {
         }
         // Against what runs NOW, not what ran when it was checked: an apply that
         // finished in between moved the base, and its assets need no second download.
-        const plan = diffManifests(this.manifestModel_, pending.model);
-        const downloads = plan.changedAssets;
+        const plan = this.planUpdate_(pending.model, pending.remoteRoot);
+        const downloads = plan.downloadFiles;
         const root = pending.remoteRoot ?? undefined;
         this.activeUpdate_ = pending;
         await this.protectCacheVersions_();
@@ -1344,7 +1342,7 @@ export class Assets {
         // Protect both sides durably BEFORE committing: a crash may still boot
         // the old persisted manifest until the new one has been stored.
         const previousRollback = this.cacheRollback_;
-        const changed = [...downloads, ...plan.reconfiguredAssets];
+        const changed = [...plan.changedAssets, ...plan.reconfiguredAssets];
         const textures = new Map<string, { ref: string; path: string; handle?: number }>();
         this.cacheRollback_ = rollback;
         try {
@@ -1364,7 +1362,9 @@ export class Assets {
         // A new sampler or slice border can name the same file. End its cached
         // GPU generation before listeners acquire the new one.
         for (const { ref, path } of textures.values()) {
-            if (path === this.resolveLoadPath_(ref)) this.invalidateTexturePath_(path);
+            if (path !== this.resolveLoadPath_(ref)) continue;
+            this.invalidateTexturePath_(path);
+            this.textureLoader_.invalidate(path);
         }
         // A newer check staged while this one downloaded stays staged.
         if (this.pendingUpdate_ === pending) this.pendingUpdate_ = null;
@@ -1397,13 +1397,12 @@ export class Assets {
     /** Which revision runs, which one the next launch starts on, and what is staged. */
     updateStatus(): UpdateStatus {
         const pending = this.pendingUpdate_;
-        const changed = pending ? diffManifests(this.manifestModel_, pending.model).changedAssets : [];
+        const plan = pending ? this.planUpdate_(pending.model, pending.remoteRoot) : null;
         return {
             revision: this.manifestModel_?.revision() ?? null,
             persistedRevision: this.persistedRevision_(),
-            staged: pending ? {
-                revision: pending.model.revision(), assets: changed.length,
-                bytes: changed.reduce((n, c) => n + c.size, 0),
+            staged: plan ? {
+                revision: plan.toRevision, assets: plan.downloadFiles.length, bytes: plan.totalBytes,
             } : null,
             applying: this.applying_ > 0,
         };
@@ -1411,11 +1410,16 @@ export class Assets {
 
     private cacheVersion_(model: ManifestModel | null, root: string | undefined, reason: CacheVersion['reason']): CacheVersion | null {
         if (!model) return null;
-        const keys = model.entries().filter(e => normalizeBundleMode(model.group(e.group)?.bundleMode) === 'remote')
-            .map(e => this.backend.resolveUrl(this.manifestAssetUrl_(e.asset.path, true, root)))
-            // A remote group with no CDN root is shipped in the package. Its
-            // files need no cache protection and are not missing offline bytes.
-            .filter(key => /^https?:\/\//i.test(key));
+        const urls = new Set<string>();
+        for (const { group, asset } of model.entries()) {
+            if (model.bundleMode(group) !== 'remote') continue;
+            for (const file of physicalAssetFiles(asset)) {
+                if (!root && !/^https?:\/\//i.test(file.path)) continue;
+                const url = this.backend.resolveUrl(remoteAssetUrl(file.path, root));
+                if (/^https?:\/\//i.test(url)) urls.add(url);
+            }
+        }
+        const keys = [...urls];
         return { revision: model.revision() ?? contentHashHex(encodeUtf8(JSON.stringify(keys))), reason, keys };
     }
 
@@ -1469,21 +1473,21 @@ export class Assets {
      *  hash. Null on success, else the failure reason. Uses the PENDING manifest +
      *  root — phase 1 runs before the swap. */
     private async fetchAndVerify_(
-        c: AssetChange, model: ManifestModel, root: string | undefined,
+        c: UpdateFile, model: ManifestModel, root: string | undefined,
     ): Promise<{ url: string; failure?: AssetDownloadFailure['reason']; cache?: 'stored' | 'failed' | 'unsupported' }> {
-        const group = model.group(c.group);
-        const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
+        const remote = model.bundleMode(c.group) === 'remote';
         // An export with hot update configured does not pack; a manifest that does
         // was built for a package that is not updated, and is refused rather than
         // fetched as files that do not exist.
-        if (model.packOf(c.path)) return { url: c.path, failure: 'packed' };
+        if (c.kind === 'pack') return { url: c.path, failure: 'packed' };
         // The candidate supplies a staged path. Resolving it against the active
         // manifest would send a move from CDN to package back to the old CDN.
-        const path = remote ? this.remoteUrlFor_(c.path, root) : c.path;
+        const path = remote ? remoteAssetUrl(c.path, root) : c.path;
         const url = this.backend.resolveUrl(path);
         try {
             const buf = await this.backend.fetchBinary(url);
-            if (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash) {
+            if ((c.kind === 'streamTail' && c.size > 0 && buf.byteLength !== c.size)
+                || (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash)) {
                 return { url, failure: 'integrity' };
             }
             // Verified, content-addressed bytes go to the disk cache keyed by the
@@ -1719,8 +1723,8 @@ export class Assets {
         const missing: MissingAsset[] = [];
         const owners = options?.entityOwnership ? new SceneAssetOwners() : undefined;
         const discovered = indexSceneAssets(sceneData, ref => this.resolveRef(ref), owners, options?.onDiscover);
-        for (const p of discovered.meshTextures) this.meshTextures_.add(p);
-        for (const p of discovered.meshMaterials) this.meshMaterials_.add(p);
+        for (const p of discovered.meshTextures) this.meshTextures_.add(this.assetIdentity_(p));
+        for (const p of discovered.meshMaterials) this.meshMaterials_.add(this.assetIdentity_(p));
         for (const ref of discovered.unresolved) {
             missing.push({ ref, reason: 'unresolved' });
         }
@@ -2836,7 +2840,7 @@ export class Assets {
         const model = this.manifestModel_;
         if (!model) return null;
         const path = model.remoteAssetPath(ref);
-        return path != null ? this.remoteUrlFor_(path) : null;
+        return path != null ? remoteAssetUrl(path, this.remoteRoot_) : null;
     }
 
     /**
@@ -2851,7 +2855,9 @@ export class Assets {
         // A manifest names one asset three ways — record key, address, build
         // path — and only it knows they are the same asset. Folding them here is
         // what keeps a uuid ref and a path ref on ONE slot.
-        const named = this.manifestModel_?.remoteAssetIdentity(ref);
+        const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
+        const named = this.manifestModel_?.remoteAssetIdentity(ref)
+            ?? (path === ref ? null : this.manifestModel_?.remoteAssetIdentity(path));
         if (named != null) return named;
         const resolved = this.assetRefResolver_?.(ref) ?? ref;
         return this.catalog.resolve(resolved);
@@ -3229,9 +3235,18 @@ export class Assets {
     private getLoadContext_(): LoadContext {
         if (this.loadContext_) return this.loadContext_;
         const self = this;
+        const catalog = this.catalog;
+        const model = this.manifestModel_;
+        const root = this.remoteRoot_;
         this.loadContext_ = {
             backend: this.backend,
-            get catalog() { return self.catalog; },
+            catalog,
+            resolveStreamTail: path => {
+                const ref = pathWithinRemoteRoot(path, root);
+                const tail = catalog.getStreamTail(path) ?? (ref === path ? null : catalog.getStreamTail(ref));
+                return tail && root && (model?.remoteAssetPath(ref) ?? model?.remoteAssetPath(path))
+                    ? { ...tail, path: remoteAssetUrl(tail.path, root) } : tail;
+            },
             resourceManager: requireResourceManager() as CppResourceManager,
             async loadTexture(path: string, flipY?: boolean): Promise<TextureResult> {
                 if (flipY === false) {
@@ -3248,8 +3263,8 @@ export class Assets {
                 if (!same) self.assetProblemListener_?.(path, problems);
             },
             noteMaterialTexture(material: string, texture: string): void {
-                if (self.meshMaterials_.has(self.resolveLoadPath_(material)) || self.meshMaterials_.has(material)) {
-                    self.meshTextures_.add(self.resolveLoadPath_(texture));
+                if (self.meshMaterials_.has(self.assetIdentity_(material))) {
+                    self.meshTextures_.add(self.assetIdentity_(texture));
                 }
             },
             async acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>> {
