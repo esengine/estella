@@ -26,7 +26,7 @@ export async function withAtlasPages<T>(
     transcoder: (() => Promise<BasisTranscoder | null>) | undefined,
     read: (acquire: AcquireAtlasPage) => Promise<T>, assets?: Pick<Assets, 'acquireTexture'>,
 ): Promise<T> {
-    if (assets) return read(path => assets.acquireTexture(path, false));
+    if (assets) return read(path => assets.acquireTexture(path, false, 'imported'));
 
     const pages = new AsyncCache<AssetLease<TextureResult>>(lease => lease.release());
     try {

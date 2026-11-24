@@ -620,7 +620,8 @@ export class Assets {
 
     /**
      * Decode the texture behind @p handle again, no larger than @p maxEdge texels on a side (0 is its full size), behind the same handle:
-     * what texture streaming moves a texture between sizes with. Null for a texture no file of this realm's stands behind.
+     * what texture streaming moves a texture between sizes with. Returns null when the handle cannot be resized or
+     * when the requested bound would shrink a texture held at its imported size.
      */
     async resizeTexture(handle: number, maxEdge: number): Promise<{ width: number; height: number } | null> {
         const size = await this.textureLoader_.resize(handle, maxEdge, this.getLoadContext_());
@@ -883,8 +884,8 @@ export class Assets {
     }
 
     private async acquireTextureVariant_(
-        ref: string, flip: boolean,
-    ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string }> {
+        ref: string, flip: boolean, resolution?: 'imported',
+    ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string; releaseSize?: () => void }> {
         this.assertLoading_();
         const path = this.handleLoadKey_('texture', ref);
         const cacheKey = this.textureCacheKey_(path, flip);
@@ -897,7 +898,7 @@ export class Assets {
             // exact key — reviving it skips the whole fetch + decode + upload.
             const revived = this.reviveResidentTexture_(cacheKey);
             if (revived) return { value: revived };
-            const options = { settings, startEdge: this.initialTextureEdge_(ref) };
+            const options = { settings, startEdge: resolution === 'imported' ? 0 : this.initialTextureEdge_(ref) };
             const ctx = this.getLoadContext_();
             const value = flip
                 ? await this.textureLoader_.load(path, ctx, options)
@@ -916,24 +917,26 @@ export class Assets {
         const result = load.value;
         const lease = this.textureRefs_.acquireLoad(cacheKey, result.handle, load);
         // The last holder may release between a cache hit and this continuation.
-        if (!lease) return this.acquireTextureVariant_(ref, flip);
-        if (this.textureLoader_.mayHoldReducedTextures && this.surfaceUses_.use(this.surfaceKey_('texture', ref)) === 'full') {
-            try {
+        if (!lease) return this.acquireTextureVariant_(ref, flip, resolution);
+        const releaseSize = resolution === 'imported' ? this.textureLoader_.holdImportedSize(result.handle) : undefined;
+        try {
+            if (this.textureLoader_.mayHoldReducedTextures && (resolution === 'imported'
+                || this.surfaceUses_.use(this.surfaceKey_('texture', ref)) === 'full')) {
                 await this.restoreSurfaceTexture_(result.handle);
                 this.assertLoading_(epoch);
-            } catch (error) { this.releaseTextureLease(lease); throw error; }
+            }
+            this.recordHandlePath_('texture', result.handle, path);
+            // The imported nine-slice border also belongs on revived and externally supplied handles.
+            if (settings?.sliceBorder) {
+                const b = settings.sliceBorder;
+                requireResourceManager().setTextureMetadata(result.handle, b.left, b.right, b.top, b.bottom);
+            }
+            return { result, lease, path, releaseSize };
+        } catch (error) {
+            releaseSize?.();
+            this.releaseTextureLease(lease);
+            throw error;
         }
-        this.recordHandlePath_('texture', result.handle, path);
-        // The 9-slice border belongs to the IMAGE, so it rides its import
-        // settings and is stamped onto the handle here — the one place every
-        // creation path (decode, revive, external, cooked) funnels through, and
-        // where the settings are already resolved. Without this a UIVisual set
-        // to NineSlice finds no texture metadata and stretches its corners.
-        if (settings?.sliceBorder) {
-            const b = settings.sliceBorder;
-            requireResourceManager().setTextureMetadata(result.handle, b.left, b.right, b.top, b.bottom);
-        }
-        return { result, lease, path };
     }
 
     private releaseUnclaimedTexture_(load: TextureLoad): void {
@@ -2040,10 +2043,12 @@ export class Assets {
     /**
      * The receipt releases this version even after a file edit.
      * Set flipY to false to keep the authored row order for an atlas.
+     * Pass 'imported' to use pixel coordinates. The texture is full size when
+     * this resolves and stays there until the last imported-size receipt is released.
      */
-    async acquireTexture(ref: string, flipY = true): Promise<AssetLease<TextureResult>> {
-        const { result, lease } = await this.acquireTextureVariant_(ref, flipY);
-        return this.textureLease_(lease, result);
+    async acquireTexture(ref: string, flipY = true, resolution?: 'imported'): Promise<AssetLease<TextureResult>> {
+        const { result, lease, releaseSize } = await this.acquireTextureVariant_(ref, flipY, resolution);
+        return this.textureLease_(lease, result, lease.key, releaseSize);
     }
 
     /** {@link acquireTexture} for everything that goes through a typed loader. */
@@ -2101,15 +2106,22 @@ export class Assets {
      * after an invalidate is not the era a path resolves to.
      */
     private textureLease_<T extends TextureResult | number>(
-        lease: AssetRefLease<number>, value: T, key = lease.key,
+        lease: AssetRefLease<number>, value: T, key = lease.key, releaseSize?: () => void,
     ): BindingLease<T> {
+        const imported = releaseSize !== undefined;
         return {
             [leaseBinding]: 'texture',
             key, generation: lease.generation, value,
-            release: () => this.releaseTextureLease(lease),
+            release: () => {
+                releaseSize?.();
+                releaseSize = undefined;
+                this.releaseTextureLease(lease);
+            },
             retain: () => {
+                if (imported && !releaseSize) return null;
                 const child = this.textureRefs_.retain(lease);
-                return child ? this.textureLease_(child, value, key) : null;
+                if (!child) return null;
+                return this.textureLease_(child, value, key, imported ? this.textureLoader_.holdImportedSize(child.value) : undefined);
             },
         };
     }
@@ -3320,8 +3332,8 @@ export class Assets {
             loadBinary: path => read(path, () => base.loadBinary(path)),
             loadTexture: (path, flipY) => read(path, () => base.loadTexture(path, flipY)),
             decodePixels: path => read(path, () => base.decodePixels!(path)),
-            acquireTexture: async (path, flipY) =>
-                take(path, () => forMaterial('texture', path, () => base.acquireTexture(path, flipY)), 'texture'),
+            acquireTexture: async (path, flipY, resolution) =>
+                take(path, () => forMaterial('texture', path, () => base.acquireTexture(path, flipY, resolution)), 'texture'),
             acquireAsset,
             resolveRef: ref => this.resolveRef(ref),
             preparePrefab: ref => acquireAsset<PreparedPrefab>('prepared-prefab', ref),
@@ -3366,7 +3378,7 @@ export class Assets {
                 }
                 return self.loadTexture(path);
             },
-            acquireTexture: (path, flipY) => self.acquireTexture(path, flipY),
+            acquireTexture: (path, flipY, resolution) => self.acquireTexture(path, flipY, resolution),
             noteAssetProblems(asset: string, problems: readonly string[]): void {
                 const path = self.assetIdentity_(asset);
                 const same = (self.assetProblems_.get(path) ?? []).join('\n') === problems.join('\n');

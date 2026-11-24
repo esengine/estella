@@ -29,7 +29,7 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
             let textureHeight: number | undefined;
             if (asset.texture) {
                 try {
-                    const lease = await ctx.acquireTexture(asset.texture, true);
+                    const lease = await ctx.acquireTexture(asset.texture, true, 'imported');
                     textureHandle = lease.value.handle;
                     textureWidth = lease.value.width;
                     textureHeight = lease.value.height;

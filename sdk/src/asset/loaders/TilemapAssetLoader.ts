@@ -57,7 +57,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             const imagePath = resolveTiledRef(path, ts.image);
             let textureHandle = 0;
             try {
-                const lease = await ctx.acquireTexture(imagePath, true);
+                const lease = await ctx.acquireTexture(imagePath, true, 'imported');
                 textureHandle = lease.value.handle;
             } catch (e) {
                 // Loud, with the fix: a dead tileset texture makes every tile that

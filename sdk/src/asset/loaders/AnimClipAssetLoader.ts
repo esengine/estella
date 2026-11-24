@@ -29,7 +29,7 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
 
             for (const texPath of extractAnimClipTexturePaths(data)) {
                 try {
-                    const lease = await ctx.acquireTexture(texPath, true);
+                    const lease = await ctx.acquireTexture(texPath, true, 'imported');
                     textureHandles.set(texPath, lease.value.handle);
                     if (lease.value.width > 0 && lease.value.height > 0) {
                         textureSizes.set(texPath, { x: lease.value.width, y: lease.value.height });

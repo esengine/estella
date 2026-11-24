@@ -130,9 +130,8 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
 
     /**
      * Replace the layer's multi-tileset table. Empty array reverts to single-tileset.
-     *
-     * The packed field ORDER is the contract with `tilemap_setTilesets`, and it is
-     * written down here and read there — see TILESET_SLOT_STRIDE.
+     * Hold an `assets.acquireTexture(ref, true, 'imported')` receipt for each file atlas the layer uses.
+     * TILESET_SLOT_STRIDE and the field order below match the native `tilemap_setTilesets` table.
      */
     setTilesets(entity: number, slots: {
         firstId: number; textureHandle: number; columns: number;

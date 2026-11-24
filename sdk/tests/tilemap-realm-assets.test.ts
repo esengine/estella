@@ -17,6 +17,7 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { PublishedTilemap, PublishedTileset } from '../src/tilemap/tilesetCache';
+import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
 
 // The tilemap loaders come with the subsystem now, not with the asset
 // registry: a package without tilemaps does not carry a tilemap parser.
@@ -32,6 +33,7 @@ function createPoolFake() {
         budget: 0,
         createTexture: vi.fn((): number => { const h = next++; live.add(h); return h; }),
         createTextureFromBytes: vi.fn((): number => { const h = next++; live.add(h); return h; }),
+        adoptTextureContent: vi.fn((target: number, source: number) => live.has(target) && live.has(source)),
         registerTextureWithPath: vi.fn((handle: number, path: string) => { byPath.set(path, handle); }),
         acquireTextureByPath: vi.fn((path: string): number => byPath.get(path) ?? 0),
         invalidateTexturePath: vi.fn((path: string): boolean => byPath.delete(path)),
@@ -111,6 +113,58 @@ function realm(text: string): Assets {
 
 describe('a tilemap era owns the textures it resolved', () => {
     beforeEach(() => { pool = createPoolFake(); });
+
+    it('publishes and holds every Tiled atlas at its imported size while meshes share the same handles', async () => {
+        const map = JSON.parse(GRID_MAP);
+        map.tilesets.push({ ...map.tilesets[0], firstgid: 5, image: '../tiles/second.png' });
+        const assets = realm(JSON.stringify(map));
+        assets.setTextureStreamingStart(64);
+        assets.getTextureLoader().setPixelDecoder(async (_path, _flip, edge) => {
+            const width = edge || 512, height = width / 4;
+            return { width, height, pixels: new Uint8Array(width * height * 4), sourceWidth: 512, sourceHeight: 128 };
+        });
+        try {
+            const meshes = await Promise.all(['tiles/atlas.png', 'tiles/second.png'].map(path => {
+                assets.noteMeshSurface({ texture: path });
+                return assets.acquireTexture(path);
+            }));
+            expect(meshes.map(mesh => mesh.value.width)).toEqual([64, 64]);
+            const mapLease = await assets.acquireTyped('tilemap', 'maps/level.tmj');
+            const { source } = assets.resolveRegistryAsset<PublishedTilemap>('tilemap', 'maps/level.tmj')!;
+            expect(source.tilesets.map(slot => slot.textureHandle)).toEqual(meshes.map(mesh => mesh.value.handle));
+            expect(meshes.map(mesh => mesh.value.width)).toEqual([512, 512]);
+            const second = meshes[1].value;
+            expect(await assets.resizeTexture(second.handle, 64)).toBeNull();
+            mapLease.release();
+            expect(await assets.resizeTexture(second.handle, 64)).toEqual({ width: 64, height: 16 });
+            for (const mesh of meshes) mesh.release();
+            expect(pool.liveTextures()).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('derives contiguous painted tile IDs from the imported atlas until the last tileset releases it', async () => {
+        const assets = realm(JSON.stringify({ ...JSON.parse(TILESET_DOC), tileWidth: 32, tileHeight: 32, columns: 8 }));
+        assets.setTextureStreamingStart(64);
+        assets.noteMeshSurface({ texture: 'tiles/atlas.png' });
+        assets.getTextureLoader().setPixelDecoder(async (_path, _flip, edge) => {
+            const size = edge || 256;
+            return { width: size, height: size, pixels: new Uint8Array(size * size * 4) };
+        });
+        try {
+            const mesh = await assets.acquireTexture('tiles/atlas.png');
+            expect(mesh.value.width).toBe(64);
+            const refs = ['tiles/ground.estileset', 'tiles/overlay.estileset'];
+            const tilesets = await Promise.all(refs.map(ref => assets.acquireTyped('tileset', ref)));
+            const resolved = refs.map(ref => assets.resolveRegistryAsset<PublishedTileset>('tileset', ref)!.resolved);
+            expect(resolved[0]).toMatchObject({ textureHandle: mesh.value.handle, textureWidth: 256, textureHeight: 256 });
+            expect(resolveTilesetModel(resolved).slots.map(slot => slot.firstId)).toEqual([1, 65]);
+            tilesets[0].release();
+            expect(await assets.resizeTexture(mesh.value.handle, 64)).toBeNull();
+            tilesets[1].release();
+            expect(await assets.resizeTexture(mesh.value.handle, 64)).toEqual({ width: 64, height: 64 });
+            mesh.release();
+        } finally { assets.releaseAll(); }
+    });
 
     it('a tileset gives its atlas back when the last holder goes', async () => {
         const assets = realm(TILESET_DOC);

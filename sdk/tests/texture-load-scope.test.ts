@@ -50,6 +50,130 @@ function surfaceScene(...components: SceneData['entities'][number]['components']
 describe('the import settings of one texture request', () => {
     afterEach(() => { uploads.length = 0; setLinearColorSpace(false); });
 
+    it('retains imported size on the exact generation and orientation that owns it', async () => {
+        const assets = assetsWithPixels(), path = 'atlas.png';
+        assets.noteMeshSurface({ texture: path });
+        assets.setTextureStreamingStart(64);
+        try {
+            const atlas = await assets.acquireTexture(path, false, 'imported');
+            expect(uploads.map(upload => upload.width)).toEqual([512]);
+            const mesh = await assets.acquireTexture(path, false);
+            const flipped = await assets.acquireTexture(path);
+            expect(mesh.value).toBe(atlas.value);
+            expect(flipped.value.width).toBe(64);
+            const retained = atlas.retain()!;
+            atlas.release(); atlas.release();
+            expect(await assets.resizeTexture(mesh.value.handle, 32)).toBeNull();
+            expect(await assets.resizeTexture(mesh.value.handle, 1024)).toEqual({ width: 512, height: 1 });
+            assets.invalidate(path);
+            const newMesh = await assets.acquireTexture(path, false);
+            expect(newMesh.generation).not.toBe(atlas.generation);
+            expect(newMesh.value.width).toBe(64);
+            expect(await assets.resizeTexture(newMesh.value.handle, 32)).toEqual({ width: 32, height: 1 });
+            const replacement = await assets.acquireTexture(path, false, 'imported');
+            retained.release();
+            expect(mesh.value.width).toBe(512);
+            expect(await assets.resizeTexture(newMesh.value.handle, 32)).toBeNull();
+            expect(atlas.retain()).toBeNull();
+            replacement.release();
+            expect(await assets.resizeTexture(newMesh.value.handle, 32)).toEqual({ width: 32, height: 1 });
+            mesh.release(); flipped.release(); newMesh.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('supersedes a pending shrink before returning an imported-size receipt', async () => {
+        const assets = assetsWithPixels(), path = 'racing-atlas.png';
+        let started!: () => void, finish!: () => void;
+        const shrinking = new Promise<void>(resolve => { started = resolve; });
+        const resume = new Promise<void>(resolve => { finish = resolve; });
+        assets.getTextureLoader().setPixelDecoder(async (_path, _flip, edge) => {
+            if (edge === 32) { started(); await resume; }
+            const width = edge || 512;
+            return { width, height: 1, pixels: new Uint8Array(width * 4) };
+        });
+        try {
+            const mesh = await assets.acquireTexture(path);
+            const shrink = assets.resizeTexture(mesh.value.handle, 32);
+            await shrinking;
+            const [first, second] = await Promise.all([assets.acquireTexture(path, true, 'imported'),
+                assets.acquireTexture(path, true, 'imported')]);
+            finish();
+            expect(await shrink).toBeNull();
+            expect(first.value).toBe(mesh.value);
+            expect(first.value.width).toBe(512);
+            first.release();
+            expect(await assets.resizeTexture(second.value.handle, 32)).toBeNull();
+            second.release();
+            expect(await assets.resizeTexture(mesh.value.handle, 32)).toEqual({ width: 32, height: 1 });
+            mesh.release();
+        } finally { finish(); assets.releaseAll(); }
+    });
+
+    it('gives back the imported-size claim when promotion fails', async () => {
+        const assets = assetsWithPixels(), path = 'retry-atlas.png';
+        assets.noteMeshSurface({ texture: path });
+        assets.setTextureStreamingStart(64);
+        try {
+            const mesh = await assets.acquireTexture(path);
+            manager.adoptTextureContent.mockReturnValueOnce(false);
+            await expect(assets.acquireTexture(path, true, 'imported')).rejects.toThrow('imported size');
+            expect(await assets.resizeTexture(mesh.value.handle, 32)).toEqual({ width: 32, height: 1 });
+            const atlas = await assets.acquireTexture(path, true, 'imported');
+            expect(atlas.value).toBe(mesh.value);
+            expect(atlas.value.width).toBe(512);
+            atlas.release(); mesh.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('ignores an old size receipt when a reset reuses the numeric handle', async () => {
+        const assets = assetsWithPixels();
+        try {
+            const previous = await assets.acquireTexture('old.png', true, 'imported');
+            assets.releaseAll();
+            uploads.length = 0;
+            const atlas = await assets.acquireTexture('new.png', true, 'imported');
+            const mesh = await assets.acquireTexture('new.png');
+            expect(atlas.value.handle).toBe(previous.value.handle);
+            previous.release();
+            expect(await assets.resizeTexture(mesh.value.handle, 64)).toBeNull();
+            atlas.release();
+            expect(await assets.resizeTexture(mesh.value.handle, 64)).toEqual({ width: 64, height: 1 });
+            mesh.release();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('keeps the reflection atlas and sky panorama full until the environment releases them', async () => {
+        const heap = new ArrayBuffer(256);
+        const core = { HEAPU8: new Uint8Array(heap), HEAPF32: new Float32Array(heap), _malloc: () => 4, _free: vi.fn(),
+            environment_create: vi.fn(() => 42), environment_setSky: vi.fn(), environment_release: vi.fn() };
+        const assets = installDecoder(Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module: core as unknown as ESEngineModule }));
+        vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify({
+            irradiance: Array(27).fill(0), specular: 'specular.png', sky: 'sky.png', faceSize: 64, mipCount: 4,
+        }));
+        assets.setTextureStreamingStart(64);
+        try {
+            const textures = await Promise.all(['art/specular.png', 'art/sky.png'].map(path => {
+                assets.noteMeshSurface({ texture: path });
+                return assets.acquireTexture(path, false);
+            }));
+            const [atlas, sky] = textures.map(texture => texture.value);
+            expect([atlas.width, sky.width]).toEqual([64, 64]);
+            const environment = await assets.acquireTyped('environment', 'art/studio.esenv');
+            expect(core.environment_create).toHaveBeenCalledWith(4, atlas.handle, 64, 4, 0, 1);
+            expect(core.environment_setSky).toHaveBeenCalledWith(42, sky.handle);
+            expect([atlas.width, sky.width]).toEqual([512, 512]);
+            for (const texture of textures) expect(await assets.resizeTexture(texture.value.handle, 64)).toBeNull();
+            environment.release();
+            expect(core.environment_release).toHaveBeenCalledWith(42);
+            for (const texture of textures) {
+                expect(await assets.resizeTexture(texture.value.handle, 64)).toEqual({ width: 64, height: 1 });
+                texture.release();
+            }
+        } finally { assets.releaseAll(); }
+    });
+
     it('reads a mesh preview from the full image’s CDN and can promote it to the full file', async () => {
         const tail = { path: 'art/small.png', size: 8, width: 2, height: 2, fullWidth: 8, fullHeight: 8 };
         const index = indexPackagedManifest({ version: '2.0', groups: { art: {

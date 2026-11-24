@@ -35,6 +35,7 @@ function harness(startedSmall = 0) {
     const bindings = new Map([...FILES.keys()].map(handle => [handle, {}] as const));
     const loader = {
         startedSmall,
+        importedSizeReaders: new Map<number, number>(),
         resizableHandles: () => bindings.keys(),
         isResizing: () => false,
         streamingBinding: (handle: number) => bindings.get(handle),
@@ -101,6 +102,22 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         expect(dims.get(1)!.width).toBe(2048);
         await run(6000);
         expect(resized.length).toBe(2);
+    });
+
+    it('resumes mesh streaming after the last pixel-addressed reader releases its atlas', async () => {
+        const { assets, resized, run, state } = harness();
+        const readers = assets.getTextureLoader().importedSizeReaders;
+        readers.set(1, 1);
+        wants = '1:64'; await run(1000);
+        wants = '1:64'; await run(4500);
+        expect(state().held.has(1)).toBe(true);
+        expect(resized).toEqual([]);
+        readers.delete(1);
+        wants = '1:64'; await run(5000);
+        expect(state().held.has(1)).toBe(false);
+        wants = '1:64'; await run(8500);
+        expect(resized).toEqual([[1, 64]]);
+        expect(state().failures).toBe(0);
     });
 
     it('protects tilesets, project texture fields and inherited material uniforms while meshes request smaller levels', async () => {

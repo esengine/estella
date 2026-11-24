@@ -1143,7 +1143,7 @@ ResourceDef<AssetsClass>
 @internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
 @internal takeTrackedAsset: (type: string, ref: string, scope: AssetScope) => boolean
 acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
-acquireTexture: (ref: string, flipY?: boolean) => Promise<AssetLease<TextureResult>>
+acquireTexture: (ref: string, flipY?: boolean, resolution?: "imported") => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>
 applyUpdate: (onProgress?: (loaded: number, total: number) => void) => Promise<ApplyUpdateResult>
 backend: Backend

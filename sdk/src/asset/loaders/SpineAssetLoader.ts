@@ -55,7 +55,7 @@ function spineIo(ctx: LoadContext, atlasRef: string): SpineIO {
             : ctx.loadBinary(ctx.catalog.getBuildPath(ref)),
         // flipY false: an atlas page's rows are a layout, and the atlas's
         // coordinates are top-first.
-        page: async (path) => (await ctx.acquireTexture(path, false)).value,
+        page: async (path) => (await ctx.acquireTexture(path, false, 'imported')).value,
         renderId: handle => ctx.resourceManager.getTextureGLId(handle),
         // Named relative to where the atlas was AUTHORED; the acquisition
         // resolves that through the manifest like any other ref.

@@ -74,7 +74,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
                 // flipY false: the atlas' rows are a layout, not a picture. Row 0
                 // is mip 0, and a load that turned it over would put the mip
                 // offsets — and every face's v — upside down.
-                specularHandle = (await ctx.acquireTexture(resolved, false)).value.handle;
+                specularHandle = (await ctx.acquireTexture(resolved, false, 'imported')).value.handle;
             } catch (e) {
                 log.warn('asset', `${path}: no reflection atlas at '${resolved}'`, e);
             }
@@ -112,7 +112,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
             try {
                 // flipY false for the atlas' reason: row 0 is up, and the shader
                 // reads rows by index.
-                m.environment_setSky(handle, (await ctx.acquireTexture(resolved, false)).value.handle);
+                m.environment_setSky(handle, (await ctx.acquireTexture(resolved, false, 'imported')).value.handle);
             } catch (e) {
                 log.warn('asset', `${path}: no sky panorama at '${resolved}'`, e);
             }

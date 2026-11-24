@@ -70,7 +70,7 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
 
         const texPath = resolveDocumentRef(path, pageMatch[1]);
 
-        const texResult = (await ctx.acquireTexture(texPath, false)).value;
+        const texResult = (await ctx.acquireTexture(texPath, false, 'imported')).value;
         const rm = requireResourceManager();
         const handle = rm.loadBitmapFont(
             fntContent, texResult.handle, texResult.width, texResult.height,

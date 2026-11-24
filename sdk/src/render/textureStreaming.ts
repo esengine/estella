@@ -211,10 +211,7 @@ export class TextureStreamingPlugin implements Plugin {
             return out;
         };
 
-        const refreshHeld = (): void => {
-            state.held.clear();
-            collectUnmeasuredTextures(world, state.held);
-        };
+        const fieldTextures = new Set<number>();
 
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
             const api = engineApi(app);
@@ -262,7 +259,14 @@ export class TextureStreamingPlugin implements Plugin {
                 return;
             }
             owed = true;
-            if (now - lastHeld > interval * 8) { refreshHeld(); lastHeld = now; }
+            if (now - lastHeld > interval * 8) {
+                fieldTextures.clear();
+                collectUnmeasuredTextures(world, fieldTextures);
+                lastHeld = now;
+            }
+            state.held.clear();
+            for (const handle of fieldTextures) state.held.add(handle);
+            for (const handle of loader.importedSizeReaders.keys()) state.held.add(handle);
 
             for (const [handle, side] of parse(api.renderer_takeTextureWants())) {
                 if (state.held.has(handle)) { state.textures.delete(handle); continue; }
@@ -296,7 +300,8 @@ export class TextureStreamingPlugin implements Plugin {
                 if (state.inFlight >= inFlight) break;
                 const entry = state.textures.get(move.handle)!;
                 const binding = loader.streamingBinding(move.handle);
-                const current = () => loader.streamingBinding(move.handle) === binding && state.textures.get(move.handle) === entry;
+                const current = () => loader.streamingBinding(move.handle) === binding
+                    && state.textures.get(move.handle) === entry && !loader.importedSizeReaders.has(move.handle);
                 const full = Math.max(entry.fullWidth, entry.fullHeight);
                 state.inFlight++;
                 moving.add(move.handle);

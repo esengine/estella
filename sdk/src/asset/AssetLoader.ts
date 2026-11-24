@@ -127,12 +127,11 @@ export interface LoadContext {
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
     /**
-     * Load a texture and get the receipt for THIS acquisition — what a loader
-     * holding a texture past its own `load` needs, because a path-addressed
-     * release after an invalidate gives back the oldest era rather than the one
-     * this loader was handed.
+     * Acquire the texture generation this loader will use. Pass 'imported' for
+     * authored pixel coordinates. The receipt and its retained copies keep
+     * that upload at the imported dimensions until their last release.
      */
-    acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>>;
+    acquireTexture(path: string, flipY?: boolean, resolution?: 'imported'): Promise<AssetLease<TextureResult>>;
     /** Say that material @p material binds texture @p texture, before it is acquired: a mesh material's textures may start small. */
     noteMaterialTexture?(material: string, texture: string): void;
     /**

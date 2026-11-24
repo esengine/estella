@@ -198,6 +198,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private readonly formats_ = new TextureFormatLog();
     /** File-backed handles this realm currently owns and can resize. */
     private readonly held_ = new Map<number, HeldTextureSource>();
+    private readonly importedReaders_ = new Map<number, number>();
     /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
     startedSmall = 0;
     askedSmall = 0;
@@ -294,11 +295,15 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const held = this.held_.get(handle);
         const rm = requireResourceManager();
         if (!held || !rm.adoptTextureContent) return null;
+        const { source } = held;
+        if (maxEdge > 0 && this.importedReaders_.has(handle)) {
+            if (held.pending || source.limited || source.edge > maxEdge) return null;
+            return { width: source.value.width, height: source.value.height };
+        }
         if (held.pending?.edge === maxEdge) return held.pending.work;
         if (held.pending?.forSurface) return null;
         const request = ++held.resize;
         if (maxEdge > 0) this.mayHoldReducedTextures = true;
-        const { source } = held;
         const io = bindingRecord(source.path) === undefined ? ctx : source.io;
         const work = Promise.resolve().then(async () => {
             const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
@@ -339,6 +344,22 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** @internal Background moves wait for uploads already requested by a surface or another caller. */
     isResizing(handle: number): boolean { return !!this.held_.get(handle)?.pending; }
 
+    /** @internal File textures whose readers address imported pixels, with one count per live receipt. */
+    get importedSizeReaders(): ReadonlyMap<number, number> { return this.importedReaders_; }
+
+    /** @internal Keep this upload at its imported dimensions for one owner. */
+    holdImportedSize(handle: number): (() => void) | undefined {
+        const held = this.held_.get(handle);
+        if (!held) return;
+        this.importedReaders_.set(handle, (this.importedReaders_.get(handle) ?? 0) + 1);
+        return () => {
+            if (this.held_.get(handle) !== held) return;
+            const count = this.importedReaders_.get(handle)!;
+            if (count === 1) this.importedReaders_.delete(handle);
+            else this.importedReaders_.set(handle, count - 1);
+        };
+    }
+
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
     resizable(handle: number): boolean { return this.held_.has(handle) && !!requireResourceManager().adoptTextureContent; }
 
@@ -376,10 +397,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const { handle } = source;
         const held = this.held_.get(handle);
         if (held?.source === source) { held.references++; return; }
+        if (held) this.dropHold_(handle, held);
         const refill: TextureRefill = async () => {
             const current = this.held_.get(handle);
             if (current?.refill !== refill) return false;
-            const edge = !current.pending?.forSurface && source.edge < Math.max(source.fullWidth, source.fullHeight) ? source.edge : 0;
+            const reduced = !this.importedReaders_.has(handle) && !current.pending?.forSurface
+                && source.edge < Math.max(source.fullWidth, source.fullHeight);
+            const edge = reduced ? source.edge : 0;
             const size = await this.resize(handle, edge, source.io);
             if (size) evictTextureDimensions(handle);
             return size !== null;
@@ -390,6 +414,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private dropHold_(handle: number, held: HeldTextureSource): void {
         this.held_.delete(handle);
+        this.importedReaders_.delete(handle);
         withdrawTextureContent(handle, held.refill);
     }
 

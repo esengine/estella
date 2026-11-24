@@ -33,7 +33,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
 
             for (const texPath of textures) {
                 try {
-                    const lease = await ctx.acquireTexture(texPath, true);
+                    const lease = await ctx.acquireTexture(texPath, true, 'imported');
                     textureHandles.set(texPath, lease.value.handle);
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
