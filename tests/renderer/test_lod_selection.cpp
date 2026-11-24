@@ -284,7 +284,22 @@ static void testFade() {
     CHECK(near(state.weight(2, e, 0, 0.4f), 1.0f), "a view that never measured it draws the finest");
 }
 
+static void testForget() {
+    lod::LodViewState state;
+    const Entity removed = Entity::fromRaw(10), survivor = Entity::fromRaw(11);
+    for (u32 view : {1u, 2u}) {
+        state.remember(view, removed, 1, 1, 1, 0.1f);
+        state.preview(view, removed, 0);
+    }
+    state.remember(1, survivor, 0, 0, 1, 0.8f);
+    state.preview(1, survivor, 1);
+    state.forget(removed);
+    CHECK(state.size() == 1 && state.previewCount() == 1, "despawn drops one object's decisions and holds in every camera");
+    CHECK(state.previewOf(1, survivor) == 1, "another object's preview in the same camera survives");
+}
+
 int main() {
+    testForget();
     testFade();
     testLevelsFromSizes();
     testProjection();

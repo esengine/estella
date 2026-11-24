@@ -16,24 +16,15 @@
 // one calls the host's es_renderer_* bindings with the typed arrays as they are.
 // The C++ host keeps what only it can do: the swapchain and the present.
 
+import { readLodDecision } from '../../render/lodDecision';
 import type { CppRegistry } from '../../wasm';
 import type { RendererBackend, RenderStats } from '../../render/renderer';
 import { RENDERER_BINDINGS, RENDERER_OPTIONAL_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
 import { ATLAS_REFUSAL, LIGHT_REFUSAL } from '../../render/refusals';
 
-/** Invoke a host-provided global by name; throws if the host did not bind it
- *  (these are the frame contract — a missing one is a broken host, not a
- *  degraded frame). */
-/**
- * The floats a LOD decision or a light's standing is read back through, allocated
- * once — the wider of the two, since neither outlives a call.
- *
- * Held for the process rather than per call: it is sixteen bytes against a heap
- * whose views must not be rebuilt (see nativeHeap.ts), and an inspect runs while
- * a panel is open, which is every frame.
- */
-let lodScratch: { heap: NativeHeap; ptr: number } | null = null;
+// Native inspection scratch lives as long as the host arena, across renderer reinstalls.
+const inspectionBuffers = new WeakMap<object, number>();
 
 function hostCall(scope: Record<string, unknown>, name: string, args: unknown[]): unknown {
     const fn = scope[name];
@@ -63,11 +54,19 @@ function optional(
 export function createNativeRendererBackend(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): RendererBackend {
+    // All inspector queries for this host share its largest output buffer.
+    let lodScratch: { heap: NativeHeap; ptr: number } | null = null;
     const lodHeap = (): { heap: NativeHeap; ptr: number } | null => {
         if (lodScratch) return lodScratch;
         const heap = createNativeHeap(scope);
         if (!heap) return null;
-        lodScratch = { heap, ptr: heap._malloc(9 * 4) };
+        let ptr = inspectionBuffers.get(heap.allocatorIdentity);
+        if (ptr === undefined) {
+            ptr = heap._malloc(9 * 4);
+            if (!ptr) return null;
+            inspectionBuffers.set(heap.allocatorIdentity, ptr);
+        }
+        lodScratch = { heap, ptr };
         return lodScratch;
     };
     return {
@@ -160,20 +159,11 @@ export function createNativeRendererBackend(
             if (typeof fn === 'function') (fn as (v: number) => void)(view >>> 0);
         },
         lodInspect: (view, entity) => {
-            const fn = scope[RENDERER_OPTIONAL_BINDINGS.lodInspect];
-            const heap = lodHeap();
-            if (typeof fn !== 'function' || !heap) return null;
-            if (!(fn as (v: number, e: number, p: number) => number)(view >>> 0, entity >>> 0, heap.ptr)) {
-                return null;
-            }
-            const f = heap.heap.HEAPF32;
-            const i = heap.ptr >> 2;
-            return {
-                level: f[i]! < 0 ? null : f[i]!,
-                unbiased: f[i + 1]! < 0 ? null : f[i + 1]!,
-                levels: f[i + 2]!,
-                screenSize: f[i + 3]!,
-            };
+            const inspect = optional(scope, RENDERER_OPTIONAL_BINDINGS.lodInspect);
+            const buffer = lodHeap();
+            return inspect && buffer
+                ? readLodDecision(buffer.heap, buffer.ptr, ptr => inspect(view >>> 0, entity >>> 0, ptr))
+                : null;
         },
         framePending: (): boolean => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.framePending];

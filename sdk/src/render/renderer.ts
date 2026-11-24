@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { World } from '../ecs/world';
+import { withMalloc } from '../wasm/wasmScratch';
+import { readLodDecision } from './lodDecision';
 import { ENGINE_WEBGPU_FEATURES } from './webgpuFeatures';
 import { onWorldUnitsPerMeter } from '../ecs/worldUnits';
 import { flushEngineStamps } from '../ecs/engineStamps';
@@ -13,7 +16,7 @@ import { log } from '../util/logger';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, snapshotMatchesCapture as snapshotMatchesImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
 import { ATLAS_REFUSAL, LIGHT_REFUSAL } from './refusals';
-import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
+import { nativeEngineApi, worldEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import { SKIN_CACHE_DEFAULTS, type SkinCacheConfig } from './skinCache';
 
 export enum RenderStage {
@@ -180,6 +183,8 @@ const VIEW_SHADING_CODE: Record<ViewShading, number> = {
     shaded: 0, clay: 1, albedo: 2, wireframe: 3, directLighting: 4, indirectLighting: 5, clusters: 6,
 };
 
+type LodWorld = Pick<World, 'getCppRegistry' | 'getWasmModule'>;
+
 export interface LodDecision {
     /** The level drawn, or `null` when the object was small enough to be culled. */
     level: number | null;
@@ -209,7 +214,7 @@ const NO_STATS: RenderStats = { drawCalls: 0, gpuDraws: 0, triangles: 0, sprites
 const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
-/** Four floats a LOD decision is read back through. */
+/** Six floats for the decision and its fade. */
 let lodInspectPtr: number = 0;
 /** Five floats a light's standing with the cap or the atlas is read back
  *  through. One buffer: neither answer outlives the call that asks. */
@@ -219,6 +224,13 @@ let backend: RendererBackend | null = null;
 
 function engine(): EngineApi | null {
     return (module as EngineApi | null) ?? nativeEngineApi();
+}
+
+function lodEngine(world: LodWorld): EngineApi | null {
+    const owner = worldEngineApi(world);
+    // The ECS bridge exposes the original module. Use its guarded renderer and
+    // reusable readback buffer when both handles identify the same engine.
+    return owner && owner === bridge.raw ? module as EngineApi : owner;
 }
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
@@ -328,19 +340,8 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setTreeSortLayers: (mask) => m.renderer_setTreeSortLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
-        lodInspect: (view, entity) => {
-            if (!m.renderer_lodInspect || !lodInspectPtr) return null;
-            if (!m.renderer_lodInspect(view >>> 0, entity >>> 0, lodInspectPtr)) return null;
-            const f = m.HEAPF32.subarray(lodInspectPtr >> 2, (lodInspectPtr >> 2) + 6);
-            return {
-                level: f[0]! < 0 ? null : f[0]!,
-                unbiased: f[1]! < 0 ? null : f[1]!,
-                levels: f[2]!,
-                screenSize: f[3]!,
-                fadingFrom: f[4]! < 0 ? null : f[4]!,
-                fade: f[5]!,
-            };
-        },
+        lodInspect: (view, entity) => readLodDecision(m, lodInspectPtr,
+            ptr => m.renderer_lodInspect?.(view >>> 0, entity >>> 0, ptr)),
         framePending: () => (m.renderer_framePending ? m.renderer_framePending() !== 0 : false),
         clusterInspect: (entity) => {
             // The LOD scratch is large enough for its two counts, and the two are never read at once.
@@ -915,10 +916,20 @@ export const Renderer = {
     /**
      * What @p view decided about `entity`'s LOD last time it drew it, or null when
      * that view has not measured it — off screen, or carrying no LODGroup, which
-     * is not the same as measuring it at level 0. @experimental
+     * is not the same as measuring it at level 0. Pass the owning world when several
+     * registries share a renderer. Omitting it reads the last world collected. @experimental
      */
-    lodInspect(view: number, entity: number): LodDecision | null {
-        return backend?.lodInspect(view, entity) ?? null;
+    lodInspect(view: number, entity: number, world?: LodWorld): LodDecision | null {
+        if (!world) return backend?.lodInspect(view, entity) ?? null;
+        const registry = world.getCppRegistry();
+        const api = lodEngine(world);
+        if (!registry || !api) return null;
+        const read = (ptr: number) => readLodDecision(api, ptr, out => api.renderer_lodInspectInWorld
+            ? api.renderer_lodInspectInWorld(registry, view >>> 0, entity >>> 0, out)
+            : api.renderer_lodInspect?.(view >>> 0, entity >>> 0, out));
+        if (api === module && lodInspectPtr) return read(lodInspectPtr);
+        if (!api._malloc || !api._free) return null;
+        return withMalloc({ _malloc: api._malloc, _free: api._free }, 6 * 4, read);
     },
 
     /**
@@ -943,10 +954,21 @@ export const Renderer = {
      *
      * View state, never component state: a group is authored policy and reads the
      * same everywhere. The choice goes on being made underneath, so leaving a
-     * preview obeys the selector again rather than resuming from what was held up.
+     * preview obeys the selector again. Pass the owning world to target its view explicitly.
      */
-    setLodPreview(view: number, entity: number, level: number | null): void {
-        backend?.setLodPreview(view, entity, level);
+    setLodPreview(view: number, entity: number, level: number | null, world?: LodWorld): void {
+        if (!world) {
+            backend?.setLodPreview(view, entity, level);
+            return;
+        }
+        const registry = world.getCppRegistry();
+        const api = lodEngine(world);
+        if (!registry || !api) return;
+        if (api.renderer_setLodPreviewInWorld) {
+            api.renderer_setLodPreviewInWorld(registry, view >>> 0, entity >>> 0, level ?? -1);
+        } else {
+            api.renderer_setLodPreview?.(view >>> 0, entity >>> 0, level ?? -1);
+        }
     },
 
     /**

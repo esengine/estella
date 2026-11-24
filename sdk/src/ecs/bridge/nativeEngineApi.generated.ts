@@ -244,6 +244,7 @@ export interface NativeEngineApi {
     renderer_keepScreenOverlay?(registry: unknown, hostStill: boolean): boolean;
     renderer_lightStatus?(entity: number, outPtr: number): number;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
+    renderer_lodInspectInWorld?(registry: unknown, view: number, entity: number, outPtr: number): number;
     renderer_materialBakeState?(ticket: number): number;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
@@ -279,6 +280,7 @@ export interface NativeEngineApi {
     renderer_setLightingDirect?(on: boolean): void;
     renderer_setLodDistanceScale?(scale: number): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
+    renderer_setLodPreviewInWorld?(registry: unknown, view: number, entity: number, level: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOcclusionGridSize?(size: number): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
@@ -696,6 +698,7 @@ export function createNativeEngineApi(
     bind('renderer_keepScreenOverlay', 'es_renderer_keepScreenOverlay', true);
     bind('renderer_lightStatus', 'es_renderer_lightStatus', false);
     bind('renderer_lodInspect', 'es_renderer_lodInspect', false);
+    bind('renderer_lodInspectInWorld', 'es_renderer_lodInspectInWorld', true);
     bind('renderer_materialBakeState', 'es_renderer_materialBakeState', false);
     bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
@@ -731,6 +734,7 @@ export function createNativeEngineApi(
     bind('renderer_setLightingDirect', 'es_renderer_setLightingDirect', false);
     bind('renderer_setLodDistanceScale', 'es_renderer_setLodDistanceScale', false);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
+    bind('renderer_setLodPreviewInWorld', 'es_renderer_setLodPreviewInWorld', true);
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
     bind('renderer_setOcclusionGridSize', 'es_renderer_setOcclusionGridSize', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);

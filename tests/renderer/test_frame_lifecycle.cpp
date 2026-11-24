@@ -8,6 +8,11 @@
 #include "esengine/renderer/draw/TextVertexFormat.hpp"
 #include "esengine/resource/ResourceManager.hpp"
 #include "esengine/ecs/Registry.hpp"
+#include "esengine/ecs/TransformSystem.hpp"
+#include "esengine/ecs/components/LODGroup.hpp"
+#include "esengine/ecs/components/LODMember.hpp"
+#include "esengine/ecs/components/MeshRenderer.hpp"
+#include "esengine/renderer/plugins/MeshPlugin.hpp"
 
 #include <cstdio>
 
@@ -41,6 +46,78 @@ void drawBusyFrame(RenderFrame& frame, ecs::Registry& registry) {
     frame.submitScreenOverlay(registry);
     frame.endScreenOverlay(0);
 
+    frame.endFrame();
+}
+
+Entity addLodGroup(ecs::Registry& registry, f32 radius) {
+    const Entity root = registry.create();
+    registry.emplace<ecs::Transform>(root);
+    auto& group = registry.emplace<ecs::LODGroup>(root);
+    group.lod1Size = 0.5f;
+    group.lod2Size = group.lod3Size = group.cullSize = 0;
+    for (int level = 0; level < 2; ++level) {
+        const Entity e = registry.create();
+        registry.emplace<ecs::Transform>(e);
+        auto& member = registry.emplace<ecs::LODMember>(e);
+        member.group = root.raw;
+        member.boundsRadius = radius;
+        member.level = level;
+        auto& mesh = registry.emplace<ecs::MeshRenderer>(e);
+        mesh.vertices = {{{-0.2f, -0.2f}}, {{0.2f, -0.2f}}, {{0.0f, 0.2f}}};
+        mesh.indices = {0, 1, 2};
+        mesh.localMin = glm::vec2(-0.2f);
+        mesh.localMax = glm::vec2(0.2f);
+    }
+    ecs::TransformSystem{}.ensureComposed(registry);
+    return root;
+}
+
+void testWorldLod(RenderFrame& frame) {
+    ecs::Registry a, b;
+    const Entity group = addLodGroup(a, 0.8f);
+    CHECK(addLodGroup(b, 0.2f) == group, "two registries issue the same LOD group ID");
+    u8 level = 0, unbiased = 0, levels = 0;
+    f32 size = 0.0f;
+    auto inspect = [&](const ecs::Registry* registry) {
+        return frame.lodInspect(0, group, level, unbiased, levels, size, registry);
+    };
+
+    frame.setLodPreview(0, group, 1);
+    frame.beginFrame();
+    frame.begin(glm::mat4(1.0f));
+    frame.collectAll(a);
+    frame.collectAll(b);
+    CHECK(inspect(&a) && level == 0 && size > 0.5f, "first world's group records its own projected size");
+    CHECK(inspect(&b) && level == 1 && size < 0.5f, "second world's group selects its coarse member in the same frame");
+    CHECK(inspect(nullptr) && level == 1, "a legacy inspection reads the last collected world");
+    frame.setLodPreview(0, group, 0, &b);
+    CHECK(frame.lodPreviewCount() == 2, "a pre-collect legacy hold and a scoped peer hold have separate owners");
+    frame.end();
+    frame.endFrame();
+
+    frame.setLodPreview(0, group, lod::kNoPreview, &a);
+    frame.setLodPreview(0, group, lod::kNoPreview, &b);
+    a.get<ecs::LODGroup>(group).lod1Size = 0.9f;
+    frame.beginFrame();
+    frame.begin(glm::mat4(1.0f));
+    frame.collectAll(a);
+    frame.collectAll(b);
+    u8 from = 0;
+    f32 progress = 1.0f;
+    CHECK(frame.lodFading(0, group, from, progress, &a) && from == 0 && progress == 0.0f,
+          "changing the first world's threshold starts its fade on this frame");
+    CHECK(!frame.lodFading(0, group, from, progress, &b), "the other world retains its settled level");
+    frame.setLodPreview(0, group, 0, &a);
+    frame.setLodPreview(0, group, 1, &b);
+    a.destroy(group);
+    CHECK(!inspect(&a) && inspect(&b) && frame.lodPreviewCount() == 1,
+          "despawning the first group releases just its measurements and preview");
+    b.clear();
+    CHECK(addLodGroup(b, 0.8f) == group, "bulk reset can reissue the very same handle");
+    CHECK(!inspect(&b) && frame.lodPreviewCount() == 0, "a reissued handle starts without the removed group's state");
+    frame.collectAll(b);
+    CHECK(inspect(&b) && level == 0 && size > 0.5f, "the reissued group is measured in its first collect");
+    frame.end();
     frame.endFrame();
 }
 
@@ -78,7 +155,9 @@ int main() {
     // device refuses every frame until its content is back, and the host still submits text into them. What one refused frame staged
     // is gone by the next: a staging that kept growing reached gigabytes on a large scene and aborted the module.
     resources.init(device);
+    frame.addPlugin(makeUnique<MeshPlugin>());
     frame.init(kW, kH);
+    testWorldLod(frame);
     device.notifyDeviceLost(GfxDeviceLostReason::ContextLost, "gone");
     f32 glyphs[TEXT_VERTEX_FLOATS * 4] = {};
     const u16 quad[6] = {0, 1, 2, 0, 2, 3};

@@ -454,7 +454,7 @@ void RenderFrame::beginFrame() {
     // that they can differ is the whole claim.
     lod_counts_ = {};
     // On a monotonic clock, not the game's: a fade must finish in a paused editor view and in a game slowed or stopped.
-    lod_view_state_.beginFrame(es_profile_now_ms() / 1000.0);
+    lod_worlds_.beginFrame(es_profile_now_ms() / 1000.0);
 
     // The per-draw blocks go back at the FRAME boundary and not at each pass's:
     // a frame reaches the device as several passes with one submission behind
@@ -3088,7 +3088,7 @@ void RenderFrame::collectShadowLists(ecs::Registry& registry, CasterSplit split,
         }
         collectCtx.screen_ui = screen_domain_;
         collectCtx.ui_tree_layers = ui_tree_layers_;
-        collectCtx.lod = {view_id_, &lod_view_state_, nullptr, true};
+        collectCtx.lod = {view_id_, &lod_worlds_.collect(registry), nullptr, true};
         collectCtx.casters = split;
         for (auto& plugin : plugins_) {
             if (plugin->castsShadows()) plugin->collect(collectCtx);
@@ -3496,7 +3496,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // through a view matrix puts a HUD wherever the view happens to be looking.
     collectCtx.screen_ui = screen_domain_;
     collectCtx.ui_tree_layers = ui_tree_layers_;
-    collectCtx.lod = {view_id_, &lod_view_state_, &lod_counts_};
+    collectCtx.lod = {view_id_, &lod_worlds_.collect(registry), &lod_counts_};
     collectCtx.shading = view_shading_.get(view_id_);
     collectCtx.weights = view_shading_.weights(view_id_);
     // Only the camera collect. The shadow collect above builds its own context and
@@ -3555,7 +3555,7 @@ void RenderFrame::collectSelection(ecs::Registry& registry) {
                                     computeCameraView(ctx.view_projection)};
     collectCtx.screen_ui = screen_domain_;
     collectCtx.ui_tree_layers = ui_tree_layers_;
-    collectCtx.lod = {view_id_, &lod_view_state_, nullptr};
+    collectCtx.lod = {view_id_, &lod_worlds_.collect(registry), nullptr};
     collectCtx.selection = &view_selection_[view_id_];
     for (auto& plugin : plugins_) {
         if (plugin->drawsMotion()) plugin->collect(collectCtx);
@@ -3638,7 +3638,7 @@ void RenderFrame::collectMotion(ecs::Registry& registry) {
     collectCtx.screen_ui = screen_domain_;
     collectCtx.ui_tree_layers = ui_tree_layers_;
     // The level the scene settled on, not a new choice, and not counted a second time.
-    collectCtx.lod = {view_id_, &lod_view_state_, nullptr};
+    collectCtx.lod = {view_id_, &lod_worlds_.collect(registry), nullptr};
     collectCtx.occlusion = &occlusion_;
     for (auto& plugin : plugins_) {
         if (plugin->drawsMotion()) plugin->collect(collectCtx);

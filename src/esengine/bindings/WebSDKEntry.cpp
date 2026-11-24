@@ -991,9 +991,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setCullingMask", ES_RENDER_BIND(renderer_setCullingMask));
     emscripten::function("renderer_setViewId", ES_RENDER_BIND(renderer_setViewId));
     emscripten::function("renderer_lodInspect", ES_RENDER_BIND(renderer_lodInspect));
+    emscripten::function("renderer_lodInspectInWorld", ES_RENDER_BIND(renderer_lodInspectInWorld));
     emscripten::function("renderer_clusterInspect", ES_RENDER_BIND(renderer_clusterInspect));
     emscripten::function("renderer_framePending", ES_RENDER_BIND(renderer_framePending));
     emscripten::function("renderer_setLodPreview", ES_RENDER_BIND(renderer_setLodPreview));
+    emscripten::function("renderer_setLodPreviewInWorld", ES_RENDER_BIND(renderer_setLodPreviewInWorld));
     emscripten::function("renderer_setImpostorAtlas", ES_RENDER_BIND(renderer_setImpostorAtlas));
     emscripten::function("renderer_takeTextureWants", ES_RENDER_BIND(renderer_takeTextureWants));
     emscripten::function("renderer_setViewShading", ES_RENDER_BIND(renderer_setViewShading));

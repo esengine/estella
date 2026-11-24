@@ -58,7 +58,7 @@ public:
     }
 
     template<class Fn>
-    void forEach(Fn&& apply) {
+    void forEach(Fn&& apply) const {
         for (const auto& [id, entry] : systems_) {
             if (auto system = entry.system.lock()) apply(*system);
         }

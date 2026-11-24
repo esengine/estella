@@ -510,6 +510,11 @@ public:
         return sink(on_destroy_signal_).connect(std::move(callback));
     }
 
+    /** Bulk clear resets entity generations without sending per-entity destruction events. */
+    [[nodiscard]] Connection onClear(std::function<void()> callback) {
+        return sink(on_clear_signal_).connect(std::move(callback));
+    }
+
     /**
      * @brief Checks if an entity is currently valid
      * @param entity The entity to check
@@ -796,6 +801,7 @@ public:
         next_index_ = 0;
         entity_count_ = 0;
         retired_slots_ = 0;
+        on_clear_signal_.publish();
     }
 
     /**
@@ -1107,6 +1113,7 @@ private:
     u32 audit_unstamped_total_ = 0;
 
     Signal<void(Entity)> on_destroy_signal_;
+    Signal<void()> on_clear_signal_;
     // Indexed by the canonical entity slot/generation. Grow during activation,
     // never allocate one hash node per teardown or a whole-world array on the
     // first deletion. Recycled slots start unreserved.

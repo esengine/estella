@@ -391,14 +391,16 @@ void renderer_setCullingMask(u32 mask);
 void renderer_setViewId(u32 view);
 
 /**
- * @brief What @p view decided about @p entity's LOD, into four floats at
+ * @brief What @p view decided about @p entity's LOD, into six floats at
  *        @p outPtr: level, the level the bare thresholds ask for, how many
- *        stand-ins are reachable, and the screen size measured.
+ *        stand-ins are reachable, screen size, the level fading out (-1 when settled), and fade progress.
  *
  * @details A level of -1 is culled. Returns 0 when this view has not measured the
  *          entity, which is not level 0 and must not be shown as one.
  */
 i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
+/** Read the decision recorded in this registry, independent of the last world submitted. */
+i32 renderer_lodInspectInWorld(ecs::Registry& registry, u32 view, u32 entity, uintptr_t outPtr);
 /** @brief What the last frames drew of `entity`'s Cluster LOD mesh: triangles and clusters, two u32 at `outPtr`; 0 when
  *         it has none drawn lately. */
 i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr);
@@ -410,6 +412,8 @@ i32 renderer_framePending();
  *        negative @p level goes back to the view's own choice.
  */
 void renderer_setLodPreview(u32 view, u32 entity, i32 level);
+/** Set or release the preview for this registry's entity in this view. */
+void renderer_setLodPreviewInWorld(ecs::Registry& registry, u32 view, u32 entity, i32 level);
 
 /**
  * @brief Hand @p entity's Impostor the atlas it draws from: @p texture holds @p frames x @p frames pictures.

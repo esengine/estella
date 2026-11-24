@@ -1675,7 +1675,7 @@ i32 renderer_clusterInspect(u32 entity, uintptr_t outPtr) {
     return g_renderFrame->clusterInspect(Entity::fromRaw(entity), out[0], out[1]) ? 1 : 0;
 }
 
-i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
+static i32 inspectLod(const ecs::Registry* registry, u32 view, u32 entity, uintptr_t outPtr) {
     auto* out = boundarySpanMut<f32>(outPtr, 6, "renderer_lodInspect.out");
     if (!out) return 0;
     out[0] = out[1] = out[2] = out[3] = 0.0f;
@@ -1684,7 +1684,7 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     if (!g_renderFrame) return 0;
     u8 level = 0, unbiased = 0, levels = 0;
     f32 size = 0.0f;
-    if (!g_renderFrame->lodInspect(view, Entity::fromRaw(entity), level, unbiased, levels, size)) {
+    if (!g_renderFrame->lodInspect(view, Entity::fromRaw(entity), level, unbiased, levels, size, registry)) {
         return 0;
     }
     // Culled is a level nothing draws, not a big number: handed over as -1 so a
@@ -1696,11 +1696,19 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     // A fade running: the level being left, and how far the drawn one has come in (1 when settled).
     u8 from = 0;
     f32 progress = 1.0f;
-    if (g_renderFrame->lodFading(view, Entity::fromRaw(entity), from, progress)) {
+    if (g_renderFrame->lodFading(view, Entity::fromRaw(entity), from, progress, registry)) {
         out[4] = from == lod::kCulled ? -1.0f : static_cast<f32>(from);
         out[5] = progress;
     }
     return 1;
+}
+
+i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
+    return inspectLod(nullptr, view, entity, outPtr);
+}
+
+i32 renderer_lodInspectInWorld(ecs::Registry& registry, u32 view, u32 entity, uintptr_t outPtr) {
+    return inspectLod(&registry, view, entity, outPtr);
 }
 
 std::string renderer_takeTextureWants() {
@@ -1713,10 +1721,18 @@ void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames) {
     g_renderFrame->setImpostorAtlas(Entity::fromRaw(entity), texture, frames);
 }
 
-void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
+static void setLodPreview(ecs::Registry* registry, u32 view, u32 entity, i32 level) {
     if (!g_renderFrame) return;
     const u8 held = level < 0 ? lod::kNoPreview : static_cast<u8>(level);
-    g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held);
+    g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held, registry);
+}
+
+void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
+    setLodPreview(nullptr, view, entity, level);
+}
+
+void renderer_setLodPreviewInWorld(ecs::Registry& registry, u32 view, u32 entity, i32 level) {
+    setLodPreview(&registry, view, entity, level);
 }
 
 void renderer_requestProbeCapture(f32 x, f32 y, f32 z, u32 face) {

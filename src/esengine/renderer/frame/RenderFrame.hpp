@@ -20,6 +20,7 @@
 #include "../graph/TargetPool.hpp"
 #include "../graph/RenderGraph.hpp"
 #include "../RenderTypePlugin.hpp"
+#include "../lod/LodWorlds.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "./PostProcessPipeline.hpp"
 #endif
@@ -446,13 +447,15 @@ public:
     }
 
     bool lodInspect(u32 view, Entity entity, u8& outLevel, u8& outUnbiased,
-                    u8& outLevels, f32& outSize) const {
-        return lod_view_state_.inspect(view, entity, outLevel, outUnbiased, outLevels, outSize);
+                    u8& outLevels, f32& outSize, const ecs::Registry* registry = nullptr) const {
+        const auto state = lod_worlds_.find(registry);
+        return state && state->inspect(view, entity, outLevel, outUnbiased, outLevels, outSize);
     }
 
     /** @brief The fade @p view is in for @p entity's levels: the level it is leaving and how far the new one has come, or false. */
-    bool lodFading(u32 view, Entity entity, u8& outFrom, f32& outProgress) const {
-        return lod_view_state_.fading(view, entity, lod::kFadeSeconds, outFrom, outProgress);
+    bool lodFading(u32 view, Entity entity, u8& outFrom, f32& outProgress, const ecs::Registry* registry = nullptr) const {
+        const auto state = lod_worlds_.find(registry);
+        return state && state->fading(view, entity, lod::kFadeSeconds, outFrom, outProgress);
     }
 
     /**
@@ -463,12 +466,12 @@ public:
      *          is the same everywhere. The choice is still made and remembered
      *          while a preview stands, so leaving one obeys the selector again.
      */
-    void setLodPreview(u32 view, Entity entity, u8 level) {
-        lod_view_state_.preview(view, entity, level);
+    void setLodPreview(u32 view, Entity entity, u8 level, ecs::Registry* registry = nullptr) {
+        lod_worlds_.preview(registry, view, entity, level);
     }
 
     /** @brief How many (view, entity) pairs are held up for inspection. */
-    usize lodPreviewCount() const { return lod_view_state_.previewCount(); }
+    usize lodPreviewCount() const { return lod_worlds_.previewCount(); }
 
     /**
      * @brief Shade @p view's meshes as @p mode says instead of as authored.
@@ -822,7 +825,7 @@ private:
     static constexpr u32 kPreviewViewId = 0xFFFFFFFEu;
 
     u32 view_id_ = 0;
-    lod::LodViewState lod_view_state_;
+    lod::LodWorlds lod_worlds_;
     ViewShading view_shading_;
     lod::SelectionCounts lod_counts_;
 

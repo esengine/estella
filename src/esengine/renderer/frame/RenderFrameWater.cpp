@@ -70,7 +70,7 @@ RenderFrame::ReceiverMaps RenderFrame::declareCausticReceivers(ecs::Registry& re
         RenderCollectContext collect{registry, frustum, clip_state_, capture.pool, capture.draws, frame, computeCameraView(projection)};
         collect.screen_ui = screen_domain_;
         collect.ui_tree_layers = ui_tree_layers_;
-        collect.lod = {view_id_, &lod_view_state_, nullptr, true};
+        collect.lod = {view_id_, &lod_worlds_.collect(registry), nullptr, true};
         collect.casters = moving ? CasterSplit::Movers : CasterSplit::Held;
         for (auto& plugin : plugins_) if (plugin->castsShadows()) plugin->collect(collect);
         capture.draws.finalize(capture.pool);

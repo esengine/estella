@@ -8,7 +8,11 @@ import {
     shutdownRendererAPI,
 } from '../src/render/renderer';
 import type { RenderStats } from '../src/render/renderer';
-import type { ESEngineModule } from '../src/wasm';
+import type { CppRegistry, ESEngineModule } from '../src/wasm';
+import { createNativeRendererBackend } from '../src/ecs/bridge/nativeRenderer';
+import { createNativeEngineApi } from '../src/ecs/bridge/nativeEngineApi.generated';
+import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
+import { createNativeHeap } from '../src/ecs/bridge/nativeHeap';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 // =============================================================================
@@ -440,5 +444,81 @@ describe('Renderer API', () => {
             expect(mock.HEAPF32[offset + 13]).toBe(20);
             expect(mock.HEAPF32[offset + 15]).toBe(1);
         });
+    });
+});
+
+describe('LOD inspection and previews', () => {
+    it('uses the named world and its heap even while a different renderer is installed', () => {
+        const registry = {} as CppRegistry;
+        const other = createRendererMockModule();
+        const owner = {
+            ...createRendererMockModule(),
+            renderer_lodInspectInWorld: vi.fn((_registry, _view, _entity, out: number) => {
+                owner.HEAPF32 = new Float32Array(256);
+                owner.HEAPF32.set([1, 0, 2, 0.25, 0, 0.5], out >>> 2);
+                return 1;
+            }),
+            renderer_setLodPreviewInWorld: vi.fn(),
+        };
+        const world = { getCppRegistry: () => registry, getWasmModule: () => owner as unknown as ESEngineModule };
+        initRendererAPI(other as unknown as ESEngineModule);
+        try {
+            expect(Renderer.lodInspect(4, 7, world)).toEqual({
+                level: 1, unbiased: 0, levels: 2, screenSize: 0.25, fadingFrom: 0, fade: 0.5,
+            });
+            expect(owner.renderer_lodInspectInWorld).toHaveBeenCalledWith(registry, 4, 7, 24);
+            expect(owner._free).toHaveBeenCalledWith(24);
+            Renderer.setLodPreview(4, 7, null, world);
+            expect(owner.renderer_setLodPreviewInWorld).toHaveBeenCalledWith(registry, 4, 7, -1);
+            const detached = { ...world, getCppRegistry: () => null };
+            expect(Renderer.lodInspect(4, 7, detached)).toBeNull();
+            Renderer.setLodPreview(4, 7, 1, detached);
+            expect(owner.renderer_setLodPreviewInWorld).toHaveBeenCalledTimes(1);
+        } finally { shutdownRendererAPI(); }
+    });
+
+    it('reuses the active core output buffer for its own world', () => {
+        const owner = {
+            ...createRendererMockModule(),
+            renderer_lodInspectInWorld: vi.fn(() => 0),
+        };
+        const module = owner as unknown as ESEngineModule;
+        const registry = {} as CppRegistry;
+        initRendererAPI(module);
+        try {
+            const allocations = owner._malloc.mock.calls.length;
+            expect(Renderer.lodInspect(1, 2, { getCppRegistry: () => registry, getWasmModule: () => module })).toBeNull();
+            expect(owner.renderer_lodInspectInWorld).toHaveBeenCalledWith(registry, 1, 2, 24);
+            expect(owner._malloc).toHaveBeenCalledTimes(allocations);
+        } finally { shutdownRendererAPI(); }
+    });
+
+    it('reads native fades and supplies settled defaults for four-field hosts', () => {
+        const registry = {} as CppRegistry;
+        const world = { getCppRegistry: () => registry, getWasmModule: () => null };
+        const memory = new Float32Array(64);
+        const scope = {
+            es_heap: () => memory.buffer, es_malloc: () => 16, es_free: vi.fn(),
+            es_renderer_lodInspect: vi.fn((_view: number, _entity: number, ptr: number) => {
+                memory.set([1, 0, 2, 0.25], ptr >>> 2);
+                return 1;
+            }),
+            es_renderer_setLodPreview: vi.fn(),
+        };
+        const scoped = vi.fn((_view: number, _entity: number, ptr: number) => {
+            memory.set([0, 0, 1, 0.75, 1, 0.25], ptr >>> 2);
+            return 1;
+        });
+        try {
+            setNativeEngineApi({ ...createNativeEngineApi({ ...scope, es_renderer_lodInspectInWorld: scoped }), ...createNativeHeap(scope)! });
+            expect(Renderer.lodInspect(3, 8, world)).toMatchObject({ level: 0, fadingFrom: 1, fade: 0.25 });
+            expect(scoped).toHaveBeenCalledWith(3, 8, 16);
+            setNativeEngineApi({ ...createNativeEngineApi(scope), ...createNativeHeap(scope)! });
+            expect(Renderer.lodInspect(3, 8, world)).toMatchObject({ level: 1, fadingFrom: null, fade: 1 });
+            Renderer.setLodPreview(3, 8, 0, world);
+            expect(scope.es_renderer_setLodPreview).toHaveBeenCalledWith(3, 8, 0);
+            const native = createNativeRendererBackend({ ...scope, es_renderer_lodInspect: scoped });
+            expect(native.lodInspect(3, 8)).toMatchObject({ level: 0, fadingFrom: 1, fade: 0.25 });
+        } finally { setNativeEngineApi(null); }
     });
 });
