@@ -276,9 +276,9 @@
      "type": "BoxCollider3D",
      "data": {
       "halfExtents": {
-       "x": 4000,
+       "x": 20000,
        "y": 40,
-       "z": 4000
+       "z": 20000
       },
       "friction": 0.6
      }
