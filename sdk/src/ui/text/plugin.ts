@@ -360,15 +360,13 @@ export class TextPlugin implements Plugin {
 
         // Two passes, because there are two lists: the world's glyphs go into the
         // camera being collected, the screen's into the frame's overlay.
-        const draw = (registry: { _cpp: CppRegistry }, screen: boolean, projection?: Float32Array) => {
-            if (registry._cpp === world.getCppRegistry()) app.measureFrameScope('render.text', () => this.drawDomain(app, screen, projection));
-        };
-        const removeWorld = pipeline.addPreFlushCallback((registry, projection) => draw(registry, false, projection));
-        const removeScreen = pipeline.addScreenOverlayCallback(
-            (registry, projection) => draw(registry, true, projection),
-            registry => registry._cpp !== world.getCppRegistry() || this.screenStill(app),
+        pipeline.addPreFlushCallback(
+            (_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, false, projection)), app,
         );
-        app.signal.addEventListener('abort', () => { removeWorld(); removeScreen(); }, { once: true });
+        pipeline.addScreenOverlayCallback(
+            (_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, true, projection)),
+            () => this.screenStill(app), app,
+        );
     }
 
     /**

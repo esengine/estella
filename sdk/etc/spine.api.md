@@ -193,6 +193,8 @@ entities: number
 
 ## SpineManager — class @experimental
 ```
+@internal bindingLifetime: number
+@internal bindingRevision: number
 boneTree: (entity: Entity) => SkeletalBoneTree | null
 boundEntities: () => Iterable<Entity>
 clipBudget: (entity: Entity) => SpineClipBudget | null
@@ -227,7 +229,7 @@ setSkin: (entity: Entity, skin: string) => void
 setSlotColor: (entity: Entity, slotName: string, r: number, g: number, b: number, a: number) => boolean
 setTrackAlpha: (entity: Entity, track: number, alpha: number) => void
 setTransformConstraintMix: (entity: Entity, name: string, mix: TransformMixData) => boolean
-submitMeshes: (registry: CppRegistry, materialOf?: SkeletalMaterialOf, isActive?: (entity: Entity) => boolean) => void
+submitMeshes: (registry: CppRegistry, materialOf?: SkeletalMaterialOf, isActive?: (entity: Entity) => boolean, core?: NonNullable<EngineApi>) => void
 updateAnimations: (dt: number, isActive?: (entity: Entity) => boolean) => void
 static detectVersion: (data: Uint8Array) => SpineVersion | null
 static detectVersionJson: (json: string) => SpineVersion | null

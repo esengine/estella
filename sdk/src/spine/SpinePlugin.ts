@@ -63,9 +63,11 @@ export function spinePlugin(manager?: SpineManager): SpinePlugin {
 export class SpinePlugin implements Plugin {
     name = 'spine';
     private spineManager_: SpineManager | null;
+    private managerFromHost_ = false;
     private app_: App | null = null;
     private despawnUnsub_: (() => void) | null = null;
-    private submitWired_ = false;
+    private offDisconnect_: (() => void) | null = null;
+    private releaseSubmit_: (() => void) | null = null;
     /** Carries SpineAnimation.enabled into the manager (see skeletal/enableSync). */
     private readonly enableMirror_ = new SkeletalEnableMirror(SpineAnimation);
 
@@ -81,6 +83,11 @@ export class SpinePlugin implements Plugin {
     }
 
     setSpineManager(manager: SpineManager): void {
+        if (manager !== this.spineManager_) {
+            if (this.managerFromHost_) this.spineManager_?.dispose();
+            this.enableMirror_.clear();
+            this.managerFromHost_ = false;
+        }
         this.spineManager_ = manager;
         if (this.app_) {
             const app = this.app_;
@@ -94,15 +101,13 @@ export class SpinePlugin implements Plugin {
     // live, so build and a later setSpineManager (a manager swap) share one
     // callback instead of stacking a second that double-submits every frame.
     private wireSubmit_(app: App): void {
-        if (this.submitWired_) return;
-        this.submitWired_ = true;
-        const isActive = (e: Entity) => app.world.isEntityActive(e);
+        if (this.releaseSubmit_) return;
         // Twice a frame: the cameras' skeletons, then a screen Canvas' in the overlay,
         // where they paint by their place in its tree (skeletal/submitDomains).
-        addSkeletalSubmit(app, (registry, include) => {
-            this.spineManager_?.submitMeshes(registry._cpp, (e: Entity) =>
-                (app.world.tryGet(e, SpineAnimation)?.material as number | undefined) ?? 0, include);
-        }, isActive);
+        this.releaseSubmit_ = addSkeletalSubmit(app, () => this.spineManager_, (core, registry, include) => {
+            this.spineManager_?.submitMeshes(registry, (e: Entity) =>
+                (app.world.tryGet(e, SpineAnimation)?.material as number | undefined) ?? 0, include, core);
+        });
     }
 
     build(app: App): void {
@@ -123,6 +128,7 @@ export class SpinePlugin implements Plugin {
                 });
             }
             this.spineManager_ = new SpineManager(coreModule, factories);
+            this.managerFromHost_ = true;
         }
 
         app.insertResource(SpineEvents, { events: [] });
@@ -132,8 +138,10 @@ export class SpinePlugin implements Plugin {
         }
 
         this.despawnUnsub_ = app.world.onDespawn((entity: Entity) => {
+            this.enableMirror_.forget(entity);
             this.spineManager_?.removeEntity(entity);
         });
+        this.offDisconnect_ = app.world.onCoreDisconnect(() => this.resetBindings_());
 
         // Per-frame spine tick: carry SpineAnimation.enabled across into the
         // manager (see skeletal/enableSync), advance every loaded side-module
@@ -183,11 +191,23 @@ export class SpinePlugin implements Plugin {
      * pointing at a dead manager and leaked the wasm-side spine resources.
      */
     cleanup(): void {
+        this.releaseSubmit_?.();
+        this.releaseSubmit_ = null;
         this.despawnUnsub_?.();
         this.despawnUnsub_ = null;
-        this.spineManager_?.dispose();
+        this.offDisconnect_?.();
+        this.offDisconnect_ = null;
+        this.resetBindings_();
+        if (this.managerFromHost_) {
+            this.spineManager_ = null;
+            this.managerFromHost_ = false;
+        }
         this.app_ = null;
-        this.submitWired_ = false; // a fresh build (new pipeline) re-registers the submit
+    }
+
+    private resetBindings_(): void {
+        this.enableMirror_.clear();
+        this.spineManager_?.dispose();
     }
 
     private collectAndPublishEvents_(app: App, isActive: (entity: Entity) => boolean): void {

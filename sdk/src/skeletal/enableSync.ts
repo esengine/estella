@@ -57,6 +57,9 @@ export class SkeletalEnableMirror {
 
     constructor(private readonly component_: AnyComponentDef) {}
 
+    forget(entity: Entity): void { this.mirrored_.delete(entity); }
+    clear(): void { this.mirrored_.clear(); }
+
     sync(world: SkeletalEnableWorld, target: SkeletalEnableTarget, isActive?: (entity: Entity) => boolean): void {
         let bound = 0;
         for (const entity of target.boundEntities()) {

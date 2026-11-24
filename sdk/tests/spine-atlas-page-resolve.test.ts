@@ -27,13 +27,17 @@ vi.mock('../src/wasm/resourceManager', () => ({
     getResourceManager: () => device.connected ? rm : null,
 }));
 
-import { loadSpineAssets } from '../src/spine/loadSpineScene';
+import { loadSpineAssets, loadSpineSceneEntities } from '../src/spine/loadSpineScene';
+import { SpineManager } from '../src/spine/SpineManager';
 import { textureRefill } from '../src/wasm/textureRefill';
-import { loadDragonBonesAssets } from '../src/dragonbones/loadDragonBonesScene';
+import { loadDragonBonesAssets, loadDragonBonesSceneEntities } from '../src/dragonbones/loadDragonBonesScene';
+import { DragonBonesManager } from '../src/dragonbones/DragonBonesManager';
 import { releaseUnusedAtlases } from '../src/dragonbones/atlasOwnership';
 import { SpineAssetLoader } from '../src/asset/loaders/SpineAssetLoader';
 import { Catalog } from '../src/asset/Catalog';
 import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
+import type { SceneData } from '../src/scene/scene';
+import type { Entity } from '../src/types';
 import type { BasisTranscoder } from '../src/asset/compressed';
 
 const ATLAS = 'spineboy.png\nsize: 4,4\nformat: RGBA8888\n';
@@ -58,6 +62,42 @@ function makeSource(resolved: Record<string, string>): RuntimeAssetSource & {
 }
 
 const PAIR = [{ skeleton: 'assets/spine/boy.skel', atlas: 'assets/spine/boy.atlas' }];
+
+it.each(['SpineAnimation', 'DragonBonesAnimation'])('releases a late atlas when %s quits during decode', async type => {
+    const spine = new SpineManager({} as never, new Map());
+    const dragon = new DragonBonesManager({} as never);
+    const bindSpine = vi.spyOn(spine, 'loadEntity'), bindDragon = vi.spyOn(dragon, 'loadSkeleton');
+    const source = makeSource({});
+    const isSpine = type === 'SpineAnimation';
+    const skeletonPath = 'assets/late/hero.json', atlasPath = isSpine ? 'assets/late/hero.atlas' : 'assets/late/hero_tex.json';
+    source.backend.fetchText = async path => path === skeletonPath ? '{"skeleton":{"spine":"4.2"}}'
+        : isSpine ? ATLAS : '{"imagePath":"page.png"}';
+    const sceneData: SceneData = { version: 1, name: 'preview', entities: [{
+        id: 1, name: 'character', parent: null, children: [],
+        components: [{ type, data: { skeletonPath, atlasPath } }],
+    }] };
+    const entityMap = new Map([[1, 7 as Entity]]);
+    let finish!: () => void, decoding!: () => void;
+    const started = new Promise<void>(resolve => { decoding = resolve; });
+    const wait = new Promise<void>(resolve => { finish = resolve; });
+    source.decodePixels.mockImplementationOnce(async () => {
+        decoding();
+        await wait;
+        return { width: 4, height: 4, pixels: new Uint8Array(64) };
+    });
+    rm.createTextureFromBytes.mockReturnValueOnce(116);
+    rm.releaseTexture.mockClear();
+    const options = { sceneData, entityMap, module: null, source };
+    const pending = isSpine ? loadSpineSceneEntities({ ...options, spineManager: spine, registry: {} as never })
+        : loadDragonBonesSceneEntities({ ...options, manager: dragon });
+    await Promise.race([started, pending.then(() => { throw new Error('scene skipped atlas decode'); })]);
+    (isSpine ? spine : dragon).dispose();
+    finish();
+    await pending;
+    expect(bindSpine).not.toHaveBeenCalled();
+    expect(bindDragon).not.toHaveBeenCalled();
+    expect(rm.releaseTexture.mock.calls).toEqual([[116]]);
+});
 
 async function readAndRelease(...args: Parameters<typeof loadSpineAssets>) {
     const info = await loadSpineAssets(...args);

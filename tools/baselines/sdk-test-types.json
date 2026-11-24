@@ -161,10 +161,6 @@
   "tests/spine-abi-cost.test.ts": {
     "TS2741|Property 'culling' is missing in type '{ id: string; pair: { skeleton: string; atlas: string; }; value: SpineAssetValue; retain: () => { release: () => void; }; }' but required in type 'SpineEraBinding'.": 1
   },
-  "tests/spine-apply-routing.test.ts": {
-    "TS2322|Type 'Map<string, { version: null; skelData: Uint8Array<ArrayBuffer>; atlasText: string; textures: Map<any, any>; }>' is not assignable to type 'Map<string, SpineAssetInfo>'.": 1,
-    "TS2741|Property 'runtime' is missing in type '{ skeletonField: string; atlasField: string; }' but required in type 'SkeletalFieldMeta'.": 1
-  },
   "tests/spine-clip-start.test.ts": {
     "TS2741|Property 'culling' is missing in type '{ id: string; value: { skelData: Uint8Array<ArrayBuffer>; atlasText: string; isBinary: true; textures: Map<any, any>; }; pair: { skeleton: string; atlas: string; }; retain: () => { ...; }; }' but required in type 'SpineEraBinding'.": 1
   },

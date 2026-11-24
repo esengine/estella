@@ -19,7 +19,7 @@ const SPINE_COMP = 'ApplyRouting_Spine';
 beforeEach(() => {
     clearUserComponents();
     defineComponent(SPINE_COMP, { skeleton: '', atlas: '' }, {
-        skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas' },
+        skeletalFields: { runtime: 'spine', skeletonField: 'skeleton', atlasField: 'atlas' },
     });
 });
 
@@ -43,6 +43,23 @@ function sceneWith(skel: string, atlas: string): SceneData {
 }
 
 describe('applySpineEntities routes every version to the SpineManager (S3)', () => {
+    it('applies no playback properties from a discarded binding', async () => {
+        const manager = { ...makeManager(), loadEntity: vi.fn(async () => null) };
+        await applySpineEntities({
+            spineManager: manager as never,
+            sceneData: sceneWith('hero.skel', 'hero.atlas'),
+            entityMap: new Map([[1, 42 as Entity]]),
+            registry: {} as never,
+            assetInfo: new Map([['hero.skel:hero.atlas', {
+                version: '4.2', preparation: null, era: fakeSpineEra('retired'),
+            }]]),
+        });
+        expect(manager.loadEntity).toHaveBeenCalledOnce();
+        expect(manager.setEntityProps).not.toHaveBeenCalled();
+        expect(manager.setAnimation).not.toHaveBeenCalled();
+        expect(manager.setSkin).not.toHaveBeenCalled();
+    });
+
     it('loads a 4.2 entity — there is no native fallback to skip to', async () => {
         const manager = makeManager();
         const entity = 42 as Entity;
@@ -72,7 +89,7 @@ describe('applySpineEntities routes every version to the SpineManager (S3)', () 
             entityMap: new Map([[1, 7 as Entity]]),
             registry: {} as never,
             assetInfo: new Map([['x.skel:x.atlas', {
-                version: null, skelData: new Uint8Array(), atlasText: '', textures: new Map(),
+                version: null, preparation: null, era: fakeSpineEra('unknown-version'),
             }]]),
         });
         expect(manager.loadEntity).not.toHaveBeenCalled();

@@ -15,7 +15,6 @@ import { Schedule } from '../ecs/system';
 import type { SystemDef } from '../ecs/system';
 import type { Entity } from '../types';
 import { defineResource, Time } from '../ecs/resource';
-import { engineApi } from '../ecs/bridge/engineApi';
 import { DragonBonesAnimation } from '../ecs/component';
 import { SkeletalEnableMirror } from '../skeletal/enableSync';
 import { DragonBonesManager } from './DragonBonesManager';
@@ -32,8 +31,9 @@ export class DragonBonesPlugin implements Plugin {
     private manager_: DragonBonesManager | null;
     private app_: App | null = null;
     private despawnUnsub_: (() => void) | null = null;
+    private offDisconnect_: (() => void) | null = null;
     private acquiring_: Promise<DragonBonesManager | null> | null = null;
-    private submitWired_ = false;
+    private releaseSubmit_: (() => void) | null = null;
     /** Carries DragonBonesAnimation.enabled into the manager (skeletal/enableSync). */
     private readonly enableMirror_ = new SkeletalEnableMirror(DragonBonesAnimation);
 
@@ -61,8 +61,9 @@ export class DragonBonesPlugin implements Plugin {
         const host = app?.sideModules;
         if (!app || !host) return Promise.resolve(null);
 
-        this.acquiring_ = host.acquire('dragonbones')
+        const pending = host.acquire('dragonbones')
             .then(module => {
+                if (this.acquiring_ !== pending) return null;
                 if (!module) {
                     log.warn('dragonbones', 'module unavailable in this realm');
                     return null;
@@ -79,9 +80,10 @@ export class DragonBonesPlugin implements Plugin {
                 return null;
             })
             .finally(() => {
-                this.acquiring_ = null;
+                if (this.acquiring_ === pending) this.acquiring_ = null;
             });
-        return this.acquiring_;
+        this.acquiring_ = pending;
+        return pending;
     }
 
     build(app: App): void {
@@ -90,21 +92,18 @@ export class DragonBonesPlugin implements Plugin {
         app.insertResource(DragonBones, this.manager_);
 
         this.despawnUnsub_ = app.world.onDespawn((entity: Entity) => {
+            this.enableMirror_.forget(entity);
             this.manager_?.removeEntity(entity);
         });
+        this.offDisconnect_ = app.world.onCoreDisconnect(() => this.resetBindings_());
 
         // Reads this.manager_ live rather than capturing it, so a manager that
         // arrives later — which is the normal case, since acquisition is lazy —
         // is picked up without registering a second callback that double-submits.
-        if (!this.submitWired_) {
-            this.submitWired_ = true;
-            const core = engineApi(app);
-            // The cameras' armatures, then a screen Canvas' in the overlay (skeletal/submitDomains).
-            addSkeletalSubmit(app, (registry, include) => {
-                if (core) this.manager_?.submitMeshes(core, registry._cpp, (e) =>
-                    (app.world.tryGet(e, DragonBonesAnimation)?.material as number | undefined) ?? 0, include);
-            }, isActive);
-        }
+        this.releaseSubmit_ = addSkeletalSubmit(app, () => this.manager_, (core, registry, include) => {
+            this.manager_?.submitMeshes(core, registry, (e) =>
+                (app.world.tryGet(e, DragonBonesAnimation)?.material as number | undefined) ?? 0, include);
+        });
 
         // Carries DragonBonesAnimation.enabled across before advancing — the flag
         // lives on the component, and nothing else reads it into the manager
@@ -132,11 +131,21 @@ export class DragonBonesPlugin implements Plugin {
      * wasm side keeps armatures nothing can reach.
      */
     cleanup(): void {
+        this.releaseSubmit_?.();
+        this.releaseSubmit_ = null;
+        this.app_ = null;
         this.despawnUnsub_?.();
         this.despawnUnsub_ = null;
-        this.manager_?.dispose();
+        this.offDisconnect_?.();
+        this.offDisconnect_ = null;
+        this.resetBindings_();
         this.manager_ = null;
+    }
+
+    private resetBindings_(): void {
         this.acquiring_ = null;
+        this.enableMirror_.clear();
+        this.manager_?.dispose();
     }
 }
 

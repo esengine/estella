@@ -265,8 +265,13 @@ export async function loadDragonBonesSceneEntities(opts: {
 }): Promise<void> {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.dragonBones.length === 0) return;
+    const lifetime = opts.manager.bindingLifetime;
     const assetInfo = await loadDragonBonesAssets(
         opts.module, opts.source, discovered.dragonBones, opts.transcoderProvider, opts.assets);
+    if (opts.manager.bindingLifetime !== lifetime) {
+        releaseUnusedAtlases(assetInfo.values());
+        return;
+    }
     applyDragonBonesEntities({
         manager: opts.manager,
         sceneData: opts.sceneData,

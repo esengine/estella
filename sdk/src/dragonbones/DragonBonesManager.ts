@@ -57,6 +57,12 @@ export class DragonBonesManager {
     private readonly controller_: DragonBonesModuleController;
     private readonly entities_ = new Map<Entity, EntityInfo>();
     private readonly disabled_ = new Set<Entity>();
+    private bindingRevision_ = 0;
+    private lifetime_ = 0;
+    /** @internal Identifies pending work belonging to the current set of armatures. */
+    get bindingLifetime(): number { return this.lifetime_; }
+    /** @internal Changes when the set of armatures eligible to draw can change. */
+    get bindingRevision(): number { return this.bindingRevision_; }
     private readonly skeletons_ = new Map<string, { handle: number; refcount: number }>();
     private readonly unkeyedSkeletons_ = new Map<number, number>();
 
@@ -136,6 +142,7 @@ export class DragonBonesManager {
             assetKey: options.assetKey,
         };
         this.entities_.set(entity, info);
+        ++this.bindingRevision_;
 
         if (options.animation) this.controller_.play(instanceId, options.animation, options.loop ?? true);
         return true;
@@ -147,6 +154,7 @@ export class DragonBonesManager {
         this.controller_.destroyInstance(info.instanceId);
         this.releaseSkeleton_(info);
         this.entities_.delete(entity);
+        ++this.bindingRevision_;
         this.disabled_.delete(entity);
     }
 
@@ -168,6 +176,8 @@ export class DragonBonesManager {
      * the moment it is written and this call holds between such writes.
      */
     setEnabled(entity: Entity, enabled: boolean): void {
+        if (this.disabled_.has(entity) === !enabled) return;
+        ++this.bindingRevision_;
         if (enabled) this.disabled_.delete(entity);
         else this.disabled_.add(entity);
     }
@@ -270,6 +280,7 @@ export class DragonBonesManager {
 
     /** Drop every instance and skeleton. Idempotent, so a second call is a no-op. */
     dispose(): void {
+        ++this.lifetime_;
         for (const info of this.entities_.values()) {
             this.controller_.destroyInstance(info.instanceId);
         }
@@ -278,6 +289,7 @@ export class DragonBonesManager {
         }
         for (const handle of this.unkeyedSkeletons_.keys()) this.controller_.unloadSkeleton(handle);
         releaseAllAtlasOwners(this);
+        if (this.entities_.size) ++this.bindingRevision_;
         this.entities_.clear();
         this.disabled_.clear();
         this.skeletons_.clear();

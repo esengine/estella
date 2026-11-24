@@ -12,6 +12,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SpineManager } from '../src/spine/SpineManager';
 import { SpinePlugin } from '../src/spine/SpinePlugin';
+import { DragonBones, DragonBonesPlugin } from '../src/dragonbones/DragonBonesPlugin';
+import { fakeSpineEra, fakeSpineModule } from './helpers/fakeSpineModule';
 import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
 import { App } from '../src/app/app';
 import { Physics2DRuntime } from '../src/physics/Physics2DRuntime';
@@ -43,6 +45,29 @@ describe('SpineManager.dispose', () => {
 });
 
 describe('SpinePlugin.cleanup', () => {
+    it('uses the new app\'s module host when the plugin is installed again', async () => {
+        const plugin = new SpinePlugin();
+        const era = fakeSpineEra('preview', '{"skeleton":{"spine":"4.2"}}');
+        const hosts = [];
+        for (let i = 0; i < 2; ++i) {
+            const app = App.new();
+            vi.spyOn(app, 'wasmModule', 'get').mockReturnValue({} as never);
+            const host = { acquire: vi.fn(async () => fakeSpineModule().module as never) };
+            hosts.push(host);
+            app.setSideModules(host);
+            app.addPlugin(plugin);
+            try {
+                const preview = await plugin.spineManager!.openPreview(era);
+                expect(preview).not.toBeNull();
+                preview!.dispose();
+            } finally { app.quit({ keepRenderer: true }); }
+        }
+        for (const host of hosts) {
+            expect(host.acquire).toHaveBeenCalledOnce();
+            expect(host.acquire).toHaveBeenCalledWith('spine:4.2');
+        }
+    });
+
     it('unsubscribes the despawn listener and disposes the spine manager', () => {
         const plugin = new SpinePlugin();
         const unsub = vi.fn();
@@ -65,6 +90,57 @@ describe('SpinePlugin.cleanup', () => {
     it('is safe to call when build never ran (no subscription / manager)', () => {
         const plugin = new SpinePlugin();
         expect(() => plugin.cleanup()).not.toThrow();
+    });
+
+    it('releases the host-created manager when a tool replaces it', () => {
+        const app = App.new();
+        vi.spyOn(app, 'wasmModule', 'get').mockReturnValue({} as never);
+        app.setSideModules({ acquire: async () => null });
+        const plugin = new SpinePlugin();
+        app.addPlugin(plugin);
+        const old = vi.spyOn(plugin.spineManager!, 'dispose');
+        const replacement = new SpineManager({} as never, new Map());
+        const dispose = vi.spyOn(replacement, 'dispose');
+        try {
+            plugin.setSpineManager(replacement);
+            plugin.setSpineManager(replacement);
+            expect(old).toHaveBeenCalledOnce();
+            expect(dispose).not.toHaveBeenCalled();
+        } finally { app.quit({ keepRenderer: true }); }
+        expect(dispose).toHaveBeenCalledOnce();
+    });
+});
+
+describe('DragonBonesPlugin.acquire', () => {
+    it('an old app finishing its load cannot replace or cancel a new app\'s acquisition', async () => {
+        const pendingHost = () => {
+            let finish!: () => void;
+            const wait = new Promise<void>(resolve => { finish = resolve; });
+            const acquire = vi.fn(async () => { await wait; return { cwrap: () => () => 0 }; });
+            return { finish, acquire };
+        };
+        const first = App.new(), second = App.new();
+        const oldHost = pendingHost(), newHost = pendingHost();
+        const plugin = new DragonBonesPlugin();
+        first.setSideModules(oldHost);
+        first.addPlugin(plugin);
+        const retired = plugin.acquire();
+        first.quit({ keepRenderer: true });
+        expect(await plugin.acquire()).toBeNull();
+        second.setSideModules(newHost);
+        second.addPlugin(plugin);
+        try {
+            const current = plugin.acquire();
+            oldHost.finish();
+            expect(await retired).toBeNull();
+            expect(second.getResource(DragonBones)).toBeNull();
+            expect(plugin.acquire()).toBe(current);
+            newHost.finish();
+            const manager = await current;
+            expect(manager).not.toBeNull();
+            expect(second.getResource(DragonBones)).toBe(manager);
+            expect(newHost.acquire).toHaveBeenCalledOnce();
+        } finally { second.quit({ keepRenderer: true }); }
     });
 });
 

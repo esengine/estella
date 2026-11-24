@@ -45,11 +45,18 @@ export class SpineManager {
     private factories_: Map<SpineVersion, SpineModuleFactory>;
     private runtimes_: Map<SpineVersion, SpineRuntime> = new Map();
     private loadingRuntimes_: Map<SpineVersion, Promise<SpineRuntime | null>> = new Map();
+    private readonly pendingBindings_ = new Map<Entity, symbol>();
+    private lifetime_ = 0;
+    /** @internal Identifies pending work belonging to the current set of runtimes. */
+    get bindingLifetime(): number { return this.lifetime_; }
     /** Which runtime poses each entity. The authority for that is HERE: a
      *  runtime can only see its own entities, so one handed an entity another is
      *  posing cannot retire the binding it replaces. */
     private bindings_: Map<Entity, SpineRuntime> = new Map();
     private readonly disabledEntities_ = new Set<Entity>();
+    private bindingRevision_ = 0;
+    /** @internal Changes when the set of skeletons eligible to draw can change. */
+    get bindingRevision(): number { return this.bindingRevision_; }
     /** So a runtime loaded after `observe(true)` reports too. */
     private observing_ = false;
 
@@ -90,7 +97,11 @@ export class SpineManager {
         // Every version loads into its per-version side-module backend; there is
         // no native runtime fallback. A missing factory for `version` fails the
         // load (logged below) — spine is strictly pay-for-use.
+        const request = Symbol();
+        this.pendingBindings_.set(entity, request);
         const runtime = await this.ensureRuntime(version);
+        if (this.pendingBindings_.get(entity) !== request) return null;
+        this.pendingBindings_.delete(entity);
         if (!runtime) {
             log.error('spine', `Failed to create the runtime for version ${version}`);
             return null;
@@ -109,6 +120,7 @@ export class SpineManager {
         // submitted every frame and no despawn ever reaches it.
         if (previous && previous !== runtime) previous.removeEntity(entity);
         this.bindings_.set(entity, runtime);
+        ++this.bindingRevision_;
         runtime.setEnabled(entity, !this.disabledEntities_.has(entity));
         return version;
     }
@@ -121,9 +133,9 @@ export class SpineManager {
     }
 
     /** Skip extraction for entities the activity predicate excludes. */
-    submitMeshes(registry: CppRegistry, materialOf?: SkeletalMaterialOf, isActive?: (entity: Entity) => boolean): void {
+    submitMeshes(registry: CppRegistry, materialOf?: SkeletalMaterialOf, isActive?: (entity: Entity) => boolean, core = this.coreModule_): void {
         for (const runtime of this.runtimes_.values()) {
-            runtime.extractAndSubmitMeshes(this.coreModule_, registry, materialOf, isActive);
+            runtime.extractAndSubmitMeshes(core, registry, materialOf, isActive);
         }
     }
 
@@ -134,8 +146,9 @@ export class SpineManager {
     }
 
     removeEntity(entity: Entity): void {
+        this.pendingBindings_.delete(entity);
         this.bindings_.get(entity)?.removeEntity(entity);
-        this.bindings_.delete(entity);
+        if (this.bindings_.delete(entity)) ++this.bindingRevision_;
         this.disabledEntities_.delete(entity);
     }
 
@@ -145,11 +158,14 @@ export class SpineManager {
      * The ONE teardown door: `shutdown()` was a second name for this.
      */
     dispose(): void {
+        ++this.lifetime_;
+        this.pendingBindings_.clear();
         for (const runtime of this.runtimes_.values()) {
             runtime.dispose();
         }
         this.runtimes_.clear();
         this.loadingRuntimes_.clear();
+        if (this.bindings_.size) ++this.bindingRevision_;
         this.bindings_.clear();
         this.disabledEntities_.clear();
     }
@@ -182,8 +198,9 @@ export class SpineManager {
             ? SpineManager.detectVersionJson(skelData)
             : SpineManager.detectVersion(skelData);
         if (!version) return null;
+        const lifetime = this.lifetime_;
         const runtime = await this.ensureRuntime(version);
-        return runtime ? runtime.openPreview(era) : null;
+        return runtime && lifetime === this.lifetime_ ? runtime.openPreview(era) : null;
     }
 
     /** Whether anything is counting. */
@@ -318,7 +335,8 @@ export class SpineManager {
      */
     setEnabled(entity: Entity, enabled: boolean): void {
         const backend = this.runtimeOf_(entity);
-        if (!backend) return;
+        if (!backend || this.disabledEntities_.has(entity) === !enabled) return;
+        ++this.bindingRevision_;
         if (enabled) this.disabledEntities_.delete(entity);
         else this.disabledEntities_.add(entity);
         backend.setEnabled(entity, enabled);
@@ -361,9 +379,12 @@ export class SpineManager {
             return null;
         }
 
+        const lifetime = this.lifetime_;
         const promise = (async () => {
             try {
-                const runtime = new SpineRuntime(version, await factory());
+                const module = await Promise.resolve().then(() => factory());
+                if (this.lifetime_ !== lifetime) return null;
+                const runtime = new SpineRuntime(version, module);
                 if (this.observing_) runtime.observe(true);
                 this.runtimes_.set(version, runtime);
                 return runtime;
@@ -371,7 +392,7 @@ export class SpineManager {
                 log.error('spine', `Failed to load WASM module for version ${version}`, e);
                 return null;
             } finally {
-                this.loadingRuntimes_.delete(version);
+                if (this.lifetime_ === lifetime) this.loadingRuntimes_.delete(version);
             }
         })();
 

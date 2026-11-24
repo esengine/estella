@@ -10072,8 +10072,8 @@ width: number
 
 ## RenderPipeline — class @experimental
 ```
-addPreFlushCallback: (cb: PassCallback) => () => void
-addScreenOverlayCallback: (cb: PassCallback, still?: PassStill) => () => void
+addPreFlushCallback: (cb: PassCallback, owner?: App) => () => void
+addScreenOverlayCallback: (cb: PassCallback, still?: PassStill, owner?: App) => () => void
 beginFrame: (elapsedSec?: number) => void
 beginScreenCapture: () => void
 demand: RenderDemand

@@ -15,7 +15,7 @@ import { DragonBonesPlugin } from '../src/dragonbones/DragonBonesPlugin';
 import { DragonBonesModuleController } from '../src/dragonbones/DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModuleLoader';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
-import type { RenderPipeline } from '../src/render/renderPipeline';
+import { RenderPipeline } from '../src/render/renderPipeline';
 import { HAS_WASM, hasSideModule, loadSideModule, loadWasmModule } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM || !hasSideModule('spine38') || !hasSideModule('dragonbones'))('real skeletal hierarchy activity', () => {
@@ -30,10 +30,8 @@ describe.skipIf(!HAS_WASM || !hasSideModule('spine38') || !hasSideModule('dragon
         core.renderer_submitSkeletalBatchByEntity = () => { submissions++; };
         core.renderer_submitSkeletalBatchByEntityEx = core.renderer_submitSkeletalBatchByEntity;
         const app = App.new(); app.connectCpp(registry, core);
-        const callbacks: Array<(r: { _cpp: CppRegistry }) => void> = [];
-        // The cameras' pass only: the screen overlay's submits nothing in a world with no Canvas.
-        app.setPipeline({ addPreFlushCallback: (cb: (r: { _cpp: CppRegistry }) => void) => callbacks.push(cb),
-            addScreenOverlayCallback: () => {} } as unknown as RenderPipeline);
+        const pipeline = new RenderPipeline();
+        app.setPipeline(pipeline);
         const world = app.world;
         const parent = world.spawn('parent'); world.insert(parent, Transform, {});
         const child = world.spawn('skeleton'); world.insert(child, Transform, {}); world.setParent(child, parent);
@@ -66,13 +64,21 @@ describe.skipIf(!HAS_WASM || !hasSideModule('spine38') || !hasSideModule('dragon
             expect(manager.addEntity(child, handle, { armature: 'Dragon', animation: 'walk', assetKey: 'activity-dragon' })).toBe(true);
         }
         try {
-            const frame = async () => { await app.tick(1 / 60); for (const cb of callbacks) cb({ _cpp: registry }); };
+            const frame = async () => { await app.tick(1 / 60); pipeline.runPreFlushCallbacks({ _cpp: registry }); };
             const enable = (on: boolean) => {
                 if (scenario.endsWith('native')) registry.setEntityEnabled!(parent, on);
                 else if (on) world.remove(parent, Disabled);
                 else world.insert(parent, Disabled, {});
             };
             await frame(); expect(submissions).toBeGreaterThan(0);
+            const preview = new engine.Registry();
+            try {
+                expect(preview.create()).toBe(parent);
+                expect(preview.create()).toBe(child);
+                submissions = 0;
+                pipeline.runPreFlushCallbacks({ _cpp: preview });
+                expect(submissions, 'the other camera received this skeleton\'s batches').toBe(0);
+            } finally { preview.delete(); }
             const frozen = manager.getBounds(child); expect(frozen).not.toBeNull();
             enable(false); expect(world.isEntityActive(child)).toBe(false);
             submissions = 0;
@@ -97,6 +103,11 @@ describe.skipIf(!HAS_WASM || !hasSideModule('spine38') || !hasSideModule('dragon
                 enable(true); await frame();
                 expect(app.getResource(SpineEvents).events.some(e => e.entity === child && e.type === 'start')).toBe(true);
             }
+            app.world.disconnectCpp();
+            expect([...manager.boundEntities()]).toEqual([]);
+            submissions = 0;
+            pipeline.runPreFlushCallbacks({ _cpp: registry });
+            expect(submissions).toBe(0);
         } finally { cleanup!(); registry.delete(); }
     });
 });

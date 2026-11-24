@@ -14,30 +14,45 @@
 import type { App } from '../app/app';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
-import { engineApi } from '../ecs/bridge/engineApi';
+import { worldEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 
 /** Submits one pass's skeletons; `include` says which entities this pass owns. */
-export type SkeletalDomainSubmit = (registry: { _cpp: CppRegistry }, include: (entity: Entity) => boolean) => void;
+export type SkeletalDomainSubmit = (core: EngineApi, registry: CppRegistry, include: (entity: Entity) => boolean) => void;
 
 /**
  * Register `submit` for the cameras and for the screen overlay. A core that cannot
  * say what the screen owns has partitioned nothing, so everything goes to the cameras.
  */
-export function addSkeletalSubmit(app: App, submit: SkeletalDomainSubmit, isActive: (entity: Entity) => boolean): void {
-    const api = engineApi(app) as { ui_isScreenDomain?(registry: unknown, entity: number): boolean } | null;
-    const isScreen = (registry: { _cpp: CppRegistry }, entity: Entity): boolean =>
-        api?.ui_isScreenDomain?.(registry._cpp, entity) ?? false;
-    app.pipeline?.addPreFlushCallback((registry) =>
-        submit(registry, (e) => isActive(e) && !isScreen(registry, e)));
-    if (!api?.ui_isScreenDomain) return;
-    // A skeleton on the screen poses every frame, so a pass that drew one is never held; one with none adds nothing.
+export function addSkeletalSubmit(
+    app: App, manager: () => { readonly bindingRevision: number } | null, submit: SkeletalDomainSubmit,
+): (() => void) | null {
+    const pipeline = app.pipeline;
+    if (!pipeline) return null;
+    const world = app.world;
+    const camera = pipeline.addPreFlushCallback(({ _cpp }) => {
+        const core = worldEngineApi(world);
+        if (core) submit(core, _cpp, e => world.isEntityActive(e) && !core.ui_isScreenDomain?.(_cpp, e));
+    }, app);
+    // A previously empty pass can gain a skeleton when its side module finishes loading, with no ECS write.
     let drewScreen = true;
-    app.pipeline?.addScreenOverlayCallback((registry) => {
+    let previous: ReturnType<typeof manager> = null;
+    let bindingRevision = -1, activityEpoch = -1;
+    const screen = pipeline.addScreenOverlayCallback(({ _cpp }) => {
+        previous = manager();
+        bindingRevision = previous?.bindingRevision ?? 0;
+        activityEpoch = _cpp.activityEpoch?.() ?? 0;
         drewScreen = false;
-        submit(registry, (e) => {
-            const screen = isActive(e) && isScreen(registry, e);
-            if (screen) drewScreen = true;
-            return screen;
+        const core = worldEngineApi(world);
+        if (!core?.ui_isScreenDomain) return;
+        submit(core, _cpp, e => {
+            const include = world.isEntityActive(e) && core.ui_isScreenDomain!(_cpp, e);
+            if (include) drewScreen = true;
+            return include;
         });
-    }, () => !drewScreen);
+    }, ({ _cpp }) => {
+        const current = manager();
+        return !drewScreen && previous === current && bindingRevision === (current?.bindingRevision ?? 0)
+            && activityEpoch === (_cpp.activityEpoch?.() ?? 0);
+    }, app);
+    return () => { camera(); screen(); };
 }

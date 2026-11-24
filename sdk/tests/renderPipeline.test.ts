@@ -76,6 +76,9 @@ import {
     registerDrawCallback, registerOverScreenDrawCallback, registerPreSceneDrawCallback,
 } from '../src/render/customDraw';
 import { World } from '../src/ecs/world';
+import { App } from '../src/app/app';
+import { addSkeletalSubmit } from '../src/skeletal/submitDomains';
+import type { Entity } from '../src/types';
 const postProcessFixture = PostProcess as unknown as PostProcessAPI;
 
 describe('RenderPipeline', () => {
@@ -295,6 +298,81 @@ describe('RenderPipeline', () => {
         expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
         pipeline.renderScreenOverlay(registry, overlay);
         expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, true);
+    });
+
+    it('wakes a retained empty skeletal overlay on late binding, enable and hierarchy changes', () => {
+        const app = App.new();
+        app.setPipeline(pipeline);
+        const entity = 4 as Entity;
+        let epoch = 0, enabled = false, active = true;
+        registry._cpp.activityEpoch = () => epoch;
+        vi.spyOn(app.world, 'getCppRegistry').mockReturnValue(registry._cpp);
+        vi.spyOn(app.world, 'getWasmModule').mockReturnValue({ ui_isScreenDomain: () => true } as never);
+        vi.spyOn(app.world, 'isEntityActive').mockImplementation(() => active);
+        let manager: { bindingRevision: number } | null = null;
+        const mesh = vi.fn();
+        addSkeletalSubmit(app, () => manager, (_, __, include) => {
+            if (enabled && include(entity)) mesh();
+        });
+        const overlay = defaultScreenOverlay();
+        overlay.active = true; overlay.vpW = 80; overlay.vpH = 60;
+        const frame = (held: boolean) => {
+            vi.mocked(Renderer.keepScreenOverlay).mockImplementationOnce((_, still) => still);
+            pipeline.renderScreenOverlay(registry, overlay);
+            expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, held);
+        };
+        try {
+            frame(false);
+            frame(true);
+            manager = { bindingRevision: 0 };
+            frame(false);
+            frame(true);
+            enabled = true; ++manager.bindingRevision;
+            frame(false);
+            expect(mesh).toHaveBeenCalledTimes(1);
+            enabled = false; ++manager.bindingRevision;
+            frame(false);
+            frame(true);
+            enabled = true; ++manager.bindingRevision;
+            frame(false);
+            expect(mesh).toHaveBeenCalledTimes(2);
+            active = false; ++epoch;
+            frame(false);
+            frame(true);
+            active = true; ++epoch;
+            frame(false);
+            expect(mesh).toHaveBeenCalledTimes(3);
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
+    it('keeps pass contributions with the owning app across peer installs, registry changes and quit', () => {
+        const owner = App.new(), peer = App.new(), other = { _cpp: {} as typeof registry._cpp };
+        const ownerRegistry = vi.spyOn(owner.world, 'getCppRegistry').mockReturnValue(registry._cpp);
+        vi.spyOn(peer.world, 'getCppRegistry').mockReturnValue(other._cpp);
+        const draw = vi.fn(), peerDraw = vi.fn(), peerStill = vi.fn(() => false);
+        const overlay = defaultScreenOverlay();
+        overlay.active = true; overlay.vpW = 80; overlay.vpH = 60;
+        pipeline.addPreFlushCallback(draw, owner);
+        pipeline.addScreenOverlayCallback(draw, () => true, owner);
+        pipeline.renderScreenOverlay(registry, overlay);
+        pipeline.addScreenOverlayCallback(peerDraw, peerStill, peer);
+        pipeline.runPreFlushCallbacks(other);
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(draw).toHaveBeenCalledTimes(2);
+        expect(peerDraw).not.toHaveBeenCalled();
+        expect(peerStill).not.toHaveBeenCalled();
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, true);
+        ownerRegistry.mockReturnValue(other._cpp);
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
+        pipeline.runPreFlushCallbacks(other);
+        expect(draw).toHaveBeenCalledTimes(3);
+        owner.quit({ keepRenderer: true });
+        pipeline.runPreFlushCallbacks(other);
+        pipeline.renderScreenOverlay(other, overlay);
+        expect(draw).toHaveBeenCalledTimes(3);
+        expect(peerDraw).toHaveBeenCalledOnce();
+        peer.quit({ keepRenderer: true });
     });
 
     it('applies pass removals immediately and starts replacements on the next pass', () => {

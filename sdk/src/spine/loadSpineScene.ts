@@ -232,6 +232,7 @@ export async function applySpineEntities(opts: {
 }): Promise<void> {
     const { spineManager, sceneData, entityMap, registry, assetInfo } = opts;
     if (assetInfo.size === 0) return;
+    const lifetime = spineManager.bindingLifetime;
 
     for (const sceneEntity of sceneData.entities) {
         // Prefab instances carry no inline components; skip them (the async loader
@@ -254,7 +255,9 @@ export async function applySpineEntities(opts: {
             const entity = entityMap.get(sceneEntity.id);
             if (entity === undefined) continue;
 
-            await spineManager.loadEntity(entity, info.era, registry);
+            const bound = await spineManager.loadEntity(entity, info.era, registry);
+            if (spineManager.bindingLifetime !== lifetime) return;
+            if (!bound) continue;
 
             spineManager.setEntityProps(entity, spineEntityProps(comp.data as Record<string, unknown>));
             const skin = comp.data.skin as string;
@@ -283,8 +286,10 @@ export async function loadSpineSceneEntities(opts: {
 }): Promise<void> {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.spines.length === 0) return;
+    const lifetime = opts.spineManager.bindingLifetime;
     const assetInfo = await loadSpineAssets(opts.module, opts.source, opts.spineManager, discovered.spines, opts.transcoderProvider);
     try {
+        if (opts.spineManager.bindingLifetime !== lifetime) return;
         await applySpineEntities({
             spineManager: opts.spineManager, sceneData: opts.sceneData,
             entityMap: opts.entityMap, registry: opts.registry, assetInfo,

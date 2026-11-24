@@ -35,6 +35,8 @@ skeletonScale: number | undefined
 
 ## DragonBonesManager — class @experimental
 ```
+@internal bindingLifetime: number
+@internal bindingRevision: number
 @internal discardUnboundSkeleton: (assetKey: string) => void
 addEntity: (entity: Entity, skeletonHandle: number, options: DragonBonesEntityOptions) => boolean
 boneTree: (entity: Entity) => SkeletalBoneTree | null

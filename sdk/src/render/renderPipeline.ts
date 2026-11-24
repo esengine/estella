@@ -6,6 +6,8 @@
  */
 
 import type { CppRegistry } from '../wasm';
+import type { App } from '../app/app';
+import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
@@ -20,21 +22,35 @@ import { RenderDemand } from './renderDemand';
 type PassCallback = (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void;
 type PassStill = (registry: { _cpp: CppRegistry }) => boolean;
 
-class PassCallbacks {
-    entries: ReadonlyArray<{ draw: PassCallback; still?: PassStill; active: boolean }> = [];
-    revision = 0;
+interface PassRegistration {
+    draw: PassCallback;
+    still?: PassStill;
+    world?: World;
+    active: boolean;
+    lastOverlay: number;
+}
 
-    add(draw: PassCallback, still?: PassStill): () => void {
-        const entry = { draw, still, active: true };
+function drawsIn(entry: PassRegistration, registry: CppRegistry): boolean {
+    return entry.active && (!entry.world || entry.world.getCppRegistry() === registry);
+}
+
+class PassCallbacks {
+    entries: readonly PassRegistration[] = [];
+
+    add(draw: PassCallback, still?: PassStill, owner?: App): () => void {
+        const life = owner?.signal;
+        if (life?.aborted) return () => {};
+        const entry = { draw, still, world: owner?.world, active: true, lastOverlay: -1 };
         // The pass in progress keeps its list. Removal takes effect immediately, additions on the next pass.
         this.entries = [...this.entries, entry];
-        ++this.revision;
-        return () => {
+        const release = () => {
             if (!entry.active) return;
             entry.active = false;
             this.entries = this.entries.filter(candidate => candidate !== entry);
-            ++this.revision;
+            life?.removeEventListener('abort', release);
         };
+        life?.addEventListener('abort', release, { once: true });
+        return release;
     }
 }
 
@@ -93,7 +109,8 @@ export class RenderPipeline {
     private activeScenes_: Set<string> | null = null;
     private readonly preFlushCallbacks_ = new PassCallbacks();
     private readonly screenOverlayCallbacks_ = new PassCallbacks();
-    private renderedOverlayRevision_: number | null = null;
+    private overlayPass_ = 0;
+    private overlayCallbackCount_ = 0;
     private postProcess_: PostProcessAPI | null = null;
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
@@ -130,9 +147,9 @@ export class RenderPipeline {
         this.postProcess_ = pp;
     }
 
-    /** The optional projection is the current pass; legacy manual hosts may omit it. */
-    addPreFlushCallback(cb: PassCallback): () => void {
-        return this.preFlushCallbacks_.add(cb);
+    /** An owner scopes the callback to its current registry and releases it when the app quits. */
+    addPreFlushCallback(cb: PassCallback, owner?: App): () => void {
+        return this.preFlushCallbacks_.add(cb, undefined, owner);
     }
 
     /**
@@ -140,12 +157,14 @@ export class RenderPipeline {
      * camera — the sibling of {@link addPreFlushCallback}, separate for the same
      * reason the two collects are: a callback that ran in both would put the same
      * glyph in each list. Runs between the overlay's collect and its pass.
+     * An owner scopes both drawing and retention to its current registry for the lifetime of the app.
      */
     addScreenOverlayCallback(
         cb: PassCallback,
         still?: PassStill,
+        owner?: App,
     ): () => void {
-        return this.screenOverlayCallbacks_.add(cb, still);
+        return this.screenOverlayCallbacks_.add(cb, still, owner);
     }
 
     /**
@@ -156,7 +175,9 @@ export class RenderPipeline {
      * so text lands in the same frame either way.
      */
     runPreFlushCallbacks(registry: { _cpp: CppRegistry }, viewProjection?: Float32Array): void {
-        for (const entry of this.preFlushCallbacks_.entries) if (entry.active) entry.draw(registry, viewProjection);
+        for (const entry of this.preFlushCallbacks_.entries) {
+            if (drawsIn(entry, registry._cpp)) entry.draw(registry, viewProjection);
+        }
     }
 
     beginFrame(elapsedSec = 0): void {
@@ -214,14 +235,25 @@ export class RenderPipeline {
         Renderer.setCullingMask(layers);
         if (effect !== 0) Renderer.setScreenOverlayEffect(effect);
         // A pass nothing it draws has changed since is the one the engine holds: it draws that, and nothing is submitted.
-        const { entries, revision } = this.screenOverlayCallbacks_;
-        const sameCallbacks = this.renderedOverlayRevision_ === null || this.renderedOverlayRevision_ === revision;
-        const hostStill = sameCallbacks && entries.every(entry => !entry.active || entry.still?.(registry));
+        const entries = this.screenOverlayCallbacks_.entries;
+        const pass = ++this.overlayPass_;
+        let hostStill = true, count = 0;
+        for (const entry of entries) {
+            if (!drawsIn(entry, registry._cpp)) continue;
+            ++count;
+            if (pass > 1 && entry.lastOverlay !== pass - 1) hostStill = false;
+            entry.lastOverlay = pass;
+            if (hostStill && !entry.still?.(registry)) hostStill = false;
+        }
+        // A retired contributor can have left geometry in the held list. An unrelated world's registrations cannot.
+        if (pass > 1 && count !== this.overlayCallbackCount_) hostStill = false;
+        this.overlayCallbackCount_ = count;
         if (!Renderer.keepScreenOverlay(registry, hostStill)) {
             Renderer.submitScreenOverlay(registry);
-            for (const entry of entries) if (entry.active) entry.draw(registry, overlay.projection);
+            for (const entry of entries) {
+                if (entry.lastOverlay === pass && drawsIn(entry, registry._cpp)) entry.draw(registry, overlay.projection);
+            }
         }
-        this.renderedOverlayRevision_ = revision;
         Renderer.endScreenOverlay(target);
     }
 
