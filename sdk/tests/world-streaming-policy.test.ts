@@ -6,7 +6,7 @@
  *          MaxLoadingStreamingCells and BlockOnSlowStreaming), and a cell that arrives over frames without being seen
  *          half arrived.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { WorldStreamer, DEFAULT_STREAMING_POLICY, type WorldStreamHost } from '../src/residency/WorldStreamer';
 import type { WorldCell, WorldManifest, ResidencySource } from '../src/residency/cells';
 import { Bakes } from '../src/runtime/bakes';
@@ -370,6 +370,35 @@ describe('a staged spawn', () => {
             { id: 3, name: 'Off', parent: null, children: [], visible: true, components: [{ type: 'Disabled', data: {} }] },
         ],
     } as unknown as SceneData;
+
+    it.each([0, 1000])('reports active work across yields with a %i ms pause', pause => {
+        const w = world();
+        let now = 0;
+        const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+        const spawn = w.spawn.bind(w), insert = w.insert.bind(w), setParent = w.setParent.bind(w);
+        w.spawn = name => { now += 2; return spawn(name); };
+        w.insert = (entity, component, value) => {
+            if (component === Tag) now += 3;
+            return insert(entity, component, value);
+        };
+        w.setParent = (child, parent) => { now += 7; setParent(child, parent); };
+        const [root, child, off] = data.entities;
+        const scene = { ...data, entities: [{ ...root, children: [2, 3] }, child, { ...off, parent: 1 }] };
+        const phases: [string, number][] = [];
+        try {
+            const job = spawnAndLoadEntitiesJob(w, scene, undefined, (name, ms) => {
+                phases.push([name, ms]);
+                now += 11;
+            }, true);
+            while (!job.next().done) now += pause;
+            expect(phases).toEqual([
+                ['spawn.validate', 0], ['spawn.entities', 6], ['spawn.components.StagedTag', 6],
+                ['spawn.components.Disabled', 0], ['spawn.components', 6], ['spawn.hierarchy', 14],
+            ]);
+        } finally {
+            clock.mockRestore();
+        }
+    });
 
     it('yields as it goes, keeps its roots switched off, and switches them on whole', () => {
         const w = world();

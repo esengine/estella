@@ -627,13 +627,13 @@ export function* spawnAndLoadEntitiesJob(
     sink?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
     assertCurrent?: () => void,
 ): Generator<number, StagedSpawn, void> {
-    // One clock reading per component rather than two: the end of one write is
-    // the start of the next, so attribution costs a call and not a pair. The
-    // clock is reset after every pause, so a phase is charged its own work and
-    // never the frames it waited through.
-    const onPhase: ScenePhaseSink | undefined = sink && assertCurrent
-        ? (phase, ms) => { sink(phase, ms); assertCurrent(); } : sink;
-    let mark = onPhase ? performance.now() : 0;
+    // Settle work before yielding and restart the clock after resumption. A phase's observer may itself take time.
+    let mark = sink ? performance.now() : 0;
+    const onPhase: ScenePhaseSink | undefined = sink ? (phase, ms) => {
+        sink(phase, ms);
+        assertCurrent?.();
+        mark = performance.now();
+    } : undefined;
     const since = (): number => {
         const now = performance.now();
         const elapsed = now - mark;
@@ -653,7 +653,7 @@ export function* spawnAndLoadEntitiesJob(
     let done = 0;
     let completed = false;
     try {
-        let skipped = 0;
+        let skipped = 0, entityMs = 0;
         for (const entityData of sceneData.entities) {
             if (entityData.visible === false) continue;
             // A prefab-instance entry reaching here means the synchronous path was
@@ -668,6 +668,7 @@ export function* spawnAndLoadEntitiesJob(
                 hidden.push(entity);
             }
             done++;
+            if (onPhase) entityMs += since();
             yield done / total;
             resume();
         }
@@ -684,7 +685,7 @@ export function* spawnAndLoadEntitiesJob(
                 hidden.push(entity);
             }
         }
-        if (onPhase) onPhase('spawn.entities', since());
+        if (onPhase) onPhase('spawn.entities', entityMs + since());
 
         // By component TYPE, because "component writes" is a rename of the total
         // and not an answer: which writes reach a subsystem, and which are field
@@ -710,6 +711,7 @@ export function* spawnAndLoadEntitiesJob(
             onPhase('spawn.components', total);
         }
 
+        let hierarchyMs = 0;
         for (const entityData of sceneData.entities) {
             if (entityData.parent !== null) {
                 const entity = entityMap.get(entityData.id);
@@ -717,12 +719,13 @@ export function* spawnAndLoadEntitiesJob(
                 if (entity !== undefined && parentEntity !== undefined) {
                     world.setParent(entity, parentEntity);
                     done++;
+                    if (onPhase) hierarchyMs += since();
                     yield done / total;
                     resume();
                 }
             }
         }
-        if (onPhase) onPhase('spawn.hierarchy', since());
+        if (onPhase) onPhase('spawn.hierarchy', hierarchyMs + since());
         completed = true;
         return spawn;
     } finally {
