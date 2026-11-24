@@ -66,7 +66,7 @@ export interface TranscodeResult {
     readonly height: number;
     /** GPU-ready compressed block data for the requested format, level 0. */
     readonly data: Uint8Array;
-    /** Every mip level the file carries, level 0 first; absent means level 0 only. */
+    /** The returned mip chain, resident base first. Omitted for a base-only result. */
     readonly levels?: readonly TranscodedLevel[];
 }
 
@@ -75,7 +75,7 @@ export interface RgbaResult {
     readonly height: number;
     /** width*height*4 RGBA8 bytes, level 0. */
     readonly data: Uint8Array;
-    /** Every mip level the file carries, level 0 first; absent means level 0 only. */
+    /** The returned mip chain, resident base first. Omitted for a base-only result. */
     readonly levels?: readonly TranscodedLevel[];
 }
 
@@ -87,9 +87,9 @@ export interface RgbaResult {
 export interface BasisTranscoder {
     /** Transcode to a device-supported compressed format, or null if it cannot.
      *  A worker-backed transcoder answers with a promise. */
-    transcode(ktx2: Uint8Array, target: CompressedTextureFormat): TranscodeResult | null | Promise<TranscodeResult | null>;
+    transcode(ktx2: Uint8Array, target: CompressedTextureFormat, options?: BasisLevelOptions): TranscodeResult | null | Promise<TranscodeResult | null>;
     /** Decode to uncompressed RGBA8 — the universal fallback. */
-    transcodeToRgba(ktx2: Uint8Array): RgbaResult | null | Promise<RgbaResult | null>;
+    transcodeToRgba(ktx2: Uint8Array, options?: BasisLevelOptions): RgbaResult | null | Promise<RgbaResult | null>;
 }
 
 // =============================================================================
@@ -217,15 +217,19 @@ export function glInternalFormat(
 // Upload
 // =============================================================================
 
-export interface CompressedUploadOptions {
+/** Which authored levels to decode. A transcoder without per-level support can still return its full result. */
+export interface BasisLevelOptions {
+    /** Use the first mip within this bound, or the smallest available. Zero keeps the original base. */
+    readonly maxEdge?: number;
+    /** False keeps just that base. */
+    readonly mipmaps?: boolean;
+}
+
+export interface CompressedUploadOptions extends BasisLevelOptions {
     readonly filter?: 'linear' | 'nearest';
     readonly wrap?: 'repeat' | 'clamp' | 'mirror';
     /** Linear pipeline: store sRGB-encoded so the sampler linearizes in hardware. */
     readonly srgb?: boolean;
-    /** False keeps level 0 alone, however many levels the file carries. */
-    readonly mipmaps?: boolean;
-    /** Leave out the levels larger than this many texels on a side (texture streaming); 0 keeps them all. */
-    readonly maxEdge?: number;
 }
 
 /**
@@ -264,9 +268,15 @@ export function levelsOf(r: TranscodeResult | RgbaResult, opts?: CompressedUploa
     return r.levels && r.levels.length > 0 ? r.levels : [base];
 }
 
-/** S3TC requires each mip's dimensions, scaled to level zero, to align to
- * four texels. Small tail levels remain valid at their original mip index. */
-function webglCompressedLevelsSupported(format: CompressedTextureFormat, levels: readonly TranscodedLevel[]): boolean {
+/** WebGPU requires a whole-block base for every Basis target (all 4×4), then accepts padded tail levels.
+ * WebGL's S3TC rule applies to each level's extent scaled back to its index-zero size. */
+export function compressedLevelsSupported(
+    backend: 'webgl2' | 'webgpu', format: CompressedTextureFormat, levels: readonly TranscodedLevel[],
+): boolean {
+    if (backend === 'webgpu') {
+        const base = levels[0];
+        return !!base && base.width % 4 === 0 && base.height % 4 === 0;
+    }
     return format !== CompressedTextureFormat.S3TC_DXT5 || levels.every((level, index) =>
         (level.width * 2 ** index) % 4 === 0 && (level.height * 2 ** index) % 4 === 0);
 }
@@ -283,7 +293,7 @@ export function uploadCompressedTexture(
     // format is 4–8× smaller than the pool's RGBA8 estimate, and billing it at
     // the estimate would squat on most of the budget.
     const levels = levelsOf(t, opts);
-    if (!webglCompressedLevelsSupported(fmt, levels)) {
+    if (!compressedLevelsSupported('webgl2', fmt, levels)) {
         throw new Error('S3TC texture mip dimensions are not block aligned for WebGL');
     }
     const handle = handOverNewTexture(module, gl, (g) => {
@@ -348,15 +358,14 @@ export interface TextureUploadDecision {
     readonly reason: TextureUploadReason;
 }
 
-/** The decision a compressed payload came to, given the device's answer and
- *  whether the transcode to it worked. Pure — the three cases hold without a
- *  GL context, a device or the basis module. */
+/** Report the device choice, transcode result and block alignment for this resident texture. */
 export function compressedUploadDecision(
-    target: CompressedTextureFormat | null, transcoded: boolean,
+    target: CompressedTextureFormat | null, transcoded: boolean, blockAligned = true,
 ): TextureUploadDecision {
     if (target === null) {
         return { payload: 'ktx2', target: null, effective: 'rgba8', reason: 'no-device-format' };
     }
+    if (!blockAligned) return { payload: 'ktx2', target, effective: 'rgba8', reason: 'not-block-aligned' };
     if (!transcoded) {
         return { payload: 'ktx2', target, effective: 'rgba8', reason: 'transcode-failed' };
     }
@@ -411,16 +420,14 @@ export async function loadCompressedTexture(
 ): Promise<LoadedCompressedTexture> {
     const support = detectCompressedTextureSupport(gl);
     const target = chooseTargetFormat(support, opts?.srgb ?? false);
-    const whole = target !== null ? await transcoder.transcode(bytes, target) : null;
+    const whole = target !== null ? await transcoder.transcode(bytes, target, opts) : null;
     const t = whole ? levelsFrom(whole, opts?.maxEdge) : null;
-    const aligned = target !== null && t !== null && webglCompressedLevelsSupported(target, levelsOf(t, opts));
-    const decision: TextureUploadDecision = target !== null && t && !aligned
-        ? { payload: 'ktx2', target, effective: 'rgba8', reason: 'not-block-aligned' }
-        : compressedUploadDecision(target, t !== null);
+    const aligned = !target || !t || compressedLevelsSupported('webgl2', target, levelsOf(t, opts));
+    const decision = compressedUploadDecision(target, t !== null, aligned);
     if (target !== null && t && aligned) {
         return { ...uploadCompressedTexture(gl, module, support, target, t, opts), decision };
     }
-    const decoded = await transcoder.transcodeToRgba(bytes);
+    const decoded = await transcoder.transcodeToRgba(bytes, opts);
     if (!decoded) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
     const rgba = levelsFrom(decoded, opts?.maxEdge);
     return { ...uploadRgbaTexture(gl, module, rgba, opts), decision };

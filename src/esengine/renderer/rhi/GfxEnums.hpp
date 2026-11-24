@@ -358,11 +358,8 @@ inline GfxBlockInfo gfxCompressedBlockInfo(GfxCompressedFormat fmt) {
     }
 }
 
-/** @brief How many mip levels of a @p width x @p height image are WHOLE blocks,
- *         counting from the base — the levels a compressed copy may write, since a
- *         copy whose size is not a multiple of the block is refused. 72x72 has two
- *         (72, 36; 18 stops it) and 70x70 has none, which is what makes an image
- *         uncompressible rather than merely short of mips. */
+/** @brief Count consecutive mip levels whose logical dimensions are whole blocks.
+ *         WebGPU requires this of the base. Lower mips can be copied using their padded block extents. */
 inline u32 gfxWholeBlockLevels(GfxCompressedFormat fmt, u32 width, u32 height, u32 mipLevels) {
     const GfxBlockInfo bi = gfxCompressedBlockInfo(fmt);
     u32 levels = 0;

@@ -76,8 +76,7 @@ int main() {
     }
 
     // --- how many mip levels of an image are whole blocks ---
-    // The rule a compressed copy obeys at every level, not only the base: 72x72
-    // passed a base-only check and its 18x18 third mip was uploaded anyway.
+    // Number of naturally aligned levels. After these the backend copies padded blocks.
     {
         using esengine::gfxWholeBlockLevels;
         const auto etc2 = GfxCompressedFormat::ETC2_RGBA8;   // 4x4

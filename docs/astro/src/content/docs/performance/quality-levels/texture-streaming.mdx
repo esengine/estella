@@ -67,8 +67,9 @@ other than a mesh.
 - The streamer reads each field's `assetFields` declaration. A renderer that reports texel demand for a texture or
   a material's samplers can declare `measuresTextureDensity: true` on that field. Other live texture and material
   fields keep the imported resolution.
-- A KTX2 file is cut at a mip level without decoding. Where the host transcodes KTX2 itself (the native builds), it cannot
-  be cut, and the texture is left at its size.
+- KTX2 streaming starts at the first authored mip whose longest edge fits the requested size. If every mip is larger,
+  it uses the smallest one in the file. Web, mini-game and native runtimes skip the larger levels during transcoding.
+  If the selected size does not fit the GPU's compression blocks, the texture still draws at that size using RGBA.
 - Older hosts that cannot replace a texture's contents in place load the full image at once.
 
 ## See also

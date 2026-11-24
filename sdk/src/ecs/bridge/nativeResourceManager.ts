@@ -72,8 +72,8 @@ export function createNativeResourceManager(
         // The host transcodes KTX2 (basis) and uploads the blocks:
         // { id, width, height, format, blockRefused } → { handle, ... }. A host
         // without the last two leaves them undefined, never a compressed answer.
-        createTextureFromKTX2: (bytes, srgb, mipmaps = true) => {
-            const r = hostCall(scope, RESOURCE_BINDINGS.createTextureKTX2, [bytes, srgb, mipmaps]) as
+        createTextureFromKTX2: (bytes, srgb, mipmaps = true, maxEdge = 0) => {
+            const r = hostCall(scope, RESOURCE_BINDINGS.createTextureKTX2, [bytes, srgb, mipmaps, maxEdge]) as
                 { id: number; width: number; height: number;
                   format?: number; blockRefused?: boolean } | null;
             return r

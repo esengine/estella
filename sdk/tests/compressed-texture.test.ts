@@ -120,9 +120,10 @@ describe('loadCompressedTexture', () => {
         const gl = makeGl({ astc: true });
         const mod = makeModule();
         const transcoder = makeTranscoder();
-        const r = await loadCompressedTexture(gl as never, mod as never, transcoder, KTX2_HEADER);
+        const options = { maxEdge: 7, mipmaps: false };
+        const r = await loadCompressedTexture(gl as never, mod as never, transcoder, KTX2_HEADER, options);
 
-        expect(transcoder.transcode).toHaveBeenCalledWith(KTX2_HEADER, CompressedTextureFormat.ASTC_4x4);
+        expect(transcoder.transcode).toHaveBeenCalledWith(KTX2_HEADER, CompressedTextureFormat.ASTC_4x4, options);
         expect(transcoder.transcodeToRgba).not.toHaveBeenCalled();
         expect(gl.compressedTexImage2D).toHaveBeenCalledTimes(1);
         // internalformat arg = the ASTC extension constant

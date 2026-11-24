@@ -1176,6 +1176,9 @@ bool WebGPUDevice::backendCreateCompressedTexture(u32 id, const TextureDesc& des
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: unmapped format");
         return false;
     }
+    // Dawn can return an error texture and report the validation failure asynchronously.
+    // Reject an invalid base before it can enter the resource pool as a successful upload.
+    if (gfxWholeBlockLevels(format, desc.width, desc.height, 1) == 0) return false;
     const u32 levels = mipLevels ? mipLevels : 1;
 
     WGPUTextureDescriptor td{};

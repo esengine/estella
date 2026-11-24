@@ -279,7 +279,7 @@ createTextureArray: ((width: number, height: number, layers: number, pixels: num
 createTextureArrayFromBytes: ((width: number, height: number, layers: number, pixels: Uint8Array, format: number, filterMode: number, wrapMode: number, content: TextureContent) => number) | undefined
 createTextureEx: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number, content: TextureContent) => number
 createTextureFromBytes: ((width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number) => number) | undefined
-createTextureFromKTX2: ((bytes: Uint8Array, srgb: boolean, mipmaps?: boolean) => { handle: number; width: number; height: number; format?: number; blockRefused?: boolean; } | null) | undefined
+createTextureFromKTX2: ((bytes: Uint8Array, srgb: boolean, mipmaps?: boolean, maxEdge?: number) => { handle: number; width: number; height: number; format?: number; blockRefused?: boolean; } | null) | undefined
 forgoTextureContent: ((handle: number) => void) | undefined
 getBitmapFontRefCount: (handle: number) => number
 getResourceStats: () => { shaderCount: number; textureCount: number; vertexBufferCount: number; indexBufferCount: number; cacheHits: number; cacheMisses: number; textureBytes: number; textureBudget: number; textureEvictableCount: number; retainedBytes: number; }

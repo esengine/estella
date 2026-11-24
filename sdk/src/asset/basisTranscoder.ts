@@ -8,7 +8,7 @@
  * Marshalling mirrors the physics module: copy the KTX2 bytes into the module's
  * heap, transcode into a module-allocated buffer, copy the result back out.
  */
-import type { BasisTranscoder, TranscodeResult, RgbaResult } from './compressed';
+import type { BasisLevelOptions, BasisTranscoder, TranscodeResult, RgbaResult } from './compressed';
 import { CompressedTextureFormat } from './compressed';
 
 /** Numeric format contract shared with BasisModuleEntry.cpp::mapFormat. */
@@ -53,26 +53,24 @@ export async function loadBasisModule(factory: BasisModuleFactory): Promise<Basi
 export class BasisTranscoderImpl implements BasisTranscoder {
     constructor(private readonly mod: BasisWasmModule) {}
 
-    transcode(ktx2: Uint8Array, target: CompressedTextureFormat): TranscodeResult | null {
-        return this.run_(ktx2, FORMAT_CODE[target]);
+    transcode(ktx2: Uint8Array, target: CompressedTextureFormat, options?: BasisLevelOptions): TranscodeResult | null {
+        return transcodeKtx2Levels(this.mod, ktx2, FORMAT_CODE[target], options);
     }
 
-    transcodeToRgba(ktx2: Uint8Array): RgbaResult | null {
-        return this.run_(ktx2, RGBA_CODE);
-    }
-
-    private run_(ktx2: Uint8Array, code: number): TranscodeResult | null {
-        return transcodeKtx2Levels(this.mod, ktx2, code);
+    transcodeToRgba(ktx2: Uint8Array, options?: BasisLevelOptions): RgbaResult | null {
+        return transcodeKtx2Levels(this.mod, ktx2, RGBA_CODE, options);
     }
 }
 
 /**
- * Every level of `ktx2` transcoded to format `code`, level 0 first, or null when
- * level 0 will not come out. Self-contained on purpose — it names nothing outside
+ * Transcode the requested levels of `ktx2`, or return null if the selected base fails.
+ * Self-contained on purpose — it names nothing outside
  * itself — because a transcode worker is built from its source text, and a
  * second copy of this loop is how the two would drift.
  */
-export function transcodeKtx2Levels(mod: BasisWasmModule, ktx2: Uint8Array, code: number): TranscodeResult | null {
+export function transcodeKtx2Levels(
+    mod: BasisWasmModule, ktx2: Uint8Array, code: number, options?: BasisLevelOptions,
+): TranscodeResult | null {
     const inPtr = mod._malloc(ktx2.length);
     if (!inPtr) return null;
     try {
@@ -81,10 +79,12 @@ export function transcodeKtx2Levels(mod: BasisWasmModule, ktx2: Uint8Array, code
         try {
             const perLevel = typeof mod._es_basis_transcode_level === 'function';
             const count = perLevel ? Math.max(1, mod._es_basis_level_count!()) : 1;
+            const maxEdge = options?.maxEdge ?? 0;
             const levels: Array<{ width: number; height: number; data: Uint8Array }> = [];
             for (let level = 0; level < count; level++) {
                 const width = perLevel ? mod._es_basis_level_width!(level) : mod._es_basis_get_width();
                 const height = perLevel ? mod._es_basis_level_height!(level) : mod._es_basis_get_height();
+                if (maxEdge > 0 && Math.max(width, height) > maxEdge && level + 1 < count) continue;
                 const size = perLevel ? mod._es_basis_level_size!(code, level) : mod._es_basis_transcoded_size(code);
                 let data: Uint8Array | null = null;
                 const outPtr = size > 0 ? mod._malloc(size) : 0;
@@ -99,15 +99,13 @@ export function transcodeKtx2Levels(mod: BasisWasmModule, ktx2: Uint8Array, code
                         mod._free(outPtr);
                     }
                 }
-                // A chain that stops early is still a chain: keep the levels that
-                // came out, and the base level is the one that must.
-                if (!data) {
-                    if (level === 0) return null;
-                    break;
-                }
+                // Keep the consecutive levels that decoded, starting with the selected base.
+                if (!data) break;
                 levels.push({ width, height, data });
+                if (options?.mipmaps === false) break;
             }
-            return { width: levels[0].width, height: levels[0].height, data: levels[0].data, levels };
+            const base = levels[0];
+            return base ? { ...base, levels } : null;
         } finally {
             mod._es_basis_close();
         }

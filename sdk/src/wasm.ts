@@ -99,11 +99,12 @@ export interface CppResourceManager {
     /** {@link createTextureArray} without a wasm heap: the layers back to back as bytes. Present only on the native ResourceManager. */
     createTextureArrayFromBytes?(width: number, height: number, layers: number, pixels: Uint8Array, format: number, filterMode: number, wrapMode: number, content: TextureContent): number;
     createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number): number;
-    /** Transcode and upload KTX2 natively. Passing false for `mipmaps` keeps the base level.
+    /** Transcode and upload KTX2 natively. A positive `maxEdge` selects a smaller authored base when available.
+     *  Passing false for `mipmaps` uploads only the selected level.
      *  `format` is the uploaded GfxCompressedFormat ordinal, negative for decoded RGBA.
      *  `blockRefused` reports a supported format whose block size did not fit the image.
      *  Older hosts may omit the format and the reason. */
-    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean, mipmaps?: boolean): {
+    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean, mipmaps?: boolean, maxEdge?: number): {
         handle: number; width: number; height: number;
         format?: number; blockRefused?: boolean;
     } | null;

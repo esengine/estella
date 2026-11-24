@@ -17226,7 +17226,7 @@ Plugin
 
 ## compressedUploadDecision — function @experimental
 ```
-(target: CompressedTextureFormat | null, transcoded: boolean): TextureUploadDecision
+(target: CompressedTextureFormat | null, transcoded: boolean, blockAligned?: boolean): TextureUploadDecision
 ```
 
 ## computeEffectiveOrthoSize — function @experimental

@@ -121,6 +121,21 @@ describe.skipIf(!hasSideModule('basis'))('KTX2 transcoding on workers', () => {
         source: async () => source,
     });
 
+    it('returns exactly the requested authored bytes through the worker-backed realm', async () => {
+        const host = realmHost(), t = (await basisTranscoderFor(host))!;
+        try {
+            const fmt = CompressedTextureFormat.ASTC_4x4;
+            const whole = (await main.transcode(ktx2, fmt))!;
+            const rg = (await main.transcodeToRgba(ktx2))!;
+            const cut = await t.transcode(ktx2, fmt, { maxEdge: 10 });
+            expect(cut?.levels).toEqual(whole.levels!.slice(3));
+            expect(cut?.width).toBe(8);
+            const base = await t.transcodeToRgba(ktx2, { maxEdge: 3, mipmaps: false });
+            expect(base?.levels).toEqual([rg.levels![5]]);
+            expect(base?.data).toEqual(rg.levels![5]!.data);
+        } finally { host.dispose!(); }
+    });
+
     it('stops its workers with the host that made them, and answers nothing after', async () => {
         const before = StandInWorker.live;
         const host = realmHost();

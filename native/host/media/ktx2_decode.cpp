@@ -47,15 +47,21 @@ const FormatChoice kChoices[] = {
 namespace eshost {
 
 KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps,
-                         resource::ResourceManager& rm, GfxDevice& device) {
+                         resource::ResourceManager& rm, GfxDevice& device, double maxEdge) {
     const KTX2Result fail{-1, 0, 0, -1, false};
     ensureBasis();
 
     basist::ktx2_transcoder t;
     if (!t.init(bytes, static_cast<uint32_t>(n)) || !t.start_transcoding()) return fail;
-    const uint32_t w = t.get_width();
-    const uint32_t h = t.get_height();
-    if (w == 0 || h == 0) return fail;
+    const uint32_t fileLevels = t.get_levels();
+    uint32_t firstLevel = 0;
+    basist::ktx2_image_level_info base;
+    if (!t.get_image_level_info(base, firstLevel, 0, 0)) return fail;
+    while (maxEdge > 0 && (base.m_orig_width > maxEdge || base.m_orig_height > maxEdge) && firstLevel + 1 < fileLevels) {
+        if (!t.get_image_level_info(base, ++firstLevel, 0, 0)) return fail;
+    }
+    const uint32_t w = base.m_orig_width;
+    const uint32_t h = base.m_orig_height;
 
     basist::transcoder_texture_format basisFmt = basist::transcoder_texture_format::cTFRGBA32;
     GfxCompressedFormat gfxFmt = GfxCompressedFormat::ETC2_RGBA8;
@@ -89,8 +95,7 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps
     const uint32_t bpb = basist::basis_get_bytes_per_block_or_pixel(basisFmt);
     // The base must be block-aligned. The device writes lower levels using their
     // padded block extents, including the final 2x2 and 1x1 texels.
-    const uint32_t fileLevels = t.get_levels();
-    const uint32_t numLevels = compressed && mipmaps && fileLevels ? fileLevels : 1u;
+    const uint32_t numLevels = compressed && mipmaps ? fileLevels - firstLevel : 1u;
 
     // Pack each level tightly, level 0 first — the layout the device unpacks.
     std::vector<uint8_t> out;
@@ -102,7 +107,7 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps
                                            : ((lw + bw - 1) / bw) * ((lh + bh - 1) / bh);
         const size_t off = out.size();
         out.resize(off + static_cast<size_t>(units) * bpb);
-        if (!t.transcode_image_level(level, 0, 0, out.data() + off, units, basisFmt)) {
+        if (!t.transcode_image_level(firstLevel + level, 0, 0, out.data() + off, units, basisFmt)) {
             out.resize(off);   // drop the partial level and stop
             break;
         }

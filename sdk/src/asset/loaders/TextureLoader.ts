@@ -14,7 +14,7 @@ import { TextureContent, type CppResourceManager, type ESEngineModule } from '..
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
     isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, levelsOf, chooseEngineTargetFormat, engineFormatCode,
-    compressedUploadDecision, detectCompressedTextureSupport, glInternalFormat,
+    compressedLevelsSupported, compressedUploadDecision, detectCompressedTextureSupport, glInternalFormat,
     supportedTargetFormats, hostUploadDecision, RAW_PAYLOAD_UPLOAD,
     CompressedTextureFormat,
     type BasisTranscoder, type LoadedCompressedTexture, type TextureUploadDecision,
@@ -595,7 +595,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // wasm transcoder. sRGB follows the texture's settings, as on every path.
         const rm = requireResourceManager();
         if (rm.createTextureFromKTX2) {
-            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb), settings?.mipmaps ?? true);
+            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb), settings?.mipmaps ?? true, maxEdge);
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
             this.applyCompressedSampler_(rm, r.handle, settings);
             // A host that reports no format says nothing rather than claiming
@@ -644,17 +644,19 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const module = this.module_;
         const srgb = samplesAsSrgb(settings?.srgb);
         let target: CompressedTextureFormat | null = null;
+        let blockAligned = true;
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             target = chooseEngineTargetFormat((code) => supports(code), srgb);
-            const whole = target ? await transcoder.transcode(bytes, target) : null;
+            const whole = target ? await transcoder.transcode(bytes, target, { maxEdge, mipmaps: settings?.mipmaps }) : null;
             const t = whole ? levelsFrom(whole, maxEdge) : null;
-            if (target && t) {
+            const levels = t ? levelsOf(t, settings) : [];
+            blockAligned = !target || !t || compressedLevelsSupported('webgpu', target, levels);
+            if (target && t && blockAligned) {
                 const code = engineFormatCode(target, srgb);
                 // Level 0 first, packed, as the device unpacks them, every level of the chain: the device copies each as whole blocks
                 // (its physical size), so a level whose side is not a multiple of four is uploaded too. Stopping at the first such level
                 // left a 1240x1268 hair atlas with level 0 alone, sampled unfiltered at any distance.
-                const levels = levelsOf(t, settings);
                 const size = levels.reduce((n, l) => n + l.data.length, 0);
                 const handle = withMalloc(module, size, (ptr) => {
                     let at = ptr;
@@ -668,11 +670,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                 }
             }
         }
-        const decoded = await transcoder.transcodeToRgba(bytes);
+        // The engine generates RGBA mips from the resident base at upload.
+        const decoded = await transcoder.transcodeToRgba(bytes, { maxEdge, mipmaps: false });
         if (!decoded) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
         const rgba = levelsFrom(decoded, maxEdge);
         const texture = this.uploadPixels_({ width: rgba.width, height: rgba.height, pixels: rgba.data }, false, settings, 0);
-        return { ...texture, decision: compressedUploadDecision(target, false) };
+        return { ...texture, decision: compressedUploadDecision(target, false, blockAligned) };
     }
 
     /**

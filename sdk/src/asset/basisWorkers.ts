@@ -9,7 +9,7 @@
  * Each worker instantiates the same basis side module and runs the same
  * {@link transcodeKtx2Levels}, built from its source text so there is one loop.
  */
-import type { BasisTranscoder, CompressedTextureFormat, TranscodeResult, RgbaResult } from './compressed';
+import type { BasisLevelOptions, BasisTranscoder, TranscodeResult } from './compressed';
 import { FORMAT_CODE, RGBA_CODE, transcodeKtx2Levels, transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
 import type { SideModuleHost, SideModuleSource } from '../sideModules/host';
 import { instantiateWasmModule } from '../wasm/instantiateModule';
@@ -43,7 +43,7 @@ self.onmessage = (e) => {
         return;
     }
     ready.then((mod) => {
-        const r = transcodeKtx2Levels(mod, m.bytes, m.code);
+        const r = transcodeKtx2Levels(mod, m.bytes, m.code, m.options);
         self.postMessage({ id: m.id, result: r }, r ? r.levels.map((l) => l.data.buffer) : []);
     }).catch((err) => self.postMessage({ id: m.id, error: String(err && err.message || err) }));
 };
@@ -96,7 +96,7 @@ export function createWorkerBasisTranscoder(source: SideModuleSource, count: num
     // Least-loaded, so one slow 4K texture does not queue the small ones behind it.
     const inFlight = new Array<number>(workers.length).fill(0);
     let disposed = false;
-    const run = (ktx2: Uint8Array, code: number): Promise<TranscodeResult | null> => {
+    const run = (ktx2: Uint8Array, code: number, options?: BasisLevelOptions): Promise<TranscodeResult | null> => {
         if (disposed) return Promise.resolve(null);
         const i = inFlight.indexOf(Math.min(...inFlight));
         const id = nextId++;
@@ -105,12 +105,12 @@ export function createWorkerBasisTranscoder(source: SideModuleSource, count: num
             pending.set(id, { resolve, reject });
             // A copy is sent, not the caller's buffer: the texture loader still
             // holds these bytes for its RGBA fallback.
-            workers[i].postMessage({ id, bytes: ktx2, code });
+            workers[i].postMessage({ id, bytes: ktx2, code, options });
         }).finally(() => { inFlight[i]--; });
     };
     return {
-        transcode: (ktx2: Uint8Array, target: CompressedTextureFormat) => run(ktx2, FORMAT_CODE[target]),
-        transcodeToRgba: (ktx2: Uint8Array) => run(ktx2, RGBA_CODE) as Promise<RgbaResult | null>,
+        transcode: (ktx2, target, options) => run(ktx2, FORMAT_CODE[target], options),
+        transcodeToRgba: (ktx2, options) => run(ktx2, RGBA_CODE, options),
         dispose(): void {
             if (disposed) return;
             disposed = true;
@@ -170,7 +170,7 @@ async function makeTranscoder(host: SideModuleHost): Promise<BasisTranscoder | n
         });
     };
     return {
-        transcode: (ktx2, target) => either(() => workers.transcode(ktx2, target), () => main.transcode(ktx2, target)),
-        transcodeToRgba: (ktx2) => either(() => workers.transcodeToRgba(ktx2), () => main.transcodeToRgba(ktx2)),
+        transcode: (ktx2, target, options) => either(() => workers.transcode(ktx2, target, options), () => main.transcode(ktx2, target, options)),
+        transcodeToRgba: (ktx2, options) => either(() => workers.transcodeToRgba(ktx2, options), () => main.transcodeToRgba(ktx2, options)),
     };
 }

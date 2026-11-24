@@ -95,8 +95,40 @@ describe('the sampler of an engine-uploaded KTX2', () => {
             es_rm_getTextureGLId: (handle: number) => handle + 200,
         });
         await new TextureLoader(null).loadDetached('sprite.ktx2', ctx, false, { filter: 'nearest', wrap: 'mirror', mipmaps: false });
-        expect(createTexture).toHaveBeenCalledWith(KTX2, false, false);
+        expect(createTexture).toHaveBeenCalledWith(KTX2, false, false, 0);
         expect(renderer_setTextureParams).toHaveBeenCalledWith(203, 0, 0, 2, 2);
+    });
+
+    it('passes the streaming bound from a held texture through the native bridge', async () => {
+        const createTexture = vi.fn((_bytes: Uint8Array, _srgb: boolean, _mips: boolean, edge: number) =>
+            ({ id: 3, width: edge || 64, height: edge || 64 }));
+        host.manager = createNativeResourceManager({ es_createTextureKTX2: createTexture, es_rm_adoptTextureContent: () => true });
+        const loader = new TextureLoader(null);
+        const { handle } = await loader.load('mesh.ktx2', ctx);
+        expect(await loader.resize(handle, 16, ctx)).toEqual({ width: 16, height: 16 });
+        expect(await loader.resize(handle, 0, ctx)).toEqual({ width: 64, height: 64 });
+        expect(createTexture.mock.calls.map(args => args[3])).toEqual([0, 16, 0]);
+    });
+
+    it('keeps a sub-block preview drawable and restores the original compressed content on the same handle', async () => {
+        const createCompressedTexture = vi.fn(() => 7);
+        host.manager = { ...rm, createTextureFromKTX2: undefined, supportsCompressedFormat: () => true, createCompressedTexture };
+        const module = { HEAPU8: new Uint8Array(128), _malloc: () => 16, _free: vi.fn() };
+        const loader = new TextureLoader(module as unknown as ESEngineModule);
+        const level = (width: number) => ({ width, height: width, data: new Uint8Array(16) });
+        const levels = [level(4), level(2), level(1)];
+        // An injected transcoder may still return every level. Its full result must work on resize too.
+        const transcodeToRgba = vi.fn(() => ({ ...levels[0]!, levels }));
+        loader.setTranscoder({ transcode: () => ({ ...levels[0]!, levels }), transcodeToRgba });
+        const { handle } = await loader.load('mesh.ktx2', ctx);
+        expect(await loader.resize(handle, 2, ctx)).toEqual({ width: 2, height: 2 });
+        expect(createCompressedTexture).toHaveBeenCalledOnce();
+        expect(transcodeToRgba).toHaveBeenCalledWith(KTX2, { maxEdge: 2, mipmaps: false });
+        expect(textureFormatOf(loader.formatReport(), 'mesh.ktx2')?.reason).toBe('not-block-aligned');
+        expect(rm.adoptTextureContent).toHaveBeenLastCalledWith(handle, 4);
+        expect(await loader.resize(handle, 0, ctx)).toEqual({ width: 4, height: 4 });
+        expect(createCompressedTexture).toHaveBeenCalledTimes(2);
+        expect(textureFormatOf(loader.formatReport(), 'mesh.ktx2')?.reason).toBe('compressed');
     });
 
     it('releases an unpublished texture when the device rejects the sampler', async () => {

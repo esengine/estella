@@ -37,6 +37,31 @@ function makeMockBasis(opts: MockOpts = {}) {
 }
 
 describe('BasisTranscoderImpl', () => {
+    it('only allocates and decodes requested levels, including the last available level', () => {
+        const { mod } = makeMockBasis();
+        const widths = [48, 24, 12, 6];
+        const size = vi.fn(() => 16);
+        const decode = vi.fn(() => 1);
+        Object.assign(mod, {
+            _es_basis_level_count: () => widths.length,
+            _es_basis_level_width: (i: number) => widths[i],
+            _es_basis_level_height: (i: number) => widths[i]! / 2,
+            _es_basis_level_size: size, _es_basis_transcode_level: decode,
+        });
+        const t = new BasisTranscoderImpl(mod);
+        const file = new Uint8Array([1]);
+        expect(t.transcode(file, CompressedTextureFormat.ASTC_4x4, { maxEdge: 17 })?.levels?.map(l => l.width)).toEqual([12, 6]);
+        expect(size.mock.calls).toEqual([[1, 2], [1, 3]]);
+        size.mockClear();
+        expect(t.transcodeToRgba(file, { maxEdge: 25, mipmaps: false })?.width).toBe(24);
+        expect(size.mock.calls).toEqual([[3, 1]]);
+        size.mockClear();
+        decode.mockReturnValueOnce(0);
+        expect(t.transcodeToRgba(file, { maxEdge: 1 })).toBeNull();
+        expect(size.mock.calls).toEqual([[3, 3]]);
+        expect(mod._es_basis_close).toHaveBeenCalledTimes(3);
+    });
+
     it('copies input into the heap, transcodes to the requested format, copies output out', () => {
         const { mod, heap, calls } = makeMockBasis({ width: 16, height: 8, transcodedSize: 24, fillByte: 0xab });
         const ktx2 = new Uint8Array([1, 2, 3, 4, 5]);
